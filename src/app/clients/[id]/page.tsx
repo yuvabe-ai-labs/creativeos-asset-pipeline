@@ -59,14 +59,14 @@ export default function ClientPage() {
     <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-12">
       <Link
         href="/"
-        className="font-mono text-xs uppercase tracking-[0.15em] text-muted-foreground transition-colors hover:text-foreground"
+        className="text-eyebrow transition-colors hover:text-foreground"
       >
         ← All clients
       </Link>
 
       <header className="animate-rise mb-10 mt-3 flex items-start justify-between gap-4">
         <div>
-          <h1 className="font-display text-4xl font-semibold tracking-tight">
+          <h1 className="font-display text-4xl font-semibold tracking-[-0.02em]">
             {client.name}
           </h1>
           {client.contextNotes && (
@@ -118,8 +118,8 @@ export default function ClientPage() {
                 href={`/clients/${client.id}/canvases/${canvas.id}`}
                 className="group block"
               >
-                <Card className="p-5 transition-all duration-200 group-hover:-translate-y-0.5 group-hover:border-primary/40 group-hover:shadow-sm">
-                  <span className="font-display text-lg font-medium">
+                <Card className="shadow-card p-6 transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:-translate-y-0.5 group-hover:scale-[1.006]">
+                  <span className="font-display text-xl font-medium">
                     {canvas.name}
                   </span>
                 </Card>

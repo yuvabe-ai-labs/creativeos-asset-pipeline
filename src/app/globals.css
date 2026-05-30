@@ -7,10 +7,10 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-hanken);
-  --font-mono: var(--font-jetbrains);
-  --font-heading: var(--font-fraunces);
-  --font-display: var(--font-fraunces);
+  --font-sans: var(--font-gilroy);
+  --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --font-heading: var(--font-clash);
+  --font-display: var(--font-clash);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -44,81 +44,120 @@
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
+  --radius-2xl: calc(var(--radius) * 1.9);
+  --radius-3xl: calc(var(--radius) * 2.4);
+  --radius-4xl: calc(var(--radius) * 2.8);
 }
 
-/* ─── CreativeOS aesthetic ─────────────────────────────────────────────
-   Warm paper + ink + a vermilion accent. Cohesive, distinctive, tool-first.
-   All colors flow through these tokens — never hardcode. */
+/* ═══════════════════════════════════════════════════════════════════════
+   Yuvabe Studios design system (ref/Yuvabe Studios Design System).
+   "Light editorial premium." Purple is the SINGLE brand color, used
+   sparingly (CTA, brand mark). Neutrals do the heavy lifting. Two
+   families only: Clash Display (headings) + Gilroy (body).
+   Yuvabe tokens are mapped onto the shadcn variable names below so every
+   component inherits the brand automatically.
+   ═══════════════════════════════════════════════════════════════════ */
 :root {
-  --background: oklch(0.985 0.006 83);
-  --foreground: oklch(0.19 0.01 55);
-  --card: oklch(0.997 0.003 90);
-  --card-foreground: oklch(0.19 0.01 55);
-  --popover: oklch(0.997 0.003 90);
-  --popover-foreground: oklch(0.19 0.01 55);
-  --primary: oklch(0.62 0.2 33);
-  --primary-foreground: oklch(0.99 0.01 85);
-  --secondary: oklch(0.95 0.012 82);
-  --secondary-foreground: oklch(0.24 0.012 55);
-  --muted: oklch(0.955 0.01 82);
-  --muted-foreground: oklch(0.5 0.018 55);
-  --accent: oklch(0.94 0.035 55);
-  --accent-foreground: oklch(0.34 0.07 40);
-  --destructive: oklch(0.54 0.21 23);
-  --border: oklch(0.9 0.01 78);
-  --input: oklch(0.9 0.01 78);
-  --ring: oklch(0.62 0.2 33);
-  --chart-1: oklch(0.62 0.2 33);
-  --chart-2: oklch(0.68 0.13 60);
-  --chart-3: oklch(0.55 0.08 50);
-  --chart-4: oklch(0.45 0.06 45);
-  --chart-5: oklch(0.35 0.04 40);
-  --radius: 0.7rem;
-  --sidebar: oklch(0.975 0.008 83);
-  --sidebar-foreground: oklch(0.19 0.01 55);
-  --sidebar-primary: oklch(0.62 0.2 33);
-  --sidebar-primary-foreground: oklch(0.99 0.01 85);
-  --sidebar-accent: oklch(0.94 0.035 55);
-  --sidebar-accent-foreground: oklch(0.34 0.07 40);
-  --sidebar-border: oklch(0.9 0.01 78);
-  --sidebar-ring: oklch(0.62 0.2 33);
+  /* Brand primitives */
+  --purple-500: #5829c7;
+  --purple-hover: #4c24ab;
+  --yellow-500: #ffca2d;
+  --lavender-500: #9688c0;
+  --lavender-200: #cbc3df;
+  --cyan-500: #2bb7c7;
+  --green-500: #90c645;
+  --red-orange-500: #f04e28;
+
+  /* Neutrals */
+  --neutral-0: #ffffff;
+  --neutral-25: #fcfcfd;
+  --neutral-50: #f8f8fa;
+  --neutral-100: #f1f2f4;
+  --neutral-200: #e5e7eb;
+  --neutral-300: #d1d5db;
+  --neutral-500: #6b7280;
+  --neutral-700: #374151;
+  --neutral-900: #111827;
+
+  /* Elevation (tinted blue-black, 3-step) */
+  --shadow-sm: 0 1px 2px rgba(11, 15, 25, 0.06);
+  --shadow-md: 0 8px 20px rgba(11, 15, 25, 0.06);
+  --shadow-lg: 0 16px 32px rgba(11, 15, 25, 0.12);
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --duration-fast: 200ms;
+  --duration-base: 320ms;
+  --duration-slow: 500ms;
+
+  /* shadcn semantic tokens → Yuvabe palette */
+  --background: var(--neutral-25);
+  --foreground: var(--neutral-900);
+  --card: var(--neutral-0);
+  --card-foreground: var(--neutral-900);
+  --popover: var(--neutral-0);
+  --popover-foreground: var(--neutral-900);
+  --primary: var(--purple-500);
+  --primary-foreground: var(--neutral-0);
+  --secondary: var(--neutral-100);
+  --secondary-foreground: var(--neutral-900);
+  --muted: var(--neutral-50);
+  --muted-foreground: var(--neutral-500);
+  --accent: var(--neutral-100);
+  --accent-foreground: var(--neutral-900);
+  --destructive: var(--red-orange-500);
+  --border: var(--neutral-200);
+  --input: var(--neutral-200);
+  --ring: var(--purple-500);
+  --chart-1: var(--purple-500);
+  --chart-2: var(--yellow-500);
+  --chart-3: var(--lavender-500);
+  --chart-4: var(--cyan-500);
+  --chart-5: var(--green-500);
+  --radius: 0.75rem;
+  --sidebar: var(--neutral-50);
+  --sidebar-foreground: var(--neutral-900);
+  --sidebar-primary: var(--purple-500);
+  --sidebar-primary-foreground: var(--neutral-0);
+  --sidebar-accent: var(--neutral-100);
+  --sidebar-accent-foreground: var(--neutral-900);
+  --sidebar-border: var(--neutral-200);
+  --sidebar-ring: var(--purple-500);
 }
 
+/* Dark = Yuvabe "brand-night" (deep indigo). Secondary; app runs light. */
 .dark {
-  --background: oklch(0.18 0.006 55);
-  --foreground: oklch(0.96 0.005 85);
-  --card: oklch(0.22 0.006 55);
-  --card-foreground: oklch(0.96 0.005 85);
-  --popover: oklch(0.22 0.006 55);
-  --popover-foreground: oklch(0.96 0.005 85);
-  --primary: oklch(0.68 0.19 34);
-  --primary-foreground: oklch(0.16 0.01 50);
-  --secondary: oklch(0.28 0.006 55);
-  --secondary-foreground: oklch(0.96 0.005 85);
-  --muted: oklch(0.28 0.006 55);
-  --muted-foreground: oklch(0.72 0.012 70);
-  --accent: oklch(0.31 0.025 45);
-  --accent-foreground: oklch(0.95 0.01 85);
-  --destructive: oklch(0.7 0.19 22);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.68 0.19 34);
-  --chart-1: oklch(0.68 0.19 34);
-  --chart-2: oklch(0.7 0.13 62);
-  --chart-3: oklch(0.6 0.09 52);
-  --chart-4: oklch(0.5 0.07 47);
-  --chart-5: oklch(0.4 0.05 42);
-  --sidebar: oklch(0.22 0.006 55);
-  --sidebar-foreground: oklch(0.96 0.005 85);
-  --sidebar-primary: oklch(0.68 0.19 34);
-  --sidebar-primary-foreground: oklch(0.16 0.01 50);
-  --sidebar-accent: oklch(0.31 0.025 45);
-  --sidebar-accent-foreground: oklch(0.95 0.01 85);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.68 0.19 34);
+  --background: #140f2b;
+  --foreground: #f8f8fa;
+  --card: #1c1540;
+  --card-foreground: #f8f8fa;
+  --popover: #1c1540;
+  --popover-foreground: #f8f8fa;
+  --primary: #9d86f5;
+  --primary-foreground: #160f2e;
+  --secondary: #261b4d;
+  --secondary-foreground: #f8f8fa;
+  --muted: #261b4d;
+  --muted-foreground: #b3aed0;
+  --accent: #2c2058;
+  --accent-foreground: #f8f8fa;
+  --destructive: #f56b49;
+  --border: rgba(255, 255, 255, 0.1);
+  --input: rgba(255, 255, 255, 0.14);
+  --ring: #9d86f5;
+  --chart-1: #9d86f5;
+  --chart-2: #ffca2d;
+  --chart-3: #9688c0;
+  --chart-4: #2bb7c7;
+  --chart-5: #90c645;
+  --sidebar: #1c1540;
+  --sidebar-foreground: #f8f8fa;
+  --sidebar-primary: #9d86f5;
+  --sidebar-primary-foreground: #160f2e;
+  --sidebar-accent: #2c2058;
+  --sidebar-accent-foreground: #f8f8fa;
+  --sidebar-border: rgba(255, 255, 255, 0.1);
+  --sidebar-ring: #9d86f5;
 }
 
 @layer base {
@@ -127,35 +166,61 @@
   }
   body {
     @apply bg-background text-foreground;
-    /* subtle warm glow at the top edge — atmosphere, not flat color */
-    background-image: radial-gradient(
-      ellipse 75% 55% at 50% -12%,
-      color-mix(in oklch, var(--primary) 9%, transparent),
-      transparent 70%
-    );
-    background-attachment: fixed;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
   }
   html {
     @apply font-sans;
   }
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-clash);
+  }
+  ::selection {
+    background: color-mix(in srgb, var(--purple-500) 18%, white);
+  }
 }
 
-/* Canvas surface: a dotted grid so the editor reads as a real workspace. */
+/* ─── Yuvabe utilities ──────────────────────────────────────────────── */
+
+/* Eyebrow — widely-tracked small caps above headings (replaces mono labels) */
+.text-eyebrow {
+  font-family: var(--font-gilroy);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  color: var(--muted-foreground);
+}
+
+/* Canvas surface — the signal grid, so the editor reads as a workspace */
 .canvas-surface {
-  background-color: var(--muted);
-  background-image: radial-gradient(
-    color-mix(in oklch, var(--foreground) 13%, transparent) 1px,
-    transparent 1px
-  );
-  background-size: 22px 22px;
-  background-position: -1px -1px;
+  background-color: var(--neutral-50);
+  background-image:
+    linear-gradient(to right, rgba(148, 163, 184, 0.12) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(148, 163, 184, 0.1) 1px, transparent 1px);
+  background-size: 72px 72px;
+}
+.dark .canvas-surface {
+  background-color: #140f2b;
+  background-image:
+    linear-gradient(to right, rgba(150, 136, 192, 0.12) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(150, 136, 192, 0.1) 1px, transparent 1px);
 }
 
-/* One tasteful entrance: staggered rise-in on load. */
+/* Soft, high, blue-black-tinted elevation */
+.shadow-card {
+  box-shadow: var(--shadow-sm);
+}
+
+/* One tasteful entrance: staggered rise-in, brand easing (section reveal). */
 @keyframes rise {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(12px);
   }
   to {
     opacity: 1;
@@ -163,7 +228,7 @@
   }
 }
 .animate-rise {
-  animation: rise 0.5s cubic-bezier(0.2, 0.6, 0.2, 1) both;
+  animation: rise var(--duration-slow) var(--ease-out) both;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -41,10 +41,8 @@ export default function ClientsPage() {
     <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-14">
       <header className="animate-rise mb-10 flex items-end justify-between">
         <div>
-          <p className="font-mono text-[0.7rem] font-medium uppercase tracking-[0.2em] text-muted-foreground">
-            Increment 1B · in-memory
-          </p>
-          <h1 className="mt-1 font-display text-5xl font-semibold tracking-tight">
+          <p className="text-eyebrow">Increment 1B · in-memory</p>
+          <h1 className="mt-2 font-display text-5xl font-semibold tracking-[-0.02em]">
             Clients
           </h1>
         </div>
@@ -105,11 +103,11 @@ export default function ClientsPage() {
               style={{ animationDelay: `${80 + i * 45}ms` }}
             >
               <Link href={`/clients/${client.id}`} className="group block">
-                <Card className="gap-1 p-5 transition-all duration-200 group-hover:-translate-y-0.5 group-hover:border-primary/40 group-hover:shadow-sm">
-                  <span className="font-display text-lg font-medium leading-tight">
+                <Card className="shadow-card gap-1 p-6 transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:-translate-y-0.5 group-hover:scale-[1.006]">
+                  <span className="font-display text-xl font-medium leading-tight">
                     {client.name}
                   </span>
-                  <span className="font-mono text-xs text-muted-foreground">
+                  <span className="text-sm font-medium text-muted-foreground">
                     {client.canvases.length} canvas
                     {client.canvases.length === 1 ? "" : "es"}
                   </span>

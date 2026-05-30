@@ -39,9 +39,7 @@ export default function CanvasPage() {
           render={<Link href={`/clients/${client.id}`}>←</Link>}
         />
         <div className="flex flex-col">
-          <span className="font-mono text-[0.7rem] uppercase tracking-[0.15em] text-muted-foreground">
-            {client.name}
-          </span>
+          <span className="text-eyebrow">{client.name}</span>
           <span className="font-display font-medium leading-tight">
             {canvas.name}
           </span>
