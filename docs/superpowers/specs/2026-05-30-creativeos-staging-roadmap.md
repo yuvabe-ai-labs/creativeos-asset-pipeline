@@ -213,6 +213,37 @@ intelligence.
 whole graph in order — removing the need for scheduling algorithms. Learn graph concepts
 just-in-time.
 
+### D12 — Async generation infra: job table + Supabase Realtime (no queue infra)
+**Decision.** Stages 3–4 generation is tracked as rows in a `generations` table
+(`queued → running → succeeded/failed`); results are pushed to the UI via **Supabase
+Realtime** (not polling). No Redis/SQS/BullMQ/workers.
+**Why.** Model providers are themselves async (submit → `job_id` → result), so *they* absorb
+the compute queue; internal concurrency is low. A DB table + Realtime *is* the starter queue.
+**Revisit when:** own GPU inference, high concurrency, or complex retries/fan-out create real
+backpressure.
+
+### D13 — MVP infra philosophy: "the table is the starter queue"; rent async from providers
+**Decision.** Minimum viable infra = Vercel (Next.js) + Supabase (Postgres + Storage +
+Realtime; Auth later) + model-provider APIs. No Redis/queue/Docker/k8s/worker fleet for MVP.
+Large media (images/videos) live in **object storage**, never Postgres — the DB stores only
+the path. Durable job state in the DB is the one async piece we cannot skip.
+**Why.** Queues exist for backpressure across high concurrency / your own compute — neither
+applies to an internal MVP. Start with a `status` column + Realtime; graduate to real queue
+infra only when a named pressure forces it.
+
+### D14 — Stage 1 auth: none yet
+**Decision.** Ship Stage 1 as an open app (private/internal URL); add Supabase Auth in a
+later stage.
+**Why.** PRD §18 puts multi-tenant auth out of scope; speed to a usable increment.
+**Consequence.** `node_versions.operator` is generic/empty until auth exists; no RLS yet
+(server uses the service-role key; secrets never reach the client).
+
+### D15 — Stage 1 brief input formats: paste + `.md`/`.txt` only
+**Decision.** Stage 1 accepts pasted text and `.md`/`.txt` uploads — plain text, handled
+identically (read as text, no parsing libraries). `.docx`/`.pdf` extraction deferred.
+**Why.** Keeps Stage 1 lean and avoids document-parsing edge cases; Markdown/text covers the
+common internal case.
+
 ### Parked / out-of-scope (with revisit triggers)
 | Item | Status | Revisit when |
 |---|---|---|
@@ -221,6 +252,8 @@ just-in-time.
 | Multi-tenant auth | Out of scope (PRD §18) | Post-MVP external access |
 | Automated branching / auto-rewiring | Out of scope (PRD §15) | Not planned |
 | Edge `pinned_version_id` (freeze a connection) | Optional extension (D8) | If "don't auto-follow active" is ever needed |
+| Real queue infra (Redis/SQS/BullMQ + workers) | Parked (D12/D13) | Own GPU compute, high concurrency, or complex retries |
+| `.docx`/`.pdf` brief extraction | Deferred (D15) | After Stage 1, when non-text briefs are needed |
 
 ---
 
