@@ -5,28 +5,27 @@ This version has breaking changes — APIs, conventions, and file structure may 
 <!-- END:nextjs-agent-rules -->
 
 <!-- BEGIN:frontend-aesthetics -->
-# Frontend aesthetics
+# Frontend aesthetics — Yuvabe Studios design system
 
-CreativeOS is an internal **tool** (a node-canvas editor for a creative studio), not a
-marketing site — aim for a distinctive, cohesive, genuinely "designed" feel without
-gratuitous flourish. Avoid the generic "AI-slop" look.
-(Ref: Anthropic cookbook — *coding-prompting-for-frontend-aesthetics*.)
+CreativeOS follows the **Yuvabe Studios design system**. The original export lives locally
+in `ref/Yuvabe Studios Design System/` (gitignored — not in the repo). Its tokens are
+**encoded in `src/app/globals.css`**, mapped onto the shadcn CSS variables, so that file is
+the in-repo source of truth. Aesthetic: *"light editorial premium."*
 
-- **Commit to one cohesive aesthetic.** Drive everything through the shadcn CSS variables in
-  `src/app/globals.css` — never hardcode colors. A dominant color with a sharp accent beats a
-  timid, evenly-distributed palette.
-- **Typography with character.** Avoid Inter / Roboto / Arial / system defaults. Choose a
-  distinctive pairing (e.g. a grotesk or display face + a mono) loaded via `next/font`. Build
-  real hierarchy with extreme weight contrast and large size jumps — not 400-vs-600 or 1.5×
-  steps. (We currently ship Geist from the scaffold; swap for something with more character
-  when we polish the UI.)
-- **Purposeful motion, not confetti.** It's a tool used for hours: prioritise smooth, fast
-  canvas/node interactions and at most one tasteful load/reveal. Prefer CSS; reach for the
-  Motion library only when React animation genuinely needs it.
-- **Give surfaces depth.** The canvas should read as a real workspace (subtle grid/gradient
-  texture), not flat gray. Layer backgrounds intentionally.
-- **Avoid clichés:** purple-on-white gradients, characterless card grids, cookie-cutter
-  layouts. Make choices specific to a creative-studio asset tool.
-- **Legibility first.** High contrast and sensible density — this is a working tool, not a
-  hero section.
+- **Two font families only:** **Clash Display** (headings, via `font-display`) + **Gilroy**
+  (body/UI, the default `font-sans`). Vendored in `src/fonts/`, loaded with `next/font/local`.
+  Never introduce a third family.
+- **Purple `#5829c7` is the single brand color — used SPARINGLY** (primary CTA, the brand
+  mark, focus ring). **Never a large background fill.** Neutrals do the heavy lifting
+  (`neutral-900` text, `neutral-500` metadata, `neutral-200` borders, `neutral-25/50` bg).
+  Yellow `#ffca2d` only as a soft radial glow.
+- **Drive everything through the shadcn CSS variables** in `globals.css` — never hardcode
+  colors. Use the `.text-eyebrow` utility for tracked small-caps labels (not mono).
+- **Hierarchy from weight / casing / tracking / color, not size.** ~3 type sizes per page.
+- **Cards:** white, 1px `neutral-200` border, soft high blue-black shadow
+  (`0 8px 20px rgba(11,15,25,.06)`), generous padding, radius 12–24px.
+- **Motion:** easing `cubic-bezier(0.22,1,0.36,1)` only (no springs/bounce); 200/320/500ms.
+  Card hover is barely-perceptible (`translateY(-2px) scale(1.006)`, no shadow change).
+- **Backgrounds:** the `.canvas-surface` signal grid for the editor; subtle, never flat noise.
+- **Icons:** Lucide only, 1.5 stroke, no fills.
 <!-- END:frontend-aesthetics -->
