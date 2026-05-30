@@ -5,6 +5,14 @@ import { useParams } from "next/navigation";
 import { useAppState } from "@/lib/app-state";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
 
 export default function CanvasPage() {
   const { id, cid } = useParams<{ id: string; cid: string }>();
@@ -33,19 +41,28 @@ export default function CanvasPage() {
 
   return (
     <main className="flex flex-1 flex-col">
-      <header className="flex items-center gap-3 border-b border-border/70 bg-background/60 px-5 py-2.5 backdrop-blur">
-        <Button
-          variant="ghost"
-          size="sm"
-          nativeButton={false}
-          render={<Link href={`/clients/${client.id}`}>←</Link>}
-        />
-        <div className="flex flex-col">
-          <span className="text-eyebrow">{client.name}</span>
-          <span className="font-display font-medium leading-tight">
-            {canvas.name}
-          </span>
-        </div>
+      <header className="flex items-center border-b border-border/70 bg-background/60 px-6 py-3 backdrop-blur">
+        <Breadcrumb>
+          <BreadcrumbList>
+            <BreadcrumbItem>
+              <BreadcrumbLink render={<Link href="/">Clients</Link>} />
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+            <BreadcrumbItem>
+              <BreadcrumbLink
+                render={
+                  <Link href={`/clients/${client.id}`}>{client.name}</Link>
+                }
+              />
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+            <BreadcrumbItem>
+              <BreadcrumbPage className="font-display font-medium">
+                {canvas.name}
+              </BreadcrumbPage>
+            </BreadcrumbItem>
+          </BreadcrumbList>
+        </Breadcrumb>
       </header>
 
       <div className="canvas-surface flex flex-1 items-center justify-center p-6">

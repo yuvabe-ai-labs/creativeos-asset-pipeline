@@ -10,6 +10,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
+import {
   Dialog,
   DialogContent,
   DialogFooter,
@@ -58,14 +66,19 @@ export default function ClientPage() {
 
   return (
     <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-12">
-      <Link
-        href="/"
-        className="text-eyebrow transition-colors hover:text-foreground"
-      >
-        ← All clients
-      </Link>
+      <Breadcrumb className="animate-rise">
+        <BreadcrumbList>
+          <BreadcrumbItem>
+            <BreadcrumbLink render={<Link href="/">Clients</Link>} />
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbPage>{client.name}</BreadcrumbPage>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
 
-      <header className="animate-rise mb-10 mt-3 flex items-start justify-between gap-4">
+      <header className="animate-rise mb-10 mt-4 flex items-start justify-between gap-4">
         <div>
           <h1 className="font-display text-4xl font-semibold tracking-[-0.02em]">
             {client.name}
