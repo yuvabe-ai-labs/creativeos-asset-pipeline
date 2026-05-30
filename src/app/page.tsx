@@ -1,14 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ChangeEvent } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
+import { ImageIcon } from "lucide-react";
 import { useAppState } from "@/lib/app-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Card } from "@/components/ui/card";
+import {
+  Card,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -19,21 +25,46 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 
+function initials(name: string) {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0])
+    .join("")
+    .toUpperCase();
+}
+
 export default function ClientsPage() {
   const { clients, addClient } = useAppState();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [contextNotes, setContextNotes] = useState("");
+  const [logo, setLogo] = useState("");
+
+  function handleLogoChange(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () =>
+      setLogo(typeof reader.result === "string" ? reader.result : "");
+    reader.readAsDataURL(file);
+  }
+
+  function reset() {
+    setName("");
+    setContextNotes("");
+    setLogo("");
+  }
 
   function handleCreate() {
     if (!name.trim()) {
       toast.error("Client needs a name");
       return;
     }
-    const client = addClient(name.trim(), contextNotes.trim());
+    const client = addClient(name.trim(), contextNotes.trim(), logo || undefined);
     toast.success(`Created “${client.name}”`);
-    setName("");
-    setContextNotes("");
+    reset();
     setOpen(false);
   }
 
@@ -47,7 +78,13 @@ export default function ClientsPage() {
           </h1>
         </div>
 
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog
+          open={open}
+          onOpenChange={(o) => {
+            setOpen(o);
+            if (!o) reset();
+          }}
+        >
           <DialogTrigger render={<Button>New client</Button>} />
           <DialogContent>
             <DialogHeader>
@@ -68,6 +105,34 @@ export default function ClientsPage() {
                   autoFocus
                 />
               </div>
+
+              <div className="grid gap-2">
+                <Label>Logo</Label>
+                <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-dashed border-border p-3 transition-colors hover:bg-muted/40">
+                  {logo ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={logo}
+                      alt="Logo preview"
+                      className="size-11 rounded-md object-contain"
+                    />
+                  ) : (
+                    <span className="flex size-11 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                      <ImageIcon className="size-5" />
+                    </span>
+                  )}
+                  <span className="text-sm text-muted-foreground">
+                    {logo ? "Change logo" : "Upload a logo (PNG, SVG, JPG)"}
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleLogoChange}
+                  />
+                </label>
+              </div>
+
               <div className="grid gap-2">
                 <Label htmlFor="notes">Context notes</Label>
                 <Textarea
@@ -95,7 +160,7 @@ export default function ClientsPage() {
           </p>
         </Card>
       ) : (
-        <ul className="grid gap-3 sm:grid-cols-2">
+        <ul className="grid gap-4 sm:grid-cols-2">
           {clients.map((client, i) => (
             <li
               key={client.id}
@@ -103,14 +168,30 @@ export default function ClientsPage() {
               style={{ animationDelay: `${80 + i * 45}ms` }}
             >
               <Link href={`/clients/${client.id}`} className="group block">
-                <Card className="shadow-card gap-1 p-6 transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:-translate-y-0.5 group-hover:scale-[1.006]">
-                  <span className="font-display text-xl font-medium leading-tight">
-                    {client.name}
-                  </span>
-                  <span className="text-sm font-medium text-muted-foreground">
-                    {client.canvases.length} canvas
-                    {client.canvases.length === 1 ? "" : "es"}
-                  </span>
+                <Card className="shadow-card gap-0 overflow-hidden p-0 transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:-translate-y-0.5 group-hover:scale-[1.006]">
+                  <div className="flex h-28 items-center justify-center border-b bg-muted/40 p-5">
+                    {client.logo ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={client.logo}
+                        alt={`${client.name} logo`}
+                        className="max-h-full max-w-[70%] object-contain"
+                      />
+                    ) : (
+                      <span className="font-display text-3xl font-semibold text-muted-foreground/40">
+                        {initials(client.name)}
+                      </span>
+                    )}
+                  </div>
+                  <CardHeader className="py-4">
+                    <CardTitle className="font-display text-xl">
+                      {client.name}
+                    </CardTitle>
+                    <CardDescription>
+                      {client.canvases.length} canvas
+                      {client.canvases.length === 1 ? "" : "es"}
+                    </CardDescription>
+                  </CardHeader>
                 </Card>
               </Link>
             </li>

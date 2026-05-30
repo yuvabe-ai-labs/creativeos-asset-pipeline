@@ -31,7 +31,7 @@ function uniqueSlug(name: string, taken: Iterable<string>): string {
 type AppState = {
   clients: Client[];
   getClient: (id: string) => Client | undefined;
-  addClient: (name: string, contextNotes: string) => Client;
+  addClient: (name: string, contextNotes: string, logo?: string) => Client;
   addCanvas: (clientId: string, name: string) => Canvas | undefined;
 };
 
@@ -46,10 +46,11 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   );
 
   const addClient = useCallback(
-    (name: string, contextNotes: string) => {
+    (name: string, contextNotes: string, logo?: string) => {
       const client: Client = {
         id: uniqueSlug(name, clients.map((c) => c.id)),
         name,
+        logo,
         contextNotes,
         canvases: [],
         createdAt: Date.now(),

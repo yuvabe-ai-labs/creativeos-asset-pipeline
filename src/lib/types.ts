@@ -11,6 +11,7 @@ export type Canvas = {
 export type Client = {
   id: string;
   name: string;
+  logo?: string; // data URL (1B in-memory); becomes a storage path in 1D
   contextNotes: string; // "ambient" client context (see architecture doc)
   canvases: Canvas[];
   createdAt: number;

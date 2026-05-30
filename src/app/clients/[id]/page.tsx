@@ -26,6 +26,16 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 
+function initials(name: string) {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0])
+    .join("")
+    .toUpperCase();
+}
+
 export default function ClientPage() {
   const { id } = useParams<{ id: string }>();
   const { getClient, addCanvas } = useAppState();
@@ -79,15 +89,29 @@ export default function ClientPage() {
       </Breadcrumb>
 
       <header className="animate-rise mb-10 mt-4 flex items-start justify-between gap-4">
-        <div>
-          <h1 className="font-display text-4xl font-semibold tracking-[-0.02em]">
-            {client.name}
-          </h1>
-          {client.contextNotes && (
-            <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground">
-              {client.contextNotes}
-            </p>
+        <div className="flex items-start gap-4">
+          {client.logo ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={client.logo}
+              alt={`${client.name} logo`}
+              className="size-14 shrink-0 rounded-lg border bg-card object-contain p-1.5"
+            />
+          ) : (
+            <span className="flex size-14 shrink-0 items-center justify-center rounded-lg border bg-card font-display text-xl font-semibold text-muted-foreground/50">
+              {initials(client.name)}
+            </span>
           )}
+          <div>
+            <h1 className="font-display text-4xl font-semibold tracking-[-0.02em]">
+              {client.name}
+            </h1>
+            {client.contextNotes && (
+              <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground">
+                {client.contextNotes}
+              </p>
+            )}
+          </div>
         </div>
 
         <Dialog open={open} onOpenChange={setOpen}>
