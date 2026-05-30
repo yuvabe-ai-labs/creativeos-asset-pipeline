@@ -37,6 +37,7 @@ export default function ClientPage() {
           <Button
             variant="outline"
             className="mt-2"
+            nativeButton={false}
             render={<Link href="/">← All clients</Link>}
           />
         </Card>

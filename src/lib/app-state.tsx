@@ -8,6 +8,26 @@
 import { createContext, useCallback, useContext, useMemo, useState } from "react";
 import type { Canvas, Client } from "@/lib/types";
 
+// Readable, URL-friendly id from a name (e.g. "Acme Co." -> "acme-co").
+// Used as the in-memory id so routes read like /clients/acme-co/canvases/spring-reel.
+function slugify(input: string): string {
+  return input
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+// Ensure the slug is unique within a scope, suffixing -2, -3… on collision.
+function uniqueSlug(name: string, taken: Iterable<string>): string {
+  const base = slugify(name) || "item";
+  const used = new Set(taken);
+  let slug = base;
+  let n = 2;
+  while (used.has(slug)) slug = `${base}-${n++}`;
+  return slug;
+}
+
 type AppState = {
   clients: Client[];
   getClient: (id: string) => Client | undefined;
@@ -25,31 +45,39 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     [clients],
   );
 
-  const addClient = useCallback((name: string, contextNotes: string) => {
-    const client: Client = {
-      id: crypto.randomUUID(),
-      name,
-      contextNotes,
-      canvases: [],
-      createdAt: Date.now(),
-    };
-    setClients((prev) => [...prev, client]);
-    return client;
-  }, []);
+  const addClient = useCallback(
+    (name: string, contextNotes: string) => {
+      const client: Client = {
+        id: uniqueSlug(name, clients.map((c) => c.id)),
+        name,
+        contextNotes,
+        canvases: [],
+        createdAt: Date.now(),
+      };
+      setClients((prev) => [...prev, client]);
+      return client;
+    },
+    [clients],
+  );
 
-  const addCanvas = useCallback((clientId: string, name: string) => {
-    const canvas: Canvas = {
-      id: crypto.randomUUID(),
-      name,
-      createdAt: Date.now(),
-    };
-    setClients((prev) =>
-      prev.map((c) =>
-        c.id === clientId ? { ...c, canvases: [...c.canvases, canvas] } : c,
-      ),
-    );
-    return canvas;
-  }, []);
+  const addCanvas = useCallback(
+    (clientId: string, name: string) => {
+      const client = clients.find((c) => c.id === clientId);
+      if (!client) return undefined;
+      const canvas: Canvas = {
+        id: uniqueSlug(name, client.canvases.map((c) => c.id)),
+        name,
+        createdAt: Date.now(),
+      };
+      setClients((prev) =>
+        prev.map((c) =>
+          c.id === clientId ? { ...c, canvases: [...c.canvases, canvas] } : c,
+        ),
+      );
+      return canvas;
+    },
+    [clients],
+  );
 
   const value = useMemo(
     () => ({ clients, getClient, addClient, addCanvas }),

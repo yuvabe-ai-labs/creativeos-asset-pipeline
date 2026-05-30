@@ -23,6 +23,7 @@ export default function CanvasPage() {
           <Button
             variant="outline"
             className="mt-2"
+            nativeButton={false}
             render={<Link href="/">← All clients</Link>}
           />
         </Card>
@@ -36,6 +37,7 @@ export default function CanvasPage() {
         <Button
           variant="ghost"
           size="sm"
+          nativeButton={false}
           render={<Link href={`/clients/${client.id}`}>←</Link>}
         />
         <div className="flex flex-col">
