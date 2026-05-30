@@ -226,8 +226,12 @@ just-in-time.
 
 ## 8. Next step
 
-Design **Stage 1 (Persistent canvas + Brief node)** in full detail as its own spec —
-including the concrete Supabase schema for `clients` / `canvases` / `nodes` /
-`node_versions`, how the canvas persists React Flow state, and how the Brief-parse Route
-Handler works. That spec is where the data-modeling and graph concepts get pinned down
-concretely.
+The reusable spine — node lifecycle, the node×input-kinds matrix, the version envelope, and
+the full Supabase schema — now lives in its own reference:
+**`2026-05-30-creativeos-architecture.md`**.
+
+Next, design **Stage 1 (Persistent canvas + Brief node)** as its own build spec — how the
+canvas persists React Flow state (load/save, debounced writes, client-generated UUIDs), the
+Brief node UI + upload/paste flow, the Brief-parse Route Handler (holding the model key),
+and Stage 1 scope cuts (e.g. which brief formats to support first). It will reference the
+architecture doc for the schema rather than restating it.
