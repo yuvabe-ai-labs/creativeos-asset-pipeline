@@ -26,9 +26,12 @@ shippable stages, and the decisions that frame every stage.
 
 | Decision | Choice | Why |
 |---|---|---|
-| **Persistence** | **Supabase** (Postgres + Storage + Auth + Edge Functions) | The PRD forces a server boundary on day one (see §3). Supabase gives a frontend dev a real DB, file storage, and a place to hold API secrets without running servers. Postgres also makes the relational *archive bundle* (PRD §16) clean. |
-| **Frontend** | **React + Vite** | Standard, fast, matches developer fluency. |
-| **Canvas** | **React Flow (`@xyflow/react`)** | Purpose-built for node/edge editors; nodes & edges are plain data arrays we own, mapping ~1:1 onto Supabase tables. (tldraw = wrong abstraction; hand-rolled = reinventing React Flow.) |
+| **App framework** | **Next.js (App Router)** | One TypeScript codebase for frontend + server, one Node runtime, one deploy. Server logic (model calls, brief parsing) lives in Route Handlers / Server Actions with full npm access. Collapses the secret trust-boundary to "Server Action vs Client Component." |
+| **Data layer** | **Supabase** (Postgres + Storage + Auth) | A backend is forced on day one (see §3). Supabase gives a real DB, file storage, and auth without running servers. Postgres makes the relational *archive bundle* (PRD §16) clean. **No Supabase Edge Functions for MVP** — server code lives in Next.js instead. |
+| **Canvas** | **React Flow (`@xyflow/react`)** | Purpose-built for node/edge editors; nodes & edges are plain data arrays we own, mapping ~1:1 onto Supabase tables. (tldraw = wrong abstraction; hand-rolled = reinventing React Flow.) Client-only (`'use client'`). |
+
+> See **§7. Key decisions (ADR log)** below for the full reasoning, alternatives rejected,
+> and parked items behind these choices.
 
 ---
 
@@ -38,7 +41,8 @@ Three properties of the PRD make pure local-first impossible for real designers:
 
 1. **Generation needs secrets.** Every Generate / Parse / Process action calls an LLM,
    image, or video model. Those API keys cannot live in browser code → need a
-   server-side function (Supabase Edge Function) to hold keys and make the call.
+   server-side function (a Next.js Route Handler / Server Action) to hold keys and make
+   the call.
 2. **Video generation is long-running and async.** Submit job → poll → resolve. Job
    state must survive a page refresh → needs durable server-side state.
 3. **Archives + client KB are shared and durable.** PRD §16 archive bundles and the
@@ -76,9 +80,9 @@ not rewrites). The data model built in Stage 1 is still the one in use at Stage 
 - **Ships:** Create a client/canvas, parse a brief (upload/paste → Parse), keep every
   parse in version history. Replaces one tool-switch immediately.
 - **Builds the spine:** clients → canvases → nodes data model; version log; file storage;
-  first secret-holding Edge Function.
-- **New concepts:** node data model · append-only version log · secrets in an Edge
-  Function · file storage.
+  first secret-holding Route Handler.
+- **New concepts:** node data model · append-only version log · secrets in a server Route
+  Handler · file storage.
 
 ### Stage 2 — Text + File nodes + edges + Prompt node
 - **Ships:** Compose brief + notes + references into a generated image prompt. This is the
@@ -109,7 +113,7 @@ not rewrites). The data model built in Stage 1 is still the one in use at Stage 
 |---|---|
 | Node model (type + JSONB data) | Stage 1 |
 | Append-only version log + active pointer | Stage 1 |
-| Secrets via Edge Functions | Stage 1 |
+| Secrets via server Route Handlers | Stage 1 |
 | File storage | Stage 1 |
 | Edges as adjacency-list data | Stage 2 |
 | Upstream input resolution & context compilation | Stage 2 |
@@ -122,10 +126,108 @@ not rewrites). The data model built in Stage 1 is still the one in use at Stage 
 
 ---
 
-## 7. Next step
+## 7. Key decisions (ADR log)
+
+Each entry records *what* we chose, *why*, and *what we rejected*, so decisions aren't
+silently re-litigated. Append new decisions here as they're made.
+
+### D1 — Stack: Next.js + React Flow + Supabase
+**Decision.** Next.js (App Router) + React Flow + Supabase (Postgres + Storage + Auth).
+Secret-holding server logic (model calls, brief parsing, generation) lives in Next.js
+Route Handlers / Server Actions. **No Supabase Edge Functions for MVP.**
+**Why.** One TS codebase + one runtime + one deploy; full npm (Anthropic SDK, `.docx`/`.pdf`
+parsers); trust boundary collapses to "Server Action vs Client Component."
+**Rejected.** Vite + Edge Functions (split Deno runtime/deploy); pure local-first
+(impossible — secrets + long jobs + shared state); Firebase (graph/archive awkward).
+**Watch-items.** React Flow is client-only; serverless time limits make the submit→poll
+design for video gen (Stage 4) mandatory.
+
+### D2 — Slicing: vertical slices, one usable node-capability per stage
+**Decision.** One node type end-to-end per stage, in PRD-pipeline order (the five stages).
+**Why.** Goal is shipping usable increments; only vertical slices make every stage usable.
+**Rejected.** Horizontal layers (nothing usable until late); thin end-to-end thread (a demo,
+not shippable increments). **Cost accepted:** Stage 1 carries the "spine tax."
+
+### D3 — Reusable node template: one lifecycle, two varying steps
+**Decision.** Every node shares `resolveInputs → compile → runAction → writeVersion →
+setActive`; **only `compile` + `runAction` are type-specific.**
+**Why.** PRD describes every node as Inputs→Action→Output→History. Stages 2–5 become "fill
+in compile + runAction." `compile` is a pure function = testable + the visible "final
+compiled prompt."
+
+### D4 — Version envelope: append-only event log, uniform shape
+**Decision.** All AI actions append to one table `node_versions` with a uniform envelope
+(`inputs_used`, `params_used`, `model_used`, `output`, `error`, `decision`, `note`,
+`operator`, `created_at`). Brief "parse", Prompt "generate", Image "attempt" = same shape.
+**Why.** History *is* the product ("learn from every attempt"); append-only history makes
+compare/restore free. **Rejected.** Overwriting output on the node — destroys history.
+
+### D5 — Active output: a pointer (cache), not truth
+**Decision.** Each node has nullable `active_version_id`; restore = move the pointer;
+history never mutated.
+**Why.** Event-sourcing shape — the log is truth, the pointer caches "which event is
+current." Restore/compare/undo fall out safely.
+
+### D6 — Client context is ambient, not an edge
+**Decision.** Client context is reached via `node → canvas → client` (FK walk), not edges.
+Always available to every node.
+**Why.** Matches PRD §9.1; edges would clutter canvases and force re-wiring. Two resolution
+mechanisms: ambient = walk parent FKs; explicit = walk the edge graph.
+
+### D7 — Client context Stage 1: thin, whole-included, upgradeable
+**Decision.** Stage 1 = one `clients.context_notes` field, included whole when a node opts
+in via `nodes.data.client_context: "all" | "none"` (a toggle), which upgrades for free to a
+selection list `["item-id", …]` when context grows. `resolveInputs` branches on shape.
+**Why.** At MVP scale context is tiny vs a ~200K window — rationing solves a non-problem.
+The real lever is *selection*, not *quantity*; JSONB makes toggle→multi-select migration-free.
+**Parked — the "context slider."** A "% of context" slider needs relevance ranking =
+**RAG/vector search** (PRD §18 out of scope). **Revisit when:** a client KB outgrows the
+context window → add retrieval; the slider is its UI.
+
+### D8 — Edges point to nodes; resolution follows the active version
+**Decision.** Edges store `source_node_id`/`target_node_id` (+ handles), pointing to a
+**node**. Resolution reads the source node's current `active_version_id`. (Future option:
+`pinned_version_id` to freeze a connection.)
+**Why.** Answers PRD §20 ("active output vs specific version?"): default = follow active.
+**Status.** Table designed now; **built in Stage 2.**
+
+### D9 — Staleness is derived on read, never stored
+**Decision.** Detect stale downstream by comparing each upstream node's current
+`active_version_id` against the upstream id recorded in the downstream node's latest
+`inputs_used`. Mismatch → stale badge. No `is_stale` column, no triggers.
+**Why.** Derived-recomputable beats stored-must-sync (no races/drift); the ids are already
+stored. **Status.** Designed now; surfaces in Stage 3.
+
+### D10 — Type-specific data via JSONB ("narrow waist")
+**Decision.** Uniform columns for machinery (`type`, `position`, `active_version_id`);
+flexible `nodes.data` + version payload JSONB for per-type content/params. No
+table-per-node-type.
+**Why.** Each type has a different shape; JSONB avoids a migration per PRD field change while
+keeping shared plumbing.
+
+### D11 — Minimal graph behavior; the human is the scheduler
+**Decision.** MVP graph burden = directed edges + cycle check (Stage 2) + version-compare
+staleness (Stage 3). No topological sort, auto-branching, auto-rewiring, or graph
+intelligence.
+**Why.** PRD §15 makes the designer manually trigger each node, so the system never runs the
+whole graph in order — removing the need for scheduling algorithms. Learn graph concepts
+just-in-time.
+
+### Parked / out-of-scope (with revisit triggers)
+| Item | Status | Revisit when |
+|---|---|---|
+| Context "% slider" / relevance ranking | Parked (D7) | Client KB outgrows the context window → add RAG |
+| Full client KB (structured + files + selection) | Deferred | Stage 5 |
+| Multi-tenant auth | Out of scope (PRD §18) | Post-MVP external access |
+| Automated branching / auto-rewiring | Out of scope (PRD §15) | Not planned |
+| Edge `pinned_version_id` (freeze a connection) | Optional extension (D8) | If "don't auto-follow active" is ever needed |
+
+---
+
+## 8. Next step
 
 Design **Stage 1 (Persistent canvas + Brief node)** in full detail as its own spec —
 including the concrete Supabase schema for `clients` / `canvases` / `nodes` /
-`node_versions`, how the canvas persists React Flow state, and how the Brief-parse Edge
-Function works. That spec is where the data-modeling and graph concepts get pinned down
+`node_versions`, how the canvas persists React Flow state, and how the Brief-parse Route
+Handler works. That spec is where the data-modeling and graph concepts get pinned down
 concretely.
