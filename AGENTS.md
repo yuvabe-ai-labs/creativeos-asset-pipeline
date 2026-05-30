@@ -29,3 +29,26 @@ the in-repo source of truth. Aesthetic: *"light editorial premium."*
 - **Backgrounds:** the `.canvas-surface` signal grid for the editor; subtle, never flat noise.
 - **Icons:** Lucide only, 1.5 stroke, no fills.
 <!-- END:frontend-aesthetics -->
+
+<!-- BEGIN:ui-components -->
+# UI components — use shadcn/ui first
+
+**Before creating ANY new UI primitive, check the shadcn catalog:
+https://ui.shadcn.com/docs/components** — if it exists there, install it with
+`npx shadcn@latest add <component>` instead of hand-rolling one. Only build a bespoke
+component when shadcn genuinely has no equivalent (and say so).
+
+Available components (as of this writing):
+Accordion, Alert, Alert Dialog, Aspect Ratio, Avatar, Badge, Breadcrumb, Button,
+Button Group, Calendar, Card, Carousel, Chart, Checkbox, Collapsible, Combobox, Command,
+Context Menu, Data Table, Date Picker, Dialog, Drawer, Dropdown Menu, Empty, Field,
+Hover Card, Input, Input Group, Input OTP, Item, Kbd, Label, Menubar, Native Select,
+Navigation Menu, Pagination, Popover, Progress, Radio Group, Resizable, Scroll Area,
+Select, Separator, Sheet, Sidebar, Skeleton, Slider, Sonner, Spinner, Switch, Table,
+Tabs, Textarea, Toast, Toggle, Toggle Group, Tooltip, Typography.
+
+**Project note — this install uses the Base UI registry**, not Radix. So composition is via
+the **`render` prop**, not `asChild` (e.g. `<DialogTrigger render={<Button>…</Button>} />`,
+`<Button render={<Link/>} nativeButton={false} />`). Installed primitives live in
+`src/components/ui/`; read the existing ones before adding new variants.
+<!-- END:ui-components -->
