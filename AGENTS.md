@@ -26,6 +26,11 @@ the in-repo source of truth. Aesthetic: *"light editorial premium."*
   (`0 8px 20px rgba(11,15,25,.06)`), generous padding, radius 12–24px.
 - **Motion:** easing `cubic-bezier(0.22,1,0.36,1)` only (no springs/bounce); 200/320/500ms.
   Card hover is barely-perceptible (`translateY(-2px) scale(1.006)`, no shadow change).
+  Prefer CSS. For React orchestration the **`motion`** library (Framer Motion) is installed —
+  import from `motion/react`. Always set `transition={{ ease: [0.22,1,0.36,1], duration: … }}`;
+  never use Motion's default spring (it violates the system's "no springs/bounce" rule).
+- **Elevation:** use the `shadow-card` / `shadow-md` / `shadow-lg` tokens (soft, high,
+  blue-black-tinted) — not raw Tailwind shadow values. Resting cards use `shadow-card`.
 - **Backgrounds:** the `.canvas-surface` signal grid for the editor; subtle, never flat noise.
 - **Icons:** Lucide only, 1.5 stroke, no fills.
 <!-- END:frontend-aesthetics -->
