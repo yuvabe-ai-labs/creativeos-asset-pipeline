@@ -38,13 +38,15 @@ export default function ClientsPage() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-12">
-      <header className="mb-8 flex items-center justify-between">
+    <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-14">
+      <header className="animate-rise mb-10 flex items-end justify-between">
         <div>
-          <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
+          <p className="font-mono text-[0.7rem] font-medium uppercase tracking-[0.2em] text-muted-foreground">
             Increment 1B · in-memory
           </p>
-          <h1 className="text-3xl font-semibold tracking-tight">Clients</h1>
+          <h1 className="mt-1 font-display text-5xl font-semibold tracking-tight">
+            Clients
+          </h1>
         </div>
 
         <Dialog open={open} onOpenChange={setOpen}>
@@ -87,21 +89,27 @@ export default function ClientsPage() {
       </header>
 
       {clients.length === 0 ? (
-        <Card className="flex flex-col items-center justify-center gap-2 border-dashed p-12 text-center">
-          <p className="font-medium">No clients yet</p>
-          <p className="text-sm text-muted-foreground">
-            Create one to get started. (Heads up: this resets on refresh until we add
-            persistence in 1D.)
+        <Card className="animate-rise flex flex-col items-center justify-center gap-2 border-dashed p-14 text-center">
+          <p className="font-display text-lg font-medium">No clients yet</p>
+          <p className="max-w-sm text-sm text-muted-foreground">
+            Create one to get started. Heads up — this resets on refresh until we add
+            persistence in 1D.
           </p>
         </Card>
       ) : (
         <ul className="grid gap-3 sm:grid-cols-2">
-          {clients.map((client) => (
-            <li key={client.id}>
-              <Link href={`/clients/${client.id}`}>
-                <Card className="gap-1 p-5 transition-colors hover:border-foreground/30">
-                  <span className="font-medium">{client.name}</span>
-                  <span className="text-sm text-muted-foreground">
+          {clients.map((client, i) => (
+            <li
+              key={client.id}
+              className="animate-rise"
+              style={{ animationDelay: `${80 + i * 45}ms` }}
+            >
+              <Link href={`/clients/${client.id}`} className="group block">
+                <Card className="gap-1 p-5 transition-all duration-200 group-hover:-translate-y-0.5 group-hover:border-primary/40 group-hover:shadow-sm">
+                  <span className="font-display text-lg font-medium leading-tight">
+                    {client.name}
+                  </span>
+                  <span className="font-mono text-xs text-muted-foreground">
                     {client.canvases.length} canvas
                     {client.canvases.length === 1 ? "" : "es"}
                   </span>

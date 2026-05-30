@@ -59,16 +59,18 @@ export default function ClientPage() {
     <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-12">
       <Link
         href="/"
-        className="text-sm text-muted-foreground hover:text-foreground"
+        className="font-mono text-xs uppercase tracking-[0.15em] text-muted-foreground transition-colors hover:text-foreground"
       >
         ← All clients
       </Link>
 
-      <header className="mb-8 mt-2 flex items-start justify-between gap-4">
+      <header className="animate-rise mb-10 mt-3 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight">{client.name}</h1>
+          <h1 className="font-display text-4xl font-semibold tracking-tight">
+            {client.name}
+          </h1>
           {client.contextNotes && (
-            <p className="mt-2 max-w-xl text-sm text-muted-foreground">
+            <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground">
               {client.contextNotes}
             </p>
           )}
@@ -98,19 +100,28 @@ export default function ClientPage() {
       </header>
 
       {client.canvases.length === 0 ? (
-        <Card className="flex flex-col items-center gap-2 border-dashed p-12 text-center">
-          <p className="font-medium">No canvases yet</p>
-          <p className="text-sm text-muted-foreground">
+        <Card className="animate-rise flex flex-col items-center gap-2 border-dashed p-14 text-center">
+          <p className="font-display text-lg font-medium">No canvases yet</p>
+          <p className="max-w-sm text-sm text-muted-foreground">
             A canvas is one creative project. Create one to open the (empty) editor.
           </p>
         </Card>
       ) : (
         <ul className="grid gap-3 sm:grid-cols-2">
-          {client.canvases.map((canvas) => (
-            <li key={canvas.id}>
-              <Link href={`/clients/${client.id}/canvases/${canvas.id}`}>
-                <Card className="p-5 transition-colors hover:border-foreground/30">
-                  <span className="font-medium">{canvas.name}</span>
+          {client.canvases.map((canvas, i) => (
+            <li
+              key={canvas.id}
+              className="animate-rise"
+              style={{ animationDelay: `${80 + i * 45}ms` }}
+            >
+              <Link
+                href={`/clients/${client.id}/canvases/${canvas.id}`}
+                className="group block"
+              >
+                <Card className="p-5 transition-all duration-200 group-hover:-translate-y-0.5 group-hover:border-primary/40 group-hover:shadow-sm">
+                  <span className="font-display text-lg font-medium">
+                    {canvas.name}
+                  </span>
                 </Card>
               </Link>
             </li>

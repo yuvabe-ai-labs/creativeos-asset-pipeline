@@ -32,22 +32,30 @@ export default function CanvasPage() {
 
   return (
     <main className="flex flex-1 flex-col">
-      <header className="flex items-center gap-3 border-b px-6 py-3">
+      <header className="flex items-center gap-3 border-b border-border/70 bg-background/60 px-5 py-2.5 backdrop-blur">
         <Button
           variant="ghost"
           size="sm"
           render={<Link href={`/clients/${client.id}`}>←</Link>}
         />
         <div className="flex flex-col">
-          <span className="text-xs text-muted-foreground">{client.name}</span>
-          <span className="font-medium leading-tight">{canvas.name}</span>
+          <span className="font-mono text-[0.7rem] uppercase tracking-[0.15em] text-muted-foreground">
+            {client.name}
+          </span>
+          <span className="font-display font-medium leading-tight">
+            {canvas.name}
+          </span>
         </div>
       </header>
 
-      <div className="flex flex-1 items-center justify-center bg-muted/30 p-6">
-        <div className="text-center text-sm text-muted-foreground">
-          <p className="font-medium text-foreground">Canvas editor</p>
-          <p>The React Flow canvas + Zustand store arrive in increment 1C.</p>
+      <div className="canvas-surface flex flex-1 items-center justify-center p-6">
+        <div className="animate-rise rounded-xl border border-border/70 bg-card/80 px-8 py-6 text-center shadow-sm backdrop-blur-sm">
+          <p className="font-display text-lg font-medium text-foreground">
+            Canvas editor
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            The React Flow canvas + Zustand store arrive in increment 1C.
+          </p>
         </div>
       </div>
     </main>
