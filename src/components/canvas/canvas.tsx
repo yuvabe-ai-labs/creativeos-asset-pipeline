@@ -60,10 +60,10 @@ export function Canvas() {
         className="!bg-transparent"
       >
         <Background
-          variant={BackgroundVariant.Lines}
-          gap={24}
-          lineWidth={1}
-          color="rgba(148,163,184,0.16)"
+          variant={BackgroundVariant.Dots}
+          gap={30}
+          size={1.6}
+          color="rgba(148,163,184,0.45)"
         />
         <Controls showInteractive={false} />
       </ReactFlow>
