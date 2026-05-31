@@ -15,32 +15,32 @@ export function BriefNode({ id, data, selected }: NodeProps) {
   return (
     <div
       className={cn(
-        "w-64 rounded-xl border border-border bg-card shadow-card",
+        "w-32 rounded-lg border border-border bg-card shadow-card",
         selected && "ring-2 ring-primary ring-offset-1 ring-offset-background",
       )}
     >
-      <div className="flex items-center gap-2 border-b border-border px-3 py-2">
-        <FileText className="size-4 text-primary" />
-        <span className="text-eyebrow">Brief</span>
+      <div className="flex items-center gap-1.5 border-b border-border px-2 py-1.5">
+        <FileText className="size-3 text-primary" />
+        <span className="text-eyebrow !text-[0.6rem]">Brief</span>
       </div>
-      <div className="px-3 py-3">
+      <div className="px-2 py-2">
         <input
-          className="nodrag w-full bg-transparent font-display text-sm font-medium text-foreground outline-none placeholder:text-muted-foreground/60"
+          className="nodrag w-full bg-transparent font-display text-xs font-medium text-foreground outline-none placeholder:text-muted-foreground/60"
           value={title}
           onChange={(e) => updateNodeData(id, { title: e.target.value })}
-          placeholder="Untitled brief"
+          placeholder="Untitled"
         />
       </div>
 
       <Handle
         type="target"
         position={Position.Left}
-        className="!size-2.5 !border-2 !border-card !bg-muted-foreground"
+        className="!size-2 !border-2 !border-card !bg-muted-foreground"
       />
       <Handle
         type="source"
         position={Position.Right}
-        className="!size-2.5 !border-2 !border-card !bg-primary"
+        className="!size-2 !border-2 !border-card !bg-primary"
       />
     </div>
   );
