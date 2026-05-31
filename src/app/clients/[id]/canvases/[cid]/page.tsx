@@ -13,6 +13,8 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
+import { CanvasStoreProvider } from "@/components/canvas/canvas-store-provider";
+import { Canvas } from "@/components/canvas/canvas";
 
 export default function CanvasPage() {
   const { id, cid } = useParams<{ id: string; cid: string }>();
@@ -65,15 +67,11 @@ export default function CanvasPage() {
         </Breadcrumb>
       </header>
 
-      <div className="canvas-surface flex flex-1 items-center justify-center p-6">
-        <div className="animate-rise rounded-xl border border-border/70 bg-card/80 px-8 py-6 text-center shadow-sm backdrop-blur-sm">
-          <p className="font-display text-lg font-medium text-foreground">
-            Canvas editor
-          </p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            The React Flow canvas + Zustand store arrive in increment 1C.
-          </p>
-        </div>
+      <div className="relative flex-1">
+        {/* key by canvas id → a fresh store when you switch canvases */}
+        <CanvasStoreProvider key={canvas.id}>
+          <Canvas />
+        </CanvasStoreProvider>
       </div>
     </main>
   );
