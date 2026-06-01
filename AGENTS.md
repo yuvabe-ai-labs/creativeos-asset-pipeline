@@ -57,3 +57,15 @@ the **`render` prop**, not `asChild` (e.g. `<DialogTrigger render={<Button>…</
 `<Button render={<Link/>} nativeButton={false} />`). Installed primitives live in
 `src/components/ui/`; read the existing ones before adding new variants.
 <!-- END:ui-components -->
+
+<!-- BEGIN:react-flow -->
+# React Flow (`@xyflow/react`)
+
+Ground all React Flow work — implementation **and** explanations — in the official docs at
+**https://reactflow.dev/learn**. Follow the Learn path from the top (Quick Start → Core
+Concepts → Customization → …). Prefer the documented patterns over guesses.
+
+Tailwind v4 note: the docs say import React Flow's stylesheet **after** `@import
+"tailwindcss"` in the global CSS (not inside a component), so Tailwind's base doesn't
+override it.
+<!-- END:react-flow -->
