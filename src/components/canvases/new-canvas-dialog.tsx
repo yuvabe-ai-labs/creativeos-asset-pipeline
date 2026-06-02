@@ -40,11 +40,13 @@ export function NewCanvasDialog({
           clientSlug,
           name: name.trim(),
         });
-        toast.success(`Created “${canvas.name}”`);
-        setName("");
-        setOpen(false);
-        // jump straight into the new canvas editor
+        // Navigate straight into the new canvas. We DON'T close the dialog or
+        // reset state first — the navigation unmounts this dialog as the canvas
+        // page renders, so there's no flash of the canvases list in between.
+        // (startTransition keeps `pending` true through the navigation, so the
+        // button stays "Creating…" until the canvas is on screen.)
         router.push(`/clients/${clientSlug}/canvases/${canvas.slug}`);
+        toast.success(`Created “${canvas.name}”`);
       } catch {
         toast.error("Failed to create canvas");
       }
