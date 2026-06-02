@@ -31,3 +31,17 @@ export type NodeRow = {
   created_at: string;
   updated_at: string;
 };
+
+export type NodeVersionRow = {
+  id: string;
+  node_id: string;
+  inputs_used: Record<string, unknown>;
+  params_used: Record<string, unknown>;
+  model_used: string | null;
+  output: unknown;
+  error: string | null;
+  decision: string | null;
+  note: string | null;
+  operator: string | null;
+  created_at: string;
+};
