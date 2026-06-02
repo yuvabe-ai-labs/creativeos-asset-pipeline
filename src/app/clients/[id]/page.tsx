@@ -1,13 +1,8 @@
-"use client";
-
-import { useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import { toast } from "sonner";
-import { useAppState } from "@/lib/app-state";
+import { getClientBySlug } from "@/lib/db/clients";
+import { listCanvases } from "@/lib/db/canvases";
+import { NewCanvasDialog } from "@/components/canvases/new-canvas-dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import {
   Breadcrumb,
@@ -17,14 +12,8 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+
+export const dynamic = "force-dynamic";
 
 function initials(name: string) {
   return name
@@ -36,22 +25,19 @@ function initials(name: string) {
     .toUpperCase();
 }
 
-export default function ClientPage() {
-  const { id } = useParams<{ id: string }>();
-  const { getClient, addCanvas } = useAppState();
-  const client = getClient(id);
-
-  const [open, setOpen] = useState(false);
-  const [name, setName] = useState("");
+export default async function ClientPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params; // `id` is the client slug
+  const client = await getClientBySlug(id);
 
   if (!client) {
     return (
       <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-12">
         <Card className="flex flex-col items-center gap-2 border-dashed p-12 text-center">
-          <p className="font-medium">Client not found</p>
-          <p className="text-sm text-muted-foreground">
-            In-memory state resets on refresh (until 1D). Head back and create one.
-          </p>
+          <p className="font-display text-lg font-medium">Client not found</p>
           <Button
             variant="outline"
             className="mt-2"
@@ -63,16 +49,7 @@ export default function ClientPage() {
     );
   }
 
-  function handleCreate() {
-    if (!name.trim()) {
-      toast.error("Canvas needs a name");
-      return;
-    }
-    const canvas = addCanvas(client!.id, name.trim());
-    if (canvas) toast.success(`Created “${canvas.name}”`);
-    setName("");
-    setOpen(false);
-  }
+  const canvases = await listCanvases(client.id);
 
   return (
     <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-12">
@@ -106,54 +83,34 @@ export default function ClientPage() {
             <h1 className="font-display text-4xl font-semibold tracking-[-0.02em]">
               {client.name}
             </h1>
-            {client.contextNotes && (
+            {client.context_notes && (
               <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground">
-                {client.contextNotes}
+                {client.context_notes}
               </p>
             )}
           </div>
         </div>
 
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger render={<Button>New canvas</Button>} />
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>New canvas</DialogTitle>
-            </DialogHeader>
-            <div className="grid gap-2 py-2">
-              <Label htmlFor="canvas-name">Name</Label>
-              <Input
-                id="canvas-name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Spring campaign reel"
-                autoFocus
-              />
-            </div>
-            <DialogFooter>
-              <Button onClick={handleCreate}>Create canvas</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <NewCanvasDialog clientId={client.id} clientSlug={client.slug} />
       </header>
 
-      {client.canvases.length === 0 ? (
+      {canvases.length === 0 ? (
         <Card className="animate-rise flex flex-col items-center gap-2 border-dashed p-14 text-center">
           <p className="font-display text-lg font-medium">No canvases yet</p>
           <p className="max-w-sm text-sm text-muted-foreground">
-            A canvas is one creative project. Create one to open the (empty) editor.
+            A canvas is one creative project. Create one to open the editor.
           </p>
         </Card>
       ) : (
         <ul className="grid gap-3 sm:grid-cols-2">
-          {client.canvases.map((canvas, i) => (
+          {canvases.map((canvas, i) => (
             <li
               key={canvas.id}
               className="animate-rise"
               style={{ animationDelay: `${80 + i * 45}ms` }}
             >
               <Link
-                href={`/clients/${client.id}/canvases/${canvas.id}`}
+                href={`/clients/${client.slug}/canvases/${canvas.slug}`}
                 className="group block"
               >
                 <Card className="shadow-card p-6 transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:-translate-y-0.5 group-hover:scale-[1.006]">

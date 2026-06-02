@@ -6,14 +6,20 @@ import type { ClientRow } from "./types";
 // The clients repository: every clients-table query goes through these.
 // Server-only (imports the service-role client).
 
-export async function listClients(): Promise<ClientRow[]> {
+export type ClientWithCount = ClientRow & { canvas_count: number };
+
+export async function listClients(): Promise<ClientWithCount[]> {
   const supabase = createServerSupabase();
+  // `canvases(count)` is a Supabase embedded aggregate over the FK relationship.
   const { data, error } = await supabase
     .from("clients")
-    .select("*")
+    .select("*, canvases(count)")
     .order("created_at", { ascending: false });
   if (error) throw error;
-  return (data ?? []) as ClientRow[];
+  const rows = (data ?? []) as (ClientRow & {
+    canvases: { count: number }[] | null;
+  })[];
+  return rows.map((r) => ({ ...r, canvas_count: r.canvases?.[0]?.count ?? 0 }));
 }
 
 export async function getClientBySlug(slug: string): Promise<ClientRow | null> {

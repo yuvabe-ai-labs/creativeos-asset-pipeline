@@ -10,3 +10,13 @@ export type ClientRow = {
   created_at: string;
   updated_at: string;
 };
+
+export type CanvasRow = {
+  id: string;
+  client_id: string;
+  slug: string;
+  name: string;
+  viewport: { x: number; y: number; zoom: number };
+  created_at: string;
+  updated_at: string;
+};

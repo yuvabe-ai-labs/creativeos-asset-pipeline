@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import Link from "next/link";
 import "./globals.css";
-import { AppStateProvider } from "@/lib/app-state";
 import { Toaster } from "@/components/ui/sonner";
 
 // Yuvabe brand fonts (ref/Yuvabe Studios Design System). Two families only.
@@ -46,17 +45,15 @@ export default function RootLayout({
       className={`${clash.variable} ${gilroy.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <AppStateProvider>
-          <header className="sticky top-0 z-40 flex h-16 shrink-0 items-center justify-between border-b border-border/80 bg-background/80 px-6 backdrop-blur-md">
-            <Link href="/" className="flex items-baseline gap-2">
-              <span className="font-display text-xl font-semibold tracking-tight">
-                Creative<span className="text-primary">OS</span>
-              </span>
-            </Link>
-            <span className="text-eyebrow hidden sm:block">Yuvabe Studios</span>
-          </header>
-          {children}
-        </AppStateProvider>
+        <header className="sticky top-0 z-40 flex h-16 shrink-0 items-center justify-between border-b border-border/80 bg-background/80 px-6 backdrop-blur-md">
+          <Link href="/" className="flex items-baseline gap-2">
+            <span className="font-display text-xl font-semibold tracking-tight">
+              Creative<span className="text-primary">OS</span>
+            </span>
+          </Link>
+          <span className="text-eyebrow hidden sm:block">Yuvabe Studios</span>
+        </header>
+        {children}
         <Toaster />
       </body>
     </html>
