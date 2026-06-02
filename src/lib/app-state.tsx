@@ -7,26 +7,7 @@
 
 import { createContext, useCallback, useContext, useMemo, useState } from "react";
 import type { Canvas, Client } from "@/lib/types";
-
-// Readable, URL-friendly id from a name (e.g. "Acme Co." -> "acme-co").
-// Used as the in-memory id so routes read like /clients/acme-co/canvases/spring-reel.
-function slugify(input: string): string {
-  return input
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
-
-// Ensure the slug is unique within a scope, suffixing -2, -3… on collision.
-function uniqueSlug(name: string, taken: Iterable<string>): string {
-  const base = slugify(name) || "item";
-  const used = new Set(taken);
-  let slug = base;
-  let n = 2;
-  while (used.has(slug)) slug = `${base}-${n++}`;
-  return slug;
-}
+import { uniqueSlug } from "@/lib/slug";
 
 type AppState = {
   clients: Client[];

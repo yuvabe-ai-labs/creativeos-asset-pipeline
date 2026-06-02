@@ -24,13 +24,21 @@ if (!url || !service) {
 }
 
 const supabase = createClient(url, service, { auth: { persistSession: false } });
-const { error } = await supabase.from("clients").select("id").limit(1);
 
-if (!error) {
-  console.log("\n✓ Connected — and a `clients` table already exists.");
-} else if (/does not exist|Could not find the table|schema cache/i.test(error.message)) {
-  console.log("\n✓ Connected (auth OK). Tables not created yet — expected; that's step 1D-2.");
-} else {
-  console.log("\n✗ Connection/auth problem:", error.message);
-  process.exit(1);
+const tables = ["clients", "canvases", "nodes", "node_versions", "edges"];
+console.log("\nTables:");
+let missing = 0;
+for (const t of tables) {
+  const { error } = await supabase.from(t).select("*").limit(0);
+  if (!error) {
+    console.log(`  ✓ ${t}`);
+  } else if (/does not exist|Could not find the table|schema cache/i.test(error.message)) {
+    console.log(`  ✗ ${t} — not found`);
+    missing++;
+  } else {
+    console.log(`  ! ${t} — ${error.message}`);
+    missing++;
+  }
 }
+console.log(missing === 0 ? "\n✓ All tables present — schema is live." : `\n✗ ${missing} table(s) missing — re-run the migration.`);
+process.exit(missing === 0 ? 0 : 1);
