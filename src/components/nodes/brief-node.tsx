@@ -3,6 +3,7 @@
 import { useState, type ChangeEvent } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { FileText, Upload } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { Button } from "@/components/ui/button";
@@ -28,6 +29,36 @@ export function BriefNode({ id, data, selected }: NodeProps) {
   const source = d.source ?? "";
   const parsed = d.parsed;
   const [open, setOpen] = useState(false);
+  const [parsing, setParsing] = useState(false);
+
+  async function handleParse() {
+    if (!source.trim()) {
+      toast.error("Add a brief to parse");
+      return;
+    }
+    setParsing(true);
+    try {
+      const res = await fetch(`/api/nodes/${id}/parse`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ source }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(
+          res.status === 404
+            ? "Node is still saving — wait a second and retry."
+            : (json.error ?? "Parse failed"),
+        );
+      }
+      updateNodeData(id, { parsed: json.output }); // cache + persist via autosave
+      toast.success("Brief parsed");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Parse failed");
+    } finally {
+      setParsing(false);
+    }
+  }
 
   function handleUpload(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -116,9 +147,15 @@ export function BriefNode({ id, data, selected }: NodeProps) {
               </div>
 
               <div className="grid gap-1.5">
-                <Button disabled>Parse</Button>
+                <Button
+                  onClick={handleParse}
+                  disabled={parsing || !source.trim()}
+                >
+                  {parsing ? "Parsing…" : "Parse"}
+                </Button>
                 <p className="text-xs text-muted-foreground">
-                  Parsing (the AI call) is wired up next — step 1E-3.
+                  Extracts structured fields from the brief (uses the client&apos;s
+                  context notes).
                 </p>
               </div>
 

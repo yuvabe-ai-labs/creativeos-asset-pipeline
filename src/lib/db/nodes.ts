@@ -10,6 +10,24 @@ export type PersistedNode = {
   data: Record<string, unknown>;
 };
 
+// Ambient client context for a node — walk node → canvas → client in one query.
+export async function getNodeClientContext(
+  nodeId: string,
+): Promise<{ contextNotes: string } | null> {
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("nodes")
+    .select("id, canvases(clients(context_notes))")
+    .eq("id", nodeId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  const row = data as {
+    canvases?: { clients?: { context_notes?: string } | null } | null;
+  };
+  return { contextNotes: row.canvases?.clients?.context_notes ?? "" };
+}
+
 export async function listNodes(canvasId: string): Promise<NodeRow[]> {
   const supabase = createServerSupabase();
   const { data, error } = await supabase
