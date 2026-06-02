@@ -3,7 +3,11 @@
 import type { Node } from "@xyflow/react";
 import type { NodeRow } from "@/lib/db/types";
 
-export type BriefNodeData = { title?: string };
+export type BriefNodeData = {
+  title?: string;
+  source?: string; // raw brief text (pasted or uploaded .md/.txt)
+  parsed?: unknown; // active parsed output (display cache; full log in node_versions)
+};
 export type AppNode = Node<BriefNodeData>;
 
 // DB row → React Flow node (used on canvas load, server-side)
