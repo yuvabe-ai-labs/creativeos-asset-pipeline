@@ -77,7 +77,33 @@ Gotchas / sub-lessons:
   `outputs`); the DB stores only the *path* string in `output`. "Large media in object storage,
   DB holds the path."
 
-### M2 — Persistence — _(next)_
+### M2 — Persistence (data-access layer)
+**Contract:** `loadCanvas · saveNode · insertVersion · setActive · listVersions` — plus the rule
+**nothing else writes raw SQL.** Depends on M1.
+
+The one idea: a single chokepoint for all DB access (the **repository pattern**). The contract
+isn't the function names, it's the *prohibition*.
+
+- **Enforces append-only by API shape.** There's `insertVersion` but **no `updateVersion`/
+  `deleteVersion`** — a component literally cannot mutate history because the verb doesn't exist.
+  The data-model rule (D4) becomes physically true via the interface surface.
+- **`setActive` = the only sanctioned pointer mutation.** Every "restore" in the UI is one call,
+  one code path.
+- **Narrow waist, bottom half.** M1 made the *table* uniform; M2 makes the *access* uniform.
+
+Replaces the in-memory mutations in `canvas-store.ts`, redirected at Supabase:
+`addNode/updateNodeData → saveNode` · re-run parse → `insertVersion` (new) · pick output →
+`setActive` (new) · mount → `loadCanvas`. Zustand stays as the **client cache**; M2 hydrates it
+(`loadCanvas`) and flushes to it (debounced `saveNode`) — that load/flush split is what M3 drives.
+
+Sub-lessons:
+- **"Make the wrong thing impossible" > "remember not to do it"** — invariants encoded in the
+  interface, not in discipline.
+- **Trust boundary lives here.** M2 runs server-side with Supabase's service-role key (D14: no
+  auth/RLS yet → key never reaches the browser). Chokepoint for SQL *and* secrets.
+- **Typed end-to-end.** Functions return M1 row types (`Node`, `NodeVersion`) — the "DDL + TS
+  types" pairing paying off; compiler catches shapes the JSONB column can't.
+
 ### M4 — Lifecycle engine — _(next)_
 ### M5 — Node-card UI kit — _(next)_
 ### M3 — Canvas shell — _(next)_
