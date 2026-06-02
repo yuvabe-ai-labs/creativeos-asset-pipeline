@@ -13,6 +13,8 @@ import {
 } from "@/components/ui/breadcrumb";
 import { CanvasStoreProvider } from "@/components/canvas/canvas-store-provider";
 import { Canvas } from "@/components/canvas/canvas";
+import { listNodes } from "@/lib/db/nodes";
+import { nodeRowToFlow } from "@/lib/canvas-nodes";
 
 export const dynamic = "force-dynamic";
 
@@ -41,6 +43,8 @@ export default async function CanvasPage({
     );
   }
 
+  const initialNodes = (await listNodes(canvas.id)).map(nodeRowToFlow);
+
   return (
     <main className="flex flex-1 flex-col">
       <header className="flex items-center border-b border-border/70 bg-background/60 px-6 py-3 backdrop-blur">
@@ -68,9 +72,9 @@ export default async function CanvasPage({
       </header>
 
       <div className="relative flex-1">
-        {/* key by canvas id → a fresh store per canvas (nodes persist in 1D-5) */}
-        <CanvasStoreProvider key={canvas.id}>
-          <Canvas />
+        {/* load this canvas's nodes from the DB, seed the store, autosave changes */}
+        <CanvasStoreProvider key={canvas.id} initialNodes={initialNodes}>
+          <Canvas canvasId={canvas.id} />
         </CanvasStoreProvider>
       </div>
     </main>

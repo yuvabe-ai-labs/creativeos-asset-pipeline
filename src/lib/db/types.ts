@@ -20,3 +20,14 @@ export type CanvasRow = {
   created_at: string;
   updated_at: string;
 };
+
+export type NodeRow = {
+  id: string;
+  canvas_id: string;
+  type: string;
+  position: { x: number; y: number };
+  data: Record<string, unknown>;
+  active_version_id: string | null;
+  created_at: string;
+  updated_at: string;
+};

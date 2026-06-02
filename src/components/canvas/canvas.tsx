@@ -13,11 +13,12 @@ import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { BriefNode } from "@/components/nodes/brief-node";
 import { useCanvasStore } from "./canvas-store-provider";
+import { CanvasAutosave } from "./canvas-autosave";
 
 // Register custom node types once (stable reference — never inline this object).
 const nodeTypes: NodeTypes = { brief: BriefNode };
 
-export function Canvas() {
+export function Canvas({ canvasId }: { canvasId: string }) {
   // One subscription, shallow-compared, so the component only re-renders when
   // these slices actually change.
   const { nodes, edges, onNodesChange, onEdgesChange, onConnect, addNode } =
@@ -34,6 +35,7 @@ export function Canvas() {
 
   return (
     <div className="absolute inset-0 bg-[var(--neutral-50)]">
+      <CanvasAutosave canvasId={canvasId} />
       <div className="absolute left-4 top-4 z-10">
         <Button
           size="sm"
@@ -55,7 +57,7 @@ export function Canvas() {
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         nodeTypes={nodeTypes}
-        fitView
+        defaultViewport={{ x: 0, y: 0, zoom: 1 }}
         proOptions={{ hideAttribution: true }}
         className="!bg-transparent"
       >

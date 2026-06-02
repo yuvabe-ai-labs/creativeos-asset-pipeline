@@ -7,16 +7,24 @@ import {
   type CanvasState,
   type CanvasStore,
 } from "@/lib/canvas-store";
+import type { AppNode } from "@/lib/canvas-nodes";
 
 // Store-provider pattern: the store is created in a ref on first render (never
 // at module scope), so Next.js server rendering can't share one store across
-// requests, and each mounted canvas gets a fresh instance.
+// requests, and each mounted canvas gets a fresh instance — seeded with the
+// nodes loaded from the DB on the server.
 const CanvasStoreContext = createContext<CanvasStore | null>(null);
 
-export function CanvasStoreProvider({ children }: { children: ReactNode }) {
+export function CanvasStoreProvider({
+  initialNodes = [],
+  children,
+}: {
+  initialNodes?: AppNode[];
+  children: ReactNode;
+}) {
   const storeRef = useRef<CanvasStore | null>(null);
   if (storeRef.current === null) {
-    storeRef.current = createCanvasStore();
+    storeRef.current = createCanvasStore(initialNodes);
   }
   return (
     <CanvasStoreContext.Provider value={storeRef.current}>

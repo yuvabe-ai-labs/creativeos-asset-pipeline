@@ -4,21 +4,16 @@ import {
   applyEdgeChanges,
   applyNodeChanges,
   type Edge,
-  type Node,
   type OnConnect,
   type OnEdgesChange,
   type OnNodesChange,
   type XYPosition,
 } from "@xyflow/react";
+import type { AppNode, BriefNodeData } from "./canvas-nodes";
 
-// 1C: a minimal canvas store. Nodes/edges live here (client-only, in-memory,
-// resets on refresh). Custom node components read/write this store directly —
-// which is the whole reason we reach for Zustand: React Flow only hands a
-// custom node `{ id, data }`, so it can't receive callback props. The store is
-// how a node dispatches an update without prop-drilling.
-
-export type BriefNodeData = { title?: string };
-export type AppNode = Node<BriefNodeData>;
+// 1C/1D: the canvas store. Nodes/edges live here; custom node components read
+// and write it directly (React Flow only hands a node `{ id, data }`).
+// Seeded on creation with nodes loaded from the DB (1D-5).
 
 export type CanvasState = {
   nodes: AppNode[];
@@ -39,9 +34,9 @@ function defaultData(type: string): BriefNodeData {
 }
 
 // Factory — one store per canvas instance (created in the provider).
-export function createCanvasStore() {
+export function createCanvasStore(initialNodes: AppNode[] = []) {
   return createStore<CanvasState>((set, get) => ({
-    nodes: [],
+    nodes: initialNodes,
     edges: [],
     onNodesChange: (changes) =>
       set({ nodes: applyNodeChanges(changes, get().nodes) }),
