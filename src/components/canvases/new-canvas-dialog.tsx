@@ -43,7 +43,8 @@ export function NewCanvasDialog({
         toast.success(`Created “${canvas.name}”`);
         setName("");
         setOpen(false);
-        router.refresh();
+        // jump straight into the new canvas editor
+        router.push(`/clients/${clientSlug}/canvases/${canvas.slug}`);
       } catch {
         toast.error("Failed to create canvas");
       }
