@@ -202,6 +202,41 @@ Plus **Storage** (Supabase): bucket `sources` (briefs, reference files) and buck
 - **`on delete cascade`** down `client→canvas→node→version` cleanly removes subtrees;
   `on delete set null` on the active pointer means deleting a version just un-sets active.
 
+### Note — where the client knowledge base (KB) lives
+
+The KB consumed at **onboarding** (brand voice, product notes, past briefs, files) is the
+**ambient client context** (§3). It is intentionally *not* its own table yet:
+
+- **Today (Stage 1, ADR D7):** the KB is collapsed into a single `clients.context_notes`
+  text field — the "thin" client context, included whole.
+- **Later (Stage 5 / task-list module M15):** when one text field is no longer enough, the
+  KB grows into **child tables that hang off `clients`** — additive, no rewrite of the spine:
+
+  ```sql
+  -- future sketch (NOT created in Stage 1)
+  create table client_kb_items (        -- structured knowledge entries
+    id uuid primary key default gen_random_uuid(),
+    client_id uuid references clients(id) on delete cascade,
+    kind text, title text, content text,   -- (+ embedding column if/when RAG is added)
+    created_at timestamptz default now()
+  );
+  create table client_files (           -- uploaded brand files (bytes in Storage)
+    id uuid primary key default gen_random_uuid(),
+    client_id uuid references clients(id) on delete cascade,
+    path text,                             -- Supabase Storage path, not the bytes
+    created_at timestamptz default now()
+  );
+  ```
+
+  A node then selects *which* KB items to include via the **same** forward-compatible field
+  from §7 / ADR D7: `nodes.data.client_context` upgrades from `"all" | "none"` to a list of
+  KB item ids. No change to `nodes`, `canvases`, or `edges`.
+
+This is safe to defer precisely because client context is reached by walking
+`node → canvas → client` (ADR D6): the KB is "more rows under `clients`," not a new
+resolution path. The `"% context" slider` (relevance ranking / RAG) is parked until a KB
+outgrows the model's context window (ADR D7).
+
 ---
 
 ## 7. Resolution mechanisms (shared machinery)
