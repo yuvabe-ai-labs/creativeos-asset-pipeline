@@ -18,6 +18,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { ReelOutput } from "./reel-output";
 
 // Brief node (1E). Compact on the canvas; the real editing happens in a side
 // panel (Sheet). Source text lives in node.data (persisted by the canvas
@@ -160,11 +161,9 @@ export function BriefNode({ id, data, selected }: NodeProps) {
               </div>
 
               <div className="grid gap-2">
-                <Label>Parsed output</Label>
+                <Label>Parsed reel</Label>
                 {parsed ? (
-                  <pre className="overflow-x-auto rounded-lg border bg-muted/40 p-3 text-xs">
-                    {JSON.stringify(parsed, null, 2)}
-                  </pre>
+                  <ReelOutput data={parsed as Record<string, unknown>} />
                 ) : (
                   <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
                     Not parsed yet.

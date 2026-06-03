@@ -3,8 +3,7 @@ import { createOpenAI } from "@/lib/openai/server";
 import { getNodeClientContext } from "@/lib/db/nodes";
 import { insertVersion, setActiveVersion } from "@/lib/db/versions";
 import { compileBrief } from "@/lib/nodes/brief";
-
-const MODEL = "gpt-4o-mini";
+import { briefParsePrompt } from "@/prompts/brief-parse";
 
 // POST /api/nodes/:id/parse  — parse a brief into structured JSON.
 // This is the Brief node's runAction: it holds the secret and runs the model.
@@ -37,8 +36,15 @@ export async function POST(
     // runAction — the model call
     const openai = createOpenAI();
     const completion = await openai.chat.completions.create({
-      model: MODEL,
-      response_format: { type: "json_object" },
+      model: briefParsePrompt.model,
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "reel_brief",
+          schema: briefParsePrompt.schema,
+          strict: true,
+        },
+      },
       messages: [
         { role: "system", content: system },
         { role: "user", content: user },
@@ -51,8 +57,11 @@ export async function POST(
     const version = await insertVersion({
       nodeId,
       inputsUsed: { clientContext: ctx.contextNotes ? "included" : "none" },
-      paramsUsed: { instruction: system },
-      modelUsed: `openai:${MODEL}`,
+      paramsUsed: {
+        promptId: briefParsePrompt.id,
+        promptVersion: briefParsePrompt.version,
+      },
+      modelUsed: `openai:${briefParsePrompt.model}`,
       output,
     });
     await setActiveVersion(nodeId, version.id);
@@ -63,8 +72,11 @@ export async function POST(
     // a failed attempt is still a version — the log learns from failures too
     await insertVersion({
       nodeId,
-      paramsUsed: { instruction: system },
-      modelUsed: `openai:${MODEL}`,
+      paramsUsed: {
+        promptId: briefParsePrompt.id,
+        promptVersion: briefParsePrompt.version,
+      },
+      modelUsed: `openai:${briefParsePrompt.model}`,
       error: message,
     });
     return NextResponse.json({ error: message }, { status: 500 });
