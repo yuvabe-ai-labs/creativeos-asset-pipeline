@@ -73,7 +73,7 @@ export function NewClientDialog() {
       }}
     >
       <DialogTrigger render={<Button>New client</Button>} />
-      <DialogContent>
+      <DialogContent className="max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>New client</DialogTitle>
           <DialogDescription>
@@ -128,6 +128,7 @@ export function NewClientDialog() {
               onChange={(e) => setContextNotes(e.target.value)}
               placeholder="Brand voice, product notes, tone…"
               rows={4}
+              className="max-h-48 overflow-y-auto"
             />
           </div>
         </div>
