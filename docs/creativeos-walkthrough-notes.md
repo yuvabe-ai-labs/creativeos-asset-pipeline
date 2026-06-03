@@ -104,8 +104,70 @@ Sub-lessons:
 - **Typed end-to-end.** Functions return M1 row types (`Node`, `NodeVersion`) — the "DDL + TS
   types" pairing paying off; compiler catches shapes the JSONB column can't.
 
-### M4 — Lifecycle engine — _(next)_
-### M5 — Node-card UI kit — _(next)_
+### M4 — Lifecycle engine
+**In one line:** one function that runs *every* node the same way. Same machine, different "pod."
+
+**Coffee-machine picture:** the machine does the same routine every time; only the pod changes.
+The engine does the same 5 steps every time; only 2 of them change per node type.
+
+1. **Gather** the node's inputs       ← same for every node
+2. **Build** the request for the AI   ← the POD (per type) = `compile`
+3. **Send** it to the AI, get result  ← the POD (per type) = `runAction`
+4. **Save** the result to history      ← same for every node = `writeVersion`
+5. **Mark** it as the current answer   ← same for every node = `setActive`
+
+**Word map:** machine = `runNode()` · build = `compile` · send = `runAction` · save = `writeVersion`.
+
+**Why bother:** without it you'd rewrite "gather → save → mark" for Brief, then again for Prompt,
+then again for Image. With it, you write that routine **once**; each new node just brings its 2
+small pieces (build + send). That's the whole reason new nodes are cheap.
+
+**Two things worth knowing (still simple):**
+- **"Build" never touches the network or DB** — it just turns inputs into the exact text to send.
+  Because it's that simple, you can show the user *what will be sent* before hitting send (a cheap
+  preview).
+- **"Send" is the only step holding the secret key** — the server call to the AI. All the risky
+  stuff is boxed into one step.
+
+**Contract (reference):** `registerNodeType(type, {compile, runAction})` + `runNode(id)`. Depends
+on M2 (uses save + mark).
+### M5 — Node-card kit
+**In one line:** the *reusable card* every node sits in. Same frame, different middle.
+
+M4 was the coffee *machine* (runs a node). M5 is the matching thing on screen: the *card* that
+shows a node. M4 = how it runs · M5 = how it looks.
+
+Problem it solves: today `BriefNode` hand-builds its own box. Add Text/Prompt/Image and you'd
+copy that layout every time. M5 = one card template with empty slots, so each node just fills the
+middle.
+
+The card's fixed parts (same on every node):
+```
+┌──────────────────────────┐
+│ [icon] TITLE      ▶ Run   │  header  (same for all)
+├──────────────────────────┤
+│   the node's own stuff    │  body    (changes per type)
+├──────────────────────────┤
+│ past attempts ▾  ✓ / ✗    │  history (same for all)
+└──────────────────────────┘
+```
+- **Header** — name + **Run button**
+- **Body** — the one slot that changes per type
+- **History panel** — past attempts, ✓ approve / ✗ reject, "make this the current answer"
+
+Two buttons wire M5 to the rest:
+- **Run** → tells M4 "run this node."
+- **Approve / set-current** → tells M2 "mark this version active."
+
+**Why it matters:** the append-only history (M1) is invisible rows until now. **M5 is where history
+becomes something a designer can see and click** — the "learn from every attempt" promise becomes
+real here.
+
+Twins: **M4 = one runner for all nodes · M5 = one card for all nodes.** Add a node by filling a
+small middle, not rebuilding the frame. `BriefNode` is the "before" — M5 pulls its header/body/
+history into a shared `<NodeCard>` so the node shrinks to just its middle.
+
+**Contract (reference):** `<NodeCard>` + `useNodeRun()`. Depends on M2.
 ### M3 — Canvas shell — _(next)_
 
 ---
