@@ -79,10 +79,10 @@ export function BriefNode({ id, data, selected }: NodeProps) {
         selected && "ring-2 ring-primary ring-offset-1 ring-offset-background",
       )}
     >
-      <div className="flex items-center justify-between border-b border-border px-2 py-1.5">
+      <div className="flex items-center justify-between border-b border-border px-3 py-2">
         <div className="flex items-center gap-1.5">
-          <FileText className="size-3 text-primary" />
-          <span className="text-eyebrow !text-[0.6rem]">Brief</span>
+          <FileText className="size-3.5 text-primary" />
+          <span className="text-eyebrow !text-[0.65rem]">Brief</span>
         </div>
         <span
           className={cn(
@@ -93,15 +93,15 @@ export function BriefNode({ id, data, selected }: NodeProps) {
         />
       </div>
 
-      <div className="px-2 py-2">
-        <p className="truncate font-display text-xs font-medium">
+      <div className="px-3 py-3">
+        <p className="truncate font-display text-sm font-medium">
           {title || <span className="text-muted-foreground">Untitled brief</span>}
         </p>
 
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetTrigger
             render={
-              <button className="nodrag mt-1.5 text-[0.65rem] font-medium text-primary hover:underline">
+              <button className="nodrag -mx-1.5 mt-3 inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10">
                 Open ↗
               </button>
             }
