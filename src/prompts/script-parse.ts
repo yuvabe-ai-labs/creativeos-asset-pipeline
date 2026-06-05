@@ -1,11 +1,12 @@
-// Brief-parse prompt — a single, evaluable, *versioned* record.
+// Script-parse prompt — a single, evaluable, *versioned* record.
 //
 // Kept here (not inlined in route/compile logic) so the prompt + schema can be
 // iterated and evaluated on their own, and later moved to a `prompts` DB table.
 // This object maps 1:1 to a future row: { id, version, model, system, schema, notes }.
 //
-// The reel schema is derived from the real Prakriti Sattva 53-reel scripts. The
-// "why" of each field + KB choice lives in:
+// The reel schema is the structure of a FINISHED reel script (see the Prakriti
+// Sattva 53-reel scripts). The Script node EXTRACTS that structure from a script
+// the designer already has — it does not invent it.
 //   docs/context-refs/prakriti-sattva-selection-rationale.md
 
 // JSON Schema for OpenAI structured outputs (strict mode → guaranteed shape).
@@ -87,37 +88,36 @@ const reelSchema = {
   },
 } satisfies Record<string, unknown>;
 
-const system = `You parse a creative REEL brief into a single structured JSON object describing one short-form video reel.
+const system = `You extract the structure of a FINISHED short-form video REEL SCRIPT into a single JSON object.
 
 Rules:
-- Extract only what the brief states. Do NOT invent facts. Use empty strings or empty arrays for anything absent.
-- Respect the client context provided with the brief: match the brand tone and visual direction.
-- COMPLIANCE: never use medical/claim words the client says to avoid (e.g. cure, heal, treat, repair, prevent) and never make before/after promises. Prefer compliant verbs: helps, supports, nourishes, comforts, designed for.
+- The input is an already-written reel script. EXTRACT what is present — do NOT invent. Use empty strings or empty arrays only when a field is genuinely absent from the script.
+- Respect the client context provided with the script: keep the brand tone, and never introduce medical/claim words the client avoids (e.g. cure, heal, treat, repair, prevent) or before/after promises.
 
 Fields:
 - title: the reel's title / hook line.
-- type: "VISUAL" | "VO" | "TEXT" (or "" if unclear).
+- type: "VISUAL" | "VO" | "TEXT" (read from the script's tag; "" if unclear).
 - duration: e.g. "22-26 seconds".
 - schedule: { date, post_time, category, theme }.
-- strategic_objective: the goal of the reel.
-- ai_production_type: how it is produced (e.g. "product composite + AI macro ingredients + cinematic still holds").
-- visual_script: { shots: [{ description, duration }], execution_refinement }.
+- strategic_objective: the stated goal of the reel.
+- ai_production_type: the production approach stated in the script.
+- visual_script: { shots: [{ description, duration }], execution_refinement } — split the shot list into individual shots with their durations.
 - on_screen_text: { intro, body (array of lines), outro }.
-- voiceover: VO script, or "" / "No voiceover".
-- music_sound: music & sound design direction.
+- voiceover: the VO script, or "" / "No voiceover".
+- music_sound: the music & sound design direction.
 - caption: the post caption.
 - cta: call to action.
 - thumbnail_hook: the thumbnail hook line.
 - qc_notes: array of QC / compliance notes.
-- product_links: array of product URLs mentioned in the brief.`;
+- product_links: array of product URLs in the script.`;
 
-export const briefParsePrompt = {
-  id: "brief-parse",
+export const scriptParsePrompt = {
+  id: "script-parse",
   version: 1,
   model: "gpt-4o-mini",
   system,
   schema: reelSchema,
   notes:
-    "Reel schema derived from the Prakriti Sattva 53-reel scripts structure. " +
+    "Reel schema = structure of a finished reel script (Prakriti Sattva 53-reel scripts). " +
     "See docs/context-refs/prakriti-sattva-selection-rationale.md.",
 };

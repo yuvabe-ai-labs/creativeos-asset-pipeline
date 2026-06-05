@@ -11,12 +11,12 @@ import {
 import { useShallow } from "zustand/react/shallow";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { BriefNode } from "@/components/nodes/brief-node";
+import { ScriptNode } from "@/components/nodes/script-node";
 import { useCanvasStore } from "./canvas-store-provider";
 import { CanvasAutosave } from "./canvas-autosave";
 
 // Register custom node types once (stable reference — never inline this object).
-const nodeTypes: NodeTypes = { brief: BriefNode };
+const nodeTypes: NodeTypes = { script: ScriptNode };
 
 export function Canvas({ canvasId }: { canvasId: string }) {
   // One subscription, shallow-compared, so the component only re-renders when
@@ -40,13 +40,13 @@ export function Canvas({ canvasId }: { canvasId: string }) {
         <Button
           size="sm"
           onClick={() =>
-            addNode("brief", {
+            addNode("script", {
               x: 120 + Math.random() * 220,
               y: 80 + Math.random() * 140,
             })
           }
         >
-          <Plus className="size-4" /> Add brief node
+          <Plus className="size-4" /> Add script node
         </Button>
       </div>
 

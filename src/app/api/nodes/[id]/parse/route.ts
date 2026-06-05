@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { createOpenAI } from "@/lib/openai/server";
 import { getNodeClientContext } from "@/lib/db/nodes";
 import { insertVersion, setActiveVersion } from "@/lib/db/versions";
-import { compileBrief } from "@/lib/nodes/brief";
-import { briefParsePrompt } from "@/prompts/brief-parse";
+import { compileScript } from "@/lib/nodes/script";
+import { scriptParsePrompt } from "@/prompts/script-parse";
 
 // POST /api/nodes/:id/parse  — parse a brief into structured JSON.
 // This is the Brief node's runAction: it holds the secret and runs the model.
@@ -29,19 +29,19 @@ export async function POST(
     return NextResponse.json({ error: "Node not found." }, { status: 404 });
   }
 
-  // compile — pure (source + context) → payload
-  const { system, user } = compileBrief(source, ctx.contextNotes);
+  // compile — pure (script + context) → payload
+  const { system, user } = compileScript(source, ctx.contextNotes);
 
   try {
     // runAction — the model call
     const openai = createOpenAI();
     const completion = await openai.chat.completions.create({
-      model: briefParsePrompt.model,
+      model: scriptParsePrompt.model,
       response_format: {
         type: "json_schema",
         json_schema: {
-          name: "reel_brief",
-          schema: briefParsePrompt.schema,
+          name: "reel_script",
+          schema: scriptParsePrompt.schema,
           strict: true,
         },
       },
@@ -58,10 +58,10 @@ export async function POST(
       nodeId,
       inputsUsed: { clientContext: ctx.contextNotes ? "included" : "none" },
       paramsUsed: {
-        promptId: briefParsePrompt.id,
-        promptVersion: briefParsePrompt.version,
+        promptId: scriptParsePrompt.id,
+        promptVersion: scriptParsePrompt.version,
       },
-      modelUsed: `openai:${briefParsePrompt.model}`,
+      modelUsed: `openai:${scriptParsePrompt.model}`,
       output,
     });
     await setActiveVersion(nodeId, version.id);
@@ -73,10 +73,10 @@ export async function POST(
     await insertVersion({
       nodeId,
       paramsUsed: {
-        promptId: briefParsePrompt.id,
-        promptVersion: briefParsePrompt.version,
+        promptId: scriptParsePrompt.id,
+        promptVersion: scriptParsePrompt.version,
       },
-      modelUsed: `openai:${briefParsePrompt.model}`,
+      modelUsed: `openai:${scriptParsePrompt.model}`,
       error: message,
     });
     return NextResponse.json({ error: message }, { status: 500 });

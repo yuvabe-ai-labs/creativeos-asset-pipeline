@@ -3,12 +3,12 @@
 import type { Node } from "@xyflow/react";
 import type { NodeRow } from "@/lib/db/types";
 
-export type BriefNodeData = {
+export type ScriptNodeData = {
   title?: string;
   source?: string; // raw brief text (pasted or uploaded .md/.txt)
   parsed?: unknown; // active parsed output (display cache; full log in node_versions)
 };
-export type AppNode = Node<BriefNodeData>;
+export type AppNode = Node<ScriptNodeData>;
 
 // DB row → React Flow node (used on canvas load, server-side)
 export function nodeRowToFlow(row: NodeRow): AppNode {
@@ -16,7 +16,7 @@ export function nodeRowToFlow(row: NodeRow): AppNode {
     id: row.id,
     type: row.type,
     position: row.position,
-    data: (row.data ?? {}) as BriefNodeData,
+    data: (row.data ?? {}) as ScriptNodeData,
   };
 }
 
