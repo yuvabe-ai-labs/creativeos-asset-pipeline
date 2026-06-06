@@ -45,6 +45,9 @@ describe("normalizeSlices", () => {
   it("drops unknown keys", () => {
     expect(normalizeSlices(["compliance", "bogus"])).toEqual(["compliance"]);
   });
+  it("falls back to defaults when all keys are invalid", () => {
+    expect(normalizeSlices(["bogus", "also_bogus"])).toEqual(DEFAULT_PARSE_SLICES);
+  });
   it("falls back to defaults on empty array", () => {
     expect(normalizeSlices([])).toEqual(DEFAULT_PARSE_SLICES);
   });
@@ -73,6 +76,8 @@ describe("buildParseContext", () => {
     const out = buildParseContext(kb, ["brand_profile"]);
     expect(out).toContain("Brand name: Acme");
     expect(out).not.toContain("Tagline"); // null, omitted
+    expect(out).not.toContain("Tone of voice");
+    expect(out).not.toContain("Personality");
   });
 
   it("returns empty string for an empty selection", () => {

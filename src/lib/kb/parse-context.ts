@@ -46,7 +46,7 @@ export function normalizeSlices(input: unknown): KBSliceKey[] {
 function fieldText(field: { value: unknown } | undefined): string {
   const v = field?.value;
   if (v === null || v === undefined) return "";
-  if (Array.isArray(v)) return v.filter(Boolean).join(", ");
+  if (Array.isArray(v)) return v.map((s) => String(s).trim()).filter(Boolean).join(", ");
   return String(v).trim();
 }
 
