@@ -2,6 +2,7 @@ import "server-only";
 import { createServerSupabase } from "@/lib/supabase/server";
 import type { NodeRow } from "./types";
 import type { TraceableBrandKB } from "@/lib/kb/schema";
+import { getActiveKBVersion } from "./kb";
 
 // What the client sends us to persist (React Flow node, trimmed to DB columns).
 export type PersistedNode = {
@@ -36,27 +37,16 @@ export async function getNodeActiveKB(
     .eq("id", (node as { canvas_id: string }).canvas_id)
     .maybeSingle();
   if (canvasErr) throw canvasErr;
-  if (!canvas) return { kb: null, kbVersionId: null };
+  if (!canvas) return null; // dangling node (no canvas row) — treat as not found
 
-  const { data: client, error: clientErr } = await supabase
-    .from("clients")
-    .select("active_kb_version_id")
-    .eq("id", (canvas as { client_id: string }).client_id)
-    .maybeSingle();
-  if (clientErr) throw clientErr;
-  const versionId =
-    (client as { active_kb_version_id: string | null } | null)
-      ?.active_kb_version_id ?? null;
-  if (!versionId) return { kb: null, kbVersionId: null };
-
-  const { data: version, error: versionErr } = await supabase
-    .from("client_kb_versions")
-    .select("output")
-    .eq("id", versionId)
-    .maybeSingle();
-  if (versionErr) throw versionErr;
-  const output = (version as { output: unknown } | null)?.output ?? null;
-  return { kb: (output as TraceableBrandKB) ?? null, kbVersionId: versionId };
+  const versionRow = await getActiveKBVersion(
+    (canvas as { client_id: string }).client_id,
+  );
+  if (!versionRow) return { kb: null, kbVersionId: null };
+  return {
+    kb: versionRow.output as unknown as TraceableBrandKB,
+    kbVersionId: versionRow.id,
+  };
 }
 
 export async function listNodes(canvasId: string): Promise<NodeRow[]> {

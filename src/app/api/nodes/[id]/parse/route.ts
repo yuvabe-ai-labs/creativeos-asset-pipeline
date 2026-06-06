@@ -51,7 +51,7 @@ export async function POST(
 
     const version = await insertVersion({
       nodeId,
-      inputsUsed: { kbSlices: slices, kbVersionId: ctx.kbVersionId },
+      inputsUsed: { kbSlices: ctx.kb ? slices : null, kbVersionId: ctx.kbVersionId },
       paramsUsed: {
         promptId: scriptParsePrompt.id,
         promptVersion: scriptParsePrompt.version,
