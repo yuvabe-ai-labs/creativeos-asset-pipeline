@@ -22,7 +22,7 @@ export async function createCanvasAction(input: {
   if (activeKB) {
     const kb = activeKB.output as TraceableBrandKB;
     const kbNodeId = crypto.randomUUID();
-    const briefNodeId = crypto.randomUUID();
+    const scriptNodeId = crypto.randomUUID();
 
     await saveCanvasNodes(canvas.id, [
       {
@@ -39,8 +39,8 @@ export async function createCanvasAction(input: {
         },
       },
       {
-        id: briefNodeId,
-        type: "brief",
+        id: scriptNodeId,
+        type: "script",
         position: { x: 360, y: 120 },
         data: { title: "" },
       },
@@ -50,7 +50,7 @@ export async function createCanvasAction(input: {
       {
         id: crypto.randomUUID(),
         source: kbNodeId,
-        target: briefNodeId,
+        target: scriptNodeId,
       },
     ]);
   }
