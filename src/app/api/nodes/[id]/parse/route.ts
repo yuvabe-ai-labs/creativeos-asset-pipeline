@@ -1,39 +1,30 @@
-import { NextResponse } from "next/server";
 import { createOpenAI } from "@/lib/openai/server";
 import { getNodeClientContext } from "@/lib/db/nodes";
 import { insertVersion, setActiveVersion } from "@/lib/db/versions";
 import { compileScript } from "@/lib/nodes/script";
 import { scriptParsePrompt } from "@/prompts/script-parse";
+import { apiError, apiOk } from "@/lib/api/route-helpers";
 
-// POST /api/nodes/:id/parse  — parse a brief into structured JSON.
-// This is the Brief node's runAction: it holds the secret and runs the model.
+// POST /api/nodes/:id/parse  — extract a finished reel script into structured JSON.
+// This is the Script node's runAction: it holds the secret and runs the model.
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id: nodeId } = await params;
 
-  // body carries the *current* source (fresher than the debounced-saved node)
   const body = (await req.json().catch(() => null)) as { source?: unknown } | null;
   const source = typeof body?.source === "string" ? body.source : "";
   if (!source.trim()) {
-    return NextResponse.json(
-      { error: "Provide a non-empty brief to parse." },
-      { status: 400 },
-    );
+    return apiError("Provide a non-empty script to parse.", 400);
   }
 
-  // resolveInputs — ambient client context (walk node → canvas → client)
   const ctx = await getNodeClientContext(nodeId);
-  if (!ctx) {
-    return NextResponse.json({ error: "Node not found." }, { status: 404 });
-  }
+  if (!ctx) return apiError("Node not found.", 404);
 
-  // compile — pure (script + context) → payload
   const { system, user } = compileScript(source, ctx.contextNotes);
 
   try {
-    // runAction — the model call
     const openai = createOpenAI();
     const completion = await openai.chat.completions.create({
       model: scriptParsePrompt.model,
@@ -53,7 +44,6 @@ export async function POST(
     const content = completion.choices[0]?.message?.content ?? "{}";
     const output = JSON.parse(content);
 
-    // writeVersion (append-only) + setActive (move the pointer)
     const version = await insertVersion({
       nodeId,
       inputsUsed: { clientContext: ctx.contextNotes ? "included" : "none" },
@@ -66,7 +56,7 @@ export async function POST(
     });
     await setActiveVersion(nodeId, version.id);
 
-    return NextResponse.json({ output, versionId: version.id });
+    return apiOk({ output, versionId: version.id });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Parse failed";
     // a failed attempt is still a version — the log learns from failures too
@@ -79,6 +69,6 @@ export async function POST(
       modelUsed: `openai:${scriptParsePrompt.model}`,
       error: message,
     });
-    return NextResponse.json({ error: message }, { status: 500 });
+    return apiError(message, 500);
   }
 }

@@ -53,10 +53,10 @@ export default async function ClientsPage() {
               <Link href={`/clients/${client.slug}`} className="group block">
                 <Card className="shadow-card gap-0 overflow-hidden p-0 transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:-translate-y-0.5 group-hover:scale-[1.006]">
                   <div className="flex h-28 items-center justify-center border-b bg-muted/40 p-5">
-                    {client.logo ? (
+                    {client.logo_url ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
-                        src={client.logo}
+                        src={client.logo_url}
                         alt={`${client.name} logo`}
                         className="max-h-full max-w-[70%] object-contain"
                       />

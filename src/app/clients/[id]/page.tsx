@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { getClientBySlug } from "@/lib/db/clients";
 import { listCanvases } from "@/lib/db/canvases";
 import { NewCanvasDialog } from "@/components/canvases/new-canvas-dialog";
@@ -49,6 +50,10 @@ export default async function ClientPage({
     );
   }
 
+  if (client.kb_status !== "ready") {
+    redirect(`/clients/${client.slug}/kb`);
+  }
+
   const canvases = await listCanvases(client.id);
 
   return (
@@ -67,10 +72,10 @@ export default async function ClientPage({
 
       <header className="animate-rise mb-10 mt-4 flex items-start justify-between gap-4">
         <div className="flex items-start gap-4">
-          {client.logo ? (
+          {client.logo_url ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={client.logo}
+              src={client.logo_url}
               alt={`${client.name} logo`}
               className="size-14 shrink-0 rounded-lg border bg-card object-contain p-1.5"
             />
@@ -83,15 +88,18 @@ export default async function ClientPage({
             <h1 className="font-display text-4xl font-semibold tracking-[-0.02em]">
               {client.name}
             </h1>
-            {client.context_notes && (
-              <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground">
-                {client.context_notes}
-              </p>
-            )}
           </div>
         </div>
 
-        <NewCanvasDialog clientId={client.id} clientSlug={client.slug} />
+        <div className="flex items-center gap-2 shrink-0">
+          <Button
+            variant="outline"
+            size="sm"
+            nativeButton={false}
+            render={<Link href={`/clients/${client.slug}/kb`}>Brand KB</Link>}
+          />
+          <NewCanvasDialog clientId={client.id} clientSlug={client.slug} />
+        </div>
       </header>
 
       {canvases.length === 0 ? (

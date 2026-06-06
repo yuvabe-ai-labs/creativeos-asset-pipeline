@@ -5,10 +5,42 @@ export type ClientRow = {
   id: string;
   slug: string;
   name: string;
-  logo: string | null;
-  context_notes: string;
+  logo_url: string | null;
+  kb_status: "pending" | "in_review" | "ready";
+  active_kb_version_id: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export type ClientBrandImageRow = {
+  id: string;
+  client_id: string;
+  filename: string;
+  file_ext: string;
+  storage_url: string;
+  size_bytes: number | null;
+  created_at: string;
+};
+
+export type ClientKBDocumentRow = {
+  id: string;
+  client_id: string;
+  filename: string;
+  file_ext: string;
+  storage_url: string;
+  size_bytes: number | null;
+  created_at: string;
+};
+
+export type ClientKBVersionRow = {
+  id: string;
+  client_id: string;
+  output: Record<string, unknown>;
+  model_used: string;
+  doc_ids_used: string[];
+  fill_rate: number | null;
+  note: string | null;
+  created_at: string;
 };
 
 export type CanvasRow = {

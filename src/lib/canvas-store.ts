@@ -21,11 +21,12 @@ export type CanvasState = {
   onNodesChange: OnNodesChange<AppNode>;
   onEdgesChange: OnEdgesChange;
   onConnect: OnConnect;
-  addNode: (type: string, position: XYPosition) => void;
+  addNode: (type: string, position: XYPosition, id?: string) => void;
   updateNodeData: (id: string, data: Partial<ScriptNodeData>) => void;
+  connectNodes: (sourceId: string, targetId: string) => void;
 };
 
-function defaultData(type: string): ScriptNodeData {
+function defaultData(type: string): AppNode["data"] {
   switch (type) {
     case "script":
     default:
@@ -34,31 +35,43 @@ function defaultData(type: string): ScriptNodeData {
 }
 
 // Factory — one store per canvas instance (created in the provider).
-export function createCanvasStore(initialNodes: AppNode[] = []) {
+export function createCanvasStore(
+  initialNodes: AppNode[] = [],
+  initialEdges: Edge[] = [],
+) {
   return createStore<CanvasState>((set, get) => ({
     nodes: initialNodes,
-    edges: [],
+    edges: initialEdges,
     onNodesChange: (changes) =>
       set({ nodes: applyNodeChanges(changes, get().nodes) }),
     onEdgesChange: (changes) =>
       set({ edges: applyEdgeChanges(changes, get().edges) }),
     onConnect: (connection) => set({ edges: addEdge(connection, get().edges) }),
-    addNode: (type, position) =>
+    addNode: (type, position, id) =>
       set({
         nodes: [
           ...get().nodes,
           {
-            id: crypto.randomUUID(),
+            id: id ?? crypto.randomUUID(),
             type,
             position,
             data: defaultData(type),
-          },
+          } as AppNode,
         ],
       }),
     updateNodeData: (id, data) =>
       set({
         nodes: get().nodes.map((n) =>
-          n.id === id ? { ...n, data: { ...n.data, ...data } } : n,
+          n.id === id
+            ? ({ ...n, data: { ...n.data, ...data } } as AppNode)
+            : n,
+        ),
+      }),
+    connectNodes: (sourceId, targetId) =>
+      set({
+        edges: addEdge(
+          { source: sourceId, target: targetId, id: crypto.randomUUID() },
+          get().edges,
         ),
       }),
   }));
