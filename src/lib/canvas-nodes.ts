@@ -11,6 +11,7 @@ export type ScriptNodeData = {
 
 export type KBNodeData = {
   clientId: string;
+  clientSlug: string;
   kbVersionId: string | null;
   brandName: string | null;
   fillRate: number | null;
@@ -25,9 +26,12 @@ export type AppNode =
 // The type cast is intentional: row.type is the DB string which we trust to be
 // a valid node type; TypeScript can't narrow a runtime string to a literal union.
 export function nodeRowToFlow(row: NodeRow): AppNode {
+  // "brief" was renamed to "script" — migrate old rows on read so they render correctly.
+  // The autosave will persist the corrected type back to the DB on next save.
+  const type = row.type === "brief" ? "script" : row.type;
   return {
     id: row.id,
-    type: row.type as AppNode["type"],
+    type: type as AppNode["type"],
     position: row.position,
     data: (row.data ?? {}) as AppNode["data"],
   } as AppNode;

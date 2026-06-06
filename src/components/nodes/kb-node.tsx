@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
+import Link from "next/link";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import { BookOpenIcon, FileTextIcon } from "lucide-react";
+import { BookOpenIcon, ArrowUpRightIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   Sheet,
@@ -32,25 +33,32 @@ type VersionMeta = {
   docIdsUsed: string[];
 };
 
+type ImageMeta = {
+  id: string;
+  filename: string;
+  storageUrl: string;
+};
+
+type FetchState = {
+  loading: boolean;
+  version: VersionMeta | null;
+  documents: DocMeta[];
+  images: ImageMeta[];
+};
+
 // ── Skeleton ─────────────────────────────────────────────────────────────────
 
 function Skeleton({ className }: { className?: string }) {
-  return (
-    <div
-      className={cn("animate-pulse rounded bg-muted", className)}
-    />
-  );
+  return <div className={cn("animate-pulse rounded bg-muted", className)} />;
 }
 
 function SheetSkeleton() {
   return (
     <div className="grid gap-4 p-5">
-      {/* version meta bar */}
       <div className="flex gap-2">
         <Skeleton className="h-5 w-16 rounded-full" />
         <Skeleton className="h-5 w-24" />
       </div>
-      {/* document rows */}
       {[1, 2, 3].map((i) => (
         <div key={i} className="flex items-center gap-3">
           <Skeleton className="size-8 rounded-md" />
@@ -60,6 +68,11 @@ function SheetSkeleton() {
           </div>
         </div>
       ))}
+      <div className="flex gap-2 pt-1">
+        {[1, 2, 3].map((i) => (
+          <Skeleton key={i} className="size-16 rounded-md" />
+        ))}
+      </div>
     </div>
   );
 }
@@ -81,45 +94,42 @@ const EXT_ICON: Record<string, string> = {
   txt: "TXT",
 };
 
-// ── Sheet content ─────────────────────────────────────────────────────────────
+// ── Sheet content (purely presentational) ────────────────────────────────────
 
-function KBSheetContent({ clientId }: { clientId: string }) {
-  const [version, setVersion] = useState<VersionMeta | null>(null);
-  const [documents, setDocuments] = useState<DocMeta[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [loaded, setLoaded] = useState(false);
-
-  async function load() {
-    if (loaded || loading) return;
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/clients/${clientId}/kb/active`);
-      const json = await res.json();
-      setVersion(json.version ?? null);
-      setDocuments(json.documents ?? []);
-    } finally {
-      setLoading(false);
-      setLoaded(true);
-    }
-  }
-
+function KBSheetContent({
+  clientId,
+  clientSlug,
+  loading,
+  version,
+  documents,
+  images,
+}: {
+  clientId: string;
+  clientSlug: string;
+  loading: boolean;
+  version: VersionMeta | null;
+  documents: DocMeta[];
+  images: ImageMeta[];
+}) {
   return (
     <SheetContent className="flex w-full flex-col gap-0 p-0 sm:max-w-md">
-      <SheetHeader className="border-b p-5">
+      <SheetHeader className="border-b p-5 pr-12">
         <SheetTitle className="font-display text-xl">Brand KB</SheetTitle>
         <SheetDescription>
           Source documents used to build the brand knowledge base.
         </SheetDescription>
+        <Link
+          href={`/clients/${clientSlug}/kb`}
+          className="mt-1 inline-flex w-fit items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
+        >
+          Edit KB <ArrowUpRightIcon className="size-3" />
+        </Link>
       </SheetHeader>
 
-      <div
-        className="flex-1 overflow-y-auto"
-        onFocus={load}
-        onMouseEnter={load}
-      >
-        {loading && <SheetSkeleton />}
-
-        {loaded && (
+      <div className="flex-1 overflow-y-auto">
+        {loading ? (
+          <SheetSkeleton />
+        ) : (
           <div className="grid gap-0">
             {/* Version meta */}
             {version && (
@@ -150,12 +160,9 @@ function KBSheetContent({ clientId }: { clientId: string }) {
                       key={doc.id}
                       className="flex items-center gap-3 px-5 py-3"
                     >
-                      {/* File type badge */}
                       <div className="flex size-9 shrink-0 items-center justify-center rounded-md border border-border bg-muted font-mono text-[0.6rem] font-bold text-muted-foreground">
                         {EXT_ICON[doc.fileExt] ?? doc.fileExt.toUpperCase()}
                       </div>
-
-                      {/* Name + meta */}
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium">
                           {doc.filename}
@@ -169,8 +176,6 @@ function KBSheetContent({ clientId }: { clientId: string }) {
                             .join(" · ")}
                         </p>
                       </div>
-
-                      {/* Used-in-extraction indicator */}
                       {usedInVersion && (
                         <span
                           className="size-1.5 rounded-full bg-primary"
@@ -183,7 +188,28 @@ function KBSheetContent({ clientId }: { clientId: string }) {
               </ul>
             )}
 
-            {!version && loaded && (
+            {/* Brand images */}
+            {images.length > 0 && (
+              <div className="border-t px-5 py-4">
+                <p className="mb-3 text-eyebrow text-xs text-muted-foreground">
+                  Brand Images
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {images.map((img) => (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      key={img.id}
+                      src={img.storageUrl}
+                      alt={img.filename}
+                      title={img.filename}
+                      className="size-16 rounded-md object-cover border border-border"
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {!version && (
               <p className="px-5 py-4 text-xs text-muted-foreground">
                 KB not yet extracted — upload documents and click Extract KB on
                 the client page.
@@ -201,6 +227,33 @@ function KBSheetContent({ clientId }: { clientId: string }) {
 export function KBNode({ data, selected }: NodeProps) {
   const d = data as KBNodeData;
   const [open, setOpen] = useState(false);
+  const [fetchState, setFetchState] = useState<FetchState>({
+    loading: true,
+    version: null,
+    documents: [],
+    images: [],
+  });
+  // Prevent duplicate fetches across hover events
+  const fetchedRef = useRef(false);
+
+  function prefetch() {
+    if (fetchedRef.current) return;
+    fetchedRef.current = true;
+    fetch(`/api/clients/${d.clientId}/kb/active`)
+      .then((r) => r.json())
+      .then((json) =>
+        setFetchState({
+          loading: false,
+          version: json.version ?? null,
+          documents: json.documents ?? [],
+          images: json.images ?? [],
+        }),
+      )
+      .catch(() =>
+        setFetchState((s) => ({ ...s, loading: false })),
+      );
+  }
+
   const fillPct = d.fillRate != null ? Math.round(d.fillRate * 100) : null;
 
   return (
@@ -209,11 +262,12 @@ export function KBNode({ data, selected }: NodeProps) {
         "w-44 rounded-lg border border-border bg-card shadow-card",
         selected && "ring-2 ring-primary ring-offset-1 ring-offset-background",
       )}
+      onMouseEnter={prefetch}
     >
       <div className="flex items-center justify-between border-b border-border px-2 py-1.5">
         <div className="flex items-center gap-1.5">
           <BookOpenIcon className="size-3 text-primary" />
-          <span className="text-eyebrow !text-[0.6rem]">Brand KB</span>
+          <span className="text-eyebrow text-[0.6rem]!">Brand KB</span>
         </div>
         {fillPct != null && (
           <span className="rounded-full bg-primary/10 px-1.5 py-px text-[0.55rem] font-semibold text-primary">
@@ -242,14 +296,23 @@ export function KBNode({ data, selected }: NodeProps) {
               </button>
             }
           />
-          {open && <KBSheetContent clientId={d.clientId} />}
+          {open && (
+            <KBSheetContent
+              clientId={d.clientId}
+              clientSlug={d.clientSlug}
+              loading={fetchState.loading}
+              version={fetchState.version}
+              documents={fetchState.documents}
+              images={fetchState.images}
+            />
+          )}
         </Sheet>
       </div>
 
       <Handle
         type="source"
         position={Position.Right}
-        className="!size-2 !border-2 !border-card !bg-primary"
+        className="size-2! border-2! border-card! bg-primary!"
       />
     </div>
   );

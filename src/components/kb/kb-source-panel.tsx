@@ -219,39 +219,29 @@ export function KBSourcePanel({
               {images.length === 0 ? (
                 <p className="py-1 text-xs text-muted-foreground">No images</p>
               ) : (
-                <ul className="space-y-1">
+                <div className="flex flex-wrap gap-2">
                   {images.map((img) => {
                     const isPending = pendingImageRemovals.has(img.id);
                     const isNew = newlyAddedImageIds.has(img.id);
                     return (
-                      <li
+                      <div
                         key={img.id}
                         className={cn(
-                          "group flex items-center gap-2 rounded-md px-2 py-1 text-xs",
-                          isPending
-                            ? "opacity-50"
-                            : isNew
-                              ? "bg-emerald-50/50 dark:bg-emerald-950/20"
-                              : "hover:bg-muted/40",
+                          "group relative size-16 shrink-0 overflow-hidden rounded-md border border-border",
+                          isPending && "opacity-40",
+                          isNew && "ring-2 ring-emerald-500/60",
                         )}
                       >
-                        <ImageIcon
-                          className={cn(
-                            "size-3 shrink-0",
-                            isPending ? "text-destructive/60" : "text-muted-foreground",
-                          )}
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={img.storage_url}
+                          alt={img.filename}
+                          title={img.filename}
+                          className="size-full object-cover"
                         />
-                        <span className={cn("min-w-0 flex-1 truncate", isPending && "line-through")}>
-                          {img.filename}
-                        </span>
                         {isNew && !isPending && (
-                          <span className="shrink-0 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                          <span className="absolute bottom-0 left-0 right-0 bg-emerald-600/80 px-1 py-px text-center text-[0.55rem] font-semibold text-white">
                             New
-                          </span>
-                        )}
-                        {img.size_bytes && !isNew && (
-                          <span className="shrink-0 text-muted-foreground">
-                            {formatBytes(img.size_bytes)}
                           </span>
                         )}
                         <button
@@ -261,18 +251,18 @@ export function KBSourcePanel({
                             isPending ? onUndoImageRemoval(img.id) : onMarkImageForRemoval(img.id)
                           }
                           className={cn(
-                            "shrink-0 transition-opacity",
+                            "absolute right-0.5 top-0.5 flex size-4 items-center justify-center rounded-full bg-black/60 text-white transition-opacity",
                             isPending
-                              ? "text-muted-foreground opacity-100 hover:text-foreground"
-                              : "text-muted-foreground opacity-0 hover:text-destructive group-hover:opacity-100",
+                              ? "opacity-100"
+                              : "opacity-0 group-hover:opacity-100",
                           )}
                         >
-                          {isPending ? <Undo2Icon className="size-3" /> : <XIcon className="size-3" />}
+                          {isPending ? <Undo2Icon className="size-2.5" /> : <XIcon className="size-2.5" />}
                         </button>
-                      </li>
+                      </div>
                     );
                   })}
-                </ul>
+                </div>
               )}
             </div>
           </div>

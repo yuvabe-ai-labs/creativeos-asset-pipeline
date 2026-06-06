@@ -31,6 +31,7 @@ export async function createCanvasAction(input: {
         position: { x: 80, y: 120 },
         data: {
           clientId: input.clientId,
+          clientSlug: input.clientSlug,
           kbVersionId: activeKB.id,
           brandName: kb.brand?.value ?? kb.brand_profile?.brand_name?.value ?? null,
           fillRate: activeKB.fill_rate,

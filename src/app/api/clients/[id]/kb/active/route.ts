@@ -1,7 +1,7 @@
-import { getActiveKBVersion, listKBDocuments } from "@/lib/db/kb";
+import { getActiveKBVersion, listKBDocuments, listBrandImages } from "@/lib/db/kb";
 import { apiOk, withClient, withTryCatch } from "@/lib/api/route-helpers";
 
-// GET /api/clients/:id/kb/active — returns active KB version meta + documents list.
+// GET /api/clients/:id/kb/active — returns active KB version meta + documents + images.
 // Used by the KB node's sheet.
 export async function GET(
   _req: Request,
@@ -9,9 +9,10 @@ export async function GET(
 ) {
   return withClient(params, async (clientId) => {
     return withTryCatch("Failed to fetch KB data", async () => {
-      const [version, documents] = await Promise.all([
+      const [version, documents, images] = await Promise.all([
         getActiveKBVersion(clientId),
         listKBDocuments(clientId),
+        listBrandImages(clientId),
       ]);
 
       return apiOk({
@@ -30,6 +31,11 @@ export async function GET(
           fileExt: d.file_ext,
           sizeBytes: d.size_bytes,
           createdAt: d.created_at,
+        })),
+        images: images.map((img) => ({
+          id: img.id,
+          filename: img.filename,
+          storageUrl: img.storage_url,
         })),
       });
     });
