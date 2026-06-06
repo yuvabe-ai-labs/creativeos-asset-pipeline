@@ -11,13 +11,13 @@ import {
 import { useShallow } from "zustand/react/shallow";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { BriefNode } from "@/components/nodes/brief-node";
+import { ScriptNode } from "@/components/nodes/script-node";
 import { KBNode } from "@/components/nodes/kb-node";
 import { useCanvasStore } from "./canvas-store-provider";
 import { CanvasAutosave } from "./canvas-autosave";
 
 // Register custom node types once (stable reference — never inline this object).
-const nodeTypes: NodeTypes = { brief: BriefNode, kb: KBNode };
+const nodeTypes: NodeTypes = { script: ScriptNode, kb: KBNode };
 
 export function Canvas({ canvasId }: { canvasId: string }) {
   // One subscription, shallow-compared, so the component only re-renders when
@@ -55,13 +55,13 @@ export function Canvas({ canvasId }: { canvasId: string }) {
             };
             // Generate the new node ID before adding so we can wire the edge.
             const newNodeId = crypto.randomUUID();
-            addNode("brief", position, newNodeId);
+            addNode("script", position, newNodeId);
             // Auto-connect to the KB node if one exists on this canvas.
             const kbNode = nodes.find((n) => n.type === "kb");
             if (kbNode) connectNodes(kbNode.id, newNodeId);
           }}
         >
-          <Plus className="size-4" /> Add brief node
+          <Plus className="size-4" /> Add script node
         </Button>
       </div>
 

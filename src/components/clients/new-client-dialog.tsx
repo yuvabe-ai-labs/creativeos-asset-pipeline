@@ -82,7 +82,7 @@ export function NewClientDialog() {
       }}
     >
       <DialogTrigger render={<Button>New client</Button>} />
-      <DialogContent>
+      <DialogContent className="max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>New client</DialogTitle>
           <DialogDescription>

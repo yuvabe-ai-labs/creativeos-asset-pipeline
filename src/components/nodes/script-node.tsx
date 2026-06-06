@@ -20,10 +20,10 @@ import {
 } from "@/components/ui/sheet";
 import { ReelOutput } from "./reel-output";
 
-// Brief node (1E). Compact on the canvas; the real editing happens in a side
-// panel (Sheet). Source text lives in node.data (persisted by the canvas
-// autosave). Parse + version history are wired in the next steps.
-export function BriefNode({ id, data, selected }: NodeProps) {
+// Script node. Input = a finished reel script (the designer already has it).
+// Compact on the canvas; the real editing happens in a side panel (Sheet).
+// "Parse" EXTRACTS the script's structure into the reel object (no invention).
+export function ScriptNode({ id, data, selected }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const d = data as { title?: string; source?: string; parsed?: unknown };
   const title = d.title ?? "";
@@ -34,7 +34,7 @@ export function BriefNode({ id, data, selected }: NodeProps) {
 
   async function handleParse() {
     if (!source.trim()) {
-      toast.error("Add a brief to parse");
+      toast.error("Add a script to extract");
       return;
     }
     setParsing(true);
@@ -49,13 +49,13 @@ export function BriefNode({ id, data, selected }: NodeProps) {
         throw new Error(
           res.status === 404
             ? "Node is still saving — wait a second and retry."
-            : (json.error ?? "Parse failed"),
+            : (json.error ?? "Extraction failed"),
         );
       }
       updateNodeData(id, { parsed: json.output }); // cache + persist via autosave
-      toast.success("Brief parsed");
+      toast.success("Script extracted");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Parse failed");
+      toast.error(e instanceof Error ? e.message : "Extraction failed");
     } finally {
       setParsing(false);
     }
@@ -79,38 +79,40 @@ export function BriefNode({ id, data, selected }: NodeProps) {
         selected && "ring-2 ring-primary ring-offset-1 ring-offset-background",
       )}
     >
-      <div className="flex items-center justify-between border-b border-border px-2 py-1.5">
+      <div className="flex items-center justify-between border-b border-border px-3 py-2">
         <div className="flex items-center gap-1.5">
-          <FileText className="size-3 text-primary" />
-          <span className="text-eyebrow !text-[0.6rem]">Brief</span>
+          <FileText className="size-3.5 text-primary" />
+          <span className="text-eyebrow !text-[0.65rem]">Script</span>
         </div>
         <span
           className={cn(
             "size-1.5 rounded-full",
             parsed ? "bg-primary" : "bg-muted-foreground/40",
           )}
-          title={parsed ? "Parsed" : "Not parsed"}
+          title={parsed ? "Extracted" : "Not extracted"}
         />
       </div>
 
-      <div className="px-2 py-2">
-        <p className="truncate font-display text-xs font-medium">
-          {title || <span className="text-muted-foreground">Untitled brief</span>}
+      <div className="px-3 py-3">
+        <p className="truncate font-display text-sm font-medium">
+          {title || (
+            <span className="text-muted-foreground">Untitled script</span>
+          )}
         </p>
 
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetTrigger
             render={
-              <button className="nodrag mt-1.5 text-[0.65rem] font-medium text-primary hover:underline">
+              <button className="nodrag -mx-1.5 mt-3 inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10">
                 Open ↗
               </button>
             }
           />
           <SheetContent className="flex w-full flex-col gap-0 p-0 sm:max-w-md">
             <SheetHeader className="border-b p-5">
-              <SheetTitle className="font-display text-xl">Brief</SheetTitle>
+              <SheetTitle className="font-display text-xl">Reel script</SheetTitle>
               <SheetDescription>
-                Paste or upload a brief, then parse it into structured context.
+                Paste or upload a finished reel script, then extract its structure.
               </SheetDescription>
             </SheetHeader>
 
@@ -120,14 +122,14 @@ export function BriefNode({ id, data, selected }: NodeProps) {
                 <Input
                   id={`title-${id}`}
                   value={title}
-                  placeholder="Untitled brief"
+                  placeholder="Untitled script"
                   onChange={(e) => updateNodeData(id, { title: e.target.value })}
                 />
               </div>
 
               <div className="grid gap-2">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor={`source-${id}`}>Source brief</Label>
+                  <Label htmlFor={`source-${id}`}>Reel script</Label>
                   <label className="flex cursor-pointer items-center gap-1.5 text-xs font-medium text-primary hover:underline">
                     <Upload className="size-3.5" /> Upload .md/.txt
                     <input
@@ -142,7 +144,7 @@ export function BriefNode({ id, data, selected }: NodeProps) {
                   id={`source-${id}`}
                   value={source}
                   rows={10}
-                  placeholder="Paste the brief here…"
+                  placeholder="Paste the reel script here…"
                   onChange={(e) => updateNodeData(id, { source: e.target.value })}
                 />
               </div>
@@ -152,21 +154,21 @@ export function BriefNode({ id, data, selected }: NodeProps) {
                   onClick={handleParse}
                   disabled={parsing || !source.trim()}
                 >
-                  {parsing ? "Parsing…" : "Parse"}
+                  {parsing ? "Extracting…" : "Extract"}
                 </Button>
                 <p className="text-xs text-muted-foreground">
-                  Extracts structured fields from the brief (uses the client&apos;s
+                  Extracts the structured reel from the script (uses the client&apos;s
                   context notes).
                 </p>
               </div>
 
               <div className="grid gap-2">
-                <Label>Parsed reel</Label>
+                <Label>Extracted reel</Label>
                 {parsed ? (
                   <ReelOutput data={parsed as Record<string, unknown>} />
                 ) : (
                   <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
-                    Not parsed yet.
+                    Not extracted yet.
                   </p>
                 )}
               </div>
