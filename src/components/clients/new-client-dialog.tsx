@@ -8,7 +8,6 @@ import { createClientAction } from "@/lib/actions/clients";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -19,27 +18,30 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 
+type LogoState = { file: File; preview: string } | null;
+
 export function NewClientDialog() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
-  const [contextNotes, setContextNotes] = useState("");
-  const [logo, setLogo] = useState("");
+  const [logo, setLogo] = useState<LogoState>(null);
   const [pending, startTransition] = useTransition();
 
   function handleLogoChange(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = () =>
-      setLogo(typeof reader.result === "string" ? reader.result : "");
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        setLogo({ file, preview: reader.result });
+      }
+    };
     reader.readAsDataURL(file);
   }
 
   function reset() {
     setName("");
-    setContextNotes("");
-    setLogo("");
+    setLogo(null);
   }
 
   function handleCreate() {
@@ -49,15 +51,22 @@ export function NewClientDialog() {
     }
     startTransition(async () => {
       try {
-        const client = await createClientAction({
-          name: name.trim(),
-          logo: logo || null,
-          contextNotes: contextNotes.trim(),
-        });
-        toast.success(`Created “${client.name}”`);
+        const client = await createClientAction({ name: name.trim() });
+        // Upload logo in background — do not block closing the dialog
+        if (logo) {
+          const formData = new FormData();
+          formData.append("file", logo.file);
+          fetch(`/api/clients/${client.id}/logo`, {
+            method: "POST",
+            body: formData,
+          }).catch(() => {
+            // Non-critical: logo upload failure shows a separate toast if desired
+          });
+        }
+        toast.success(`Created "${client.name}"`);
         reset();
         setOpen(false);
-        router.refresh(); // re-fetch the (server-rendered) clients list
+        router.refresh();
       } catch {
         toast.error("Failed to create client");
       }
@@ -77,8 +86,7 @@ export function NewClientDialog() {
         <DialogHeader>
           <DialogTitle>New client</DialogTitle>
           <DialogDescription>
-            A client is the top-level workspace. Context notes are ambient — every node
-            on the client&apos;s canvases can use them later.
+            Add a client to start building their brand knowledge base.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-2">
@@ -99,7 +107,7 @@ export function NewClientDialog() {
               {logo ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={logo}
+                  src={logo.preview}
                   alt="Logo preview"
                   className="size-11 rounded-md object-contain"
                 />
@@ -118,17 +126,6 @@ export function NewClientDialog() {
                 onChange={handleLogoChange}
               />
             </label>
-          </div>
-
-          <div className="grid gap-2">
-            <Label htmlFor="notes">Context notes</Label>
-            <Textarea
-              id="notes"
-              value={contextNotes}
-              onChange={(e) => setContextNotes(e.target.value)}
-              placeholder="Brand voice, product notes, tone…"
-              rows={4}
-            />
           </div>
         </div>
         <DialogFooter>

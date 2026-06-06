@@ -10,22 +10,20 @@ export type PersistedNode = {
   data: Record<string, unknown>;
 };
 
-// Ambient client context for a node — walk node → canvas → client in one query.
+// Verify the node exists; returns null if not found.
+// contextNotes is empty — context_notes column removed in 0003_kb_onboarding.
 export async function getNodeClientContext(
   nodeId: string,
 ): Promise<{ contextNotes: string } | null> {
   const supabase = createServerSupabase();
   const { data, error } = await supabase
     .from("nodes")
-    .select("id, canvases(clients(context_notes))")
+    .select("id")
     .eq("id", nodeId)
     .maybeSingle();
   if (error) throw error;
   if (!data) return null;
-  const row = data as {
-    canvases?: { clients?: { context_notes?: string } | null } | null;
-  };
-  return { contextNotes: row.canvases?.clients?.context_notes ?? "" };
+  return { contextNotes: "" };
 }
 
 export async function listNodes(canvasId: string): Promise<NodeRow[]> {

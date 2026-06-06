@@ -14,6 +14,7 @@ import {
 import { CanvasStoreProvider } from "@/components/canvas/canvas-store-provider";
 import { Canvas } from "@/components/canvas/canvas";
 import { listNodes } from "@/lib/db/nodes";
+import { listEdges } from "@/lib/db/edges";
 import { nodeRowToFlow } from "@/lib/canvas-nodes";
 
 export const dynamic = "force-dynamic";
@@ -43,7 +44,10 @@ export default async function CanvasPage({
     );
   }
 
-  const initialNodes = (await listNodes(canvas.id)).map(nodeRowToFlow);
+  const [initialNodes, initialEdges] = await Promise.all([
+    listNodes(canvas.id).then((rows) => rows.map(nodeRowToFlow)),
+    listEdges(canvas.id),
+  ]);
 
   return (
     <main className="flex flex-1 flex-col">
@@ -73,7 +77,7 @@ export default async function CanvasPage({
 
       <div className="relative flex-1">
         {/* load this canvas's nodes from the DB, seed the store, autosave changes */}
-        <CanvasStoreProvider key={canvas.id} initialNodes={initialNodes}>
+        <CanvasStoreProvider key={canvas.id} initialNodes={initialNodes} initialEdges={initialEdges}>
           <Canvas canvasId={canvas.id} />
         </CanvasStoreProvider>
       </div>

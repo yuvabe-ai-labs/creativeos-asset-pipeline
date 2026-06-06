@@ -22,6 +22,17 @@ export async function listClients(): Promise<ClientWithCount[]> {
   return rows.map((r) => ({ ...r, canvas_count: r.canvases?.[0]?.count ?? 0 }));
 }
 
+export async function getClientById(id: string): Promise<ClientRow | null> {
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("clients")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw error;
+  return (data as ClientRow) ?? null;
+}
+
 export async function getClientBySlug(slug: string): Promise<ClientRow | null> {
   const supabase = createServerSupabase();
   const { data, error } = await supabase
@@ -35,12 +46,9 @@ export async function getClientBySlug(slug: string): Promise<ClientRow | null> {
 
 export async function createClient(input: {
   name: string;
-  logo?: string | null;
-  contextNotes?: string;
 }): Promise<ClientRow> {
   const supabase = createServerSupabase();
 
-  // generate a slug unique across existing clients
   const { data: existing, error: readErr } = await supabase
     .from("clients")
     .select("slug");
@@ -52,14 +60,33 @@ export async function createClient(input: {
 
   const { data, error } = await supabase
     .from("clients")
-    .insert({
-      slug,
-      name: input.name,
-      logo: input.logo ?? null,
-      context_notes: input.contextNotes ?? "",
-    })
+    .insert({ slug, name: input.name })
     .select()
     .single();
   if (error) throw error;
   return data as ClientRow;
+}
+
+export async function updateClientLogoUrl(
+  clientId: string,
+  logoUrl: string,
+): Promise<void> {
+  const supabase = createServerSupabase();
+  const { error } = await supabase
+    .from("clients")
+    .update({ logo_url: logoUrl })
+    .eq("id", clientId);
+  if (error) throw error;
+}
+
+export async function setKBStatus(
+  clientId: string,
+  status: ClientRow["kb_status"],
+): Promise<void> {
+  const supabase = createServerSupabase();
+  const { error } = await supabase
+    .from("clients")
+    .update({ kb_status: status })
+    .eq("id", clientId);
+  if (error) throw error;
 }
