@@ -1,6 +1,7 @@
 import "server-only";
 import { createServerSupabase } from "@/lib/supabase/server";
 import type { NodeRow } from "./types";
+import type { TraceableBrandKB } from "@/lib/kb/schema";
 
 // What the client sends us to persist (React Flow node, trimmed to DB columns).
 export type PersistedNode = {
@@ -10,20 +11,52 @@ export type PersistedNode = {
   data: Record<string, unknown>;
 };
 
-// Verify the node exists; returns null if not found.
-// contextNotes is empty — context_notes column removed in 0003_kb_onboarding.
-export async function getNodeClientContext(
+// Resolve a node's client's active KB by walking node -> canvas -> client ->
+// active_kb_version_id -> client_kb_versions.output.
+// Returns null ONLY when the node itself is missing (lets the route 404 + hint a
+// retry during the autosave race). A node whose client has no active KB returns
+// { kb: null } — not normally reachable, since the canvas-list page redirects to
+// /kb unless kb_status === 'ready'.
+export async function getNodeActiveKB(
   nodeId: string,
-): Promise<{ contextNotes: string } | null> {
+): Promise<{ kb: TraceableBrandKB | null; kbVersionId: string | null } | null> {
   const supabase = createServerSupabase();
-  const { data, error } = await supabase
+
+  const { data: node, error: nodeErr } = await supabase
     .from("nodes")
-    .select("id")
+    .select("canvas_id")
     .eq("id", nodeId)
     .maybeSingle();
-  if (error) throw error;
-  if (!data) return null;
-  return { contextNotes: "" };
+  if (nodeErr) throw nodeErr;
+  if (!node) return null;
+
+  const { data: canvas, error: canvasErr } = await supabase
+    .from("canvases")
+    .select("client_id")
+    .eq("id", (node as { canvas_id: string }).canvas_id)
+    .maybeSingle();
+  if (canvasErr) throw canvasErr;
+  if (!canvas) return { kb: null, kbVersionId: null };
+
+  const { data: client, error: clientErr } = await supabase
+    .from("clients")
+    .select("active_kb_version_id")
+    .eq("id", (canvas as { client_id: string }).client_id)
+    .maybeSingle();
+  if (clientErr) throw clientErr;
+  const versionId =
+    (client as { active_kb_version_id: string | null } | null)
+      ?.active_kb_version_id ?? null;
+  if (!versionId) return { kb: null, kbVersionId: null };
+
+  const { data: version, error: versionErr } = await supabase
+    .from("client_kb_versions")
+    .select("output")
+    .eq("id", versionId)
+    .maybeSingle();
+  if (versionErr) throw versionErr;
+  const output = (version as { output: unknown } | null)?.output ?? null;
+  return { kb: (output as TraceableBrandKB) ?? null, kbVersionId: versionId };
 }
 
 export async function listNodes(canvasId: string): Promise<NodeRow[]> {
