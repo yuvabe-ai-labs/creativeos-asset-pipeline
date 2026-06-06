@@ -14,10 +14,10 @@ export type PersistedNode = {
 
 // Resolve a node's client's active KB by walking node -> canvas -> client ->
 // active_kb_version_id -> client_kb_versions.output.
-// Returns null ONLY when the node itself is missing (lets the route 404 + hint a
-// retry during the autosave race). A node whose client has no active KB returns
-// { kb: null } — not normally reachable, since the canvas-list page redirects to
-// /kb unless kb_status === 'ready'.
+// Returns null when the node (or its canvas) is missing (lets the route 404 +
+// hint a retry during the autosave race). A node whose client has no active KB
+// returns { kb: null } — not normally reachable, since the canvas-list page
+// redirects to /kb unless kb_status === 'ready'.
 export async function getNodeActiveKB(
   nodeId: string,
 ): Promise<{ kb: TraceableBrandKB | null; kbVersionId: string | null } | null> {
