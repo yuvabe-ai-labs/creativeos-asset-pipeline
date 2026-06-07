@@ -176,6 +176,7 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
                       <button
                         key={s.key}
                         type="button"
+                        aria-pressed={active}
                         onClick={() => toggleSlice(s.key)}
                         className={cn(
                           "nodrag rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
