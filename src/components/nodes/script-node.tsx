@@ -2,7 +2,7 @@
 
 import { useState, type ChangeEvent } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import { FileText, Upload } from "lucide-react";
+import { FileText, Upload, Maximize2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
@@ -18,7 +18,9 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { ReelOutput } from "./reel-output";
+import { ScriptDocument } from "./script-document";
+import { ScriptFocusView } from "./script-focus-view";
+import type { ReelScript } from "@/lib/nodes/reel-script";
 import {
   KB_PARSE_SLICES,
   DEFAULT_PARSE_SLICES,
@@ -49,6 +51,7 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
   }
   const [open, setOpen] = useState(false);
   const [parsing, setParsing] = useState(false);
+  const [focusOpen, setFocusOpen] = useState(false);
 
   async function handleParse() {
     if (!source.trim()) {
@@ -202,9 +205,22 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
               </div>
 
               <div className="grid gap-2">
-                <Label>Extracted reel</Label>
+                <div className="flex items-center justify-between">
+                  <Label>Extracted reel</Label>
+                  {parsed ? (
+                    <button
+                      type="button"
+                      onClick={() => setFocusOpen(true)}
+                      className="nodrag inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                    >
+                      <Maximize2 className="size-3.5" /> Expand
+                    </button>
+                  ) : null}
+                </div>
                 {parsed ? (
-                  <ReelOutput data={parsed as Record<string, unknown>} />
+                  <div className="rounded-lg border bg-muted/30 p-3">
+                    <ScriptDocument script={parsed as ReelScript} readOnly />
+                  </div>
                 ) : (
                   <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
                     Not extracted yet.
@@ -215,6 +231,17 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
           </SheetContent>
         </Sheet>
       </div>
+
+      {parsed ? (
+        <ScriptFocusView
+          open={focusOpen}
+          onOpenChange={setFocusOpen}
+          title={title}
+          source={source}
+          parsed={parsed as ReelScript}
+          onSave={(next) => updateNodeData(id, { parsed: next })}
+        />
+      ) : null}
 
       <Handle
         type="target"
