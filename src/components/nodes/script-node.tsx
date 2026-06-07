@@ -19,16 +19,34 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { ReelOutput } from "./reel-output";
+import {
+  KB_PARSE_SLICES,
+  DEFAULT_PARSE_SLICES,
+  type KBSliceKey,
+} from "@/lib/kb/parse-context";
 
 // Script node. Input = a finished reel script (the designer already has it).
 // Compact on the canvas; the real editing happens in a side panel (Sheet).
 // "Parse" EXTRACTS the script's structure into the reel object (no invention).
 export function ScriptNode({ id, data, selected }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
-  const d = data as { title?: string; source?: string; parsed?: unknown };
+  const d = data as {
+    title?: string;
+    source?: string;
+    parsed?: unknown;
+    kbSlices?: KBSliceKey[];
+  };
   const title = d.title ?? "";
   const source = d.source ?? "";
   const parsed = d.parsed;
+  const selectedSlices = d.kbSlices ?? DEFAULT_PARSE_SLICES;
+
+  function toggleSlice(key: KBSliceKey) {
+    const next = selectedSlices.includes(key)
+      ? selectedSlices.filter((k) => k !== key)
+      : [...selectedSlices, key];
+    updateNodeData(id, { kbSlices: next });
+  }
   const [open, setOpen] = useState(false);
   const [parsing, setParsing] = useState(false);
 
@@ -42,7 +60,7 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
       const res = await fetch(`/api/nodes/${id}/parse`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ source }),
+        body: JSON.stringify({ source, slices: selectedSlices }),
       });
       const json = await res.json();
       if (!res.ok) {
@@ -149,16 +167,37 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
                 />
               </div>
 
+              <div className="grid gap-2">
+                <Label>Brand context</Label>
+                <div className="flex flex-wrap gap-1.5">
+                  {KB_PARSE_SLICES.map((s) => {
+                    const active = selectedSlices.includes(s.key);
+                    return (
+                      <button
+                        key={s.key}
+                        type="button"
+                        aria-pressed={active}
+                        onClick={() => toggleSlice(s.key)}
+                        className={cn(
+                          "nodrag rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+                          active
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-border text-muted-foreground hover:bg-muted",
+                        )}
+                      >
+                        {s.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               <div className="grid gap-1.5">
-                <Button
-                  onClick={handleParse}
-                  disabled={parsing || !source.trim()}
-                >
+                <Button onClick={handleParse} disabled={parsing || !source.trim()}>
                   {parsing ? "Extracting…" : "Extract"}
                 </Button>
                 <p className="text-xs text-muted-foreground">
-                  Extracts the structured reel from the script (uses the client&apos;s
-                  context notes).
+                  Injects the selected brand context into extraction.
                 </p>
               </div>
 

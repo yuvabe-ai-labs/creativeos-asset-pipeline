@@ -1,6 +1,8 @@
 import "server-only";
 import { createServerSupabase } from "@/lib/supabase/server";
 import type { NodeRow } from "./types";
+import type { TraceableBrandKB } from "@/lib/kb/schema";
+import { getActiveKBVersion } from "./kb";
 
 // What the client sends us to persist (React Flow node, trimmed to DB columns).
 export type PersistedNode = {
@@ -10,20 +12,41 @@ export type PersistedNode = {
   data: Record<string, unknown>;
 };
 
-// Verify the node exists; returns null if not found.
-// contextNotes is empty — context_notes column removed in 0003_kb_onboarding.
-export async function getNodeClientContext(
+// Resolve a node's client's active KB by walking node -> canvas -> client ->
+// active_kb_version_id -> client_kb_versions.output.
+// Returns null when the node (or its canvas) is missing (lets the route 404 +
+// hint a retry during the autosave race). A node whose client has no active KB
+// returns { kb: null } — not normally reachable, since the canvas-list page
+// redirects to /kb unless kb_status === 'ready'.
+export async function getNodeActiveKB(
   nodeId: string,
-): Promise<{ contextNotes: string } | null> {
+): Promise<{ kb: TraceableBrandKB | null; kbVersionId: string | null } | null> {
   const supabase = createServerSupabase();
-  const { data, error } = await supabase
+
+  const { data: node, error: nodeErr } = await supabase
     .from("nodes")
-    .select("id")
+    .select("canvas_id")
     .eq("id", nodeId)
     .maybeSingle();
-  if (error) throw error;
-  if (!data) return null;
-  return { contextNotes: "" };
+  if (nodeErr) throw nodeErr;
+  if (!node) return null;
+
+  const { data: canvas, error: canvasErr } = await supabase
+    .from("canvases")
+    .select("client_id")
+    .eq("id", (node as { canvas_id: string }).canvas_id)
+    .maybeSingle();
+  if (canvasErr) throw canvasErr;
+  if (!canvas) return null; // dangling node (no canvas row) — treat as not found
+
+  const versionRow = await getActiveKBVersion(
+    (canvas as { client_id: string }).client_id,
+  );
+  if (!versionRow) return { kb: null, kbVersionId: null };
+  return {
+    kb: versionRow.output as unknown as TraceableBrandKB,
+    kbVersionId: versionRow.id,
+  };
 }
 
 export async function listNodes(canvasId: string): Promise<NodeRow[]> {

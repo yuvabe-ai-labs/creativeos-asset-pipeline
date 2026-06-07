@@ -2,11 +2,13 @@
 // file is safe to import from Server Components (no React Flow runtime pulled in).
 import type { Node } from "@xyflow/react";
 import type { NodeRow } from "@/lib/db/types";
+import type { KBSliceKey } from "@/lib/kb/parse-context";
 
 export type ScriptNodeData = {
   title?: string;
   source?: string; // raw script text (pasted or uploaded .md/.txt)
   parsed?: unknown; // active parsed output (display cache; full log in node_versions)
+  kbSlices?: KBSliceKey[]; // KB slices injected into parse context; undefined = DEFAULT_PARSE_SLICES
 };
 
 export type KBNodeData = {

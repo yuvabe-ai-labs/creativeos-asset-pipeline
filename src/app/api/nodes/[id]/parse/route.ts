@@ -1,5 +1,6 @@
 import { createOpenAI } from "@/lib/openai/server";
-import { getNodeClientContext } from "@/lib/db/nodes";
+import { getNodeActiveKB } from "@/lib/db/nodes";
+import { normalizeSlices, buildParseContext } from "@/lib/kb/parse-context";
 import { insertVersion, setActiveVersion } from "@/lib/db/versions";
 import { compileScript } from "@/lib/nodes/script";
 import { scriptParsePrompt } from "@/prompts/script-parse";
@@ -13,16 +14,20 @@ export async function POST(
 ) {
   const { id: nodeId } = await params;
 
-  const body = (await req.json().catch(() => null)) as { source?: unknown } | null;
+  const body = (await req.json().catch(() => null)) as
+    | { source?: unknown; slices?: unknown }
+    | null;
   const source = typeof body?.source === "string" ? body.source : "";
   if (!source.trim()) {
     return apiError("Provide a non-empty script to parse.", 400);
   }
+  const slices = normalizeSlices(body?.slices);
 
-  const ctx = await getNodeClientContext(nodeId);
+  const ctx = await getNodeActiveKB(nodeId);
   if (!ctx) return apiError("Node not found.", 404);
 
-  const { system, user } = compileScript(source, ctx.contextNotes);
+  const clientContext = ctx.kb ? buildParseContext(ctx.kb, slices) : "";
+  const { system, user } = compileScript(source, clientContext);
 
   try {
     const openai = createOpenAI();
@@ -46,7 +51,7 @@ export async function POST(
 
     const version = await insertVersion({
       nodeId,
-      inputsUsed: { clientContext: ctx.contextNotes ? "included" : "none" },
+      inputsUsed: { kbSlices: ctx.kb ? slices : null, kbVersionId: ctx.kbVersionId },
       paramsUsed: {
         promptId: scriptParsePrompt.id,
         promptVersion: scriptParsePrompt.version,

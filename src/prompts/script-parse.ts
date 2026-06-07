@@ -114,7 +114,7 @@ Fields:
 export const scriptParsePrompt = {
   id: "script-parse",
   version: 1,
-  model: "gpt-4o-mini",
+  model: "gpt-5.4-mini",
   system,
   schema: reelSchema,
   notes:
