@@ -2,13 +2,7 @@
 
 import { useState } from "react";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
-import {
-  ArrowLeft,
-  PanelLeftOpen,
-  PanelLeftClose,
-  RefreshCw,
-  FileUp,
-} from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, RefreshCw, FileUp } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogPortal, DialogOverlay, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -32,8 +26,14 @@ type ScriptFocusViewProps = {
   onPatch: (patch: Record<string, unknown>) => void;
 };
 
+const SUBTITLES = {
+  empty: "Upload a reel brief to extract its structured script.",
+  skeleton: "Extracting the script…",
+  parsed: "Review and edit the extracted reel script.",
+} as const;
+
 // The Script node's full-screen surface. A three-state machine:
-// EMPTY (upload/paste + toggles) → SKELETON (parsing) → PARSED (editable doc).
+// EMPTY (upload + toggles) → SKELETON (parsing) → PARSED (editable doc).
 // Manual edits are buffered in a draft and committed by an explicit Save.
 export function ScriptFocusView({
   open,
@@ -121,102 +121,103 @@ export function ScriptFocusView({
     >
       <DialogPortal>
         <DialogOverlay />
-        <DialogPrimitive.Popup className="fixed inset-0 z-50 flex flex-col bg-background outline-none data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0">
-          <header className="flex items-center justify-between border-b px-5 py-3">
-            <div className="flex items-center gap-3">
-              <Button variant="ghost" size="sm" onClick={requestClose}>
-                <ArrowLeft className="size-4" /> Back
-              </Button>
-              <DialogTitle className="font-display text-lg">
-                {title || "Reel script"}
-              </DialogTitle>
-              {mode === "skeleton" && (
-                <span className="text-xs text-muted-foreground">Extracting…</span>
-              )}
-              {dirty && (
-                <span className="text-xs text-muted-foreground">Unsaved changes</span>
-              )}
-            </div>
+        <DialogPrimitive.Popup className="fixed inset-0 z-50 overflow-y-auto bg-background outline-none data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0">
+          <div className="mx-auto w-full max-w-5xl px-6 py-12">
+            <button
+              type="button"
+              onClick={requestClose}
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <ArrowLeft className="size-4" /> Back to canvas
+            </button>
 
-            {mode === "parsed" && (
-              <div className="flex items-center gap-2">
-                <Button variant="ghost" size="sm" onClick={() => setShowOriginal((v) => !v)}>
-                  {showOriginal ? (
-                    <>
-                      <PanelLeftClose className="size-4" /> Hide original
-                    </>
-                  ) : (
-                    <>
-                      <PanelLeftOpen className="size-4" /> Show original
-                    </>
-                  )}
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    if (!dirty || window.confirm("Re-extract will overwrite unsaved edits. Continue?")) {
-                      runParse(source);
-                    }
-                  }}
-                >
-                  <RefreshCw className="size-4" /> Re-extract
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => setReplacing(true)}>
-                  <FileUp className="size-4" /> Replace script
-                </Button>
-                <Button size="sm" onClick={() => onPatch({ parsed: draft })} disabled={!dirty}>
-                  Save
-                </Button>
+            <header className="mb-8 mt-4 flex items-start justify-between gap-4">
+              <div>
+                <DialogTitle className="font-display text-3xl font-semibold tracking-tight">
+                  {title || "Reel script"}
+                </DialogTitle>
+                <p className="mt-1.5 text-sm text-muted-foreground">{SUBTITLES[mode]}</p>
               </div>
-            )}
 
-            {mode === "empty" && replacing && hasParsed && (
-              <Button variant="ghost" size="sm" onClick={() => setReplacing(false)}>
-                Cancel
-              </Button>
-            )}
-          </header>
-
-          <div className="flex min-h-0 flex-1">
-            {mode === "parsed" && showOriginal && (
-              <aside className="w-80 shrink-0 overflow-y-auto border-r bg-muted/20 p-5">
-                <span className="text-eyebrow">Original script</span>
-                <pre className="mt-2 whitespace-pre-wrap text-xs leading-relaxed text-muted-foreground">
-                  {source || "No original script."}
-                </pre>
-              </aside>
-            )}
-            <main className="flex-1 overflow-y-auto">
-              {mode === "skeleton" && <ScriptSkeleton />}
-              {mode === "empty" && (
-                <ScriptEmptyState
-                  title={title}
-                  source={source}
-                  slices={slices}
-                  onTitleChange={(t) => onPatch({ title: t })}
-                  onSourceChange={(s) => onPatch({ source: s })}
-                  onToggleSlice={toggleSlice}
-                  onSubmit={(s) => runParse(s)}
-                />
-              )}
               {mode === "parsed" && (
-                <div className="mx-auto max-w-2xl px-6 py-10">
-                  <ScriptDocument
-                    script={draft}
-                    onChange={(path: Path, value) =>
-                      setDraft((dd) => setScriptValue(dd, path, value))
-                    }
-                    onAddItem={(path: Path, item) =>
-                      setDraft((dd) => addItem(dd, path, item))
-                    }
-                    onRemoveItem={(path: Path, index) =>
-                      setDraft((dd) => removeItem(dd, path, index))
-                    }
-                  />
+                <div className="flex shrink-0 items-center gap-2">
+                  <Button variant="ghost" size="sm" onClick={() => setShowOriginal((v) => !v)}>
+                    {showOriginal ? (
+                      <>
+                        <EyeOff className="size-4" /> Hide original
+                      </>
+                    ) : (
+                      <>
+                        <Eye className="size-4" /> Show original
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      if (!dirty || window.confirm("Re-extract will overwrite unsaved edits. Continue?")) {
+                        runParse(source);
+                      }
+                    }}
+                  >
+                    <RefreshCw className="size-4" /> Re-extract
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => setReplacing(true)}>
+                    <FileUp className="size-4" /> Replace script
+                  </Button>
+                  <Button size="sm" onClick={() => onPatch({ parsed: draft })} disabled={!dirty}>
+                    Save
+                  </Button>
                 </div>
               )}
-            </main>
+
+              {mode === "empty" && replacing && hasParsed && (
+                <Button variant="ghost" size="sm" onClick={() => setReplacing(false)}>
+                  Cancel
+                </Button>
+              )}
+            </header>
+
+            {mode === "skeleton" && <ScriptSkeleton />}
+
+            {mode === "empty" && (
+              <ScriptEmptyState
+                title={title}
+                slices={slices}
+                onTitleChange={(t) => onPatch({ title: t })}
+                onToggleSlice={toggleSlice}
+                onUpload={(s) => {
+                  onPatch({ source: s });
+                  runParse(s);
+                }}
+              />
+            )}
+
+            {mode === "parsed" && (
+              <>
+                {showOriginal && (
+                  <div className="mb-6 rounded-xl border bg-muted/20 p-5">
+                    <span className="text-eyebrow">Original script</span>
+                    <pre className="mt-2 max-h-72 overflow-y-auto whitespace-pre-wrap text-xs leading-relaxed text-muted-foreground">
+                      {source || "No original script."}
+                    </pre>
+                  </div>
+                )}
+                <ScriptDocument
+                  script={draft}
+                  onChange={(path: Path, value) =>
+                    setDraft((dd) => setScriptValue(dd, path, value))
+                  }
+                  onAddItem={(path: Path, item) =>
+                    setDraft((dd) => addItem(dd, path, item))
+                  }
+                  onRemoveItem={(path: Path, index) =>
+                    setDraft((dd) => removeItem(dd, path, index))
+                  }
+                />
+              </>
+            )}
           </div>
         </DialogPrimitive.Popup>
       </DialogPortal>
