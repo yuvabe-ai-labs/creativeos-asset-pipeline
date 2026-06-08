@@ -33,6 +33,14 @@ the in-repo source of truth. Aesthetic: *"light editorial premium."*
   blue-black-tinted) — not raw Tailwind shadow values. Resting cards use `shadow-card`.
 - **Backgrounds:** the `.canvas-surface` signal grid for the editor; subtle, never flat noise.
 - **Icons:** Lucide only, 1.5 stroke, no fills.
+- **It's a creative tool — give interactive affordances personality (sparingly).**
+  Inline-editable text should *invite* editing: on hover, a **subtle dotted underline**
+  (`underline decoration-dotted decoration-2 underline-offset-4`, transparent → `decoration-primary/50`)
+  plus a faint `bg-primary/5` and `cursor-pointer` — keep it light so it doesn't shout under
+  long paragraphs; never a sterile box outline around the field.
+  "Add" actions are discoverable **dashed-border primary chips** (`border border-dashed
+  border-primary/40`, `hover:bg-primary/5`), not faint text links — they must not be missable.
+  Reference: `src/components/nodes/editable-field.tsx` and `script-document.tsx`.
 <!-- END:frontend-aesthetics -->
 
 <!-- BEGIN:component-structure -->

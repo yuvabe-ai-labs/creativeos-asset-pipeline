@@ -1,131 +1,121 @@
-# Script focus view — design
+# Script focus view — design (v2: Sheet-free, 3-state)
 
-**Date:** 2026-06-07
+**Date:** 2026-06-07 (revised)
 **Status:** Approved (pending spec review)
 **Area:** Script node → parsed reel script display/editing
 
 ## Problem
 
-The Script node parses a finished reel **script** into a structured object (`data.parsed`), today
-rendered read-only by [`ReelOutput`](../../../src/components/nodes/reel-output.tsx) inside a narrow
-side `Sheet`. The parsed script has ~13 parts (objective, schedule, visual-script shots, on-screen
-text, voiceover, music, caption, CTA, QC notes, product links, …) and the cramped sheet can't hold
-them comfortably. We need a roomy surface to **read and lightly edit** the parsed script.
+The Script node parses a finished reel **script** into a structured object (`data.parsed`).
+The original v1 flow split work across a side `Sheet` (input/parse) and an inline read-only
+preview. That split is being **replaced**: the node's `Open` now launches a single full-screen
+**Script focus view** that owns the whole lifecycle — upload, parse, review, and edit. The Sheet is
+removed.
 
-Terminology (kept distinct throughout):
-- **parsed script** — the structured object in `data.parsed` (the output of parsing).
-- **original script** — the raw text the user pasted/uploaded (`data.source`).
-- **Script focus view** — the new full-screen surface for the parsed script.
-
-## Research basis
-
-For AI-**extraction** UIs the field converged on: dual-pane source↔fields, linked highlighting,
-per-field provenance/confidence, and progressive disclosure (Shape of AI – Verification; Elicit –
-Living Documents; Google Document AI HITL). We deliberately scope DOWN from the full verification
-workflow to a roomy **view + edit** surface (user decision), keeping the original script as
-on-demand reference rather than an always-on linked pane.
+Terminology (kept distinct):
+- **parsed script** — the structured object in `data.parsed` (output of parsing).
+- **original script** — the raw text uploaded/pasted (`data.source`).
+- **Script focus view** — the single full-screen surface for the Script node.
 
 ## Goals
 
-- A full-screen, editorial, single-column document of the parsed script.
-- Click-to-edit inline editing of every field, committed by an explicit **Save**.
-- The **original script** available on demand (collapsed by default).
-- No verification workflow, no source↔field linking, no per-field provenance (explicitly out).
+- Clicking the node's **Open** launches the full-screen focus view directly (no Sheet).
+- The focus view is a **three-state machine: EMPTY → SKELETON → PARSED.**
+- **EMPTY:** upload `.md/.txt` or paste, a title field, and brand-context slice toggles.
+- **Auto-parse:** uploading fires extraction immediately; pasting fires it on blur. No Extract button.
+- **SKELETON:** a shimmer placeholder shaped like the document while the model runs.
+- **PARSED:** the editable document with explicit **Save**, **Re-extract**, **Replace script**, and
+  **Show original**.
+- Click-to-edit inline editing; manual edits buffered and committed by explicit Save.
 
 ## Non-goals
 
-- No approve/edit/reject or confidence UI.
-- No source-span highlighting / character offsets.
-- No drag-reorder of list items.
-- No new API route or DB schema change.
-- No per-edit version history (manual edits do not create `node_versions` rows).
+- No Sheet (removed). No verification workflow, no source↔field linking, no per-field provenance.
+- No drag-reorder of list items. No new API route or DB schema change.
+- No per-edit version history (manual edits don't create `node_versions` rows; parses do, via the
+  existing route).
 
 ## Design
 
-### A. Surface & launch
+### A. Surface, launch & node
 
-- A full-screen overlay built on the shadcn **`Dialog`** (Base UI registry, `render` prop) — keeps
-  the canvas underneath; `Esc` / `‹ Back` closes.
-- The existing node **`Sheet` is unchanged** in role: title, original-script input, slice toggles,
-  Extract, and a small inline preview. After a parse, the Sheet gains an **`Expand ⤢`** button that
-  opens the Script focus view.
-- Default layout: **single-column** editorial document, centered, generous margins.
-- Header toggle **`Show original ▸`** slides in the read-only original script as a left reference
-  panel; **`◂ Hide`** collapses it. This is local UI state only (one boolean) — not persisted.
+- The canvas **Script node shrinks to a launcher**: title (or "Untitled script"), a parsed/not status
+  dot, an **Open** affordance, and the React Flow handles. No Sheet, no inline preview.
+- **Open** opens a full-screen overlay on the shadcn **`Dialog`** primitives (`@base-ui/react/dialog`)
+  — canvas stays underneath; `Esc` / `‹ Back` closes (confirm-discard if there are unsaved edits).
+- The focus view chooses its state on open: `parsing` → SKELETON; else `data.parsed` present →
+  PARSED; else → EMPTY.
 
-### B. Components & boundaries
+### B. State machine
 
-| Unit | Responsibility | Depends on |
+```
+        upload / paste(blur)            parse success
+EMPTY ───────────(auto-parse)──▶ SKELETON ───────────▶ PARSED
+  ▲                                  │  parse error        │ Replace script
+  └──────────────────────────────────┴─────────────────────┘
+```
+
+- **EMPTY:** `ScriptEmptyState` — upload/paste, title, slice toggles (default recommended). Submitting
+  a non-empty source persists it and starts a parse.
+- **SKELETON:** `ScriptSkeleton` — shimmer rows shaped like the document.
+- **PARSED:** `ScriptDocument` (existing) + header actions: Save (explicit, manual edits),
+  Re-extract (re-run parse, e.g. after slice change), Replace script (→ EMPTY), Show original.
+
+### C. Components & boundaries
+
+| Unit | Responsibility | Status |
 |---|---|---|
-| `src/components/nodes/script-focus-view.tsx` | Dialog shell: header (Back, Show original, Save, dirty state), layout, source-toggle state, draft state | `script-document`, `setScriptValue` |
-| `src/components/nodes/script-document.tsx` | Render the parsed script as editable sections; raw-JSON fallback for odd shapes | `editable-field` |
-| `src/components/nodes/editable-field.tsx` | One reusable click-to-edit primitive (text / textarea / list-item) | — |
-| `src/lib/nodes/script-edit.ts` | Pure helpers: `setScriptValue(obj, path, value)`, list `addItem`/`removeItem` | — |
-| `src/components/nodes/script-node.tsx` (modify) | Add the `Expand ⤢` trigger after a parse; open the focus view | `script-focus-view` |
+| `src/components/nodes/script-node.tsx` | Launcher: title + status dot + Open; renders focus view; no Sheet | rework |
+| `src/components/nodes/script-focus-view.tsx` | Dialog shell + state machine; owns `source`, title, slices, the parse fetch, draft/Save | rework |
+| `src/components/nodes/script-empty-state.tsx` | Upload/paste + title + slice toggles; raises `onSubmit(source)` | new |
+| `src/components/nodes/script-skeleton.tsx` | Loading placeholder shaped like the document | new |
+| `src/components/nodes/slice-toggles.tsx` | Reusable brand-context chip row (extracted from the node) | new |
+| `src/components/nodes/script-document.tsx` | Editable/read-only parsed-script renderer | unchanged |
+| `src/components/nodes/editable-field.tsx` | Click-to-edit primitive | unchanged |
+| `src/lib/nodes/script-edit.ts`, `src/lib/nodes/reel-script.ts` | Pure helpers + type/guard | unchanged |
 
-- `script-document` **replaces** `ReelOutput` everywhere: the Sheet's small inline preview also
-  renders via `script-document` (read-only mode), and `ReelOutput` is **retired**.
-- `editable-field` is the editing workhorse; every section composes it rather than re-implementing
-  click-to-edit.
+`slice-toggles.tsx` is the DRY extraction: both the node's old inline chips and the EMPTY state used
+the same `KB_PARSE_SLICES` map — now one component.
 
-### C. Data flow, editing & persistence — buffered editor
+### D. Data flow, parse & persistence
 
-1. Opening the focus view seeds a **local draft** = a structural copy of `data.parsed`.
-2. Editing a field (`editable-field` commit) updates the **draft** immutably via
-   `setScriptValue(draft, path, value)` — node data is NOT touched yet.
-3. **Dirty tracking:** the view compares draft vs. the opened `data.parsed`. Save is enabled only
-   when they differ; an "Unsaved changes" indicator reflects state.
-4. **Explicit Save** commits: `updateNodeData(id, { parsed: draft })`. The existing canvas autosave
-   then persists `data.parsed` to the DB (same mechanism as title/slice edits). No new endpoint.
-5. **Discard / Cancel** reverts the draft to the last saved `data.parsed`.
-6. Closing (`‹ Back` / `Esc`) with unsaved edits prompts a confirm-discard.
+1. **EMPTY → parse:** on upload (immediately) or paste (on blur), the focus view calls
+   `updateNodeData(id, { source })` then `POST /api/nodes/:id/parse` with `{ source, slices }`
+   (existing endpoint). State → SKELETON.
+2. **Success:** `updateNodeData(id, { parsed: output })`, seed the editable **draft** from `output`
+   (clean), state → PARSED. The route logs a `node_versions` row + sets active (unchanged).
+3. **Error:** toast the message, return to EMPTY with `source` retained.
+4. **Manual edits (PARSED):** mutate the draft immutably via `setScriptValue`/`addItem`/`removeItem`;
+   **Save** commits `updateNodeData(id, { parsed: draft })`. Dirty tracking enables Save; closing with
+   unsaved edits prompts confirm-discard.
+5. **Re-extract:** re-runs step 1's parse with the current `source` + slices (overwrites parsed).
+6. **Replace script:** clears to EMPTY (keeps `source` editable) for a new upload/paste.
 
-Editing model details:
-- Click-to-edit: fields render as read-only text; click → input/`textarea`; Enter/blur commits to
-  the draft (Esc cancels that field's edit). Editorial look, document feel.
-- **List sections** (visual-script shots, on-screen-text body lines, QC notes, product links):
-  edit existing items **+ add/remove** an item. No drag-reorder.
-- Empty values (the strict parse returns `""`/`[]`) render as a muted placeholder ("Add objective…")
-  that is still click-to-edit — never a wall of blank inputs.
+### E. States & fallback
 
-### D. Error handling & fallback
-
-- **Odd / non-script `data.parsed`:** `script-document` preserves
-  [ReelOutput's existing guard](../../../src/components/nodes/reel-output.tsx#L41-L47) — if the shape
-  doesn't look like a reel script, render read-only raw JSON instead of erroring (editing disabled
-  in that fallback).
-- **No parsed script yet:** the `Expand ⤢` trigger only appears once `data.parsed` exists.
-- **Confirm-discard** guards accidental loss of unsaved edits on close.
-
-## Data flow diagram
-
-```
-Sheet (after parse) ──Expand ⤢──▶ Script focus view (Dialog)
-  open: draft = copy(data.parsed)
-  edit: editable-field ▶ setScriptValue(draft, path, value)   [draft only]
-  Save: updateNodeData(id, { parsed: draft }) ▶ canvas autosave ▶ DB
-  Back/Esc dirty ▶ confirm-discard ; Discard ▶ draft = data.parsed
-```
+- **EMPTY** when no `source` and no `parsed`. **SKELETON** while a parse is in flight. **PARSED** when
+  `parsed` exists.
+- **Odd/non-script `parsed`:** `ScriptDocument` falls back to read-only raw JSON (existing guard).
+- **Confirm-discard** guards unsaved manual edits on close.
 
 ## Testing
 
-- **Pure helpers (TDD, Vitest):** `setScriptValue` (set scalar at nested path incl. array index;
-  returns new object, no mutation; missing-path safety), `addItem`/`removeItem` (immutable, correct
-  index handling, empty-list edges).
-- **Components** (`script-focus-view`, `script-document`, `editable-field`): verified via
-  `npx tsc --noEmit`, `npm run lint`, and a manual run — consistent with the Task 5 approach.
-- **Manual acceptance:** Expand opens full-screen; edit objective + a shot, Save persists (reopen
-  shows saved); Discard reverts; Show original toggles the reference panel; odd parse shows JSON.
+- **Pure helpers** stay TDD'd (`script-edit`, `reel-script` guard) — already done.
+- **Components** (`script-node`, `script-focus-view`, `script-empty-state`, `script-skeleton`,
+  `slice-toggles`): verified via `npx tsc --noEmit`, `npm run lint`, production `npm run build`, and a
+  manual run.
+- **Manual acceptance:** add a Script node → Open → EMPTY; upload a `.md` → SKELETON → PARSED; edit a
+  field, Save persists (reopen shows it); Re-extract re-runs; Replace script returns to EMPTY; Show
+  original toggles the reference panel; Back with unsaved edits confirms discard.
 
 ## Design-system notes (Yuvabe "light editorial premium")
 
-- Document feel over form feel: read-only text by default, purple `primary` only for active/focus and
-  the Save CTA. Neutrals carry the layout. ~3 type sizes. Motion easing `cubic-bezier(0.22,1,0.36,1)`.
-- `Dialog` content full-bleed with generous internal margins; section labels use `.text-eyebrow`.
+- Document feel over form feel; purple `primary` only for active/focus, Save, and chip-active.
+- Skeleton uses neutral shimmer (no spinner walls). Motion easing `cubic-bezier(0.22,1,0.36,1)`.
+- Full-bleed `Dialog` popup with generous internal margins; section labels use `.text-eyebrow`.
 
-## Files touched
+## Migration note
 
-- Create: `script-focus-view.tsx`, `script-document.tsx`, `editable-field.tsx`,
-  `src/lib/nodes/script-edit.ts` (+ its test)
-- Modify: `script-node.tsx` (Expand trigger; swap inline preview to `script-document`)
-- Remove: `reel-output.tsx` (retired; replaced by `script-document`)
+This supersedes the v1 (Sheet + inline preview) design in the same file. `ReelOutput` was already
+retired in v1 implementation; the Sheet block in `script-node.tsx` is removed here. The pure helpers,
+`EditableField`, and `ScriptDocument` built in v1 are reused unchanged.
