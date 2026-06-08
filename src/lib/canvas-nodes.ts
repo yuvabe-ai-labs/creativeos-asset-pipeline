@@ -7,7 +7,7 @@ import type { KBSliceKey } from "@/lib/kb/parse-context";
 export type ScriptNodeData = {
   title?: string;
   source?: string; // raw script text (pasted or uploaded .md/.txt)
-  parsed?: unknown; // active parsed output (display cache; full log in node_versions)
+  parsed?: unknown; // active parsed output — DISPLAY ONLY, hydrated from the active version (D19); never persisted
   kbSlices?: KBSliceKey[]; // KB slices injected into parse context; undefined = DEFAULT_PARSE_SLICES
 };
 
@@ -24,27 +24,40 @@ export type AppNode =
   | Node<ScriptNodeData, "script">
   | Node<KBNodeData, "kb">;
 
-// DB row → React Flow node (used on canvas load, server-side)
-// The type cast is intentional: row.type is the DB string which we trust to be
-// a valid node type; TypeScript can't narrow a runtime string to a literal union.
-export function nodeRowToFlow(row: NodeRow): AppNode {
+// A node row joined with its active version's output (canvas-load shape).
+// `active` is the to-one embed of node_versions via nodes.active_version_id.
+export type NodeWithActive = NodeRow & {
+  active: { output: unknown } | null;
+};
+
+// DB row → React Flow node (used on canvas load, server-side).
+// `data.parsed` is DERIVED from the active version's output (D19): it is hydrated
+// here for display only and is never read from / written to the persisted row.
+export function nodeRowToFlow(row: NodeWithActive): AppNode {
   // "brief" was renamed to "script" — migrate old rows on read so they render correctly.
-  // The autosave will persist the corrected type back to the DB on next save.
   const type = row.type === "brief" ? "script" : row.type;
+  // Strip any stale persisted `parsed`; output is the single source of truth now.
+  const own = { ...((row.data ?? {}) as Record<string, unknown>) };
+  delete own.parsed;
+  const output = row.active?.output;
+  const data = output != null ? { ...own, parsed: output } : own;
   return {
     id: row.id,
     type: type as AppNode["type"],
     position: row.position,
-    data: (row.data ?? {}) as AppNode["data"],
+    data: data as AppNode["data"],
   } as AppNode;
 }
 
-// React Flow node → the columns we persist (used on autosave, client-side)
+// React Flow node → the columns we persist (used on autosave, client-side).
+// `parsed` is intentionally omitted — it is derived from the active version (D19).
 export function flowToPersisted(n: AppNode) {
+  const data = { ...(n.data as Record<string, unknown>) };
+  delete data.parsed;
   return {
     id: n.id,
     type: n.type as string,
     position: n.position,
-    data: n.data as Record<string, unknown>,
+    data,
   };
 }
