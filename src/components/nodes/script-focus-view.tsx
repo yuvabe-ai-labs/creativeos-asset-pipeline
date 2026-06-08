@@ -34,6 +34,7 @@ type ScriptFocusViewProps = {
   parsed: ReelScript | null;
   slices: KBSliceKey[];
   onPatch: (patch: Record<string, unknown>) => void;
+  onSaveOutput: (output: ReelScript) => Promise<void>;
 };
 
 const SUBTITLES = {
@@ -54,6 +55,7 @@ export function ScriptFocusView({
   parsed,
   slices,
   onPatch,
+  onSaveOutput,
 }: ScriptFocusViewProps) {
   const [draft, setDraft] = useState<ReelScript>(parsed ?? {});
   const [showOriginal, setShowOriginal] = useState(false);
@@ -114,6 +116,16 @@ export function ScriptFocusView({
       toast.error(e instanceof Error ? e.message : "Extraction failed");
     } finally {
       setParsing(false);
+    }
+  }
+
+  async function handleSave() {
+    try {
+      await onSaveOutput(draft);   // truth: update the active version's output
+      onPatch({ parsed: draft });  // mirror into the store for display + clear dirty
+      toast.success("Saved");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Save failed");
     }
   }
 
@@ -213,7 +225,7 @@ export function ScriptFocusView({
                     <FileUp className="size-4 text-primary" /> Replace script
                   </Button>
                   <div className="mx-1 h-6 w-px bg-border" aria-hidden />
-                  <Button size="lg" onClick={() => onPatch({ parsed: draft })} disabled={!dirty}>
+                  <Button size="lg" onClick={handleSave} disabled={!dirty}>
                     Save
                   </Button>
                 </div>

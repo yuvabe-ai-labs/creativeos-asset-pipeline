@@ -5,6 +5,7 @@ import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
+import { saveScriptOutputAction } from "@/lib/actions/nodes";
 import { ScriptFocusView } from "./script-focus-view";
 import type { ReelScript } from "@/lib/nodes/reel-script";
 import { DEFAULT_PARSE_SLICES, type KBSliceKey } from "@/lib/kb/parse-context";
@@ -73,6 +74,7 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
         parsed={parsed}
         slices={slices}
         onPatch={(patch) => updateNodeData(id, patch)}
+        onSaveOutput={(output) => saveScriptOutputAction(id, output)}
       />
 
       <Handle
