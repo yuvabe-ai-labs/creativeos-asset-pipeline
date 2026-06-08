@@ -2,8 +2,15 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { motion } from "motion/react";
 import { toast } from "sonner";
-import { RefreshCwIcon, CheckCircle2Icon, CheckIcon, ImageIcon } from "lucide-react";
+import {
+  RefreshCwIcon,
+  CheckCircle2Icon,
+  CheckIcon,
+  ImageIcon,
+  FolderPenIcon,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,6 +22,13 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
 import { getModuleStatus } from "@/components/kb/kb-module-card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { KBFieldRow } from "@/components/kb/kb-field-row";
@@ -76,7 +90,7 @@ export function KBOnboardingReviewStep({
   // Document management state
   const [documents, setDocuments] = useState<ClientKBDocumentRow[]>(initialDocuments);
   const [images, setImages] = useState<ClientBrandImageRow[]>(initialImages);
-  const [docPanelOpen, setDocPanelOpen] = useState(false);
+  const [sourceDrawerOpen, setSourceDrawerOpen] = useState(false);
   const [uploadingDocs, setUploadingDocs] = useState(false);
   const [uploadingImgs, setUploadingImgs] = useState(false);
 
@@ -238,7 +252,7 @@ export function KBOnboardingReviewStep({
 
   // ── Staged document management ────────────────────────────────────────────
 
-  function openPanel() { if (!docPanelOpen) setDocPanelOpen(true); }
+  function openPanel() { setSourceDrawerOpen(true); }
 
   function markDocForRemoval(docId: string) {
     setPendingDocRemovals((prev) => new Set(prev).add(docId));
@@ -352,7 +366,7 @@ export function KBOnboardingReviewStep({
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="animate-rise">
+    <div className="animate-rise flex min-h-0 flex-1 flex-col">
       {/* Save & Re-analyze dialog */}
       <Dialog open={showSaveDialog} onOpenChange={setShowSaveDialog}>
         <DialogContent showCloseButton={false}>
@@ -381,31 +395,106 @@ export function KBOnboardingReviewStep({
 
       <KBReExtractOverlay visible={reExtracting} />
 
-      {/* Source documents & images panel — always visible */}
-      <KBSourcePanel
-        clientId={clientId}
-        documents={documents}
-        images={images}
-        staged={staged}
-        docPanelOpen={docPanelOpen}
-        uploadingDocs={uploadingDocs}
-        uploadingImgs={uploadingImgs}
-        showChangeIndicator={showChangeIndicator}
-        onTogglePanel={() => setDocPanelOpen((v) => !v)}
-        onMarkDocForRemoval={markDocForRemoval}
-        onUndoDocRemoval={undoDocRemoval}
-        onMarkImageForRemoval={markImageForRemoval}
-        onUndoImageRemoval={undoImageRemoval}
-        onDocFiles={handleDocFiles}
-        onImgFiles={handleImgFiles}
-        onCancelChanges={handleCancelChanges}
-        onSaveChanges={() => setShowSaveDialog(true)}
-        cancelingChanges={cancelingChanges}
-        savingChanges={savingChanges}
-      />
+      {/* Title + source-files drawer trigger */}
+      <header className="mb-5 mt-2 flex shrink-0 items-start justify-between gap-4">
+        <div>
+          <h1 className="font-display text-3xl font-semibold tracking-tight">
+            Brand Knowledge Base
+          </h1>
+          <p className="mt-1.5 text-sm text-muted-foreground">
+            {isEditMode
+              ? "Your brand KB is live. Add or remove source documents and re-extract, or edit fields directly."
+              : "Review the extracted brand knowledge and approve, edit, or reject each field."}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setSourceDrawerOpen(true)}
+          title="Edit source documents & images"
+          className="relative mt-1 flex shrink-0 items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-muted-foreground shadow-card transition-colors hover:text-foreground"
+        >
+          <FolderPenIcon className="size-4" />
+          <span className="hidden sm:inline">Source files</span>
+          {showChangeIndicator && (
+            <span className="absolute -right-1 -top-1 size-2.5 rounded-full bg-amber-500 ring-2 ring-background" />
+          )}
+        </button>
+      </header>
 
-      <div className="space-y-6">
-        {/* Module tabs */}
+      {/* Source documents & images — side drawer */}
+      <Sheet open={sourceDrawerOpen} onOpenChange={setSourceDrawerOpen}>
+        <SheetContent className="flex h-full w-full flex-col gap-0 p-0 sm:max-w-lg">
+          <SheetHeader className="shrink-0 border-b border-border p-5 pr-12">
+            <SheetTitle className="font-display text-lg">Source Documents & Images</SheetTitle>
+            <SheetDescription>
+              Add or remove the documents and images used to build the brand KB, then
+              Save &amp; re-analyze to rebuild it.
+            </SheetDescription>
+          </SheetHeader>
+          <KBSourcePanel
+            documents={documents}
+            images={images}
+            staged={staged}
+            uploadingDocs={uploadingDocs}
+            uploadingImgs={uploadingImgs}
+            onMarkDocForRemoval={markDocForRemoval}
+            onUndoDocRemoval={undoDocRemoval}
+            onMarkImageForRemoval={markImageForRemoval}
+            onUndoImageRemoval={undoImageRemoval}
+            onDocFiles={handleDocFiles}
+            onImgFiles={handleImgFiles}
+            onCancelChanges={handleCancelChanges}
+            onSaveChanges={() => setShowSaveDialog(true)}
+            cancelingChanges={cancelingChanges}
+            savingChanges={savingChanges}
+          />
+        </SheetContent>
+      </Sheet>
+
+      {/* Fixed header — global actions + module tabs */}
+      <div className="shrink-0">
+        <div className="mb-2 flex items-center justify-between gap-3">
+          {/* Left: global edit state + Save (secondary) */}
+          <div className="flex items-center gap-2">
+            {dirty && (
+              <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[0.65rem] font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                Unsaved changes
+              </span>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSave}
+              disabled={!dirty || saving}
+            >
+              {saving ? "Saving…" : "Save"}
+            </Button>
+          </div>
+          {/* Right: Mark KB Ready (primary) — the global finalize action */}
+          <Button
+            size="sm"
+            onClick={handleMarkReady}
+            disabled={!isReady || markingReady || isEditMode || dirty}
+            title={
+              isEditMode
+                ? undefined
+                : dirty
+                  ? "Save your changes before marking the KB ready"
+                  : !isReady
+                    ? "Approve or reject every field first"
+                    : undefined
+            }
+          >
+            <CheckCircle2Icon className="size-4" />
+            {markingReady
+              ? "Saving…"
+              : isEditMode
+                ? "KB is Ready"
+                : isReady
+                  ? "Mark KB Ready"
+                  : "Review all fields first"}
+          </Button>
+        </div>
         <Tabs
           value={selectedModule}
           onValueChange={(v) => setSelectedModule(v as ModuleKey)}
@@ -420,7 +509,7 @@ export function KBOnboardingReviewStep({
                 <TabsTrigger
                   key={key}
                   value={key}
-                  className="h-auto flex-none rounded-none px-3 py-2.5 after:bottom-0 after:bg-primary"
+                  className="h-auto flex-none rounded-none px-3 py-2.5 after:bg-primary group-data-horizontal/tabs:after:bottom-0"
                 >
                   {label}
                   {ready && (
@@ -431,35 +520,41 @@ export function KBOnboardingReviewStep({
             })}
           </TabsList>
         </Tabs>
+      </div>
 
-        {/* Module detail */}
-        <div className="space-y-4">
-          <div className="sticky top-0 z-10 -mx-1 flex items-center justify-between gap-3 bg-background/80 px-1 py-2 backdrop-blur">
-            <span className="text-xs text-muted-foreground">
-              {dirty ? (
-                <span className="font-medium text-foreground">Unsaved changes</span>
-              ) : (
-                <>
-                  {Object.values(currentFields).filter((f) => f.status !== "needs_review").length}
-                  {" / "}
-                  {Object.values(currentFields).length} reviewed
-                </>
-              )}
-            </span>
+      {/* Scrolling tab body — fills the viewport below the fixed header. Keyed by
+         module so it remounts (resets scroll) and slides in on switch. */}
+      <div
+        key={selectedModule}
+        className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden"
+      >
+        <motion.div
+          initial={{ opacity: 0, x: 8 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ ease: [0.22, 1, 0.36, 1], duration: 0.6 }}
+          className="space-y-4 pt-5 pb-12"
+        >
+          {/* Module header — repeats the tab title with its module-scoped action */}
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="font-display text-lg font-semibold">
+              {MODULES.find((m) => m.key === selectedModule)?.label}
+            </h2>
             <div className="flex items-center gap-3">
+              <span className="text-xs text-muted-foreground">
+                {Object.values(currentFields).filter((f) => f.status !== "needs_review").length}
+                {" / "}
+                {Object.values(currentFields).length} reviewed
+              </span>
               {hasNeedsReview && (
-                <button
-                  type="button"
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={() => handleApproveAll(selectedModule)}
-                  className="flex items-center gap-1 rounded-md border border-border bg-background px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:bg-muted"
                 >
                   <CheckIcon className="size-3.5" />
-                  Approve All ({needsReviewCount})
-                </button>
+                  Approve all ({needsReviewCount})
+                </Button>
               )}
-              <Button size="sm" onClick={handleSave} disabled={!dirty || saving}>
-                {saving ? "Saving…" : "Save"}
-              </Button>
             </div>
           </div>
 
@@ -471,12 +566,12 @@ export function KBOnboardingReviewStep({
                   No brand images were analyzed
                 </p>
                 <p className="mt-0.5 text-xs text-muted-foreground">
-                  Upload images in the Source Documents & Images panel above.
+                  Upload images in the Source Documents &amp; Images drawer.
                 </p>
               </div>
             </div>
           ) : (
-            <div key={selectedModule} className="grid gap-10">
+            <div className="grid gap-10">
               {Object.entries(currentFields).map(([fieldKey, field]) => (
                 <KBFieldRow
                   key={fieldKey}
@@ -492,36 +587,7 @@ export function KBOnboardingReviewStep({
               ))}
             </div>
           )}
-        </div>
-
-        {/* Footer — finalize the KB */}
-        <div className="flex flex-col items-end gap-1.5 border-t border-border pt-5">
-          <Button
-            onClick={handleMarkReady}
-            disabled={!isReady || markingReady || isEditMode || dirty}
-          >
-            <CheckCircle2Icon className="mr-1.5 size-4" />
-            {markingReady
-              ? "Saving…"
-              : isEditMode
-                ? "KB is Ready"
-                : isReady
-                  ? "Mark KB Ready"
-                  : "Review all fields first"}
-          </Button>
-          {dirty ? (
-            <p className="text-xs text-muted-foreground">
-              Save your changes before marking the KB ready
-            </p>
-          ) : (
-            !isReady &&
-            !isEditMode && (
-              <p className="text-xs text-muted-foreground">
-                Approve or reject every extracted field to continue
-              </p>
-            )
-          )}
-        </div>
+        </motion.div>
       </div>
     </div>
   );

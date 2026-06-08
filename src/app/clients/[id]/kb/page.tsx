@@ -45,8 +45,14 @@ export default async function KBPage({
   const isEditMode = client.kb_status === "ready";
 
   return (
-    <main className="mx-auto w-full max-w-5xl flex-1 px-6 py-12">
-      <Breadcrumb className="animate-rise">
+    <main
+      className={
+        isReviewOrEdit
+          ? "mx-auto flex h-[calc(100vh-4rem)] w-full max-w-5xl flex-col px-6 pt-6"
+          : "mx-auto w-full max-w-5xl flex-1 px-6 py-12"
+      }
+    >
+      <Breadcrumb className="animate-rise shrink-0">
         <BreadcrumbList>
           <BreadcrumbItem>
             <BreadcrumbLink render={<Link href="/">Clients</Link>} />
@@ -66,19 +72,6 @@ export default async function KBPage({
         </BreadcrumbList>
       </Breadcrumb>
 
-      <header className="animate-rise mb-8 mt-4">
-        <h1 className="font-display text-3xl font-semibold tracking-tight">
-          Brand Knowledge Base
-        </h1>
-        <p className="mt-1.5 text-sm text-muted-foreground">
-          {isReviewOrEdit
-            ? isEditMode
-              ? "Your brand KB is live. Add or remove source documents and re-extract, or edit fields directly."
-              : "Review the extracted brand knowledge and approve, edit, or reject each field."
-            : "Upload brand documents and images to extract your brand knowledge base."}
-        </p>
-      </header>
-
       {isReviewOrEdit ? (
         <KBOnboardingReviewStep
           key={activeKBVersion!.id}
@@ -92,12 +85,22 @@ export default async function KBPage({
           docIdsAtExtraction={(activeKBVersion!.doc_ids_used as string[]) ?? []}
         />
       ) : (
-        <KBOnboardingUploadStep
-          clientId={client.id}
-          clientSlug={client.slug}
-          initialDocuments={documents}
-          initialImages={images}
-        />
+        <>
+          <header className="animate-rise mb-8 mt-4">
+            <h1 className="font-display text-3xl font-semibold tracking-tight">
+              Brand Knowledge Base
+            </h1>
+            <p className="mt-1.5 text-sm text-muted-foreground">
+              Upload brand documents and images to extract your brand knowledge base.
+            </p>
+          </header>
+          <KBOnboardingUploadStep
+            clientId={client.id}
+            clientSlug={client.slug}
+            initialDocuments={documents}
+            initialImages={images}
+          />
+        </>
       )}
     </main>
   );

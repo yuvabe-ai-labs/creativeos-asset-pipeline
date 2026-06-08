@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { XIcon, SparklesIcon, CheckIcon, CheckCircle2 } from "lucide-react";
+import { XIcon, SparklesIcon, CheckIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { EditableField } from "@/components/nodes/editable-field";
 import {
@@ -16,15 +16,6 @@ const CONFIDENCE_CLASSES = {
   high: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
   medium: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
   low: "bg-muted text-muted-foreground",
-};
-
-// Gutter tick colour by reviewed state. `needs_review` has no tick (it renders
-// the purple kicker rule instead); `rejected` is handled separately (muted dash).
-const TICK_CLASSES = {
-  needs_review: "",
-  approved: "text-emerald-500 dark:text-emerald-400",
-  edited: "text-blue-500 dark:text-blue-400",
-  rejected: "",
 };
 
 function formatValue(value: unknown): string {
@@ -60,7 +51,6 @@ export function KBFieldRow({
   const displayValue = formatValue(field.value);
   const isEmpty = !field.value || (Array.isArray(field.value) && field.value.length === 0);
   const isRejected = field.status === "rejected";
-  const isReviewed = field.status === "approved" || field.status === "edited";
 
   // Commit an inline edit. Arrays are stored back as a comma-split list; a manual
   // edit always lands as status "edited" (EditableField fires onCommit only when
@@ -87,21 +77,14 @@ export function KBFieldRow({
     }
   }
 
-  // Gutter: an editorial section label. The reviewed cue replaces the purple
-  // kicker rule with a tick once a field is approved/edited; rejected fields get
-  // a muted dash. Mirrors the Section gutter in script-document.tsx.
+  // Gutter: an editorial section label with a constant purple kicker rule —
+  // mirrors the Section gutter in script-document.tsx. Review state (approved /
+  // edited) is intentionally NOT shown per-field; the only at-a-glance signal is
+  // the per-module tick on the tab. Rejected keeps a line-through label.
   return (
     <section className="grid gap-x-10 gap-y-2.5 sm:grid-cols-[160px_1fr]">
       <div className="self-start sm:sticky sm:top-2">
-        <div className="mb-2 flex h-3.5 items-center" aria-hidden>
-          {isReviewed ? (
-            <CheckCircle2 className={cn("size-3.5", TICK_CLASSES[field.status])} />
-          ) : isRejected ? (
-            <span className="h-0.5 w-6 rounded-full bg-muted-foreground/40" />
-          ) : (
-            <span className="h-0.5 w-6 rounded-full bg-primary/70" />
-          )}
-        </div>
+        <div className="mb-2 h-0.5 w-6 rounded-full bg-primary/70" aria-hidden />
         <span
           className={cn(
             "text-eyebrow",
