@@ -258,6 +258,11 @@ export function KBNode({ data, selected }: NodeProps) {
 
   return (
     <div
+      onDoubleClick={(e) => {
+        e.stopPropagation();
+        prefetch();
+        setOpen(true);
+      }}
       className={cn(
         "w-44 rounded-lg border border-border bg-card shadow-card",
         selected && "ring-2 ring-primary ring-offset-1 ring-offset-background",

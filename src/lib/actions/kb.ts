@@ -37,6 +37,17 @@ export async function patchKBFieldAction(
   await updateKBVersionOutput(versionId, updated);
 }
 
+// ── Bulk Save ─────────────────────────────────────────────────────────────────
+// Persists the whole reviewed KB output in one write. Mirrors the Script focus
+// view's buffered Save: the client edits a local draft and commits it here once,
+// rather than auto-saving every field change.
+export async function saveKBOutputAction(
+  versionId: string,
+  output: TraceableBrandKB,
+): Promise<void> {
+  await updateKBVersionOutput(versionId, output);
+}
+
 // ── Mark KB Ready ─────────────────────────────────────────────────────────────
 // Replaces POST /api/clients/:id/kb/ready
 export async function markKBReadyAction(

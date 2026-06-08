@@ -15,7 +15,8 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
-import { KBModuleCard } from "@/components/kb/kb-module-card";
+import { getModuleStatus } from "@/components/kb/kb-module-card";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { KBFieldRow } from "@/components/kb/kb-field-row";
 import { KBSourcePanel } from "@/components/kb/kb-source-panel";
 import { KBReExtractOverlay } from "@/components/kb/kb-re-extract-overlay";
@@ -23,7 +24,7 @@ import { computeReadyStatus } from "@/lib/kb/fill-rate";
 import type { TraceableBrandKB, KBField } from "@/lib/kb/schema";
 import { setNestedField } from "@/lib/kb/utils";
 import {
-  patchKBFieldAction,
+  saveKBOutputAction,
   markKBReadyAction,
   deleteKBDocumentAction,
   deleteBrandImageAction,
@@ -60,8 +61,13 @@ export function KBOnboardingReviewStep({
 }: Props) {
   const router = useRouter();
 
-  // KB review state — reset via key={versionId} at the call site (page.tsx)
+  // KB review state — reset via key={versionId} at the call site (page.tsx).
+  // `kb` is the working draft; `savedKB` is the last persisted baseline. Edits
+  // buffer into the draft and commit together via Save (like ScriptFocusView),
+  // instead of auto-saving every field change.
   const [kb, setKB] = useState<TraceableBrandKB>(initialKB);
+  const [savedKB, setSavedKB] = useState<TraceableBrandKB>(initialKB);
+  const [saving, setSaving] = useState(false);
   const [selectedModule, setSelectedModule] = useState<ModuleKey>("brand_voice");
   const [reanalyzingFields, setReanalyzingFields] = useState<Set<string>>(new Set());
   const [markingReady, setMarkingReady] = useState(false);
@@ -86,6 +92,7 @@ export function KBOnboardingReviewStep({
   // ── Derived ───────────────────────────────────────────────────────────────
 
   const isReady = computeReadyStatus(kb);
+  const dirty = JSON.stringify(kb) !== JSON.stringify(savedKB);
 
   const staged: StagedChanges = {
     pendingDocRemovals,
@@ -119,6 +126,7 @@ export function KBOnboardingReviewStep({
 
   // ── Field helpers ─────────────────────────────────────────────────────────
 
+  // Buffers a field change into the draft only. Persisted later by handleSave.
   function patchField(path: FieldPath, patch: Partial<KBField<unknown>>) {
     setKB((prev) =>
       setNestedField(
@@ -127,9 +135,19 @@ export function KBOnboardingReviewStep({
         patch as Record<string, unknown>,
       ) as unknown as TraceableBrandKB,
     );
-    patchKBFieldAction(versionId, path, patch as Record<string, unknown>).catch(() =>
-      toast.error("Failed to save field update"),
-    );
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      await saveKBOutputAction(versionId, kb);
+      setSavedKB(kb);
+      toast.success("Changes saved");
+    } catch {
+      toast.error("Failed to save changes");
+    } finally {
+      setSaving(false);
+    }
   }
 
   function handleEdit(module: ModuleKey, fieldKey: string, newValue: string | string[]) {
@@ -386,54 +404,49 @@ export function KBOnboardingReviewStep({
         savingChanges={savingChanges}
       />
 
-      <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
-        {/* Left — module cards */}
-        <div className="space-y-2">
-          {MODULES.map(({ key, label }) => (
-            <KBModuleCard
-              key={key}
-              label={label}
-              fields={getModuleFields(kb, key)}
-              isSelected={selectedModule === key}
-              onClick={() => setSelectedModule(key)}
-            />
-          ))}
+      <div className="space-y-6">
+        {/* Module tabs */}
+        <Tabs
+          value={selectedModule}
+          onValueChange={(v) => setSelectedModule(v as ModuleKey)}
+        >
+          <TabsList
+            variant="line"
+            className="h-auto w-full flex-wrap justify-start gap-1 border-b border-border bg-transparent p-0 group-data-horizontal/tabs:h-auto"
+          >
+            {MODULES.map(({ key, label }) => {
+              const ready = getModuleStatus(getModuleFields(kb, key)) === "ready";
+              return (
+                <TabsTrigger
+                  key={key}
+                  value={key}
+                  className="h-auto flex-none rounded-none px-3 py-2.5 after:bottom-0 after:bg-primary"
+                >
+                  {label}
+                  {ready && (
+                    <CheckCircle2Icon className="size-3.5 text-emerald-500 dark:text-emerald-400" />
+                  )}
+                </TabsTrigger>
+              );
+            })}
+          </TabsList>
+        </Tabs>
 
-          <div className="pt-2">
-            <Button
-              className="w-full"
-              onClick={handleMarkReady}
-              disabled={!isReady || markingReady || isEditMode}
-            >
-              <CheckCircle2Icon className="mr-1.5 size-4" />
-              {markingReady
-                ? "Saving…"
-                : isEditMode
-                  ? "KB is Ready"
-                  : isReady
-                    ? "Mark KB Ready"
-                    : "Review all fields first"}
-            </Button>
-            {!isReady && !isEditMode && (
-              <p className="mt-1.5 text-center text-xs text-muted-foreground">
-                Approve or reject every extracted field to continue
-              </p>
-            )}
-          </div>
-        </div>
-
-        {/* Right — module detail */}
+        {/* Module detail */}
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="font-display text-lg font-semibold">
-              {MODULES.find((m) => m.key === selectedModule)?.label}
-            </h2>
+          <div className="sticky top-0 z-10 -mx-1 flex items-center justify-between gap-3 bg-background/80 px-1 py-2 backdrop-blur">
+            <span className="text-xs text-muted-foreground">
+              {dirty ? (
+                <span className="font-medium text-foreground">Unsaved changes</span>
+              ) : (
+                <>
+                  {Object.values(currentFields).filter((f) => f.status !== "needs_review").length}
+                  {" / "}
+                  {Object.values(currentFields).length} reviewed
+                </>
+              )}
+            </span>
             <div className="flex items-center gap-3">
-              <span className="text-xs text-muted-foreground">
-                {Object.values(currentFields).filter((f) => f.status !== "needs_review").length}
-                {" / "}
-                {Object.values(currentFields).length} reviewed
-              </span>
               {hasNeedsReview && (
                 <button
                   type="button"
@@ -444,6 +457,9 @@ export function KBOnboardingReviewStep({
                   Approve All ({needsReviewCount})
                 </button>
               )}
+              <Button size="sm" onClick={handleSave} disabled={!dirty || saving}>
+                {saving ? "Saving…" : "Save"}
+              </Button>
             </div>
           </div>
 
@@ -460,7 +476,7 @@ export function KBOnboardingReviewStep({
               </div>
             </div>
           ) : (
-            <div key={selectedModule} className="space-y-3">
+            <div key={selectedModule} className="grid gap-10">
               {Object.entries(currentFields).map(([fieldKey, field]) => (
                 <KBFieldRow
                   key={fieldKey}
@@ -475,6 +491,35 @@ export function KBOnboardingReviewStep({
                 />
               ))}
             </div>
+          )}
+        </div>
+
+        {/* Footer — finalize the KB */}
+        <div className="flex flex-col items-end gap-1.5 border-t border-border pt-5">
+          <Button
+            onClick={handleMarkReady}
+            disabled={!isReady || markingReady || isEditMode || dirty}
+          >
+            <CheckCircle2Icon className="mr-1.5 size-4" />
+            {markingReady
+              ? "Saving…"
+              : isEditMode
+                ? "KB is Ready"
+                : isReady
+                  ? "Mark KB Ready"
+                  : "Review all fields first"}
+          </Button>
+          {dirty ? (
+            <p className="text-xs text-muted-foreground">
+              Save your changes before marking the KB ready
+            </p>
+          ) : (
+            !isReady &&
+            !isEditMode && (
+              <p className="text-xs text-muted-foreground">
+                Approve or reject every extracted field to continue
+              </p>
+            )
           )}
         </div>
       </div>
