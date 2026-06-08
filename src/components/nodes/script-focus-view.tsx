@@ -1,11 +1,21 @@
 "use client";
 
 import { useState } from "react";
-import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
+import { motion, AnimatePresence } from "motion/react";
 import { ArrowLeft, Eye, EyeOff, RefreshCw, FileUp } from "lucide-react";
 import { toast } from "sonner";
-import { Dialog, DialogPortal, DialogOverlay, DialogTitle } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { looksLikeReelScript, type ReelScript } from "@/lib/nodes/reel-script";
 import { setScriptValue, addItem, removeItem } from "@/lib/nodes/script-edit";
 import type { KBSliceKey } from "@/lib/kb/parse-context";
@@ -32,7 +42,7 @@ const SUBTITLES = {
   parsed: "Review and edit the extracted reel script.",
 } as const;
 
-// The Script node's full-screen surface. A three-state machine:
+// The Script node's surface — a full-width bottom sheet. A three-state machine:
 // EMPTY (upload + toggles) → SKELETON (parsing) → PARSED (editable doc).
 // Manual edits are buffered in a draft and committed by an explicit Save.
 export function ScriptFocusView({
@@ -53,6 +63,14 @@ export function ScriptFocusView({
     open,
     parsed,
   });
+  // A pending destructive action awaiting confirmation. Replaces window.confirm
+  // so the prompt stays inside the design system instead of native OS chrome.
+  const [confirm, setConfirm] = useState<{
+    title: string;
+    description: string;
+    actionLabel: string;
+    onConfirm: () => void;
+  } | null>(null);
 
   // Reseed the draft from the saved script when the view opens or a fresh parse
   // lands. Adjusting state during render is React's documented alternative to a
@@ -107,22 +125,38 @@ export function ScriptFocusView({
   }
 
   function requestClose() {
-    if (dirty && !window.confirm("Discard unsaved changes?")) return;
+    if (dirty) {
+      setConfirm({
+        title: "Discard unsaved changes?",
+        description:
+          "You have edits that haven't been saved. Closing now will discard them.",
+        actionLabel: "Discard",
+        onConfirm: () => onOpenChange(false),
+      });
+      return;
+    }
     onOpenChange(false);
   }
 
   return (
-    <Dialog
+    <Sheet
       open={open}
       onOpenChange={(next) => {
         if (next) onOpenChange(true);
         else requestClose();
       }}
     >
-      <DialogPortal>
-        <DialogOverlay />
-        <DialogPrimitive.Popup className="fixed inset-0 z-50 overflow-y-auto bg-background outline-none data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0">
-          <div className="mx-auto w-full max-w-5xl px-6 py-12">
+      <SheetContent
+        side="bottom"
+        showCloseButton={false}
+        className="gap-0 overflow-hidden rounded-t-2xl bg-background data-[side=bottom]:h-[92vh]"
+      >
+        <div className="flex shrink-0 justify-center pt-3">
+          <div className="h-1.5 w-12 rounded-full bg-border" />
+        </div>
+
+        <div className="shrink-0 border-b">
+          <div className="mx-auto w-full max-w-5xl px-6 pb-5 pt-3">
             <button
               type="button"
               onClick={requestClose}
@@ -131,17 +165,21 @@ export function ScriptFocusView({
               <ArrowLeft className="size-4" /> Back to canvas
             </button>
 
-            <header className="mb-8 mt-4 flex items-start justify-between gap-4">
+            <header className="mt-4 flex items-start justify-between gap-4">
               <div>
-                <DialogTitle className="font-display text-3xl font-semibold tracking-tight">
+                <SheetTitle className="font-display text-3xl font-semibold tracking-tight">
                   {title || "Reel script"}
-                </DialogTitle>
+                </SheetTitle>
                 <p className="mt-1.5 text-sm text-muted-foreground">{SUBTITLES[mode]}</p>
               </div>
 
               {mode === "parsed" && (
                 <div className="flex shrink-0 items-center gap-2">
-                  <Button variant="ghost" size="sm" onClick={() => setShowOriginal((v) => !v)}>
+                  <Button
+                    variant="ghost"
+                    size="lg"
+                    onClick={() => setShowOriginal((v) => !v)}
+                  >
                     {showOriginal ? (
                       <>
                         <EyeOff className="size-4" /> Hide original
@@ -153,32 +191,45 @@ export function ScriptFocusView({
                     )}
                   </Button>
                   <Button
-                    variant="ghost"
-                    size="sm"
+                    variant="outline"
+                    size="lg"
                     onClick={() => {
-                      if (!dirty || window.confirm("Re-extract will overwrite unsaved edits. Continue?")) {
+                      if (!dirty) {
                         runParse(source);
+                        return;
                       }
+                      setConfirm({
+                        title: "Re-extract the script?",
+                        description:
+                          "Re-extracting will overwrite your unsaved edits with a fresh extraction.",
+                        actionLabel: "Re-extract",
+                        onConfirm: () => runParse(source),
+                      });
                     }}
                   >
-                    <RefreshCw className="size-4" /> Re-extract
+                    <RefreshCw className="size-4 text-primary" /> Re-extract
                   </Button>
-                  <Button variant="ghost" size="sm" onClick={() => setReplacing(true)}>
-                    <FileUp className="size-4" /> Replace script
+                  <Button variant="outline" size="lg" onClick={() => setReplacing(true)}>
+                    <FileUp className="size-4 text-primary" /> Replace script
                   </Button>
-                  <Button size="sm" onClick={() => onPatch({ parsed: draft })} disabled={!dirty}>
+                  <div className="mx-1 h-6 w-px bg-border" aria-hidden />
+                  <Button size="lg" onClick={() => onPatch({ parsed: draft })} disabled={!dirty}>
                     Save
                   </Button>
                 </div>
               )}
 
               {mode === "empty" && replacing && hasParsed && (
-                <Button variant="ghost" size="sm" onClick={() => setReplacing(false)}>
+                <Button variant="ghost" size="lg" onClick={() => setReplacing(false)}>
                   Cancel
                 </Button>
               )}
             </header>
+          </div>
+        </div>
 
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="mx-auto w-full max-w-5xl px-6 py-8">
             {mode === "skeleton" && <ScriptSkeleton />}
 
             {mode === "empty" && (
@@ -196,14 +247,23 @@ export function ScriptFocusView({
 
             {mode === "parsed" && (
               <>
-                {showOriginal && (
-                  <div className="mb-6 rounded-xl border bg-muted/20 p-5">
-                    <span className="text-eyebrow">Original script</span>
-                    <pre className="mt-2 max-h-72 overflow-y-auto whitespace-pre-wrap text-xs leading-relaxed text-muted-foreground">
-                      {source || "No original script."}
-                    </pre>
-                  </div>
-                )}
+                <AnimatePresence initial={false}>
+                  {showOriginal && (
+                    <motion.div
+                      key="original"
+                      initial={{ opacity: 0, y: 12 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 8 }}
+                      transition={{ ease: [0.22, 1, 0.36, 1], duration: 0.32 }}
+                      className="mb-6 rounded-xl border bg-muted/20 p-5"
+                    >
+                      <span className="text-eyebrow">Original script</span>
+                      <pre className="mt-3 max-h-[60vh] overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed text-foreground/80">
+                        {source || "No original script."}
+                      </pre>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
                 <ScriptDocument
                   script={draft}
                   onChange={(path: Path, value) =>
@@ -219,8 +279,35 @@ export function ScriptFocusView({
               </>
             )}
           </div>
-        </DialogPrimitive.Popup>
-      </DialogPortal>
-    </Dialog>
+        </div>
+      </SheetContent>
+
+      <AlertDialog
+        open={!!confirm}
+        onOpenChange={(next) => {
+          if (!next) setConfirm(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{confirm?.title}</AlertDialogTitle>
+            <AlertDialogDescription>{confirm?.description}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setConfirm(null)}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                confirm?.onConfirm();
+                setConfirm(null);
+              }}
+            >
+              {confirm?.actionLabel}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </Sheet>
   );
 }

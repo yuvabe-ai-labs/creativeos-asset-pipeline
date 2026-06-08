@@ -48,8 +48,9 @@ export function EditableField({
           setDraft(value);
           setEditing(true);
         }}
+        title="Click to edit"
         className={cn(
-          "nodrag w-full whitespace-pre-wrap rounded-md px-1 py-0.5 text-left hover:bg-muted/60",
+          "nodrag w-full cursor-pointer whitespace-pre-wrap rounded-md px-1.5 py-1 text-left underline decoration-transparent decoration-dotted decoration-2 underline-offset-4 transition-colors hover:bg-primary/5 hover:decoration-primary/50",
           isEmpty && "text-muted-foreground",
           className,
         )}

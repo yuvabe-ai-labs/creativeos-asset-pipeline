@@ -15,10 +15,17 @@ type ScriptDocumentProps = {
   onRemoveItem?: (path: Path, index: number) => void;
 };
 
+// Each section is laid out as an editorial gutter: the label sits in a left
+// column (stacking above the content on narrow widths), with a short purple
+// kicker rule as a sparing wayfinding accent. Hierarchy comes from this layout,
+// not from type size — per the design system.
 function Section({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <section className="grid gap-1.5">
-      <span className="text-eyebrow">{label}</span>
+    <section className="grid gap-2.5 sm:grid-cols-[160px_1fr] sm:gap-x-10">
+      <div className="self-start sm:sticky sm:top-2">
+        <div className="mb-2 h-0.5 w-6 rounded-full bg-primary/70" aria-hidden />
+        <span className="text-eyebrow">{label}</span>
+      </div>
       <div className="leading-relaxed">{children}</div>
     </section>
   );
@@ -49,7 +56,7 @@ export function ScriptDocument({
   const links = script.product_links ?? [];
 
   return (
-    <div className="grid gap-6 text-sm">
+    <div className="grid gap-12 text-sm">
       <EditableField
         value={script.title ?? ""}
         onCommit={set(["title"])}
@@ -96,7 +103,7 @@ export function ScriptDocument({
       </Section>
 
       <Section label="Visual script">
-        <ol className="grid gap-2">
+        <ol className="grid gap-3">
           {shots.map((shot, i) => (
             <li key={i} className="flex items-start gap-2">
               <span className="pt-1 text-muted-foreground">{i + 1}.</span>
@@ -133,9 +140,9 @@ export function ScriptDocument({
           <button
             type="button"
             onClick={() => onAddItem?.(["visual_script", "shots"], { description: "", duration: "" })}
-            className="nodrag mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+            className="nodrag mt-3 inline-flex items-center gap-1.5 rounded-md border border-dashed border-primary/40 px-2.5 py-1.5 text-sm font-medium text-primary transition-colors hover:bg-primary/5 hover:border-primary/60"
           >
-            <Plus className="size-3.5" /> Add shot
+            <Plus className="size-4" /> Add shot
           </button>
         )}
         <div className="mt-3">
@@ -151,7 +158,7 @@ export function ScriptDocument({
       </Section>
 
       <Section label="On-screen text">
-        <div className="grid gap-1">
+        <div className="grid gap-2">
           <EditableField
             value={script.on_screen_text?.intro ?? ""}
             onCommit={set(["on_screen_text", "intro"])}
@@ -183,9 +190,9 @@ export function ScriptDocument({
             <button
               type="button"
               onClick={() => onAddItem?.(["on_screen_text", "body"], "")}
-              className="nodrag inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+              className="nodrag mt-3 inline-flex items-center gap-1.5 rounded-md border border-dashed border-primary/40 px-2.5 py-1.5 text-sm font-medium text-primary transition-colors hover:bg-primary/5 hover:border-primary/60"
             >
-              <Plus className="size-3.5" /> Add line
+              <Plus className="size-4" /> Add line
             </button>
           )}
           <EditableField
@@ -244,7 +251,7 @@ export function ScriptDocument({
       </Section>
 
       <Section label="QC notes">
-        <ul className="grid gap-1">
+        <ul className="grid gap-2">
           {qc.map((_, i) => (
             <li key={i} className="flex items-center gap-2">
               <EditableField
@@ -271,15 +278,15 @@ export function ScriptDocument({
           <button
             type="button"
             onClick={() => onAddItem?.(["qc_notes"], "")}
-            className="nodrag inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+            className="nodrag mt-3 inline-flex items-center gap-1.5 rounded-md border border-dashed border-primary/40 px-2.5 py-1.5 text-sm font-medium text-primary transition-colors hover:bg-primary/5 hover:border-primary/60"
           >
-            <Plus className="size-3.5" /> Add note
+            <Plus className="size-4" /> Add note
           </button>
         )}
       </Section>
 
       <Section label="Product links">
-        <ul className="grid gap-1">
+        <ul className="grid gap-2">
           {links.map((_, i) => (
             <li key={i} className="flex items-center gap-2">
               <EditableField
@@ -306,9 +313,9 @@ export function ScriptDocument({
           <button
             type="button"
             onClick={() => onAddItem?.(["product_links"], "")}
-            className="nodrag inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+            className="nodrag mt-3 inline-flex items-center gap-1.5 rounded-md border border-dashed border-primary/40 px-2.5 py-1.5 text-sm font-medium text-primary transition-colors hover:bg-primary/5 hover:border-primary/60"
           >
-            <Plus className="size-3.5" /> Add link
+            <Plus className="size-4" /> Add link
           </button>
         )}
       </Section>

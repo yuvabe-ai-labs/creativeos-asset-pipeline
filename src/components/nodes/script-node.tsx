@@ -28,8 +28,13 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
 
   return (
     <div
+      onDoubleClick={(e) => {
+        e.stopPropagation();
+        setFocusOpen(true);
+      }}
       className={cn(
         "w-44 rounded-lg border border-border bg-card shadow-card",
+        "transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:scale-[1.006]",
         selected && "ring-2 ring-primary ring-offset-1 ring-offset-background",
       )}
     >
