@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { KBReExtractOverlay } from "@/components/kb/kb-re-extract-overlay";
+import { KBSkeleton } from "@/components/kb/kb-skeleton";
 import type {
   ClientKBDocumentRow,
   ClientBrandImageRow,
@@ -74,7 +74,6 @@ type Props = {
 
 export function KBOnboardingUploadStep({
   clientId,
-  clientSlug,
   initialDocuments,
   initialImages,
 }: Props) {
@@ -193,9 +192,19 @@ export function KBOnboardingUploadStep({
     });
   }
 
+  if (extracting) {
+    return (
+      <div className="animate-rise">
+        <p className="mb-6 text-sm text-muted-foreground">
+          Analyzing your documents and images — this usually takes 30–60 seconds. Don&apos;t close this tab.
+        </p>
+        <KBSkeleton />
+      </div>
+    );
+  }
+
   return (
     <div className="animate-rise space-y-6">
-      <KBReExtractOverlay visible={extracting} />
       <div className="grid gap-4 sm:grid-cols-2">
         {/* Documents panel */}
         <Card className="p-0 overflow-hidden">

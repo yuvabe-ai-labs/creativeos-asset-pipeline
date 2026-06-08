@@ -33,7 +33,7 @@ import { getModuleStatus } from "@/components/kb/kb-module-card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { KBFieldRow } from "@/components/kb/kb-field-row";
 import { KBSourcePanel } from "@/components/kb/kb-source-panel";
-import { KBReExtractOverlay } from "@/components/kb/kb-re-extract-overlay";
+import { KBSkeleton } from "@/components/kb/kb-skeleton";
 import { computeReadyStatus } from "@/lib/kb/fill-rate";
 import type { TraceableBrandKB, KBField } from "@/lib/kb/schema";
 import { setNestedField } from "@/lib/kb/utils";
@@ -393,8 +393,6 @@ export function KBOnboardingReviewStep({
         </DialogContent>
       </Dialog>
 
-      <KBReExtractOverlay visible={reExtracting} />
-
       {/* Title + source-files drawer trigger */}
       <header className="mb-5 mt-2 flex shrink-0 items-start justify-between gap-4">
         <div>
@@ -525,9 +523,14 @@ export function KBOnboardingReviewStep({
       {/* Scrolling tab body — fills the viewport below the fixed header. Keyed by
          module so it remounts (resets scroll) and slides in on switch. */}
       <div
-        key={selectedModule}
+        key={reExtracting ? "re-extracting" : selectedModule}
         className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden"
       >
+        {reExtracting ? (
+          <div className="pt-5 pb-12">
+            <KBSkeleton showTabs={false} />
+          </div>
+        ) : (
         <motion.div
           initial={{ opacity: 0, x: 8 }}
           animate={{ opacity: 1, x: 0 }}
@@ -588,6 +591,7 @@ export function KBOnboardingReviewStep({
             </div>
           )}
         </motion.div>
+        )}
       </div>
     </div>
   );
