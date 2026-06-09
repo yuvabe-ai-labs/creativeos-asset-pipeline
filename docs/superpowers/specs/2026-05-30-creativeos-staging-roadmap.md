@@ -335,8 +335,9 @@ The reusable spine — node lifecycle, the node×input-kinds matrix, the version
 the full Supabase schema — now lives in its own reference:
 **`2026-05-30-creativeos-architecture.md`**.
 
-Next, design **Stage 1 (Persistent canvas + Brief node)** as its own build spec — how the
-canvas persists React Flow state (load/save, debounced writes, client-generated UUIDs), the
-Brief node UI + upload/paste flow, the Brief-parse Route Handler (holding the model key),
-and Stage 1 scope cuts (e.g. which brief formats to support first). It will reference the
-architecture doc for the schema rather than restating it.
+Stage 1 has shipped (Script node + Client KB — see D16/D17). Next, design **Stage 2 (Text +
+File nodes + edges + Prompt node)** as its own build spec — how edges persist as adjacency-list
+data in React Flow (create/validate with a cycle check, D8/D11), how `resolveInputs` walks the
+edge graph plus the ambient client KB (D6), the pure `compile` step that produces the visible
+"final compiled prompt" (D3), the Prompt-generate Route Handler (holding the model key), and
+Stage 2 scope cuts. It will reference the architecture doc for the schema rather than restating it.
