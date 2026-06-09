@@ -16,7 +16,7 @@
 
 - **One component per file, named export only** — no default exports, no `index.ts` barrels.
 - **Split when a file exceeds ~200 lines or holds more than one conceptual responsibility.** "Renders the list" and "manages staged upload state" are two responsibilities.
-- **Sub-components used only by one parent** stay in the same feature folder, prefixed with the parent name (e.g. `kb-source-panel.tsx`, `kb-re-extract-overlay.tsx`). Promote to `components/ui/` only when genuinely reused across features.
+- **Sub-components used only by one parent** stay in the same feature folder, prefixed with the parent name (e.g. `kb-source-panel.tsx`, `kb-field-row.tsx`). Promote to `components/ui/` only when genuinely reused across features.
 - **State that must reset when a prop changes → use the `key` prop at the call site**, not `useEffect` + multiple `setState` calls. `<ReviewStep key={versionId} />` remounts cleanly; a `useEffect` doing the same triggers the cascading-renders lint error.
 - **No prop drilling past two levels.** If a value or handler must travel more than two hops, lift into context or restructure.
 

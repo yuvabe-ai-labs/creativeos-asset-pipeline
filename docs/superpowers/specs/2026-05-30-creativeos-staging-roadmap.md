@@ -1,7 +1,8 @@
 # CreativeOS — Staging Roadmap
 
-**Date:** 2026-05-30
-**Status:** Approved (sequence) — Stage 1 to be designed in detail next
+**Date:** 2026-05-30 (status updated 2026-06-08)
+**Status:** Approved (sequence). **Stage 1 shipped** (as the Script node, see D16) with the
+**Client KB pulled forward** (D17). **Stage 2 (Prompt node) is next.**
 **Type:** Decomposition / roadmap (parent doc; each stage gets its own design spec)
 
 ---
@@ -76,9 +77,11 @@ Approaches considered:
 Each stage ships standalone value and **reuses** the prior stage's foundation (additions,
 not rewrites). The data model built in Stage 1 is still the one in use at Stage 5.
 
-### Stage 1 — Persistent canvas + Brief node
+### Stage 1 — Persistent canvas + Brief node  ✅ *shipped (as the Script node — see D16)*
 - **Ships:** Create a client/canvas, parse a brief (upload/paste → Parse), keep every
   parse in version history. Replaces one tool-switch immediately.
+  *(As built: the node is the **Script node** — parses a finished reel script, not an upstream
+  brief — and the **Client KB was pulled forward** here, reversing D7. See D16, D17.)*
 - **Builds the spine:** clients → canvases → nodes data model; version log; file storage;
   first secret-holding Route Handler.
 - **New concepts:** node data model · append-only version log · secrets in a server Route
@@ -100,10 +103,12 @@ not rewrites). The data model built in Stage 1 is still the one in use at Stage 
 - **Ships:** Approved image → video (image-to-video). Full reel-asset pipeline.
 - **New concepts:** long-running async **job state machine** (submit → poll → resolve).
 
-### Stage 5 — Archive + Client KB in prompts
+### Stage 5 — Archive + Client KB in prompts  🟡 *Client KB built early (D17); archive bundle still pending*
 - **Ships:** Complete a project; review exactly how each output was made. The learning
   payoff (PRD §16 archive bundle + reusable client context).
 - **New concepts:** relational bundle assembly · reusable client-level context selection.
+  *(The reusable Client KB half landed in Stage 1 — see D17. What remains for Stage 5 is the
+  **relational archive bundle**.)*
 
 ---
 
@@ -244,11 +249,78 @@ identically (read as text, no parsing libraries). `.docx`/`.pdf` extraction defe
 **Why.** Keeps Stage 1 lean and avoids document-parsing edge cases; Markdown/text covers the
 common internal case.
 
+### D16 — Stage 1 "Brief node" reframed as the "Script node" *(recorded 2026-06-08)*
+**Decision.** The Stage 1 node is a **Script node**, not a Brief node. Its job is to parse a
+**finished reel script** (uploaded `.md`/`.txt` or pasted) into a structured `data.parsed`
+object, reviewed/edited in a full-screen **Script focus view** (EMPTY → SKELETON → PARSED).
+**Why.** The real first-tool-switch we remove is turning a written script into structured,
+editable asset-ready fields — not summarizing an upstream brief. Same spine (parse via a
+secret-holding Route Handler, append-only `node_versions`, active pointer); only the node's
+semantics changed.
+**Originated.** `2026-06-06-script-parse-kb-context-design.md` (parse + KB slices),
+`2026-06-07-script-focus-view-design.md` (Sheet-free 3-state focus view).
+**Supersedes.** All "Brief node" language in §5 Stage 1 and §6.
+
+### D17 — Client KB pulled forward into Stage 1; reverses D7 *(recorded 2026-06-08)*
+**Decision.** Replace D7's thin `clients.context_notes` text field with a real **versioned
+Brand KB** built now: document uploads + vision-analyzed brand images → an append-only
+`client_kb_versions` extraction log with an `active_kb_version_id` pointer and a `kb_status`
+gate (`pending → in_review → ready`). Script parsing injects user-selectable **KB slices**
+(compliance, tone, personality, brand profile) as context.
+**Why.** Parse quality depends on brand voice/compliance context; the thin `context_notes`
+field could not carry it, so the Stage-5 "full client KB" was pulled forward because Stage 1's
+own output needed it. The KB deliberately **reuses the spine pattern** (append-only versions +
+active pointer, mirroring `node_versions`).
+**Consequence.** `context_notes` was built then dropped (`0003_kb_onboarding.sql`); D7's
+"context slider" remains parked. The Stage-5 **archive bundle** is still unbuilt.
+**Originated.** `0002_client_kb.sql`, `0003_kb_onboarding.sql`,
+`2026-06-06-script-parse-kb-context-design.md`.
+
+### D18 — A version is an LLM attempt; manual edits fold into the active version *(recorded 2026-06-08)*
+**Decision.** A `node_versions` row is created **only when the model runs** (parse, Re-extract,
+and failed attempts). A version's `inputs_used` / `params_used` / `model_used` are **frozen**
+(the provenance of the attempt); its **`output` is human-refinable**. A manual edit + Save
+updates the **active version's `output` in place** — it does **not** append a new row. No LLM,
+no new version.
+**Why.** For a creative tool you want to compare *model attempts*, not replay every keystroke;
+per-edit versions are noise. This keeps compare/restore across attempts intact while making the
+edited/approved result the thing downstream consumes.
+**Refines D4/D5.** "Append-only" now means append-only over the *set of LLM attempts*; the
+active version's `output` is mutable working state. The immutable record is *(inputs, params,
+model)*, not `output`.
+**Consequence / gap to close.** Today Save writes edits to `data.parsed` (display cache) only —
+**not** the active version's `output`. The fix is folded into **D19** (drop the cache; the active
+version's `output` becomes the single source). `listVersions` exists but is still unused (no
+history/restore/compare UI yet).
+
+### D19 — Node = own content + output; output has a single source (no display cache) *(recorded 2026-06-08)*
+**Decision.** A node holds **three kinds of data**, stored distinctly:
+1. **Machinery** — `id`, `type`, `position`, `active_version_id` → `nodes` columns.
+2. **Own content / params** — `title`, `description`, attachments, `source`, control values,
+   `kbSlices` → `nodes.data` jsonb (+ Storage/child rows for files). **Human-authored, one
+   editable copy on the node, not versioned.**
+3. **Output** — the model-produced result (parsed script, image) → `node_versions.output`,
+   append-only (D18). **The active version's `output` is the single source of truth.**
+
+Rendering a node = its own fields (from the `nodes` row) **+** its current output (from the
+active version, via a join on canvas load / a small `GET`). **Drop `nodes.data.parsed`** — it
+was a duplicate of `node_versions.output`. Manual edits `UPDATE` the active version's `output`
+(D18); restore = repoint `active_version_id` and display follows automatically.
+**Why.** Output lived in two places (`data.parsed` *and* the version log), which can drift — the
+exact Stage-2 bug (downstream reads the log, display reads the cache). One source removes the bug
+class entirely; the only read it optimized (canvas load) is one cheap `JOIN`, so the cache was
+all cost, no benefit. Own content is *not* a duplicate of anything, so it stays on the node.
+**Provenance.** A version snapshots *which* own-content/params it consumed (by reference: source
+hash, attachment ids, `kbVersionId`) in `inputs_used`/`params_used` — so an attempt remembers
+what produced it even after the node's fields change. This is also what powers staleness (D9).
+**Test for "where does a field go?"** Did a model produce it *and* do you compare/restore it
+across attempts? Yes → version log. No (human-authored identity/config) → on the node.
+
 ### Parked / out-of-scope (with revisit triggers)
 | Item | Status | Revisit when |
 |---|---|---|
 | Context "% slider" / relevance ranking | Parked (D7) | Client KB outgrows the context window → add RAG |
-| Full client KB (structured + files + selection) | Deferred | Stage 5 |
+| Full client KB (structured + files + selection) | ✅ Pulled forward into Stage 1 (D17) | — |
 | Multi-tenant auth | Out of scope (PRD §18) | Post-MVP external access |
 | Automated branching / auto-rewiring | Out of scope (PRD §15) | Not planned |
 | Edge `pinned_version_id` (freeze a connection) | Optional extension (D8) | If "don't auto-follow active" is ever needed |

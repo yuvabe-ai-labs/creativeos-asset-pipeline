@@ -1,8 +1,14 @@
 "use client";
 
-import { useState, useRef } from "react";
-import { PencilIcon, XIcon, SparklesIcon, CheckIcon } from "lucide-react";
+import { useState } from "react";
+import { XIcon, SparklesIcon, CheckIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { EditableField } from "@/components/nodes/editable-field";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import type { KBField } from "@/lib/kb/schema";
 
 const CONFIDENCE_LABEL = { high: "High", medium: "Med", low: "Low" };
@@ -10,20 +16,6 @@ const CONFIDENCE_CLASSES = {
   high: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
   medium: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
   low: "bg-muted text-muted-foreground",
-};
-
-const STATUS_CLASSES = {
-  needs_review: "border-border",
-  approved: "border-emerald-300 bg-emerald-50/30 dark:border-emerald-800 dark:bg-emerald-950/20",
-  edited: "border-blue-300 bg-blue-50/30 dark:border-blue-800 dark:bg-blue-950/20",
-  rejected: "border-border bg-muted/30 opacity-60",
-};
-
-const STATUS_TAG_CLASSES = {
-  needs_review: "hidden",
-  approved: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
-  edited: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
-  rejected: "bg-muted text-muted-foreground line-through",
 };
 
 function formatValue(value: unknown): string {
@@ -52,92 +44,56 @@ export function KBFieldRow({
   onReject,
   onReanalyze,
 }: Props) {
-  const [editing, setEditing] = useState(false);
-  const [editValue, setEditValue] = useState(formatValue(field.value));
+  const [aiOpen, setAiOpen] = useState(false);
   const [aiComment, setAiComment] = useState("");
-  const aiTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   const isArray = Array.isArray(field.value) || field.value === null;
   const displayValue = formatValue(field.value);
   const isEmpty = !field.value || (Array.isArray(field.value) && field.value.length === 0);
+  const isRejected = field.status === "rejected";
 
-  function handleSaveEdit() {
+  // Commit an inline edit. Arrays are stored back as a comma-split list; a manual
+  // edit always lands as status "edited" (EditableField fires onCommit only when
+  // the value actually changed, so a no-op click won't flip the status).
+  function commitEdit(next: string) {
     const parsed = isArray
-      ? editValue.split(",").map((s) => s.trim()).filter(Boolean)
-      : editValue.trim();
+      ? next.split(",").map((s) => s.trim()).filter(Boolean)
+      : next.trim();
     onEdit(parsed);
-    setEditing(false);
-    setAiComment("");
-  }
-
-  function handleStartEdit() {
-    setEditValue(formatValue(field.value));
-    setAiComment("");
-    setEditing(true);
-  }
-
-  function handleCancelEdit() {
-    setEditing(false);
-    setAiComment("");
   }
 
   function handleSubmitAI() {
     if (!aiComment.trim()) return;
     onReanalyze(aiComment.trim());
     setAiComment("");
-    setEditing(false);
+    setAiOpen(false);
   }
 
-  function handleEditKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-      e.preventDefault();
-      handleSaveEdit();
-    }
-    if (e.key === "Escape") {
-      e.preventDefault();
-      handleCancelEdit();
-    }
-  }
-
+  // ⌘/Ctrl+↵ submits. Escape / outside-click close is handled by the Popover.
   function handleAIKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
       e.preventDefault();
       handleSubmitAI();
     }
-    if (e.key === "Escape") {
-      e.preventDefault();
-      setAiComment("");
-      aiTextareaRef.current?.blur();
-    }
   }
 
-  const isRejected = field.status === "rejected";
-  const disabled = isReanalyzing || editing;
-
+  // Gutter: an editorial section label with a constant purple kicker rule —
+  // mirrors the Section gutter in script-document.tsx. Review state (approved /
+  // edited) is intentionally NOT shown per-field; the only at-a-glance signal is
+  // the per-module tick on the tab. Rejected keeps a line-through label.
   return (
-    <div
-      className={cn(
-        "rounded-lg border p-3 transition-colors",
-        STATUS_CLASSES[field.status],
-        isReanalyzing && "opacity-70",
-      )}
-    >
-      {/* Header row */}
-      <div className="flex items-start justify-between gap-2 mb-2">
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-            {label}
-          </span>
-          {field.status !== "needs_review" && (
-            <span
-              className={cn(
-                "rounded-full px-1.5 py-0.5 text-[0.6rem] font-semibold capitalize",
-                STATUS_TAG_CLASSES[field.status],
-              )}
-            >
-              {field.status}
-            </span>
+    <section className="grid gap-x-10 gap-y-2.5 sm:grid-cols-[160px_1fr]">
+      <div className="self-start sm:sticky sm:top-2">
+        <div className="mb-2 h-0.5 w-6 rounded-full bg-primary/70" aria-hidden />
+        <span
+          className={cn(
+            "text-eyebrow",
+            isRejected && "text-muted-foreground line-through",
           )}
+        >
+          {label}
+        </span>
+        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
           <span
             className={cn(
               "rounded-full px-1.5 py-0.5 text-[0.6rem] font-medium",
@@ -150,131 +106,119 @@ export function KBFieldRow({
             <span className="text-[0.6rem] text-muted-foreground">inferred</span>
           )}
         </div>
-
-        {/* Action buttons */}
-        {!isRejected && !isReanalyzing && !editing && (
-          <div className="flex items-center gap-1 shrink-0">
-            {isEmpty && field.status === "needs_review" && (
-              <button
-                type="button"
-                onClick={onApprove}
-                title="Approve — confirm this field is empty"
-                className="flex size-6 items-center justify-center rounded-md text-muted-foreground hover:bg-emerald-100 hover:text-emerald-700 dark:hover:bg-emerald-900/30 transition-colors"
-              >
-                <CheckIcon className="size-3.5" />
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={handleStartEdit}
-              title="Edit"
-              className="flex size-6 items-center justify-center rounded-md text-muted-foreground hover:bg-blue-100 hover:text-blue-700 dark:hover:bg-blue-900/30 transition-colors"
-            >
-              <PencilIcon className="size-3.5" />
-            </button>
-            {!isEmpty && (
-              <button
-                type="button"
-                onClick={onReject}
-                title="Reject"
-                disabled={disabled}
-                className="flex size-6 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:pointer-events-none disabled:opacity-40"
-              >
-                <XIcon className="size-3.5" />
-              </button>
-            )}
-          </div>
-        )}
-        {isRejected && !isReanalyzing && (
-          <button
-            type="button"
-            onClick={() => onEdit(field.value as string | string[] ?? "")}
-            className="text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
-          >
-            Restore
-          </button>
-        )}
       </div>
 
-      {/* Value / edit / reanalyzing state */}
-      {isReanalyzing ? (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <span className="size-3.5 animate-spin rounded-full border-2 border-current border-t-transparent shrink-0" />
-          Re-analyzing…
-        </div>
-      ) : editing ? (
-        <div className="space-y-2">
-          {/* Manual edit */}
-          <textarea
-            className="w-full rounded-md border border-border bg-background px-2.5 py-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-ring"
-            rows={isArray ? 2 : 3}
-            value={editValue}
-            onChange={(e) => setEditValue(e.target.value)}
-            onKeyDown={handleEditKeyDown}
-            placeholder={isArray ? "Comma-separated values" : "Enter value"}
-            autoFocus
-          />
-          {isArray && (
-            <p className="text-[0.65rem] text-muted-foreground">Separate multiple values with commas</p>
-          )}
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={handleSaveEdit}
-              className="rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90"
-            >
-              Save
-            </button>
-            <button
-              type="button"
-              onClick={handleCancelEdit}
-              className="rounded-md px-3 py-1 text-xs text-muted-foreground hover:text-foreground"
-            >
-              Cancel
-            </button>
-            <span className="ml-auto text-[0.6rem] text-muted-foreground self-center">⌘↵ to save · Esc to cancel</span>
+      <div className={cn("min-w-0 leading-relaxed", isReanalyzing && "opacity-70")}>
+        <div className="flex items-start gap-2">
+          <div className="min-w-0 flex-1">
+            {isReanalyzing ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <span className="size-3.5 animate-spin rounded-full border-2 border-current border-t-transparent shrink-0" />
+                Re-analyzing…
+              </div>
+            ) : isRejected ? (
+              <p className="text-sm text-muted-foreground line-through">
+                {isEmpty ? "No data extracted" : displayValue}
+              </p>
+            ) : (
+              <EditableField
+                value={displayValue}
+                onCommit={commitEdit}
+                multiline
+                placeholder={isArray ? "Add values, comma-separated…" : "Add value…"}
+                className="text-sm"
+              />
+            )}
           </div>
 
-          {/* AI guidance — inline below the manual edit */}
-          <div className="mt-1 rounded-md border border-dashed border-border bg-muted/20 p-2 space-y-1.5">
-            <div className="flex items-center gap-1 text-[0.65rem] text-muted-foreground">
-              <SparklesIcon className="size-3 shrink-0" />
-              <span>AI guidance</span>
+          {/* Action buttons — pinned top-right of the content column */}
+          {!isReanalyzing && (
+            <div className="flex shrink-0 items-center gap-1">
+              {isRejected ? (
+                <button
+                  type="button"
+                  onClick={() => onEdit((field.value as string | string[]) ?? "")}
+                  className="text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
+                >
+                  Restore
+                </button>
+              ) : (
+                <>
+                  {isEmpty && field.status === "needs_review" && (
+                    <button
+                      type="button"
+                      onClick={onApprove}
+                      title="Approve — confirm this field is empty"
+                      className="flex size-6 items-center justify-center rounded-md text-muted-foreground hover:bg-emerald-100 hover:text-emerald-700 dark:hover:bg-emerald-900/30 transition-colors"
+                    >
+                      <CheckIcon className="size-3.5" />
+                    </button>
+                  )}
+                  <Popover
+                    open={aiOpen}
+                    onOpenChange={(o) => {
+                      setAiOpen(o);
+                      if (!o) setAiComment("");
+                    }}
+                  >
+                    <PopoverTrigger
+                      render={
+                        <button
+                          type="button"
+                          title="Refine with AI"
+                          className="flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary data-[popup-open]:bg-primary/10 data-[popup-open]:text-primary"
+                        >
+                          <SparklesIcon className="size-3.5" />
+                        </button>
+                      }
+                    />
+                    <PopoverContent align="end" sideOffset={6} className="w-80 gap-0">
+                      <div className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-foreground">
+                        <SparklesIcon className="size-3.5 text-primary" />
+                        Refine with AI
+                      </div>
+                      <p className="mb-2 text-xs text-muted-foreground">
+                        Describe the change — the AI re-analyzes the sources and proposes a new value.
+                      </p>
+                      <textarea
+                        autoFocus
+                        className="w-full resize-none rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                        rows={3}
+                        value={aiComment}
+                        onChange={(e) => setAiComment(e.target.value)}
+                        onKeyDown={handleAIKeyDown}
+                        placeholder='e.g. "make this slower and more meditative"'
+                      />
+                      <div className="mt-2 flex items-center justify-between">
+                        <span className="text-[0.6rem] text-muted-foreground">⌘↵ to submit</span>
+                        <button
+                          type="button"
+                          onClick={handleSubmitAI}
+                          disabled={!aiComment.trim()}
+                          className="flex items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-40"
+                        >
+                          <SparklesIcon className="size-3" />
+                          Re-analyze
+                        </button>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                  {!isEmpty && (
+                    <button
+                      type="button"
+                      onClick={onReject}
+                      title="Reject"
+                      className="flex size-6 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                    >
+                      <XIcon className="size-3.5" />
+                    </button>
+                  )}
+                </>
+              )}
             </div>
-            <textarea
-              ref={aiTextareaRef}
-              className="w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-xs resize-none focus:outline-none focus:ring-1 focus:ring-ring"
-              rows={2}
-              value={aiComment}
-              onChange={(e) => setAiComment(e.target.value)}
-              onKeyDown={handleAIKeyDown}
-              placeholder='e.g. "make this slower and more meditative"'
-            />
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleSubmitAI}
-                disabled={!aiComment.trim()}
-                className="flex items-center gap-1 rounded-md bg-muted px-2.5 py-1 text-xs font-medium text-foreground hover:bg-muted/80 disabled:opacity-40 disabled:pointer-events-none"
-              >
-                <SparklesIcon className="size-3" />
-                Re-analyze
-              </button>
-              <span className="text-[0.6rem] text-muted-foreground">⌘↵ to submit</span>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div>
-          {isEmpty ? (
-            <p className="text-sm text-muted-foreground italic">No data extracted</p>
-          ) : (
-            <p className={cn("text-sm", isRejected && "line-through text-muted-foreground")}>
-              {displayValue}
-            </p>
           )}
         </div>
-      )}
-    </div>
+      </div>
+    </section>
   );
 }

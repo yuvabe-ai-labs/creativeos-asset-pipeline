@@ -47,6 +47,29 @@ export async function setActiveVersion(
   if (error) throw error;
 }
 
+// D18/D19: a manual edit folds into the ACTIVE version's output (no new row).
+// Throws if the node has no active version (nothing to edit yet).
+export async function updateActiveVersionOutput(
+  nodeId: string,
+  output: unknown,
+): Promise<void> {
+  const supabase = createServerSupabase();
+  const { data: node, error: nodeErr } = await supabase
+    .from("nodes")
+    .select("active_version_id")
+    .eq("id", nodeId)
+    .maybeSingle();
+  if (nodeErr) throw nodeErr;
+  const activeId = (node as { active_version_id: string | null } | null)
+    ?.active_version_id;
+  if (!activeId) throw new Error("Node has no active version to update.");
+  const { error } = await supabase
+    .from("node_versions")
+    .update({ output })
+    .eq("id", activeId);
+  if (error) throw error;
+}
+
 export async function listVersions(nodeId: string): Promise<NodeVersionRow[]> {
   const supabase = createServerSupabase();
   const { data, error } = await supabase

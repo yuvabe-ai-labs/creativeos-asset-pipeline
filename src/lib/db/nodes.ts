@@ -1,6 +1,6 @@
 import "server-only";
 import { createServerSupabase } from "@/lib/supabase/server";
-import type { NodeRow } from "./types";
+import type { NodeWithActive } from "@/lib/canvas-nodes";
 import type { TraceableBrandKB } from "@/lib/kb/schema";
 import { getActiveKBVersion } from "./kb";
 
@@ -49,14 +49,16 @@ export async function getNodeActiveKB(
   };
 }
 
-export async function listNodes(canvasId: string): Promise<NodeRow[]> {
+export async function listNodes(canvasId: string): Promise<NodeWithActive[]> {
   const supabase = createServerSupabase();
+  // Embed the active version's output via the nodes.active_version_id FK
+  // (constraint name disambiguates it from node_versions.node_id).
   const { data, error } = await supabase
     .from("nodes")
-    .select("*")
+    .select("*, active:node_versions!nodes_active_version_fk(output)")
     .eq("canvas_id", canvasId);
   if (error) throw error;
-  return (data ?? []) as NodeRow[];
+  return (data ?? []) as unknown as NodeWithActive[];
 }
 
 // Reconcile the DB with the current canvas: upsert everything present, delete
