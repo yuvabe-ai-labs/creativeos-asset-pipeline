@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -12,6 +12,9 @@ type EditableFieldProps = {
   placeholder?: string;
   readOnly?: boolean;
   className?: string;
+  // Custom render for the committed (non-editing) value. Clicking still enters
+  // edit mode — the raw text is always what gets edited. Falls back to plain text.
+  renderDisplay?: (value: string) => ReactNode;
 };
 
 // Click-to-edit text. Renders as read-only text until clicked, then becomes an
@@ -24,6 +27,7 @@ export function EditableField({
   placeholder = "Add…",
   readOnly = false,
   className,
+  renderDisplay,
 }: EditableFieldProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
@@ -35,7 +39,7 @@ export function EditableField({
       <span
         className={cn("whitespace-pre-wrap", isEmpty && "text-muted-foreground", className)}
       >
-        {isEmpty ? placeholder : value}
+        {isEmpty ? placeholder : renderDisplay ? renderDisplay(value) : value}
       </span>
     );
   }
@@ -55,7 +59,7 @@ export function EditableField({
           className,
         )}
       >
-        {isEmpty ? placeholder : value}
+        {isEmpty ? placeholder : renderDisplay ? renderDisplay(value) : value}
       </button>
     );
   }

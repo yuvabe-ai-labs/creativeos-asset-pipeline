@@ -4,12 +4,22 @@ import { useState } from "react";
 import { XIcon, SparklesIcon, CheckIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { EditableField } from "@/components/nodes/editable-field";
+import { KBColorSwatches } from "@/components/kb/kb-color-swatches";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
 import type { KBField } from "@/lib/kb/schema";
+
+// Fields whose values are brand colours (hex codes embedded in labels). Their
+// committed value renders as colour swatches while staying click-to-edit.
+const COLOR_FIELD_KEYS = new Set([
+  "colour_palette_primary",
+  "colour_palette_secondary",
+  "colour_palette_avoid",
+  "dominant_colors",
+]);
 
 const CONFIDENCE_LABEL = { high: "High", medium: "Med", low: "Low" };
 const CONFIDENCE_CLASSES = {
@@ -36,6 +46,7 @@ type Props = {
 };
 
 export function KBFieldRow({
+  fieldKey,
   label,
   field,
   isReanalyzing = false,
@@ -51,6 +62,7 @@ export function KBFieldRow({
   const displayValue = formatValue(field.value);
   const isEmpty = !field.value || (Array.isArray(field.value) && field.value.length === 0);
   const isRejected = field.status === "rejected";
+  const isColorField = COLOR_FIELD_KEYS.has(fieldKey);
 
   // Commit an inline edit. Arrays are stored back as a comma-split list; a manual
   // edit always lands as status "edited" (EditableField fires onCommit only when
@@ -127,6 +139,11 @@ export function KBFieldRow({
                 multiline
                 placeholder={isArray ? "Add values, comma-separated…" : "Add value…"}
                 className="text-sm"
+                renderDisplay={
+                  isColorField
+                    ? (v) => <KBColorSwatches value={v} />
+                    : undefined
+                }
               />
             )}
           </div>
