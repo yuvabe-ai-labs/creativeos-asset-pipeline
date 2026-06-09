@@ -20,9 +20,30 @@ export type KBNodeData = {
   extractedAt: string | null;
 };
 
+export type FileNodeData = {
+  title?: string;
+  filename?: string;             // original filename shown in the focus view
+  fileExt?: string;              // "txt" | "png" | "jpg" | "jpeg" | "webp"
+  fileKind?: "text" | "image";
+  fileUrl?: string;              // public Supabase Storage URL (images only)
+  rawText?: string;              // file content stored inline (text files only)
+};
+
 export type AppNode =
   | Node<ScriptNodeData, "script">
-  | Node<KBNodeData, "kb">;
+  | Node<KBNodeData, "kb">
+  | Node<FileNodeData, "file">;
+
+// PRD §10 — which source node types may connect to which target node types.
+// Future node types are included now so connections work automatically when built.
+export const VALID_CONNECTIONS: Record<string, readonly string[]> = {
+  kb:            ["script"],
+  script:        ["prompt"],
+  file:          ["prompt", "image-gen"],
+  prompt:        ["prompt", "image-gen", "video-gen"],
+  "image-gen":   ["prompt", "video-gen"],
+  "video-gen":   [],
+} as const;
 
 // A node row joined with its active version's output (canvas-load shape).
 // `active` is the to-one embed of node_versions via nodes.active_version_id.
@@ -50,10 +71,12 @@ export function nodeRowToFlow(row: NodeWithActive): AppNode {
 }
 
 // React Flow node → the columns we persist (used on autosave, client-side).
-// `parsed` is intentionally omitted — it is derived from the active version (D19).
+// `parsed` and `processedOutput` are derived from the active version (D19) —
+// never written back to the DB row.
 export function flowToPersisted(n: AppNode) {
   const data = { ...(n.data as Record<string, unknown>) };
   delete data.parsed;
+  delete data.processedOutput;
   return {
     id: n.id,
     type: n.type as string,

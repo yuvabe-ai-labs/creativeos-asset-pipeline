@@ -14,6 +14,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import type { KBNodeData } from "@/lib/canvas-nodes";
+import { useNodeConnectionState } from "./use-node-connection-state";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -224,9 +225,10 @@ function KBSheetContent({
 
 // ── Node ─────────────────────────────────────────────────────────────────────
 
-export function KBNode({ data, selected }: NodeProps) {
+export function KBNode({ id, data, selected }: NodeProps) {
   const d = data as KBNodeData;
   const [open, setOpen] = useState(false);
+  const connState = useNodeConnectionState(id, "kb");
   const [fetchState, setFetchState] = useState<FetchState>({
     loading: true,
     version: null,
@@ -265,7 +267,9 @@ export function KBNode({ data, selected }: NodeProps) {
       }}
       className={cn(
         "w-44 rounded-lg border border-border bg-card shadow-card",
+        "transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]",
         selected && "ring-2 ring-primary ring-offset-1 ring-offset-background",
+        connState === "invalid" && "opacity-30 pointer-events-none",
       )}
       onMouseEnter={prefetch}
     >

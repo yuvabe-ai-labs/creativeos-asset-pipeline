@@ -1,23 +1,28 @@
 "use client";
 
 import "@xyflow/react/dist/style.css";
+import { useCallback } from "react";
 import {
   Background,
   BackgroundVariant,
   Controls,
   ReactFlow,
+  type Connection,
+  type Edge,
   type NodeTypes,
 } from "@xyflow/react";
 import { useShallow } from "zustand/react/shallow";
-import { Plus } from "lucide-react";
+import { VALID_CONNECTIONS } from "@/lib/canvas-nodes";
+import { Plus, Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScriptNode } from "@/components/nodes/script-node";
 import { KBNode } from "@/components/nodes/kb-node";
+import { FileNode } from "@/components/nodes/file-node";
 import { useCanvasStore } from "./canvas-store-provider";
 import { CanvasAutosave } from "./canvas-autosave";
 
 // Register custom node types once (stable reference — never inline this object).
-const nodeTypes: NodeTypes = { script: ScriptNode, kb: KBNode };
+const nodeTypes: NodeTypes = { script: ScriptNode, kb: KBNode, file: FileNode };
 
 export function Canvas({ canvasId }: { canvasId: string }) {
   // One subscription, shallow-compared, so the component only re-renders when
@@ -42,10 +47,22 @@ export function Canvas({ canvasId }: { canvasId: string }) {
     })),
   );
 
+  const isValidConnection = useCallback(
+    (connection: Connection | Edge) => {
+      const source = nodes.find((n) => n.id === connection.source);
+      const target = nodes.find((n) => n.id === connection.target);
+      if (!source || !target) return false;
+      return (VALID_CONNECTIONS[source.type ?? ""] ?? []).includes(
+        target.type ?? "",
+      );
+    },
+    [nodes],
+  );
+
   return (
     <div className="absolute inset-0 bg-[var(--neutral-50)]">
       <CanvasAutosave canvasId={canvasId} />
-      <div className="absolute left-4 top-4 z-10">
+      <div className="absolute left-4 top-4 z-10 flex gap-2">
         <Button
           size="sm"
           onClick={() => {
@@ -63,6 +80,19 @@ export function Canvas({ canvasId }: { canvasId: string }) {
         >
           <Plus className="size-4" /> Add script node
         </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => {
+            const position = {
+              x: 120 + Math.random() * 220,
+              y: 80 + Math.random() * 140,
+            };
+            addNode("file", position);
+          }}
+        >
+          <Paperclip className="size-4" /> Add file node
+        </Button>
       </div>
 
       <ReactFlow
@@ -71,6 +101,7 @@ export function Canvas({ canvasId }: { canvasId: string }) {
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
+        isValidConnection={isValidConnection}
         nodeTypes={nodeTypes}
         defaultViewport={{ x: 0, y: 0, zoom: 1 }}
         proOptions={{ hideAttribution: true }}

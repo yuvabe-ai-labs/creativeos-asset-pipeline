@@ -9,7 +9,7 @@ import {
   type OnNodesChange,
   type XYPosition,
 } from "@xyflow/react";
-import type { AppNode, ScriptNodeData } from "./canvas-nodes";
+import type { AppNode, ScriptNodeData, FileNodeData } from "./canvas-nodes";
 
 // 1C/1D: the canvas store. Nodes/edges live here; custom node components read
 // and write it directly (React Flow only hands a node `{ id, data }`).
@@ -22,12 +22,14 @@ export type CanvasState = {
   onEdgesChange: OnEdgesChange;
   onConnect: OnConnect;
   addNode: (type: string, position: XYPosition, id?: string) => void;
-  updateNodeData: (id: string, data: Partial<ScriptNodeData>) => void;
+  updateNodeData: (id: string, data: Partial<ScriptNodeData> | Partial<FileNodeData>) => void;
   connectNodes: (sourceId: string, targetId: string) => void;
 };
 
 function defaultData(type: string): AppNode["data"] {
   switch (type) {
+    case "file":
+      return { title: "" } satisfies FileNodeData;
     case "script":
     default:
       return { title: "" };

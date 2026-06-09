@@ -158,9 +158,27 @@ flowchart LR
 
 ---
 
-## 5. Ownership / split — TBD
+## 5. KB System — completed 2026-06-06
 
-Fill this in when deciding the split (by module is the recommended granularity).
+Part of M15 (Archive + Client KB). The extraction and review pipeline is built and live.
+
+| Area | Status |
+|---|---|
+| Upload step (docs + images → trigger extraction) | ✅ done |
+| AI extraction pipeline (`/api/clients/[id]/kb/extract`) | ✅ done |
+| Field-by-field review UI (edit / approve / reject / re-analyze per field) | ✅ done |
+| Source panel — staged add/remove, available in both upload and review modes | ✅ done |
+| Re-extraction overlay (`bg-background/95 backdrop-blur-md`) | ✅ done |
+| Null-field explicit-approval gate | ✅ done |
+| Component decomposition + lib migration to `src/lib/kb/` | ✅ done |
+
+See `docs/lessons/2026-06-06-kb-system.md` for architecture details.
+
+---
+
+## 6. Ownership / split — TBD
+
+Fill this in when deciding the split (by module is the recommended granularity). KB (part of M15) is already built — mark accordingly when filling ownership.
 
 | # | Module | Owner | Notes |
 |---|---|---|---|
