@@ -80,8 +80,9 @@ not rewrites). The data model built in Stage 1 is still the one in use at Stage 
 ### Stage 1 — Persistent canvas + Brief node  ✅ *shipped (as the Script node — see D16)*
 - **Ships:** Create a client/canvas, parse a brief (upload/paste → Parse), keep every
   parse in version history. Replaces one tool-switch immediately.
-  *(As built: the node is the **Script node** — parses a finished reel script, not an upstream
-  brief — and the **Client KB was pulled forward** here, reversing D7. See D16, D17.)*
+  *(As built: the node shipped is the **Script node** — parses a finished reel script; the
+  **Brief node** (upstream-brief parsing) remains a defined MVP node type, retained for later,
+  not removed — and the **Client KB was pulled forward** here, reversing D7. See D16, D17.)*
 - **Builds the spine:** clients → canvases → nodes data model; version log; file storage;
   first secret-holding Route Handler.
 - **New concepts:** node data model · append-only version log · secrets in a server Route
@@ -249,17 +250,24 @@ identically (read as text, no parsing libraries). `.docx`/`.pdf` extraction defe
 **Why.** Keeps Stage 1 lean and avoids document-parsing edge cases; Markdown/text covers the
 common internal case.
 
-### D16 — Stage 1 "Brief node" reframed as the "Script node" *(recorded 2026-06-08)*
-**Decision.** The Stage 1 node is a **Script node**, not a Brief node. Its job is to parse a
-**finished reel script** (uploaded `.md`/`.txt` or pasted) into a structured `data.parsed`
-object, reviewed/edited in a full-screen **Script focus view** (EMPTY → SKELETON → PARSED).
+### D16 — Stage 1 ships the "Script node"; the "Brief node" is retained for later *(recorded 2026-06-08; amended 2026-06-09)*
+**Decision.** The node Stage 1 *ships* is a **Script node**, not the Brief node. Its job is to
+parse a **finished reel script** (uploaded `.md`/`.txt` or pasted) into a structured output,
+reviewed/edited in a full-screen **Script focus view** (EMPTY → SKELETON → PARSED). The
+**Brief node remains a defined MVP node type** (PRD §11.2) — **retained for later, not built
+and not removed**: it parses an *upstream brief* into structured context, for projects that
+start from a brief rather than a written script.
 **Why.** The real first-tool-switch we remove is turning a written script into structured,
-editable asset-ready fields — not summarizing an upstream brief. Same spine (parse via a
-secret-holding Route Handler, append-only `node_versions`, active pointer); only the node's
-semantics changed.
+editable asset-ready fields — not summarizing an upstream brief — so the Script node was the
+higher-value Stage-1 slice. Both share the same spine (parse via a secret-holding Route
+Handler, append-only `node_versions`, active pointer); only the node's semantics differ, so
+**adding the Brief node later is a `compile` + prompt swap, not new architecture (D3)**.
 **Originated.** `2026-06-06-script-parse-kb-context-design.md` (parse + KB slices),
 `2026-06-07-script-focus-view-design.md` (Sheet-free 3-state focus view).
-**Supersedes.** All "Brief node" language in §5 Stage 1 and §6.
+**Amends, not supersedes.** §5 Stage 1 and §6 now describe the Script node as the *shipped*
+Stage-1 node; the Brief node's PRD definition (§11.2) stands, retained for a later stage. The
+original `data.parsed` storage in this entry was later corrected by **D19** (single-source
+output — no display cache).
 
 ### D17 — Client KB pulled forward into Stage 1; reverses D7 *(recorded 2026-06-08)*
 **Decision.** Replace D7's thin `clients.context_notes` text field with a real **versioned
@@ -319,6 +327,7 @@ across attempts? Yes → version log. No (human-authored identity/config) → on
 ### Parked / out-of-scope (with revisit triggers)
 | Item | Status | Revisit when |
 |---|---|---|
+| **Brief node** (upstream-brief parsing) | Defined MVP node type; **retained, not built** — Script node shipped instead (D16) | A project needs to start from a brief, not a finished script |
 | Context "% slider" / relevance ranking | Parked (D7) | Client KB outgrows the context window → add RAG |
 | Full client KB (structured + files + selection) | ✅ Pulled forward into Stage 1 (D17) | — |
 | Multi-tenant auth | Out of scope (PRD §18) | Post-MVP external access |
