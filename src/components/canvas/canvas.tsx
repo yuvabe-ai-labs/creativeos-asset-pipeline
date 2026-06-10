@@ -14,11 +14,12 @@ import { Button } from "@/components/ui/button";
 import { ScriptNode } from "@/components/nodes/script-node";
 import { KBNode } from "@/components/nodes/kb-node";
 import { TextNode } from "@/components/nodes/text-node";
+import { PromptNode } from "@/components/nodes/prompt-node";
 import { useCanvasStore } from "./canvas-store-provider";
 import { CanvasAutosave } from "./canvas-autosave";
 
 // Register custom node types once (stable reference — never inline this object).
-const nodeTypes: NodeTypes = { script: ScriptNode, kb: KBNode, text: TextNode };
+const nodeTypes: NodeTypes = { script: ScriptNode, kb: KBNode, text: TextNode, prompt: PromptNode };
 
 export function Canvas({ canvasId }: { canvasId: string }) {
   // One subscription, shallow-compared, so the component only re-renders when
