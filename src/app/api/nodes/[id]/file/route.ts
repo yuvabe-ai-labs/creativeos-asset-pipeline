@@ -4,8 +4,10 @@ import {
   FILE_NODE_ALL_EXTENSIONS,
   FILE_NODE_IMAGE_EXTENSIONS,
   FILE_NODE_TEXT_EXTENSIONS,
+  FILE_NODE_DOCUMENT_EXTENSIONS,
   FILE_NODE_IMAGE_SIZE_LIMIT,
   FILE_NODE_TEXT_SIZE_LIMIT,
+  FILE_NODE_DOCUMENT_SIZE_LIMIT,
 } from "@/lib/nodes/file-constants";
 import {
   apiError,
@@ -35,8 +37,13 @@ export async function POST(
 
   const isImage = FILE_NODE_IMAGE_EXTENSIONS.has(ext);
   const isText = FILE_NODE_TEXT_EXTENSIONS.has(ext);
-  const sizeLimit = isImage ? FILE_NODE_IMAGE_SIZE_LIMIT : FILE_NODE_TEXT_SIZE_LIMIT;
-  const sizeLabel = isImage ? "10 MB" : "100 KB";
+  const isDocument = FILE_NODE_DOCUMENT_EXTENSIONS.has(ext);
+  const sizeLimit = isImage
+    ? FILE_NODE_IMAGE_SIZE_LIMIT
+    : isDocument
+      ? FILE_NODE_DOCUMENT_SIZE_LIMIT
+      : FILE_NODE_TEXT_SIZE_LIMIT;
+  const sizeLabel = isImage ? "10 MB" : isDocument ? "50 MB" : "100 KB";
 
   const sizeError = validateFileSize(file.size, 0, sizeLimit, sizeLabel);
   if (sizeError) return sizeError;
@@ -72,6 +79,29 @@ export async function POST(
     });
   }
 
+  // Document (PDF/DOCX) — upload to storage, same as image branch.
+  if (isDocument) {
+    const storagePath = `${nodeId}/${file.name}`;
+    const { error: uploadError } = await supabase.storage
+      .from(NODE_FILE_BUCKET)
+      .upload(storagePath, await file.arrayBuffer(), {
+        contentType: file.type,
+        upsert: true,
+      });
+    if (uploadError) {
+      return apiError(`Upload failed: ${uploadError.message}`, 500);
+    }
+    const { data: publicData } = supabase.storage
+      .from(NODE_FILE_BUCKET)
+      .getPublicUrl(storagePath);
+    return apiOk({
+      filename: file.name,
+      fileExt: ext,
+      fileKind: "document" as const,
+      fileUrl: publicData.publicUrl,
+    });
+  }
+
   // Image — upload to storage.
   const storagePath = `${nodeId}/${file.name}`;
   const arrayBuffer = await file.arrayBuffer();
@@ -99,8 +129,8 @@ export async function POST(
   });
 }
 
-// DELETE /api/nodes/:id/file — remove the stored image for this node.
-// Only needed for images (text content lives in nodes.data, cleared by the client).
+// DELETE /api/nodes/:id/file — remove the stored image or document for this node.
+// Only needed for images + documents (text content lives in nodes.data, cleared by client).
 // Client calls this, then clears the node data via updateNodeData.
 export async function DELETE(
   _req: Request,

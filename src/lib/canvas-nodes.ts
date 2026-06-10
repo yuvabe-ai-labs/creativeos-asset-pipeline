@@ -23,10 +23,13 @@ export type KBNodeData = {
 export type FileNodeData = {
   title?: string;
   filename?: string;             // original filename shown in the focus view
-  fileExt?: string;              // "txt" | "png" | "jpg" | "jpeg" | "webp"
-  fileKind?: "text" | "image";
-  fileUrl?: string;              // public Supabase Storage URL (images only)
+  fileExt?: string;              // "txt" | "png" | "jpg" | "jpeg" | "webp" | "pdf" | "docx"
+  fileKind?: "text" | "image" | "document";
+  fileUrl?: string;              // public Supabase Storage URL (images + documents)
   rawText?: string;              // file content stored inline (text files only)
+  useLlm?: boolean;
+  llmPrompt?: string;
+  processedOutput?: string;
 };
 
 export type AppNode =
@@ -71,12 +74,10 @@ export function nodeRowToFlow(row: NodeWithActive): AppNode {
 }
 
 // React Flow node → the columns we persist (used on autosave, client-side).
-// `parsed` and `processedOutput` are derived from the active version (D19) —
-// never written back to the DB row.
+// `parsed` is derived from the active version (D19) — never written back to the DB row.
 export function flowToPersisted(n: AppNode) {
   const data = { ...(n.data as Record<string, unknown>) };
   delete data.parsed;
-  delete data.processedOutput;
   return {
     id: n.id,
     type: n.type as string,

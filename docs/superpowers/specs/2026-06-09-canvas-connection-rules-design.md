@@ -62,7 +62,7 @@ const isValidConnection = useCallback(
 | `"idle"` | No drag in progress |
 | `"source"` | This node is the drag origin |
 | `"valid"` | This node is a valid target for the active drag |
-| `"invalid"` | Not a valid target — apply `opacity-30 pointer-events-none` |
+| `"invalid"` | Not a valid target — apply `opacity-60 pointer-events-none` |
 
 Applied in `file-node.tsx`, `script-node.tsx`, and `kb-node.tsx` via a `cn()` conditional on the wrapper `<div>`.
 

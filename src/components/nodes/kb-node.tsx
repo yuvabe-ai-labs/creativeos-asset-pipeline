@@ -251,9 +251,7 @@ export function KBNode({ id, data, selected }: NodeProps) {
           images: json.images ?? [],
         }),
       )
-      .catch(() =>
-        setFetchState((s) => ({ ...s, loading: false })),
-      );
+      .catch(() => setFetchState((s) => ({ ...s, loading: false })));
   }
 
   const fillPct = d.fillRate != null ? Math.round(d.fillRate * 100) : null;
@@ -269,7 +267,7 @@ export function KBNode({ id, data, selected }: NodeProps) {
         "w-44 rounded-lg border border-border bg-card shadow-card",
         "transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]",
         selected && "ring-2 ring-primary ring-offset-1 ring-offset-background",
-        connState === "invalid" && "opacity-30 pointer-events-none",
+        connState === "invalid" && "opacity-60 pointer-events-none",
       )}
       onMouseEnter={prefetch}
     >

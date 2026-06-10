@@ -12,12 +12,14 @@ type FileEmptyStateProps = {
   onUpload: (file: File) => void;
 };
 
-const ACCEPTED = ".txt,.png,.jpg,.jpeg,.webp";
+const ACCEPTED = ".txt,.png,.jpg,.jpeg,.webp,.pdf,.docx";
 const ACCEPTED_MIME = new Set([
   "text/plain",
   "image/png",
   "image/jpeg",
   "image/webp",
+  "application/pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ]);
 
 export function FileEmptyState({ title, onTitleChange, onUpload }: FileEmptyStateProps) {
@@ -27,7 +29,7 @@ export function FileEmptyState({ title, onTitleChange, onUpload }: FileEmptyStat
   function submit(file: File | undefined) {
     if (!file) return;
     // Client-side MIME guard — real validation happens on the server.
-    if (!ACCEPTED_MIME.has(file.type) && !file.name.match(/\.(txt|png|jpe?g|webp)$/i)) {
+    if (!ACCEPTED_MIME.has(file.type) && !file.name.match(/\.(txt|png|jpe?g|webp|pdf|docx)$/i)) {
       return;
     }
     onUpload(file);
@@ -69,7 +71,7 @@ export function FileEmptyState({ title, onTitleChange, onUpload }: FileEmptyStat
           Drop a file here, or click to browse
         </span>
         <span className="text-xs text-muted-foreground/60">
-          Images: .png .jpg .webp up to 10 MB · Text: .txt up to 100 KB
+          Images: .png .jpg .webp up to 10 MB · Text: .txt up to 100 KB · Docs: .pdf .docx up to 50 MB
         </span>
         <input
           ref={inputRef}

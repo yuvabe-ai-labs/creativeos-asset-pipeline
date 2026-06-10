@@ -36,7 +36,7 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
         "w-44 rounded-lg border border-border bg-card shadow-card",
         "transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:scale-[1.006]",
         selected && "ring-2 ring-primary ring-offset-1 ring-offset-background",
-        connState === "invalid" && "opacity-30 pointer-events-none",
+        connState === "invalid" && "opacity-60 pointer-events-none",
       )}
     >
       <div className="flex items-center justify-between border-b border-border px-3 py-2">
@@ -55,7 +55,9 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
 
       <div className="px-3 py-3">
         <p className="truncate font-display text-sm font-medium">
-          {title || <span className="text-muted-foreground">Untitled script</span>}
+          {title || (
+            <span className="text-muted-foreground">Untitled script</span>
+          )}
         </p>
         <button
           onClick={() => setFocusOpen(true)}

@@ -93,7 +93,7 @@ const connState = useNodeConnectionState(id, "file"); // or "script" / "kb"
     "transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]",
     "hover:-translate-y-0.5 hover:scale-[1.006]",
     selected && "ring-2 ring-primary ring-offset-1 ring-offset-background",
-    connState === "invalid" && "opacity-30 pointer-events-none",
+    connState === "invalid" && "opacity-60 pointer-events-none",
   )}
 >
 ```
