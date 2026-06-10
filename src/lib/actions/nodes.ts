@@ -24,3 +24,9 @@ export async function saveCanvasEdgesAction(
 export async function saveScriptOutputAction(nodeId: string, output: unknown) {
   await updateActiveVersionOutput(nodeId, output);
 }
+
+// Save manual edits to the Prompt node's generated output (D19): updates the
+// active version's output in place — does NOT create a new version.
+export async function savePromptOutputAction(nodeId: string, output: unknown) {
+  await updateActiveVersionOutput(nodeId, output);
+}
