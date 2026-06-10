@@ -30,6 +30,34 @@ export class KBPage {
     return this.page.getByRole("button", { name: /analyze|re-analyze/i });
   }
 
+  get docFileInput(): Locator {
+    return this.page.locator('input[type="file"][accept=".pdf,.docx,.pptx,.md,.txt"]');
+  }
+
+  get imgFileInput(): Locator {
+    return this.page.locator('input[type="file"][accept=".jpg,.jpeg,.png,.webp"]');
+  }
+
+  get saveButton(): Locator {
+    return this.page.getByRole("button", { name: "Save" });
+  }
+
+  get approveAllButton(): Locator {
+    return this.page.getByRole("button", { name: /approve all/i });
+  }
+
+  get markReadyButton(): Locator {
+    return this.page.getByRole("button", { name: /mark kb ready|review all fields first/i });
+  }
+
+  get unsavedBadge(): Locator {
+    return this.page.getByText("Unsaved changes");
+  }
+
+  tab(name: string | RegExp): Locator {
+    return this.page.getByRole("tab", { name });
+  }
+
   kbField(label: string): Locator {
     return this.page.getByText(label, { exact: false }).first();
   }
