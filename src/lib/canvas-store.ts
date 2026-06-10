@@ -9,6 +9,8 @@ import {
   type OnNodesChange,
   type XYPosition,
 } from "@xyflow/react";
+import { toast } from "sonner";
+import { wouldCreateCycle } from "@/lib/canvas/graph";
 import type { AppNode } from "./canvas-nodes";
 
 // 1C/1D: the canvas store. Nodes/edges live here; custom node components read
@@ -50,7 +52,14 @@ export function createCanvasStore(
       set({ nodes: applyNodeChanges(changes, get().nodes) }),
     onEdgesChange: (changes) =>
       set({ edges: applyEdgeChanges(changes, get().edges) }),
-    onConnect: (connection) => set({ edges: addEdge(connection, get().edges) }),
+    onConnect: (connection) => {
+      const { source, target } = connection;
+      if (source && target && wouldCreateCycle(get().edges, source, target)) {
+        toast.error("That connection would create a loop.");
+        return;
+      }
+      set({ edges: addEdge(connection, get().edges) });
+    },
     addNode: (type, position, id) =>
       set({
         nodes: [
