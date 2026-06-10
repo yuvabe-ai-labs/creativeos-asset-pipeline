@@ -11,6 +11,7 @@ import {
 import { useShallow } from "zustand/react/shallow";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScriptNode } from "@/components/nodes/script-node";
 import { KBNode } from "@/components/nodes/kb-node";
 import { TextNode } from "@/components/nodes/text-node";
@@ -48,23 +49,43 @@ export function Canvas({ canvasId }: { canvasId: string }) {
     <div className="absolute inset-0 bg-[var(--neutral-50)]">
       <CanvasAutosave canvasId={canvasId} />
       <div className="absolute left-4 top-4 z-10">
-        <Button
-          size="sm"
-          onClick={() => {
-            const position = {
-              x: 120 + Math.random() * 220,
-              y: 80 + Math.random() * 140,
-            };
-            // Generate the new node ID before adding so we can wire the edge.
-            const newNodeId = crypto.randomUUID();
-            addNode("script", position, newNodeId);
-            // Auto-connect to the KB node if one exists on this canvas.
-            const kbNode = nodes.find((n) => n.type === "kb");
-            if (kbNode) connectNodes(kbNode.id, newNodeId);
-          }}
-        >
-          <Plus className="size-4" /> Add script node
-        </Button>
+        <Popover>
+          <PopoverTrigger
+            render={
+              <Button size="sm">
+                <Plus className="size-4" /> Add node
+              </Button>
+            }
+          />
+          <PopoverContent align="start" className="w-44 gap-1 p-1">
+            {([
+              { type: "script", label: "Script" },
+              { type: "text", label: "Note" },
+              { type: "prompt", label: "Prompt" },
+            ] as const).map((opt) => (
+              <button
+                key={opt.type}
+                type="button"
+                onClick={() => {
+                  const position = {
+                    x: 120 + Math.random() * 220,
+                    y: 80 + Math.random() * 140,
+                  };
+                  const newNodeId = crypto.randomUUID();
+                  addNode(opt.type, position, newNodeId);
+                  // Script nodes auto-wire to the KB node if one exists (Stage 1 behavior).
+                  if (opt.type === "script") {
+                    const kbNode = nodes.find((n) => n.type === "kb");
+                    if (kbNode) connectNodes(kbNode.id, newNodeId);
+                  }
+                }}
+                className="w-full rounded-md px-2.5 py-1.5 text-left text-sm font-medium transition-colors hover:bg-muted"
+              >
+                {opt.label}
+              </button>
+            ))}
+          </PopoverContent>
+        </Popover>
       </div>
 
       <ReactFlow
