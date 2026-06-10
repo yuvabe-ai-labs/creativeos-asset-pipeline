@@ -20,9 +20,22 @@ export type KBNodeData = {
   extractedAt: string | null;
 };
 
+export type TextNodeData = {
+  text?: string; // free-text context; this node's "output" (no version log, D19)
+};
+
+export type PromptNodeData = {
+  title?: string;
+  instruction?: string; // operator instruction
+  parsed?: unknown; // active output (generated prompt text) — DISPLAY ONLY, hydrated from the active version (D19)
+  kbSlices?: KBSliceKey[]; // ambient KB slices injected into the compiled prompt
+};
+
 export type AppNode =
   | Node<ScriptNodeData, "script">
-  | Node<KBNodeData, "kb">;
+  | Node<KBNodeData, "kb">
+  | Node<TextNodeData, "text">
+  | Node<PromptNodeData, "prompt">;
 
 // A node row joined with its active version's output (canvas-load shape).
 // `active` is the to-one embed of node_versions via nodes.active_version_id.
