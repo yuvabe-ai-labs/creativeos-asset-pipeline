@@ -1,0 +1,151 @@
+name: E2E Tests
+
+on:
+  pull_request:
+    branches: [main, staging, development]
+  push:
+    branches: [main]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  e2e:
+    name: Playwright E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Get pnpm store path
+        id: pnpm-cache
+        run: echo "dir=$(pnpm store path)" >> $GITHUB_OUTPUT
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-cache.outputs.dir }}
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-pnpm-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run unit tests
+        run: pnpm test
+
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Write .env
+        run: |
+          cat <<EOF > .env
+          NEXT_PUBLIC_SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+          TEST_CLIENT_SLUG=${{ secrets.TEST_CLIENT_SLUG }}
+          TEST_READY_CLIENT_SLUG=${{ secrets.TEST_READY_CLIENT_SLUG }}
+          TEST_CANVAS_SLUG=${{ secrets.TEST_CANVAS_SLUG }}
+          TEST_KB_REVIEW_SLUG=${{ secrets.TEST_KB_REVIEW_SLUG }}
+          TEST_KB_EDIT_SLUG=${{ secrets.TEST_KB_EDIT_SLUG }}
+          TEST_SCRIPT_CLIENT_SLUG=${{ secrets.TEST_SCRIPT_CLIENT_SLUG }}
+          TEST_SCRIPT_CANVAS_SLUG=${{ secrets.TEST_SCRIPT_CANVAS_SLUG }}
+          TEST_RUN_CANVAS_EDIT=1
+          TEST_RUN_KB_EDIT=1
+          LINEAR_API_KEY=${{ secrets.LINEAR_API_KEY }}
+          LINEAR_TEAM_ID=${{ secrets.LINEAR_TEAM_ID }}
+          LINEAR_PROJECT_ID=${{ secrets.LINEAR_PROJECT_ID }}
+          EOF
+
+      - name: Seed test database
+        run: pnpm db:seed
+
+      - name: Run E2E tests
+        run: pnpm test:e2e
+
+      - name: Post test results on PR
+        if: always() && github.event_name == 'pull_request'
+        continue-on-error: true
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = 'test-results/results.json';
+            if (!fs.existsSync(path)) {
+              console.log('No results.json found — skipping comment');
+              return;
+            }
+            const results = JSON.parse(fs.readFileSync(path, 'utf8'));
+
+            let passed = 0, failed = 0, skipped = 0, totalMs = 0;
+            const rows = [];
+
+            function collectSpecs(suites) {
+              for (const suite of suites ?? []) {
+                collectSpecs(suite.suites);
+                for (const spec of suite.specs ?? []) {
+                  const test = spec.tests?.[0];
+                  const status = test?.status ?? 'unknown';
+                  const results = test?.results ?? [];
+                  const ms = results.reduce((sum, r) => sum + (r.duration ?? 0), 0);
+                  totalMs += ms;
+                  if (status === 'expected') passed++;
+                  else if (status === 'unexpected') failed++;
+                  else if (status === 'flaky') { passed++; }
+                  else skipped++;
+                  const icon = status === 'expected' ? '✅' : status === 'unexpected' ? '❌' : status === 'flaky' ? '⚠️' : '⏭️';
+                  const label = status === 'expected' ? 'passed' : status === 'unexpected' ? 'failed' : status;
+                  rows.push(`| ${spec.title} | ${icon} ${label} | ${(ms / 1000).toFixed(1)}s |`);
+                }
+              }
+            }
+            collectSpecs(results.suites);
+
+            const totalS = (totalMs / 1000).toFixed(1);
+            const header = failed > 0
+              ? `❌ **${failed} failed** · ✅ ${passed} passed · ⏱ ${totalS}s`
+              : `✅ **All ${passed} tests passed** · ⏱ ${totalS}s`;
+
+            const body = [
+              '## 🎭 Playwright E2E Results',
+              '',
+              header,
+              '',
+              '| Test | Status | Duration |',
+              '|------|--------|----------|',
+              ...rows,
+            ].join('\n');
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body,
+            });
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 30
+
+      - name: Upload test results (screenshots, traces, videos)
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-test-results
+          path: test-results/
+          retention-days: 30
