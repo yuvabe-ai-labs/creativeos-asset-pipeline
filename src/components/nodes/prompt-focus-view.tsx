@@ -6,7 +6,6 @@ import {
   Sparkles,
   RefreshCw,
   Palette,
-  Link2,
   PencilLine,
   type LucideIcon,
 } from "lucide-react";
@@ -16,9 +15,7 @@ import { Button } from "@/components/ui/button";
 import { SliceToggles } from "./slice-toggles";
 import { DEFAULT_INSTRUCTION } from "@/lib/nodes/prompt";
 import type { KBSliceKey } from "@/lib/kb/parse-context";
-
-type Upstream = { id: string; label: string };
-type ConnectedPreview = { nodeId: string; label: string; text: string };
+import { ConnectedInputsCard, type UpstreamNode, type ConnectedPreview } from "./connected-inputs-card";
 
 type PromptFocusViewProps = {
   open: boolean;
@@ -28,9 +25,10 @@ type PromptFocusViewProps = {
   instruction: string;
   output: string | null;
   slices: KBSliceKey[];
-  upstream: Upstream[];
+  upstream: UpstreamNode[];
   onPatch: (patch: Record<string, unknown>) => void;
   onSaveOutput: (output: string) => Promise<void>;
+  onEditUpstream: (nodeId: string) => void;
 };
 
 // A labeled context section: icon + eyebrow label + optional source badge + body.
@@ -74,12 +72,13 @@ export function PromptFocusView({
   upstream,
   onPatch,
   onSaveOutput,
+  onEditUpstream,
 }: PromptFocusViewProps) {
   const [draft, setDraft] = useState(output ?? "");
   const [generating, setGenerating] = useState(false);
   const [preview, setPreview] = useState<{ ambient: string; connected: ConnectedPreview[] }>({
     ambient: "",
-    connected: [],
+    connected: [] as ConnectedPreview[],
   });
   const [seed, setSeed] = useState<{ open: boolean; output: string | null }>({ open, output });
 
@@ -111,7 +110,10 @@ export function PromptFocusView({
         });
         const json = await res.json();
         if (!cancelled && res.ok) {
-          setPreview({ ambient: json.ambient ?? "", connected: json.connected ?? [] });
+          setPreview({
+            ambient: json.ambient ?? "",
+            connected: (json.connected ?? []) as ConnectedPreview[],
+          });
         }
       } catch {
         /* preview is best-effort */
@@ -223,37 +225,11 @@ export function PromptFocusView({
             </ContextCard>
 
             {/* Connected — upstream nodes */}
-            <ContextCard
-              icon={Link2}
-              label="Connected · Inputs"
-              badge={`${upstream.length} input${upstream.length === 1 ? "" : "s"}`}
-            >
-              {upstream.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  Connect a Script or Note node to feed this prompt.
-                </p>
-              ) : (
-                <ul className="space-y-2">
-                  {upstream.map((u) => {
-                    const text = preview.connected.find((c) => c.nodeId === u.id)?.text ?? "";
-                    return (
-                      <li key={u.id} className="rounded-md border border-border px-3 py-2">
-                        <span className="text-xs font-semibold text-foreground">{u.label}</span>
-                        {text.trim() ? (
-                          <pre className="mt-1.5 max-h-40 overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed text-foreground/70">
-                            {text}
-                          </pre>
-                        ) : (
-                          <p className="mt-1.5 text-xs text-muted-foreground">
-                            No output yet — open this node and generate its content first.
-                          </p>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </ContextCard>
+            <ConnectedInputsCard
+              upstream={upstream}
+              preview={preview.connected}
+              onEditUpstream={onEditUpstream}
+            />
 
             {/* Inline — instruction */}
             <ContextCard icon={PencilLine} label="Inline · Instruction" badge="Instruction">

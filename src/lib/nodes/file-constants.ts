@@ -9,6 +9,8 @@ export const FILE_NODE_ALL_EXTENSIONS = new Set([
   ...FILE_NODE_DOCUMENT_EXTENSIONS,
 ]);
 
-export const FILE_NODE_IMAGE_SIZE_LIMIT = 10 * 1024 * 1024;    // 10 MB per image
-export const FILE_NODE_TEXT_SIZE_LIMIT = 100 * 1024;            // 100 KB per text file
-export const FILE_NODE_DOCUMENT_SIZE_LIMIT = 50 * 1024 * 1024; // 50 MB per document
+// 10 MB cap across all file types — keeps total context well under OpenAI limits
+export const FILE_NODE_MAX_SIZE = 10 * 1024 * 1024;
+export const FILE_NODE_IMAGE_SIZE_LIMIT = FILE_NODE_MAX_SIZE;
+export const FILE_NODE_TEXT_SIZE_LIMIT = 100 * 1024;             // 100 KB per text file
+export const FILE_NODE_DOCUMENT_SIZE_LIMIT = FILE_NODE_MAX_SIZE;

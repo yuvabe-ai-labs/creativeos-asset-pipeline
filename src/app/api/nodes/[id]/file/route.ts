@@ -43,7 +43,7 @@ export async function POST(
     : isDocument
       ? FILE_NODE_DOCUMENT_SIZE_LIMIT
       : FILE_NODE_TEXT_SIZE_LIMIT;
-  const sizeLabel = isImage ? "10 MB" : isDocument ? "50 MB" : "100 KB";
+  const sizeLabel = isImage ? "10 MB" : isDocument ? "10 MB" : "100 KB";
 
   const sizeError = validateFileSize(file.size, 0, sizeLimit, sizeLabel);
   if (sizeError) return sizeError;

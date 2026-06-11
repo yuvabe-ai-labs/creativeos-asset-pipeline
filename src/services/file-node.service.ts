@@ -1,4 +1,5 @@
 import type { FileNodeData } from "@/lib/canvas-nodes";
+import { FILE_NODE_MAX_SIZE } from "@/lib/nodes/file-constants";
 
 type FileUploadResult = Pick<
   FileNodeData,
@@ -9,6 +10,9 @@ type ExtractResult = { processedOutput: string };
 
 class FileNodeService {
   async upload(nodeId: string, file: File): Promise<FileUploadResult> {
+    if (file.size > FILE_NODE_MAX_SIZE) {
+      throw new Error("File exceeds the 10 MB limit. Please choose a smaller file.");
+    }
     const fd = new FormData();
     fd.append("file", file);
     const res = await fetch(`/api/nodes/${nodeId}/file`, { method: "POST", body: fd });

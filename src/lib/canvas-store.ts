@@ -28,6 +28,11 @@ export type CanvasState = {
   connectNodes: (sourceId: string, targetId: string) => void;
   deleteNode: (id: string) => void;
   duplicateNode: (id: string) => void;
+  // Focus trigger — set by the Edit button in PromptFocusView; individual node
+  // components subscribe and open their focus view when their id matches.
+  focusTrigger: { nodeId: string; tick: number } | null;
+  requestFocusNode: (nodeId: string) => void;
+  clearFocusTrigger: () => void;
 };
 
 function defaultData(type: string): AppNode["data"] {
@@ -126,6 +131,9 @@ export function createCanvasStore(
         ],
       });
     },
+    focusTrigger: null,
+    requestFocusNode: (nodeId) => set({ focusTrigger: { nodeId, tick: Date.now() } }),
+    clearFocusTrigger: () => set({ focusTrigger: null }),
   }));
 }
 

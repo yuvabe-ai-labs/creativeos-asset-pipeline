@@ -17,6 +17,14 @@ export function getNodeOutput(node: NodeOutputInput): string {
       return typeof node.activeOutput === "string" ? node.activeOutput.trim() : "";
     case "script":
       return renderScriptAsText(node.activeOutput as ReelScript | null);
+    case "file": {
+      // File nodes have no version system — content lives in node.data
+      const d = node.data as { processedOutput?: string; rawText?: string; filename?: string };
+      if (d.processedOutput?.trim()) return d.processedOutput.trim();
+      if (d.rawText?.trim()) return d.rawText.trim();
+      if (d.filename) return `[File: ${d.filename}]`;
+      return "";
+    }
     default:
       if (node.activeOutput == null) return "";
       return typeof node.activeOutput === "string"

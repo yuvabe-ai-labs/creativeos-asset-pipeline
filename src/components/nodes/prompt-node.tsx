@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -9,12 +9,13 @@ import { savePromptOutputAction } from "@/lib/actions/nodes";
 import { PromptFocusView } from "./prompt-focus-view";
 import { DEFAULT_PARSE_SLICES, type KBSliceKey } from "@/lib/kb/parse-context";
 
-const TYPE_LABEL: Record<string, string> = { script: "Script", text: "Note", prompt: "Prompt", kb: "Brand KB" };
+const TYPE_LABEL: Record<string, string> = { script: "Script", text: "Note", prompt: "Prompt", kb: "Brand KB", file: "File" };
 
 // Prompt node. A compact launcher; double-click / Open hands off to the Prompt
 // focus view. The Inputs panel's connected-node list is derived from the store graph.
 export function PromptNode({ id, data, selected }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
+  const requestFocusNode = useCanvasStore((s) => s.requestFocusNode);
   // Select the raw store slices (stable references) and DERIVE the upstream list
   // with useMemo. Returning a freshly-built array of objects straight from the
   // selector breaks useSyncExternalStore caching (useShallow only stabilizes one
@@ -26,7 +27,16 @@ export function PromptNode({ id, data, selected }: NodeProps) {
     const sourceIds = edges.filter((e) => e.target === id).map((e) => e.source);
     return nodes
       .filter((n) => sourceIds.includes(n.id))
-      .map((n) => ({ id: n.id, label: TYPE_LABEL[n.type ?? ""] ?? String(n.type) }));
+      .map((n) => {
+        const d = n.data as Record<string, unknown>;
+        return {
+          id: n.id,
+          label: TYPE_LABEL[n.type ?? ""] ?? String(n.type),
+          type: n.type ?? "",
+          fileUrl: n.type === "file" ? (d.fileUrl as string | undefined) : undefined,
+          fileKind: n.type === "file" ? (d.fileKind as string | undefined) : undefined,
+        };
+      });
   }, [nodes, edges, id]);
 
   const d = data as { title?: string; instruction?: string; parsed?: unknown; kbSlices?: KBSliceKey[] };
@@ -35,6 +45,15 @@ export function PromptNode({ id, data, selected }: NodeProps) {
   const output = (d.parsed ?? null) as string | null;
   const slices = d.kbSlices ?? DEFAULT_PARSE_SLICES;
   const [focusOpen, setFocusOpen] = useState(false);
+
+  const handleEditUpstream = useCallback(
+    (nodeId: string) => {
+      setFocusOpen(false);
+      // Wait for the sheet close animation before triggering the target node's focus view.
+      setTimeout(() => requestFocusNode(nodeId), 250);
+    },
+    [requestFocusNode],
+  );
 
   return (
     <div
@@ -82,6 +101,7 @@ export function PromptNode({ id, data, selected }: NodeProps) {
         upstream={upstream}
         onPatch={(patch) => updateNodeData(id, patch)}
         onSaveOutput={(o) => savePromptOutputAction(id, o)}
+        onEditUpstream={handleEditUpstream}
       />
 
       <Handle

@@ -73,11 +73,24 @@ export function Canvas({ canvasId }: { canvasId: string }) {
       const source = nodes.find((n) => n.id === connection.source);
       const target = nodes.find((n) => n.id === connection.target);
       if (!source || !target) return false;
-      return (VALID_CONNECTIONS[source.type ?? ""] ?? []).includes(
-        target.type ?? "",
-      );
+      if (!(VALID_CONNECTIONS[source.type ?? ""] ?? []).includes(target.type ?? "")) return false;
+      // script → prompt: one script can only wire to a single prompt
+      if (source.type === "script" && target.type === "prompt") {
+        const alreadyConnected = edges.some(
+          (e) => e.source === connection.source && nodes.find((n) => n.id === e.target)?.type === "prompt",
+        );
+        if (alreadyConnected) return false;
+      }
+      // file → prompt: max 5 file inputs per prompt node
+      if (source.type === "file" && target.type === "prompt") {
+        const fileInputCount = edges.filter(
+          (e) => e.target === connection.target && nodes.find((n) => n.id === e.source)?.type === "file",
+        ).length;
+        if (fileInputCount >= 5) return false;
+      }
+      return true;
     },
-    [nodes],
+    [nodes, edges],
   );
 
   return (
