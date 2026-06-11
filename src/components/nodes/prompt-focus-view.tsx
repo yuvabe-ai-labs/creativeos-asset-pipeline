@@ -239,10 +239,14 @@ export function PromptFocusView({
                     return (
                       <li key={u.id} className="rounded-md border border-border px-3 py-2">
                         <span className="text-xs font-semibold text-foreground">{u.label}</span>
-                        {text.trim() && (
-                          <pre className="mt-1 max-h-32 overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed text-foreground/70">
+                        {text.trim() ? (
+                          <pre className="mt-1.5 max-h-40 overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed text-foreground/70">
                             {text}
                           </pre>
+                        ) : (
+                          <p className="mt-1.5 text-xs text-muted-foreground">
+                            No output yet — open this node and generate its content first.
+                          </p>
                         )}
                       </li>
                     );
