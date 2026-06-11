@@ -9,7 +9,9 @@ import {
   type OnNodesChange,
   type XYPosition,
 } from "@xyflow/react";
-import type { AppNode, ScriptNodeData, FileNodeData } from "./canvas-nodes";
+import { toast } from "sonner";
+import { wouldCreateCycle } from "@/lib/canvas/graph";
+import type { AppNode } from "./canvas-nodes";
 
 // 1C/1D: the canvas store. Nodes/edges live here; custom node components read
 // and write it directly (React Flow only hands a node `{ id, data }`).
@@ -22,7 +24,7 @@ export type CanvasState = {
   onEdgesChange: OnEdgesChange;
   onConnect: OnConnect;
   addNode: (type: string, position: XYPosition, id?: string) => void;
-  updateNodeData: (id: string, data: Partial<ScriptNodeData> | Partial<FileNodeData>) => void;
+  updateNodeData: (id: string, data: Record<string, unknown>) => void;
   connectNodes: (sourceId: string, targetId: string) => void;
   deleteNode: (id: string) => void;
   duplicateNode: (id: string) => void;
@@ -31,7 +33,11 @@ export type CanvasState = {
 function defaultData(type: string): AppNode["data"] {
   switch (type) {
     case "file":
-      return { title: "" } satisfies FileNodeData;
+      return { title: "" };
+    case "text":
+      return {};
+    case "prompt":
+      return { title: "" };
     case "script":
     default:
       return { title: "" };
@@ -61,7 +67,16 @@ export function createCanvasStore(
     },
     onEdgesChange: (changes) =>
       set({ edges: applyEdgeChanges(changes, get().edges) }),
-    onConnect: (connection) => set({ edges: addEdge(connection, get().edges) }),
+    onConnect: (connection) => {
+      const { source, target } = connection;
+      if (source && target && wouldCreateCycle(get().edges, source, target)) {
+        toast.error("That connection would create a loop.");
+        return;
+      }
+      // Mint a uuid id — React Flow would otherwise assign `xy-edge__<src>-<tgt>`,
+      // which the edges.id uuid column rejects (failing the whole save batch).
+      set({ edges: addEdge({ ...connection, id: crypto.randomUUID() }, get().edges) });
+    },
     addNode: (type, position, id) =>
       set({
         nodes: [

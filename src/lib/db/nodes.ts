@@ -89,3 +89,51 @@ export async function saveCanvasNodes(
     : await base; // none left → delete all for this canvas
   if (delErr) throw delErr;
 }
+
+export type UpstreamOutput = {
+  nodeId: string;
+  type: string;
+  data: Record<string, unknown>;
+  activeOutput: unknown | null;
+  versionId: string | null; // the source's active_version_id (recorded for D9)
+};
+
+// Load the active outputs of every node with an edge INTO `nodeId`. Follows each
+// source node's active_version_id via the same FK embed as listNodes.
+export async function getUpstreamOutputs(nodeId: string): Promise<UpstreamOutput[]> {
+  const supabase = createServerSupabase();
+
+  const { data: edges, error: edgeErr } = await supabase
+    .from("edges")
+    .select("source_node_id")
+    .eq("target_node_id", nodeId);
+  if (edgeErr) throw edgeErr;
+
+  const sourceIds = (edges ?? []).map(
+    (e) => (e as { source_node_id: string }).source_node_id,
+  );
+  if (sourceIds.length === 0) return [];
+
+  const { data: nodes, error: nodeErr } = await supabase
+    .from("nodes")
+    .select("id, type, data, active_version_id, active:node_versions!nodes_active_version_fk(output)")
+    .in("id", sourceIds);
+  if (nodeErr) throw nodeErr;
+
+  return (nodes ?? []).map((n) => {
+    const row = n as unknown as {
+      id: string;
+      type: string;
+      data: Record<string, unknown> | null;
+      active_version_id: string | null;
+      active: { output: unknown } | null;
+    };
+    return {
+      nodeId: row.id,
+      type: row.type,
+      data: row.data ?? {},
+      activeOutput: row.active?.output ?? null,
+      versionId: row.active_version_id,
+    };
+  });
+}

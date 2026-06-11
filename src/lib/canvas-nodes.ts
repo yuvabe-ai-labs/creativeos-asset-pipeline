@@ -32,17 +32,30 @@ export type FileNodeData = {
   processedOutput?: string;
 };
 
+export type TextNodeData = {
+  text?: string; // free-text context; this node's "output" (no version log, D19)
+};
+
+export type PromptNodeData = {
+  title?: string;
+  instruction?: string; // operator instruction
+  parsed?: unknown; // active output (generated prompt text) — DISPLAY ONLY, hydrated from the active version (D19)
+  kbSlices?: KBSliceKey[]; // ambient KB slices injected into the compiled prompt
+};
+
 export type AppNode =
   | Node<ScriptNodeData, "script">
   | Node<KBNodeData, "kb">
-  | Node<FileNodeData, "file">;
+  | Node<FileNodeData, "file">
+  | Node<TextNodeData, "text">
+  | Node<PromptNodeData, "prompt">;
 
 // PRD §10 — which source node types may connect to which target node types.
-// Future node types are included now so connections work automatically when built.
 export const VALID_CONNECTIONS: Record<string, readonly string[]> = {
   kb:            ["script"],
   script:        ["prompt"],
   file:          ["prompt", "image-gen"],
+  text:          ["prompt"],
   prompt:        ["prompt", "image-gen", "video-gen"],
   "image-gen":   ["prompt", "video-gen"],
   "video-gen":   [],

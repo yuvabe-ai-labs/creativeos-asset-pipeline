@@ -76,6 +76,19 @@ export function formatBytes(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
+// Pinned locale + explicit format so SSR (Node) and the browser produce the
+// SAME string — otherwise the host-default locale differs and React throws a
+// hydration mismatch. "en-GB" with a short month is unambiguous: "5 Jun 2026".
+const DATE_FORMAT = new Intl.DateTimeFormat("en-GB", {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+});
+
+export function formatDate(value: string | number | Date): string {
+  return DATE_FORMAT.format(new Date(value));
+}
+
 export function buildChangeSummary(staged: StagedChanges): string {
   const { pendingDocRemovals, pendingImageRemovals, newlyAddedDocIds, newlyAddedImageIds } = staged;
   const parts: string[] = [];
