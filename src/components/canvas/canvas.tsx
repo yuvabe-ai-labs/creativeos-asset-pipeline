@@ -1,7 +1,7 @@
 "use client";
 
 import "@xyflow/react/dist/style.css";
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import {
   Background,
   BackgroundVariant,
@@ -35,6 +35,7 @@ export function Canvas({ canvasId }: { canvasId: string }) {
     onConnect,
     addNode,
     connectNodes,
+    duplicateNode,
   } = useCanvasStore(
     useShallow((s) => ({
       nodes: s.nodes,
@@ -44,8 +45,25 @@ export function Canvas({ canvasId }: { canvasId: string }) {
       onConnect: s.onConnect,
       addNode: s.addNode,
       connectNodes: s.connectNodes,
+      duplicateNode: s.duplicateNode,
     })),
   );
+
+  const nodesRef = useRef(nodes);
+  useEffect(() => { nodesRef.current = nodes; }, [nodes]);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "d") {
+        e.preventDefault();
+        nodesRef.current
+          .filter((n) => n.selected && n.type !== "kb")
+          .forEach((n) => duplicateNode(n.id));
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [duplicateNode]);
 
   const isValidConnection = useCallback(
     (connection: Connection | Edge) => {
@@ -103,6 +121,7 @@ export function Canvas({ canvasId }: { canvasId: string }) {
         onConnect={onConnect}
         isValidConnection={isValidConnection}
         nodeTypes={nodeTypes}
+        deleteKeyCode={["Backspace", "Delete"]}
         defaultViewport={{ x: 0, y: 0, zoom: 1 }}
         proOptions={{ hideAttribution: true }}
         className="!bg-transparent"

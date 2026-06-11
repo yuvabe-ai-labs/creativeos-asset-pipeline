@@ -229,11 +229,7 @@ export function FileFocusView({
               )}
 
               {mode === "empty" && (
-                <FileEmptyState
-                  title={title}
-                  onTitleChange={(t) => onPatch({ title: t })}
-                  onUpload={handleUpload}
-                />
+                <FileEmptyState onUpload={handleUpload} />
               )}
 
               {mode === "ready" && (

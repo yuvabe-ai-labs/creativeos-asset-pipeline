@@ -24,6 +24,8 @@ export type CanvasState = {
   addNode: (type: string, position: XYPosition, id?: string) => void;
   updateNodeData: (id: string, data: Partial<ScriptNodeData> | Partial<FileNodeData>) => void;
   connectNodes: (sourceId: string, targetId: string) => void;
+  deleteNode: (id: string) => void;
+  duplicateNode: (id: string) => void;
 };
 
 function defaultData(type: string): AppNode["data"] {
@@ -44,8 +46,19 @@ export function createCanvasStore(
   return createStore<CanvasState>((set, get) => ({
     nodes: initialNodes,
     edges: initialEdges,
-    onNodesChange: (changes) =>
-      set({ nodes: applyNodeChanges(changes, get().nodes) }),
+    onNodesChange: (changes) => {
+      const removedIds = new Set(
+        changes.filter((c) => c.type === "remove").map((c) => c.id),
+      );
+      set({
+        nodes: applyNodeChanges(changes, get().nodes),
+        ...(removedIds.size > 0 && {
+          edges: get().edges.filter(
+            (e) => !removedIds.has(e.source) && !removedIds.has(e.target),
+          ),
+        }),
+      });
+    },
     onEdgesChange: (changes) =>
       set({ edges: applyEdgeChanges(changes, get().edges) }),
     onConnect: (connection) => set({ edges: addEdge(connection, get().edges) }),
@@ -76,6 +89,28 @@ export function createCanvasStore(
           get().edges,
         ),
       }),
+    deleteNode: (id) =>
+      set({
+        nodes: get().nodes.filter((n) => n.id !== id),
+        edges: get().edges.filter(
+          (e) => e.source !== id && e.target !== id,
+        ),
+      }),
+    duplicateNode: (id) => {
+      const node = get().nodes.find((n) => n.id === id);
+      if (!node || node.type === "kb") return;
+      set({
+        nodes: [
+          ...get().nodes,
+          {
+            ...node,
+            id: crypto.randomUUID(),
+            position: { x: node.position.x + 32, y: node.position.y + 32 },
+            selected: false,
+          } as AppNode,
+        ],
+      });
+    },
   }));
 }
 

@@ -7,12 +7,15 @@ import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { saveScriptOutputAction } from "@/lib/actions/nodes";
 import { ScriptFocusView } from "./script-focus-view";
+import { NodeContextMenu } from "./node-context-menu";
 import type { ReelScript } from "@/lib/nodes/reel-script";
 import { DEFAULT_PARSE_SLICES, type KBSliceKey } from "@/lib/kb/parse-context";
 import { useNodeConnectionState } from "./use-node-connection-state";
 
 export function ScriptNode({ id, data, selected }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
+  const deleteNode = useCanvasStore((s) => s.deleteNode);
+  const duplicateNode = useCanvasStore((s) => s.duplicateNode);
   const d = data as {
     title?: string;
     source?: string;
@@ -27,13 +30,17 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
   const connState = useNodeConnectionState(id, "script");
 
   return (
+    <NodeContextMenu
+      onDuplicate={() => duplicateNode(id)}
+      onDelete={() => deleteNode(id)}
+    >
     <div
       onDoubleClick={(e) => {
         e.stopPropagation();
         setFocusOpen(true);
       }}
       className={cn(
-        "w-44 rounded-lg border border-border bg-card shadow-card",
+        "group w-44 rounded-lg border border-border bg-card shadow-card",
         "transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:scale-[1.006]",
         selected && "ring-2 ring-primary ring-offset-1 ring-offset-background",
         connState === "invalid" && "opacity-60 pointer-events-none",
@@ -90,5 +97,6 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
         className="!size-2 !border-2 !border-card !bg-primary"
       />
     </div>
+    </NodeContextMenu>
   );
 }

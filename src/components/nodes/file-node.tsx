@@ -6,14 +6,16 @@ import { Paperclip, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import type { FileNodeData } from "@/lib/canvas-nodes";
-import { EditableField } from "./editable-field";
 import { FileFocusView } from "./file-focus-view";
 import { useNodeConnectionState } from "./use-node-connection-state";
+import { NodeContextMenu } from "./node-context-menu";
 
 const KIND_LABELS = { text: "TXT", image: "IMG", document: "DOC" } as const;
 
 export function FileNode({ id, data, selected }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
+  const deleteNode = useCanvasStore((s) => s.deleteNode);
+  const duplicateNode = useCanvasStore((s) => s.duplicateNode);
   const d = data as FileNodeData;
   const [focusOpen, setFocusOpen] = useState(false);
   const connState = useNodeConnectionState(id, "file");
@@ -21,13 +23,17 @@ export function FileNode({ id, data, selected }: NodeProps) {
   const hasFile = !!d.filename;
 
   return (
+    <NodeContextMenu
+      onDuplicate={() => duplicateNode(id)}
+      onDelete={() => deleteNode(id)}
+    >
     <div
       onDoubleClick={(e) => {
         e.stopPropagation();
         setFocusOpen(true);
       }}
       className={cn(
-        "w-44 rounded-lg border border-border bg-card shadow-card",
+        "group w-44 rounded-lg border border-border bg-card shadow-card",
         "transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:scale-[1.006]",
         selected && "ring-2 ring-primary ring-offset-1 ring-offset-background",
         connState === "invalid" && "opacity-60 pointer-events-none",
@@ -64,14 +70,9 @@ export function FileNode({ id, data, selected }: NodeProps) {
 
       <div className="px-3 py-3">
         <div className="flex items-center gap-1.5">
-          <div className="min-w-0 flex-1">
-            <EditableField
-              value={d.title ?? ""}
-              onCommit={(v) => updateNodeData(id, { title: v })}
-              placeholder="Untitled file"
-              className="truncate font-display text-sm font-medium"
-            />
-          </div>
+          <p className="min-w-0 flex-1 truncate font-display text-sm font-medium">
+            {d.title || <span className="text-muted-foreground">Untitled file</span>}
+          </p>
           {hasFile && d.fileKind && (
             <span className="shrink-0 rounded px-1 py-0.5 text-[0.6rem] font-medium leading-none bg-muted text-muted-foreground">
               {KIND_LABELS[d.fileKind]}
@@ -113,5 +114,6 @@ export function FileNode({ id, data, selected }: NodeProps) {
         className="size-2! border-2! border-card! bg-primary!"
       />
     </div>
+    </NodeContextMenu>
   );
 }

@@ -3,12 +3,7 @@
 import { type ChangeEvent, type DragEvent, useRef, useState } from "react";
 import { UploadCloud } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-
 type FileEmptyStateProps = {
-  title: string;
-  onTitleChange: (title: string) => void;
   onUpload: (file: File) => void;
 };
 
@@ -22,7 +17,7 @@ const ACCEPTED_MIME = new Set([
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ]);
 
-export function FileEmptyState({ title, onTitleChange, onUpload }: FileEmptyStateProps) {
+export function FileEmptyState({ onUpload }: FileEmptyStateProps) {
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -82,15 +77,6 @@ export function FileEmptyState({ title, onTitleChange, onUpload }: FileEmptyStat
         />
       </label>
 
-      <div className="grid gap-2">
-        <Label htmlFor="file-empty-title">Title</Label>
-        <Input
-          id="file-empty-title"
-          value={title}
-          placeholder="Untitled file"
-          onChange={(e) => onTitleChange(e.target.value)}
-        />
-      </div>
     </div>
   );
 }

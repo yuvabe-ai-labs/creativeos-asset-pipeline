@@ -70,6 +70,8 @@ export function nodeRowToFlow(row: NodeWithActive): AppNode {
     type: type as AppNode["type"],
     position: row.position,
     data: data as AppNode["data"],
+    // KB nodes are canvas anchors — protect them from accidental keyboard deletion.
+    ...(type === "kb" && { deletable: false }),
   } as AppNode;
 }
 
