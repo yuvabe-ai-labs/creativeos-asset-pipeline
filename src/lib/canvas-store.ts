@@ -58,7 +58,9 @@ export function createCanvasStore(
         toast.error("That connection would create a loop.");
         return;
       }
-      set({ edges: addEdge(connection, get().edges) });
+      // Mint a uuid id — React Flow would otherwise assign `xy-edge__<src>-<tgt>`,
+      // which the edges.id uuid column rejects (failing the whole save batch).
+      set({ edges: addEdge({ ...connection, id: crypto.randomUUID() }, get().edges) });
     },
     addNode: (type, position, id) =>
       set({
