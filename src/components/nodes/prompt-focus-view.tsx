@@ -1,14 +1,24 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { ArrowLeft, Sparkles, RefreshCw } from "lucide-react";
+import { useState, useEffect, type ReactNode } from "react";
+import {
+  ArrowLeft,
+  Sparkles,
+  RefreshCw,
+  Palette,
+  Link2,
+  PencilLine,
+  type LucideIcon,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { SliceToggles } from "./slice-toggles";
+import { DEFAULT_INSTRUCTION } from "@/lib/nodes/prompt";
 import type { KBSliceKey } from "@/lib/kb/parse-context";
 
 type Upstream = { id: string; label: string };
+type ConnectedPreview = { nodeId: string; label: string; text: string };
 
 type PromptFocusViewProps = {
   open: boolean;
@@ -23,9 +33,36 @@ type PromptFocusViewProps = {
   onSaveOutput: (output: string) => Promise<void>;
 };
 
-// The Prompt node's surface — a full-width bottom sheet. Left: inputs (KB slices,
-// connected nodes, instruction) + Generate. Right: the live compiled prompt and
-// the generated, editable output (Save folds into the active version, D19).
+// A labeled context section: icon + eyebrow label + optional source badge + body.
+function ContextCard({
+  icon: Icon,
+  label,
+  badge,
+  children,
+}: {
+  icon: LucideIcon;
+  label: string;
+  badge?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="rounded-xl border border-border bg-card p-5 shadow-card">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          <Icon className="size-3.5 text-primary" />
+          <span className="text-eyebrow">{label}</span>
+        </div>
+        {badge && <span className="text-xs text-muted-foreground">{badge}</span>}
+      </div>
+      <div className="mt-3">{children}</div>
+    </div>
+  );
+}
+
+// The Prompt node's surface — a full-width bottom sheet. The body is a single
+// column of three context cards (Ambient brand KB, Connected upstream nodes, Inline
+// instruction), then Generate, then the generated, editable output (Save folds into
+// the active version, D19).
 export function PromptFocusView({
   open,
   onOpenChange,
@@ -40,7 +77,10 @@ export function PromptFocusView({
 }: PromptFocusViewProps) {
   const [draft, setDraft] = useState(output ?? "");
   const [generating, setGenerating] = useState(false);
-  const [compiled, setCompiled] = useState("");
+  const [preview, setPreview] = useState<{ ambient: string; connected: ConnectedPreview[] }>({
+    ambient: "",
+    connected: [],
+  });
   const [seed, setSeed] = useState<{ open: boolean; output: string | null }>({ open, output });
 
   // Reseed the editable draft when the view opens or a fresh generation lands
@@ -57,7 +97,8 @@ export function PromptFocusView({
       ? "result"
       : "empty";
 
-  // Live compiled-prompt preview — debounced; best-effort.
+  // Live context preview — debounced; best-effort. Ambient + connected depend only
+  // on the node's edges and KB slices (not the instruction), so we key on slices.
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
@@ -66,10 +107,12 @@ export function PromptFocusView({
         const res = await fetch(`/api/nodes/${nodeId}/compile-preview`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ instruction, slices }),
+          body: JSON.stringify({ slices }),
         });
         const json = await res.json();
-        if (!cancelled && res.ok) setCompiled(json.compiled ?? "");
+        if (!cancelled && res.ok) {
+          setPreview({ ambient: json.ambient ?? "", connected: json.connected ?? [] });
+        }
       } catch {
         /* preview is best-effort */
       }
@@ -78,7 +121,7 @@ export function PromptFocusView({
       cancelled = true;
       clearTimeout(t);
     };
-  }, [open, nodeId, instruction, slices]);
+  }, [open, nodeId, slices]);
 
   async function runGenerate() {
     setGenerating(true);
@@ -91,7 +134,6 @@ export function PromptFocusView({
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Generation failed");
       onPatch({ parsed: json.output });
-      if (json.compiled) setCompiled(json.compiled);
       toast.success("Prompt generated");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Generation failed");
@@ -127,7 +169,7 @@ export function PromptFocusView({
         </div>
 
         <div className="shrink-0 border-b">
-          <div className="mx-auto w-full max-w-5xl px-6 pb-5 pt-3">
+          <div className="mx-auto w-full max-w-3xl px-6 pb-5 pt-3">
             <button
               type="button"
               onClick={() => onOpenChange(false)}
@@ -166,75 +208,91 @@ export function PromptFocusView({
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="mx-auto grid w-full max-w-5xl gap-8 px-6 py-8 lg:grid-cols-[300px_1fr]">
-            {/* Inputs */}
-            <aside className="space-y-5">
-              <div>
-                <span className="text-eyebrow">Brand context</span>
-                <SliceToggles className="mt-2" selected={slices} onToggle={toggleSlice} />
-              </div>
-              <div>
-                <span className="text-eyebrow">Connected inputs</span>
-                {upstream.length === 0 ? (
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Connect a Script or Note node to feed this prompt.
-                  </p>
-                ) : (
-                  <ul className="mt-2 space-y-1">
-                    {upstream.map((u) => (
-                      <li key={u.id} className="rounded-md border border-border px-2.5 py-1.5 text-sm">
-                        {u.label}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-              <div>
-                <span className="text-eyebrow">Instruction</span>
-                <textarea
-                  value={instruction}
-                  onChange={(e) => onPatch({ instruction: e.target.value })}
-                  rows={4}
-                  placeholder="e.g. cinematic product hero shot, warm Ayurvedic palette…"
-                  className="mt-2 w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                />
-              </div>
-              <Button className="w-full" onClick={runGenerate} disabled={generating}>
-                <Sparkles className="size-4" />
-                {generating ? "Generating…" : output ? "Re-generate" : "Generate prompt"}
-              </Button>
-            </aside>
-
-            {/* Output */}
-            <main className="space-y-6">
-              <div>
-                <span className="text-eyebrow">Final compiled prompt</span>
-                <pre className="mt-2 max-h-64 overflow-y-auto whitespace-pre-wrap rounded-xl border bg-muted/20 p-4 text-sm leading-relaxed text-foreground/80">
-                  {compiled || "Adjust inputs to preview the compiled prompt."}
+          <div className="mx-auto w-full max-w-3xl space-y-5 px-6 py-8">
+            {/* Ambient — brand KB */}
+            <ContextCard icon={Palette} label="Ambient · Brand KB" badge="Brand KB">
+              <SliceToggles selected={slices} onToggle={toggleSlice} />
+              {preview.ambient.trim() ? (
+                <pre className="mt-3 max-h-48 overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed text-foreground/80">
+                  {preview.ambient}
                 </pre>
-              </div>
-              <div>
-                <span className="text-eyebrow">Generated prompt</span>
-                {mode === "skeleton" ? (
-                  <div className="mt-2 space-y-2">
-                    {Array.from({ length: 5 }).map((_, i) => (
-                      <div key={i} className="h-4 w-full animate-pulse rounded bg-muted" />
-                    ))}
-                  </div>
-                ) : mode === "empty" ? (
-                  <p className="mt-2 rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
-                    Not generated yet. Set an instruction and click Generate.
-                  </p>
-                ) : (
-                  <textarea
-                    value={draft}
-                    onChange={(e) => setDraft(e.target.value)}
-                    rows={10}
-                    className="mt-2 w-full resize-none rounded-xl border border-border bg-background p-4 text-sm leading-relaxed focus:outline-none focus:ring-1 focus:ring-ring"
-                  />
-                )}
-              </div>
-            </main>
+              ) : (
+                <p className="mt-3 text-sm text-muted-foreground">No brand context selected.</p>
+              )}
+            </ContextCard>
+
+            {/* Connected — upstream nodes */}
+            <ContextCard
+              icon={Link2}
+              label="Connected · Inputs"
+              badge={`${upstream.length} input${upstream.length === 1 ? "" : "s"}`}
+            >
+              {upstream.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  Connect a Script or Note node to feed this prompt.
+                </p>
+              ) : (
+                <ul className="space-y-2">
+                  {upstream.map((u) => {
+                    const text = preview.connected.find((c) => c.nodeId === u.id)?.text ?? "";
+                    return (
+                      <li key={u.id} className="rounded-md border border-border px-3 py-2">
+                        <span className="text-xs font-semibold text-foreground">{u.label}</span>
+                        {text.trim() && (
+                          <pre className="mt-1 max-h-32 overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed text-foreground/70">
+                            {text}
+                          </pre>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </ContextCard>
+
+            {/* Inline — instruction */}
+            <ContextCard icon={PencilLine} label="Inline · Instruction" badge="Instruction">
+              <textarea
+                value={instruction}
+                onChange={(e) => onPatch({ instruction: e.target.value })}
+                rows={4}
+                placeholder="e.g. cinematic product hero shot, warm Ayurvedic palette…"
+                className="w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+              {!instruction.trim() && (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Will send: <span className="italic">{DEFAULT_INSTRUCTION}</span>
+                </p>
+              )}
+            </ContextCard>
+
+            <Button className="w-full" size="lg" onClick={runGenerate} disabled={generating}>
+              <Sparkles className="size-4" />
+              {generating ? "Generating…" : output ? "Re-generate" : "Generate prompt"}
+            </Button>
+
+            {/* Generated output */}
+            <div>
+              <span className="text-eyebrow">Generated prompt</span>
+              {mode === "skeleton" ? (
+                <div className="mt-2 space-y-2">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <div key={i} className="h-4 w-full animate-pulse rounded bg-muted" />
+                  ))}
+                </div>
+              ) : mode === "empty" ? (
+                <p className="mt-2 rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
+                  Not generated yet. Set an instruction and click Generate.
+                </p>
+              ) : (
+                <textarea
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  rows={10}
+                  className="mt-2 w-full resize-none rounded-xl border border-border bg-background p-4 text-sm leading-relaxed focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+              )}
+            </div>
           </div>
         </div>
       </SheetContent>
