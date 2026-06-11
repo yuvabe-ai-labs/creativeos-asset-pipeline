@@ -169,7 +169,7 @@ export function PromptFocusView({
         </div>
 
         <div className="shrink-0 border-b">
-          <div className="mx-auto w-full max-w-3xl px-6 pb-5 pt-3">
+          <div className="mx-auto w-full max-w-7xl px-6 pb-5 pt-3">
             <button
               type="button"
               onClick={() => onOpenChange(false)}
@@ -208,7 +208,8 @@ export function PromptFocusView({
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="mx-auto w-full max-w-3xl space-y-5 px-6 py-8">
+          <div className="mx-auto w-full max-w-7xl px-6 py-8">
+            <div className="grid grid-cols-1 items-start gap-5 md:grid-cols-3">
             {/* Ambient — brand KB */}
             <ContextCard icon={Palette} label="Ambient · Brand KB" badge="Brand KB">
               <SliceToggles selected={slices} onToggle={toggleSlice} />
@@ -265,14 +266,17 @@ export function PromptFocusView({
                 </p>
               )}
             </ContextCard>
+            </div>
 
-            <Button className="w-full" size="lg" onClick={runGenerate} disabled={generating}>
-              <Sparkles className="size-4" />
-              {generating ? "Generating…" : output ? "Re-generate" : "Generate prompt"}
-            </Button>
+            <div className="mt-6 flex justify-end">
+              <Button className="w-full sm:w-auto" size="lg" onClick={runGenerate} disabled={generating}>
+                <Sparkles className="size-4" />
+                {generating ? "Generating…" : output ? "Re-generate" : "Generate prompt"}
+              </Button>
+            </div>
 
             {/* Generated output */}
-            <div>
+            <div className="mt-6">
               <span className="text-eyebrow">Generated prompt</span>
               {mode === "skeleton" ? (
                 <div className="mt-2 space-y-2">
