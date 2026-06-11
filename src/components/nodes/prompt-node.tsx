@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -40,8 +39,6 @@ export function PromptNode({ id, data, selected }: NodeProps) {
         };
       });
   }, [nodes, edges, id]);
-
-  const params = useParams<{ id: string }>();
 
   const d = data as { title?: string; instruction?: string; parsed?: unknown; kbSlices?: KBSliceKey[] };
   const title = d.title ?? "";
@@ -103,7 +100,6 @@ export function PromptNode({ id, data, selected }: NodeProps) {
         output={output}
         slices={slices}
         upstream={upstream}
-        kbHref={params?.id ? `/clients/${params.id}/kb` : undefined}
         onPatch={(patch) => updateNodeData(id, patch)}
         onSaveOutput={(o) => savePromptOutputAction(id, o)}
         onEditUpstream={handleEditUpstream}

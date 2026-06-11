@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useMemo, type ReactNode } from "react";
+import Link from "next/link";
+import { useParams } from "next/navigation";
 import {
   ArrowLeft,
   Sparkles,
@@ -27,7 +29,6 @@ type PromptFocusViewProps = {
   output: string | null;
   slices: KBSliceKey[];
   upstream: UpstreamNode[];
-  kbHref?: string;
   onPatch: (patch: Record<string, unknown>) => void;
   onSaveOutput: (output: string) => Promise<void>;
   onEditUpstream: (nodeId: string) => void;
@@ -72,11 +73,11 @@ export function PromptFocusView({
   output,
   slices,
   upstream,
-  kbHref,
   onPatch,
   onSaveOutput,
   onEditUpstream,
 }: PromptFocusViewProps) {
+  const params = useParams<{ id: string }>();
   const [draft, setDraft] = useState(output ?? "");
   const [generating, setGenerating] = useState(false);
   const [preview, setPreview] = useState<{ ambient: string; connected: ConnectedPreview[] }>({
@@ -228,14 +229,14 @@ export function PromptFocusView({
               icon={Palette}
               label="Brand KB"
               action={
-                kbHref ? (
-                  <a
-                    href={kbHref}
+                params?.id ? (
+                  <Link
+                    href={`/clients/${params.id}/kb`}
                     title="Edit Brand KB"
                     className="inline-flex items-center text-muted-foreground transition-colors hover:text-primary"
                   >
                     <ExternalLink className="size-3.5" />
-                  </a>
+                  </Link>
                 ) : undefined
               }
             >
