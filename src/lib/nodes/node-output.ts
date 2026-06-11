@@ -19,16 +19,26 @@ export function getNodeOutput(node: NodeOutputInput): string {
       return renderScriptAsText(node.activeOutput as ReelScript | null);
     case "file": {
       // File nodes have no version system — content lives in node.data.
-      // When useLlm is on, only send the extracted output; never fall back to
-      // raw content (respects the operator's explicit "extracted-only" intent).
+      //
+      // Resolution priority (all file kinds):
+      //  1. processedOutput  — LLM-extracted description (any kind, useLlm on or off)
+      //  2. useLlm on        — extraction not yet run; return "" so the UI shows a nudge
+      //  3. image + fileUrl  — sent as vision image_url part; no text contribution
+      //  4. rawText          — text files (.txt / .md) extracted at upload time
+      //  5. filename hint    — document (PDF/DOCX) with no text yet; URL-only, OpenAI
+      //                        cannot fetch arbitrary document URLs, so we emit a
+      //                        placeholder so the compiled prompt at least names the file
       const d = node.data as {
         processedOutput?: string;
         rawText?: string;
         filename?: string;
         useLlm?: boolean;
+        fileKind?: string;
+        fileUrl?: string;
       };
       if (d.processedOutput?.trim()) return d.processedOutput.trim();
       if (d.useLlm) return "";
+      if (d.fileKind === "image" && d.fileUrl) return "";
       if (d.rawText?.trim()) return d.rawText.trim();
       if (d.filename) return `[File: ${d.filename}]`;
       return "";
