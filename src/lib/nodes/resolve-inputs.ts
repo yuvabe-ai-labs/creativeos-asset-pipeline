@@ -18,6 +18,7 @@ export type UpstreamPreview = {
   text: string;
   fileUrl?: string;
   fileKind?: string;
+  useLlm?: boolean;
 };
 
 export type ResolvedPromptInputs = {
@@ -49,6 +50,7 @@ export async function resolvePromptInputs(
     text: getNodeOutput({ type: u.type, data: u.data, activeOutput: u.activeOutput }),
     fileUrl: u.type === "file" ? (u.data.fileUrl as string | undefined) : undefined,
     fileKind: u.type === "file" ? (u.data.fileKind as string | undefined) : undefined,
+    useLlm: u.type === "file" ? (u.data.useLlm as boolean | undefined) : undefined,
   }));
   // Note: we do NOT drop empty-output upstreams here. `compilePrompt` already skips
   // empty-text blocks when building the model payload, and keeping them lets the UI

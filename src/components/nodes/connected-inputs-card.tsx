@@ -1,7 +1,8 @@
 "use client";
 
-import { Link2, PencilLine } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { useState } from "react";
+import { FileText, Paperclip, Sparkles, PencilLine, ChevronRight } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export type UpstreamNode = {
   id: string;
@@ -9,6 +10,7 @@ export type UpstreamNode = {
   type: string;
   fileUrl?: string;
   fileKind?: string;
+  useLlm?: boolean;
 };
 
 export type ConnectedPreview = {
@@ -18,32 +20,8 @@ export type ConnectedPreview = {
   text: string;
   fileUrl?: string;
   fileKind?: string;
+  useLlm?: boolean;
 };
-
-function ContextCard({
-  icon: Icon,
-  label,
-  badge,
-  children,
-}: {
-  icon: LucideIcon;
-  label: string;
-  badge?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="rounded-xl border border-border bg-card p-5 shadow-card">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1.5">
-          <Icon className="size-3.5 text-primary" />
-          <span className="text-eyebrow">{label}</span>
-        </div>
-        {badge && <span className="text-xs text-muted-foreground">{badge}</span>}
-      </div>
-      <div className="mt-3">{children}</div>
-    </div>
-  );
-}
 
 type Props = {
   upstream: UpstreamNode[];
@@ -52,57 +30,107 @@ type Props = {
 };
 
 export function ConnectedInputsCard({ upstream, preview, onEditUpstream }: Props) {
+  // Sort script nodes to the top, then by original order.
+  const sorted = [...upstream].sort((a, b) =>
+    a.type === "script" && b.type !== "script" ? -1 : b.type === "script" && a.type !== "script" ? 1 : 0,
+  );
+
+  const [expanded, setExpanded] = useState<Set<string>>(
+    () => new Set(upstream.filter((u) => u.type === "script").map((u) => u.id)),
+  );
+
+  function toggle(id: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  if (upstream.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Connect a Script, File, or Note node to feed this prompt.
+      </p>
+    );
+  }
+
   return (
-    <ContextCard
-      icon={Link2}
-      label="Connected · Inputs"
-      badge={`${upstream.length} input${upstream.length === 1 ? "" : "s"}`}
-    >
-      {upstream.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          Connect a Script, File, or Note node to feed this prompt.
-        </p>
-      ) : (
-        <ul className="space-y-2">
-          {upstream.map((u) => {
-            const p = preview.find((c) => c.nodeId === u.id);
-            const text = p?.text ?? "";
-            const fileUrl = p?.fileUrl ?? u.fileUrl;
-            const fileKind = p?.fileKind ?? u.fileKind;
+    <ul className="space-y-1.5">
+      {sorted.map((u) => {
+        const p = preview.find((c) => c.nodeId === u.id);
+        const text = p?.text ?? "";
+        const fileUrl = p?.fileUrl ?? u.fileUrl;
+        const fileKind = p?.fileKind ?? u.fileKind;
+        const useLlm = p?.useLlm ?? u.useLlm;
+        const isExpanded = expanded.has(u.id);
+        const isImage = u.type === "file" && fileKind === "image" && !!fileUrl;
 
-            return (
-              <li key={u.id} className="rounded-md border border-border px-3 py-2">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-semibold text-foreground">{u.label}</span>
-                  <button
-                    type="button"
-                    onClick={() => onEditUpstream(u.id)}
-                    title={`Edit ${u.label} node`}
-                    className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[0.65rem] font-medium text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
-                  >
-                    <PencilLine className="size-3" />
-                    Edit
-                  </button>
-                </div>
+        return (
+          <li key={u.id} className="rounded-lg border border-border overflow-hidden">
+            {/* Header row — click anywhere on left side to toggle */}
+            <div className="flex items-center gap-1.5 px-2.5 py-2">
+              <button
+                type="button"
+                onClick={() => toggle(u.id)}
+                className="flex-1 flex items-center gap-1.5 min-w-0 text-left"
+              >
+                <ChevronRight
+                  className={cn(
+                    "size-3 shrink-0 text-muted-foreground transition-transform duration-200",
+                    isExpanded && "rotate-90",
+                  )}
+                />
+                {/* Micro-thumbnail visible in collapsed state for image files */}
+                {isImage && !isExpanded && (
+                  <img
+                    src={fileUrl}
+                    alt=""
+                    className="size-5 shrink-0 rounded object-cover border border-border"
+                  />
+                )}
+                <NodeIcon type={u.type} />
+                <span className="text-xs font-semibold truncate text-foreground">{u.label}</span>
+                {useLlm && (
+                  <span className="shrink-0 rounded px-1 py-0.5 text-[0.6rem] font-semibold leading-none bg-primary/10 text-primary">
+                    LLM
+                  </span>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => onEditUpstream(u.id)}
+                title={`Edit ${u.label} node`}
+                className="shrink-0 rounded p-0.5 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+              >
+                <PencilLine className="size-3.5" />
+              </button>
+            </div>
 
-                {u.type === "file" && fileKind === "image" && fileUrl ? (
-                  // Image file: show thumbnail
+            {/* Expanded content */}
+            {isExpanded && (
+              <div className="px-3 pb-2.5 space-y-1">
+                {isImage ? (
                   <img
                     src={fileUrl}
                     alt={u.label}
-                    className="mt-2 h-32 w-full rounded-md border border-border object-cover"
+                    className="aspect-4/3 w-full rounded-md border border-border object-cover"
                   />
+                ) : useLlm && !text.trim() ? (
+                  <p className="text-xs text-muted-foreground">
+                    Run extraction in this File node first.
+                  </p>
                 ) : text.trim() ? (
                   u.type === "script" ? (
-                    // Script: compact structured summary
-                    <ScriptSummary text={text} />
+                    <CompactScriptSummary text={text} />
                   ) : (
-                    <pre className="mt-1.5 max-h-40 overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed text-foreground/70">
+                    <p className="text-xs text-foreground/70 line-clamp-3 leading-relaxed">
                       {text}
-                    </pre>
+                    </p>
                   )
                 ) : (
-                  <p className="mt-1.5 text-xs text-muted-foreground">
+                  <p className="text-xs text-muted-foreground">
                     {u.type === "script"
                       ? "Open this Script node and generate content first."
                       : u.type === "file"
@@ -110,32 +138,34 @@ export function ConnectedInputsCard({ upstream, preview, onEditUpstream }: Props
                         : "No output yet — open this node and add content first."}
                   </p>
                 )}
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </ContextCard>
+              </div>
+            )}
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 
-// Compact script summary: title prominent, then a quick shot count line.
-function ScriptSummary({ text }: { text: string }) {
+function NodeIcon({ type }: { type: string }) {
+  if (type === "script") return <FileText className="size-3 shrink-0 text-primary" />;
+  if (type === "file") return <Paperclip className="size-3 shrink-0 text-primary" />;
+  if (type === "prompt") return <Sparkles className="size-3 shrink-0 text-primary" />;
+  return <FileText className="size-3 shrink-0 text-muted-foreground" />;
+}
+
+function CompactScriptSummary({ text }: { text: string }) {
   const lines = text.split("\n").filter(Boolean);
   const titleLine = lines.find((l) => l.startsWith("Title:"));
   const title = titleLine ? titleLine.replace("Title:", "").trim() : null;
   const shotCount = lines.filter((l) => /^\s+\d+\./.test(l)).length;
-  const rest = lines.filter((l) => l !== titleLine && !/^\s+\d+\./.test(l));
 
   return (
-    <div className="mt-1.5 space-y-1">
-      {title && <p className="text-sm font-semibold text-foreground">{title}</p>}
-      {shotCount > 0 && (
-        <p className="text-xs text-muted-foreground">{shotCount} visual shot{shotCount !== 1 ? "s" : ""}</p>
-      )}
-      {rest.slice(0, 3).map((line, i) => (
-        <p key={i} className="text-xs text-foreground/70 truncate">{line}</p>
-      ))}
+    <div className="space-y-0.5">
+      {title && <p className="text-xs font-medium text-foreground truncate">{title}</p>}
+      <p className="text-xs text-muted-foreground">
+        {shotCount > 0 ? `${shotCount} visual shot${shotCount !== 1 ? "s" : ""}` : "No shots extracted"}
+      </p>
     </div>
   );
 }

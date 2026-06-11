@@ -90,7 +90,11 @@ export function ScriptEmptyState({
 
       <div className="grid gap-2">
         <Label>Brand context</Label>
-        <SliceToggles selected={slices} onToggle={onToggleSlice} />
+        <SliceToggles
+          selected={slices}
+          onToggle={onToggleSlice}
+          allowedKeys={["compliance", "tone_of_voice", "personality", "brand_profile"]}
+        />
         <p className="text-xs text-muted-foreground">
           Injected into extraction — adjust before uploading.
         </p>

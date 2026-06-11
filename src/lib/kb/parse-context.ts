@@ -1,28 +1,38 @@
 import type { TraceableBrandKB } from "./schema";
 
-// Which KB slices a Script node can inject into the parse context. The catalog is
+// Which KB slices a node can inject into the parse context. The catalog is
 // the single source of truth shared by the route (validation) and the node UI
 // (toggle labels + default-checked state).
 export type KBSliceKey =
   | "compliance"
   | "tone_of_voice"
   | "personality"
-  | "brand_profile";
+  | "brand_profile"
+  | "visual_identity"
+  | "image_direction"
+  | "casting";
 
 export const KB_PARSE_SLICES: {
   key: KBSliceKey;
   label: string;
   default: boolean;
 }[] = [
-  { key: "compliance", label: "Compliance", default: true },
-  { key: "tone_of_voice", label: "Tone", default: true },
-  { key: "personality", label: "Personality", default: true },
-  { key: "brand_profile", label: "Brand profile", default: false },
+  { key: "visual_identity", label: "Visual Style",    default: true },
+  { key: "image_direction", label: "Image Direction", default: true },
+  { key: "casting",         label: "Casting",         default: true },
+  { key: "personality",     label: "Personality",     default: true },
+  { key: "tone_of_voice",   label: "Tone",            default: true },
+  { key: "brand_profile",   label: "Brand profile",   default: true },
+  { key: "compliance",      label: "Compliance",      default: true },
 ];
 
-export const DEFAULT_PARSE_SLICES: KBSliceKey[] = KB_PARSE_SLICES.filter(
-  (s) => s.default,
-).map((s) => s.key);
+// Script-node default: the original copy-writing slices only.
+export const DEFAULT_PARSE_SLICES: KBSliceKey[] = [
+  "compliance", "tone_of_voice", "personality",
+];
+
+// Prompt-node default: all image-generation relevant slices.
+export const DEFAULT_IMAGE_PROMPT_SLICES: KBSliceKey[] = KB_PARSE_SLICES.map(s => s.key);
 
 const VALID_KEYS = new Set<string>(KB_PARSE_SLICES.map((s) => s.key));
 
@@ -82,6 +92,29 @@ export function buildParseContext(
     lines.push(line("Preferred verbs", c?.preferred_verbs));
     lines.push(line("Preferred phrases", c?.preferred_phrases));
     lines.push(line("Disclaimers", c?.disclaimers));
+  }
+  if (want.has("visual_identity")) {
+    const vi = kb.visual_identity;
+    lines.push(line("Aesthetic", vi?.aesthetic));
+    lines.push(line("Photography style", vi?.photography_style));
+    lines.push(line("Primary colours", vi?.colour_palette_primary));
+    lines.push(line("Avoid colours", vi?.colour_palette_avoid));
+    lines.push(line("Surfaces", vi?.surface_palette));
+    lines.push(line("Lighting", vi?.lighting));
+    lines.push(line("Visual mood", vi?.visual_mood));
+  }
+  if (want.has("image_direction")) {
+    const img = kb.creative_direction?.image;
+    lines.push(line("Shot style", img?.shot_style));
+    lines.push(line("Composition", img?.composition));
+    lines.push(line("Environment", img?.environment));
+    lines.push(line("Subjects", img?.subjects));
+    lines.push(line("Feel", img?.feel));
+  }
+  if (want.has("casting")) {
+    const ta = kb.target_audience;
+    lines.push(line("Human casting", ta?.human_casting));
+    lines.push(line("Audience lifestyle", ta?.lifestyle));
   }
 
   return lines.filter(Boolean).join("\n");

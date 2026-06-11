@@ -18,9 +18,17 @@ export function getNodeOutput(node: NodeOutputInput): string {
     case "script":
       return renderScriptAsText(node.activeOutput as ReelScript | null);
     case "file": {
-      // File nodes have no version system — content lives in node.data
-      const d = node.data as { processedOutput?: string; rawText?: string; filename?: string };
+      // File nodes have no version system — content lives in node.data.
+      // When useLlm is on, only send the extracted output; never fall back to
+      // raw content (respects the operator's explicit "extracted-only" intent).
+      const d = node.data as {
+        processedOutput?: string;
+        rawText?: string;
+        filename?: string;
+        useLlm?: boolean;
+      };
       if (d.processedOutput?.trim()) return d.processedOutput.trim();
+      if (d.useLlm) return "";
       if (d.rawText?.trim()) return d.rawText.trim();
       if (d.filename) return `[File: ${d.filename}]`;
       return "";

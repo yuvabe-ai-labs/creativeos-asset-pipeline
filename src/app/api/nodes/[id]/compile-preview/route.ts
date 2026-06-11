@@ -24,6 +24,7 @@ export async function POST(
       text: u.text,
       fileUrl: u.fileUrl,
       fileKind: u.fileKind,
+      useLlm: u.useLlm,
     })),
   });
 }

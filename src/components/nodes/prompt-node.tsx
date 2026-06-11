@@ -1,13 +1,14 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
+import { useParams } from "next/navigation";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { savePromptOutputAction } from "@/lib/actions/nodes";
 import { PromptFocusView } from "./prompt-focus-view";
-import { DEFAULT_PARSE_SLICES, type KBSliceKey } from "@/lib/kb/parse-context";
+import { DEFAULT_IMAGE_PROMPT_SLICES, type KBSliceKey } from "@/lib/kb/parse-context";
 
 const TYPE_LABEL: Record<string, string> = { script: "Script", text: "Note", prompt: "Prompt", kb: "Brand KB", file: "File" };
 
@@ -35,15 +36,18 @@ export function PromptNode({ id, data, selected }: NodeProps) {
           type: n.type ?? "",
           fileUrl: n.type === "file" ? (d.fileUrl as string | undefined) : undefined,
           fileKind: n.type === "file" ? (d.fileKind as string | undefined) : undefined,
+          useLlm: n.type === "file" ? (d.useLlm as boolean | undefined) : undefined,
         };
       });
   }, [nodes, edges, id]);
+
+  const params = useParams<{ id: string }>();
 
   const d = data as { title?: string; instruction?: string; parsed?: unknown; kbSlices?: KBSliceKey[] };
   const title = d.title ?? "";
   const instruction = d.instruction ?? "";
   const output = (d.parsed ?? null) as string | null;
-  const slices = d.kbSlices ?? DEFAULT_PARSE_SLICES;
+  const slices = d.kbSlices ?? DEFAULT_IMAGE_PROMPT_SLICES;
   const [focusOpen, setFocusOpen] = useState(false);
 
   const handleEditUpstream = useCallback(
@@ -99,6 +103,7 @@ export function PromptNode({ id, data, selected }: NodeProps) {
         output={output}
         slices={slices}
         upstream={upstream}
+        kbHref={params?.id ? `/clients/${params.id}/kb` : undefined}
         onPatch={(patch) => updateNodeData(id, patch)}
         onSaveOutput={(o) => savePromptOutputAction(id, o)}
         onEditUpstream={handleEditUpstream}

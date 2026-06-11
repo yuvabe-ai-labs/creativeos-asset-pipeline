@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect, type ReactNode } from "react";
+import { useState, useEffect, useMemo, type ReactNode } from "react";
 import {
   ArrowLeft,
   Sparkles,
-  RefreshCw,
   Palette,
   PencilLine,
+  Link2,
+  ExternalLink,
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -26,41 +27,42 @@ type PromptFocusViewProps = {
   output: string | null;
   slices: KBSliceKey[];
   upstream: UpstreamNode[];
+  kbHref?: string;
   onPatch: (patch: Record<string, unknown>) => void;
   onSaveOutput: (output: string) => Promise<void>;
   onEditUpstream: (nodeId: string) => void;
 };
 
-// A labeled context section: icon + eyebrow label + optional source badge + body.
-function ContextCard({
+function LeftSection({
   icon: Icon,
   label,
   badge,
+  action,
   children,
 }: {
   icon: LucideIcon;
   label: string;
   badge?: string;
+  action?: ReactNode;
   children: ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-border bg-card p-5 shadow-card">
-      <div className="flex items-center justify-between">
+    <div>
+      <div className="mb-2 flex items-center justify-between">
         <div className="flex items-center gap-1.5">
           <Icon className="size-3.5 text-primary" />
           <span className="text-eyebrow">{label}</span>
         </div>
-        {badge && <span className="text-xs text-muted-foreground">{badge}</span>}
+        <div className="flex items-center gap-2">
+          {badge && <span className="text-xs text-muted-foreground">{badge}</span>}
+          {action}
+        </div>
       </div>
-      <div className="mt-3">{children}</div>
+      {children}
     </div>
   );
 }
 
-// The Prompt node's surface — a full-width bottom sheet. The body is a single
-// column of three context cards (Ambient brand KB, Connected upstream nodes, Inline
-// instruction), then Generate, then the generated, editable output (Save folds into
-// the active version, D19).
 export function PromptFocusView({
   open,
   onOpenChange,
@@ -70,6 +72,7 @@ export function PromptFocusView({
   output,
   slices,
   upstream,
+  kbHref,
   onPatch,
   onSaveOutput,
   onEditUpstream,
@@ -78,12 +81,10 @@ export function PromptFocusView({
   const [generating, setGenerating] = useState(false);
   const [preview, setPreview] = useState<{ ambient: string; connected: ConnectedPreview[] }>({
     ambient: "",
-    connected: [] as ConnectedPreview[],
+    connected: [],
   });
   const [seed, setSeed] = useState<{ open: boolean; output: string | null }>({ open, output });
 
-  // Reseed the editable draft when the view opens or a fresh generation lands
-  // (state-during-render, React's documented alternative to a reset effect).
   if (seed.open !== open || seed.output !== output) {
     setSeed({ open, output });
     setDraft(output ?? "");
@@ -96,8 +97,18 @@ export function PromptFocusView({
       ? "result"
       : "empty";
 
-  // Live context preview — debounced; best-effort. Ambient + connected depend only
-  // on the node's edges and KB slices (not the instruction), so we key on slices.
+  const instructionPlaceholder = useMemo(() => {
+    const script = upstream.find((u) => u.type === "script");
+    const fileCount = upstream.filter((u) => u.type === "file").length;
+    if (script) {
+      return `Using the reel script "${script.label || "attached"}", generate a cinematic image prompt for each visual shot…`;
+    }
+    if (fileCount > 0) {
+      return `Referencing the ${fileCount} attached file${fileCount > 1 ? "s" : ""}, create a detailed image prompt…`;
+    }
+    return DEFAULT_INSTRUCTION;
+  }, [upstream]);
+
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
@@ -166,12 +177,14 @@ export function PromptFocusView({
         showCloseButton={false}
         className="gap-0 overflow-hidden rounded-t-2xl bg-background data-[side=bottom]:h-[92vh]"
       >
+        {/* Drag handle */}
         <div className="flex shrink-0 justify-center pt-3">
           <div className="h-1.5 w-12 rounded-full bg-border" />
         </div>
 
+        {/* Header */}
         <div className="shrink-0 border-b">
-          <div className="mx-auto w-full max-w-7xl px-6 pb-5 pt-3">
+          <div className="mx-auto w-full max-w-5xl px-6 pb-5 pt-3">
             <button
               type="button"
               onClick={() => onOpenChange(false)}
@@ -192,9 +205,6 @@ export function PromptFocusView({
 
               {mode === "result" && (
                 <div className="flex shrink-0 items-center gap-2">
-                  <Button variant="outline" size="lg" onClick={runGenerate}>
-                    <RefreshCw className="size-4 text-primary" /> Re-generate
-                  </Button>
                   {dirty && (
                     <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[0.65rem] font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-400">
                       Unsaved changes
@@ -209,74 +219,105 @@ export function PromptFocusView({
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="mx-auto w-full max-w-7xl px-6 py-8">
-            <div className="grid grid-cols-1 items-start gap-5 md:grid-cols-3">
-            {/* Ambient — brand KB */}
-            <ContextCard icon={Palette} label="Ambient · Brand KB" badge="Brand KB">
+        {/* Body — constrained to max-w-5xl, matching script node width */}
+        <div className="min-h-0 flex-1 flex justify-center overflow-hidden">
+          <div className="w-full max-w-5xl flex min-h-0 overflow-hidden">
+          {/* Left panel — Brand KB + Connected inputs */}
+          <div className="w-[45%] border-r border-border overflow-y-auto px-6 py-6 flex flex-col gap-6">
+            <LeftSection
+              icon={Palette}
+              label="Brand KB"
+              action={
+                kbHref ? (
+                  <a
+                    href={kbHref}
+                    title="Edit Brand KB"
+                    className="inline-flex items-center text-muted-foreground transition-colors hover:text-primary"
+                  >
+                    <ExternalLink className="size-3.5" />
+                  </a>
+                ) : undefined
+              }
+            >
               <SliceToggles selected={slices} onToggle={toggleSlice} />
-              {preview.ambient.trim() ? (
-                <pre className="mt-3 max-h-48 overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed text-foreground/80">
-                  {preview.ambient}
-                </pre>
-              ) : (
-                <p className="mt-3 text-sm text-muted-foreground">No brand context selected.</p>
-              )}
-            </ContextCard>
+            </LeftSection>
 
-            {/* Connected — upstream nodes */}
-            <ConnectedInputsCard
-              upstream={upstream}
-              preview={preview.connected}
-              onEditUpstream={onEditUpstream}
-            />
+            <LeftSection
+              icon={Link2}
+              label="Connected"
+              badge={`${upstream.length} input${upstream.length === 1 ? "" : "s"}`}
+            >
+              <ConnectedInputsCard
+                upstream={upstream}
+                preview={preview.connected}
+                onEditUpstream={onEditUpstream}
+              />
+            </LeftSection>
+          </div>
 
-            {/* Inline — instruction */}
-            <ContextCard icon={PencilLine} label="Inline · Instruction" badge="Instruction">
+          {/* Right panel — instruction (30%) + output (70%) */}
+          <div className="flex-1 min-h-0 flex flex-col">
+            {/* Instruction zone */}
+            <div
+              className="flex flex-col gap-3 px-6 py-5 border-b border-border overflow-hidden"
+              style={{ flex: "3 3 0%" }}
+            >
+              <div className="flex items-center gap-1.5">
+                <PencilLine className="size-3.5 text-primary" />
+                <span className="text-eyebrow">Instruction</span>
+              </div>
               <textarea
                 value={instruction}
                 onChange={(e) => onPatch({ instruction: e.target.value })}
-                rows={4}
-                placeholder="e.g. cinematic product hero shot, warm Ayurvedic palette…"
-                className="w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                placeholder={instructionPlaceholder}
+                className="flex-1 min-h-0 w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-sm leading-relaxed focus:outline-none focus:ring-1 focus:ring-ring"
               />
-              {!instruction.trim() && (
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Will send: <span className="italic">{DEFAULT_INSTRUCTION}</span>
-                </p>
-              )}
-            </ContextCard>
-            </div>
-
-            <div className="mt-6 flex justify-end">
-              <Button className="w-full sm:w-auto" size="lg" onClick={runGenerate} disabled={generating}>
+              <Button className="w-full" size="default" onClick={runGenerate} disabled={generating}>
                 <Sparkles className="size-4" />
                 {generating ? "Generating…" : output ? "Re-generate" : "Generate prompt"}
               </Button>
             </div>
 
-            {/* Generated output */}
-            <div className="mt-6">
-              <span className="text-eyebrow">Generated prompt</span>
-              {mode === "skeleton" ? (
-                <div className="mt-2 space-y-2">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <div key={i} className="h-4 w-full animate-pulse rounded bg-muted" />
+            {/* Output zone */}
+            <div
+              className="flex flex-col gap-3 px-6 py-5 min-h-0 overflow-hidden"
+              style={{ flex: "7 7 0%" }}
+            >
+              <span className="text-eyebrow">Generated Prompt</span>
+
+              {mode === "skeleton" && (
+                <div className="flex-1 space-y-2.5 pt-1">
+                  {Array.from({ length: 9 }).map((_, i) => (
+                    <div
+                      key={i}
+                      className="h-4 animate-pulse rounded bg-muted-foreground/15"
+                      style={{ width: `${70 + (i % 4) * 7}%` }}
+                    />
                   ))}
                 </div>
-              ) : mode === "empty" ? (
-                <p className="mt-2 rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
-                  Not generated yet. Set an instruction and click Generate.
-                </p>
-              ) : (
+              )}
+
+              {mode === "empty" && (
+                <div className="flex-1 flex items-center justify-center rounded-xl border border-dashed border-border">
+                  <div className="text-center px-8">
+                    <Sparkles className="size-8 mx-auto text-muted-foreground/40 mb-3" />
+                    <p className="text-sm font-medium text-muted-foreground">Not generated yet</p>
+                    <p className="mt-1 text-xs text-muted-foreground/70">
+                      Set an instruction and click Generate.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {mode === "result" && (
                 <textarea
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
-                  rows={10}
-                  className="mt-2 w-full resize-none rounded-xl border border-border bg-background p-4 text-sm leading-relaxed focus:outline-none focus:ring-1 focus:ring-ring"
+                  className="flex-1 w-full resize-none rounded-xl border border-border bg-background p-4 text-sm leading-relaxed focus:outline-none focus:ring-1 focus:ring-ring"
                 />
               )}
             </div>
+          </div>
           </div>
         </div>
       </SheetContent>
