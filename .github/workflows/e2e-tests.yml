@@ -61,6 +61,8 @@ jobs:
           TEST_KB_EDIT_SLUG=${{ secrets.TEST_KB_EDIT_SLUG }}
           TEST_SCRIPT_CLIENT_SLUG=${{ secrets.TEST_SCRIPT_CLIENT_SLUG }}
           TEST_SCRIPT_CANVAS_SLUG=${{ secrets.TEST_SCRIPT_CANVAS_SLUG }}
+          TEST_RUN_CANVAS_EDIT=1
+          TEST_RUN_KB_EDIT=1
           EOF
 
       - name: Seed test database
