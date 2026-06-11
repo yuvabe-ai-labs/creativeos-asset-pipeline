@@ -20,7 +20,11 @@ export async function POST(
     connected: resolved.upstream.map((u) => ({
       nodeId: u.nodeId,
       label: u.label,
+      type: u.type,
       text: u.text,
+      fileUrl: u.fileUrl,
+      fileKind: u.fileKind,
+      useLlm: u.useLlm,
     })),
   });
 }

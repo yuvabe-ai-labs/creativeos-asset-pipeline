@@ -7,13 +7,25 @@ const TYPE_LABEL: Record<string, string> = {
   script: "Script",
   text: "Note",
   prompt: "Prompt",
+  file: "File",
+};
+
+export type UpstreamPreview = {
+  nodeId: string;
+  versionId: string | null;
+  label: string;
+  type: string;
+  text: string;
+  fileUrl?: string;
+  fileKind?: string;
+  useLlm?: boolean;
 };
 
 export type ResolvedPromptInputs = {
   clientContext: string;
   kbVersionId: string | null;
   slices: KBSliceKey[];
-  upstream: { nodeId: string; versionId: string | null; label: string; text: string }[];
+  upstream: UpstreamPreview[];
 };
 
 // resolveInputs for the Prompt node: ambient client KB (walk node->canvas->client,
@@ -30,13 +42,16 @@ export async function resolvePromptInputs(
   const clientContext = kbCtx.kb ? buildParseContext(kbCtx.kb, slices) : "";
 
   const ups = await getUpstreamOutputs(nodeId);
-  const upstream = ups
-    .map((u) => ({
-      nodeId: u.nodeId,
-      versionId: u.versionId,
-      label: TYPE_LABEL[u.type] ?? u.type,
-      text: getNodeOutput({ type: u.type, data: u.data, activeOutput: u.activeOutput }),
-    }));
+  const upstream = ups.map((u) => ({
+    nodeId: u.nodeId,
+    versionId: u.versionId,
+    label: TYPE_LABEL[u.type] ?? u.type,
+    type: u.type,
+    text: getNodeOutput({ type: u.type, data: u.data, activeOutput: u.activeOutput }),
+    fileUrl: u.type === "file" ? (u.data.fileUrl as string | undefined) : undefined,
+    fileKind: u.type === "file" ? (u.data.fileKind as string | undefined) : undefined,
+    useLlm: u.type === "file" ? (u.data.useLlm as boolean | undefined) : undefined,
+  }));
   // Note: we do NOT drop empty-output upstreams here. `compilePrompt` already skips
   // empty-text blocks when building the model payload, and keeping them lets the UI
   // distinguish "connected but no output yet" from "not connected at all".

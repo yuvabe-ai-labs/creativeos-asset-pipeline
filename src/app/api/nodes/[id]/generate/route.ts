@@ -1,6 +1,7 @@
 import { createOpenAI } from "@/lib/openai/server";
 import { resolvePromptInputs } from "@/lib/nodes/resolve-inputs";
 import { compilePrompt } from "@/lib/nodes/prompt";
+import { buildUserContent } from "@/lib/nodes/compose-message";
 import { promptGeneratePrompt } from "@/prompts/prompt-generate";
 import { insertVersion, setActiveVersion } from "@/lib/db/versions";
 import { apiError, apiOk } from "@/lib/api/route-helpers";
@@ -27,13 +28,15 @@ export async function POST(
     instruction,
   });
 
+  const userContent = buildUserContent(user, resolved.upstream);
+
   try {
     const openai = createOpenAI();
     const completion = await openai.chat.completions.create({
       model: promptGeneratePrompt.model,
       messages: [
         { role: "system", content: system },
-        { role: "user", content: user },
+        { role: "user",   content: userContent },
       ],
     });
     const output = completion.choices[0]?.message?.content?.trim() ?? "";

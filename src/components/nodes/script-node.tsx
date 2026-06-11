@@ -1,20 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { saveScriptOutputAction } from "@/lib/actions/nodes";
 import { ScriptFocusView } from "./script-focus-view";
+import { NodeContextMenu } from "./node-context-menu";
 import type { ReelScript } from "@/lib/nodes/reel-script";
 import { DEFAULT_PARSE_SLICES, type KBSliceKey } from "@/lib/kb/parse-context";
+import { useNodeConnectionState } from "./use-node-connection-state";
 
-// Script node. A compact launcher on the canvas; clicking Open hands off to the
-// full-screen Script focus view, which owns the whole lifecycle (upload → parse
-// → review/edit). The node itself just shows the title + extraction status.
 export function ScriptNode({ id, data, selected }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
+  const deleteNode = useCanvasStore((s) => s.deleteNode);
+  const duplicateNode = useCanvasStore((s) => s.duplicateNode);
+  const focusTrigger = useCanvasStore((s) => s.focusTrigger);
+  const clearFocusTrigger = useCanvasStore((s) => s.clearFocusTrigger);
   const d = data as {
     title?: string;
     source?: string;
@@ -26,17 +29,32 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
   const parsed = (d.parsed ?? null) as ReelScript | null;
   const slices = d.kbSlices ?? DEFAULT_PARSE_SLICES;
   const [focusOpen, setFocusOpen] = useState(false);
+  const connState = useNodeConnectionState(id, "script");
+
+  useEffect(() => {
+    if (focusTrigger?.nodeId !== id) return;
+    const t = window.setTimeout(() => {
+      setFocusOpen(true);
+      clearFocusTrigger();
+    }, 0);
+    return () => window.clearTimeout(t);
+  }, [focusTrigger, id, clearFocusTrigger]);
 
   return (
+    <NodeContextMenu
+      onDuplicate={() => duplicateNode(id)}
+      onDelete={() => deleteNode(id)}
+    >
     <div
       onDoubleClick={(e) => {
         e.stopPropagation();
         setFocusOpen(true);
       }}
       className={cn(
-        "w-44 rounded-lg border border-border bg-card shadow-card",
-        "transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:scale-[1.006]",
+        "group w-44 rounded-lg border border-border bg-card shadow-card",
+        "transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:scale-[1.006]",
         selected && "ring-2 ring-primary ring-offset-1 ring-offset-background",
+        connState === "invalid" && "opacity-60 pointer-events-none",
       )}
     >
       <div className="flex items-center justify-between border-b border-border px-3 py-2">
@@ -55,7 +73,9 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
 
       <div className="px-3 py-3">
         <p className="truncate font-display text-sm font-medium">
-          {title || <span className="text-muted-foreground">Untitled script</span>}
+          {title || (
+            <span className="text-muted-foreground">Untitled script</span>
+          )}
         </p>
         <button
           onClick={() => setFocusOpen(true)}
@@ -88,5 +108,6 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
         className="!size-2 !border-2 !border-card !bg-primary"
       />
     </div>
+    </NodeContextMenu>
   );
 }

@@ -7,14 +7,19 @@ type SliceTogglesProps = {
   selected: KBSliceKey[];
   onToggle: (key: KBSliceKey) => void;
   className?: string;
+  allowedKeys?: KBSliceKey[];
 };
 
 // Brand-context chip row. Catalog-driven from KB_PARSE_SLICES; purple only for
-// the active state. Reused by the focus view's empty state.
-export function SliceToggles({ selected, onToggle, className }: SliceTogglesProps) {
+// the active state. Pass allowedKeys to restrict which slices are shown (e.g.
+// script nodes should not see image-specific slices).
+export function SliceToggles({ selected, onToggle, className, allowedKeys }: SliceTogglesProps) {
+  const slices = allowedKeys
+    ? KB_PARSE_SLICES.filter((s) => allowedKeys.includes(s.key))
+    : KB_PARSE_SLICES;
   return (
     <div className={cn("flex flex-wrap gap-1.5", className)}>
-      {KB_PARSE_SLICES.map((s) => {
+      {slices.map((s) => {
         const active = selected.includes(s.key);
         return (
           <button
