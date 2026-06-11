@@ -12,16 +12,18 @@
  *      → After parse completes, SCRIPT_05–13 run as normal
  *
  * Prerequisites — set in .env:
- *   TEST_CLIENT_SLUG  — e.g. "prakriti-sattva"
- *   TEST_CANVAS_SLUG  — a canvas that has a script node
- *   TEST_RUN_GENERATE — set to "1" only when the node has no parsed script yet
+ *   TEST_SCRIPT_CLIENT_SLUG — slug of a client with a canvas containing a script node
+ *                             (falls back to TEST_CLIENT_SLUG if unset)
+ *   TEST_SCRIPT_CANVAS_SLUG — slug of that canvas
+ *                             (falls back to TEST_CANVAS_SLUG if unset)
+ *   TEST_RUN_GENERATE       — set to "1" only when the node has no parsed script yet
  */
 
 import { test, expect, type Page, type Locator } from "@playwright/test";
 import path from "path";
 
-const CLIENT_SLUG = process.env.TEST_CLIENT_SLUG ?? "";
-const CANVAS_SLUG = process.env.TEST_CANVAS_SLUG ?? "";
+const CLIENT_SLUG = process.env.TEST_SCRIPT_CLIENT_SLUG ?? process.env.TEST_CLIENT_SLUG ?? "";
+const CANVAS_SLUG = process.env.TEST_SCRIPT_CANVAS_SLUG ?? process.env.TEST_CANVAS_SLUG ?? "";
 const FIXTURE = path.join(__dirname, "../fixtures/Prakriti-Sattva.txt");
 
 let wasAlreadyParsed = false;

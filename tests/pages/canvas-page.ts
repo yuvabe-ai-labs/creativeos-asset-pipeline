@@ -74,10 +74,6 @@ export class CanvasPage {
     return this.node(nodeId).getByRole("button", { name });
   }
 
-  get inspectorPanel(): Locator {
-    return this.page.locator('[class*="w-[420px]"]');
-  }
-
   // ── Helpers ──────────────────────────────────────────────────────────────────
 
   async resolveNodeIdByType(type: string): Promise<string> {

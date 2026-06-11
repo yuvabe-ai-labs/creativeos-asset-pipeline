@@ -4,6 +4,8 @@ import { config } from "dotenv";
 
 config({ path: path.join(__dirname, ".env") });
 
+const BASE_URL = process.env.TEST_BASE_URL ?? "http://localhost:3000";
+
 export default defineConfig({
   testDir: "./tests/e2e",
   fullyParallel: true,
@@ -20,7 +22,7 @@ export default defineConfig({
   ],
 
   use: {
-    baseURL: "http://localhost:3000",
+    baseURL: BASE_URL,
     trace: process.env.TRACE ? "on" : "on-first-retry",
     video: "on",
     screenshot: "only-on-failure",
@@ -42,7 +44,7 @@ export default defineConfig({
 
   webServer: {
     command: "pnpm dev",
-    url: "http://localhost:3000",
+    url: BASE_URL,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
   },
