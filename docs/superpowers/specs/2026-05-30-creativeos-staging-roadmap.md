@@ -324,6 +324,24 @@ what produced it even after the node's fields change. This is also what powers s
 **Test for "where does a field go?"** Did a model produce it *and* do you compare/restore it
 across attempts? Yes → version log. No (human-authored identity/config) → on the node.
 
+### D20 — A node's output is edited at the source, never overridden downstream *(recorded 2026-06-11)*
+**Decision.** A node's output is owned and edited **only at the node that produces it**. A
+downstream consumer (e.g. a Prompt node reading a connected Script/Note) **never** keeps an
+editable copy or per-consumer override of an upstream node's output. Connected-input views are
+**read-only mirrors** of the upstream node's current output. To change the context feeding a
+consumer, edit it at the source: edit the **Note** node's content (its content *is* its output),
+or edit the **Script** node's output (folds into its active version, D18). Those edits then flow
+to *every* consumer of that node, live.
+**Why.** A per-consumer override copies upstream output downstream and freezes it, re-introducing
+the exact two-sources-of-truth drift D19 just removed — the consumer's frozen copy silently goes
+stale when the source changes, and the pattern doesn't generalize (an N-node graph would sprout
+copies everywhere, and the graph stops being the source of truth). Editing at the source keeps one
+authoritative copy per node and preserves the graph's reactivity. If a consumer ever genuinely
+needs hand-authored context distinct from an upstream node, that context is itself a **node**
+(a Note), edited at its own source — not an override stashed on the consumer.
+**Consequence.** Connected/upstream panels render upstream output read-only; the affordance for
+changing them is "edit at the source node," not an inline editor on the consumer.
+
 ### Parked / out-of-scope (with revisit triggers)
 | Item | Status | Revisit when |
 |---|---|---|
