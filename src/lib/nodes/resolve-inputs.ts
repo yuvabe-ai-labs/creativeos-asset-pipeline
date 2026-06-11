@@ -36,8 +36,10 @@ export async function resolvePromptInputs(
       versionId: u.versionId,
       label: TYPE_LABEL[u.type] ?? u.type,
       text: getNodeOutput({ type: u.type, data: u.data, activeOutput: u.activeOutput }),
-    }))
-    .filter((u) => u.text.trim().length > 0);
+    }));
+  // Note: we do NOT drop empty-output upstreams here. `compilePrompt` already skips
+  // empty-text blocks when building the model payload, and keeping them lets the UI
+  // distinguish "connected but no output yet" from "not connected at all".
 
   return { clientContext, kbVersionId: kbCtx.kbVersionId, slices, upstream };
 }

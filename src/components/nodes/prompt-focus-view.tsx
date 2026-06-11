@@ -228,6 +228,10 @@ export function PromptFocusView({
               label="Connected · Inputs"
               badge={`${upstream.length} input${upstream.length === 1 ? "" : "s"}`}
             >
+              {/* DEBUG: this Prompt node's id, to cross-check against the DB. */}
+              <p className="mb-2 text-[0.6rem] text-muted-foreground">
+                prompt node: <code className="font-mono">{nodeId}</code>
+              </p>
               {upstream.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
                   Connect a Script or Note node to feed this prompt.
@@ -235,17 +239,24 @@ export function PromptFocusView({
               ) : (
                 <ul className="space-y-2">
                   {upstream.map((u) => {
-                    const text = preview.connected.find((c) => c.nodeId === u.id)?.text ?? "";
+                    const match = preview.connected.find((c) => c.nodeId === u.id);
+                    const text = match?.text ?? "";
                     return (
                       <li key={u.id} className="rounded-md border border-border px-3 py-2">
-                        <span className="text-xs font-semibold text-foreground">{u.label}</span>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs font-semibold text-foreground">{u.label}</span>
+                          {/* DEBUG: source node id (store-side, from the canvas graph). */}
+                          <code className="font-mono text-[0.6rem] text-muted-foreground">{u.id}</code>
+                        </div>
                         {text.trim() ? (
                           <pre className="mt-1.5 max-h-40 overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed text-foreground/70">
                             {text}
                           </pre>
                         ) : (
                           <p className="mt-1.5 text-xs text-muted-foreground">
-                            No output yet — open this node and generate its content first.
+                            {match
+                              ? "Server resolved this node, but its output is empty."
+                              : "Not returned by the server — the edge or the parse may not be saved to the DB yet (autosave race)."}
                           </p>
                         )}
                       </li>
