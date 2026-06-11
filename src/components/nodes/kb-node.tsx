@@ -14,6 +14,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import type { KBNodeData } from "@/lib/canvas-nodes";
+import { formatDate } from "@/lib/kb/utils";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -140,7 +141,7 @@ function KBSheetContent({
                   </span>
                 )}
                 <span>
-                  Extracted {new Date(version.createdAt).toLocaleDateString()}
+                  Extracted {formatDate(version.createdAt)}
                 </span>
                 <span className="ml-auto font-mono">{version.modelUsed}</span>
               </div>
@@ -170,7 +171,7 @@ function KBSheetContent({
                         <p className="text-xs text-muted-foreground">
                           {[
                             formatBytes(doc.sizeBytes),
-                            new Date(doc.createdAt).toLocaleDateString(),
+                            formatDate(doc.createdAt),
                           ]
                             .filter(Boolean)
                             .join(" · ")}
@@ -289,7 +290,7 @@ export function KBNode({ data, selected }: NodeProps) {
         </p>
         {d.extractedAt && (
           <p className="mt-0.5 text-[0.6rem] text-muted-foreground">
-            {new Date(d.extractedAt).toLocaleDateString()}
+            {formatDate(d.extractedAt)}
           </p>
         )}
 
