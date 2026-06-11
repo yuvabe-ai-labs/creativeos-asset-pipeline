@@ -17,8 +17,13 @@ is no label telling the user which part of the text came from where.
 ## Goal
 
 Present the prompt's context as **three clearly categorized, individually viewable
-sections**, each owning both its control and its content, with no duplication. Keep
-a way to see the exact string sent to the model.
+sections**, each owning both its control and its content, with no duplication.
+
+A separate concatenated "full compiled prompt" view is **deliberately not kept**:
+once each part is shown in its own labeled card, the joined string is the same text
+with framing labels added — redundant. The one thing it would otherwise hide is the
+empty-instruction fallback, which the Inline card surfaces directly instead (see
+below).
 
 ## The three contexts
 
@@ -26,13 +31,13 @@ a way to see the exact string sent to the model.
 |---|---|---|---|
 | **Ambient** | Client's active Brand KB (auto-resolved, no edge) | `SliceToggles` (Tone / Personality / Compliance / Brand profile) | The resolved KB text for the selected slices |
 | **Connected** | Upstream Script/Note nodes via graph edges | *(none — driven by canvas edges)* | Each upstream node: label + its output text |
-| **Inline** | The operator | The editable instruction `textarea` | *(the textarea is the content)* |
+| **Inline** | The operator | The editable instruction `textarea` | The textarea; when blank, muted helper text shows the effective fallback that will be sent |
 
 ## Layout
 
 The focus-view body drops the `<aside>`/`<main>` two-column split. It becomes a
-single inputs column of three stacked cards, followed by a collapsible full-prompt
-disclosure, the Generate button, then the generated-output area.
+single inputs column of three stacked cards, then the Generate button, then the
+generated-output area.
 
 ```
 ┌─ ◆ AMBIENT · Brand KB ──────────────────────┐
@@ -45,9 +50,8 @@ disclosure, the Generate button, then the generated-output area.
 └───────────────────────────────────────────────┘
 ┌─ ✎ INLINE · Instruction ────────────────────┐
 │ [ editable textarea… ]                        │  ← the only authored field
+│ Will send: Write an image-generation prompt…  │  ← muted, only when textarea is blank
 └───────────────────────────────────────────────┘
-
-▸ View full compiled prompt          ← collapsed; exact string sent to the model (D3)
 
 [ Generate prompt ]
 
@@ -66,47 +70,47 @@ the context name + a small source badge ("Brand KB", "N inputs", "Instruction").
 
 ## Data flow
 
-The cards need the three parts **separately**. The
+The cards need the **server-resolved** parts separately. The inline instruction is
+already client-side state (the textarea), so it is **not** part of the response —
+only the two parts the server computes are. The
 [compile-preview route](../../../src/app/api/nodes/[id]/compile-preview/route.ts)
-already resolves all of them via `resolvePromptInputs` and today discards them into
-one `compiled` string. Reshape its response to also return the structured parts:
+already resolves both via `resolvePromptInputs` and today discards them into one
+`compiled` string. Reshape its response to the structured parts:
 
 ```ts
 // POST /api/nodes/:id/compile-preview  →
 {
-  ambient: string,                          // resolved.clientContext
+  ambient: string,                                              // resolved.clientContext
   connected: { nodeId: string; label: string; text: string }[], // resolved.upstream (minus versionId)
-  inline: string,                           // the operator instruction (raw, as typed)
-  compiled: string,                         // compilePrompt(...).user — the full assembled string
 }
 ```
 
-- **No change** to `resolvePromptInputs` ([src/lib/nodes/resolve-inputs.ts](../../../src/lib/nodes/resolve-inputs.ts))
-  or `compilePrompt` ([src/lib/nodes/prompt.ts](../../../src/lib/nodes/prompt.ts)).
-- `compilePrompt` remains the **single producer** of the full `compiled` string, so
-  the "View full compiled prompt" disclosure can never drift from what `/generate`
-  actually sends — both call the same pure function.
+- **No change** to `resolvePromptInputs` ([src/lib/nodes/resolve-inputs.ts](../../../src/lib/nodes/resolve-inputs.ts)).
+- `compilePrompt` ([src/lib/nodes/prompt.ts](../../../src/lib/nodes/prompt.ts)) is no
+  longer called by this route (nothing consumes the full string now), but stays the
+  single producer used by `/generate`.
+- The empty-instruction fallback string currently lives inline inside `compilePrompt`
+  (`input.instruction.trim() || "Write an image-generation prompt from the material
+  above."`). Extract it to an exported constant (e.g. `DEFAULT_INSTRUCTION` in
+  `src/lib/nodes/prompt.ts`) so the Inline card and `compilePrompt` show/send the
+  exact same sentence — one source of truth, no drift.
 - No new DB queries: the route already has every field.
-
-The generate route's response keeps returning `compiled` (already does); the focus
-view will reuse it to refresh the disclosure after a generation, same as today.
 
 ## Component change
 
 `prompt-focus-view.tsx`:
 - Replace the single `compiled` string state with a `preview` object holding
-  `{ ambient, connected, inline, compiled }` (the debounced compile-preview fetch
-  populates it; best-effort, unchanged debounce/cancel logic).
-- Replace the `<aside>` + `<main>` grid with the three cards + collapsible disclosure
-  + Generate + generated-output (the output/skeleton/empty/dirty/Save logic is
-  unchanged).
+  `{ ambient, connected }` (the debounced compile-preview fetch populates it;
+  best-effort, unchanged debounce/cancel logic).
+- Replace the `<aside>` + `<main>` grid with the three cards + Generate +
+  generated-output (the output/skeleton/empty/dirty/Save logic is unchanged).
 - **Ambient card:** `SliceToggles` (existing `selected`/`onToggle` props) + `preview.ambient`.
 - **Connected card:** renders `preview.connected` (label + text per node). The
   store-derived `upstream` prop (id + label, instant) drives the header count so the
   card reacts immediately to edge changes even before the preview round-trips.
-- **Inline card:** the existing instruction `textarea` (`onPatch({ instruction })`).
-- **Disclosure:** a collapsed section (native `<details>` or a small `useState`
-  toggle) showing `preview.compiled` in the same `<pre>` style as today.
+- **Inline card:** the existing instruction `textarea` (`onPatch({ instruction })`);
+  when `instruction.trim()` is empty, render muted helper text
+  `Will send: {DEFAULT_INSTRUCTION}` beneath it.
 
 If the cards' file grows past the component-structure ~200-line guidance, extract a
 small `context-card.tsx` (label + icon + badge + children) and reuse it for all
@@ -114,16 +118,18 @@ three — decide during implementation based on actual size.
 
 ## Testing
 
-- `compilePrompt` is already unit-tested and unchanged.
-- The route change is a response reshape with no new logic (the assembly stays in
-  `compilePrompt`); it follows the repo's existing pattern of not unit-testing route
-  handlers. Verified via `tsc` + the manual e2e below.
+- `compilePrompt` keeps its unit tests; extracting `DEFAULT_INSTRUCTION` is a
+  refactor (the existing "defaults a missing instruction" test still passes, and can
+  assert against the exported constant).
+- The route change is a response reshape with no new logic; it follows the repo's
+  existing pattern of not unit-testing route handlers. Verified via `tsc` + the
+  manual e2e below.
 - Manual e2e: open a Prompt node → confirm Ambient card shows KB text and reacts to
   slice toggles; connect a Note + Script → Connected card lists both with their text;
-  type an instruction in the Inline card; expand "View full compiled prompt" → it
-  equals ambient + connected + `Instruction:` framing; Generate still works.
+  leave the Inline instruction blank → the muted "Will send: …" fallback appears;
+  type an instruction → the fallback disappears; Generate still works.
 
 ## Out of scope (YAGNI)
 
 Per-card collapse/expand, editing connected-node text from the Prompt view,
-reordering contexts, persisting which cards are expanded.
+reordering contexts, a raw concatenated full-prompt view.
