@@ -118,6 +118,62 @@ function buildBrandKB() {
   };
 }
 
+// ── Reel script (pre-parsed, seeded as the script node's active version) ────────
+
+function buildReelScript() {
+  return {
+    title: "E2E Script — A",
+    type: "reel",
+    duration: "30s",
+    schedule: {
+      date: "2026-06-15",
+      post_time: "09:00",
+      category: "Educational",
+      theme: "Morning skincare routine",
+    },
+    strategic_objective:
+      "Drive awareness of Verdant & Co's plant-based skincare routine and grow profile visits from eco-conscious adults.",
+    ai_production_type: "UGC-style talking head with macro product inserts",
+    visual_script: {
+      shots: [
+        {
+          description: "Talent picks up the cleanser bottle in soft morning light, smiling at camera.",
+          duration: "4s",
+        },
+        {
+          description: "Macro shot of cleanser foam being worked into damp skin.",
+          duration: "3s",
+        },
+        {
+          description: "Talent applies serum with a calm, deliberate motion, product label visible.",
+          duration: "4s",
+        },
+      ],
+      execution_refinement: "Keep tones warm and earthy; avoid harsh studio lighting.",
+    },
+    on_screen_text: {
+      intro: "Your skin deserves better.",
+      body: [
+        "Step 1: Cleanse with plant-based actives",
+        "Step 2: Hydrate with our nourishing serum",
+      ],
+      outro: "Verdant & Co — rooted in nature.",
+    },
+    voiceover:
+      "Start your morning the way nature intended — gentle, plant-based skincare that actually works.",
+    music_sound: "Soft acoustic guitar, warm and low tempo, fading in on the first shot.",
+    caption:
+      "Rooted in nature, made for you. Discover the Verdant & Co morning routine. #cleanbeauty #skincare",
+    cta: "Shop the routine — link in bio",
+    thumbnail_hook: "Your 30-second morning reset",
+    qc_notes: [
+      "Confirm product labels are legible in macro shots",
+      "Check brand colour palette consistency across all shots",
+    ],
+    product_links: ["https://verdantandco.example/products/cleanser"],
+  };
+}
+
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 async function upsertClient(slug, name, kbStatus) {
@@ -229,6 +285,27 @@ async function resetCanvas(clientId, clientSlug, kbVersion) {
     target_node_id: scriptNodeId,
   });
   if (edgeError) throw edgeError;
+
+  // Seed a pre-parsed script as the active version so the script node opens
+  // straight into the "parsed" editor view (skips the upload/extract step).
+  const { data: scriptVersion, error: versionError } = await supabase
+    .from("node_versions")
+    .insert({
+      node_id: scriptNodeId,
+      output: buildReelScript(),
+      model_used: "seed-script",
+      inputs_used: {},
+      params_used: {},
+    })
+    .select("id")
+    .single();
+  if (versionError) throw versionError;
+
+  const { error: activeError } = await supabase
+    .from("nodes")
+    .update({ active_version_id: scriptVersion.id })
+    .eq("id", scriptNodeId);
+  if (activeError) throw activeError;
 }
 
 // ── Seed ──────────────────────────────────────────────────────────────────────
