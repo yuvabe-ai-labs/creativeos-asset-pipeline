@@ -6,6 +6,10 @@ describe("getNodeOutput", () => {
     expect(getNodeOutput({ type: "text", data: { text: "  hello  " }, activeOutput: null })).toBe("hello");
   });
 
+  it("returns a shot node's description", () => {
+    expect(getNodeOutput({ type: "shot", data: { description: "  Turmeric root  " }, activeOutput: null })).toBe("Turmeric root");
+  });
+
   it("returns a prompt node's active output string", () => {
     expect(getNodeOutput({ type: "prompt", data: {}, activeOutput: "a cinematic shot" })).toBe("a cinematic shot");
   });
