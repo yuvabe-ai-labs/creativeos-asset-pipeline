@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { compilePrompt } from "./prompt";
+import { compilePrompt, DEFAULT_INSTRUCTION } from "./prompt";
 
 describe("compilePrompt", () => {
   it("assembles labeled blocks for context + upstream + instruction", () => {
@@ -18,6 +18,7 @@ describe("compilePrompt", () => {
     expect(user).not.toContain("Brand context:");
     expect(user).not.toContain("Script:");
     expect(user).toContain("Instruction:");
+    expect(user).toContain(DEFAULT_INSTRUCTION);
   });
 
   it("uses the versioned system prompt", () => {
