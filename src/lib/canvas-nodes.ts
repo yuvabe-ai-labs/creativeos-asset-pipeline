@@ -31,11 +31,23 @@ export type PromptNodeData = {
   kbSlices?: KBSliceKey[]; // ambient KB slices injected into the compiled prompt
 };
 
+export type ShotNodeData = {
+  description?: string; // the shot's visual description — editable; this node's output (D19/D20)
+  duration?: string; // e.g. "3s" — carried from the parsed shot (informational; Stage 4/5)
+  order?: number; // 1-based position in the script (Stage 5 assembly)
+  seededFrom?: {
+    scriptNodeId: string;
+    shotIndex: number; // 0-based index in visual_script.shots at fork time
+    scriptTitle?: string; // for the provenance label without a lookup
+  };
+};
+
 export type AppNode =
   | Node<ScriptNodeData, "script">
   | Node<KBNodeData, "kb">
   | Node<TextNodeData, "text">
-  | Node<PromptNodeData, "prompt">;
+  | Node<PromptNodeData, "prompt">
+  | Node<ShotNodeData, "shot">;
 
 // A node row joined with its active version's output (canvas-load shape).
 // `active` is the to-one embed of node_versions via nodes.active_version_id.

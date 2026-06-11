@@ -32,6 +32,8 @@ function defaultData(type: string): AppNode["data"] {
   switch (type) {
     case "text":
       return {};
+    case "shot":
+      return {};
     case "prompt":
       return { title: "" };
     case "script":
