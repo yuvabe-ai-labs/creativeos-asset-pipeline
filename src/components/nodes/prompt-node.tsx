@@ -1,9 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { Sparkles } from "lucide-react";
-import { useShallow } from "zustand/react/shallow";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { savePromptOutputAction } from "@/lib/actions/nodes";
@@ -16,14 +15,19 @@ const TYPE_LABEL: Record<string, string> = { script: "Script", text: "Note", pro
 // focus view. The Inputs panel's connected-node list is derived from the store graph.
 export function PromptNode({ id, data, selected }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
-  const upstream = useCanvasStore(
-    useShallow((s) => {
-      const sourceIds = s.edges.filter((e) => e.target === id).map((e) => e.source);
-      return s.nodes
-        .filter((n) => sourceIds.includes(n.id))
-        .map((n) => ({ id: n.id, label: TYPE_LABEL[n.type ?? ""] ?? String(n.type) }));
-    }),
-  );
+  // Select the raw store slices (stable references) and DERIVE the upstream list
+  // with useMemo. Returning a freshly-built array of objects straight from the
+  // selector breaks useSyncExternalStore caching (useShallow only stabilizes one
+  // level deep, so the inner {id,label} objects never compare equal) → the
+  // "getSnapshot should be cached" infinite-loop error once the list is non-empty.
+  const nodes = useCanvasStore((s) => s.nodes);
+  const edges = useCanvasStore((s) => s.edges);
+  const upstream = useMemo(() => {
+    const sourceIds = edges.filter((e) => e.target === id).map((e) => e.source);
+    return nodes
+      .filter((n) => sourceIds.includes(n.id))
+      .map((n) => ({ id: n.id, label: TYPE_LABEL[n.type ?? ""] ?? String(n.type) }));
+  }, [nodes, edges, id]);
 
   const d = data as { title?: string; instruction?: string; parsed?: unknown; kbSlices?: KBSliceKey[] };
   const title = d.title ?? "";
