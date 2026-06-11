@@ -22,6 +22,8 @@
 | 3 | **Versioning refined.** A version row is created **only when the model runs** (parse / re-extract). A manual edit + Save folds into the **active version's output in place** — it does not append a row. | §11.1, §13 | D18 |
 | 4 | **Single-source output.** A node's output has one source of truth: the active version's `output`. No separate display cache on the node. | §11.1, §20 | D19 |
 | 5 | **Input formats.** MVP script input is pasted text + `.md`/`.txt` upload. `.docx`/`.pdf` extraction is deferred. | §11.1 | D15 |
+| 6 | **Edit at the source.** A node's output is edited only where it is produced; downstream consumers get read-only mirrors, never per-consumer overrides. | §9.2 | D20 |
+| 7 | **Shot fan-out.** A reel is `1 script → N shots → N images → N clips → 1 reel`. A human-triggered **"fan out shots"** materializes each shot of a parsed script into its own first-class **Shot node** (seed-and-fork; mark, don't block). | §7, §10, §14, §15 | D21 |
 
 Everything below the changelog is the full PRD with these changes applied. Sections
 not touched by the Script-node revision (problem, principles, downstream Prompt/Image/
@@ -248,6 +250,7 @@ Input nodes
 ├── Script node      (shipped)
 ├── Brief node       (planned — retained for later)
 ├── Text node
+├── Shot node        (created by "fan out shots" from a parsed Script — D21)
 └── File node
 
 Prompt nodes
@@ -265,7 +268,16 @@ Generate nodes
 | **Script node** *(shipped)* | Parses a **finished reel script** into structured, editable, asset-ready fields | Raw script text + structured reel-script JSON |
 | **Brief node** *(planned — retained for later)* | Parses an upstream **project brief** into structured context | Raw text + structured brief |
 | **Text node** | Holds manual notes, copy, constraints, or instructions | Text |
+| **Shot node** *(D21)* | One shot of a reel, materialized from a parsed Script via **"fan out shots."** Holds editable shot description + duration + order. Its content **is** its output (no AI, no version log — like a Text node) | Shot text (description) |
 | **File node** | Holds `.txt` or image references | File reference, image reference, optional extracted output |
+
+> **A reel is `1 script → N shots → N images → N clips → 1 reel`** (D21). The shot, not the whole
+> script, is the unit of generation. **"Fan out shots"** is a human-triggered action on a parsed
+> Script that copies each shot into its own independent **Shot node** (seed-and-fork): a one-time
+> copy, not a live link — later script edits do not propagate, and there is no Script→Shot edge.
+> The origin is recorded (`seededFrom`) so a Shot can show a "script updated since fork" signal
+> (mark, don't block — D9/D21). Each Shot is the **through-line** that feeds a Prompt→Image now and
+> a Video clip later, and carries the duration/order the final reel assembly needs.
 
 > The **Script node** is *added alongside* the Brief node, not a replacement. A **brief** is
 > upstream creative direction the system summarizes; a **reel script** is a near-final spec
@@ -366,6 +378,8 @@ Inline files are local to that Prompt node. They are not automatically added to 
 | :---- | :---- | :---- |
 | Brief node | Prompt node | Use parsed brief as context *(when a project starts from an upstream brief)* |
 | Script node | Prompt node | Use parsed reel-script fields (shots, on-screen text, voiceover, caption) as prompt context |
+| Script node | Shot nodes | **Not an edge** — a one-time "fan out shots" materialization (seed-and-fork, D21); each shot becomes an independent Shot node |
+| Shot node | Prompt node | Use one shot's description as the prompt context for that shot's image (one image per shot, D21) |
 | Text node | Prompt node | Add notes, constraints, or instructions |
 | File node: `.txt` | Prompt node | Use reference text |
 | File node: image | Prompt node | Use visual reference for prompt generation |
@@ -923,7 +937,8 @@ User hand-edits a parsed field → User clicks Save → the **active version's o
 Create client (with a ready Brand KB)
 → Create canvas
 → Add or parse **reel script**
-→ Generate image prompt (from parsed script fields + KB)
+→ **Fan out shots** (one Shot node per shot — D21)
+→ For each shot: Generate image prompt (from the shot + KB)
 → Generate image
 → Approve image attempt
 → Generate or refine video prompt
@@ -935,11 +950,13 @@ Canvas view:
 
 ```
 Script node
-→ Prompt node: image prompt
-→ Image Gen node
-→ Prompt node: video prompt / refinement
-→ Video Gen node
-→ Archive project action
+→ (fan out shots) → Shot node ×N
+   each Shot node
+   → Prompt node: image prompt
+   → Image Gen node
+   → Prompt node: video prompt / refinement
+   → Video Gen node
+→ Archive project action  (assembles the N approved clips, in shot order)
 ```
 
 ---
@@ -957,6 +974,12 @@ Duplicate node → change prompt, input, reference, or controls → generate aga
 outputs → manually connect preferred output downstream.
 
 This keeps the system predictable and gives designers full control.
+
+**Shot fan-out (D21) is consistent with this.** "Fan out shots" is a **manual, human-triggered**
+bulk action — the §15 "duplicate" philosophy applied to a script's shots. It creates Shot **nodes**
+only (no edges, no auto-rewiring) on an explicit click; the designer still wires each `Shot →
+Prompt → Image` themselves. The system never auto-branches or runs the graph — the human remains
+the scheduler (D11).
 
 ---
 
