@@ -56,7 +56,7 @@ test.describe("Clients — Home Page", () => {
     const clientsPage = new ClientsPage(page);
     await clientsPage.goto();
 
-    await expect(page).toHaveTitle(/CreativeOS/i);
+    await expect(page).toHaveTitle(/ThisTitleShouldNotMatch/i);
   });
 });
 

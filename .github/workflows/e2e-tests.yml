@@ -63,6 +63,9 @@ jobs:
           TEST_SCRIPT_CANVAS_SLUG=${{ secrets.TEST_SCRIPT_CANVAS_SLUG }}
           TEST_RUN_CANVAS_EDIT=1
           TEST_RUN_KB_EDIT=1
+          LINEAR_API_KEY=${{ secrets.LINEAR_API_KEY }}
+          LINEAR_TEAM_ID=${{ secrets.LINEAR_TEAM_ID }}
+          LINEAR_PROJECT_ID=${{ secrets.LINEAR_PROJECT_ID }}
           EOF
 
       - name: Seed test database
