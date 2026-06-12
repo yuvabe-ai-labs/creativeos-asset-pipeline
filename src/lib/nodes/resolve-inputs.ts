@@ -7,6 +7,7 @@ const TYPE_LABEL: Record<string, string> = {
   script: "Script",
   text: "Note",
   prompt: "Prompt",
+  shot: "Shot",
 };
 
 export type ResolvedPromptInputs = {

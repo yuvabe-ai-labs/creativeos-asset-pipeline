@@ -9,7 +9,7 @@ import { savePromptOutputAction } from "@/lib/actions/nodes";
 import { PromptFocusView } from "./prompt-focus-view";
 import { DEFAULT_PARSE_SLICES, type KBSliceKey } from "@/lib/kb/parse-context";
 
-const TYPE_LABEL: Record<string, string> = { script: "Script", text: "Note", prompt: "Prompt", kb: "Brand KB" };
+const TYPE_LABEL: Record<string, string> = { script: "Script", text: "Note", prompt: "Prompt", kb: "Brand KB", shot: "Shot" };
 
 // Prompt node. A compact launcher; double-click / Open hands off to the Prompt
 // focus view. The Inputs panel's connected-node list is derived from the store graph.
