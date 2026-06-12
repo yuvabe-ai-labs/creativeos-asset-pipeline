@@ -52,6 +52,7 @@ export async function POST(
         instruction,
         promptId: promptGeneratePrompt.id,
         promptVersion: promptGeneratePrompt.version,
+        tokensUsed: completion.usage ?? null,
       },
       modelUsed: `openai:${promptGeneratePrompt.model}`,
       output,

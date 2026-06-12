@@ -82,6 +82,13 @@ export function Canvas({ canvasId }: { canvasId: string }) {
         );
         if (alreadyConnected) return false;
       }
+      // shot → prompt: only one shot input per prompt
+      if (source.type === "shot" && target.type === "prompt") {
+        const alreadyShotConnected = edges.some(
+          (e) => e.target === connection.target && nodes.find((n) => n.id === e.source)?.type === "shot",
+        );
+        if (alreadyShotConnected) return false;
+      }
       // file → prompt: max 5 file inputs per prompt node
       if (source.type === "file" && target.type === "prompt") {
         const fileInputCount = edges.filter(

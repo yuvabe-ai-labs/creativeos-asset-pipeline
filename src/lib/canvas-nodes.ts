@@ -70,6 +70,7 @@ export type AppNode =
 export const VALID_CONNECTIONS: Record<string, readonly string[]> = {
   kb:            ["script"],
   script:        ["prompt"],
+  shot:          ["prompt"],
   file:          ["prompt", "image-gen"],
   text:          ["prompt"],
   prompt:        ["prompt", "image-gen", "video-gen"],

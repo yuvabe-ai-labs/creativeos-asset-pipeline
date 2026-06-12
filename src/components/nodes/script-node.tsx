@@ -24,9 +24,9 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
     parsed?: unknown;
     kbSlices?: KBSliceKey[];
   };
-  const title = d.title ?? "";
-  const source = d.source ?? "";
   const parsed = (d.parsed ?? null) as ReelScript | null;
+  const title = d.title || parsed?.title || "";
+  const source = d.source ?? "";
   const slices = d.kbSlices ?? DEFAULT_PARSE_SLICES;
   const [focusOpen, setFocusOpen] = useState(false);
   const connState = useNodeConnectionState(id, "script");
