@@ -26,7 +26,11 @@ export async function GET(
       id: v.id,
       output: typeof v.output === "string" ? v.output : null,
       error: v.error,
-      paramsUsed: (v.params_used ?? {}) as { instruction?: string },
+      modelUsed: v.model_used ?? null,
+      paramsUsed: (v.params_used ?? {}) as {
+        instruction?: string;
+        tokensUsed?: { prompt_tokens: number; completion_tokens: number; total_tokens: number } | null;
+      },
       createdAt: v.created_at,
     })),
   });

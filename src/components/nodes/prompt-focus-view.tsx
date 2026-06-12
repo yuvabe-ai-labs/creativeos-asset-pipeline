@@ -27,6 +27,7 @@ import {
   PromptVersionHistory,
   type VersionSummary,
 } from "./prompt-version-history";
+import { UsagePopover } from "./prompt-usage-popover";
 
 type PromptFocusViewProps = {
   open: boolean;
@@ -273,18 +274,19 @@ export function PromptFocusView({
                 </p>
               </div>
 
-              {mode === "result" && (
-                <div className="flex shrink-0 items-center gap-2">
-                  {dirty && (
-                    <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[0.65rem] font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-400">
-                      Unsaved changes
-                    </span>
-                  )}
+              <div className="flex shrink-0 items-center gap-2">
+                {versions.length > 0 && <UsagePopover versions={versions} />}
+                {mode === "result" && dirty && (
+                  <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[0.65rem] font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                    Unsaved changes
+                  </span>
+                )}
+                {mode === "result" && (
                   <Button size="lg" onClick={handleSave} disabled={!dirty}>
                     Save
                   </Button>
-                </div>
-              )}
+                )}
+              </div>
             </header>
           </div>
         </div>
