@@ -6,8 +6,21 @@ describe("getNodeOutput", () => {
     expect(getNodeOutput({ type: "text", data: { text: "  hello  " }, activeOutput: null })).toBe("hello");
   });
 
-  it("returns a shot node's description", () => {
-    expect(getNodeOutput({ type: "shot", data: { description: "  Turmeric root  " }, activeOutput: null })).toBe("Turmeric root");
+  it("renders a shot node's full script context (script narrowed to one shot)", () => {
+    const out = getNodeOutput({
+      type: "shot",
+      data: {
+        script: {
+          title: "Reel A",
+          strategic_objective: "Sell calm",
+          visual_script: { shots: [{ description: "Turmeric root", duration: "3s" }] },
+        },
+      },
+      activeOutput: null,
+    });
+    expect(out).toContain("Title: Reel A");
+    expect(out).toContain("Objective: Sell calm"); // full metadata travels with the shot
+    expect(out).toContain("1. Turmeric root (3s)");
   });
 
   it("returns a prompt node's active output string", () => {

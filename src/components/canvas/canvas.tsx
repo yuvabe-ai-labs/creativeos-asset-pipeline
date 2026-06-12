@@ -8,6 +8,7 @@ import {
   ReactFlow,
   type NodeTypes,
 } from "@xyflow/react";
+import { useMemo } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -44,6 +45,23 @@ export function Canvas({ canvasId }: { canvasId: string }) {
       addNode: s.addNode,
       connectNodes: s.connectNodes,
     })),
+  );
+
+  // Render Script -> Shot edges dashed: they are lineage/provenance (D21), NOT live
+  // data flow. Derived from node types so it survives reload without a schema change.
+  const nodeTypeById = useMemo(() => {
+    const m = new Map<string, string | undefined>();
+    for (const n of nodes) m.set(n.id, n.type);
+    return m;
+  }, [nodes]);
+  const displayEdges = useMemo(
+    () =>
+      edges.map((e) =>
+        nodeTypeById.get(e.source) === "script" && nodeTypeById.get(e.target) === "shot"
+          ? { ...e, animated: true, style: { strokeDasharray: "6 4", stroke: "var(--muted-foreground)" } }
+          : e,
+      ),
+    [edges, nodeTypeById],
   );
 
   return (
@@ -91,7 +109,7 @@ export function Canvas({ canvasId }: { canvasId: string }) {
 
       <ReactFlow
         nodes={nodes}
-        edges={edges}
+        edges={displayEdges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}

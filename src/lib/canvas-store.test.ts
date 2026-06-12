@@ -43,6 +43,8 @@ describe("fanOutShots", () => {
     data: {
       title: "Reel A",
       parsed: {
+        title: "Reel A",
+        strategic_objective: "Sell calm",
         visual_script: {
           shots: [
             { description: "Turmeric root", duration: "3s" },
@@ -53,23 +55,32 @@ describe("fanOutShots", () => {
     },
   } as AppNode;
 
-  it("creates one Shot node per shot, seeded with provenance, and no edges", () => {
+  it("creates one Shot per shot carrying the full script (one shot) + a lineage edge", () => {
     const store = createCanvasStore([scriptNode], []);
     store.getState().fanOutShots("script-1");
 
     const { nodes, edges } = store.getState();
     const shots = nodes.filter((n) => n.type === "shot");
     expect(shots).toHaveLength(2);
-    expect(edges).toHaveLength(0); // seed, not a live link (D21)
+
+    // dashed lineage edges Script -> each Shot (D21, amended)
+    expect(edges).toHaveLength(2);
+    expect(edges.every((e) => e.source === "script-1")).toBe(true);
+    expect(edges.map((e) => e.target).sort()).toEqual(shots.map((s) => s.id).sort());
 
     const first = shots[0].data as {
-      description?: string;
-      duration?: string;
+      script?: {
+        title?: string;
+        strategic_objective?: string;
+        visual_script?: { shots?: { description?: string; duration?: string }[] };
+      };
       order?: number;
       seededFrom?: { scriptNodeId: string; shotIndex: number; scriptTitle?: string };
     };
-    expect(first.description).toBe("Turmeric root");
-    expect(first.duration).toBe("3s");
+    expect(first.script?.title).toBe("Reel A");
+    expect(first.script?.strategic_objective).toBe("Sell calm"); // full metadata carried
+    expect(first.script?.visual_script?.shots).toHaveLength(1); // narrowed to one shot
+    expect(first.script?.visual_script?.shots?.[0].description).toBe("Turmeric root");
     expect(first.order).toBe(1);
     expect(first.seededFrom?.scriptNodeId).toBe("script-1");
     expect(first.seededFrom?.shotIndex).toBe(0);
