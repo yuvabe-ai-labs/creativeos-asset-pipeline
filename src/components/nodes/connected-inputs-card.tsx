@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { FileText, Paperclip, Sparkles, PencilLine, ChevronRight } from "lucide-react";
+import { FileText, Paperclip, Sparkles, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type UpstreamNode = {
@@ -26,10 +26,9 @@ export type ConnectedPreview = {
 type Props = {
   upstream: UpstreamNode[];
   preview: ConnectedPreview[];
-  onEditUpstream: (nodeId: string) => void;
 };
 
-export function ConnectedInputsCard({ upstream, preview, onEditUpstream }: Props) {
+export function ConnectedInputsCard({ upstream, preview }: Props) {
   // Sort script nodes to the top, then by original order.
   const sorted = [...upstream].sort((a, b) =>
     a.type === "script" && b.type !== "script" ? -1 : b.type === "script" && a.type !== "script" ? 1 : 0,
@@ -97,14 +96,6 @@ export function ConnectedInputsCard({ upstream, preview, onEditUpstream }: Props
                     LLM
                   </span>
                 )}
-              </button>
-              <button
-                type="button"
-                onClick={() => onEditUpstream(u.id)}
-                title={`Edit ${u.label} node`}
-                className="shrink-0 rounded p-0.5 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
-              >
-                <PencilLine className="size-3.5" />
               </button>
             </div>
 
