@@ -268,14 +268,16 @@ Generate nodes
 | **Script node** *(shipped)* | Parses a **finished reel script** into structured, editable, asset-ready fields | Raw script text + structured reel-script JSON |
 | **Brief node** *(planned — retained for later)* | Parses an upstream **project brief** into structured context | Raw text + structured brief |
 | **Text node** | Holds manual notes, copy, constraints, or instructions | Text |
-| **Shot node** *(D21)* | One shot of a reel, materialized from a parsed Script via **"fan out shots."** Holds editable shot description + duration + order. Its content **is** its output (no AI, no version log — like a Text node) | Shot text (description) |
+| **Shot node** *(D21)* | One shot of a reel, materialized from a parsed Script via **"fan out shots."** Carries the full parsed script **narrowed to its single shot** ("a Script node with one shot") — editable shot description + all the script metadata + order. Its content **is** its output (no AI, no version log — like a Text node) | The script (one shot) rendered as text — keeps objective/tone/on-screen/voiceover context |
 | **File node** | Holds `.txt` or image references | File reference, image reference, optional extracted output |
 
 > **A reel is `1 script → N shots → N images → N clips → 1 reel`** (D21). The shot, not the whole
 > script, is the unit of generation. **"Fan out shots"** is a human-triggered action on a parsed
 > Script that copies each shot into its own independent **Shot node** (seed-and-fork): a one-time
-> copy, not a live link — later script edits do not propagate, and there is no Script→Shot edge.
-> The origin is recorded (`seededFrom`) so a Shot can show a "script updated since fork" signal
+> copy, not a live link — later script edits do not propagate. A **dashed Script→Shot lineage
+> edge** shows provenance (visual only — resolution never traverses it). Each Shot carries the
+> full script narrowed to one shot, so downstream prompts keep the whole creative context. The
+> origin is also recorded (`seededFrom`) so a Shot can show a "script updated since fork" signal
 > (mark, don't block — D9/D21). Each Shot is the **through-line** that feeds a Prompt→Image now and
 > a Video clip later, and carries the duration/order the final reel assembly needs.
 
@@ -378,8 +380,8 @@ Inline files are local to that Prompt node. They are not automatically added to 
 | :---- | :---- | :---- |
 | Brief node | Prompt node | Use parsed brief as context *(when a project starts from an upstream brief)* |
 | Script node | Prompt node | Use parsed reel-script fields (shots, on-screen text, voiceover, caption) as prompt context |
-| Script node | Shot nodes | **Not an edge** — a one-time "fan out shots" materialization (seed-and-fork, D21); each shot becomes an independent Shot node |
-| Shot node | Prompt node | Use one shot's description as the prompt context for that shot's image (one image per shot, D21) |
+| Script node | Shot nodes | **Dashed lineage edge** (provenance, not live data) drawn by "fan out shots" (seed-and-fork, D21); each shot becomes an independent Shot node carrying the full script narrowed to one shot |
+| Shot node | Prompt node | Use the shot's full context (script narrowed to one shot) as the prompt context for that shot's image (one image per shot, D21) |
 | Text node | Prompt node | Add notes, constraints, or instructions |
 | File node: `.txt` | Prompt node | Use reference text |
 | File node: image | Prompt node | Use visual reference for prompt generation |
