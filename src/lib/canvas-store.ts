@@ -26,6 +26,7 @@ export type CanvasState = {
   addNode: (type: string, position: XYPosition, id?: string) => void;
   updateNodeData: (id: string, data: Record<string, unknown>) => void;
   connectNodes: (sourceId: string, targetId: string) => void;
+  fanOutShots: (scriptNodeId: string) => void;
 };
 
 function defaultData(type: string): AppNode["data"] {
@@ -91,6 +92,35 @@ export function createCanvasStore(
           get().edges,
         ),
       }),
+    // Materialize each shot of a parsed Script into its own independent Shot node
+    // (seed-and-fork, D21). A one-time copy — no edge to the Script. Reads the
+    // script's hydrated parsed output (data.parsed = the active version, D19).
+    fanOutShots: (scriptNodeId) => {
+      const script = get().nodes.find((n) => n.id === scriptNodeId);
+      if (!script) return;
+      const data = script.data as {
+        title?: string;
+        parsed?: { visual_script?: { shots?: { description?: string; duration?: string }[] } };
+      };
+      const shots = data.parsed?.visual_script?.shots ?? [];
+      if (shots.length === 0) return;
+
+      const base = script.position;
+      const scriptTitle = data.title ?? "";
+      const created = shots.map((s, i) => ({
+        id: crypto.randomUUID(),
+        type: "shot",
+        position: { x: base.x + 320, y: base.y + i * 150 },
+        data: {
+          description: s.description ?? "",
+          duration: s.duration,
+          order: i + 1,
+          seededFrom: { scriptNodeId, shotIndex: i, scriptTitle },
+        },
+      })) as AppNode[];
+
+      set({ nodes: [...get().nodes, ...created] });
+    },
   }));
 }
 
