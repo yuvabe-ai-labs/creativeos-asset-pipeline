@@ -18,7 +18,15 @@ import { Button } from "@/components/ui/button";
 import { SliceToggles } from "./slice-toggles";
 import { DEFAULT_INSTRUCTION } from "@/lib/nodes/prompt";
 import type { KBSliceKey } from "@/lib/kb/parse-context";
-import { ConnectedInputsCard, type UpstreamNode, type ConnectedPreview } from "./connected-inputs-card";
+import {
+  ConnectedInputsCard,
+  type UpstreamNode,
+  type ConnectedPreview,
+} from "./connected-inputs-card";
+import {
+  PromptVersionHistory,
+  type VersionSummary,
+} from "./prompt-version-history";
 
 type PromptFocusViewProps = {
   open: boolean;
@@ -55,7 +63,9 @@ function LeftSection({
           <span className="text-eyebrow">{label}</span>
         </div>
         <div className="flex items-center gap-2">
-          {badge && <span className="text-xs text-muted-foreground">{badge}</span>}
+          {badge && (
+            <span className="text-xs text-muted-foreground">{badge}</span>
+          )}
           {action}
         </div>
       </div>
@@ -80,11 +90,20 @@ export function PromptFocusView({
   const params = useParams<{ id: string }>();
   const [draft, setDraft] = useState(output ?? "");
   const [generating, setGenerating] = useState(false);
-  const [preview, setPreview] = useState<{ ambient: string; connected: ConnectedPreview[] }>({
+  const [preview, setPreview] = useState<{
+    ambient: string;
+    connected: ConnectedPreview[];
+  }>({
     ambient: "",
     connected: [],
   });
-  const [seed, setSeed] = useState<{ open: boolean; output: string | null }>({ open, output });
+  const [seed, setSeed] = useState<{ open: boolean; output: string | null }>({
+    open,
+    output,
+  });
+  const [versions, setVersions] = useState<VersionSummary[]>([]);
+  const [activeVersionId, setActiveVersionId] = useState<string | null>(null);
+  const [restoring, setRestoring] = useState(false);
 
   if (seed.open !== open || seed.output !== output) {
     setSeed({ open, output });
@@ -110,9 +129,35 @@ export function PromptFocusView({
     return DEFAULT_INSTRUCTION;
   }, [upstream]);
 
+  async function fetchVersions() {
+    try {
+      const res = await fetch(`/api/nodes/${nodeId}/versions`);
+      if (!res.ok) return;
+      const json = await res.json();
+      setVersions(json.versions ?? []);
+      setActiveVersionId(json.activeVersionId ?? null);
+    } catch {
+      /* best-effort */
+    }
+  }
+
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
+
+    void (async () => {
+      try {
+        const res = await fetch(`/api/nodes/${nodeId}/versions`);
+        if (!cancelled && res.ok) {
+          const json = await res.json();
+          setVersions(json.versions ?? []);
+          setActiveVersionId(json.activeVersionId ?? null);
+        }
+      } catch {
+        /* best-effort */
+      }
+    })();
+
     const t = setTimeout(async () => {
       try {
         const res = await fetch(`/api/nodes/${nodeId}/compile-preview`, {
@@ -148,11 +193,35 @@ export function PromptFocusView({
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Generation failed");
       onPatch({ parsed: json.output });
+      setActiveVersionId(json.versionId ?? null);
+      await fetchVersions();
       toast.success("Prompt generated");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Generation failed");
+      await fetchVersions();
     } finally {
       setGenerating(false);
+    }
+  }
+
+  async function handleRestoreVersion(versionId: string) {
+    setRestoring(true);
+    try {
+      const res = await fetch(`/api/nodes/${nodeId}/restore-version`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ versionId }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Restore failed");
+      onPatch({ parsed: json.output });
+      setActiveVersionId(versionId);
+      await fetchVersions();
+      toast.success("Version restored");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Restore failed");
+    } finally {
+      setRestoring(false);
     }
   }
 
@@ -167,7 +236,9 @@ export function PromptFocusView({
   }
 
   function toggleSlice(key: KBSliceKey) {
-    const next = slices.includes(key) ? slices.filter((k) => k !== key) : [...slices, key];
+    const next = slices.includes(key)
+      ? slices.filter((k) => k !== key)
+      : [...slices, key];
     onPatch({ kbSlices: next });
   }
 
@@ -223,102 +294,124 @@ export function PromptFocusView({
         {/* Body — constrained to max-w-5xl, matching script node width */}
         <div className="min-h-0 flex-1 flex justify-center overflow-hidden">
           <div className="w-full max-w-5xl flex min-h-0 overflow-hidden">
-          {/* Left panel — Brand KB + Connected inputs */}
-          <div className="w-[45%] border-r border-border overflow-y-auto px-6 py-6 flex flex-col gap-6">
-            <LeftSection
-              icon={Palette}
-              label="Brand KB"
-              action={
-                params?.id ? (
-                  <Link
-                    href={`/clients/${params.id}/kb`}
-                    title="Edit Brand KB"
-                    className="inline-flex items-center text-muted-foreground transition-colors hover:text-primary"
-                  >
-                    <ExternalLink className="size-3.5" />
-                  </Link>
-                ) : undefined
-              }
-            >
-              <SliceToggles selected={slices} onToggle={toggleSlice} />
-            </LeftSection>
-
-            <LeftSection
-              icon={Link2}
-              label="Connected"
-              badge={`${upstream.length} input${upstream.length === 1 ? "" : "s"}`}
-            >
-              <ConnectedInputsCard
-                upstream={upstream}
-                preview={preview.connected}
-                onEditUpstream={onEditUpstream}
-              />
-            </LeftSection>
-          </div>
-
-          {/* Right panel — instruction (30%) + output (70%) */}
-          <div className="flex-1 min-h-0 flex flex-col">
-            {/* Instruction zone */}
-            <div
-              className="flex flex-col gap-3 px-6 py-5 border-b border-border overflow-hidden"
-              style={{ flex: "3 3 0%" }}
-            >
-              <div className="flex items-center gap-1.5">
-                <PencilLine className="size-3.5 text-primary" />
-                <span className="text-eyebrow">Instruction</span>
-              </div>
-              <textarea
-                value={instruction}
-                onChange={(e) => onPatch({ instruction: e.target.value })}
-                placeholder={instructionPlaceholder}
-                className="flex-1 min-h-0 w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-sm leading-relaxed focus:outline-none focus:ring-1 focus:ring-ring"
-              />
-              <Button className="w-full" size="default" onClick={runGenerate} disabled={generating}>
-                <Sparkles className="size-4" />
-                {generating ? "Generating…" : output ? "Re-generate" : "Generate prompt"}
-              </Button>
-            </div>
-
-            {/* Output zone */}
-            <div
-              className="flex flex-col gap-3 px-6 py-5 min-h-0 overflow-hidden"
-              style={{ flex: "7 7 0%" }}
-            >
-              <span className="text-eyebrow">Generated Prompt</span>
-
-              {mode === "skeleton" && (
-                <div className="flex-1 space-y-2.5 pt-1">
-                  {Array.from({ length: 9 }).map((_, i) => (
-                    <div
-                      key={i}
-                      className="h-4 animate-pulse rounded bg-muted-foreground/15"
-                      style={{ width: `${70 + (i % 4) * 7}%` }}
-                    />
-                  ))}
-                </div>
-              )}
-
-              {mode === "empty" && (
-                <div className="flex-1 flex items-center justify-center rounded-xl border border-dashed border-border">
-                  <div className="text-center px-8">
-                    <Sparkles className="size-8 mx-auto text-muted-foreground/40 mb-3" />
-                    <p className="text-sm font-medium text-muted-foreground">Not generated yet</p>
-                    <p className="mt-1 text-xs text-muted-foreground/70">
-                      Set an instruction and click Generate.
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {mode === "result" && (
-                <textarea
-                  value={draft}
-                  onChange={(e) => setDraft(e.target.value)}
-                  className="flex-1 w-full resize-none rounded-xl border border-border bg-background p-4 text-sm leading-relaxed focus:outline-none focus:ring-1 focus:ring-ring"
+            {/* Left panel — Version history + Brand KB + Connected inputs */}
+            <div className="w-[45%] border-r border-border overflow-hidden px-6 py-6 flex flex-col gap-6">
+              {versions.length > 0 && (
+                <PromptVersionHistory
+                  versions={versions}
+                  activeVersionId={activeVersionId}
+                  onRestore={handleRestoreVersion}
+                  restoring={restoring}
                 />
               )}
+
+              <LeftSection
+                icon={Palette}
+                label="Brand KB"
+                action={
+                  params?.id ? (
+                    <Link
+                      href={`/clients/${params.id}/kb`}
+                      title="Edit Brand KB"
+                      className="inline-flex items-center text-muted-foreground transition-colors hover:text-primary"
+                    >
+                      <ExternalLink className="size-3.5" />
+                    </Link>
+                  ) : undefined
+                }
+              >
+                <SliceToggles selected={slices} onToggle={toggleSlice} />
+              </LeftSection>
+
+              <LeftSection
+                icon={Link2}
+                label="Connected"
+                badge={`${upstream.length} input${upstream.length === 1 ? "" : "s"}`}
+              >
+                <div className="max-h-72 overflow-y-auto pb-2">
+                  <ConnectedInputsCard
+                    upstream={upstream}
+                    preview={preview.connected}
+                    onEditUpstream={onEditUpstream}
+                  />
+                </div>
+              </LeftSection>
             </div>
-          </div>
+
+            {/* Right panel — instruction (30%) + output (70%) */}
+            <div className="flex-1 min-h-0 flex flex-col">
+              {/* Instruction zone */}
+              <div
+                className="flex flex-col gap-3 px-6 py-5 border-b border-border overflow-hidden"
+                style={{ flex: "3 3 0%" }}
+              >
+                <div className="flex items-center gap-1.5">
+                  <PencilLine className="size-3.5 text-primary" />
+                  <span className="text-eyebrow">Instruction</span>
+                </div>
+                <textarea
+                  value={instruction}
+                  onChange={(e) => onPatch({ instruction: e.target.value })}
+                  placeholder={instructionPlaceholder}
+                  className="flex-1 min-h-0 w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-sm leading-relaxed focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+                <Button
+                  className="w-full"
+                  size="default"
+                  onClick={runGenerate}
+                  disabled={generating}
+                >
+                  <Sparkles className="size-4" />
+                  {generating
+                    ? "Generating…"
+                    : output
+                      ? "Re-generate"
+                      : "Generate prompt"}
+                </Button>
+              </div>
+
+              {/* Output zone */}
+              <div
+                className="flex flex-col gap-3 px-6 py-5 min-h-0 overflow-hidden"
+                style={{ flex: "7 7 0%" }}
+              >
+                <span className="text-eyebrow">Generated Prompt</span>
+
+                {mode === "skeleton" && (
+                  <div className="flex-1 space-y-2.5 pt-1">
+                    {Array.from({ length: 9 }).map((_, i) => (
+                      <div
+                        key={i}
+                        className="h-4 animate-pulse rounded bg-muted-foreground/15"
+                        style={{ width: `${70 + (i % 4) * 7}%` }}
+                      />
+                    ))}
+                  </div>
+                )}
+
+                {mode === "empty" && (
+                  <div className="flex-1 flex items-center justify-center rounded-xl border border-dashed border-border">
+                    <div className="text-center px-8">
+                      <Sparkles className="size-8 mx-auto text-muted-foreground/40 mb-3" />
+                      <p className="text-sm font-medium text-muted-foreground">
+                        Not generated yet
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground/70">
+                        Set an instruction and click Generate.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {mode === "result" && (
+                  <textarea
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
+                    className="flex-1 w-full resize-none rounded-xl border border-border bg-background p-4 text-sm leading-relaxed focus:outline-none focus:ring-1 focus:ring-ring"
+                  />
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </SheetContent>

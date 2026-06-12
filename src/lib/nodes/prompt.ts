@@ -6,7 +6,7 @@ import { promptGeneratePrompt } from "@/prompts/prompt-generate";
 // The instruction sent when the operator leaves the Inline box blank. Exported so
 // the Prompt focus view can show the exact sentence the model will receive.
 export const DEFAULT_INSTRUCTION =
-  "Write an image-generation prompt from the material above.";
+  "Write a detailed image prompt — subject, setting, lighting, and visual style — from the context above.";
 
 export type CompilePromptInput = {
   clientContext: string;
