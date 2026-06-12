@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { FileText } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { saveScriptOutputAction } from "@/lib/actions/nodes";
@@ -15,6 +16,7 @@ import { DEFAULT_PARSE_SLICES, type KBSliceKey } from "@/lib/kb/parse-context";
 // → review/edit). The node itself just shows the title + extraction status.
 export function ScriptNode({ id, data, selected }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
+  const fanOutShots = useCanvasStore((s) => s.fanOutShots);
   const d = data as {
     title?: string;
     source?: string;
@@ -75,6 +77,12 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
         slices={slices}
         onPatch={(patch) => updateNodeData(id, patch)}
         onSaveOutput={(output) => saveScriptOutputAction(id, output)}
+        onFanOut={() => {
+          const n = parsed?.visual_script?.shots?.length ?? 0;
+          fanOutShots(id);
+          setFocusOpen(false);
+          toast.success(`Fanned out ${n} shot${n === 1 ? "" : "s"}`);
+        }}
       />
 
       <Handle
