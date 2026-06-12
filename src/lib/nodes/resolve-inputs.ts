@@ -8,6 +8,7 @@ const TYPE_LABEL: Record<string, string> = {
   text: "Note",
   prompt: "Prompt",
   file: "File",
+  shot: "Shot",
 };
 
 export type UpstreamPreview = {

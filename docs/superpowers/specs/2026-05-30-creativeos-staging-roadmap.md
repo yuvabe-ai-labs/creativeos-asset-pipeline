@@ -1,8 +1,9 @@
 # CreativeOS — Staging Roadmap
 
-**Date:** 2026-05-30 (status updated 2026-06-08)
+**Date:** 2026-05-30 (status updated 2026-06-11)
 **Status:** Approved (sequence). **Stage 1 shipped** (as the Script node, see D16) with the
-**Client KB pulled forward** (D17). **Stage 2 (Prompt node) is next.**
+**Client KB pulled forward** (D17). **Stage 2 in progress:** edges + Text + Prompt node shipped;
+**Shot fan-out (D21) is the active piece**; File node retained for the team. Stage 3 (Image Gen) next.
 **Type:** Decomposition / roadmap (parent doc; each stage gets its own design spec)
 
 ---
@@ -88,11 +89,13 @@ not rewrites). The data model built in Stage 1 is still the one in use at Stage 
 - **New concepts:** node data model · append-only version log · secrets in a server Route
   Handler · file storage.
 
-### Stage 2 — Text + File nodes + edges + Prompt node
+### Stage 2 — Text + File nodes + edges + Prompt node + Shot fan-out
 - **Ships:** Compose brief + notes + references into a generated image prompt. This is the
-  **connections & context-engineering** stage.
+  **connections & context-engineering** stage. **Shot fan-out** (D21) turns one parsed script
+  into N independent **Shot** nodes, so the pipeline expresses *1 script → N shots → N images*.
 - **New concepts:** edges as data · resolving upstream inputs · context compilation · the
-  three input levels (client context / canvas edges / inline files).
+  three input levels (client context / canvas edges / inline files) · **shot fan-out
+  (seed-and-fork; the shot is the through-line) (D21)**.
 
 ### Stage 3 — Image Gen node
 - **Ships:** Brief → prompt → image, with multiple attempts you approve/reject and set
@@ -124,6 +127,7 @@ not rewrites). The data model built in Stage 1 is still the one in use at Stage 
 | Edges as adjacency-list data | Stage 2 |
 | Upstream input resolution & context compilation | Stage 2 |
 | Three input levels | Stage 2 |
+| Shot fan-out (seed-and-fork; shot as through-line node) | Stage 2 (D21) |
 | Schema vs selected-values vs attempt-snapshot | Stage 3 |
 | Final compiled prompt (pure function, snapshotted) | Stage 3 |
 | Active-output pointer + stale detection | Stage 3 |
@@ -342,6 +346,44 @@ needs hand-authored context distinct from an upstream node, that context is itse
 **Consequence.** Connected/upstream panels render upstream output read-only; the affordance for
 changing them is "edit at the source node," not an inline editor on the consumer.
 
+### D21 — A script fans out into Shot nodes; seed-and-fork, mark don't block *(recorded 2026-06-11)*
+**Decision.** A reel is **1 script → N shots → N images → N clips → 1 reel**. The shot — not the
+whole script — is the unit of generation. A human-triggered **"Fan out shots"** action on a
+parsed Script **materializes each shot into its own first-class `Shot` node** (seed-and-fork):
+- A **`Shot` node** carries `{ script, order, seededFrom }`, where `script` is the parent
+  `ReelScript` **narrowed to its single shot** — *"a Script node with one shot."* It keeps the
+  full metadata (objective, on-screen text, voiceover, caption, …), not just the shot line, so
+  downstream prompts don't lose creative context (**amended 2026-06-12** — originally just the
+  shot description). Like the Text/Note node, its **content *is* its output** — no AI, no version
+  log (D19/D20); rendered via `renderScriptAsText` (same as the Script node). It feeds a
+  `Prompt → Image` now and a Video clip in Stage 4; its shot `duration` + `order` are what the
+  Stage-5 reel assembly needs. The shot is the **through-line** of the whole pipeline.
+- Fan-out is a **one-time copy**, not a live link. Each Shot gets a fresh permanent id and is
+  **independent thereafter**; later edits to the script do **not** propagate. A **dashed
+  Script → Shot lineage edge** is drawn for provenance (**amended 2026-06-12** — originally "no
+  edge"): it is *visual only* — resolution never traverses it (a Shot returns its own carried
+  `script`; nothing queries a Shot's upstream), so the seed-and-fork guarantee holds. The dashed
+  style is derived from node types (script→shot) at render time, so no schema change. The origin
+  is also recorded as `seededFrom = { scriptNodeId, shotIndex, scriptTitle }`.
+- **Mark, don't block (D9).** Re-extracting the script stays **enabled** (append-only, D4/D18 —
+  non-destructive). `seededFrom` lets a Shot derive a "script updated since fork" signal on read.
+  *MVP ships a provenance label* ("Shot 2 of '…'"); the version-comparison **staleness badge ships
+  with D9 in Stage 3** (it needs the script's active-version id exposed client-side).
+**Why.** Live-linking shots to the script would require matching a **non-deterministic LLM
+re-parse** back to stable shot ids — unsolvable cleanly; referencing by array index is even more
+fragile (insert one shot → every downstream points at the wrong visual). Forking once into nodes
+with stable identity dissolves the problem — the same lesson as D19/D20, one level up: *anything
+downstream depends on wants stable identity, and in this app that identity is a **node**, not an
+array element inside another node's output.* "Mark, don't block" follows the D4/D5/D9 spine:
+flag the consequence on read, never freeze the edit.
+**Relation to D11 / §15.** Fan-out runs only on an explicit human click — a bulk **manual** action
+(the §15 "duplicate node" philosophy, applied to shots), not the system auto-running or
+auto-rewiring the graph. It creates the Shot nodes plus a **dashed lineage edge** per shot
+(provenance, not a live data edge); the human still wires each functional `Shot → Prompt`. This is
+a bounded carve-out of "no auto-branching," consistent with D11 (the human remains the scheduler).
+**Scope.** Rounds out Stage 2 (the connections/context-engineering stage) and bridges to Stage 3
+(per-shot image generation). The Image Gen node itself stays Stage 3.
+
 ### Parked / out-of-scope (with revisit triggers)
 | Item | Status | Revisit when |
 |---|---|---|
@@ -349,7 +391,7 @@ changing them is "edit at the source node," not an inline editor on the consumer
 | Context "% slider" / relevance ranking | Parked (D7) | Client KB outgrows the context window → add RAG |
 | Full client KB (structured + files + selection) | ✅ Pulled forward into Stage 1 (D17) | — |
 | Multi-tenant auth | Out of scope (PRD §18) | Post-MVP external access |
-| Automated branching / auto-rewiring | Out of scope (PRD §15) | Not planned |
+| Automated branching / auto-rewiring | Out of scope (PRD §15) — **except** human-triggered Shot fan-out, which creates nodes (not edges) on explicit click (D21) | Not planned (beyond D21's bounded, manual fan-out) |
 | Edge `pinned_version_id` (freeze a connection) | Optional extension (D8) | If "don't auto-follow active" is ever needed |
 | Real queue infra (Redis/SQS/BullMQ + workers) | Parked (D12/D13) | Own GPU compute, high concurrency, or complex retries |
 | `.docx`/`.pdf` brief extraction | Deferred (D15) | After Stage 1, when non-text briefs are needed |

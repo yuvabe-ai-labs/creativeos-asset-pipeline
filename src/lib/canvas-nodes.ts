@@ -3,6 +3,7 @@
 import type { Node } from "@xyflow/react";
 import type { NodeRow } from "@/lib/db/types";
 import type { KBSliceKey } from "@/lib/kb/parse-context";
+import type { ReelScript } from "@/lib/nodes/reel-script";
 
 export type ScriptNodeData = {
   title?: string;
@@ -43,12 +44,27 @@ export type PromptNodeData = {
   kbSlices?: KBSliceKey[]; // ambient KB slices injected into the compiled prompt
 };
 
+export type ShotNodeData = {
+  // The parent reel script narrowed to a SINGLE shot — "a Script node with one shot"
+  // (D21). Carries the full metadata (objective, on-screen text, voiceover, caption…)
+  // so downstream prompts keep the whole creative context, not just the shot line.
+  // Editable; this node's output (D19/D20) — rendered via renderScriptAsText.
+  script?: ReelScript;
+  order?: number; // 1-based position in the script (display + Stage 5 assembly)
+  seededFrom?: {
+    scriptNodeId: string;
+    shotIndex: number; // 0-based index in visual_script.shots at fork time
+    scriptTitle?: string; // for the provenance label without a lookup
+  };
+};
+
 export type AppNode =
   | Node<ScriptNodeData, "script">
   | Node<KBNodeData, "kb">
   | Node<FileNodeData, "file">
   | Node<TextNodeData, "text">
-  | Node<PromptNodeData, "prompt">;
+  | Node<PromptNodeData, "prompt">
+  | Node<ShotNodeData, "shot">;
 
 // PRD §10 — which source node types may connect to which target node types.
 export const VALID_CONNECTIONS: Record<string, readonly string[]> = {

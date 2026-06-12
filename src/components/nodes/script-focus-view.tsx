@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { ArrowLeft, Eye, EyeOff, RefreshCw, FileUp } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, RefreshCw, FileUp, Clapperboard } from "lucide-react";
 import { toast } from "sonner";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -35,6 +35,7 @@ type ScriptFocusViewProps = {
   slices: KBSliceKey[];
   onPatch: (patch: Record<string, unknown>) => void;
   onSaveOutput: (output: ReelScript) => Promise<void>;
+  onFanOut: () => void;
 };
 
 const SUBTITLES = {
@@ -56,6 +57,7 @@ export function ScriptFocusView({
   slices,
   onPatch,
   onSaveOutput,
+  onFanOut,
 }: ScriptFocusViewProps) {
   const [draft, setDraft] = useState<ReelScript>(parsed ?? {});
   const [showOriginal, setShowOriginal] = useState(false);
@@ -91,6 +93,7 @@ export function ScriptFocusView({
       : "empty";
 
   const dirty = hasParsed && JSON.stringify(draft) !== JSON.stringify(parsed);
+  const shotCount = parsed?.visual_script?.shots?.length ?? 0;
 
   async function runParse(src: string) {
     if (!src.trim()) return;
@@ -224,6 +227,12 @@ export function ScriptFocusView({
                   <Button variant="outline" size="lg" onClick={() => setReplacing(true)}>
                     <FileUp className="size-4 text-primary" /> Replace script
                   </Button>
+                  {shotCount > 0 && (
+                    <Button variant="outline" size="lg" onClick={onFanOut}>
+                      <Clapperboard className="size-4 text-primary" /> Fan out {shotCount} shot
+                      {shotCount === 1 ? "" : "s"}
+                    </Button>
+                  )}
                   <div className="mx-1 h-6 w-px bg-border" aria-hidden />
                   {dirty && (
                     <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[0.65rem] font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-400">

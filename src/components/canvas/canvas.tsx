@@ -1,7 +1,7 @@
 "use client";
 
 import "@xyflow/react/dist/style.css";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import {
   Background,
   BackgroundVariant,
@@ -21,11 +21,12 @@ import { KBNode } from "@/components/nodes/kb-node";
 import { FileNode } from "@/components/nodes/file-node";
 import { TextNode } from "@/components/nodes/text-node";
 import { PromptNode } from "@/components/nodes/prompt-node";
+import { ShotNode } from "@/components/nodes/shot-node";
 import { useCanvasStore } from "./canvas-store-provider";
 import { CanvasAutosave } from "./canvas-autosave";
 
 // Register custom node types once (stable reference — never inline this object).
-const nodeTypes: NodeTypes = { script: ScriptNode, kb: KBNode, file: FileNode, text: TextNode, prompt: PromptNode };
+const nodeTypes: NodeTypes = { script: ScriptNode, kb: KBNode, file: FileNode, text: TextNode, prompt: PromptNode, shot: ShotNode };
 
 export function Canvas({ canvasId }: { canvasId: string }) {
   // One subscription, shallow-compared, so the component only re-renders when
@@ -93,6 +94,22 @@ export function Canvas({ canvasId }: { canvasId: string }) {
     [nodes, edges],
   );
 
+  // Render Script -> Shot edges dashed: lineage/provenance (D21), NOT live data flow.
+  const nodeTypeById = useMemo(() => {
+    const m = new Map<string, string | undefined>();
+    for (const n of nodes) m.set(n.id, n.type);
+    return m;
+  }, [nodes]);
+  const displayEdges = useMemo(
+    () =>
+      edges.map((e) =>
+        nodeTypeById.get(e.source) === "script" && nodeTypeById.get(e.target) === "shot"
+          ? { ...e, animated: true, style: { strokeDasharray: "6 4", stroke: "var(--muted-foreground)" } }
+          : e,
+      ),
+    [edges, nodeTypeById],
+  );
+
   return (
     <div className="absolute inset-0 bg-[var(--neutral-50)]">
       <CanvasAutosave canvasId={canvasId} />
@@ -139,7 +156,7 @@ export function Canvas({ canvasId }: { canvasId: string }) {
 
       <ReactFlow
         nodes={nodes}
-        edges={edges}
+        edges={displayEdges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
