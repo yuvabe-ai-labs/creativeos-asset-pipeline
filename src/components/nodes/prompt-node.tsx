@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -15,7 +15,6 @@ const TYPE_LABEL: Record<string, string> = { script: "Script", text: "Note", pro
 // focus view. The Inputs panel's connected-node list is derived from the store graph.
 export function PromptNode({ id, data, selected }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
-  const requestFocusNode = useCanvasStore((s) => s.requestFocusNode);
   // Select the raw store slices (stable references) and DERIVE the upstream list
   // with useMemo. Returning a freshly-built array of objects straight from the
   // selector breaks useSyncExternalStore caching (useShallow only stabilizes one
@@ -46,15 +45,6 @@ export function PromptNode({ id, data, selected }: NodeProps) {
   const output = (d.parsed ?? null) as string | null;
   const slices = d.kbSlices ?? DEFAULT_IMAGE_PROMPT_SLICES;
   const [focusOpen, setFocusOpen] = useState(false);
-
-  const handleEditUpstream = useCallback(
-    (nodeId: string) => {
-      setFocusOpen(false);
-      // Wait for the sheet close animation before triggering the target node's focus view.
-      setTimeout(() => requestFocusNode(nodeId), 250);
-    },
-    [requestFocusNode],
-  );
 
   return (
     <div
@@ -102,7 +92,6 @@ export function PromptNode({ id, data, selected }: NodeProps) {
         upstream={upstream}
         onPatch={(patch) => updateNodeData(id, patch)}
         onSaveOutput={(o) => savePromptOutputAction(id, o)}
-        onEditUpstream={handleEditUpstream}
       />
 
       <Handle

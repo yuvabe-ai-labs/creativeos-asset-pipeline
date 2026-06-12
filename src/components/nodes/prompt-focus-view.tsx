@@ -39,7 +39,6 @@ type PromptFocusViewProps = {
   upstream: UpstreamNode[];
   onPatch: (patch: Record<string, unknown>) => void;
   onSaveOutput: (output: string) => Promise<void>;
-  onEditUpstream: (nodeId: string) => void;
 };
 
 function LeftSection({
@@ -85,7 +84,6 @@ export function PromptFocusView({
   upstream,
   onPatch,
   onSaveOutput,
-  onEditUpstream,
 }: PromptFocusViewProps) {
   const params = useParams<{ id: string }>();
   const [draft, setDraft] = useState(output ?? "");
@@ -332,7 +330,6 @@ export function PromptFocusView({
                   <ConnectedInputsCard
                     upstream={upstream}
                     preview={preview.connected}
-                    onEditUpstream={onEditUpstream}
                   />
                 </div>
               </LeftSection>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { Paperclip, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -16,20 +16,9 @@ export function FileNode({ id, data, selected }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const deleteNode = useCanvasStore((s) => s.deleteNode);
   const duplicateNode = useCanvasStore((s) => s.duplicateNode);
-  const focusTrigger = useCanvasStore((s) => s.focusTrigger);
-  const clearFocusTrigger = useCanvasStore((s) => s.clearFocusTrigger);
   const d = data as FileNodeData;
   const [focusOpen, setFocusOpen] = useState(false);
   const connState = useNodeConnectionState(id, "file");
-
-  useEffect(() => {
-    if (focusTrigger?.nodeId !== id) return;
-    const t = window.setTimeout(() => {
-      setFocusOpen(true);
-      clearFocusTrigger();
-    }, 0);
-    return () => window.clearTimeout(t);
-  }, [focusTrigger, id, clearFocusTrigger]);
 
   const hasFile = !!d.filename;
 
