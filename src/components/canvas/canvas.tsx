@@ -16,7 +16,11 @@ import { useShallow } from "zustand/react/shallow";
 import { VALID_CONNECTIONS } from "@/lib/canvas-nodes";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { ScriptNode } from "@/components/nodes/script-node";
 import { KBNode } from "@/components/nodes/kb-node";
 import { FileNode } from "@/components/nodes/file-node";
@@ -28,7 +32,14 @@ import { CanvasAutosave } from "./canvas-autosave";
 import { CanvasContextMenu } from "./canvas-context-menu";
 
 // Register custom node types once (stable reference — never inline this object).
-const nodeTypes: NodeTypes = { script: ScriptNode, kb: KBNode, file: FileNode, text: TextNode, prompt: PromptNode, shot: ShotNode };
+const nodeTypes: NodeTypes = {
+  script: ScriptNode,
+  kb: KBNode,
+  file: FileNode,
+  text: TextNode,
+  prompt: PromptNode,
+  shot: ShotNode,
+};
 
 export function Canvas({ canvasId }: { canvasId: string }) {
   // One subscription, shallow-compared, so the component only re-renders when
@@ -56,10 +67,18 @@ export function Canvas({ canvasId }: { canvasId: string }) {
   );
 
   const nodesRef = useRef(nodes);
-  useEffect(() => { nodesRef.current = nodes; }, [nodes]);
+  useEffect(() => {
+    nodesRef.current = nodes;
+  }, [nodes]);
 
-  const rfRef = useRef<{ screenToFlowPosition: (pos: { x: number; y: number }) => XYPosition } | null>(null);
-  const [contextMenu, setContextMenu] = useState<{ screenX: number; screenY: number; flowPos: XYPosition } | null>(null);
+  const rfRef = useRef<{
+    screenToFlowPosition: (pos: { x: number; y: number }) => XYPosition;
+  } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{
+    screenX: number;
+    screenY: number;
+    flowPos: XYPosition;
+  } | null>(null);
 
   const handleAddNode = useCallback(
     (type: string, position: XYPosition) => {
@@ -91,25 +110,36 @@ export function Canvas({ canvasId }: { canvasId: string }) {
       const source = nodes.find((n) => n.id === connection.source);
       const target = nodes.find((n) => n.id === connection.target);
       if (!source || !target) return false;
-      if (!(VALID_CONNECTIONS[source.type ?? ""] ?? []).includes(target.type ?? "")) return false;
+      if (
+        !(VALID_CONNECTIONS[source.type ?? ""] ?? []).includes(
+          target.type ?? "",
+        )
+      )
+        return false;
       // script → prompt: one script can only wire to a single prompt
       if (source.type === "script" && target.type === "prompt") {
         const alreadyConnected = edges.some(
-          (e) => e.source === connection.source && nodes.find((n) => n.id === e.target)?.type === "prompt",
+          (e) =>
+            e.source === connection.source &&
+            nodes.find((n) => n.id === e.target)?.type === "prompt",
         );
         if (alreadyConnected) return false;
       }
       // shot → prompt: only one shot input per prompt
       if (source.type === "shot" && target.type === "prompt") {
         const alreadyShotConnected = edges.some(
-          (e) => e.target === connection.target && nodes.find((n) => n.id === e.source)?.type === "shot",
+          (e) =>
+            e.target === connection.target &&
+            nodes.find((n) => n.id === e.source)?.type === "shot",
         );
         if (alreadyShotConnected) return false;
       }
       // file → prompt: max 5 file inputs per prompt node
       if (source.type === "file" && target.type === "prompt") {
         const fileInputCount = edges.filter(
-          (e) => e.target === connection.target && nodes.find((n) => n.id === e.source)?.type === "file",
+          (e) =>
+            e.target === connection.target &&
+            nodes.find((n) => n.id === e.source)?.type === "file",
         ).length;
         if (fileInputCount >= 5) return false;
       }
@@ -118,7 +148,8 @@ export function Canvas({ canvasId }: { canvasId: string }) {
     [nodes, edges],
   );
 
-  // Render Script -> Shot edges dashed: lineage/provenance (D21), NOT live data flow.
+  // Render Script -> Shot edges dashed: they are lineage/provenance (D21), NOT live
+  // data flow. Derived from node types so it survives reload without a schema change.
   const nodeTypeById = useMemo(() => {
     const m = new Map<string, string | undefined>();
     for (const n of nodes) m.set(n.id, n.type);
@@ -127,8 +158,16 @@ export function Canvas({ canvasId }: { canvasId: string }) {
   const displayEdges = useMemo(
     () =>
       edges.map((e) =>
-        nodeTypeById.get(e.source) === "script" && nodeTypeById.get(e.target) === "shot"
-          ? { ...e, animated: true, style: { strokeDasharray: "6 4", stroke: "var(--muted-foreground)" } }
+        nodeTypeById.get(e.source) === "script" &&
+        nodeTypeById.get(e.target) === "shot"
+          ? {
+              ...e,
+              animated: true,
+              style: {
+                strokeDasharray: "6 4",
+                stroke: "var(--muted-foreground)",
+              },
+            }
           : e,
       ),
     [edges, nodeTypeById],
@@ -147,12 +186,14 @@ export function Canvas({ canvasId }: { canvasId: string }) {
             }
           />
           <PopoverContent align="start" className="w-44 gap-1 p-1">
-            {([
-              { type: "script", label: "Script" },
-              { type: "file", label: "File" },
-              { type: "text", label: "Note" },
-              { type: "prompt", label: "Prompt" },
-            ] as const).map((opt) => (
+            {(
+              [
+                { type: "script", label: "Script" },
+                { type: "file", label: "File" },
+                { type: "text", label: "Note" },
+                { type: "prompt", label: "Prompt" },
+              ] as const
+            ).map((opt) => (
               <button
                 key={opt.type}
                 type="button"
@@ -192,11 +233,16 @@ export function Canvas({ canvasId }: { canvasId: string }) {
         defaultViewport={{ x: 0, y: 0, zoom: 1 }}
         proOptions={{ hideAttribution: true }}
         className="!bg-transparent"
-        onInit={(instance) => { rfRef.current = instance; }}
+        onInit={(instance) => {
+          rfRef.current = instance;
+        }}
         onPaneContextMenu={(e) => {
           e.preventDefault();
           if (!rfRef.current) return;
-          const flowPos = rfRef.current.screenToFlowPosition({ x: e.clientX, y: e.clientY });
+          const flowPos = rfRef.current.screenToFlowPosition({
+            x: e.clientX,
+            y: e.clientY,
+          });
           setContextMenu({ screenX: e.clientX, screenY: e.clientY, flowPos });
         }}
         onPaneClick={() => setContextMenu(null)}
