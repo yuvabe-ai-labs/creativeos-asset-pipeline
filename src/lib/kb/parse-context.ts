@@ -22,13 +22,14 @@ export const KB_PARSE_SLICES: {
   { key: "casting",         label: "Casting",         default: true },
   { key: "personality",     label: "Personality",     default: true },
   { key: "tone_of_voice",   label: "Tone",            default: true },
-  { key: "brand_profile",   label: "Brand profile",   default: true },
+  { key: "brand_profile",   label: "Brand profile",   default: false },
   { key: "compliance",      label: "Compliance",      default: true },
 ];
 
-// Script-node default: all four copy-writing slices.
+// Script-node default: compliance, tone, personality. Brand profile is OFF by
+// default (ADR D17 / AGENTS.md) — toggle it on per-node when needed.
 export const DEFAULT_PARSE_SLICES: KBSliceKey[] = [
-  "compliance", "tone_of_voice", "personality", "brand_profile",
+  "compliance", "tone_of_voice", "personality",
 ];
 
 // Prompt-node default: all image-generation relevant slices.
