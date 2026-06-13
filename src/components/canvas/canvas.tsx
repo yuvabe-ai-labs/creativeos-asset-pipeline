@@ -7,6 +7,7 @@ import {
   BackgroundVariant,
   Controls,
   ReactFlow,
+  SelectionMode,
   type Connection,
   type Edge,
   type NodeTypes,
@@ -14,13 +15,6 @@ import {
 } from "@xyflow/react";
 import { useShallow } from "zustand/react/shallow";
 import { VALID_CONNECTIONS } from "@/lib/canvas-nodes";
-import { Plus } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import { ScriptNode } from "@/components/nodes/script-node";
 import { KBNode } from "@/components/nodes/kb-node";
 import { FileNode } from "@/components/nodes/file-node";
@@ -176,41 +170,6 @@ export function Canvas({ canvasId }: { canvasId: string }) {
   return (
     <div className="absolute inset-0 bg-[var(--neutral-50)]">
       <CanvasAutosave canvasId={canvasId} />
-      <div className="absolute left-4 top-4 z-10">
-        <Popover>
-          <PopoverTrigger
-            render={
-              <Button size="sm">
-                <Plus className="size-4" /> Add node
-              </Button>
-            }
-          />
-          <PopoverContent align="start" className="w-44 gap-1 p-1">
-            {(
-              [
-                { type: "script", label: "Script" },
-                { type: "file", label: "File" },
-                { type: "text", label: "Note" },
-                { type: "prompt", label: "Prompt" },
-              ] as const
-            ).map((opt) => (
-              <button
-                key={opt.type}
-                type="button"
-                onClick={() => {
-                  handleAddNode(opt.type, {
-                    x: 120 + Math.random() * 220,
-                    y: 80 + Math.random() * 140,
-                  });
-                }}
-                className="w-full rounded-md px-2.5 py-1.5 text-left text-sm font-medium transition-colors hover:bg-muted"
-              >
-                {opt.label}
-              </button>
-            ))}
-          </PopoverContent>
-        </Popover>
-      </div>
 
       {contextMenu && (
         <CanvasContextMenu
@@ -230,6 +189,11 @@ export function Canvas({ canvasId }: { canvasId: string }) {
         isValidConnection={isValidConnection}
         nodeTypes={nodeTypes}
         deleteKeyCode={["Backspace", "Delete"]}
+        selectionOnDrag
+        selectionMode={SelectionMode.Partial}
+        selectionKeyCode={null}
+        panOnScroll
+        panOnDrag={[1]}
         defaultViewport={{ x: 0, y: 0, zoom: 1 }}
         proOptions={{ hideAttribution: true }}
         className="!bg-transparent"
