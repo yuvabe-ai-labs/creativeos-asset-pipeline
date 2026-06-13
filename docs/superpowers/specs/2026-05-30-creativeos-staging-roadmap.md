@@ -1,9 +1,15 @@
 # CreativeOS — Staging Roadmap
 
-**Date:** 2026-05-30 (status updated 2026-06-11)
-**Status:** Approved (sequence). **Stage 1 shipped** (as the Script node, see D16) with the
-**Client KB pulled forward** (D17). **Stage 2 in progress:** edges + Text + Prompt node shipped;
-**Shot fan-out (D21) is the active piece**; File node retained for the team. Stage 3 (Image Gen) next.
+**Date:** 2026-05-30 (status updated 2026-06-13)
+**Status:** Approved (sequence). **Stage 1 shipped** (Script node, D16; Client KB pulled forward, D17).
+**Stage 2 shipped** (all merged to `main`): edges + cycle check, Text node, **File node** (vision +
+extraction), Prompt node (resolve → compile → generate, image-prompt v2), and **Shot fan-out (D21)** —
+each Shot carries its full narrowed script; no implicit full-reel passthrough. Canvas UX: right-click
+add-node, box-select + multi-delete, connected-input detail view.
+**👉 NEXT SESSION START HERE: Stage 3 — Image Gen node** (see §5 Stage 3 + concept map; ADRs D4/D5/D9/D12/D13).
+Open before starting: brand_profile is off-by-default per D17 (image-prompt slices default is separate);
+the team's parent-Script "Full reel script" walk was reverted (flag PR #7 owner); D9 staleness badge is
+still unbuilt and is due in Stage 3.
 **Type:** Decomposition / roadmap (parent doc; each stage gets its own design spec)
 
 ---
