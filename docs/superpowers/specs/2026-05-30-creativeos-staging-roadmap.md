@@ -350,14 +350,21 @@ changing them is "edit at the source node," not an inline editor on the consumer
 **Decision.** A reel is **1 script → N shots → N images → N clips → 1 reel**. The shot — not the
 whole script — is the unit of generation. A human-triggered **"Fan out shots"** action on a
 parsed Script **materializes each shot into its own first-class `Shot` node** (seed-and-fork):
-- A **`Shot` node** carries `{ description (editable), duration, order, seededFrom }`. Like the
-  Text/Note node, its **content *is* its output** — no AI, no version log (D19/D20). Source-only
-  handle. It feeds a `Prompt → Image` now and a Video clip in Stage 4; its `duration`/`order` are
-  what the Stage-5 reel assembly needs. The shot is the **through-line** of the whole pipeline.
+- A **`Shot` node** carries `{ script, order, seededFrom }`, where `script` is the parent
+  `ReelScript` **narrowed to its single shot** — *"a Script node with one shot."* It keeps the
+  full metadata (objective, on-screen text, voiceover, caption, …), not just the shot line, so
+  downstream prompts don't lose creative context (**amended 2026-06-12** — originally just the
+  shot description). Like the Text/Note node, its **content *is* its output** — no AI, no version
+  log (D19/D20); rendered via `renderScriptAsText` (same as the Script node). It feeds a
+  `Prompt → Image` now and a Video clip in Stage 4; its shot `duration` + `order` are what the
+  Stage-5 reel assembly needs. The shot is the **through-line** of the whole pipeline.
 - Fan-out is a **one-time copy**, not a live link. Each Shot gets a fresh permanent id and is
-  **independent thereafter**; later edits to the script do **not** propagate. There is **no edge**
-  from Script → Shot (an edge means live resolution, D8 — this is a seed, not a reference). The
-  origin is recorded as `seededFrom = { scriptNodeId, scriptVersionId, shotIndex }`.
+  **independent thereafter**; later edits to the script do **not** propagate. A **dashed
+  Script → Shot lineage edge** is drawn for provenance (**amended 2026-06-12** — originally "no
+  edge"): it is *visual only* — resolution never traverses it (a Shot returns its own carried
+  `script`; nothing queries a Shot's upstream), so the seed-and-fork guarantee holds. The dashed
+  style is derived from node types (script→shot) at render time, so no schema change. The origin
+  is also recorded as `seededFrom = { scriptNodeId, shotIndex, scriptTitle }`.
 - **Mark, don't block (D9).** Re-extracting the script stays **enabled** (append-only, D4/D18 —
   non-destructive). `seededFrom` lets a Shot derive a "script updated since fork" signal on read.
   *MVP ships a provenance label* ("Shot 2 of '…'"); the version-comparison **staleness badge ships
@@ -369,10 +376,11 @@ with stable identity dissolves the problem — the same lesson as D19/D20, one l
 downstream depends on wants stable identity, and in this app that identity is a **node**, not an
 array element inside another node's output.* "Mark, don't block" follows the D4/D5/D9 spine:
 flag the consequence on read, never freeze the edit.
-**Relation to D11 / §15.** Fan-out **creates nodes, not edges**, only on an explicit human click —
-a bulk **manual** action (the §15 "duplicate node" philosophy, applied to shots), not the system
-auto-running or auto-rewiring the graph. The human still wires each `Shot → Prompt`. This is a
-bounded carve-out of "no auto-branching," consistent with D11 (the human remains the scheduler).
+**Relation to D11 / §15.** Fan-out runs only on an explicit human click — a bulk **manual** action
+(the §15 "duplicate node" philosophy, applied to shots), not the system auto-running or
+auto-rewiring the graph. It creates the Shot nodes plus a **dashed lineage edge** per shot
+(provenance, not a live data edge); the human still wires each functional `Shot → Prompt`. This is
+a bounded carve-out of "no auto-branching," consistent with D11 (the human remains the scheduler).
 **Scope.** Rounds out Stage 2 (the connections/context-engineering stage) and bridges to Stage 3
 (per-shot image generation). The Image Gen node itself stays Stage 3.
 

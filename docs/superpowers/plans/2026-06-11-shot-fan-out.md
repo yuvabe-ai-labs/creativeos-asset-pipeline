@@ -10,6 +10,11 @@
 
 **Spec:** `docs/superpowers/specs/2026-06-11-shot-fan-out-design.md` · **ADR:** D21
 
+> **Amended 2026-06-12 (post-execution):** after the manual e2e, the Shot was changed to carry
+> the **full parent script narrowed to one shot** (not just the description) so downstream prompts
+> keep the creative context, and fan-out now draws a **dashed Script→Shot lineage edge**. The
+> task code blocks below show the original shape; see the spec + D21 for the current behavior.
+
 ---
 
 ## File Structure

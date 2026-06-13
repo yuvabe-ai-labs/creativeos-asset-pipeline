@@ -34,20 +34,26 @@ chain per shot.
   non-destructive — D4/D18). Each Shot records `seededFrom` and shows a **provenance label**.
   The version-comparison **staleness badge is deferred to Stage 3** (it needs the script's
   active-version id exposed client-side, which D9's Stage-3 work adds).
-- **Fan-out creates Shot nodes only** — no auto-created Prompt nodes, no edges. The human
-  wires `Shot → Prompt` (D11; PRD §15). It's a manual bulk action, not graph automation.
+- **Fan-out creates Shot nodes** plus a dashed Script→Shot lineage edge each — **no
+  auto-created Prompt nodes**. The human wires the functional `Shot → Prompt` (D11; PRD §15).
+  It's a manual bulk action, not graph automation.
 
 ## Architecture
 
 ### New node type: `Shot`
 
+> **Amended 2026-06-12:** the Shot carries the **full script narrowed to one shot** (not just
+> the shot text), and fan-out draws a **dashed Script→Shot lineage edge**. Updated below.
+
 ```ts
 // src/lib/canvas-nodes.ts
 export type ShotNodeData = {
-  description?: string; // the shot's visual description — editable; this node's output (D19/D20)
-  duration?: string;    // e.g. "3s" (from the parsed shot; informational, carried for Stage 4/5)
-  order?: number;       // 1-based position in the script (carried for Stage 5 assembly)
-  seededFrom?: {        // provenance of the fork (D21); NOT a live link
+  // The parent ReelScript narrowed to a SINGLE shot — "a Script node with one shot".
+  // Keeps the full metadata (objective, on-screen text, voiceover, caption…) so
+  // downstream prompts don't lose creative context. Editable; this node's output (D19/D20).
+  script?: ReelScript;
+  order?: number;       // 1-based position in the script (display + Stage 5 assembly)
+  seededFrom?: {        // provenance of the fork (D21)
     scriptNodeId: string;
     shotIndex: number;   // 0-based index in visual_script.shots at fork time
     scriptTitle?: string; // for the provenance label without a lookup
@@ -56,8 +62,10 @@ export type ShotNodeData = {
 ```
 
 Added to the `AppNode` union: `| Node<ShotNodeData, "shot">`. Like the Text node, **its
-content IS its output** — no AI, no version log (D19/D20). The description is editable on the
-node (edit-at-source, D20). Handles: **source-only** (it feeds downstream; it consumes nothing).
+content IS its output** — no AI, no version log (D19/D20); rendered via `renderScriptAsText`
+(the same renderer the Script node uses). The shot description is editable on the node
+(written back into the carried `script`; edit-at-source, D20). Handles: a **source** handle
+(feeds downstream) plus a **target** handle (lands the dashed Script→Shot lineage edge).
 
 ### Fan-out is a client-only store action
 
@@ -70,8 +78,11 @@ jsonb, D10). New store action on the canvas store:
 fanOutShots: (scriptNodeId: string) => void;
 ```
 
-It lays the Shot nodes out in a column to the right of the Script (`base.x + 320`, stacked by
-`base.y + i * 150`), each seeded with `{ description, duration, order: i+1, seededFrom }`.
+It lays the Shot nodes out in a column to the right of the Script (`base.x + 360`, stacked by
+`base.y + i * 170`), each seeded with `{ script: <parent narrowed to shot i>, order: i+1,
+seededFrom }`, and adds a **dashed Script→Shot lineage edge** per shot. The dashed style is
+derived in `canvas.tsx` from node types (source `script` → target `shot`), so it survives
+reload without a schema change; resolution never traverses it (seed-and-fork preserved).
 
 ### Wiring fan-out into the UI
 
@@ -96,10 +107,10 @@ palette — Shot nodes are created by fan-out, not by hand.
 
 ### Downstream: Shot → Prompt already works
 
-`getNodeOutput` gains a `case "shot"` returning the description; the type labels gain
-`shot: "Shot"`. With those, the **existing** Prompt node consumes a Shot exactly like a Note —
-one shot's description becomes that prompt's connected context. No Prompt-node changes beyond
-the label maps.
+`getNodeOutput` gains a `case "shot"` that renders the carried script via
+`renderScriptAsText` (so the prompt gets the full context — objective/tone/on-screen/voiceover
++ the one shot); the type labels gain `shot: "Shot"`. With those, the **existing** Prompt node
+consumes a Shot exactly like a Script. No Prompt-node changes beyond the label maps.
 
 ## Data flow
 
@@ -108,7 +119,7 @@ Script node (parsed, data.parsed = ReelScript)
    │  user clicks "Fan out 5 shots"  (ScriptFocusView → ScriptNode → store)
    ▼
 fanOutShots(scriptId):  read data.parsed.visual_script.shots
-   │   create Shot node ×N  { description, duration, order, seededFrom }   (no edges)
+   │   create Shot node ×N  { script (one shot), order, seededFrom } + dashed lineage edge
    ▼
 N independent Shot nodes on the canvas  ──(human wires each)──►  Prompt ──► Image (Stage 3)
    │                                                                       │

@@ -13,6 +13,10 @@ export function getNodeOutput(node: NodeOutputInput): string {
   switch (node.type) {
     case "text":
       return String(node.data.text ?? "").trim();
+    case "shot":
+      // A Shot carries the parent script narrowed to one shot (D21); render it the
+      // same way as a Script so downstream keeps the full creative context.
+      return renderScriptAsText((node.data.script ?? null) as ReelScript | null);
     case "prompt":
       return typeof node.activeOutput === "string" ? node.activeOutput.trim() : "";
     case "script":

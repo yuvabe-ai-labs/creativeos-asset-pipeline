@@ -12,6 +12,7 @@ import {
 import { toast } from "sonner";
 import { wouldCreateCycle } from "@/lib/canvas/graph";
 import type { AppNode } from "./canvas-nodes";
+import type { ReelScript } from "@/lib/nodes/reel-script";
 
 // 1C/1D: the canvas store. Nodes/edges live here; custom node components read
 // and write it directly (React Flow only hands a node `{ id, data }`).
@@ -28,6 +29,7 @@ export type CanvasState = {
   connectNodes: (sourceId: string, targetId: string) => void;
   deleteNode: (id: string) => void;
   duplicateNode: (id: string) => void;
+  fanOutShots: (scriptNodeId: string) => void;
 };
 
 function defaultData(type: string): AppNode["data"] {
@@ -35,6 +37,8 @@ function defaultData(type: string): AppNode["data"] {
     case "file":
       return { title: "" };
     case "text":
+      return {};
+    case "shot":
       return {};
     case "prompt":
       return { title: "" };
@@ -124,6 +128,48 @@ export function createCanvasStore(
             selected: false,
           } as AppNode,
         ],
+      });
+    },
+    // Materialize each shot of a parsed Script into its own Shot node (seed-and-fork,
+    // D21). Each Shot carries the FULL parent script narrowed to its single shot
+    // ("a Script node with one shot"), so downstream prompts keep the whole creative
+    // context. A dashed Script->Shot lineage edge is added for provenance; it is NOT
+    // a live edge (resolution never traverses it). Reads the script's hydrated parsed
+    // output (data.parsed = the active version, D19).
+    fanOutShots: (scriptNodeId) => {
+      const script = get().nodes.find((n) => n.id === scriptNodeId);
+      if (!script) return;
+      const data = script.data as { title?: string; parsed?: ReelScript };
+      const parsed = data.parsed;
+      const shots = parsed?.visual_script?.shots ?? [];
+      if (shots.length === 0) return;
+
+      const base = script.position;
+      const scriptTitle = data.title || parsed?.title || "";
+      const created = shots.map((shot, i) => ({
+        id: crypto.randomUUID(),
+        type: "shot",
+        position: { x: base.x + 360, y: base.y + i * 170 },
+        data: {
+          script: {
+            ...parsed,
+            visual_script: { ...parsed?.visual_script, shots: [shot] },
+          },
+          order: i + 1,
+          seededFrom: { scriptNodeId, shotIndex: i, scriptTitle },
+        },
+      })) as AppNode[];
+
+      // Dashed lineage edges (rendered dashed in canvas.tsx by node-type derivation).
+      const createdEdges = created.map((n) => ({
+        id: crypto.randomUUID(),
+        source: scriptNodeId,
+        target: n.id,
+      }));
+
+      set({
+        nodes: [...get().nodes, ...created],
+        edges: [...get().edges, ...createdEdges],
       });
     },
   }));
