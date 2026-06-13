@@ -29,37 +29,19 @@ export function PromptNode({ id, data, selected }: NodeProps) {
     const sourceIds = edges.filter((e) => e.target === id).map((e) => e.source);
     const directNodes = nodes.filter((n) => sourceIds.includes(n.id));
 
-    // For each Shot upstream, also surface its seeded-from Script as "Full reel script"
-    // so the Connected panel shows the full creative brief alongside the specific shot.
-    const extraScriptIds = new Set<string>();
-    for (const n of directNodes) {
-      if (n.type === "shot") {
-        const sf = (n.data as Record<string, unknown>).seededFrom as
-          | { scriptNodeId?: string }
-          | undefined;
-        if (sf?.scriptNodeId && !sourceIds.includes(sf.scriptNodeId)) {
-          extraScriptIds.add(sf.scriptNodeId);
-        }
-      }
-    }
-    const extraScripts = nodes
-      .filter((n) => extraScriptIds.has(n.id))
-      .map((n) => ({ id: n.id, label: "Full reel script", type: n.type ?? "script" }));
-
-    return [
-      ...directNodes.map((n) => {
-        const d = n.data as Record<string, unknown>;
-        return {
-          id: n.id,
-          label: TYPE_LABEL[n.type ?? ""] ?? String(n.type),
-          type: n.type ?? "",
-          fileUrl: n.type === "file" ? (d.fileUrl as string | undefined) : undefined,
-          fileKind: n.type === "file" ? (d.fileKind as string | undefined) : undefined,
-          useLlm: n.type === "file" ? (d.useLlm as boolean | undefined) : undefined,
-        };
-      }),
-      ...extraScripts,
-    ];
+    // Each Shot already carries the full reel script narrowed to its one shot (D21);
+    // we do NOT also surface the parent Script, which would pass the whole reel.
+    return directNodes.map((n) => {
+      const d = n.data as Record<string, unknown>;
+      return {
+        id: n.id,
+        label: TYPE_LABEL[n.type ?? ""] ?? String(n.type),
+        type: n.type ?? "",
+        fileUrl: n.type === "file" ? (d.fileUrl as string | undefined) : undefined,
+        fileKind: n.type === "file" ? (d.fileKind as string | undefined) : undefined,
+        useLlm: n.type === "file" ? (d.useLlm as boolean | undefined) : undefined,
+      };
+    });
   }, [nodes, edges, id]);
 
   const d = data as { title?: string; instruction?: string; parsed?: unknown; kbSlices?: KBSliceKey[] };

@@ -44,25 +44,13 @@ export async function resolvePromptInputs(
 
   const ups = await getUpstreamOutputs(nodeId);
 
-  // For each Shot upstream, walk one hop further to its parent Script and include
-  // that Script as "Full reel script" context (all shots + creative brief).
-  const extended = [...ups];
-  for (const u of ups) {
-    if (u.type !== "shot") continue;
-    const parents = await getUpstreamOutputs(u.nodeId);
-    for (const p of parents) {
-      if (p.type === "script" && !extended.some((x) => x.nodeId === p.nodeId)) {
-        extended.push(p);
-      }
-    }
-  }
-
-  const upstream = extended.map((u) => ({
+  // A Shot already carries the full reel script narrowed to its one shot (D21), so
+  // we do NOT walk to its parent Script — that would pass the entire reel (all shots)
+  // into every per-shot image prompt. Each upstream contributes only itself.
+  const upstream = ups.map((u) => ({
     nodeId: u.nodeId,
     versionId: u.versionId,
-    label: (u.type === "script" && !ups.some((d) => d.nodeId === u.nodeId))
-      ? "Full reel script"
-      : TYPE_LABEL[u.type] ?? u.type,
+    label: TYPE_LABEL[u.type] ?? u.type,
     type: u.type,
     text: getNodeOutput({ type: u.type, data: u.data, activeOutput: u.activeOutput }),
     fileUrl: u.type === "file" ? (u.data.fileUrl as string | undefined) : undefined,

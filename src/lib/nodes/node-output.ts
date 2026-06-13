@@ -14,10 +14,10 @@ export function getNodeOutput(node: NodeOutputInput): string {
     case "text":
       return String(node.data.text ?? "").trim();
     case "shot":
-      // A Shot carries the parent script narrowed to one shot (D21). Render only the
-      // specific shot here; the full creative brief comes from the parent Script node
-      // walked server-side in resolvePromptInputs.
-      return renderShotOnly((node.data.script ?? null) as ReelScript | null);
+      // A Shot carries the parent script narrowed to ONE shot (D21). Render it the
+      // same way as a Script so each per-shot prompt keeps the full creative brief
+      // (objective, on-screen text, voiceover, …) — no separate full-reel input.
+      return renderScriptAsText((node.data.script ?? null) as ReelScript | null);
     case "prompt":
       return typeof node.activeOutput === "string" ? node.activeOutput.trim() : "";
     case "script":
@@ -54,18 +54,6 @@ export function getNodeOutput(node: NodeOutputInput): string {
         ? node.activeOutput.trim()
         : JSON.stringify(node.activeOutput);
   }
-}
-
-// Render just the specific shot (description + duration) for the Shot upstream block.
-// The full creative brief is provided separately via the parent Script node.
-export function renderShotOnly(script: ReelScript | null): string {
-  if (!script) return "";
-  const shot = script.visual_script?.shots?.[0];
-  if (!shot) return "";
-  const lines: string[] = [];
-  if (shot.description?.trim()) lines.push(`Shot: ${shot.description.trim()}`);
-  if (shot.duration?.trim()) lines.push(`Duration: ${shot.duration.trim()}`);
-  return lines.join("\n");
 }
 
 // Flatten a parsed reel script into readable labeled text for prompt context.

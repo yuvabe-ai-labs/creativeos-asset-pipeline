@@ -20,6 +20,7 @@ import { DEFAULT_INSTRUCTION } from "@/lib/nodes/prompt";
 import type { KBSliceKey } from "@/lib/kb/parse-context";
 import {
   ConnectedInputsCard,
+  ConnectedDetailView,
   type UpstreamNode,
   type ConnectedPreview,
 } from "./connected-inputs-card";
@@ -105,15 +106,22 @@ export function PromptFocusView({
   const [restoring, setRestoring] = useState(false);
   const [loadingVersions, setLoadingVersions] = useState(false);
   const [loadingPreview, setLoadingPreview] = useState(false);
+  // When set, the body shows a read-only full view of that connected input.
+  const [detailNodeId, setDetailNodeId] = useState<string | null>(null);
 
   if (seed.open !== open || seed.output !== output) {
     setSeed({ open, output });
     setDraft(output ?? "");
+    setDetailNodeId(null); // return to composition on open / fresh generation
     if (open) {
       setLoadingVersions(true);
       setLoadingPreview(true);
     }
   }
+
+  const detailNode = detailNodeId
+    ? preview.connected.find((c) => c.nodeId === detailNodeId) ?? null
+    : null;
 
   const dirty = (output ?? "") !== draft && draft.trim() !== "";
   const mode: "skeleton" | "result" | "empty" = generating
@@ -304,6 +312,9 @@ export function PromptFocusView({
 
         {/* Body — constrained to max-w-5xl, matching script node width */}
         <div className="min-h-0 flex-1 flex justify-center overflow-hidden">
+          {detailNode ? (
+            <ConnectedDetailView node={detailNode} onBack={() => setDetailNodeId(null)} />
+          ) : (
           <div className="w-full max-w-5xl flex min-h-0 overflow-hidden">
             {/* Left panel — Version history + Brand KB + Connected inputs */}
             <div className="w-[45%] border-r border-border overflow-hidden px-6 py-6 flex flex-col gap-6">
@@ -366,6 +377,7 @@ export function PromptFocusView({
                     <ConnectedInputsCard
                       upstream={upstream}
                       preview={preview.connected}
+                      onOpenDetail={setDetailNodeId}
                     />
                   )}
                 </div>
@@ -447,6 +459,7 @@ export function PromptFocusView({
               </div>
             </div>
           </div>
+          )}
         </div>
       </SheetContent>
     </Sheet>

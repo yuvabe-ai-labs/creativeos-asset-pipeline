@@ -73,7 +73,6 @@ export const VALID_CONNECTIONS: Record<string, readonly string[]> = {
   shot:          ["prompt"],
   file:          ["prompt", "image-gen"],
   text:          ["prompt"],
-  shot:          ["prompt"],
   prompt:        ["prompt", "image-gen", "video-gen"],
   "image-gen":   ["prompt", "video-gen"],
   "video-gen":   [],

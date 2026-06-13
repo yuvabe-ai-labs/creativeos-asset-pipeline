@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { FileText, Paperclip, Sparkles, ChevronRight, Clapperboard } from "lucide-react";
+import { FileText, Paperclip, Sparkles, ChevronRight, Clapperboard, Maximize2, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type UpstreamNode = {
@@ -26,9 +26,11 @@ export type ConnectedPreview = {
 type Props = {
   upstream: UpstreamNode[];
   preview: ConnectedPreview[];
+  // Open a connected input's full content in the focus view's detail panel.
+  onOpenDetail?: (nodeId: string) => void;
 };
 
-export function ConnectedInputsCard({ upstream, preview }: Props) {
+export function ConnectedInputsCard({ upstream, preview, onOpenDetail }: Props) {
   // Sort: shot first (primary context), then script/full-reel, then others.
   const sorted = [...upstream].sort((a, b) => {
     const rank = (t: string) => (t === "shot" ? 0 : t === "script" ? 1 : 2);
@@ -98,6 +100,16 @@ export function ConnectedInputsCard({ upstream, preview }: Props) {
                   </span>
                 )}
               </button>
+              {onOpenDetail && (
+                <button
+                  type="button"
+                  onClick={() => onOpenDetail(u.id)}
+                  title="View full details"
+                  className="shrink-0 text-muted-foreground transition-colors hover:text-primary"
+                >
+                  <Maximize2 className="size-3.5" />
+                </button>
+              )}
             </div>
 
             {/* Expanded content */}
@@ -114,12 +126,12 @@ export function ConnectedInputsCard({ upstream, preview }: Props) {
                     Run extraction in this File node first.
                   </p>
                 ) : text.trim() ? (
-                  u.type === "shot" ? (
-                    <CompactShotSummary text={text} />
-                  ) : u.type === "script" ? (
+                  u.type === "script" ? (
                     <CompactScriptSummary text={text} />
                   ) : (
-                    <p className="text-xs text-foreground/70 line-clamp-3 leading-relaxed">
+                    // Expanded = full text with newlines preserved; the panel scrolls.
+                    // Shots render their full narrowed script here (D21).
+                    <p className="whitespace-pre-wrap text-xs text-foreground/70 leading-relaxed">
                       {text}
                     </p>
                   )
@@ -143,25 +155,56 @@ export function ConnectedInputsCard({ upstream, preview }: Props) {
   );
 }
 
+// Full read-only view of one connected input — the focus view swaps to this when
+// the operator opens an input's details, with a "Back to prompt" return (D20: the
+// content is read-only here; edits happen at the source node).
+export function ConnectedDetailView({
+  node,
+  onBack,
+}: {
+  node: ConnectedPreview;
+  onBack: () => void;
+}) {
+  const isImage = node.type === "file" && node.fileKind === "image" && !!node.fileUrl;
+
+  return (
+    <div className="w-full max-w-5xl flex flex-col min-h-0 overflow-hidden px-6 py-6 gap-4">
+      <button
+        type="button"
+        onClick={onBack}
+        className="inline-flex items-center gap-1.5 self-start text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+      >
+        <ArrowLeft className="size-4" /> Back to prompt
+      </button>
+      <div className="flex items-center gap-1.5">
+        <NodeIcon type={node.type} />
+        <span className="text-eyebrow">{node.label}</span>
+      </div>
+      <div className="flex-1 min-h-0 overflow-y-auto rounded-xl border border-border bg-muted/20 p-5">
+        {isImage ? (
+          <img
+            src={node.fileUrl}
+            alt={node.label}
+            className="max-h-full rounded-md border border-border object-contain"
+          />
+        ) : node.text.trim() ? (
+          <div className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/80">
+            {node.text}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">No content yet.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function NodeIcon({ type }: { type: string }) {
   if (type === "shot") return <Clapperboard className="size-3 shrink-0 text-primary" />;
   if (type === "script") return <FileText className="size-3 shrink-0 text-primary" />;
   if (type === "file") return <Paperclip className="size-3 shrink-0 text-primary" />;
   if (type === "prompt") return <Sparkles className="size-3 shrink-0 text-primary" />;
   return <FileText className="size-3 shrink-0 text-muted-foreground" />;
-}
-
-function CompactShotSummary({ text }: { text: string }) {
-  const descLine = text.split("\n").find((l) => l.startsWith("Shot:"));
-  const desc = descLine ? descLine.replace("Shot:", "").trim() : null;
-  const durLine = text.split("\n").find((l) => l.startsWith("Duration:"));
-  const dur = durLine ? durLine.replace("Duration:", "").trim() : null;
-  return (
-    <div className="space-y-0.5">
-      {desc && <p className="text-xs font-medium text-foreground line-clamp-2 leading-relaxed">{desc}</p>}
-      {dur && <p className="text-xs text-muted-foreground">{dur}</p>}
-    </div>
-  );
 }
 
 function CompactScriptSummary({ text }: { text: string }) {

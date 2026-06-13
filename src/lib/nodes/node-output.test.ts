@@ -6,7 +6,7 @@ describe("getNodeOutput", () => {
     expect(getNodeOutput({ type: "text", data: { text: "  hello  " }, activeOutput: null })).toBe("hello");
   });
 
-  it("renders a shot node as the specific shot only (description + duration)", () => {
+  it("renders a shot node's full script context (script narrowed to one shot)", () => {
     const out = getNodeOutput({
       type: "shot",
       data: {
@@ -18,11 +18,11 @@ describe("getNodeOutput", () => {
       },
       activeOutput: null,
     });
-    // Shot output is concise — just the specific shot. The full creative brief is
-    // provided by the parent Script node walked in resolvePromptInputs.
-    expect(out).toBe("Shot: Turmeric root\nDuration: 3s");
-    expect(out).not.toContain("Title:");
-    expect(out).not.toContain("Objective:");
+    // Each shot carries the full reel script narrowed to its one shot (D21), so the
+    // per-shot prompt keeps objective/title context — no separate full-reel input.
+    expect(out).toContain("Title: Reel A");
+    expect(out).toContain("Objective: Sell calm");
+    expect(out).toContain("1. Turmeric root (3s)");
   });
 
   it("returns a prompt node's active output string", () => {
