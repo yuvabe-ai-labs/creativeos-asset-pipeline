@@ -8,6 +8,7 @@ import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { savePromptOutputAction } from "@/lib/actions/nodes";
 import { PromptFocusView } from "./prompt-focus-view";
 import { DEFAULT_IMAGE_PROMPT_SLICES, type KBSliceKey } from "@/lib/kb/parse-context";
+import { NodeContextMenu } from "./node-context-menu";
 
 const TYPE_LABEL: Record<string, string> = { script: "Script", text: "Note", prompt: "Prompt", kb: "Brand KB", file: "File", shot: "Shot" };
 
@@ -15,6 +16,8 @@ const TYPE_LABEL: Record<string, string> = { script: "Script", text: "Note", pro
 // focus view. The Inputs panel's connected-node list is derived from the store graph.
 export function PromptNode({ id, data, selected }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
+  const deleteNode = useCanvasStore((s) => s.deleteNode);
+  const duplicateNode = useCanvasStore((s) => s.duplicateNode);
   // Select the raw store slices (stable references) and DERIVE the upstream list
   // with useMemo. Returning a freshly-built array of objects straight from the
   // selector breaks useSyncExternalStore caching (useShallow only stabilizes one
@@ -67,6 +70,7 @@ export function PromptNode({ id, data, selected }: NodeProps) {
   const [focusOpen, setFocusOpen] = useState(false);
 
   return (
+    <NodeContextMenu onDuplicate={() => duplicateNode(id)} onDelete={() => deleteNode(id)}>
     <div
       onDoubleClick={(e) => {
         e.stopPropagation();
@@ -125,5 +129,6 @@ export function PromptNode({ id, data, selected }: NodeProps) {
         className="!size-2 !border-2 !border-card !bg-primary"
       />
     </div>
+    </NodeContextMenu>
   );
 }

@@ -26,9 +26,9 @@ export const KB_PARSE_SLICES: {
   { key: "compliance",      label: "Compliance",      default: true },
 ];
 
-// Script-node default: the original copy-writing slices only.
+// Script-node default: all four copy-writing slices.
 export const DEFAULT_PARSE_SLICES: KBSliceKey[] = [
-  "compliance", "tone_of_voice", "personality",
+  "compliance", "tone_of_voice", "personality", "brand_profile",
 ];
 
 // Prompt-node default: all image-generation relevant slices.

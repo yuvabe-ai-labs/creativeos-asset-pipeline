@@ -103,10 +103,16 @@ export function PromptFocusView({
   const [versions, setVersions] = useState<VersionSummary[]>([]);
   const [activeVersionId, setActiveVersionId] = useState<string | null>(null);
   const [restoring, setRestoring] = useState(false);
+  const [loadingVersions, setLoadingVersions] = useState(false);
+  const [loadingPreview, setLoadingPreview] = useState(false);
 
   if (seed.open !== open || seed.output !== output) {
     setSeed({ open, output });
     setDraft(output ?? "");
+    if (open) {
+      setLoadingVersions(true);
+      setLoadingPreview(true);
+    }
   }
 
   const dirty = (output ?? "") !== draft && draft.trim() !== "";
@@ -154,6 +160,8 @@ export function PromptFocusView({
         }
       } catch {
         /* best-effort */
+      } finally {
+        if (!cancelled) setLoadingVersions(false);
       }
     })();
 
@@ -173,8 +181,11 @@ export function PromptFocusView({
         }
       } catch {
         /* preview is best-effort */
+      } finally {
+        if (!cancelled) setLoadingPreview(false);
       }
     }, 300);
+
     return () => {
       cancelled = true;
       clearTimeout(t);
@@ -296,14 +307,26 @@ export function PromptFocusView({
           <div className="w-full max-w-5xl flex min-h-0 overflow-hidden">
             {/* Left panel — Version history + Brand KB + Connected inputs */}
             <div className="w-[45%] border-r border-border overflow-hidden px-6 py-6 flex flex-col gap-6">
-              {versions.length > 0 && (
+              {loadingVersions ? (
+                <div className="space-y-2">
+                  <div className="h-3 w-24 animate-pulse rounded bg-muted-foreground/20" />
+                  <div className="space-y-1.5 pt-1">
+                    {Array.from({ length: 3 }).map((_, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <div className="size-2 shrink-0 animate-pulse rounded-full bg-muted-foreground/20" />
+                        <div className="h-3 animate-pulse rounded bg-muted-foreground/20" style={{ width: `${55 + i * 12}%` }} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : versions.length > 0 ? (
                 <PromptVersionHistory
                   versions={versions}
                   activeVersionId={activeVersionId}
                   onRestore={handleRestoreVersion}
                   restoring={restoring}
                 />
-              )}
+              ) : null}
 
               <LeftSection
                 icon={Palette}
@@ -329,10 +352,22 @@ export function PromptFocusView({
                 badge={`${upstream.length} input${upstream.length === 1 ? "" : "s"}`}
               >
                 <div className="max-h-72 overflow-y-auto pb-2">
-                  <ConnectedInputsCard
-                    upstream={upstream}
-                    preview={preview.connected}
-                  />
+                  {loadingPreview ? (
+                    <div className="space-y-2">
+                      {Array.from({ length: Math.max(upstream.length, 2) }).map((_, i) => (
+                        <div key={i} className="space-y-1.5 rounded-lg border border-border p-3">
+                          <div className="h-3 w-1/3 animate-pulse rounded bg-muted-foreground/20" />
+                          <div className="h-3 w-full animate-pulse rounded bg-muted-foreground/20" />
+                          <div className="h-3 w-4/5 animate-pulse rounded bg-muted-foreground/20" />
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <ConnectedInputsCard
+                      upstream={upstream}
+                      preview={preview.connected}
+                    />
+                  )}
                 </div>
               </LeftSection>
             </div>
@@ -381,7 +416,7 @@ export function PromptFocusView({
                     {Array.from({ length: 9 }).map((_, i) => (
                       <div
                         key={i}
-                        className="h-4 animate-pulse rounded bg-muted-foreground/15"
+                        className="h-4 animate-pulse rounded bg-muted-foreground/20"
                         style={{ width: `${70 + (i % 4) * 7}%` }}
                       />
                     ))}

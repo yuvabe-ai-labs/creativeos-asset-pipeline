@@ -1,7 +1,7 @@
 "use client";
 
 import "@xyflow/react/dist/style.css";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Background,
   BackgroundVariant,
@@ -10,6 +10,7 @@ import {
   type Connection,
   type Edge,
   type NodeTypes,
+  type XYPosition,
 } from "@xyflow/react";
 import { useShallow } from "zustand/react/shallow";
 import { VALID_CONNECTIONS } from "@/lib/canvas-nodes";
@@ -24,6 +25,7 @@ import { PromptNode } from "@/components/nodes/prompt-node";
 import { ShotNode } from "@/components/nodes/shot-node";
 import { useCanvasStore } from "./canvas-store-provider";
 import { CanvasAutosave } from "./canvas-autosave";
+import { CanvasContextMenu } from "./canvas-context-menu";
 
 // Register custom node types once (stable reference — never inline this object).
 const nodeTypes: NodeTypes = { script: ScriptNode, kb: KBNode, file: FileNode, text: TextNode, prompt: PromptNode, shot: ShotNode };
@@ -55,6 +57,21 @@ export function Canvas({ canvasId }: { canvasId: string }) {
 
   const nodesRef = useRef(nodes);
   useEffect(() => { nodesRef.current = nodes; }, [nodes]);
+
+  const rfRef = useRef<{ screenToFlowPosition: (pos: { x: number; y: number }) => XYPosition } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ screenX: number; screenY: number; flowPos: XYPosition } | null>(null);
+
+  const handleAddNode = useCallback(
+    (type: string, position: XYPosition) => {
+      const newNodeId = crypto.randomUUID();
+      addNode(type, position, newNodeId);
+      if (type === "script") {
+        const kbNode = nodesRef.current.find((n) => n.type === "kb");
+        if (kbNode) connectNodes(kbNode.id, newNodeId);
+      }
+    },
+    [addNode, connectNodes],
+  );
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -140,17 +157,10 @@ export function Canvas({ canvasId }: { canvasId: string }) {
                 key={opt.type}
                 type="button"
                 onClick={() => {
-                  const position = {
+                  handleAddNode(opt.type, {
                     x: 120 + Math.random() * 220,
                     y: 80 + Math.random() * 140,
-                  };
-                  const newNodeId = crypto.randomUUID();
-                  addNode(opt.type, position, newNodeId);
-                  // Script nodes auto-wire to the KB node if one exists (Stage 1 behavior).
-                  if (opt.type === "script") {
-                    const kbNode = nodes.find((n) => n.type === "kb");
-                    if (kbNode) connectNodes(kbNode.id, newNodeId);
-                  }
+                  });
                 }}
                 className="w-full rounded-md px-2.5 py-1.5 text-left text-sm font-medium transition-colors hover:bg-muted"
               >
@@ -160,6 +170,15 @@ export function Canvas({ canvasId }: { canvasId: string }) {
           </PopoverContent>
         </Popover>
       </div>
+
+      {contextMenu && (
+        <CanvasContextMenu
+          screenX={contextMenu.screenX}
+          screenY={contextMenu.screenY}
+          onSelect={(type) => handleAddNode(type, contextMenu.flowPos)}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
 
       <ReactFlow
         nodes={nodes}
@@ -173,6 +192,14 @@ export function Canvas({ canvasId }: { canvasId: string }) {
         defaultViewport={{ x: 0, y: 0, zoom: 1 }}
         proOptions={{ hideAttribution: true }}
         className="!bg-transparent"
+        onInit={(instance) => { rfRef.current = instance; }}
+        onPaneContextMenu={(e) => {
+          e.preventDefault();
+          if (!rfRef.current) return;
+          const flowPos = rfRef.current.screenToFlowPosition({ x: e.clientX, y: e.clientY });
+          setContextMenu({ screenX: e.clientX, screenY: e.clientY, flowPos });
+        }}
+        onPaneClick={() => setContextMenu(null)}
       >
         <Background
           variant={BackgroundVariant.Dots}
