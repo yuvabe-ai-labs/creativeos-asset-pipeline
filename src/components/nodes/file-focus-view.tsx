@@ -2,7 +2,6 @@
 
 import { useRef, useState } from "react";
 import { ArrowLeft, Loader2, RefreshCw, Trash2 } from "lucide-react";
-import { AnimatePresence, motion } from "motion/react";
 import { toast } from "sonner";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -23,7 +22,6 @@ import { fileNodeService } from "@/services/file-node.service";
 import { FileEmptyState } from "./file-empty-state";
 import { EditableField } from "./editable-field";
 import { FilePreview } from "./file-preview";
-import { LlmToggleRow } from "./file-llm-toggle-row";
 import { LlmPromptPanel } from "./file-llm-prompt-panel";
 import { Textarea } from "../ui/textarea";
 
@@ -60,7 +58,6 @@ export function FileFocusView({
   fileKind,
   fileUrl,
   rawText,
-  useLlm,
   llmPrompt,
   processedOutput,
   onPatch,
@@ -84,6 +81,10 @@ export function FileFocusView({
     try {
       const result = await fileNodeService.upload(nodeId, file);
       onPatch(result);
+      if (!title) {
+        const derived = file.name.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " ");
+        onPatch({ title: derived });
+      }
       setReplacing(false);
       toast.success("File attached");
     } catch (e) {
@@ -129,13 +130,18 @@ export function FileFocusView({
         rawText,
         fileUrl,
       });
-      onPatch({ processedOutput: result.processedOutput });
+      onPatch({ processedOutput: result.processedOutput, useLlm: true });
       toast.success("Extracted");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Extraction failed");
     } finally {
       setExtracting(false);
     }
+  }
+
+  function handleClearLlm() {
+    setLocalPrompt("");
+    onPatch({ useLlm: false, llmPrompt: "", processedOutput: "" });
   }
 
   function handleReplaceInput(e: React.ChangeEvent<HTMLInputElement>) {
@@ -233,69 +239,35 @@ export function FileFocusView({
               )}
 
               {mode === "ready" && (
-                <>
-                  <LlmToggleRow
-                    useLlm={useLlm ?? false}
-                    onToggle={(v) => onPatch({ useLlm: v })}
-                  />
-
-                  <AnimatePresence initial={false}>
-                    {useLlm ? (
-                      <motion.div
-                        key="llm-on"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ ease: [0.22, 1, 0.36, 1], duration: 0.2 }}
-                        className={cn(
-                          "flex-1 min-h-0 grid gap-8 h-full",
-                          fileKind === "document"
-                            ? "grid-cols-[2fr_3fr]"
-                            : "grid-cols-[3fr_2fr]",
-                        )}
-                      >
-                        <div className="flex flex-col min-h-0">
-                          <FilePreview
-                            fileKind={fileKind}
-                            fileUrl={fileUrl}
-                            rawText={rawText}
-                            filename={filename}
-                            fileExt={fileExt}
-                          />
-                        </div>
-                        <div className="flex flex-col min-h-0">
-                          <LlmPromptPanel
-                            localPrompt={localPrompt}
-                            processedOutput={processedOutput}
-                            extracting={extracting}
-                            onPromptChange={setLocalPrompt}
-                            onPromptBlur={() =>
-                              onPatch({ llmPrompt: localPrompt })
-                            }
-                            onExtract={handleExtract}
-                          />
-                        </div>
-                      </motion.div>
-                    ) : (
-                      <motion.div
-                        key="llm-off"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ ease: [0.22, 1, 0.36, 1], duration: 0.2 }}
-                        className="flex-1 min-h-0 flex flex-col"
-                      >
-                        <FilePreview
-                          fileKind={fileKind}
-                          fileUrl={fileUrl}
-                          rawText={rawText}
-                          filename={filename}
-                          fileExt={fileExt}
-                        />
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </>
+                <div
+                  className={cn(
+                    "flex-1 min-h-0 grid gap-8 h-full",
+                    fileKind === "document"
+                      ? "grid-cols-[2fr_3fr]"
+                      : "grid-cols-[3fr_2fr]",
+                  )}
+                >
+                  <div className="flex flex-col min-h-0">
+                    <FilePreview
+                      fileKind={fileKind}
+                      fileUrl={fileUrl}
+                      rawText={rawText}
+                      filename={filename}
+                      fileExt={fileExt}
+                    />
+                  </div>
+                  <div className="flex flex-col min-h-0">
+                    <LlmPromptPanel
+                      localPrompt={localPrompt}
+                      processedOutput={processedOutput}
+                      extracting={extracting}
+                      onPromptChange={setLocalPrompt}
+                      onPromptBlur={() => onPatch({ llmPrompt: localPrompt })}
+                      onExtract={handleExtract}
+                      onClear={handleClearLlm}
+                    />
+                  </div>
+                </div>
               )}
             </div>
           </div>

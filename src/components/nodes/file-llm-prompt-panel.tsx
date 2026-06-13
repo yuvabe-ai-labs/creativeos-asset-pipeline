@@ -12,6 +12,7 @@ export type LlmPromptPanelProps = {
   onPromptChange: (v: string) => void;
   onPromptBlur: () => void;
   onExtract: () => void;
+  onClear?: () => void;
 };
 
 export function LlmPromptPanel({
@@ -21,6 +22,7 @@ export function LlmPromptPanel({
   onPromptChange,
   onPromptBlur,
   onExtract,
+  onClear,
 }: LlmPromptPanelProps) {
   const [copied, setCopied] = useState(false);
 
@@ -72,18 +74,30 @@ export function LlmPromptPanel({
             Result
           </p>
           {processedOutput && (
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onClick={handleCopy}
-              aria-label="Copy result"
-            >
-              {copied ? (
-                <Check className="size-3.5 text-primary" />
-              ) : (
-                <Copy className="size-3.5" />
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={handleCopy}
+                aria-label="Copy result"
+              >
+                {copied ? (
+                  <Check className="size-3.5 text-primary" />
+                ) : (
+                  <Copy className="size-3.5" />
+                )}
+              </Button>
+              {onClear && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={onClear}
+                  className="h-auto px-2 py-1 text-xs text-muted-foreground hover:text-destructive"
+                >
+                  Clear
+                </Button>
               )}
-            </Button>
+            </div>
           )}
         </div>
 
