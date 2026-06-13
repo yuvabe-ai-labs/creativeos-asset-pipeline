@@ -7,7 +7,11 @@ export type VersionSummary = {
   id: string;
   output: string | null;
   error: string | null;
-  paramsUsed: { instruction?: string };
+  modelUsed?: string | null;
+  paramsUsed: {
+    instruction?: string;
+    tokensUsed?: { prompt_tokens: number; completion_tokens: number; total_tokens: number } | null;
+  };
   createdAt: string;
 };
 

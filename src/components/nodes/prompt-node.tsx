@@ -8,6 +8,7 @@ import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { savePromptOutputAction } from "@/lib/actions/nodes";
 import { PromptFocusView } from "./prompt-focus-view";
 import { DEFAULT_IMAGE_PROMPT_SLICES, type KBSliceKey } from "@/lib/kb/parse-context";
+import { NodeContextMenu } from "./node-context-menu";
 
 const TYPE_LABEL: Record<string, string> = { script: "Script", text: "Note", prompt: "Prompt", kb: "Brand KB", file: "File", shot: "Shot" };
 
@@ -15,6 +16,8 @@ const TYPE_LABEL: Record<string, string> = { script: "Script", text: "Note", pro
 // focus view. The Inputs panel's connected-node list is derived from the store graph.
 export function PromptNode({ id, data, selected }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
+  const deleteNode = useCanvasStore((s) => s.deleteNode);
+  const duplicateNode = useCanvasStore((s) => s.duplicateNode);
   // Select the raw store slices (stable references) and DERIVE the upstream list
   // with useMemo. Returning a freshly-built array of objects straight from the
   // selector breaks useSyncExternalStore caching (useShallow only stabilizes one
@@ -24,9 +27,27 @@ export function PromptNode({ id, data, selected }: NodeProps) {
   const edges = useCanvasStore((s) => s.edges);
   const upstream = useMemo(() => {
     const sourceIds = edges.filter((e) => e.target === id).map((e) => e.source);
-    return nodes
-      .filter((n) => sourceIds.includes(n.id))
-      .map((n) => {
+    const directNodes = nodes.filter((n) => sourceIds.includes(n.id));
+
+    // For each Shot upstream, also surface its seeded-from Script as "Full reel script"
+    // so the Connected panel shows the full creative brief alongside the specific shot.
+    const extraScriptIds = new Set<string>();
+    for (const n of directNodes) {
+      if (n.type === "shot") {
+        const sf = (n.data as Record<string, unknown>).seededFrom as
+          | { scriptNodeId?: string }
+          | undefined;
+        if (sf?.scriptNodeId && !sourceIds.includes(sf.scriptNodeId)) {
+          extraScriptIds.add(sf.scriptNodeId);
+        }
+      }
+    }
+    const extraScripts = nodes
+      .filter((n) => extraScriptIds.has(n.id))
+      .map((n) => ({ id: n.id, label: "Full reel script", type: n.type ?? "script" }));
+
+    return [
+      ...directNodes.map((n) => {
         const d = n.data as Record<string, unknown>;
         return {
           id: n.id,
@@ -36,7 +57,9 @@ export function PromptNode({ id, data, selected }: NodeProps) {
           fileKind: n.type === "file" ? (d.fileKind as string | undefined) : undefined,
           useLlm: n.type === "file" ? (d.useLlm as boolean | undefined) : undefined,
         };
-      });
+      }),
+      ...extraScripts,
+    ];
   }, [nodes, edges, id]);
 
   const d = data as { title?: string; instruction?: string; parsed?: unknown; kbSlices?: KBSliceKey[] };
@@ -47,6 +70,7 @@ export function PromptNode({ id, data, selected }: NodeProps) {
   const [focusOpen, setFocusOpen] = useState(false);
 
   return (
+    <NodeContextMenu onDuplicate={() => duplicateNode(id)} onDelete={() => deleteNode(id)}>
     <div
       onDoubleClick={(e) => {
         e.stopPropagation();
@@ -105,5 +129,6 @@ export function PromptNode({ id, data, selected }: NodeProps) {
         className="!size-2 !border-2 !border-card !bg-primary"
       />
     </div>
+    </NodeContextMenu>
   );
 }

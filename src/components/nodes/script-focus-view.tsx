@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { ArrowLeft, Eye, EyeOff, RefreshCw, FileUp, Clapperboard } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, RefreshCw, FileUp, Clapperboard, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -21,7 +21,6 @@ import { setScriptValue, addItem, removeItem } from "@/lib/nodes/script-edit";
 import type { KBSliceKey } from "@/lib/kb/parse-context";
 import { ScriptDocument } from "./script-document";
 import { ScriptEmptyState } from "./script-empty-state";
-import { ScriptSkeleton } from "./script-skeleton";
 
 type Path = (string | number)[];
 
@@ -36,6 +35,7 @@ type ScriptFocusViewProps = {
   onPatch: (patch: Record<string, unknown>) => void;
   onSaveOutput: (output: ReelScript) => Promise<void>;
   onFanOut: () => void;
+  onParsingChange?: (parsing: boolean) => void;
 };
 
 const SUBTITLES = {
@@ -58,6 +58,7 @@ export function ScriptFocusView({
   onPatch,
   onSaveOutput,
   onFanOut,
+  onParsingChange,
 }: ScriptFocusViewProps) {
   const [draft, setDraft] = useState<ReelScript>(parsed ?? {});
   const [showOriginal, setShowOriginal] = useState(false);
@@ -98,6 +99,7 @@ export function ScriptFocusView({
   async function runParse(src: string) {
     if (!src.trim()) return;
     setParsing(true);
+    onParsingChange?.(true);
     try {
       const res = await fetch(`/api/nodes/${nodeId}/parse`, {
         method: "POST",
@@ -119,6 +121,7 @@ export function ScriptFocusView({
       toast.error(e instanceof Error ? e.message : "Extraction failed");
     } finally {
       setParsing(false);
+      onParsingChange?.(false);
     }
   }
 
@@ -256,7 +259,12 @@ export function ScriptFocusView({
 
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className="mx-auto w-full max-w-5xl px-6 py-8">
-            {mode === "skeleton" && <ScriptSkeleton />}
+            {mode === "skeleton" && (
+              <div className="flex flex-col items-center justify-center gap-3 py-24 text-muted-foreground">
+                <Loader2 className="size-8 animate-spin text-primary" />
+                <p className="text-sm">Extraction in progress…</p>
+              </div>
+            )}
 
             {mode === "empty" && (
               <ScriptEmptyState

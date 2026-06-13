@@ -160,7 +160,6 @@ export function createCanvasStore(
         },
       })) as AppNode[];
 
-      // Dashed lineage edges (rendered dashed in canvas.tsx by node-type derivation).
       const createdEdges = created.map((n) => ({
         id: crypto.randomUUID(),
         source: scriptNodeId,

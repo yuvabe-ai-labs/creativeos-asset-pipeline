@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { FileText, Paperclip, Sparkles, ChevronRight } from "lucide-react";
+import { FileText, Paperclip, Sparkles, ChevronRight, Clapperboard } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type UpstreamNode = {
@@ -29,13 +29,14 @@ type Props = {
 };
 
 export function ConnectedInputsCard({ upstream, preview }: Props) {
-  // Sort script nodes to the top, then by original order.
-  const sorted = [...upstream].sort((a, b) =>
-    a.type === "script" && b.type !== "script" ? -1 : b.type === "script" && a.type !== "script" ? 1 : 0,
-  );
+  // Sort: shot first (primary context), then script/full-reel, then others.
+  const sorted = [...upstream].sort((a, b) => {
+    const rank = (t: string) => (t === "shot" ? 0 : t === "script" ? 1 : 2);
+    return rank(a.type) - rank(b.type);
+  });
 
   const [expanded, setExpanded] = useState<Set<string>>(
-    () => new Set(upstream.filter((u) => u.type === "script").map((u) => u.id)),
+    () => new Set(upstream.filter((u) => u.type === "shot" || u.type === "script").map((u) => u.id)),
   );
 
   function toggle(id: string) {
@@ -50,7 +51,7 @@ export function ConnectedInputsCard({ upstream, preview }: Props) {
   if (upstream.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
-        Connect a Script, File, or Note node to feed this prompt.
+        Connect a Shot, Script, File, or Note node to feed this prompt.
       </p>
     );
   }
@@ -113,7 +114,9 @@ export function ConnectedInputsCard({ upstream, preview }: Props) {
                     Run extraction in this File node first.
                   </p>
                 ) : text.trim() ? (
-                  u.type === "script" ? (
+                  u.type === "shot" ? (
+                    <CompactShotSummary text={text} />
+                  ) : u.type === "script" ? (
                     <CompactScriptSummary text={text} />
                   ) : (
                     <p className="text-xs text-foreground/70 line-clamp-3 leading-relaxed">
@@ -122,11 +125,13 @@ export function ConnectedInputsCard({ upstream, preview }: Props) {
                   )
                 ) : (
                   <p className="text-xs text-muted-foreground">
-                    {u.type === "script"
-                      ? "Open this Script node and generate content first."
-                      : u.type === "file"
-                        ? "No file content yet — open this File node and attach a file."
-                        : "No output yet — open this node and add content first."}
+                    {u.type === "shot"
+                      ? "No shot description yet — edit the Shot node."
+                      : u.type === "script"
+                        ? "Open this Script node and generate content first."
+                        : u.type === "file"
+                          ? "No file content yet — open this File node and attach a file."
+                          : "No output yet — open this node and add content first."}
                   </p>
                 )}
               </div>
@@ -139,10 +144,24 @@ export function ConnectedInputsCard({ upstream, preview }: Props) {
 }
 
 function NodeIcon({ type }: { type: string }) {
+  if (type === "shot") return <Clapperboard className="size-3 shrink-0 text-primary" />;
   if (type === "script") return <FileText className="size-3 shrink-0 text-primary" />;
   if (type === "file") return <Paperclip className="size-3 shrink-0 text-primary" />;
   if (type === "prompt") return <Sparkles className="size-3 shrink-0 text-primary" />;
   return <FileText className="size-3 shrink-0 text-muted-foreground" />;
+}
+
+function CompactShotSummary({ text }: { text: string }) {
+  const descLine = text.split("\n").find((l) => l.startsWith("Shot:"));
+  const desc = descLine ? descLine.replace("Shot:", "").trim() : null;
+  const durLine = text.split("\n").find((l) => l.startsWith("Duration:"));
+  const dur = durLine ? durLine.replace("Duration:", "").trim() : null;
+  return (
+    <div className="space-y-0.5">
+      {desc && <p className="text-xs font-medium text-foreground line-clamp-2 leading-relaxed">{desc}</p>}
+      {dur && <p className="text-xs text-muted-foreground">{dur}</p>}
+    </div>
+  );
 }
 
 function CompactScriptSummary({ text }: { text: string }) {

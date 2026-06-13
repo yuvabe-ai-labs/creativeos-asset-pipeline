@@ -10,7 +10,7 @@ export const DEFAULT_INSTRUCTION =
 
 export type CompilePromptInput = {
   clientContext: string;
-  upstream: { label: string; text: string }[];
+  upstream: { label: string; text: string; type?: string }[];
   instruction: string;
 };
 
@@ -21,7 +21,12 @@ export function compilePrompt(input: CompilePromptInput): { system: string; user
     blocks.push(`Brand context:\n${input.clientContext.trim()}`);
   }
   for (const u of input.upstream) {
-    if (u.text.trim()) blocks.push(`${u.label}:\n${u.text.trim()}`);
+    if (!u.text.trim()) continue;
+    if (u.type === "shot") {
+      blocks.push(`Creating an image prompt for this specific shot:\n${u.text.trim()}`);
+    } else {
+      blocks.push(`${u.label}:\n${u.text.trim()}`);
+    }
   }
   const instruction = input.instruction.trim() || DEFAULT_INSTRUCTION;
   blocks.push(`Instruction:\n${instruction}`);

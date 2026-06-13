@@ -24,11 +24,12 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
     parsed?: unknown;
     kbSlices?: KBSliceKey[];
   };
-  const title = d.title ?? "";
-  const source = d.source ?? "";
   const parsed = (d.parsed ?? null) as ReelScript | null;
+  const title = d.title || parsed?.title || "";
+  const source = d.source ?? "";
   const slices = d.kbSlices ?? DEFAULT_PARSE_SLICES;
   const [focusOpen, setFocusOpen] = useState(false);
+  const [isParsing, setIsParsing] = useState(false);
   const connState = useNodeConnectionState(id, "script");
 
   return (
@@ -55,12 +56,25 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
         </div>
         <span
           className={cn(
-            "size-1.5 rounded-full",
-            parsed ? "bg-primary" : "bg-muted-foreground/40",
+            "size-1.5 rounded-full transition-colors",
+            isParsing
+              ? "animate-pulse bg-primary/60"
+              : parsed
+                ? "bg-primary"
+                : "bg-muted-foreground/40",
           )}
-          title={parsed ? "Extracted" : "Not extracted"}
+          title={isParsing ? "Extracting…" : parsed ? "Extracted" : "Not extracted"}
         />
       </div>
+
+      {isParsing && (
+        <div className="space-y-1.5 border-b border-border px-3 py-2.5">
+          <div className="h-2 w-3/4 animate-pulse rounded bg-muted" />
+          <div className="h-2 w-full animate-pulse rounded bg-muted" />
+          <div className="h-2 w-2/3 animate-pulse rounded bg-muted" />
+          <div className="h-2 w-5/6 animate-pulse rounded bg-muted" />
+        </div>
+      )}
 
       <div className="px-3 py-3">
         <p className="truncate font-display text-sm font-medium">
@@ -85,6 +99,7 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
         parsed={parsed}
         slices={slices}
         onPatch={(patch) => updateNodeData(id, patch)}
+        onParsingChange={setIsParsing}
         onSaveOutput={(output) => saveScriptOutputAction(id, output)}
         onFanOut={() => {
           const n = parsed?.visual_script?.shots?.length ?? 0;
