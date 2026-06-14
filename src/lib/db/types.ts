@@ -71,6 +71,9 @@ export type NodeVersionRow = {
   params_used: Record<string, unknown>;
   model_used: string | null;
   output: unknown;
+  // Frozen at generation, never mutated by edits (D22). The immutable record of the
+  // model's raw attempt; `output` is the editable working copy that may diverge from it.
+  generated_output: unknown;
   error: string | null;
   decision: string | null;
   note: string | null;

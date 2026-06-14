@@ -24,6 +24,11 @@ export async function insertVersion(input: {
       params_used: input.paramsUsed ?? {},
       model_used: input.modelUsed ?? null,
       output: input.output ?? null,
+      // D22: freeze the model's raw output. Written ONCE here, never touched by
+      // updateActiveVersionOutput — so a later manual edit to `output` leaves this
+      // intact, preserving the generated -> shipped diff. Null on failed attempts
+      // (no generation happened).
+      generated_output: input.output ?? null,
       error: input.error ?? null,
       note: input.note ?? null,
       operator: input.operator ?? null,
@@ -48,6 +53,8 @@ export async function setActiveVersion(
 }
 
 // D18/D19: a manual edit folds into the ACTIVE version's output (no new row).
+// D22: it updates ONLY `output` — never `generated_output` — so the model's raw
+// attempt stays frozen and the generated -> shipped diff survives the edit.
 // Throws if the node has no active version (nothing to edit yet).
 export async function updateActiveVersionOutput(
   nodeId: string,
