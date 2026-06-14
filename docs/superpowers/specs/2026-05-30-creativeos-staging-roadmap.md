@@ -390,6 +390,31 @@ a bounded carve-out of "no auto-branching," consistent with D11 (the human remai
 **Scope.** Rounds out Stage 2 (the connections/context-engineering stage) and bridges to Stage 3
 (per-shot image generation). The Image Gen node itself stays Stage 3.
 
+### D22 — Preserve the raw model generation; `output` is the editable working copy *(recorded 2026-06-14)*
+**Decision.** Add an immutable `node_versions.generated_output` (jsonb): the model's
+output **as produced**, written once at generation and never mutated. The existing
+`output` stays the **human-editable** working copy (D18 unchanged). A manual edit still
+folds into `output` in place; it never touches `generated_output`. Both Script and Prompt
+edits funnel through the same `updateActiveVersionOutput`, so one `insertVersion` change
+covers both nodes; the edit path needs no change at all (it already updates only `output`).
+**Why.** This is the **rail for the eval flywheel** (Step 1 of 4): the highest-value signal
+for improving a prompt is the *correction* — *model wrote X, human shipped Y* — and today an
+edit overwrites X, destroying it (the one time-sensitive gap: lost signal is unrecoverable).
+`generated_output` and `output` answer **two different questions** — *"what did the model
+produce?"* (frozen provenance, an attribute of the attempt like `inputs_used`/`params_used`/
+`model_used`) vs *"what does the node currently hold/feed downstream?"* (mutable state) — and
+are **meant to diverge** after an edit; that divergence *is* the data.
+**Refines D18/D19.** D18's "append-only over LLM attempts" now freezes *(inputs, params,
+model, **generated_output**)*; `output` remains mutable. D19 is **intact** — `output` is still
+the *single* source for display/downstream; `generated_output` is never rendered as the node's
+current value, so it is **not** the drift-prone display cache D19 outlawed (a cache is two
+fields meant to *match* that can drift; these are two fields meant to *differ*). "Was edited"
+is derived (`generated_output IS DISTINCT FROM output`) — no stored flag.
+**Scope.** Capture only — no diff (a mechanical, client-side display concern), no viewer, no
+`decision`/`note` writes (those land in Step 3 error analysis), no per-save edit trail (two
+points is what error analysis consumes; a trail reverses D18 for no current goal).
+**Originated.** `2026-06-14-raw-generation-capture-design.md`.
+
 ### Parked / out-of-scope (with revisit triggers)
 | Item | Status | Revisit when |
 |---|---|---|

@@ -25,6 +25,9 @@ export async function GET(
     versions: rows.map((v) => ({
       id: v.id,
       output: typeof v.output === "string" ? v.output : null,
+      // D22: the model's frozen raw output. Lets Step 3's viewer render the
+      // generated -> shipped diff (generatedOutput vs output).
+      generatedOutput: typeof v.generated_output === "string" ? v.generated_output : null,
       error: v.error,
       modelUsed: v.model_used ?? null,
       paramsUsed: (v.params_used ?? {}) as {

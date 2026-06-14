@@ -110,10 +110,15 @@ export function PromptFocusView({
   const [detailNodeId, setDetailNodeId] = useState<string | null>(null);
 
   if (seed.open !== open || seed.output !== output) {
+    const opening = open && !seed.open; // sheet just opened (false → true)
     setSeed({ open, output });
     setDraft(output ?? "");
     setDetailNodeId(null); // return to composition on open / fresh generation
-    if (open) {
+    // Re-arm the left-panel skeletons ONLY on the open transition. The effect
+    // below (keyed on [open, nodeId, slices]) is the sole thing that clears
+    // them, and it does not re-run on output change — so re-arming here on a
+    // regenerate/restore/save would strand them `true` forever.
+    if (opening) {
       setLoadingVersions(true);
       setLoadingPreview(true);
     }
