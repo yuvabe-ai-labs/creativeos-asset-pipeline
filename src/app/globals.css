@@ -248,3 +248,9 @@
 .animate-shimmer {
   animation: shimmer 1.8s ease-in-out infinite;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-shimmer {
+    animation: none;
+  }
+}
