@@ -138,8 +138,8 @@ export function ReviewScreen({ traces: initial }: { canvasId: string; traces: Ev
         </div>
       </header>
 
-      {/* Body — scrolls */}
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      {/* Body — fits the viewport; each panel scrolls internally if needed */}
+      <div className="min-h-0 flex-1 overflow-hidden">
         <TracePanels trace={current} />
       </div>
 
