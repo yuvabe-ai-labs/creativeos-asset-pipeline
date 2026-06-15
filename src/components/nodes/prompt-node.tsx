@@ -8,6 +8,7 @@ import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { savePromptOutputAction } from "@/lib/actions/nodes";
 import { PromptFocusView } from "./prompt-focus-view";
 import { DEFAULT_IMAGE_PROMPT_SLICES, type KBSliceKey } from "@/lib/kb/parse-context";
+import type { ShotControls } from "@/lib/nodes/shot-controls";
 import { NodeContextMenu } from "./node-context-menu";
 
 const TYPE_LABEL: Record<string, string> = { script: "Script", text: "Note", prompt: "Prompt", kb: "Brand KB", file: "File", shot: "Shot" };
@@ -44,11 +45,18 @@ export function PromptNode({ id, data, selected }: NodeProps) {
     });
   }, [nodes, edges, id]);
 
-  const d = data as { title?: string; instruction?: string; parsed?: unknown; kbSlices?: KBSliceKey[] };
+  const d = data as {
+    title?: string;
+    instruction?: string;
+    parsed?: unknown;
+    kbSlices?: KBSliceKey[];
+    controls?: ShotControls;
+  };
   const title = d.title ?? "";
   const instruction = d.instruction ?? "";
   const output = (d.parsed ?? null) as string | null;
   const slices = d.kbSlices ?? DEFAULT_IMAGE_PROMPT_SLICES;
+  const controls = d.controls ?? null;
   const [focusOpen, setFocusOpen] = useState(false);
 
   return (
@@ -95,6 +103,7 @@ export function PromptNode({ id, data, selected }: NodeProps) {
         instruction={instruction}
         output={output}
         slices={slices}
+        controls={controls}
         upstream={upstream}
         onPatch={(patch) => updateNodeData(id, patch)}
         onSaveOutput={(o) => savePromptOutputAction(id, o)}

@@ -4,9 +4,11 @@
 // v2: Full rewrite informed by the official Nano Banana prompting guide
 // (Google Cloud Blog, Mar 2026) and 2025–2026 image prompt best practices.
 // Ref: https://cloud.google.com/blog/products/ai-machine-learning/ultimate-prompting-guide-for-nano-banana
+// v3: Honor descriptive Shot controls (lens / composition / lighting) when provided — fixes the
+// Run-01 homogeneity, where the model invented one lens/lighting/palette recipe for every shot.
 export const promptGeneratePrompt = {
   id: "prompt-generate",
-  version: 2,
+  version: 3,
   model: "gpt-5.4-mini",
   system: `You are a creative director writing image-generation prompts for Nano Banana (Google Gemini 3 Image).
 These prompts create visual assets for short-form social-media reel campaigns.
@@ -31,6 +33,9 @@ Style: "editorial", "analog film", "Fujifilm palette", "high saturation", "film 
 WORDS TO AVOID
 Do not use: "highly detailed", "ultra realistic", "beautiful", "stunning", "amazing", "8K", "masterpiece"
 These are junk tokens that degrade Nano Banana output quality.
+
+SHOT CONTROLS
+If a "Shot controls" block is provided, use those EXACT lens, composition, and lighting values — do not substitute or invent alternatives. Choose lens, composition, and lighting yourself only when no Shot control is given.
 
 BRAND RULES
 - Apply brand colours by name and hex exactly as given in the Brand context

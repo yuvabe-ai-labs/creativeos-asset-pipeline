@@ -3,8 +3,20 @@ import { resolvePromptInputs } from "@/lib/nodes/resolve-inputs";
 import { compilePrompt } from "@/lib/nodes/prompt";
 import { buildUserContent } from "@/lib/nodes/compose-message";
 import { promptGeneratePrompt } from "@/prompts/prompt-generate";
+import { type ShotControls } from "@/lib/nodes/shot-controls";
 import { insertVersion, setActiveVersion } from "@/lib/db/versions";
 import { apiError, apiOk } from "@/lib/api/route-helpers";
+
+// Coerce the request body's controls into a well-shaped ShotControls (unknown values are
+// harmless — renderShotControls ignores anything not in the catalog).
+function normalizeControls(input: unknown): ShotControls {
+  const c = (input ?? {}) as Record<string, unknown>;
+  return {
+    lens: typeof c.lens === "string" ? c.lens : "auto",
+    composition: typeof c.composition === "string" ? c.composition : "auto",
+    lighting: typeof c.lighting === "string" ? c.lighting : "auto",
+  };
+}
 
 // POST /api/nodes/:id/generate — the Prompt node's runAction: resolve inputs,
 // compile, call the model, append a version, move the active pointer. Mirrors the
@@ -15,9 +27,10 @@ export async function POST(
 ) {
   const { id: nodeId } = await params;
   const body = (await req.json().catch(() => null)) as
-    | { instruction?: unknown; slices?: unknown }
+    | { instruction?: unknown; slices?: unknown; controls?: unknown }
     | null;
   const instruction = typeof body?.instruction === "string" ? body.instruction : "";
+  const controls = normalizeControls(body?.controls);
 
   const resolved = await resolvePromptInputs(nodeId, body?.slices);
   if (!resolved) return apiError("Node not found.", 404);
@@ -26,6 +39,7 @@ export async function POST(
     clientContext: resolved.clientContext,
     upstream: resolved.upstream,
     instruction,
+    controls,
   });
 
   const userContent = buildUserContent(user, resolved.upstream);
@@ -50,6 +64,7 @@ export async function POST(
       },
       paramsUsed: {
         instruction,
+        controls,
         promptId: promptGeneratePrompt.id,
         promptVersion: promptGeneratePrompt.version,
         tokensUsed: completion.usage ?? null,

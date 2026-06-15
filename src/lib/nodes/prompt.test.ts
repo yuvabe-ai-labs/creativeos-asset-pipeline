@@ -25,4 +25,31 @@ describe("compilePrompt", () => {
     const { system } = compilePrompt({ clientContext: "", upstream: [], instruction: "x" });
     expect(system).toContain("image-generation prompt");
   });
+
+  it("injects the shot-controls block (after upstream, before instruction) when set", () => {
+    const { user } = compilePrompt({
+      clientContext: "",
+      upstream: [{ label: "Shot", text: "a wide shot", type: "shot" }],
+      instruction: "go",
+      controls: { lens: "wide-24", composition: "auto", lighting: "golden-hour" },
+    });
+    expect(user).toContain("Shot controls (use these exactly");
+    expect(user).toMatch(/Lens: .*24mm/);
+    expect(user).not.toMatch(/Composition:/); // auto omitted
+    // ordering: shot text → controls → instruction
+    expect(user.indexOf("specific shot")).toBeLessThan(user.indexOf("Shot controls"));
+    expect(user.indexOf("Shot controls")).toBeLessThan(user.indexOf("Instruction:"));
+  });
+
+  it("adds no controls block when controls are absent or all Auto (back-compat)", () => {
+    const withoutControls = compilePrompt({ clientContext: "", upstream: [], instruction: "x" }).user;
+    const allAuto = compilePrompt({
+      clientContext: "",
+      upstream: [],
+      instruction: "x",
+      controls: { lens: "auto", composition: "auto", lighting: "auto" },
+    }).user;
+    expect(withoutControls).not.toContain("Shot controls");
+    expect(allAuto).not.toContain("Shot controls");
+  });
 });

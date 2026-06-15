@@ -7,6 +7,7 @@ import {
   ArrowLeft,
   Sparkles,
   Palette,
+  Aperture,
   PencilLine,
   Link2,
   ExternalLink,
@@ -18,6 +19,12 @@ import { Button } from "@/components/ui/button";
 import { SliceToggles } from "./slice-toggles";
 import { DEFAULT_INSTRUCTION } from "@/lib/nodes/prompt";
 import type { KBSliceKey } from "@/lib/kb/parse-context";
+import { ShotControlsRow } from "./shot-controls-row";
+import {
+  deriveShotControlDefaults,
+  DEFAULT_SHOT_CONTROLS,
+  type ShotControls,
+} from "@/lib/nodes/shot-controls";
 import {
   ConnectedInputsCard,
   ConnectedDetailView,
@@ -38,6 +45,7 @@ type PromptFocusViewProps = {
   instruction: string;
   output: string | null;
   slices: KBSliceKey[];
+  controls: ShotControls | null;
   upstream: UpstreamNode[];
   onPatch: (patch: Record<string, unknown>) => void;
   onSaveOutput: (output: string) => Promise<void>;
@@ -83,6 +91,7 @@ export function PromptFocusView({
   instruction,
   output,
   slices,
+  controls,
   upstream,
   onPatch,
   onSaveOutput,
@@ -205,13 +214,21 @@ export function PromptFocusView({
     };
   }, [open, nodeId, slices]);
 
+  // Seed per-shot controls from the connected shot the first time they're unset; the operator
+  // can then override and we never re-derive (the `controls != null` guard).
+  useEffect(() => {
+    if (!open || controls != null || loadingPreview) return;
+    const shotText = preview.connected.find((c) => c.type === "shot")?.text ?? "";
+    onPatch({ controls: deriveShotControlDefaults(shotText) });
+  }, [open, controls, loadingPreview, preview.connected, onPatch]);
+
   async function runGenerate() {
     setGenerating(true);
     try {
       const res = await fetch(`/api/nodes/${nodeId}/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ instruction, slices }),
+        body: JSON.stringify({ instruction, slices, controls: controls ?? DEFAULT_SHOT_CONTROLS }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Generation failed");
@@ -360,6 +377,13 @@ export function PromptFocusView({
                 }
               >
                 <SliceToggles selected={slices} onToggle={toggleSlice} />
+              </LeftSection>
+
+              <LeftSection icon={Aperture} label="Shot controls">
+                <ShotControlsRow
+                  controls={controls ?? DEFAULT_SHOT_CONTROLS}
+                  onChange={(next) => onPatch({ controls: next })}
+                />
               </LeftSection>
 
               <LeftSection
