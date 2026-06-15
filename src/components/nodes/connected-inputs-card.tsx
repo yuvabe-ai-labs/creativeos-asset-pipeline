@@ -37,9 +37,9 @@ export function ConnectedInputsCard({ upstream, preview, onOpenDetail }: Props) 
     return rank(a.type) - rank(b.type);
   });
 
-  const [expanded, setExpanded] = useState<Set<string>>(
-    () => new Set(upstream.filter((u) => u.type === "shot" || u.type === "script").map((u) => u.id)),
-  );
+  // Every connected input opens collapsed so the operator sees the full list of
+  // nodes at a glance, then expands the ones they care about.
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
 
   function toggle(id: string) {
     setExpanded((prev) => {
