@@ -43,14 +43,14 @@ export function ClientsTable({ clients }: { clients: ClientWithCount[] }) {
       />
 
       <div className="overflow-hidden rounded-xl border bg-card shadow-card">
-        <div className="text-eyebrow flex items-center gap-4 border-b px-4 py-2.5 text-muted-foreground">
+        <div className="text-eyebrow flex items-center gap-4 border-b bg-muted/40 px-5 py-3 text-[0.7rem] text-muted-foreground/80">
           <span className="flex-[3]">Client</span>
-          <span className="flex-[2]">Activity</span>
+          <span className="flex-[2]">Last active</span>
           <span className="flex-1 text-right">Brand KB</span>
         </div>
 
         {rows.length === 0 ? (
-          <p className="px-4 py-10 text-center text-sm text-muted-foreground">
+          <p className="px-5 py-10 text-center text-sm text-muted-foreground">
             No clients match “{query}”.
           </p>
         ) : (
@@ -59,7 +59,7 @@ export function ClientsTable({ clients }: { clients: ClientWithCount[] }) {
               <li key={client.id} className="border-b last:border-b-0">
                 <Link
                   href={`/clients/${client.slug}`}
-                  className="group flex items-center gap-4 px-4 py-3 transition-colors hover:bg-muted/40"
+                  className="group flex items-center gap-4 px-5 py-3.5 transition-colors hover:bg-muted/40"
                 >
                   <span className="flex flex-[3] items-center gap-3">
                     {client.logo_url ? (
@@ -74,15 +74,15 @@ export function ClientsTable({ clients }: { clients: ClientWithCount[] }) {
                         {initials(client.name)}
                       </span>
                     )}
-                    <span className="font-medium">{client.name}</span>
+                    <span className="font-medium">
+                      {client.name}
+                      <span className="ml-1.5 font-normal text-muted-foreground/60">
+                        ({client.canvas_count})
+                      </span>
+                    </span>
                   </span>
                   <span className="flex-[2] text-sm text-muted-foreground">
-                    {client.canvas_count} canvas
-                    {client.canvas_count === 1 ? "" : "es"}
-                    <span className="text-muted-foreground/60">
-                      {" · "}
-                      {formatRelativeTime(client.last_active)}
-                    </span>
+                    {formatRelativeTime(client.last_active)}
                   </span>
                   <span className="flex flex-1 items-center justify-end gap-2">
                     <KBStatusBadge status={client.kb_status} />

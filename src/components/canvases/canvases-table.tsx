@@ -38,14 +38,14 @@ export function CanvasesTable({
       />
 
       <div className="overflow-hidden rounded-xl border bg-card shadow-card">
-        <div className="text-eyebrow flex items-center gap-4 border-b px-4 py-2.5 text-muted-foreground">
+        <div className="text-eyebrow flex items-center gap-4 border-b bg-muted/40 px-5 py-3 text-[0.7rem] text-muted-foreground/80">
           <span className="flex-[3]">Canvas</span>
           <span className="flex-[2]">Last edited</span>
           <span className="flex-1 text-right">Created</span>
         </div>
 
         {rows.length === 0 ? (
-          <p className="px-4 py-10 text-center text-sm text-muted-foreground">
+          <p className="px-5 py-10 text-center text-sm text-muted-foreground">
             No canvases match “{query}”.
           </p>
         ) : (
@@ -54,7 +54,7 @@ export function CanvasesTable({
               <li key={canvas.id} className="border-b last:border-b-0">
                 <Link
                   href={`/clients/${clientSlug}/canvases/${canvas.slug}`}
-                  className="group flex items-center gap-4 px-4 py-3 transition-colors hover:bg-muted/40"
+                  className="group flex items-center gap-4 px-5 py-3.5 transition-colors hover:bg-muted/40"
                 >
                   <span className="flex-[3] font-medium">{canvas.name}</span>
                   <span className="flex-[2] text-sm text-muted-foreground">
