@@ -43,3 +43,10 @@ next-env.d.ts
 # design-system reference — local only, not committed
 # (the fonts the app uses are vendored into src/fonts)
 /ref/
+
+# brainstorm visual-companion artifacts
+.superpowers/
+
+# office temp lock files
+~$*
+*.tmp
