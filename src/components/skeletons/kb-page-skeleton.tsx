@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/card";
 
 export function KBPageSkeleton() {
   return (
-    <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-12">
+    <main className="mx-auto w-full max-w-5xl flex-1 px-6 py-12">
       <Skeleton className="h-4 w-52" />
 
       <header className="mb-8 mt-4 space-y-3">

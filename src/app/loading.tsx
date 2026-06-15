@@ -1,5 +1,5 @@
-import { ClientsGridSkeleton } from "@/components/skeletons/clients-grid-skeleton";
+import { ClientsListSkeleton } from "@/components/skeletons/clients-list-skeleton";
 
 export default function Loading() {
-  return <ClientsGridSkeleton />;
+  return <ClientsListSkeleton />;
 }

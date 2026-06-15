@@ -1,5 +1,5 @@
 import { Skeleton } from "@/components/ui/skeleton";
-import { Card } from "@/components/ui/card";
+import { ListSkeleton } from "@/components/skeletons/list-skeleton";
 
 export function CanvasesListSkeleton() {
   return (
@@ -18,15 +18,7 @@ export function CanvasesListSkeleton() {
         </div>
       </header>
 
-      <ul className="grid gap-3 sm:grid-cols-2">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <li key={i}>
-            <Card className="p-6">
-              <Skeleton className="h-6 w-40" />
-            </Card>
-          </li>
-        ))}
-      </ul>
+      <ListSkeleton />
     </main>
   );
 }
