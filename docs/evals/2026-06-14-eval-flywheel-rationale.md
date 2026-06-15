@@ -129,9 +129,116 @@ The detour is cheap here because the architecture was already (accidentally) eva
 
 ---
 
+## 8. Bootstrapping the dataset with synthetic data (Step 2, accelerated)
+
+Step 2 as originally framed is *passive* — wait for real designer usage to accumulate
+corrections. Hamel's field guide offers a way to **skip the wait**: his section
+*"Bootstrapping Your AI With Synthetic Data Is Effective (Even With Zero Users)"*. We can
+manufacture a dataset now and reach error analysis (Step 3) immediately.
+
+### The one hard rule
+> **"Generate user inputs, not outputs — use LLMs to generate realistic user queries or
+> inputs, not the expected AI responses."**
+
+Generating the *outputs* would inherit the generating model's biases (you'd grade the model
+against its own assumptions). **For us:** synthesize the **reel scripts / shots** (the *input*
+to the Prompt node); the image prompts (the *output*) must come from running our **real**
+Prompt node on those inputs.
+
+### Real-first, synthetic-to-fill
+We are **not** at zero users — the **53 Prakriti Sattva reel scripts** are real, authentic
+*inputs* (exactly what the rule says to prioritise). So Step 2 is: **fan out shots from the
+53 real scripts → run them through the Prompt node** (already ~100+ real traces), and
+**synthesise extra scripts only to fill gaps** the 53 don't cover.
+
+### The three axes (field guide) → CreativeOS
+Hamel structures generation as **Features × Scenarios × Personas**:
+
+| Axis | CreativeOS meaning | Example values |
+|---|---|---|
+| **Features** | shot/asset types the Prompt node must handle | product hero close-up · lifestyle-with-person · hands-on-product · flatlay/environment · text-overlay reel · VO-driven reel |
+| **Scenarios** | the situation the script presents | clean · **claims-heavy (baits banned "cure/heal/treat")** · missing visual detail · brand-hex specified vs not · single vs multi-shot |
+| **Personas** | subject/audience the reel depicts | wellness seeker · new mother · ayurveda enthusiast · skincare-routine buyer (drives casting + tone) |
+
+The **claims-heavy** scenario is the highest-value synthetic case: deliberately bait the
+compliance never-use list to stress-test whether the prompt holds.
+
+### The procedure
+1. **Hand-write ~20 tuples first** — `(Feature, Scenario, Persona)` combinations, turned into
+   20 concrete synthetic shot inputs (or 20 hand-picked diverse shots from the 53 real
+   scripts). The manual 20 is **not** busywork — it builds intuition about the problem space
+   *before* automating.
+2. **Scale with two-step LLM generation:** (a) generate more tuples, then (b) a *separate*
+   prompt turns each tuple into a natural-language reel-script input (two steps so phrasing
+   isn't repetitive). Ground generation in real constraints; verify a generated script
+   actually triggers its intended scenario before keeping it.
+3. **Run every input through the real Prompt node** → traces land in `node_versions`
+   (carrying `generated_output` from Step 1).
+4. **Sample ~100 traces** — *"enough to manually review and identify failure patterns without
+   being overwhelming"* — and hand to Step 3's error-analysis viewer.
+
+### Caveats (field guide + EvalGen)
+- Synthetic data yields *outputs to grade*, **not** the *human-correction* signal (the
+  designer-edit diff still needs real humans). The two coexist; synthetic doesn't replace
+  real-usage accumulation.
+- Synthetic can **mask** real edge cases — hence real-first.
+- *"Fix obvious problems first. Don't generate synthetic data for issues you can fix
+  immediately."*
+
+### What this builds (own spec)
+A **dataset bootstrapper**: a real-script shot sampler + a synthetic input generator (the two
+axes/tuple steps) + a **batch runner** that calls the existing compile→generate path N times.
+This is a real build — its own design pass — and it is the gate to Step 3.
+
+> **Run 01 (2026-06-14):** executed a first pass of this — 20 traces from the 53 real Prakriti
+> scripts, real parse→narrow→generate, system held static. Config, controlled-experiment
+> reasoning, results, and the open-coding observations are recorded in
+> `2026-06-14-run-01-prakriti-image-prompt-bootstrap.md`.
+
+---
+
+## 9. Step 3 — error analysis: open coding & axial coding
+
+Step 3 turns a pile of traces into a *ranked list of failure modes* through Hamel/Shankar's
+two coding passes (terms borrowed from qualitative research). The order is mandatory.
+
+### Open coding (diverge) — *generate* raw labels
+Read each trace and write a **free-form note** about what you see — **no predefined
+categories**. Bottom-up: let observations come out raw ("used 8K", "no lens spec", "slipped
+'heals'", "ignored brand hex"). Paired with a **binary pass/fail** judgment per trace (Hamel:
+binary, never a 1–5 scale — *"a 10% increase in passing outputs is immediately meaningful"*).
+- pass/fail → the **`decision`** column · note → the **`note`** column (both already exist).
+
+### Axial coding (converge) — *consolidate* labels into a taxonomy
+Take all the open-coded notes and **group them into a few named failure modes with counts**
+(`banned tokens ×9`, `missing camera ×4`, `ignored hex ×3`). The frequency ranking points at
+the #1 prompt fix. Can be done **by hand**, or LLM-assisted (Hamel: *"we used an LLM to build
+a taxonomy of common failure modes"* — run *after* human open coding, on the notes, not the raw
+outputs).
+
+> **Why open must precede axial (Shreya's catch-22):** *"to grade outputs, people need to
+> define their criteria; however, the process of grading outputs helps them define that very
+> criteria."* You discover the categories by labelling — so you cannot start with the buckets.
+
+### The three build-parts of Step 3
+| Part | What | Coding pass | Build? |
+|---|---|---|---|
+| **1. Batch runner** | run N shots → N traces in `node_versions` | — (data prep) | throwaway script |
+| **2. Review UI** | per-trace: context-in + output, pass/fail toggle, note box, prev/next + hotkeys | **open coding** | **build now** |
+| **3. Cluster view** | group notes → ranked failure modes | **axial coding** | **by hand first**; automate only when re-clustering hundreds |
+
+The Part-2 **context-in panel** doubles as the *request inspector* (turn-1 ask) — same surface,
+labelling controls removed. A "list all traces" read endpoint is new (today's versions route is
+per-node). Then the loop closes: **fix the #1 failure in `prompt-generate` → re-run Part 1 →
+re-review**, and the taxonomy/pass-rate moves with evidence.
+
+---
+
 ## Sources
 
 - Hamel Husain — *A Field Guide to Rapidly Improving AI Products* — https://hamel.dev/blog/posts/field-guide/
+- Hamel Husain & Shreya Shankar — *LLM Evals FAQ* (synthetic data: dimensions → tuples → queries) — https://hamel.dev/blog/posts/evals-faq/
+- Shreya Shankar & Hamel Husain — *Evals for AI Engineers* (book) — https://www.amazon.com/Evals-Engineers-Systematically-Measuring-Applications/dp/B0GTYQTYDP
 - Hamel Husain & Shreya Shankar — *AI Evals for Engineers & PMs* (course) — https://hamelhusain.substack.com/p/ai-evals-for-engineers-and-product
 - Shankar, Zamfirescu-Pereira, Hartmann, Parameswaran, Arawjo — *Who Validates the Validators? Aligning LLM-Assisted Evaluation of LLM Outputs with Human Preferences* (UIST '24 / EvalGen) — https://arxiv.org/abs/2404.12272
 - *Aligning LLM Agents by Learning Latent Preference from User Edits* — https://arxiv.org/pdf/2404.15269

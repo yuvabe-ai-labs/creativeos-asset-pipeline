@@ -1,0 +1,75 @@
+<h2>Step-3 viewer — the open-coding screen</h2>
+<p class="subtitle">One trace per screen: read the image prompt + its source shot, mark pass/fail, write a note, hotkey to the next. Same content both ways — only the arrangement differs. Which feels right for fast labelling of 20–100 traces?</p>
+
+<style>
+  .wf { font-size: 12px; color: var(--text, #1a1a1a); }
+  .wf .bar { background:#f3f1ee; border:1px solid #e3ded6; border-radius:6px; padding:6px 9px; display:flex; align-items:center; justify-content:space-between; }
+  .wf .meta { color:#8a8275; font-size:11px; }
+  .wf .pane { border:1px solid #e3ded6; border-radius:6px; padding:9px; background:#fff; }
+  .wf .lab { font-size:9px; letter-spacing:.08em; text-transform:uppercase; color:#8a8275; margin-bottom:4px; }
+  .wf .prose { color:#403a30; line-height:1.45; }
+  .wf .hl { background:#fbe6c8; padding:0 2px; border-radius:2px; }
+  .wf .pass { background:#e8f3e8; border:1px solid #bcdcbc; border-radius:5px; padding:4px 10px; font-weight:600; color:#2f6b2f; }
+  .wf .fail { background:#f6e6e6; border:1px solid #ddbaba; border-radius:5px; padding:4px 10px; font-weight:600; color:#a33; }
+  .wf .note { flex:1; border:1px dashed #cfc8bd; border-radius:5px; padding:4px 8px; color:#a59c8d; background:#fafafa; }
+  .wf .key { font-family:monospace; font-size:10px; color:#8a8275; }
+  .wf .nav { color:#5829c7; font-weight:600; }
+  .wf .row { display:flex; gap:8px; align-items:center; }
+</style>
+
+<div class="cards">
+
+  <div class="card" data-choice="two-pane" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:14px; background:#faf8f5;">
+      <div class="wf">
+        <div class="bar"><span><strong>Trace 9 / 20</strong> &nbsp;<span class="meta">#22 · VISUAL · "This Diwali — Gift Nourishment" · shot 2</span></span><span class="nav">◀ &nbsp; ▶</span></div>
+        <div class="row" style="margin-top:8px; align-items:stretch;">
+          <div class="pane" style="flex:1;">
+            <div class="lab">Source shot · input</div>
+            <div class="prose">Shot 2 — A lit taper candle in foreground; curated Diwali gift arrangement behind: amber glass bottles, cream carton, ceramic bowl. Wide shot. 6s.</div>
+          </div>
+          <div class="pane" style="flex:1.3;">
+            <div class="lab">Generated image prompt · output</div>
+            <div class="prose">A lit taper candle glows in the foreground while a curated Prakriti Sattva Diwali gift arrangement rests behind it… Center-framed <span class="hl">wide shot, 85mm f/1.8</span>… muted teal tones, warm Kodak Portra…</div>
+          </div>
+        </div>
+        <div class="bar" style="margin-top:8px;">
+          <div class="row"><span class="pass">✓ Pass <span class="key">p</span></span><span class="fail">✗ Fail <span class="key">f</span></span><span class="note">note: lens contradiction — “wide” + 85mm…</span></div>
+          <span class="nav">↵ save & next</span>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A · Two-pane (input ▸ output)</h3>
+      <p>Source shot left, generated prompt right, label bar across the bottom. Eye reads input→output left-to-right; mirrors your existing Prompt focus view.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="stacked" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:14px; background:#faf8f5;">
+      <div class="wf">
+        <div class="bar"><span><strong>Trace 9 / 20</strong> &nbsp;<span class="meta">#22 · VISUAL · "This Diwali" · shot 2</span></span><span class="nav">◀ &nbsp; ▶</span></div>
+        <div class="pane" style="margin-top:8px;">
+          <div class="lab">Source shot · input</div>
+          <div class="prose">Shot 2 — A lit taper candle in foreground; Diwali gift arrangement behind. Wide shot. 6s.</div>
+        </div>
+        <div class="pane" style="margin-top:6px;">
+          <div class="lab">Generated image prompt · output</div>
+          <div class="prose">A lit taper candle glows in the foreground while a curated Prakriti Sattva Diwali gift arrangement rests behind it… Center-framed <span class="hl">wide shot, 85mm f/1.8</span>, candle flame sharpest… golden hour backlighting… muted teal tones, warm Kodak Portra palette, warm cream #F5F0E8, turmeric gold #C8A000…</div>
+        </div>
+        <div class="bar" style="margin-top:8px; position:relative;">
+          <div class="row"><span class="pass">✓ Pass <span class="key">p</span></span><span class="fail">✗ Fail <span class="key">f</span></span><span class="note">note…</span></div>
+          <span class="nav">↵ next</span>
+        </div>
+        <div class="meta" style="text-align:center; margin-top:4px;">↑ label bar stays pinned while the prompt scrolls</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B · Stacked + sticky label bar</h3>
+      <p>Shot on top, full prompt below (scrolls), label controls pinned to a bottom bar always in reach. Better for long prompts; vertical reading.</p>
+    </div>
+  </div>
+
+</div>
+
+<p class="subtitle" style="margin-top:14px;">Both have: progress (n/20), reel meta, prev/next, <strong>pass/fail (keys p/f)</strong>, a <strong>note field</strong>, and <strong>↵ = save&nbsp;&amp;&nbsp;next</strong>. Click the one you prefer, or tell me what to change.</p>

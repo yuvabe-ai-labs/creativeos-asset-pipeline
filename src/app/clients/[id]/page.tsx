@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { ClipboardCheck } from "lucide-react";
 import { getClientBySlug } from "@/lib/db/clients";
 import { listCanvases } from "@/lib/db/canvases";
 import { NewCanvasDialog } from "@/components/canvases/new-canvas-dialog";

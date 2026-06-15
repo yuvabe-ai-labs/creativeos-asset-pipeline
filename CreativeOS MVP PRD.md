@@ -148,8 +148,17 @@ Each meaningful AI-assisted attempt should capture:
 * Prompt used
 * Final compiled prompt
 * Model/provider used
-* Output generated
+* **The model's raw output _and_ the human-edited final** — kept distinctly, so the
+  *correction* (what the designer changed) survives. The diff between them is the single
+  strongest signal of where a prompt falls short.
 * Approval/rejection decision
+
+This capture is the foundation of a deliberate **prompt-improvement loop** (an "eval
+flywheel"): *capture → accumulate real usage → error-analysis (read the corrections, label
+pass/fail, cluster failure modes) → encode the top failures as bespoke pass/fail evals →
+re-measure*. Each turn tightens prompt quality with evidence instead of vibe-checking.
+Method and rationale: `docs/evals/2026-06-14-eval-flywheel-rationale.md`;
+the raw-output capture (Step 1) is built per **D22**.
 
 ---
 

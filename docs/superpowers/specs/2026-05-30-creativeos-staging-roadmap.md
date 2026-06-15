@@ -6,7 +6,15 @@
 extraction), Prompt node (resolve → compile → generate, image-prompt v2), and **Shot fan-out (D21)** —
 each Shot carries its full narrowed script; no implicit full-reel passthrough. Canvas UX: right-click
 add-node, box-select + multi-delete, connected-input detail view.
-**👉 NEXT SESSION START HERE: Stage 3 — Image Gen node** (see §5 Stage 3 + concept map; ADRs D4/D5/D9/D12/D13).
+**Eval flywheel detour (2026-06-14):** Step 1 shipped — raw model output is now preserved
+distinctly from the human-edited final (**D22**, `node_versions.generated_output`), so the
+generated→shipped *correction* signal survives. Rationale + method (Hamel/Shankar) in
+`docs/evals/2026-06-14-eval-flywheel-rationale.md`; Step 1 spec in
+`docs/superpowers/specs/2026-06-14-raw-generation-capture-design.md`.
+Remaining flywheel steps (own specs, not yet built): ②accumulate ③error-analysis viewer ④evals.
+**👉 NEXT SESSION — two open tracks:** (a) **Stage 3 — Image Gen node** (see §5 Stage 3 + concept map;
+ADRs D4/D5/D9/D12/D13), and/or (b) **eval flywheel Step 3** (the error-analysis viewer) once real
+traces have accumulated.
 Open before starting: brand_profile is off-by-default per D17 (image-prompt slices default is separate);
 the team's parent-Script "Full reel script" walk was reverted (flag PR #7 owner); D9 staleness badge is
 still unbuilt and is due in Stage 3.
