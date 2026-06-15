@@ -746,10 +746,35 @@ Prompt node
 
 #### Behavior
 
-The Prompt node creates the **base prompt text**. It does not own image/video generation
-controls. Each Generate version stores the standard envelope (client context used,
-connected inputs used, inline files used, operator + system instruction, model/provider,
-generated text, timestamp, operator, optional note).
+The Prompt node creates the **base prompt text** *and* owns the **descriptive master
+controls** — the finer image aspects (lens / focal length, lighting style, colour palette &
+brand-hex usage, film stock / medium, composition, mood) that the image model's API does
+**not** accept as parameters and can therefore only be expressed as **words in the prompt**.
+These are **set values, not invented by the LLM** (defaults derived from the shot type and
+Brand KB, operator-overridable per node). It does **not** own API-native generation controls
+(aspect ratio, image count, seed) — those live on the Image/Video Gen node (§11.6, §12).
+
+#### Controls (descriptive)
+
+The master *descriptive* control schema is shared; each Prompt node stores the selected
+values for that node. Example descriptive controls: lens / focal length, lighting style,
+colour palette & brand-hex usage, film stock / medium, shot composition, mood. The compiled
+prompt is composed as:
+
+```
+LLM-written subject · action · scene · composition (per shot)
+  +  descriptive control clauses (set values)
+→ compiled prompt
+```
+
+so the controlled aspects are deterministic — consistent where the brand needs it, shot-
+appropriate where it should vary — instead of left to the model to invent. The final
+compiled prompt must be visible before generation.
+
+Each Generate version stores the standard envelope (client context used, connected inputs
+used, inline files used, operator + system instruction, model/provider, generated text,
+timestamp, operator, optional note) **plus the descriptive master-controls schema version
+and the selected values used**.
 
 ---
 
@@ -759,8 +784,9 @@ generated text, timestamp, operator, optional note).
 
 The Image Gen node generates images.
 
-Base prompt text + image references + selected image control values
-→ Final compiled prompt → Image model → Generated image attempts
+Compiled prompt text (from the Prompt node — already carries the descriptive controls)
++ image references + selected **API-native** control values
+→ Final request → Image model → Generated image attempts
 
 #### Inputs
 
@@ -801,13 +827,14 @@ Image Gen node
 
 #### Controls
 
-The master image control schema is shared. Each Image Gen node stores the selected values
-for that node. Example master image controls: aspect ratio, zoom, lighting, background,
-position, palette, macro/detail direction.
+The Image Gen node holds only **API-native** controls — those the image model accepts as
+real parameters (e.g. aspect ratio, image count, seed, resolution). Descriptive aspects
+(lens, lighting, palette, composition, mood) are **not** API parameters; they live on the
+**Prompt node** as descriptive controls already baked into the prompt text (§11.5, §12).
 
-Each image generation attempt stores: master-controls schema version used, selected control
-values, base prompt used, reference inputs used, final compiled prompt sent to model,
-model/provider, generated image output, error (if any), approval/rejection decision.
+Each image generation attempt stores: API-native control values used, prompt text used
+(which already carries the descriptive controls), reference inputs used, final request sent
+to model, model/provider, generated image output, error (if any), approval/rejection decision.
 
 ---
 
@@ -871,29 +898,41 @@ model/provider, generated video output, error (if any), approval/rejection decis
 
 ---
 
-## 12. Master controls and final compiled prompt
+## 12. Master controls and the final compiled prompt
 
-Controls are a standard learned control set. They are not dynamically invented by the Prompt node.
+Controls are a standard, learned set — **not** dynamically invented by the model. They split
+by whether the generation **API** accepts them as parameters:
 
-The correct model is:
+* **Descriptive controls** — finer image/video aspects the API does *not* accept as
+  parameters (lens / focal length, lighting, colour palette & brand-hex, film stock,
+  composition, mood). These can only be expressed as **prompt text**, so they live on the
+  **Prompt node** and are baked into the compiled prompt. Set values, with defaults derived
+  from shot type / Brand KB.
+* **API-native controls** — those the model accepts as real parameters (image: aspect ratio,
+  count, seed; video: motion preset, duration). These live on the **Generate node**
+  (Image/Video Gen) and are passed to the API alongside the prompt.
 
-* Master controls = shared schema / allowed fields
-* Generate node controls = selected values for this node
-* Generation attempt = snapshot of values actually used
+For both kinds: **master schema** = shared allowed fields; **node** = selected values;
+**attempt** = snapshot of the values actually used.
 
 ### Rule
 
-* Prompt node owns the base prompt text.
-* Master controls define the shared control schema.
-* Generate node owns selected control values.
-* Generation attempt stores the exact selected values used.
+* Prompt node owns the **base prompt text + descriptive controls** → composes the compiled
+  prompt: `LLM(subject · scene · composition)  +  descriptive control clauses`.
+* Generate node owns the **API-native control values** + references + model settings.
+* The request to the model = compiled prompt (descriptive controls already inside) +
+  API-native controls.
+* Every attempt snapshots the exact schema versions + selected values used.
 
-The Generate node combines:
+The final compiled prompt must be visible **before generation** — in the Prompt node (the
+descriptive composition) and in the Generate node (the request actually sent).
 
-Base prompt + selected control values + references + model settings
-→ Final compiled prompt → Model call
-
-The final compiled prompt must be visible in the Generate node before generation.
+> **Why this split** *(refines the earlier "all controls on the Generate node" model)*. The
+> image API has no "lens" or "lighting" parameter — those affect the image only as words in
+> the prompt, so descriptive aspects must be controlled where the prompt is authored (the
+> Prompt node) or the model invents them and they homogenise. Evidenced by eval Run 01 (every
+> prompt collapsed to one lens/lighting/palette template) —
+> `docs/evals/2026-06-14-run-01-prakriti-image-prompt-bootstrap.md`.
 
 ---
 
