@@ -4,6 +4,7 @@ import { ClipboardCheck } from "lucide-react";
 import { getClientBySlug } from "@/lib/db/clients";
 import { listCanvases } from "@/lib/db/canvases";
 import { NewCanvasDialog } from "@/components/canvases/new-canvas-dialog";
+import { CanvasesTable } from "@/components/canvases/canvases-table";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
@@ -124,26 +125,9 @@ export default async function ClientPage({
           </p>
         </Card>
       ) : (
-        <ul className="grid gap-3 sm:grid-cols-2">
-          {canvases.map((canvas, i) => (
-            <li
-              key={canvas.id}
-              className="animate-rise"
-              style={{ animationDelay: `${80 + i * 45}ms` }}
-            >
-              <Link
-                href={`/clients/${client.slug}/canvases/${canvas.slug}`}
-                className="group block"
-              >
-                <Card className="shadow-card p-6 transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:-translate-y-0.5 group-hover:scale-[1.006]">
-                  <span className="font-display text-xl font-medium">
-                    {canvas.name}
-                  </span>
-                </Card>
-              </Link>
-            </li>
-          ))}
-        </ul>
+        <div className="animate-rise">
+          <CanvasesTable canvases={canvases} clientSlug={client.slug} />
+        </div>
       )}
     </main>
   );
