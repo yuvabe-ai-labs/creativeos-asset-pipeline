@@ -56,6 +56,7 @@ export default async function ClientPage({
   }
 
   const canvases = await listCanvases(client.id);
+  const evalCanvas = canvases.find((c) => c.slug === "eval-harness");
 
   return (
     <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-12">
@@ -93,6 +94,18 @@ export default async function ClientPage({
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
+          {evalCanvas && (
+            <Button
+              variant="outline"
+              size="sm"
+              nativeButton={false}
+              render={
+                <Link href={`/eval/${evalCanvas.id}`}>
+                  <ClipboardCheck /> Eval review
+                </Link>
+              }
+            />
+          )}
           <Button
             variant="outline"
             size="sm"
