@@ -2,6 +2,11 @@ import "server-only";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { uniqueSlug } from "@/lib/slug";
 import type { CanvasRow } from "./types";
+import {
+  mapRecentCanvas,
+  type RawRecentCanvasRow,
+  type RecentCanvas,
+} from "./recent-canvas";
 
 // The canvases repository — same shape as clients, scoped to a client.
 
@@ -53,4 +58,17 @@ export async function createCanvas(input: {
     .single();
   if (error) throw error;
   return data as CanvasRow;
+}
+
+// Global, recency-sorted canvases across every client (for the Clients-home
+// "Recent canvases" tab). Capped so the list stays bounded as canvas count grows.
+export async function listRecentCanvases(limit = 30): Promise<RecentCanvas[]> {
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("canvases")
+    .select("*, clients(slug, name, logo_url)")
+    .order("updated_at", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return ((data ?? []) as RawRecentCanvasRow[]).map(mapRecentCanvas);
 }
