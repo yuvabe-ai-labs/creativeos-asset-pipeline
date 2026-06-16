@@ -254,3 +254,19 @@
     animation: none;
   }
 }
+
+/* Marching-ant edges — flowing connection lines for the canvas loading state */
+@keyframes dash-flow {
+  to {
+    stroke-dashoffset: -22;
+  }
+}
+.animate-dash-flow {
+  animation: dash-flow 1.1s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-dash-flow {
+    animation: none;
+  }
+}
