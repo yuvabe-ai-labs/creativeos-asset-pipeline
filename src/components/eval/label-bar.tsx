@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Check, X, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -10,6 +11,7 @@ type LabelBarProps = {
   decision: Decision;
   note: string;
   saving: boolean;
+  noteRef: React.RefObject<HTMLTextAreaElement | null>;
   onDecision: (d: Decision) => void;
   onNote: (n: string) => void;
   onSaveNext: () => void;
@@ -23,11 +25,14 @@ function Kbd({ children }: { children: React.ReactNode }) {
   );
 }
 
-// Sticky open-coding controls: binary pass/fail + a note, save & next. Keys: p / f / ↵.
-export function LabelBar({ decision, note, saving, onDecision, onNote, onSaveNext }: LabelBarProps) {
+// Sticky open-coding controls: binary pass/fail + a note, save & next. Keys: p / f
+// mark + jump focus into the note (which expands in place); ⇧↵ there saves & next.
+export function LabelBar({ decision, note, saving, noteRef, onDecision, onNote, onSaveNext }: LabelBarProps) {
+  const [focused, setFocused] = useState(false);
+  const expanded = focused || note.length > 0;
   return (
     <div className="shrink-0 border-t border-border bg-background/90 backdrop-blur">
-      <div className="mx-auto flex w-full max-w-4xl items-center gap-3 px-6 py-3">
+      <div className="mx-auto flex w-full max-w-4xl items-start gap-3 px-6 py-3">
         <div className="flex items-center gap-2">
           <button
             type="button"
@@ -55,17 +60,25 @@ export function LabelBar({ decision, note, saving, onDecision, onNote, onSaveNex
           </button>
         </div>
 
-        <input
+        <textarea
+          ref={noteRef}
           value={note}
           onChange={(e) => onNote(e.target.value)}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
           onKeyDown={(e) => {
-            if (e.key === "Enter") {
+            // ⇧↵ saves & moves to the next trace; plain ↵ inserts a newline.
+            if (e.key === "Enter" && e.shiftKey) {
               e.preventDefault();
               onSaveNext();
             }
           }}
-          placeholder="note — what's wrong / right? (optional)"
-          className="flex-1 rounded-lg border border-border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+          rows={1}
+          placeholder="note — what's wrong / right? (optional)  ·  ⇧↵ to save & next"
+          className={cn(
+            "flex-1 resize-none rounded-lg border border-border bg-background px-3 py-1.5 text-sm leading-6 transition-[height] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] focus:outline-none focus:ring-1 focus:ring-ring",
+            expanded ? "h-24" : "h-9",
+          )}
         />
 
         <Button size="lg" onClick={onSaveNext} disabled={saving}>

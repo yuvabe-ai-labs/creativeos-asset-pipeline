@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { ChevronLeft, ChevronRight, ListChecks } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -13,11 +13,13 @@ type Decision = "pass" | "fail" | null;
 
 // Step-3 open-coding surface (layout B). One trace per screen: read shot + prompt, mark
 // pass/fail, note, save & next. Source-agnostic — takes a traces[] list (here the eval
-// canvas; production swaps the query feeding it). Keys: p/f, ←/→, ↵ = save & next.
+// canvas; production swaps the query feeding it). Keys: p/f mark + jump focus into the
+// note (expands in place), ⇧↵ in the note = save & next; ←/→ navigate, ↵ = save & next.
 export function ReviewScreen({ traces: initial }: { canvasId: string; traces: EvalTrace[] }) {
   const [traces, setTraces] = useState(initial);
   const [index, setIndex] = useState(0);
   const [saving, setSaving] = useState(false);
+  const noteRef = useRef<HTMLTextAreaElement>(null);
 
   const current = traces[index];
   const [decision, setDecision] = useState<Decision>(current?.decision ?? null);
@@ -49,7 +51,11 @@ export function ReviewScreen({ traces: initial }: { canvasId: string; traces: Ev
         setTraces((prev) =>
           prev.map((t, i) => (i === index ? { ...t, decision, note: trimmed } : t)),
         );
-        if (advance && index < total - 1) go(1);
+        if (advance && index < total - 1) {
+          go(1);
+          // Hand keyboard control back to the global p/f hotkeys for the next trace.
+          noteRef.current?.blur();
+        }
       } catch {
         toast.error("Save failed");
       } finally {
@@ -72,9 +78,17 @@ export function ReviewScreen({ traces: initial }: { canvasId: string; traces: Ev
         }
         return;
       }
-      if (e.key === "p") setDecision((d) => (d === "pass" ? null : "pass"));
-      else if (e.key === "f") setDecision((d) => (d === "fail" ? null : "fail"));
-      else if (e.key === "ArrowRight") go(1);
+      if (e.key === "p") {
+        // preventDefault so the triggering keystroke doesn't leak into the textarea
+        // we're about to focus.
+        e.preventDefault();
+        setDecision((d) => (d === "pass" ? null : "pass"));
+        noteRef.current?.focus();
+      } else if (e.key === "f") {
+        e.preventDefault();
+        setDecision((d) => (d === "fail" ? null : "fail"));
+        noteRef.current?.focus();
+      } else if (e.key === "ArrowRight") go(1);
       else if (e.key === "ArrowLeft") go(-1);
       else if (e.key === "Enter") {
         e.preventDefault();
@@ -148,6 +162,7 @@ export function ReviewScreen({ traces: initial }: { canvasId: string; traces: Ev
         decision={decision}
         note={note}
         saving={saving}
+        noteRef={noteRef}
         onDecision={setDecision}
         onNote={setNote}
         onSaveNext={() => void save(true)}
