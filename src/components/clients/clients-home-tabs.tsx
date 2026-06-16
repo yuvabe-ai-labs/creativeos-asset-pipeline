@@ -31,7 +31,7 @@ export function ClientsHomeTabs({
               Clients
             </TabsTrigger>
             <TabsTrigger value="recent" className={triggerClass}>
-              Recent canvases
+              Recent
             </TabsTrigger>
           </TabsList>
           {tab === "clients" && <NewClientDialog />}
