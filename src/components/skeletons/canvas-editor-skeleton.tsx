@@ -4,7 +4,7 @@ export function CanvasEditorSkeleton() {
   return (
     <main className="flex flex-1 flex-col">
       <header className="flex items-center border-b border-border/70 bg-background/60 px-6 py-3 backdrop-blur">
-        <Skeleton className="h-4 w-72" />
+        <span className="text-sm text-muted-foreground/60">Loading canvas…</span>
       </header>
 
       <div className="canvas-surface relative flex-1 overflow-hidden">

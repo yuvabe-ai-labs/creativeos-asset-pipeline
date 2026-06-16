@@ -7,7 +7,9 @@ export function KBPageSkeleton() {
       <Skeleton className="h-4 w-52" />
 
       <header className="mb-8 mt-4 space-y-3">
-        <Skeleton className="h-8 w-64" />
+        <h1 className="font-display text-3xl font-semibold tracking-tight text-muted-foreground/60">
+          Loading brand KB…
+        </h1>
         <Skeleton className="h-4 w-96 max-w-full" />
       </header>
 

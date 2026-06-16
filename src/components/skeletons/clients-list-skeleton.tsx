@@ -7,7 +7,9 @@ export function ClientsListSkeleton() {
       <header className="mb-10 flex items-end justify-between">
         <div>
           <Skeleton className="h-3 w-40" />
-          <Skeleton className="mt-3 h-12 w-48" />
+          <h1 className="mt-2 font-display text-5xl font-semibold tracking-[-0.02em] text-muted-foreground/60">
+            Loading clients…
+          </h1>
         </div>
         <Skeleton className="h-9 w-32 rounded-md" />
       </header>
