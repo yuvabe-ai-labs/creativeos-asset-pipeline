@@ -234,6 +234,91 @@ re-review**, and the taxonomy/pass-rate moves with evidence.
 
 ---
 
+## 10. How this works in production — the diff and the golden set feed each other
+
+Sections 8–9 describe the *bootstrap* loop (a throwaway script generates 20 traces on an
+isolated eval canvas; a human annotates them). The fair question is: once real designers are
+using the tool, what produces the data, and how do the two signals — the **generated-vs-shipped
+diff** and the **hand-annotated golden set** — relate? They are the *implicit* and *explicit*
+forms of the same act ("attach a good/bad + why to a trace"), and they hand off to each other.
+
+### Capture is not a separate system — it rides on the normal Generate flow
+There is no "production eval pipeline" to stand up. The node's own action route already does it:
+every designer click of **Generate** runs `insertVersion(...)` (`src/app/api/nodes/[id]/generate/route.ts`),
+writing one `node_versions` row — the same call the bootstrap script made. The eval-bootstrap
+route was just a script *impersonating a designer*; in production the designer **is** the
+trigger. So traces accumulate as a byproduct of normal use (rationale §5: "`node_versions` is a
+trace log"). Failed attempts are logged too (the route inserts a version with `error` set).
+
+### Signal A — the diff (implicit, free, production-only)
+In production a designer **generates, then edits, then ships**. The two-write trick in
+`src/lib/db/versions.ts` keeps both halves: `insertVersion` writes `generated_output` **and**
+`output` to the raw model text; the later edit (`updateActiveVersionOutput`) touches **only
+`output`** and never `generated_output`. So one real row holds:
+
+```
+generated_output = "…Center-framed wide shot, 85mm f/1.8…"   ← the "before" (frozen, D22)
+output           = "…wide-angle 24mm, deep focus…"            ← the "after" (designer fixed it)
+```
+
+The designer never clicked "fail" — but **by editing they labelled it anyway**. A large diff ≈
+"the model got this wrong"; no edit ≈ "good enough to ship." And unlike a pass/fail toggle, the
+diff also encodes the *correction* ("dropped 85mm → wide 24mm"), which half-writes the open-coding
+`note` for free. This is the *human-correction* signal from §5 — the strongest one, and the only
+label you get at scale without paying for annotation.
+
+### Signal B — annotation (explicit, manual, the golden set)
+The golden fixture (the eval-harness canvas) has **no diff** — the bootstrap script generates but
+never edits, so `generated_output === output`. The only way to label it is by hand: a human reads
+input + output in the viewer and writes the binary **`decision`** + free **`note`** (§9 open
+coding). This is what makes the golden set a *yardstick*: a frozen system + diverse inputs +
+explicit human pass/fail, re-runnable to measure `prompt-generate` v2 → v3 (§3, the golden rule).
+
+### How they feed each other
+The diff is the **radar**; the golden set is the **yardstick**. They are not competitors:
+
+```
+Production traces (have diffs)                  Golden fixture (annotated by hand)
+   │  diff = free implicit label                        ▲  explicit decision/note
+   │                                                     │
+   └─► sort by diff size → read the heavily- ────────────┘
+       edited traces first (error analysis            promote the interesting
+       aimed at real failures, not random)            failures into the golden set
+```
+
+- **The diff *prioritises* annotation.** At scale you can't read every trace blind; you sort by
+  "how much did the designer change it" and spend annotation effort on the big-diff rows — those
+  are the failures. Error analysis (§9) thus starts from real corrections, not random sampling.
+- **The diff *sources* the golden set.** A heavily-corrected trace that shows a failure mode worth
+  guarding against gets pulled into the controlled fixture, then annotated with a formal
+  pass/fail so future prompt versions are measured against it.
+- **The golden set *proves* the fix; the diff *discovers* the next one.** You re-run the frozen
+  fixture to show v3 > v2 with evidence; meanwhile fresh production diffs surface the
+  next-biggest failure mode to add to the fixture. That hand-off is the flywheel tightening (§6).
+
+### Current state vs. the gap (honest scope)
+
+| Capability | Status | Where |
+|---|---|---|
+| Raw-output capture (two-write, frozen `generated_output`) | ✅ **available today** | `insertVersion` / `updateActiveVersionOutput` in `src/lib/db/versions.ts` |
+| Annotation loop on the golden set (`decision`/`note`, cross-node read) | ✅ **available today** | `src/lib/db/eval.ts` → `mapEvalTraces` + the review viewer |
+| Bootstrap dataset (20 controlled traces) | ✅ **available today** | Run 01, eval-harness canvas |
+| Diff as a *consumed* signal (surface before+after, `edited`/diff-size flag) | 🔲 **TBD** | `mapEvalTraces` returns a single string today |
+| Production trace source (filter by real client canvas, not the eval canvas) | 🔲 **TBD** | `listEvalTraces` is pinned to one canvas — *"production swaps the filter"* (`eval.ts`) |
+| Axial clustering / Step-4 scorers in vitest | 🔲 **TBD** | by hand first (§9); automate later |
+
+**In one line:** *today* we capture the before/after and can hand-annotate the golden set; *TBD*
+is wiring the diff in as a usable signal and pointing the reader at real client traffic — the next
+build is `mapEvalTraces` carrying **both** `generated_output` and `output` (+ an `edited`/diff-size
+flag) and `listEvalTraces` filtering by client canvas, which turns on Signal A end to end.
+
+**One line:** in production the diff is the tool's *automatic first-pass label* — it points at
+which traces failed and how the designer fixed them; annotation is the *explicit pass/fail* you
+record on the golden fixture to measure one prompt version against the next; and the diff feeds
+annotation by deciding what is worth annotating and what to promote into the golden set.
+
+---
+
 ## Sources
 
 - Hamel Husain — *A Field Guide to Rapidly Improving AI Products* — https://hamel.dev/blog/posts/field-guide/
