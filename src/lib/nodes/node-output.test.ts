@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { getNodeOutput, renderShotForImage } from "./node-output";
+import { describe, it, expect, afterEach } from "vitest";
+import { getNodeOutput, renderShotForImage, renderShotContext, shotContextMode } from "./node-output";
 
 describe("getNodeOutput", () => {
   it("returns a text node's data.text", () => {
@@ -71,5 +71,51 @@ describe("getNodeOutput", () => {
 
   it("returns empty string for a draw node with no instructions", () => {
     expect(getNodeOutput({ type: "draw", data: {}, activeOutput: null })).toBe("");
+  });
+});
+
+describe("renderShotContext", () => {
+  const script = {
+    title: "Reel A",
+    strategic_objective: "Sell calm",
+    ai_production_type: "AI macro product photography",
+    voiceover: "Soothing narration",
+    visual_script: { shots: [{ description: "Turmeric root, side-lit on marble", duration: "3s" }] },
+  };
+
+  it("minimal mode keeps only the shot description + production medium (D23)", () => {
+    const out = renderShotContext(script, "minimal");
+    expect(out).toContain("Turmeric root, side-lit on marble");
+    expect(out).toContain("Medium: AI macro product photography");
+    expect(out).not.toContain("Sell calm");
+    expect(out).not.toContain("Soothing narration");
+  });
+
+  it("full mode renders the whole reel brief (pre-D23 behavior, for A/B)", () => {
+    const out = renderShotContext(script, "full");
+    expect(out).toContain("Title: Reel A");
+    expect(out).toContain("Objective: Sell calm");
+    expect(out).toContain("Voiceover: Soothing narration");
+    expect(out).toContain("1. Turmeric root, side-lit on marble (3s)");
+  });
+});
+
+describe("shotContextMode", () => {
+  const original = process.env.SHOT_CONTEXT_MODE;
+  afterEach(() => {
+    if (original === undefined) delete process.env.SHOT_CONTEXT_MODE;
+    else process.env.SHOT_CONTEXT_MODE = original;
+  });
+
+  it("defaults to minimal when the env var is unset (D23 default)", () => {
+    delete process.env.SHOT_CONTEXT_MODE;
+    expect(shotContextMode()).toBe("minimal");
+  });
+
+  it("returns full only when explicitly set to 'full'", () => {
+    process.env.SHOT_CONTEXT_MODE = "full";
+    expect(shotContextMode()).toBe("full");
+    process.env.SHOT_CONTEXT_MODE = "something-else";
+    expect(shotContextMode()).toBe("minimal");
   });
 });

@@ -19,9 +19,10 @@ export function getNodeOutput(node: NodeOutputInput): string {
       return String(node.data.instructions ?? "").trim();
     case "shot":
       // A Shot carries the parent script narrowed to ONE shot (D21), but it feeds ONE
-      // reference image — so render only the visually-actionable fields, not the whole
-      // reel brief (D23). See renderShotForImage for what's kept and why.
-      return renderShotForImage((node.data.script ?? null) as ReelScript | null);
+      // reference image — so by default render only the visually-actionable fields, not
+      // the whole reel brief (D23). SHOT_CONTEXT_MODE=full flips back to the full reel
+      // for A/B testing (shotContextMode / renderShotContext).
+      return renderShotContext((node.data.script ?? null) as ReelScript | null, shotContextMode());
     case "prompt":
       return typeof node.activeOutput === "string" ? node.activeOutput.trim() : "";
     case "script":
@@ -121,4 +122,24 @@ export function renderShotForImage(script: ReelScript | null): string {
     lines.push(`Medium: ${script.ai_production_type.trim()}`);
   }
   return lines.join("\n");
+}
+
+// Which shot-context renderer feeds image prompts:
+//   "minimal" → renderShotForImage (D23 default — trimmed to the visually-actionable fields)
+//   "full"    → renderScriptAsText (pre-D23 — the whole reel brief)
+export type ShotContextMode = "minimal" | "full";
+
+// Render a Shot's carried script for an image prompt in the chosen mode (pure; testable
+// for both arms). The global default is resolved by shotContextMode() at the call site.
+export function renderShotContext(script: ReelScript | null, mode: ShotContextMode): string {
+  return mode === "full" ? renderScriptAsText(script) : renderShotForImage(script);
+}
+
+// The global shot-context switch (D23). Flip the whole app between the trimmed (D23) and
+// the full-reel context via the SHOT_CONTEXT_MODE env var so a Run-02 A/B can compare the
+// two without code changes. Read defensively: only the exact string "full" opts into the
+// full brief; anything else (incl. unset / client-side where non-public env is undefined)
+// falls back to "minimal".
+export function shotContextMode(): ShotContextMode {
+  return process.env.SHOT_CONTEXT_MODE === "full" ? "full" : "minimal";
 }

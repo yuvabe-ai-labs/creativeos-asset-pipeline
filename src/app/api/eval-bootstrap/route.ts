@@ -20,7 +20,7 @@ import {
 } from "@/lib/kb/parse-context";
 import { compileScript } from "@/lib/nodes/script";
 import { compilePrompt, DEFAULT_INSTRUCTION } from "@/lib/nodes/prompt";
-import { renderShotForImage } from "@/lib/nodes/node-output";
+import { renderShotContext, shotContextMode } from "@/lib/nodes/node-output";
 import { scriptParsePrompt } from "@/prompts/script-parse";
 import { promptGeneratePrompt } from "@/prompts/prompt-generate";
 import { insertVersion, setActiveVersion } from "@/lib/db/versions";
@@ -151,6 +151,7 @@ export async function POST(req: Request) {
   // 3. Per selected shot: faithful parse → narrow → compile → generate, onto ITS OWN node.
   // A node = one input/task (D4); re-running a fixed prompt appends a version per node.
   const openai = createOpenAI();
+  const contextMode = shotContextMode(); // D23 A/B switch (SHOT_CONTEXT_MODE) — same value as production
   const results: Record<string, unknown>[] = [];
 
   for (let i = 0; i < selected.length; i++) {
@@ -177,7 +178,7 @@ export async function POST(req: Request) {
       }
       const shotIndex = i % shotCount; // vary shot position for coverage
       const narrowed = narrowToShot(reel, shotIndex);
-      const shotText = renderShotForImage(narrowed); // faithful to production: getNodeOutput "shot" → renderShotForImage (D23)
+      const shotText = renderShotContext(narrowed, contextMode); // faithful to production: getNodeOutput "shot" → renderShotContext (D23)
 
       // 3b. faithful image-prompt generation (real compilePrompt + prompt-generate)
       const { system: gSys, user: gUser } = compilePrompt({
@@ -228,6 +229,7 @@ export async function POST(req: Request) {
           reelType: s.type,
           shotIndex,
           kbVersionId: kbVersion.id,
+          contextMode,         // D23 A/B arm: "minimal" (trimmed) vs "full" (whole reel)
           shotText,            // the rendered source shot fed in (the viewer's "context in")
           compiledUser: gUser, // the exact user message sent (request-inspector data)
         },
@@ -251,6 +253,7 @@ export async function POST(req: Request) {
   return apiOk({
     canvasId,
     nodeModel: "one-node-per-shot",
+    contextMode, // D23 A/B arm this run used (set via SHOT_CONTEXT_MODE)
     generated: ok,
     failed: results.length - ok,
     typeCounts,

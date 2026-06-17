@@ -437,12 +437,18 @@ Brand palette + casting come from the KB block; lens/composition/lighting from t
 Shot controls (§11.5/§12, D-prompt-controls). So the per-shot text should carry only the subject
 and the medium — orthogonal to the prompt-template fix (`prompt-generate` v3).
 **Relation to D22 / the eval flywheel.** This is a **context** change, separable from the prompt
-template. The faithful eval-bootstrap route was updated to use `renderShotForImage` too, so a
-**Run-02** against the frozen 20-shot fixture isolates context-trimming as the single variable and
-measures the homogeneity delta (run it separately from any `prompt-generate` change, or attribution
-is lost — Run-01 doc §3).
-**Scope.** One pure function + the `getNodeOutput` `case "shot"` line + the eval route. No schema
-change; the Shot node still stores the full narrowed `script`.
+template. To A/B the trimmed context against the original, a **global switch** `renderShotContext(script, mode)`
+sits behind both renderers, with the mode resolved from the **`SHOT_CONTEXT_MODE`** env var
+(`shotContextMode()`): unset/anything → `minimal` (D23 default); `=full` → the pre-D23 full-reel
+`renderScriptAsText`. The switch drives **both production *and* the eval-bootstrap route** (which
+also records the arm in `inputs_used.contextMode`), so a **Run-02** against the frozen 20-shot
+fixture isolates context as the single variable: run once `minimal`, once `SHOT_CONTEXT_MODE=full`,
+compare homogeneity. It is **app-wide, not per-experiment** — you can't run both arms at once; flip
+the env var and re-run. Keep any `prompt-generate` change out of the same run or attribution is lost
+(Run-01 doc §3).
+**Scope.** Two pure functions (`renderShotForImage`, `renderShotContext`) + a one-line env reader
+(`shotContextMode`) + the `getNodeOutput` `case "shot"` line + the eval route. No schema change; the
+Shot node still stores the full narrowed `script`, so flipping the switch needs no re-fan-out.
 **Why.** This is the **rail for the eval flywheel** (Step 1 of 4): the highest-value signal
 for improving a prompt is the *correction* — *model wrote X, human shipped Y* — and today an
 edit overwrites X, destroying it (the one time-sensitive gap: lost signal is unrecoverable).
