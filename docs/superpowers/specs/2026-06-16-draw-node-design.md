@@ -111,9 +111,10 @@ A single white-background raster `<canvas>`, **one-shot**:
 - **Background** — filled white on init and on clear, so the exported PNG is a clean
   white-on-black sketch (clear reference for vision; no transparency surprises).
 - **Pen** — black (default), red, green; one fixed stroke width.
-- **Eraser** — `globalCompositeOperation = "destination-out"` while erasing, then back to
-  `"source-over"`. (Because the bg is white, an alternative "paint white" eraser would also
-  work, but `destination-out` keeps the tool model uniform.)
+- **Eraser** — paints **white** (`strokeStyle = "#ffffff"`, normal `source-over`). Because the
+  background is always white and there are no layers/underlay in v1, a white pen *is* the
+  eraser — and unlike `destination-out` it never punches transparent holes into the exported
+  PNG. (`destination-out` is reserved for the future layered/underlay refinement.)
 - **Clear** — `clearRect` then refill white.
 - **Input** — the **Pointer Events API** (`pointerdown`/`pointermove`/`pointerup`) unifies
   mouse, pen, and touch in one handler; `setPointerCapture` keeps strokes smooth past the
