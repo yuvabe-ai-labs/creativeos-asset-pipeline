@@ -153,8 +153,8 @@ export function DrawFocusView({
                   New
                 </span>
                 <div className="flex min-h-0 flex-1 gap-2">
-                  {/* vertical control rail */}
-                  <div className="flex shrink-0 flex-col items-center gap-2 rounded-xl border border-neutral-200 bg-card px-1.5 py-2 shadow-card">
+                  {/* vertical control rail — hugs its content, vertically centered */}
+                  <div className="flex shrink-0 flex-col items-center gap-2.5 self-center rounded-3xl border border-border bg-card px-2 py-3 shadow-card">
                     {DRAW_COLORS.map((c) => (
                       <button
                         key={c}
@@ -213,15 +213,15 @@ export function DrawFocusView({
                     </select>
                   </div>
 
-                  {/* drawing canvas */}
-                  <div className="flex min-h-0 flex-1 items-center justify-center">
+                  {/* drawing canvas (card frame — matches the Saved card for alignment) */}
+                  <div className="flex min-h-0 flex-1 items-center justify-center rounded-xl border border-border bg-card p-3 shadow-card">
                     <canvas
                       ref={setCanvasRef}
                       onPointerDown={onPointerDown}
                       onPointerMove={onPointerMove}
                       onPointerUp={onPointerUp}
                       onPointerLeave={onPointerLeave}
-                      className="nodrag rounded-lg border border-border shadow-card"
+                      className="nodrag rounded-md border border-border"
                       style={{
                         // Scale-to-fit the cell; works for 9:16 / 1:1 / 16:9.
                         maxWidth: "100%",
@@ -240,7 +240,7 @@ export function DrawFocusView({
                 <span className="text-eyebrow mb-1.5 block !text-[0.6rem] text-muted-foreground">
                   Saved
                 </span>
-                <div className="flex min-h-0 flex-1 items-center justify-center rounded-lg border border-border bg-muted/20 p-3">
+                <div className="flex min-h-0 flex-1 items-center justify-center rounded-xl border border-border bg-card p-3 shadow-card">
                   {existingImageUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
@@ -268,7 +268,7 @@ export function DrawFocusView({
                 onBlur={() => onPatch({ instructions: localInstr })}
                 placeholder="e.g. wide low-angle hero shot, product centered, warm light…"
                 rows={2}
-                className="nodrag resize-none"
+                className="nodrag resize-none rounded-xl border-border bg-card shadow-card"
               />
             </div>
           </div>
