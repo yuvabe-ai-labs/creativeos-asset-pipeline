@@ -24,6 +24,7 @@
 | 5 | **Input formats.** MVP script input is pasted text + `.md`/`.txt` upload. `.docx`/`.pdf` extraction is deferred. | §11.1 | D15 |
 | 6 | **Edit at the source.** A node's output is edited only where it is produced; downstream consumers get read-only mirrors, never per-consumer overrides. | §9.2 | D20 |
 | 7 | **Shot fan-out.** A reel is `1 script → N shots → N images → N clips → 1 reel`. A human-triggered **"fan out shots"** materializes each shot of a parsed script into its own first-class **Shot node** (seed-and-fork; mark, don't block). | §7, §10, §14, §15 | D21 |
+| 8 | **Shot → image context trimmed.** A Shot still *carries* its full narrowed script (D21), but when it feeds an image prompt only the **visual description + production medium** are passed — reel-level copy (objective, on-screen text, voiceover, caption, CTA, …) is dropped to cut homogeneity and baked-in-text risk. Grounded in the Run-01 eval. | §7.1, §10, §12 | D23 |
 
 Everything below the changelog is the full PRD with these changes applied. Sections
 not touched by the Script-node revision (problem, principles, downstream Prompt/Image/
@@ -277,7 +278,7 @@ Generate nodes
 | **Script node** *(shipped)* | Parses a **finished reel script** into structured, editable, asset-ready fields | Raw script text + structured reel-script JSON |
 | **Brief node** *(planned — retained for later)* | Parses an upstream **project brief** into structured context | Raw text + structured brief |
 | **Text node** | Holds manual notes, copy, constraints, or instructions | Text |
-| **Shot node** *(D21)* | One shot of a reel, materialized from a parsed Script via **"fan out shots."** Carries the full parsed script **narrowed to its single shot** ("a Script node with one shot") — editable shot description + all the script metadata + order. Its content **is** its output (no AI, no version log — like a Text node) | The script (one shot) rendered as text — keeps objective/tone/on-screen/voiceover context |
+| **Shot node** *(D21)* | One shot of a reel, materialized from a parsed Script via **"fan out shots."** Carries the full parsed script **narrowed to its single shot** ("a Script node with one shot") — editable shot description + all the script metadata + order. Its content **is** its output (no AI, no version log — like a Text node) | For an image prompt, the shot's **visual description + production medium** only (**D23** — reel-level copy is dropped); the full carried script is retained for later/video use |
 | **File node** | Holds `.txt` or image references | File reference, image reference, optional extracted output |
 
 > **A reel is `1 script → N shots → N images → N clips → 1 reel`** (D21). The shot, not the whole
@@ -285,7 +286,9 @@ Generate nodes
 > Script that copies each shot into its own independent **Shot node** (seed-and-fork): a one-time
 > copy, not a live link — later script edits do not propagate. A **dashed Script→Shot lineage
 > edge** shows provenance (visual only — resolution never traverses it). Each Shot carries the
-> full script narrowed to one shot, so downstream prompts keep the whole creative context. The
+> full script narrowed to one shot; for an **image prompt** only the visual description + production
+> medium are passed downstream (D23 — reel-level copy is dropped), while the full carried script
+> stays available for later/video use. The
 > origin is also recorded (`seededFrom`) so a Shot can show a "script updated since fork" signal
 > (mark, don't block — D9/D21). Each Shot is the **through-line** that feeds a Prompt→Image now and
 > a Video clip later, and carries the duration/order the final reel assembly needs.
@@ -390,7 +393,7 @@ Inline files are local to that Prompt node. They are not automatically added to 
 | Brief node | Prompt node | Use parsed brief as context *(when a project starts from an upstream brief)* |
 | Script node | Prompt node | Use parsed reel-script fields (shots, on-screen text, voiceover, caption) as prompt context |
 | Script node | Shot nodes | **Dashed lineage edge** (provenance, not live data) drawn by "fan out shots" (seed-and-fork, D21); each shot becomes an independent Shot node carrying the full script narrowed to one shot |
-| Shot node | Prompt node | Use the shot's full context (script narrowed to one shot) as the prompt context for that shot's image (one image per shot, D21) |
+| Shot node | Prompt node | Use the shot's **visual description + production medium** as the prompt context for that shot's image (one image per shot, D21; trimmed per D23) |
 | Text node | Prompt node | Add notes, constraints, or instructions |
 | File node: `.txt` | Prompt node | Use reference text |
 | File node: image | Prompt node | Use visual reference for prompt generation |
@@ -933,6 +936,14 @@ descriptive composition) and in the Generate node (the request actually sent).
 > Prompt node) or the model invents them and they homogenise. Evidenced by eval Run 01 (every
 > prompt collapsed to one lens/lighting/palette template) —
 > `docs/evals/2026-06-14-run-01-prakriti-image-prompt-bootstrap.md`.
+>
+> **Context, not just controls (D23).** Reading the same Run-01 traces showed a *second* homogeneity
+> driver in the **input**: the Shot context fed the model the whole reel script, whose
+> `strategic_objective` told every VISUAL shot, identically, to be "slow luxury cinematic" (and whose
+> caption/title re-asserted the brand tone the KB block already carries). A Shot now passes only its
+> **visual description + production medium** to an image prompt (D23); the reel's audio/marketing/
+> overlay copy is dropped. This is orthogonal to the controls split above and is measured separately
+> via the frozen eval harness (Run-02).
 
 ---
 

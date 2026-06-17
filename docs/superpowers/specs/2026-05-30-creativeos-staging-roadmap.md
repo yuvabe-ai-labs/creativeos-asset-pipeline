@@ -366,10 +366,11 @@ whole script — is the unit of generation. A human-triggered **"Fan out shots"*
 parsed Script **materializes each shot into its own first-class `Shot` node** (seed-and-fork):
 - A **`Shot` node** carries `{ script, order, seededFrom }`, where `script` is the parent
   `ReelScript` **narrowed to its single shot** — *"a Script node with one shot."* It keeps the
-  full metadata (objective, on-screen text, voiceover, caption, …), not just the shot line, so
-  downstream prompts don't lose creative context (**amended 2026-06-12** — originally just the
-  shot description). Like the Text/Note node, its **content *is* its output** — no AI, no version
-  log (D19/D20); rendered via `renderScriptAsText` (same as the Script node). It feeds a
+  full metadata (objective, on-screen text, voiceover, caption, …), not just the shot line
+  (**amended 2026-06-12** — originally just the shot description). Like the Text/Note node, its
+  **content *is* its output** — no AI, no version log (D19/D20). *For image prompts the carried
+  script is rendered via `renderShotForImage`, which keeps only the visually-actionable fields
+  (**refined by D23, 2026-06-16** — was `renderScriptAsText`).* It feeds a
   `Prompt → Image` now and a Video clip in Stage 4; its shot `duration` + `order` are what the
   Stage-5 reel assembly needs. The shot is the **through-line** of the whole pipeline.
 - Fan-out is a **one-time copy**, not a live link. Each Shot gets a fresh permanent id and is
@@ -405,6 +406,43 @@ output **as produced**, written once at generation and never mutated. The existi
 folds into `output` in place; it never touches `generated_output`. Both Script and Prompt
 edits funnel through the same `updateActiveVersionOutput`, so one `insertVersion` change
 covers both nodes; the edit path needs no change at all (it already updates only `output`).
+
+### D23 — A Shot's image context is trimmed to the visually-actionable fields *(recorded 2026-06-16; refines D21)*
+**Decision.** When a `Shot` node feeds a **Prompt → image**, render only the **shot's own visual
+description** + the **production medium** (`ai_production_type`), via a dedicated
+`renderShotForImage`. Drop the rest of the carried reel script — title, type, duration,
+strategic objective, on-screen text, voiceover, music & sound, caption, CTA, thumbnail hook.
+D21 still holds (the Shot *carries* the full narrowed script, with stable node identity); this
+only changes how that script is **flattened for an image prompt**. The full-reel
+`renderScriptAsText` is unchanged and still used by **Script** nodes (which legitimately want the
+whole brief as downstream text context).
+**Why.** A Shot feeds **one reference image**, not a reel. Reading the 20 real Run-01 eval
+`shotText`s ([run-01 doc](../../evals/2026-06-14-run-01-prakriti-image-prompt-bootstrap.md)): of
+~14 labelled fields, **exactly one** (the shot description) describes what's in frame — the visual
+signal is ~5–10% of the context by word count. The rest is **audio / marketing / overlay copy**
+that actively hurts an image prompt:
+- **Drives homogeneity** (the dominant Run-01 failure). `strategic_objective` has only three
+  values across the campaign, keyed to reel type — every VISUAL shot is told, identically, *"create
+  product desire through tactile, cinematic, slow luxury visuals,"* manufacturing the one
+  lens/lighting/palette recipe the eval flagged. `title`/`caption`/`production` re-assert the same
+  brand tone the **Brand-context (KB) block already supplies** — double-dosing.
+- **Risks baked-in text.** `on_screen_text`, `caption`, `cta`, `thumbnail_hook` are *overlay* copy
+  composited in post, not things in the photographed scene — feeding them invites garbled rendered
+  text in the reference plate (and `caption` even carries the FDA compliance words the prompt's
+  never-use rule fights).
+- **Pure noise.** `type`, `duration`, `voiceover` ("No voiceover…"), `music_sound` (a repeated
+  ~50-word boilerplate × 20) carry zero visual information.
+
+Brand palette + casting come from the KB block; lens/composition/lighting from the descriptive
+Shot controls (§11.5/§12, D-prompt-controls). So the per-shot text should carry only the subject
+and the medium — orthogonal to the prompt-template fix (`prompt-generate` v3).
+**Relation to D22 / the eval flywheel.** This is a **context** change, separable from the prompt
+template. The faithful eval-bootstrap route was updated to use `renderShotForImage` too, so a
+**Run-02** against the frozen 20-shot fixture isolates context-trimming as the single variable and
+measures the homogeneity delta (run it separately from any `prompt-generate` change, or attribution
+is lost — Run-01 doc §3).
+**Scope.** One pure function + the `getNodeOutput` `case "shot"` line + the eval route. No schema
+change; the Shot node still stores the full narrowed `script`.
 **Why.** This is the **rail for the eval flywheel** (Step 1 of 4): the highest-value signal
 for improving a prompt is the *correction* — *model wrote X, human shipped Y* — and today an
 edit overwrites X, destroying it (the one time-sensitive gap: lost signal is unrecoverable).

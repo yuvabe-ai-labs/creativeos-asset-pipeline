@@ -20,7 +20,7 @@ import {
 } from "@/lib/kb/parse-context";
 import { compileScript } from "@/lib/nodes/script";
 import { compilePrompt, DEFAULT_INSTRUCTION } from "@/lib/nodes/prompt";
-import { renderScriptAsText } from "@/lib/nodes/node-output";
+import { renderShotForImage } from "@/lib/nodes/node-output";
 import { scriptParsePrompt } from "@/prompts/script-parse";
 import { promptGeneratePrompt } from "@/prompts/prompt-generate";
 import { insertVersion, setActiveVersion } from "@/lib/db/versions";
@@ -177,7 +177,7 @@ export async function POST(req: Request) {
       }
       const shotIndex = i % shotCount; // vary shot position for coverage
       const narrowed = narrowToShot(reel, shotIndex);
-      const shotText = renderScriptAsText(narrowed);
+      const shotText = renderShotForImage(narrowed); // faithful to production: getNodeOutput "shot" → renderShotForImage (D23)
 
       // 3b. faithful image-prompt generation (real compilePrompt + prompt-generate)
       const { system: gSys, user: gUser } = compilePrompt({

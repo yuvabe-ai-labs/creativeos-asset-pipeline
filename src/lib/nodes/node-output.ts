@@ -14,10 +14,10 @@ export function getNodeOutput(node: NodeOutputInput): string {
     case "text":
       return String(node.data.text ?? "").trim();
     case "shot":
-      // A Shot carries the parent script narrowed to ONE shot (D21). Render it the
-      // same way as a Script so each per-shot prompt keeps the full creative brief
-      // (objective, on-screen text, voiceover, …) — no separate full-reel input.
-      return renderScriptAsText((node.data.script ?? null) as ReelScript | null);
+      // A Shot carries the parent script narrowed to ONE shot (D21), but it feeds ONE
+      // reference image — so render only the visually-actionable fields, not the whole
+      // reel brief (D23). See renderShotForImage for what's kept and why.
+      return renderShotForImage((node.data.script ?? null) as ReelScript | null);
     case "prompt":
       return typeof node.activeOutput === "string" ? node.activeOutput.trim() : "";
     case "script":
@@ -95,5 +95,26 @@ export function renderScriptAsText(script: ReelScript | null): string {
   push("CTA", script.cta);
   push("Thumbnail hook", script.thumbnail_hook);
 
+  return lines.join("\n");
+}
+
+// Render a Shot for a single reference IMAGE (D23). A Shot still carries the full reel
+// script narrowed to one shot (D21), but only two fields are visually actionable: the
+// shot's own description (subject/action/framing/lighting/surface) and the production
+// medium. Everything else in a reel script — title, type, duration, objective, on-screen
+// text, voiceover, music, caption, CTA, thumbnail hook — is audio / marketing / overlay
+// copy that (a) dilutes the per-shot signal, (b) drives homogeneity (every VISUAL shot's
+// objective says "slow luxury cinematic"), and (c) risks baked-in text in the plate.
+// Brand palette + casting come from the KB block; lens/lighting from Shot controls — so
+// we don't repeat them here. (The full-reel renderScriptAsText is still used by Script
+// nodes, which legitimately want the whole brief as downstream text context.)
+export function renderShotForImage(script: ReelScript | null): string {
+  if (!script) return "";
+  const lines: string[] = [];
+  const shot = script.visual_script?.shots?.[0];
+  if (shot?.description && shot.description.trim()) lines.push(shot.description.trim());
+  if (script.ai_production_type && script.ai_production_type.trim()) {
+    lines.push(`Medium: ${script.ai_production_type.trim()}`);
+  }
   return lines.join("\n");
 }
