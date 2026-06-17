@@ -1,4 +1,4 @@
-# Draw node — in-canvas sketching → image asset
+# Draw node — in-canvas sketching → image + composition instructions
 
 **Date:** 2026-06-16
 **Status:** Designed (not implemented)
@@ -6,41 +6,42 @@
 
 ## Problem
 
-Designers storyboard and sketch to work out composition and reference framing before
-generating images/video. Today that happens outside the canvas — they sketch elsewhere,
-export, and upload the result as a File node. There is no way to *draw inside* CreativeOS
-and feed the drawing straight into a Prompt or Image Gen node.
+Designers storyboard and sketch to work out composition before generating images/video.
+Today that happens outside the canvas — they sketch elsewhere, export, and upload the result
+as a File node. There is no way to *draw inside* CreativeOS and feed the drawing straight
+into a Prompt or Image Gen node.
 
-This adds an experimental **Draw node**: a node that opens a focus view with a drawing
-surface, lets the designer sketch with a mouse or tablet, and on save exports the drawing
-as a PNG that behaves exactly like a File image node downstream (vision input to a Prompt
-node, or a reference to an Image Gen node).
+This adds an experimental **Draw node**: a node that opens a focus view with a simple drawing
+surface and a "composition instructions" notes field. The designer sketches a rough
+composition (mouse or tablet), types what they mean, and on **Save** the drawing is exported
+as a PNG. Downstream, the node behaves like a File image node **plus** a Note node: the sketch
+becomes a vision input, and the instructions become a text block — both feeding the same
+Prompt / Image Gen node.
 
 ## Goals
 
 - New `"draw"` node type, modeled as a **special File node** (the same framing the PRD uses
   for the Script node) whose output is an image.
-- Focus view with a raster drawing surface: **pen, eraser, undo, clear**, mouse + tablet.
-- **Draw on top of an image:** optionally add a manual underlay (upload/paste) and sketch
-  over it; the eraser rubs out ink only, never the underlay.
-- On **Save**, flatten underlay + ink to one PNG and store it via the **existing** file
-  upload route, populating `fileUrl` + `fileKind: "image"` so downstream consumption is
+- Focus view with a single drawing surface: **pen (black / red / green), eraser, clear**;
+  mouse + tablet.
+- A **composition-instructions** textarea bundled into the node; it travels downstream as a
+  text block alongside the sketch.
+- On **Save**, flatten the canvas to one white-background PNG and store it via the **existing**
+  file upload route, populating `fileUrl` + `fileKind: "image"` so downstream consumption is
   untouched.
 - Connect `draw → prompt` and `draw → image-gen`, mirroring the File image node.
-- Sketch reaches the model as a real **vision attachment** for prompt generation.
+- Sketch reaches the model as a real **vision attachment**; instructions reach it as text.
 
-## Non-goals
+## Non-goals (deliberate v1 cuts — see Future refinements)
 
-- **Wired underlay** (connecting an upstream image *node* into the Draw node to trace over)
-  — deferred to a fast-follow. v1 underlay is manual upload/paste only.
-- **Layer-preserving persistence** — v1 persists a single *flattened* PNG. Storing the
-  transparent ink layer separately (for clean cross-session ink-only erasing) is a
-  documented future refinement.
-- **Vector / scene serialization** (tldraw/Excalidraw-style editable objects). v1 is raster.
-- **Pressure-sensitive variable stroke width** — Pointer Events expose `pressure`, but v1
-  uses a fixed width per pen size. Polish later.
-- **Third-party drawing library.** v1 is a plain raster `<canvas>` (zero deps) — see Library
-  decision.
+- **Re-editability** — v1 is **one-shot**. Reopening the focus view starts a fresh canvas;
+  the card keeps showing the last saved thumbnail. This is the single biggest simplifier: we
+  never draw the saved (cross-origin) PNG back onto a canvas, so we sidestep the entire
+  canvas-taint / CORS problem and need no undo-snapshot system.
+- **Draw on top of an image** (manual or wired underlay) — no compositing layers in v1.
+- **Undo / redo**, **stroke-width picker**, **layers**, **vector / scene serialization**.
+- **Pressure-sensitive variable stroke width** (Pointer Events expose `pressure`; not used).
+- **Third-party drawing library** — v1 is a plain raster `<canvas>` (zero deps).
 
 ## Library decision
 
@@ -49,10 +50,11 @@ Plain raster `<canvas>` + Pointer Events, **no drawing dependency**.
 - The stack is React **19.2.4** / Next **16.2.6** — bleeding edge. Third-party React drawing
   components (react-sketch-canvas, Excalidraw) risk lagging peer-deps and become a
   maintenance burden on framework bumps. A plain canvas is immune to that.
-- The needed features are cheap on raw canvas: eraser = `globalCompositeOperation =
-  "destination-out"`; export = `toBlob()`; re-edit = reload the saved PNG.
-- We build the small toolbar ourselves, which means it matches the Yuvabe design system
-  rather than fighting an opinionated embedded UI.
+- The needed features are cheap on raw canvas: pen = stroke a path; eraser =
+  `globalCompositeOperation = "destination-out"`; clear = `clearRect` + refill white; export
+  = `toBlob()`.
+- We build the small toolbar ourselves, so it matches the Yuvabe design system rather than
+  fighting an opinionated embedded UI.
 - If strokes ever feel too mechanical, `perfect-freehand` (a ~3 KB pure function, no React
   coupling) can prettify the line later without changing the architecture.
 
@@ -65,14 +67,15 @@ reference-only mode). Defined in `src/lib/canvas-nodes.ts` as `DrawNodeData`.
 
 | Field | Type | Notes |
 |---|---|---|
-| `title` | `string?` | Editable by the user ("Untitled sketch") |
-| `fileUrl` | `string?` | Flattened composite PNG — **the image handed downstream** |
+| `title` | `string?` | Editable ("Untitled sketch") |
+| `fileUrl` | `string?` | Flattened PNG — **the image handed downstream** |
 | `fileKind` | `"image"?` | Always `"image"` when present |
-| `filename` | `string?` | e.g. `"sketch.png"` |
-| `underlayUrl` | `string?` | Optional manual reference image traced over (v1) |
+| `filename` | `string?` | e.g. `"sketch-1718539200000.png"` |
+| `instructions` | `string?` | Composition instructions — **the text handed downstream** |
 
-`fileUrl` / `fileKind` deliberately reuse the File image fields so the consumption layer
-treats a Draw output identically to a File image.
+`fileUrl` / `fileKind` reuse the File image fields and `instructions` mirrors the Text node's
+content field, so persistence mappers (`flowToPersisted` / `nodeRowToFlow`) need no special
+handling. There is exactly **one** stored image per node (the flattened sketch).
 
 ### B. Connections + plumbing
 
@@ -84,116 +87,136 @@ draw: ["prompt", "image-gen"],
 
 (`image-gen` is not built yet; File already lists it — harmless and forward-compatible.)
 
-Two one-line widenings make the sketch a real model input:
+Three small widenings make the sketch + instructions real model inputs:
 
+- `src/lib/nodes/node-output.ts` — add a `case "draw"` to `getNodeOutput` returning
+  `String(node.data.instructions ?? "").trim()` (so the composition text becomes the node's
+  downstream text, exactly like the `"text"` case).
 - `src/lib/nodes/resolve-inputs.ts` — forward `fileUrl` / `fileKind` for `type === "draw"`
   as well as `"file"` (around lines 56–58); add `draw: "Sketch"` to `TYPE_LABEL`.
 - `src/lib/nodes/compose-message.ts` — `isVisionAttachment` accepts `type === "draw"`. A
   Draw node has no extraction/`useLlm` mode, so a present `fileUrl` is always a vision
   attachment.
 
-### C. Drawing surface & layering
+Net effect: one Draw node contributes **both** a text block (`instructions`) and a vision
+`image_url` part (the sketch) to a connected Prompt node.
 
-Two layers at runtime, one image at rest:
+### C. Drawing surface
 
-- **Underlay** — the optional reference image, drawn first.
-- **Ink canvas** — a transparent canvas on top; all strokes go here. Eraser uses
-  `destination-out` on the ink canvas only, so it never touches the underlay.
-- **Frame** — default **9:16** (vertical reel format), letterboxed/centered in the focus
-  view so the frame stays a true aspect ratio regardless of window size. The sketched
-  composition maps to the format the image/video model will generate.
+A single white-background raster `<canvas>`, **one-shot**:
+
+- **Resolution** — fixed **720 × 1280** (9:16, vertical reel format). Displayed scaled-to-fit
+  (CSS), so the saved aspect is deterministic regardless of window size. Pointer coordinates
+  map to canvas pixels via one ratio from `getBoundingClientRect()`.
+- **Background** — filled white on init and on clear, so the exported PNG is a clean
+  white-on-black sketch (clear reference for vision; no transparency surprises).
+- **Pen** — black (default), red, green; one fixed stroke width.
+- **Eraser** — `globalCompositeOperation = "destination-out"` while erasing, then back to
+  `"source-over"`. (Because the bg is white, an alternative "paint white" eraser would also
+  work, but `destination-out` keeps the tool model uniform.)
+- **Clear** — `clearRect` then refill white.
 - **Input** — the **Pointer Events API** (`pointerdown`/`pointermove`/`pointerup`) unifies
-  mouse, pen, and touch; `pointerType` distinguishes them. One handler, no per-device paths.
+  mouse, pen, and touch in one handler; `setPointerCapture` keeps strokes smooth past the
+  canvas edge.
 
-On **Save**: composite underlay + ink onto an export canvas (`drawImage(underlay)` then
-`drawImage(ink)`) → `toBlob()` → PNG.
+On **Save**: `canvas.toBlob(type: "image/png")` → one PNG. No layer compositing (single
+canvas), so export is a one-liner and never touches a cross-origin image.
 
 ### D. Focus view + toolbar
 
 A bottom `Sheet` at 92 vh, matching the File/Script focus views exactly (this *is* the
 "panel from the bottom"). Controlled overlay: `<DrawFocusView open onOpenChange … />`.
 
-Bottom toolbar (a `shadow-card` panel that animates up with the design-system easing):
+Layout: the 9:16 canvas centered in the body; a toolbar row + the instructions textarea
+docked near the bottom; Save in the header (like File's Replace/Remove actions).
 
-- **Pen** — 3 stroke widths; swatches: black (default), red, blue (red/blue earn their
-  place for storyboard arrows & annotations).
-- **Eraser** — toggles `destination-out` on the ink layer.
-- **Undo** — in-session snapshot stack.
-- **Clear** — wipes the ink layer, keeps the underlay.
-- **+ Add reference** — manual underlay upload/paste (v1 scope).
-- **Save** — the single primary-purple CTA; all other tools neutral.
+- **Color swatches** — black / red / green; the active color is ringed.
+- **Eraser** — toggle button; active state ringed.
+- **Clear** — wipes the canvas back to white (confirm via `AlertDialog`, matching File's
+  remove confirm).
+- **Composition instructions** — a `Textarea` (controlled), committed to `data.instructions`
+  on change/blur via `onPatch`.
+- **Save** — the single primary-purple CTA; all tools neutral.
 
-Save flow: composite → `toBlob()` → `new File([blob], "sketch.png")` → `FormData` → POST the
-existing `/api/nodes/:id/file` route → `updateNodeData({ fileUrl, fileKind: "image",
-filename })` → `sonner` toast → card thumbnail updates; downstream sees the new image.
+Save flow: `canvas.toBlob()` → `new File([blob], `sketch-${Date.now()}.png`, { type:
+"image/png" })` → `fileNodeService.upload(nodeId, file)` (the existing service/route) →
+`onPatch({ fileUrl, fileKind: "image", filename })` → `sonner` toast → card thumbnail
+updates; downstream sees the new image.
+
+> A unique `sketch-${timestamp}.png` filename per save avoids the public-URL caching gotcha
+> (overwriting the *same* storage path returns an identical URL the browser would cache). The
+> existing route deletes the previous `data.fileUrl` object before uploading, so no orphans
+> accumulate.
 
 ### E. Storage & persistence
 
-- **Output / re-edit state** — the flattened PNG, stored via the existing file route →
-  `fileUrl`. Re-opening loads that PNG back onto the canvas as the starting bitmap, so the
-  designer can keep drawing.
-- **Underlay** — `underlayUrl` persisted so the reference survives reopen.
-- **Reuse** — the existing `POST /api/nodes/:id/file` route (extension/size validation, old-
-  file cleanup, Supabase Storage) is used **unchanged**; PNG is an allowed extension. No new
-  route. No new bucket.
-- **v1 trade-off (intentional)** — the clean ink-only eraser is guaranteed *within* an
-  editing session. After close/reopen, ink + underlay are a merged bitmap, so a *later*
-  erase paints into the merged image. Fine for rough storyboard frames; avoids any
-  vector/scene format. Layer-preserving persistence is a future refinement.
+- **One image per node** — the flattened sketch, stored via the existing
+  `POST /api/nodes/:id/file` route, used **unchanged** (PNG is an allowed extension; it
+  validates size, cleans up the old object, returns the public URL).
+- **Instructions** — stored in `data.instructions` (JSONB), persisted by autosave.
+- **One-shot** — reopening shows a fresh white canvas (the previous sketch is not reloaded
+  onto the canvas — that is what keeps us free of CORS/taint). The node **card** still shows
+  the last saved thumbnail from `fileUrl`, and the instructions textarea still shows the saved
+  text. Saving again replaces the image.
 - `flowToPersisted` / `nodeRowToFlow` need no special handling — all fields live directly in
-  `data` JSONB (no `parsed`/version hydration for this node).
+  `data` JSONB (no `parsed`/version hydration for this node type).
 
 ### F. Components
 
 | File | Responsibility |
 |---|---|
 | `src/components/nodes/draw-node.tsx` | Mini canvas node — header, title, sketch thumbnail, status dot, "Open ↗" |
-| `src/components/nodes/draw-focus-view.tsx` | Bottom `Sheet` — drawing surface + toolbar, save handler, add-reference |
-| `src/components/nodes/use-drawing-canvas.ts` | Hook — pointer handling, stroke drawing, eraser flag, undo stack, composite/export |
+| `src/components/nodes/draw-focus-view.tsx` | Bottom `Sheet` — canvas + toolbar + instructions + Save |
+| `src/components/nodes/use-drawing-canvas.ts` | Hook — pointer handling, pen/eraser/clear, `toBlob` export |
 
 Registration:
 
 - `nodeTypes` in `src/components/canvas/canvas.tsx` gains `draw: DrawNode`.
-- The add-node context menu (`canvas-context-menu`) gains a "Draw" entry.
+- `defaultData` in `src/lib/canvas-store.ts` gains a `case "draw"` → `{ title: "" }`.
+- The add-node menu (`src/components/canvas/canvas-context-menu.tsx`) gains a "Draw" entry.
 
-### G. Pure logic to extract (for unit testing)
+### G. Pure logic to extract (unit-tested)
 
-- `compositeLayers(underlay, ink) → flattened` — pure given canvas/image sources.
-- Vision-gate + input-forwarding widenings (tested via existing test files).
+- `src/lib/nodes/draw-canvas.ts` → `drawingContextSettings(tool, color)` returns the canvas
+  context settings for the current tool: `{ globalCompositeOperation, strokeStyle }` —
+  `"source-over"` + the color for the pen, `"destination-out"` for the eraser. This isolates
+  the only branchy drawing logic into a pure, testable function; the hook just applies it.
 
 ## Testing
 
-Following the project's TDD norm: new pure logic is unit-tested (Vitest); canvas
-pixel-pushing is verified manually.
+Functional core is unit-tested (Vitest); the canvas/DOM shell is verified manually.
 
 - **Unit:**
   - `VALID_CONNECTIONS` — `draw → prompt` / `draw → image-gen` allowed; `draw → script`
     rejected (extend `src/lib/canvas-nodes.test.ts`).
+  - `getNodeOutput` — a `type: "draw"` node returns its `instructions` text; empty when blank
+    (extend `src/lib/nodes/node-output.test.ts`).
   - `compose-message` — a `type: "draw"` upstream with a `fileUrl` becomes an `image_url`
-    part (extend the compose-message test).
-  - `resolve-inputs` — `fileUrl` forwarded for draw upstreams.
-  - `use-drawing-canvas` — undo push/pop, eraser-mode flips composite op, export yields a
-    non-empty blob (synthetic pointer events).
-- **Manual:** add Draw node → Open → draw → Save → thumbnail + `fileUrl` set; reload →
-  drawing survives; connect to Prompt node → Generate → sketch sent as a vision attachment;
-  add reference underlay → draw over it → eraser leaves underlay intact.
-- `npx tsc --noEmit` clean for the new code.
+    part; one without a `fileUrl` does not (new `src/lib/nodes/compose-message.test.ts`).
+  - `drawingContextSettings` — pen → `source-over` + color; eraser → `destination-out`
+    (new `src/lib/nodes/draw-canvas.test.ts`).
+- **Manual / `tsc`:** `resolve-inputs` widening (server-only) verified by `tsc` + the e2e run.
+- **Manual e2e:** add Draw node → Open → draw with each color + eraser + clear → type
+  instructions → Save → card thumbnail + `fileUrl` set, instructions persisted; reload →
+  thumbnail + instructions survive (canvas fresh); connect to a Prompt node → Generate → the
+  request carries the sketch as a vision attachment and the instructions as text.
 
 ## Design-system notes
 
 - Card uses `shadow-card`, `border-border`, `bg-card`; status dot follows the File/Script
   pattern (purple = has sketch, muted = empty); header uses `font-display` + `text-eyebrow`.
-- Toolbar panel is a `shadow-card` surface with `neutral-200` border; animates up with the
-  `cubic-bezier(0.22,1,0.36,1)` easing (via `motion/react` or CSS).
-- Purple `#5829c7` only on the **Save** CTA and the active-tool indicator — sparingly.
-- Icons: Lucide, 1.5 stroke (`Pencil`, `Eraser`, `Undo2`, `Trash2`, `ImagePlus`).
+- Toolbar lives on a `shadow-card` surface with `neutral-200` border; the active color/tool
+  uses a `ring-primary` indicator. Purple `#5829c7` only on the **Save** CTA and the active
+  indicator — sparingly.
+- Icons: Lucide, 1.5 stroke (`Pencil`, `Eraser`, `Trash2`, `ImagePlus` unused in v1).
 
 ## Future refinements (out of v1)
 
-1. **Wired underlay** — allow `file → draw` / `image-gen → draw` so a generated frame can be
-   sketched over and fed back (the iterate-on-output loop). Requires Draw as a connection
-   *target* + "which input is the underlay" resolution.
-2. **Layer-preserving persistence** — store the transparent ink PNG separately for clean
-   cross-session ink-only erasing.
-3. **`perfect-freehand`** strokes + Pointer `pressure` for a more natural line.
+1. **Re-editability** — reload the saved PNG to keep drawing, which requires handling
+   canvas-taint via `crossOrigin="anonymous"` + Supabase CORS, plus an undo-snapshot system.
+2. **Draw on top of an image** — manual underlay first, then **wired** underlay
+   (`file → draw` / `image-gen → draw`) so a generated frame can be sketched over and fed
+   back (the iterate-on-output loop). Needs Draw as a connection *target* + layer compositing.
+3. **`perfect-freehand`** strokes + Pointer `pressure` for a more natural line; more colors /
+   stroke widths.
 4. **Aspect presets** (1:1, 16:9) beyond the 9:16 default.
