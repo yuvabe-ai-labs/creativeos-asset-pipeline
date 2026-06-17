@@ -134,27 +134,31 @@ export function DrawFocusView({
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-auto">
-          <div className="mx-auto flex w-full max-w-5xl flex-col items-center gap-4 px-6 py-6">
-            <canvas
-              ref={setCanvasRef}
-              onPointerDown={onPointerDown}
-              onPointerMove={onPointerMove}
-              onPointerUp={onPointerUp}
-              onPointerLeave={onPointerLeave}
-              className="nodrag rounded-lg border border-border shadow-card"
-              style={{
-                // Scale-to-fit by the canvas's intrinsic buffer size (set per orientation),
-                // so the same style works for 9:16 / 1:1 / 16:9.
-                maxWidth: "100%",
-                maxHeight: "min(60vh, 640px)",
-                cursor: "crosshair",
-                touchAction: "none",
-              }}
-            />
+        <div className="min-h-0 flex-1 overflow-hidden">
+          <div className="mx-auto flex h-full w-full max-w-5xl flex-col items-center gap-3 px-6 py-4">
+            {/* canvas area — takes the space left after the fixed toolbar + instructions,
+                so the canvas scales to fit and the sheet never scrolls */}
+            <div className="flex min-h-0 w-full flex-1 items-center justify-center">
+              <canvas
+                ref={setCanvasRef}
+                onPointerDown={onPointerDown}
+                onPointerMove={onPointerMove}
+                onPointerUp={onPointerUp}
+                onPointerLeave={onPointerLeave}
+                className="nodrag rounded-lg border border-border shadow-card"
+                style={{
+                  // Scale-to-fit the available area; works for 9:16 / 1:1 / 16:9.
+                  maxWidth: "100%",
+                  maxHeight: "100%",
+                  display: "block",
+                  cursor: "crosshair",
+                  touchAction: "none",
+                }}
+              />
+            </div>
 
             {/* toolbar */}
-            <div className="flex items-center gap-3 rounded-xl border border-neutral-200 bg-card px-3 py-2 shadow-card">
+            <div className="flex shrink-0 items-center gap-3 rounded-xl border border-neutral-200 bg-card px-3 py-2 shadow-card">
               {DRAW_COLORS.map((c) => (
                 <button
                   key={c}
@@ -212,8 +216,8 @@ export function DrawFocusView({
             </div>
 
             {/* composition instructions */}
-            <div className="w-full max-w-md">
-              <label className="text-eyebrow mb-1.5 block !text-[0.65rem]">
+            <div className="w-full max-w-md shrink-0">
+              <label className="text-eyebrow mb-1 block !text-[0.65rem]">
                 Composition instructions
               </label>
               <Textarea
@@ -221,7 +225,7 @@ export function DrawFocusView({
                 onChange={(e) => setLocalInstr(e.target.value)}
                 onBlur={() => onPatch({ instructions: localInstr })}
                 placeholder="e.g. wide low-angle hero shot, product centered, warm light…"
-                rows={3}
+                rows={2}
                 className="nodrag resize-none"
               />
             </div>
