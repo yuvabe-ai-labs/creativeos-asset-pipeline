@@ -19,9 +19,35 @@ export async function listClients(): Promise<ClientWithCount[]> {
   const { data, error } = await supabase
     .from("clients")
     .select("*, canvases(updated_at)")
+    .is("archived_at", null) // active clients only
     .order("created_at", { ascending: false });
   if (error) throw error;
   return ((data ?? []) as RawClientWithCanvases[]).map(mapClientWithCount);
+}
+
+// Archived clients, most-recently-archived first — for the Archived tab.
+export async function listArchivedClients(): Promise<ClientWithCount[]> {
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("clients")
+    .select("*, canvases(updated_at)")
+    .not("archived_at", "is", null)
+    .order("archived_at", { ascending: false });
+  if (error) throw error;
+  return ((data ?? []) as RawClientWithCanvases[]).map(mapClientWithCount);
+}
+
+// Soft delete: archive (stamp archived_at = now) or unarchive (clear to null).
+export async function setClientArchived(
+  clientId: string,
+  archived: boolean,
+): Promise<void> {
+  const supabase = createServerSupabase();
+  const { error } = await supabase
+    .from("clients")
+    .update({ archived_at: archived ? new Date().toISOString() : null })
+    .eq("id", clientId);
+  if (error) throw error;
 }
 
 export async function getClientById(id: string): Promise<ClientRow | null> {
