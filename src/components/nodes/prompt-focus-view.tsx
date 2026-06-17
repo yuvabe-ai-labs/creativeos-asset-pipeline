@@ -36,6 +36,8 @@ import {
   type VersionSummary,
 } from "./prompt-version-history";
 import { UsagePopover } from "./prompt-usage-popover";
+import { InlineEvalBar } from "./inline-eval-bar";
+import { setVersionLabelAction } from "@/lib/actions/eval";
 
 type PromptFocusViewProps = {
   open: boolean;
@@ -117,6 +119,9 @@ export function PromptFocusView({
   const [loadingPreview, setLoadingPreview] = useState(false);
   // When set, the body shows a read-only full view of that connected input.
   const [detailNodeId, setDetailNodeId] = useState<string | null>(null);
+  const [evalDecision, setEvalDecision] = useState<"pass" | "fail" | null>(null);
+  const [evalNote, setEvalNote] = useState("");
+  const [evalSaving, setEvalSaving] = useState(false);
 
   if (seed.open !== open || seed.output !== output) {
     const opening = open && !seed.open; // sheet just opened (false → true)
@@ -161,8 +166,13 @@ export function PromptFocusView({
       const res = await fetch(`/api/nodes/${nodeId}/versions`);
       if (!res.ok) return;
       const json = await res.json();
-      setVersions(json.versions ?? []);
-      setActiveVersionId(json.activeVersionId ?? null);
+      const versions: VersionSummary[] = json.versions ?? [];
+      const activeVid: string | null = json.activeVersionId ?? null;
+      setVersions(versions);
+      setActiveVersionId(activeVid);
+      const active = versions.find((v) => v.id === activeVid);
+      setEvalDecision(active?.decision ?? null);
+      setEvalNote(active?.note ?? "");
     } catch {
       /* best-effort */
     }
@@ -177,8 +187,13 @@ export function PromptFocusView({
         const res = await fetch(`/api/nodes/${nodeId}/versions`);
         if (!cancelled && res.ok) {
           const json = await res.json();
-          setVersions(json.versions ?? []);
-          setActiveVersionId(json.activeVersionId ?? null);
+          const versions: VersionSummary[] = json.versions ?? [];
+          const activeVid: string | null = json.activeVersionId ?? null;
+          setVersions(versions);
+          setActiveVersionId(activeVid);
+          const active = versions.find((v) => v.id === activeVid);
+          setEvalDecision(active?.decision ?? null);
+          setEvalNote(active?.note ?? "");
         }
       } catch {
         /* best-effort */
@@ -222,8 +237,36 @@ export function PromptFocusView({
     onPatch({ controls: deriveShotControlDefaults(shotText) });
   }, [open, controls, loadingPreview, preview.connected, onPatch]);
 
+  async function handleEvalDecision(d: "pass" | "fail" | null) {
+    if (!activeVersionId) return;
+    setEvalDecision(d);
+    setEvalSaving(true);
+    try {
+      await setVersionLabelAction(activeVersionId, { decision: d, note: evalNote.trim() || null });
+      toast.success("Feedback saved");
+    } catch {
+      toast.error("Failed to save feedback");
+    } finally {
+      setEvalSaving(false);
+    }
+  }
+
+  async function handleEvalNoteBlur() {
+    if (!activeVersionId || evalDecision === null) return;
+    setEvalSaving(true);
+    try {
+      await setVersionLabelAction(activeVersionId, { decision: evalDecision, note: evalNote.trim() || null });
+    } catch {
+      toast.error("Failed to save note");
+    } finally {
+      setEvalSaving(false);
+    }
+  }
+
   async function runGenerate() {
     setGenerating(true);
+    setEvalDecision(null);
+    setEvalNote("");
     try {
       const res = await fetch(`/api/nodes/${nodeId}/generate`, {
         method: "POST",
@@ -450,7 +493,15 @@ export function PromptFocusView({
                 className="flex flex-col gap-3 px-6 py-5 min-h-0 overflow-hidden"
                 style={{ flex: "7 7 0%" }}
               >
-                <span className="text-eyebrow">Generated Prompt</span>
+                <InlineEvalBar
+                  decision={evalDecision}
+                  note={evalNote}
+                  saving={evalSaving}
+                  visible={mode === "result" && !!activeVersionId}
+                  onDecision={handleEvalDecision}
+                  onNote={setEvalNote}
+                  onNoteBlur={handleEvalNoteBlur}
+                />
 
                 {mode === "skeleton" && (
                   <div className="flex-1 space-y-2.5 pt-1">
