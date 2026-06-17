@@ -11,7 +11,7 @@ import { DEFAULT_IMAGE_PROMPT_SLICES, type KBSliceKey } from "@/lib/kb/parse-con
 import type { ShotControls } from "@/lib/nodes/shot-controls";
 import { NodeContextMenu } from "./node-context-menu";
 
-const TYPE_LABEL: Record<string, string> = { script: "Script", text: "Note", prompt: "Prompt", kb: "Brand KB", file: "File", shot: "Shot" };
+const TYPE_LABEL: Record<string, string> = { script: "Script", text: "Note", prompt: "Prompt", kb: "Brand KB", file: "File", shot: "Shot", draw: "Sketch" };
 
 // Prompt node. A compact launcher; double-click / Open hands off to the Prompt
 // focus view. The Inputs panel's connected-node list is derived from the store graph.
@@ -38,8 +38,14 @@ export function PromptNode({ id, data, selected }: NodeProps) {
         id: n.id,
         label: TYPE_LABEL[n.type ?? ""] ?? String(n.type),
         type: n.type ?? "",
-        fileUrl: n.type === "file" ? (d.fileUrl as string | undefined) : undefined,
-        fileKind: n.type === "file" ? (d.fileKind as string | undefined) : undefined,
+        fileUrl:
+          n.type === "file" || n.type === "draw"
+            ? (d.fileUrl as string | undefined)
+            : undefined,
+        fileKind:
+          n.type === "file" || n.type === "draw"
+            ? (d.fileKind as string | undefined)
+            : undefined,
         useLlm: n.type === "file" ? (d.useLlm as boolean | undefined) : undefined,
       };
     });

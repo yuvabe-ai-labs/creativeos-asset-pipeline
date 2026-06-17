@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { FileText, Paperclip, Sparkles, ChevronRight, Clapperboard, Maximize2, ArrowLeft } from "lucide-react";
+import { FileText, Paperclip, Pencil, Sparkles, ChevronRight, Clapperboard, Maximize2, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type UpstreamNode = {
@@ -67,7 +67,10 @@ export function ConnectedInputsCard({ upstream, preview, onOpenDetail }: Props) 
         const fileKind = p?.fileKind ?? u.fileKind;
         const useLlm = p?.useLlm ?? u.useLlm;
         const isExpanded = expanded.has(u.id);
-        const isImage = u.type === "file" && fileKind === "image" && !!fileUrl;
+        const isImage =
+          (u.type === "file" || u.type === "draw") &&
+          fileKind === "image" &&
+          !!fileUrl;
 
         return (
           <li key={u.id} className="rounded-lg border border-border overflow-hidden">
@@ -143,7 +146,9 @@ export function ConnectedInputsCard({ upstream, preview, onOpenDetail }: Props) 
                         ? "Open this Script node and generate content first."
                         : u.type === "file"
                           ? "No file content yet — open this File node and attach a file."
-                          : "No output yet — open this node and add content first."}
+                          : u.type === "draw"
+                            ? "No sketch yet — open this Draw node and save one."
+                            : "No output yet — open this node and add content first."}
                   </p>
                 )}
               </div>
@@ -165,7 +170,10 @@ export function ConnectedDetailView({
   node: ConnectedPreview;
   onBack: () => void;
 }) {
-  const isImage = node.type === "file" && node.fileKind === "image" && !!node.fileUrl;
+  const isImage =
+    (node.type === "file" || node.type === "draw") &&
+    node.fileKind === "image" &&
+    !!node.fileUrl;
 
   return (
     <div className="w-full max-w-5xl flex flex-col min-h-0 overflow-hidden px-6 py-6 gap-4">
@@ -203,6 +211,7 @@ function NodeIcon({ type }: { type: string }) {
   if (type === "shot") return <Clapperboard className="size-3 shrink-0 text-primary" />;
   if (type === "script") return <FileText className="size-3 shrink-0 text-primary" />;
   if (type === "file") return <Paperclip className="size-3 shrink-0 text-primary" />;
+  if (type === "draw") return <Pencil className="size-3 shrink-0 text-primary" />;
   if (type === "prompt") return <Sparkles className="size-3 shrink-0 text-primary" />;
   return <FileText className="size-3 shrink-0 text-muted-foreground" />;
 }
