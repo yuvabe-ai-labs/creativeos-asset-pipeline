@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { drawingContextSettings, type DrawTool } from "@/lib/nodes/draw-canvas";
 
 // Fixed 9:16 reel frame. Displayed scaled-to-fit; these are the real pixel dimensions, so
@@ -12,19 +12,17 @@ const STROKE_WIDTH = 4;
 // black, red, green
 export const DRAW_COLORS = ["#171717", "#dc2626", "#16a34a"] as const;
 
-export function useDrawingCanvas() {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+// The canvas ref is owned by the component (the blessed pattern — see FileFocusView) and
+// passed in. Drawing handlers read the element from `e.currentTarget`, so they never touch
+// the ref during render. `clear`/`toBlob` read `ref.current` only inside callbacks.
+export function useDrawingCanvas(
+  canvasRef: React.RefObject<HTMLCanvasElement | null>,
+) {
   const drawingRef = useRef(false);
   const lastRef = useRef<{ x: number; y: number } | null>(null);
 
   const [tool, setTool] = useState<DrawTool>("pen");
   const [color, setColor] = useState<string>(DRAW_COLORS[0]);
-
-  // Pointer handlers are bound once; read the latest tool/color through refs.
-  const toolRef = useRef(tool);
-  toolRef.current = tool;
-  const colorRef = useRef(color);
-  colorRef.current = color;
 
   const fillWhite = useCallback((ctx: CanvasRenderingContext2D) => {
     ctx.save();
@@ -34,22 +32,19 @@ export function useDrawingCanvas() {
     ctx.restore();
   }, []);
 
-  // Ref callback: size the canvas and paint the white background once mounted.
-  const setCanvasEl = useCallback(
-    (el: HTMLCanvasElement | null) => {
-      canvasRef.current = el;
-      if (!el) return;
-      el.width = CANVAS_W;
-      el.height = CANVAS_H;
-      const ctx = el.getContext("2d");
-      if (ctx) fillWhite(ctx);
-    },
-    [fillWhite],
-  );
+  // Size the canvas + paint the white background on mount (and on remount, which gives the
+  // one-shot "fresh canvas on reopen" behavior).
+  useEffect(() => {
+    const el = canvasRef.current;
+    if (!el) return;
+    el.width = CANVAS_W;
+    el.height = CANVAS_H;
+    const ctx = el.getContext("2d");
+    if (ctx) fillWhite(ctx);
+  }, [canvasRef, fillWhite]);
 
   const toCanvasPoint = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
-    const el = canvasRef.current!;
-    const rect = el.getBoundingClientRect();
+    const rect = e.currentTarget.getBoundingClientRect();
     return {
       x: ((e.clientX - rect.left) / rect.width) * CANVAS_W,
       y: ((e.clientY - rect.top) / rect.height) * CANVAS_H,
@@ -58,9 +53,7 @@ export function useDrawingCanvas() {
 
   const onPointerDown = useCallback(
     (e: React.PointerEvent<HTMLCanvasElement>) => {
-      const el = canvasRef.current;
-      if (!el) return;
-      el.setPointerCapture(e.pointerId);
+      e.currentTarget.setPointerCapture(e.pointerId);
       drawingRef.current = true;
       lastRef.current = toCanvasPoint(e);
     },
@@ -70,13 +63,11 @@ export function useDrawingCanvas() {
   const onPointerMove = useCallback(
     (e: React.PointerEvent<HTMLCanvasElement>) => {
       if (!drawingRef.current) return;
-      const el = canvasRef.current;
-      if (!el) return;
-      const ctx = el.getContext("2d");
+      const ctx = e.currentTarget.getContext("2d");
       if (!ctx) return;
       const p = toCanvasPoint(e);
       const last = lastRef.current ?? p;
-      const s = drawingContextSettings(toolRef.current, colorRef.current);
+      const s = drawingContextSettings(tool, color);
       ctx.globalCompositeOperation = s.globalCompositeOperation;
       ctx.strokeStyle = s.strokeStyle;
       ctx.lineWidth = STROKE_WIDTH;
@@ -88,14 +79,15 @@ export function useDrawingCanvas() {
       ctx.stroke();
       lastRef.current = p;
     },
-    [toCanvasPoint],
+    [toCanvasPoint, tool, color],
   );
 
-  const endStroke = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
+  const onPointerUp = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
     drawingRef.current = false;
     lastRef.current = null;
-    const el = canvasRef.current;
-    if (el && el.hasPointerCapture(e.pointerId)) el.releasePointerCapture(e.pointerId);
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
   }, []);
 
   const clear = useCallback(() => {
@@ -105,7 +97,7 @@ export function useDrawingCanvas() {
     if (!ctx) return;
     ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
     fillWhite(ctx);
-  }, [fillWhite]);
+  }, [canvasRef, fillWhite]);
 
   const toBlob = useCallback(
     () =>
@@ -114,21 +106,18 @@ export function useDrawingCanvas() {
         if (!el) return resolve(null);
         el.toBlob((b) => resolve(b), "image/png");
       }),
-    [],
+    [canvasRef],
   );
 
   return {
-    setCanvasEl,
     tool,
     setTool,
     color,
     setColor,
-    handlers: {
-      onPointerDown,
-      onPointerMove,
-      onPointerUp: endStroke,
-      onPointerLeave: endStroke,
-    },
+    onPointerDown,
+    onPointerMove,
+    onPointerUp,
+    onPointerLeave: onPointerUp,
     clear,
     toBlob,
   };

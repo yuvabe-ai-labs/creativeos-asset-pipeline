@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ArrowLeft, Eraser, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -39,7 +39,19 @@ export function DrawFocusView({
   instructions,
   onPatch,
 }: DrawFocusViewProps) {
-  const draw = useDrawingCanvas();
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const {
+    tool,
+    setTool,
+    color,
+    setColor,
+    onPointerDown,
+    onPointerMove,
+    onPointerUp,
+    onPointerLeave,
+    clear,
+    toBlob,
+  } = useDrawingCanvas(canvasRef);
   const [saving, setSaving] = useState(false);
   const [localInstr, setLocalInstr] = useState(instructions ?? "");
   const [confirmClear, setConfirmClear] = useState(false);
@@ -47,7 +59,7 @@ export function DrawFocusView({
   async function handleSave() {
     setSaving(true);
     try {
-      const blob = await draw.toBlob();
+      const blob = await toBlob();
       if (!blob) throw new Error("Nothing to save yet");
       const file = new File([blob], `sketch-${Date.now()}.png`, {
         type: "image/png",
@@ -107,11 +119,11 @@ export function DrawFocusView({
         <div className="min-h-0 flex-1 overflow-auto">
           <div className="mx-auto flex w-full max-w-5xl flex-col items-center gap-4 px-6 py-6">
             <canvas
-              ref={draw.setCanvasEl}
-              onPointerDown={draw.handlers.onPointerDown}
-              onPointerMove={draw.handlers.onPointerMove}
-              onPointerUp={draw.handlers.onPointerUp}
-              onPointerLeave={draw.handlers.onPointerLeave}
+              ref={canvasRef}
+              onPointerDown={onPointerDown}
+              onPointerMove={onPointerMove}
+              onPointerUp={onPointerUp}
+              onPointerLeave={onPointerLeave}
               className="nodrag rounded-lg border border-border shadow-card"
               style={{
                 height: "min(60vh, 640px)",
@@ -129,13 +141,13 @@ export function DrawFocusView({
                   key={c}
                   type="button"
                   onClick={() => {
-                    draw.setColor(c);
-                    draw.setTool("pen");
+                    setColor(c);
+                    setTool("pen");
                   }}
                   className={cn(
                     "size-6 rounded-full border border-border transition",
-                    draw.tool === "pen" &&
-                      draw.color === c &&
+                    tool === "pen" &&
+                      color === c &&
                       "ring-2 ring-primary ring-offset-1",
                   )}
                   style={{ backgroundColor: c }}
@@ -145,10 +157,10 @@ export function DrawFocusView({
               <span className="mx-1 h-5 w-px bg-border" />
               <button
                 type="button"
-                onClick={() => draw.setTool("eraser")}
+                onClick={() => setTool("eraser")}
                 className={cn(
                   "inline-flex size-8 items-center justify-center rounded-md transition hover:bg-muted",
-                  draw.tool === "eraser" && "ring-2 ring-primary ring-offset-1",
+                  tool === "eraser" && "ring-2 ring-primary ring-offset-1",
                 )}
                 aria-label="Eraser"
               >
@@ -194,7 +206,7 @@ export function DrawFocusView({
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
-                draw.clear();
+                clear();
                 setConfirmClear(false);
               }}
             >
