@@ -58,4 +58,18 @@ describe("getNodeOutput", () => {
     expect(getNodeOutput({ type: "script", data: {}, activeOutput: null })).toBe("");
     expect(getNodeOutput({ type: "text", data: {}, activeOutput: null })).toBe("");
   });
+
+  it("returns a draw node's trimmed instructions text", () => {
+    expect(
+      getNodeOutput({
+        type: "draw",
+        data: { instructions: "  wide low-angle hero shot  " },
+        activeOutput: null,
+      }),
+    ).toBe("wide low-angle hero shot");
+  });
+
+  it("returns empty string for a draw node with no instructions", () => {
+    expect(getNodeOutput({ type: "draw", data: {}, activeOutput: null })).toBe("");
+  });
 });

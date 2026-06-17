@@ -13,6 +13,10 @@ export function getNodeOutput(node: NodeOutputInput): string {
   switch (node.type) {
     case "text":
       return String(node.data.text ?? "").trim();
+    case "draw":
+      // Draw node carries composition instructions as its text output; the sketch image
+      // travels separately via fileUrl → vision attachment. Mirrors the "text" case (D19).
+      return String(node.data.instructions ?? "").trim();
     case "shot":
       // A Shot carries the parent script narrowed to ONE shot (D21), but it feeds ONE
       // reference image — so render only the visually-actionable fields, not the whole
