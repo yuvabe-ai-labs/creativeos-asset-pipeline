@@ -3,33 +3,39 @@
 import { useCallback, useRef, useState } from "react";
 import { drawingContextSettings, type DrawTool } from "@/lib/nodes/draw-canvas";
 
-// Fixed 9:16 reel frame. Displayed scaled-to-fit; these are the real pixel dimensions, so
-// the exported PNG aspect is deterministic regardless of window size.
-const CANVAS_W = 720;
-const CANVAS_H = 1280;
+// The two reel frames. Real pixel dimensions; the canvas is displayed scaled-to-fit, so the
+// exported PNG aspect is deterministic. Coordinate mapping reads the live buffer size, so the
+// drawing logic doesn't care which orientation is active.
+export const CANVAS_SIZES = {
+  portrait: { w: 720, h: 1280, label: "9:16" },
+  square: { w: 1024, h: 1024, label: "1:1" },
+  landscape: { w: 1280, h: 720, label: "16:9" },
+} as const;
+
+export type CanvasOrientation = keyof typeof CANVAS_SIZES;
 
 // black, red, green
 export const DRAW_COLORS = ["#171717", "#dc2626", "#16a34a"] as const;
 
-function fillWhite(ctx: CanvasRenderingContext2D) {
+function fillWhite(ctx: CanvasRenderingContext2D, w: number, h: number) {
   ctx.save();
   ctx.globalCompositeOperation = "source-over";
   ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+  ctx.fillRect(0, 0, w, h);
   ctx.restore();
 }
 
-// Size the backing buffer to the fixed 9:16 frame and paint it white. Call this from a
-// callback ref so it runs exactly when the canvas attaches: the Base UI Sheet portals and
-// UNMOUNTS its content, so the element only exists once the sheet is open — an effect keyed
-// on mount sees a null ref and never re-runs. Without this the buffer stays the default
-// 300x150, and strokes (mapped into the 720x1280 space) land off-canvas. Running on every
-// (re)mount also gives the one-shot "fresh canvas on reopen" behavior.
-export function initDrawingCanvas(el: HTMLCanvasElement) {
-  el.width = CANVAS_W;
-  el.height = CANVAS_H;
+// Size the backing buffer to the given frame and paint it white. Call this from a callback
+// ref so it runs exactly when the canvas attaches: the Base UI Sheet portals and UNMOUNTS
+// its content, so the element only exists once the sheet is open — an effect keyed on mount
+// sees a null ref and never re-runs. Without this the buffer stays the default 300x150 and
+// strokes land off-canvas. Re-keying the canvas on orientation change remounts it, so this
+// re-runs at the new size (and gives a fresh sheet on flip / reopen).
+export function initDrawingCanvas(el: HTMLCanvasElement, w: number, h: number) {
+  el.width = w;
+  el.height = h;
   const ctx = el.getContext("2d");
-  if (ctx) fillWhite(ctx);
+  if (ctx) fillWhite(ctx, w, h);
 }
 
 // The canvas ref is owned by the component (the blessed pattern — see FileFocusView) and
@@ -45,10 +51,12 @@ export function useDrawingCanvas(
   const [color, setColor] = useState<string>(DRAW_COLORS[0]);
 
   const toCanvasPoint = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
+    const el = e.currentTarget;
+    const rect = el.getBoundingClientRect();
+    // Scale by the live buffer size so mapping is correct in either orientation.
     return {
-      x: ((e.clientX - rect.left) / rect.width) * CANVAS_W,
-      y: ((e.clientY - rect.top) / rect.height) * CANVAS_H,
+      x: ((e.clientX - rect.left) / rect.width) * el.width,
+      y: ((e.clientY - rect.top) / rect.height) * el.height,
     };
   }, []);
 
@@ -96,8 +104,8 @@ export function useDrawingCanvas(
     if (!el) return;
     const ctx = el.getContext("2d");
     if (!ctx) return;
-    ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
-    fillWhite(ctx);
+    ctx.clearRect(0, 0, el.width, el.height);
+    fillWhite(ctx, el.width, el.height);
   }, [canvasRef]);
 
   const toBlob = useCallback(

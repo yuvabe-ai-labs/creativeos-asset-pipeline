@@ -19,7 +19,13 @@ import {
 import { cn } from "@/lib/utils";
 import type { DrawNodeData } from "@/lib/canvas-nodes";
 import { fileNodeService } from "@/services/file-node.service";
-import { useDrawingCanvas, DRAW_COLORS, initDrawingCanvas } from "./use-drawing-canvas";
+import {
+  useDrawingCanvas,
+  DRAW_COLORS,
+  initDrawingCanvas,
+  CANVAS_SIZES,
+  type CanvasOrientation,
+} from "./use-drawing-canvas";
 import { EditableField } from "./editable-field";
 
 type DrawFocusViewProps = {
@@ -40,12 +46,18 @@ export function DrawFocusView({
   onPatch,
 }: DrawFocusViewProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  // Callback ref: init the buffer exactly when the canvas attaches. The Sheet portals/
-  // unmounts its content, so this is the only reliable moment to size + white-fill it.
-  const setCanvasRef = useCallback((el: HTMLCanvasElement | null) => {
-    canvasRef.current = el;
-    if (el) initDrawingCanvas(el);
-  }, []);
+  const [orientation, setOrientation] = useState<CanvasOrientation>("portrait");
+  const { w, h } = CANVAS_SIZES[orientation];
+  // Callback ref: init the buffer exactly when the canvas attaches (the Sheet portals/
+  // unmounts its content). Re-created when w/h change, so picking a new aspect ratio
+  // re-inits the canvas at the new size (on a fresh white sheet).
+  const setCanvasRef = useCallback(
+    (el: HTMLCanvasElement | null) => {
+      canvasRef.current = el;
+      if (el) initDrawingCanvas(el, w, h);
+    },
+    [w, h],
+  );
   const {
     tool,
     setTool,
@@ -132,9 +144,10 @@ export function DrawFocusView({
               onPointerLeave={onPointerLeave}
               className="nodrag rounded-lg border border-border shadow-card"
               style={{
-                height: "min(60vh, 640px)",
-                aspectRatio: "9 / 16",
-                width: "auto",
+                // Scale-to-fit by the canvas's intrinsic buffer size (set per orientation),
+                // so the same style works for 9:16 / 1:1 / 16:9.
+                maxWidth: "100%",
+                maxHeight: "min(60vh, 640px)",
                 cursor: "crosshair",
                 touchAction: "none",
               }}
@@ -180,6 +193,22 @@ export function DrawFocusView({
               >
                 <Trash2 className="size-4" strokeWidth={1.5} />
               </button>
+              <span className="mx-1 h-5 w-px bg-border" />
+              <select
+                value={orientation}
+                onChange={(e) =>
+                  setOrientation(e.target.value as CanvasOrientation)
+                }
+                className="nodrag rounded-md border border-border bg-card px-2 py-1 text-xs font-medium text-foreground transition-colors hover:bg-muted focus:outline-none"
+                aria-label="Aspect ratio"
+                title="Aspect ratio"
+              >
+                {(Object.keys(CANVAS_SIZES) as CanvasOrientation[]).map((key) => (
+                  <option key={key} value={key}>
+                    {CANVAS_SIZES[key].label}
+                  </option>
+                ))}
+              </select>
             </div>
 
             {/* composition instructions */}
