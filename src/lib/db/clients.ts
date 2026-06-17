@@ -2,14 +2,16 @@ import "server-only";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { uniqueSlug } from "@/lib/slug";
 import type { ClientRow } from "./types";
+import {
+  mapClientWithCount,
+  type ClientWithCount,
+  type RawClientWithCanvases,
+} from "./client-with-count";
 
 // The clients repository: every clients-table query goes through these.
 // Server-only (imports the service-role client).
 
-export type ClientWithCount = ClientRow & {
-  canvas_count: number;
-  last_active: string | null; // MAX(canvas.updated_at); null when no canvases
-};
+export type { ClientWithCount };
 
 export async function listClients(): Promise<ClientWithCount[]> {
   const supabase = createServerSupabase();
@@ -19,20 +21,7 @@ export async function listClients(): Promise<ClientWithCount[]> {
     .select("*, canvases(updated_at)")
     .order("created_at", { ascending: false });
   if (error) throw error;
-  const rows = (data ?? []) as (ClientRow & {
-    canvases: { updated_at: string }[] | null;
-  })[];
-  return rows.map((r) => {
-    const canvases = r.canvases ?? [];
-    const last_active =
-      canvases.length === 0
-        ? null
-        : canvases.reduce(
-            (max, c) => (c.updated_at > max ? c.updated_at : max),
-            canvases[0].updated_at,
-          );
-    return { ...r, canvas_count: canvases.length, last_active };
-  });
+  return ((data ?? []) as RawClientWithCanvases[]).map(mapClientWithCount);
 }
 
 export async function getClientById(id: string): Promise<ClientRow | null> {
