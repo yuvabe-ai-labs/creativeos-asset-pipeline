@@ -1,8 +1,18 @@
 # Draw node — in-canvas sketching → image + composition instructions
 
 **Date:** 2026-06-16
-**Status:** Designed (not implemented)
+**Status:** Implemented (`feat/draw-node`)
 **Area:** Canvas → Draw node
+
+> **Shipped deltas (this spec captures the original design; the build added):** an
+> **aspect-ratio dropdown** (9:16 · 1:1 · 16:9, not 9:16-only); a **10× eraser** (40px vs 4px
+> pen); opening a saved node shows the existing sketch as a **read-only thumbnail reference**
+> (instead of the deferred faint-backdrop idea) and **Save confirms before overwriting**; the
+> focus view is a **canvas-hero layout** (canvas + flat controls + instructions as one section,
+> canvas the only shadowed element; saved sketch a thumbnail aside). Eraser uses a white pen on
+> the white-fill buffer (no transparent holes), as designed. The data model, plumbing, one-shot
+> model, and no-CORS rule are unchanged. Full list: see the plan's *Post-implementation
+> refinements* — `docs/superpowers/plans/2026-06-16-draw-node.md`.
 
 ## Problem
 

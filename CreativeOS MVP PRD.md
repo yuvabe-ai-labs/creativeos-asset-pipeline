@@ -261,7 +261,8 @@ Input nodes
 ├── Brief node       (planned — retained for later)
 ├── Text node
 ├── Shot node        (created by "fan out shots" from a parsed Script — D21)
-└── File node
+├── File node
+└── Draw node        (experimental — in-canvas sketch → image)
 
 Prompt nodes
 └── Prompt node
@@ -280,6 +281,15 @@ Generate nodes
 | **Text node** | Holds manual notes, copy, constraints, or instructions | Text |
 | **Shot node** *(D21)* | One shot of a reel, materialized from a parsed Script via **"fan out shots."** Carries the full parsed script **narrowed to its single shot** ("a Script node with one shot") — editable shot description + all the script metadata + order. Its content **is** its output (no AI, no version log — like a Text node) | For an image prompt, the shot's **visual description + production medium** only (**D23** — reel-level copy is dropped); the full carried script is retained for later/video use |
 | **File node** | Holds `.txt` or image references | File reference, image reference, optional extracted output |
+| **Draw node** *(experimental)* | An in-canvas sketch surface (pen in black/red/green, eraser, clear; frame 9:16 · 1:1 · 16:9) for storyboarding/reference framing — *"a File node whose image is drawn in-app."* Carries optional composition instructions. One-shot: a saved sketch shows as a read-only thumbnail reference when reopened | Flattened sketch **PNG** (vision image downstream) + **composition instructions** text |
+
+> The **Draw node** is a special File node: instead of uploading an image it lets the designer
+> *sketch one in-app* (the same move the Script node makes for reel scripts). On **Save** the
+> drawing is flattened to a PNG stored via the File-node image pipeline, so downstream it is
+> consumed exactly like a File image (vision attachment), while its composition-instructions
+> text travels like a Note. Underlay/"draw on top of a reference" and re-editing a saved sketch
+> are deferred refinements; v1 is one-shot. Grounded in designer feedback that storyboarding +
+> sketching is how reference frames get made.
 
 > **A reel is `1 script → N shots → N images → N clips → 1 reel`** (D21). The shot, not the whole
 > script, is the unit of generation. **"Fan out shots"** is a human-triggered action on a parsed
@@ -398,6 +408,8 @@ Inline files are local to that Prompt node. They are not automatically added to 
 | File node: `.txt` | Prompt node | Use reference text |
 | File node: image | Prompt node | Use visual reference for prompt generation |
 | File node: image | Image Gen node | Use image as generation reference |
+| Draw node | Prompt node | Use the in-canvas sketch as a visual reference + its composition instructions as prompt context |
+| Draw node | Image Gen node | Use the sketch as a generation reference |
 | Prompt node | Prompt node | Refine or transform text |
 | Prompt node | Image Gen node | Use text as image generation prompt |
 | Prompt node | Video Gen node | Use text as video generation prompt |
