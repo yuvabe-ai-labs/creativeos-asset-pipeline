@@ -21,6 +21,7 @@ import { FileNode } from "@/components/nodes/file-node";
 import { TextNode } from "@/components/nodes/text-node";
 import { PromptNode } from "@/components/nodes/prompt-node";
 import { ShotNode } from "@/components/nodes/shot-node";
+import { DrawNode } from "@/components/nodes/draw-node";
 import { useCanvasStore } from "./canvas-store-provider";
 import { CanvasAutosave } from "./canvas-autosave";
 import { CanvasContextMenu } from "./canvas-context-menu";
@@ -33,6 +34,7 @@ const nodeTypes: NodeTypes = {
   text: TextNode,
   prompt: PromptNode,
   shot: ShotNode,
+  draw: DrawNode,
 };
 
 export function Canvas({ canvasId }: { canvasId: string }) {

@@ -42,6 +42,8 @@ function defaultData(type: string): AppNode["data"] {
       return {};
     case "prompt":
       return { title: "" };
+    case "draw":
+      return { title: "" };
     case "script":
     default:
       return { title: "" };
