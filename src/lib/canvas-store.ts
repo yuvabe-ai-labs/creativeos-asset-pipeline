@@ -44,6 +44,8 @@ function defaultData(type: string): AppNode["data"] {
       return { title: "" };
     case "draw":
       return { title: "" };
+    case "image-gen":
+      return { title: "", modelId: "openai:gpt-image-2" };
     case "script":
     default:
       return { title: "" };

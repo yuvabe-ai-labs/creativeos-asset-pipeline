@@ -1,20 +1,21 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { FileText, Paperclip, StickyNote, Sparkles, Pencil, type LucideIcon } from "lucide-react";
+import { FileText, ImageIcon, Paperclip, StickyNote, Sparkles, Pencil, type LucideIcon } from "lucide-react";
 
-export type AddNodeType = "script" | "file" | "text" | "prompt" | "draw";
+export type AddNodeType = "script" | "file" | "text" | "prompt" | "draw" | "image-gen";
 
 const OPTIONS: { type: AddNodeType; label: string; icon: LucideIcon }[] = [
   { type: "script", label: "Script",  icon: FileText  },
   { type: "file",   label: "File",    icon: Paperclip },
   { type: "text",   label: "Note",    icon: StickyNote },
   { type: "prompt", label: "Prompt",  icon: Sparkles  },
-  { type: "draw",   label: "Draw",    icon: Pencil    },
+  { type: "draw",      label: "Draw",      icon: Pencil    },
+  { type: "image-gen", label: "Image Gen", icon: ImageIcon },
 ];
 
 const MENU_W = 176;
-const MENU_H = 190;
+const MENU_H = 226;
 
 interface CanvasContextMenuProps {
   screenX: number;
