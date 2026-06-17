@@ -14,9 +14,11 @@ const triggerClass =
 
 export function ClientsHomeTabs({
   clients,
+  archivedClients,
   recentCanvases,
 }: {
   clients: ClientWithCount[];
+  archivedClients: ClientWithCount[];
   recentCanvases: RecentCanvas[];
 }) {
   const [tab, setTab] = useState("clients");
@@ -32,6 +34,9 @@ export function ClientsHomeTabs({
             </TabsTrigger>
             <TabsTrigger value="recent" className={triggerClass}>
               Recent
+            </TabsTrigger>
+            <TabsTrigger value="archived" className={triggerClass}>
+              Archived
             </TabsTrigger>
           </TabsList>
           {tab === "clients" && <NewClientDialog />}
@@ -61,6 +66,20 @@ export function ClientsHomeTabs({
           </Card>
         ) : (
           <RecentCanvasesTable canvases={recentCanvases} />
+        )}
+      </TabsContent>
+
+      <TabsContent value="archived" className="animate-rise">
+        {archivedClients.length === 0 ? (
+          <Card className="flex flex-col items-center justify-center gap-2 border-dashed p-14 text-center">
+            <p className="font-display text-lg font-medium">No archived clients</p>
+            <p className="max-w-sm text-sm text-muted-foreground">
+              Archive a client from its ⋯ menu and it will move here — you can
+              restore it anytime.
+            </p>
+          </Card>
+        ) : (
+          <ClientsTable clients={archivedClients} archived />
         )}
       </TabsContent>
     </Tabs>
