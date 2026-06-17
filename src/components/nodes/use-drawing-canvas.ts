@@ -7,7 +7,6 @@ import { drawingContextSettings, type DrawTool } from "@/lib/nodes/draw-canvas";
 // the exported PNG aspect is deterministic regardless of window size.
 const CANVAS_W = 720;
 const CANVAS_H = 1280;
-const STROKE_WIDTH = 4;
 
 // black, red, green
 export const DRAW_COLORS = ["#171717", "#dc2626", "#16a34a"] as const;
@@ -72,7 +71,7 @@ export function useDrawingCanvas(
       const s = drawingContextSettings(tool, color);
       ctx.globalCompositeOperation = s.globalCompositeOperation;
       ctx.strokeStyle = s.strokeStyle;
-      ctx.lineWidth = STROKE_WIDTH;
+      ctx.lineWidth = s.lineWidth;
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
       ctx.beginPath();
