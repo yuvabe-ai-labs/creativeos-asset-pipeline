@@ -10,6 +10,7 @@ export type ClientRow = {
   active_kb_version_id: string | null;
   created_at: string;
   updated_at: string;
+  archived_at: string | null; // null = active; ISO timestamp = archived
 };
 
 export type ClientBrandImageRow = {
