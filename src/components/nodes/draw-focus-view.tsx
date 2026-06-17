@@ -147,8 +147,8 @@ export function DrawFocusView({
           <div className="mx-auto flex h-full w-full max-w-6xl flex-col gap-3 px-6 py-4">
             {/* top: New (left, with vertical control rail) | Saved (right) */}
             <div className="flex min-h-0 flex-1 gap-4">
-              {/* LEFT — new sketch */}
-              <section className="flex min-h-0 flex-1 flex-col">
+              {/* LEFT — new sketch (20% wider than Saved) */}
+              <section className="flex min-h-0 min-w-0 flex-[1.2] flex-col">
                 <span className="text-eyebrow mb-1.5 block !text-[0.6rem] text-muted-foreground">
                   New
                 </span>
@@ -236,7 +236,7 @@ export function DrawFocusView({
               </section>
 
               {/* RIGHT — saved sketch (read-only reference) */}
-              <section className="flex min-h-0 flex-1 flex-col">
+              <section className="flex min-h-0 min-w-0 flex-1 flex-col">
                 <span className="text-eyebrow mb-1.5 block !text-[0.6rem] text-muted-foreground">
                   Saved
                 </span>
