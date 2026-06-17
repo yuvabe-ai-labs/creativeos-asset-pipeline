@@ -140,8 +140,15 @@ export function FileFocusView({
   }
 
   function handleClearLlm() {
-    setLocalPrompt("");
-    onPatch({ useLlm: false, llmPrompt: "", processedOutput: "" });
+    setConfirm({
+      title: "Clear prompt & result?",
+      description: "This will erase your extraction prompt and any extracted output.",
+      actionLabel: "Clear",
+      onConfirm: () => {
+        setLocalPrompt("");
+        onPatch({ useLlm: false, llmPrompt: "", processedOutput: "" });
+      },
+    });
   }
 
   function handleReplaceInput(e: React.ChangeEvent<HTMLInputElement>) {

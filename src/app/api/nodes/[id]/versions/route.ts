@@ -35,6 +35,8 @@ export async function GET(
         tokensUsed?: { prompt_tokens: number; completion_tokens: number; total_tokens: number } | null;
       },
       createdAt: v.created_at,
+      decision: (v.decision as "pass" | "fail" | null) ?? null,
+      note: typeof v.note === "string" ? v.note : null,
     })),
   });
 }

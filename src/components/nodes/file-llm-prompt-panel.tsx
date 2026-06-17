@@ -36,9 +36,21 @@ export function LlmPromptPanel({
   return (
     <div className="flex flex-col gap-4 h-full min-h-0">
       <div className="shrink-0 flex flex-col gap-2">
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Extraction prompt
-        </p>
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Extraction prompt
+          </p>
+          {onClear && localPrompt.trim() && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onClear}
+              className="h-auto px-2 py-1 text-xs text-muted-foreground hover:text-destructive"
+            >
+              Clear
+            </Button>
+          )}
+        </div>
         <Textarea
           value={localPrompt}
           onChange={(e) => onPromptChange(e.target.value)}
@@ -74,30 +86,18 @@ export function LlmPromptPanel({
             Result
           </p>
           {processedOutput && (
-            <div className="flex items-center gap-1">
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={handleCopy}
-                aria-label="Copy result"
-              >
-                {copied ? (
-                  <Check className="size-3.5 text-primary" />
-                ) : (
-                  <Copy className="size-3.5" />
-                )}
-              </Button>
-              {onClear && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={onClear}
-                  className="h-auto px-2 py-1 text-xs text-muted-foreground hover:text-destructive"
-                >
-                  Clear
-                </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={handleCopy}
+              aria-label="Copy result"
+            >
+              {copied ? (
+                <Check className="size-3.5 text-primary" />
+              ) : (
+                <Copy className="size-3.5" />
               )}
-            </div>
+            </Button>
           )}
         </div>
 

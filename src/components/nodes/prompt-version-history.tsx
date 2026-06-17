@@ -13,6 +13,8 @@ export type VersionSummary = {
     tokensUsed?: { prompt_tokens: number; completion_tokens: number; total_tokens: number } | null;
   };
   createdAt: string;
+  decision: "pass" | "fail" | null;
+  note: string | null;
 };
 
 type PromptVersionHistoryProps = {
