@@ -82,6 +82,7 @@ export function DrawNode({ id, data, selected }: NodeProps) {
           nodeId={id}
           title={d.title ?? ""}
           instructions={d.instructions}
+          existingImageUrl={d.fileUrl}
           onPatch={(patch) => updateNodeData(id, patch)}
         />
 

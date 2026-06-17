@@ -34,6 +34,7 @@ type DrawFocusViewProps = {
   nodeId: string;
   title: string;
   instructions?: string;
+  existingImageUrl?: string; // the sketch already saved on this node, shown as a reference
   onPatch: (patch: Partial<DrawNodeData>) => void;
 };
 
@@ -43,6 +44,7 @@ export function DrawFocusView({
   nodeId,
   title,
   instructions,
+  existingImageUrl,
   onPatch,
 }: DrawFocusViewProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -73,6 +75,7 @@ export function DrawFocusView({
   const [saving, setSaving] = useState(false);
   const [localInstr, setLocalInstr] = useState(instructions ?? "");
   const [confirmClear, setConfirmClear] = useState(false);
+  const [confirmSave, setConfirmSave] = useState(false);
 
   async function handleSave() {
     setSaving(true);
@@ -127,7 +130,13 @@ export function DrawFocusView({
                   className="font-display text-3xl font-semibold tracking-tight"
                 />
               </SheetTitle>
-              <Button size="lg" onClick={handleSave} disabled={saving}>
+              <Button
+                size="lg"
+                onClick={() =>
+                  existingImageUrl ? setConfirmSave(true) : handleSave()
+                }
+                disabled={saving}
+              >
                 {saving ? "Saving…" : "Save"}
               </Button>
             </header>
@@ -138,7 +147,20 @@ export function DrawFocusView({
           <div className="mx-auto flex h-full w-full max-w-5xl flex-col items-center gap-3 px-6 py-4">
             {/* canvas area — takes the space left after the fixed toolbar + instructions,
                 so the canvas scales to fit and the sheet never scrolls */}
-            <div className="flex min-h-0 w-full flex-1 items-center justify-center">
+            <div className="relative flex min-h-0 w-full flex-1 items-center justify-center">
+              {existingImageUrl && (
+                <div className="absolute right-2 top-2 z-10 flex flex-col items-end gap-1">
+                  <span className="text-eyebrow !text-[0.55rem] text-muted-foreground">
+                    Saved
+                  </span>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={existingImageUrl}
+                    alt="Saved sketch"
+                    className="h-16 w-auto rounded-md border border-border bg-white shadow-card"
+                  />
+                </div>
+              )}
               <canvas
                 ref={setCanvasRef}
                 onPointerDown={onPointerDown}
@@ -250,6 +272,29 @@ export function DrawFocusView({
               }}
             >
               Clear
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={confirmSave} onOpenChange={setConfirmSave}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Overwrite saved sketch?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Saving replaces the sketch currently saved on this node. This can&apos;t
+              be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setConfirmSave(false);
+                handleSave();
+              }}
+            >
+              Overwrite
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
