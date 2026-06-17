@@ -25,6 +25,9 @@ export function getNodeOutput(node: NodeOutputInput): string {
       return renderShotContext((node.data.script ?? null) as ReelScript | null, shotContextMode());
     case "prompt":
       return typeof node.activeOutput === "string" ? node.activeOutput.trim() : "";
+    case "image-gen":
+      // Output is a Supabase public image URL; downstream nodes receive it as a URL string
+      return typeof node.activeOutput === "string" ? node.activeOutput.trim() : "";
     case "script":
       return renderScriptAsText(node.activeOutput as ReelScript | null);
     case "file": {
