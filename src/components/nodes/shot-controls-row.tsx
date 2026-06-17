@@ -6,6 +6,13 @@ import {
   type ShotControls,
   type ShotControlKey,
 } from "@/lib/nodes/shot-controls";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const ICONS: Record<ShotControlKey, LucideIcon> = {
   lens: Aperture,
@@ -27,21 +34,27 @@ export function ShotControlsRow({
       {SHOT_CONTROLS.map((group) => {
         const Icon = ICONS[group.key];
         return (
-          <label key={group.key} className="flex items-center gap-2">
+          <div key={group.key} className="flex items-center gap-2">
             <Icon className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.5} />
             <span className="w-24 shrink-0 text-xs text-muted-foreground">{group.label}</span>
-            <select
+            <Select
               value={controls[group.key]}
-              onChange={(e) => onChange({ ...controls, [group.key]: e.target.value })}
-              className="min-w-0 flex-1 rounded-md border border-border bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+              onValueChange={(value) =>
+                onChange({ ...controls, [group.key]: value as string })
+              }
             >
-              {group.options.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          </label>
+              <SelectTrigger size="sm" className="min-w-0 flex-1 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {group.options.map((o) => (
+                  <SelectItem key={o.value} value={o.value} className="text-xs">
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         );
       })}
     </div>

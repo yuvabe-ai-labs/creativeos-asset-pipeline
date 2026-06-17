@@ -7,6 +7,13 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -208,23 +215,30 @@ export function DrawFocusView({
                   <Trash2 className="size-4" strokeWidth={1.5} />
                 </button>
                 <span className="mx-1 h-5 w-px bg-border" />
-                <select
+                <Select
                   value={orientation}
-                  onChange={(e) =>
-                    setOrientation(e.target.value as CanvasOrientation)
+                  onValueChange={(value) =>
+                    setOrientation(value as CanvasOrientation)
                   }
-                  className="nodrag rounded-md border border-border bg-card px-2 py-1 text-xs font-medium text-foreground transition-colors hover:bg-muted focus:outline-none"
-                  aria-label="Aspect ratio"
-                  title="Aspect ratio"
                 >
-                  {(Object.keys(CANVAS_SIZES) as CanvasOrientation[]).map(
-                    (key) => (
-                      <option key={key} value={key}>
-                        {CANVAS_SIZES[key].label}
-                      </option>
-                    ),
-                  )}
-                </select>
+                  <SelectTrigger
+                    size="sm"
+                    className="nodrag text-xs font-medium"
+                    aria-label="Aspect ratio"
+                    title="Aspect ratio"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(Object.keys(CANVAS_SIZES) as CanvasOrientation[]).map(
+                      (key) => (
+                        <SelectItem key={key} value={key} className="text-xs">
+                          {CANVAS_SIZES[key].label}
+                        </SelectItem>
+                      ),
+                    )}
+                  </SelectContent>
+                </Select>
               </div>
 
               {/* composition instructions — bg tint for emphasis, no shadow */}
