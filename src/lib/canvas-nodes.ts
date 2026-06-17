@@ -37,6 +37,14 @@ export type TextNodeData = {
   text?: string; // free-text context; this node's "output" (no version log, D19)
 };
 
+export type DrawNodeData = {
+  title?: string;
+  fileUrl?: string; // flattened sketch PNG — the image handed downstream (reuses File field)
+  fileKind?: "image"; // always "image" when present
+  filename?: string; // e.g. "sketch-1718539200000.png"
+  instructions?: string; // composition instructions — the text handed downstream (D19, like Text)
+};
+
 export type PromptNodeData = {
   title?: string;
   instruction?: string; // operator instruction
@@ -64,7 +72,8 @@ export type AppNode =
   | Node<FileNodeData, "file">
   | Node<TextNodeData, "text">
   | Node<PromptNodeData, "prompt">
-  | Node<ShotNodeData, "shot">;
+  | Node<ShotNodeData, "shot">
+  | Node<DrawNodeData, "draw">;
 
 // PRD §10 — which source node types may connect to which target node types.
 export const VALID_CONNECTIONS: Record<string, readonly string[]> = {
@@ -72,6 +81,7 @@ export const VALID_CONNECTIONS: Record<string, readonly string[]> = {
   script:        ["prompt"],
   shot:          ["prompt"],
   file:          ["prompt", "image-gen"],
+  draw:          ["prompt", "image-gen"],
   text:          ["prompt"],
   prompt:        ["prompt", "image-gen", "video-gen"],
   "image-gen":   ["prompt", "video-gen"],

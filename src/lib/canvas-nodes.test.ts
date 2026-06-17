@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { nodeRowToFlow, flowToPersisted, type NodeWithActive } from "./canvas-nodes";
+import {
+  nodeRowToFlow,
+  flowToPersisted,
+  VALID_CONNECTIONS,
+  type NodeWithActive,
+} from "./canvas-nodes";
 
 function row(overrides: Partial<NodeWithActive> = {}): NodeWithActive {
   return {
@@ -49,5 +54,16 @@ describe("flowToPersisted", () => {
     } as never);
     expect(persisted.data).toEqual({ title: "Reel", source: "raw" });
     expect("parsed" in persisted.data).toBe(false);
+  });
+});
+
+describe("VALID_CONNECTIONS — draw node", () => {
+  it("allows draw → prompt and draw → image-gen", () => {
+    expect(VALID_CONNECTIONS.draw).toContain("prompt");
+    expect(VALID_CONNECTIONS.draw).toContain("image-gen");
+  });
+
+  it("does not allow draw → script", () => {
+    expect(VALID_CONNECTIONS.draw ?? []).not.toContain("script");
   });
 });
