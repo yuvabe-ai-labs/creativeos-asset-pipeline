@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { drawingContextSettings, type DrawTool } from "@/lib/nodes/draw-canvas";
 
 // Fixed 9:16 reel frame. Displayed scaled-to-fit; these are the real pixel dimensions, so
@@ -11,6 +11,27 @@ const STROKE_WIDTH = 4;
 
 // black, red, green
 export const DRAW_COLORS = ["#171717", "#dc2626", "#16a34a"] as const;
+
+function fillWhite(ctx: CanvasRenderingContext2D) {
+  ctx.save();
+  ctx.globalCompositeOperation = "source-over";
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+  ctx.restore();
+}
+
+// Size the backing buffer to the fixed 9:16 frame and paint it white. Call this from a
+// callback ref so it runs exactly when the canvas attaches: the Base UI Sheet portals and
+// UNMOUNTS its content, so the element only exists once the sheet is open — an effect keyed
+// on mount sees a null ref and never re-runs. Without this the buffer stays the default
+// 300x150, and strokes (mapped into the 720x1280 space) land off-canvas. Running on every
+// (re)mount also gives the one-shot "fresh canvas on reopen" behavior.
+export function initDrawingCanvas(el: HTMLCanvasElement) {
+  el.width = CANVAS_W;
+  el.height = CANVAS_H;
+  const ctx = el.getContext("2d");
+  if (ctx) fillWhite(ctx);
+}
 
 // The canvas ref is owned by the component (the blessed pattern — see FileFocusView) and
 // passed in. Drawing handlers read the element from `e.currentTarget`, so they never touch
@@ -23,25 +44,6 @@ export function useDrawingCanvas(
 
   const [tool, setTool] = useState<DrawTool>("pen");
   const [color, setColor] = useState<string>(DRAW_COLORS[0]);
-
-  const fillWhite = useCallback((ctx: CanvasRenderingContext2D) => {
-    ctx.save();
-    ctx.globalCompositeOperation = "source-over";
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
-    ctx.restore();
-  }, []);
-
-  // Size the canvas + paint the white background on mount (and on remount, which gives the
-  // one-shot "fresh canvas on reopen" behavior).
-  useEffect(() => {
-    const el = canvasRef.current;
-    if (!el) return;
-    el.width = CANVAS_W;
-    el.height = CANVAS_H;
-    const ctx = el.getContext("2d");
-    if (ctx) fillWhite(ctx);
-  }, [canvasRef, fillWhite]);
 
   const toCanvasPoint = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -97,7 +99,7 @@ export function useDrawingCanvas(
     if (!ctx) return;
     ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
     fillWhite(ctx);
-  }, [canvasRef, fillWhite]);
+  }, [canvasRef]);
 
   const toBlob = useCallback(
     () =>

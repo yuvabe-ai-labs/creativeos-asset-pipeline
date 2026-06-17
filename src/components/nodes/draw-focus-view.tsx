@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { ArrowLeft, Eraser, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -19,7 +19,7 @@ import {
 import { cn } from "@/lib/utils";
 import type { DrawNodeData } from "@/lib/canvas-nodes";
 import { fileNodeService } from "@/services/file-node.service";
-import { useDrawingCanvas, DRAW_COLORS } from "./use-drawing-canvas";
+import { useDrawingCanvas, DRAW_COLORS, initDrawingCanvas } from "./use-drawing-canvas";
 import { EditableField } from "./editable-field";
 
 type DrawFocusViewProps = {
@@ -40,6 +40,12 @@ export function DrawFocusView({
   onPatch,
 }: DrawFocusViewProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  // Callback ref: init the buffer exactly when the canvas attaches. The Sheet portals/
+  // unmounts its content, so this is the only reliable moment to size + white-fill it.
+  const setCanvasRef = useCallback((el: HTMLCanvasElement | null) => {
+    canvasRef.current = el;
+    if (el) initDrawingCanvas(el);
+  }, []);
   const {
     tool,
     setTool,
@@ -119,7 +125,7 @@ export function DrawFocusView({
         <div className="min-h-0 flex-1 overflow-auto">
           <div className="mx-auto flex w-full max-w-5xl flex-col items-center gap-4 px-6 py-6">
             <canvas
-              ref={canvasRef}
+              ref={setCanvasRef}
               onPointerDown={onPointerDown}
               onPointerMove={onPointerMove}
               onPointerUp={onPointerUp}
