@@ -2,9 +2,9 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ChevronRight } from "lucide-react";
 import { ListToolbar } from "@/components/ui/list-toolbar";
 import { KBStatusBadge } from "@/components/clients/kb-status-badge";
+import { ClientRowActions } from "@/components/clients/client-row-actions";
 import { filterAndSort, type SortKey } from "@/lib/list/filter-sort";
 import { formatRelativeTime } from "@/lib/format/relative-time";
 import type { ClientWithCount } from "@/lib/db/clients";
@@ -19,7 +19,13 @@ function initials(name: string) {
     .toUpperCase();
 }
 
-export function ClientsTable({ clients }: { clients: ClientWithCount[] }) {
+export function ClientsTable({
+  clients,
+  archived = false,
+}: {
+  clients: ClientWithCount[];
+  archived?: boolean;
+}) {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortKey>("recent");
 
@@ -56,10 +62,13 @@ export function ClientsTable({ clients }: { clients: ClientWithCount[] }) {
         ) : (
           <ul>
             {rows.map((client) => (
-              <li key={client.id} className="border-b last:border-b-0">
+              <li
+                key={client.id}
+                className="flex items-center border-b last:border-b-0 hover:bg-muted/40"
+              >
                 <Link
                   href={`/clients/${client.slug}`}
-                  className="group flex items-center gap-4 px-5 py-3.5 transition-colors hover:bg-muted/40"
+                  className="flex flex-1 items-center gap-4 px-5 py-3.5 transition-colors"
                 >
                   <span className="flex flex-[3] items-center gap-3">
                     {client.logo_url ? (
@@ -86,12 +95,11 @@ export function ClientsTable({ clients }: { clients: ClientWithCount[] }) {
                   </span>
                   <span className="flex flex-1 items-center justify-end gap-2">
                     <KBStatusBadge status={client.kb_status} />
-                    <ChevronRight
-                      className="size-4 text-muted-foreground/40 transition-transform group-hover:translate-x-0.5"
-                      strokeWidth={1.5}
-                    />
                   </span>
                 </Link>
+                <div className="pr-3 pl-1">
+                  <ClientRowActions clientId={client.id} archived={archived} />
+                </div>
               </li>
             ))}
           </ul>
