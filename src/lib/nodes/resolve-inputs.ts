@@ -9,6 +9,7 @@ const TYPE_LABEL: Record<string, string> = {
   prompt: "Prompt",
   file: "File",
   shot: "Shot",
+  draw: "Sketch",
 };
 
 export type UpstreamPreview = {
@@ -53,8 +54,14 @@ export async function resolvePromptInputs(
     label: TYPE_LABEL[u.type] ?? u.type,
     type: u.type,
     text: getNodeOutput({ type: u.type, data: u.data, activeOutput: u.activeOutput }),
-    fileUrl: u.type === "file" ? (u.data.fileUrl as string | undefined) : undefined,
-    fileKind: u.type === "file" ? (u.data.fileKind as string | undefined) : undefined,
+    fileUrl:
+      u.type === "file" || u.type === "draw"
+        ? (u.data.fileUrl as string | undefined)
+        : undefined,
+    fileKind:
+      u.type === "file" || u.type === "draw"
+        ? (u.data.fileKind as string | undefined)
+        : undefined,
     useLlm: u.type === "file" ? (u.data.useLlm as boolean | undefined) : undefined,
   }));
   // Note: we do NOT drop empty-output upstreams here. `compilePrompt` already skips
