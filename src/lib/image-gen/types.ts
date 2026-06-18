@@ -27,7 +27,7 @@ export type ImageGenModelConfig = {
   apiModelId: string;        // actual string passed to provider API
   label: string;             // "GPT Image 1"
   providerLabel: string;     // "OpenAI" | "Gemini"
-  schema: ZodTypeAny;        // validates params + drives react-hook-form
+  schema: ZodTypeAny;        // validates params + derives the param-form defaults
   maxReferenceImages: number;
   maxReferenceSizeBytes: number;
   generate: (input: ImageGenInput) => Promise<ImageGenResult>;

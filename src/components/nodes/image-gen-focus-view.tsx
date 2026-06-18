@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { useForm } from "react-hook-form";
 import {
   ArrowLeft,
   Download,
@@ -165,9 +164,10 @@ export function ImageGenFocusView({
     imageGenClientModelMap[selectedModelId] ??
     imageGenClientModelMap[DEFAULT_CLIENT_MODEL_ID];
 
-  const form = useForm<ParamFormValues>({
-    defaultValues: { ...defaultsForSchema(model.schema), ...(params ?? {}) },
-  });
+  const [paramValues, setParamValues] = useState<ParamFormValues>(() => ({
+    ...defaultsForSchema(model.schema),
+    ...(params ?? {}),
+  }));
 
   const [generating, setGenerating] = useState(false);
   const [versions, setVersions] = useState<ImageGenVersionSummary[]>([]);
@@ -189,10 +189,10 @@ export function ImageGenFocusView({
     if (model.id !== seenModelIdRef.current) {
       seenModelIdRef.current = model.id;
       const defaults = defaultsForSchema(model.schema);
-      form.reset(defaults);
+      setParamValues(defaults);
       onPatch({ params: defaults });
     }
-  }, [model, form, onPatch]);
+  }, [model, onPatch]);
 
   useEffect(() => {
     if (!open) return;
@@ -331,7 +331,7 @@ export function ImageGenFocusView({
     setEvalDecision(null);
     setEvalNote("");
     try {
-      const values = form.getValues();
+      const values = paramValues;
       const res = await fetch(`/api/nodes/${nodeId}/image-generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -508,7 +508,8 @@ export function ImageGenFocusView({
               <LeftSection icon={Settings2} label="Output settings">
                 <ImageGenOutputSettings
                   model={model}
-                  form={form}
+                  values={paramValues}
+                  onValuesChange={setParamValues}
                   onCommit={commitParams}
                   onModelChange={changeModel}
                 />
