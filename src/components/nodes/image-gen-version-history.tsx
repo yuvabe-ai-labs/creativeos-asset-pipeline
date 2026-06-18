@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { ThumbsUp, ThumbsDown } from "lucide-react";
+import { History, ThumbsUp, ThumbsDown } from "lucide-react";
 import type { ImageTokenUsage } from "@/lib/image-gen/types";
 
 export type ImageGenVersionSummary = {
@@ -45,9 +45,18 @@ export function ImageGenVersionHistory({
   const total = versions.length;
 
   return (
-    <div className="flex flex-col gap-1">
-      <p className="text-eyebrow mb-1">Versions</p>
-      <div className="flex max-h-52 flex-col gap-1 overflow-y-auto">
+    <div>
+      <div className="mb-2 flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          <History className="size-3.5 text-primary" strokeWidth={1.5} />
+          <span className="text-eyebrow">History</span>
+        </div>
+        <span className="text-xs text-muted-foreground">
+          {total} generation{total !== 1 ? "s" : ""}
+        </span>
+      </div>
+      <div className="max-h-52 overflow-y-auto pb-2">
+      <ul className="space-y-1">
         {versions.map((v, i) => {
           const isActive = v.id === activeVersionId;
           const isError  = Boolean(v.error);
@@ -108,6 +117,7 @@ export function ImageGenVersionHistory({
             </div>
           );
         })}
+      </ul>
       </div>
     </div>
   );

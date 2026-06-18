@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm, type UseFormReturn } from "react-hook-form";
-import { ArrowLeft, ImageIcon, Sparkles, Sliders, Link2, ZoomIn, AlertTriangle } from "lucide-react";
+import { ArrowLeft, ImageIcon, Sparkles, Settings2, Link2, ZoomIn, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 
@@ -10,7 +10,7 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { ConnectedInputsCard, type UpstreamNode } from "./connected-inputs-card";
+import { ConnectedInputsCard, type UpstreamNode, type ConnectedPreview } from "./connected-inputs-card";
 import { ImageGenVersionHistory, type ImageGenVersionSummary } from "./image-gen-version-history";
 import { ImageGenUsagePopover } from "./image-gen-usage-popover";
 import { InlineEvalBar } from "./inline-eval-bar";
@@ -252,6 +252,7 @@ export function ImageGenFocusView({
   const [evalDecision, setEvalDecision] = useState<"pass" | "fail" | null>(null);
   const [evalNote, setEvalNote] = useState("");
   const [evalSaving, setEvalSaving] = useState(false);
+  const [preview, setPreview] = useState<ConnectedPreview[]>([]);
   const seenModelIdRef = useRef(model.id);
 
   // When the selected model changes, reset the form to the new model's schema defaults
@@ -293,6 +294,36 @@ export function ImageGenFocusView({
     };
   }, [open, nodeId]);
 
+  // Fetch connected prompt node's active output to show as preview text in ConnectedInputsCard
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    const promptNode = upstream.find((u) => u.type === "prompt");
+    if (!promptNode) {
+      setPreview([]);
+      return;
+    }
+    void (async () => {
+      try {
+        const res = await fetch(`/api/nodes/${promptNode.id}/versions`);
+        if (!res.ok || cancelled) return;
+        const json = (await res.json()) as {
+          activeVersionId: string | null;
+          versions: Array<{ id: string; output: string | null }>;
+        };
+        const active = (json.versions ?? []).find((v) => v.id === json.activeVersionId);
+        if (!cancelled && active?.output) {
+          setPreview([{ nodeId: promptNode.id, type: "prompt", text: active.output }]);
+        }
+      } catch {
+        /* best-effort */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, upstream]);
+
   // Inputs / Prompt connection
   const promptUpstream = upstream.find((u) => u.type === "prompt");
   const referenceCount = upstream.filter((u) => {
@@ -305,13 +336,25 @@ export function ImageGenFocusView({
 
   const upstreamForCard: UpstreamNode[] = useMemo(
     () =>
-      upstream.map((u) => ({
-        id: u.id,
-        label: u.id.slice(0, 6),
-        type: u.type,
-        fileUrl: u.fileUrl,
-        fileKind: u.fileKind,
-      })),
+      upstream.map((u) => {
+        const typeLabel =
+          u.type === "prompt"
+            ? "Image prompt"
+            : u.type === "image-gen"
+              ? "Image reference"
+              : u.type === "draw"
+                ? "Sketch"
+                : u.type === "file"
+                  ? "Image file"
+                  : u.type;
+        return {
+          id: u.id,
+          label: typeLabel,
+          type: u.type,
+          fileUrl: u.fileUrl,
+          fileKind: u.fileKind,
+        };
+      }),
     [upstream],
   );
 
@@ -331,6 +374,9 @@ export function ImageGenFocusView({
       };
       setVersions(json.versions ?? []);
       setActiveVersionId(json.activeVersionId ?? null);
+      const active = (json.versions ?? []).find((v) => v.id === json.activeVersionId);
+      setEvalDecision(active?.decision ?? null);
+      setEvalNote(active?.note ?? "");
     } catch {
       /* best-effort */
     }
@@ -488,32 +534,27 @@ export function ImageGenFocusView({
 
               <div>
                 <div className="mb-2 flex items-center gap-1.5">
-                  <Sliders className="size-3.5 text-primary" />
-                  <span className="text-eyebrow">Model</span>
+                  <Settings2 className="size-3.5 text-primary" strokeWidth={1.5} />
+                  <span className="text-eyebrow">Output settings</span>
                 </div>
-                <select
-                  value={model.id}
-                  onChange={(e) => changeModel(e.target.value)}
-                  className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                >
-                  {imageGenClientModelGroups.map((g) => (
-                    <optgroup key={g.provider} label={g.label}>
-                      {g.models.map((m) => (
-                        <option key={m.id} value={m.id}>
-                          {m.label}
-                        </option>
-                      ))}
-                    </optgroup>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <div className="mb-2 flex items-center gap-1.5">
-                  <Sliders className="size-3.5 text-primary" />
-                  <span className="text-eyebrow">Parameters</span>
+                <div className="flex flex-col gap-3">
+                  <select
+                    value={model.id}
+                    onChange={(e) => changeModel(e.target.value)}
+                    className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                  >
+                    {imageGenClientModelGroups.map((g) => (
+                      <optgroup key={g.provider} label={g.label}>
+                        {g.models.map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {m.label}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
+                  <ParamsForm model={model} form={form} onCommit={commitParams} />
                 </div>
-                <ParamsForm model={model} form={form} onCommit={commitParams} />
               </div>
 
               <div>
@@ -526,7 +567,7 @@ export function ImageGenFocusView({
                     {upstream.length} input{upstream.length === 1 ? "" : "s"}
                   </span>
                 </div>
-                <ConnectedInputsCard upstream={upstreamForCard} preview={[]} />
+                <ConnectedInputsCard upstream={upstreamForCard} preview={preview} />
                 {refOverLimit && (
                   <div className="mt-2 flex items-start gap-1.5 rounded-md border border-amber-300 bg-amber-50 px-2 py-1.5 text-[0.7rem] text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300">
                     <AlertTriangle className="mt-0.5 size-3 shrink-0" />
@@ -542,6 +583,7 @@ export function ImageGenFocusView({
             {/* Right panel */}
             <div className="flex-1 min-h-0 flex flex-col px-6 py-6">
               <InlineEvalBar
+                label="Generated Image"
                 decision={evalDecision}
                 note={evalNote}
                 saving={evalSaving}

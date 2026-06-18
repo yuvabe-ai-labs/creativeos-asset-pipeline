@@ -76,12 +76,9 @@ export function ImageGenNode({ id, data, selected }: NodeProps) {
               <img src={imageUrl} alt="Generated" className="h-16 w-full object-cover" />
             </div>
           )}
-          <p className="truncate font-display text-sm font-medium">
-            {title || <span className="text-muted-foreground/60 font-sans text-xs">No title</span>}
-          </p>
           <button
             onClick={() => setFocusOpen(true)}
-            className="nodrag -mx-1.5 mt-3 inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10"
+            className="nodrag -mx-1.5 inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10"
           >
             Open ↗
           </button>

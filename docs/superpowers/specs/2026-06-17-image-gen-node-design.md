@@ -1,7 +1,7 @@
 # Image Generation Node — Design
 
 **Date:** 2026-06-17
-**Status:** Approved
+**Status:** Implemented (2026-06-18)
 
 ---
 
@@ -340,6 +340,24 @@ Follows existing D9 pattern: if the connected Prompt node's `active_version_id` 
 | `src/lib/nodes/node-output.ts` | Add `image-gen` case → return `activeOutput` (image URL) |
 | `src/lib/pricing.ts` | No change — `cost.ts` is separate; keeps text pricing clean |
 | `.env` | Add `GOOGLE_GENAI_API_KEY` |
+
+---
+
+## Implementation Notes
+
+Deviations and decisions made during implementation (2026-06-18):
+
+**OpenAI API:** Used the Images API (`openai.images.generate` / `openai.images.edit`), NOT the Responses API. GPT image models (`gpt-image-1`, `gpt-image-1-mini`, `gpt-image-2`) do not support the Responses API or the `response_format` parameter — they always return `data[0].b64_json`. Reference images are fetched server-side as `File` objects and passed to `images.edit()`.
+
+**Client-safe model mirror:** Added `src/lib/image-gen/client-models.ts` — a client-side duplicate of the Zod schemas + model metadata that does not import server-only SDK code. This is required because the focus view (a React client component) needs schemas for form validation, but the registry imports `"server-only"` providers.
+
+**Gemini reference images:** Fetched server-side as inline base64 — Gemini's API does not accept arbitrary HTTP URLs.
+
+**Test setup:** Added `__mocks__/server-only.ts` (exports `{}`) and a `vitest.config.ts` alias for `"server-only"` so registry tests can import server-side modules without crashing.
+
+**UI label fix (post-ship):** `InlineEvalBar` originally hardcoded "Generated Prompt" as the section label. Added an optional `label` prop (defaulting to `"Generated Prompt"` for backward compatibility) so Image Gen focus view can pass `"Generated Image"`.
+
+**Connected inputs preview:** Focus view fetches the connected prompt node's active version output via `/api/nodes/<promptId>/versions` on open, then passes it as `ConnectedPreview[]` so the expanded card shows the actual prompt text instead of "No output yet".
 
 ---
 
