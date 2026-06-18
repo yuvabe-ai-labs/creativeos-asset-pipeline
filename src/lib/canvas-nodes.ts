@@ -52,6 +52,13 @@ export type PromptNodeData = {
   kbSlices?: KBSliceKey[]; // ambient KB slices injected into the compiled prompt
 };
 
+export type ImageGenNodeData = {
+  title?: string;
+  modelId?: string;                   // e.g. "openai:gpt-image-2" — saved on node
+  params?: Record<string, unknown>;   // last-used param values for selected model
+  parsed?: unknown;                   // D19: active version output (image URL, display only — never persisted)
+};
+
 export type ShotNodeData = {
   // The parent reel script narrowed to a SINGLE shot — "a Script node with one shot"
   // (D21). Carries the full metadata (objective, on-screen text, voiceover, caption…)
@@ -73,7 +80,8 @@ export type AppNode =
   | Node<TextNodeData, "text">
   | Node<PromptNodeData, "prompt">
   | Node<ShotNodeData, "shot">
-  | Node<DrawNodeData, "draw">;
+  | Node<DrawNodeData, "draw">
+  | Node<ImageGenNodeData, "image-gen">;
 
 // PRD §10 — which source node types may connect to which target node types.
 export const VALID_CONNECTIONS: Record<string, readonly string[]> = {
