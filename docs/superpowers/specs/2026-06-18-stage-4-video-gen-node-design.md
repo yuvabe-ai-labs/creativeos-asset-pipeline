@@ -21,9 +21,16 @@ request/response pattern can't carry — so most of this spec is about the async
 The codebase is already cut for this node; this spec mostly *fills in the type-specific
 steps* of the established lifecycle.
 
-- **Topology is fixed.** `VALID_CONNECTIONS` (`src/lib/canvas-nodes.ts`) already declares
-  `prompt → video-gen`, `image-gen → video-gen`, and `video-gen → []` (terminal — nothing
-  flows out of a clip). No connection-rule change needed.
+- **Topology — established by the Video Prompt node (part 1), consumed here.** Post-**D24** the
+  connection map is owned by the **Video Prompt spec §2** (and PRD §9.2/§10): part 1 adds the
+  `video-prompt` node type and its edges. From *this* Video Gen node's side, the inbound edges are
+  `image-gen → video-gen` (the **start frame** — already in `VALID_CONNECTIONS`) and
+  `video-prompt → video-gen` (the **motion prompt** — added by part 1); `video-gen → []` stays
+  terminal (nothing flows out of a clip). `prompt → video-gen` is retained only as the **inline
+  fallback** path (PRD §10 — type motion text directly when no Video Prompt node is wired). So this
+  spec introduces **no connection rules of its own** — it consumes the edges part 1 establishes.
+  *(Earlier drafts said "topology is fixed, no change needed"; that described the pre-D24 code,
+  which still lacks the `video-prompt` type — the build rewires it in part 1, step 3.)*
 - **The node lifecycle (D3) is a clean template.** `src/app/api/nodes/[id]/generate/route.ts`
   is the reference: `resolveInputs → compile → runAction → insertVersion → setActiveVersion`.
   The Video node is "the same five steps, with an async `runAction`."
