@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { useForm, type UseFormReturn } from "react-hook-form";
 import {
   ArrowLeft,
@@ -10,20 +11,30 @@ import {
   Maximize2,
   Settings2,
   Sparkles,
+  X,
   ZoomIn,
   ZoomOut,
   AlertTriangle,
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
-import { TransformWrapper, TransformComponent, useControls } from "react-zoom-pan-pinch";
+import {
+  TransformWrapper,
+  TransformComponent,
+  useControls,
+} from "react-zoom-pan-pinch";
 
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
-import { ConnectedInputsCard, type UpstreamNode, type ConnectedPreview } from "./connected-inputs-card";
-import { ImageGenVersionHistory, type ImageGenVersionSummary } from "./image-gen-version-history";
+import {
+  ConnectedInputsCard,
+  type UpstreamNode,
+  type ConnectedPreview,
+} from "./connected-inputs-card";
+import {
+  ImageGenVersionHistory,
+  type ImageGenVersionSummary,
+} from "./image-gen-version-history";
 import { ImageGenUsagePopover } from "./image-gen-usage-popover";
 import { InlineEvalBar } from "./inline-eval-bar";
 import { setVersionLabelAction } from "@/lib/actions/eval";
@@ -43,7 +54,12 @@ export type ImageGenFocusViewProps = {
   imageUrl: string | null;
   modelId?: string;
   params?: Record<string, unknown>;
-  upstream: Array<{ id: string; type: string; fileUrl?: string; fileKind?: string }>;
+  upstream: Array<{
+    id: string;
+    type: string;
+    fileUrl?: string;
+    fileKind?: string;
+  }>;
   onPatch: (patch: Record<string, unknown>) => void;
 };
 
@@ -72,7 +88,9 @@ function LeftSection({
           <span className="text-eyebrow">{label}</span>
         </div>
         <div className="flex items-center gap-2">
-          {badge && <span className="text-xs text-muted-foreground">{badge}</span>}
+          {badge && (
+            <span className="text-xs text-muted-foreground">{badge}</span>
+          )}
           {action}
         </div>
       </div>
@@ -171,10 +189,7 @@ function enumOptions(model: ImageGenClientModel, field: string): string[] {
   const fieldDef = shape[field] as any;
   const inner = fieldDef?._def?.innerType ?? fieldDef;
   const values =
-    inner?._def?.values ??
-    inner?.options ??
-    inner?._def?.options ??
-    [];
+    inner?._def?.values ?? inner?.options ?? inner?._def?.options ?? [];
   return Array.isArray(values) ? values : Object.values(values ?? {});
 }
 
@@ -191,9 +206,12 @@ function ParamsForm({
 }) {
   const values = form.watch();
   const fmt = (values.output_format as string | undefined) ?? "";
-  const showCompression = model.provider === "openai" && (fmt === "jpeg" || fmt === "webp");
-  const hasBackground = "background" in (values as Record<string, unknown>) ||
-    model.id === "openai:gpt-image-2" || model.id === "openai:gpt-image-1";
+  const showCompression =
+    model.provider === "openai" && (fmt === "jpeg" || fmt === "webp");
+  const hasBackground =
+    "background" in (values as Record<string, unknown>) ||
+    model.id === "openai:gpt-image-2" ||
+    model.id === "openai:gpt-image-1";
 
   function setField<K extends string>(k: K, v: unknown) {
     form.setValue(k as never, v as never, { shouldDirty: true });
@@ -224,7 +242,9 @@ function ParamsForm({
             value={String(values.background ?? "")}
             onChange={(v) => setField("background", v)}
             onBlur={commit}
-            options={enumOptions(model, "background").map((v) => ({ value: v }))}
+            options={enumOptions(model, "background").map((v) => ({
+              value: v,
+            }))}
           />
         )}
         <ParamSelect
@@ -232,10 +252,13 @@ function ParamsForm({
           value={String(values.output_format ?? "")}
           onChange={(v) => {
             setField("output_format", v);
-            if (v !== "jpeg" && v !== "webp") setField("output_compression", undefined);
+            if (v !== "jpeg" && v !== "webp")
+              setField("output_compression", undefined);
           }}
           onBlur={commit}
-          options={enumOptions(model, "output_format").map((v) => ({ value: v }))}
+          options={enumOptions(model, "output_format").map((v) => ({
+            value: v,
+          }))}
         />
         {showCompression && (
           <label className="col-span-2 flex flex-col gap-1 text-xs">
@@ -247,7 +270,9 @@ function ParamsForm({
               min={0}
               max={100}
               value={Number(values.output_compression ?? 80)}
-              onChange={(e) => setField("output_compression", Number(e.target.value))}
+              onChange={(e) =>
+                setField("output_compression", Number(e.target.value))
+              }
               onBlur={commit}
               className="accent-primary"
             />
@@ -280,7 +305,9 @@ function ParamsForm({
         value={String(values.output_mime_type ?? "")}
         onChange={(v) => setField("output_mime_type", v)}
         onBlur={commit}
-        options={enumOptions(model, "output_mime_type").map((v) => ({ value: v }))}
+        options={enumOptions(model, "output_mime_type").map((v) => ({
+          value: v,
+        }))}
       />
       <ParamSelect
         label="Safety filter"
@@ -308,7 +335,9 @@ function ParamsForm({
           value={String(values.thinking_level ?? "")}
           onChange={(v) => setField("thinking_level", v)}
           onBlur={commit}
-          options={enumOptions(model, "thinking_level").map((v) => ({ value: v }))}
+          options={enumOptions(model, "thinking_level").map((v) => ({
+            value: v,
+          }))}
         />
       )}
     </div>
@@ -329,7 +358,9 @@ export function ImageGenFocusView({
   onPatch,
 }: ImageGenFocusViewProps) {
   const selectedModelId = modelId ?? DEFAULT_CLIENT_MODEL_ID;
-  const model = imageGenClientModelMap[selectedModelId] ?? imageGenClientModelMap[DEFAULT_CLIENT_MODEL_ID];
+  const model =
+    imageGenClientModelMap[selectedModelId] ??
+    imageGenClientModelMap[DEFAULT_CLIENT_MODEL_ID];
 
   const form = useForm<ParamFormValues>({
     defaultValues: { ...defaultsForSchema(model.schema), ...(params ?? {}) },
@@ -340,10 +371,15 @@ export function ImageGenFocusView({
   const [activeVersionId, setActiveVersionId] = useState<string | null>(null);
   const [restoring, setRestoring] = useState(false);
   const [zoomOpen, setZoomOpen] = useState(false);
-  const [evalDecision, setEvalDecision] = useState<"pass" | "fail" | null>(null);
+  const [evalDecision, setEvalDecision] = useState<"pass" | "fail" | null>(
+    null,
+  );
   const [evalNote, setEvalNote] = useState("");
   const [evalSaving, setEvalSaving] = useState(false);
-  const [preview, setPreview] = useState<ConnectedPreview[]>([]);
+  const [fetchedPrompt, setFetchedPrompt] = useState<{
+    nodeId: string;
+    text: string;
+  } | null>(null);
   const seenModelIdRef = useRef(model.id);
 
   useEffect(() => {
@@ -368,7 +404,9 @@ export function ImageGenFocusView({
           };
           setVersions(json.versions ?? []);
           setActiveVersionId(json.activeVersionId ?? null);
-          const active = (json.versions ?? []).find((v) => v.id === json.activeVersionId);
+          const active = (json.versions ?? []).find(
+            (v) => v.id === json.activeVersionId,
+          );
           setEvalDecision(active?.decision ?? null);
           setEvalNote(active?.note ?? "");
         }
@@ -385,10 +423,7 @@ export function ImageGenFocusView({
     if (!open) return;
     let cancelled = false;
     const promptNode = upstream.find((u) => u.type === "prompt");
-    if (!promptNode) {
-      setPreview([]);
-      return;
-    }
+    if (!promptNode) return;
     void (async () => {
       try {
         const res = await fetch(`/api/nodes/${promptNode.id}/versions`);
@@ -397,9 +432,11 @@ export function ImageGenFocusView({
           activeVersionId: string | null;
           versions: Array<{ id: string; output: string | null }>;
         };
-        const active = (json.versions ?? []).find((v) => v.id === json.activeVersionId);
+        const active = (json.versions ?? []).find(
+          (v) => v.id === json.activeVersionId,
+        );
         if (!cancelled && active?.output) {
-          setPreview([{ nodeId: promptNode.id, type: "prompt", label: "Image prompt", text: active.output }]);
+          setFetchedPrompt({ nodeId: promptNode.id, text: active.output });
         }
       } catch {
         /* best-effort */
@@ -443,6 +480,19 @@ export function ImageGenFocusView({
     [upstream],
   );
 
+  const preview = useMemo<ConnectedPreview[]>(() => {
+    const promptNode = upstream.find((u) => u.type === "prompt");
+    if (!promptNode || fetchedPrompt?.nodeId !== promptNode.id) return [];
+    return [
+      {
+        nodeId: promptNode.id,
+        type: "prompt",
+        label: "Image prompt",
+        text: fetchedPrompt.text,
+      },
+    ];
+  }, [upstream, fetchedPrompt]);
+
   const mode: "skeleton" | "result" | "empty" = generating
     ? "skeleton"
     : imageUrl
@@ -459,7 +509,9 @@ export function ImageGenFocusView({
       };
       setVersions(json.versions ?? []);
       setActiveVersionId(json.activeVersionId ?? null);
-      const active = (json.versions ?? []).find((v) => v.id === json.activeVersionId);
+      const active = (json.versions ?? []).find(
+        (v) => v.id === json.activeVersionId,
+      );
       setEvalDecision(active?.decision ?? null);
       setEvalNote(active?.note ?? "");
     } catch {
@@ -487,7 +539,8 @@ export function ImageGenFocusView({
         versionId?: string;
         error?: string;
       };
-      if (!res.ok || !json.imageUrl) throw new Error(json.error ?? "Generation failed");
+      if (!res.ok || !json.imageUrl)
+        throw new Error(json.error ?? "Generation failed");
       onPatch({ parsed: json.imageUrl });
       setActiveVersionId(json.versionId ?? null);
       await fetchVersions();
@@ -526,7 +579,10 @@ export function ImageGenFocusView({
     setEvalDecision(d);
     setEvalSaving(true);
     try {
-      await setVersionLabelAction(activeVersionId, { decision: d, note: evalNote.trim() || null });
+      await setVersionLabelAction(activeVersionId, {
+        decision: d,
+        note: evalNote.trim() || null,
+      });
       toast.success("Feedback saved");
     } catch {
       toast.error("Failed to save feedback");
@@ -607,18 +663,25 @@ export function ImageGenFocusView({
                   {title || "Image generation"}
                 </SheetTitle>
                 <p className="mt-1.5 text-sm text-muted-foreground">
-                  Choose a model, tune params, and generate an image from your connected prompt.
+                  Choose a model, tune params, and generate an image from your
+                  connected prompt.
                 </p>
               </div>
               <div className="flex shrink-0 items-center gap-2">
-                {versions.length > 0 && <ImageGenUsagePopover versions={versions} />}
+                {versions.length > 0 && (
+                  <ImageGenUsagePopover versions={versions} />
+                )}
                 <Button
                   size="lg"
                   onClick={handleGenerate}
                   disabled={generating || !promptUpstream}
                 >
                   <Sparkles className="size-4" strokeWidth={1.5} />
-                  {generating ? "Generating…" : imageUrl ? "Re-generate" : "Generate"}
+                  {generating
+                    ? "Generating…"
+                    : imageUrl
+                      ? "Re-generate"
+                      : "Generate"}
                 </Button>
               </div>
             </header>
@@ -628,7 +691,6 @@ export function ImageGenFocusView({
         {/* Body */}
         <div className="min-h-0 flex-1 flex justify-center overflow-hidden">
           <div className="w-full max-w-5xl flex min-h-0 overflow-hidden">
-
             {/* Left panel */}
             <div className="w-[40%] border-r border-border overflow-y-auto px-6 py-6 flex flex-col gap-6">
               {versions.length > 0 && (
@@ -657,7 +719,11 @@ export function ImageGenFocusView({
                       </optgroup>
                     ))}
                   </select>
-                  <ParamsForm model={model} form={form} onCommit={commitParams} />
+                  <ParamsForm
+                    model={model}
+                    form={form}
+                    onCommit={commitParams}
+                  />
                 </div>
               </LeftSection>
 
@@ -666,13 +732,20 @@ export function ImageGenFocusView({
                 label="Connected"
                 badge={`${upstream.length} input${upstream.length === 1 ? "" : "s"}`}
               >
-                <ConnectedInputsCard upstream={upstreamForCard} preview={preview} />
+                <ConnectedInputsCard
+                  upstream={upstreamForCard}
+                  preview={preview}
+                />
                 {refOverLimit && (
                   <div className="mt-2 flex items-start gap-1.5 rounded-md border border-amber-300 bg-amber-50 px-2 py-1.5 text-[0.7rem] text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300">
-                    <AlertTriangle className="mt-0.5 size-3 shrink-0" strokeWidth={1.5} />
+                    <AlertTriangle
+                      className="mt-0.5 size-3 shrink-0"
+                      strokeWidth={1.5}
+                    />
                     <span>
-                      {referenceCount} reference images connected — only the first{" "}
-                      {model.maxReferenceImages} will be used by {model.label}.
+                      {referenceCount} reference images connected — only the
+                      first {model.maxReferenceImages} will be used by{" "}
+                      {model.label}.
                     </span>
                   </div>
                 )}
@@ -700,7 +773,10 @@ export function ImageGenFocusView({
                 {mode === "empty" && (
                   <div className="flex size-full items-center justify-center rounded-xl border border-dashed border-border">
                     <div className="text-center px-8">
-                      <ImageIcon className="mx-auto size-8 text-muted-foreground/40" strokeWidth={1.5} />
+                      <ImageIcon
+                        className="mx-auto size-8 text-muted-foreground/40"
+                        strokeWidth={1.5}
+                      />
                       <p className="mt-3 text-sm font-medium text-muted-foreground">
                         Not generated yet
                       </p>
@@ -745,43 +821,84 @@ export function ImageGenFocusView({
           </div>
         </div>
 
-        {/* Full-screen zoom dialog */}
-        {imageUrl && (
-          <Dialog open={zoomOpen} onOpenChange={setZoomOpen}>
-            <DialogContent
-              className={cn(
-                "inset-0 left-0 top-0 translate-x-0 translate-y-0",
-                "h-screen max-h-screen w-screen max-w-none",
-                "rounded-none border-0 p-0 gap-0 shadow-none",
-                "bg-black/95 text-white overflow-hidden",
-                "flex flex-col",
-              )}
-            >
-              <DialogTitle className="sr-only">Generated image</DialogTitle>
-              <TransformWrapper
-                doubleClick={{ mode: "reset" }}
-                minScale={0.5}
-                maxScale={8}
-                centerOnInit
-              >
-                <TransformComponent
-                  wrapperClass="!w-screen !h-screen"
-                  contentClass="!w-full !h-full flex items-center justify-center"
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={imageUrl}
-                    alt={title || "Generated image"}
-                    className="max-h-screen max-w-full object-contain"
-                    draggable={false}
-                  />
-                </TransformComponent>
-                <ZoomControls onDownload={handleDownload} />
-              </TransformWrapper>
-            </DialogContent>
-          </Dialog>
+        {zoomOpen && imageUrl && (
+          <FullScreenImageZoom
+            imageUrl={imageUrl}
+            title={title}
+            onClose={() => setZoomOpen(false)}
+            onDownload={handleDownload}
+          />
         )}
       </SheetContent>
     </Sheet>
+  );
+}
+
+// ── Full-screen image viewer (portal-rendered, bypasses Dialog positioning) ──
+
+function FullScreenImageZoom({
+  imageUrl,
+  title,
+  onClose,
+  onDownload,
+}: {
+  imageUrl: string;
+  title: string;
+  onClose: () => void;
+  onDownload: () => void;
+}) {
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [onClose]);
+
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Generated image"
+      className="fixed inset-0 z-[100] flex flex-col bg-black/97 text-white animate-in fade-in-0 duration-200"
+    >
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="Close"
+        className="absolute right-4 top-4 z-10 rounded-full p-2 text-white/60 transition-colors hover:bg-white/10 hover:text-white"
+      >
+        <X className="size-5" strokeWidth={1.5} />
+      </button>
+      <TransformWrapper
+        doubleClick={{ mode: "reset" }}
+        minScale={0.5}
+        maxScale={8}
+        centerOnInit
+        wheel={{ step: 0.03 }}
+      >
+        <TransformComponent
+          wrapperClass="!w-screen !h-screen"
+          contentClass="!w-full !h-full flex items-center justify-center"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={imageUrl}
+            alt={title || "Generated image"}
+            className="max-h-screen max-w-full object-contain"
+            draggable={false}
+          />
+        </TransformComponent>
+        <ZoomControls onDownload={onDownload} />
+      </TransformWrapper>
+    </div>,
+    document.body,
   );
 }
