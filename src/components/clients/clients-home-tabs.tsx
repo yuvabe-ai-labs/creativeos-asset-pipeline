@@ -12,6 +12,12 @@ import type { RecentCanvas } from "@/lib/db/recent-canvas";
 const triggerClass =
   "flex-none px-0 py-0 font-display text-3xl font-semibold tracking-[-0.02em] text-foreground/40 data-active:text-foreground sm:text-4xl";
 
+// Archived is a recovery view, not a primary destination — so it's demoted from a big
+// display tab to a quiet, right-aligned utility label (hierarchy via casing/scale/color,
+// per the design system), pushed to the row's right edge with `ml-auto`.
+const archivedTriggerClass =
+  "ml-auto flex-none self-end px-0 py-0 text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground data-active:text-foreground";
+
 export function ClientsHomeTabs({
   clients,
   archivedClients,
@@ -27,16 +33,21 @@ export function ClientsHomeTabs({
     <Tabs value={tab} onValueChange={setTab}>
       <header className="animate-rise mb-10">
         <p className="text-eyebrow">Increment 1D · persisted</p>
-        <div className="mt-2 flex items-end justify-between gap-4">
-          <TabsList variant="line" className="h-auto gap-6 p-0">
+        <div className="mt-2 flex items-end gap-4">
+          <TabsList variant="line" className="h-auto w-auto flex-1 gap-6 p-0">
             <TabsTrigger value="clients" className={triggerClass}>
               Clients
             </TabsTrigger>
             <TabsTrigger value="recent" className={triggerClass}>
               Recent
             </TabsTrigger>
-            <TabsTrigger value="archived" className={triggerClass}>
-              Archived
+            <TabsTrigger value="archived" className={archivedTriggerClass}>
+              <span>Archived</span>
+              {archivedClients.length > 0 && (
+                <span className="tracking-normal tabular-nums text-muted-foreground/60">
+                  {archivedClients.length}
+                </span>
+              )}
             </TabsTrigger>
           </TabsList>
           {tab === "clients" && <NewClientDialog />}
