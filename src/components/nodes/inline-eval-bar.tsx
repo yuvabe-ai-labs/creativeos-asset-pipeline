@@ -10,6 +10,7 @@ type InlineEvalBarProps = {
   note: string;
   saving: boolean;
   visible: boolean;
+  label?: string;
   onDecision: (d: Decision) => void;
   onNote: (n: string) => void;
   onNoteBlur: () => void;
@@ -20,6 +21,7 @@ export function InlineEvalBar({
   note,
   saving,
   visible,
+  label = "Generated Prompt",
   onDecision,
   onNote,
   onNoteBlur,
@@ -33,7 +35,7 @@ export function InlineEvalBar({
   return (
     <div className="min-w-0">
       <div className="flex items-center justify-between">
-        <span className="text-eyebrow">Generated Prompt</span>
+        <span className="text-eyebrow">{label}</span>
 
         {visible && (
           <div className="flex items-center gap-1">
