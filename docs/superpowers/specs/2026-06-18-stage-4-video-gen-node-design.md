@@ -1,9 +1,10 @@
-# Stage 4 — Video Gen node (Veo, image-to-video)
+# Stage 4 (part 2 of 2) — Video Gen node (Veo, image-to-video)
 
 **Date:** 2026-06-18
-**Status:** Approved (design). Not yet built.
-**Type:** Stage build spec (one stage of the staging roadmap)
-**Companions:** `2026-05-30-creativeos-staging-roadmap.md` (strategy + ADR log; this is Stage 4),
+**Status:** Approved (design). Not yet built. **Depends on the Video Prompt node** (part 1).
+**Type:** Stage build spec (one node of Stage 4)
+**Companions:** `2026-06-18-video-prompt-node-design.md` (part 1 — the node that feeds this one),
+`2026-05-30-creativeos-staging-roadmap.md` (strategy + ADR log; this is Stage 4, ADRs **D24/D25**),
 `2026-05-30-creativeos-architecture.md` (the reusable spine this spec reuses).
 
 This spec designs the **Video Gen node**: the reel pipeline's final asset step
@@ -60,19 +61,37 @@ steps* of the established lifecycle.
 - Retry/backoff policy beyond "it failed → it's a failed attempt; re-run manually."
 - Text-to-video (no start frame) — every Video node here starts from an image.
 
-### Decision: the motion prompt is authored inline, not by a new node
+### Decision: the motion prompt comes from a dedicated Video Prompt node
 A Veo motion prompt could come from (A) inline text + a camera control on the Video node,
-(B) a **video mode** added to the existing Prompt node (`target: 'image' | 'video'` swapping the
-system prompt + controls — the D16 "compile + prompt swap, not new architecture" pattern), or
-(C) a brand-new Video Prompt node type. **Chosen: A.** Rationale, verified against Veo docs: in
-image-to-video the *start frame already carries the scene*, so the prompt is just camera + action
-— short, directable text a designer can write by hand. The existing Prompt node is hard-tuned for
-*images* ([prompt-generate.ts](../../../src/prompts/prompt-generate.ts) literally writes "image-generation
-prompts for Nano Banana"; its controls are lens/composition/lighting), so it is the *wrong* upstream
-for motion as-is — reusing it would feed Veo a static-frame description. **B is the documented
-fast-follow** (not a prerequisite): if hand-written motion text proves insufficient by eval, add the
-Prompt node's video mode then — the `prompt → video-gen` edge is already wired. **C is rejected**
-(duplicates the spine for no gain). This keeps the Video node independently shippable and testable.
+(B) a **video mode** on the existing Prompt node (`target: 'image' | 'video'`), or (C) a
+dedicated **Video Prompt** node type. **Chosen: C** — its own design spec
+(`2026-06-18-video-prompt-node-design.md`), built **first**, as the prerequisite to this node.
+Rationale: a good Veo motion prompt is an *iterated, controlled, vision-grounded* artifact, not
+a throwaway line — it benefits from curated master controls (camera move / motion speed, mapped
+from the Veo 3.1 guide structure), versioned attempts to compare, the visible compiled prompt
+(D3), the eval flywheel (D22), and **vision-reading the approved frame** to ground the motion in
+what's actually on screen (the message composer already supports image vision —
+[compose-message.ts](../../../src/lib/nodes/compose-message.ts)). C was chosen over B (a mode on the
+image Prompt node) for **canvas legibility** — designers read a node literally labelled "Video
+Prompt" more easily than a hidden mode toggle — at the cost of some duplicated machinery and new
+connection rules. **Inline text on this Video node remains the fallback** (`instruction` field)
+for quick tests when no Video Prompt node is wired.
+
+**Consequence for this node:** the Video Gen node consumes the **Video Prompt node's output**
+(motion text) via a `video-prompt → video-gen` edge, *and* the Image Gen node's approved still
+as the start frame — a small **diamond**: `image-gen` feeds **both** the Video Prompt node (as a
+vision reference) and this Video Gen node (as the literal first frame). See the Video Prompt spec
+for why a chain can't work (the prompt node's output is text, so the image would never reach Veo).
+
+```mermaid
+flowchart TD
+  IG["Image Gen node<br/>(approved still)"]
+  IG -->|"VISION reference"| VP["Video Prompt node"]
+  IG -->|"literal FIRST FRAME"| VG["Video Gen node<br/>(this spec)"]
+  VP -->|"motion prompt text"| VG
+  classDef new fill:#efe9ff,stroke:#5829c7,color:#1a1430;
+  class VP,VG new;
+```
 
 ---
 
@@ -173,14 +192,42 @@ job graduates, the node flips from "Generating…" to the clip with **zero clien
 (D12: "pushed via Realtime, not polling"). The browser may keep a lightweight status read as a
 fallback, but it is never the source of truth — the DB is (survives page refresh, roadmap §3.2).
 
-```
-submit ─▶ generations{running, jobId}          (node_versions untouched)
-            │
-   Vercel Cron (1/min) ─▶ reconcile ─▶ poll Veo operation
-            │
-   done? ─▶ download clip ─▶ Storage outputs/ ─▶ INSERT node_versions ─▶ setActive
-            │                                          │
-   generations{succeeded, version_id}          Supabase Realtime ─▶ canvas updates
+```mermaid
+sequenceDiagram
+  participant U as Operator
+  participant S as POST /nodes/:id/video (submit)
+  participant V as Veo (Gemini)
+  participant G as generations table
+  participant C as Vercel Cron → /jobs/reconcile
+  participant ST as Storage outputs/
+  participant NV as node_versions
+  participant RT as Supabase Realtime → canvas
+
+  U->>S: Generate
+  S->>S: resolveInputs → compile
+  S->>V: generateVideos(startFrame, motionPrompt)
+  V-->>S: operation name (job_id)
+  S->>G: INSERT {status: running, job_id}
+  S-->>U: 202 — node shows "Generating…"
+  Note over NV: node_versions untouched (no half-written rows)
+
+  loop every ~1 min
+    C->>G: select status = running
+    C->>V: poll operation(job_id)
+    alt done + success
+      V-->>C: video URI
+      C->>ST: download clip → upload
+      C->>NV: INSERT {output: clip path}
+      C->>NV: setActiveVersion
+      C->>G: UPDATE {status: succeeded, version_id}
+      NV-->>RT: row insert
+      RT-->>U: node flips to the clip (no polling)
+    else done + failure
+      V-->>C: error
+      C->>NV: INSERT {error}
+      C->>G: UPDATE {status: failed}
+    end
+  end
 ```
 
 ### Why a `generations` table that *graduates into* `node_versions` (resolves the parked D12 vs D4/D18 tension)

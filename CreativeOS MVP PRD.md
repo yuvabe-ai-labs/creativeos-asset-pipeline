@@ -25,6 +25,8 @@
 | 6 | **Edit at the source.** A node's output is edited only where it is produced; downstream consumers get read-only mirrors, never per-consumer overrides. | §9.2 | D20 |
 | 7 | **Shot fan-out.** A reel is `1 script → N shots → N images → N clips → 1 reel`. A human-triggered **"fan out shots"** materializes each shot of a parsed script into its own first-class **Shot node** (seed-and-fork; mark, don't block). | §7, §10, §14, §15 | D21 |
 | 8 | **Shot → image context trimmed.** A Shot still *carries* its full narrowed script (D21), but when it feeds an image prompt only the **visual description + production medium** are passed — reel-level copy (objective, on-screen text, voiceover, caption, CTA, …) is dropped to cut homogeneity and baked-in-text risk. Grounded in the Run-01 eval. | §7.1, §10, §12 | D23 |
+| 9 | **Video Prompt node added.** Stage 4 splits into a **Video Prompt node** (a dedicated prompt node that *vision-reads the approved still* and writes a **Veo motion prompt** with camera/motion master controls) → **Video Gen node**. Supersedes the single-Prompt-feeds-both model for the default path (inline text on the Video Gen node stays as a fallback). | §7, §9.2, §10, §11.5–11.6 | D24 |
+| 10 | **Async video jobs.** A long-running Veo job is tracked in a disposable **`generations`** table that *graduates* into a `node_versions` row on completion; reconciled by a Vercel Cron (Veo is poll-based), pushed to the canvas via Realtime. | §11.6, §15 | D25 |
 
 Everything below the changelog is the full PRD with these changes applied. Sections
 not touched by the Script-node revision (problem, principles, downstream Prompt/Image/
@@ -265,7 +267,8 @@ Input nodes
 └── Draw node        (experimental — in-canvas sketch → image)
 
 Prompt nodes
-└── Prompt node
+├── Prompt node          (image/text prompts)
+└── Video Prompt node    (motion prompts for Veo — D24)
 
 Generate nodes
 ├── Image Gen node
@@ -310,18 +313,24 @@ Generate nodes
 > first because the most concrete spec designers already hold is a finished script; the Brief
 > node is retained for projects that start upstream (brief → generate script → parse).
 
-### 7.2 Prompt node
+### 7.2 Prompt nodes
 
 | Node | Purpose | Output |
 | :---- | :---- | :---- |
-| **Prompt node** | Combines client context (Brand KB), connected inputs (incl. parsed script fields), inline files, and operator instruction into generated text | Text |
+| **Prompt node** | Combines client context (Brand KB), connected inputs (incl. parsed script fields), inline files, and operator instruction into generated **image/text** prompts | Text |
+| **Video Prompt node** *(D24)* | Writes a **Veo motion prompt** for image-to-video: *vision-reads the approved Image Gen still* + shot action context + Brand KB, steered by **camera/motion master controls** structured from the Veo 3.1 guide (camera as a standalone clause, no scene re-description — the frame carries the visuals). Synchronous LLM; versioned like the Prompt node | Text (motion prompt) |
+
+> The **Video Prompt node** is to *video* what the Prompt node is to *images*. It is a separate
+> node (not a mode of the Prompt node) for canvas legibility and because a motion prompt has its
+> own controls and grounds itself by **looking at the approved frame**. It feeds the Video Gen
+> node. Inline motion text typed on the Video Gen node remains a quick-test fallback (D24).
 
 ### 7.3 Generate nodes
 
 | Node | Purpose | Output |
 | :---- | :---- | :---- |
 | **Image Gen node** | Generates images using prompt text, image references, and selected controls | Generated image attempts |
-| **Video Gen node** | Generates videos using prompt text, image input, and selected controls | Generated video attempts |
+| **Video Gen node** | Generates videos (image-to-video) from a **Video Prompt node's motion prompt** + the **approved Image Gen still** (start frame) + selected controls. Long-running async job (D25) | Generated video attempts |
 
 ---
 
@@ -381,7 +390,9 @@ Examples:
 * Text node → Prompt node
 * File node → Prompt node
 * Prompt node → Image Gen node
-* Image Gen output → Video Gen node
+* Image Gen output → Video Prompt node *(vision reference for the motion prompt — D24)*
+* Image Gen output → Video Gen node *(start frame)*
+* Video Prompt node → Video Gen node *(motion prompt)*
 
 ### 9.3 Inline files
 
@@ -412,9 +423,15 @@ Inline files are local to that Prompt node. They are not automatically added to 
 | Draw node | Image Gen node | Use the sketch as a generation reference |
 | Prompt node | Prompt node | Refine or transform text |
 | Prompt node | Image Gen node | Use text as image generation prompt |
-| Prompt node | Video Gen node | Use text as video generation prompt |
+| Prompt node | Video Gen node | Use text as video generation prompt *(fallback path; the default is via a Video Prompt node — D24)* |
+| Shot node | Video Prompt node | Use the shot's **action / strategic objective** as the motion context (`renderShotForVideo`, D24) |
+| Text node | Video Prompt node | Add motion notes or constraints |
+| File node: image | Video Prompt node | Use an image as a style reference for the motion prompt |
+| Draw node | Video Prompt node | Use a sketch as a style reference for the motion prompt |
 | Image Gen output | Prompt node | Use generated image for prompt refinement |
-| Image Gen output | Video Gen node | Use generated image for image-to-video |
+| Image Gen output | Video Prompt node | **Vision-read** the approved still to ground the motion prompt (D24) |
+| Image Gen output | Video Gen node | Use generated image as the **start frame** for image-to-video |
+| Video Prompt node | Video Gen node | Use the generated **motion prompt** for the Veo job (D24) |
 | Video Gen output | Archive action | Archive approved final output |
 
 ---

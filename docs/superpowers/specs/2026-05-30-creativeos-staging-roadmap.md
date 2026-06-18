@@ -117,9 +117,17 @@ not rewrites). The data model built in Stage 1 is still the one in use at Stage 
 - **New concepts:** master-controls schema vs selected values vs **attempt snapshot** ·
   the visible final compiled prompt · active-output pointer · stale-downstream detection.
 
-### Stage 4 — Video Gen node
-- **Ships:** Approved image → video (image-to-video). Full reel-asset pipeline.
-- **New concepts:** long-running async **job state machine** (submit → poll → resolve).
+### Stage 4 — Video Prompt node → Video Gen node *(decomposed into two nodes — D24)*
+- **Ships:** Approved image → motion prompt → video (image-to-video). Full reel-asset pipeline.
+  Splits into **(1) Video Prompt node** (synchronous LLM; writes a Veo motion prompt, vision-
+  grounded on the approved still, with camera/motion master controls) and **(2) Video Gen node**
+  (the async Veo job). The **diamond**: `image-gen` feeds both — the Video Prompt node (as a vision
+  reference) and the Video Gen node (as the literal first frame).
+- **New concepts:** long-running async **job state machine** (submit → reconcile → resolve;
+  `generations` row graduates into a `node_versions` row — D25) · **fork-and-rejoin (diamond)
+  topology** · **vision-grounded prompt generation** · synchronous vs async `runAction`.
+- **Specs:** `2026-06-18-video-prompt-node-design.md` (part 1, built first),
+  `2026-06-18-stage-4-video-gen-node-design.md` (part 2).
 
 ### Stage 5 — Archive + Client KB in prompts  🟡 *Client KB built early (D17); archive bundle still pending*
 - **Ships:** Complete a project; review exactly how each output was made. The learning
@@ -145,7 +153,9 @@ not rewrites). The data model built in Stage 1 is still the one in use at Stage 
 | Schema vs selected-values vs attempt-snapshot | Stage 3 |
 | Final compiled prompt (pure function, snapshotted) | Stage 3 |
 | Active-output pointer + stale detection | Stage 3 |
-| Long-running job state machine | Stage 4 |
+| Vision-grounded prompt generation (read the frame to write motion) | Stage 4 (D24) |
+| Fork-and-rejoin (diamond) topology | Stage 4 (D24) |
+| Long-running job state machine (`generations` graduates into `node_versions`) | Stage 4 (D25) |
 | Relational archive bundle | Stage 5 |
 
 ---
@@ -466,6 +476,51 @@ is derived (`generated_output IS DISTINCT FROM output`) — no stored flag.
 `decision`/`note` writes (those land in Step 3 error analysis), no per-save edit trail (two
 points is what error analysis consumes; a trail reverses D18 for no current goal).
 **Originated.** `2026-06-14-raw-generation-capture-design.md`.
+
+### D24 — Stage 4 splits into Video Prompt → Video Gen; the motion prompt is its own node *(recorded 2026-06-18)*
+**Decision.** Stage 4 ships **two** nodes, mirroring the image side (Prompt Stage 2 → Image Gen
+Stage 3): a **Video Prompt node** (synchronous text-LLM; writes a Veo-ready *motion prompt*) then
+a **Video Gen node** (async Veo job). The motion prompt is a **dedicated node type**
+(`video-prompt`) — *not* (A) inline text on the Video Gen node, nor (B) a `target:'image'|'video'`
+mode on the existing Prompt node. The Video Prompt node **vision-reads the approved Image Gen
+still** to ground the motion in what's on screen, and exposes master controls (camera move /
+motion speed) structured from the verified **Veo 3.1 prompting guide** (camera as a standalone
+clause, no scene re-description — for image-to-video the frame already carries subject/setting/
+style). Inline motion text on the Video Gen node is kept only as a **fallback** for quick tests.
+**Why.** A good motion prompt is an *iterated, controlled, vision-grounded* artifact — it earns
+versioned attempts (compare), the visible compiled prompt (D3), the eval flywheel (D22), and a
+curated controls catalog, exactly like the image Prompt node. The image Prompt node itself is the
+*wrong* host: it is hard-tuned for static frames (`prompt-generate` writes "image-generation
+prompts for Nano Banana"; controls are lens/composition/lighting), so reusing it would feed Veo a
+frozen-frame description. **C over B** was chosen for **canvas legibility** — designers read a node
+labelled "Video Prompt" more easily than a hidden mode toggle. **Cost accepted:** some duplicated
+machinery + new `VALID_CONNECTIONS` edges (`image-gen/shot/file/draw/text → video-prompt`,
+`video-prompt → video-gen`). **Topology — the diamond:** the approved still is needed two ways, so
+`image-gen` forks to **both** the Video Prompt node (vision reference) *and* the Video Gen node
+(literal first frame), rejoining at Video Gen. A chain can't work — the Video Prompt node's output
+is *text*, so the image would never reach Veo. **Amends the PRD** (§7 adds a Video Prompt node;
+§9.2/§10 add its edges) — the original single-Prompt-feeds-both model (PRD §10 "Prompt node → Video
+Gen node") is superseded for the default path, retained as the fallback.
+**Originated.** `2026-06-18-video-prompt-node-design.md`.
+
+### D25 — Async video job: a `generations` row graduates into a `node_versions` row *(recorded 2026-06-18; resolves D12 ↔ D4/D18)*
+**Decision.** An in-flight Veo job lives in a new **`generations`** table
+(`queued → running → succeeded/failed`, `provider_job_id`, `params`, `error`, `version_id`). On a
+**terminal** state it **graduates** into a `node_versions` row — success writes `output` (the clip
+storage path) + `setActive`; failure writes `error`. The `generations` row is the disposable async
+*scratchpad*; `node_versions` only ever gains **finished** attempts. Veo's Gemini API is
+**poll-based (long-running operation, no webhook)**, so a **Vercel Cron** route reconciles running
+jobs (~1/min); results reach the canvas via **Supabase Realtime** (D12: "pushed, not polling").
+Clip bytes live in Storage `outputs/`; the DB stores only the path (D13).
+**Why.** D12 named a `generations` table; D4/D18 say "a `node_versions` row *is* the attempt" —
+never reconciled. Async adds `running`/abandoned/retried states; routing that churn through
+`node_versions` (a `status` column + in-place `UPDATE` of `output`) fills the append-only attempt
+log — the thing the product treats as truth — with half-written rows. A disposable `generations`
+table keeps the log clean while honoring "job state must survive a page refresh" (§3.2 — state is
+in the DB, never the browser). **Rejected.** Status-on-the-version-row (simpler, but pollutes the
+log and bends D18's append-only). **Refines D12.** The table D12 sketched is now built (Stage 4)
+with an explicit *graduation* rule into `node_versions`.
+**Originated.** `2026-06-18-stage-4-video-gen-node-design.md`.
 
 ### Parked / out-of-scope (with revisit triggers)
 | Item | Status | Revisit when |

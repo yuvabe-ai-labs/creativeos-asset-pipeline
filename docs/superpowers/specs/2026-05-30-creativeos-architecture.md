@@ -79,7 +79,8 @@ available (first column always ✅).** Each type opts into only the explicit inp
 | **File** | ✅ | ➖ | ➖ | uploaded file + (optional) schema |
 | **Prompt** | ✅ | ✅ | ✅ | operator instruction |
 | **Image Gen** | ✅ | ✅ (prompt + img refs) | ➖ | selected control values |
-| **Video Gen** | ✅ | ✅ (prompt + img) | ➖ | selected control values |
+| **Video Prompt** | ✅ | ✅ (image frame *(vision)* + shot + refs) | ➖ | motion controls (camera/speed) + instruction |
+| **Video Gen** | ✅ | ✅ (motion prompt + start-frame img) | ➖ | selected control values |
 
 Notes:
 - **Brief** has no edges/inline inputs — its only source is its own uploaded brief +
@@ -123,7 +124,8 @@ shape: **the log is truth, the pointer is derived.**
 
 ## 6. Schema
 
-Five tables. Four are Stage 1; `edges` is **designed now, built in Stage 2** (ADR **D8**).
+Six tables. Four are Stage 1; `edges` is **designed now, built in Stage 2** (ADR **D8**);
+`generations` is the **async job scratchpad, built in Stage 4** (ADR **D25**).
 
 ```sql
 -- 1. CLIENTS  (top of hierarchy; holds ambient client context)
@@ -188,11 +190,28 @@ create table edges (
   created_at     timestamptz default now()
   -- future option (ADR D8): pinned_version_id uuid  -- freeze a connection to a version
 );
+
+-- 6. GENERATIONS  (async job scratchpad — BUILT in Stage 4, ADR D25)
+-- An in-flight long-running model job (today: Veo video). Disposable: on a terminal state it
+-- GRADUATES into a node_versions row (success → output; failure → error), so node_versions only
+-- ever holds FINISHED attempts. Veo's API is poll-based (no webhook) → a Vercel Cron reconciles
+-- running rows; Supabase Realtime pushes the graduated version to the canvas.
+create table generations (
+  id               uuid primary key default gen_random_uuid(),
+  node_id          uuid not null references nodes(id) on delete cascade,
+  status           text not null default 'queued',   -- queued|running|succeeded|failed
+  provider_job_id  text,                              -- provider operation/job id (Veo operation)
+  params           jsonb not null default '{}',       -- compiled request + controls snapshot
+  error            text,
+  version_id       uuid references node_versions(id) on delete set null,  -- set on graduation
+  created_at       timestamptz default now(),
+  updated_at       timestamptz default now()
+);
 ```
 
 Plus **Storage** (Supabase): bucket `sources` (briefs, reference files) and bucket
 `outputs` (generated images/videos). Files referenced by path in `nodes.data` or
-`node_versions.output`.
+`node_versions.output`. Large media never live in Postgres — only the path (ADR **D13**).
 
 ### Why this scales
 - **JSONB `data` + payload = "narrow waist"** (ADR **D10**): uniform machinery columns,
@@ -283,4 +302,5 @@ incrementally across stages; the rest of the spine is identical for all of them.
 | **File** | file + extraction prompt → process payload | LLM (optional, if "Use LLM") | 2 |
 | **Prompt** | client ctx + upstream + inline + instruction → prompt payload | LLM (generate text) | 2 |
 | **Image Gen** | base prompt + control values + refs → final compiled prompt | image model | 3 |
-| **Video Gen** | base prompt + control values + image → final compiled prompt | video model (async submit→poll) | 4 |
+| **Video Prompt** | image frame (vision) + shot ctx + motion controls → motion-prompt payload | LLM (generate text) — **synchronous** | 4 (D24) |
+| **Video Gen** | motion prompt + start frame + controls → final compiled prompt | video model (async submit→reconcile; `generations`→`node_versions`, D25) | 4 |
