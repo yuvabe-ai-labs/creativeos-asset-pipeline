@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { useForm, type UseFormReturn } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import {
   ArrowLeft,
   Download,
@@ -39,12 +39,12 @@ import { ImageGenUsagePopover } from "./image-gen-usage-popover";
 import { InlineEvalBar } from "./inline-eval-bar";
 import { setVersionLabelAction } from "@/lib/actions/eval";
 import {
-  imageGenClientModelGroups,
   imageGenClientModelMap,
   DEFAULT_CLIENT_MODEL_ID,
   defaultsForSchema,
   type ImageGenClientModel,
 } from "@/lib/image-gen/client-models";
+import { ImageGenOutputSettings } from "./image-gen-output-settings";
 
 export type ImageGenFocusViewProps = {
   open: boolean;
@@ -143,203 +143,6 @@ function ZoomControls({ onDownload }: { onDownload: () => void }) {
           <Download className="size-3.5" strokeWidth={1.5} />
         </button>
       </div>
-    </div>
-  );
-}
-
-// ── Tiny native select ────────────────────────────────────────────────────────
-
-function ParamSelect({
-  label,
-  value,
-  onChange,
-  onBlur,
-  options,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  onBlur?: () => void;
-  options: Array<{ value: string; label?: string }>;
-}) {
-  return (
-    <label className="flex flex-col gap-1 text-xs">
-      <span className="text-eyebrow !text-[0.6rem]">{label}</span>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onBlur={onBlur}
-        className="rounded-md border border-border bg-background px-2 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-      >
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label ?? o.value}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
-function enumOptions(model: ImageGenClientModel, field: string): string[] {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const s = model.schema as any;
-  const shape = s?.shape ?? s?._def?.shape ?? {};
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const fieldDef = shape[field] as any;
-  const inner = fieldDef?._def?.innerType ?? fieldDef;
-  const values =
-    inner?._def?.values ?? inner?.options ?? inner?._def?.options ?? [];
-  return Array.isArray(values) ? values : Object.values(values ?? {});
-}
-
-// ── Params form (dynamic per provider) ────────────────────────────────────────
-
-function ParamsForm({
-  model,
-  form,
-  onCommit,
-}: {
-  model: ImageGenClientModel;
-  form: UseFormReturn<ParamFormValues>;
-  onCommit: (values: ParamFormValues) => void;
-}) {
-  const values = form.watch();
-  const fmt = (values.output_format as string | undefined) ?? "";
-  const showCompression =
-    model.provider === "openai" && (fmt === "jpeg" || fmt === "webp");
-  const hasBackground =
-    "background" in (values as Record<string, unknown>) ||
-    model.id === "openai:gpt-image-2" ||
-    model.id === "openai:gpt-image-1";
-
-  function setField<K extends string>(k: K, v: unknown) {
-    form.setValue(k as never, v as never, { shouldDirty: true });
-  }
-
-  const commit = () => onCommit(form.getValues());
-
-  if (model.provider === "openai") {
-    return (
-      <div className="grid grid-cols-2 gap-2">
-        <ParamSelect
-          label="Size"
-          value={String(values.size ?? "")}
-          onChange={(v) => setField("size", v)}
-          onBlur={commit}
-          options={enumOptions(model, "size").map((v) => ({ value: v }))}
-        />
-        <ParamSelect
-          label="Quality"
-          value={String(values.quality ?? "")}
-          onChange={(v) => setField("quality", v)}
-          onBlur={commit}
-          options={enumOptions(model, "quality").map((v) => ({ value: v }))}
-        />
-        {hasBackground && (
-          <ParamSelect
-            label="Background"
-            value={String(values.background ?? "")}
-            onChange={(v) => setField("background", v)}
-            onBlur={commit}
-            options={enumOptions(model, "background").map((v) => ({
-              value: v,
-            }))}
-          />
-        )}
-        <ParamSelect
-          label="Output format"
-          value={String(values.output_format ?? "")}
-          onChange={(v) => {
-            setField("output_format", v);
-            if (v !== "jpeg" && v !== "webp")
-              setField("output_compression", undefined);
-          }}
-          onBlur={commit}
-          options={enumOptions(model, "output_format").map((v) => ({
-            value: v,
-          }))}
-        />
-        {showCompression && (
-          <label className="col-span-2 flex flex-col gap-1 text-xs">
-            <span className="text-eyebrow !text-[0.6rem]">
-              Output compression ({Number(values.output_compression ?? 80)})
-            </span>
-            <input
-              type="range"
-              min={0}
-              max={100}
-              value={Number(values.output_compression ?? 80)}
-              onChange={(e) =>
-                setField("output_compression", Number(e.target.value))
-              }
-              onBlur={commit}
-              className="accent-primary"
-            />
-          </label>
-        )}
-      </div>
-    );
-  }
-
-  // Gemini
-  const isPro = model.id === "gemini:gemini-3-pro-image-preview";
-  return (
-    <div className="grid grid-cols-2 gap-2">
-      <ParamSelect
-        label="Aspect ratio"
-        value={String(values.aspect_ratio ?? "")}
-        onChange={(v) => setField("aspect_ratio", v)}
-        onBlur={commit}
-        options={enumOptions(model, "aspect_ratio").map((v) => ({ value: v }))}
-      />
-      <ParamSelect
-        label="Image size"
-        value={String(values.image_size ?? "")}
-        onChange={(v) => setField("image_size", v)}
-        onBlur={commit}
-        options={enumOptions(model, "image_size").map((v) => ({ value: v }))}
-      />
-      <ParamSelect
-        label="Output type"
-        value={String(values.output_mime_type ?? "")}
-        onChange={(v) => setField("output_mime_type", v)}
-        onBlur={commit}
-        options={enumOptions(model, "output_mime_type").map((v) => ({
-          value: v,
-        }))}
-      />
-      <ParamSelect
-        label="Safety filter"
-        value={String(values.safety_filter_level ?? "")}
-        onChange={(v) => setField("safety_filter_level", v)}
-        onBlur={commit}
-        options={enumOptions(model, "safety_filter_level").map((v) => ({
-          value: v,
-          label: v.replace(/_/g, " "),
-        }))}
-      />
-      <ParamSelect
-        label="Person generation"
-        value={String(values.person_generation ?? "")}
-        onChange={(v) => setField("person_generation", v)}
-        onBlur={commit}
-        options={enumOptions(model, "person_generation").map((v) => ({
-          value: v,
-          label: v.replace(/_/g, " "),
-        }))}
-      />
-      {isPro && (
-        <ParamSelect
-          label="Thinking level"
-          value={String(values.thinking_level ?? "")}
-          onChange={(v) => setField("thinking_level", v)}
-          onBlur={commit}
-          options={enumOptions(model, "thinking_level").map((v) => ({
-            value: v,
-          }))}
-        />
-      )}
     </div>
   );
 }
@@ -703,28 +506,12 @@ export function ImageGenFocusView({
               )}
 
               <LeftSection icon={Settings2} label="Output settings">
-                <div className="flex flex-col gap-3">
-                  <select
-                    value={model.id}
-                    onChange={(e) => changeModel(e.target.value)}
-                    className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                  >
-                    {imageGenClientModelGroups.map((g) => (
-                      <optgroup key={g.provider} label={g.label}>
-                        {g.models.map((m) => (
-                          <option key={m.id} value={m.id}>
-                            {m.label}
-                          </option>
-                        ))}
-                      </optgroup>
-                    ))}
-                  </select>
-                  <ParamsForm
-                    model={model}
-                    form={form}
-                    onCommit={commitParams}
-                  />
-                </div>
+                <ImageGenOutputSettings
+                  model={model}
+                  form={form}
+                  onCommit={commitParams}
+                  onModelChange={changeModel}
+                />
               </LeftSection>
 
               <LeftSection

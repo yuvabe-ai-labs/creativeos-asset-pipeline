@@ -85,6 +85,14 @@ export const imageGenClientModels: ImageGenClientModel[] = [
     maxReferenceImages: 5,
   },
   {
+    id: "gemini:gemini-2.5-flash-image",
+    provider: "gemini",
+    label: "Nano Banana ",
+    providerLabel: "Gemini",
+    schema: geminiFlashImageSchema,
+    maxReferenceImages: 5,
+  },
+  {
     id: "gemini:gemini-3.1-flash-image-preview",
     provider: "gemini",
     label: "Nano Banana 2",

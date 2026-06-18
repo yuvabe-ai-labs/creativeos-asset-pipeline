@@ -104,6 +104,17 @@ async function generateWithGemini(
 
 export const geminiModels: ImageGenModelConfig[] = [
   {
+    id: "gemini:gemini-2.5-flash-image",
+    provider: "gemini",
+    apiModelId: "gemini-2.5-flash-image",
+    label: "Nano Banana ",
+    providerLabel: "Gemini",
+    schema: geminiFlashImageSchema,
+    maxReferenceImages: 5,
+    maxReferenceSizeBytes: 20 * 1024 * 1024,
+    generate: (input) => generateWithGemini("gemini-2.5-flash-image", input),
+  },
+  {
     id: "gemini:gemini-3.1-flash-image-preview",
     provider: "gemini",
     apiModelId: "gemini-3.1-flash-image-preview",
