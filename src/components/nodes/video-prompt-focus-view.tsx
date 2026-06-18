@@ -382,7 +382,7 @@ export function VideoPromptFocusView({
                     <img
                       src={visionFrame.fileUrl}
                       alt="Approved still the motion prompt is grounded on"
-                      className="w-full rounded-lg border border-border object-cover"
+                      className="max-h-40 w-auto rounded-lg border border-border object-contain"
                     />
                   ) : (
                     <p className="rounded-lg border border-dashed border-border px-3 py-4 text-center text-xs text-muted-foreground">
