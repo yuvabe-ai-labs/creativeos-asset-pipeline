@@ -28,6 +28,9 @@ export function getNodeOutput(node: NodeOutputInput): string {
     case "image-gen":
       // Output is a Supabase public image URL; downstream nodes receive it as a URL string
       return typeof node.activeOutput === "string" ? node.activeOutput.trim() : "";
+    case "video-prompt":
+      // Output is the generated motion prompt text (active version), like the Prompt node.
+      return typeof node.activeOutput === "string" ? node.activeOutput.trim() : "";
     case "script":
       return renderScriptAsText(node.activeOutput as ReelScript | null);
     case "file": {
