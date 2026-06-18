@@ -41,7 +41,6 @@ const geminiFlashImageSchema = z.object({
     .enum(["1:1", "16:9", "9:16", "4:3", "3:4", "21:9", "4:1", "1:4"])
     .default("1:1"),
   image_size: z.enum(["512", "1K", "2K", "4K"]).default("1K"),
-  output_mime_type: z.enum(["image/png", "image/jpeg"]).default("image/png"),
   safety_filter_level: z
     .enum(["block_low_and_above", "block_medium_and_above", "block_only_high"])
     .default("block_medium_and_above"),
@@ -51,7 +50,6 @@ const geminiFlashImageSchema = z.object({
 const geminiProImageSchema = z.object({
   aspect_ratio: z.enum(["1:1", "16:9", "9:16", "4:3", "3:4"]).default("1:1"),
   image_size: z.enum(["1K", "2K", "4K"]).default("1K"),
-  output_mime_type: z.enum(["image/png", "image/jpeg"]).default("image/png"),
   safety_filter_level: z
     .enum(["block_low_and_above", "block_medium_and_above", "block_only_high"])
     .default("block_medium_and_above"),
@@ -84,6 +82,14 @@ export const imageGenClientModels: ImageGenClientModel[] = [
     label: "GPT Image 1 Mini",
     providerLabel: "OpenAI",
     schema: gptImage1MiniSchema,
+    maxReferenceImages: 5,
+  },
+  {
+    id: "gemini:gemini-2.5-flash-image",
+    provider: "gemini",
+    label: "Nano Banana ",
+    providerLabel: "Gemini",
+    schema: geminiFlashImageSchema,
     maxReferenceImages: 5,
   },
   {

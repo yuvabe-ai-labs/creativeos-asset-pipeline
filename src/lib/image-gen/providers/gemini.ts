@@ -10,7 +10,6 @@ export const geminiFlashImageSchema = z.object({
     .enum(["1:1", "16:9", "9:16", "4:3", "3:4", "21:9", "4:1", "1:4"])
     .default("1:1"),
   image_size: z.enum(["512", "1K", "2K", "4K"]).default("1K"),
-  output_mime_type: z.enum(["image/png", "image/jpeg"]).default("image/png"),
   safety_filter_level: z
     .enum(["block_low_and_above", "block_medium_and_above", "block_only_high"])
     .default("block_medium_and_above"),
@@ -22,7 +21,6 @@ export const geminiProImageSchema = z.object({
     .enum(["1:1", "16:9", "9:16", "4:3", "3:4"])
     .default("1:1"),
   image_size: z.enum(["1K", "2K", "4K"]).default("1K"),
-  output_mime_type: z.enum(["image/png", "image/jpeg"]).default("image/png"),
   safety_filter_level: z
     .enum(["block_low_and_above", "block_medium_and_above", "block_only_high"])
     .default("block_medium_and_above"),
@@ -75,7 +73,6 @@ async function generateWithGemini(
       imageConfig: {
         aspectRatio:   p.aspect_ratio  ?? "1:1",
         imageSize:     p.image_size    ?? "1K",
-        outputMimeType: p.output_mime_type ?? "image/png",
       },
       ...(p.thinking_level ? { thinkingConfig: { thinkingBudget: p.thinking_level } } : {}),
     },
@@ -93,7 +90,7 @@ async function generateWithGemini(
   const usage = response?.usageMetadata;
   return {
     imageBase64: imagePart.inlineData.data,
-    mimeType: imagePart.inlineData.mimeType ?? (p.output_mime_type as string) ?? "image/png",
+    mimeType: imagePart.inlineData.mimeType ?? "image/png",
     tokensUsed: {
       text_input_tokens:   0,
       image_input_tokens:  0,
@@ -106,6 +103,17 @@ async function generateWithGemini(
 // ── Model configs ─────────────────────────────────────────────────────────────
 
 export const geminiModels: ImageGenModelConfig[] = [
+  {
+    id: "gemini:gemini-2.5-flash-image",
+    provider: "gemini",
+    apiModelId: "gemini-2.5-flash-image",
+    label: "Nano Banana ",
+    providerLabel: "Gemini",
+    schema: geminiFlashImageSchema,
+    maxReferenceImages: 5,
+    maxReferenceSizeBytes: 20 * 1024 * 1024,
+    generate: (input) => generateWithGemini("gemini-2.5-flash-image", input),
+  },
   {
     id: "gemini:gemini-3.1-flash-image-preview",
     provider: "gemini",
