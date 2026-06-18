@@ -22,9 +22,21 @@ export const gptImage1MiniSchema = z.object({
   quality: z.enum(["low", "medium", "high"]).default("medium"),
   output_format: z.enum(["png", "jpeg", "webp"]).default("png"),
   output_compression: z.number().min(0).max(100).optional(),
+  // No background/transparency support on mini
 });
 
-// ── Generate function (shared by all three OpenAI image models) ───────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+async function urlToFile(url: string): Promise<File> {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Failed to fetch reference image (${res.status}): ${url}`);
+  const buffer = await res.arrayBuffer();
+  const contentType = res.headers.get("content-type") ?? "image/png";
+  const ext = contentType.includes("jpeg") ? "jpg" : contentType.includes("webp") ? "webp" : "png";
+  return new File([buffer], `reference.${ext}`, { type: contentType });
+}
+
+// ── Generate function ─────────────────────────────────────────────────────────
 
 async function generateWithOpenAI(
   apiModelId: string,
@@ -33,52 +45,44 @@ async function generateWithOpenAI(
   const openai = createOpenAI();
   const p = input.params;
 
-  // Build input: plain string for text-only, array for multimodal (with refs)
-  type InputItem =
-    | { type: "input_image"; image_url: string }
-    | { type: "input_text"; text: string };
-
-  const inputPayload: string | InputItem[] =
-    input.referenceUrls.length > 0
-      ? [
-          ...input.referenceUrls.map(
-            (url): InputItem => ({ type: "input_image", image_url: url }),
-          ),
-          { type: "input_text", text: input.prompt },
-        ]
-      : input.prompt;
-
-  // Tool params — only include optional keys when present
-  const toolParams: Record<string, unknown> = {
-    type: "image_generation",
-    size: p.size ?? "1024x1024",
-    quality: p.quality ?? "medium",
-  };
-  if (p.background)          toolParams.background = p.background;
-  if (p.output_format)       toolParams.output_format = p.output_format;
-  if (p.output_compression != null) toolParams.output_compression = p.output_compression;
-
+  // Build shared params for both generate and edit
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const response = await (openai.responses as any).create({
+  const sharedParams: Record<string, any> = {
     model: apiModelId,
-    input: inputPayload,
-    tools: [toolParams],
-  });
+    n: 1,
+    size: (p.size as string) ?? "1024x1024",
+    quality: (p.quality as string) ?? "medium",
+    // response_format is NOT supported for gpt-image-* models — they always return b64_json
+  };
+  if (p.background)                  sharedParams.background = p.background;
+  if (p.output_format)               sharedParams.output_format = p.output_format;
+  if (p.output_compression != null)  sharedParams.output_compression = p.output_compression;
 
-  // Extract the image_generation_call output item
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const imageOutput = (response.output as any[]).find(
-    (o: { type: string }) => o.type === "image_generation_call",
-  ) as { result: string } | undefined;
+  let response: any;
 
-  if (!imageOutput?.result) {
-    throw new Error("OpenAI returned no image in response output");
+  if (input.referenceUrls.length > 0) {
+    // edit() endpoint for reference images — fetch each URL as a File
+    const imageFiles = await Promise.all(input.referenceUrls.map(urlToFile));
+    response = await openai.images.edit({
+      ...sharedParams,
+      prompt: input.prompt,
+      image: imageFiles.length === 1 ? imageFiles[0] : imageFiles,
+    });
+  } else {
+    response = await openai.images.generate({
+      ...sharedParams,
+      prompt: input.prompt,
+    });
   }
+
+  const b64 = response.data?.[0]?.b64_json;
+  if (!b64) throw new Error("OpenAI returned no image data");
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const usage = response.usage as any;
   return {
-    imageBase64: imageOutput.result,
+    imageBase64: b64,
     mimeType:
       p.output_format === "jpeg"
         ? "image/jpeg"
@@ -86,10 +90,10 @@ async function generateWithOpenAI(
           ? "image/webp"
           : "image/png",
     tokensUsed: {
-      text_input_tokens:   usage?.input_tokens_details?.text_tokens  ?? 0,
+      text_input_tokens:   usage?.input_tokens_details?.text_tokens  ?? usage?.input_tokens  ?? 0,
       image_input_tokens:  usage?.input_tokens_details?.image_tokens ?? 0,
-      image_output_tokens: usage?.output_tokens_details?.image_tokens ?? usage?.output_tokens ?? 0,
-      total_tokens:        usage?.total_tokens ?? 0,
+      image_output_tokens: usage?.output_tokens ?? 0,
+      total_tokens:        usage?.total_tokens  ?? 0,
     },
   };
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm, type UseFormReturn } from "react-hook-form";
 import { ArrowLeft, ImageIcon, Sparkles, Sliders, Link2, ZoomIn, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
@@ -73,7 +73,9 @@ function ParamSelect({
 
 function enumOptions(model: ImageGenClientModel, field: string): string[] {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const shape = (model.schema as any)?._def?.shape?.() ?? (model.schema as any)?.shape ?? {};
+  const s = model.schema as any;
+  // ZodObject exposes .shape as a plain property in Zod v3 (not a function)
+  const shape = s?.shape ?? s?._def?.shape ?? {};
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const fieldDef = shape[field] as any;
   const inner = fieldDef?._def?.innerType ?? fieldDef;
@@ -250,20 +252,19 @@ export function ImageGenFocusView({
   const [evalDecision, setEvalDecision] = useState<"pass" | "fail" | null>(null);
   const [evalNote, setEvalNote] = useState("");
   const [evalSaving, setEvalSaving] = useState(false);
-  const [seenModelId, setSeenModelId] = useState(model.id);
+  const seenModelIdRef = useRef(model.id);
 
-  // When operator switches model, reset the form to that model's schema defaults
-  // (merged with any previously saved params for that model — but since `params`
-  // is the saved blob for the prior model, we drop it). The new defaults are
-  // committed to node data so the canvas card persists the choice.
+  // When the selected model changes, reset the form to the new model's schema defaults
+  // and commit them to node data. A ref tracks the previous model to avoid running on
+  // every render — no setState needed since we don't need a re-render on this change.
   useEffect(() => {
-    if (model.id !== seenModelId) {
+    if (model.id !== seenModelIdRef.current) {
+      seenModelIdRef.current = model.id;
       const defaults = defaultsForSchema(model.schema);
       form.reset(defaults);
       onPatch({ params: defaults });
-      setSeenModelId(model.id);
     }
-  }, [model, seenModelId, form, onPatch]);
+  }, [model, form, onPatch]);
 
   // Pull versions on open
   useEffect(() => {
