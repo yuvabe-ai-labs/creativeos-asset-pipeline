@@ -1,10 +1,22 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useForm, type UseFormReturn } from "react-hook-form";
-import { ArrowLeft, ImageIcon, Sparkles, Settings2, Link2, ZoomIn, AlertTriangle } from "lucide-react";
+import {
+  ArrowLeft,
+  Download,
+  ImageIcon,
+  Link2,
+  Maximize2,
+  Settings2,
+  Sparkles,
+  ZoomIn,
+  ZoomOut,
+  AlertTriangle,
+  type LucideIcon,
+} from "lucide-react";
 import { toast } from "sonner";
-import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
+import { TransformWrapper, TransformComponent, useControls } from "react-zoom-pan-pinch";
 
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -37,7 +49,87 @@ export type ImageGenFocusViewProps = {
 
 type ParamFormValues = Record<string, unknown>;
 
-// ── Tiny native select (no Select UI primitive exists in this project) ────────
+// ── Section header (matches prompt-focus-view.tsx LeftSection pattern) ────────
+
+function LeftSection({
+  icon: Icon,
+  label,
+  badge,
+  action,
+  children,
+}: {
+  icon: LucideIcon;
+  label: string;
+  badge?: string;
+  action?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <div>
+      <div className="mb-2 flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          <Icon className="size-3.5 text-primary" strokeWidth={1.5} />
+          <span className="text-eyebrow">{label}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          {badge && <span className="text-xs text-muted-foreground">{badge}</span>}
+          {action}
+        </div>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+// ── Full-screen zoom controls (must be inside TransformWrapper) ───────────────
+
+function ZoomControls({ onDownload }: { onDownload: () => void }) {
+  const { zoomIn, zoomOut, resetTransform } = useControls();
+  return (
+    <div className="absolute bottom-6 inset-x-0 flex flex-col items-center gap-2 pointer-events-none z-10">
+      <p className="text-[0.6rem] tracking-widest text-white/30 uppercase select-none">
+        scroll to zoom · drag to pan · double-click to reset
+      </p>
+      <div className="pointer-events-auto flex items-center gap-0.5 rounded-full border border-white/10 bg-white/10 px-3 py-1.5 backdrop-blur-sm">
+        <button
+          type="button"
+          onClick={() => zoomOut()}
+          aria-label="Zoom out"
+          className="rounded-full p-1.5 text-white/60 transition-colors hover:text-white"
+        >
+          <ZoomOut className="size-3.5" strokeWidth={1.5} />
+        </button>
+        <button
+          type="button"
+          onClick={() => resetTransform()}
+          aria-label="Fit to screen"
+          className="rounded-full p-1.5 text-white/60 transition-colors hover:text-white"
+        >
+          <Maximize2 className="size-3.5" strokeWidth={1.5} />
+        </button>
+        <button
+          type="button"
+          onClick={() => zoomIn()}
+          aria-label="Zoom in"
+          className="rounded-full p-1.5 text-white/60 transition-colors hover:text-white"
+        >
+          <ZoomIn className="size-3.5" strokeWidth={1.5} />
+        </button>
+        <div className="mx-1.5 h-3.5 w-px bg-white/20" />
+        <button
+          type="button"
+          onClick={onDownload}
+          aria-label="Download image"
+          className="rounded-full p-1.5 text-white/60 transition-colors hover:text-white"
+        >
+          <Download className="size-3.5" strokeWidth={1.5} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Tiny native select ────────────────────────────────────────────────────────
 
 function ParamSelect({
   label,
@@ -74,7 +166,6 @@ function ParamSelect({
 function enumOptions(model: ImageGenClientModel, field: string): string[] {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const s = model.schema as any;
-  // ZodObject exposes .shape as a plain property in Zod v3 (not a function)
   const shape = s?.shape ?? s?._def?.shape ?? {};
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const fieldDef = shape[field] as any;
@@ -255,9 +346,6 @@ export function ImageGenFocusView({
   const [preview, setPreview] = useState<ConnectedPreview[]>([]);
   const seenModelIdRef = useRef(model.id);
 
-  // When the selected model changes, reset the form to the new model's schema defaults
-  // and commit them to node data. A ref tracks the previous model to avoid running on
-  // every render — no setState needed since we don't need a re-render on this change.
   useEffect(() => {
     if (model.id !== seenModelIdRef.current) {
       seenModelIdRef.current = model.id;
@@ -267,7 +355,6 @@ export function ImageGenFocusView({
     }
   }, [model, form, onPatch]);
 
-  // Pull versions on open
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
@@ -294,7 +381,6 @@ export function ImageGenFocusView({
     };
   }, [open, nodeId]);
 
-  // Fetch connected prompt node's active output to show as preview text in ConnectedInputsCard
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
@@ -313,7 +399,7 @@ export function ImageGenFocusView({
         };
         const active = (json.versions ?? []).find((v) => v.id === json.activeVersionId);
         if (!cancelled && active?.output) {
-          setPreview([{ nodeId: promptNode.id, type: "prompt", text: active.output }]);
+          setPreview([{ nodeId: promptNode.id, type: "prompt", label: "Image prompt", text: active.output }]);
         }
       } catch {
         /* best-effort */
@@ -324,7 +410,6 @@ export function ImageGenFocusView({
     };
   }, [open, upstream]);
 
-  // Inputs / Prompt connection
   const promptUpstream = upstream.find((u) => u.type === "prompt");
   const referenceCount = upstream.filter((u) => {
     if (u.type === "image-gen") return true;
@@ -473,6 +558,28 @@ export function ImageGenFocusView({
     onPatch({ modelId: nextId });
   }
 
+  async function handleDownload() {
+    if (!imageUrl) return;
+    try {
+      const res = await fetch(imageUrl, { mode: "cors" });
+      if (!res.ok) throw new Error("fetch failed");
+      const blob = await res.blob();
+      const ext = blob.type.split("/")[1]?.replace("jpeg", "jpg") ?? "png";
+      const filename = `${(title || "generated-image").replace(/\s+/g, "-").toLowerCase()}.${ext}`;
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+    } catch {
+      // fallback: open in new tab for manual save
+      window.open(imageUrl, "_blank");
+    }
+  }
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
@@ -492,7 +599,7 @@ export function ImageGenFocusView({
               onClick={() => onOpenChange(false)}
               className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
             >
-              <ArrowLeft className="size-4" /> Back to canvas
+              <ArrowLeft className="size-4" strokeWidth={1.5} /> Back to canvas
             </button>
             <header className="mt-4 flex items-start justify-between gap-4">
               <div>
@@ -510,7 +617,7 @@ export function ImageGenFocusView({
                   onClick={handleGenerate}
                   disabled={generating || !promptUpstream}
                 >
-                  <Sparkles className="size-4" />
+                  <Sparkles className="size-4" strokeWidth={1.5} />
                   {generating ? "Generating…" : imageUrl ? "Re-generate" : "Generate"}
                 </Button>
               </div>
@@ -521,6 +628,7 @@ export function ImageGenFocusView({
         {/* Body */}
         <div className="min-h-0 flex-1 flex justify-center overflow-hidden">
           <div className="w-full max-w-5xl flex min-h-0 overflow-hidden">
+
             {/* Left panel */}
             <div className="w-[40%] border-r border-border overflow-y-auto px-6 py-6 flex flex-col gap-6">
               {versions.length > 0 && (
@@ -532,11 +640,7 @@ export function ImageGenFocusView({
                 />
               )}
 
-              <div>
-                <div className="mb-2 flex items-center gap-1.5">
-                  <Settings2 className="size-3.5 text-primary" strokeWidth={1.5} />
-                  <span className="text-eyebrow">Output settings</span>
-                </div>
+              <LeftSection icon={Settings2} label="Output settings">
                 <div className="flex flex-col gap-3">
                   <select
                     value={model.id}
@@ -555,29 +659,24 @@ export function ImageGenFocusView({
                   </select>
                   <ParamsForm model={model} form={form} onCommit={commitParams} />
                 </div>
-              </div>
+              </LeftSection>
 
-              <div>
-                <div className="mb-2 flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <Link2 className="size-3.5 text-primary" />
-                    <span className="text-eyebrow">Connected</span>
-                  </div>
-                  <span className="text-xs text-muted-foreground">
-                    {upstream.length} input{upstream.length === 1 ? "" : "s"}
-                  </span>
-                </div>
+              <LeftSection
+                icon={Link2}
+                label="Connected"
+                badge={`${upstream.length} input${upstream.length === 1 ? "" : "s"}`}
+              >
                 <ConnectedInputsCard upstream={upstreamForCard} preview={preview} />
                 {refOverLimit && (
                   <div className="mt-2 flex items-start gap-1.5 rounded-md border border-amber-300 bg-amber-50 px-2 py-1.5 text-[0.7rem] text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300">
-                    <AlertTriangle className="mt-0.5 size-3 shrink-0" />
+                    <AlertTriangle className="mt-0.5 size-3 shrink-0" strokeWidth={1.5} />
                     <span>
                       {referenceCount} reference images connected — only the first{" "}
                       {model.maxReferenceImages} will be used by {model.label}.
                     </span>
                   </div>
                 )}
-              </div>
+              </LeftSection>
             </div>
 
             {/* Right panel */}
@@ -601,7 +700,7 @@ export function ImageGenFocusView({
                 {mode === "empty" && (
                   <div className="flex size-full items-center justify-center rounded-xl border border-dashed border-border">
                     <div className="text-center px-8">
-                      <ImageIcon className="mx-auto size-8 text-muted-foreground/40" />
+                      <ImageIcon className="mx-auto size-8 text-muted-foreground/40" strokeWidth={1.5} />
                       <p className="mt-3 text-sm font-medium text-muted-foreground">
                         Not generated yet
                       </p>
@@ -622,17 +721,23 @@ export function ImageGenFocusView({
                       alt={title || "Generated image"}
                       className="size-full object-contain"
                     />
-                    <button
-                      type="button"
-                      onClick={() => setZoomOpen(true)}
-                      className={cn(
-                        "absolute top-2 right-2 inline-flex items-center gap-1 rounded-md bg-background/80 px-2 py-1",
-                        "text-xs font-medium text-foreground opacity-0 backdrop-blur",
-                        "transition-opacity group-hover:opacity-100",
-                      )}
-                    >
-                      <ZoomIn className="size-3.5" /> Zoom
-                    </button>
+                    <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                      <button
+                        type="button"
+                        onClick={handleDownload}
+                        className="inline-flex items-center gap-1 rounded-md bg-background/80 px-2 py-1 text-xs font-medium text-foreground backdrop-blur"
+                        aria-label="Download image"
+                      >
+                        <Download className="size-3.5" strokeWidth={1.5} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setZoomOpen(true)}
+                        className="inline-flex items-center gap-1 rounded-md bg-background/80 px-2 py-1 text-xs font-medium text-foreground backdrop-blur"
+                      >
+                        <ZoomIn className="size-3.5" strokeWidth={1.5} /> Zoom
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -640,30 +745,39 @@ export function ImageGenFocusView({
           </div>
         </div>
 
+        {/* Full-screen zoom dialog */}
         {imageUrl && (
           <Dialog open={zoomOpen} onOpenChange={setZoomOpen}>
-            <DialogContent className="max-w-[calc(100%-2rem)] sm:max-w-4xl">
+            <DialogContent
+              className={cn(
+                "inset-0 left-0 top-0 translate-x-0 translate-y-0",
+                "h-screen max-h-screen w-screen max-w-none",
+                "rounded-none border-0 p-0 gap-0 shadow-none",
+                "bg-black/95 text-white overflow-hidden",
+                "flex flex-col",
+              )}
+            >
               <DialogTitle className="sr-only">Generated image</DialogTitle>
               <TransformWrapper
                 doubleClick={{ mode: "reset" }}
                 minScale={0.5}
-                maxScale={6}
+                maxScale={8}
+                centerOnInit
               >
                 <TransformComponent
-                  wrapperClass="!w-full !h-[70vh] rounded-md bg-muted/20"
+                  wrapperClass="!w-screen !h-screen"
                   contentClass="!w-full !h-full flex items-center justify-center"
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={imageUrl}
                     alt={title || "Generated image"}
-                    className="max-h-[70vh] max-w-full object-contain"
+                    className="max-h-screen max-w-full object-contain"
+                    draggable={false}
                   />
                 </TransformComponent>
+                <ZoomControls onDownload={handleDownload} />
               </TransformWrapper>
-              <p className="text-center text-[0.65rem] text-muted-foreground">
-                Scroll to zoom · drag to pan · double-click to reset
-              </p>
             </DialogContent>
           </Dialog>
         )}
