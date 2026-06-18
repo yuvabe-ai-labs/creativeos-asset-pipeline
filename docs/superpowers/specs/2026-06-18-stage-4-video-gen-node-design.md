@@ -51,12 +51,28 @@ steps* of the established lifecycle.
 - **New Gemini/Veo provider client.**
 
 **Out (explicit no's, deferred):**
-- Native audio (Veo 3) — first clips are silent plates, scored later in edit.
+- Native audio (Veo 3) — first clips are silent plates, scored later in edit. **Note:** Veo
+  *defaults to generating audio*, so "silent" is an active choice — the request config (or a
+  `negative`/no-audio instruction) must suppress it; confirm the exact knob at build time.
 - Honoring the Shot's per-shot `duration`, and locking aspect to 9:16 — use Veo defaults for
   the first slice.
 - Video-to-video / clip extension.
 - Retry/backoff policy beyond "it failed → it's a failed attempt; re-run manually."
 - Text-to-video (no start frame) — every Video node here starts from an image.
+
+### Decision: the motion prompt is authored inline, not by a new node
+A Veo motion prompt could come from (A) inline text + a camera control on the Video node,
+(B) a **video mode** added to the existing Prompt node (`target: 'image' | 'video'` swapping the
+system prompt + controls — the D16 "compile + prompt swap, not new architecture" pattern), or
+(C) a brand-new Video Prompt node type. **Chosen: A.** Rationale, verified against Veo docs: in
+image-to-video the *start frame already carries the scene*, so the prompt is just camera + action
+— short, directable text a designer can write by hand. The existing Prompt node is hard-tuned for
+*images* ([prompt-generate.ts](../../../src/prompts/prompt-generate.ts) literally writes "image-generation
+prompts for Nano Banana"; its controls are lens/composition/lighting), so it is the *wrong* upstream
+for motion as-is — reusing it would feed Veo a static-frame description. **B is the documented
+fast-follow** (not a prerequisite): if hand-written motion text proves insufficient by eval, add the
+Prompt node's video mode then — the `prompt → video-gen` edge is already wired. **C is rejected**
+(duplicates the spine for no gain). This keeps the Video node independently shippable and testable.
 
 ---
 
@@ -66,10 +82,15 @@ steps* of the established lifecycle.
 // src/lib/canvas-nodes.ts — new member of AppNode (type "video-gen")
 export type VideoGenNodeData = {
   title?: string;
-  instruction?: string;            // motion prompt (operator text, like the Prompt node)
+  // The ACTION half of the prompt: what moves / secondary motion ("condensation beads on
+  // the glass; steam drifts left"). Does NOT re-describe the scene — the start frame carries
+  // subject/setting/style (Veo image-to-video guidance, §0 below).
+  instruction?: string;
   controls?: {
     negative?: string;             // e.g. "no text, no warping, no morphing faces"
-    motion?: "auto" | "static" | "slow push-in" | "orbit" | "handheld";
+    // The CINEMATOGRAPHY half: a single camera move, rendered as a standalone clause
+    // (Veo parses camera direction better when separated from subject action).
+    camera?: "auto" | "static" | "push-in" | "pull-back" | "orbit" | "pan" | "handheld" | "crane";
   };
   parsed?: unknown;                // DISPLAY ONLY — the active clip ref, hydrated from the
                                    // active version on canvas load (D19); never persisted.
@@ -77,7 +98,9 @@ export type VideoGenNodeData = {
 ```
 
 Add `Node<VideoGenNodeData, "video-gen">` to the `AppNode` union. Own content/params live on
-the node (D19); the clip itself is output and lives in the version log + Storage.
+the node (D19); the clip itself is output and lives in the version log + Storage. The control
+key is **`camera`** (a curated camera-move catalog, mirroring `shot-controls.ts`), not a vague
+"motion" — the verified Veo guidance is that *camera movement* is the lever to name explicitly.
 
 ---
 
@@ -89,18 +112,29 @@ the node (D19); the clip itself is output and lives in the version log + Storage
 |---|---|---|
 | ambient client ctx | `node → canvas → client` KB (opt-in slices) | brand guard-rails in the motion prompt |
 | upstream **Image Gen** active output | edge → `image-gen.active_version_id.output` (path) | **start frame** (must be `decision: 'approved'`) |
-| upstream **Prompt** text and/or inline `instruction` | edge → `prompt.active` output + `data.instruction` | **motion description** |
+| upstream **Prompt** text and/or inline `instruction` | edge → `prompt.active` output + `data.instruction` | **action description** (what moves) |
 | upstream **File/Draw** refs (optional) | edges | extra reference images |
 
+**Grounding (verified against Veo 3.1 docs):** the full text-to-video formula is
+`[Cinematography] + [Subject] + [Action] + [Context] + [Style & Ambiance]`, but **for
+image-to-video it collapses** — the start frame supplies *Subject / Context / Style*, so the
+prompt carries only **Cinematography (camera) + Action (what moves)**. The model parses camera
+direction best as a **standalone clause**, separated from the subject action. `compile`
+therefore assembles, in order: a camera clause (from `controls.camera`) as its own sentence,
+then the action text (from `instruction` / upstream Prompt) — and deliberately does **not**
+re-describe the scene. Sources: [Google Cloud Veo 3.1 guide](https://cloud.google.com/blog/products/ai-machine-learning/ultimate-prompting-guide-for-veo-3-1),
+[DeepMind Veo prompt guide](https://deepmind.google/models/veo/prompt-guide/).
+
 `compile(inputs, params)` is a **pure, side-effect-free** function → a Veo request payload.
-Its motion-prompt string is the **visible "final compiled prompt"** the PRD requires the
+Its compiled prompt string is the **visible "final compiled prompt"** the PRD requires the
 operator sees *before* generating:
 
 ```
 startFrame:   <image-gen.active output storage path>   // required; must be approved
-motionPrompt: <prompt text> + <instruction> + <motion hint>
+prompt:       <camera clause from controls.camera>.    // standalone sentence
+              <action text from instruction / upstream Prompt>   // what moves; no scene re-description
 negative:     <controls.negative>
-config:       { /* Veo defaults: ~8s, provider default aspect */ }
+config:       { audio: off, /* Veo defaults: ~8s, provider default aspect */ }
 ```
 
 If no connected Image Gen node has an **approved** active version, `compile` fails closed and
