@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { History, ThumbsUp, ThumbsDown } from "lucide-react";
+import { History } from "lucide-react";
 import type { ImageTokenUsage } from "@/lib/image-gen/types";
 
 export type ImageGenVersionSummary = {
@@ -56,68 +56,86 @@ export function ImageGenVersionHistory({
         </span>
       </div>
       <div className="max-h-52 overflow-y-auto pb-2">
-      <ul className="space-y-1">
-        {versions.map((v, i) => {
-          const isActive = v.id === activeVersionId;
-          const isError  = Boolean(v.error);
-          const label    = `v${total - i}`;
-          const modelLabel =
-            (v.paramsUsed?.modelId ?? v.modelUsed ?? "").split(":")[1] ?? "";
+        <ul className="space-y-1">
+          {versions.map((v, i) => {
+            const isActive = v.id === activeVersionId;
+            const isError  = Boolean(v.error);
+            const isDisabled = isActive || restoring || isError;
+            const label = `v${total - i}`;
+            const modelLabel =
+              (v.paramsUsed?.modelId ?? v.modelUsed ?? "").split(":")[1] ?? "";
 
-          return (
-            <div
-              key={v.id}
-              className={cn(
-                "group relative flex items-start gap-2 rounded-md border px-2.5 py-2 text-xs transition-colors",
-                isActive && "border-primary bg-primary/8 text-foreground",
-                !isActive && !isError &&
-                  "border-border bg-transparent text-muted-foreground hover:bg-muted/50",
-                isError &&
-                  "border-destructive/30 bg-destructive/5 text-destructive/70 opacity-60",
-              )}
-            >
-              <div className="flex flex-1 flex-col gap-0.5">
-                <div className="flex items-center gap-1.5">
-                  <span className={cn("font-medium", isActive && "text-primary")}>
-                    {label}
-                  </span>
-                  {v.decision === "pass" && (
-                    <ThumbsUp className="size-3 stroke-[1.5] text-emerald-600" />
-                  )}
-                  {v.decision === "fail" && (
-                    <ThumbsDown className="size-3 stroke-[1.5] text-destructive" />
-                  )}
-                  {isError && (
-                    <span className="ml-auto rounded-sm bg-destructive/10 px-1 py-0.5 text-[0.6rem] text-destructive">
-                      Error
-                    </span>
-                  )}
-                </div>
-                <span className="truncate text-[0.65rem] opacity-70">
-                  {modelLabel} · {relativeTime(v.createdAt)}
-                </span>
-              </div>
-
-              {v.output && (
-                <div className="size-8 shrink-0 overflow-hidden rounded-sm border border-border">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={v.output} alt="" className="size-full object-cover" />
-                </div>
-              )}
-
-              {!isActive && !isError && (
+            return (
+              <li key={v.id}>
                 <button
-                  onClick={() => onRestore(v.id)}
-                  disabled={restoring}
-                  className="absolute right-2 top-2 hidden rounded px-1.5 py-0.5 text-[0.65rem] font-medium text-primary hover:bg-primary/10 group-hover:block disabled:opacity-50"
+                  type="button"
+                  disabled={isDisabled}
+                  onClick={() => !isDisabled && onRestore(v.id)}
+                  className={cn(
+                    "group w-full rounded-lg border px-3 py-2 text-left transition-colors",
+                    isActive
+                      ? "border-primary bg-primary/8 cursor-default"
+                      : isError
+                        ? "cursor-not-allowed border-border opacity-60"
+                        : "cursor-pointer border-border hover:bg-muted",
+                  )}
                 >
-                  Restore
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span
+                        className={cn(
+                          "size-1.5 shrink-0 rounded-full",
+                          isError
+                            ? "bg-red-500"
+                            : isActive
+                              ? "bg-primary"
+                              : "bg-muted-foreground/40",
+                        )}
+                      />
+                      <span
+                        className={cn(
+                          "text-sm font-medium",
+                          isActive ? "text-primary" : "text-foreground",
+                        )}
+                      >
+                        {label}
+                      </span>
+                      <span className="shrink-0 text-xs text-muted-foreground">
+                        {relativeTime(v.createdAt)}
+                      </span>
+                    </div>
+
+                    <div className="flex shrink-0 items-center gap-2">
+                      {v.output && (
+                        <div className="size-7 overflow-hidden rounded-sm border border-border">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={v.output} alt="" className="size-full object-cover" />
+                        </div>
+                      )}
+                      {isActive ? (
+                        <span className="text-[0.65rem] font-semibold uppercase tracking-wide text-primary">
+                          Active
+                        </span>
+                      ) : isError ? (
+                        <span className="text-xs text-red-500">Error</span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
+                          Restore
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {modelLabel && (
+                    <p className="ml-3.5 mt-0.5 line-clamp-1 text-[0.7rem] leading-snug text-muted-foreground">
+                      {modelLabel}
+                    </p>
+                  )}
                 </button>
-              )}
-            </div>
-          );
-        })}
-      </ul>
+              </li>
+            );
+          })}
+        </ul>
       </div>
     </div>
   );
