@@ -522,6 +522,38 @@ log and bends D18's append-only). **Refines D12.** The table D12 sketched is now
 with an explicit *graduation* rule into `node_versions`.
 **Originated.** `2026-06-18-stage-4-video-gen-node-design.md`.
 
+### D26 — Generation execution is duration-driven; image & video share the `generations` substrate *(recorded 2026-06-18; generalizes D12/D25)*
+**Decision.** Every Generate node runs **one execution model with two paths over the same
+`generations` row**, chosen by **duration, not modality**:
+- **Path A — synchronous.** Provider is request/response and finishes inside the serverless
+  function budget (image models today). The Route Handler writes `generations(running)`, awaits the
+  model, **graduates** into a `node_versions` row, and returns the finished asset in one request.
+- **Path B — asynchronous.** Provider is a webhook-less long-running operation (Veo, D25) **or** a
+  Path-A call exceeds its time budget. The handler submits, stores `provider_job_id`, returns
+  "Generating…", and a **Vercel Cron reconciler** graduates the row later; Realtime pushes the
+  result (D12).
+The `generations` row is **always written**; the only difference is **who graduates it** (handler
+vs Cron) and **when**. Path is selected **provider-contract-by-default** (each model adapter
+declares request/response vs long-running-op), with a **time-budget fallback** that degrades A→B
+**with no schema change**. Because either the handler or Cron may graduate, **graduation is
+idempotent** — the `generations.version_id` latch + a guarded `UPDATE … WHERE status='running'`
+makes it *one generation → at most one `node_versions` row*.
+**Why.** D12 named the `generations` table and D25 specced its *graduation* rule, but both were
+written **video-first**; image gen was only implied by D12's "Stages 3–4." Stating the model once,
+modality-agnostically, stops the Stage-3 Image Gen node from inventing a synchronous shortcut
+straight to `node_versions` — which would make the slow-image fallback and the Stage-4 reconciler a
+*retrofit* rather than *reuse*. Duration, not "image vs video," is the real axis: image is
+synchronous *because today's image APIs are*, and the same substrate reroutes a slow image model
+with no new infra.
+**Rejected.** (a) *Async-always* (route even fast image calls through Cron) — punishes the common
+case with up to a Cron-tick of latency on a call that already finished. (b) *Image fully
+synchronous, no `generations` row* — leaves no durable record when an image job stalls or a batch
+backs up, and forces a rewrite the day an image model turns slow.
+**Refines D12/D25.** D12's "Stages 3–4 … generations table" and D25's graduation rule now hold for
+**both** modalities; D26 adds the synchronous closer and the idempotency latch. **D11 unchanged**
+(the human still triggers each generation).
+**Originated.** `docs/architecture/2026-06-18-generation-execution-flows.md` (full flows + diagrams).
+
 ### Parked / out-of-scope (with revisit triggers)
 | Item | Status | Revisit when |
 |---|---|---|

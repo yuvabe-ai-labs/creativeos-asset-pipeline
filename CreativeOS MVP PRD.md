@@ -868,6 +868,11 @@ Each image generation attempt stores: API-native control values used, prompt tex
 (which already carries the descriptive controls), reference inputs used, final request sent
 to model, model/provider, generated image output, error (if any), approval/rejection decision.
 
+An image attempt typically resolves **synchronously** — the request returns the image directly —
+but if a model is long-running it is tracked as an **in-flight job** that resolves to
+output-or-error later; either way the attempt's state is durable and survives a page refresh. (How
+generation executes: §20.)
+
 ---
 
 ### 11.7 Video Gen node
@@ -927,6 +932,11 @@ lighting continuity, pace.
 Each video generation attempt stores: master-controls schema version used, selected control
 values, base prompt used, image input used, final compiled prompt sent to model,
 model/provider, generated video output, error (if any), approval/rejection decision.
+
+Video generation is **long-running and asynchronous**: an attempt is submitted, tracked as an
+**in-flight job**, and resolves to output-or-error later (the provider is polled — no callback). Its
+state is durable and survives a page refresh, so the operator can leave and come back to a finished
+clip. (How generation executes: §20.)
 
 ---
 
@@ -1193,6 +1203,7 @@ ADR log in the staging roadmap (referenced inline):
 * How do we detect stale downstream outputs when upstream inputs change? *(derived on read: compare upstream active-version id vs the id recorded in the downstream attempt's `inputs_used` — D9)*
 * What is the minimum graph behavior needed for MVP? *(directed edges + cycle check + version-compare staleness; the human is the scheduler — D11)*
 * Where does a node's output live? *(single source: the active version's `output`; no display cache — D19)*
+* How is a generation executed — does the request block? *(two paths over one `generations` job row, chosen by **duration not modality**: **synchronous** when the model returns in-request (image today), **async** submit→reconcile→graduate when long-running (video); image & video share the substrate — D12/D25/**D26**. Full flows: `docs/architecture/2026-06-18-generation-execution-flows.md`)*
 
 ---
 
