@@ -1,23 +1,40 @@
 # CreativeOS — Staging Roadmap
 
-**Date:** 2026-05-30 (status updated 2026-06-13)
-**Status:** Approved (sequence). **Stage 1 shipped** (Script node, D16; Client KB pulled forward, D17).
-**Stage 2 shipped** (all merged to `main`): edges + cycle check, Text node, **File node** (vision +
-extraction), Prompt node (resolve → compile → generate, image-prompt v2), and **Shot fan-out (D21)** —
-each Shot carries its full narrowed script; no implicit full-reel passthrough. Canvas UX: right-click
-add-node, box-select + multi-delete, connected-input detail view.
-**Eval flywheel detour (2026-06-14):** Step 1 shipped — raw model output is now preserved
-distinctly from the human-edited final (**D22**, `node_versions.generated_output`), so the
-generated→shipped *correction* signal survives. Rationale + method (Hamel/Shankar) in
-`docs/evals/2026-06-14-eval-flywheel-rationale.md`; Step 1 spec in
-`docs/superpowers/specs/2026-06-14-raw-generation-capture-design.md`.
-Remaining flywheel steps (own specs, not yet built): ②accumulate ③error-analysis viewer ④evals.
-**👉 NEXT SESSION — two open tracks:** (a) **Stage 3 — Image Gen node** (see §5 Stage 3 + concept map;
-ADRs D4/D5/D9/D12/D13), and/or (b) **eval flywheel Step 3** (the error-analysis viewer) once real
-traces have accumulated.
-Open before starting: brand_profile is off-by-default per D17 (image-prompt slices default is separate);
-the team's parent-Script "Full reel script" walk was reverted (flag PR #7 owner); D9 staleness badge is
-still unbuilt and is due in Stage 3.
+**Date:** 2026-05-30 (status updated 2026-06-18)
+**Status:** Approved (sequence). **Stages 1–3 shipped + Stage 4 part 1 shipped** — all on `main`.
+- **Stage 1** — Script node (D16) + Client KB pulled forward (D17).
+- **Stage 2** — edges + cycle check, Text node, **File node** (vision + extraction), Prompt node
+  (resolve → compile → generate, image-prompt v2), **Shot fan-out (D21)**. Canvas UX: right-click
+  add-node, box-select + multi-delete, connected-input detail view.
+- **Stage 3 — Image Gen node ✅ shipped** (merged via PRs #10/#11): config-driven provider registry
+  (OpenAI + Gemini), per-attempt cost (USD/INR), reference images, approve/reject (`decision:
+  "pass"|"fail"`), zoomable output. Spec: `2026-06-17-image-gen-node-design.md`. **Output contract:
+  a node's active output is a public image URL *string*.**
+- **Stage 4 part 1 — Video Prompt node ✅ shipped** (this session, merged to `main`): synchronous
+  text-LLM that vision-reads the approved Image Gen still and writes a Veo motion prompt, steered by
+  camera/speed master controls (**D24**). Plan: `docs/superpowers/plans/2026-06-18-video-prompt-node.md`;
+  how-it-works walkthrough: `docs/architecture/2026-06-18-video-prompt-node-walkthrough.md`.
+**Generation-execution model (this session):** ADR **D26** + `docs/architecture/2026-06-18-generation-execution-flows.md`
+— one `generations` substrate, **duration-driven**: synchronous in-request for fast image, async
+submit→reconcile→graduate for video / slow image. PRD §11.6/§11.7/§20 now note async generation.
+**Eval flywheel:** Step 1 shipped (**D22**, `node_versions.generated_output`). Remaining (not built):
+②accumulate ③error-analysis viewer ④evals.
+**👉 NEXT SESSION — Stage 4 part 2: the Video Gen node (the async half).**
+Spec: `2026-06-18-stage-4-video-gen-node-design.md` (ADRs **D24/D25**); flows:
+`docs/architecture/2026-06-18-generation-execution-flows.md`. This is the **first genuinely async
+node** — the only part of the spine the synchronous request/response pattern can't carry. Build:
+**(1)** the `generations` table (migration `0007_generations.sql`, `queued→running→succeeded/failed`,
+`provider_job_id`, `version_id`); **(2)** a new Gemini/**Veo** provider client (`lib/google/server.ts`,
+needs `GEMINI_API_KEY`); **(3)** the submit route `POST /api/nodes/:id/video` (compile → Veo submit →
+insert generations row); **(4)** the **Vercel Cron** reconciler `GET /api/jobs/reconcile` (Veo is
+poll-based, no webhook) that **graduates** a terminal job into a `node_versions` row + `setActive`;
+**(5)** Supabase Realtime push to the canvas. It consumes the **Video Prompt node's active output**
+(motion text) + the **Image Gen still** (start frame) — the *diamond*.
+Open before starting: topology authority is the **Video Prompt spec §2 / PRD §9.2,§10** (the
+video-gen spec §1 was reconciled to defer to it — `prompt → video-gen` is retained as inline
+fallback); `video-prompt → video-gen` is already in `VALID_CONNECTIONS`; graduation must be
+**idempotent** (handler-or-Cron closer); D9 staleness badge still unbuilt. `main` is current and
+synced — branch off `main` (e.g. `feat/video-gen-node`).
 **Type:** Decomposition / roadmap (parent doc; each stage gets its own design spec)
 
 ---
@@ -111,18 +128,21 @@ not rewrites). The data model built in Stage 1 is still the one in use at Stage 
   three input levels (client context / canvas edges / inline files) · **shot fan-out
   (seed-and-fork; the shot is the through-line) (D21)**.
 
-### Stage 3 — Image Gen node
+### Stage 3 — Image Gen node  ✅ *shipped (PRs #10/#11)*
 - **Ships:** Brief → prompt → image, with multiple attempts you approve/reject and set
   active. The core loop, end to end.
 - **New concepts:** master-controls schema vs selected values vs **attempt snapshot** ·
   the visible final compiled prompt · active-output pointer · stale-downstream detection.
+- *(As built: config-driven OpenAI+Gemini provider registry, per-attempt USD/INR cost, reference
+  images, `decision: "pass"|"fail"`. Active output = a public image URL string. Spec:
+  `2026-06-17-image-gen-node-design.md`.)*
 
 ### Stage 4 — Video Prompt node → Video Gen node *(decomposed into two nodes — D24)*
-- **Ships:** Approved image → motion prompt → video (image-to-video). Full reel-asset pipeline.
-  Splits into **(1) Video Prompt node** (synchronous LLM; writes a Veo motion prompt, vision-
-  grounded on the approved still, with camera/motion master controls) and **(2) Video Gen node**
+- **Part 1 — Video Prompt node ✅ shipped** (synchronous LLM; vision-reads the approved still and
+  writes a Veo motion prompt, camera/speed master controls). **Part 2 — Video Gen node 🔜 NEXT**
   (the async Veo job). The **diamond**: `image-gen` feeds both — the Video Prompt node (as a vision
   reference) and the Video Gen node (as the literal first frame).
+- **Ships:** Approved image → motion prompt → video (image-to-video). Full reel-asset pipeline.
 - **New concepts:** long-running async **job state machine** (submit → reconcile → resolve;
   `generations` row graduates into a `node_versions` row — D25) · **fork-and-rejoin (diamond)
   topology** · **vision-grounded prompt generation** · synchronous vs async `runAction`.
