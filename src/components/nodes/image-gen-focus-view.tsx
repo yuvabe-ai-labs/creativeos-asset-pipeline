@@ -41,8 +41,7 @@ import { setVersionLabelAction } from "@/lib/actions/eval";
 import {
   imageGenClientModelMap,
   DEFAULT_CLIENT_MODEL_ID,
-  defaultsForSchema,
-  type ImageGenClientModel,
+  defaultsForModel,
 } from "@/lib/image-gen/client-models";
 import { ImageGenOutputSettings } from "./image-gen-output-settings";
 
@@ -166,7 +165,7 @@ export function ImageGenFocusView({
     imageGenClientModelMap[DEFAULT_CLIENT_MODEL_ID];
 
   const form = useForm<ParamFormValues>({
-    defaultValues: { ...defaultsForSchema(model.schema), ...(params ?? {}) },
+    defaultValues: { ...defaultsForModel(model), ...(params ?? {}) },
   });
 
   const [generating, setGenerating] = useState(false);
@@ -188,7 +187,7 @@ export function ImageGenFocusView({
   useEffect(() => {
     if (model.id !== seenModelIdRef.current) {
       seenModelIdRef.current = model.id;
-      const defaults = defaultsForSchema(model.schema);
+      const defaults = defaultsForModel(model);
       form.reset(defaults);
       onPatch({ params: defaults });
     }

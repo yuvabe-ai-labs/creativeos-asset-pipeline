@@ -21,14 +21,47 @@ export type ImageGenResult = {
   tokensUsed: ImageTokenUsage;
 };
 
-export type ImageGenModelConfig = {
-  id: string;                // "openai:gpt-image-1" — used as model_used in node_versions
-  provider: ImageProvider;
-  apiModelId: string;        // actual string passed to provider API
-  label: string;             // "GPT Image 1"
-  providerLabel: string;     // "OpenAI" | "Gemini"
-  schema: ZodTypeAny;        // validates params + drives react-hook-form
-  maxReferenceImages: number;
-  maxReferenceSizeBytes: number;
-  generate: (input: ImageGenInput) => Promise<ImageGenResult>;
+// ── Param manifest types ──────────────────────────────────────────────────────
+
+export type ParamComponent = "select" | "slider" | "toggle" | "number" | "textarea";
+export type ParamGroup = "primary" | "advanced";
+export type MediaType = "image" | "video";
+
+export type ParamConstraints =
+  | { type: "select";   options: string[] }
+  | { type: "slider";   min: number; max: number; step?: number }
+  | { type: "toggle" }
+  | { type: "number";   min?: number; max?: number; step?: number }
+  | { type: "textarea"; maxLength?: number };
+
+export type ParamSpec = {
+  name:         string;
+  label:        string;
+  component:    ParamComponent;
+  group:        ParamGroup;
+  order:        number;          // sort order within group (lower = first, resets per group)
+  visible:      boolean;         // false = sent to API with defaultValue, never shown in UI
+  defaultValue: unknown;         // JSON-serializable → DB-ready
+  constraints:  ParamConstraints;
+  description?: string;
 };
+
+// Server-side model config (includes generate function + derived Zod schema)
+export type MediaGenModelSpec = {
+  id:                    string;
+  provider:              string;
+  mediaType:             MediaType;
+  label:                 string;
+  providerLabel:         string;
+  maxReferenceImages:    number;
+  maxReferenceSizeBytes: number;
+  params:                ParamSpec[];
+  schema:                ZodTypeAny;
+  generate:              (input: ImageGenInput) => Promise<ImageGenResult>;
+};
+
+// Client-safe subset (no generate function)
+export type ClientModelSpec = Omit<MediaGenModelSpec, "generate">;
+
+// Legacy alias — keeps existing imports in registry.ts and API routes compiling
+export type ImageGenModelConfig = MediaGenModelSpec;
