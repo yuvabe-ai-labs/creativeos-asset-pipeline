@@ -100,6 +100,12 @@ export function PromptFocusView({
 }: PromptFocusViewProps) {
   const params = useParams<{ id: string }>();
   const [draft, setDraft] = useState(output ?? "");
+  // Local mirror of the instruction prop. The textarea is controlled by THIS, not
+  // by the prop directly: the prop round-trips through zustand + React Flow's
+  // internal node store, so binding the textarea straight to it re-renders the
+  // input with a not-yet-synced value and the browser resets the caret to the end
+  // on every keystroke. Local state updates synchronously, so the caret is kept.
+  const [instructionDraft, setInstructionDraft] = useState(instruction);
   const [generating, setGenerating] = useState(false);
   const [preview, setPreview] = useState<{
     ambient: string;
@@ -108,9 +114,14 @@ export function PromptFocusView({
     ambient: "",
     connected: [],
   });
-  const [seed, setSeed] = useState<{ open: boolean; output: string | null }>({
+  const [seed, setSeed] = useState<{
+    open: boolean;
+    output: string | null;
+    nodeId: string;
+  }>({
     open,
     output,
+    nodeId,
   });
   const [versions, setVersions] = useState<VersionSummary[]>([]);
   const [activeVersionId, setActiveVersionId] = useState<string | null>(null);
@@ -123,11 +134,17 @@ export function PromptFocusView({
   const [evalNote, setEvalNote] = useState("");
   const [evalSaving, setEvalSaving] = useState(false);
 
-  if (seed.open !== open || seed.output !== output) {
+  if (seed.open !== open || seed.output !== output || seed.nodeId !== nodeId) {
     const opening = open && !seed.open; // sheet just opened (false → true)
-    setSeed({ open, output });
+    const nodeChanged = seed.nodeId !== nodeId; // sheet reused for a different node
+    setSeed({ open, output, nodeId });
     setDraft(output ?? "");
     setDetailNodeId(null); // return to composition on open / fresh generation
+    // Re-seed the instruction buffer ONLY when opening or switching nodes — never on
+    // an output change (that would clobber an in-progress instruction edit) and never
+    // on the echo of our own per-keystroke write-through (that would re-introduce the
+    // caret jump this buffer exists to prevent).
+    if (opening || nodeChanged) setInstructionDraft(instruction);
     // Re-arm the left-panel skeletons ONLY on the open transition. The effect
     // below (keyed on [open, nodeId, slices]) is the sole thing that clears
     // them, and it does not re-run on output change — so re-arming here on a
@@ -271,7 +288,7 @@ export function PromptFocusView({
       const res = await fetch(`/api/nodes/${nodeId}/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ instruction, slices, controls: controls ?? DEFAULT_SHOT_CONTROLS }),
+        body: JSON.stringify({ instruction: instructionDraft, slices, controls: controls ?? DEFAULT_SHOT_CONTROLS }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Generation failed");
@@ -468,8 +485,11 @@ export function PromptFocusView({
                   <span className="text-eyebrow">Instruction</span>
                 </div>
                 <textarea
-                  value={instruction}
-                  onChange={(e) => onPatch({ instruction: e.target.value })}
+                  value={instructionDraft}
+                  onChange={(e) => {
+                    setInstructionDraft(e.target.value);
+                    onPatch({ instruction: e.target.value });
+                  }}
                   placeholder={instructionPlaceholder}
                   className="flex-1 min-h-0 w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-sm leading-relaxed focus:outline-none focus:ring-1 focus:ring-ring"
                 />

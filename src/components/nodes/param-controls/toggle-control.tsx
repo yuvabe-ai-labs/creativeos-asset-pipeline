@@ -1,22 +1,13 @@
 "use client";
 
-import type { UseFormReturn } from "react-hook-form";
 import type { ParamSpec } from "@/lib/image-gen/types";
 import { Switch } from "@/components/ui/switch";
 
-type Props = { spec: ParamSpec; form: UseFormReturn<Record<string, unknown>> };
+type Props = { spec: ParamSpec; value: unknown; onChange: (v: unknown) => void };
 
-export function ToggleControl({ spec, form }: Props) {
+export function ToggleControl({ spec, value, onChange }: Props) {
   if (spec.constraints.type !== "toggle") return null;
-  const raw = form.watch(spec.name);
-  const checked = typeof raw === "boolean" ? raw : Boolean(spec.defaultValue);
+  const checked = typeof value === "boolean" ? value : Boolean(spec.defaultValue);
 
-  return (
-    <Switch
-      checked={checked}
-      onCheckedChange={(v) =>
-        form.setValue(spec.name as never, v as never, { shouldDirty: true })
-      }
-    />
-  );
+  return <Switch checked={checked} onCheckedChange={(v) => onChange(v)} />;
 }

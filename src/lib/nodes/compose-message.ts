@@ -25,13 +25,15 @@ export type UserContent = string | ContentPart[];
 // is not in extraction-only mode — the image itself is the intended input). A draw node's
 // saved sketch qualifies the same way as an uploaded File image.
 function isVisionAttachment(u: UpstreamPreview): boolean {
-  return (
-    (u.type === "file" || u.type === "draw") &&
-    u.fileKind === "image" &&
-    typeof u.fileUrl === "string" &&
-    u.fileUrl.length > 0 &&
-    !u.useLlm
-  );
+  const hasImageUrl = typeof u.fileUrl === "string" && u.fileUrl.length > 0;
+  // File / Draw image uploads (not in extraction-only mode).
+  if ((u.type === "file" || u.type === "draw") && u.fileKind === "image" && hasImageUrl && !u.useLlm) {
+    return true;
+  }
+  // An Image Gen still: its output IS the image. It only carries a fileUrl on the video path
+  // (mapUpstreamForVideo); the image-Prompt path never sets it, so this cannot fire there.
+  if (u.type === "image-gen" && hasImageUrl) return true;
+  return false;
 }
 
 function toImagePart(u: UpstreamPreview): ImagePart {

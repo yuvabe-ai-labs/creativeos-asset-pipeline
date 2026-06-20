@@ -1,11 +1,11 @@
 "use client";
 
-import { Aperture, Crop, Sun, type LucideIcon } from "lucide-react";
+import { Video, Gauge, type LucideIcon } from "lucide-react";
 import {
-  SHOT_CONTROLS,
-  type ShotControls,
-  type ShotControlKey,
-} from "@/lib/nodes/shot-controls";
+  VIDEO_CONTROLS,
+  type VideoControls,
+  type VideoControlKey,
+} from "@/lib/nodes/video-controls";
 import {
   Select,
   SelectContent,
@@ -14,24 +14,24 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-const ICONS: Record<ShotControlKey, LucideIcon> = {
-  lens: Aperture,
-  composition: Crop,
-  lighting: Sun,
+const ICONS: Record<VideoControlKey, LucideIcon> = {
+  camera: Video,
+  speed: Gauge,
 };
 
-// Per-shot descriptive controls (lens / composition / lighting). Set values are injected into
-// the compiled prompt as constraints the model must honor (PRD §12). "Auto" = no constraint.
-export function ShotControlsRow({
+// Master video controls (camera move / motion speed) for the Video Prompt node (D24). Set
+// values are injected into the compiled motion prompt as constraints the model must honor.
+// "Auto" = no constraint.
+export function VideoControlsRow({
   controls,
   onChange,
 }: {
-  controls: ShotControls;
-  onChange: (next: ShotControls) => void;
+  controls: VideoControls;
+  onChange: (next: VideoControls) => void;
 }) {
   return (
     <div className="space-y-2">
-      {SHOT_CONTROLS.map((group) => {
+      {VIDEO_CONTROLS.map((group) => {
         const Icon = ICONS[group.key];
         return (
           <div key={group.key} className="flex items-center gap-2">

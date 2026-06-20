@@ -4,6 +4,7 @@ import type { Node } from "@xyflow/react";
 import type { NodeRow } from "@/lib/db/types";
 import type { KBSliceKey } from "@/lib/kb/parse-context";
 import type { ReelScript } from "@/lib/nodes/reel-script";
+import type { VideoControls } from "@/lib/nodes/video-controls";
 
 export type ScriptNodeData = {
   title?: string;
@@ -59,6 +60,14 @@ export type ImageGenNodeData = {
   parsed?: unknown;                   // D19: active version output (image URL, display only — never persisted)
 };
 
+export type VideoPromptNodeData = {
+  title?: string;
+  instruction?: string;         // operator steer ("emphasize the pour; let steam rise")
+  controls?: VideoControls;     // camera move + motion speed (D24)
+  kbSlices?: KBSliceKey[];      // ambient brand tone, like the Prompt node
+  parsed?: unknown;             // D19: active version output (motion prompt text) — display only
+};
+
 export type ShotNodeData = {
   // The parent reel script narrowed to a SINGLE shot — "a Script node with one shot"
   // (D21). Carries the full metadata (objective, on-screen text, voiceover, caption…)
@@ -81,19 +90,24 @@ export type AppNode =
   | Node<PromptNodeData, "prompt">
   | Node<ShotNodeData, "shot">
   | Node<DrawNodeData, "draw">
-  | Node<ImageGenNodeData, "image-gen">;
+  | Node<ImageGenNodeData, "image-gen">
+  | Node<VideoPromptNodeData, "video-prompt">;
 
 // PRD §10 — which source node types may connect to which target node types.
+// The Video Prompt node (D24) sits between Image Gen and Video Gen: the still feeds it as a
+// vision reference (image-gen → video-prompt), and it outputs a motion prompt
+// (video-prompt → video-gen). prompt → video-gen is retained as the inline fallback path.
 export const VALID_CONNECTIONS: Record<string, readonly string[]> = {
-  kb:            ["script"],
-  script:        ["prompt"],
-  shot:          ["prompt"],
-  file:          ["prompt", "image-gen"],
-  draw:          ["prompt", "image-gen"],
-  text:          ["prompt"],
-  prompt:        ["prompt", "image-gen", "video-gen"],
-  "image-gen":   ["prompt", "video-gen"],
-  "video-gen":   [],
+  kb:             ["script"],
+  script:         ["prompt"],
+  shot:           ["prompt", "video-prompt"],
+  file:           ["prompt", "image-gen", "video-prompt"],
+  draw:           ["prompt", "image-gen", "video-prompt"],
+  text:           ["prompt", "video-prompt"],
+  prompt:         ["prompt", "image-gen", "video-gen"],
+  "image-gen":    ["prompt", "video-gen", "video-prompt"],
+  "video-prompt": ["video-gen"],
+  "video-gen":    [],
 } as const;
 
 // A node row joined with its active version's output (canvas-load shape).

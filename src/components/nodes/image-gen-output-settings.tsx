@@ -10,7 +10,6 @@ import {
   Settings2,
   type LucideIcon,
 } from "lucide-react";
-import type { UseFormReturn } from "react-hook-form";
 import {
   Accordion,
   AccordionContent,
@@ -21,6 +20,15 @@ import {
   imageGenClientModelGroups,
   type ClientModelSpec,
 } from "@/lib/image-gen/client-models";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ParamControl } from "./param-controls";
 import { ImageGenParamRow } from "./image-gen-param-row";
 import type { ParamSpec } from "@/lib/image-gen/types";
@@ -29,29 +37,40 @@ type ParamFormValues = Record<string, unknown>;
 
 type Props = {
   model: ClientModelSpec;
-  form: UseFormReturn<ParamFormValues>;
+  values: ParamFormValues;
+  onValuesChange: (next: ParamFormValues) => void;
   onCommit: (values: ParamFormValues) => void;
   onModelChange: (id: string) => void;
 };
 
-// Icon per param name — presentation concern, not stored in ParamSpec
 const PARAM_ICONS: Record<string, LucideIcon> = {
-  size:                LayoutGrid,
-  quality:             Gauge,
-  aspect_ratio:        Crop,
-  image_size:          LayoutGrid,
-  background:          Layers,
-  output_format:       FileImage,
-  output_compression:  Settings2,
-  duration_seconds:    Settings2,
-  resolution:          Settings2,
+  size:               LayoutGrid,
+  quality:            Gauge,
+  aspect_ratio:       Crop,
+  image_size:         LayoutGrid,
+  background:         Layers,
+  output_format:      FileImage,
+  output_compression: Settings2,
+  duration_seconds:   Settings2,
+  resolution:         Settings2,
 };
 
-const SELECT_CLS =
-  "min-w-0 flex-1 rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring";
+const MODEL_ITEMS: Record<string, string> = Object.fromEntries(
+  imageGenClientModelGroups.flatMap((g) => g.models.map((m) => [m.id, m.label])),
+);
 
-export function ImageGenOutputSettings({ model, form, onCommit, onModelChange }: Props) {
-  const commit = () => onCommit(form.getValues());
+export function ImageGenOutputSettings({
+  model,
+  values,
+  onValuesChange,
+  onCommit,
+  onModelChange,
+}: Props) {
+  function patch(updates: ParamFormValues) {
+    const next = { ...values, ...updates };
+    onValuesChange(next);
+    onCommit(next);
+  }
 
   const primaryParams = model.params
     .filter((p: ParamSpec) => p.group === "primary" && p.visible)
@@ -65,19 +84,29 @@ export function ImageGenOutputSettings({ model, form, onCommit, onModelChange }:
     <div className="space-y-2">
       {/* Model selector */}
       <ImageGenParamRow icon={Cpu} label="Model">
-        <select
+        <Select
+          items={MODEL_ITEMS}
           value={model.id}
-          onChange={(e) => onModelChange(e.target.value)}
-          className={SELECT_CLS}
+          onValueChange={(v) => {
+            if (v != null) onModelChange(v as string);
+          }}
         >
-          {imageGenClientModelGroups.map((g) => (
-            <optgroup key={g.provider} label={g.label}>
-              {g.models.map((m) => (
-                <option key={m.id} value={m.id}>{m.label}</option>
-              ))}
-            </optgroup>
-          ))}
-        </select>
+          <SelectTrigger size="sm" className="min-w-0 flex-1 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {imageGenClientModelGroups.map((g) => (
+              <SelectGroup key={g.provider}>
+                <SelectLabel>{g.label}</SelectLabel>
+                {g.models.map((m) => (
+                  <SelectItem key={m.id} value={m.id} className="text-xs">
+                    {m.label}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            ))}
+          </SelectContent>
+        </Select>
       </ImageGenParamRow>
 
       {/* Primary params */}
@@ -87,13 +116,15 @@ export function ImageGenOutputSettings({ model, form, onCommit, onModelChange }:
           icon={PARAM_ICONS[param.name] ?? Settings2}
           label={param.label}
         >
-          <div onChange={commit}>
-            <ParamControl spec={param} form={form} />
-          </div>
+          <ParamControl
+            spec={param}
+            value={values[param.name] ?? param.defaultValue}
+            onChange={(v) => patch({ [param.name]: v })}
+          />
         </ImageGenParamRow>
       ))}
 
-      {/* Advanced params — shadcn Accordion */}
+      {/* Advanced params — collapsible accordion */}
       {advancedParams.length > 0 && (
         <Accordion multiple={false} className="pt-1">
           <AccordionItem value="advanced" className="border-none">
@@ -108,9 +139,11 @@ export function ImageGenOutputSettings({ model, form, onCommit, onModelChange }:
                     icon={PARAM_ICONS[param.name] ?? Settings2}
                     label={param.label}
                   >
-                    <div onChange={commit}>
-                      <ParamControl spec={param} form={form} />
-                    </div>
+                    <ParamControl
+                      spec={param}
+                      value={values[param.name] ?? param.defaultValue}
+                      onChange={(v) => patch({ [param.name]: v })}
+                    />
                   </ImageGenParamRow>
                 ))}
               </div>
