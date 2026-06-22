@@ -24,6 +24,7 @@ import { ShotNode } from "@/components/nodes/shot-node";
 import { DrawNode } from "@/components/nodes/draw-node";
 import { ImageGenNode } from "@/components/nodes/image-gen-node";
 import { VideoPromptNode } from "@/components/nodes/video-prompt-node";
+import { VideoGenNode } from "@/components/nodes/video-gen-node";
 import { useCanvasStore } from "./canvas-store-provider";
 import { CanvasAutosave } from "./canvas-autosave";
 import { CanvasContextMenu } from "./canvas-context-menu";
@@ -39,6 +40,7 @@ const nodeTypes: NodeTypes = {
   draw: DrawNode,
   "image-gen": ImageGenNode,
   "video-prompt": VideoPromptNode,
+  "video-gen": VideoGenNode,
 };
 
 export function Canvas({ canvasId }: { canvasId: string }) {

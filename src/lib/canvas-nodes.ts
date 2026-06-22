@@ -68,6 +68,14 @@ export type VideoPromptNodeData = {
   parsed?: unknown;             // D19: active version output (motion prompt text) — display only
 };
 
+export type VideoGenNodeData = {
+  title?: string;
+  modelId?: string;
+  params?: Record<string, unknown>;
+  imageRoles?: Record<string, "start_frame" | "end_frame" | "reference">;
+  parsed?: unknown; // D19: active version output (video URL, display only — never persisted)
+};
+
 export type ShotNodeData = {
   // The parent reel script narrowed to a SINGLE shot — "a Script node with one shot"
   // (D21). Carries the full metadata (objective, on-screen text, voiceover, caption…)
@@ -91,7 +99,8 @@ export type AppNode =
   | Node<ShotNodeData, "shot">
   | Node<DrawNodeData, "draw">
   | Node<ImageGenNodeData, "image-gen">
-  | Node<VideoPromptNodeData, "video-prompt">;
+  | Node<VideoPromptNodeData, "video-prompt">
+  | Node<VideoGenNodeData, "video-gen">;
 
 // PRD §10 — which source node types may connect to which target node types.
 // The Video Prompt node (D24) sits between Image Gen and Video Gen: the still feeds it as a
