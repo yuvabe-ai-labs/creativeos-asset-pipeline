@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { Clapperboard } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -8,6 +8,7 @@ import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { NodeContextMenu } from "./node-context-menu";
 import type { VideoGenNodeData } from "@/lib/canvas-nodes";
 import { VideoGenFocusView } from "./video-gen-focus-view";
+import { useVideoGenStatus } from "@/hooks/use-video-gen-status";
 
 export function VideoGenNode({ id, data, selected }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
@@ -17,7 +18,14 @@ export function VideoGenNode({ id, data, selected }: NodeProps) {
   const d = data as VideoGenNodeData;
   const title    = d.title ?? "";
   const videoUrl = (d.parsed ?? null) as string | null;
+
   const [focusOpen, setFocusOpen] = useState(false);
+  const { isGenerating } = useVideoGenStatus(id);
+
+  const handlePatch = useCallback(
+    (patch: Record<string, unknown>) => updateNodeData(id, patch),
+    [id, updateNodeData],
+  );
 
   return (
     <NodeContextMenu onDuplicate={() => duplicateNode(id)} onDelete={() => deleteNode(id)}>
@@ -38,15 +46,24 @@ export function VideoGenNode({ id, data, selected }: NodeProps) {
           <span
             className={cn(
               "size-1.5 rounded-full",
-              videoUrl ? "bg-teal-500" : "bg-muted-foreground/40",
+              isGenerating
+                ? "animate-pulse bg-teal-400"
+                : videoUrl
+                  ? "bg-teal-500"
+                  : "bg-muted-foreground/40",
             )}
-            title={videoUrl ? "Video generated" : "Not generated"}
+            title={
+              isGenerating ? "Generating…" : videoUrl ? "Video generated" : "Not generated"
+            }
           />
         </div>
 
         {/* Body */}
         <div className="px-3 py-3">
-          {videoUrl && (
+          {isGenerating && (
+            <div className="mb-2 h-16 w-full animate-pulse rounded-md bg-teal-500/10" />
+          )}
+          {!isGenerating && videoUrl && (
             <div className="mb-2 overflow-hidden rounded-md border border-border">
               <video
                 src={videoUrl}
@@ -73,7 +90,7 @@ export function VideoGenNode({ id, data, selected }: NodeProps) {
           modelId={d.modelId}
           params={d.params}
           imageRoles={d.imageRoles ?? {}}
-          onPatch={(patch) => updateNodeData(id, patch)}
+          onPatch={handlePatch}
         />
 
         {/* Leaf node — only a target handle, no source */}
