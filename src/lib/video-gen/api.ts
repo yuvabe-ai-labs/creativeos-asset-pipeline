@@ -1,6 +1,8 @@
 // Client-safe API wrappers for video-gen routes.
 // All functions throw on non-OK responses so callers can catch and toast.
 
+// TODO: Move VideoGenVersionSummary to lib/types in a future refactor to remove
+// this dependency-inversion (lib importing from UI components).
 import type { VideoGenVersionSummary } from "@/components/nodes/video-gen-version-history";
 
 export type UpstreamImage = {
@@ -16,8 +18,8 @@ export type StartGenerationPayload = {
 };
 
 async function parseError(res: Response, fallback: string): Promise<never> {
-  const json = await res.json().catch(() => ({})) as { error?: string };
-  throw new Error((json as { error?: string }).error ?? fallback);
+  const body = await res.json().catch(() => null);
+  throw new Error((body as { error?: string } | null)?.error ?? fallback);
 }
 
 export const videoGenApi = {
@@ -52,10 +54,14 @@ export const videoGenApi = {
   },
 
   async fetchUpstreamImages(nodeId: string): Promise<UpstreamImage[]> {
-    const res = await fetch(`/api/nodes/${nodeId}/upstream-images`);
-    if (!res.ok) return [];
-    const json = await res.json() as { images: UpstreamImage[] };
-    return json.images ?? [];
+    try {
+      const res = await fetch(`/api/nodes/${nodeId}/upstream-images`);
+      if (!res.ok) return [];
+      const json = await res.json() as { images: UpstreamImage[] };
+      return json.images ?? [];
+    } catch {
+      return [];
+    }
   },
 
   async startGeneration(
@@ -68,8 +74,9 @@ export const videoGenApi = {
       body: JSON.stringify(payload),
     });
     if (!res.ok) await parseError(res, "Generation failed");
-    const json = await res.json() as { generationId: string };
-    return json;
+    const json = await res.json() as { generationId?: string };
+    if (!json.generationId) throw new Error("Generation failed: missing generationId in response");
+    return { generationId: json.generationId };
   },
 
   async restoreVersion(
@@ -82,8 +89,8 @@ export const videoGenApi = {
       body: JSON.stringify({ versionId }),
     });
     if (!res.ok) await parseError(res, "Restore failed");
-    const json = await res.json() as { output?: string; error?: string };
-    if (!json.output) throw new Error("No output returned from restore");
+    const json = await res.json() as { output: string | null };
+    if (typeof json.output !== "string") throw new Error("No output returned from restore");
     return { output: json.output };
   },
 };
