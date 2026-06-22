@@ -3,7 +3,6 @@ import { videoGenRegistry } from "@/lib/video-gen/registry";
 
 export const videoGenerateTask = task({
   id: "video-generate",
-  // @ts-ignore — maxDuration ships in newer stable @trigger.dev/sdk/v3; the CLI compiles this file independently
   maxDuration: 600,
   run: async (payload: {
     generationId: string;

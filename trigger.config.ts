@@ -1,9 +1,9 @@
-// @ts-ignore — defineConfig ships in newer stable @trigger.dev/sdk/v3; the CLI compiles this file independently
 import { defineConfig } from "@trigger.dev/sdk/v3";
 
 export default defineConfig({
   project: process.env.TRIGGER_PROJECT_REF ?? "your-project-ref",
   dirs: ["./trigger"],
+  maxDuration: 600,
   retries: {
     enabledInDev: false,
     default: {

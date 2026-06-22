@@ -14,7 +14,7 @@
     "@base-ui/react": "^1.5.0",
     "@google/genai": "^2.8.0",
     "@supabase/supabase-js": "^2.106.2",
-    "@trigger.dev/sdk": "^3.0.0-beta.56",
+    "@trigger.dev/sdk": "^4.4.6",
     "@xyflow/react": "^12.10.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
