@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { FileText, ImageIcon, Paperclip, StickyNote, Sparkles, Pencil, Clapperboard, type LucideIcon } from "lucide-react";
 
-export type AddNodeType = "script" | "file" | "text" | "prompt" | "draw" | "image-gen" | "video-prompt";
+export type AddNodeType = "script" | "file" | "text" | "prompt" | "draw" | "image-gen" | "video-prompt" | "video-gen";
 
 const OPTIONS: { type: AddNodeType; label: string; icon: LucideIcon }[] = [
   { type: "script", label: "Script",  icon: FileText  },
@@ -13,6 +13,7 @@ const OPTIONS: { type: AddNodeType; label: string; icon: LucideIcon }[] = [
   { type: "draw",         label: "Draw",         icon: Pencil       },
   { type: "image-gen",    label: "Image Gen",    icon: ImageIcon    },
   { type: "video-prompt", label: "Video Prompt", icon: Clapperboard },
+  { type: "video-gen",    label: "Video Gen",    icon: Clapperboard },
 ];
 
 const MENU_W = 176;

@@ -1,40 +1,18 @@
 import "server-only";
-import { z } from "zod";
 import { createGemini } from "@/lib/gemini/server";
-import type { ImageGenInput, ImageGenModelConfig, ImageGenResult } from "../types";
+import { buildZodFromParams } from "../schema-builder";
+import { geminiFlashParams, geminiProParams } from "../params/gemini";
+import type { ImageGenInput, ImageGenResult, MediaGenModelSpec } from "../types";
 
-// ── Schemas ───────────────────────────────────────────────────────────────────
+export { geminiFlashParams, geminiProParams };
 
-export const geminiFlashImageSchema = z.object({
-  aspect_ratio: z
-    .enum(["1:1", "16:9", "9:16", "4:3", "3:4", "21:9", "4:1", "1:4"])
-    .default("1:1"),
-  image_size: z.enum(["512", "1K", "2K", "4K"]).default("1K"),
-  safety_filter_level: z
-    .enum(["block_low_and_above", "block_medium_and_above", "block_only_high"])
-    .default("block_medium_and_above"),
-  person_generation: z.enum(["allow_adult", "disallow"]).default("allow_adult"),
-});
-
-export const geminiProImageSchema = z.object({
-  aspect_ratio: z
-    .enum(["1:1", "16:9", "9:16", "4:3", "3:4"])
-    .default("1:1"),
-  image_size: z.enum(["1K", "2K", "4K"]).default("1K"),
-  safety_filter_level: z
-    .enum(["block_low_and_above", "block_medium_and_above", "block_only_high"])
-    .default("block_medium_and_above"),
-  person_generation: z.enum(["allow_adult", "disallow"]).default("allow_adult"),
-  thinking_level: z.enum(["none", "low", "high"]).default("low"),
-});
+// Params ref: https://ai.google.dev/gemini-api/docs/image-generation
+// Only imageConfig.aspectRatio and imageConfig.imageSize are supported via the
+// Gemini Developer API.
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-// Gemini's Developer API does not accept arbitrary HTTP URLs as image input.
-// Fetch the image server-side and pass as inline base64 data.
-async function urlToInlineData(
-  url: string,
-): Promise<{ mimeType: string; data: string }> {
+async function urlToInlineData(url: string): Promise<{ mimeType: string; data: string }> {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Failed to fetch reference image (${res.status}): ${url}`);
   const buffer = await res.arrayBuffer();
@@ -51,7 +29,6 @@ async function generateWithGemini(
   const ai = createGemini();
   const p = input.params;
 
-  // Fetch reference images as inline data (Gemini needs base64, not URLs)
   const refParts = await Promise.all(
     input.referenceUrls.map(async (url) => {
       const { mimeType, data } = await urlToInlineData(url);
@@ -62,23 +39,16 @@ async function generateWithGemini(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const response = await (ai.models as any).generateContent({
     model: apiModelId,
-    contents: [
-      {
-        role: "user",
-        parts: [...refParts, { text: input.prompt }],
-      },
-    ],
+    contents: [{ role: "user", parts: [...refParts, { text: input.prompt }] }],
     config: {
       responseModalities: ["IMAGE"],
       imageConfig: {
-        aspectRatio:   p.aspect_ratio  ?? "1:1",
-        imageSize:     p.image_size    ?? "1K",
+        aspectRatio: p.aspect_ratio ?? "1:1",
+        imageSize:   p.image_size   ?? "1K",
       },
-      ...(p.thinking_level ? { thinkingConfig: { thinkingBudget: p.thinking_level } } : {}),
     },
   });
 
-  // Extract image part from first candidate
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const parts: any[] = response?.candidates?.[0]?.content?.parts ?? [];
   const imagePart = parts.find((pt: { inlineData?: { data?: string } }) => pt.inlineData?.data);
@@ -102,38 +72,32 @@ async function generateWithGemini(
 
 // ── Model configs ─────────────────────────────────────────────────────────────
 
-export const geminiModels: ImageGenModelConfig[] = [
+export const geminiModels: MediaGenModelSpec[] = [
   {
     id: "gemini:gemini-2.5-flash-image",
-    provider: "gemini",
-    apiModelId: "gemini-2.5-flash-image",
-    label: "Nano Banana ",
-    providerLabel: "Gemini",
-    schema: geminiFlashImageSchema,
-    maxReferenceImages: 5,
-    maxReferenceSizeBytes: 20 * 1024 * 1024,
+    provider: "gemini", mediaType: "image",
+    label: "Nano Banana", providerLabel: "Gemini",
+    maxReferenceImages: 5, maxReferenceSizeBytes: 20 * 1024 * 1024,
+    params: geminiFlashParams,
+    schema: buildZodFromParams(geminiFlashParams),
     generate: (input) => generateWithGemini("gemini-2.5-flash-image", input),
   },
   {
-    id: "gemini:gemini-3.1-flash-image-preview",
-    provider: "gemini",
-    apiModelId: "gemini-3.1-flash-image-preview",
-    label: "Nano Banana 2",
-    providerLabel: "Gemini",
-    schema: geminiFlashImageSchema,
-    maxReferenceImages: 5,
-    maxReferenceSizeBytes: 20 * 1024 * 1024,
-    generate: (input) => generateWithGemini("gemini-3.1-flash-image-preview", input),
+    id: "gemini:gemini-3.1-flash-image",
+    provider: "gemini", mediaType: "image",
+    label: "Nano Banana 2", providerLabel: "Gemini",
+    maxReferenceImages: 5, maxReferenceSizeBytes: 20 * 1024 * 1024,
+    params: geminiFlashParams,
+    schema: buildZodFromParams(geminiFlashParams),
+    generate: (input) => generateWithGemini("gemini-3.1-flash-image", input),
   },
   {
-    id: "gemini:gemini-3-pro-image-preview",
-    provider: "gemini",
-    apiModelId: "gemini-3-pro-image-preview",
-    label: "Nano Banana Pro",
-    providerLabel: "Gemini",
-    schema: geminiProImageSchema,
-    maxReferenceImages: 5,
-    maxReferenceSizeBytes: 20 * 1024 * 1024,
-    generate: (input) => generateWithGemini("gemini-3-pro-image-preview", input),
+    id: "gemini:gemini-3-pro-image",
+    provider: "gemini", mediaType: "image",
+    label: "Nano Banana Pro", providerLabel: "Gemini",
+    maxReferenceImages: 5, maxReferenceSizeBytes: 20 * 1024 * 1024,
+    params: geminiProParams,
+    schema: buildZodFromParams(geminiProParams),
+    generate: (input) => generateWithGemini("gemini-3-pro-image", input),
   },
 ];

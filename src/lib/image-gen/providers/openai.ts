@@ -1,29 +1,12 @@
 import "server-only";
-import { z } from "zod";
 import { createOpenAI } from "@/lib/openai/server";
-import type { ImageGenInput, ImageGenModelConfig, ImageGenResult } from "../types";
+import { buildZodFromParams } from "../schema-builder";
+import { gptImage2Params, gptImage1Params, gptImage1MiniParams } from "../params/openai";
+import type { ImageGenInput, ImageGenResult, MediaGenModelSpec } from "../types";
 
-// ── Schemas ───────────────────────────────────────────────────────────────────
+export { gptImage2Params, gptImage1Params, gptImage1MiniParams };
 
-export const gptImage2Schema = z.object({
-  size: z.enum(["auto", "1024x1024", "1536x1024", "1024x1536"]).default("1024x1024"),
-  quality: z.enum(["low", "medium", "high"]).default("medium"),
-  background: z.enum(["auto", "opaque", "transparent"]).default("auto"),
-  output_format: z.enum(["png", "jpeg", "webp"]).default("png"),
-  // only shown in form when output_format is jpeg or webp
-  output_compression: z.number().min(0).max(100).optional(),
-});
-
-// gpt-image-1 exposes identical params to gpt-image-2
-export const gptImage1Schema = gptImage2Schema;
-
-export const gptImage1MiniSchema = z.object({
-  size: z.enum(["1024x1024", "1536x1024", "1024x1536"]).default("1024x1024"),
-  quality: z.enum(["low", "medium", "high"]).default("medium"),
-  output_format: z.enum(["png", "jpeg", "webp"]).default("png"),
-  output_compression: z.number().min(0).max(100).optional(),
-  // No background/transparency support on mini
-});
+// Params ref: https://platform.openai.com/docs/api-reference/images/create
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -45,7 +28,6 @@ async function generateWithOpenAI(
   const openai = createOpenAI();
   const p = input.params;
 
-  // Build shared params for both generate and edit
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sharedParams: Record<string, any> = {
     model: apiModelId,
@@ -54,15 +36,13 @@ async function generateWithOpenAI(
     quality: (p.quality as string) ?? "medium",
     // response_format is NOT supported for gpt-image-* models — they always return b64_json
   };
-  if (p.background)                  sharedParams.background = p.background;
-  if (p.output_format)               sharedParams.output_format = p.output_format;
-  if (p.output_compression != null)  sharedParams.output_compression = p.output_compression;
+  if (p.background)    sharedParams.background    = p.background;
+  if (p.output_format) sharedParams.output_format = p.output_format;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let response: any;
 
   if (input.referenceUrls.length > 0) {
-    // edit() endpoint for reference images — fetch each URL as a File
     const imageFiles = await Promise.all(input.referenceUrls.map(urlToFile));
     response = await openai.images.edit({
       ...sharedParams,
@@ -84,11 +64,9 @@ async function generateWithOpenAI(
   return {
     imageBase64: b64,
     mimeType:
-      p.output_format === "jpeg"
-        ? "image/jpeg"
-        : p.output_format === "webp"
-          ? "image/webp"
-          : "image/png",
+      p.output_format === "jpeg" ? "image/jpeg"
+      : p.output_format === "webp" ? "image/webp"
+      : "image/png",
     tokensUsed: {
       text_input_tokens:   usage?.input_tokens_details?.text_tokens  ?? usage?.input_tokens  ?? 0,
       image_input_tokens:  usage?.input_tokens_details?.image_tokens ?? 0,
@@ -100,38 +78,32 @@ async function generateWithOpenAI(
 
 // ── Model configs ─────────────────────────────────────────────────────────────
 
-export const openaiModels: ImageGenModelConfig[] = [
+export const openaiModels: MediaGenModelSpec[] = [
   {
     id: "openai:gpt-image-2",
-    provider: "openai",
-    apiModelId: "gpt-image-2",
-    label: "GPT Image 2",
-    providerLabel: "OpenAI",
-    schema: gptImage2Schema,
-    maxReferenceImages: 10,
-    maxReferenceSizeBytes: 50 * 1024 * 1024,
+    provider: "openai", mediaType: "image",
+    label: "GPT Image 2", providerLabel: "OpenAI",
+    maxReferenceImages: 10, maxReferenceSizeBytes: 50 * 1024 * 1024,
+    params: gptImage2Params,
+    schema: buildZodFromParams(gptImage2Params),
     generate: (input) => generateWithOpenAI("gpt-image-2", input),
   },
   {
     id: "openai:gpt-image-1",
-    provider: "openai",
-    apiModelId: "gpt-image-1",
-    label: "GPT Image 1",
-    providerLabel: "OpenAI",
-    schema: gptImage1Schema,
-    maxReferenceImages: 10,
-    maxReferenceSizeBytes: 50 * 1024 * 1024,
+    provider: "openai", mediaType: "image",
+    label: "GPT Image 1", providerLabel: "OpenAI",
+    maxReferenceImages: 10, maxReferenceSizeBytes: 50 * 1024 * 1024,
+    params: gptImage1Params,
+    schema: buildZodFromParams(gptImage1Params),
     generate: (input) => generateWithOpenAI("gpt-image-1", input),
   },
   {
     id: "openai:gpt-image-1-mini",
-    provider: "openai",
-    apiModelId: "gpt-image-1-mini",
-    label: "GPT Image 1 Mini",
-    providerLabel: "OpenAI",
-    schema: gptImage1MiniSchema,
-    maxReferenceImages: 5,
-    maxReferenceSizeBytes: 50 * 1024 * 1024,
+    provider: "openai", mediaType: "image",
+    label: "GPT Image 1 Mini", providerLabel: "OpenAI",
+    maxReferenceImages: 5, maxReferenceSizeBytes: 50 * 1024 * 1024,
+    params: gptImage1MiniParams,
+    schema: buildZodFromParams(gptImage1MiniParams),
     generate: (input) => generateWithOpenAI("gpt-image-1-mini", input),
   },
 ];
