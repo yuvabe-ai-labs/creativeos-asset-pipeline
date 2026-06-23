@@ -44,7 +44,16 @@ export async function GET(
             : ((u.data as Record<string, unknown>).fileUrl as string),
       }));
 
-    return apiOk({ images });
+    // Surface the connected video-prompt node so the focus view can display the motion prompt text.
+    const videoPromptNode = direct.find((u) => u.type === "video-prompt");
+    const promptNode = videoPromptNode
+      ? {
+          id: videoPromptNode.nodeId,
+          text: typeof videoPromptNode.activeOutput === "string" ? videoPromptNode.activeOutput : null,
+        }
+      : null;
+
+    return apiOk({ images, promptNode });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Failed to resolve upstream images";
     return apiError(message, 500);

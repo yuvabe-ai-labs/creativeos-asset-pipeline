@@ -11,10 +11,16 @@ export type UpstreamImage = {
   imageUrl: string;
 };
 
+export type UpstreamPromptNode = {
+  id: string;
+  text: string | null;
+};
+
 export type StartGenerationPayload = {
   modelId: string;
   params: Record<string, unknown>;
   imageRoles: Record<string, string>;
+  mock?: boolean;
 };
 
 async function parseError(res: Response, fallback: string): Promise<never> {
@@ -53,14 +59,14 @@ export const videoGenApi = {
     };
   },
 
-  async fetchUpstreamImages(nodeId: string): Promise<UpstreamImage[]> {
+  async fetchUpstreamImages(nodeId: string): Promise<{ images: UpstreamImage[]; promptNode: UpstreamPromptNode | null }> {
     try {
       const res = await fetch(`/api/nodes/${nodeId}/upstream-images`);
-      if (!res.ok) return [];
-      const json = await res.json() as { images: UpstreamImage[] };
-      return json.images ?? [];
+      if (!res.ok) return { images: [], promptNode: null };
+      const json = await res.json() as { images: UpstreamImage[]; promptNode: UpstreamPromptNode | null };
+      return { images: json.images ?? [], promptNode: json.promptNode ?? null };
     } catch {
-      return [];
+      return { images: [], promptNode: null };
     }
   },
 

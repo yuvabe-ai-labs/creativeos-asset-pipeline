@@ -12,6 +12,9 @@ const VIDEO_MODEL_PRICING: Record<
   "veo:veo-3.1-lite":  { perSecond: 0.05,   audioMultiplier: 1.0 },
   "veo:veo-3.1-fast":  { perSecond: 0.10,   audioMultiplier: 1.5 },
   "veo:veo-3.1":       { perSecond: 0.2667, audioMultiplier: 1.5 },
+  // Source: platform.openai.com/docs/pricing (verified June 2026)
+  // $0.10/s at 720p; no audio output, no premium multiplier
+  "openai:sora-2":     { perSecond: 0.10,   audioMultiplier: 1.0 },
 };
 
 export function computeVideoCost(

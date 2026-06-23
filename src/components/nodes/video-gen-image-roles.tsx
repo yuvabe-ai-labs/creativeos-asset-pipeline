@@ -1,8 +1,8 @@
 "use client";
 
-import { Link2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { UpstreamImage } from "@/lib/video-gen/api";
+import type { ImageInputCapabilities } from "@/lib/video-gen/types";
 
 type ImageRole = "start_frame" | "end_frame" | "reference";
 
@@ -12,80 +12,89 @@ const ROLES: { value: ImageRole; label: string }[] = [
   { value: "reference", label: "Ref" },
 ];
 
-// Veo 3.1 supports up to 3 subject reference images
-const MAX_REFS = 3;
-
 type Props = {
   images: UpstreamImage[];
   imageRoles: Record<string, ImageRole>;
+  imageInputs: ImageInputCapabilities;
   onRoleChange: (imageId: string, role: ImageRole) => void;
 };
 
-export function VideoGenImageRoles({ images, imageRoles, onRoleChange }: Props) {
+export function VideoGenImageRoles({
+  images,
+  imageRoles,
+  imageInputs,
+  onRoleChange,
+}: Props) {
   if (images.length === 0) return null;
 
   const refCount = Object.values(imageRoles).filter((r) => r === "reference").length;
 
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1.5">
-          <Link2 className="size-3.5 text-primary" strokeWidth={1.5} />
-          <span className="text-eyebrow">Image Inputs</span>
-        </div>
-        <span className="text-xs text-muted-foreground">
-          {images.length} image{images.length !== 1 ? "s" : ""}
-        </span>
-      </div>
+    <div className="flex flex-col gap-1.5">
+      {images.map((img) => {
+        const role: ImageRole =
+          imageRoles[img.id] ?? (img.type === "image-gen" ? "start_frame" : "reference");
 
-      <div className="flex gap-1.5 overflow-x-auto pb-0.5">
-        {images.map((img) => {
-          const role: ImageRole =
-            imageRoles[img.id] ?? (img.type === "image-gen" ? "start_frame" : "reference");
+        // Dim thumbnail when this image's assigned role won't be used in generation
+        const thumbnailDimmed =
+          (role === "end_frame" && !imageInputs.endFrame) ||
+          (role === "reference" && imageInputs.maxReferenceImages === 0);
 
-          return (
+        return (
+          <div
+            key={img.id}
+            className="flex items-center gap-3 rounded-lg border border-border p-2"
+          >
+            {/* Thumbnail — dimmed when role is inactive/unsupported */}
             <div
-              key={img.id}
-              className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-md border border-border"
+              className={cn(
+                "relative size-12 shrink-0 overflow-hidden rounded bg-muted transition-opacity duration-200",
+                thumbnailDimmed && "opacity-25",
+              )}
             >
-              {/* Square thumbnail with type badge */}
-              <div className="relative aspect-square w-full overflow-hidden bg-muted">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={img.imageUrl} alt="" className="size-full object-cover" />
-                <span className="absolute right-0.5 top-0.5 rounded bg-black/50 px-0.5 py-px text-[0.45rem] font-medium leading-tight text-white backdrop-blur-sm">
-                  {img.type}
-                </span>
-              </div>
-
-              {/* Role toggle */}
-              <div className="flex justify-center gap-px border-t border-border px-0.5 py-0.5">
-                {ROLES.map((r) => {
-                  const isActive = role === r.value;
-                  const atRefLimit = r.value === "reference" && !isActive && refCount >= MAX_REFS;
-                  return (
-                    <button
-                      key={r.value}
-                      type="button"
-                      disabled={atRefLimit}
-                      onClick={() => !atRefLimit && onRoleChange(img.id, r.value)}
-                      className={cn(
-                        "rounded px-1 py-px text-[0.5rem] font-medium transition-colors",
-                        isActive
-                          ? "bg-primary text-primary-foreground"
-                          : atRefLimit
-                            ? "cursor-not-allowed text-muted-foreground/30"
-                            : "text-muted-foreground hover:bg-muted",
-                      )}
-                    >
-                      {r.label}
-                    </button>
-                  );
-                })}
-              </div>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={img.imageUrl} alt="" className="size-full object-cover" />
+              <span className="absolute right-0.5 top-0.5 rounded bg-black/50 px-0.5 py-px text-[0.45rem] font-medium leading-tight text-white backdrop-blur-sm">
+                {img.type}
+              </span>
             </div>
-          );
-        })}
-      </div>
+
+            {/* Role buttons — always interactive so user can reassign */}
+            <div className="ml-auto flex items-center gap-1">
+              {ROLES.map((r) => {
+                const isActive = role === r.value;
+                const notSupported =
+                  (r.value === "end_frame" && !imageInputs.endFrame) ||
+                  (r.value === "reference" && imageInputs.maxReferenceImages === 0);
+                const atRefLimit =
+                  r.value === "reference" &&
+                  !isActive &&
+                  refCount >= imageInputs.maxReferenceImages;
+                const disabled = notSupported || atRefLimit;
+
+                return (
+                  <button
+                    key={r.value}
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => !disabled && onRoleChange(img.id, r.value)}
+                    className={cn(
+                      "rounded px-2 py-1 text-[0.6rem] font-medium transition-colors",
+                      isActive && !notSupported
+                        ? "bg-primary text-primary-foreground"
+                        : disabled
+                          ? "cursor-not-allowed text-muted-foreground/20"
+                          : "text-muted-foreground hover:bg-muted",
+                    )}
+                  >
+                    {r.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

@@ -36,7 +36,11 @@ export function VideoGenUsagePopover({ versions }: Props) {
     const ordered = [...versions].reverse();
     ordered.forEach((v, i) => {
       if (!v.output || !v.modelUsed) return;
-      const duration = Number(v.paramsUsed?.duration ?? 5);
+      // durationSeconds is set by complete.ts for all providers;
+      // duration (Veo) and seconds (Sora) are provider-specific fallbacks for older rows.
+      const duration = Number(
+        v.paramsUsed?.durationSeconds ?? v.paramsUsed?.duration ?? v.paramsUsed?.seconds ?? 5,
+      );
       const audio = Boolean(v.paramsUsed?.audio);
       const cost = computeVideoCost(v.modelUsed, duration, audio);
       if (!cost) return;

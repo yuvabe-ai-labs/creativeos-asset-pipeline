@@ -5,6 +5,19 @@ import { getGeneration, succeedGeneration, failGeneration } from "@/lib/db/gener
 import { computeVideoCost } from "@/lib/video-gen/cost";
 import { NODE_FILE_BUCKET } from "@/lib/nodes/file-constants";
 
+function buildVideoDownloadHeaders(modelUsed: string | null): HeadersInit {
+  const base = { "User-Agent": "Mozilla/5.0 (compatible; CreativeOS/1.0)" };
+  if (modelUsed?.startsWith("veo:")) {
+    const key = process.env.GOOGLE_GENAI_API_KEY ?? "";
+    return { ...base, "x-goog-api-key": key };
+  }
+  if (modelUsed?.startsWith("openai:")) {
+    const key = process.env.OPENAI_API_KEY ?? "";
+    return { ...base, Authorization: `Bearer ${key}` };
+  }
+  return base;
+}
+
 export type CompleteGenerationInput =
   | {
       generationId: string;
@@ -35,7 +48,7 @@ export async function completeGeneration(
   // 1. Download video from provider URL and upload to Supabase Storage
   const supabase = createServerSupabase();
   const videoResponse = await fetch(input.videoUrl, {
-    headers: { "User-Agent": "Mozilla/5.0 (compatible; CreativeOS/1.0)" },
+    headers: buildVideoDownloadHeaders(generation.model_used),
   });
   if (!videoResponse.ok) {
     await failGeneration({

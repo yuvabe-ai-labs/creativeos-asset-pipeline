@@ -11,7 +11,7 @@ export async function POST(
   const { id: nodeId } = await params;
 
   const body = (await req.json().catch(() => null)) as
-    | { modelId?: unknown; params?: unknown; imageRoles?: unknown }
+    | { modelId?: unknown; params?: unknown; imageRoles?: unknown; mock?: unknown }
     | null;
 
   const modelId =
@@ -69,8 +69,13 @@ export async function POST(
     }
   }
 
-  // Cap at Veo's max of 3 reference images before firing the task
-  if (referenceUrls.length > 3) referenceUrls.splice(3);
+  // Cap reference images at the model's declared limit
+  const maxRefs = config.imageInputs.maxReferenceImages;
+  if (referenceUrls.length > maxRefs) referenceUrls.splice(maxRefs);
+  // If model doesn't support end frame, clear it
+  if (!config.imageInputs.endFrame) endFrameUrl = undefined;
+
+  const mockMode = body?.mock === true;
 
   // Insert generation record (status: 'running')
   const generation = await insertGeneration({
@@ -97,6 +102,7 @@ export async function POST(
     endFrameUrl,
     referenceUrls,
     params: resolvedParams,
+    mockMode,
   });
 
   return apiOk({ generationId: generation.id }, 202);

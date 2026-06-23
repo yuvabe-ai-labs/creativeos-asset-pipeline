@@ -1,13 +1,22 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
-import { ArrowLeft, Clapperboard, Sparkles } from "lucide-react";
+import { useEffect, useState, useCallback, useRef, type ReactNode } from "react";
+import {
+  ArrowLeft,
+  Clapperboard,
+  Link2,
+  Settings2,
+  Sparkles,
+  type LucideIcon,
+} from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import {
   DEFAULT_VIDEO_CLIENT_MODEL_ID,
   defaultsForVideoModel,
+  videoGenClientModelMap,
 } from "@/lib/video-gen/client-models";
 import { videoGenApi } from "@/lib/video-gen/api";
 import { createBrowserSupabase } from "@/lib/supabase/client";
@@ -20,7 +29,7 @@ import {
 import { VideoGenUsagePopover } from "./video-gen-usage-popover";
 import { VideoGenParamsPanel } from "./video-gen-params-panel";
 import { VideoGenImageRoles } from "./video-gen-image-roles";
-import type { UpstreamImage } from "@/lib/video-gen/api";
+import type { UpstreamImage, UpstreamPromptNode } from "@/lib/video-gen/api";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -37,6 +46,33 @@ type Props = {
   imageRoles: Record<string, ImageRole>;
   onPatch: (patch: Record<string, unknown>) => void;
 };
+
+// ── Section header (matches image-gen-focus-view.tsx LeftSection pattern) ─────
+
+function LeftSection({
+  icon: Icon,
+  label,
+  badge,
+  children,
+}: {
+  icon: LucideIcon;
+  label: string;
+  badge?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div>
+      <div className="mb-2 flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          <Icon className="size-3.5 text-primary" strokeWidth={1.5} />
+          <span className="text-eyebrow">{label}</span>
+        </div>
+        {badge && <span className="text-xs text-muted-foreground">{badge}</span>}
+      </div>
+      {children}
+    </div>
+  );
+}
 
 // ── Main focus view ───────────────────────────────────────────────────────────
 
@@ -58,9 +94,14 @@ export function VideoGenFocusView({
     () => paramsProp ?? defaultsForVideoModel(initialModelId),
   );
   const [upstreamImages, setUpstreamImages] = useState<UpstreamImage[]>([]);
+  const [promptNode, setPromptNode] = useState<UpstreamPromptNode | null>(null);
   const [versions, setVersions] = useState<VideoGenVersionSummary[]>([]);
   const [activeVersionId, setActiveVersionId] = useState<string | null>(null);
   const [restoring, setRestoring] = useState(false);
+  const [useMock, setUseMock] = useState(() => {
+    if (typeof window === "undefined") return true;
+    return localStorage.getItem("video-gen-mock") !== "false";
+  });
 
   const { isGenerating, lastError, setGenerating, setLastError } = useVideoGenStatus(nodeId);
 
@@ -113,7 +154,10 @@ export function VideoGenFocusView({
       const active = data.versions.find((v) => v.id === data.activeVersionId);
       if (active?.output) onPatchRef.current({ parsed: active.output });
     }).catch(() => {});
-    videoGenApi.fetchUpstreamImages(nodeId).then(setUpstreamImages).catch(() => {});
+    videoGenApi.fetchUpstreamImages(nodeId).then(({ images, promptNode: pn }) => {
+      setUpstreamImages(images);
+      setPromptNode(pn);
+    }).catch(() => {});
   }, [open, nodeId, setVideoGenGenerating, setVideoGenError]);
 
   // Refresh versions when a generation finishes (isGenerating transitions true → false)
@@ -126,6 +170,14 @@ export function VideoGenFocusView({
   }, [isGenerating, open, fetchVersions]);
 
   // ── Handlers ───────────────────────────────────────────────────────────────
+
+  function toggleMock() {
+    setUseMock((prev) => {
+      const next = !prev;
+      localStorage.setItem("video-gen-mock", next ? "true" : "false");
+      return next;
+    });
+  }
 
   function handleModelChange(nextModelId: string) {
     setModelId(nextModelId);
@@ -155,7 +207,12 @@ export function VideoGenFocusView({
     setGenerating(true);
     setLastError(null);
     try {
-      await videoGenApi.startGeneration(nodeId, { modelId, params, imageRoles: imageRolesProp });
+      await videoGenApi.startGeneration(nodeId, {
+        modelId,
+        params,
+        imageRoles: imageRolesProp,
+        mock: useMock,
+      });
       // 202 Accepted — hook's Realtime subscription clears isGenerating on completion
     } catch (e) {
       setGenerating(false);
@@ -181,6 +238,12 @@ export function VideoGenFocusView({
   }
 
   // ── Derived state ──────────────────────────────────────────────────────────
+
+  const imageInputs = videoGenClientModelMap[modelId]?.imageInputs ?? {
+    startFrame: true,
+    endFrame: false,
+    maxReferenceImages: 0,
+  };
 
   const mode: "skeleton" | "result" | "empty" = isGenerating
     ? "skeleton"
@@ -223,6 +286,29 @@ export function VideoGenFocusView({
               </div>
               <div className="flex shrink-0 flex-col items-end gap-2">
                 <div className="flex items-center gap-2">
+                  {/* Mock mode switch */}
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={useMock}
+                    onClick={toggleMock}
+                    className="flex items-center gap-2 text-xs text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    <span>Mock</span>
+                    <div
+                      className={cn(
+                        "relative inline-flex h-4 w-7 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200",
+                        useMock ? "bg-amber-400" : "bg-muted-foreground/25",
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "block h-3 w-3 rounded-full bg-white shadow-sm transition-transform duration-200",
+                          useMock ? "translate-x-3" : "translate-x-0",
+                        )}
+                      />
+                    </div>
+                  </button>
                   {versions.length > 0 && (
                     <VideoGenUsagePopover versions={versions} />
                   )}
@@ -243,7 +329,7 @@ export function VideoGenFocusView({
         <div className="min-h-0 flex-1 flex justify-center overflow-hidden">
           <div className="w-full max-w-5xl flex min-h-0 overflow-hidden">
             {/* Left panel */}
-            <div className="w-[40%] border-r border-border overflow-hidden px-6 py-6 flex flex-col gap-6">
+            <div className="w-[40%] border-r border-border overflow-y-auto px-6 py-6 flex flex-col gap-6">
               {versions.length > 0 && (
                 <VideoGenVersionHistory
                   versions={versions}
@@ -253,18 +339,45 @@ export function VideoGenFocusView({
                 />
               )}
 
-              <VideoGenParamsPanel
-                modelId={modelId}
-                params={params}
-                onModelChange={handleModelChange}
-                onParamChange={handleParamChange}
-              />
+              <LeftSection icon={Settings2} label="Output settings">
+                <VideoGenParamsPanel
+                  modelId={modelId}
+                  params={params}
+                  onModelChange={handleModelChange}
+                  onParamChange={handleParamChange}
+                />
+              </LeftSection>
 
-              <VideoGenImageRoles
-                images={upstreamImages}
-                imageRoles={imageRolesProp}
-                onRoleChange={handleRoleChange}
-              />
+              <LeftSection icon={Clapperboard} label="Motion prompt">
+                <div className="rounded-lg border border-border p-3">
+                  {promptNode?.text ? (
+                    <p className="max-h-32 overflow-y-auto text-xs leading-relaxed text-foreground">
+                      {promptNode.text}
+                    </p>
+                  ) : (
+                    <p className="text-xs italic text-muted-foreground/60">
+                      {promptNode
+                        ? "No motion prompt generated yet — generate from the video-prompt node first."
+                        : "Connect a video-prompt node to drive generation."}
+                    </p>
+                  )}
+                </div>
+              </LeftSection>
+
+              {upstreamImages.length > 0 && (
+                <LeftSection
+                  icon={Link2}
+                  label="Image inputs"
+                  badge={`${upstreamImages.length} image${upstreamImages.length !== 1 ? "s" : ""}`}
+                >
+                  <VideoGenImageRoles
+                    images={upstreamImages}
+                    imageRoles={imageRolesProp}
+                    imageInputs={imageInputs}
+                    onRoleChange={handleRoleChange}
+                  />
+                </LeftSection>
+              )}
             </div>
 
             {/* Right panel */}

@@ -79,12 +79,19 @@ async function generateWithVeo(
   return { videoUrl: videoUri, durationSeconds };
 }
 
+const VEO_IMAGE_INPUTS = {
+  startFrame: true,
+  endFrame: true,
+  maxReferenceImages: 3,
+} as const;
+
 export const veoLite: VideoGenModelSpec = {
   id: "veo:veo-3.1-lite",
   provider: "veo",
   label: "Veo 3.1 Lite",
   providerLabel: "Google",
   maxDurationSeconds: 5,
+  imageInputs: VEO_IMAGE_INPUTS,
   params: veoLiteParams,
   generate: (input) => generateWithVeo(VEO_MODEL_IDS.lite, input),
 };
@@ -95,6 +102,7 @@ export const veoFast: VideoGenModelSpec = {
   label: "Veo 3.1 Fast",
   providerLabel: "Google",
   maxDurationSeconds: 5,
+  imageInputs: VEO_IMAGE_INPUTS,
   params: veoLiteParams,
   generate: (input) => generateWithVeo(VEO_MODEL_IDS.fast, input),
 };
@@ -105,6 +113,7 @@ export const veoQuality: VideoGenModelSpec = {
   label: "Veo 3.1 Quality",
   providerLabel: "Google",
   maxDurationSeconds: 8,
+  imageInputs: VEO_IMAGE_INPUTS,
   params: veoParams,
   generate: (input) => generateWithVeo(VEO_MODEL_IDS.quality, input),
 };

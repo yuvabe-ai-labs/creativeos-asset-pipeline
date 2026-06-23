@@ -1,8 +1,5 @@
 import { task, logger, wait } from "@trigger.dev/sdk/v3";
 
-// MOCK MODE — returns a hardcoded public video after 30s, no API calls.
-// Set VIDEO_GEN_MOCK=false in your Trigger.dev environment to use real generation.
-const MOCK_MODE = process.env.VIDEO_GEN_MOCK !== "false";
 const MOCK_VIDEO_URL = "https://www.w3schools.com/html/mov_bbb.mp4";
 const MOCK_DURATION_SECONDS = 8;
 
@@ -17,8 +14,10 @@ export const videoGenerateTask = task({
     endFrameUrl?: string;
     referenceUrls: string[];
     params: Record<string, unknown>;
+    mockMode?: boolean;
   }) => {
     const { generationId, modelId } = payload;
+    const MOCK_MODE = payload.mockMode === true;
     const appUrl = process.env.APP_URL;
     if (!appUrl) throw new Error("APP_URL env var not set");
 
