@@ -45,7 +45,13 @@ export const videoGenerateTask = task({
       const config = videoGenRegistry[modelId];
       if (!config) throw new Error(`Unknown video model: ${modelId}`);
 
-      logger.info("Starting video generation", { generationId, modelId });
+      logger.info("Starting video generation", {
+        generationId,
+        modelId,
+        params: payload.params,
+        durationRaw: payload.params.duration,
+        durationParsed: Number(payload.params.duration),
+      });
 
       const result = await config.generate({
         prompt: payload.prompt,

@@ -1,6 +1,6 @@
 import type { ParamSpec } from "@/lib/image-gen/types";
 
-// Full params: aspect_ratio + duration (5s or 8s) + audio
+// Valid Veo durationSeconds values: 4, 6, 8 (API only accepts these three)
 export const veoParams: ParamSpec[] = [
   {
     name: "aspect_ratio",
@@ -19,24 +19,14 @@ export const veoParams: ParamSpec[] = [
     group: "primary",
     order: 1,
     visible: true,
-    defaultValue: "5",
-    constraints: { type: "select", options: ["5", "8"] },
-  },
-  {
-    name: "audio",
-    label: "Generate Audio",
-    component: "toggle",
-    group: "primary",
-    order: 2,
-    visible: true,
-    defaultValue: false,
-    constraints: { type: "toggle" },
+    defaultValue: "6",
+    constraints: { type: "select", options: ["4", "6", "8"] },
   },
 ];
 
-// Lite and Fast cap at 5s — only the 5s option
+// Lite and Fast: 4s and 6s only (no 8s)
 export const veoLiteParams: ParamSpec[] = veoParams.map((p) =>
   p.name === "duration"
-    ? { ...p, constraints: { type: "select", options: ["5"] } as const }
+    ? { ...p, defaultValue: "6", constraints: { type: "select", options: ["4", "6"] } as const }
     : p,
 );

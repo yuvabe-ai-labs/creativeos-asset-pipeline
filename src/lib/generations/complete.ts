@@ -94,13 +94,8 @@ export async function completeGeneration(
   await setActiveVersion(generation.node_id, version.id);
 
   // 4. Compute cost and mark succeeded
-  const paramsSnapshot = (generation.params_snapshot ?? {}) as Record<string, unknown>;
   const cost = generation.model_used
-    ? computeVideoCost(
-        generation.model_used,
-        input.durationSeconds,
-        Boolean(paramsSnapshot.audio),
-      )
+    ? computeVideoCost(generation.model_used, input.durationSeconds, false)
     : null;
 
   await succeedGeneration({

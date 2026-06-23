@@ -6,7 +6,6 @@ import {
   LayoutGrid,
   Settings2,
   Timer,
-  Volume2,
   type LucideIcon,
 } from "lucide-react";
 import { videoGenClientModelMap } from "@/lib/video-gen/client-models";
@@ -17,7 +16,6 @@ const PARAM_ICONS: Record<string, LucideIcon> = {
   aspect_ratio: Crop,
   duration: Timer,
   seconds: Timer,
-  audio: Volume2,
   size: LayoutGrid,
 };
 
