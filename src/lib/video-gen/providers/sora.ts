@@ -20,13 +20,12 @@ type SoraJob = {
 
 async function generateWithSora(input: VideoGenInput): Promise<VideoGenResult> {
   const apiKey = getApiKey();
-  const seconds = Number(input.params.seconds ?? 4);
+  const seconds = String(input.params.seconds ?? "4");
   const size = String(input.params.size ?? "1280x720");
 
   const body: Record<string, unknown> = {
     model: SORA_MODEL,
     prompt: input.prompt,
-    n: 1,
     seconds,
     size,
   };
@@ -70,7 +69,7 @@ async function generateWithSora(input: VideoGenInput): Promise<VideoGenResult> {
   // complete.ts downloads this URL with Authorization: Bearer header
   return {
     videoUrl: `${OPENAI_API_BASE}/videos/${videoId}/content`,
-    durationSeconds: seconds,
+    durationSeconds: Number(seconds),
   };
 }
 
