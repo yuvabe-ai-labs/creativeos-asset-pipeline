@@ -42,7 +42,7 @@ export function VideoGenVersionHistory({
     <div>
       <div className="mb-2 flex items-center justify-between">
         <div className="flex items-center gap-1.5">
-          <History className="size-3.5 text-teal-500" strokeWidth={1.5} />
+          <History className="size-3.5 text-primary" strokeWidth={1.5} />
           <span className="text-eyebrow">History</span>
         </div>
         <span className="text-xs text-muted-foreground">
@@ -67,7 +67,7 @@ export function VideoGenVersionHistory({
                   className={cn(
                     "group w-full rounded-lg border px-3 py-2 text-left transition-colors",
                     isActive
-                      ? "border-teal-500/30 bg-teal-50 cursor-default"
+                      ? "border-primary bg-primary/8 cursor-default"
                       : isError
                         ? "cursor-not-allowed border-border opacity-60"
                         : "cursor-pointer border-border hover:bg-muted",
@@ -81,14 +81,14 @@ export function VideoGenVersionHistory({
                           isError
                             ? "bg-red-500"
                             : isActive
-                              ? "bg-teal-500"
+                              ? "bg-primary"
                               : "bg-muted-foreground/40",
                         )}
                       />
                       <span
                         className={cn(
                           "text-sm font-medium",
-                          isActive ? "text-teal-600" : "text-foreground",
+                          isActive ? "text-primary" : "text-foreground",
                         )}
                       >
                         {label}
@@ -110,7 +110,7 @@ export function VideoGenVersionHistory({
                         </div>
                       )}
                       {isActive ? (
-                        <span className="text-[0.65rem] font-semibold uppercase tracking-wide text-teal-600">
+                        <span className="text-[0.65rem] font-semibold uppercase tracking-wide text-primary">
                           Active
                         </span>
                       ) : isError ? (

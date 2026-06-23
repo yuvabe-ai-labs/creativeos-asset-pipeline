@@ -4,6 +4,7 @@ import {
   applyEdgeChanges,
   applyNodeChanges,
   type Edge,
+  type NodeRemoveChange,
   type OnConnect,
   type OnEdgesChange,
   type OnNodesChange,
@@ -30,6 +31,10 @@ export type CanvasState = {
   deleteNode: (id: string) => void;
   duplicateNode: (id: string) => void;
   fanOutShots: (scriptNodeId: string) => void;
+  // Per-node video generation status — shared between VideoGenNode and VideoGenFocusView
+  videoGenStatus: Record<string, { isGenerating: boolean; lastError: string | null }>;
+  setVideoGenGenerating: (nodeId: string, v: boolean) => void;
+  setVideoGenError: (nodeId: string, err: string | null) => void;
 };
 
 function defaultData(type: string): AppNode["data"] {
@@ -46,6 +51,8 @@ function defaultData(type: string): AppNode["data"] {
       return { title: "" };
     case "image-gen":
       return { title: "", modelId: "openai:gpt-image-2" };
+    case "video-gen":
+      return { title: "", modelId: "veo:veo-3.1-fast" };
     case "script":
     default:
       return { title: "" };
@@ -62,7 +69,7 @@ export function createCanvasStore(
     edges: initialEdges,
     onNodesChange: (changes) => {
       const removedIds = new Set(
-        changes.filter((c) => c.type === "remove").map((c) => c.id),
+        changes.filter((c): c is NodeRemoveChange => c.type === "remove").map((c) => c.id),
       );
       set({
         nodes: applyNodeChanges(changes, get().nodes),
@@ -175,6 +182,30 @@ export function createCanvasStore(
         edges: [...get().edges, ...createdEdges],
       });
     },
+
+    videoGenStatus: {},
+
+    setVideoGenGenerating: (nodeId, v) =>
+      set((s) => ({
+        videoGenStatus: {
+          ...s.videoGenStatus,
+          [nodeId]: {
+            isGenerating: v,
+            lastError: s.videoGenStatus[nodeId]?.lastError ?? null,
+          },
+        },
+      })),
+
+    setVideoGenError: (nodeId, err) =>
+      set((s) => ({
+        videoGenStatus: {
+          ...s.videoGenStatus,
+          [nodeId]: {
+            isGenerating: s.videoGenStatus[nodeId]?.isGenerating ?? false,
+            lastError: err,
+          },
+        },
+      })),
   }));
 }
 

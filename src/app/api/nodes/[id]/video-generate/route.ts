@@ -65,9 +65,12 @@ export async function POST(
       const role = imageRoles[node.nodeId] ?? "reference";
       if (role === "start_frame" && !startFrameUrl) startFrameUrl = url;
       else if (role === "end_frame" && !endFrameUrl) endFrameUrl = url;
-      else referenceUrls.push(url);
+      else if (role === "reference") referenceUrls.push(url);
     }
   }
+
+  // Cap at Veo's max of 3 reference images before firing the task
+  if (referenceUrls.length > 3) referenceUrls.splice(3);
 
   // Insert generation record (status: 'running')
   const generation = await insertGeneration({

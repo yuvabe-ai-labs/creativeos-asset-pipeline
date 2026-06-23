@@ -7,11 +7,29 @@ export async function GET(
 ) {
   const { id: nodeId } = await params;
   try {
-    const upstream = await getUpstreamOutputs(nodeId);
-    const images = upstream
+    const direct = await getUpstreamOutputs(nodeId);
+
+    // Also collect upstream of any video-prompt nodes (2-level traversal).
+    // Surfaces image-gen/file/draw nodes in pattern: node → video-prompt → video-gen.
+    const videoPromptUpstream = await Promise.all(
+      direct
+        .filter((u) => u.type === "video-prompt")
+        .map((u) => getUpstreamOutputs(u.nodeId)),
+    );
+
+    // Merge and deduplicate; direct edges take precedence.
+    const seen = new Map(direct.map((u) => [u.nodeId, u]));
+    for (const batch of videoPromptUpstream) {
+      for (const u of batch) {
+        if (!seen.has(u.nodeId)) seen.set(u.nodeId, u);
+      }
+    }
+    const allUpstream = Array.from(seen.values());
+
+    const images = allUpstream
       .filter((u) => {
         if (u.type === "image-gen") return typeof u.activeOutput === "string";
-        if (u.type === "file") {
+        if (u.type === "file" || u.type === "draw") {
           const d = u.data as Record<string, unknown>;
           return d.fileKind === "image" && typeof d.fileUrl === "string";
         }
@@ -23,8 +41,9 @@ export async function GET(
         imageUrl:
           u.type === "image-gen"
             ? (u.activeOutput as string)
-            : (u.data as Record<string, unknown>).fileUrl as string,
+            : ((u.data as Record<string, unknown>).fileUrl as string),
       }));
+
     return apiOk({ images });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Failed to resolve upstream images";

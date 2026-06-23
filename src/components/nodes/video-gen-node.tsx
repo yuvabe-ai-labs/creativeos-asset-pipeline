@@ -40,16 +40,16 @@ export function VideoGenNode({ id, data, selected }: NodeProps) {
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border px-3 py-2">
           <div className="flex items-center gap-1.5">
-            <Clapperboard className="size-3.5 stroke-[1.5] text-teal-500" />
+            <Clapperboard className="size-3.5 stroke-[1.5] text-primary" />
             <span className="text-eyebrow !text-[0.65rem]">Video Gen</span>
           </div>
           <span
             className={cn(
               "size-1.5 rounded-full",
               isGenerating
-                ? "animate-pulse bg-teal-400"
+                ? "animate-pulse bg-primary/60"
                 : videoUrl
-                  ? "bg-teal-500"
+                  ? "bg-primary"
                   : "bg-muted-foreground/40",
             )}
             title={
@@ -61,7 +61,7 @@ export function VideoGenNode({ id, data, selected }: NodeProps) {
         {/* Body */}
         <div className="px-3 py-3">
           {isGenerating && (
-            <div className="mb-2 h-16 w-full animate-pulse rounded-md bg-teal-500/10" />
+            <div className="mb-2 h-16 w-full animate-pulse rounded-md bg-primary/10" />
           )}
           {!isGenerating && videoUrl && (
             <div className="mb-2 overflow-hidden rounded-md border border-border">
@@ -75,7 +75,7 @@ export function VideoGenNode({ id, data, selected }: NodeProps) {
           )}
           <button
             onClick={() => setFocusOpen(true)}
-            className="nodrag -mx-1.5 inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium text-teal-600 transition-colors hover:bg-teal-50"
+            className="nodrag -mx-1.5 inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10"
           >
             Open ↗
           </button>

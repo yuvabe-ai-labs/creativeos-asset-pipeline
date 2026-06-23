@@ -34,7 +34,9 @@ export async function completeGeneration(
 
   // 1. Download video from provider URL and upload to Supabase Storage
   const supabase = createServerSupabase();
-  const videoResponse = await fetch(input.videoUrl);
+  const videoResponse = await fetch(input.videoUrl, {
+    headers: { "User-Agent": "Mozilla/5.0 (compatible; CreativeOS/1.0)" },
+  });
   if (!videoResponse.ok) {
     await failGeneration({
       generationId: input.generationId,

@@ -10,6 +10,8 @@ import {
   defaultsForVideoModel,
 } from "@/lib/video-gen/client-models";
 import { videoGenApi } from "@/lib/video-gen/api";
+import { createBrowserSupabase } from "@/lib/supabase/client";
+import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { useVideoGenStatus } from "@/hooks/use-video-gen-status";
 import {
   VideoGenVersionHistory,
@@ -55,8 +57,6 @@ export function VideoGenFocusView({
   const [params, setParams] = useState<Record<string, unknown>>(
     () => paramsProp ?? defaultsForVideoModel(initialModelId),
   );
-  const [imageRoles, setImageRoles] = useState<Record<string, ImageRole>>(imageRolesProp);
-
   const [upstreamImages, setUpstreamImages] = useState<UpstreamImage[]>([]);
   const [versions, setVersions] = useState<VideoGenVersionSummary[]>([]);
   const [activeVersionId, setActiveVersionId] = useState<string | null>(null);
@@ -64,12 +64,14 @@ export function VideoGenFocusView({
 
   const { isGenerating, lastError, setGenerating, setLastError } = useVideoGenStatus(nodeId);
 
+  // Stable Zustand actions — used directly in effects so deps don't include
+  // the per-render wrapper functions returned by useVideoGenStatus.
+  const setVideoGenGenerating = useCanvasStore((s) => s.setVideoGenGenerating);
+  const setVideoGenError = useCanvasStore((s) => s.setVideoGenError);
+
   // Stable ref for onPatch — breaks the useCallback → useEffect dep cycle
   const onPatchRef = useRef(onPatch);
   useEffect(() => { onPatchRef.current = onPatch; });
-
-  // Keep local imageRoles in sync when prop changes
-  useEffect(() => { setImageRoles(imageRolesProp); }, [imageRolesProp]);
 
   // ── Data fetching ──────────────────────────────────────────────────────────
 
@@ -85,12 +87,34 @@ export function VideoGenFocusView({
     }
   }, [nodeId]);
 
-  // Load data when focus view opens
+  // Load data when focus view opens; also re-check generation status to clear
+  // any stale isGenerating=true that may have been set while the sheet was closed.
+  // setState calls happen inside .then() callbacks, not synchronously in the effect body.
   useEffect(() => {
     if (!open) return;
-    fetchVersions();
+    createBrowserSupabase()
+      .from("generations")
+      .select("id, status, error")
+      .eq("node_id", nodeId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+      .then(({ data }) => {
+        const row = data as { status: string; error: string | null } | null;
+        if (!row) return;
+        if (row.status === "succeeded" || row.status === "failed") {
+          setVideoGenGenerating(nodeId, false);
+          setVideoGenError(nodeId, row.status === "failed" ? (row.error ?? "Generation failed") : null);
+        }
+      });
+    videoGenApi.fetchVersions(nodeId).then((data) => {
+      setVersions(data.versions);
+      setActiveVersionId(data.activeVersionId);
+      const active = data.versions.find((v) => v.id === data.activeVersionId);
+      if (active?.output) onPatchRef.current({ parsed: active.output });
+    }).catch(() => {});
     videoGenApi.fetchUpstreamImages(nodeId).then(setUpstreamImages).catch(() => {});
-  }, [open, nodeId, fetchVersions]);
+  }, [open, nodeId, setVideoGenGenerating, setVideoGenError]);
 
   // Refresh versions when a generation finishes (isGenerating transitions true → false)
   const wasGeneratingRef = useRef(false);
@@ -117,14 +141,13 @@ export function VideoGenFocusView({
   }
 
   function handleRoleChange(imageId: string, newRole: ImageRole) {
-    const updated = { ...imageRoles };
+    const updated = { ...imageRolesProp };
     if (newRole === "start_frame" || newRole === "end_frame") {
       for (const [id, role] of Object.entries(updated)) {
         if (id !== imageId && role === newRole) updated[id] = "reference";
       }
     }
     updated[imageId] = newRole;
-    setImageRoles(updated);
     onPatch({ imageRoles: updated });
   }
 
@@ -132,7 +155,7 @@ export function VideoGenFocusView({
     setGenerating(true);
     setLastError(null);
     try {
-      await videoGenApi.startGeneration(nodeId, { modelId, params, imageRoles });
+      await videoGenApi.startGeneration(nodeId, { modelId, params, imageRoles: imageRolesProp });
       // 202 Accepted — hook's Realtime subscription clears isGenerating on completion
     } catch (e) {
       setGenerating(false);
@@ -220,7 +243,7 @@ export function VideoGenFocusView({
         <div className="min-h-0 flex-1 flex justify-center overflow-hidden">
           <div className="w-full max-w-5xl flex min-h-0 overflow-hidden">
             {/* Left panel */}
-            <div className="w-[40%] border-r border-border overflow-y-auto px-6 py-6 flex flex-col gap-6">
+            <div className="w-[40%] border-r border-border overflow-hidden px-6 py-6 flex flex-col gap-6">
               {versions.length > 0 && (
                 <VideoGenVersionHistory
                   versions={versions}
@@ -239,7 +262,7 @@ export function VideoGenFocusView({
 
               <VideoGenImageRoles
                 images={upstreamImages}
-                imageRoles={imageRoles}
+                imageRoles={imageRolesProp}
                 onRoleChange={handleRoleChange}
               />
             </div>
@@ -267,11 +290,11 @@ export function VideoGenFocusView({
                   </div>
                 )}
                 {mode === "result" && videoUrl && (
-                  <div className="size-full overflow-hidden rounded-xl border border-border bg-muted/20 flex items-center justify-center">
+                  <div className="flex size-full items-center justify-center">
                     <video
                       src={videoUrl}
                       controls
-                      className="max-h-full max-w-full rounded-lg"
+                      className="w-full max-h-full rounded-xl border border-border shadow-card"
                     />
                   </div>
                 )}

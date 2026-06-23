@@ -35,6 +35,20 @@ async function generateWithVeo(
     config.image = { imageUrl: input.startFrameUrl };
   }
 
+  // Last frame conditioning (Veo 3.1 supports first+last frame interpolation)
+  if (input.endFrameUrl) {
+    config.lastFrame = { imageUrl: input.endFrameUrl };
+  }
+
+  // Subject reference images — max 3 per Veo 3.1 model limits
+  const refUrls = (input.referenceUrls ?? []).slice(0, 3);
+  if (refUrls.length > 0) {
+    config.referenceImages = refUrls.map((imageUrl) => ({
+      referenceType: "SUBJECT",
+      referenceImage: { imageUrl },
+    }));
+  }
+
   // Initiate video generation (long-running operation)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let operation = await (ai.models as any).generateVideo({

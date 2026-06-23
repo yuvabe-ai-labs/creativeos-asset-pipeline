@@ -1,12 +1,11 @@
 "use client";
 
-// NOTE: video-gen-focus-view.tsx previously had its own inline Realtime subscription.
-// That subscription is removed in Task 6 of the refactor — consumers should use this hook instead.
-
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { toast } from "sonner";
 import { createBrowserSupabase } from "@/lib/supabase/client";
+import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import type { GenerationRow } from "@/lib/db/types";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 
 export type VideoGenStatus = {
   isGenerating: boolean;
@@ -15,11 +14,22 @@ export type VideoGenStatus = {
   setLastError: (v: string | null) => void;
 };
 
-export function useVideoGenStatus(nodeId: string): VideoGenStatus {
-  const [isGenerating, setGenerating] = useState(false);
-  const [lastError, setLastError] = useState<string | null>(null);
+// Module-level registry — one Supabase channel per nodeId across ALL hook instances.
+// Prevents duplicate subscriptions when VideoGenNode + VideoGenFocusView both mount the hook.
+const activeChannels = new Map<string, RealtimeChannel>();
+const subscriberCount = new Map<string, number>();
 
-  // Hydrate from DB on mount — picks up running generation after page refresh
+export function useVideoGenStatus(nodeId: string): VideoGenStatus {
+  const status = useCanvasStore((s) => s.videoGenStatus[nodeId]);
+  const setVideoGenGenerating = useCanvasStore((s) => s.setVideoGenGenerating);
+  const setVideoGenError = useCanvasStore((s) => s.setVideoGenError);
+
+  const isGenerating = status?.isGenerating ?? false;
+  const lastError = status?.lastError ?? null;
+  const setGenerating = (v: boolean) => setVideoGenGenerating(nodeId, v);
+  const setLastError = (v: string | null) => setVideoGenError(nodeId, v);
+
+  // Hydrate from DB on mount — picks up a running generation after page refresh.
   useEffect(() => {
     let cancelled = false;
     const supabase = createBrowserSupabase();
@@ -31,83 +41,83 @@ export function useVideoGenStatus(nodeId: string): VideoGenStatus {
       .maybeSingle()
       .then(({ data, error }) => {
         if (cancelled) return;
-        if (error) {
-          console.error("[useVideoGenStatus] mount hydration failed", error);
-          return;
-        }
-        if (data) setGenerating(true);
+        if (error) { console.error("[useVideoGenStatus] hydration failed", error); return; }
+        if (data) setVideoGenGenerating(nodeId, true);
       });
     return () => { cancelled = true; };
-  }, [nodeId]);
+  }, [nodeId, setVideoGenGenerating]);
 
-  // Realtime: INSERT = new generation started; UPDATE = generation finished
+  // Shared Realtime subscription — first mount creates the channel, subsequent mounts
+  // just increment the ref count. Cleanup only removes the channel when all instances unmount.
   useEffect(() => {
     const supabase = createBrowserSupabase();
-    const channel = supabase
-      .channel(`video-gen-status:${nodeId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "generations",
-          filter: `node_id=eq.${nodeId}`,
-        },
-        (payload) => {
-          const gen = payload.new as GenerationRow;
-          if (gen.status === "running") {
-            setGenerating(true);
-            setLastError(null);
+    subscriberCount.set(nodeId, (subscriberCount.get(nodeId) ?? 0) + 1);
+
+    if (!activeChannels.has(nodeId)) {
+      const channel = supabase
+        .channel(`video-gen-status:${nodeId}`)
+        .on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: "generations", filter: `node_id=eq.${nodeId}` },
+          (payload) => {
+            const gen = payload.new as GenerationRow;
+            if (gen.status === "running") {
+              setVideoGenGenerating(nodeId, true);
+              setVideoGenError(nodeId, null);
+            }
+          },
+        )
+        .on(
+          "postgres_changes",
+          { event: "UPDATE", schema: "public", table: "generations", filter: `node_id=eq.${nodeId}` },
+          (payload) => {
+            const gen = payload.new as GenerationRow;
+            if (gen.status === "succeeded") {
+              setVideoGenGenerating(nodeId, false);
+              setVideoGenError(nodeId, null);
+              toast.success("Video ready");
+            } else if (gen.status === "failed") {
+              setVideoGenGenerating(nodeId, false);
+              setVideoGenError(nodeId, gen.error ?? "Generation failed");
+              toast.error(gen.error ?? "Generation failed");
+            }
+          },
+        )
+        .subscribe(async (subscribeStatus) => {
+          if (subscribeStatus !== "SUBSCRIBED") return;
+          // Close the race window: check if generation completed during subscription handshake.
+          const { data } = await supabase
+            .from("generations")
+            .select("id, status, error")
+            .eq("node_id", nodeId)
+            .in("status", ["succeeded", "failed"] as GenerationRow["status"][])
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle() as { data: Pick<GenerationRow, "id" | "status" | "error"> | null; error: unknown };
+          if (data?.status === "succeeded") {
+            setVideoGenGenerating(nodeId, false);
+            setVideoGenError(nodeId, null);
+          } else if (data?.status === "failed") {
+            setVideoGenGenerating(nodeId, false);
+            setVideoGenError(nodeId, data.error ?? "Generation failed");
           }
-        },
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "generations",
-          filter: `node_id=eq.${nodeId}`,
-        },
-        (payload) => {
-          const gen = payload.new as GenerationRow;
-          if (gen.status === "succeeded") {
-            setGenerating(false);
-            setLastError(null);
-            toast.success("Video ready");
-          }
-          if (gen.status === "failed") {
-            setGenerating(false);
-            setLastError(gen.error ?? "Generation failed");
-            toast.error(gen.error ?? "Generation failed");
-          }
-        },
-      )
-      .subscribe(async (subscribeStatus) => {
-        if (subscribeStatus !== "SUBSCRIBED") return;
-        // Re-check in case the generation completed during subscription handshake.
-        // Cast needed: .in() with a string[] confuses the Supabase literal-union narrower.
-        const { data } = await supabase
-          .from("generations")
-          .select("id, status, error")
-          .eq("node_id", nodeId)
-          .in("status", ["succeeded", "failed"] as GenerationRow["status"][])
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle() as { data: Pick<GenerationRow, "id" | "status" | "error"> | null; error: unknown };
-        if (data?.status === "succeeded") {
-          setGenerating(false);
-          setLastError(null);
-        } else if (data?.status === "failed") {
-          setGenerating(false);
-          setLastError(data.error ?? "Generation failed");
-        }
-      });
+        });
+      activeChannels.set(nodeId, channel);
+    }
 
     return () => {
-      void supabase.removeChannel(channel);
+      const remaining = (subscriberCount.get(nodeId) ?? 1) - 1;
+      subscriberCount.set(nodeId, remaining);
+      if (remaining === 0) {
+        const ch = activeChannels.get(nodeId);
+        if (ch) {
+          void createBrowserSupabase().removeChannel(ch);
+          activeChannels.delete(nodeId);
+        }
+        subscriberCount.delete(nodeId);
+      }
     };
-  }, [nodeId]);
+  }, [nodeId, setVideoGenGenerating, setVideoGenError]);
 
   return { isGenerating, lastError, setGenerating, setLastError };
 }

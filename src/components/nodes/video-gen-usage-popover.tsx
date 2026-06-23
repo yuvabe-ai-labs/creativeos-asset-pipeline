@@ -36,7 +36,7 @@ export function VideoGenUsagePopover({ versions }: Props) {
     const ordered = [...versions].reverse();
     ordered.forEach((v, i) => {
       if (!v.output || !v.modelUsed) return;
-      const duration = Number(v.paramsUsed?.durationSeconds ?? 5);
+      const duration = Number(v.paramsUsed?.duration ?? 5);
       const audio = Boolean(v.paramsUsed?.audio);
       const cost = computeVideoCost(v.modelUsed, duration, audio);
       if (!cost) return;
