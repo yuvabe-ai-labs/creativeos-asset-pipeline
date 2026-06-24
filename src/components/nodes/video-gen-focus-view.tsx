@@ -3,7 +3,9 @@
 import { useEffect, useState, useCallback, useRef, type ReactNode } from "react";
 import {
   ArrowLeft,
+  ChevronDown,
   Clapperboard,
+  History,
   Link2,
   Settings2,
   Sparkles,
@@ -28,7 +30,7 @@ import {
 } from "./video-gen-version-history";
 import { VideoGenUsagePopover } from "./video-gen-usage-popover";
 import { VideoGenParamsPanel } from "./video-gen-params-panel";
-import { VideoGenImageRoles } from "./video-gen-image-roles";
+import { VideoGenConnectedSection } from "./video-gen-connected-section";
 import type { UpstreamImage, UpstreamPromptNode } from "@/lib/video-gen/api";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -53,23 +55,96 @@ function LeftSection({
   icon: Icon,
   label,
   badge,
+  open,
+  onToggle,
   children,
 }: {
   icon: LucideIcon;
   label: string;
   badge?: string;
+  open?: boolean;
+  onToggle?: () => void;
   children: ReactNode;
 }) {
   return (
     <div>
-      <div className="mb-2 flex items-center justify-between">
+      <div
+        className={cn(
+          "mb-2 flex items-center justify-between",
+          onToggle && "cursor-pointer select-none",
+        )}
+        onClick={onToggle}
+      >
         <div className="flex items-center gap-1.5">
           <Icon className="size-3.5 text-primary" strokeWidth={1.5} />
           <span className="text-eyebrow">{label}</span>
         </div>
-        {badge && <span className="text-xs text-muted-foreground">{badge}</span>}
+        <div className="flex items-center gap-2">
+          {badge && (
+            <span className="text-xs text-muted-foreground">{badge}</span>
+          )}
+          {onToggle !== undefined && (
+            <ChevronDown
+              className={cn(
+                "size-3.5 text-muted-foreground transition-transform duration-200",
+                open && "rotate-180",
+              )}
+              strokeWidth={1.5}
+            />
+          )}
+        </div>
       </div>
       {children}
+    </div>
+  );
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function relativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+}
+
+function ActiveVersionRow({
+  versions,
+  activeVersionId,
+}: {
+  versions: VideoGenVersionSummary[];
+  activeVersionId: string | null;
+}) {
+  const row = activeVersionId
+    ? (versions.find((v) => v.id === activeVersionId) ?? versions[0])
+    : versions[0];
+  if (!row) return null;
+
+  return (
+    <div className="flex items-center gap-2 rounded-lg border border-border p-2">
+      {row.output && (
+        <video
+          src={row.output}
+          className="size-7 shrink-0 rounded object-cover"
+          muted
+        />
+      )}
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-xs text-foreground">
+          {row.modelUsed ?? "Unknown model"}
+        </p>
+        <p className="text-[0.65rem] text-muted-foreground">
+          {relativeTime(row.createdAt)}
+        </p>
+      </div>
+      {row.id === activeVersionId && (
+        <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[0.65rem] font-semibold text-primary">
+          Active
+        </span>
+      )}
     </div>
   );
 }
@@ -102,6 +177,9 @@ export function VideoGenFocusView({
     if (typeof window === "undefined") return true;
     return localStorage.getItem("video-gen-mock") !== "false";
   });
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(true);
+  const [connectedOpen, setConnectedOpen] = useState(true);
 
   const { isGenerating, lastError, setGenerating, setLastError } = useVideoGenStatus(nodeId);
 
@@ -331,53 +409,59 @@ export function VideoGenFocusView({
             {/* Left panel */}
             <div className="w-[40%] border-r border-border overflow-y-auto px-6 py-6 flex flex-col gap-6">
               {versions.length > 0 && (
-                <VideoGenVersionHistory
-                  versions={versions}
-                  activeVersionId={activeVersionId}
-                  onRestore={handleRestoreVersion}
-                  restoring={restoring}
-                />
+                <LeftSection
+                  icon={History}
+                  label="History"
+                  badge={`${versions.length} version${versions.length === 1 ? "" : "s"}`}
+                  open={historyOpen}
+                  onToggle={() => setHistoryOpen((p) => !p)}
+                >
+                  {historyOpen ? (
+                    <VideoGenVersionHistory
+                      versions={versions}
+                      activeVersionId={activeVersionId}
+                      onRestore={handleRestoreVersion}
+                      restoring={restoring}
+                    />
+                  ) : (
+                    <ActiveVersionRow versions={versions} activeVersionId={activeVersionId} />
+                  )}
+                </LeftSection>
               )}
 
-              <LeftSection icon={Settings2} label="Output settings">
-                <VideoGenParamsPanel
-                  modelId={modelId}
-                  params={params}
-                  onModelChange={handleModelChange}
-                  onParamChange={handleParamChange}
-                />
+              <LeftSection
+                icon={Settings2}
+                label="Output settings"
+                open={settingsOpen}
+                onToggle={() => setSettingsOpen((p) => !p)}
+              >
+                {settingsOpen && (
+                  <VideoGenParamsPanel
+                    modelId={modelId}
+                    params={params}
+                    onModelChange={handleModelChange}
+                    onParamChange={handleParamChange}
+                  />
+                )}
               </LeftSection>
 
-              <LeftSection icon={Clapperboard} label="Motion prompt">
-                <div className="rounded-lg border border-border p-3">
-                  {promptNode?.text ? (
-                    <p className="max-h-32 overflow-y-auto text-xs leading-relaxed text-foreground">
-                      {promptNode.text}
-                    </p>
-                  ) : (
-                    <p className="text-xs italic text-muted-foreground/60">
-                      {promptNode
-                        ? "No motion prompt generated yet — generate from the video-prompt node first."
-                        : "Connect a video-prompt node to drive generation."}
-                    </p>
-                  )}
-                </div>
-              </LeftSection>
-
-              {upstreamImages.length > 0 && (
-                <LeftSection
-                  icon={Link2}
-                  label="Image inputs"
-                  badge={`${upstreamImages.length} image${upstreamImages.length !== 1 ? "s" : ""}`}
-                >
-                  <VideoGenImageRoles
+              <LeftSection
+                icon={Link2}
+                label="Connected"
+                badge={`${(promptNode ? 1 : 0) + upstreamImages.length} input${(promptNode ? 1 : 0) + upstreamImages.length === 1 ? "" : "s"}`}
+                open={connectedOpen}
+                onToggle={() => setConnectedOpen((p) => !p)}
+              >
+                {connectedOpen && (
+                  <VideoGenConnectedSection
+                    promptNode={promptNode}
                     images={upstreamImages}
                     imageRoles={imageRolesProp}
                     imageInputs={imageInputs}
                     onRoleChange={handleRoleChange}
                   />
-                </LeftSection>
-              )}
+                )}
+              </LeftSection>
             </div>
 
             {/* Right panel */}
