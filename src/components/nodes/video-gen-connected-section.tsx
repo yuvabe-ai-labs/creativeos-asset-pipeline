@@ -72,7 +72,7 @@ export function VideoGenConnectedSection({
       {images.length > 0 && (
         <div className="grid grid-cols-2 gap-2">
           {images.map((image) => {
-            const activeRole = imageRoles[image.id] ?? "reference";
+            const activeRole = imageRoles[image.id];
             return (
               <div
                 key={image.id}
@@ -83,6 +83,8 @@ export function VideoGenConnectedSection({
                     src={image.imageUrl}
                     alt={`Image input (${image.type})`}
                     className="size-full object-cover"
+                    loading="lazy"
+                    decoding="async"
                   />
                 </div>
                 <div className="absolute bottom-0 left-0 right-0 flex justify-center gap-1 bg-black/60 p-1.5 backdrop-blur-sm">
@@ -96,6 +98,8 @@ export function VideoGenConnectedSection({
                         key={role}
                         type="button"
                         disabled={disabled}
+                        aria-disabled={disabled}
+                        aria-label={`Set as ${role.replace(/_/g, " ")}`}
                         onClick={() => onRoleChange(image.id, role)}
                         className={cn(
                           "rounded px-2 py-0.5 text-[0.65rem] font-semibold transition-colors",
