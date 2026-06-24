@@ -69,11 +69,24 @@ function LeftSection({
   return (
     <div>
       <div
+        role={onToggle ? "button" : undefined}
+        tabIndex={onToggle ? 0 : undefined}
+        aria-expanded={onToggle ? open : undefined}
         className={cn(
-          "mb-2 flex items-center justify-between",
+          "mb-2 flex w-full items-center justify-between text-left",
           onToggle && "cursor-pointer select-none",
         )}
         onClick={onToggle}
+        onKeyDown={
+          onToggle
+            ? (e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  onToggle();
+                }
+              }
+            : undefined
+        }
       >
         <div className="flex items-center gap-1.5">
           <Icon className="size-3.5 text-primary" strokeWidth={1.5} />
