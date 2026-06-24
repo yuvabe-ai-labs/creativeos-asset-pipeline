@@ -274,7 +274,37 @@ export function VideoGenFocusView({
     setModelId(nextModelId);
     const defaults = defaultsForVideoModel(nextModelId);
     setParams(defaults);
-    onPatch({ modelId: nextModelId, params: defaults });
+
+    // Migrate image roles — remove roles the new model doesn't support
+    const nextInputs = videoGenClientModelMap[nextModelId]?.imageInputs;
+    const currentRoles = { ...imageRolesProp };
+    let startFrameAssigned = Object.values(currentRoles).includes("start_frame");
+    let rolesChanged = false;
+
+    if (nextInputs) {
+      for (const [imageId, role] of Object.entries(currentRoles)) {
+        const invalid =
+          (role === "reference" && nextInputs.maxReferenceImages === 0) ||
+          (role === "end_frame" && !nextInputs.endFrame) ||
+          (role === "start_frame" && !nextInputs.startFrame);
+
+        if (invalid) {
+          if (!startFrameAssigned && nextInputs.startFrame) {
+            currentRoles[imageId] = "start_frame";
+            startFrameAssigned = true;
+          } else {
+            delete currentRoles[imageId];
+          }
+          rolesChanged = true;
+        }
+      }
+    }
+
+    onPatch({
+      modelId: nextModelId,
+      params: defaults,
+      ...(rolesChanged ? { imageRoles: currentRoles } : {}),
+    });
   }
 
   function handleParamChange(name: string, value: unknown) {

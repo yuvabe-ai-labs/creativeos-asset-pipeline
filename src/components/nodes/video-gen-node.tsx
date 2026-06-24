@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import { Clapperboard } from "lucide-react";
+import { Clapperboard, Maximize2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { NodeContextMenu } from "./node-context-menu";
@@ -43,19 +43,29 @@ export function VideoGenNode({ id, data, selected }: NodeProps) {
             <Clapperboard className="size-3.5 stroke-[1.5] text-primary" />
             <span className="text-eyebrow !text-[0.65rem]">Video Gen</span>
           </div>
-          <span
-            className={cn(
-              "size-1.5 rounded-full",
-              isGenerating
-                ? "animate-pulse bg-primary/60"
-                : videoUrl
-                  ? "bg-primary"
-                  : "bg-muted-foreground/40",
-            )}
-            title={
-              isGenerating ? "Generating…" : videoUrl ? "Video generated" : "Not generated"
-            }
-          />
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setFocusOpen(true); }}
+              className="nodrag inline-flex items-center text-muted-foreground/60 transition-colors hover:text-primary"
+              title="Open full view"
+            >
+              <Maximize2 className="size-3" strokeWidth={1.5} />
+            </button>
+            <span
+              className={cn(
+                "size-1.5 rounded-full",
+                isGenerating
+                  ? "animate-pulse bg-primary/60"
+                  : videoUrl
+                    ? "bg-primary"
+                    : "bg-muted-foreground/40",
+              )}
+              title={
+                isGenerating ? "Generating…" : videoUrl ? "Video generated" : "Not generated"
+              }
+            />
+          </div>
         </div>
 
         {/* Body */}
