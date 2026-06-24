@@ -90,7 +90,7 @@ export function VideoGenConnectedSection({
                 <div className="absolute bottom-0 left-0 right-0 flex justify-center gap-1 bg-black/60 p-1.5 backdrop-blur-sm">
                   {(["start_frame", "end_frame", "reference"] as const).map((role) => {
                     const label =
-                      role === "start_frame" ? "S" : role === "end_frame" ? "E" : "R";
+                      role === "start_frame" ? "Start" : role === "end_frame" ? "End" : "Ref";
                     const disabled = isRoleDisabled(image.id, role);
                     const active = activeRole === role;
                     return (

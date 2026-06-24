@@ -435,6 +435,7 @@ export function VideoGenFocusView({
                       activeVersionId={activeVersionId}
                       onRestore={handleRestoreVersion}
                       restoring={restoring}
+                      hideHeader
                     />
                   ) : (
                     <ActiveVersionRow versions={versions} activeVersionId={activeVersionId} />
