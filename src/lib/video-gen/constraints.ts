@@ -25,8 +25,15 @@ function evaluateCondition(condition: Condition, state: ConstraintState): boolea
     const fieldValue = state[condition.field as keyof ConstraintState];
     switch (condition.op) {
       case "eq":  return fieldValue === condition.value;
-      case "gt":  return (fieldValue as number) > (condition.value as number);
-      case "gte": return (fieldValue as number) >= (condition.value as number);
+      case "gt":
+        return typeof fieldValue === "number" && typeof condition.value === "number"
+          ? fieldValue > condition.value
+          : false;
+      case "gte":
+        return typeof fieldValue === "number" && typeof condition.value === "number"
+          ? fieldValue >= condition.value
+          : false;
+      default: return false;
     }
   }
   if (condition.op === "and")
