@@ -121,7 +121,7 @@ export const veoLite: VideoGenModelSpec = {
   provider: "veo",
   label: "Veo 3.1 Lite",
   providerLabel: "Google",
-  maxDurationSeconds: 6,
+  maxDurationSeconds: 8,
   imageInputs: VEO_LITE_IMAGE_INPUTS,
   params: veoLiteParams,
   generate: (input) => generateWithVeo(VEO_MODEL_IDS.lite, input, 0),
@@ -132,10 +132,10 @@ export const veoFast: VideoGenModelSpec = {
   provider: "veo",
   label: "Veo 3.1 Fast",
   providerLabel: "Google",
-  maxDurationSeconds: 6,
-  imageInputs: VEO_LITE_IMAGE_INPUTS,
-  params: veoLiteParams,
-  generate: (input) => generateWithVeo(VEO_MODEL_IDS.fast, input, 0),
+  maxDurationSeconds: 8,
+  imageInputs: VEO_QUALITY_IMAGE_INPUTS,
+  params: veoParams,
+  generate: (input) => generateWithVeo(VEO_MODEL_IDS.fast, input, 3),
 };
 
 export const veoQuality: VideoGenModelSpec = {
