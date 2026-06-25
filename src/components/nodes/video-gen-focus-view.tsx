@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef, type ReactNode } from "react";
+import {
+  useEffect,
+  useState,
+  useCallback,
+  useRef,
+  type ReactNode,
+} from "react";
 import {
   ArrowLeft,
   ChevronDown,
@@ -11,6 +17,12 @@ import {
   Sparkles,
   type LucideIcon,
 } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -162,6 +174,137 @@ function ActiveVersionRow({
   );
 }
 
+// ── Connected item detail view ────────────────────────────────────────────────
+
+function VideoGenDetailPanel({
+  item,
+  promptNode,
+  images,
+  imageRoles,
+  imageInputs,
+  onRoleChange,
+  onBack,
+}: {
+  item: { id: string; type: "prompt" | "image" };
+  promptNode: UpstreamPromptNode | null;
+  images: UpstreamImage[];
+  imageRoles: Record<string, ImageRole>;
+  imageInputs: {
+    startFrame: boolean;
+    endFrame: boolean;
+    maxReferenceImages: number;
+  };
+  onRoleChange: (imageId: string, role: ImageRole) => void;
+  onBack: () => void;
+}) {
+  const image =
+    item.type === "image" ? images.find((img) => img.id === item.id) : null;
+  const referenceCount = Object.values(imageRoles).filter(
+    (r) => r === "reference",
+  ).length;
+
+  function getTooltip(role: ImageRole): string | null {
+    if (role === "start_frame" && !imageInputs.startFrame)
+      return "Not supported by this model";
+    if (role === "end_frame" && !imageInputs.endFrame)
+      return "Not supported by this model";
+    if (role === "reference") {
+      if (imageInputs.maxReferenceImages === 0)
+        return "Not supported by this model";
+      if (
+        referenceCount >= imageInputs.maxReferenceImages &&
+        imageRoles[item.id] !== "reference"
+      )
+        return `Max ${imageInputs.maxReferenceImages} reference image${imageInputs.maxReferenceImages === 1 ? "" : "s"}`;
+    }
+    return null;
+  }
+
+  return (
+    <div className="flex w-full max-w-5xl min-h-0 flex-col gap-4 overflow-hidden px-6 py-6">
+      <button
+        type="button"
+        onClick={onBack}
+        className="inline-flex items-center gap-1.5 self-start text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+      >
+        <ArrowLeft className="size-4" strokeWidth={1.5} /> Back to video
+      </button>
+
+      {item.type === "prompt" && promptNode && (
+        <div className="flex min-h-0 flex-1 flex-col gap-3">
+          <span className="text-eyebrow">Video prompt</span>
+          <div className="min-h-0 flex-1 overflow-y-auto rounded-xl border border-border bg-muted/20 p-5">
+            {promptNode.text ? (
+              <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/80">
+                {promptNode.text}
+              </p>
+            ) : (
+              <p className="text-sm italic text-muted-foreground">
+                No motion prompt generated yet — generate from the video-prompt
+                node first.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {item.type === "image" && image && (
+        <div className="flex min-h-0 flex-1 flex-col gap-4">
+          <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-xl border border-border bg-muted/10">
+            <img
+              src={image.imageUrl}
+              alt="Connected image"
+              className="max-h-full max-w-full object-contain"
+            />
+          </div>
+          <TooltipProvider>
+            <div className="flex justify-center gap-3">
+              {(["start_frame", "end_frame", "reference"] as const).map(
+                (role) => {
+                  const label =
+                    role === "start_frame"
+                      ? "Start frame"
+                      : role === "end_frame"
+                        ? "End frame"
+                        : "Reference";
+                  const tooltip = getTooltip(role);
+                  const disabled = tooltip !== null;
+                  const active = imageRoles[item.id] === role;
+                  return (
+                    <Tooltip key={role}>
+                      <TooltipTrigger render={<span />}>
+                        <button
+                          type="button"
+                          aria-disabled={disabled}
+                          onClick={() =>
+                            !disabled && onRoleChange(item.id, role)
+                          }
+                          className={cn(
+                            "rounded-lg border px-4 py-2 text-sm font-medium transition-colors",
+                            active
+                              ? "border-primary bg-primary text-primary-foreground"
+                              : "border-border bg-background text-foreground hover:bg-muted",
+                            disabled && "cursor-not-allowed opacity-40",
+                          )}
+                        >
+                          {label}
+                        </button>
+                      </TooltipTrigger>
+                      {tooltip && (
+                        <TooltipContent side="top">{tooltip}</TooltipContent>
+                      )}
+                    </Tooltip>
+                  );
+                },
+              )}
+            </div>
+          </TooltipProvider>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main focus view ───────────────────────────────────────────────────────────
 
 export function VideoGenFocusView({
@@ -193,8 +336,20 @@ export function VideoGenFocusView({
   const [historyOpen, setHistoryOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(true);
   const [connectedOpen, setConnectedOpen] = useState(true);
+  const [detailItem, setDetailItem] = useState<{
+    id: string;
+    type: "prompt" | "image";
+  } | null>(null);
 
-  const { isGenerating, lastError, setGenerating, setLastError } = useVideoGenStatus(nodeId);
+  // Reset detail view when the sheet opens or switches to a different node
+  const [openNodeSeed, setOpenNodeSeed] = useState({ open, nodeId });
+  if (openNodeSeed.open !== open || openNodeSeed.nodeId !== nodeId) {
+    setOpenNodeSeed({ open, nodeId });
+    if (open) setDetailItem(null);
+  }
+
+  const { isGenerating, lastError, setGenerating, setLastError } =
+    useVideoGenStatus(nodeId);
 
   // Stable Zustand actions — used directly in effects so deps don't include
   // the per-render wrapper functions returned by useVideoGenStatus.
@@ -203,7 +358,9 @@ export function VideoGenFocusView({
 
   // Stable ref for onPatch — breaks the useCallback → useEffect dep cycle
   const onPatchRef = useRef(onPatch);
-  useEffect(() => { onPatchRef.current = onPatch; });
+  useEffect(() => {
+    onPatchRef.current = onPatch;
+  });
 
   // ── Data fetching ──────────────────────────────────────────────────────────
 
@@ -236,19 +393,28 @@ export function VideoGenFocusView({
         if (!row) return;
         if (row.status === "succeeded" || row.status === "failed") {
           setVideoGenGenerating(nodeId, false);
-          setVideoGenError(nodeId, row.status === "failed" ? (row.error ?? "Generation failed") : null);
+          setVideoGenError(
+            nodeId,
+            row.status === "failed" ? (row.error ?? "Generation failed") : null,
+          );
         }
       });
-    videoGenApi.fetchVersions(nodeId).then((data) => {
-      setVersions(data.versions);
-      setActiveVersionId(data.activeVersionId);
-      const active = data.versions.find((v) => v.id === data.activeVersionId);
-      if (active?.output) onPatchRef.current({ parsed: active.output });
-    }).catch(() => {});
-    videoGenApi.fetchUpstreamImages(nodeId).then(({ images, promptNode: pn }) => {
-      setUpstreamImages(images);
-      setPromptNode(pn);
-    }).catch(() => {});
+    videoGenApi
+      .fetchVersions(nodeId)
+      .then((data) => {
+        setVersions(data.versions);
+        setActiveVersionId(data.activeVersionId);
+        const active = data.versions.find((v) => v.id === data.activeVersionId);
+        if (active?.output) onPatchRef.current({ parsed: active.output });
+      })
+      .catch(() => {});
+    videoGenApi
+      .fetchUpstreamImages(nodeId)
+      .then(({ images, promptNode: pn }) => {
+        setUpstreamImages(images);
+        setPromptNode(pn);
+      })
+      .catch(() => {});
   }, [open, nodeId, setVideoGenGenerating, setVideoGenError]);
 
   // Refresh versions when a generation finishes (isGenerating transitions true → false)
@@ -278,7 +444,8 @@ export function VideoGenFocusView({
     // Migrate image roles — remove roles the new model doesn't support
     const nextInputs = videoGenClientModelMap[nextModelId]?.imageInputs;
     const currentRoles = { ...imageRolesProp };
-    let startFrameAssigned = Object.values(currentRoles).includes("start_frame");
+    let startFrameAssigned =
+      Object.values(currentRoles).includes("start_frame");
     let rolesChanged = false;
 
     if (nextInputs) {
@@ -433,13 +600,23 @@ export function VideoGenFocusView({
                   {versions.length > 0 && (
                     <VideoGenUsagePopover versions={versions} />
                   )}
-                  <Button size="lg" onClick={handleGenerate} disabled={isGenerating}>
+                  <Button
+                    size="lg"
+                    onClick={handleGenerate}
+                    disabled={isGenerating}
+                  >
                     <Sparkles className="size-4" strokeWidth={1.5} />
-                    {isGenerating ? "Generating…" : videoUrl ? "Re-generate" : "Generate"}
+                    {isGenerating
+                      ? "Generating…"
+                      : videoUrl
+                        ? "Re-generate"
+                        : "Generate"}
                   </Button>
                 </div>
                 {lastError && !isGenerating && (
-                  <p className="text-xs text-destructive">Last attempt failed: {lastError}</p>
+                  <p className="text-xs text-destructive">
+                    Last attempt failed: {lastError}
+                  </p>
                 )}
               </div>
             </header>
@@ -448,100 +625,117 @@ export function VideoGenFocusView({
 
         {/* Body */}
         <div className="min-h-0 flex-1 flex justify-center overflow-hidden">
-          <div className="w-full max-w-5xl flex min-h-0 overflow-hidden">
-            {/* Left panel */}
-            <div className="w-[40%] border-r border-border overflow-y-auto px-6 py-6 flex flex-col gap-6">
-              {versions.length > 0 && (
+          {detailItem && (
+            <VideoGenDetailPanel
+              item={detailItem}
+              promptNode={promptNode}
+              images={upstreamImages}
+              imageRoles={imageRolesProp}
+              imageInputs={imageInputs}
+              onRoleChange={handleRoleChange}
+              onBack={() => setDetailItem(null)}
+            />
+          )}
+          {!detailItem && (
+            <div className="w-full max-w-5xl flex min-h-0 overflow-hidden">
+              {/* Left panel */}
+              <div className="w-[40%] border-r border-border overflow-y-auto px-6 py-6 flex flex-col gap-6">
+                {versions.length > 0 && (
+                  <LeftSection
+                    icon={History}
+                    label="History"
+                    badge={`${versions.length} version${versions.length === 1 ? "" : "s"}`}
+                    open={historyOpen}
+                    onToggle={() => setHistoryOpen((p) => !p)}
+                  >
+                    {historyOpen ? (
+                      <VideoGenVersionHistory
+                        versions={versions}
+                        activeVersionId={activeVersionId}
+                        onRestore={handleRestoreVersion}
+                        restoring={restoring}
+                        hideHeader
+                      />
+                    ) : (
+                      <ActiveVersionRow
+                        versions={versions}
+                        activeVersionId={activeVersionId}
+                      />
+                    )}
+                  </LeftSection>
+                )}
+
                 <LeftSection
-                  icon={History}
-                  label="History"
-                  badge={`${versions.length} version${versions.length === 1 ? "" : "s"}`}
-                  open={historyOpen}
-                  onToggle={() => setHistoryOpen((p) => !p)}
+                  icon={Settings2}
+                  label="Output settings"
+                  open={settingsOpen}
+                  onToggle={() => setSettingsOpen((p) => !p)}
                 >
-                  {historyOpen ? (
-                    <VideoGenVersionHistory
-                      versions={versions}
-                      activeVersionId={activeVersionId}
-                      onRestore={handleRestoreVersion}
-                      restoring={restoring}
-                      hideHeader
+                  {settingsOpen && (
+                    <VideoGenParamsPanel
+                      modelId={modelId}
+                      params={params}
+                      onModelChange={handleModelChange}
+                      onParamChange={handleParamChange}
                     />
-                  ) : (
-                    <ActiveVersionRow versions={versions} activeVersionId={activeVersionId} />
                   )}
                 </LeftSection>
-              )}
 
-              <LeftSection
-                icon={Settings2}
-                label="Output settings"
-                open={settingsOpen}
-                onToggle={() => setSettingsOpen((p) => !p)}
-              >
-                {settingsOpen && (
-                  <VideoGenParamsPanel
-                    modelId={modelId}
-                    params={params}
-                    onModelChange={handleModelChange}
-                    onParamChange={handleParamChange}
-                  />
-                )}
-              </LeftSection>
-
-              <LeftSection
-                icon={Link2}
-                label="Connected"
-                badge={`${(promptNode ? 1 : 0) + upstreamImages.length} input${(promptNode ? 1 : 0) + upstreamImages.length === 1 ? "" : "s"}`}
-                open={connectedOpen}
-                onToggle={() => setConnectedOpen((p) => !p)}
-              >
-                {connectedOpen && (
-                  <VideoGenConnectedSection
-                    promptNode={promptNode}
-                    images={upstreamImages}
-                    imageRoles={imageRolesProp}
-                    imageInputs={imageInputs}
-                    onRoleChange={handleRoleChange}
-                  />
-                )}
-              </LeftSection>
-            </div>
-
-            {/* Right panel */}
-            <div className="flex-1 min-h-0 flex flex-col px-6 py-6">
-              <div className="flex-1 min-h-0">
-                {mode === "skeleton" && (
-                  <div className="size-full animate-pulse rounded-xl bg-muted-foreground/15" />
-                )}
-                {mode === "empty" && (
-                  <div className="flex size-full items-center justify-center rounded-xl border border-dashed border-border">
-                    <div className="text-center px-8">
-                      <Clapperboard
-                        className="mx-auto size-8 text-muted-foreground/40"
-                        strokeWidth={1.5}
-                      />
-                      <p className="mt-3 text-sm font-medium text-muted-foreground">
-                        Not generated yet
-                      </p>
-                      <p className="mt-1 text-xs text-muted-foreground/70">
-                        Tune your params and click Generate.
-                      </p>
-                    </div>
-                  </div>
-                )}
-                {mode === "result" && videoUrl && (
-                  <div className="flex size-full items-center justify-center">
-                    <video
-                      src={videoUrl}
-                      controls
-                      className="w-full max-h-full rounded-xl border border-border shadow-card"
+                <LeftSection
+                  icon={Link2}
+                  label="Connected"
+                  badge={`${(promptNode ? 1 : 0) + upstreamImages.length} input${(promptNode ? 1 : 0) + upstreamImages.length === 1 ? "" : "s"}`}
+                  open={connectedOpen}
+                  onToggle={() => setConnectedOpen((p) => !p)}
+                >
+                  {connectedOpen && (
+                    <VideoGenConnectedSection
+                      promptNode={promptNode}
+                      images={upstreamImages}
+                      imageRoles={imageRolesProp}
+                      imageInputs={imageInputs}
+                      onRoleChange={handleRoleChange}
+                      onOpenDetail={(id, type) => setDetailItem({ id, type })}
                     />
-                  </div>
-                )}
+                  )}
+                </LeftSection>
+              </div>
+
+              {/* Right panel */}
+              <div className="flex-1 min-h-0 flex flex-col px-6 py-6">
+                <div className="flex-1 min-h-0">
+                  {mode === "skeleton" && (
+                    <div className="size-full animate-pulse rounded-xl bg-muted-foreground/15" />
+                  )}
+                  {mode === "empty" && (
+                    <div className="flex size-full items-center justify-center rounded-xl border border-dashed border-border">
+                      <div className="text-center px-8">
+                        <Clapperboard
+                          className="mx-auto size-8 text-muted-foreground/40"
+                          strokeWidth={1.5}
+                        />
+                        <p className="mt-3 text-sm font-medium text-muted-foreground">
+                          Not generated yet
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground/70">
+                          Tune your params and click Generate.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                  {mode === "result" && videoUrl && (
+                    <div className="flex size-full items-center justify-center">
+                      <video
+                        src={videoUrl}
+                        controls
+                        className="w-full max-h-full rounded-xl border border-border shadow-card"
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
       </SheetContent>
     </Sheet>

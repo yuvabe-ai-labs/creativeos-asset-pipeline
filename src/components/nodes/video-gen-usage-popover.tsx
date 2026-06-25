@@ -91,7 +91,7 @@ export function VideoGenUsagePopover({ versions }: Props) {
             {perGen.length > 0 && (
               <div className="space-y-2 border-t border-border pt-3">
                 <p className="text-eyebrow">Per generation</p>
-                <ul className="space-y-2">
+                <ul className="max-h-48 space-y-2 overflow-y-auto">
                   {perGen.map((g) => (
                     <li key={g.vNum} className="rounded-md bg-muted/50 px-2.5 py-2">
                       <div className="flex items-center justify-between">

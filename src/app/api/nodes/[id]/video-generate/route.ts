@@ -34,7 +34,7 @@ export async function POST(
     "start_frame" | "end_frame" | "reference"
   >;
 
-  // Resolve upstream nodes
+  // Resolve upstream nodes — same 2-level traversal as upstream-images route
   const upstream = await getUpstreamOutputs(nodeId);
 
   // Find video-prompt node
@@ -44,12 +44,21 @@ export async function POST(
   }
   const prompt = String(videoPromptNode.activeOutput);
 
+  // Also collect images upstream of the video-prompt node so that
+  // image → video-prompt → video-gen connections resolve correctly.
+  const videoPromptUpstream = await getUpstreamOutputs(videoPromptNode.nodeId);
+  const seenIds = new Set(upstream.map((u) => u.nodeId));
+  const allUpstream = [
+    ...upstream,
+    ...videoPromptUpstream.filter((u) => !seenIds.has(u.nodeId)),
+  ];
+
   // Resolve image roles from upstream nodes
   let startFrameUrl: string | undefined;
   let endFrameUrl: string | undefined;
   const referenceUrls: string[] = [];
 
-  for (const node of upstream) {
+  for (const node of allUpstream) {
     if (node.type === "image-gen") {
       const url = typeof node.activeOutput === "string" ? node.activeOutput : undefined;
       if (!url) continue;

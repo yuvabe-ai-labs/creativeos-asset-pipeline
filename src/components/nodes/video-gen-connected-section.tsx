@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import { ChevronRight, Maximize2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   Tooltip,
@@ -23,6 +25,7 @@ type Props = {
   imageRoles: Record<string, ImageRole>;
   imageInputs: ImageInputs;
   onRoleChange: (imageId: string, role: ImageRole) => void;
+  onOpenDetail?: (id: string, type: "prompt" | "image") => void;
 };
 
 export function VideoGenConnectedSection({
@@ -31,7 +34,10 @@ export function VideoGenConnectedSection({
   imageRoles,
   imageInputs,
   onRoleChange,
+  onOpenDetail,
 }: Props) {
+  const [promptOpen, setPromptOpen] = useState(false);
+
   const hasContent = promptNode !== null || images.length > 0;
 
   if (!hasContent) {
@@ -63,15 +69,46 @@ export function VideoGenConnectedSection({
   return (
     <div className="flex flex-col gap-3">
       {promptNode && (
-        <div className="rounded-lg border border-border p-3">
-          {promptNode.text ? (
-            <p className="line-clamp-4 text-xs leading-relaxed text-foreground">
-              {promptNode.text}
-            </p>
-          ) : (
-            <p className="text-xs italic text-muted-foreground/60">
-              No motion prompt generated yet — generate from the video-prompt node first.
-            </p>
+        <div className="overflow-hidden rounded-lg border border-border">
+          <div className="flex items-center gap-1.5 px-2.5 py-2">
+            <button
+              type="button"
+              onClick={() => setPromptOpen((p) => !p)}
+              className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+            >
+              <ChevronRight
+                className={cn(
+                  "size-3 shrink-0 text-muted-foreground transition-transform duration-200",
+                  promptOpen && "rotate-90",
+                )}
+              />
+              <span className="truncate text-xs font-semibold text-foreground">
+                Video prompt
+              </span>
+            </button>
+            {onOpenDetail && (
+              <button
+                type="button"
+                onClick={() => onOpenDetail(promptNode.id, "prompt")}
+                title="View full prompt"
+                className="shrink-0 text-muted-foreground transition-colors hover:text-primary"
+              >
+                <Maximize2 className="size-3.5" />
+              </button>
+            )}
+          </div>
+          {promptOpen && (
+            <div className="px-3 pb-2.5">
+              {promptNode.text ? (
+                <p className="text-xs leading-relaxed text-foreground/70">
+                  {promptNode.text}
+                </p>
+              ) : (
+                <p className="text-xs italic text-muted-foreground/60">
+                  No motion prompt generated yet — generate from the video-prompt node first.
+                </p>
+              )}
+            </div>
           )}
         </div>
       )}
@@ -84,7 +121,7 @@ export function VideoGenConnectedSection({
               return (
                 <div
                   key={image.id}
-                  className="relative overflow-hidden rounded-lg border border-border"
+                  className="group relative overflow-hidden rounded-lg border border-border"
                 >
                   <div className="aspect-video">
                     <img
@@ -95,6 +132,16 @@ export function VideoGenConnectedSection({
                       decoding="async"
                     />
                   </div>
+                  {onOpenDetail && (
+                    <button
+                      type="button"
+                      onClick={() => onOpenDetail(image.id, "image")}
+                      title="View full image"
+                      className="absolute right-1.5 top-1.5 flex items-center justify-center rounded bg-black/60 p-1 text-white/80 opacity-0 backdrop-blur-sm transition-opacity hover:text-white group-hover:opacity-100"
+                    >
+                      <Maximize2 className="size-3" />
+                    </button>
+                  )}
                   <div className="absolute bottom-0 left-0 right-0 flex justify-center gap-1 bg-black/60 p-1.5 backdrop-blur-sm">
                     {(["start_frame", "end_frame", "reference"] as const).map((role) => {
                       const label =
