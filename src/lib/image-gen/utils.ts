@@ -1,13 +1,7 @@
-import type { ImageGenClientModel } from "./client-models";
+import type { ClientModelSpec } from "./types";
 
-export function enumOptions(model: ImageGenClientModel, field: string): string[] {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const s = model.schema as any;
-  const shape = s?.shape ?? s?._def?.shape ?? {};
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const fieldDef = shape[field] as any;
-  const inner = fieldDef?._def?.innerType ?? fieldDef;
-  const values =
-    inner?._def?.values ?? inner?.options ?? inner?._def?.options ?? [];
-  return Array.isArray(values) ? values : Object.values(values ?? {});
+export function enumOptions(model: ClientModelSpec, field: string): string[] {
+  const spec = model.params.find((p) => p.name === field);
+  if (spec?.constraints.type === "select") return spec.constraints.options;
+  return [];
 }

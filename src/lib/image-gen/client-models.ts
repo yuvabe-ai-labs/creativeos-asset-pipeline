@@ -1,140 +1,93 @@
-// Client-safe model metadata + Zod schemas. Mirrors `registry.ts` but excludes
-// the server-only `generate` functions so this can be imported from React
-// components without dragging in the OpenAI / Gemini SDK code paths.
+// Client-safe model metadata. No generate functions — safe to import from React components.
+// Params are imported from providers (single source of truth, no Zod duplication).
 
-import { z, type ZodTypeAny } from "zod";
+import { gptImage2Params, gptImage1Params, gptImage1MiniParams } from "./params/openai";
+import { geminiFlashParams, geminiProParams } from "./params/gemini";
+import { buildZodFromParams } from "./schema-builder";
+import type { ClientModelSpec, ParamSpec } from "./types";
 
-export type ImageGenClientModel = {
-  id: string;
-  provider: "openai" | "gemini";
-  label: string;
-  providerLabel: string;
-  schema: ZodTypeAny;
-  maxReferenceImages: number;
-};
-
-// ── OpenAI schemas (kept in sync with providers/openai.ts) ────────────────────
-
-const gptImage2Schema = z.object({
-  size: z
-    .enum(["auto", "1024x1024", "1536x1024", "1024x1536"])
-    .default("1024x1024"),
-  quality: z.enum(["low", "medium", "high"]).default("medium"),
-  background: z.enum(["auto", "opaque", "transparent"]).default("auto"),
-  output_format: z.enum(["png", "jpeg", "webp"]).default("png"),
-  output_compression: z.number().min(0).max(100).optional(),
-});
-
-const gptImage1Schema = gptImage2Schema;
-
-const gptImage1MiniSchema = z.object({
-  size: z.enum(["1024x1024", "1536x1024", "1024x1536"]).default("1024x1024"),
-  quality: z.enum(["low", "medium", "high"]).default("medium"),
-  output_format: z.enum(["png", "jpeg", "webp"]).default("png"),
-  output_compression: z.number().min(0).max(100).optional(),
-});
-
-// ── Gemini schemas (kept in sync with providers/gemini.ts) ────────────────────
-
-const geminiFlashImageSchema = z.object({
-  aspect_ratio: z
-    .enum(["1:1", "16:9", "9:16", "4:3", "3:4", "21:9", "4:1", "1:4"])
-    .default("1:1"),
-  image_size: z.enum(["512", "1K", "2K", "4K"]).default("1K"),
-  safety_filter_level: z
-    .enum(["block_low_and_above", "block_medium_and_above", "block_only_high"])
-    .default("block_medium_and_above"),
-  person_generation: z.enum(["allow_adult", "disallow"]).default("allow_adult"),
-});
-
-const geminiProImageSchema = z.object({
-  aspect_ratio: z.enum(["1:1", "16:9", "9:16", "4:3", "3:4"]).default("1:1"),
-  image_size: z.enum(["1K", "2K", "4K"]).default("1K"),
-  safety_filter_level: z
-    .enum(["block_low_and_above", "block_medium_and_above", "block_only_high"])
-    .default("block_medium_and_above"),
-  person_generation: z.enum(["allow_adult", "disallow"]).default("allow_adult"),
-  thinking_level: z.enum(["none", "low", "high"]).default("low"),
-});
+export type { ClientModelSpec };
+// Legacy alias — remove once all consumers updated
+export type ImageGenClientModel = ClientModelSpec;
 
 // ── Client model list ─────────────────────────────────────────────────────────
 
-export const imageGenClientModels: ImageGenClientModel[] = [
+export const imageGenClientModels: ClientModelSpec[] = [
   {
     id: "openai:gpt-image-2",
-    provider: "openai",
-    label: "GPT Image 2",
-    providerLabel: "OpenAI",
-    schema: gptImage2Schema,
-    maxReferenceImages: 10,
+    provider: "openai", mediaType: "image",
+    label: "GPT Image 2", providerLabel: "OpenAI",
+    maxReferenceImages: 10, maxReferenceSizeBytes: 50 * 1024 * 1024,
+    params: gptImage2Params,
+    schema: buildZodFromParams(gptImage2Params),
   },
   {
     id: "openai:gpt-image-1",
-    provider: "openai",
-    label: "GPT Image 1",
-    providerLabel: "OpenAI",
-    schema: gptImage1Schema,
-    maxReferenceImages: 10,
+    provider: "openai", mediaType: "image",
+    label: "GPT Image 1", providerLabel: "OpenAI",
+    maxReferenceImages: 10, maxReferenceSizeBytes: 50 * 1024 * 1024,
+    params: gptImage1Params,
+    schema: buildZodFromParams(gptImage1Params),
   },
   {
     id: "openai:gpt-image-1-mini",
-    provider: "openai",
-    label: "GPT Image 1 Mini",
-    providerLabel: "OpenAI",
-    schema: gptImage1MiniSchema,
-    maxReferenceImages: 5,
+    provider: "openai", mediaType: "image",
+    label: "GPT Image 1 Mini", providerLabel: "OpenAI",
+    maxReferenceImages: 5, maxReferenceSizeBytes: 50 * 1024 * 1024,
+    params: gptImage1MiniParams,
+    schema: buildZodFromParams(gptImage1MiniParams),
   },
   {
     id: "gemini:gemini-2.5-flash-image",
-    provider: "gemini",
-    label: "Nano Banana ",
-    providerLabel: "Gemini",
-    schema: geminiFlashImageSchema,
-    maxReferenceImages: 5,
+    provider: "gemini", mediaType: "image",
+    label: "Nano Banana", providerLabel: "Gemini",
+    maxReferenceImages: 5, maxReferenceSizeBytes: 20 * 1024 * 1024,
+    params: geminiFlashParams,
+    schema: buildZodFromParams(geminiFlashParams),
   },
   {
-    id: "gemini:gemini-3.1-flash-image-preview",
-    provider: "gemini",
-    label: "Nano Banana 2",
-    providerLabel: "Gemini",
-    schema: geminiFlashImageSchema,
-    maxReferenceImages: 5,
+    id: "gemini:gemini-3.1-flash-image",
+    provider: "gemini", mediaType: "image",
+    label: "Nano Banana 2", providerLabel: "Gemini",
+    maxReferenceImages: 5, maxReferenceSizeBytes: 20 * 1024 * 1024,
+    params: geminiFlashParams,
+    schema: buildZodFromParams(geminiFlashParams),
   },
   {
-    id: "gemini:gemini-3-pro-image-preview",
-    provider: "gemini",
-    label: "Nano Banana Pro",
-    providerLabel: "Gemini",
-    schema: geminiProImageSchema,
-    maxReferenceImages: 5,
+    id: "gemini:gemini-3-pro-image",
+    provider: "gemini", mediaType: "image",
+    label: "Nano Banana Pro", providerLabel: "Gemini",
+    maxReferenceImages: 5, maxReferenceSizeBytes: 20 * 1024 * 1024,
+    params: geminiProParams,
+    schema: buildZodFromParams(geminiProParams),
   },
 ];
 
-export const imageGenClientModelMap: Record<string, ImageGenClientModel> =
+export const imageGenClientModelMap: Record<string, ClientModelSpec> =
   Object.fromEntries(imageGenClientModels.map((m) => [m.id, m]));
 
 export const imageGenClientModelGroups: Array<{
-  provider: "openai" | "gemini";
+  provider: string;
   label: string;
-  models: ImageGenClientModel[];
+  models: ClientModelSpec[];
 }> = [
-  {
-    provider: "openai",
-    label: "OpenAI",
-    models: imageGenClientModels.filter((m) => m.provider === "openai"),
-  },
-  {
-    provider: "gemini",
-    label: "Gemini",
-    models: imageGenClientModels.filter((m) => m.provider === "gemini"),
-  },
+  { provider: "openai", label: "OpenAI", models: imageGenClientModels.filter((m) => m.provider === "openai") },
+  { provider: "gemini", label: "Gemini", models: imageGenClientModels.filter((m) => m.provider === "gemini") },
 ];
 
 export const DEFAULT_CLIENT_MODEL_ID = "openai:gpt-image-2";
 
-// Extract default values from a Zod object schema (for resetting params form).
+// Extract defaults from ParamSpec array (replaces defaultsForSchema)
+export function defaultsForModel(model: ClientModelSpec): Record<string, unknown> {
+  return Object.fromEntries(
+    model.params
+      .filter((p: ParamSpec) => p.defaultValue !== null && p.defaultValue !== undefined)
+      .map((p: ParamSpec) => [p.name, p.defaultValue]),
+  );
+}
 
-export function defaultsForSchema(schema: ZodTypeAny): Record<string, unknown> {
+// Legacy alias kept until image-gen-focus-view.tsx is updated
+export function defaultsForSchema(schema: ClientModelSpec["schema"]): Record<string, unknown> {
   const parsed = schema.safeParse({});
   if (parsed.success) return parsed.data as Record<string, unknown>;
   return {};

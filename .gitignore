@@ -47,6 +47,9 @@ next-env.d.ts
 # brainstorm visual-companion artifacts
 .superpowers/
 
+# trigger.dev local dev artifacts
+.trigger/
+
 # office temp lock files
 ~$*
 *.tmp

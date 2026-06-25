@@ -81,3 +81,22 @@ export type NodeVersionRow = {
   operator: string | null;
   created_at: string;
 };
+
+export type GenerationRow = {
+  id: string;
+  node_id: string;
+  type: "image" | "video" | "prompt";
+  status: "running" | "succeeded" | "failed";
+  provider_job_id: string | null;
+  model_used: string | null;
+  params_snapshot: Record<string, unknown> | null;
+  inputs_snapshot: Record<string, unknown> | null;
+  tokens_used: Record<string, unknown> | null;
+  credits_consumed: number | null;
+  version_id: string | null;
+  user_id: string | null;
+  error: string | null;
+  meta: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+};
