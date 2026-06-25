@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronRight, Maximize2 } from "lucide-react";
+import { ChevronRight, Maximize2, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   Tooltip,
@@ -26,6 +26,11 @@ type Props = {
   imageInputs: ImageInputs;
   onRoleChange: (imageId: string, role: ImageRole) => void;
   onOpenDetail?: (id: string, type: "prompt" | "image") => void;
+  disableFrameInputs?: boolean;
+  disableFrameInputsReason?: string;
+  disableRefs?: boolean;
+  disableRefsReason?: string;
+  onReset?: () => void;
 };
 
 export function VideoGenConnectedSection({
@@ -35,15 +40,21 @@ export function VideoGenConnectedSection({
   imageInputs,
   onRoleChange,
   onOpenDetail,
+  disableFrameInputs = false,
+  disableFrameInputsReason,
+  disableRefs = false,
+  disableRefsReason,
+  onReset,
 }: Props) {
   const [promptOpen, setPromptOpen] = useState(false);
 
   const hasContent = promptNode !== null || images.length > 0;
+  const hasAnyAssignment = Object.keys(imageRoles).length > 0;
 
   if (!hasContent) {
     return (
       <p className="text-xs italic text-muted-foreground/60">
-        Connect a video-prompt node or image nodes.
+        Connect a File node with an image to use as start frame, end frame, or reference.
       </p>
     );
   }
@@ -51,6 +62,13 @@ export function VideoGenConnectedSection({
   const referenceCount = Object.values(imageRoles).filter((r) => r === "reference").length;
 
   function getRoleTooltip(imageId: string, role: ImageRole): string | null {
+    // Constraint-based disabling (takes priority — has specific reason from the rule)
+    if ((role === "start_frame" || role === "end_frame") && disableFrameInputs)
+      return disableFrameInputsReason ?? "Not available with current settings";
+    if (role === "reference" && disableRefs)
+      return disableRefsReason ?? "Not available with current settings";
+
+    // Structural capability check (model doesn't support this input type)
     if (role === "start_frame" && !imageInputs.startFrame)
       return "Not supported by this model";
     if (role === "end_frame" && !imageInputs.endFrame)
@@ -68,6 +86,20 @@ export function VideoGenConnectedSection({
 
   return (
     <div className="flex flex-col gap-3">
+      {/* Clear all button — only shown when at least one role is assigned */}
+      {hasAnyAssignment && onReset && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={onReset}
+            className="inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <RotateCcw className="size-3" strokeWidth={1.5} />
+            Clear all
+          </button>
+        </div>
+      )}
+
       {promptNode && (
         <div className="overflow-hidden rounded-lg border border-border">
           <div className="flex items-center gap-1.5 px-2.5 py-2">
