@@ -10,7 +10,7 @@ export async function GET(
     const direct = await getUpstreamOutputs(nodeId);
 
     // Also collect upstream of any video-prompt nodes (2-level traversal).
-    // Surfaces image-gen/file/draw nodes in pattern: node → video-prompt → video-gen.
+    // Surfaces file/draw nodes in pattern: node → video-prompt → video-gen.
     const videoPromptUpstream = await Promise.all(
       direct
         .filter((u) => u.type === "video-prompt")
@@ -26,9 +26,10 @@ export async function GET(
     }
     const allUpstream = Array.from(seen.values());
 
+    // Only file and draw nodes with fileKind === "image" are valid frame sources.
+    // Image-gen node outputs are excluded — users must connect a File node instead.
     const images = allUpstream
       .filter((u) => {
-        if (u.type === "image-gen") return typeof u.activeOutput === "string";
         if (u.type === "file" || u.type === "draw") {
           const d = u.data as Record<string, unknown>;
           return d.fileKind === "image" && typeof d.fileUrl === "string";
@@ -38,10 +39,7 @@ export async function GET(
       .map((u) => ({
         id: u.nodeId,
         type: u.type,
-        imageUrl:
-          u.type === "image-gen"
-            ? (u.activeOutput as string)
-            : ((u.data as Record<string, unknown>).fileUrl as string),
+        imageUrl: (u.data as Record<string, unknown>).fileUrl as string,
       }));
 
     // Surface the connected video-prompt node so the focus view can display the motion prompt text.

@@ -59,14 +59,7 @@ export async function POST(
   const referenceUrls: string[] = [];
 
   for (const node of allUpstream) {
-    if (node.type === "image-gen") {
-      const url = typeof node.activeOutput === "string" ? node.activeOutput : undefined;
-      if (!url) continue;
-      const role = imageRoles[node.nodeId] ?? "start_frame";
-      if (role === "start_frame" && !startFrameUrl) startFrameUrl = url;
-      else if (role === "end_frame" && !endFrameUrl) endFrameUrl = url;
-      else if (role === "reference") referenceUrls.push(url);
-    } else if (node.type === "file") {
+    if (node.type === "file" || node.type === "draw") {
       const data = node.data as Record<string, unknown>;
       if (data.fileKind !== "image") continue;
       const url = typeof data.fileUrl === "string" ? data.fileUrl : undefined;
