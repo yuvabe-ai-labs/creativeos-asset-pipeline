@@ -181,28 +181,31 @@ export function VideoGenConnectedSection({
                       const tooltip = getRoleTooltip(image.id, role);
                       const disabled = tooltip !== null;
                       const active = activeRole === role;
+                      const btn = (
+                        <button
+                          key={role}
+                          type="button"
+                          aria-disabled={disabled}
+                          aria-label={`Set as ${role.replace(/_/g, " ")}`}
+                          onClick={() => !disabled && onRoleChange(image.id, role)}
+                          className={cn(
+                            "rounded px-2 py-0.5 text-[0.65rem] font-semibold transition-colors",
+                            active
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-white/20 text-white/80 hover:bg-white/30",
+                            disabled && "cursor-not-allowed opacity-40",
+                          )}
+                        >
+                          {label}
+                        </button>
+                      );
+                      if (!tooltip) return btn;
                       return (
                         <Tooltip key={role}>
                           <TooltipTrigger render={<span className="inline-flex" />}>
-                            <button
-                              type="button"
-                              aria-disabled={disabled}
-                              aria-label={`Set as ${role.replace(/_/g, " ")}`}
-                              onClick={() => !disabled && onRoleChange(image.id, role)}
-                              className={cn(
-                                "rounded px-2 py-0.5 text-[0.65rem] font-semibold transition-colors",
-                                active
-                                  ? "bg-primary text-primary-foreground"
-                                  : "bg-white/20 text-white/80 hover:bg-white/30",
-                                disabled && "cursor-not-allowed opacity-40",
-                              )}
-                            >
-                              {label}
-                            </button>
+                            {btn}
                           </TooltipTrigger>
-                          {tooltip && (
-                            <TooltipContent side="top">{tooltip}</TooltipContent>
-                          )}
+                          <TooltipContent side="top">{tooltip}</TooltipContent>
                         </Tooltip>
                       );
                     })}

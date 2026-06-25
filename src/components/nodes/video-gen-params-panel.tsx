@@ -4,7 +4,6 @@ import {
   Cpu,
   Crop,
   LayoutGrid,
-  Lock,
   Settings2,
   Timer,
   type LucideIcon,
@@ -25,6 +24,9 @@ const PARAM_ICONS: Record<string, LucideIcon> = {
   seconds:      Timer,
   size:         LayoutGrid,
 };
+
+const SELECT_CLS =
+  "min-w-0 flex-1 rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring";
 
 type Props = {
   modelId: string;
@@ -54,7 +56,7 @@ export function VideoGenParamsPanel({
           <select
             value={modelId}
             onChange={(e) => onModelChange(e.target.value)}
-            className="min-w-0 flex-1 rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            className={SELECT_CLS}
           >
             {Object.values(videoGenClientModelMap).map((m) => (
               <option key={m.id} value={m.id}>
@@ -66,37 +68,53 @@ export function VideoGenParamsPanel({
 
         {/* Param rows */}
         {visibleParams.map((spec) => {
+          const lockedValue = lockedParams[spec.name];
           const isLocked = spec.name in lockedParams;
+          const reason = lockedParamReasons[spec.name];
+
+          // For select params with a locked value: show all options but disable invalid ones.
+          // Matches Google AI Studio behaviour — the user sees context, not a blank read-only field.
+          if (isLocked && spec.constraints.type === "select") {
+            const options = spec.constraints.options;
+            return (
+              <ImageGenParamRow
+                key={spec.name}
+                icon={PARAM_ICONS[spec.name] ?? Settings2}
+                label={spec.label}
+              >
+                <Tooltip>
+                  <TooltipTrigger render={<span className="min-w-0 flex-1" />}>
+                    <select
+                      value={String(lockedValue)}
+                      onChange={() => {}}
+                      className={SELECT_CLS}
+                    >
+                      {options.map((opt) => (
+                        <option key={opt} value={opt} disabled={opt !== String(lockedValue)}>
+                          {opt}
+                        </option>
+                      ))}
+                    </select>
+                  </TooltipTrigger>
+                  {reason && (
+                    <TooltipContent side="top">{reason}</TooltipContent>
+                  )}
+                </Tooltip>
+              </ImageGenParamRow>
+            );
+          }
+
           return (
             <ImageGenParamRow
               key={spec.name}
               icon={PARAM_ICONS[spec.name] ?? Settings2}
               label={spec.label}
             >
-              {isLocked ? (
-                <div className="flex min-w-0 flex-1 items-center gap-1.5">
-                  <span className="flex-1 text-xs text-foreground">
-                    {String(lockedParams[spec.name])}s
-                  </span>
-                  <Tooltip>
-                    <TooltipTrigger render={<span />}>
-                      <Lock
-                        className="size-3 shrink-0 text-muted-foreground/50"
-                        strokeWidth={1.5}
-                      />
-                    </TooltipTrigger>
-                    <TooltipContent side="top">
-                      {lockedParamReasons[spec.name]}
-                    </TooltipContent>
-                  </Tooltip>
-                </div>
-              ) : (
-                <ParamControl
-                  spec={spec}
-                  value={params[spec.name] ?? spec.defaultValue}
-                  onChange={(v) => onParamChange(spec.name, v)}
-                />
-              )}
+              <ParamControl
+                spec={spec}
+                value={params[spec.name] ?? spec.defaultValue}
+                onChange={(v) => onParamChange(spec.name, v)}
+              />
             </ImageGenParamRow>
           );
         })}

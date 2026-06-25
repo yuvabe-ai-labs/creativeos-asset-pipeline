@@ -1,8 +1,18 @@
+import { z } from "zod";
 import { tasks } from "@trigger.dev/sdk/v3";
 import { getUpstreamOutputs } from "@/lib/db/nodes";
 import { insertGeneration } from "@/lib/db/generations";
 import { videoGenRegistry, DEFAULT_VIDEO_MODEL_ID } from "@/lib/video-gen/registry";
 import { apiError, apiOk } from "@/lib/api/route-helpers";
+
+const ImageRoleSchema = z.enum(["start_frame", "end_frame", "reference"]);
+
+const GenerateBodySchema = z.object({
+  modelId: z.string().optional(),
+  params: z.record(z.string(), z.unknown()).optional(),
+  imageRoles: z.record(z.string(), ImageRoleSchema).optional(),
+  mock: z.boolean().optional(),
+});
 
 export async function POST(
   req: Request,
@@ -10,17 +20,19 @@ export async function POST(
 ) {
   const { id: nodeId } = await params;
 
-  const body = (await req.json().catch(() => null)) as
-    | { modelId?: unknown; params?: unknown; imageRoles?: unknown; mock?: unknown }
-    | null;
+  const raw = await req.json().catch(() => null);
+  const parsed = GenerateBodySchema.safeParse(raw);
+  if (!parsed.success) {
+    return apiError(`Invalid request body: ${parsed.error.issues.map((i) => i.message).join(", ")}`, 400);
+  }
+  const body = parsed.data;
 
-  const modelId =
-    typeof body?.modelId === "string" ? body.modelId : DEFAULT_VIDEO_MODEL_ID;
+  const modelId = body.modelId ?? DEFAULT_VIDEO_MODEL_ID;
   const config = videoGenRegistry[modelId];
   if (!config) return apiError(`Unknown modelId: ${modelId}`, 400);
 
   // Build params using model's param specs (defaults where not provided)
-  const bodyParams = (body?.params ?? {}) as Record<string, unknown>;
+  const bodyParams = body.params ?? {};
   const resolvedParams = Object.fromEntries(
     config.params.map((spec) => [
       spec.name,
@@ -29,10 +41,7 @@ export async function POST(
   );
 
   // Image role assignments sent from focus view
-  const imageRoles = (body?.imageRoles ?? {}) as Record<
-    string,
-    "start_frame" | "end_frame" | "reference"
-  >;
+  const imageRoles = body.imageRoles ?? {};
 
   // Resolve upstream nodes — same 2-level traversal as upstream-images route
   const upstream = await getUpstreamOutputs(nodeId);
@@ -77,7 +86,7 @@ export async function POST(
   // If model doesn't support end frame, clear it
   if (!config.imageInputs.endFrame) endFrameUrl = undefined;
 
-  const mockMode = body?.mock === true;
+  const mockMode = body.mock === true;
 
   // Insert generation record (status: 'running')
   const generation = await insertGeneration({
