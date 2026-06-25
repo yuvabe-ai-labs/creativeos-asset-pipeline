@@ -32,6 +32,10 @@ import {
   defaultsForVideoModel,
   videoGenClientModelMap,
 } from "@/lib/video-gen/client-models";
+import {
+  buildConstraintState,
+  evaluateConstraints,
+} from "@/lib/video-gen/constraints";
 import { videoGenApi } from "@/lib/video-gen/api";
 import { createBrowserSupabase } from "@/lib/supabase/client";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
@@ -491,6 +495,10 @@ export function VideoGenFocusView({
     onPatch({ imageRoles: updated });
   }
 
+  function handleReset() {
+    onPatch({ imageRoles: {} });
+  }
+
   async function handleGenerate() {
     setGenerating(true);
     setLastError(null);
@@ -532,6 +540,32 @@ export function VideoGenFocusView({
     endFrame: false,
     maxReferenceImages: 0,
   };
+
+  const currentModel = videoGenClientModelMap[modelId];
+  const constraintState = buildConstraintState(
+    imageRolesProp as Record<string, "start_frame" | "end_frame" | "reference">,
+    params,
+  );
+  const constraints = evaluateConstraints(currentModel?.rules, constraintState);
+
+  // Auto-snap params to locked values when constraints fire
+  useEffect(() => {
+    const entries = Object.entries(constraints.lockedParams);
+    if (entries.length === 0) return;
+
+    let changed = false;
+    const updated = { ...params };
+    for (const [name, value] of entries) {
+      if (params[name] !== value) {
+        updated[name] = value;
+        changed = true;
+      }
+    }
+    if (!changed) return;
+
+    setParams(updated);
+    onPatchRef.current({ params: updated });
+  }, [imageRolesProp, modelId]);
 
   const mode: "skeleton" | "result" | "empty" = isGenerating
     ? "skeleton"
@@ -677,6 +711,8 @@ export function VideoGenFocusView({
                       params={params}
                       onModelChange={handleModelChange}
                       onParamChange={handleParamChange}
+                      lockedParams={constraints.lockedParams}
+                      lockedParamReasons={constraints.lockedParamReasons}
                     />
                   )}
                 </LeftSection>
@@ -696,6 +732,13 @@ export function VideoGenFocusView({
                       imageInputs={imageInputs}
                       onRoleChange={handleRoleChange}
                       onOpenDetail={(id, type) => setDetailItem({ id, type })}
+                      disableFrameInputs={constraints.disableFrameInputs}
+                      disableFrameInputsReason={
+                        constraints.disableFrameInputsReason
+                      }
+                      disableRefs={constraints.disableRefs}
+                      disableRefsReason={constraints.disableRefsReason}
+                      onReset={handleReset}
                     />
                   )}
                 </LeftSection>
