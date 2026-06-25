@@ -1257,3 +1257,68 @@ it up. These are *additive* to the MVP — none block the Stage 1–5 pipeline.
   Script/Brief input.
 * **Revisit when:** brand context that only lives in PDF imagery (logos, colourways, layout
   references) is needed for generation quality.
+
+### F4 — Collaboration: approval flow & per-node commenting
+
+* **Now:** approval is a **single-operator, single-state** decision — an attempt is
+  approved/rejected by whoever is using the canvas (§11.6–11.7), with no reviewer role,
+  no request-for-review step, and no discussion thread. There is no commenting anywhere on
+  the canvas.
+* **Backlog:**
+  * **Approval flow** — a real review lifecycle on a node/attempt: `draft → submitted for
+    review → approved | changes requested`, with a distinct **reviewer** role separate from
+    the operator who produced the attempt. Surfaced as node-level status badges on the canvas.
+  * **Per-node commenting** — a comment thread anchored to a node (and ideally to a specific
+    attempt/version), with author, timestamp, resolve/unresolve, and `@mention`. The "where a
+    designer changed the model output" diff (§4.4) and the comment thread together become the
+    review record.
+  * Notifications (in-app, later email/Slack) when review is requested or a comment mentions you.
+* **Depends on:** **F1** (real user identities) — a reviewer role, comment authorship, and
+  `@mention` all require login + per-user identity. Build F1 first or in lockstep.
+* **To decide when picked up:** comment granularity (node vs. attempt/version), whether
+  "changes requested" blocks downstream wiring or only flags it (lean **mark, don't block** —
+  consistent with D9/D21), and notification channels.
+* **Revisit when:** more than one person works a canvas, or an explicit sign-off trail is
+  needed before assets ship to a client.
+
+### F5 — Node grouping: colors & section containers
+
+* **Now:** nodes live as a flat set on the canvas; the only structure is the edges between
+  them. On a real reel (`1 script → N shots → N images → N clips`, D21) a fanned-out canvas
+  gets crowded with no way to visually scope a shot's sub-graph.
+* **Backlog:**
+  * **Section containers** — a group/frame node that visually bounds a set of nodes (e.g. all
+    nodes for one Shot), is labelled, and moves/collapses as a unit. React Flow supports this
+    via parent/child nodes + a group node type (`reactflow.dev/learn` → sub-flows / grouping).
+  * **Color tagging** — a per-node (and per-group) accent/label color for quick visual
+    categorization (by shot, by status, by stage), within the Yuvabe palette — neutrals
+    lead, accent used sparingly (AGENTS.md), so color is a *thin* tag, not a fill.
+  * Collapse/expand a group to reduce visual load on large canvases.
+* **To decide when picked up:** whether grouping is purely visual or also semantic (e.g. a
+  Shot group that the archive bundle understands per-shot, §16), and how grouping interacts
+  with the dashed Script→Shot lineage edges (D21).
+* **Revisit when:** canvases routinely exceed a handful of shots and navigation/legibility
+  starts costing the designer time.
+
+### F6 — Searchable asset & file library
+
+* **Now:** files and generated outputs are scoped to where they were made — client files,
+  inline Prompt-node files (§9.3), and generated attempts living **inside** their Image/Video
+  Gen node. Object storage holds the bytes, the DB holds the path (D13), but there is no
+  cross-canvas, cross-client way to **find** a past asset.
+* **Backlog:**
+  * A **library** surface that indexes every stored asset — uploaded references, parsed
+    scripts, generated images, generated videos — across canvases and clients.
+  * **Search & filter** by metadata already captured in the version envelope: client, canvas,
+    node type, model/provider, approval state, date, and (later) tags. The capture discipline
+    in §4.4 / §13 is what makes this index possible — this feature *surfaces* data already
+    being stored.
+  * **Reuse** — drag a found asset back onto a canvas as a File node / reference; "find the
+    approved still I made for client X" without reopening the canvas.
+  * Later: semantic / vision search over images (text-to-image-match), and prompt-text search.
+* **Depends on:** consistent metadata on every attempt (already required by §13) and durable
+  object-storage paths (D13). Keyword/metadata search is the cheap first cut; vector/semantic
+  search is a later layer (note the §18 RAG deferral still applies).
+* **Revisit when:** the studio has enough accumulated assets that re-finding past work (or
+  reusing an approved asset across projects) becomes a real friction — this is the payoff of
+  the "learn from every attempt" capture (§4.4).
