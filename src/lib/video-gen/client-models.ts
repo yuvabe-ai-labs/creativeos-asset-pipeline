@@ -2,7 +2,15 @@ import type { VideoGenClientModelSpec } from "./types";
 import { veoParams, veoLiteParams } from "./params/veo";
 import { soraParams } from "./params/sora";
 
-const VEO_IMAGE_INPUTS = {
+// Lite/Fast: SDK constraint — referenceImages can't be combined with image/lastFrame,
+// and only the Quality model supports reference images.
+const VEO_LITE_IMAGE_INPUTS = {
+  startFrame: true,
+  endFrame: true,
+  maxReferenceImages: 0,
+} as const;
+
+const VEO_QUALITY_IMAGE_INPUTS = {
   startFrame: true,
   endFrame: true,
   maxReferenceImages: 3,
@@ -15,7 +23,7 @@ export const videoGenClientModelMap: Record<string, VideoGenClientModelSpec> = {
     label: "Veo 3.1 Lite",
     providerLabel: "Google",
     maxDurationSeconds: 5,
-    imageInputs: VEO_IMAGE_INPUTS,
+    imageInputs: VEO_LITE_IMAGE_INPUTS,
     params: veoLiteParams,
   },
   "veo:veo-3.1-fast": {
@@ -24,7 +32,7 @@ export const videoGenClientModelMap: Record<string, VideoGenClientModelSpec> = {
     label: "Veo 3.1 Fast",
     providerLabel: "Google",
     maxDurationSeconds: 5,
-    imageInputs: VEO_IMAGE_INPUTS,
+    imageInputs: VEO_LITE_IMAGE_INPUTS,
     params: veoLiteParams,
   },
   "veo:veo-3.1": {
@@ -33,7 +41,7 @@ export const videoGenClientModelMap: Record<string, VideoGenClientModelSpec> = {
     label: "Veo 3.1 Quality",
     providerLabel: "Google",
     maxDurationSeconds: 8,
-    imageInputs: VEO_IMAGE_INPUTS,
+    imageInputs: VEO_QUALITY_IMAGE_INPUTS,
     params: veoParams,
   },
   "openai:sora-2": {

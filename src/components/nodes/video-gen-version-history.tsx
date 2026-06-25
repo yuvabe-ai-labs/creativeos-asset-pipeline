@@ -17,6 +17,7 @@ type Props = {
   activeVersionId: string | null;
   onRestore: (versionId: string) => void;
   restoring: boolean;
+  hideHeader?: boolean;
 };
 
 function relativeTime(dateStr: string): string {
@@ -34,21 +35,24 @@ export function VideoGenVersionHistory({
   activeVersionId,
   onRestore,
   restoring,
+  hideHeader = false,
 }: Props) {
   if (versions.length === 0) return null;
   const total = versions.length;
 
   return (
     <div>
-      <div className="mb-2 flex items-center justify-between">
-        <div className="flex items-center gap-1.5">
-          <History className="size-3.5 text-primary" strokeWidth={1.5} />
-          <span className="text-eyebrow">History</span>
+      {!hideHeader && (
+        <div className="mb-2 flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <History className="size-3.5 text-primary" strokeWidth={1.5} />
+            <span className="text-eyebrow">History</span>
+          </div>
+          <span className="text-xs text-muted-foreground">
+            {total} generation{total !== 1 ? "s" : ""}
+          </span>
         </div>
-        <span className="text-xs text-muted-foreground">
-          {total} generation{total !== 1 ? "s" : ""}
-        </span>
-      </div>
+      )}
       <div className="max-h-52 overflow-y-auto pb-2">
         <ul className="space-y-1">
           {versions.map((v, i) => {
