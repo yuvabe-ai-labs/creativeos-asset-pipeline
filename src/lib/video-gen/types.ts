@@ -21,6 +21,55 @@ export type VideoGenResult = {
   durationSeconds: number;
 };
 
+// ── Constraint rule system (JSON-serializable, DB-ready) ──────────────────────
+
+export type ConditionField = "referenceCount" | "hasEndFrame" | "hasStartFrame";
+export type ConditionOp = "gt" | "gte" | "eq";
+
+export type LeafCondition = {
+  field: ConditionField;
+  op: ConditionOp;
+  value: number | boolean;
+};
+
+export type CompoundCondition = {
+  op: "and" | "or";
+  conditions: Condition[];
+};
+
+export type Condition = LeafCondition | CompoundCondition;
+
+export type ConstraintEffect = {
+  lockParams?: Array<{ name: string; value: unknown }>;
+  disableFrameInputs?: boolean;
+  disableRefs?: boolean;
+};
+
+export type ConstraintRule = {
+  id: string;
+  when: Condition;
+  effect: ConstraintEffect;
+  reason: string;
+};
+
+export type ConstraintState = {
+  params: Record<string, unknown>;
+  hasStartFrame: boolean;
+  hasEndFrame: boolean;
+  referenceCount: number;
+};
+
+export type EvaluatedConstraints = {
+  lockedParams: Record<string, unknown>;
+  lockedParamReasons: Record<string, string>;
+  disableFrameInputs: boolean;
+  disableFrameInputsReason?: string;
+  disableRefs: boolean;
+  disableRefsReason?: string;
+};
+
+// ── Model specs ───────────────────────────────────────────────────────────────
+
 export type VideoGenModelSpec = {
   id: string;
   provider: "veo" | "openai";
@@ -29,6 +78,7 @@ export type VideoGenModelSpec = {
   maxDurationSeconds: number;
   imageInputs: ImageInputCapabilities;
   params: ParamSpec[];
+  rules?: ConstraintRule[];
   generate: (input: VideoGenInput) => Promise<VideoGenResult>;
 };
 
