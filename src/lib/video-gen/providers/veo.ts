@@ -110,7 +110,7 @@ const VEO_LITE_IMAGE_INPUTS = {
   maxReferenceImages: 0,
 } as const;
 
-const VEO_QUALITY_IMAGE_INPUTS = {
+const VEO_REFS_IMAGE_INPUTS = {
   startFrame: true,
   endFrame: true,
   maxReferenceImages: 3,
@@ -133,7 +133,7 @@ export const veoFast: VideoGenModelSpec = {
   label: "Veo 3.1 Fast",
   providerLabel: "Google",
   maxDurationSeconds: 8,
-  imageInputs: VEO_QUALITY_IMAGE_INPUTS,
+  imageInputs: VEO_REFS_IMAGE_INPUTS,
   params: veoParams,
   generate: (input) => generateWithVeo(VEO_MODEL_IDS.fast, input, 3),
 };
@@ -144,7 +144,7 @@ export const veoQuality: VideoGenModelSpec = {
   label: "Veo 3.1 Quality",
   providerLabel: "Google",
   maxDurationSeconds: 8,
-  imageInputs: VEO_QUALITY_IMAGE_INPUTS,
+  imageInputs: VEO_REFS_IMAGE_INPUTS,
   params: veoParams,
   generate: (input) => generateWithVeo(VEO_MODEL_IDS.quality, input, 3),
 };
