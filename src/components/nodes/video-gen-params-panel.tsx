@@ -73,7 +73,7 @@ export function VideoGenParamsPanel({
           const reason = lockedParamReasons[spec.name];
 
           // For select params with a locked value: show all options but disable invalid ones.
-          // Matches Google AI Studio behaviour — the user sees context, not a blank read-only field.
+          // Tooltip on hover explains why it's locked.
           if (isLocked && spec.constraints.type === "select") {
             const options = spec.constraints.options;
             return (
@@ -96,9 +96,7 @@ export function VideoGenParamsPanel({
                       ))}
                     </select>
                   </TooltipTrigger>
-                  {reason && (
-                    <TooltipContent side="top">{reason}</TooltipContent>
-                  )}
+                  {reason && <TooltipContent side="top">{reason}</TooltipContent>}
                 </Tooltip>
               </ImageGenParamRow>
             );

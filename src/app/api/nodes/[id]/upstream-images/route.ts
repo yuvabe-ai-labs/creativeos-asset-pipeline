@@ -26,20 +26,27 @@ export async function GET(
     }
     const allUpstream = Array.from(seen.values());
 
-    // Only file and draw nodes with fileKind === "image" are valid frame sources.
-    // Image-gen node outputs are excluded — users must connect a File node instead.
+    // image-gen nodes are valid when directly connected to this node,
+    // but not when inherited through the grandparent (video-prompt) path.
+    const directIds = new Set(direct.map((u) => u.nodeId));
+
     const images = allUpstream
       .filter((u) => {
         if (u.type === "file" || u.type === "draw") {
           const d = u.data as Record<string, unknown>;
           return d.fileKind === "image" && typeof d.fileUrl === "string";
         }
+        if (u.type === "image-gen" && directIds.has(u.nodeId)) {
+          return typeof u.activeOutput === "string";
+        }
         return false;
       })
       .map((u) => ({
         id: u.nodeId,
         type: u.type,
-        imageUrl: (u.data as Record<string, unknown>).fileUrl as string,
+        imageUrl: u.type === "image-gen"
+          ? (u.activeOutput as string)
+          : ((u.data as Record<string, unknown>).fileUrl as string),
       }));
 
     // Surface the connected video-prompt node so the focus view can display the motion prompt text.

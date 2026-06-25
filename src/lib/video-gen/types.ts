@@ -43,6 +43,7 @@ export type ConstraintEffect = {
   lockParams?: Array<{ name: string; value: unknown }>;
   disableFrameInputs?: boolean;
   disableRefs?: boolean;
+  disableGenerate?: boolean;
 };
 
 export type ConstraintRule = {
@@ -66,6 +67,8 @@ export type EvaluatedConstraints = {
   disableFrameInputsReason?: string;
   disableRefs: boolean;
   disableRefsReason?: string;
+  disableGenerate: boolean;
+  disableGenerateReason?: string;
 };
 
 // ── Model specs ───────────────────────────────────────────────────────────────

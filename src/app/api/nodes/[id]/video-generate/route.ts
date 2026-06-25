@@ -62,22 +62,28 @@ export async function POST(
     ...videoPromptUpstream.filter((u) => !seenIds.has(u.nodeId)),
   ];
 
+  // image-gen nodes are valid when directly connected; not via the grandparent path.
+  const directIds = new Set(upstream.map((u) => u.nodeId));
+
   // Resolve image roles from upstream nodes
   let startFrameUrl: string | undefined;
   let endFrameUrl: string | undefined;
   const referenceUrls: string[] = [];
 
   for (const node of allUpstream) {
+    let url: string | undefined;
     if (node.type === "file" || node.type === "draw") {
       const data = node.data as Record<string, unknown>;
       if (data.fileKind !== "image") continue;
-      const url = typeof data.fileUrl === "string" ? data.fileUrl : undefined;
-      if (!url) continue;
-      const role = imageRoles[node.nodeId] ?? "reference";
-      if (role === "start_frame" && !startFrameUrl) startFrameUrl = url;
-      else if (role === "end_frame" && !endFrameUrl) endFrameUrl = url;
-      else if (role === "reference") referenceUrls.push(url);
+      url = typeof data.fileUrl === "string" ? data.fileUrl : undefined;
+    } else if (node.type === "image-gen" && directIds.has(node.nodeId)) {
+      url = typeof node.activeOutput === "string" ? node.activeOutput : undefined;
     }
+    if (!url) continue;
+    const role = imageRoles[node.nodeId] ?? "reference";
+    if (role === "start_frame" && !startFrameUrl) startFrameUrl = url;
+    else if (role === "end_frame" && !endFrameUrl) endFrameUrl = url;
+    else if (role === "reference") referenceUrls.push(url);
   }
 
   // Cap reference images at the model's declared limit

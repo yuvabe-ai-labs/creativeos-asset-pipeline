@@ -25,6 +25,18 @@ const VEO_LITE_RULES: ConstraintRule[] = [
     effect: { lockParams: [{ name: "duration", value: "8" }] },
     reason: "End frame requires 8s duration",
   },
+  {
+    id: "end-frame-requires-start-frame",
+    when: {
+      op: "and",
+      conditions: [
+        { field: "hasEndFrame", op: "eq", value: true },
+        { field: "hasStartFrame", op: "eq", value: false },
+      ],
+    },
+    effect: { disableGenerate: true },
+    reason: "End frame requires a start frame",
+  },
 ];
 
 const VEO_REFS_RULES: ConstraintRule[] = [
@@ -54,6 +66,18 @@ const VEO_REFS_RULES: ConstraintRule[] = [
     when: { field: "hasEndFrame", op: "eq", value: true },
     effect: { lockParams: [{ name: "duration", value: "8" }] },
     reason: "End frame requires 8s duration",
+  },
+  {
+    id: "end-frame-requires-start-frame",
+    when: {
+      op: "and",
+      conditions: [
+        { field: "hasEndFrame", op: "eq", value: true },
+        { field: "hasStartFrame", op: "eq", value: false },
+      ],
+    },
+    effect: { disableGenerate: true },
+    reason: "End frame requires a start frame",
   },
 ];
 

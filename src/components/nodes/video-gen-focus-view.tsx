@@ -53,6 +53,38 @@ import type { UpstreamImage, UpstreamPromptNode } from "@/lib/video-gen/api";
 
 type ImageRole = "start_frame" | "end_frame" | "reference";
 
+type ImageInputs = { startFrame: boolean; endFrame: boolean; maxReferenceImages: number };
+
+// Fill in default roles for any unassigned images:
+// - refs available → all images get "reference" (up to the cap)
+// - no refs → first unassigned = "start_frame", second = "end_frame"
+function applyDefaultImageRoles(
+  images: UpstreamImage[],
+  inputs: ImageInputs,
+  existing: Record<string, ImageRole>,
+): Record<string, ImageRole> {
+  if (images.length === 0) return existing;
+  const roles = { ...existing };
+  const unassigned = images.filter((img) => !(img.id in roles));
+  if (unassigned.length === 0) return roles;
+
+  if (inputs.maxReferenceImages > 0) {
+    const usedRefs = Object.values(roles).filter((r) => r === "reference").length;
+    const slots = inputs.maxReferenceImages - usedRefs;
+    unassigned.slice(0, slots).forEach((img) => { roles[img.id] = "reference"; });
+  } else {
+    let i = 0;
+    if (inputs.startFrame && !Object.values(roles).includes("start_frame") && unassigned[i]) {
+      roles[unassigned[i].id] = "start_frame";
+      i++;
+    }
+    if (inputs.endFrame && !Object.values(roles).includes("end_frame") && unassigned[i]) {
+      roles[unassigned[i].id] = "end_frame";
+    }
+  }
+  return roles;
+}
+
 type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -362,9 +394,7 @@ export function VideoGenFocusView({
 
   // Stable ref for onPatch — breaks the useCallback → useEffect dep cycle
   const onPatchRef = useRef(onPatch);
-  useEffect(() => {
-    onPatchRef.current = onPatch;
-  });
+  useEffect(() => { onPatchRef.current = onPatch; });
 
   // ── Data fetching ──────────────────────────────────────────────────────────
 
@@ -417,8 +447,17 @@ export function VideoGenFocusView({
       .then(({ images, promptNode: pn }) => {
         setUpstreamImages(images);
         setPromptNode(pn);
+        // Auto-assign default roles for any unassigned images
+        const inputs = videoGenClientModelMap[modelId]?.imageInputs;
+        if (inputs && images.length > 0) {
+          const withDefaults = applyDefaultImageRoles(images, inputs, imageRolesProp);
+          if (images.some((img) => img.id in withDefaults && !(img.id in imageRolesProp))) {
+            onPatchRef.current({ imageRoles: withDefaults });
+          }
+        }
       })
       .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, nodeId, setVideoGenGenerating, setVideoGenError]);
 
   // Refresh versions when a generation finishes (isGenerating transitions true → false)
@@ -450,7 +489,6 @@ export function VideoGenFocusView({
     const currentRoles = { ...imageRolesProp };
     let startFrameAssigned =
       Object.values(currentRoles).includes("start_frame");
-    let rolesChanged = false;
 
     if (nextInputs) {
       for (const [imageId, role] of Object.entries(currentRoles)) {
@@ -466,16 +504,15 @@ export function VideoGenFocusView({
           } else {
             delete currentRoles[imageId];
           }
-          rolesChanged = true;
         }
       }
     }
 
-    onPatch({
-      modelId: nextModelId,
-      params: defaults,
-      ...(rolesChanged ? { imageRoles: currentRoles } : {}),
-    });
+    const finalRoles = nextInputs
+      ? applyDefaultImageRoles(upstreamImages, nextInputs, currentRoles)
+      : currentRoles;
+
+    onPatch({ modelId: nextModelId, params: defaults, imageRoles: finalRoles });
   }
 
   function handleParamChange(name: string, value: unknown) {
@@ -486,12 +523,16 @@ export function VideoGenFocusView({
 
   function handleRoleChange(imageId: string, newRole: ImageRole) {
     const updated = { ...imageRolesProp };
-    if (newRole === "start_frame" || newRole === "end_frame") {
-      for (const [id, role] of Object.entries(updated)) {
-        if (id !== imageId && role === newRole) updated[id] = "reference";
+    if (updated[imageId] === newRole) {
+      delete updated[imageId];
+    } else {
+      if (newRole === "start_frame" || newRole === "end_frame") {
+        for (const [id, role] of Object.entries(updated)) {
+          if (id !== imageId && role === newRole) updated[id] = "reference";
+        }
       }
+      updated[imageId] = newRole;
     }
-    updated[imageId] = newRole;
     onPatch({ imageRoles: updated });
   }
 
@@ -505,7 +546,7 @@ export function VideoGenFocusView({
     try {
       await videoGenApi.startGeneration(nodeId, {
         modelId,
-        params,
+        params: effectiveParams,
         imageRoles: imageRolesProp,
         mock: useMock,
       });
@@ -548,24 +589,34 @@ export function VideoGenFocusView({
   );
   const constraints = evaluateConstraints(currentModel?.rules, constraintState);
 
-  // Auto-snap params to locked values when constraints fire
-  useEffect(() => {
-    const entries = Object.entries(constraints.lockedParams);
-    if (entries.length === 0) return;
+  // Merge locked values on top of user-chosen params — no state mutation needed
+  const effectiveParams = { ...params, ...constraints.lockedParams };
 
-    let changed = false;
-    const updated = { ...params };
-    for (const [name, value] of entries) {
-      if (params[name] !== value) {
-        updated[name] = value;
-        changed = true;
+  // Toast when locked params change — string key keeps dep array size constant
+  const lockedParamsKey = JSON.stringify(constraints.lockedParams);
+  const prevLockedRef = useRef<{ locked: Record<string, unknown>; reasons: Record<string, string> } | null>(null);
+  useEffect(() => {
+    const prev = prevLockedRef.current;
+    // Capture fresh values inside the effect (not during render)
+    prevLockedRef.current = { locked: constraints.lockedParams, reasons: constraints.lockedParamReasons };
+    if (prev === null) return; // skip mount
+
+    for (const [name, value] of Object.entries(constraints.lockedParams)) {
+      if (prev.locked[name] !== value) {
+        const reason = constraints.lockedParamReasons[name];
+        toast.info(
+          `${name.replace(/_/g, " ")} set to ${value}${reason ? ` · ${reason}` : ""}`,
+          { duration: 3500 },
+        );
       }
     }
-    if (!changed) return;
-
-    setParams(updated);
-    onPatchRef.current({ params: updated });
-  }, [imageRolesProp, modelId]);
+    for (const name of Object.keys(prev.locked)) {
+      if (!(name in constraints.lockedParams)) {
+        toast.info(`${name.replace(/_/g, " ")} unlocked`, { duration: 2500 });
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lockedParamsKey]);
 
   const mode: "skeleton" | "result" | "empty" = isGenerating
     ? "skeleton"
@@ -634,18 +685,27 @@ export function VideoGenFocusView({
                   {versions.length > 0 && (
                     <VideoGenUsagePopover versions={versions} />
                   )}
-                  <Button
-                    size="lg"
-                    onClick={handleGenerate}
-                    disabled={isGenerating}
-                  >
-                    <Sparkles className="size-4" strokeWidth={1.5} />
-                    {isGenerating
-                      ? "Generating…"
-                      : videoUrl
-                        ? "Re-generate"
-                        : "Generate"}
-                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger render={<span />}>
+                      <Button
+                        size="lg"
+                        onClick={handleGenerate}
+                        disabled={isGenerating || constraints.disableGenerate}
+                      >
+                        <Sparkles className="size-4" strokeWidth={1.5} />
+                        {isGenerating
+                          ? "Generating…"
+                          : videoUrl
+                            ? "Re-generate"
+                            : "Generate"}
+                      </Button>
+                    </TooltipTrigger>
+                    {constraints.disableGenerate && constraints.disableGenerateReason && (
+                      <TooltipContent side="bottom">
+                        {constraints.disableGenerateReason}
+                      </TooltipContent>
+                    )}
+                  </Tooltip>
                 </div>
                 {lastError && !isGenerating && (
                   <p className="text-xs text-destructive">

@@ -52,6 +52,7 @@ export function evaluateConstraints(
     lockedParamReasons: {},
     disableFrameInputs: false,
     disableRefs: false,
+    disableGenerate: false,
   };
 
   if (!rules) return result;
@@ -66,6 +67,10 @@ export function evaluateConstraints(
     if (rule.effect.disableRefs && !result.disableRefs) {
       result.disableRefs = true;
       result.disableRefsReason = rule.reason;
+    }
+    if (rule.effect.disableGenerate && !result.disableGenerate) {
+      result.disableGenerate = true;
+      result.disableGenerateReason = rule.reason;
     }
     for (const { name, value } of rule.effect.lockParams ?? []) {
       result.lockedParams[name] = value;
