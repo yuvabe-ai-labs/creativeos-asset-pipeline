@@ -169,7 +169,7 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
               {seedDescription || "(no shot text yet)"}
             </p>
 
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-4 sm:grid-cols-2">
               {loading &&
                 Array.from({ length: 4 }).map((_, i) => (
                   <div key={i} className="rounded-lg border border-border p-3">
