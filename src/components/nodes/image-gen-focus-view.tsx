@@ -565,14 +565,16 @@ export function ImageGenFocusView({
                 <Button
                   size="lg"
                   onClick={handleGenerate}
-                  disabled={generating || !promptUpstream}
+                  disabled={generating || editing || !promptUpstream}
                 >
                   <Sparkles className="size-4" strokeWidth={1.5} />
                   {generating
                     ? "Generating…"
-                    : imageUrl
-                      ? "Re-generate"
-                      : "Generate"}
+                    : editing
+                      ? "Editing…"
+                      : imageUrl
+                        ? "Re-generate"
+                        : "Generate"}
                 </Button>
               </div>
             </header>
@@ -662,7 +664,7 @@ export function ImageGenFocusView({
                   <div className="size-full animate-pulse rounded-xl bg-muted-foreground/15" />
                 )}
 
-                {mode === "empty" && (
+                {mode === "empty" && !editing && (
                   <div className="flex size-full items-center justify-center rounded-xl border border-dashed border-border">
                     <div className="text-center px-8">
                       <ImageIcon
@@ -681,6 +683,15 @@ export function ImageGenFocusView({
                   </div>
                 )}
 
+                {mode === "empty" && editing && (
+                  <div className="flex size-full items-center justify-center rounded-xl border border-border bg-muted/20">
+                    <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                      <Sparkles className="size-4 animate-pulse text-primary" strokeWidth={1.5} />
+                      Editing image…
+                    </div>
+                  </div>
+                )}
+
                 {mode === "result" && imageUrl && (
                   <div className="group relative size-full overflow-hidden rounded-xl border border-border bg-muted/20">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -689,6 +700,14 @@ export function ImageGenFocusView({
                       alt={title || "Generated image"}
                       className="size-full object-contain"
                     />
+                    {editing && (
+                      <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/60 backdrop-blur-sm">
+                        <div className="flex items-center gap-2 rounded-full border border-border bg-background/90 px-3 py-1.5 text-sm font-medium shadow-card">
+                          <Sparkles className="size-4 animate-pulse text-primary" strokeWidth={1.5} />
+                          Editing image…
+                        </div>
+                      </div>
+                    )}
                     <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                       <button
                         type="button"
