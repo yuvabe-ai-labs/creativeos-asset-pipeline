@@ -1,8 +1,9 @@
 import "server-only";
-import { getNodeActiveKB, getUpstreamOutputs } from "@/lib/db/nodes";
+import { getNodeActiveKB, getNodeData, getUpstreamOutputs } from "@/lib/db/nodes";
 import { buildParseContext, normalizeSlices, type KBSliceKey } from "@/lib/kb/parse-context";
-import { getNodeOutput } from "@/lib/nodes/node-output";
+import { getNodeOutput, renderShotForImage } from "@/lib/nodes/node-output";
 import { renderShotForVideo } from "@/lib/nodes/render-shot-for-video";
+import { selectImageUpstreams } from "@/lib/nodes/shot-compose";
 import type { ReelScript } from "@/lib/nodes/reel-script";
 
 const TYPE_LABEL: Record<string, string> = {
@@ -140,4 +141,38 @@ export async function resolveVideoPromptInputs(
   );
 
   return { clientContext, kbVersionId: kbCtx.kbVersionId, slices, upstream };
+}
+
+// resolveInputs for the Shot Composer (D28). The seed comes from the Shot's OWN data.script
+// (renderShotForImage = the D23 trim) — NOT an upstream walk, so the dashed Script->Shot
+// lineage edge is never followed (seed-and-fork, D21). Grounding images come only from
+// image-typed upstreams. Returns null when the node is missing (lets the route 404).
+export async function resolveShotComposeInputs(
+  nodeId: string,
+  slicesInput: unknown,
+): Promise<{
+  seedText: string;
+  clientContext: string;
+  kbVersionId: string | null;
+  slices: KBSliceKey[];
+  imageUpstream: UpstreamPreview[];
+} | null> {
+  const kbCtx = await getNodeActiveKB(nodeId);
+  if (!kbCtx) return null;
+
+  const data = await getNodeData(nodeId);
+  const script = (data?.script ?? null) as ReelScript | null;
+  const seedText = renderShotForImage(script);
+
+  const slices = normalizeSlices(slicesInput);
+  const clientContext = kbCtx.kb ? buildParseContext(kbCtx.kb, slices) : "";
+
+  const ups = await getUpstreamOutputs(nodeId);
+  const imageUpstream = selectImageUpstreams(
+    ups.map((u) => ({
+      nodeId: u.nodeId, type: u.type, data: u.data, activeOutput: u.activeOutput, versionId: u.versionId,
+    })),
+  );
+
+  return { seedText, clientContext, kbVersionId: kbCtx.kbVersionId, slices, imageUpstream };
 }
