@@ -41,6 +41,10 @@ export function ShotNode({ id, data, selected }: NodeProps) {
       onDelete={() => deleteNode(id)}
     >
       <div
+        onDoubleClick={(e) => {
+          e.stopPropagation();
+          setComposeOpen(true);
+        }}
         className={cn(
           "w-56 rounded-lg border border-border bg-card shadow-card",
           "transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:scale-[1.006]",
@@ -60,6 +64,7 @@ export function ShotNode({ id, data, selected }: NodeProps) {
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
+            onDoubleClick={(e) => e.stopPropagation()}
             placeholder="Shot description…"
             rows={4}
             className="nodrag w-full resize-none rounded-md bg-transparent px-1.5 py-1 text-sm focus:outline-none"

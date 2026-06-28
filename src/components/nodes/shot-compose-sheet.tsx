@@ -41,6 +41,8 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
     (s) => (s.nodes.find((n) => n.id === nodeId)?.data as { script?: ReelScript } | undefined)?.script,
   );
 
+  const seedDescription = currentScript?.visual_script?.shots?.[0]?.description ?? "";
+
   const [role, setRole] = useState<string>(DEFAULT_SHOT_ROLE);
   const [slices] = useState<KBSliceKey[]>(DEFAULT_PARSE_SLICES);
   const [ideas, setIdeas] = useState<ShotComposeIdea[]>([]);
@@ -108,7 +110,7 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="flex h-full w-full flex-col gap-0 p-0 sm:max-w-md">
+      <SheetContent side="bottom" className="flex max-h-[80vh] w-full flex-col gap-0 p-0">
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
             <Sparkles className="size-4 text-primary" strokeWidth={1.5} /> Compose variations
@@ -117,6 +119,13 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
             4 role-aware directions for this shot. Use one, or promote several to compare.
           </SheetDescription>
         </SheetHeader>
+
+        <div className="px-4 py-2">
+          <p className="text-eyebrow mb-1 text-[0.6rem]!">Current shot</p>
+          <p className="rounded-md border border-border bg-muted/30 px-2.5 py-2 text-xs text-muted-foreground">
+            {seedDescription || "(no shot text yet)"}
+          </p>
+        </div>
 
         <div className="flex items-center gap-2 px-4 py-2">
           <Select value={role} onValueChange={(v) => setRole(v as string)}>
@@ -142,7 +151,7 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 py-3">
-          <div className="grid gap-3">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {loading &&
               Array.from({ length: 4 }).map((_, i) => (
                 <div key={i} className="rounded-lg border border-border p-3">
@@ -193,10 +202,10 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
           </div>
         </div>
 
-        {picked.size >= 2 && (
+        {picked.size >= 1 && (
           <div className="border-t border-border px-4 py-3">
             <Button className="w-full" onClick={promote}>
-              Promote {picked.size} to sibling shots
+              Promote {picked.size} to sibling shot{picked.size > 1 ? "s" : ""}
             </Button>
           </div>
         )}
