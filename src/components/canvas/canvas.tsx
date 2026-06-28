@@ -163,6 +163,13 @@ export function Canvas({ canvasId }: { canvasId: string }) {
     void clipboardHasImage().then(setCanPaste);
   }, []);
 
+  // Returns the last recorded pointer position, or the viewport center when the
+  // user hasn't moved the mouse over the canvas yet (e.g. right after page load).
+  const pointerOrCenter = useCallback(
+    () => lastPointer.current ?? { x: window.innerWidth / 2, y: window.innerHeight / 2 },
+    [],
+  );
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       // Duplicate (existing behavior) — modified key, fires regardless of focus.
@@ -180,27 +187,26 @@ export function Canvas({ canvasId }: { canvasId: string }) {
       if (quickAddOpenRef.current) return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
 
-      // "/" opens the palette at the last pointer position.
+      // "/" opens the palette at the last pointer position (or viewport center).
       if (e.key === "/") {
-        const p = lastPointer.current;
-        if (!p) return;
+        const p = pointerOrCenter();
         e.preventDefault();
         openQuickAddAt(p.x, p.y);
         return;
       }
 
-      // Bare mnemonic letter → instant create at the last pointer position.
+      // Bare mnemonic letter → instant create at the last pointer position (or viewport center).
       const type = mnemonicToType(e.key);
       if (type) {
-        const p = lastPointer.current;
-        if (!p || !rfRef.current) return;
+        const p = pointerOrCenter();
+        if (!rfRef.current) return;
         e.preventDefault();
         handleAddNode(type, rfRef.current.screenToFlowPosition({ x: p.x, y: p.y }));
       }
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [duplicateNode, openQuickAddAt, handleAddNode]);
+  }, [duplicateNode, openQuickAddAt, handleAddNode, pointerOrCenter]);
 
   const isValidConnection = useCallback(
     (connection: Connection | Edge) => {

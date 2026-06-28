@@ -62,8 +62,10 @@ export function QuickAddMenu({
   const ref = useRef<HTMLDivElement>(null);
 
   // Flip left/up when the panel would overflow the viewport.
+  // When "Paste image" row is present the panel is taller by 44px — account for it.
+  const menuH = canPasteImage ? MENU_H + 44 : MENU_H;
   const x = screenX + MENU_W > window.innerWidth ? screenX - MENU_W : screenX;
-  const y = screenY + MENU_H > window.innerHeight ? screenY - MENU_H : screenY;
+  const y = screenY + menuH > window.innerHeight ? screenY - menuH : screenY;
 
   useEffect(() => {
     const onMouseDown = (e: MouseEvent) => {
