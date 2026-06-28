@@ -87,3 +87,16 @@ export async function listVersions(nodeId: string): Promise<NodeVersionRow[]> {
   if (error) throw error;
   return (data ?? []) as NodeVersionRow[];
 }
+
+// Fetch a single version row by id — used by the image-edit route to resolve the base
+// image (output) and carry forward its promptVersionId breadcrumb (spec §5).
+export async function getVersionById(versionId: string): Promise<NodeVersionRow | null> {
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("node_versions")
+    .select("*")
+    .eq("id", versionId)
+    .maybeSingle();
+  if (error) throw error;
+  return (data as NodeVersionRow | null) ?? null;
+}
