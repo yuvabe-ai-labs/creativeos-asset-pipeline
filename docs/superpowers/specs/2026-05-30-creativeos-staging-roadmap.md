@@ -614,6 +614,38 @@ correction signal extends to images via the edit chain). **D26 unchanged** — e
 same duration-driven execution substrate (synchronous today).
 **Originated.** `2026-06-28-image-editing-design.md`.
 
+### D28 — Shot Composer: role-aware divergent ideation as a *capture-only* action on the Shot node *(recorded 2026-06-28; refines D21/D23; builds on D22)*
+**Decision.** Add a **"Compose variations"** action on the Shot node that turns one thin shot
+seed into **4 role-aware, divergent, production-ready ideas**. The designer **picks one** to
+rewrite the shot's description (edit-at-source, D20), or **multi-selects** to **promote** extras
+into **sibling Shot nodes** (one per idea, **no edges** — human wires each, D11/§15). Inputs: the
+shot's **own** `data.script` run through `renderShotForImage` (the D23 trim) + a
+**designer-picked role** (required; no inference) + KB compliance/tone/personality slices +
+optionally a **vision-read reference image** wired to a new **image-grounding target handle** on
+the Shot (image-typed upstreams only — `file`/`draw`/`image-gen`). The role catalog
+(`shot-roles.ts`, 10 roles × `slots`/`avoid`) is a curated constant; "learned later" = refine it
+from evals. A compose run writes a `node_versions` row (D22 freezes `generated_output = {ideas}`)
+but is **NEVER made active** — so the Shot keeps rendering its own description (D19/D20 intact);
+on pick, the row's `output` folds in `{selectedIndex, finalDescription}` (the eval signal). No
+schema migration. Mechanically the route is ~the Video Prompt route (resolve KB+image →
+`buildUserContent` vision → LLM structured JSON → `insertVersion`), minus `setActiveVersion`.
+**Why.** Of the deep-research report's four ideas, three already exist (Prompt-node enrichment,
+duplicate-to-compare §15, KB compliance). The genuine gap is **divergent ideation** + a **role**
+concept the codebase lacked. Composing *after* fan-out (not a gate at fan-out) keeps fan-out
+instant and preserves "the human is the scheduler" (D11). Capture-without-activation is D22's own
+"two fields meant to differ" pattern (frozen provenance, not a second source of truth), so the
+Shot's invariants hold. Seed-from-own-data + image-only grounding mean the dashed Script→Shot
+lineage edge is never traversed (seed-and-fork, D21).
+**Rejected.** (a) Compose-then-materialize **gate at fan-out** — a blocking review screen, fights
+D11. (b) A dedicated **Shot Composer node type** — extra wiring/node. (c) **Role inference** —
+less predictable than a picked role. (d) Feeding the composer `strategic_objective` — re-introduces
+the Run-01 homogeneity D23 removed. (e) A user-facing **version panel** on the Shot — capture is
+enough for MVP.
+**Refines.** D21 (adds an enrichment action atop fan-out; keeps seed-and-fork), D23 (carries the
+image trim up into ideation). **Builds on** D22 (capture/freeze). **D19/D20 unchanged** (the Shot's
+output is still its own `data.script`; compose rows never go active).
+**Originated.** `2026-06-28-shot-composer-design.md`.
+
 ### Parked / out-of-scope (with revisit triggers)
 | Item | Status | Revisit when |
 |---|---|---|

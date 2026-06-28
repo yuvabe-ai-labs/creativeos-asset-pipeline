@@ -306,6 +306,17 @@ Generate nodes
 > (mark, don't block — D9/D21). Each Shot is the **through-line** that feeds a Prompt→Image now and
 > a Video clip later, and carries the duration/order the final reel assembly needs.
 
+> **Compose variations (D28).** A Shot node also offers a **"Compose"** action: pick a **role**
+> (hook / hero / texture / application / ingredient / tutorial / lifestyle / social-proof / bundle /
+> closure) and the composer returns **4 distinct, role-aware, production-ready ideas** from the
+> shot's own trimmed seed (D23) + KB compliance/tone + an optional **vision-read reference image**
+> (a new image-grounding target handle accepts a File/Draw/Image-Gen image). **Pick one** to
+> rewrite this shot's description (edit-at-source), or **multi-select** to **promote** extras into
+> sibling Shot nodes for comparison (no edges — human wires each). A compose run is **captured**
+> as a `node_versions` row (frozen `generated_output`, D22) but is **never made active**, so the
+> Shot keeps rendering its own description (D19/D20). Role-awareness is divergent ideation, not
+> generation — the model proposes; the human picks.
+
 > The **Script node** is *added alongside* the Brief node, not a replacement. A **brief** is
 > upstream creative direction the system summarizes; a **reel script** is a near-final spec
 > the system **extracts structure from**, so downstream nodes can address concrete fields
@@ -415,6 +426,9 @@ Inline files are local to that Prompt node. They are not automatically added to 
 | Script node | Prompt node | Use parsed reel-script fields (shots, on-screen text, voiceover, caption) as prompt context |
 | Script node | Shot nodes | **Dashed lineage edge** (provenance, not live data) drawn by "fan out shots" (seed-and-fork, D21); each shot becomes an independent Shot node carrying the full script narrowed to one shot |
 | Shot node | Prompt node | Use the shot's **visual description + production medium** as the prompt context for that shot's image (one image per shot, D21; trimmed per D23) |
+| File node: image | Shot node | **Image-ground** the Shot Composer — ideas echo the reference's palette/surface/props (D28; lands the Shot's image handle) |
+| Draw node | Shot node | **Image-ground** the Shot Composer with an in-canvas sketch (D28) |
+| Image Gen output | Shot node | **Image-ground** the Shot Composer with a generated still (D28) |
 | Text node | Prompt node | Add notes, constraints, or instructions |
 | File node: `.txt` | Prompt node | Use reference text |
 | File node: image | Prompt node | Use visual reference for prompt generation |
@@ -1057,6 +1071,7 @@ Create client (with a ready Brand KB)
 → Create canvas
 → Add or parse **reel script**
 → **Fan out shots** (one Shot node per shot — D21)
+→ *(optional)* **Compose variations** on a shot → pick one / promote siblings (D28)
 → For each shot: Generate image prompt (from the shot + KB)
 → Generate image
 → Approve image attempt
