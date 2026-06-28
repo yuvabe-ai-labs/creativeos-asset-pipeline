@@ -18,6 +18,12 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+  TooltipProvider,
+} from "@/components/ui/tooltip";
 
 type Props = {
   nodeId: string;
@@ -103,7 +109,8 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
   }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    <TooltipProvider>
+      <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="bottom"
         showCloseButton={false}
@@ -204,28 +211,44 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
                   >
                     <div className="mb-1 flex items-center justify-between">
                       <span className="text-sm font-medium">{idea.title}</span>
-                      <button
-                        type="button"
-                        onClick={() => togglePick(i)}
-                        aria-label={picked.has(i) ? "Unmark for promote" : "Mark for promote"}
-                        className={cn(
-                          "flex size-5 items-center justify-center rounded border transition-colors",
-                          picked.has(i)
-                            ? "border-primary bg-primary text-primary-foreground"
-                            : "border-border hover:border-primary/50",
-                        )}
-                      >
-                        {picked.has(i) && <Check className="size-3.5" />}
-                      </button>
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <button
+                              type="button"
+                              onClick={() => togglePick(i)}
+                              aria-label={picked.has(i) ? "Unmark for promote" : "Mark for promote"}
+                              className={cn(
+                                "flex size-5 items-center justify-center rounded border transition-colors",
+                                picked.has(i)
+                                  ? "border-primary bg-primary text-primary-foreground"
+                                  : "border-border hover:border-primary/50 hover:bg-primary/5",
+                              )}
+                            >
+                              {picked.has(i) && <Check className="size-3.5" />}
+                            </button>
+                          }
+                        />
+                        <TooltipContent>
+                          {picked.has(i) ? "Selected to promote" : "Select to promote into its own Shot"}
+                        </TooltipContent>
+                      </Tooltip>
                     </div>
                     {idea.bestFor && (
                       <p className="text-eyebrow mb-1 text-[0.6rem]!">best for · {idea.bestFor}</p>
                     )}
                     <p className="text-sm text-muted-foreground">{idea.description}</p>
                     <div className="mt-2 flex justify-end">
-                      <Button variant="outline" size="sm" onClick={() => applyIdea(idea, i)}>
-                        Use this shot
-                      </Button>
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <Button variant="outline" size="sm" onClick={() => applyIdea(idea, i)}>
+                              Use this shot
+                            </Button>
+                          }
+                        />
+                        <TooltipContent>Replace this shot&apos;s description with this idea</TooltipContent>
+                      </Tooltip>
                     </div>
                   </div>
                 ))}
@@ -243,7 +266,8 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
             </div>
           </div>
         )}
-      </SheetContent>
-    </Sheet>
+        </SheetContent>
+      </Sheet>
+    </TooltipProvider>
   );
 }
