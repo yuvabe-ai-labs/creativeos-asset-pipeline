@@ -49,6 +49,22 @@ export async function getNodeActiveKB(
   };
 }
 
+// Read a node's own persisted data (jsonb). Used by the composer to take its seed from the
+// Shot's OWN data.script (D28) rather than walking upstream (which would hit the dashed
+// Script->Shot lineage edge and re-import the whole reel — breaking seed-and-fork, D21).
+export async function getNodeData(
+  nodeId: string,
+): Promise<Record<string, unknown> | null> {
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("nodes")
+    .select("data")
+    .eq("id", nodeId)
+    .maybeSingle();
+  if (error) throw error;
+  return (data as { data: Record<string, unknown> | null } | null)?.data ?? null;
+}
+
 export async function listNodes(canvasId: string): Promise<NodeWithActive[]> {
   const supabase = createServerSupabase();
   // Embed the active version's output via the nodes.active_version_id FK
