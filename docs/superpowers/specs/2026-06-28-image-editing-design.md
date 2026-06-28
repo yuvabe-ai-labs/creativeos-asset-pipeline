@@ -1,8 +1,9 @@
 # Image Editing (targeted edits on an existing image) — Design
 
 **Date:** 2026-06-28
-**Status:** Design / spec (awaiting review → writing-plans). Recorded as **ADR D27** in
-`2026-05-30-creativeos-staging-roadmap.md` §7.
+**Status:** Approved → planned. Recorded as **ADR D27** in
+`2026-05-30-creativeos-staging-roadmap.md` §7. Implementation plan:
+`docs/superpowers/plans/2026-06-28-image-editing.md`.
 **Author:** Cyril + Claude
 **Relates to:** PRD §11.6 (Image Gen node), §12 (controls split), §13 (versioning), §4.4
 (learn from every attempt); D18/D19/D20/D22; the eval flywheel
