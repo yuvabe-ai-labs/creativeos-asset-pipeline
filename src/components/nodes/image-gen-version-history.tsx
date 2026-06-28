@@ -48,6 +48,8 @@ export function ImageGenVersionHistory({
 }: Props) {
   if (versions.length === 0) return null;
   const total = versions.length;
+  // versionId → "vN" label, so an edit can name the version it was derived from.
+  const labelById = new Map(versions.map((v, i) => [v.id, `v${total - i}`]));
 
   return (
     <div>
@@ -134,6 +136,17 @@ export function ImageGenVersionHistory({
                   {modelLabel && (
                     <p className="ml-3.5 mt-0.5 line-clamp-1 text-[0.7rem] leading-snug text-muted-foreground">
                       {modelLabel}
+                    </p>
+                  )}
+
+                  {v.inputsUsed?.baseVersionId && (
+                    <p className="ml-3.5 mt-0.5 text-[0.65rem] leading-snug text-primary/70">
+                      edited from {labelById.get(v.inputsUsed.baseVersionId) ?? "an earlier version"}
+                    </p>
+                  )}
+                  {v.inputsUsed?.instruction && (
+                    <p className="ml-3.5 mt-0.5 line-clamp-1 text-[0.7rem] leading-snug text-muted-foreground">
+                      “{v.inputsUsed.instruction}”
                     </p>
                   )}
                 </button>
