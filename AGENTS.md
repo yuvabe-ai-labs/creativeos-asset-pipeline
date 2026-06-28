@@ -4,6 +4,20 @@
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
 
+<!-- BEGIN:architecture-decisions -->
+# Architecture & decisions (ADR log)
+
+Before making — or silently re-deciding — any architectural choice, consult the **ADR log**:
+**[docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md](docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md) §7** (decisions **D1–D27**).
+It records *what* was chosen, *why*, and *what was rejected*, so decisions aren't quietly
+re-litigated. Per-feature design specs live alongside it under
+[docs/superpowers/specs/](docs/superpowers/specs/); the data-model "spine" is in
+`2026-05-30-creativeos-architecture.md`.
+
+**Keep one ADR log.** Append new decisions to §7 in place (Decision / Why / Rejected /
+Refines / Originated → spec) — do not scatter ADRs across individual specs or this file.
+<!-- END:architecture-decisions -->
+
 <!-- BEGIN:frontend-aesthetics -->
 # Frontend aesthetics — Yuvabe Studios design system
 
