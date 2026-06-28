@@ -269,10 +269,12 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
             </div>
 
             {/* RIGHT — variations */}
-            <div className="flex min-h-0 flex-1 flex-col px-6 py-6">
-              <SectionLabel icon={Sparkles} className="shrink-0">Variations</SectionLabel>
+            <div className="flex min-h-0 flex-1 flex-col py-6">
+              <div className="shrink-0 px-6">
+                <SectionLabel icon={Sparkles}>Variations</SectionLabel>
+              </div>
 
-              <div className="mt-3 min-h-0 flex-1 overflow-y-auto">
+              <div className="mt-3 min-h-0 flex-1 overflow-y-auto px-6 pt-1 pb-4">
                 <div className="grid gap-4 sm:grid-cols-2">
                   {loading &&
                     Array.from({ length: 4 }).map((_, i) => (
