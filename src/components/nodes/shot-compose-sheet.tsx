@@ -198,37 +198,46 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
         {/* body */}
         <div className="flex-1 overflow-y-auto">
           <div className="mx-auto w-full max-w-5xl px-6 py-6">
-            <p className="text-eyebrow mb-1 text-[0.6rem]!">Current shot</p>
-            <p className="mb-6 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
-              {seedDescription || "(no shot text yet)"}
-            </p>
-
-            {referenceImages.length > 0 && (
-              <div className="mb-6">
-                <p className="text-eyebrow mb-2 text-[0.6rem]!">
-                  Composition references · {referenceImages.length}
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {referenceImages.map((r) => (
-                    <div
-                      key={r.id}
-                      className="flex items-center gap-2 rounded-md border border-border bg-card p-1.5 pr-2.5 shadow-card"
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={r.url}
-                        alt={r.label}
-                        className="size-10 rounded object-cover"
-                      />
-                      <span className="max-w-32 truncate text-xs text-muted-foreground">{r.label}</span>
-                    </div>
-                  ))}
-                </div>
-                <p className="mt-1.5 text-[0.65rem] text-muted-foreground">
-                  Ideas will echo these references&apos; palette, surface, and props.
+            <div
+              className={cn(
+                "mb-6 grid gap-6",
+                referenceImages.length > 0 && "md:grid-cols-2",
+              )}
+            >
+              <div>
+                <p className="text-eyebrow mb-1 text-[0.6rem]!">Current shot</p>
+                <p className="rounded-md border border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
+                  {seedDescription || "(no shot text yet)"}
                 </p>
               </div>
-            )}
+
+              {referenceImages.length > 0 && (
+                <div>
+                  <p className="text-eyebrow mb-2 text-[0.6rem]!">
+                    Composition references · {referenceImages.length}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {referenceImages.map((r) => (
+                      <div
+                        key={r.id}
+                        className="flex items-center gap-2 rounded-md border border-border bg-card p-1.5 pr-2.5 shadow-card"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={r.url}
+                          alt={r.label}
+                          className="size-16 rounded object-cover"
+                        />
+                        <span className="max-w-32 truncate text-xs text-muted-foreground">{r.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="mt-1.5 text-[0.65rem] text-muted-foreground">
+                    Ideas will echo these references&apos; palette, surface, and props.
+                  </p>
+                </div>
+              )}
+            </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
               {loading &&
