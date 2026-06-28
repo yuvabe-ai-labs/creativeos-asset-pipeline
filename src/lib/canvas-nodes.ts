@@ -5,6 +5,7 @@ import type { NodeRow } from "@/lib/db/types";
 import type { KBSliceKey } from "@/lib/kb/parse-context";
 import type { ReelScript } from "@/lib/nodes/reel-script";
 import type { VideoControls } from "@/lib/nodes/video-controls";
+import type { EditIntent } from "@/lib/image-gen/edit-prompt";
 
 export type ScriptNodeData = {
   title?: string;
@@ -58,6 +59,8 @@ export type ImageGenNodeData = {
   modelId?: string;                   // e.g. "openai:gpt-image-2" — saved on node
   params?: Record<string, unknown>;   // last-used param values for selected model
   parsed?: unknown;                   // D19: active version output (image URL, display only — never persisted)
+  editInstruction?: string;           // current edit instruction (the delta), persisted; snapshotted per attempt
+  editIntent?: EditIntent;            // selected edit action (remove/replace/add/freeform)
 };
 
 export type VideoPromptNodeData = {

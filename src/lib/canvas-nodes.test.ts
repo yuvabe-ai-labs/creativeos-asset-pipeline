@@ -4,6 +4,8 @@ import {
   flowToPersisted,
   VALID_CONNECTIONS,
   type NodeWithActive,
+  type AppNode,
+  type ImageGenNodeData,
 } from "./canvas-nodes";
 
 function row(overrides: Partial<NodeWithActive> = {}): NodeWithActive {
@@ -65,5 +67,28 @@ describe("VALID_CONNECTIONS — draw node", () => {
 
   it("does not allow draw → script", () => {
     expect(VALID_CONNECTIONS.draw ?? []).not.toContain("script");
+  });
+});
+
+describe("flowToPersisted (image-gen edit fields)", () => {
+  it("persists editInstruction and editIntent, drops parsed", () => {
+    // Typed as ImageGenNodeData (no cast) so `tsc --noEmit` gates the new fields.
+    const data: ImageGenNodeData = {
+      title: "Hero",
+      editInstruction: "remove the cup",
+      editIntent: "remove",
+      parsed: "https://example.com/x.png",
+    };
+    const node = {
+      id: "img1",
+      type: "image-gen",
+      position: { x: 0, y: 0 },
+      data,
+    } as AppNode;
+
+    const persisted = flowToPersisted(node);
+    expect((persisted.data as { editInstruction?: string }).editInstruction).toBe("remove the cup");
+    expect((persisted.data as { editIntent?: string }).editIntent).toBe("remove");
+    expect((persisted.data as { parsed?: unknown }).parsed).toBeUndefined();
   });
 });
