@@ -42,11 +42,11 @@ gap is **workflow, prompt construction, and traceability**, not raw model capabi
 The "scenarios" collapse onto **two orthogonal axes**; everything else is a sub-case or a free
 property. This is deliberate (§4.1 *reuse, don't add cases*) — there is **one** edit path.
 
-**Axis A — the operation (what the model does) = the 2 templates (§6):**
-- **A1 · change in place** (no new image): *Remove* an element, or describe a change in words →
-  `change/remove` template.
-- **A2 · bring in an element from a reference image:** *Replace* / *Add* a product → `add/replace`
-  template.
+**Axis A — the operation (what the model does) = a distinct per-intent template (§6):**
+- **Remove** an element → a *remove* template (no reference).
+- **Replace** a product → a *replace* template (uses a connected product reference).
+- **Add** a product → an *add* template (uses a connected product reference).
+- **Freeform** (typed, no chip) → a generic *change-only* template.
 
 **Axis B — the base source (orthogonal; only changes how the base URL resolves, §7):**
 - **B1 ·** a generated attempt of this Image Gen node (`baseVersionId`).
@@ -58,9 +58,10 @@ property. This is deliberate (§4.1 *reuse, don't add cases*) — there is **one
 | **A2 · replace/add (+ref)** | swap the bottle in a generated still | add the product to an uploaded scene |
 
 **Free properties (not separate cases):** *iterative chaining* is just B1 with the base = the
-previous edit; *freeform* is A1 with no chip clicked. So the whole feature is **A (2) × B (2)**
-over one code path — the engine encodes A as 2 templates and B as 2 URL lookups; the **3 UI
-chips** (Remove · Replace · Add, §10) are sugar over those 2 templates.
+previous edit. So the feature is **operation × base source** over one code path — each of the
+**3 chips** (Remove · Replace · Add, §10) seeds a **distinct** per-intent template (freeform =
+typed, no chip), and B is 2 URL lookups. The composed prompt is then **editable** before running
+(§6, §10).
 
 ## 2. Goals
 
@@ -179,19 +180,23 @@ For **every** variation you can answer: *what base prompt* (`promptVersionId` �
 Preservation comes entirely from **prompt phrasing + image ordering**, not an API flag. A
 pure helper builds the edit prompt from the instruction using the Gemini doc templates:
 
-- **Change / remove (`remove`, `freeform`):** `"Using the provided image, change only
-  {instruction}. Keep everything else exactly the same — preserve the original style, lighting,
-  composition, and all other elements."`
-- **Add / replace with a reference (`replace`, `add`):** `"Using the first image as the
-  base scene, {instruction} using the product shown in the additional reference image(s).
-  Match the scene's lighting, perspective, and shadows. Keep everything else in the base
-  image unchanged."`
+- **`remove`:** `"Using the provided image, remove {instruction}. Keep everything else exactly
+  the same — preserve the original subject, style, lighting, composition, and all remaining
+  elements, and fill the vacated area so the edit is seamless."`
+- **`replace`:** `"Using the provided image as the base scene, replace {instruction} with the
+  product shown in the additional reference image(s). Match the original placement, scale,
+  perspective, lighting, and shadows. Keep everything else in the scene exactly the same."`
+- **`add`:** `"Using the provided image as the base scene, add {instruction} using the product
+  shown in the additional reference image(s). Integrate it naturally with realistic scale,
+  perspective, lighting, and shadows, and keep everything else in the scene exactly the same."`
+- **`freeform`:** `"Using the provided image, change only {instruction}. Keep everything else
+  exactly the same — preserve the original style, lighting, composition, and all other elements."`
 
-**Template selection by intent.** `editIntent` (§5.1) picks the template — `remove`/`freeform`
-→ change/remove; `replace`/`add` → add/replace. (`hasExtraReference` is the fallback
-when intent is absent, and a validation signal: `replace`/`add` *expect* a connected product
-reference — if none is connected we **warn, don't block**, D9/D21.) The raw operator
-instruction is interpolated; the scaffolding is deterministic so it stays a stable eval variable.
+**Template selection by intent.** `editIntent` (§5.1) picks a **distinct** template per action
+(`remove` / `replace` / `add`, else `freeform`); when intent is absent the fallback is `add` if a
+product reference is connected, else `freeform`. `replace`/`add` *expect* a connected product
+reference — if none is connected we **warn, don't block** (D9/D21). The raw operator instruction
+is interpolated into the chosen template.
 
 **Trace ≠ resend (deliberate).** The base prompt is *recorded* on every edit
 (`promptVersionId`) but is **not** resent to the edit model — the Gemini guide shows
@@ -202,11 +207,13 @@ model to regenerate. So: base prompt always **mapped** (provenance), never **res
 Helper lives at `src/lib/image-gen/edit-prompt.ts` —
 `buildEditPrompt({ instruction, intent, hasExtraReference }): string`. Pure, unit-tested.
 
-**Where the scaffold lives (deliberate).** The deterministic preservation wrapper stays
-**server-side** in `buildEditPrompt`; the instruction box holds only the human *delta* ("the
-cup on the table"), and the UI shows the **composed final prompt read-only before generation**
-(PRD §12 / D3). *Rejected:* dumping the full editable template into the box (pass-through) — it
-lets the preservation clause be mangled, so the template stops being a stable eval variable.
+**Editable final prompt.** `buildEditPrompt` is pure and shared (server *and* client), composing
+the per-intent template into the **editable Final prompt** the UI shows before running (PRD §12 /
+D3). The operator may hand-edit it; the edited text is what's sent (route accepts a `prompt`
+override) and is recorded in `inputs_used.editPrompt`. Picking a chip or changing the instruction
+re-derives it (clears the override). *Revises the original read-only decision:* operator control
+is now allowed to diverge from the deterministic scaffold — acceptable because the literal prompt
+sent is captured per attempt, so the eval trace stays complete.
 
 ## 7. Reference handling (base vs. extra)
 
@@ -281,9 +288,10 @@ In [image-gen-focus-view.tsx](../../../src/components/nodes/image-gen-focus-view
 - A compact **instruction textarea** (shadcn `Textarea` — never native, per house rule),
   bound to `data.editInstruction` via `onPatch`. Placeholder rotates the workflows
   ("remove the cup…", "replace the bottle with the product reference…", "add the product…").
-- A **composed-prompt preview** (read-only) showing `buildEditPrompt(...)` output before
-  generation — satisfies "the final compiled prompt is visible before generation" (PRD §12 /
-  D3). For `replace`/`add` with no product reference connected, an inline **warn** (not a block).
+- An **editable Final prompt** (`Textarea`) showing `buildEditPrompt(...)` output before
+  generation — satisfies "the final compiled prompt is visible before generation" (PRD §12 / D3).
+  The operator can hand-edit it; it re-derives when the chip/instruction changes. For
+  `replace`/`add` with no product reference connected, an inline **warn** (not a block).
 - An **Edit image** button → calls a new `handleEdit()` that POSTs the edit body
   (`{ modelId, params, intent, instruction, baseVersionId: activeVersionId }`), then `onPatch({
   parsed: newUrl })`, sets the new attempt active, refetches versions. Mirrors `handleGenerate`.
@@ -314,10 +322,10 @@ differ only in Axis B (how the base resolves), not in machinery:
 
 ## 12. Testing strategy (drives TDD in the plan)
 
-- **`buildEditPrompt` (pure):** unit tests — each intent selects the right template
-  (`remove`/`freeform` → change/remove; `replace`/`add` → add/replace), instruction
-  interpolation, fallback to `hasExtraReference` when intent is absent, no template leakage.
-  *(Write first, RED.)*
+- **`buildEditPrompt` (pure):** unit tests — each intent yields a **distinct** template
+  (`remove` / `replace` / `add` all differ; `freeform` generic), instruction interpolation,
+  fallback to `add` vs `freeform` by `hasExtraReference` when intent is absent, no template
+  leakage. *(Write first, RED.)*
 - **Route edit branch:** the request shape selects the edit path; base image resolves from
   **either** `baseVersionId` (lookup) **or** an explicit `baseImageUrl` (File/Draw source);
   `referenceUrls` is `[base, ...extras]` and clamped; `inputs_used` records `baseVersionId` +
@@ -350,8 +358,9 @@ differ only in Axis B (how the base resolves), not in machinery:
 - **Surface the edit actions as UI controls?** → Yes; **3** quick-action chips (Remove ·
   Replace · Add) that set `editIntent` and pre-fill the instruction box (§10). No "Modify" chip
   (same template as Remove); recolor/relight is typed as `freeform`.
-- **Where does the preservation scaffold live — box or server?** → Server (`buildEditPrompt`);
-  the box holds the delta, a read-only preview shows the composed prompt (§6, §10).
+- **Is the final prompt editable?** → Yes (revised). `buildEditPrompt` composes a per-intent
+  template the operator can hand-edit before running; the sent text is recorded in
+  `inputs_used.editPrompt` (§6, §10). Re-derives when chip/instruction changes.
 - **Edit an uploaded reference (not just a generated image)?** → In scope for v1 (§11) by reusing
   the existing connect-image-to-Image-Gen workflow; base = the connected image when no attempt
   exists. **No node-spawning / no new case** (§3, §4.1).
