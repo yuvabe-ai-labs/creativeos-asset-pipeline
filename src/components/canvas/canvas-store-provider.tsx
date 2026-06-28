@@ -43,3 +43,13 @@ export function useCanvasStore<T>(selector: (state: CanvasState) => T): T {
   }
   return useStore(store, selector);
 }
+
+// Raw store accessor — for reading the authoritative latest state synchronously
+// (e.g. the node list immediately after addNode), where a selector hook would lag.
+export function useCanvasStoreApi(): CanvasStore {
+  const store = useContext(CanvasStoreContext);
+  if (!store) {
+    throw new Error("useCanvasStoreApi must be used within <CanvasStoreProvider>");
+  }
+  return store;
+}
