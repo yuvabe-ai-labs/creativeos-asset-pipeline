@@ -590,8 +590,9 @@ an upload **reuses the existing connect-image-to-Image-Gen workflow, not a new n
 case**. Mechanically the whole feature is the existing generate pipeline with only `compile`
 swapped for a preservation `buildEditPrompt` (D3) — no second route, no Edit node, no
 node-creation action. The UI surfaces the actions as **3 quick-action chips** (Remove/Replace/Add)
-that set `editIntent` and pre-fill the instruction box; the deterministic preservation scaffold
-stays server-side (a read-only preview shows the composed prompt, D3). **No schema migration** —
+that set `editIntent` and pre-fill the instruction box. Each intent composes a **distinct**
+template; the composed text is shown as an **editable Final prompt** the operator can override
+before running (the sent text is recorded in `inputs_used.editPrompt`, D3). **No schema migration** —
 breadcrumbs are `inputs_used` jsonb. The base prompt is
 **recorded** on every variation but **not resent** to the edit model (instruction-only edits
 preserve better — Gemini image-editing guide). Default to a Gemini editing model (Nano Banana

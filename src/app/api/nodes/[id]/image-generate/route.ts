@@ -35,6 +35,7 @@ export async function POST(
         params?: unknown;
         instruction?: unknown;
         intent?: unknown;
+        prompt?: unknown;
         baseVersionId?: unknown;
         baseImageUrl?: unknown;
       }
@@ -108,16 +109,22 @@ export async function POST(
       max: config.maxReferenceImages,
     });
     const intent = asIntent(body?.intent) ?? "freeform";
-    prompt = buildEditPrompt({
-      instruction,
-      intent,
-      hasExtraReference: extraReferenceUrls.length > 0,
-    });
+    // Use the operator's (possibly hand-edited) final prompt when provided; otherwise compose
+    // it from the per-intent template. The literal prompt sent is recorded for traceability.
+    const editedPrompt = typeof body?.prompt === "string" ? body.prompt.trim() : "";
+    prompt =
+      editedPrompt ||
+      buildEditPrompt({
+        instruction,
+        intent,
+        hasExtraReference: extraReferenceUrls.length > 0,
+      });
     inputsUsed = {
       promptVersionId: carriedPromptVersionId,
       baseVersionId: baseVersionId ?? null,
       intent,
       instruction,
+      editPrompt: prompt,
       extraReferenceUrls,
     };
   } else {

@@ -4,32 +4,43 @@
 export type EditIntent = "remove" | "replace" | "add" | "freeform";
 
 // The preservation behavior is carried entirely by prompt phrasing (Gemini image-editing
-// guide). `intent` picks the template; `hasExtraReference` is the fallback when intent is
-// absent. The scaffolding is deterministic so it stays a stable eval variable (spec §6).
+// guide). Each intent has a DISTINCT template so the three quick-action chips never produce
+// the same prompt; when intent is absent we fall back by whether a product reference is
+// connected (add vs freeform). The result is the editable starting point shown in the UI.
 export function buildEditPrompt(input: {
   instruction: string;
   intent?: EditIntent;
   hasExtraReference?: boolean;
 }): string {
   const instruction = input.instruction.trim();
-  const useReferenceTemplate =
-    input.intent === "replace" || input.intent === "add"
-      ? true
-      : input.intent === "remove" || input.intent === "freeform"
-        ? false
-        : Boolean(input.hasExtraReference);
+  const intent = input.intent ?? (input.hasExtraReference ? "add" : "freeform");
 
-  if (useReferenceTemplate) {
-    return (
-      `Using the first image as the base scene, ${instruction} using the product shown in ` +
-      `the additional reference image(s). Match the scene's lighting, perspective, and shadows. ` +
-      `Keep everything else in the base image unchanged.`
-    );
+  switch (intent) {
+    case "remove":
+      return (
+        `Using the provided image, remove ${instruction}. Keep everything else exactly the ` +
+        `same — preserve the original subject, style, lighting, composition, and all remaining ` +
+        `elements, and fill the vacated area so the edit is seamless.`
+      );
+    case "replace":
+      return (
+        `Using the provided image as the base scene, replace ${instruction} with the product ` +
+        `shown in the additional reference image(s). Match the original placement, scale, ` +
+        `perspective, lighting, and shadows. Keep everything else in the scene exactly the same.`
+      );
+    case "add":
+      return (
+        `Using the provided image as the base scene, add ${instruction} using the product shown ` +
+        `in the additional reference image(s). Integrate it naturally with realistic scale, ` +
+        `perspective, lighting, and shadows, and keep everything else in the scene exactly the same.`
+      );
+    case "freeform":
+    default:
+      return (
+        `Using the provided image, change only ${instruction}. Keep everything else exactly the ` +
+        `same — preserve the original style, lighting, composition, and all other elements.`
+      );
   }
-  return (
-    `Using the provided image, change only ${instruction}. Keep everything else exactly the ` +
-    `same — preserve the original style, lighting, composition, and all other elements.`
-  );
 }
 
 // Ordered reference list for an edit: base image first (Gemini treats the first image as the

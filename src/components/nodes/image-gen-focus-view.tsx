@@ -178,6 +178,8 @@ export function ImageGenFocusView({
   const [editing, setEditing] = useState(false);
   const [editInstr, setEditInstr] = useState(editInstruction ?? "");
   const [intent, setIntent] = useState<EditIntent>(editIntent ?? "freeform");
+  // null = follow the per-intent template; a string = the operator's hand-edited final prompt.
+  const [promptOverride, setPromptOverride] = useState<string | null>(null);
   const [versions, setVersions] = useState<ImageGenVersionSummary[]>([]);
   const [activeVersionId, setActiveVersionId] = useState<string | null>(null);
   const [restoring, setRestoring] = useState(false);
@@ -284,9 +286,12 @@ export function ImageGenFocusView({
     : Math.max(0, connectedImageUrls.length - 1);
   const hasExtraReference = extraReferenceCount > 0;
 
+  // Final prompt = the per-intent template, unless the operator has hand-edited it (override).
+  // Picking a chip or changing the instruction clears the override so the template re-derives.
   const composedPrompt = editInstr.trim()
     ? buildEditPrompt({ instruction: editInstr, intent, hasExtraReference })
     : "";
+  const finalPrompt = promptOverride ?? composedPrompt;
   const referenceWarning =
     (intent === "replace" || intent === "add") && !hasExtraReference;
   const suggestGemini = model.provider !== "gemini";
@@ -390,6 +395,7 @@ export function ImageGenFocusView({
 
   function handlePickChip(nextIntent: EditIntent, starter: string) {
     setIntent(nextIntent);
+    setPromptOverride(null); // re-derive the final prompt for the new action
     if (!editInstr.trim()) {
       setEditInstr(starter);
       onPatch({ editIntent: nextIntent, editInstruction: starter });
@@ -400,6 +406,7 @@ export function ImageGenFocusView({
 
   function handleInstructionChange(v: string) {
     setEditInstr(v);
+    setPromptOverride(null); // re-derive from the template as the instruction changes
   }
 
   function handleInstructionBlur() {
@@ -423,6 +430,7 @@ export function ImageGenFocusView({
           params: paramValues,
           instruction: editInstr,
           intent,
+          prompt: finalPrompt,
           ...(baseVersionId ? { baseVersionId } : { baseImageUrl }),
         }),
       });
@@ -565,14 +573,16 @@ export function ImageGenFocusView({
                 <Button
                   size="lg"
                   onClick={handleGenerate}
-                  disabled={generating || !promptUpstream}
+                  disabled={generating || editing || !promptUpstream}
                 >
                   <Sparkles className="size-4" strokeWidth={1.5} />
                   {generating
                     ? "Generating…"
-                    : imageUrl
-                      ? "Re-generate"
-                      : "Generate"}
+                    : editing
+                      ? "Editing…"
+                      : imageUrl
+                        ? "Re-generate"
+                        : "Generate"}
                 </Button>
               </div>
             </header>
@@ -588,7 +598,7 @@ export function ImageGenFocusView({
                 <ImageGenEditPanel
                   intent={intent}
                   instruction={editInstr}
-                  composedPrompt={composedPrompt}
+                  finalPrompt={finalPrompt}
                   editing={editing}
                   canEdit={canEditBase}
                   referenceWarning={referenceWarning}
@@ -596,6 +606,7 @@ export function ImageGenFocusView({
                   onPickChip={handlePickChip}
                   onInstructionChange={handleInstructionChange}
                   onInstructionBlur={handleInstructionBlur}
+                  onFinalPromptChange={setPromptOverride}
                   onEdit={handleEdit}
                 />
               )}
@@ -662,7 +673,7 @@ export function ImageGenFocusView({
                   <div className="size-full animate-pulse rounded-xl bg-muted-foreground/15" />
                 )}
 
-                {mode === "empty" && (
+                {mode === "empty" && !editing && (
                   <div className="flex size-full items-center justify-center rounded-xl border border-dashed border-border">
                     <div className="text-center px-8">
                       <ImageIcon
@@ -681,6 +692,15 @@ export function ImageGenFocusView({
                   </div>
                 )}
 
+                {mode === "empty" && editing && (
+                  <div className="flex size-full items-center justify-center rounded-xl border border-border bg-muted/20">
+                    <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                      <Sparkles className="size-4 animate-pulse text-primary" strokeWidth={1.5} />
+                      Editing image…
+                    </div>
+                  </div>
+                )}
+
                 {mode === "result" && imageUrl && (
                   <div className="group relative size-full overflow-hidden rounded-xl border border-border bg-muted/20">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -689,6 +709,14 @@ export function ImageGenFocusView({
                       alt={title || "Generated image"}
                       className="size-full object-contain"
                     />
+                    {editing && (
+                      <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/60 backdrop-blur-sm">
+                        <div className="flex items-center gap-2 rounded-full border border-border bg-background/90 px-3 py-1.5 text-sm font-medium shadow-card">
+                          <Sparkles className="size-4 animate-pulse text-primary" strokeWidth={1.5} />
+                          Editing image…
+                        </div>
+                      </div>
+                    )}
                     <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                       <button
                         type="button"

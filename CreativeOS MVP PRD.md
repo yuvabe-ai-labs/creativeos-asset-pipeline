@@ -30,6 +30,7 @@
 | 11 | **One generation substrate (image + video).** Generation execution is chosen by **duration, not modality**: **synchronous** in-request when the model returns in time (image today), **async** submit→reconcile→graduate when long-running (video). Both share the one `generations` job row — image is the sync fast path, not a different mechanism. | §11.6, §20 | D26 |
 | 12 | **Image editing is a new *attempt*, not a node.** A targeted **remove / replace / add** edit on the Image Gen node's current image is a new **generation attempt** in that node's version log (not a separate Edit node, not an in-place overwrite — an edit runs the model, so by D18 it is an attempt). Surfaced as Remove/Replace/Add quick-action chips; a deterministic preservation prompt goes to an editing-capable model (Gemini default). Lineage breadcrumbs in `inputs_used`; no schema change. | §7.3, §11.6, §17 | D27 |
 | 13 | **Shot Composer.** A capture-only **"Compose variations"** action on the Shot node turns one thin shot seed into **4 role-aware, divergent ideas** (designer-picked role + KB compliance/tone + optional vision-read reference image on a new Shot image handle). Pick one to rewrite the shot's description, or multi-select to **promote** extras into sibling Shot nodes. Runs are captured in `node_versions` (frozen `generated_output`, **never made active** — Shot output stays its own `data.script`, D19/D20); no schema change. | §7.1, §10, §14 | D28 |
+| 14 | **Quick-add node palette + keyboard shortcuts.** Adding a node is now keyboard-first: `/` (or right-click) opens a type-to-filter command palette **at the cursor**; single-letter mnemonics (S/F/N/P/D/I/V/G) create a node instantly at the cursor without opening the palette. The palette is the single "add node" surface (`/` and right-click open the same thing), replacing the plain right-click context menu, and still offers **Paste image** when the clipboard holds one. Shortcuts are suppressed while editing a node's text. | §6 | spec: `docs/superpowers/specs/2026-06-28-quick-add-node-palette-design.md` |
 
 Everything below the changelog is the full PRD with these changes applied. Sections
 not touched by the Script-node revision (problem, principles, downstream Prompt/Image/
@@ -247,6 +248,16 @@ A canvas is one creative project.
 It contains nodes.
 
 Operators manually create, duplicate, connect, and arrange nodes.
+
+**Adding nodes.** Open the quick-add palette at the cursor by pressing `/` or
+right-clicking the canvas, then type to filter and press Enter (or click) to drop the
+node where the cursor sits. Power users can skip the palette entirely — a single-letter
+mnemonic creates that node type instantly at the cursor: **S** Script, **F** File,
+**N** Note, **P** Prompt, **D** Draw, **I** Image Gen, **V** Video Prompt, **G** Video
+Gen. Keyboard shortcuts are suppressed while a node's text field is focused, so typing
+into a node never spawns a node. Other canvas shortcuts: **⌘/Ctrl + D** duplicates the
+selection, **Backspace / Delete** removes it. When the clipboard holds an image, the
+palette also offers **Paste image** (creates a File node at the cursor).
 
 ### Node level
 
@@ -692,14 +703,14 @@ No uploaded video references in MVP.
 
 * Uploaded `.txt`
 * Uploaded image
-* Image **pasted from the clipboard** (canvas right-click → **Paste image**)
+* Image **pasted from the clipboard** (quick-add palette — `/` or right-click → **Paste image**)
 * `.txt` selected from client files
 * Image selected from client files
 
 #### Actions
 
 * Upload/select file
-* Paste an image from the clipboard (canvas right-click → **Paste image** — creates a File node at the cursor; only offered when the clipboard holds an image)
+* Paste an image from the clipboard (quick-add palette — `/` or right-click → **Paste image** — creates a File node at the cursor; only offered when the clipboard holds an image)
 * Replace file
 * Toggle Use LLM
 * Edit extraction schema/prompt

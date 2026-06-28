@@ -2,6 +2,7 @@
 
 import "@xyflow/react/dist/style.css";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
 import {
   Background,
   BackgroundVariant,
@@ -30,7 +31,8 @@ import { VideoPromptNode } from "@/components/nodes/video-prompt-node";
 import { VideoGenNode } from "@/components/nodes/video-gen-node";
 import { useCanvasStore, useCanvasStoreApi } from "./canvas-store-provider";
 import { CanvasAutosave } from "./canvas-autosave";
-import { CanvasContextMenu } from "./canvas-context-menu";
+import { QuickAddMenu } from "./quick-add-menu";
+import { mnemonicToType, isEditableTarget } from "@/lib/canvas-node-options";
 
 // Register custom node types once (stable reference — never inline this object).
 const nodeTypes: NodeTypes = {
@@ -85,12 +87,19 @@ export function Canvas({ canvasId }: { canvasId: string }) {
   const rfRef = useRef<{
     screenToFlowPosition: (pos: { x: number; y: number }) => XYPosition;
   } | null>(null);
-  const [contextMenu, setContextMenu] = useState<{
+  const [quickAdd, setQuickAdd] = useState<{
     screenX: number;
     screenY: number;
     flowPos: XYPosition;
   } | null>(null);
   const [canPaste, setCanPaste] = useState(false);
+  // Last pointer position over the pane (screen coords) — where keyboard-opened
+  // palette and instant mnemonics place the new node.
+  const lastPointer = useRef<{ x: number; y: number } | null>(null);
+  const quickAddOpenRef = useRef(false);
+  useEffect(() => {
+    quickAddOpenRef.current = quickAdd !== null;
+  }, [quickAdd]);
 
   const handleAddNode = useCallback(
     (type: string, position: XYPosition) => {
@@ -146,18 +155,58 @@ export function Canvas({ canvasId }: { canvasId: string }) {
     [addNode, updateNodeData, deleteNode, canvasId, storeApi],
   );
 
+  const openQuickAddAt = useCallback((screenX: number, screenY: number) => {
+    if (!rfRef.current) return;
+    const flowPos = rfRef.current.screenToFlowPosition({ x: screenX, y: screenY });
+    setQuickAdd({ screenX, screenY, flowPos });
+    setCanPaste(false);
+    void clipboardHasImage().then(setCanPaste);
+  }, []);
+
+  // Returns the last recorded pointer position, or the viewport center when the
+  // user hasn't moved the mouse over the canvas yet (e.g. right after page load).
+  const pointerOrCenter = useCallback(
+    () => lastPointer.current ?? { x: window.innerWidth / 2, y: window.innerHeight / 2 },
+    [],
+  );
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      // Duplicate (existing behavior) — modified key, fires regardless of focus.
       if ((e.ctrlKey || e.metaKey) && e.key === "d") {
         e.preventDefault();
         nodesRef.current
           .filter((n) => n.selected && n.type !== "kb")
           .forEach((n) => duplicateNode(n.id));
+        return;
+      }
+
+      // The following shortcuts must not fire while typing or while the palette
+      // is already open (its input owns the keystrokes).
+      if (isEditableTarget(document.activeElement)) return;
+      if (quickAddOpenRef.current) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+      // "/" opens the palette at the last pointer position (or viewport center).
+      if (e.key === "/") {
+        const p = pointerOrCenter();
+        e.preventDefault();
+        openQuickAddAt(p.x, p.y);
+        return;
+      }
+
+      // Bare mnemonic letter → instant create at the last pointer position (or viewport center).
+      const type = mnemonicToType(e.key);
+      if (type) {
+        const p = pointerOrCenter();
+        if (!rfRef.current) return;
+        e.preventDefault();
+        handleAddNode(type, rfRef.current.screenToFlowPosition({ x: p.x, y: p.y }));
       }
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [duplicateNode]);
+  }, [duplicateNode, openQuickAddAt, handleAddNode, pointerOrCenter]);
 
   const isValidConnection = useCallback(
     (connection: Connection | Edge) => {
@@ -231,14 +280,14 @@ export function Canvas({ canvasId }: { canvasId: string }) {
     <div className="absolute inset-0 bg-[var(--neutral-50)]">
       <CanvasAutosave canvasId={canvasId} />
 
-      {contextMenu && (
-        <CanvasContextMenu
-          screenX={contextMenu.screenX}
-          screenY={contextMenu.screenY}
-          onSelect={(type) => handleAddNode(type, contextMenu.flowPos)}
-          onClose={() => setContextMenu(null)}
+      {quickAdd && (
+        <QuickAddMenu
+          screenX={quickAdd.screenX}
+          screenY={quickAdd.screenY}
+          onSelect={(type) => handleAddNode(type, quickAdd.flowPos)}
+          onClose={() => { setQuickAdd(null); setCanPaste(false); }}
           canPasteImage={canPaste}
-          onPasteImage={() => handlePasteImage(contextMenu.flowPos)}
+          onPasteImage={() => handlePasteImage(quickAdd.flowPos)}
         />
       )}
 
@@ -262,18 +311,14 @@ export function Canvas({ canvasId }: { canvasId: string }) {
         onInit={(instance) => {
           rfRef.current = instance;
         }}
+        onPointerMove={(e) => {
+          lastPointer.current = { x: e.clientX, y: e.clientY };
+        }}
         onPaneContextMenu={(e) => {
           e.preventDefault();
-          if (!rfRef.current) return;
-          const flowPos = rfRef.current.screenToFlowPosition({
-            x: e.clientX,
-            y: e.clientY,
-          });
-          setContextMenu({ screenX: e.clientX, screenY: e.clientY, flowPos });
-          setCanPaste(false);
-          void clipboardHasImage().then(setCanPaste);
+          openQuickAddAt(e.clientX, e.clientY);
         }}
-        onPaneClick={() => { setContextMenu(null); setCanPaste(false); }}
+        onPaneClick={() => { setQuickAdd(null); setCanPaste(false); }}
       >
         <Background
           variant={BackgroundVariant.Dots}
