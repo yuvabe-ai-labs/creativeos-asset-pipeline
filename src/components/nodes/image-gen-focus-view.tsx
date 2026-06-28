@@ -35,6 +35,8 @@ import {
   type ImageGenVersionSummary,
 } from "./image-gen-version-history";
 import { ImageGenUsagePopover } from "./image-gen-usage-popover";
+import { ImageGenEditPanel } from "./image-gen-edit-panel";
+import { buildEditPrompt, type EditIntent } from "@/lib/image-gen/edit-prompt";
 import { InlineEvalBar } from "./inline-eval-bar";
 import { setVersionLabelAction } from "@/lib/actions/eval";
 import {
@@ -52,6 +54,8 @@ export type ImageGenFocusViewProps = {
   imageUrl: string | null;
   modelId?: string;
   params?: Record<string, unknown>;
+  editInstruction?: string;
+  editIntent?: EditIntent;
   upstream: Array<{
     id: string;
     type: string;
@@ -155,6 +159,8 @@ export function ImageGenFocusView({
   imageUrl,
   modelId,
   params,
+  editInstruction,
+  editIntent,
   upstream,
   onPatch,
 }: ImageGenFocusViewProps) {
@@ -169,6 +175,9 @@ export function ImageGenFocusView({
   }));
 
   const [generating, setGenerating] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editInstr, setEditInstr] = useState(editInstruction ?? "");
+  const [intent, setIntent] = useState<EditIntent>(editIntent ?? "freeform");
   const [versions, setVersions] = useState<ImageGenVersionSummary[]>([]);
   const [activeVersionId, setActiveVersionId] = useState<string | null>(null);
   const [restoring, setRestoring] = useState(false);
@@ -257,6 +266,30 @@ export function ImageGenFocusView({
     return false;
   }).length;
   const refOverLimit = referenceCount > model.maxReferenceImages;
+
+  // ── Edit-this-image derived values ──────────────────────────────────────────
+  // Connected image URLs (file/draw/image-gen all expose fileUrl in `upstream`).
+  const connectedImageUrls = upstream
+    .filter((u) => (u.type === "file" || u.type === "draw" || u.type === "image-gen") && !!u.fileUrl)
+    .map((u) => u.fileUrl as string);
+  const firstConnectedImageUrl = connectedImageUrls[0];
+
+  // Base = the node's current image: the active attempt if present, else a connected image.
+  const baseIsAttempt = Boolean(activeVersionId);
+  const canEditBase = baseIsAttempt || Boolean(firstConnectedImageUrl);
+  // Extras = the other connected images (the "product to add"). When the base is itself a
+  // connected image, it is not also an extra.
+  const extraReferenceCount = baseIsAttempt
+    ? connectedImageUrls.length
+    : Math.max(0, connectedImageUrls.length - 1);
+  const hasExtraReference = extraReferenceCount > 0;
+
+  const composedPrompt = editInstr.trim()
+    ? buildEditPrompt({ instruction: editInstr, intent, hasExtraReference })
+    : "";
+  const referenceWarning =
+    (intent === "replace" || intent === "add") && !hasExtraReference;
+  const suggestGemini = model.provider !== "gemini";
 
   const upstreamForCard: UpstreamNode[] = useMemo(
     () =>
@@ -352,6 +385,62 @@ export function ImageGenFocusView({
       await fetchVersions();
     } finally {
       setGenerating(false);
+    }
+  }
+
+  function handlePickChip(nextIntent: EditIntent, starter: string) {
+    setIntent(nextIntent);
+    if (!editInstr.trim()) {
+      setEditInstr(starter);
+      onPatch({ editIntent: nextIntent, editInstruction: starter });
+    } else {
+      onPatch({ editIntent: nextIntent });
+    }
+  }
+
+  function handleInstructionChange(v: string) {
+    setEditInstr(v);
+  }
+
+  function handleInstructionBlur() {
+    onPatch({ editInstruction: editInstr });
+  }
+
+  async function handleEdit() {
+    const baseVersionId = activeVersionId ?? undefined;
+    const baseImageUrl = baseVersionId ? undefined : firstConnectedImageUrl;
+    if (!baseVersionId && !baseImageUrl) {
+      toast.error("Generate an image, or connect an image reference, to edit it.");
+      return;
+    }
+    setEditing(true);
+    try {
+      const res = await fetch(`/api/nodes/${nodeId}/image-generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          modelId: model.id,
+          params: paramValues,
+          instruction: editInstr,
+          intent,
+          ...(baseVersionId ? { baseVersionId } : { baseImageUrl }),
+        }),
+      });
+      const json = (await res.json()) as {
+        imageUrl?: string;
+        versionId?: string;
+        error?: string;
+      };
+      if (!res.ok || !json.imageUrl) throw new Error(json.error ?? "Edit failed");
+      onPatch({ parsed: json.imageUrl });
+      setActiveVersionId(json.versionId ?? null);
+      await fetchVersions();
+      toast.success("Image edited");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Edit failed");
+      await fetchVersions();
+    } finally {
+      setEditing(false);
     }
   }
 
@@ -495,6 +584,22 @@ export function ImageGenFocusView({
           <div className="w-full max-w-5xl flex min-h-0 overflow-hidden">
             {/* Left panel */}
             <div className="w-[40%] border-r border-border overflow-y-auto px-6 py-6 flex flex-col gap-6">
+              {canEditBase && (
+                <ImageGenEditPanel
+                  intent={intent}
+                  instruction={editInstr}
+                  composedPrompt={composedPrompt}
+                  editing={editing}
+                  canEdit={canEditBase}
+                  referenceWarning={referenceWarning}
+                  suggestGemini={suggestGemini}
+                  onPickChip={handlePickChip}
+                  onInstructionChange={handleInstructionChange}
+                  onInstructionBlur={handleInstructionBlur}
+                  onEdit={handleEdit}
+                />
+              )}
+
               {versions.length > 0 && (
                 <ImageGenVersionHistory
                   versions={versions}
