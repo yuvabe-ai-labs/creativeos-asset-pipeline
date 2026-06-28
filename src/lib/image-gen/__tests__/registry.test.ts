@@ -5,12 +5,13 @@ const EXPECTED_IDS = [
   "openai:gpt-image-2",
   "openai:gpt-image-1",
   "openai:gpt-image-1-mini",
-  "gemini:gemini-3.1-flash-image-preview",
-  "gemini:gemini-3-pro-image-preview",
+  "gemini:gemini-2.5-flash-image",
+  "gemini:gemini-3.1-flash-image",
+  "gemini:gemini-3-pro-image",
 ];
 
 describe("imageGenRegistry", () => {
-  it("contains all 5 expected models", () => {
+  it("contains all 6 expected models", () => {
     for (const id of EXPECTED_IDS) {
       expect(imageGenRegistry[id], `missing model: ${id}`).toBeDefined();
     }
