@@ -581,15 +581,18 @@ append-only version log** (`insertVersion` → `setActive`) — **not** a new "I
 and **not** an in-place output edit (`updateActiveVersionOutput`). Because an edit calls the
 model and produces new bytes, it **is** an LLM attempt (D18). The attempt's `inputs_used`
 carries lineage breadcrumbs: `baseVersionId` (the attempt it was derived from), `intent`
-(`remove`/`modify`/`replace`/`add`/`freeform`), `instruction` (the edit text),
-`extraReferenceUrls` (e.g. a product to add), and a **carried-forward** `promptVersionId` (the
-base prompt that seeded the image family). The working `editInstruction` + `editIntent` live on
-`nodes.data` (human-authored config, D19) and are snapshotted per attempt. The base image is
-either a prior attempt (`baseVersionId`) **or** an uploaded File/Draw reference (`baseImageUrl`,
-which create-and-wires an Image Gen node so all edits still land in a version log). The UI
-surfaces the actions as **quick-action chips** that set `editIntent` and pre-fill the instruction
-box; the deterministic preservation scaffold stays server-side (a read-only preview shows the
-composed prompt, D3). **No schema migration** — breadcrumbs are `inputs_used` jsonb. The base prompt is
+(`remove`/`replace`/`add`/`freeform`), `instruction` (the edit text), `extraReferenceUrls` (e.g.
+a product to add), and a **carried-forward** `promptVersionId` (the base prompt that seeded the
+image family). The working `editInstruction` + `editIntent` live on `nodes.data` (human-authored
+config, D19) and are snapshotted per attempt. The base image is *the node's current image* — a
+prior attempt (`baseVersionId`) **or** a connected File/Draw reference (`baseImageUrl`); editing
+an upload **reuses the existing connect-image-to-Image-Gen workflow, not a new node-spawning
+case**. Mechanically the whole feature is the existing generate pipeline with only `compile`
+swapped for a preservation `buildEditPrompt` (D3) — no second route, no Edit node, no
+node-creation action. The UI surfaces the actions as **3 quick-action chips** (Remove/Replace/Add)
+that set `editIntent` and pre-fill the instruction box; the deterministic preservation scaffold
+stays server-side (a read-only preview shows the composed prompt, D3). **No schema migration** —
+breadcrumbs are `inputs_used` jsonb. The base prompt is
 **recorded** on every variation but **not resent** to the edit model (instruction-only edits
 preserve better — Gemini image-editing guide). Default to a Gemini editing model (Nano Banana
 family); **suggest, don't hard-block** (D9/D21 "mark, don't block").

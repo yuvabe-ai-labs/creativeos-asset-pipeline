@@ -36,24 +36,30 @@ and the route already wires connected File/Image-Gen/Draw images in as reference
 ([image-generate/route.ts](../../../src/app/api/nodes/[id]/image-generate/route.ts)). The
 gap is **workflow, prompt construction, and traceability**, not raw model capability.
 
-### 1.1 Supported scenarios
+### 1.1 Supported scenarios — two orthogonal axes, not six cases
 
-One engine — **base image + instruction (+ optional extra reference) → preservation prompt** —
-covers all of these (the only switches are *what is the base*, *is there an extra reference*,
-and *which template fires*):
+The "scenarios" collapse onto **two orthogonal axes**; everything else is a sub-case or a free
+property. This is deliberate (§4.1 *reuse, don't add cases*) — there is **one** edit path.
 
-| # | Scenario | Base image | Extra ref? | Intent → template |
-|---|----------|-----------|-----------|-------------------|
-| 1 | **Replace a product** | generated attempt **or** uploaded reference | ✅ product (connected File) | replace → add/replace |
-| 2 | **Add a product / object** | generated attempt **or** uploaded reference | ✅ product | add → add/replace |
-| 3 | **Remove an element** | generated attempt **or** uploaded reference | ❌ | remove → change/remove |
-| 4 | **Modify an attribute** (recolor / relight / restyle one element) | generated attempt **or** uploaded reference | ❌ | modify → change/remove |
-| 5 | **Add/replace described in words** (no reference image) | generated attempt **or** uploaded reference | ❌ | freeform → change/remove |
-| 6 | **Iterative chaining** (edit the edit) | the *previous* edit attempt | optional | per step |
+**Axis A — the operation (what the model does) = the 2 templates (§6):**
+- **A1 · change in place** (no new image): *Remove* an element, or describe a change in words →
+  `change/remove` template.
+- **A2 · bring in an element from a reference image:** *Replace* / *Add* a product → `add/replace`
+  template.
 
-**Base source is in scope both ways:** a generated Image Gen attempt **and** an uploaded
-File/Draw reference (§7, §11). Scenarios 1–6 are one code path — only `editIntent` and whether
-`extraReferenceUrls` is non-empty vary.
+**Axis B — the base source (orthogonal; only changes how the base URL resolves, §7):**
+- **B1 ·** a generated attempt of this Image Gen node (`baseVersionId`).
+- **B2 ·** an uploaded **File/Draw** image connected to this node (`baseImageUrl`).
+
+| | B1 · generated attempt | B2 · connected upload |
+|---|---|---|
+| **A1 · change/remove** | remove the cup from a generated still | remove the cup from an uploaded photo |
+| **A2 · replace/add (+ref)** | swap the bottle in a generated still | add the product to an uploaded scene |
+
+**Free properties (not separate cases):** *iterative chaining* is just B1 with the base = the
+previous edit; *freeform* is A1 with no chip clicked. So the whole feature is **A (2) × B (2)**
+over one code path — the engine encodes A as 2 templates and B as 2 URL lookups; the **3 UI
+chips** (Remove · Replace · Add, §10) are sugar over those 2 templates.
 
 ## 2. Goals
 
@@ -74,6 +80,8 @@ File/Draw reference (§7, §11). Scenarios 1–6 are one code path — only `edi
 - **Editing video frames.** Image only.
 - **Re-sending the full base prompt to the edit model** (deliberately avoided — §6).
 - Changing the Prompt node or the §12 controls split.
+- **A new node-creation / auto-wiring action for editing.** Editing an uploaded image reuses
+  the existing *connect-image-to-Image-Gen* workflow (§11) — no bespoke "spawn a node" path.
 
 ## 4. Core decision — an edit is a new *attempt* on the Image Gen node
 
@@ -97,6 +105,17 @@ the prior attempt's `output` is never overwritten (text needed the two-write tri
 [versions.ts](../../../src/lib/db/versions.ts) to keep the "before"; an image edit chain
 preserves every "before" inherently).
 
+### 4.1 Reuse, don't add cases (design constraint)
+
+The edit path must **not** introduce parallel machinery for anything an existing workflow
+already handles. An edit is the **existing generate pipeline with one substitution**: the same
+`resolveInputs → compile → runAction → writeVersion → setActive` lifecycle (D3), where only
+**`compile` changes** — `buildEditPrompt` (a preservation instruction + the base image prepended)
+replaces the upstream-prompt compile. Same route, same `config.generate`, same upload, same
+`insertVersion`/`setActiveVersion`, same attempts/restore/eval UI. The base image is just *the
+node's current image* — a prior attempt **or** a connected reference — not a new concept. This is
+why there is no Image Edit node (§4), no second route, and no node-spawning action (§3).
+
 ## 5. Data model (no migration)
 
 ### 5.1 Node data — the instruction box
@@ -110,7 +129,7 @@ export type ImageGenNodeData = {
   params?: Record<string, unknown>;
   parsed?: unknown;            // active image URL (display only, D19)
   editInstruction?: string;    // NEW — current edit instruction (the delta), persists on the node
-  editIntent?: "remove" | "modify" | "replace" | "add" | "freeform"; // NEW — selected edit action
+  editIntent?: "remove" | "replace" | "add" | "freeform"; // NEW — 3 chips (remove/replace/add) + typed default
 };
 ```
 
@@ -136,8 +155,8 @@ V3 (edit "add bottle") inputs_used: { promptVersionId, baseVersionId: V2, intent
   text is *not* resent to the model (§6).
 - `extraReferenceUrls` — connected reference images used as edit inputs (e.g. the product to
   add), kept distinct from the base image.
-- `intent` — the selected edit action (`remove`/`modify`/`replace`/`add`/`freeform`); records
-  *what kind* of edit it was and which template produced the prompt.
+- `intent` — the selected edit action (`remove`/`replace`/`add`/`freeform`); records *what
+  kind* of edit it was and which template produced the prompt.
 
 ### 5.3 Traceability (the requirement, satisfied)
 
@@ -159,16 +178,16 @@ For **every** variation you can answer: *what base prompt* (`promptVersionId` �
 Preservation comes entirely from **prompt phrasing + image ordering**, not an API flag. A
 pure helper builds the edit prompt from the instruction using the Gemini doc templates:
 
-- **Remove / modify:** `"Using the provided image, change only {instruction}. Keep
-  everything else exactly the same — preserve the original style, lighting, composition, and
-  all other elements."`
-- **Add / replace a product (with an extra reference):** `"Using the first image as the
+- **Change / remove (`remove`, `freeform`):** `"Using the provided image, change only
+  {instruction}. Keep everything else exactly the same — preserve the original style, lighting,
+  composition, and all other elements."`
+- **Add / replace with a reference (`replace`, `add`):** `"Using the first image as the
   base scene, {instruction} using the product shown in the additional reference image(s).
   Match the scene's lighting, perspective, and shadows. Keep everything else in the base
   image unchanged."`
 
-**Template selection by intent.** `editIntent` (§5.1) picks the template — `remove`/`modify`/
-`freeform` → change/remove; `replace`/`add` → add/replace. (`hasExtraReference` is the fallback
+**Template selection by intent.** `editIntent` (§5.1) picks the template — `remove`/`freeform`
+→ change/remove; `replace`/`add` → add/replace. (`hasExtraReference` is the fallback
 when intent is absent, and a validation signal: `replace`/`add` *expect* a connected product
 reference — if none is connected we **warn, don't block**, D9/D21.) The raw operator
 instruction is interpolated; the scaffolding is deterministic so it stays a stable eval variable.
@@ -197,11 +216,15 @@ referenceUrls = [ baseImageUrl, ...connectedReferenceUrls ]
 prompt        = buildEditPrompt(...)
 ```
 
-- **Base image** — resolved two ways, **both first-class** (§11): (a) the output URL of
-  `baseVersionId` (a prior attempt of this node, looked up server-side), or (b) an explicit
-  `baseImageUrl` when editing a raw File/Draw reference that has no version of its own.
-- **Extra references** = the connected File/Image-Gen/Draw images the route already collects
-  (this is where "the product to add" comes from — no new wiring).
+- **Base image** = *the node's current image*, resolved by precedence (Axis B, §1.1): (a) the
+  active attempt's output (`baseVersionId`) if one exists, else (b) a **connected** File/Draw
+  image the user designates as base (`baseImageUrl`). Both come from existing surfaces — a prior
+  attempt or an already-connected reference — so neither needs a new workflow.
+- **Extra references** = the *other* connected File/Image-Gen/Draw images the route already
+  collects (this is where "the product to add" comes from — no new wiring).
+- When there is **no attempt yet** and several images are connected, the base is the one the
+  user marks as base in the existing connected-inputs panel (default: the sole/first connected
+  image); the rest are extras.
 - Existing `maxReferenceImages` clamp still applies (base counts toward the limit).
 
 ## 8. Model default
@@ -224,9 +247,9 @@ body (edit): { modelId?, params?, instruction, intent?, baseVersionId?  | baseIm
 ```
 
 Flow when editing:
-1. Resolve `baseImageUrl` — from `baseVersionId` (look up that version's `output`) or the
-   explicit `baseImageUrl`.
-2. Collect connected reference URLs (unchanged) → these are `extraReferenceUrls`.
+1. Resolve the base image — from `baseVersionId` (look up that version's `output`) or the
+   explicit `baseImageUrl` (a connected reference the user marked as base).
+2. Collect the *other* connected reference URLs (unchanged path) → `extraReferenceUrls`.
 3. `referenceUrls = [baseImageUrl, ...extraReferenceUrls]` (clamped to `maxReferenceImages`).
 4. `prompt = buildEditPrompt({ instruction, intent, hasExtraReference: extra.length > 0 })`.
 5. `config.generate(...)` → upload → `insertVersion` with
@@ -244,12 +267,16 @@ Failed edits still log a version with `error` set (eval captures failures too).
 In [image-gen-focus-view.tsx](../../../src/components/nodes/image-gen-focus-view.tsx),
 `mode === "result"` gains an **Edit** affordance below/over the image:
 
-- **Quick-action chips** (discoverable dashed-border primary chips, per AGENTS.md): **Remove**,
-  **Modify**, **Replace product**, **Add product**. Clicking one sets `data.editIntent` *and*
-  pre-populates the instruction box with an editable starter for the delta (e.g. Remove → "the
-  cup on the table"; Replace product → "the bottle, using the connected product reference").
-  This is the lightweight "populate the box" model the designer asked for — the chip seeds
-  intent + text; the user finishes the specifics.
+- **Quick-action chips — 3** (discoverable dashed-border primary chips, per AGENTS.md):
+  **Remove** · **Replace product** · **Add product**. (No separate "Modify" chip — it shares the
+  change/remove template with Remove; recolor/relight is typed into the box as `freeform`.)
+  Clicking a chip sets `data.editIntent` *and* pre-populates the instruction box with an editable
+  starter for the delta (Remove → "the cup on the table"; Replace product → "the bottle, using
+  the connected product reference"). The chip seeds intent + text; the user finishes the
+  specifics. Typing without a chip = `freeform`.
+- **Base = the node's current image.** When an attempt exists it's the base automatically; when
+  editing a freshly-connected upload with no attempt, the base is chosen in the existing
+  connected-inputs panel (§7) — no separate node or button.
 - A compact **instruction textarea** (shadcn `Textarea` — never native, per house rule),
   bound to `data.editInstruction` via `onPatch`. Placeholder rotates the workflows
   ("remove the cup…", "replace the bottle with the product reference…", "add the product…").
@@ -271,21 +298,23 @@ sterile box.
 
 ## 11. Entry points
 
-Both are **in scope for v1**:
+Both are **in scope for v1**, and both run through the **same** Image Gen edit affordance — they
+differ only in Axis B (how the base resolves), not in machinery:
 
-1. **Edit a generated attempt:** the Edit affordance in the Image Gen focus view (base = the
-   active attempt). Chainable (edit the edit).
-2. **Edit an uploaded reference:** an **"Edit"** action on a File-node (or Draw-node) image.
-   Because a File node has no version log, it **seeds an Image Gen node** wired from that file,
-   passing the file URL as `baseImageUrl` for the first edit attempt — so the rule **all edits
-   land in an Image Gen version log** (the only place with version/attempt/eval machinery) still
-   holds. Decision for the plan: the action **creates a new Image Gen node auto-wired to the
-   File node** (one-click path) rather than requiring a pre-existing connection.
+1. **Edit a generated attempt:** open the Image Gen focus view; base = the active attempt.
+   Chainable (edit the edit).
+2. **Edit an uploaded reference:** **connect** the File/Draw image to an Image Gen node — the
+   *existing* connect-image workflow — then open that node and edit; with no attempt yet, the
+   connected image is the base (§7). The edit lands in that Image Gen node's version log, so "all
+   edits live in a version log" holds with **no node-spawning, no new edge logic, no second
+   route**. *(A one-click "Edit this image" affordance on the File node that pre-wires the
+   connection is a possible later convenience — it would only automate the existing connect step,
+   never add a new edit path.)*
 
 ## 12. Testing strategy (drives TDD in the plan)
 
 - **`buildEditPrompt` (pure):** unit tests — each intent selects the right template
-  (`remove`/`modify`/`freeform` → change/remove; `replace`/`add` → add/replace), instruction
+  (`remove`/`freeform` → change/remove; `replace`/`add` → add/replace), instruction
   interpolation, fallback to `hasExtraReference` when intent is absent, no template leakage.
   *(Write first, RED.)*
 - **Route edit branch:** the request shape selects the edit path; base image resolves from
@@ -302,10 +331,10 @@ Both are **in scope for v1**:
 1. `buildEditPrompt` helper (intent → template) + tests.
 2. `ImageGenNodeData.editInstruction` + `editIntent` + autosave passthrough.
 3. Route edit branch (`baseVersionId` **or** `baseImageUrl`) + `inputs_used` breadcrumbs + tests.
-4. Focus-view Edit affordance: quick-action chips (set `editIntent` + pre-fill box), instruction
-   box, composed-prompt preview, Edit button + `handleEdit`.
-5. File-node/Draw-node **"Edit"** action → create-and-wire an Image Gen node with `baseImageUrl`
-   (entry point §11.2) — **in v1**.
+4. Focus-view Edit affordance: **3** quick-action chips (set `editIntent` + pre-fill box),
+   instruction box, composed-prompt preview, Edit button + `handleEdit`.
+5. Base-from-connected-reference: edit a connected File/Draw image as the base when no attempt
+   exists (base selection in the existing connected-inputs panel) — entry point §11.2, **in v1**.
 6. Version-history lineage display (intent + instruction + "edited from vN").
 
 ## 14. Open questions (resolved)
@@ -317,9 +346,13 @@ Both are **in scope for v1**:
   designers ask for inline steer on fresh gens.
 - **Resend the base prompt on edits?** → No; record it, don't resend (§6).
 - **Hard-block non-Gemini models for edits?** → No; suggest Gemini, allow override (§8).
-- **Surface the edit actions as UI controls?** → Yes; quick-action chips that set `editIntent`
-  and pre-fill the instruction box (§10) — the lightweight "populate the box" model.
+- **Surface the edit actions as UI controls?** → Yes; **3** quick-action chips (Remove ·
+  Replace · Add) that set `editIntent` and pre-fill the instruction box (§10). No "Modify" chip
+  (same template as Remove); recolor/relight is typed as `freeform`.
 - **Where does the preservation scaffold live — box or server?** → Server (`buildEditPrompt`);
   the box holds the delta, a read-only preview shows the composed prompt (§6, §10).
-- **Edit an uploaded reference (not just a generated image)?** → In scope for v1 (§11), via a
-  create-and-wire "Edit" action on the File/Draw node.
+- **Edit an uploaded reference (not just a generated image)?** → In scope for v1 (§11) by reusing
+  the existing connect-image-to-Image-Gen workflow; base = the connected image when no attempt
+  exists. **No node-spawning / no new case** (§3, §4.1).
+- **Reuse vs. new cases?** → An edit is the existing generate pipeline with only `compile` swapped
+  for `buildEditPrompt` (§4.1, D3) — no second route, no Edit node, no node-creation action.
