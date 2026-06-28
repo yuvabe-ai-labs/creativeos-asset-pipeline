@@ -285,7 +285,7 @@ Generate nodes
 | **Script node** *(shipped)* | Parses a **finished reel script** into structured, editable, asset-ready fields | Raw script text + structured reel-script JSON |
 | **Brief node** *(planned — retained for later)* | Parses an upstream **project brief** into structured context | Raw text + structured brief |
 | **Text node** | Holds manual notes, copy, constraints, or instructions | Text |
-| **Shot node** *(D21)* | One shot of a reel, materialized from a parsed Script via **"fan out shots."** Carries the full parsed script **narrowed to its single shot** ("a Script node with one shot") — editable shot description + all the script metadata + order. Its content **is** its output (no AI, no version log — like a Text node) | For an image prompt, the shot's **visual description + production medium** only (**D23** — reel-level copy is dropped); the full carried script is retained for later/video use |
+| **Shot node** *(D21)* | One shot of a reel, materialized from a parsed Script via **"fan out shots."** Carries the full parsed script **narrowed to its single shot** ("a Script node with one shot") — editable shot description + all the script metadata + order. Its content **is** its output (no version log on the output — like a Text node). It also offers a **"Compose variations"** action (**D28**) that runs the LLM to suggest role-aware shot ideas; those runs are **captured** as version rows but are **never made active**, so the output stays the editable `data.script` | For an image prompt, the shot's **visual description + production medium** only (**D23** — reel-level copy is dropped); the full carried script is retained for later/video use |
 | **File node** | Holds `.txt` or image references | File reference, image reference, optional extracted output |
 | **Draw node** *(experimental)* | An in-canvas sketch surface (pen in black/red/green, eraser, clear; frame 9:16 · 1:1 · 16:9) for storyboarding/reference framing — *"a File node whose image is drawn in-app."* Carries optional composition instructions. One-shot: a saved sketch shows as a read-only thumbnail reference when reopened | Flattened sketch **PNG** (vision image downstream) + **composition instructions** text |
 
@@ -1039,6 +1039,7 @@ active version** — it does not create a new row.
 | Prompt node | User clicks **Generate** |
 | Image Gen node | User clicks **Generate image** |
 | Video Gen node | User clicks **Generate video** |
+| Shot node *(Compose — D28)* | User clicks **Compose** — the run is captured as a version row (frozen `generated_output`) but is **never made active**; the Shot's output stays its own `data.script` |
 | Generation attempt | User approves or rejects a specific attempt |
 
 #### What is not versioned separately
@@ -1156,6 +1157,7 @@ The MVP includes:
 * **Script node** for parsing finished reel scripts (`.md`/`.txt`/paste)
 * **Brief node** for parsing upstream briefs *(planned — defined node type, retained for later; not built in Stage 1)*
 * Text node
+* **Shot node** (created by **"fan out shots"** from a parsed Script — D21; incl. **Compose variations** — role-aware divergent idea generation per shot, capture-only — D28)
 * File node for `.txt` and image references (incl. **paste image from clipboard** onto the canvas)
 * Prompt node
 * Image Gen node (incl. **image editing** — targeted remove / replace / add on a generated or reference image, as a new attempt — D27)
