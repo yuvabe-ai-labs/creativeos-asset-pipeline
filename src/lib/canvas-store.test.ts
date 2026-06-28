@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { createCanvasStore } from "./canvas-store";
 import type { AppNode } from "./canvas-nodes";
+import type { ShotComposeIdea } from "./nodes/shot-compose";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -92,5 +93,44 @@ describe("fanOutShots", () => {
     const store = createCanvasStore([bare], []);
     store.getState().fanOutShots("s2");
     expect(store.getState().nodes.filter((n) => n.type === "shot")).toHaveLength(0);
+  });
+});
+
+describe("promoteIdeasToShots", () => {
+  it("creates one sibling Shot per idea (descriptions set, no edges) and leaves the source intact", () => {
+    const sourceShot = {
+      id: "shot-1",
+      type: "shot",
+      position: { x: 100, y: 100 },
+      data: {
+        script: { title: "Reel", visual_script: { shots: [{ description: "seed", duration: "6s" }] } },
+        order: 2,
+        seededFrom: { scriptTitle: "Reel" },
+      },
+    } as AppNode;
+    const store = createCanvasStore([sourceShot], []);
+
+    const ideas: ShotComposeIdea[] = [
+      { title: "A", description: "Forearm glide variant" },
+      { title: "B", description: "Post-shower variant" },
+    ];
+    store.getState().promoteIdeasToShots("shot-1", ideas);
+
+    const shots = store.getState().nodes.filter((n) => n.type === "shot");
+    expect(shots).toHaveLength(3); // source + 2 siblings
+    const siblings = shots.filter((n) => n.id !== "shot-1");
+    const descs = siblings.map(
+      (n) =>
+        (n.data as { script?: { visual_script?: { shots?: { description?: string }[] } } }).script
+          ?.visual_script?.shots?.[0]?.description,
+    );
+    expect(descs.sort()).toEqual(["Forearm glide variant", "Post-shower variant"]);
+    expect(store.getState().edges).toHaveLength(0); // NO edges
+  });
+
+  it("is a no-op when the source node is missing or ideas is empty", () => {
+    const store = createCanvasStore([], []);
+    store.getState().promoteIdeasToShots("nope", [{ title: "A", description: "x" }]);
+    expect(store.getState().nodes).toHaveLength(0);
   });
 });
