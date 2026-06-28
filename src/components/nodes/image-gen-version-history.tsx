@@ -16,6 +16,11 @@ export type ImageGenVersionSummary = {
   createdAt: string;
   decision: "pass" | "fail" | null;
   note: string | null;
+  inputsUsed?: {
+    baseVersionId?: string | null;
+    instruction?: string;
+    intent?: string;
+  };
 };
 
 type Props = {

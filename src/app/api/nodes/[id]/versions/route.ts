@@ -37,6 +37,11 @@ export async function GET(
       createdAt: v.created_at,
       decision: (v.decision as "pass" | "fail" | null) ?? null,
       note: typeof v.note === "string" ? v.note : null,
+      inputsUsed: (v.inputs_used ?? {}) as {
+        baseVersionId?: string | null;
+        instruction?: string;
+        intent?: string;
+      },
     })),
   });
 }
