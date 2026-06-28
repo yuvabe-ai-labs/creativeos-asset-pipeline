@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Sparkles, Check, Loader2, ArrowLeft, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
@@ -42,6 +42,33 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
   );
 
   const seedDescription = currentScript?.visual_script?.shots?.[0]?.description ?? "";
+
+  // Connected image references wired into the Shot's image handle — surfaced as
+  // "composition references" (the same edges+nodes store derivation other nodes use).
+  // Mirrors the server-side selectImageUpstreams: file(image)/draw/image-gen only.
+  const nodes = useCanvasStore((s) => s.nodes);
+  const edges = useCanvasStore((s) => s.edges);
+  const referenceImages = useMemo(() => {
+    const sourceIds = edges.filter((e) => e.target === nodeId).map((e) => e.source);
+    return nodes
+      .filter((n) => sourceIds.includes(n.id))
+      .map((n) => {
+        const d = n.data as Record<string, unknown>;
+        const url =
+          n.type === "draw"
+            ? (d.fileUrl as string | undefined)
+            : n.type === "file"
+              ? (d.fileKind === "image" ? (d.fileUrl as string | undefined) : undefined)
+              : n.type === "image-gen"
+                ? (d.parsed as string | undefined)
+                : undefined;
+        if (!url) return null;
+        const label =
+          (d.title as string) || (d.filename as string) || (n.type === "draw" ? "Sketch" : "Image");
+        return { id: n.id, label, url };
+      })
+      .filter(Boolean) as { id: string; label: string; url: string }[];
+  }, [nodes, edges, nodeId]);
 
   const [role, setRole] = useState<string>(DEFAULT_SHOT_ROLE);
   const [slices] = useState<KBSliceKey[]>(DEFAULT_PARSE_SLICES);
@@ -175,6 +202,33 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
             <p className="mb-6 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
               {seedDescription || "(no shot text yet)"}
             </p>
+
+            {referenceImages.length > 0 && (
+              <div className="mb-6">
+                <p className="text-eyebrow mb-2 text-[0.6rem]!">
+                  Composition references · {referenceImages.length}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {referenceImages.map((r) => (
+                    <div
+                      key={r.id}
+                      className="flex items-center gap-2 rounded-md border border-border bg-card p-1.5 pr-2.5 shadow-card"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={r.url}
+                        alt={r.label}
+                        className="size-10 rounded object-cover"
+                      />
+                      <span className="max-w-32 truncate text-xs text-muted-foreground">{r.label}</span>
+                    </div>
+                  ))}
+                </div>
+                <p className="mt-1.5 text-[0.65rem] text-muted-foreground">
+                  Ideas will echo these references&apos; palette, surface, and props.
+                </p>
+              </div>
+            )}
 
             <div className="grid gap-4 sm:grid-cols-2">
               {loading &&
