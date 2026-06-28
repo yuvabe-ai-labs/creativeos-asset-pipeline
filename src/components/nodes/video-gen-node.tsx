@@ -97,7 +97,7 @@ export function VideoGenNode({ id, data, selected }: NodeProps) {
         <Handle
           type="target"
           position={Position.Left}
-          className="!size-2 !border-2 !border-card !bg-muted-foreground"
+          className="!size-4 !border-2 !border-card !bg-muted-foreground"
         />
       </div>
     </NodeContextMenu>

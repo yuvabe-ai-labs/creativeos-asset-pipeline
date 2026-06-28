@@ -320,7 +320,7 @@ export function KBNode({ id, data, selected }: NodeProps) {
       <Handle
         type="source"
         position={Position.Right}
-        className="size-2! border-2! border-card! bg-primary!"
+        className="size-4! border-2! border-card! bg-primary!"
       />
     </div>
   );
