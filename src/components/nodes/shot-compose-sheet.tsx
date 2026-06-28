@@ -1,20 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { Sparkles, Check, Loader2 } from "lucide-react";
+import { Sparkles, Check, Loader2, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { SHOT_ROLES, DEFAULT_SHOT_ROLE } from "@/lib/nodes/shot-roles";
 import type { ShotComposeIdea } from "@/lib/nodes/shot-compose";
 import type { ReelScript } from "@/lib/nodes/reel-script";
 import { DEFAULT_PARSE_SLICES, type KBSliceKey } from "@/lib/kb/parse-context";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import {
   Select,
   SelectContent,
@@ -110,103 +104,143 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="flex max-h-[80vh] w-full flex-col gap-0 p-0">
-        <SheetHeader>
-          <SheetTitle className="flex items-center gap-2">
-            <Sparkles className="size-4 text-primary" strokeWidth={1.5} /> Compose variations
-          </SheetTitle>
-          <SheetDescription>
-            4 role-aware directions for this shot. Use one, or promote several to compare.
-          </SheetDescription>
-        </SheetHeader>
-
-        <div className="px-4 py-2">
-          <p className="text-eyebrow mb-1 text-[0.6rem]!">Current shot</p>
-          <p className="rounded-md border border-border bg-muted/30 px-2.5 py-2 text-xs text-muted-foreground">
-            {seedDescription || "(no shot text yet)"}
-          </p>
+      <SheetContent
+        side="bottom"
+        showCloseButton={false}
+        className="gap-0 overflow-hidden rounded-t-2xl bg-background data-[side=bottom]:h-[92vh]"
+      >
+        {/* drag handle — matches the other focus views */}
+        <div className="flex shrink-0 justify-center pt-3">
+          <div className="h-1.5 w-12 rounded-full bg-border" />
         </div>
 
-        <div className="flex items-center gap-2 px-4 py-2">
-          <Select value={role} onValueChange={(v) => setRole(v as string)}>
-            <SelectTrigger size="sm" className="min-w-0 flex-1 text-xs">
-              <SelectValue placeholder="Role" />
-            </SelectTrigger>
-            <SelectContent>
-              {SHOT_ROLES.map((r) => (
-                <SelectItem key={r.key} value={r.key} className="text-xs">
-                  {r.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button size="sm" onClick={compose} disabled={loading}>
-            {loading ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <Sparkles className="size-4" strokeWidth={1.5} />
-            )}
-            Compose
-          </Button>
-        </div>
+        {/* header */}
+        <div className="shrink-0 border-b">
+          <div className="mx-auto w-full max-w-5xl px-6 pb-5 pt-3">
+            <button
+              type="button"
+              onClick={() => onOpenChange(false)}
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <ArrowLeft className="size-4" /> Back to canvas
+            </button>
 
-        <div className="flex-1 overflow-y-auto px-4 py-3">
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {loading &&
-              Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="rounded-lg border border-border p-3">
-                  <Skeleton className="mb-2 h-4 w-1/3" />
-                  <Skeleton className="mb-1 h-3 w-full" />
-                  <Skeleton className="h-3 w-2/3" />
-                </div>
-              ))}
+            <header className="mt-4 flex items-start justify-between gap-4">
+              <div>
+                <SheetTitle className="flex items-center gap-2 p-0 font-display text-3xl font-semibold tracking-tight">
+                  <Sparkles className="size-6 text-primary" strokeWidth={1.5} /> Compose variations
+                </SheetTitle>
+                <p className="mt-1.5 text-sm text-muted-foreground">
+                  4 role-aware directions for this shot. Use one, or promote several to compare.
+                </p>
+              </div>
 
-            {error && <p className="text-sm text-destructive">{error}</p>}
-
-            {!loading &&
-              ideas.map((idea, i) => (
-                <div
-                  key={i}
-                  className={cn(
-                    "rounded-lg border border-border bg-card p-3 shadow-card transition-all",
-                    picked.has(i) && "ring-2 ring-primary",
+              <div className="flex shrink-0 items-center gap-2">
+                <Select value={role} onValueChange={(v) => setRole(v as string)}>
+                  <SelectTrigger className="w-44">
+                    <SelectValue placeholder="Role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SHOT_ROLES.map((r) => (
+                      <SelectItem key={r.key} value={r.key}>
+                        {r.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button size="lg" onClick={compose} disabled={loading}>
+                  {loading ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="size-4" strokeWidth={1.5} />
                   )}
-                >
-                  <div className="mb-1 flex items-center justify-between">
-                    <span className="text-sm font-medium">{idea.title}</span>
-                    <button
-                      type="button"
-                      onClick={() => togglePick(i)}
-                      aria-label={picked.has(i) ? "Unmark for promote" : "Mark for promote"}
-                      className={cn(
-                        "flex size-5 items-center justify-center rounded border transition-colors",
-                        picked.has(i)
-                          ? "border-primary bg-primary text-primary-foreground"
-                          : "border-border hover:border-primary/50",
-                      )}
-                    >
-                      {picked.has(i) && <Check className="size-3.5" />}
-                    </button>
-                  </div>
-                  {idea.bestFor && (
-                    <p className="text-eyebrow mb-1 text-[0.6rem]!">best for · {idea.bestFor}</p>
-                  )}
-                  <p className="text-sm text-muted-foreground">{idea.description}</p>
-                  <div className="mt-2 flex justify-end">
-                    <Button variant="outline" size="sm" onClick={() => applyIdea(idea, i)}>
-                      Use this shot
-                    </Button>
-                  </div>
-                </div>
-              ))}
+                  Compose
+                </Button>
+              </div>
+            </header>
           </div>
         </div>
 
+        {/* body */}
+        <div className="flex-1 overflow-y-auto">
+          <div className="mx-auto w-full max-w-5xl px-6 py-6">
+            <p className="text-eyebrow mb-1 text-[0.6rem]!">Current shot</p>
+            <p className="mb-6 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
+              {seedDescription || "(no shot text yet)"}
+            </p>
+
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {loading &&
+                Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="rounded-lg border border-border p-3">
+                    <Skeleton className="mb-2 h-4 w-1/3" />
+                    <Skeleton className="mb-1 h-3 w-full" />
+                    <Skeleton className="h-3 w-2/3" />
+                  </div>
+                ))}
+
+              {error && <p className="col-span-full text-sm text-destructive">{error}</p>}
+
+              {!loading && !error && ideas.length === 0 && (
+                <div className="col-span-full flex flex-col items-center justify-center gap-2 py-20 text-center">
+                  <div className="flex size-11 items-center justify-center rounded-full bg-primary/5">
+                    <Sparkles className="size-5 text-primary/60" strokeWidth={1.5} />
+                  </div>
+                  <p className="text-sm font-medium text-foreground">No variations yet</p>
+                  <p className="max-w-sm text-xs text-muted-foreground">
+                    Pick a role and press Compose to generate 4 role-aware directions for this shot.
+                  </p>
+                </div>
+              )}
+
+              {!loading &&
+                ideas.map((idea, i) => (
+                  <div
+                    key={i}
+                    className={cn(
+                      "rounded-lg border border-border bg-card p-3 shadow-card transition-all",
+                      picked.has(i) && "ring-2 ring-primary",
+                    )}
+                  >
+                    <div className="mb-1 flex items-center justify-between">
+                      <span className="text-sm font-medium">{idea.title}</span>
+                      <button
+                        type="button"
+                        onClick={() => togglePick(i)}
+                        aria-label={picked.has(i) ? "Unmark for promote" : "Mark for promote"}
+                        className={cn(
+                          "flex size-5 items-center justify-center rounded border transition-colors",
+                          picked.has(i)
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-border hover:border-primary/50",
+                        )}
+                      >
+                        {picked.has(i) && <Check className="size-3.5" />}
+                      </button>
+                    </div>
+                    {idea.bestFor && (
+                      <p className="text-eyebrow mb-1 text-[0.6rem]!">best for · {idea.bestFor}</p>
+                    )}
+                    <p className="text-sm text-muted-foreground">{idea.description}</p>
+                    <div className="mt-2 flex justify-end">
+                      <Button variant="outline" size="sm" onClick={() => applyIdea(idea, i)}>
+                        Use this shot
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+            </div>
+          </div>
+        </div>
+
+        {/* footer */}
         {picked.size >= 1 && (
-          <div className="border-t border-border px-4 py-3">
-            <Button className="w-full" onClick={promote}>
-              Promote {picked.size} to sibling shot{picked.size > 1 ? "s" : ""}
-            </Button>
+          <div className="shrink-0 border-t">
+            <div className="mx-auto w-full max-w-5xl px-6 py-3">
+              <Button className="w-full" onClick={promote}>
+                Promote {picked.size} to sibling shot{picked.size > 1 ? "s" : ""}
+              </Button>
+            </div>
           </div>
         )}
       </SheetContent>
