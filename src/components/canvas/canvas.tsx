@@ -14,7 +14,10 @@ import {
   type XYPosition,
 } from "@xyflow/react";
 import { useShallow } from "zustand/react/shallow";
-import { VALID_CONNECTIONS } from "@/lib/canvas-nodes";
+import { toast } from "sonner";
+import { VALID_CONNECTIONS, flowToPersisted } from "@/lib/canvas-nodes";
+import { saveCanvasNodesAction } from "@/lib/actions/nodes";
+import { readClipboardImage, clipboardHasImage } from "@/lib/nodes/clipboard-image";
 import { ScriptNode } from "@/components/nodes/script-node";
 import { KBNode } from "@/components/nodes/kb-node";
 import { FileNode } from "@/components/nodes/file-node";
@@ -25,7 +28,7 @@ import { DrawNode } from "@/components/nodes/draw-node";
 import { ImageGenNode } from "@/components/nodes/image-gen-node";
 import { VideoPromptNode } from "@/components/nodes/video-prompt-node";
 import { VideoGenNode } from "@/components/nodes/video-gen-node";
-import { useCanvasStore } from "./canvas-store-provider";
+import { useCanvasStore, useCanvasStoreApi } from "./canvas-store-provider";
 import { CanvasAutosave } from "./canvas-autosave";
 import { CanvasContextMenu } from "./canvas-context-menu";
 
@@ -55,6 +58,8 @@ export function Canvas({ canvasId }: { canvasId: string }) {
     addNode,
     connectNodes,
     duplicateNode,
+    updateNodeData,
+    deleteNode,
   } = useCanvasStore(
     useShallow((s) => ({
       nodes: s.nodes,
@@ -65,8 +70,12 @@ export function Canvas({ canvasId }: { canvasId: string }) {
       addNode: s.addNode,
       connectNodes: s.connectNodes,
       duplicateNode: s.duplicateNode,
+      updateNodeData: s.updateNodeData,
+      deleteNode: s.deleteNode,
     })),
   );
+
+  const storeApi = useCanvasStoreApi();
 
   const nodesRef = useRef(nodes);
   useEffect(() => {
@@ -81,6 +90,7 @@ export function Canvas({ canvasId }: { canvasId: string }) {
     screenY: number;
     flowPos: XYPosition;
   } | null>(null);
+  const [canPaste, setCanPaste] = useState(false);
 
   const handleAddNode = useCallback(
     (type: string, position: XYPosition) => {
@@ -92,6 +102,48 @@ export function Canvas({ canvasId }: { canvasId: string }) {
       }
     },
     [addNode, connectNodes],
+  );
+
+  // Paste an image from the clipboard as a new File node at the cursor. Persist the
+  // node first (replace-all upsert) so the /file route finds it (dodges the autosave race).
+  const handlePasteImage = useCallback(
+    async (flowPos: XYPosition) => {
+      const img = await readClipboardImage();
+      if (!img) {
+        toast.error("Couldn't read an image from the clipboard.");
+        return;
+      }
+      const newNodeId = crypto.randomUUID();
+      addNode("file", flowPos, newNodeId);
+      try {
+        await saveCanvasNodesAction(
+          canvasId,
+          storeApi.getState().nodes.map(flowToPersisted),
+        );
+        const form = new FormData();
+        form.append("file", new File([img.blob], img.filename, { type: img.blob.type }));
+        const res = await fetch(`/api/nodes/${newNodeId}/file`, { method: "POST", body: form });
+        const json = (await res.json()) as {
+          filename?: string;
+          fileExt?: string;
+          fileKind?: string;
+          fileUrl?: string;
+          error?: string;
+        };
+        if (!res.ok || !json.fileUrl) throw new Error(json.error ?? "Upload failed");
+        updateNodeData(newNodeId, {
+          filename: json.filename,
+          fileExt: json.fileExt,
+          fileKind: json.fileKind,
+          fileUrl: json.fileUrl,
+        });
+        toast.success("Image pasted");
+      } catch (e) {
+        deleteNode(newNodeId);
+        toast.error(e instanceof Error ? e.message : "Couldn't paste image");
+      }
+    },
+    [addNode, updateNodeData, deleteNode, canvasId, storeApi],
   );
 
   useEffect(() => {
@@ -185,6 +237,8 @@ export function Canvas({ canvasId }: { canvasId: string }) {
           screenY={contextMenu.screenY}
           onSelect={(type) => handleAddNode(type, contextMenu.flowPos)}
           onClose={() => setContextMenu(null)}
+          canPasteImage={canPaste}
+          onPasteImage={() => handlePasteImage(contextMenu.flowPos)}
         />
       )}
 
@@ -216,8 +270,10 @@ export function Canvas({ canvasId }: { canvasId: string }) {
             y: e.clientY,
           });
           setContextMenu({ screenX: e.clientX, screenY: e.clientY, flowPos });
+          setCanPaste(false);
+          void clipboardHasImage().then(setCanPaste);
         }}
-        onPaneClick={() => setContextMenu(null)}
+        onPaneClick={() => { setContextMenu(null); setCanPaste(false); }}
       >
         <Background
           variant={BackgroundVariant.Dots}
