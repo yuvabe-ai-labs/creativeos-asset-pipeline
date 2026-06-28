@@ -38,6 +38,7 @@ export function useVideoGenStatus(nodeId: string): VideoGenStatus {
       .select("id, status")
       .eq("node_id", nodeId)
       .eq("status", "running")
+      .limit(1)
       .maybeSingle()
       .then(({ data, error }) => {
         if (cancelled) return;

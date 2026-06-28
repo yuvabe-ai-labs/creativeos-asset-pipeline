@@ -24,9 +24,5 @@ export const veoParams: ParamSpec[] = [
   },
 ];
 
-// Lite and Fast: 4s and 6s only (no 8s)
-export const veoLiteParams: ParamSpec[] = veoParams.map((p) =>
-  p.name === "duration"
-    ? { ...p, defaultValue: "6", constraints: { type: "select", options: ["4", "6"] } as const }
-    : p,
-);
+// Lite: same duration options as Quality (4/6/8 all supported)
+export const veoLiteParams: ParamSpec[] = veoParams;
