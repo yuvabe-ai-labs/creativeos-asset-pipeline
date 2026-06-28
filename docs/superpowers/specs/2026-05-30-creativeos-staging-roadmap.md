@@ -644,7 +644,8 @@ enough for MVP.
 **Refines.** D21 (adds an enrichment action atop fan-out; keeps seed-and-fork), D23 (carries the
 image trim up into ideation). **Builds on** D22 (capture/freeze). **D19/D20 unchanged** (the Shot's
 output is still its own `data.script`; compose rows never go active).
-**Originated.** `2026-06-28-shot-composer-design.md`.
+**Originated.** `2026-06-28-shot-composer-design.md`. **Runtime walkthrough:**
+`docs/architecture/2026-06-28-shot-composer-walkthrough.md`.
 
 ### Parked / out-of-scope (with revisit triggers)
 | Item | Status | Revisit when |

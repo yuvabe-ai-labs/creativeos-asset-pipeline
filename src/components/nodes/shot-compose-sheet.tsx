@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   Sparkles,
   Check,
@@ -103,8 +103,38 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
   const [ideas, setIdeas] = useState<ShotComposeIdea[]>([]);
   const [versionId, setVersionId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [hydrating, setHydrating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [picked, setPicked] = useState<Set<number>>(new Set()); // indices marked for promote
+  const hydratedRef = useRef(false);
+
+  // On first open after a canvas reload, rehydrate the last compose run (ideas + role)
+  // from the captured node_versions row (D28). In-session reopens keep current state.
+  useEffect(() => {
+    if (!open || hydratedRef.current) return;
+    hydratedRef.current = true;
+    setHydrating(true);
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/nodes/${nodeId}/compose`);
+        const json = await res.json();
+        if (cancelled || !res.ok) return;
+        if (json.ideas?.length) {
+          setIdeas(json.ideas);
+          setVersionId(json.versionId ?? null);
+          if (json.role) setRole(json.role);
+        }
+      } catch {
+        /* best-effort — leave the empty state if it fails */
+      } finally {
+        if (!cancelled) setHydrating(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, nodeId]);
 
   async function compose() {
     setLoading(true);
@@ -276,7 +306,7 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
 
               <div className="mt-3 min-h-0 flex-1 overflow-y-auto px-6 pt-1 pb-4">
                 <div className="grid gap-4 sm:grid-cols-2">
-                  {loading &&
+                  {(loading || hydrating) &&
                     Array.from({ length: 4 }).map((_, i) => (
                       <div key={i} className="rounded-lg border border-border p-3">
                         <Skeleton className="mb-2 h-4 w-1/3" />
@@ -287,7 +317,7 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
 
                   {error && <p className="col-span-full text-sm text-destructive">{error}</p>}
 
-                  {!loading && !error && ideas.length === 0 && (
+                  {!loading && !hydrating && !error && ideas.length === 0 && (
                     <div className="col-span-full flex flex-col items-center justify-center gap-2 py-20 text-center">
                       <div className="flex size-11 items-center justify-center rounded-full bg-primary/5">
                         <Sparkles className="size-5 text-primary/60" strokeWidth={1.5} />
@@ -299,7 +329,7 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
                     </div>
                   )}
 
-                  {!loading &&
+                  {!loading && !hydrating &&
                     ideas.map((idea, i) => (
                       <div
                         key={i}
