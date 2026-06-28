@@ -329,7 +329,7 @@ Generate nodes
 
 | Node | Purpose | Output |
 | :---- | :---- | :---- |
-| **Image Gen node** | Generates images using prompt text, image references, and selected controls | Generated image attempts |
+| **Image Gen node** | Generates images from prompt text, image references, and selected controls — and **edits an existing image** (remove / replace / add an element) as a new attempt (D27) | Generated image attempts (incl. edits) |
 | **Video Gen node** | Generates videos (image-to-video) from a **Video Prompt node's motion prompt** + the **approved Image Gen still** (start frame) + selected controls. Long-running async job (D25) | Generated video attempts |
 
 ---
@@ -675,12 +675,14 @@ No uploaded video references in MVP.
 
 * Uploaded `.txt`
 * Uploaded image
+* Image **pasted from the clipboard** (canvas right-click → **Paste image**)
 * `.txt` selected from client files
 * Image selected from client files
 
 #### Actions
 
 * Upload/select file
+* Paste an image from the clipboard (canvas right-click → **Paste image** — creates a File node at the cursor; only offered when the clipboard holds an image)
 * Replace file
 * Toggle Use LLM
 * Edit extraction schema/prompt
@@ -826,6 +828,7 @@ Compiled prompt text (from the Prompt node — already carries the descriptive c
 * Optional image reference from File node
 * Optional image output from another Image Gen node
 * Selected image control values
+* Edit instruction + intent (remove / replace / add) — when editing the active image (D27)
 
 #### Actions
 
@@ -834,6 +837,7 @@ Compiled prompt text (from the Prompt node — already carries the descriptive c
 * Edit selected control values
 * View final compiled prompt
 * Generate image
+* **Edit the active image** — remove / replace / add an element (produces a new attempt, D27)
 * Approve/reject attempt
 * Set active attempt
 * Duplicate node
@@ -852,7 +856,9 @@ Image Gen node
 - reference image inputs
 - selected control values
 - final compiled prompt
-- generation attempts
+- edit instruction + intent (current working values, per node — D27)
+- generation attempts (a fresh generation OR an edit of a prior attempt)
+- per-attempt edit lineage: base attempt, instruction, intent, originating prompt version (D27)
 - active output
 - approval / rejection decision per attempt
 ```
@@ -872,6 +878,19 @@ An image attempt typically resolves **synchronously** — the request returns th
 but if a model is long-running it is tracked as an **in-flight job** that resolves to
 output-or-error later; either way the attempt's state is durable and survives a page refresh. (How
 generation executes: §20.)
+
+**Editing (D27).** Beyond generating from a prompt, the Image Gen node can apply a **targeted
+edit** to its current image — *remove*, *replace*, or *add* an element while preserving the rest.
+An edit is a **new generation attempt in the same node's version log** — not a separate node, and
+not an in-place overwrite (it runs the model, so by the versioning rule it is an attempt). The
+base image is the active attempt (or a connected File/Draw reference when there is no attempt
+yet); the operator types a short instruction (optionally via a Remove / Replace / Add
+quick-action), and a deterministic preservation prompt is sent to an editing-capable model
+(Gemini by default). Each edit records its base attempt, instruction, intent, and the originating
+prompt version, so the whole refinement journey (generate → remove → add …) is one traceable,
+restorable lineage — and each edit is independently approvable like any other attempt. Editing
+reuses the same generate pipeline and execution substrate (§20); only the prompt is composed
+differently. Full design: `docs/superpowers/specs/2026-06-28-image-editing-design.md`.
 
 ---
 
@@ -1119,9 +1138,9 @@ The MVP includes:
 * **Script node** for parsing finished reel scripts (`.md`/`.txt`/paste)
 * **Brief node** for parsing upstream briefs *(planned — defined node type, retained for later; not built in Stage 1)*
 * Text node
-* File node for `.txt` and image references
+* File node for `.txt` and image references (incl. **paste image from clipboard** onto the canvas)
 * Prompt node
-* Image Gen node
+* Image Gen node (incl. **image editing** — targeted remove / replace / add on a generated or reference image, as a new attempt — D27)
 * Video Gen node
 * Shared master controls for image and video generation
 * Selected control values inside Generate nodes
