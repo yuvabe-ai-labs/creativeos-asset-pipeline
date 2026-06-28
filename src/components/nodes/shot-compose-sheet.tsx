@@ -169,9 +169,27 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
                 </p>
               </div>
 
-              <div className="flex shrink-0 items-center gap-2">
+              <Button size="lg" onClick={compose} disabled={loading}>
+                {loading ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Sparkles className="size-4" strokeWidth={1.5} />
+                )}
+                Compose
+              </Button>
+            </header>
+          </div>
+        </div>
+
+        {/* body — two columns like the image-gen focus view */}
+        <div className="flex min-h-0 flex-1 justify-center overflow-hidden">
+          <div className="flex min-h-0 w-full max-w-5xl overflow-hidden">
+            {/* LEFT — inputs */}
+            <div className="flex w-[40%] flex-col gap-6 overflow-y-auto border-r border-border px-6 py-6">
+              <div>
+                <p className="text-eyebrow mb-2 text-[0.6rem]!">Role</p>
                 <Select value={role} onValueChange={(v) => setRole(v as string)}>
-                  <SelectTrigger className="w-44">
+                  <SelectTrigger className="w-full">
                     <SelectValue placeholder="Role" />
                   </SelectTrigger>
                   <SelectContent>
@@ -182,28 +200,8 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
                     ))}
                   </SelectContent>
                 </Select>
-                <Button size="lg" onClick={compose} disabled={loading}>
-                  {loading ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : (
-                    <Sparkles className="size-4" strokeWidth={1.5} />
-                  )}
-                  Compose
-                </Button>
               </div>
-            </header>
-          </div>
-        </div>
 
-        {/* body */}
-        <div className="flex-1 overflow-y-auto">
-          <div className="mx-auto w-full max-w-5xl px-6 py-6">
-            <div
-              className={cn(
-                "mb-6 grid gap-6",
-                referenceImages.length > 0 && "md:grid-cols-2",
-              )}
-            >
               <div>
                 <p className="text-eyebrow mb-1 text-[0.6rem]!">Current shot</p>
                 <p className="rounded-md border border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
@@ -223,11 +221,7 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
                         className="flex items-center gap-2 rounded-md border border-border bg-card p-1.5 pr-2.5 shadow-card"
                       >
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={r.url}
-                          alt={r.label}
-                          className="size-16 rounded object-cover"
-                        />
+                        <img src={r.url} alt={r.label} className="size-16 rounded object-cover" />
                         <span className="max-w-32 truncate text-xs text-muted-foreground">{r.label}</span>
                       </div>
                     ))}
@@ -239,100 +233,103 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
               )}
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              {loading &&
-                Array.from({ length: 4 }).map((_, i) => (
-                  <div key={i} className="rounded-lg border border-border p-3">
-                    <Skeleton className="mb-2 h-4 w-1/3" />
-                    <Skeleton className="mb-1 h-3 w-full" />
-                    <Skeleton className="h-3 w-2/3" />
-                  </div>
-                ))}
+            {/* RIGHT — variations */}
+            <div className="flex min-h-0 flex-1 flex-col px-6 py-6">
+              <div className="flex shrink-0 items-center justify-between">
+                <p className="text-eyebrow text-[0.6rem]!">Variations</p>
+                {picked.size >= 1 && (
+                  <Button size="sm" onClick={promote}>
+                    Promote {picked.size} to sibling shot{picked.size > 1 ? "s" : ""}
+                  </Button>
+                )}
+              </div>
 
-              {error && <p className="col-span-full text-sm text-destructive">{error}</p>}
+              <div className="mt-3 min-h-0 flex-1 overflow-y-auto">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {loading &&
+                    Array.from({ length: 4 }).map((_, i) => (
+                      <div key={i} className="rounded-lg border border-border p-3">
+                        <Skeleton className="mb-2 h-4 w-1/3" />
+                        <Skeleton className="mb-1 h-3 w-full" />
+                        <Skeleton className="h-3 w-2/3" />
+                      </div>
+                    ))}
 
-              {!loading && !error && ideas.length === 0 && (
-                <div className="col-span-full flex flex-col items-center justify-center gap-2 py-20 text-center">
-                  <div className="flex size-11 items-center justify-center rounded-full bg-primary/5">
-                    <Sparkles className="size-5 text-primary/60" strokeWidth={1.5} />
-                  </div>
-                  <p className="text-sm font-medium text-foreground">No variations yet</p>
-                  <p className="max-w-sm text-xs text-muted-foreground">
-                    Pick a role and press Compose to generate 4 role-aware directions for this shot.
-                  </p>
+                  {error && <p className="col-span-full text-sm text-destructive">{error}</p>}
+
+                  {!loading && !error && ideas.length === 0 && (
+                    <div className="col-span-full flex flex-col items-center justify-center gap-2 py-20 text-center">
+                      <div className="flex size-11 items-center justify-center rounded-full bg-primary/5">
+                        <Sparkles className="size-5 text-primary/60" strokeWidth={1.5} />
+                      </div>
+                      <p className="text-sm font-medium text-foreground">No variations yet</p>
+                      <p className="max-w-sm text-xs text-muted-foreground">
+                        Pick a role and press Compose to generate 4 role-aware directions for this shot.
+                      </p>
+                    </div>
+                  )}
+
+                  {!loading &&
+                    ideas.map((idea, i) => (
+                      <div
+                        key={i}
+                        className={cn(
+                          "rounded-lg border border-border bg-card p-3 shadow-card transition-all",
+                          picked.has(i) && "ring-2 ring-primary",
+                        )}
+                      >
+                        <div className="mb-1 flex items-center justify-between">
+                          <span className="text-sm font-medium">{idea.title}</span>
+                          <Tooltip>
+                            <TooltipTrigger
+                              render={
+                                <button
+                                  type="button"
+                                  onClick={() => togglePick(i)}
+                                  aria-label={picked.has(i) ? "Unmark for promote" : "Mark for promote"}
+                                  className={cn(
+                                    "flex size-6 items-center justify-center rounded-md border transition-colors",
+                                    picked.has(i)
+                                      ? "border-primary bg-primary text-primary-foreground"
+                                      : "border-muted-foreground/40 bg-background hover:border-primary hover:bg-primary/5 hover:text-primary",
+                                  )}
+                                >
+                                  {picked.has(i) ? (
+                                    <Check className="size-3.5" />
+                                  ) : (
+                                    <Plus className="size-3.5 text-muted-foreground" strokeWidth={1.5} />
+                                  )}
+                                </button>
+                              }
+                            />
+                            <TooltipContent>
+                              {picked.has(i) ? "Selected to promote" : "Select to promote into its own Shot"}
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                        {idea.bestFor && (
+                          <p className="text-eyebrow mb-1 text-[0.6rem]!">best for · {idea.bestFor}</p>
+                        )}
+                        <p className="text-sm text-muted-foreground">{idea.description}</p>
+                        <div className="mt-2 flex justify-end">
+                          <Tooltip>
+                            <TooltipTrigger
+                              render={
+                                <Button variant="secondary" size="sm" onClick={() => applyIdea(idea, i)}>
+                                  Use this shot
+                                </Button>
+                              }
+                            />
+                            <TooltipContent>Replace this shot&apos;s description with this idea</TooltipContent>
+                          </Tooltip>
+                        </div>
+                      </div>
+                    ))}
                 </div>
-              )}
-
-              {!loading &&
-                ideas.map((idea, i) => (
-                  <div
-                    key={i}
-                    className={cn(
-                      "rounded-lg border border-border bg-card p-3 shadow-card transition-all",
-                      picked.has(i) && "ring-2 ring-primary",
-                    )}
-                  >
-                    <div className="mb-1 flex items-center justify-between">
-                      <span className="text-sm font-medium">{idea.title}</span>
-                      <Tooltip>
-                        <TooltipTrigger
-                          render={
-                            <button
-                              type="button"
-                              onClick={() => togglePick(i)}
-                              aria-label={picked.has(i) ? "Unmark for promote" : "Mark for promote"}
-                              className={cn(
-                                "flex size-6 items-center justify-center rounded-md border transition-colors",
-                                picked.has(i)
-                                  ? "border-primary bg-primary text-primary-foreground"
-                                  : "border-muted-foreground/40 bg-background hover:border-primary hover:bg-primary/5 hover:text-primary",
-                              )}
-                            >
-                              {picked.has(i) ? (
-                                <Check className="size-3.5" />
-                              ) : (
-                                <Plus className="size-3.5 text-muted-foreground" strokeWidth={1.5} />
-                              )}
-                            </button>
-                          }
-                        />
-                        <TooltipContent>
-                          {picked.has(i) ? "Selected to promote" : "Select to promote into its own Shot"}
-                        </TooltipContent>
-                      </Tooltip>
-                    </div>
-                    {idea.bestFor && (
-                      <p className="text-eyebrow mb-1 text-[0.6rem]!">best for · {idea.bestFor}</p>
-                    )}
-                    <p className="text-sm text-muted-foreground">{idea.description}</p>
-                    <div className="mt-2 flex justify-end">
-                      <Tooltip>
-                        <TooltipTrigger
-                          render={
-                            <Button variant="secondary" size="sm" onClick={() => applyIdea(idea, i)}>
-                              Use this shot
-                            </Button>
-                          }
-                        />
-                        <TooltipContent>Replace this shot&apos;s description with this idea</TooltipContent>
-                      </Tooltip>
-                    </div>
-                  </div>
-                ))}
+              </div>
             </div>
           </div>
         </div>
-
-        {/* footer */}
-        {picked.size >= 1 && (
-          <div className="shrink-0 border-t">
-            <div className="mx-auto w-full max-w-5xl px-6 py-3">
-              <Button className="w-full" onClick={promote}>
-                Promote {picked.size} to sibling shot{picked.size > 1 ? "s" : ""}
-              </Button>
-            </div>
-          </div>
-        )}
         </SheetContent>
       </Sheet>
     </TooltipProvider>
