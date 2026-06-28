@@ -40,7 +40,9 @@ const ICONS: Record<AddNodeType, LucideIcon> = {
 };
 
 const MENU_W = 240;
-const MENU_H = 340;
+// Tall enough to show the input + all 8 node rows (+ the optional paste row)
+// without the list scrolling. Kept in sync with CommandList's max-h below.
+const MENU_H = 420;
 
 interface QuickAddMenuProps {
   screenX: number;
@@ -95,7 +97,9 @@ export function QuickAddMenu({
           which accepts standard InputHTMLAttributes — autoFocus is valid.
         */}
         <CommandInput autoFocus placeholder="Add node…" />
-        <CommandList>
+        {/* Override shadcn's default max-h-72 (288px) so all 8 node types fit
+            without the list scrolling; still caps height on short viewports. */}
+        <CommandList className="max-h-[420px]">
           <CommandEmpty>No node type found.</CommandEmpty>
           {canPasteImage && onPasteImage && (
             <CommandGroup>
