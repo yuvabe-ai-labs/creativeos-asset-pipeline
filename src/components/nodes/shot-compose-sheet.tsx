@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Sparkles, Check, Loader2, ArrowLeft } from "lucide-react";
+import { Sparkles, Check, Loader2, ArrowLeft, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { SHOT_ROLES, DEFAULT_SHOT_ROLE } from "@/lib/nodes/shot-roles";
@@ -219,13 +219,17 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
                               onClick={() => togglePick(i)}
                               aria-label={picked.has(i) ? "Unmark for promote" : "Mark for promote"}
                               className={cn(
-                                "flex size-5 items-center justify-center rounded border transition-colors",
+                                "flex size-6 items-center justify-center rounded-md border transition-colors",
                                 picked.has(i)
                                   ? "border-primary bg-primary text-primary-foreground"
-                                  : "border-border hover:border-primary/50 hover:bg-primary/5",
+                                  : "border-muted-foreground/40 bg-background hover:border-primary hover:bg-primary/5 hover:text-primary",
                               )}
                             >
-                              {picked.has(i) && <Check className="size-3.5" />}
+                              {picked.has(i) ? (
+                                <Check className="size-3.5" />
+                              ) : (
+                                <Plus className="size-3.5 text-muted-foreground" strokeWidth={1.5} />
+                              )}
                             </button>
                           }
                         />
@@ -242,7 +246,7 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
                       <Tooltip>
                         <TooltipTrigger
                           render={
-                            <Button variant="outline" size="sm" onClick={() => applyIdea(idea, i)}>
+                            <Button variant="secondary" size="sm" onClick={() => applyIdea(idea, i)}>
                               Use this shot
                             </Button>
                           }
