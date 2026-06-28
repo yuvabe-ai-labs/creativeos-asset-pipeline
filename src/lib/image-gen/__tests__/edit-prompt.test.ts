@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildEditPrompt } from "../edit-prompt";
+import { buildEditPrompt, assembleEditReferences } from "../edit-prompt";
 
 describe("buildEditPrompt", () => {
   it("remove → change/remove template, interpolates the instruction", () => {
@@ -34,5 +34,24 @@ describe("buildEditPrompt", () => {
     const p = buildEditPrompt({ instruction: "  the logo  ", intent: "remove" });
     expect(p).toContain("change only the logo.");
     expect(p).not.toContain("{instruction}");
+  });
+});
+
+describe("assembleEditReferences", () => {
+  it("puts the base image first", () => {
+    expect(assembleEditReferences({ baseImageUrl: "base", extraUrls: ["a", "b"], max: 5 }))
+      .toEqual(["base", "a", "b"]);
+  });
+
+  it("dedups the base out of the extras", () => {
+    expect(assembleEditReferences({ baseImageUrl: "base", extraUrls: ["base", "a"], max: 5 }))
+      .toEqual(["base", "a"]);
+  });
+
+  it("clamps to max (base always kept)", () => {
+    expect(assembleEditReferences({ baseImageUrl: "base", extraUrls: ["a", "b", "c"], max: 2 }))
+      .toEqual(["base", "a"]);
+    expect(assembleEditReferences({ baseImageUrl: "base", extraUrls: ["a"], max: 0 }))
+      .toEqual(["base"]);
   });
 });

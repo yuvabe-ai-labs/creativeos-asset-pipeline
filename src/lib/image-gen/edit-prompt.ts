@@ -31,3 +31,14 @@ export function buildEditPrompt(input: {
     `same — preserve the original style, lighting, composition, and all other elements.`
   );
 }
+
+// Ordered reference list for an edit: base image first (Gemini treats the first image as the
+// scene to preserve), then the other connected references, deduped and clamped (spec §7).
+export function assembleEditReferences(input: {
+  baseImageUrl: string;
+  extraUrls: string[];
+  max: number;
+}): string[] {
+  const extras = input.extraUrls.filter((u) => u !== input.baseImageUrl);
+  return [input.baseImageUrl, ...extras].slice(0, Math.max(1, input.max));
+}
