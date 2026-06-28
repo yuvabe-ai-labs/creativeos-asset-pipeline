@@ -220,7 +220,7 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
         <div className="flex min-h-0 flex-1 justify-center overflow-hidden">
           <div className="flex min-h-0 w-full max-w-5xl overflow-hidden">
             {/* LEFT — inputs */}
-            <div className="flex w-[40%] flex-col gap-6 overflow-y-auto border-r border-border px-6 py-6">
+            <div className="flex w-[30%] flex-col gap-6 overflow-y-auto border-r border-border px-6 py-6">
               <div>
                 <SectionLabel icon={Tag} className="mb-2">Role</SectionLabel>
                 <Select value={role} onValueChange={(v) => setRole(v as string)}>
