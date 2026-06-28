@@ -1,7 +1,17 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Sparkles, Check, Loader2, ArrowLeft, Plus } from "lucide-react";
+import { useMemo, useState, type ReactNode } from "react";
+import {
+  Sparkles,
+  Check,
+  Loader2,
+  ArrowLeft,
+  Plus,
+  Tag,
+  Clapperboard,
+  Image as ImageIcon,
+  type LucideIcon,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { SHOT_ROLES, DEFAULT_SHOT_ROLE } from "@/lib/nodes/shot-roles";
@@ -30,6 +40,24 @@ type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 };
+
+// Section heading — icon + tracked small-caps eyebrow, matching the other focus views.
+function SectionLabel({
+  icon: Icon,
+  className,
+  children,
+}: {
+  icon: LucideIcon;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className={cn("flex items-center gap-1.5", className)}>
+      <Icon className="size-3.5 text-primary" strokeWidth={1.5} />
+      <span className="text-eyebrow">{children}</span>
+    </div>
+  );
+}
 
 // The Shot Composer sheet (D28). Pick a role -> Compose -> 4 idea cards -> "Use this" rewrites
 // the shot description (edit-at-source) + captures the pick; multi-select promotes to siblings.
@@ -187,7 +215,7 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
             {/* LEFT — inputs */}
             <div className="flex w-[40%] flex-col gap-6 overflow-y-auto border-r border-border px-6 py-6">
               <div>
-                <p className="text-eyebrow mb-2 text-[0.6rem]!">Role</p>
+                <SectionLabel icon={Tag} className="mb-2">Role</SectionLabel>
                 <Select value={role} onValueChange={(v) => setRole(v as string)}>
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Role" />
@@ -203,7 +231,7 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
               </div>
 
               <div>
-                <p className="text-eyebrow mb-1 text-[0.6rem]!">Current shot</p>
+                <SectionLabel icon={Clapperboard} className="mb-2">Current shot</SectionLabel>
                 <p className="rounded-md border border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
                   {seedDescription || "(no shot text yet)"}
                 </p>
@@ -211,9 +239,9 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
 
               {referenceImages.length > 0 && (
                 <div>
-                  <p className="text-eyebrow mb-2 text-[0.6rem]!">
+                  <SectionLabel icon={ImageIcon} className="mb-2">
                     Composition references · {referenceImages.length}
-                  </p>
+                  </SectionLabel>
                   <div className="flex flex-wrap gap-2">
                     {referenceImages.map((r) => (
                       <div
@@ -236,7 +264,7 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
             {/* RIGHT — variations */}
             <div className="flex min-h-0 flex-1 flex-col px-6 py-6">
               <div className="flex shrink-0 items-center justify-between">
-                <p className="text-eyebrow text-[0.6rem]!">Variations</p>
+                <SectionLabel icon={Sparkles}>Variations</SectionLabel>
                 {picked.size >= 1 && (
                   <Button size="sm" onClick={promote}>
                     Promote {picked.size} to sibling shot{picked.size > 1 ? "s" : ""}
@@ -274,8 +302,10 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
                       <div
                         key={i}
                         className={cn(
-                          "rounded-lg border border-border bg-card p-3 shadow-card transition-all",
-                          picked.has(i) && "ring-2 ring-primary",
+                          "rounded-xl border bg-card p-4 shadow-card transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]",
+                          picked.has(i)
+                            ? "border-primary bg-primary/[0.03] ring-1 ring-primary/40"
+                            : "border-border hover:-translate-y-0.5 hover:border-primary/40",
                         )}
                       >
                         <div className="mb-1 flex items-center justify-between">
