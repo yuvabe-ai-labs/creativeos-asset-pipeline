@@ -574,6 +574,38 @@ backs up, and forces a rewrite the day an image model turns slow.
 (the human still triggers each generation).
 **Originated.** `docs/architecture/2026-06-18-generation-execution-flows.md` (full flows + diagrams).
 
+### D27 — Image editing is a new *attempt* on the Image Gen node, not a new node *(recorded 2026-06-28; refines D18/D19/D20/D22; extends Stage 3)*
+**Decision.** A targeted image edit (remove / replace / add an element while preserving the
+rest of the frame) is modeled as a **new generation attempt in the existing Image Gen node's
+append-only version log** (`insertVersion` → `setActive`) — **not** a new "Image Edit" node,
+and **not** an in-place output edit (`updateActiveVersionOutput`). Because an edit calls the
+model and produces new bytes, it **is** an LLM attempt (D18). The attempt's `inputs_used`
+carries lineage breadcrumbs: `baseVersionId` (the attempt it was derived from), `instruction`
+(the edit text), `extraReferenceUrls` (e.g. a product to add), and a **carried-forward**
+`promptVersionId` (the base prompt that seeded the image family). The working instruction
+lives on `nodes.data.editInstruction` (human-authored config, D19) and is snapshotted per
+attempt. **No schema migration** — breadcrumbs are `inputs_used` jsonb. The base prompt is
+**recorded** on every variation but **not resent** to the edit model (instruction-only edits
+preserve better — Gemini image-editing guide). Default to a Gemini editing model (Nano Banana
+family); **suggest, don't hard-block** (D9/D21 "mark, don't block").
+**Why.** A separate Edit node would place output on a different node than the original,
+orphaning everything wired to it (breaks D19/D20) and re-introducing the per-image output-node
+sprawl the PRD deleted (§8); it would also fragment the eval refinement trace across nodes.
+Keeping edits as attempts in one log makes the journey (`generate → remove cup → add product`)
+a single queryable lineage, and turns each edit instruction into an explicit **correction
+label** — generalizing D22's generated-vs-shipped signal into the image domain (pixels can't be
+hand-edited, so the AI edit *is* the correction). The chain preserves every "before" inherently
+(each edit is a new row), so it needs no two-write trick.
+**Rejected.** (a) A dedicated **Image Edit node** — breaks D19/D20, sprawls outputs (§8),
+fragments the trace, and still needs most of the edit UI. (b) **In-place edit** via
+`updateActiveVersionOutput` — that path is for manual edits with no model call; an AI edit runs
+the model, so by D18 it must be a new attempt.
+**Refines.** D18 (an edit that runs the model is an attempt — now applies to images),
+D19/D20 (output stays single-source, edited at the source node), D22 (the before/after
+correction signal extends to images via the edit chain). **D26 unchanged** — edits run on the
+same duration-driven execution substrate (synchronous today).
+**Originated.** `2026-06-28-image-editing-design.md`.
+
 ### Parked / out-of-scope (with revisit triggers)
 | Item | Status | Revisit when |
 |---|---|---|
