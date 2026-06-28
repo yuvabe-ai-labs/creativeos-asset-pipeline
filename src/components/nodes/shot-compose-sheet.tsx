@@ -197,14 +197,21 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
                 </p>
               </div>
 
-              <Button size="lg" onClick={compose} disabled={loading}>
-                {loading ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
-                  <Sparkles className="size-4" strokeWidth={1.5} />
+              <div className="flex shrink-0 items-center gap-2">
+                {picked.size >= 1 && (
+                  <Button variant="secondary" size="lg" onClick={promote}>
+                    Promote {picked.size} to sibling shot{picked.size > 1 ? "s" : ""}
+                  </Button>
                 )}
-                Compose
-              </Button>
+                <Button size="lg" onClick={compose} disabled={loading}>
+                  {loading ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="size-4" strokeWidth={1.5} />
+                  )}
+                  Compose
+                </Button>
+              </div>
             </header>
           </div>
         </div>
@@ -263,14 +270,7 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
 
             {/* RIGHT — variations */}
             <div className="flex min-h-0 flex-1 flex-col px-6 py-6">
-              <div className="flex shrink-0 items-center justify-between">
-                <SectionLabel icon={Sparkles}>Variations</SectionLabel>
-                {picked.size >= 1 && (
-                  <Button size="sm" onClick={promote}>
-                    Promote {picked.size} to sibling shot{picked.size > 1 ? "s" : ""}
-                  </Button>
-                )}
-              </div>
+              <SectionLabel icon={Sparkles} className="shrink-0">Variations</SectionLabel>
 
               <div className="mt-3 min-h-0 flex-1 overflow-y-auto">
                 <div className="grid gap-4 sm:grid-cols-2">
