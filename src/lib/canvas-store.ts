@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { wouldCreateCycle } from "@/lib/canvas/graph";
 import type { AppNode } from "./canvas-nodes";
 import type { ReelScript } from "@/lib/nodes/reel-script";
+import type { ShotComposeIdea } from "@/lib/nodes/shot-compose";
 
 // 1C/1D: the canvas store. Nodes/edges live here; custom node components read
 // and write it directly (React Flow only hands a node `{ id, data }`).
@@ -31,6 +32,7 @@ export type CanvasState = {
   deleteNode: (id: string) => void;
   duplicateNode: (id: string) => void;
   fanOutShots: (scriptNodeId: string) => void;
+  promoteIdeasToShots: (shotNodeId: string, ideas: ShotComposeIdea[]) => void;
   // Per-node video generation status — shared between VideoGenNode and VideoGenFocusView
   videoGenStatus: Record<string, { isGenerating: boolean; lastError: string | null }>;
   setVideoGenGenerating: (nodeId: string, v: boolean) => void;
@@ -181,6 +183,40 @@ export function createCanvasStore(
         nodes: [...get().nodes, ...created],
         edges: [...get().edges, ...createdEdges],
       });
+    },
+
+    // Promote chosen compose ideas (D28) into sibling Shot nodes — the §15 "duplicate to
+    // compare" move, one node per idea. Each sibling copies the SOURCE shot's narrowed
+    // script with the idea's description swapped in. No edges (human wires each Shot ->
+    // Prompt -> Image — D11). Capture of the compose run already happened server-side.
+    promoteIdeasToShots: (shotNodeId, ideas) => {
+      const src = get().nodes.find((n) => n.id === shotNodeId);
+      if (!src || ideas.length === 0) return;
+      const d = src.data as {
+        script?: ReelScript;
+        order?: number;
+        seededFrom?: { scriptNodeId?: string; shotIndex?: number; scriptTitle?: string };
+      };
+      const baseScript = d.script ?? {};
+      const vs = baseScript.visual_script ?? {};
+      const firstShot = vs.shots?.[0] ?? {};
+      const base = src.position;
+
+      const created = ideas.map((idea, i) => ({
+        id: crypto.randomUUID(),
+        type: "shot",
+        position: { x: base.x + 280, y: base.y + (i + 1) * 180 },
+        data: {
+          script: {
+            ...baseScript,
+            visual_script: { ...vs, shots: [{ ...firstShot, description: idea.description }] },
+          },
+          order: d.order,
+          seededFrom: d.seededFrom,
+        },
+      })) as AppNode[];
+
+      set({ nodes: [...get().nodes, ...created] }); // NO edges
     },
 
     videoGenStatus: {},

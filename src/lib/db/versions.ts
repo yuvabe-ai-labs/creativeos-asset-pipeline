@@ -77,6 +77,19 @@ export async function updateActiveVersionOutput(
   if (error) throw error;
 }
 
+// D28: fold a selection into a SPECIFIC (non-active) version row's output. The compose
+// row is never the node's active version, so updateActiveVersionOutput can't reach it.
+// Updates ONLY `output` — `generated_output` stays frozen (D22), preserving the
+// proposed-ideas -> shipped-description diff for the eval flywheel.
+export async function updateVersionOutput(versionId: string, output: unknown): Promise<void> {
+  const supabase = createServerSupabase();
+  const { error } = await supabase
+    .from("node_versions")
+    .update({ output })
+    .eq("id", versionId);
+  if (error) throw error;
+}
+
 export async function listVersions(nodeId: string): Promise<NodeVersionRow[]> {
   const supabase = createServerSupabase();
   const { data, error } = await supabase

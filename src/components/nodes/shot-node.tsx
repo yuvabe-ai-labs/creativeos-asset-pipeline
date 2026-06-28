@@ -1,10 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import { Clapperboard } from "lucide-react";
+import { Clapperboard, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { NodeContextMenu } from "./node-context-menu";
+import { ShotComposeSheet } from "./shot-compose-sheet";
 import type { ReelScript } from "@/lib/nodes/reel-script";
 
 // Shot node — one shot of a reel, forked from a parsed Script (D21). It carries the
@@ -15,6 +17,7 @@ export function ShotNode({ id, data, selected }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const deleteNode = useCanvasStore((s) => s.deleteNode);
   const duplicateNode = useCanvasStore((s) => s.duplicateNode);
+  const [composeOpen, setComposeOpen] = useState(false);
   const d = data as {
     script?: ReelScript;
     order?: number;
@@ -38,6 +41,10 @@ export function ShotNode({ id, data, selected }: NodeProps) {
       onDelete={() => deleteNode(id)}
     >
       <div
+        onDoubleClick={(e) => {
+          e.stopPropagation();
+          setComposeOpen(true);
+        }}
         className={cn(
           "w-56 rounded-lg border border-border bg-card shadow-card",
           "transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:scale-[1.006]",
@@ -57,6 +64,7 @@ export function ShotNode({ id, data, selected }: NodeProps) {
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
+            onDoubleClick={(e) => e.stopPropagation()}
             placeholder="Shot description…"
             rows={4}
             className="nodrag w-full resize-none rounded-md bg-transparent px-1.5 py-1 text-sm focus:outline-none"
@@ -64,10 +72,25 @@ export function ShotNode({ id, data, selected }: NodeProps) {
           <p className="px-1.5 pt-1 text-[0.6rem] text-muted-foreground">
             {d.seededFrom?.scriptTitle ? `from "${d.seededFrom.scriptTitle}" · ` : ""}full script context
           </p>
+          <button
+            type="button"
+            onClick={() => setComposeOpen(true)}
+            className="nodrag mt-1 flex items-center gap-1 rounded-md border border-dashed border-primary/40 px-2 py-1 text-[0.65rem] text-primary transition-colors hover:bg-primary/5"
+          >
+            <Sparkles className="size-3" strokeWidth={1.5} /> Compose
+          </button>
         </div>
+        {/* lineage target (dashed Script->Shot edge) */}
         <Handle
           type="target"
           position={Position.Left}
+          className="size-4! border-2! border-card! bg-muted-foreground!"
+        />
+        {/* image-grounding target (D28) — a File/Draw/Image-Gen image for the composer */}
+        <Handle
+          id="image"
+          type="target"
+          position={Position.Bottom}
           className="size-4! border-2! border-card! bg-muted-foreground!"
         />
         <Handle
@@ -75,6 +98,7 @@ export function ShotNode({ id, data, selected }: NodeProps) {
           position={Position.Right}
           className="size-4! border-2! border-card! bg-primary!"
         />
+        <ShotComposeSheet nodeId={id} open={composeOpen} onOpenChange={setComposeOpen} />
       </div>
     </NodeContextMenu>
   );
