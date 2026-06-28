@@ -178,6 +178,8 @@ export function ImageGenFocusView({
   const [editing, setEditing] = useState(false);
   const [editInstr, setEditInstr] = useState(editInstruction ?? "");
   const [intent, setIntent] = useState<EditIntent>(editIntent ?? "freeform");
+  // null = follow the per-intent template; a string = the operator's hand-edited final prompt.
+  const [promptOverride, setPromptOverride] = useState<string | null>(null);
   const [versions, setVersions] = useState<ImageGenVersionSummary[]>([]);
   const [activeVersionId, setActiveVersionId] = useState<string | null>(null);
   const [restoring, setRestoring] = useState(false);
@@ -284,9 +286,12 @@ export function ImageGenFocusView({
     : Math.max(0, connectedImageUrls.length - 1);
   const hasExtraReference = extraReferenceCount > 0;
 
+  // Final prompt = the per-intent template, unless the operator has hand-edited it (override).
+  // Picking a chip or changing the instruction clears the override so the template re-derives.
   const composedPrompt = editInstr.trim()
     ? buildEditPrompt({ instruction: editInstr, intent, hasExtraReference })
     : "";
+  const finalPrompt = promptOverride ?? composedPrompt;
   const referenceWarning =
     (intent === "replace" || intent === "add") && !hasExtraReference;
   const suggestGemini = model.provider !== "gemini";
@@ -390,6 +395,7 @@ export function ImageGenFocusView({
 
   function handlePickChip(nextIntent: EditIntent, starter: string) {
     setIntent(nextIntent);
+    setPromptOverride(null); // re-derive the final prompt for the new action
     if (!editInstr.trim()) {
       setEditInstr(starter);
       onPatch({ editIntent: nextIntent, editInstruction: starter });
@@ -400,6 +406,7 @@ export function ImageGenFocusView({
 
   function handleInstructionChange(v: string) {
     setEditInstr(v);
+    setPromptOverride(null); // re-derive from the template as the instruction changes
   }
 
   function handleInstructionBlur() {
@@ -423,6 +430,7 @@ export function ImageGenFocusView({
           params: paramValues,
           instruction: editInstr,
           intent,
+          prompt: finalPrompt,
           ...(baseVersionId ? { baseVersionId } : { baseImageUrl }),
         }),
       });
@@ -590,7 +598,7 @@ export function ImageGenFocusView({
                 <ImageGenEditPanel
                   intent={intent}
                   instruction={editInstr}
-                  composedPrompt={composedPrompt}
+                  finalPrompt={finalPrompt}
                   editing={editing}
                   canEdit={canEditBase}
                   referenceWarning={referenceWarning}
@@ -598,6 +606,7 @@ export function ImageGenFocusView({
                   onPickChip={handlePickChip}
                   onInstructionChange={handleInstructionChange}
                   onInstructionBlur={handleInstructionBlur}
+                  onFinalPromptChange={setPromptOverride}
                   onEdit={handleEdit}
                 />
               )}

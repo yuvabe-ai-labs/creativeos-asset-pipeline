@@ -6,17 +6,18 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { EditIntent } from "@/lib/image-gen/edit-prompt";
 
-// 3 chips over 2 server templates (spec §1.1/§10). "freeform" = typing with no chip.
+// 3 chips → 3 distinct templates. The instruction is the bare target; the chip's template
+// supplies the verb (remove / replace / add). "freeform" = typing with no chip.
 const CHIPS: Array<{ intent: EditIntent; label: string; starter: string }> = [
   { intent: "remove", label: "Remove", starter: "the cup on the table" },
-  { intent: "replace", label: "Replace product", starter: "the bottle, using the connected product reference" },
-  { intent: "add", label: "Add product", starter: "the connected product reference into the scene" },
+  { intent: "replace", label: "Replace product", starter: "the bottle on the shelf" },
+  { intent: "add", label: "Add product", starter: "it to the scene" },
 ];
 
 export type ImageGenEditPanelProps = {
   intent: EditIntent;
   instruction: string;
-  composedPrompt: string;
+  finalPrompt: string;
   editing: boolean;
   canEdit: boolean;
   referenceWarning: boolean;
@@ -24,13 +25,14 @@ export type ImageGenEditPanelProps = {
   onPickChip: (intent: EditIntent, starter: string) => void;
   onInstructionChange: (v: string) => void;
   onInstructionBlur: () => void;
+  onFinalPromptChange: (v: string) => void;
   onEdit: () => void;
 };
 
 export function ImageGenEditPanel({
   intent,
   instruction,
-  composedPrompt,
+  finalPrompt,
   editing,
   canEdit,
   referenceWarning,
@@ -38,6 +40,7 @@ export function ImageGenEditPanel({
   onPickChip,
   onInstructionChange,
   onInstructionBlur,
+  onFinalPromptChange,
   onEdit,
 }: ImageGenEditPanelProps) {
   return (
@@ -90,16 +93,20 @@ export function ImageGenEditPanel({
         </p>
       )}
 
-      {composedPrompt && (
-        <div className="rounded-md border border-border bg-muted/30 p-2">
-          <p className="text-eyebrow mb-1 !text-[0.6rem]">Final prompt</p>
-          <p className="text-xs leading-snug text-muted-foreground">{composedPrompt}</p>
-        </div>
-      )}
+      <div>
+        <p className="text-eyebrow mb-1 !text-[0.6rem]">Final prompt — editable</p>
+        <Textarea
+          value={finalPrompt}
+          onChange={(e) => onFinalPromptChange(e.target.value)}
+          rows={4}
+          placeholder="Pick an action or type above — the full prompt appears here and can be edited before you run it."
+          className="nodrag resize-none text-xs leading-snug text-muted-foreground"
+        />
+      </div>
 
       <Button
         onClick={onEdit}
-        disabled={editing || !canEdit || !instruction.trim()}
+        disabled={editing || !canEdit || !finalPrompt.trim()}
         className="w-full"
       >
         <Sparkles className="size-4" strokeWidth={1.5} />
