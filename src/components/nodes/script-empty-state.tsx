@@ -3,8 +3,10 @@
 import { type ChangeEvent, type DragEvent, useState } from "react";
 import { UploadCloud } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import type { KBSliceKey } from "@/lib/kb/parse-context";
 import { SliceToggles } from "./slice-toggles";
 
@@ -26,6 +28,7 @@ export function ScriptEmptyState({
   onUpload,
 }: ScriptEmptyStateProps) {
   const [dragOver, setDragOver] = useState(false);
+  const [pasted, setPasted] = useState("");
 
   function readFile(file: File | undefined) {
     if (!file) return;
@@ -45,6 +48,11 @@ export function ScriptEmptyState({
     e.preventDefault();
     setDragOver(false);
     readFile(e.dataTransfer.files?.[0]);
+  }
+
+  function submitPaste() {
+    const text = pasted.trim();
+    if (text) onUpload(text);
   }
 
   return (
@@ -77,6 +85,32 @@ export function ScriptEmptyState({
           onChange={handleInput}
         />
       </label>
+
+      <div className="grid gap-3">
+        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+          <span className="h-px flex-1 bg-border" />
+          <span className="text-eyebrow">or paste</span>
+          <span className="h-px flex-1 bg-border" />
+        </div>
+        <Textarea
+          value={pasted}
+          onChange={(e) => setPasted(e.target.value)}
+          onKeyDown={(e) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+              e.preventDefault();
+              submitPaste();
+            }
+          }}
+          placeholder="Paste your reel brief here…"
+          rows={6}
+          className="nodrag resize-none"
+        />
+        <div className="flex justify-end">
+          <Button onClick={submitPaste} disabled={!pasted.trim()}>
+            Extract
+          </Button>
+        </div>
+      </div>
 
       <div className="grid gap-2">
         <Label htmlFor="empty-title">Title</Label>
