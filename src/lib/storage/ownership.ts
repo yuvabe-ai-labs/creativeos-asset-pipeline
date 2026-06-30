@@ -14,12 +14,18 @@ export async function resolveOwnership(nodeId: string): Promise<Ownership> {
   if (error) throw new Error(error.message);
   if (!data) throw new Error(`Node ${nodeId} not found.`);
 
-  const row = data as {
+  // Supabase types nested joins as arrays even when the FK is many-to-one,
+  // so accept either shape at the type level and normalize at runtime.
+  const row = data as unknown as {
     canvas_id: string;
-    canvases: { client_id: string } | null;
+    canvases:
+      | { client_id: string }
+      | { client_id: string }[]
+      | null;
   };
-  if (!row.canvases) {
+  const canvas = Array.isArray(row.canvases) ? row.canvases[0] : row.canvases;
+  if (!canvas) {
     throw new Error(`Canvas for node ${nodeId} not found.`);
   }
-  return { clientId: row.canvases.client_id, canvasId: row.canvas_id };
+  return { clientId: canvas.client_id, canvasId: row.canvas_id };
 }
