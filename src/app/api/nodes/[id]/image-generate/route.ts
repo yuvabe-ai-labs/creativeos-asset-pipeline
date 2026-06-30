@@ -1,4 +1,3 @@
-import { createServerSupabase } from "@/lib/supabase/server";
 import { getUpstreamOutputs } from "@/lib/db/nodes";
 import { insertVersion, setActiveVersion, getVersionById } from "@/lib/db/versions";
 import { imageGenRegistry, DEFAULT_MODEL_ID } from "@/lib/image-gen/registry";
@@ -8,7 +7,7 @@ import {
   type EditIntent,
 } from "@/lib/image-gen/edit-prompt";
 import { apiError, apiOk } from "@/lib/api/route-helpers";
-import { NODE_FILE_BUCKET } from "@/lib/nodes/file-constants";
+import { uploadImageGen } from "@/lib/storage";
 
 function mimeToExt(mimeType: string): string {
   if (mimeType === "image/jpeg") return "jpg";
@@ -144,24 +143,12 @@ export async function POST(
   try {
     const result = await config.generate({ prompt, referenceUrls, params: validatedParams });
 
-    // Upload generated image to Supabase Storage
-    const supabase = createServerSupabase();
-    const ext = mimeToExt(result.mimeType);
-    const versionFileId = crypto.randomUUID();
-    const storagePath = `image-gen/${nodeId}/${versionFileId}.${ext}`;
-
-    const { error: uploadError } = await supabase.storage
-      .from(NODE_FILE_BUCKET)
-      .upload(storagePath, Buffer.from(result.imageBase64, "base64"), {
-        contentType: result.mimeType,
-        upsert: false,
-      });
-    if (uploadError) throw new Error(`Storage upload failed: ${uploadError.message}`);
-
-    const { data: publicData } = supabase.storage
-      .from(NODE_FILE_BUCKET)
-      .getPublicUrl(storagePath);
-    const imageUrl = publicData.publicUrl;
+    const { url: imageUrl } = await uploadImageGen({
+      nodeId,
+      ext: mimeToExt(result.mimeType),
+      body: Buffer.from(result.imageBase64, "base64"),
+      contentType: result.mimeType,
+    });
 
     // Record the version
     const version = await insertVersion({
