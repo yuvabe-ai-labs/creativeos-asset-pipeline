@@ -69,49 +69,60 @@ New component: `src/components/nodes/processing-pill.tsx`.
 - **video-gen** — `VideoGenNode` already reads `isGenerating` from
   `useVideoGenStatus(id)`. Replace the header dot with
   `<ProcessingPill processing={isGenerating} />`.
-- **image-gen** — the gap. Add the smallest shared channel:
-  - Canvas store (`src/lib/canvas-store.ts`): new slice
-    `processing: Record<string, boolean>` and action
-    `setProcessing(nodeId: string, value: boolean)`.
-  - `ImageGenFocusView`: call `setProcessing(nodeId, true)` at the **start** of
-    **both** the generate and edit handlers, and `setProcessing(nodeId, false)` in
-    their `finally` blocks. Keep the existing local `generating`/`editing` state
-    for in-sheet UI (skeleton mode etc.); the store flag is the cross-component
-    mirror.
-  - `ImageGenNode`: read `processing[id]` from the store and render
+- **image-gen** — the gap. Mirror the **exact script pattern** (a callback from
+  node to focus view), so no global store state is added:
+  - `ImageGenNode`: hold `const [isProcessing, setIsProcessing] = useState(false)`,
+    pass `onProcessingChange={setIsProcessing}` to `ImageGenFocusView`, and render
     `<ProcessingPill processing={isProcessing} />` in the header in place of the
     static dot.
+  - `ImageGenFocusView`: add an optional prop
+    `onProcessingChange?: (v: boolean) => void`, and a single effect that mirrors
+    the existing local state up:
+    `useEffect(() => onProcessingChange?.(generating || editing), [generating, editing, onProcessingChange])`.
+    Keep the existing local `generating`/`editing` state for in-sheet UI (skeleton
+    mode etc.); the callback is the cross-component mirror, covering **both** fresh
+    generate and edit with no per-handler edits.
 
-This works across a focus-view close because the focus-view component (which owns
-the promise) stays mounted, and the `finally` store write is mount-independent.
+This works across a focus-view close because the focus-view **component** (which
+owns the in-flight promise and the `generating`/`editing` state) is rendered
+unconditionally by the node and stays mounted — only the `<Sheet>` *popup subtree*
+unmounts on close. So the effect keeps firing and the node's `isProcessing` stays
+correct.
 
-### Why image-gen gets a store slice but script/video do not
+### Why the callback pattern, not a store slice
 
-Script and video already expose their generating boolean through an existing
-shared channel (callback-to-node and store, respectively). Image-gen's was private
-to the focus view. We add the **smallest** channel that fixes image-gen rather than
-rewriting all three onto one mechanism — that would be churn against working code
-for no behavioral gain, and the per-node state sources are an internal detail the
-shared `ProcessingPill` hides.
+An earlier draft proposed a `processing` slice on the canvas store. Planning showed
+the script node already solves the identical problem with a node→focus-view callback
+(`onParsingChange`), and the focus-view component stays mounted across close — so the
+callback is sufficient, adds no global state, needs no orphan-cleanup on delete, and
+makes all three node types consistent (script and image-gen both lift via callback;
+video lifts via its existing store-backed realtime hook). The shared `ProcessingPill`
+hides the per-node state source.
 
 ## Edge cases
 
 - **Error path** — image-gen's existing `finally` clears the flag, so the pill
   hides on failure; existing error/empty UI is untouched.
-- **Edit vs. fresh generate** — both image-gen handlers set/clear the flag.
+- **Edit vs. fresh generate** — the `generating || editing` effect covers both.
 - **Idle** — pill renders `null`; the normal status dot returns.
-- **Node deleted mid-flight** — the node (and its pill) disappear with the card;
-  the orphaned `processing[id]` entry is harmless. (Optional future cleanup: clear
-  on node unmount — not required for this feature.)
+- **Node deleted mid-flight** — the node (and its local state + pill) disappear
+  with the card. No global state to orphan.
 
-## Testing (TDD — tests first)
+## Testing — manual verification
 
-1. `ProcessingPill` unit test: renders the pill (icon + "Processing") when
-   `processing` is `true`; renders nothing when `false`.
-2. Canvas store test: `setProcessing(id, true)` / `setProcessing(id, false)`
-   toggles `processing[id]`.
-3. `ImageGenNode` component test: shows the pill when `processing[id]` is `true`
-   in the store, and the normal dot when `false`.
+The repo's vitest runs in a `node` environment with no DOM / React Testing Library;
+every existing test is pure logic in `src/lib/**`. This feature is purely
+presentational (a boolean wired to a pill), so we add no component-test infra and
+verify manually by running the app:
+
+1. **image-gen** — connect a Prompt node, open the focus view, click Generate,
+   close the focus view immediately → the node header shows `◌ Processing`; it
+   clears to the normal dot when generation finishes. Repeat with an **edit**.
+2. **video-gen** — start a generation, close the focus view → header shows the pill,
+   clears on completion.
+3. **script** — paste/upload a brief and parse, close the focus view → header shows
+   the pill, clears when parsing finishes.
+4. **idle** — a node not generating shows the normal status dot, no pill.
 
 ## Out of scope
 
