@@ -9,6 +9,7 @@ import { NodeContextMenu } from "./node-context-menu";
 import type { VideoGenNodeData } from "@/lib/canvas-nodes";
 import { VideoGenFocusView } from "./video-gen-focus-view";
 import { useVideoGenStatus } from "@/hooks/use-video-gen-status";
+import { ProcessingPill } from "./processing-pill";
 
 export function VideoGenNode({ id, data, selected }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
@@ -43,19 +44,17 @@ export function VideoGenNode({ id, data, selected }: NodeProps) {
             <Clapperboard className="size-3.5 stroke-[1.5] text-primary" />
             <span className="text-eyebrow !text-[0.65rem]">Video Gen</span>
           </div>
-          <span
-            className={cn(
-              "size-1.5 rounded-full",
-              isGenerating
-                ? "animate-pulse bg-primary/60"
-                : videoUrl
-                  ? "bg-primary"
-                  : "bg-muted-foreground/40",
-            )}
-            title={
-              isGenerating ? "Generating…" : videoUrl ? "Video generated" : "Not generated"
-            }
-          />
+          {isGenerating ? (
+            <ProcessingPill processing />
+          ) : (
+            <span
+              className={cn(
+                "size-1.5 rounded-full",
+                videoUrl ? "bg-primary" : "bg-muted-foreground/40",
+              )}
+              title={videoUrl ? "Video generated" : "Not generated"}
+            />
+          )}
         </div>
 
         {/* Body */}
