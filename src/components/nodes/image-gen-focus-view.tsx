@@ -63,6 +63,9 @@ export type ImageGenFocusViewProps = {
     fileKind?: string;
   }>;
   onPatch: (patch: Record<string, unknown>) => void;
+  /** Mirrors in-flight generate/edit state up to the node so its card can show
+   *  a Processing pill even while the focus view is closed. */
+  onProcessingChange?: (v: boolean) => void;
 };
 
 type ParamFormValues = Record<string, unknown>;
@@ -163,6 +166,7 @@ export function ImageGenFocusView({
   editIntent,
   upstream,
   onPatch,
+  onProcessingChange,
 }: ImageGenFocusViewProps) {
   const selectedModelId = modelId ?? DEFAULT_CLIENT_MODEL_ID;
   const model =
@@ -176,6 +180,11 @@ export function ImageGenFocusView({
 
   const [generating, setGenerating] = useState(false);
   const [editing, setEditing] = useState(false);
+
+  // Mirror in-flight state up to the node card (survives focus-view close).
+  useEffect(() => {
+    onProcessingChange?.(generating || editing);
+  }, [generating, editing, onProcessingChange]);
   const [editInstr, setEditInstr] = useState(editInstruction ?? "");
   const [intent, setIntent] = useState<EditIntent>(editIntent ?? "freeform");
   // null = follow the per-intent template; a string = the operator's hand-edited final prompt.

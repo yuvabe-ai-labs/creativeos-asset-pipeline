@@ -8,6 +8,7 @@ import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { NodeContextMenu } from "./node-context-menu";
 import type { ImageGenNodeData } from "@/lib/canvas-nodes";
 import { ImageGenFocusView } from "./image-gen-focus-view";
+import { ProcessingPill } from "./processing-pill";
 
 export function ImageGenNode({ id, data, selected }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
@@ -42,6 +43,7 @@ export function ImageGenNode({ id, data, selected }: NodeProps) {
   const title    = d.title ?? "";
   const imageUrl = (d.parsed ?? null) as string | null;
   const [focusOpen, setFocusOpen] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   return (
     <NodeContextMenu onDuplicate={() => duplicateNode(id)} onDelete={() => deleteNode(id)}>
@@ -59,13 +61,17 @@ export function ImageGenNode({ id, data, selected }: NodeProps) {
             <ImageIcon className="size-3.5 stroke-[1.5] text-primary" />
             <span className="text-eyebrow !text-[0.65rem]">Image Gen</span>
           </div>
-          <span
-            className={cn(
-              "size-1.5 rounded-full",
-              imageUrl ? "bg-primary" : "bg-muted-foreground/40",
-            )}
-            title={imageUrl ? "Image generated" : "Not generated"}
-          />
+          {isProcessing ? (
+            <ProcessingPill processing />
+          ) : (
+            <span
+              className={cn(
+                "size-1.5 rounded-full",
+                imageUrl ? "bg-primary" : "bg-muted-foreground/40",
+              )}
+              title={imageUrl ? "Image generated" : "Not generated"}
+            />
+          )}
         </div>
 
         {/* Body */}
@@ -96,6 +102,7 @@ export function ImageGenNode({ id, data, selected }: NodeProps) {
           editIntent={d.editIntent}
           upstream={upstream}
           onPatch={(patch) => updateNodeData(id, patch)}
+          onProcessingChange={setIsProcessing}
         />
 
         <Handle
