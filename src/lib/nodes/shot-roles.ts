@@ -33,7 +33,13 @@ export const SHOT_ROLES: ShotRole[] = [
     key: "application",
     label: "Application",
     slots: ["body area", "hand type", "amount", "motion", "absorption / finish", "realism"],
-    avoid: ["medical theater", "exaggerated transformation", "unreal skin"],
+    avoid: [
+      "medical theater",
+      "exaggerated transformation",
+      "unreal skin",
+      "wide environmental scene",
+      "product or skin too small to read",
+    ],
   },
   {
     key: "ingredient",
@@ -50,8 +56,21 @@ export const SHOT_ROLES: ShotRole[] = [
   {
     key: "lifestyle",
     label: "Lifestyle / ritual",
-    slots: ["environment", "time of day", "props", "human presence", "ambience"],
-    avoid: ["generic stock-home look", "irrelevant decor", "product too small"],
+    slots: [
+      "environment / setting (the subject of the frame)",
+      "time of day",
+      "props that build the world",
+      "ambient human presence (optional — not applying the product)",
+      "mood / ambience",
+      "product placed in-scene (present, not being used)",
+    ],
+    avoid: [
+      "the hand or body-contact as the subject",
+      "macro application close-up",
+      "scooping / smoothing / massaging the product onto skin",
+      "generic stock-home look",
+      "product too small to read",
+    ],
   },
   {
     key: "social-proof",
