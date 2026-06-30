@@ -1,6 +1,5 @@
 import { createServerSupabase } from "@/lib/supabase/server";
 import {
-  NODE_FILE_BUCKET,
   FILE_NODE_ALL_EXTENSIONS,
   FILE_NODE_IMAGE_EXTENSIONS,
   FILE_NODE_TEXT_EXTENSIONS,
@@ -17,10 +16,9 @@ import {
   validateFileSize,
   isApiError,
 } from "@/lib/api/route-helpers";
+import { uploadNodeFile, removeObject } from "@/lib/storage";
 
 // POST /api/nodes/:id/file — upload a file (.txt or image) to this File node.
-// Returns { filename, fileExt, fileKind, fileUrl?, rawText? } — the client
-// calls updateNodeData with this payload; autosave then persists it.
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -50,22 +48,20 @@ export async function POST(
 
   const supabase = createServerSupabase();
 
-  // Clean up any existing image for this node before uploading a replacement.
   const { data: nodeRow } = await supabase
     .from("nodes")
     .select("data")
     .eq("id", nodeId)
     .maybeSingle();
-
   if (!nodeRow) return apiError("Node not found.", 404);
 
   const existingUrl = (nodeRow as { data: Record<string, unknown> }).data
     ?.fileUrl as string | undefined;
-
   if (existingUrl) {
-    const existingPath = existingUrl.split(`/${NODE_FILE_BUCKET}/`)[1];
-    if (existingPath) {
-      await supabase.storage.from(NODE_FILE_BUCKET).remove([existingPath]);
+    try {
+      await removeObject(existingUrl);
+    } catch {
+      // Best-effort cleanup — don't block the new upload.
     }
   }
 
@@ -79,59 +75,28 @@ export async function POST(
     });
   }
 
-  // Document (PDF/DOCX) — upload to storage, same as image branch.
-  if (isDocument) {
-    const storagePath = `${nodeId}/${file.name}`;
-    const { error: uploadError } = await supabase.storage
-      .from(NODE_FILE_BUCKET)
-      .upload(storagePath, await file.arrayBuffer(), {
-        contentType: file.type,
-        upsert: true,
-      });
-    if (uploadError) {
-      return apiError(`Upload failed: ${uploadError.message}`, 500);
-    }
-    const { data: publicData } = supabase.storage
-      .from(NODE_FILE_BUCKET)
-      .getPublicUrl(storagePath);
+  try {
+    const { url } = await uploadNodeFile({
+      nodeId,
+      filename: file.name,
+      body: await file.arrayBuffer(),
+      contentType: file.type,
+    });
     return apiOk({
       filename: file.name,
       fileExt: ext,
-      fileKind: "document" as const,
-      fileUrl: publicData.publicUrl,
+      fileKind: isDocument ? ("document" as const) : ("image" as const),
+      fileUrl: url,
     });
+  } catch (e) {
+    return apiError(
+      `Upload failed: ${e instanceof Error ? e.message : "unknown"}`,
+      500,
+    );
   }
-
-  // Image — upload to storage.
-  const storagePath = `${nodeId}/${file.name}`;
-  const arrayBuffer = await file.arrayBuffer();
-
-  const { error: uploadError } = await supabase.storage
-    .from(NODE_FILE_BUCKET)
-    .upload(storagePath, arrayBuffer, {
-      contentType: file.type,
-      upsert: true, // overwrite if same filename (e.g. re-upload after name clash)
-    });
-
-  if (uploadError) {
-    return apiError(`Upload failed: ${uploadError.message}`, 500);
-  }
-
-  const { data: publicData } = supabase.storage
-    .from(NODE_FILE_BUCKET)
-    .getPublicUrl(storagePath);
-
-  return apiOk({
-    filename: file.name,
-    fileExt: ext,
-    fileKind: "image" as const,
-    fileUrl: publicData.publicUrl,
-  });
 }
 
 // DELETE /api/nodes/:id/file — remove the stored image or document for this node.
-// Only needed for images + documents (text content lives in nodes.data, cleared by client).
-// Client calls this, then clears the node data via updateNodeData.
 export async function DELETE(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -144,18 +109,16 @@ export async function DELETE(
     .select("data")
     .eq("id", nodeId)
     .maybeSingle();
-
   if (!nodeRow) return apiError("Node not found.", 404);
 
   const fileUrl = (nodeRow as { data: Record<string, unknown> }).data
     ?.fileUrl as string | undefined;
-
   if (fileUrl) {
-    const storagePath = fileUrl.split(`/${NODE_FILE_BUCKET}/`)[1];
-    if (storagePath) {
-      await supabase.storage.from(NODE_FILE_BUCKET).remove([storagePath]);
+    try {
+      await removeObject(fileUrl);
+    } catch {
+      // Best-effort cleanup
     }
   }
-
   return apiOk({ ok: true as const });
 }

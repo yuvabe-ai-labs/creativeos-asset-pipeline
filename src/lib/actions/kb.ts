@@ -11,6 +11,7 @@ import { setKBStatus } from "@/lib/db/clients";
 import { setNestedField } from "@/lib/kb/utils";
 import { computeReadyStatus } from "@/lib/kb/fill-rate";
 import type { TraceableBrandKB } from "@/lib/kb/schema";
+import { removeObject } from "@/lib/storage";
 
 // ── Field Patch ───────────────────────────────────────────────────────────────
 // Replaces PATCH /api/clients/:id/kb/field
@@ -92,12 +93,10 @@ export async function deleteKBDocumentAction(
   if (error) throw error;
   if (!data || data.client_id !== clientId) throw new Error("Document not found");
 
-  const storageUrl: string = data.storage_url;
-  const bucketMarker = "/kb-documents/";
-  const pathStart = storageUrl.indexOf(bucketMarker);
-  if (pathStart !== -1) {
-    const storagePath = storageUrl.slice(pathStart + bucketMarker.length);
-    await supabase.storage.from("kb-documents").remove([storagePath]);
+  try {
+    await removeObject(data.storage_url);
+  } catch {
+    // Best-effort cleanup — proceed with DB delete regardless
   }
 
   await deleteKBDocument(docId);
@@ -120,12 +119,10 @@ export async function deleteBrandImageAction(
   if (error) throw error;
   if (!data || data.client_id !== clientId) throw new Error("Image not found");
 
-  const storageUrl: string = data.storage_url;
-  const bucketMarker = "/client-brand-images/";
-  const pathStart = storageUrl.indexOf(bucketMarker);
-  if (pathStart !== -1) {
-    const storagePath = storageUrl.slice(pathStart + bucketMarker.length);
-    await supabase.storage.from("client-brand-images").remove([storagePath]);
+  try {
+    await removeObject(data.storage_url);
+  } catch {
+    // Best-effort cleanup
   }
 
   await deleteBrandImage(imageId);

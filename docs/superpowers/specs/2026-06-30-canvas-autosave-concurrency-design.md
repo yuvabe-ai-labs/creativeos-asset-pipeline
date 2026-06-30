@@ -5,7 +5,7 @@
 **Touches:** `src/lib/db/nodes.ts`, `src/lib/db/edges.ts`, `src/lib/canvas-store.ts`,
 `src/components/canvas/canvas-autosave.tsx`, `src/lib/actions/nodes.ts`,
 `src/app/clients/[id]/canvases/[cid]/page.tsx`
-**New ADR entries:** D30, D31 (append to staging-roadmap §7)
+**New ADR entries:** D31, D32 (append to staging-roadmap §7; D30 went to a concurrent storage decision)
 
 ---
 
@@ -197,16 +197,19 @@ leaves `videoGenStatus` and selection untouched. Used only by the merge.
 
 ## 8. ADR entries to append (staging-roadmap §7)
 
-**D30 — Canvas autosave is non-destructive: delete only client-tracked tombstones**
+> Numbering note: a concurrently-merged storage decision took **D30** on `main`, so these
+> were recorded as **D31 / D32** in the roadmap. Numbers below updated to match.
+
+**D31 — Canvas autosave is non-destructive: delete only client-tracked tombstones**
 *(builds on D8/D11)*. The whole-canvas snapshot save deletes only ids the client explicitly
 removed since load, never "everything not in my snapshot." Rejected: per-node delta saves
 (more churn, deferred). Why: a stale session's snapshot must never delete rows another session
 created.
 
-**D31 — Optimistic concurrency via `updated_at`; conflict = save-mine-then-merge**
-*(builds on D30; the canvas-level complement to D11's "human is the scheduler")*. Saves carry
+**D32 — Optimistic concurrency via `updated_at`; conflict = save-mine-then-merge**
+*(builds on D31; the canvas-level complement to D11's "human is the scheduler")*. Saves carry
 the `updated_at` loaded with the canvas; on mismatch the server force-writes the local edits
-(safe per D30) and returns the merged canvas, which the client adopts silently. "Mine wins" on
+(safe per D31) and returns the merged canvas, which the client adopts silently. "Mine wins" on
 same-node edits. Rejected: new `version` column + RPC (YAGNI), reload-button UX (loses work),
 silent auto-reload (loses work). Real-time sync (Level 2) and CRDT same-field merge (Level 3)
 remain future work.

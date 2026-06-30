@@ -679,7 +679,36 @@ approval time** — loses the maker's identity. (e) **RBAC enforcement** — nee
 (envelope), D5 (active pointer), D18 (per-attempt), D14 (identity seam).
 **Originated.** `2026-06-29-approval-flag-design.md`.
 
-### D30 — Canvas autosave is non-destructive: delete only client-tracked tombstones *(recorded 2026-06-30; builds on D8/D11)*
+### D30 — Storage backend moves to GCS (single bucket, ownership-prefixed paths) *(recorded 2026-06-30; preserves D14)*
+**Decision.** New uploads go to a single Google Cloud Storage bucket `creativeos-assets`
+(region `asia-south1`, uniform access, public-read via `allUsers: Storage Object Viewer`).
+Objects are organized by ownership, not asset kind:
+`clients/{clientId}/canvases/{canvasId}/nodes/{nodeId}/{kind}/{name}` for node-scoped
+assets, `clients/{clientId}/{kind}/...` for client-scoped assets. Filenames are
+`{sanitized-slug}__{UTC-iso-ms}Z.{ext}`. A thin `src/lib/storage/` wrapper exposes
+per-kind upload helpers (`uploadNodeFile`, `uploadImageGen`, `uploadVideoGen`,
+`uploadClientLogo`, `uploadBrandImage`, `uploadKBDocument`) plus a polymorphic
+`removeObject` that routes by URL shape (GCS URL → GCS delete; `supabase.co` URL →
+Supabase delete, for legacy assets). The seven existing call sites swap mechanically.
+DB columns continue holding plain `text` URLs — no schema migration; old `supabase.co`
+URLs continue to resolve.
+**Why.** Supabase Storage free tier caps at 1 GB; CreativeOS storage growth
+(image-gen + video-gen + KB docs + node files) outpaces that quickly. GCP is already
+on the plan. Ownership-prefixed paths enable per-client / per-canvas listing, audit,
+and bulk-delete from the bucket alone — capabilities the flat
+`{kind}/{nodeId}/...` layout inherited from Supabase did not allow.
+**Rejected.** (a) **Multi-bucket GCS** — Supabase's per-kind buckets were
+organizational, not security; GCS does the same with prefixes in one bucket and
+avoids per-bucket IAM/CORS/lifecycle duplication. (b) **Migration of existing
+Supabase assets** — MVP scope; old URLs continue to resolve from Supabase. (c)
+**Signed URLs / private bucket** — no behavior change from current Supabase setup
+(everything is public-by-URL today); can split a private bucket out for KB docs
+later if privacy becomes a requirement.
+**Preserves.** D14 (storage credential lives server-side only via service-account
+key — no browser-side GCS uploads in this iteration).
+**Originated.** `2026-06-30-gcs-storage-migration-design.md`.
+
+### D31 — Canvas autosave is non-destructive: delete only client-tracked tombstones *(recorded 2026-06-30; builds on D8/D11)*
 **Decision.** The whole-canvas snapshot save upserts present rows but deletes **only the
 node/edge ids the client explicitly removed since load** (tracked as `removedNodeIds` /
 `removedEdgeIds` tombstones in the canvas store), never "everything not in my snapshot." A
@@ -693,10 +722,10 @@ reshapes the action contract; deferred as YAGNI for MVP). **Builds on** D8 (edge
 nodes), D11 (human-is-scheduler; saves stay whole-canvas, just safe).
 **Originated.** `2026-06-30-canvas-autosave-concurrency-design.md`.
 
-### D31 — Optimistic concurrency via `updated_at`; conflict = save-mine-then-merge *(recorded 2026-06-30; builds on D30; canvas-level complement to D11)*
+### D32 — Optimistic concurrency via `updated_at`; conflict = save-mine-then-merge *(recorded 2026-06-30; builds on D31; canvas-level complement to D11)*
 **Decision.** Autosave carries the `canvases.updated_at` loaded with the canvas as an optimistic
 token (bumped by the migration-0008 child-table triggers — no new column). On a token mismatch
-the server **force-writes the local edits** (safe per D30, so the other session's added nodes
+the server **force-writes the local edits** (safe per D31, so the other session's added nodes
 survive) and returns the **refetched** canvas, which — because my write already landed — is
 exactly *mine ∪ their additions*; the client adopts it silently via `replaceCanvas` (preserving
 selection). **Why.** Detect overlap and never silently lose work, without real-time infra. The
@@ -706,7 +735,7 @@ but I still hold is resurrected; (c) a tiny in-flight-edit window can be overwri
 merge. All inherent to safe-snapshot + mine-wins. **Rejected.** A new `version` column + RPC
 (YAGNI — `updated_at` already detects overlap); a Reload-button UX (discards in-flight work);
 silent auto-reload (discards local edits). **Deferred.** Real-time sync (Level 2, Supabase
-Realtime) and CRDT same-field merge (Level 3). **Builds on** D30; complements D11.
+Realtime) and CRDT same-field merge (Level 3). **Builds on** D31; complements D11.
 **Originated.** `2026-06-30-canvas-autosave-concurrency-design.md`.
 
 ### Parked / out-of-scope (with revisit triggers)

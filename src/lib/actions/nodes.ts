@@ -14,8 +14,8 @@ export async function saveCanvasNodesAction(
   await saveCanvasNodes(canvasId, nodes);
 }
 
-// Combined, conflict-aware autosave (D31). Uses canvases.updated_at as an optimistic
-// token. Writes my edits regardless (safe per D30, so another session's added nodes
+// Combined, conflict-aware autosave (D32). Uses canvases.updated_at as an optimistic
+// token. Writes my edits regardless (safe per D31, so another session's added nodes
 // survive); on a token mismatch it refetches and returns the merged canvas — which,
 // because my write already landed, is exactly mine ∪ their additions.
 export async function saveCanvasAction(
