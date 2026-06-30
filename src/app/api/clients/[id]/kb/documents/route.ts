@@ -15,6 +15,7 @@ import {
   validateFileSize,
   isApiError,
 } from "@/lib/api/route-helpers";
+import { uploadKBDocument, removeObject } from "@/lib/storage";
 
 // POST /api/clients/:id/kb/documents — upload one KB document
 export async function POST(
@@ -35,24 +36,23 @@ export async function POST(
     if (sizeError) return sizeError;
 
     const docId = crypto.randomUUID();
-    const storagePath = `${clientId}/${docId}/${file.name}`;
-    const buffer = await file.arrayBuffer();
 
-    const supabase = createServerSupabase();
-    const { error: uploadError } = await supabase.storage
-      .from("kb-documents")
-      .upload(storagePath, buffer, {
+    let publicUrl: string;
+    try {
+      const result = await uploadKBDocument({
+        clientId,
+        docId,
+        filename: file.name,
+        body: await file.arrayBuffer(),
         contentType: file.type || "application/octet-stream",
-        upsert: false,
       });
-
-    if (uploadError) {
-      return apiError(`Storage upload failed: ${uploadError.message}`, 500);
+      publicUrl = result.url;
+    } catch (e) {
+      return apiError(
+        `Storage upload failed: ${e instanceof Error ? e.message : "unknown"}`,
+        500,
+      );
     }
-
-    const {
-      data: { publicUrl },
-    } = supabase.storage.from("kb-documents").getPublicUrl(storagePath);
 
     const doc = await insertKBDocument({
       clientId,
@@ -87,12 +87,10 @@ export async function DELETE(
       return apiError("Document not found.", 404);
     }
 
-    const storageUrl: string = data.storage_url;
-    const bucketMarker = "/kb-documents/";
-    const pathStart = storageUrl.indexOf(bucketMarker);
-    if (pathStart !== -1) {
-      const storagePath = storageUrl.slice(pathStart + bucketMarker.length);
-      await supabase.storage.from("kb-documents").remove([storagePath]);
+    try {
+      await removeObject(data.storage_url);
+    } catch {
+      // Best-effort cleanup
     }
 
     await deleteKBDocument(docId);

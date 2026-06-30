@@ -1,4 +1,3 @@
-import { createServerSupabase } from "@/lib/supabase/server";
 import {
   insertBrandImage,
   deleteBrandImage,
@@ -15,6 +14,7 @@ import {
   validateFileSize,
   isApiError,
 } from "@/lib/api/route-helpers";
+import { uploadBrandImage } from "@/lib/storage";
 
 // POST /api/clients/:id/kb/images — upload one brand image
 export async function POST(
@@ -34,28 +34,30 @@ export async function POST(
     const sizeError = validateFileSize(file.size, existingBytes, KB_IMG_SIZE_LIMIT_BYTES, "50 MB");
     if (sizeError) return sizeError;
 
-    const supabase = createServerSupabase();
     const imageId = crypto.randomUUID();
-    const storagePath = `${clientId}/${imageId}/${file.name}`;
-    const arrayBuffer = await file.arrayBuffer();
 
-    const { error: uploadError } = await supabase.storage
-      .from("client-brand-images")
-      .upload(storagePath, arrayBuffer, { contentType: file.type });
-
-    if (uploadError) {
-      return apiError(`Image upload failed: ${uploadError.message}`, 500);
+    let publicUrl: string;
+    try {
+      const result = await uploadBrandImage({
+        clientId,
+        imageId,
+        filename: file.name,
+        body: await file.arrayBuffer(),
+        contentType: file.type,
+      });
+      publicUrl = result.url;
+    } catch (e) {
+      return apiError(
+        `Image upload failed: ${e instanceof Error ? e.message : "unknown"}`,
+        500,
+      );
     }
-
-    const { data: publicData } = supabase.storage
-      .from("client-brand-images")
-      .getPublicUrl(storagePath);
 
     const image = await insertBrandImage({
       clientId,
       filename: file.name,
       fileExt: ext,
-      storageUrl: publicData.publicUrl,
+      storageUrl: publicUrl,
       sizeBytes: file.size,
     });
 
