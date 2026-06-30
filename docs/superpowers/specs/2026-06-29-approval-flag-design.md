@@ -123,6 +123,12 @@ at approval time (lazy would capture the checker but lose the maker, who generat
 
 ## 5. Upgrade path to real auth
 
+> **Handoff note.** This section is the durable record for a *future* auth project. When real
+> auth is built someday, this spec is a valid input: §5.1 is the as-built seam, §5.2 is the
+> step-by-step graduation. Nothing in §4 needs redesign — only the *source of identity* changes.
+
+### 5.1 The seam (as built by this feature)
+
 The design is shaped so the *shape* survives and only the *source of identity* changes — the
 same seam **D14** anticipated:
 
@@ -134,6 +140,20 @@ same seam **D14** anticipated:
 | App-start gate | "who are you?" dialog | real login screen (slots into the same spot) |
 | Enforcement | none (cosmetic role hint) | RLS: only `role='senior'` may write `approval_status` |
 | `approval_status` / `approved_at` / states | — | **unchanged** |
+
+### 5.2 Graduation checklist (for the future auth project)
+
+1. **Add Supabase Auth** + a `profiles` table carrying `role` (`senior | designer | …`).
+2. **Re-point `useIdentity()`** to the session (`supabase.auth.getUser()` + `profiles.role`).
+   Keep the hook signature `{ name, role }` so call sites are untouched. Delete the localStorage
+   read and the app-start "who are you?" dialog (replaced by the login screen).
+3. **Migrate identity columns:** `approved_by` and `operator` `text` → `uuid` FK to the auth
+   user. Backfill historical free-text names by best-effort match (or leave as legacy strings in
+   a side column — these are MVP-era records).
+4. **Turn on RLS** on `node_versions`: only `role='senior'` may write `approval_status` /
+   `approved_by`. Remove the cosmetic `role==='senior'` visibility hint (RLS now enforces it).
+5. **No change** to `approval_status`, `approved_at`, the three states, the focus-view control,
+   the node badge, or version-history display — they survive verbatim.
 
 ## 6. Testing
 
