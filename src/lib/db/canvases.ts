@@ -72,3 +72,18 @@ export async function listRecentCanvases(limit = 30): Promise<RecentCanvas[]> {
   if (error) throw error;
   return ((data ?? []) as RawRecentCanvasRow[]).map(mapRecentCanvas);
 }
+
+// The concurrency token for autosave: the canvas's updated_at (bumped by the
+// child-table triggers in migration 0008 on every node/edge/version write).
+export async function getCanvasUpdatedAt(
+  canvasId: string,
+): Promise<string | null> {
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("canvases")
+    .select("updated_at")
+    .eq("id", canvasId)
+    .maybeSingle();
+  if (error) throw error;
+  return (data as { updated_at: string } | null)?.updated_at ?? null;
+}
