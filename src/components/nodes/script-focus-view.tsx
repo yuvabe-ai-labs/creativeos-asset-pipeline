@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { ArrowLeft, Eye, EyeOff, RefreshCw, FileUp, Clapperboard, Loader2 } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, RefreshCw, FileUp, Clapperboard } from "lucide-react";
 import { toast } from "sonner";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,7 @@ import { setScriptValue, addItem, removeItem } from "@/lib/nodes/script-edit";
 import type { KBSliceKey } from "@/lib/kb/parse-context";
 import { ScriptDocument } from "./script-document";
 import { ScriptEmptyState } from "./script-empty-state";
+import { ScriptSkeleton } from "./script-skeleton";
 
 type Path = (string | number)[];
 
@@ -259,12 +260,7 @@ export function ScriptFocusView({
 
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className="mx-auto w-full max-w-5xl px-6 py-8">
-            {mode === "skeleton" && (
-              <div className="flex flex-col items-center justify-center gap-3 py-24 text-muted-foreground">
-                <Loader2 className="size-8 animate-spin text-primary" />
-                <p className="text-sm">Extraction in progress…</p>
-              </div>
-            )}
+            {mode === "skeleton" && <ScriptSkeleton />}
 
             {mode === "empty" && (
               <ScriptEmptyState
