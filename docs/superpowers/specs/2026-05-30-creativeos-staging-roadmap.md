@@ -679,6 +679,35 @@ approval time** — loses the maker's identity. (e) **RBAC enforcement** — nee
 (envelope), D5 (active pointer), D18 (per-attempt), D14 (identity seam).
 **Originated.** `2026-06-29-approval-flag-design.md`.
 
+### D30 — Storage backend moves to GCS (single bucket, ownership-prefixed paths) *(recorded 2026-06-30; preserves D14)*
+**Decision.** New uploads go to a single Google Cloud Storage bucket `creativeos-assets`
+(region `asia-south1`, uniform access, public-read via `allUsers: Storage Object Viewer`).
+Objects are organized by ownership, not asset kind:
+`clients/{clientId}/canvases/{canvasId}/nodes/{nodeId}/{kind}/{name}` for node-scoped
+assets, `clients/{clientId}/{kind}/...` for client-scoped assets. Filenames are
+`{sanitized-slug}__{UTC-iso-ms}Z.{ext}`. A thin `src/lib/storage/` wrapper exposes
+per-kind upload helpers (`uploadNodeFile`, `uploadImageGen`, `uploadVideoGen`,
+`uploadClientLogo`, `uploadBrandImage`, `uploadKBDocument`) plus a polymorphic
+`removeObject` that routes by URL shape (GCS URL → GCS delete; `supabase.co` URL →
+Supabase delete, for legacy assets). The seven existing call sites swap mechanically.
+DB columns continue holding plain `text` URLs — no schema migration; old `supabase.co`
+URLs continue to resolve.
+**Why.** Supabase Storage free tier caps at 1 GB; CreativeOS storage growth
+(image-gen + video-gen + KB docs + node files) outpaces that quickly. GCP is already
+on the plan. Ownership-prefixed paths enable per-client / per-canvas listing, audit,
+and bulk-delete from the bucket alone — capabilities the flat
+`{kind}/{nodeId}/...` layout inherited from Supabase did not allow.
+**Rejected.** (a) **Multi-bucket GCS** — Supabase's per-kind buckets were
+organizational, not security; GCS does the same with prefixes in one bucket and
+avoids per-bucket IAM/CORS/lifecycle duplication. (b) **Migration of existing
+Supabase assets** — MVP scope; old URLs continue to resolve from Supabase. (c)
+**Signed URLs / private bucket** — no behavior change from current Supabase setup
+(everything is public-by-URL today); can split a private bucket out for KB docs
+later if privacy becomes a requirement.
+**Preserves.** D14 (storage credential lives server-side only via service-account
+key — no browser-side GCS uploads in this iteration).
+**Originated.** `2026-06-30-gcs-storage-migration-design.md`.
+
 ### Parked / out-of-scope (with revisit triggers)
 | Item | Status | Revisit when |
 |---|---|---|
