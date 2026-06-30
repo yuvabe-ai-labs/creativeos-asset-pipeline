@@ -648,6 +648,37 @@ output is still its own `data.script`; compose rows never go active).
 **Originated.** `2026-06-28-shot-composer-design.md`. **Runtime walkthrough:**
 `docs/architecture/2026-06-28-shot-composer-walkthrough.md`.
 
+### D29 — Approval flag: maker-checker on the version envelope; flag-only, no gate yet *(recorded 2026-06-29; builds on D4/D5/D18/D14; preserves D11)*
+**Decision.** Add an **approval flag** to the **uniform `node_versions` envelope (D4)** — so
+every node type gets it at once — recording **maker-checker** sign-off on each LLM attempt.
+New columns: `approval_status` (`'pending' | 'approved' | 'changes_requested'`, default
+`pending`), `approved_by` (soft-identity name of the **checker**), `approved_at`. The existing
+`note` carries "changes requested" feedback; the existing **`operator`** column (D14-reserved,
+previously empty) is now filled with the **maker's** identity at generation time. Approval
+attaches to the **version** (D18), so a **re-generate starts back at `pending`** (old approval
+does not carry). Set via an **approval control in the focus view** beside the eval bar
+(Approve / Request changes+note / Reset), writing to the **active** version. Shown as a node
+status pill (`kb-status-badge` style) + per-attempt status in version history. **Identity is
+soft and set once at app start** — a "who are you?" gate (name + `role: senior|designer`) →
+`localStorage["creativeos.identity"]`, switchable via a top-bar chip, read by `useIdentity()`;
+**spoofable by design** (audit trail without auth). Distinct from `decision: pass/fail` — that
+is the **D22 quality/learning** signal, this is the **sign-off gate** (an output can be "good
+but not signed off"). **This is a flag only.**
+**Why.** "A senior may want to validate LLM outputs before I proceed." Brainstormed down from a
+full gating/triggering workflow to its simplest useful primitive. The flag is the foundation
+that gating/triggering/RBAC would later read from, so shipping it first delivers the audit value
+immediately and de-risks the rest. Filling `operator` finally gives the D14-reserved maker field
+meaning. App-start identity (not lazy-on-approval) attributes **both** maker and checker, and is
+the natural seam a real login slots into later (soft→hard = a *data* migration, not a redesign).
+**Rejected.** (a) **Connection gating now** (unapproved output can't be wired downstream) —
+deferred; the flag must exist first. (b) **Auto-advance / trigger-on-approval** — would revisit
+D11 (human-is-scheduler); explicitly dropped for MVP. (c) **Reusing `decision` for approval** —
+zero-migration but conflates quality-eval with sign-off; they diverge. (d) **Lazy identity at
+approval time** — loses the maker's identity. (e) **RBAC enforcement** — needs real auth.
+**Preserves.** D11 (nothing auto-runs; the flag changes no scheduling). **Builds on** D4
+(envelope), D5 (active pointer), D18 (per-attempt), D14 (identity seam).
+**Originated.** `2026-06-29-approval-flag-design.md`.
+
 ### Parked / out-of-scope (with revisit triggers)
 | Item | Status | Revisit when |
 |---|---|---|
