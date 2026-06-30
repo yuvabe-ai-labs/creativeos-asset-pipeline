@@ -99,7 +99,7 @@ export async function markKBJobFailed(input: {
   error: string;
 }): Promise<void> {
   const supabase = createServerSupabase();
-  const { error } = await supabase
+  const { error: dbError } = await supabase
     .from("client_kb_jobs")
     .update({
       status: "failed",
@@ -107,7 +107,7 @@ export async function markKBJobFailed(input: {
       updated_at: new Date().toISOString(),
     })
     .eq("id", input.jobId);
-  if (error) throw error;
+  if (dbError) throw dbError;
 }
 
 // Idempotent stuck-job cleanup — only marks failed if not already terminal.
