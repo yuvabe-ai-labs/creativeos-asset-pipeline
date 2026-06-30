@@ -1,6 +1,6 @@
 # Video-Gen Constraint Rules & Image Source Filtering — Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **Status: COMPLETE** — All 7 tasks implemented. See the spec doc for the authoritative description of what was built (several details changed during implementation).
 
 **Goal:** Add a JSON-serializable constraint rule system to video-gen model configs that auto-corrects invalid param+image combinations in the UI, plus filter image-gen nodes out of the Connected section so only File/Draw nodes can be used as frame inputs.
 
@@ -1097,3 +1097,24 @@ After all tasks are complete, test end-to-end:
 6. **Fast has refs**: Switch to Veo 3.1 Fast. Up to 3 Ref assignments are available.
 
 7. **TypeScript clean**: `npx tsc --noEmit` exits with 0 errors.
+
+---
+
+## Post-Plan Changes (implemented after original plan)
+
+These were added during/after implementation and are not covered by the tasks above.
+
+| Change | Files |
+|--------|-------|
+| `disableGenerate` effect + `end-frame-requires-start-frame` rule in both Lite and Refs rule sets | `types.ts`, `constraints.ts`, `client-models.ts`, `video-gen-focus-view.tsx` |
+| Generate button disabled with tooltip when `constraints.disableGenerate` | `video-gen-focus-view.tsx` |
+| Locked param display: disabled `<option>` elements in select + hover tooltip (not lock icon) | `video-gen-params-panel.tsx` |
+| Tooltip only rendered when reason exists (avoids spurious auto-trigger) | `video-gen-connected-section.tsx` |
+| Click active role button to deselect it | `video-gen-focus-view.tsx` → `handleRoleChange` |
+| Toast when locked params change (stable string-key dep, skips mount) | `video-gen-focus-view.tsx` |
+| `effectiveParams` derived at render, not stored in state — eliminates cascading render warning | `video-gen-focus-view.tsx` |
+| Mock toggle (localStorage-persisted, amber pill in header) + `mock` field in API payload | `video-gen-focus-view.tsx`, `api.ts`, `video-generate/route.ts`, `trigger/video-generate.ts` |
+| PGRST116 fix: `.limit(1)` before `.maybeSingle()` | `use-video-gen-status.ts` |
+| Zod body validation in generate route | `video-generate/route.ts` |
+| image-gen direct parents allowed; grandparent path excluded (`directIds` set) | `upstream-images/route.ts`, `video-generate/route.ts` |
+| Default image role assignment on sheet open + model change | `video-gen-focus-view.tsx` → `applyDefaultImageRoles` |

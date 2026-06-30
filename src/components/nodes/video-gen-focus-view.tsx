@@ -482,7 +482,6 @@ export function VideoGenFocusView({
   function handleModelChange(nextModelId: string) {
     setModelId(nextModelId);
     const defaults = defaultsForVideoModel(nextModelId);
-    setParams(defaults);
 
     // Migrate image roles — remove roles the new model doesn't support
     const nextInputs = videoGenClientModelMap[nextModelId]?.imageInputs;
@@ -512,7 +511,15 @@ export function VideoGenFocusView({
       ? applyDefaultImageRoles(upstreamImages, nextInputs, currentRoles)
       : currentRoles;
 
-    onPatch({ modelId: nextModelId, params: defaults, imageRoles: finalRoles });
+    // Commit any constraint-locked values into params so they persist after the lock clears.
+    const nextConstraints = evaluateConstraints(
+      videoGenClientModelMap[nextModelId]?.rules,
+      buildConstraintState(finalRoles, defaults),
+    );
+    const finalParams = { ...defaults, ...nextConstraints.lockedParams };
+
+    setParams(finalParams);
+    onPatch({ modelId: nextModelId, params: finalParams, imageRoles: finalRoles });
   }
 
   function handleParamChange(name: string, value: unknown) {
@@ -522,7 +529,7 @@ export function VideoGenFocusView({
   }
 
   function handleRoleChange(imageId: string, newRole: ImageRole) {
-    const updated = { ...imageRolesProp };
+    const updated = { ...effectiveImageRoles };
     if (updated[imageId] === newRole) {
       delete updated[imageId];
     } else {
@@ -533,7 +540,21 @@ export function VideoGenFocusView({
       }
       updated[imageId] = newRole;
     }
-    onPatch({ imageRoles: updated });
+
+    // Commit any constraint-locked values into params so they persist after the lock clears.
+    const nextConstraints = evaluateConstraints(
+      currentModel?.rules,
+      buildConstraintState(updated, params),
+    );
+    const lockedEntries = Object.entries(nextConstraints.lockedParams);
+    const changedLocked = lockedEntries.some(([k, v]) => params[k] !== v);
+    if (changedLocked) {
+      const nextParams = { ...params, ...nextConstraints.lockedParams };
+      setParams(nextParams);
+      onPatch({ imageRoles: updated, params: nextParams });
+    } else {
+      onPatch({ imageRoles: updated });
+    }
   }
 
   function handleReset() {
@@ -546,8 +567,8 @@ export function VideoGenFocusView({
     try {
       await videoGenApi.startGeneration(nodeId, {
         modelId,
-        params: effectiveParams,
-        imageRoles: imageRolesProp,
+        params,
+        imageRoles: effectiveImageRoles,
         mock: useMock,
       });
       // 202 Accepted — hook's Realtime subscription clears isGenerating on completion
@@ -582,37 +603,43 @@ export function VideoGenFocusView({
     maxReferenceImages: 0,
   };
 
+  // Filter out roles that are invalid for the current model — handles the timing gap
+  // between setModelId (local, immediate) and imageRolesProp update (from parent, async).
+  const effectiveImageRoles = Object.fromEntries(
+    Object.entries(imageRolesProp).filter(([, role]) => {
+      if (role === "reference" && imageInputs.maxReferenceImages === 0) return false;
+      if (role === "end_frame" && !imageInputs.endFrame) return false;
+      if (role === "start_frame" && !imageInputs.startFrame) return false;
+      return true;
+    }),
+  ) as Record<string, ImageRole>;
+
   const currentModel = videoGenClientModelMap[modelId];
   const constraintState = buildConstraintState(
-    imageRolesProp as Record<string, "start_frame" | "end_frame" | "reference">,
+    effectiveImageRoles,
     params,
   );
   const constraints = evaluateConstraints(currentModel?.rules, constraintState);
-
-  // Merge locked values on top of user-chosen params — no state mutation needed
-  const effectiveParams = { ...params, ...constraints.lockedParams };
 
   // Toast when locked params change — string key keeps dep array size constant
   const lockedParamsKey = JSON.stringify(constraints.lockedParams);
   const prevLockedRef = useRef<{ locked: Record<string, unknown>; reasons: Record<string, string> } | null>(null);
   useEffect(() => {
     const prev = prevLockedRef.current;
-    // Capture fresh values inside the effect (not during render)
     prevLockedRef.current = { locked: constraints.lockedParams, reasons: constraints.lockedParamReasons };
     if (prev === null) return; // skip mount
 
     for (const [name, value] of Object.entries(constraints.lockedParams)) {
       if (prev.locked[name] !== value) {
         const reason = constraints.lockedParamReasons[name];
-        toast.info(
-          `${name.replace(/_/g, " ")} set to ${value}${reason ? ` · ${reason}` : ""}`,
-          { duration: 3500 },
-        );
+        const label = name.split("_").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+        toast.info(`${label} set to ${value}${reason ? ` · ${reason}` : ""}`, { duration: 3500 });
       }
     }
     for (const name of Object.keys(prev.locked)) {
       if (!(name in constraints.lockedParams)) {
-        toast.info(`${name.replace(/_/g, " ")} unlocked`, { duration: 2500 });
+        const label = name.split("_").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+        toast.info(`${label} unlocked`, { duration: 2500 });
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -724,7 +751,7 @@ export function VideoGenFocusView({
               item={detailItem}
               promptNode={promptNode}
               images={upstreamImages}
-              imageRoles={imageRolesProp}
+              imageRoles={effectiveImageRoles}
               imageInputs={imageInputs}
               onRoleChange={handleRoleChange}
               onBack={() => setDetailItem(null)}
@@ -788,7 +815,7 @@ export function VideoGenFocusView({
                     <VideoGenConnectedSection
                       promptNode={promptNode}
                       images={upstreamImages}
-                      imageRoles={imageRolesProp}
+                      imageRoles={effectiveImageRoles}
                       imageInputs={imageInputs}
                       onRoleChange={handleRoleChange}
                       onOpenDetail={(id, type) => setDetailItem({ id, type })}

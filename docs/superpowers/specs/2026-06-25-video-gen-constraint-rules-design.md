@@ -1,179 +1,153 @@
 # Video-Gen Constraint Rules & Image Source Filtering — Design
 
-**Date:** 2026-06-25
+**Date:** 2026-06-25  
+**Status:** Implemented
 
 ## Context
 
-The video-gen focus view currently has no enforcement of API-level constraints in the form. Users can select duration values that the API will reject (e.g. 4s with end frame), and image-gen nodes are shown as frame input candidates even though the intended flow is to use File nodes for frame images. This causes silent failures after a 3–6 minute generation wait.
+The video-gen focus view had no enforcement of API-level constraints. Users could select duration values that the API rejects (e.g. 4s with end frame), select an end frame without a start frame, or have image-gen node outputs appear as frame input candidates. This caused silent failures after a 3–6 minute generation wait.
 
-Two problems to fix:
-1. **No constraint enforcement** — invalid param+image combinations reach the API and fail.
-2. **Wrong image sources** — image-gen node outputs appear in the Connected section as frame options; they shouldn't.
-
----
-
-## Design Goals
-
-- Rules are **JSON-serializable data** — no JavaScript functions in rule definitions. This keeps the system DB-ready: rules can move to a database column later with zero changes to the evaluator.
-- Auto-correct silently — when a constraint fires, snap the conflicting param to the valid value and show a small reason; don't ask the user.
-- Enforcement happens in the UI, not only at the API.
+Problems solved:
+1. **No constraint enforcement** — invalid param+image combos reached the API and failed.
+2. **No generate-level guard** — end frame without start frame was allowed by the UI but rejected by the API.
+3. **Wrong image sources** — image-gen node outputs appeared in the Connected section via grandparent traversal; direct image-gen parents are valid, grandparent inheritance is not.
+4. **No defaults** — newly connected images had no role assigned, requiring manual setup every time.
 
 ---
 
-## Section 1 — Constraint Rule Schema
-
-### Types (`src/lib/video-gen/types.ts`)
+## Constraint Rule Schema (`src/lib/video-gen/types.ts`)
 
 ```typescript
 type ConditionField = "referenceCount" | "hasEndFrame" | "hasStartFrame";
 type ConditionOp = "gt" | "gte" | "eq";
 
-type LeafCondition = {
-  field: ConditionField;
-  op: ConditionOp;
-  value: number | boolean;
-};
-
-type CompoundCondition = {
-  op: "and" | "or";
-  conditions: Condition[];
-};
-
+type LeafCondition = { field: ConditionField; op: ConditionOp; value: number | boolean };
+type CompoundCondition = { op: "and" | "or"; conditions: Condition[] };
 type Condition = LeafCondition | CompoundCondition;
 
 type ConstraintEffect = {
   lockParams?: Array<{ name: string; value: unknown }>;
-  disableFrameInputs?: boolean;  // grey out start frame + end frame roles
-  disableRefs?: boolean;         // grey out reference image roles
+  disableFrameInputs?: boolean;   // grey out Start/End role buttons
+  disableRefs?: boolean;          // grey out Ref role buttons
+  disableGenerate?: boolean;      // disable the Generate button
 };
 
 type ConstraintRule = {
   id: string;
   when: Condition;
   effect: ConstraintEffect;
-  reason: string;               // shown to user as tooltip or inline note
-};
-
-type ConstraintState = {
-  params: Record<string, unknown>;
-  hasStartFrame: boolean;
-  hasEndFrame: boolean;
-  referenceCount: number;
+  reason: string;                 // shown in tooltip / toast
 };
 
 type EvaluatedConstraints = {
   lockedParams: Record<string, unknown>;
   lockedParamReasons: Record<string, string>;
   disableFrameInputs: boolean;
+  disableFrameInputsReason?: string;
   disableRefs: boolean;
+  disableRefsReason?: string;
+  disableGenerate: boolean;
+  disableGenerateReason?: string;
 };
 ```
 
-Add `rules?: ConstraintRule[]` to `VideoGenClientModelSpec`.
+Rules are plain JSON — no functions. DB-ready: the `rules` array can move to a database column later with zero changes to the evaluator.
 
 ---
 
-## Section 2 — Evaluator (`src/lib/video-gen/constraints.ts`)
+## Evaluator (`src/lib/video-gen/constraints.ts`)
 
-New file. Two exports:
+**`buildConstraintState(imageRoles, params)`** — derives `ConstraintState` from the current `imageRoles` map.
 
-**`buildConstraintState(imageRoles)`** — derives `ConstraintState` from the current `imageRoles` map:
-- `hasStartFrame`: any role === `"start_frame"`
-- `hasEndFrame`: any role === `"end_frame"`
-- `referenceCount`: count of roles === `"reference"`
-
-**`evaluateConstraints(rules, state)`** — loops all rules, evaluates `when` condition against state, merges all firing effects into one `EvaluatedConstraints` object. Later-defined rules win on `lockParams` conflicts. Pure function, no side effects.
-
-Condition evaluation is recursive: leaf conditions compare `state[field]` with operator; compound conditions reduce with `every` (and) or `some` (or).
+**`evaluateConstraints(rules, state)`** — pure function. Loops rules, evaluates `when` condition recursively, merges all firing effects into one `EvaluatedConstraints`. First-rule-wins on `disableFrameInputs`/`disableRefs`/`disableGenerate`; last-rule-wins on `lockParams` conflicts (later rules override earlier ones for the same param name).
 
 ---
 
-## Section 3 — Rules per Model
+## Rules per Model (`src/lib/video-gen/client-models.ts`)
 
 ### Veo 3.1 Lite
 ```
-Rule 1: hasEndFrame = true → lock duration = "8"
+Rule 1: hasEndFrame = true
+        → lock duration = "8"
         reason: "End frame requires 8s duration"
+
+Rule 2: hasEndFrame = true AND hasStartFrame = false
+        → disableGenerate = true
+        reason: "End frame requires a start frame"
 ```
 
 ### Veo 3.1 Fast & Veo 3.1 Quality (same rules)
 ```
-Rule 1: referenceCount > 0  → lock duration = "8", disableFrameInputs = true
+Rule 1: referenceCount > 0
+        → lock duration = "8", disableFrameInputs = true
         reason: "Reference images require 8s and can't be combined with start/end frame"
 
-Rule 2: hasStartFrame = true OR hasEndFrame = true → disableRefs = true
+Rule 2: hasStartFrame = true OR hasEndFrame = true
+        → disableRefs = true
         reason: "Start/end frame can't be combined with reference images"
 
-Rule 3: hasEndFrame = true → lock duration = "8"
+Rule 3: hasEndFrame = true
+        → lock duration = "8"
         reason: "End frame requires 8s duration"
+
+Rule 4: hasEndFrame = true AND hasStartFrame = false
+        → disableGenerate = true
+        reason: "End frame requires a start frame"
 ```
 
 ### Sora 2
-No rules — constraints are already structural (`endFrame: false`, `maxReferenceImages: 0`).
-
-### Data fixes alongside rules
-- Veo Lite: duration options `["4","6"]` → `["4","6","8"]` in `veoLiteParams`
-- Veo Fast: `maxReferenceImages: 0` → `3` in client-models + provider config
+No rules — constraints are structural (`endFrame: false`, `maxReferenceImages: 0`).
 
 ---
 
-## Section 4 — UI Changes
+## UI Behaviour
 
 ### `VideoGenFocusView`
-- On each render: call `buildConstraintState(imageRolesProp)` → call `evaluateConstraints(model.rules, state)` → get `EvaluatedConstraints`
-- When `lockedParams` changes (useEffect): auto-call `handleParamChange` for each locked param to snap values silently
-- Add `handleReset`: calls `onPatch({ imageRoles: {} })` to clear all role assignments
-- Pass `lockedParams`, `lockedParamReasons` → `VideoGenParamsPanel`
-- Pass `disableFrameInputs`, `disableRefs`, `onReset` → `VideoGenConnectedSection`
+- Derives `constraintState` + `constraints` on every render (pure, no cost).
+- `effectiveParams = { ...params, ...constraints.lockedParams }` — locked values merged at call time, not stored in state. Passed to `startGeneration` so the API always receives the correct locked value.
+- Toast fires when `constraints.lockedParams` content changes (string-keyed effect, stable dep array). Shows `"<param> set to <value> · <reason>"` on lock, `"<param> unlocked"` on release.
+- `handleRoleChange` toggles: clicking the active role removes the assignment.
+- `handleReset()` calls `onPatch({ imageRoles: {} })`.
+- On sheet open (after image fetch): `applyDefaultImageRoles` auto-assigns any unassigned images — all → `reference` if the model supports it, else first → `start_frame` / second → `end_frame`.
+- On model change: after removing invalid roles, `applyDefaultImageRoles` fills in defaults for the new model's capabilities.
+- Generate button: `disabled={isGenerating || constraints.disableGenerate}`, wrapped in `<Tooltip>` showing `disableGenerateReason` when disabled.
+- Mock toggle (localStorage-persisted): amber toggle in header lets devs switch between mock and real API without env var changes. State sent as `mock: boolean` in the generate payload.
 
 ### `VideoGenParamsPanel`
-- New props: `lockedParams?: Record<string, unknown>`, `lockedParamReasons?: Record<string, string>`
-- When a param name is in `lockedParams`: render the `ParamControl` as `disabled`, show a `Lock` icon (Lucide, 1.5 stroke) next to the label, tooltip on the icon shows the reason string
+- When `spec.name in lockedParams` and `spec.constraints.type === "select"`: renders the select with all options present but non-locked options have `disabled` attribute. Hover tooltip shows the reason (Google AI Studio pattern — user sees the value in context).
+- Non-locked params use `ParamControl` as normal.
 
 ### `VideoGenConnectedSection`
-- New props: `disableFrameInputs: boolean`, `disableRefs: boolean`, `onReset: () => void`
-- "Clear all" button at the very top of the section — text style, small, only rendered when at least one role is assigned
-- When `disableFrameInputs: true`: start frame and end frame role buttons are `aria-disabled`, visually dimmed, tooltip shows reason
-- When `disableRefs: true`: reference role buttons are `aria-disabled`, visually dimmed, tooltip shows reason
-- Pass the existing `reason` string from the fired rule as the tooltip (not hardcoded in the component)
+- "Clear all" button (top-right, `RotateCcw` icon) shown when at least one role is assigned and `onReset` is provided.
+- Role buttons only wrapped in `<Tooltip>` when a tooltip string exists — avoids auto-triggering on buttons with no reason.
+- Constraint-based disabling takes priority over structural capability checks in `getRoleTooltip`.
 
 ---
 
-## Section 5 — Image Source Filtering
+## Image Source Filtering
 
-Image-gen nodes should not appear as frame input candidates. Only `file` and `draw` nodes are valid image sources for video frames.
+**Direct parent image-gen nodes are valid.** Grandparent image-gen nodes (arriving through the video-prompt 2-level traversal) are excluded. This covers the real-world pattern:
 
-### `src/app/api/nodes/[id]/upstream-images/route.ts`
-Remove the `image-gen` branch from the node-to-image mapping. Only `file` (with `fileKind === "image"`) and `draw` nodes produce `UpstreamImage` entries.
+- `image-gen → video-gen` (direct): ✅ appears in Connected section, URL from `activeOutput`
+- `image-gen → video-prompt → video-gen` (grandparent): ❌ excluded
+- `file/draw → video-gen` or `file/draw → video-prompt → video-gen`: ✅ always included
 
-### `src/app/api/nodes/[id]/video-generate/route.ts`
-Remove the `image-gen` branch from the role resolution loop. Only `file` and `draw` nodes contribute `startFrameUrl`, `endFrameUrl`, or `referenceUrls`.
-
-Result: image-gen nodes simply don't appear in the Connected section. No UI change needed — filtering happens at the data layer.
+Both `upstream-images/route.ts` and `video-generate/route.ts` track `directIds` and apply this rule.
 
 ---
 
 ## File Map
 
-| File | Action |
+| File | Change |
 |------|--------|
-| `src/lib/video-gen/types.ts` | Add `ConstraintRule`, `ConstraintState`, `ConstraintEffect`, `Condition`, `EvaluatedConstraints` |
+| `src/lib/video-gen/types.ts` | Added full constraint type system; `disableGenerate` + `disableGenerateReason` in `EvaluatedConstraints` |
 | `src/lib/video-gen/constraints.ts` | New — `buildConstraintState`, `evaluateConstraints` |
-| `src/lib/video-gen/client-models.ts` | Add `rules` per model; fix Fast `maxReferenceImages: 3`; fix Lite duration |
-| `src/lib/video-gen/params/veo.ts` | Add `"8"` to `veoLiteParams` duration options |
-| `src/components/nodes/video-gen-focus-view.tsx` | Evaluate constraints, auto-apply locked params, add `handleReset`, pass new props |
-| `src/components/nodes/video-gen-params-panel.tsx` | Accept `lockedParams` + reasons, render lock state |
-| `src/components/nodes/video-gen-connected-section.tsx` | Accept disable flags + `onReset`, add "Clear all" button, grey out disabled roles |
-| `src/app/api/nodes/[id]/upstream-images/route.ts` | Remove `image-gen` from image source mapping |
-| `src/app/api/nodes/[id]/video-generate/route.ts` | Remove `image-gen` from role resolution |
-
----
-
-## Verification
-
-1. Connect a file node → assign as end frame → duration selector snaps to 8s and shows lock icon with "End frame requires 8s duration"
-2. Connect a file node → assign as reference → start/end frame role buttons grey out; duration locks to 8s
-3. Switch model to Lite → reference image roles disappear entirely (maxReferenceImages: 0)
-4. Click "Clear all" → all role assignments reset, duration unlocks
-5. Connect an image-gen node → it does NOT appear in the Connected section
-6. `npx tsc --noEmit` passes with zero errors
+| `src/lib/video-gen/client-models.ts` | Rules per model; Fast `maxReferenceImages: 3`; `end-frame-requires-start-frame` rule in Lite + Refs |
+| `src/lib/video-gen/params/veo.ts` | `veoLiteParams` = `veoParams` (duration `["4","6","8"]`) |
+| `src/lib/video-gen/providers/veo.ts` | `veoLite.maxDurationSeconds: 8`; `veoFast` uses `VEO_REFS_IMAGE_INPUTS` + `veoParams` + `maxRefs: 3` |
+| `src/components/nodes/video-gen-focus-view.tsx` | Constraint evaluation; `effectiveParams`; toasts; toggle-deselect; defaults; mock toggle; Generate button disabled guard |
+| `src/components/nodes/video-gen-params-panel.tsx` | Locked select (disabled options + hover tooltip) |
+| `src/components/nodes/video-gen-connected-section.tsx` | "Clear all"; constraint-based role disabling; tooltip only when reason exists |
+| `src/app/api/nodes/[id]/upstream-images/route.ts` | image-gen allowed for direct parents only (`directIds` set) |
+| `src/app/api/nodes/[id]/video-generate/route.ts` | Same; Zod body validation; image-gen direct-only |
+| `src/hooks/use-video-gen-status.ts` | Added `.limit(1)` before `.maybeSingle()` (PGRST116 fix) |
