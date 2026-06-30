@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { createCanvasStore } from "./canvas-store";
 import type { AppNode } from "./canvas-nodes";
+import type { Edge } from "@xyflow/react";
 import type { ShotComposeIdea } from "./nodes/shot-compose";
 
 const UUID_RE =
@@ -132,5 +133,65 @@ describe("promoteIdeasToShots", () => {
     const store = createCanvasStore([], []);
     store.getState().promoteIdeasToShots("nope", [{ title: "A", description: "x" }]);
     expect(store.getState().nodes).toHaveLength(0);
+  });
+});
+
+describe("canvas store — tombstones", () => {
+  const mkNode = (id: string): AppNode =>
+    ({ id, type: "text", position: { x: 0, y: 0 }, data: {} }) as AppNode;
+  const mkEdge = (id: string, source: string, target: string): Edge => ({
+    id,
+    source,
+    target,
+  });
+
+  it("records a removed node and its cascaded edges", () => {
+    const store = createCanvasStore(
+      [mkNode("a"), mkNode("b")],
+      [mkEdge("e1", "a", "b")],
+    );
+    store.getState().deleteNode("a");
+    expect(store.getState().removedNodeIds).toEqual(["a"]);
+    expect(store.getState().removedEdgeIds).toEqual(["e1"]);
+    expect(store.getState().nodes.map((n) => n.id)).toEqual(["b"]);
+  });
+
+  it("records a node removed via onNodesChange", () => {
+    const store = createCanvasStore([mkNode("a"), mkNode("b")], []);
+    store.getState().onNodesChange([{ type: "remove", id: "b" }]);
+    expect(store.getState().removedNodeIds).toEqual(["b"]);
+  });
+
+  it("records an edge removed via onEdgesChange", () => {
+    const store = createCanvasStore([], [mkEdge("e9", "a", "b")]);
+    store.getState().onEdgesChange([{ type: "remove", id: "e9" }]);
+    expect(store.getState().removedEdgeIds).toEqual(["e9"]);
+  });
+
+  it("clearRemoved drops only the flushed ids, keeping ones added mid-flight", () => {
+    const store = createCanvasStore([mkNode("a"), mkNode("b")], []);
+    store.getState().deleteNode("a");
+    store.getState().deleteNode("b");
+    // flush only "a" — "b" was removed during the in-flight save
+    store.getState().clearRemoved(["a"], []);
+    expect(store.getState().removedNodeIds).toEqual(["b"]);
+  });
+
+  it("replaceCanvas swaps nodes/edges, clears tombstones, preserves videoGenStatus", () => {
+    const store = createCanvasStore([mkNode("a")], []);
+    store.getState().setVideoGenError("a", "boom");
+    store.getState().deleteNode("a");
+    store.getState().replaceCanvas([mkNode("x")], [mkEdge("e2", "x", "x")]);
+    expect(store.getState().nodes.map((n) => n.id)).toEqual(["x"]);
+    expect(store.getState().edges.map((e) => e.id)).toEqual(["e2"]);
+    expect(store.getState().removedNodeIds).toEqual([]);
+    expect(store.getState().videoGenStatus["a"]?.lastError).toBe("boom");
+  });
+
+  it("replaceCanvas preserves selection by id", () => {
+    const selected = { ...mkNode("x"), selected: true } as AppNode;
+    const store = createCanvasStore([selected], []);
+    store.getState().replaceCanvas([mkNode("x")], []);
+    expect(store.getState().nodes[0].selected).toBe(true);
   });
 });

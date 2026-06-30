@@ -679,6 +679,36 @@ approval time** — loses the maker's identity. (e) **RBAC enforcement** — nee
 (envelope), D5 (active pointer), D18 (per-attempt), D14 (identity seam).
 **Originated.** `2026-06-29-approval-flag-design.md`.
 
+### D30 — Canvas autosave is non-destructive: delete only client-tracked tombstones *(recorded 2026-06-30; builds on D8/D11)*
+**Decision.** The whole-canvas snapshot save upserts present rows but deletes **only the
+node/edge ids the client explicitly removed since load** (tracked as `removedNodeIds` /
+`removedEdgeIds` tombstones in the canvas store), never "everything not in my snapshot." A
+pure `planReconcile(snapshotIds, removedIds)` computes the delete set; the DB layer is a thin
+caller. **Why.** The old `delete … NOT IN (snapshot)` made every client an authority on the
+entire canvas, so a stale session's autosave **deleted nodes another session had just added** —
+the reported data loss (and the same bug for one user with two tabs). Deleting only observed
+removals means a node this client never saw is never touched. **Rejected.** Per-node delta
+saves (more correct — never rewrites an untouched shared node — but adds dirty-tracking and
+reshapes the action contract; deferred as YAGNI for MVP). **Builds on** D8 (edges point to
+nodes), D11 (human-is-scheduler; saves stay whole-canvas, just safe).
+**Originated.** `2026-06-30-canvas-autosave-concurrency-design.md`.
+
+### D31 — Optimistic concurrency via `updated_at`; conflict = save-mine-then-merge *(recorded 2026-06-30; builds on D30; canvas-level complement to D11)*
+**Decision.** Autosave carries the `canvases.updated_at` loaded with the canvas as an optimistic
+token (bumped by the migration-0008 child-table triggers — no new column). On a token mismatch
+the server **force-writes the local edits** (safe per D30, so the other session's added nodes
+survive) and returns the **refetched** canvas, which — because my write already landed — is
+exactly *mine ∪ their additions*; the client adopts it silently via `replaceCanvas` (preserving
+selection). **Why.** Detect overlap and never silently lose work, without real-time infra. The
+common disjoint-edit case keeps both sessions' work; only same-node edits resolve **mine-wins**.
+**Accepted limitations.** (a) same-node edit → mine wins; (b) a node the other session deleted
+but I still hold is resurrected; (c) a tiny in-flight-edit window can be overwritten by the
+merge. All inherent to safe-snapshot + mine-wins. **Rejected.** A new `version` column + RPC
+(YAGNI — `updated_at` already detects overlap); a Reload-button UX (discards in-flight work);
+silent auto-reload (discards local edits). **Deferred.** Real-time sync (Level 2, Supabase
+Realtime) and CRDT same-field merge (Level 3). **Builds on** D30; complements D11.
+**Originated.** `2026-06-30-canvas-autosave-concurrency-design.md`.
+
 ### Parked / out-of-scope (with revisit triggers)
 | Item | Status | Revisit when |
 |---|---|---|

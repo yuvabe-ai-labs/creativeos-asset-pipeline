@@ -78,7 +78,7 @@ export default async function CanvasPage({
       <div className="relative flex-1">
         {/* load this canvas's nodes from the DB, seed the store, autosave changes */}
         <CanvasStoreProvider key={canvas.id} initialNodes={initialNodes} initialEdges={initialEdges}>
-          <Canvas canvasId={canvas.id} />
+          <Canvas canvasId={canvas.id} initialUpdatedAt={canvas.updated_at} />
         </CanvasStoreProvider>
       </div>
     </main>

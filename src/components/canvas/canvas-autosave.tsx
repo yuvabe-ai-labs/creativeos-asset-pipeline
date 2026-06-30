@@ -2,36 +2,56 @@
 
 import { useEffect, useRef } from "react";
 import { flowToPersisted } from "@/lib/canvas-nodes";
-import { saveCanvasNodesAction, saveCanvasEdgesAction } from "@/lib/actions/nodes";
-import { useCanvasStore } from "./canvas-store-provider";
+import { saveCanvasAction } from "@/lib/actions/nodes";
+import { useCanvasStoreApi } from "./canvas-store-provider";
+import { runAutosaveFlush } from "./autosave-flush";
 
-// Watches nodes and edges; debounces both to a single write 600ms after last change.
-export function CanvasAutosave({ canvasId }: { canvasId: string }) {
-  const nodes = useCanvasStore((s) => s.nodes);
-  const edges = useCanvasStore((s) => s.edges);
+// Subscribes to the store; 600ms after the last node/edge change it flushes a
+// conflict-aware save. The concurrency token (canvases.updated_at) lives in a ref,
+// seeded from the value loaded with the page and refreshed after every save.
+export function CanvasAutosave({
+  canvasId,
+  initialUpdatedAt,
+}: {
+  canvasId: string;
+  initialUpdatedAt: string;
+}) {
+  const storeApi = useCanvasStoreApi();
+  const tokenRef = useRef(initialUpdatedAt);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const firstRun = useRef(true);
 
   useEffect(() => {
-    // Skip the initial render — data was just loaded from the DB.
-    if (firstRun.current) {
-      firstRun.current = false;
-      return;
-    }
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => {
-      void Promise.all([
-        saveCanvasNodesAction(canvasId, nodes.map(flowToPersisted)),
-        saveCanvasEdgesAction(canvasId, edges),
-      ]).catch(() => {
-        // best-effort autosave
-      });
-    }, 600);
-
+    const unsub = storeApi.subscribe((state, prev) => {
+      // Only react to graph edits — ignore tombstone-only / videoGenStatus updates.
+      if (state.nodes === prev.nodes && state.edges === prev.edges) return;
+      if (timer.current) clearTimeout(timer.current);
+      timer.current = setTimeout(() => {
+        const s = storeApi.getState();
+        void runAutosaveFlush({
+          canvasId,
+          snapshot: {
+            nodes: s.nodes.map(flowToPersisted),
+            edges: s.edges,
+            removedNodeIds: s.removedNodeIds,
+            removedEdgeIds: s.removedEdgeIds,
+          },
+          expectedUpdatedAt: tokenRef.current,
+          save: saveCanvasAction,
+          onSaved: (updatedAt, flushedNodeIds, flushedEdgeIds) => {
+            tokenRef.current = updatedAt;
+            storeApi.getState().clearRemoved(flushedNodeIds, flushedEdgeIds);
+          },
+          onMerge: (fresh) => {
+            storeApi.getState().replaceCanvas(fresh.nodes, fresh.edges);
+          },
+        });
+      }, 600);
+    });
     return () => {
+      unsub();
       if (timer.current) clearTimeout(timer.current);
     };
-  }, [nodes, edges, canvasId]);
+  }, [storeApi, canvasId]);
 
   return null;
 }
