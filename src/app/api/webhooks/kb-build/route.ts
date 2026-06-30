@@ -42,7 +42,10 @@ type Payload = PhasePayload | SucceededPayload | FailedPayload;
 
 function isAuthorized(req: Request): boolean {
   const secret = process.env.TRIGGER_WEBHOOK_SECRET;
-  if (!secret) return false;
+  if (!secret) {
+    console.error("TRIGGER_WEBHOOK_SECRET is not set — all webhook calls will be rejected");
+    return false;
+  }
   const header = req.headers.get("authorization") ?? "";
   return header === `Bearer ${secret}`;
 }
@@ -81,7 +84,7 @@ export async function POST(req: Request) {
       return apiOk({ ok: true, alreadyTerminal: true });
     }
 
-    const docIdsForVersion = [...job.doc_ids_used];
+    const docIdsForVersion = [...(job.doc_ids_used ?? [])];
 
     // 1. Persist research Markdown as a kb document, if any.
     if (body.researchMarkdown) {
