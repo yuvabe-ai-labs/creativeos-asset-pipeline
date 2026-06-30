@@ -6,6 +6,7 @@ export type ClientRow = {
   slug: string;
   name: string;
   logo_url: string | null;
+  website_url: string | null;
   kb_status: "pending" | "in_review" | "ready";
   active_kb_version_id: string | null;
   created_at: string;
@@ -97,6 +98,28 @@ export type GenerationRow = {
   user_id: string | null;
   error: string | null;
   meta: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ClientKBJobStatus =
+  | "queued"
+  | "researching"
+  | "extracting"
+  | "finalizing"
+  | "succeeded"
+  | "failed";
+
+export type ClientKBJobRow = {
+  id: string;
+  client_id: string;
+  status: ClientKBJobStatus;
+  phase_message: string | null;
+  website_url: string | null;
+  doc_ids_used: string[];
+  trigger_run_id: string | null;
+  version_id: string | null;
+  error: string | null;
   created_at: string;
   updated_at: string;
 };
