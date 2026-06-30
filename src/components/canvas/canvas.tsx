@@ -48,7 +48,13 @@ const nodeTypes: NodeTypes = {
   "video-gen": VideoGenNode,
 };
 
-export function Canvas({ canvasId }: { canvasId: string }) {
+export function Canvas({
+  canvasId,
+  initialUpdatedAt,
+}: {
+  canvasId: string;
+  initialUpdatedAt: string;
+}) {
   // One subscription, shallow-compared, so the component only re-renders when
   // these slices actually change.
   const {
@@ -278,7 +284,7 @@ export function Canvas({ canvasId }: { canvasId: string }) {
 
   return (
     <div className="absolute inset-0 bg-[var(--neutral-50)]">
-      <CanvasAutosave canvasId={canvasId} />
+      <CanvasAutosave canvasId={canvasId} initialUpdatedAt={initialUpdatedAt} />
 
       {quickAdd && (
         <QuickAddMenu
