@@ -9,6 +9,7 @@ import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { saveScriptOutputAction } from "@/lib/actions/nodes";
 import { ScriptFocusView } from "./script-focus-view";
 import { NodeContextMenu } from "./node-context-menu";
+import { ProcessingPill } from "./processing-pill";
 import type { ReelScript } from "@/lib/nodes/reel-script";
 import { DEFAULT_PARSE_SLICES, type KBSliceKey } from "@/lib/kb/parse-context";
 import { useNodeConnectionState } from "./use-node-connection-state";
@@ -54,17 +55,17 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
           <FileText className="size-3.5 text-primary" />
           <span className="text-eyebrow !text-[0.65rem]">Script</span>
         </div>
-        <span
-          className={cn(
-            "size-1.5 rounded-full transition-colors",
-            isParsing
-              ? "animate-pulse bg-primary/60"
-              : parsed
-                ? "bg-primary"
-                : "bg-muted-foreground/40",
-          )}
-          title={isParsing ? "Extracting…" : parsed ? "Extracted" : "Not extracted"}
-        />
+        {isParsing ? (
+          <ProcessingPill processing />
+        ) : (
+          <span
+            className={cn(
+              "size-1.5 rounded-full transition-colors",
+              parsed ? "bg-primary" : "bg-muted-foreground/40",
+            )}
+            title={parsed ? "Extracted" : "Not extracted"}
+          />
+        )}
       </div>
 
       {isParsing && (
