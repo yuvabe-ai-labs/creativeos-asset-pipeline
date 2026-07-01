@@ -722,7 +722,8 @@ reshapes the action contract; deferred as YAGNI for MVP). **Builds on** D8 (edge
 nodes), D11 (human-is-scheduler; saves stay whole-canvas, just safe).
 **Originated.** `2026-06-30-canvas-autosave-concurrency-design.md`.
 
-### D32 — Optimistic concurrency via `updated_at`; conflict = save-mine-then-merge *(recorded 2026-06-30; builds on D31; canvas-level complement to D11)*
+### D32 — Optimistic concurrency via `updated_at`; conflict = save-mine-then-merge *(recorded 2026-06-30; builds on D31; canvas-level complement to D11; **SUPERSEDED by D33**)*
+> **Superseded.** Two concurrent sessions ping-ponged (`replaceCanvas` re-triggered autosave → position oscillation) and mine-wins resurrected deleted nodes. Replaced by the D33 pessimistic lock. The merge machinery (`replaceCanvas`, the `updated_at` token) was removed; D31 non-destructive deletes were kept.
 **Decision.** Autosave carries the `canvases.updated_at` loaded with the canvas as an optimistic
 token (bumped by the migration-0008 child-table triggers — no new column). On a token mismatch
 the server **force-writes the local edits** (safe per D31, so the other session's added nodes
@@ -737,6 +738,26 @@ merge. All inherent to safe-snapshot + mine-wins. **Rejected.** A new `version` 
 silent auto-reload (discards local edits). **Deferred.** Real-time sync (Level 2, Supabase
 Realtime) and CRDT same-field merge (Level 3). **Builds on** D31; complements D11.
 **Originated.** `2026-06-30-canvas-autosave-concurrency-design.md`.
+
+### D33 — Pessimistic single-writer canvas lock; retires D32's optimistic merge *(recorded 2026-07-01; supersedes D32; builds on D31, D29, D9, D13)*
+**Decision.** A canvas is edited by one session at a time. The lock lives in `canvases` columns
+(`editing_session_id` / `editing_name` / `editing_heartbeat_at`, migration `0010` — `0009` was
+D29), keyed by an unguessable **per-tab session id** (not identity, so even the same person's
+second tab is read-only); held iff the heartbeat is within `STALE_MS` (45s), refreshed every 15s.
+An atomic `acquire_canvas_lock` RPC does acquire + stale take-over in one statement.
+**Server-enforced** — `saveCanvasAction` rejects writes from non-holders (`{ ok: false, lockLost
+}`). Second openers are **strict read-only** (one `canEdit` gate via `CanvasEditableContext`
+blocks canvas edits, generation, parse, AND D29 approval) with a "{name} is editing" banner and an
+explicit **take-over-when-stale** button. Depends on the D29 identity system (`<IdentityGate>`
+guarantees a holder name). **Why.** Mine-wins full-snapshot merge (D32) cannot give clean
+concurrent editing — preventing concurrency at the source is simpler and correct. **Rejected.**
+Realtime Presence (new dep; still needs a server guard — future), `pg_advisory_lock`
+(connection-bound; incompatible with serverless actions), client-only enforcement (a stale tab
+could still write), a per-person key (wouldn't stop the same person's two tabs), keep-D32-and-
+guard-the-loop (treats a symptom). **Deferred.** Live viewer sync (Level 2) + CRDT (Level 3);
+server-guarding the generate/approval routes for defense-in-depth (append-only, so client gate
+suffices for MVP). **Retires** D32's conflict/merge/`replaceCanvas`; **keeps** D31 (deletes now
+stick — no second writer). **Originated.** `2026-07-01-canvas-pessimistic-lock-design.md`.
 
 ### Parked / out-of-scope (with revisit triggers)
 | Item | Status | Revisit when |
