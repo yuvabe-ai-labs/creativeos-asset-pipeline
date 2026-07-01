@@ -39,6 +39,7 @@ import {
 import { videoGenApi } from "@/lib/video-gen/api";
 import { createBrowserSupabase } from "@/lib/supabase/client";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
+import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { useVideoGenStatus } from "@/hooks/use-video-gen-status";
 import {
   VideoGenVersionHistory,
@@ -391,6 +392,7 @@ export function VideoGenFocusView({
   // the per-render wrapper functions returned by useVideoGenStatus.
   const setVideoGenGenerating = useCanvasStore((s) => s.setVideoGenGenerating);
   const setVideoGenError = useCanvasStore((s) => s.setVideoGenError);
+  const editable = useCanvasEditable(); // D33: false when this session is read-only
 
   // Stable ref for onPatch — breaks the useCallback → useEffect dep cycle
   const onPatchRef = useRef(onPatch);
@@ -717,7 +719,7 @@ export function VideoGenFocusView({
                       <Button
                         size="lg"
                         onClick={handleGenerate}
-                        disabled={isGenerating || constraints.disableGenerate}
+                        disabled={isGenerating || constraints.disableGenerate || !editable}
                       >
                         <Sparkles className="size-4" strokeWidth={1.5} />
                         {isGenerating

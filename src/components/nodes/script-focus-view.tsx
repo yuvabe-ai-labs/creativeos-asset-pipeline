@@ -22,6 +22,7 @@ import type { KBSliceKey } from "@/lib/kb/parse-context";
 import { ScriptDocument } from "./script-document";
 import { ScriptEmptyState } from "./script-empty-state";
 import { ScriptSkeleton } from "./script-skeleton";
+import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 
 type Path = (string | number)[];
 
@@ -61,6 +62,7 @@ export function ScriptFocusView({
   onFanOut,
   onParsingChange,
 }: ScriptFocusViewProps) {
+  const editable = useCanvasEditable(); // D33: false when this session is read-only
   const [draft, setDraft] = useState<ReelScript>(parsed ?? {});
   const [showOriginal, setShowOriginal] = useState(false);
   const [parsing, setParsing] = useState(false);
@@ -98,6 +100,7 @@ export function ScriptFocusView({
   const shotCount = parsed?.visual_script?.shots?.length ?? 0;
 
   async function runParse(src: string) {
+    if (!editable) return; // D33: read-only session cannot parse (a write)
     if (!src.trim()) return;
     setParsing(true);
     onParsingChange?.(true);

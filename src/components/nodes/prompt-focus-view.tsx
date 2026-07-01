@@ -41,6 +41,7 @@ import { InlineApprovalBar } from "./inline-approval-bar";
 import { setVersionLabelAction } from "@/lib/actions/eval";
 import { setVersionApprovalAction } from "@/lib/actions/approval";
 import { useIdentity } from "@/hooks/use-identity";
+import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import type { ApprovalStatus } from "@/lib/approval";
 
 type PromptFocusViewProps = {
@@ -141,6 +142,7 @@ export function PromptFocusView({
   const [approvalNote, setApprovalNote] = useState("");
   const [approvalSaving, setApprovalSaving] = useState(false);
   const { identity } = useIdentity();
+  const editable = useCanvasEditable(); // D33: false when this session is read-only
   const [evalSaving, setEvalSaving] = useState(false);
 
   if (seed.open !== open || seed.output !== output || seed.nodeId !== nodeId) {
@@ -528,7 +530,7 @@ export function PromptFocusView({
                   className="w-full"
                   size="default"
                   onClick={runGenerate}
-                  disabled={generating}
+                  disabled={generating || !editable}
                 >
                   <Sparkles className="size-4" />
                   {generating
@@ -559,7 +561,7 @@ export function PromptFocusView({
                     status={approvalStatus}
                     note={approvalNote}
                     saving={approvalSaving}
-                    canApprove={identity?.role === "senior"}
+                    canApprove={editable && identity?.role === "senior"}
                     onSet={saveApproval}
                   />
                 )}

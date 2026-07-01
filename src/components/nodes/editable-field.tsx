@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 
 type EditableFieldProps = {
   value: string;
@@ -32,9 +33,12 @@ export function EditableField({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
 
+  const editable = useCanvasEditable();
+  const isReadOnly = readOnly || !editable; // D33: strict read-only under the lock
+
   const isEmpty = value.trim() === "";
 
-  if (readOnly) {
+  if (isReadOnly) {
     return (
       <span
         className={cn("whitespace-pre-wrap", isEmpty && "text-muted-foreground", className)}

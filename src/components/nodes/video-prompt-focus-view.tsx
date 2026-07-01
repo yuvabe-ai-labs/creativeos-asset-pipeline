@@ -38,6 +38,7 @@ import { InlineApprovalBar } from "./inline-approval-bar";
 import { setVersionLabelAction } from "@/lib/actions/eval";
 import { setVersionApprovalAction } from "@/lib/actions/approval";
 import { useIdentity } from "@/hooks/use-identity";
+import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import type { ApprovalStatus } from "@/lib/approval";
 
 type VideoPromptFocusViewProps = {
@@ -123,6 +124,7 @@ export function VideoPromptFocusView({
   const [approvalNote, setApprovalNote] = useState("");
   const [approvalSaving, setApprovalSaving] = useState(false);
   const { identity } = useIdentity();
+  const editable = useCanvasEditable(); // D33: false when this session is read-only
   const [evalSaving, setEvalSaving] = useState(false);
 
   if (seed.open !== open || seed.output !== output || seed.nodeId !== nodeId) {
@@ -492,7 +494,7 @@ export function VideoPromptFocusView({
                     placeholder={DEFAULT_MOTION_INSTRUCTION}
                     className="flex-1 min-h-0 w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-sm leading-relaxed focus:outline-none focus:ring-1 focus:ring-ring"
                   />
-                  <Button className="w-full" size="default" onClick={runGenerate} disabled={generating}>
+                  <Button className="w-full" size="default" onClick={runGenerate} disabled={generating || !editable}>
                     <Clapperboard className="size-4" />
                     {generating ? "Generating…" : output ? "Re-generate" : "Generate motion prompt"}
                   </Button>
@@ -518,7 +520,7 @@ export function VideoPromptFocusView({
                       status={approvalStatus}
                       note={approvalNote}
                       saving={approvalSaving}
-                      canApprove={identity?.role === "senior"}
+                      canApprove={editable && identity?.role === "senior"}
                       onSet={saveApproval}
                     />
                   )}

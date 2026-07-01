@@ -42,6 +42,7 @@ import { InlineApprovalBar } from "./inline-approval-bar";
 import { setVersionLabelAction } from "@/lib/actions/eval";
 import { setVersionApprovalAction } from "@/lib/actions/approval";
 import { useIdentity } from "@/hooks/use-identity";
+import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import type { ApprovalStatus } from "@/lib/approval";
 import {
   imageGenClientModelMap,
@@ -207,6 +208,7 @@ export function ImageGenFocusView({
   const [approvalNote, setApprovalNote] = useState("");
   const [approvalSaving, setApprovalSaving] = useState(false);
   const { identity } = useIdentity();
+  const editable = useCanvasEditable(); // D33: false when this session is read-only
   const [fetchedPrompt, setFetchedPrompt] = useState<{
     nodeId: string;
     text: string;
@@ -613,7 +615,7 @@ export function ImageGenFocusView({
                 <Button
                   size="lg"
                   onClick={handleGenerate}
-                  disabled={generating || editing || !promptUpstream}
+                  disabled={generating || editing || !promptUpstream || !editable}
                 >
                   <Sparkles className="size-4" strokeWidth={1.5} />
                   {generating
@@ -640,7 +642,7 @@ export function ImageGenFocusView({
                   instruction={editInstr}
                   finalPrompt={finalPrompt}
                   editing={editing}
-                  canEdit={canEditBase}
+                  canEdit={canEditBase && editable}
                   referenceWarning={referenceWarning}
                   suggestGemini={suggestGemini}
                   onPickChip={handlePickChip}
@@ -714,7 +716,7 @@ export function ImageGenFocusView({
                     status={approvalStatus}
                     note={approvalNote}
                     saving={approvalSaving}
-                    canApprove={identity?.role === "senior"}
+                    canApprove={editable && identity?.role === "senior"}
                     onSet={saveApproval}
                   />
                 </div>
