@@ -72,7 +72,7 @@ export async function listNodes(canvasId: string): Promise<NodeWithActive[]> {
   // (constraint name disambiguates it from node_versions.node_id).
   const { data, error } = await supabase
     .from("nodes")
-    .select("*, active:node_versions!nodes_active_version_fk(output)")
+    .select("*, active:node_versions!nodes_active_version_fk(output, approval_status)")
     .eq("canvas_id", canvasId);
   if (error) throw error;
   return (data ?? []) as unknown as NodeWithActive[];

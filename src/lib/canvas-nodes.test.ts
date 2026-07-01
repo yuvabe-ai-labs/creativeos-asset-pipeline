@@ -44,6 +44,13 @@ describe("nodeRowToFlow", () => {
     const node = nodeRowToFlow(row({ type: "brief" }));
     expect(node.type).toBe("script");
   });
+
+  it("surfaces the active version's approval_status onto data (D29)", () => {
+    const node = nodeRowToFlow(
+      row({ active: { output: "http://img", approval_status: "approved" } }),
+    );
+    expect((node.data as { approvalStatus?: string }).approvalStatus).toBe("approved");
+  });
 });
 
 describe("flowToPersisted", () => {

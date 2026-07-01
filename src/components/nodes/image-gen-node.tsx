@@ -9,6 +9,8 @@ import { NodeContextMenu } from "./node-context-menu";
 import type { ImageGenNodeData } from "@/lib/canvas-nodes";
 import { ImageGenFocusView } from "./image-gen-focus-view";
 import { ProcessingPill } from "./processing-pill";
+import { ApprovalBadge } from "./approval-badge";
+import type { ApprovalStatus } from "@/lib/approval";
 
 export function ImageGenNode({ id, data, selected }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
@@ -42,6 +44,8 @@ export function ImageGenNode({ id, data, selected }: NodeProps) {
   const d = data as ImageGenNodeData;
   const title    = d.title ?? "";
   const imageUrl = (d.parsed ?? null) as string | null;
+  // D29: active version's approval status (present once a version exists).
+  const approvalStatus = (d as { approvalStatus?: ApprovalStatus }).approvalStatus;
   const [focusOpen, setFocusOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -76,6 +80,11 @@ export function ImageGenNode({ id, data, selected }: NodeProps) {
 
         {/* Body */}
         <div className="px-3 py-3">
+          {imageUrl && approvalStatus && (
+            <div className="mb-2">
+              <ApprovalBadge status={approvalStatus} />
+            </div>
+          )}
           {imageUrl && (
             <div className="mb-2 overflow-hidden rounded-md border border-border">
               {/* eslint-disable-next-line @next/next/no-img-element */}

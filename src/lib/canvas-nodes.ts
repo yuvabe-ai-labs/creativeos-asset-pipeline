@@ -125,7 +125,11 @@ export const VALID_CONNECTIONS: Record<string, readonly string[]> = {
 // A node row joined with its active version's output (canvas-load shape).
 // `active` is the to-one embed of node_versions via nodes.active_version_id.
 export type NodeWithActive = NodeRow & {
-  active: { output: unknown } | null;
+  active: {
+    output: unknown;
+    // D29: the active version's approval flag, surfaced for the on-canvas badge.
+    approval_status?: "pending" | "approved" | "changes_requested";
+  } | null;
 };
 
 // DB row → React Flow node (used on canvas load, server-side).
@@ -138,7 +142,13 @@ export function nodeRowToFlow(row: NodeWithActive): AppNode {
   const own = { ...((row.data ?? {}) as Record<string, unknown>) };
   delete own.parsed;
   const output = row.active?.output;
-  const data = output != null ? { ...own, parsed: output } : own;
+  // D29: carry the active version's approval status (display-only, like parsed).
+  const approvalStatus = row.active?.approval_status;
+  const data = {
+    ...own,
+    ...(output != null ? { parsed: output } : {}),
+    ...(approvalStatus ? { approvalStatus } : {}),
+  };
   return {
     id: row.id,
     type: type as AppNode["type"],

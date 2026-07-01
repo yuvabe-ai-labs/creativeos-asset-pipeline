@@ -10,6 +10,8 @@ import type { VideoGenNodeData } from "@/lib/canvas-nodes";
 import { VideoGenFocusView } from "./video-gen-focus-view";
 import { useVideoGenStatus } from "@/hooks/use-video-gen-status";
 import { ProcessingPill } from "./processing-pill";
+import { ApprovalBadge } from "./approval-badge";
+import type { ApprovalStatus } from "@/lib/approval";
 
 export function VideoGenNode({ id, data, selected }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
@@ -19,6 +21,8 @@ export function VideoGenNode({ id, data, selected }: NodeProps) {
   const d = data as VideoGenNodeData;
   const title    = d.title ?? "";
   const videoUrl = (d.parsed ?? null) as string | null;
+  // D29: active version's approval status (present once a version exists).
+  const approvalStatus = (d as { approvalStatus?: ApprovalStatus }).approvalStatus;
 
   const [focusOpen, setFocusOpen] = useState(false);
   const { isGenerating } = useVideoGenStatus(id);
@@ -59,6 +63,11 @@ export function VideoGenNode({ id, data, selected }: NodeProps) {
 
         {/* Body */}
         <div className="px-3 py-3">
+          {!isGenerating && videoUrl && approvalStatus && (
+            <div className="mb-2">
+              <ApprovalBadge status={approvalStatus} />
+            </div>
+          )}
           {isGenerating && (
             <div className="mb-2 h-16 w-full animate-pulse rounded-md bg-primary/10" />
           )}

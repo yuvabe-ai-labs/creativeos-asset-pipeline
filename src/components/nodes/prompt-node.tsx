@@ -10,6 +10,8 @@ import { PromptFocusView } from "./prompt-focus-view";
 import { DEFAULT_IMAGE_PROMPT_SLICES, type KBSliceKey } from "@/lib/kb/parse-context";
 import type { ShotControls } from "@/lib/nodes/shot-controls";
 import { NodeContextMenu } from "./node-context-menu";
+import { ApprovalBadge } from "./approval-badge";
+import type { ApprovalStatus } from "@/lib/approval";
 
 const TYPE_LABEL: Record<string, string> = { script: "Script", text: "Note", prompt: "Prompt", kb: "Brand KB", file: "File", shot: "Shot", draw: "Sketch" };
 
@@ -61,6 +63,8 @@ export function PromptNode({ id, data, selected }: NodeProps) {
   const title = d.title ?? "";
   const instruction = d.instruction ?? "";
   const output = (d.parsed ?? null) as string | null;
+  // D29: active version's approval status (present once a version exists).
+  const approvalStatus = (d as { approvalStatus?: ApprovalStatus }).approvalStatus;
   const slices = d.kbSlices ?? DEFAULT_IMAGE_PROMPT_SLICES;
   const controls = d.controls ?? null;
   const [focusOpen, setFocusOpen] = useState(false);
@@ -90,6 +94,11 @@ export function PromptNode({ id, data, selected }: NodeProps) {
       </div>
 
       <div className="px-3 py-3">
+        {output && approvalStatus && (
+          <div className="mb-2">
+            <ApprovalBadge status={approvalStatus} />
+          </div>
+        )}
         <p className="truncate font-display text-sm font-medium">
           {title || <span className="text-muted-foreground">Image prompt</span>}
         </p>
