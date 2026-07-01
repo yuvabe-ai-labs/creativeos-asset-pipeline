@@ -37,6 +37,10 @@ export async function GET(
       createdAt: v.created_at,
       decision: (v.decision as "pass" | "fail" | null) ?? null,
       note: typeof v.note === "string" ? v.note : null,
+      // D29 approval flag (distinct from decision).
+      approvalStatus: v.approval_status as "pending" | "approved" | "changes_requested",
+      approvedBy: typeof v.approved_by === "string" ? v.approved_by : null,
+      approvedAt: typeof v.approved_at === "string" ? v.approved_at : null,
       inputsUsed: (v.inputs_used ?? {}) as {
         baseVersionId?: string | null;
         instruction?: string;

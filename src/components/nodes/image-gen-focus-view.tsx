@@ -38,7 +38,11 @@ import { ImageGenUsagePopover } from "./image-gen-usage-popover";
 import { ImageGenEditPanel } from "./image-gen-edit-panel";
 import { buildEditPrompt, type EditIntent } from "@/lib/image-gen/edit-prompt";
 import { InlineEvalBar } from "./inline-eval-bar";
+import { InlineApprovalBar } from "./inline-approval-bar";
 import { setVersionLabelAction } from "@/lib/actions/eval";
+import { setVersionApprovalAction } from "@/lib/actions/approval";
+import { useIdentity } from "@/hooks/use-identity";
+import type { ApprovalStatus } from "@/lib/approval";
 import {
   imageGenClientModelMap,
   DEFAULT_CLIENT_MODEL_ID,
@@ -198,6 +202,11 @@ export function ImageGenFocusView({
   );
   const [evalNote, setEvalNote] = useState("");
   const [evalSaving, setEvalSaving] = useState(false);
+  // D29 approval flag — sibling of the eval signal, distinct field.
+  const [approvalStatus, setApprovalStatus] = useState<ApprovalStatus>("pending");
+  const [approvalNote, setApprovalNote] = useState("");
+  const [approvalSaving, setApprovalSaving] = useState(false);
+  const { identity } = useIdentity();
   const [fetchedPrompt, setFetchedPrompt] = useState<{
     nodeId: string;
     text: string;
@@ -231,6 +240,8 @@ export function ImageGenFocusView({
           );
           setEvalDecision(active?.decision ?? null);
           setEvalNote(active?.note ?? "");
+          setApprovalStatus(active?.approvalStatus ?? "pending");
+          setApprovalNote(active?.note ?? "");
         }
       } catch {
         /* best-effort */
@@ -363,6 +374,8 @@ export function ImageGenFocusView({
       );
       setEvalDecision(active?.decision ?? null);
       setEvalNote(active?.note ?? "");
+      setApprovalStatus(active?.approvalStatus ?? "pending");
+      setApprovalNote(active?.note ?? "");
     } catch {
       /* best-effort */
     }
@@ -511,6 +524,24 @@ export function ImageGenFocusView({
       toast.error("Failed to save note");
     } finally {
       setEvalSaving(false);
+    }
+  }
+
+  async function saveApproval(status: ApprovalStatus, note: string | null) {
+    if (!activeVersionId) return;
+    setApprovalSaving(true);
+    try {
+      await setVersionApprovalAction(activeVersionId, {
+        status,
+        approvedBy: identity?.name ?? null,
+        note,
+      });
+      setApprovalStatus(status);
+      setApprovalNote(note ?? "");
+    } catch {
+      toast.error("Failed to save approval");
+    } finally {
+      setApprovalSaving(false);
     }
   }
 
@@ -676,6 +707,18 @@ export function ImageGenFocusView({
                 onNote={setEvalNote}
                 onNoteBlur={handleEvalNoteBlur}
               />
+
+              {mode === "result" && !!activeVersionId && (
+                <div className="mt-3">
+                  <InlineApprovalBar
+                    status={approvalStatus}
+                    note={approvalNote}
+                    saving={approvalSaving}
+                    canApprove={identity?.role === "senior"}
+                    onSet={saveApproval}
+                  />
+                </div>
+              )}
 
               <div className="mt-3 flex-1 min-h-0">
                 {mode === "skeleton" && (
