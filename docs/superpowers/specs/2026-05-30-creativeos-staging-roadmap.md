@@ -715,6 +715,18 @@ key — no browser-side GCS uploads in this iteration).
 **Refines.** D13 (Trigger.dev is rented async infra, not self-hosted queue — the spirit of D13 is preserved; the parked item "Real queue infra (Redis/SQS/BullMQ + workers)" is unchanged). **Reuses.** D25 (graduation pattern from execution-scratchpad table into the durable versioned table). **Builds on.** D12 (Realtime push, not polling). **D11 unchanged** (the human still clicks Extract & Build — nothing auto-runs).
 **Originated.** `2026-06-30-kb-build-trigger-website-research-design.md`.
 
+### D32 — Provider abstraction for KB analysis *(recorded 2026-07-01; refines D25, D31)*
+
+**Decision.** Extract KB analysis (doc extraction, image analysis, website research) behind a `KBAnalysisProvider` interface. `getKBProvider()` reads `KB_ANALYSIS_PROVIDER` env var and returns the OpenAI or Gemini implementation. OpenAI is the default.
+
+**Why.** Allows switching Gemini as the analysis backend without touching the Trigger.dev task, webhook, DB schema, or UI. The existing image-gen provider pattern (`src/lib/image-gen/providers/`) proved this approach works well.
+
+**Rejected.** Per-step provider selection (e.g. OpenAI for extract + Gemini for images) — unnecessary complexity. Fallback (try OpenAI if Gemini fails) — YAGNI.
+
+**Refines.** D25 (KB build pipeline), D31 (Trigger.dev KB pipeline).
+
+**Originated.** `docs/superpowers/specs/2026-07-01-kb-provider-switch-design.md`.
+
 ### Parked / out-of-scope (with revisit triggers)
 | Item | Status | Revisit when |
 |---|---|---|
