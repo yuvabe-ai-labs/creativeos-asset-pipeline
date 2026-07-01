@@ -73,7 +73,6 @@ function UploadZone({ label, accept, onFilesSelected, isUploading, icon }: Uploa
 
 type Props = {
   clientId: string;
-  clientSlug: string;
   initialDocuments: ClientKBDocumentRow[];
   initialImages: ClientBrandImageRow[];
   initialWebsiteUrl: string | null;
@@ -201,7 +200,6 @@ export function KBOnboardingUploadStep({
     startStartTransition(async () => {
       try {
         await startKBBuildJob(clientId);
-        router.refresh();
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Failed to start build.");
       }

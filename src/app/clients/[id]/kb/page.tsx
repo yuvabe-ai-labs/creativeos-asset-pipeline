@@ -98,7 +98,6 @@ export default async function KBPage({
           </header>
           <KBOnboardingUploadStep
             clientId={client.id}
-            clientSlug={client.slug}
             initialDocuments={documents}
             initialImages={images}
             initialWebsiteUrl={client.website_url ?? null}
