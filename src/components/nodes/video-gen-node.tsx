@@ -37,7 +37,7 @@ export function VideoGenNode({ id, data, selected }: NodeProps) {
       <div
         onDoubleClick={(e) => { e.stopPropagation(); setFocusOpen(true); }}
         className={cn(
-          "w-44 rounded-lg border border-border bg-card shadow-card",
+          "w-60 rounded-lg border border-border bg-card shadow-card",
           "transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:scale-[1.006]",
           selected && "ring-2 ring-primary ring-offset-1 ring-offset-background",
         )}
@@ -45,8 +45,8 @@ export function VideoGenNode({ id, data, selected }: NodeProps) {
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border px-3 py-2">
           <div className="flex items-center gap-1.5">
-            <Clapperboard className="size-3.5 stroke-[1.5] text-primary" />
-            <span className="text-eyebrow !text-[0.65rem]">Video Gen</span>
+            <Clapperboard className="size-3.5 shrink-0 stroke-[1.5] text-primary" />
+            <span className="text-eyebrow !text-[0.65rem] whitespace-nowrap">Video Gen</span>
           </div>
           {isGenerating ? (
             <ProcessingPill processing />
