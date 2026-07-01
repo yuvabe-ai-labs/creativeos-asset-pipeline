@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, type ChangeEvent } from "react";
+import { useState, useTransition, useEffect, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -9,15 +9,21 @@ import {
   UploadIcon,
   XIcon,
   SparklesIcon,
+  LinkIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { KBSkeleton } from "@/components/kb/kb-skeleton";
 import type {
   ClientKBDocumentRow,
   ClientBrandImageRow,
+  ClientKBJobRow,
 } from "@/lib/db/types";
 import { KB_DOC_SIZE_LIMIT_BYTES, KB_IMG_SIZE_LIMIT_BYTES } from "@/lib/kb/constants";
+import { startKBBuildJob, markStuckJobFailed } from "@/lib/actions/kb";
+import { useKBJobStatus } from "./use-kb-job-status";
 
 const DOC_EXTENSIONS = new Set(["pdf", "docx", "pptx", "md", "txt"]);
 const IMG_EXTENSIONS = new Set(["jpg", "jpeg", "png", "webp"]);
@@ -70,22 +76,40 @@ type Props = {
   clientSlug: string;
   initialDocuments: ClientKBDocumentRow[];
   initialImages: ClientBrandImageRow[];
+  initialWebsiteUrl: string | null;
+  initialJob: ClientKBJobRow | null;
 };
 
 export function KBOnboardingUploadStep({
   clientId,
   initialDocuments,
   initialImages,
+  initialWebsiteUrl,
+  initialJob,
 }: Props) {
   const router = useRouter();
   const [documents, setDocuments] = useState(initialDocuments);
   const [images, setImages] = useState(initialImages);
   const [uploadingDocs, setUploadingDocs] = useState(false);
   const [uploadingImgs, setUploadingImgs] = useState(false);
-  const [extracting, startExtract] = useTransition();
+  const [websiteUrl, setWebsiteUrl] = useState(initialWebsiteUrl ?? "");
+  const [starting, startStartTransition] = useTransition();
+  const job = useKBJobStatus(clientId, initialJob);
 
   const docTotalBytes = documents.reduce((s, d) => s + (d.size_bytes ?? 0), 0);
   const imgTotalBytes = images.reduce((s, i) => s + (i.size_bytes ?? 0), 0);
+
+  useEffect(() => {
+    if (websiteUrl === (initialWebsiteUrl ?? "")) return;
+    const handle = setTimeout(() => {
+      void fetch(`/api/clients/${clientId}/website-url`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ websiteUrl: websiteUrl || null }),
+      });
+    }, 800);
+    return () => clearTimeout(handle);
+  }, [websiteUrl, clientId, initialWebsiteUrl]);
 
   async function uploadFiles(
     files: File[],
@@ -174,30 +198,62 @@ export function KBOnboardingUploadStep({
   }
 
   function handleExtract() {
-    startExtract(async () => {
+    startStartTransition(async () => {
       try {
-        const res = await fetch(`/api/clients/${clientId}/kb/extract`, {
-          method: "POST",
-        });
-        const json = await res.json();
-        if (!res.ok) {
-          toast.error(json.error ?? "Extraction failed");
-          return;
-        }
-        toast.success("KB extracted — review the results below");
+        await startKBBuildJob(clientId);
         router.refresh();
-      } catch {
-        toast.error("Extraction failed");
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Failed to start build.");
       }
     });
   }
 
-  if (extracting) {
+  const NON_TERMINAL = new Set(["queued", "researching", "extracting", "finalizing"]);
+  const isRunning = job !== null && NON_TERMINAL.has(job.status);
+  const tenMinAgo = Date.now() - 10 * 60 * 1000;
+  const isStuck = isRunning && new Date(job!.updated_at).getTime() < tenMinAgo;
+
+  useEffect(() => {
+    if (!job) return;
+    if (job.status === "succeeded") {
+      toast.success("KB built — review below");
+      router.refresh();
+    } else if (job.status === "failed") {
+      toast.error(job.error ?? "KB build failed");
+    }
+  }, [job?.status, job?.error, router]);
+
+  if (isRunning) {
     return (
-      <div className="animate-rise">
-        <p className="mb-6 text-sm text-muted-foreground">
-          Analyzing your documents and images — this usually takes 30–60 seconds. Don&apos;t close this tab.
-        </p>
+      <div className="animate-rise space-y-6">
+        <Card className="p-4">
+          <div className="flex items-start gap-3">
+            <span className="size-4 mt-0.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+            <div className="flex-1">
+              <p className="text-sm font-medium">{job!.phase_message ?? "Building knowledge base…"}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                This usually takes 60–120 seconds. You can close this tab and come back — we&apos;ll keep building.
+              </p>
+            </div>
+          </div>
+          {isStuck && (
+            <div className="mt-4 border-t pt-3 flex items-center justify-between gap-3">
+              <p className="text-xs text-muted-foreground">
+                This build appears stuck. Clear it to start a new one.
+              </p>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={async () => {
+                  await markStuckJobFailed(job!.id);
+                  router.refresh();
+                }}
+              >
+                Clear stuck build
+              </Button>
+            </div>
+          )}
+        </Card>
         <KBSkeleton />
       </div>
     );
@@ -205,6 +261,26 @@ export function KBOnboardingUploadStep({
 
   return (
     <div className="animate-rise space-y-6">
+      {/* Brand website URL */}
+      <Card className="p-4">
+        <div className="flex items-center gap-2">
+          <LinkIcon className="size-4 text-muted-foreground" />
+          <Label htmlFor="website-url" className="text-sm font-medium">
+            Brand website <span className="text-muted-foreground font-normal">(optional)</span>
+          </Label>
+        </div>
+        <Input
+          id="website-url"
+          className="mt-2"
+          placeholder="https://yourbrand.com"
+          value={websiteUrl}
+          onChange={(e) => setWebsiteUrl(e.target.value)}
+        />
+        <p className="mt-2 text-xs text-muted-foreground">
+          We&apos;ll research the site and add it as a knowledge source.
+        </p>
+      </Card>
+
       <div className="grid gap-4 sm:grid-cols-2">
         {/* Documents panel */}
         <Card className="p-0 overflow-hidden">
@@ -324,14 +400,14 @@ export function KBOnboardingUploadStep({
       <div className="flex items-center gap-3">
         <Button
           onClick={handleExtract}
-          disabled={extracting || documents.length === 0 || uploadingDocs || uploadingImgs}
+          disabled={starting || (documents.length === 0 && !websiteUrl.trim()) || uploadingDocs || uploadingImgs}
         >
           <SparklesIcon className="mr-1.5 size-4" />
-          {extracting ? "Extracting…" : "Extract & Build KB"}
+          {starting ? "Starting…" : "Extract & Build KB"}
         </Button>
-        {documents.length === 0 && (
+        {documents.length === 0 && !websiteUrl.trim() && (
           <p className="text-sm text-muted-foreground">
-            Upload at least one document to continue
+            Add a website or upload a document to continue
           </p>
         )}
       </div>
