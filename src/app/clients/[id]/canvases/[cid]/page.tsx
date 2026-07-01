@@ -76,7 +76,7 @@ export default async function CanvasPage({
           </BreadcrumbList>
         </Breadcrumb>
         {/* D29: soft identity — who's the maker/checker. Set once at app start. */}
-        <IdentityChip />
+        <IdentityChip />    
       </header>
 
       <div className="relative flex-1">
@@ -84,7 +84,7 @@ export default async function CanvasPage({
         {/* D29: block until an identity is set, so generations/approvals are attributed. */}
         <IdentityGate>
           <CanvasStoreProvider key={canvas.id} initialNodes={initialNodes} initialEdges={initialEdges}>
-            <Canvas canvasId={canvas.id} initialUpdatedAt={canvas.updated_at} />
+            <Canvas canvasId={canvas.id} />
           </CanvasStoreProvider>
         </IdentityGate>
       </div>

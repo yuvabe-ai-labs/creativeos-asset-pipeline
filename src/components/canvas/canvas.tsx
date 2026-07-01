@@ -33,6 +33,9 @@ import { useCanvasStore, useCanvasStoreApi } from "./canvas-store-provider";
 import { CanvasAutosave } from "./canvas-autosave";
 import { QuickAddMenu } from "./quick-add-menu";
 import { mnemonicToType, isEditableTarget } from "@/lib/canvas-node-options";
+import { useCanvasLock } from "@/hooks/use-canvas-lock";
+import { CanvasEditableProvider } from "./canvas-editable-context";
+import { LockBanner } from "./lock-banner";
 
 // Register custom node types once (stable reference — never inline this object).
 const nodeTypes: NodeTypes = {
@@ -48,13 +51,7 @@ const nodeTypes: NodeTypes = {
   "video-gen": VideoGenNode,
 };
 
-export function Canvas({
-  canvasId,
-  initialUpdatedAt,
-}: {
-  canvasId: string;
-  initialUpdatedAt: string;
-}) {
+export function Canvas({ canvasId }: { canvasId: string }) {
   // One subscription, shallow-compared, so the component only re-renders when
   // these slices actually change.
   const {
@@ -84,6 +81,12 @@ export function Canvas({
   );
 
   const storeApi = useCanvasStoreApi();
+
+  const { canEdit, heldByName, canTakeOver, sessionId, takeOver, reportLockLost } =
+    useCanvasLock(canvasId);
+  // Read the latest canEdit from event handlers/closures without re-subscribing them.
+  const canEditRef = useRef(canEdit);
+  canEditRef.current = canEdit;
 
   const nodesRef = useRef(nodes);
   useEffect(() => {
@@ -123,6 +126,7 @@ export function Canvas({
   // node first (replace-all upsert) so the /file route finds it (dodges the autosave race).
   const handlePasteImage = useCallback(
     async (flowPos: XYPosition) => {
+      if (!canEditRef.current) return; // read-only: no mutations
       const img = await readClipboardImage();
       if (!img) {
         toast.error("Couldn't read an image from the clipboard.");
@@ -162,6 +166,7 @@ export function Canvas({
   );
 
   const openQuickAddAt = useCallback((screenX: number, screenY: number) => {
+    if (!canEditRef.current) return; // read-only: no add menu
     if (!rfRef.current) return;
     const flowPos = rfRef.current.screenToFlowPosition({ x: screenX, y: screenY });
     setQuickAdd({ screenX, screenY, flowPos });
@@ -178,6 +183,7 @@ export function Canvas({
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if (!canEditRef.current) return; // read-only: no keyboard mutations
       // Duplicate (existing behavior) — modified key, fires regardless of focus.
       if ((e.ctrlKey || e.metaKey) && e.key === "d") {
         e.preventDefault();
@@ -283,8 +289,18 @@ export function Canvas({
   );
 
   return (
+    <CanvasEditableProvider value={canEdit}>
     <div className="absolute inset-0 bg-[var(--neutral-50)]">
-      <CanvasAutosave canvasId={canvasId} initialUpdatedAt={initialUpdatedAt} />
+      <CanvasAutosave
+        canvasId={canvasId}
+        sessionId={sessionId}
+        canEdit={canEdit}
+        onLockLost={reportLockLost}
+      />
+
+      {!canEdit && (
+        <LockBanner heldByName={heldByName} canTakeOver={canTakeOver} onTakeOver={takeOver} />
+      )}
 
       {quickAdd && (
         <QuickAddMenu
@@ -305,7 +321,9 @@ export function Canvas({
         onConnect={onConnect}
         isValidConnection={isValidConnection}
         nodeTypes={nodeTypes}
-        deleteKeyCode={["Backspace", "Delete"]}
+        nodesDraggable={canEdit}
+        nodesConnectable={canEdit}
+        deleteKeyCode={canEdit ? ["Backspace", "Delete"] : null}
         selectionOnDrag
         selectionMode={SelectionMode.Partial}
         selectionKeyCode={null}
@@ -335,5 +353,6 @@ export function Canvas({
         <Controls showInteractive={false} />
       </ReactFlow>
     </div>
+    </CanvasEditableProvider>
   );
 }

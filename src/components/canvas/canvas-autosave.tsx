@@ -6,24 +6,28 @@ import { saveCanvasAction } from "@/lib/actions/nodes";
 import { useCanvasStoreApi } from "./canvas-store-provider";
 import { runAutosaveFlush } from "./autosave-flush";
 
-// Subscribes to the store; 600ms after the last node/edge change it flushes a
-// conflict-aware save. The concurrency token (canvases.updated_at) lives in a ref,
-// seeded from the value loaded with the page and refreshed after every save.
+// Debounced, server-enforced autosave. Only runs while this session holds the lock
+// (canEdit). A rejected save (lock lost) calls onLockLost so the UI flips to read-only.
 export function CanvasAutosave({
   canvasId,
-  initialUpdatedAt,
+  sessionId,
+  canEdit,
+  onLockLost,
 }: {
   canvasId: string;
-  initialUpdatedAt: string;
+  sessionId: string;
+  canEdit: boolean;
+  onLockLost: () => void;
 }) {
   const storeApi = useCanvasStoreApi();
-  const tokenRef = useRef(initialUpdatedAt);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const canEditRef = useRef(canEdit);
+  canEditRef.current = canEdit;
 
   useEffect(() => {
     const unsub = storeApi.subscribe((state, prev) => {
-      // Only react to graph edits — ignore tombstone-only / videoGenStatus updates.
       if (state.nodes === prev.nodes && state.edges === prev.edges) return;
+      if (!canEditRef.current) return; // read-only: never persist
       if (timer.current) clearTimeout(timer.current);
       timer.current = setTimeout(() => {
         const s = storeApi.getState();
@@ -35,15 +39,13 @@ export function CanvasAutosave({
             removedNodeIds: s.removedNodeIds,
             removedEdgeIds: s.removedEdgeIds,
           },
-          expectedUpdatedAt: tokenRef.current,
+          sessionId,
           save: saveCanvasAction,
-          onSaved: (updatedAt, flushedNodeIds, flushedEdgeIds) => {
-            tokenRef.current = updatedAt;
-            storeApi.getState().clearRemoved(flushedNodeIds, flushedEdgeIds);
-          },
-          onMerge: (fresh) => {
-            storeApi.getState().replaceCanvas(fresh.nodes, fresh.edges);
-          },
+          onLockLost,
+        }).then(() => {
+          if (canEditRef.current) {
+            storeApi.getState().clearRemoved(s.removedNodeIds, s.removedEdgeIds);
+          }
         });
       }, 600);
     });
@@ -51,7 +53,7 @@ export function CanvasAutosave({
       unsub();
       if (timer.current) clearTimeout(timer.current);
     };
-  }, [storeApi, canvasId]);
+  }, [storeApi, canvasId, sessionId, onLockLost]);
 
   return null;
 }
