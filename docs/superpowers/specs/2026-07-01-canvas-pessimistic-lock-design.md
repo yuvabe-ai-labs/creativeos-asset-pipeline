@@ -4,12 +4,16 @@
 **Status:** Design approved; ready for implementation plan
 **Supersedes:** D32's optimistic-merge autosave (retired — see §7)
 **New ADR entry:** D33
-**Touches:** `supabase/migrations/0009_*.sql`, `src/lib/db/canvas-lock.ts` (new),
+**Touches:** `supabase/migrations/0010_*.sql`, `src/lib/db/canvas-lock.ts` (new),
 `src/lib/actions/canvas-lock.ts` (new), `src/lib/canvas/lock-state.ts` (new, pure),
 `src/hooks/use-canvas-lock.ts` (new), `src/lib/actions/nodes.ts` (`saveCanvasAction`),
 `src/components/canvas/canvas-autosave.tsx`, `src/components/canvas/canvas.tsx`,
-`src/lib/canvas-store.ts` (drop `replaceCanvas`), `src/app/clients/[id]/canvases/[cid]/page.tsx`,
+`src/lib/canvas-store.ts` (drop `replaceCanvas`), `src/app/clients/[id]/canvases/[cid]/page.tsx`
+(drop the dead `initialUpdatedAt` prop; the `<IdentityGate>` there already guarantees identity),
 `src/app/api/canvases/[cid]/lock/release/route.ts` (new).
+
+**Depends on:** the D29 identity system (already on this branch: `useIdentity`, `IdentityGate`,
+migration `0009_approval_flag.sql`). See §6.4 for how the lock composes with approval/generation.
 
 ---
 
@@ -45,7 +49,9 @@ The fix is to **prevent concurrency at the source** — a pessimistic, single-wr
 - Hard auth on the lock — identity is soft/spoofable (D29); the lock is advisory-but-enforced,
   keyed by an unguessable session id, adequate for an internal MVP tool.
 
-## 3. Data model — migration `0009`
+## 3. Data model — migration `0010`
+
+(`0009_approval_flag.sql` is taken by D29; this is the next free number.)
 
 Add three nullable columns to `canvases`:
 
@@ -132,18 +138,35 @@ resurrects them.
   `canTakeOver`. `takeOver()` calls `acquireCanvasLock`; on success reload the route (fresh state).
 - Returns `{ canEdit, heldByName, canTakeOver, takeOver }`.
 
-### 6.3 Read-only enforcement
-`canEdit` flows to `Canvas` (and to node components via a small `CanvasEditableContext`). When
-`false`:
-- React Flow: `nodesDraggable={false}`, `nodesConnectable={false}`, `elementsSelectable`
-  stays true (viewing), delete keys disabled, quick-add / paste disabled.
-- Node components read `useCanvasEditable()` to disable inline-edit affordances (dotted-underline
-  fields become plain read-only text).
+### 6.3 Read-only enforcement (strict — one gate blocks everything)
+`canEdit` is the **single mutation gate**. It flows to `Canvas` and to every node/focus-view
+surface via a small `CanvasEditableContext` (`useCanvasEditable()`). When `false`, ALL mutation
+is blocked — no exemptions:
+- React Flow: `nodesDraggable={false}`, `nodesConnectable={false}`, `elementsSelectable` stays
+  true (viewing), delete keys disabled, quick-add / paste disabled.
+- Node + focus-view components read `useCanvasEditable()` to disable **all** write affordances:
+  inline-edit fields render as plain read-only text; **generate buttons disabled**; the D29
+  **approval / eval controls disabled** (render as read-only readouts). To sign off or generate,
+  a senior must hold the lock (take it over).
 - `CanvasAutosave` only flushes when `canEdit`; a save returning `lockLost` dispatches
   `heartbeatLost` (defensive — should already be a viewer).
 - **Banner** (top of canvas, `shadow-card`, reusing the design system): *"{heldByName} is editing
   — you're viewing read-only."* with a **"Take over editing"** button, disabled until
   `canTakeOver`.
+
+### 6.4 Composition with D29 (identity + approval)
+- **Identity is guaranteed.** `<IdentityGate>` already wraps `<Canvas>` in the canvas page, so an
+  `identity.name` always exists before the lock tries to acquire — no null-name path.
+- **Approval & generation are gated by the same `canEdit`** (strict read-only, per the design
+  decision). They write outside `saveCanvasAction` (approval → `node_versions.approval_status`;
+  generation → append-only `node_versions` rows), so the **server-side** hard guard stays on
+  `saveCanvasAction` (the corruption path). Blocking approval/generation for viewers is done
+  **client-side** via `canEdit`. This is safe because those paths are annotation / append-only
+  (a stray write can't corrupt canvas structure the way the autosave delete did). *Deferred
+  hardening:* add the lock check to the generate routes + `setVersionApprovalAction` for
+  defense-in-depth — not required for MVP correctness, noted so it isn't forgotten.
+- **No file collision beyond page.tsx**, which both features edit in non-overlapping spots (D29:
+  gate/chip in the top bar; this: lock wiring around `<Canvas>` + dropping `initialUpdatedAt`).
 
 ## 7. Alternatives considered / rejected
 
@@ -166,9 +189,10 @@ resurrects them.
   `canTakeOver`.
 - **Save guard:** the pure holder check + that a non-holder payload yields `{ lockLost: true }`
   and triggers no DB write (DB-touching parts scoped to manual/integration).
-- **Manual two-tab check:** tab A edits and persists; tab B is read-only with the banner; after
-  ~45s of A idle/closed, B's "Take over" enables, claims the lock, and reloads as editor; A's
-  next save returns `lockLost` and A flips to read-only.
+- **Manual two-tab check:** tab A edits and persists; tab B is read-only with the banner and has
+  **drag/connect/delete, generate, and approval all disabled** (strict read-only); after ~45s of
+  A idle/closed, B's "Take over" enables, claims the lock, and reloads as editor; A's next save
+  returns `lockLost` and A flips to read-only.
 
 ## 9. ADR entry to append (staging-roadmap §7)
 
@@ -177,9 +201,12 @@ resurrects them.
 a time. Lock lives in `canvases` columns (`editing_session_id` / `editing_name` /
 `editing_heartbeat_at`), keyed by an unguessable **per-tab session id**; held iff heartbeat is
 within `STALE_MS` (45s), refreshed every 15s. **Server-enforced** — `saveCanvasAction` rejects
-writes from non-holders. Second openers are **read-only** with a "{name} is editing" banner and
-an explicit **take-over-when-stale** button. Retires D32's conflict/merge/`replaceCanvas` loop
-(the oscillation source); keeps D31 non-destructive deletes (now they stick — no second writer).
+writes from non-holders. Second openers are **strict read-only** (a single `canEdit` gate blocks
+canvas edits, generation, AND D29 approval) with a "{name} is editing" banner and an explicit
+**take-over-when-stale** button. Depends on the D29 identity system (`<IdentityGate>` guarantees a
+holder name; migration is `0010` since D29 took `0009`). Retires D32's
+conflict/merge/`replaceCanvas` loop (the oscillation source); keeps D31 non-destructive deletes
+(now they stick — no second writer).
 **Rejected:** Realtime Presence (new dep; still needs server guard — future), pg_advisory_lock
 (connection-bound; incompatible with serverless actions), client-only enforcement (stale tab can
 still write), per-person key (doesn't stop same-person two tabs), keep-D32-guard-the-loop (treats
