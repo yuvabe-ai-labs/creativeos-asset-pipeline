@@ -37,7 +37,11 @@ import {
 } from "./prompt-version-history";
 import { UsagePopover } from "./prompt-usage-popover";
 import { InlineEvalBar } from "./inline-eval-bar";
+import { InlineApprovalBar } from "./inline-approval-bar";
 import { setVersionLabelAction } from "@/lib/actions/eval";
+import { setVersionApprovalAction } from "@/lib/actions/approval";
+import { useIdentity } from "@/hooks/use-identity";
+import type { ApprovalStatus } from "@/lib/approval";
 
 type PromptFocusViewProps = {
   open: boolean;
@@ -132,6 +136,11 @@ export function PromptFocusView({
   const [detailNodeId, setDetailNodeId] = useState<string | null>(null);
   const [evalDecision, setEvalDecision] = useState<"pass" | "fail" | null>(null);
   const [evalNote, setEvalNote] = useState("");
+  // D29 approval flag — sibling of the eval signal, distinct field.
+  const [approvalStatus, setApprovalStatus] = useState<ApprovalStatus>("pending");
+  const [approvalNote, setApprovalNote] = useState("");
+  const [approvalSaving, setApprovalSaving] = useState(false);
+  const { identity } = useIdentity();
   const [evalSaving, setEvalSaving] = useState(false);
 
   if (seed.open !== open || seed.output !== output || seed.nodeId !== nodeId) {
@@ -190,6 +199,8 @@ export function PromptFocusView({
       const active = versions.find((v) => v.id === activeVid);
       setEvalDecision(active?.decision ?? null);
       setEvalNote(active?.note ?? "");
+      setApprovalStatus(active?.approvalStatus ?? "pending");
+      setApprovalNote(active?.note ?? "");
     } catch {
       /* best-effort */
     }
@@ -211,6 +222,8 @@ export function PromptFocusView({
           const active = versions.find((v) => v.id === activeVid);
           setEvalDecision(active?.decision ?? null);
           setEvalNote(active?.note ?? "");
+          setApprovalStatus(active?.approvalStatus ?? "pending");
+          setApprovalNote(active?.note ?? "");
         }
       } catch {
         /* best-effort */
@@ -277,6 +290,24 @@ export function PromptFocusView({
       toast.error("Failed to save note");
     } finally {
       setEvalSaving(false);
+    }
+  }
+
+  async function saveApproval(status: ApprovalStatus, note: string | null) {
+    if (!activeVersionId) return;
+    setApprovalSaving(true);
+    try {
+      await setVersionApprovalAction(activeVersionId, {
+        status,
+        approvedBy: identity?.name ?? null,
+        note,
+      });
+      setApprovalStatus(status);
+      setApprovalNote(note ?? "");
+    } catch {
+      toast.error("Failed to save approval");
+    } finally {
+      setApprovalSaving(false);
     }
   }
 
@@ -522,6 +553,16 @@ export function PromptFocusView({
                   onNote={setEvalNote}
                   onNoteBlur={handleEvalNoteBlur}
                 />
+
+                {mode === "result" && !!activeVersionId && (
+                  <InlineApprovalBar
+                    status={approvalStatus}
+                    note={approvalNote}
+                    saving={approvalSaving}
+                    canApprove={identity?.role === "senior"}
+                    onSet={saveApproval}
+                  />
+                )}
 
                 {mode === "skeleton" && (
                   <div className="flex-1 space-y-2.5 pt-1">

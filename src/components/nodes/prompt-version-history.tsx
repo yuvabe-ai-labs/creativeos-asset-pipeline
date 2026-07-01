@@ -15,6 +15,10 @@ export type VersionSummary = {
   createdAt: string;
   decision: "pass" | "fail" | null;
   note: string | null;
+  // D29 approval flag (distinct from decision).
+  approvalStatus?: "pending" | "approved" | "changes_requested";
+  approvedBy?: string | null;
+  approvedAt?: string | null;
 };
 
 type PromptVersionHistoryProps = {
