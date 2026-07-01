@@ -177,21 +177,4 @@ describe("canvas store — tombstones", () => {
     expect(store.getState().removedNodeIds).toEqual(["b"]);
   });
 
-  it("replaceCanvas swaps nodes/edges, clears tombstones, preserves videoGenStatus", () => {
-    const store = createCanvasStore([mkNode("a")], []);
-    store.getState().setVideoGenError("a", "boom");
-    store.getState().deleteNode("a");
-    store.getState().replaceCanvas([mkNode("x")], [mkEdge("e2", "x", "x")]);
-    expect(store.getState().nodes.map((n) => n.id)).toEqual(["x"]);
-    expect(store.getState().edges.map((e) => e.id)).toEqual(["e2"]);
-    expect(store.getState().removedNodeIds).toEqual([]);
-    expect(store.getState().videoGenStatus["a"]?.lastError).toBe("boom");
-  });
-
-  it("replaceCanvas preserves selection by id", () => {
-    const selected = { ...mkNode("x"), selected: true } as AppNode;
-    const store = createCanvasStore([selected], []);
-    store.getState().replaceCanvas([mkNode("x")], []);
-    expect(store.getState().nodes[0].selected).toBe(true);
-  });
 });

@@ -1,10 +1,9 @@
 "use server";
 
-import { saveCanvasNodes, listNodes, type PersistedNode } from "@/lib/db/nodes";
-import { saveCanvasEdges, listEdges } from "@/lib/db/edges";
-import { getCanvasUpdatedAt } from "@/lib/db/canvases";
+import { saveCanvasNodes, type PersistedNode } from "@/lib/db/nodes";
+import { saveCanvasEdges } from "@/lib/db/edges";
+import { getCanvasLockHolder } from "@/lib/db/canvas-lock";
 import { updateActiveVersionOutput } from "@/lib/db/versions";
-import { nodeRowToFlow, type AppNode } from "@/lib/canvas-nodes";
 import type { Edge } from "@xyflow/react";
 
 export async function saveCanvasNodesAction(
@@ -14,10 +13,9 @@ export async function saveCanvasNodesAction(
   await saveCanvasNodes(canvasId, nodes);
 }
 
-// Combined, conflict-aware autosave (D32). Uses canvases.updated_at as an optimistic
-// token. Writes my edits regardless (safe per D31, so another session's added nodes
-// survive); on a token mismatch it refetches and returns the merged canvas — which,
-// because my write already landed, is exactly mine ∪ their additions.
+// D33: server-enforced autosave. Writes only if the caller holds the lock; otherwise
+// returns lockLost and writes nothing. (Replaces D32's optimistic merge — single writer,
+// so no conflict to reconcile.) D31 non-destructive deletes are unchanged.
 export async function saveCanvasAction(
   canvasId: string,
   payload: {
@@ -25,29 +23,15 @@ export async function saveCanvasAction(
     edges: Edge[];
     removedNodeIds: string[];
     removedEdgeIds: string[];
-    expectedUpdatedAt: string;
+    sessionId: string;
   },
-): Promise<
-  | { conflict: false; updatedAt: string }
-  | { conflict: true; updatedAt: string; fresh: { nodes: AppNode[]; edges: Edge[] } }
-> {
-  const current = await getCanvasUpdatedAt(canvasId);
-  const conflict = current !== payload.expectedUpdatedAt;
+): Promise<{ ok: true } | { ok: false; lockLost: true }> {
+  const holder = await getCanvasLockHolder(canvasId);
+  if (holder !== payload.sessionId) return { ok: false, lockLost: true };
 
   await saveCanvasNodes(canvasId, payload.nodes, payload.removedNodeIds);
   await saveCanvasEdges(canvasId, payload.edges, payload.removedEdgeIds);
-
-  const updatedAt = (await getCanvasUpdatedAt(canvasId)) ?? current ?? "";
-
-  if (conflict) {
-    const [rows, edges] = await Promise.all([listNodes(canvasId), listEdges(canvasId)]);
-    return {
-      conflict: true,
-      updatedAt,
-      fresh: { nodes: rows.map(nodeRowToFlow), edges },
-    };
-  }
-  return { conflict: false, updatedAt };
+  return { ok: true };
 }
 
 // Save manual edits to the Script node's parsed output (D19): updates the

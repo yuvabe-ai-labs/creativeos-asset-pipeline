@@ -2,48 +2,38 @@ import { describe, it, expect, vi } from "vitest";
 import { runAutosaveFlush } from "./autosave-flush";
 import type { saveCanvasAction } from "@/lib/actions/nodes";
 
-const snapshot = {
-  nodes: [],
-  edges: [],
-  removedNodeIds: ["n9"],
-  removedEdgeIds: [],
-};
+const snapshot = { nodes: [], edges: [], removedNodeIds: ["n9"], removedEdgeIds: [] };
 
-function deps(save: unknown, onSaved = vi.fn(), onMerge = vi.fn()) {
+function deps(save: unknown, onLockLost = vi.fn()) {
   return {
     canvasId: "c1",
     snapshot,
-    expectedUpdatedAt: "T1",
+    sessionId: "s1",
     save: save as typeof saveCanvasAction,
-    onSaved,
-    onMerge,
+    onLockLost,
   };
 }
 
 describe("runAutosaveFlush", () => {
-  it("refreshes the token and reports flushed tombstones on a clean save", async () => {
-    const save = vi.fn().mockResolvedValue({ conflict: false, updatedAt: "T2" });
-    const onSaved = vi.fn();
-    const onMerge = vi.fn();
-    await runAutosaveFlush(deps(save, onSaved, onMerge));
-    expect(onSaved).toHaveBeenCalledWith("T2", ["n9"], []);
-    expect(onMerge).not.toHaveBeenCalled();
+  it("sends the snapshot with the sessionId and does nothing extra on ok", async () => {
+    const save = vi.fn().mockResolvedValue({ ok: true });
+    const onLockLost = vi.fn();
+    await runAutosaveFlush(deps(save, onLockLost));
+    expect(save).toHaveBeenCalledWith("c1", { ...snapshot, sessionId: "s1" });
+    expect(onLockLost).not.toHaveBeenCalled();
   });
 
-  it("merges the fresh canvas on conflict", async () => {
-    const fresh = { nodes: [], edges: [] };
-    const save = vi.fn().mockResolvedValue({ conflict: true, updatedAt: "T3", fresh });
-    const onSaved = vi.fn();
-    const onMerge = vi.fn();
-    await runAutosaveFlush(deps(save, onSaved, onMerge));
-    expect(onSaved).toHaveBeenCalledWith("T3", ["n9"], []);
-    expect(onMerge).toHaveBeenCalledWith(fresh);
+  it("calls onLockLost when the save is rejected", async () => {
+    const save = vi.fn().mockResolvedValue({ ok: false, lockLost: true });
+    const onLockLost = vi.fn();
+    await runAutosaveFlush(deps(save, onLockLost));
+    expect(onLockLost).toHaveBeenCalledTimes(1);
   });
 
-  it("swallows save errors (best-effort) and calls nothing", async () => {
+  it("swallows save errors (best-effort) and does not call onLockLost", async () => {
     const save = vi.fn().mockRejectedValue(new Error("network"));
-    const onSaved = vi.fn();
-    await expect(runAutosaveFlush(deps(save, onSaved))).resolves.toBeUndefined();
-    expect(onSaved).not.toHaveBeenCalled();
+    const onLockLost = vi.fn();
+    await expect(runAutosaveFlush(deps(save, onLockLost))).resolves.toBeUndefined();
+    expect(onLockLost).not.toHaveBeenCalled();
   });
 });

@@ -1,6 +1,5 @@
 import type { PersistedNode } from "@/lib/db/nodes";
 import type { Edge } from "@xyflow/react";
-import type { AppNode } from "@/lib/canvas-nodes";
 import type { saveCanvasAction } from "@/lib/actions/nodes";
 
 export type AutosaveSnapshot = {
@@ -10,28 +9,20 @@ export type AutosaveSnapshot = {
   removedEdgeIds: string[];
 };
 
-// Pure autosave flush: send the snapshot via `save`, then report results back through
-// callbacks. No React, no store — so it is unit-testable with a fake `save`. Errors are
-// swallowed (autosave is best-effort).
+// D33: server-enforced flush. Sends the snapshot + sessionId; if the server rejects
+// (lock lost), notifies via onLockLost so the client flips to read-only. Best-effort:
+// errors are swallowed.
 export async function runAutosaveFlush(deps: {
   canvasId: string;
   snapshot: AutosaveSnapshot;
-  expectedUpdatedAt: string;
+  sessionId: string;
   save: typeof saveCanvasAction;
-  onSaved: (updatedAt: string, flushedNodeIds: string[], flushedEdgeIds: string[]) => void;
-  onMerge: (fresh: { nodes: AppNode[]; edges: Edge[] }) => void;
+  onLockLost: () => void;
 }): Promise<void> {
-  const { canvasId, snapshot, expectedUpdatedAt, save, onSaved, onMerge } = deps;
+  const { canvasId, snapshot, sessionId, save, onLockLost } = deps;
   try {
-    const result = await save(canvasId, {
-      nodes: snapshot.nodes,
-      edges: snapshot.edges,
-      removedNodeIds: snapshot.removedNodeIds,
-      removedEdgeIds: snapshot.removedEdgeIds,
-      expectedUpdatedAt,
-    });
-    onSaved(result.updatedAt, snapshot.removedNodeIds, snapshot.removedEdgeIds);
-    if (result.conflict) onMerge(result.fresh);
+    const result = await save(canvasId, { ...snapshot, sessionId });
+    if (!result.ok) onLockLost();
   } catch {
     // best-effort autosave — swallow
   }

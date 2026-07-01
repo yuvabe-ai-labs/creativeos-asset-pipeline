@@ -30,7 +30,6 @@ export type CanvasState = {
   removedNodeIds: string[];
   removedEdgeIds: string[];
   clearRemoved: (nodeIds: string[], edgeIds: string[]) => void;
-  replaceCanvas: (nodes: AppNode[], edges: Edge[]) => void;
   addNode: (type: string, position: XYPosition, id?: string) => void;
   updateNodeData: (id: string, data: Record<string, unknown>) => void;
   connectNodes: (sourceId: string, targetId: string) => void;
@@ -252,22 +251,6 @@ export function createCanvasStore(
       set({
         removedNodeIds: get().removedNodeIds.filter((id) => !n.has(id)),
         removedEdgeIds: get().removedEdgeIds.filter((id) => !e.has(id)),
-      });
-    },
-
-    // Adopt a server-merged canvas (Level 1 conflict path). Swaps nodes/edges,
-    // clears tombstones, preserves selection by id and leaves videoGenStatus alone.
-    replaceCanvas: (nodes, edges) => {
-      const selected = new Set(
-        get().nodes.filter((n) => n.selected).map((n) => n.id),
-      );
-      set({
-        nodes: nodes.map((n) =>
-          selected.has(n.id) ? ({ ...n, selected: true } as AppNode) : n,
-        ),
-        edges,
-        removedNodeIds: [],
-        removedEdgeIds: [],
       });
     },
 
