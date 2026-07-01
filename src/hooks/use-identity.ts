@@ -14,16 +14,25 @@ import {
 const IDENTITY_EVENT = "creativeos:identity";
 
 // Reads the soft identity from localStorage and keeps every consumer in sync — across
-// tabs (storage event) and within the tab (our broadcast). When auth lands (spec §5.2)
-// this hook's innards swap to read the session — call sites stay put.
+// tabs (storage event) and within the tab (our broadcast). `hydrated` flips true once
+// we've actually read localStorage: until then `identity === null` means "not checked
+// yet", NOT "empty", so the gate must wait for `hydrated` before blocking (D29/D33 —
+// gating during the pre-hydration window flashed the dialog open→closed and stranded
+// the Base UI popup). When auth lands (spec §5.2) this hook's innards swap to read the
+// session — call sites stay put.
 export function useIdentity(): {
   identity: Identity | null;
+  hydrated: boolean;
   setIdentity: (id: Identity) => void;
 } {
   const [identity, setState] = useState<Identity | null>(null);
+  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    const sync = () => setState(parseIdentity(localStorage.getItem(IDENTITY_KEY)));
+    const sync = () => {
+      setState(parseIdentity(localStorage.getItem(IDENTITY_KEY)));
+      setHydrated(true);
+    };
     sync(); // hydrate on mount
     window.addEventListener("storage", sync); // cross-tab
     window.addEventListener(IDENTITY_EVENT, sync); // same-tab
@@ -39,5 +48,5 @@ export function useIdentity(): {
     window.dispatchEvent(new Event(IDENTITY_EVENT)); // notify all other instances in this tab
   }, []);
 
-  return { identity, setIdentity };
+  return { identity, hydrated, setIdentity };
 }

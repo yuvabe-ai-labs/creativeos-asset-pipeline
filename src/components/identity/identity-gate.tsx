@@ -7,12 +7,12 @@ import { IdentityDialog } from "./identity-dialog";
 // Renders children, but overlays a blocking "who are you?" dialog until an identity is set.
 // One-time per browser (persisted); switching later is via IdentityChip.
 export function IdentityGate({ children }: { children: React.ReactNode }) {
-  const { identity, setIdentity } = useIdentity();
+  const { identity, hydrated, setIdentity } = useIdentity();
   return (
     <>
       {children}
       <IdentityDialog
-        open={needsIdentityGate(identity)}
+        open={needsIdentityGate(identity, hydrated)}
         dismissable={false}
         onSubmit={setIdentity}
       />
