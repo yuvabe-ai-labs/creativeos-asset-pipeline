@@ -79,6 +79,10 @@ export type NodeVersionRow = {
   decision: string | null;
   note: string | null;
   operator: string | null;
+  // D29 maker-checker approval flag (distinct from `decision`, the D22 quality signal).
+  approval_status: "pending" | "approved" | "changes_requested";
+  approved_by: string | null;
+  approved_at: string | null;
   created_at: string;
 };
 
