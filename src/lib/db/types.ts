@@ -52,6 +52,10 @@ export type CanvasRow = {
   viewport: { x: number; y: number; zoom: number };
   created_at: string;
   updated_at: string;
+  // D33 pessimistic lock — null when no one holds it.
+  editing_session_id: string | null;
+  editing_name: string | null;
+  editing_heartbeat_at: string | null;
 };
 
 export type NodeRow = {
