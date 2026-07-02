@@ -63,6 +63,7 @@ export function PromptNode({ id, data, selected }: NodeProps) {
   const output = (d.parsed ?? null) as string | null;
   const slices = d.kbSlices ?? DEFAULT_IMAGE_PROMPT_SLICES;
   const controls = d.controls ?? null;
+  const kbStatus = useCanvasStore((s) => s.kbStatus);
   const kbJustReady = useCanvasStore((s) => s.kbJustReady);
   const [focusOpen, setFocusOpen] = useState(false);
 
@@ -95,6 +96,16 @@ export function PromptNode({ id, data, selected }: NodeProps) {
         <p className="truncate font-display text-sm font-medium">
           {title || <span className="text-muted-foreground">Image prompt</span>}
         </p>
+        {(kbStatus === 'none' || kbStatus === 'building') && (
+          <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs text-amber-700 mt-2">
+            <span className="mt-0.5 shrink-0">⚠</span>
+            <span>
+              {kbStatus === 'building'
+                ? "Brand KB is building — running without brand context for now."
+                : "No brand KB found. Upload documents to add brand context."}
+            </span>
+          </div>
+        )}
         <button
           onClick={() => setFocusOpen(true)}
           className="nodrag -mx-1.5 mt-3 inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10"

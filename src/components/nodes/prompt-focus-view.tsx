@@ -38,6 +38,7 @@ import {
 import { UsagePopover } from "./prompt-usage-popover";
 import { InlineEvalBar } from "./inline-eval-bar";
 import { setVersionLabelAction } from "@/lib/actions/eval";
+import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 
 type PromptFocusViewProps = {
   open: boolean;
@@ -99,6 +100,7 @@ export function PromptFocusView({
   onSaveOutput,
 }: PromptFocusViewProps) {
   const params = useParams<{ id: string }>();
+  const kbStatus = useCanvasStore((s) => s.kbStatus);
   const [draft, setDraft] = useState(output ?? "");
   // Local mirror of the instruction prop. The textarea is controlled by THIS, not
   // by the prop directly: the prop round-trips through zustand + React Flow's
@@ -436,6 +438,16 @@ export function PromptFocusView({
                   ) : undefined
                 }
               >
+                {(kbStatus === 'none' || kbStatus === 'building') && (
+                  <div className="mb-3 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs text-amber-700">
+                    <span className="mt-0.5 shrink-0">⚠</span>
+                    <span>
+                      {kbStatus === 'building'
+                        ? "Brand KB is still building — running without brand context for now."
+                        : "No brand KB found. Upload documents to add brand context."}
+                    </span>
+                  </div>
+                )}
                 <SliceToggles selected={slices} onToggle={toggleSlice} />
               </LeftSection>
 
