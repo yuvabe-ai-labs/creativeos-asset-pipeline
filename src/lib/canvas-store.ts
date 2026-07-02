@@ -38,8 +38,8 @@ export type CanvasState = {
   setVideoGenGenerating: (nodeId: string, v: boolean) => void;
   setVideoGenError: (nodeId: string, err: string | null) => void;
   // KB build status — drives toolbar badge and node warnings
-  kbStatus: 'none' | 'building' | 'ready';
-  setKbStatus: (status: 'none' | 'building' | 'ready') => void;
+  kbStatus: 'none' | 'building' | 'in_review' | 'ready';
+  setKbStatus: (status: 'none' | 'building' | 'in_review' | 'ready') => void;
   kbJustReady: boolean;
   setKbJustReady: (v: boolean) => void;
 };
