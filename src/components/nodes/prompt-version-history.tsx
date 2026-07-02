@@ -2,6 +2,7 @@
 
 import { History } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { ModelRequestRecord } from "@/lib/nodes/model-request";
 
 export type VersionSummary = {
   id: string;
@@ -19,6 +20,8 @@ export type VersionSummary = {
   approvalStatus?: "pending" | "approved" | "changes_requested";
   approvedBy?: string | null;
   approvedAt?: string | null;
+  // The exact request this version sent to the model (frozen provenance).
+  inputsUsed?: { request?: ModelRequestRecord };
 };
 
 type PromptVersionHistoryProps = {

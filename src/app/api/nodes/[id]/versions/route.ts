@@ -1,5 +1,6 @@
 import { createServerSupabase } from "@/lib/supabase/server";
 import { listVersions } from "@/lib/db/versions";
+import type { ModelRequestRecord } from "@/lib/nodes/model-request";
 import { apiError, apiOk } from "@/lib/api/route-helpers";
 
 // GET /api/nodes/:id/versions — return all generate versions + active pointer.
@@ -45,6 +46,7 @@ export async function GET(
         baseVersionId?: string | null;
         instruction?: string;
         intent?: string;
+        request?: ModelRequestRecord;
       },
     })),
   });
