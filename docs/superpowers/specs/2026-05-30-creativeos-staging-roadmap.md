@@ -759,6 +759,27 @@ server-guarding the generate/approval routes for defense-in-depth (append-only, 
 suffices for MVP). **Retires** D32's conflict/merge/`replaceCanvas`; **keeps** D31 (deletes now
 stick — no second writer). **Originated.** `2026-07-01-canvas-pessimistic-lock-design.md`.
 
+### D34 — Canvas-level read-only Review surface; approval decoupled from the D33 lock *(recorded 2026-07-02; builds on D29, D33, D18/D5, D8; preserves D11; promotes the review-surface half of F4)*
+**Decision.** A per-canvas **read-only review queue** at `/clients/[id]/canvases/[cid]/review` — a
+master-detail surface (reusing the eval-review viewer shell) listing one row per node of type
+`prompt | video-prompt | image-gen | video-gen` whose **active** version (D18/D5) needs review
+(`approval_status ∈ pending | changes_requested`; an Approved filter flips it). Reached from a
+"Review" action on each canvas row (never via the lock-acquiring editor). Reuses `listNodes` (**no new
+query**) + a pure `buildReviewQueue`; Approve/Request-changes reuse `setVersionApprovalAction`, writing
+to the **displayed** version id. Detail pane is **progressive disclosure**: Tier 0 (output + maker/when
++ status + actions) eager; Tier 1 (prompt · refs/still · shot) lazy on expand via the existing
+`getUpstreamOutputs` (a `GET /api/nodes/[id]/context` route); Tier 2 = Open in canvas. **Approval is
+decoupled from the D33 lock** — the review route is not the canvas editor and the action has no lock
+guard, so a senior reviews N items without opening N canvases (D33's "viewers can't approve" is a
+canvas-UI gate, not a server guard). **Why.** The D29 approval *state* existed but had no fast surface;
+node-by-node canvas review is too slow for production volume. **Rejected.** Client-level aggregate
+inbox *for the MVP* (deferred — a later data-source swap on the same component), a submit-for-review
+state, gating/auto-advance generation (would revisit D11), a media-grid layout (fails text prompts), an
+in-editor review panel (would fight the D33 lock). **Preserves D11** (no auto-advance; human still
+schedules). **Deferred.** Cross-canvas inbox, submit lifecycle, notifications, batch approve, count
+badges, shot-based grouping (needs shot lineage downstream nodes don't store), campaign entity.
+**Originated.** `2026-07-02-production-review-mode-design.md`.
+
 ### Parked / out-of-scope (with revisit triggers)
 | Item | Status | Revisit when |
 |---|---|---|
