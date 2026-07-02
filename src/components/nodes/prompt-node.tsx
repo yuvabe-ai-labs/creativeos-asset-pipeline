@@ -63,6 +63,7 @@ export function PromptNode({ id, data, selected }: NodeProps) {
   const output = (d.parsed ?? null) as string | null;
   const slices = d.kbSlices ?? DEFAULT_IMAGE_PROMPT_SLICES;
   const controls = d.controls ?? null;
+  const kbJustReady = useCanvasStore((s) => s.kbJustReady);
   const [focusOpen, setFocusOpen] = useState(false);
 
   return (
@@ -76,6 +77,7 @@ export function PromptNode({ id, data, selected }: NodeProps) {
         "w-44 rounded-lg border border-border bg-card shadow-card",
         "transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:scale-[1.006]",
         selected && "ring-2 ring-primary ring-offset-1 ring-offset-background",
+        kbJustReady && "ring-2 ring-purple-400 ring-offset-1 transition-shadow duration-500",
       )}
     >
       <div className="flex items-center justify-between border-b border-border px-3 py-2">
