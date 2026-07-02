@@ -38,6 +38,7 @@ import {
 import { UsagePopover } from "./prompt-usage-popover";
 import { InlineEvalBar } from "./inline-eval-bar";
 import { InlineApprovalBar } from "./inline-approval-bar";
+import { ModelRequestPanel } from "./model-request-panel";
 import { setVersionLabelAction } from "@/lib/actions/eval";
 import { setVersionApprovalAction } from "@/lib/actions/approval";
 import { useIdentity } from "@/hooks/use-identity";
@@ -375,6 +376,9 @@ export function PromptFocusView({
     onPatch({ kbSlices: next });
   }
 
+  const activeRequest =
+    versions.find((v) => v.id === activeVersionId)?.inputsUsed?.request ?? null;
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
@@ -564,6 +568,10 @@ export function PromptFocusView({
                     canApprove={editable && identity?.role === "senior"}
                     onSet={saveApproval}
                   />
+                )}
+
+                {mode === "result" && activeRequest && (
+                  <ModelRequestPanel request={activeRequest} />
                 )}
 
                 {mode === "skeleton" && (
