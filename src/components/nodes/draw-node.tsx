@@ -10,6 +10,7 @@ import type { DrawNodeData } from "@/lib/canvas-nodes";
 import { DrawFocusView } from "./draw-focus-view";
 import { useNodeConnectionState } from "./use-node-connection-state";
 import { NodeContextMenu } from "./node-context-menu";
+import { NodeTitle } from "./node-title";
 
 export function DrawNode({ id, data, selected }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
@@ -64,11 +65,11 @@ export function DrawNode({ id, data, selected }: NodeProps) {
         )}
 
         <div className="px-3 py-3">
-          <p className="min-w-0 flex-1 truncate font-display text-sm font-medium">
-            {d.title || (
-              <span className="text-muted-foreground">Untitled sketch</span>
-            )}
-          </p>
+          <NodeTitle
+            value={d.title ?? ""}
+            placeholder="Untitled sketch"
+            onCommit={(t) => updateNodeData(id, { title: t })}
+          />
           <button
             onClick={() => setFocusOpen(true)}
             className="nodrag -mx-1.5 mt-3 inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10"

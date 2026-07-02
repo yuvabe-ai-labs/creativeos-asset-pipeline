@@ -24,6 +24,8 @@ import {
 } from "react-zoom-pan-pinch";
 
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { EditableField } from "./editable-field";
+import { normalizeTitle } from "@/lib/nodes/title";
 import { Button } from "@/components/ui/button";
 import {
   ConnectedInputsCard,
@@ -600,8 +602,13 @@ export function ImageGenFocusView({
             </button>
             <header className="mt-4 flex items-start justify-between gap-4">
               <div>
-                <SheetTitle className="font-display text-3xl font-semibold tracking-tight">
-                  {title || "Image generation"}
+                <SheetTitle className="p-0 font-display text-3xl font-semibold tracking-tight">
+                  <EditableField
+                    value={title || ""}
+                    onCommit={(t) => onPatch({ title: normalizeTitle(t) })}
+                    placeholder="Image generation"
+                    className="font-display text-3xl font-semibold tracking-tight"
+                  />
                 </SheetTitle>
                 <p className="mt-1.5 text-sm text-muted-foreground">
                   Choose a model, tune params, and generate an image from your

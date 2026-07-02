@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { EditableField } from "./editable-field";
+import { normalizeTitle } from "@/lib/nodes/title";
 import { Button } from "@/components/ui/button";
 import { SliceToggles } from "./slice-toggles";
 import { DEFAULT_MOTION_INSTRUCTION } from "@/lib/nodes/video-prompt";
@@ -357,8 +359,13 @@ export function VideoPromptFocusView({
 
             <header className="mt-4 flex items-start justify-between gap-4">
               <div>
-                <SheetTitle className="font-display text-3xl font-semibold tracking-tight">
-                  {title || "Motion prompt"}
+                <SheetTitle className="p-0 font-display text-3xl font-semibold tracking-tight">
+                  <EditableField
+                    value={title || ""}
+                    onCommit={(t) => onPatch({ title: normalizeTitle(t) })}
+                    placeholder="Motion prompt"
+                    className="font-display text-3xl font-semibold tracking-tight"
+                  />
                 </SheetTitle>
                 <p className="mt-1.5 text-sm text-muted-foreground">
                   Read the approved still and write how it should move.

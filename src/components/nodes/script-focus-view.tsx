@@ -5,6 +5,8 @@ import { motion, AnimatePresence } from "motion/react";
 import { ArrowLeft, Eye, EyeOff, RefreshCw, FileUp, Clapperboard } from "lucide-react";
 import { toast } from "sonner";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { EditableField } from "./editable-field";
+import { normalizeTitle } from "@/lib/nodes/title";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -189,8 +191,13 @@ export function ScriptFocusView({
 
             <header className="mt-4 flex items-start justify-between gap-4">
               <div>
-                <SheetTitle className="font-display text-3xl font-semibold tracking-tight">
-                  {title || "Reel script"}
+                <SheetTitle className="p-0 font-display text-3xl font-semibold tracking-tight">
+                  <EditableField
+                    value={title || ""}
+                    onCommit={(t) => onPatch({ title: normalizeTitle(t) })}
+                    placeholder="Reel script"
+                    className="font-display text-3xl font-semibold tracking-tight"
+                  />
                 </SheetTitle>
                 <p className="mt-1.5 text-sm text-muted-foreground">{SUBTITLES[mode]}</p>
               </div>

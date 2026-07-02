@@ -11,6 +11,7 @@ import { VideoPromptFocusView } from "./video-prompt-focus-view";
 import { DEFAULT_IMAGE_PROMPT_SLICES, type KBSliceKey } from "@/lib/kb/parse-context";
 import type { VideoControls } from "@/lib/nodes/video-controls";
 import { NodeContextMenu } from "./node-context-menu";
+import { NodeTitle } from "./node-title";
 import { ApprovalBadge } from "./approval-badge";
 import type { ApprovalStatus } from "@/lib/approval";
 
@@ -102,9 +103,11 @@ export function VideoPromptNode({ id, data, selected }: NodeProps) {
               <ApprovalBadge status={approvalStatus} />
             </div>
           )}
-          <p className="truncate font-display text-sm font-medium">
-            {title || <span className="text-muted-foreground">Motion prompt</span>}
-          </p>
+          <NodeTitle
+            value={title}
+            placeholder="Motion prompt"
+            onCommit={(t) => updateNodeData(id, { title: t })}
+          />
           <button
             onClick={() => setFocusOpen(true)}
             className="nodrag -mx-1.5 mt-3 inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10"

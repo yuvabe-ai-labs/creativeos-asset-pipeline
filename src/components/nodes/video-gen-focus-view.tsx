@@ -26,6 +26,8 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { EditableField } from "./editable-field";
+import { normalizeTitle } from "@/lib/nodes/title";
 import { Button } from "@/components/ui/button";
 import {
   DEFAULT_VIDEO_CLIENT_MODEL_ID,
@@ -679,8 +681,13 @@ export function VideoGenFocusView({
             </button>
             <header className="mt-4 flex items-start justify-between gap-4">
               <div>
-                <SheetTitle className="font-display text-3xl font-semibold tracking-tight">
-                  {title || "Video generation"}
+                <SheetTitle className="p-0 font-display text-3xl font-semibold tracking-tight">
+                  <EditableField
+                    value={title || ""}
+                    onCommit={(t) => onPatch({ title: normalizeTitle(t) })}
+                    placeholder="Video generation"
+                    className="font-display text-3xl font-semibold tracking-tight"
+                  />
                 </SheetTitle>
                 <p className="mt-1.5 text-sm text-muted-foreground">
                   Choose a model, set params, and generate a video.

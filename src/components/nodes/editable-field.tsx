@@ -10,6 +10,9 @@ type EditableFieldProps = {
   value: string;
   onCommit: (next: string) => void;
   multiline?: boolean;
+  // Truncate the committed value to a single line (with ellipsis) instead of
+  // wrapping — for titles on compact cards. Ignored when multiline.
+  singleLine?: boolean;
   placeholder?: string;
   readOnly?: boolean;
   className?: string;
@@ -25,6 +28,7 @@ export function EditableField({
   value,
   onCommit,
   multiline = false,
+  singleLine = false,
   placeholder = "Add…",
   readOnly = false,
   className,
@@ -41,7 +45,12 @@ export function EditableField({
   if (isReadOnly) {
     return (
       <span
-        className={cn("whitespace-pre-wrap", isEmpty && "text-muted-foreground", className)}
+        className={cn(
+          "whitespace-pre-wrap",
+          singleLine && "block truncate",
+          isEmpty && "text-muted-foreground",
+          className,
+        )}
       >
         {isEmpty ? placeholder : renderDisplay ? renderDisplay(value) : value}
       </span>
@@ -59,6 +68,7 @@ export function EditableField({
         title="Click to edit"
         className={cn(
           "nodrag w-full cursor-pointer whitespace-pre-wrap rounded-md px-1.5 py-1 text-left underline decoration-transparent decoration-dotted decoration-2 underline-offset-4 transition-colors hover:bg-primary/5 hover:decoration-primary/50",
+          singleLine && "block truncate",
           isEmpty && "text-muted-foreground",
           className,
         )}
