@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useEffect, type ChangeEvent } from "react";
+import { useState, useTransition, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -94,18 +94,6 @@ export function KBOnboardingUploadStep({
   const docTotalBytes = documents.reduce((s, d) => s + (d.size_bytes ?? 0), 0);
   const imgTotalBytes = images.reduce((s, i) => s + (i.size_bytes ?? 0), 0);
 
-  useEffect(() => {
-    if (websiteUrl === (initialWebsiteUrl ?? "")) return;
-    const handle = setTimeout(() => {
-      void fetch(`/api/clients/${clientId}/website-url`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ websiteUrl: websiteUrl || null }),
-      });
-    }, 800);
-    return () => clearTimeout(handle);
-  }, [websiteUrl, clientId, initialWebsiteUrl]);
-
   async function uploadFiles(
     files: File[],
     endpoint: string,
@@ -195,6 +183,15 @@ export function KBOnboardingUploadStep({
   function handleExtract() {
     startStartTransition(async () => {
       try {
+        // Save website URL synchronously before triggering the job so the
+        // server action sees it when it validates prerequisites.
+        if (websiteUrl.trim()) {
+          await fetch(`/api/clients/${clientId}/website-url`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ websiteUrl: websiteUrl.trim() }),
+          });
+        }
         await startKBBuildJob(clientId);
         router.push(`/clients/${clientSlug}`);
       } catch (e) {

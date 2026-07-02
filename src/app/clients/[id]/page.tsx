@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { ClipboardCheck } from "lucide-react";
 import { getClientBySlug } from "@/lib/db/clients";
 import { listCanvases } from "@/lib/db/canvases";
@@ -50,10 +49,6 @@ export default async function ClientPage({
         </Card>
       </main>
     );
-  }
-
-  if (client.kb_status === "pending") {
-    redirect(`/clients/${client.slug}/kb`);
   }
 
   const canvases = await listCanvases(client.id);
