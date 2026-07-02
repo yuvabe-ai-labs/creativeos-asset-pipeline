@@ -52,7 +52,7 @@ export default async function ClientPage({
     );
   }
 
-  if (client.kb_status !== "ready") {
+  if (client.kb_status === "pending") {
     redirect(`/clients/${client.slug}/kb`);
   }
 
