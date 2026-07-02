@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>KB Build — How It Works</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #f5f4f9;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    padding: 56px 48px 80px;
+    color: #111827;
+    max-width: 860px;
+    margin: 0 auto;
+  }
+
+  /* ── header ── */
+  .doc-title {
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    margin-bottom: 6px;
+  }
+  .doc-sub {
+    font-size: 14px;
+    color: #6b7280;
+    margin-bottom: 52px;
+  }
+
+  /* ── phase wrapper ── */
+  .phase {
+    margin-bottom: 12px;
+    border-radius: 16px;
+    overflow: hidden;
+  }
+
+  .phase-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px 22px;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .phase-header .num {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 900;
+    flex-shrink: 0;
+    background: rgba(255,255,255,0.35);
+  }
+
+  /* colours per phase */
+  .phase-upload .phase-header  { background: #e0e7ff; color: #3730a3; }
+  .phase-upload .phase-body    { background: #eef2ff; border: 1.5px solid #c7d2fe; border-top: none; }
+
+  .phase-research .phase-header { background: #fef3c7; color: #92400e; }
+  .phase-research .phase-body   { background: #fffbeb; border: 1.5px solid #fde68a; border-top: none; }
+
+  .phase-extract .phase-header  { background: #dbeafe; color: #1e40af; }
+  .phase-extract .phase-body    { background: #eff6ff; border: 1.5px solid #bfdbfe; border-top: none; }
+
+  .phase-finalize .phase-header { background: #d1fae5; color: #065f46; }
+  .phase-finalize .phase-body   { background: #ecfdf5; border: 1.5px solid #a7f3d0; border-top: none; }
+
+  .phase-error .phase-header    { background: #fee2e2; color: #991b1b; }
+  .phase-error .phase-body      { background: #fff5f5; border: 1.5px solid #fecaca; border-top: none; }
+
+  .phase-body {
+    padding: 20px 22px 22px;
+    border-radius: 0 0 16px 16px;
+  }
+
+  /* ── step cards ── */
+  .steps {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .step {
+    background: #fff;
+    border-radius: 10px;
+    padding: 14px 16px;
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    box-shadow: 0 1px 4px rgba(0,0,0,.06);
+  }
+
+  .step-icon {
+    font-size: 22px;
+    flex-shrink: 0;
+    line-height: 1;
+    margin-top: 1px;
+  }
+
+  .step-content {
+    flex: 1;
+  }
+
+  .step-title {
+    font-size: 14px;
+    font-weight: 700;
+    margin-bottom: 3px;
+    color: #111827;
+  }
+
+  .step-desc {
+    font-size: 13px;
+    color: #4b5563;
+    line-height: 1.5;
+  }
+
+  .step-note {
+    margin-top: 6px;
+    font-size: 11.5px;
+    color: #9ca3af;
+    font-style: italic;
+  }
+
+  /* ── parallel block ── */
+  .parallel-wrap {
+    background: #fff;
+    border-radius: 10px;
+    padding: 14px 16px 16px;
+    box-shadow: 0 1px 4px rgba(0,0,0,.06);
+  }
+
+  .parallel-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #1e40af;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .parallel-label::before,
+  .parallel-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: #dbeafe;
+  }
+
+  .parallel-cols {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .parallel-branch {
+    background: #f8fafc;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 14px;
+  }
+
+  .branch-icon { font-size: 20px; margin-bottom: 6px; }
+  .branch-title {
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .branch-desc {
+    font-size: 12px;
+    color: #6b7280;
+    line-height: 1.5;
+  }
+  .branch-fields {
+    margin-top: 8px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .field-tag {
+    font-size: 11px;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: 20px;
+    padding: 2px 8px;
+    color: #475569;
+  }
+
+  /* ── connector arrow ── */
+  .connector {
+    display: flex;
+    justify-content: center;
+    padding: 4px 0;
+    color: #9ca3af;
+    font-size: 22px;
+    line-height: 1;
+  }
+
+  /* ── db writes strip ── */
+  .db-strip {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .db-row {
+    background: #fff;
+    border-radius: 10px;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    box-shadow: 0 1px 4px rgba(0,0,0,.06);
+  }
+
+  .db-icon { font-size: 18px; flex-shrink: 0; }
+
+  .db-content { flex: 1; }
+  .db-title { font-size: 13px; font-weight: 700; }
+  .db-desc  { font-size: 12px; color: #6b7280; margin-top: 2px; }
+
+  .db-badge {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 20px;
+    flex-shrink: 0;
+  }
+  .badge-green  { background: #d1fae5; color: #065f46; }
+  .badge-purple { background: #ede9fe; color: #5829c7; }
+  .badge-pink   { background: #fce7f3; color: #9d174d; }
+  .badge-red    { background: #fee2e2; color: #991b1b; }
+
+  /* ── realtime callout ── */
+  .realtime-bar {
+    background: #fce7f3;
+    border: 1.5px solid #f9a8d4;
+    border-radius: 10px;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 13px;
+    color: #831843;
+    margin-top: 10px;
+  }
+  .realtime-bar .icon { font-size: 18px; flex-shrink: 0; }
+
+  /* ── footer note ── */
+  .footer-note {
+    margin-top: 32px;
+    background: #fff;
+    border-radius: 12px;
+    padding: 16px 20px;
+    font-size: 12.5px;
+    color: #6b7280;
+    border: 1.5px solid #e5e7eb;
+    line-height: 1.6;
+  }
+  .footer-note strong { color: #111827; }
+</style>
+</head>
+<body>
+
+<div class="doc-title">How Client KB Gets Built</div>
+<p class="doc-sub">From brand materials → AI extraction → reviewed knowledge base</p>
+
+<!-- ════ PHASE 0: UPLOAD ════ -->
+<div class="phase phase-upload">
+  <div class="phase-header">
+    <div class="num">1</div>
+    Team adds brand materials
+  </div>
+  <div class="phase-body">
+    <div class="steps">
+      <div class="step">
+        <div class="step-icon">🌐</div>
+        <div class="step-content">
+          <div class="step-title">Brand website URL <span style="font-weight:400;color:#9ca3af;">(optional)</span></div>
+          <div class="step-desc">The system will scrape and summarise it automatically.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-icon">📄</div>
+        <div class="step-content">
+          <div class="step-title">Brand documents <span style="font-weight:400;color:#9ca3af;">(optional)</span></div>
+          <div class="step-desc">Brand guidelines, tone-of-voice decks, campaign briefs — PDF, DOCX, PPTX, TXT. Up to 20 MB.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-icon">🖼️</div>
+        <div class="step-content">
+          <div class="step-title">Brand images <span style="font-weight:400;color:#9ca3af;">(always optional)</span></div>
+          <div class="step-desc">Product photos, campaign imagery, mood boards — JPG, PNG, WebP. Up to 50 MB.</div>
+          <div class="step-note">Minimum to start: a website URL or at least one document.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="connector">↓</div>
+
+<!-- ════ PHASE 1: RESEARCH ════ -->
+<div class="phase phase-research">
+  <div class="phase-header">
+    <div class="num">2</div>
+    Website research <span style="font-weight:400;opacity:.7;">&nbsp;— only if URL provided</span>
+  </div>
+  <div class="phase-body">
+    <div class="steps">
+      <div class="step">
+        <div class="step-icon">🔍</div>
+        <div class="step-content">
+          <div class="step-title">AI scrapes the brand website</div>
+          <div class="step-desc">Fetches public pages and summarises the brand's positioning, voice, and visual language into a structured document.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-icon">💾</div>
+        <div class="step-content">
+          <div class="step-title">Research saved as a document</div>
+          <div class="step-desc">The summary is stored alongside the uploaded files — so the team can always see exactly what the AI pulled from the web before extraction ran. No black box.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="connector">↓</div>
+
+<!-- ════ PHASE 2: EXTRACT ════ -->
+<div class="phase phase-extract">
+  <div class="phase-header">
+    <div class="num">3</div>
+    AI extraction — two things run at the same time
+  </div>
+  <div class="phase-body">
+    <div class="parallel-wrap">
+      <div class="parallel-label">Running in parallel</div>
+      <div class="parallel-cols">
+
+        <div class="parallel-branch">
+          <div class="branch-icon">📑</div>
+          <div class="branch-title">Document extraction</div>
+          <div class="branch-desc">Reads all uploaded documents + website research. Fills ~33 brand knowledge fields.</div>
+          <div class="branch-fields">
+            <span class="field-tag">Brand Voice</span>
+            <span class="field-tag">Visual Identity</span>
+            <span class="field-tag">Audience</span>
+            <span class="field-tag">Image Direction</span>
+            <span class="field-tag">Video Direction</span>
+            <span class="field-tag">Compliance Rules</span>
+          </div>
+        </div>
+
+        <div class="parallel-branch">
+          <div class="branch-icon">🎨</div>
+          <div class="branch-title">Image analysis</div>
+          <div class="branch-desc">Visually reads the brand images. Fills 7 Image Analysis fields. Skipped if no images were uploaded.</div>
+          <div class="branch-fields">
+            <span class="field-tag">Colours</span>
+            <span class="field-tag">Mood</span>
+            <span class="field-tag">Composition</span>
+            <span class="field-tag">Lighting</span>
+            <span class="field-tag">Aesthetic</span>
+            <span class="field-tag">Subjects</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+    <div class="realtime-bar">
+      <div class="icon">📡</div>
+      The UI shows live progress throughout — safe to close the tab and come back. The job keeps running.
+    </div>
+  </div>
+</div>
+
+<div class="connector">↓</div>
+
+<!-- ════ PHASE 3: FINALIZE ════ -->
+<div class="phase phase-finalize">
+  <div class="phase-header">
+    <div class="num">4</div>
+    Results saved &amp; KB unlocked for review
+  </div>
+  <div class="phase-body">
+    <div class="db-strip">
+      <div class="db-row">
+        <div class="db-icon">📝</div>
+        <div class="db-content">
+          <div class="db-title">Website research document stored</div>
+          <div class="db-desc">The Markdown summary from step 2 is saved as a permanent source document, linked to this KB version.</div>
+        </div>
+        <div class="db-badge badge-purple">saved</div>
+      </div>
+      <div class="db-row">
+        <div class="db-icon">🗂️</div>
+        <div class="db-content">
+          <div class="db-title">Versioned KB snapshot created</div>
+          <div class="db-desc">All 40+ extracted fields saved as a versioned record — which model was used, which docs were included, fill rate.</div>
+        </div>
+        <div class="db-badge badge-purple">v1 saved</div>
+      </div>
+      <div class="db-row">
+        <div class="db-icon">✅</div>
+        <div class="db-content">
+          <div class="db-title">Client status → In Review</div>
+          <div class="db-desc">The KB review page unlocks. Team gets a notification and the page refreshes automatically.</div>
+        </div>
+        <div class="db-badge badge-green">in_review</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="connector">↓</div>
+
+<!-- ════ ERROR ════ -->
+<div class="phase phase-error">
+  <div class="phase-header">
+    <div class="num">!</div>
+    If something goes wrong
+  </div>
+  <div class="phase-body">
+    <div class="steps">
+      <div class="step">
+        <div class="step-icon">🔴</div>
+        <div class="step-content">
+          <div class="step-title">Error shown in the UI</div>
+          <div class="step-desc">If the job fails at any point, the team sees an error message. The build can be restarted from scratch — no partial state is left behind.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-icon">⏱️</div>
+        <div class="step-content">
+          <div class="step-title">Stuck job recovery</div>
+          <div class="step-desc">If the job shows no progress for 10+ minutes, a "Clear stuck build" button appears so the team can reset and try again.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="footer-note">
+  <strong>What happens next →</strong> Once the KB is built, the team reviews each field one by one — approve, edit, reject, or ask the AI to try again with extra context. When every field is reviewed, the KB is marked Ready and starts powering all content generation for that client.
+</div>
+
+</body>
+</html>
