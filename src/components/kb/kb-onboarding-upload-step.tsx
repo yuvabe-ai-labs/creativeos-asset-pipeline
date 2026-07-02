@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, type ChangeEvent } from "react";
+import { useState, useTransition, useEffect, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -18,10 +18,13 @@ import { Label } from "@/components/ui/label";
 import type {
   ClientKBDocumentRow,
   ClientBrandImageRow,
+  ClientKBJobRow,
 } from "@/lib/db/types";
 import { KB_DOC_SIZE_LIMIT_BYTES, KB_IMG_SIZE_LIMIT_BYTES } from "@/lib/kb/constants";
 import { startKBBuildJob } from "@/lib/actions/kb";
+import { useKBJobStatus } from "./use-kb-job-status";
 
+const NON_TERMINAL = new Set(["queued", "researching", "extracting", "finalizing"]);
 const DOC_EXTENSIONS = new Set(["pdf", "docx", "pptx", "md", "txt"]);
 const IMG_EXTENSIONS = new Set(["jpg", "jpeg", "png", "webp"]);
 const DOC_LIMIT_BYTES = KB_DOC_SIZE_LIMIT_BYTES;
@@ -74,6 +77,7 @@ type Props = {
   initialDocuments: ClientKBDocumentRow[];
   initialImages: ClientBrandImageRow[];
   initialWebsiteUrl: string | null;
+  initialJob: ClientKBJobRow | null;
 };
 
 export function KBOnboardingUploadStep({
@@ -82,14 +86,28 @@ export function KBOnboardingUploadStep({
   initialDocuments,
   initialImages,
   initialWebsiteUrl,
+  initialJob,
 }: Props) {
   const router = useRouter();
+  const job = useKBJobStatus(clientId, initialJob);
+  const isRunning = job !== null && NON_TERMINAL.has(job.status);
+
   const [documents, setDocuments] = useState(initialDocuments);
   const [images, setImages] = useState(initialImages);
   const [uploadingDocs, setUploadingDocs] = useState(false);
   const [uploadingImgs, setUploadingImgs] = useState(false);
   const [websiteUrl, setWebsiteUrl] = useState(initialWebsiteUrl ?? "");
   const [starting, startStartTransition] = useTransition();
+
+  // Auto-redirect to client page when job succeeds
+  useEffect(() => {
+    if (job?.status === "succeeded") {
+      router.push(`/clients/${clientSlug}`);
+    }
+    if (job?.status === "failed") {
+      toast.error(job.error ?? "KB build failed");
+    }
+  }, [job?.status, job?.error, clientSlug, router]);
 
   const docTotalBytes = documents.reduce((s, d) => s + (d.size_bytes ?? 0), 0);
   const imgTotalBytes = images.reduce((s, i) => s + (i.size_bytes ?? 0), 0);
@@ -183,8 +201,6 @@ export function KBOnboardingUploadStep({
   function handleExtract() {
     startStartTransition(async () => {
       try {
-        // Save website URL synchronously before triggering the job so the
-        // server action sees it when it validates prerequisites.
         if (websiteUrl.trim()) {
           await fetch(`/api/clients/${clientId}/website-url`, {
             method: "PATCH",
@@ -193,14 +209,10 @@ export function KBOnboardingUploadStep({
           });
         }
         await startKBBuildJob(clientId);
-        router.push(`/clients/${clientSlug}`);
+        // Don't redirect here — the useEffect above will redirect when the
+        // Realtime event fires with status 'succeeded'.
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Failed to start build.";
-        if (msg.includes("already running")) {
-          // Job already in progress — just go to the client page
-          router.push(`/clients/${clientSlug}`);
-          return;
-        }
         toast.error(msg);
       }
     });
@@ -222,6 +234,7 @@ export function KBOnboardingUploadStep({
           placeholder="https://yourbrand.com"
           value={websiteUrl}
           onChange={(e) => setWebsiteUrl(e.target.value)}
+          disabled={isRunning}
         />
         <p className="mt-2 text-xs text-muted-foreground">
           We&apos;ll research the site and add it as a knowledge source.
@@ -246,13 +259,15 @@ export function KBOnboardingUploadStep({
             </p>
           </div>
           <div className="p-3 space-y-2">
-            <UploadZone
-              label="Add documents"
-              accept=".pdf,.docx,.pptx,.md,.txt"
-              onFilesSelected={handleDocFiles}
-              isUploading={uploadingDocs}
-              icon={<UploadIcon className="size-3.5" />}
-            />
+            {!isRunning && (
+              <UploadZone
+                label="Add documents"
+                accept=".pdf,.docx,.pptx,.md,.txt"
+                onFilesSelected={handleDocFiles}
+                isUploading={uploadingDocs}
+                icon={<UploadIcon className="size-3.5" />}
+              />
+            )}
             {documents.length === 0 ? (
               <p className="text-xs text-muted-foreground py-2">
                 No documents uploaded yet
@@ -271,14 +286,16 @@ export function KBOnboardingUploadStep({
                         {formatBytes(doc.size_bytes)}
                       </span>
                     )}
-                    <button
-                      type="button"
-                      onClick={() => removeDoc(doc.id)}
-                      className="ml-1 shrink-0 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground transition-opacity"
-                      aria-label="Remove"
-                    >
-                      <XIcon className="size-3.5" />
-                    </button>
+                    {!isRunning && (
+                      <button
+                        type="button"
+                        onClick={() => removeDoc(doc.id)}
+                        className="ml-1 shrink-0 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground transition-opacity"
+                        aria-label="Remove"
+                      >
+                        <XIcon className="size-3.5" />
+                      </button>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -303,13 +320,15 @@ export function KBOnboardingUploadStep({
             </p>
           </div>
           <div className="p-3 space-y-2">
-            <UploadZone
-              label="Add images"
-              accept=".jpg,.jpeg,.png,.webp"
-              onFilesSelected={handleImgFiles}
-              isUploading={uploadingImgs}
-              icon={<UploadIcon className="size-3.5" />}
-            />
+            {!isRunning && (
+              <UploadZone
+                label="Add images"
+                accept=".jpg,.jpeg,.png,.webp"
+                onFilesSelected={handleImgFiles}
+                isUploading={uploadingImgs}
+                icon={<UploadIcon className="size-3.5" />}
+              />
+            )}
             {images.length === 0 ? (
               <p className="text-xs text-muted-foreground py-2">
                 No images uploaded yet
@@ -328,14 +347,16 @@ export function KBOnboardingUploadStep({
                         {formatBytes(img.size_bytes)}
                       </span>
                     )}
-                    <button
-                      type="button"
-                      onClick={() => removeImage(img.id)}
-                      className="ml-1 shrink-0 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground transition-opacity"
-                      aria-label="Remove"
-                    >
-                      <XIcon className="size-3.5" />
-                    </button>
+                    {!isRunning && (
+                      <button
+                        type="button"
+                        onClick={() => removeImage(img.id)}
+                        className="ml-1 shrink-0 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground transition-opacity"
+                        aria-label="Remove"
+                      >
+                        <XIcon className="size-3.5" />
+                      </button>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -344,20 +365,43 @@ export function KBOnboardingUploadStep({
         </Card>
       </div>
 
-      <div className="flex items-center gap-3">
-        <Button
-          onClick={handleExtract}
-          disabled={starting || (documents.length === 0 && !websiteUrl.trim()) || uploadingDocs || uploadingImgs}
-        >
-          <SparklesIcon className="mr-1.5 size-4" />
-          {starting ? "Starting…" : "Extract & Build KB"}
-        </Button>
-        {documents.length === 0 && !websiteUrl.trim() && (
-          <p className="text-sm text-muted-foreground">
-            Add a website or upload a document to continue
-          </p>
-        )}
-      </div>
+      {/* Bottom action area */}
+      {isRunning ? (
+        <div className="flex items-center gap-3 rounded-lg border border-border bg-muted/40 px-4 py-3">
+          <span className="size-4 shrink-0 animate-spin rounded-full border-2 border-current border-t-transparent text-muted-foreground" />
+          <div className="min-w-0">
+            <p className="text-sm font-medium">
+              {job?.phase_message ?? "Building knowledge base…"}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              This usually takes 60–120 seconds. You can{" "}
+              <button
+                type="button"
+                className="underline hover:text-foreground"
+                onClick={() => router.push(`/clients/${clientSlug}`)}
+              >
+                go to your canvases
+              </button>{" "}
+              — we&apos;ll keep building in the background.
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-center gap-3">
+          <Button
+            onClick={handleExtract}
+            disabled={starting || (documents.length === 0 && !websiteUrl.trim()) || uploadingDocs || uploadingImgs}
+          >
+            <SparklesIcon className="mr-1.5 size-4" />
+            {starting ? "Starting…" : "Extract & Build KB"}
+          </Button>
+          {documents.length === 0 && !websiteUrl.trim() && (
+            <p className="text-sm text-muted-foreground">
+              Add a website or upload a document to continue
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
