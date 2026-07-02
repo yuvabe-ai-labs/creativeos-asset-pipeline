@@ -52,4 +52,13 @@ describe("compilePrompt", () => {
     expect(withoutControls).not.toContain("Shot controls");
     expect(allAuto).not.toContain("Shot controls");
   });
+
+  it("reports the effective instruction (blank falls back to the default)", () => {
+    expect(
+      compilePrompt({ clientContext: "", upstream: [], instruction: "" }).effectiveInstruction,
+    ).toBe(DEFAULT_INSTRUCTION);
+    expect(
+      compilePrompt({ clientContext: "", upstream: [], instruction: "  make it airy " }).effectiveInstruction,
+    ).toBe("make it airy");
+  });
 });
