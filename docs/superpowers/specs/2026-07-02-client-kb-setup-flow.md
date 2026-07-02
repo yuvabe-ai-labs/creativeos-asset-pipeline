@@ -28,9 +28,16 @@ The Brand Knowledge Base (KB) is a structured profile of a client's brand — ro
 │                                                                      │
 │  System queues a background job (Trigger.dev)                        │
 │    │                                                                 │
-│    ├─ [researching]  Scrapes & summarises the brand website (if any) │
-│    ├─ [extracting]   AI reads all docs + images, fills 40+ fields    │
-│    └─ [finalizing]   Saves the KB version, marks status "in review"  │
+│    ├─ [researching]  Scrapes website → saves as a Markdown doc       │
+│    │                 (stored so team can audit what AI saw)           │
+│    │                                                                 │
+│    ├─ [extracting]   Runs in parallel:                               │
+│    │    ├── Doc extraction  — reads docs + research → fills ~40 fields│
+│    │    └── Image analysis  — reads images → fills Image Analysis     │
+│    │                         (skipped if no images uploaded)          │
+│    │                                                                 │
+│    └─ [finalizing]   Merges results → saves versioned KB snapshot    │
+│                      → sets client status to "in review"             │
 │                                                                      │
 │  UI shows a live progress indicator — safe to close the tab          │
 └─────────────────────────────────────────────────────────────────────┘
@@ -77,15 +84,28 @@ In practice the recommended starting point is a brand URL + a brand book (PDF). 
 
 ### What happens in the background
 
-Clicking **Extract & Build KB** triggers a background job. The UI immediately enters a loading state showing the current phase in plain English ("Researching brand website…", "Extracting brand knowledge…"). The team can safely close the tab — the job continues running and the page reflects the latest state when reopened.
+Clicking **Extract & Build KB** triggers a background job (runs on Trigger.dev, outside the app server). The UI immediately enters a loading state showing the current phase in plain English ("Researching brand website…", "Extracting brand knowledge…"). The team can safely close the tab — the job keeps running and the page picks up where it left off when reopened.
 
 The job runs three phases in sequence:
 
-| Phase | What happens |
-|---|---|
-| Researching | Fetches and summarises the brand website into a structured Markdown document |
-| Extracting | AI reads all documents and analyses all images in parallel, then fills every KB field |
-| Finalizing | Saves a versioned KB snapshot, stores the research document, sets the client status to "in review" |
+#### Phase 1 — Researching (only if a website URL was provided)
+
+The system scrapes the brand website and asks the AI to summarise it into a structured Markdown document. This research doc is then **saved to storage as a first-class document** alongside any uploaded files. It is committed to the database at the end of the job so the team can see exactly what was pulled from the web before extraction ran — no mystery about what the AI had access to.
+
+#### Phase 2 — Extracting (always)
+
+Two things run **in parallel** at the same time:
+
+- **Document extraction** — the AI reads all uploaded documents plus the website research Markdown (if any) and fills the ~40 brand KB fields (voice, identity, audience, direction, compliance).
+- **Image analysis** — the AI visually analyses all uploaded brand images and fills the Image Analysis module separately (dominant colours, composition, lighting, mood, etc.). If no images were uploaded this step is skipped — Image Analysis fields are left empty and marked for review.
+
+Running these in parallel cuts build time roughly in half when both documents and images are present.
+
+#### Phase 3 — Finalizing
+
+The two extraction results are merged into one KB object, a versioned snapshot is saved to the database, the website research doc is stored and linked to the version, and the client's KB status is set to `in_review` so the review step unlocks.
+
+---
 
 If the job takes longer than 10 minutes without a status update, the UI surfaces a **Clear stuck build** button so the team can reset and retry.
 
