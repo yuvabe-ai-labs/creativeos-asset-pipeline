@@ -54,10 +54,3 @@ export function useCanvasStoreApi(): CanvasStore {
   return store;
 }
 
-export function useKbStatus() {
-  return useCanvasStore((s) => s.kbStatus);
-}
-
-export function useKbJustReady() {
-  return useCanvasStore((s) => s.kbJustReady);
-}

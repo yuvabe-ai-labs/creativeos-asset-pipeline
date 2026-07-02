@@ -18,7 +18,6 @@ import { Label } from "@/components/ui/label";
 import type {
   ClientKBDocumentRow,
   ClientBrandImageRow,
-  ClientKBJobRow,
 } from "@/lib/db/types";
 import { KB_DOC_SIZE_LIMIT_BYTES, KB_IMG_SIZE_LIMIT_BYTES } from "@/lib/kb/constants";
 import { startKBBuildJob } from "@/lib/actions/kb";
@@ -75,7 +74,6 @@ type Props = {
   initialDocuments: ClientKBDocumentRow[];
   initialImages: ClientBrandImageRow[];
   initialWebsiteUrl: string | null;
-  initialJob: ClientKBJobRow | null;
 };
 
 export function KBOnboardingUploadStep({
