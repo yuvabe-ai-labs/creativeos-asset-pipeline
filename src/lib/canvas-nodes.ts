@@ -160,10 +160,13 @@ export function nodeRowToFlow(row: NodeWithActive): AppNode {
 }
 
 // React Flow node → the columns we persist (used on autosave, client-side).
-// `parsed` is derived from the active version (D19) — never written back to the DB row.
+// `parsed` and `approvalStatus` are derived from the active version (D19/D29) — the
+// focus view writes approvalStatus into the store to refresh the on-canvas badge, but
+// neither is ever written back to the DB row.
 export function flowToPersisted(n: AppNode) {
   const data = { ...(n.data as Record<string, unknown>) };
   delete data.parsed;
+  delete data.approvalStatus;
   return {
     id: n.id,
     type: n.type as string,

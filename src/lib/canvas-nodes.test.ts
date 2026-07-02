@@ -64,6 +64,20 @@ describe("flowToPersisted", () => {
     expect(persisted.data).toEqual({ title: "Reel", source: "raw" });
     expect("parsed" in persisted.data).toBe(false);
   });
+
+  it("never persists the derived approvalStatus field (D29)", () => {
+    // approvalStatus is hydrated from the active version for the on-canvas badge
+    // (like `parsed`); once the focus view writes it into the store to refresh the
+    // badge, autosave must NOT leak that display-only copy back into the row.
+    const persisted = flowToPersisted({
+      id: "n1",
+      type: "prompt",
+      position: { x: 1, y: 2 },
+      data: { title: "Shot", approvalStatus: "approved" },
+    } as never);
+    expect("approvalStatus" in persisted.data).toBe(false);
+    expect(persisted.data).toEqual({ title: "Shot" });
+  });
 });
 
 describe("VALID_CONNECTIONS — draw node", () => {

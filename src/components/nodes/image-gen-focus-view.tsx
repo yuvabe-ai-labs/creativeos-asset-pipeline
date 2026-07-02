@@ -542,6 +542,9 @@ export function ImageGenFocusView({
       });
       setApprovalStatus(status);
       setApprovalNote(note ?? "");
+      // Push into the store so the on-canvas badge refreshes immediately — without
+      // this the badge stays stale until a full reload re-hydrates from the DB.
+      onPatch({ approvalStatus: status });
     } catch {
       toast.error("Failed to save approval");
     } finally {
