@@ -68,3 +68,10 @@ export function buildUserContent(
     ...visionAttachments.map(toImagePart),
   ];
 }
+
+// The image URLs actually sent to the vision API for this request — the same set
+// buildUserContent turns into image_url parts. Pure; used to record which
+// attachments a generation consumed (model-request.ts).
+export function visionAttachmentUrls(upstream: UpstreamPreview[]): string[] {
+  return upstream.filter(isVisionAttachment).map((u) => u.fileUrl!);
+}
