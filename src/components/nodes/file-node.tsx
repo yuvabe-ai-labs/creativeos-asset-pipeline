@@ -5,6 +5,7 @@ import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { Paperclip, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
+import { useDeleteNode } from "@/hooks/use-delete-node";
 import type { FileNodeData } from "@/lib/canvas-nodes";
 import { FileFocusView } from "./file-focus-view";
 import { useNodeConnectionState } from "./use-node-connection-state";
@@ -14,7 +15,7 @@ const KIND_LABELS = { text: "TXT", image: "IMG", document: "DOC" } as const;
 
 export function FileNode({ id, data, selected }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
-  const deleteNode = useCanvasStore((s) => s.deleteNode);
+  const deleteNode = useDeleteNode();
   const duplicateNode = useCanvasStore((s) => s.duplicateNode);
   const d = data as FileNodeData;
   const [focusOpen, setFocusOpen] = useState(false);

@@ -5,6 +5,7 @@ import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { Clapperboard } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
+import { useDeleteNode } from "@/hooks/use-delete-node";
 import { NodeContextMenu } from "./node-context-menu";
 import type { VideoGenNodeData } from "@/lib/canvas-nodes";
 import { VideoGenFocusView } from "./video-gen-focus-view";
@@ -15,7 +16,7 @@ import type { ApprovalStatus } from "@/lib/approval";
 
 export function VideoGenNode({ id, data, selected }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
-  const deleteNode    = useCanvasStore((s) => s.deleteNode);
+  const deleteNode    = useDeleteNode();
   const duplicateNode = useCanvasStore((s) => s.duplicateNode);
 
   const d = data as VideoGenNodeData;

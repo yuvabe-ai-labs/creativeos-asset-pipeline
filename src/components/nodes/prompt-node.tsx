@@ -5,6 +5,7 @@ import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
+import { useDeleteNode } from "@/hooks/use-delete-node";
 import { savePromptOutputAction } from "@/lib/actions/nodes";
 import { PromptFocusView } from "./prompt-focus-view";
 import { DEFAULT_IMAGE_PROMPT_SLICES, type KBSliceKey } from "@/lib/kb/parse-context";
@@ -19,7 +20,7 @@ const TYPE_LABEL: Record<string, string> = { script: "Script", text: "Note", pro
 // focus view. The Inputs panel's connected-node list is derived from the store graph.
 export function PromptNode({ id, data, selected }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
-  const deleteNode = useCanvasStore((s) => s.deleteNode);
+  const deleteNode = useDeleteNode();
   const duplicateNode = useCanvasStore((s) => s.duplicateNode);
   // Select the raw store slices (stable references) and DERIVE the upstream list
   // with useMemo. Returning a freshly-built array of objects straight from the

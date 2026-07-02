@@ -5,6 +5,7 @@ import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { Clapperboard, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
+import { useDeleteNode } from "@/hooks/use-delete-node";
 import { NodeContextMenu } from "./node-context-menu";
 import { ShotComposeSheet } from "./shot-compose-sheet";
 import type { ReelScript } from "@/lib/nodes/reel-script";
@@ -15,7 +16,7 @@ import type { ReelScript } from "@/lib/nodes/reel-script";
 // line. Its content IS its output (edit-at-source, D19/D20): no AI, no version log.
 export function ShotNode({ id, data, selected }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
-  const deleteNode = useCanvasStore((s) => s.deleteNode);
+  const deleteNode = useDeleteNode();
   const duplicateNode = useCanvasStore((s) => s.duplicateNode);
   const [composeOpen, setComposeOpen] = useState(false);
   const d = data as {

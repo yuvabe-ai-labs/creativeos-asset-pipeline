@@ -6,6 +6,7 @@ import { FileText } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
+import { useDeleteNode } from "@/hooks/use-delete-node";
 import { saveScriptOutputAction } from "@/lib/actions/nodes";
 import { ScriptFocusView } from "./script-focus-view";
 import { NodeContextMenu } from "./node-context-menu";
@@ -16,7 +17,7 @@ import { useNodeConnectionState } from "./use-node-connection-state";
 
 export function ScriptNode({ id, data, selected }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
-  const deleteNode = useCanvasStore((s) => s.deleteNode);
+  const deleteNode = useDeleteNode();
   const duplicateNode = useCanvasStore((s) => s.duplicateNode);
   const fanOutShots = useCanvasStore((s) => s.fanOutShots);
   const d = data as {

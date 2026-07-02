@@ -12,11 +12,12 @@ import {
   type Connection,
   type Edge,
   type NodeTypes,
+  type OnBeforeDelete,
   type XYPosition,
 } from "@xyflow/react";
 import { useShallow } from "zustand/react/shallow";
 import { toast } from "sonner";
-import { VALID_CONNECTIONS, flowToPersisted } from "@/lib/canvas-nodes";
+import { VALID_CONNECTIONS, flowToPersisted, type AppNode } from "@/lib/canvas-nodes";
 import { saveCanvasNodesAction } from "@/lib/actions/nodes";
 import { readClipboardImage, clipboardHasImage } from "@/lib/nodes/clipboard-image";
 import { ScriptNode } from "@/components/nodes/script-node";
@@ -36,6 +37,8 @@ import { mnemonicToType, isEditableTarget } from "@/lib/canvas-node-options";
 import { useCanvasLock } from "@/hooks/use-canvas-lock";
 import { CanvasEditableProvider } from "./canvas-editable-context";
 import { LockBanner } from "./lock-banner";
+import { DeleteConfirmDialog } from "./delete-confirm-dialog";
+import { useDeleteConfirmation } from "@/hooks/use-delete-confirmation";
 
 // Register custom node types once (stable reference — never inline this object).
 const nodeTypes: NodeTypes = {
@@ -87,6 +90,17 @@ export function Canvas({ canvasId }: { canvasId: string }) {
   // Read the latest canEdit from event handlers/closures without re-subscribing them.
   const canEditRef = useRef(canEdit);
   canEditRef.current = canEdit;
+
+  // Confirm every node deletion (context menu + keyboard) through one dialog.
+  const { onBeforeDelete: confirmDelete, dialogProps: deleteDialog } =
+    useDeleteConfirmation();
+  const onBeforeDelete = useCallback<OnBeforeDelete<AppNode>>(
+    (payload) => {
+      if (!canEditRef.current) return Promise.resolve(false); // read-only: no deletion
+      return confirmDelete(payload);
+    },
+    [confirmDelete],
+  );
 
   const nodesRef = useRef(nodes);
   useEffect(() => {
@@ -302,6 +316,8 @@ export function Canvas({ canvasId }: { canvasId: string }) {
         <LockBanner heldByName={heldByName} canTakeOver={canTakeOver} onTakeOver={takeOver} />
       )}
 
+      <DeleteConfirmDialog {...deleteDialog} />
+
       {quickAdd && (
         <QuickAddMenu
           screenX={quickAdd.screenX}
@@ -323,6 +339,7 @@ export function Canvas({ canvasId }: { canvasId: string }) {
         nodeTypes={nodeTypes}
         nodesDraggable={canEdit}
         nodesConnectable={canEdit}
+        onBeforeDelete={onBeforeDelete}
         deleteKeyCode={canEdit ? ["Backspace", "Delete"] : null}
         selectionOnDrag
         selectionMode={SelectionMode.Partial}

@@ -5,6 +5,7 @@ import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { ImageIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
+import { useDeleteNode } from "@/hooks/use-delete-node";
 import { NodeContextMenu } from "./node-context-menu";
 import type { ImageGenNodeData } from "@/lib/canvas-nodes";
 import { ImageGenFocusView } from "./image-gen-focus-view";
@@ -14,7 +15,7 @@ import type { ApprovalStatus } from "@/lib/approval";
 
 export function ImageGenNode({ id, data, selected }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
-  const deleteNode    = useCanvasStore((s) => s.deleteNode);
+  const deleteNode    = useDeleteNode();
   const duplicateNode = useCanvasStore((s) => s.duplicateNode);
 
   // Select raw store slices (stable references) and derive the upstream list
