@@ -18,10 +18,11 @@ The Brand Knowledge Base (KB) is a structured profile of a client's brand — ro
 ┌─────────────────────────────────────────────────────────────────────┐
 │  PHASE 1 — UPLOAD & BUILD                                           │
 │                                                                      │
-│  Team uploads brand materials                                        │
-│    • Brand docs (PDF, DOCX, PPTX, MD, TXT) — up to 20 MB total     │
-│    • Brand images (JPG, PNG, WebP) — up to 50 MB total             │
-│    • Brand website URL (optional)                                    │
+│  Team adds brand materials                                           │
+│    • Brand website URL         ← optional, but recommended          │
+│    • Brand documents (PDF, DOCX, PPTX…) ← optional*               │
+│    • Brand images (JPG, PNG, WebP)       ← always optional          │
+│    * website URL OR at least one doc is required to proceed          │
 │                                                                      │
 │  ──── clicks "Extract & Build KB" ────                               │
 │                                                                      │
@@ -64,11 +65,15 @@ The Brand Knowledge Base (KB) is a structured profile of a client's brand — ro
 
 On the client's KB setup page, the team adds brand materials in three slots:
 
-- **Brand documents** — brand guidelines, tone-of-voice decks, campaign briefs, or any written brand assets (PDF, DOCX, PPTX, Markdown, plain text). Total limit: 20 MB.
-- **Brand images** — product photos, campaign imagery, mood boards (JPG, PNG, WebP). Total limit: 50 MB.
-- **Brand website** — an optional URL. The system will scrape and summarise it automatically.
+| Input | Required? | Formats | Limit |
+|---|---|---|---|
+| Brand website URL | Optional | — | — |
+| Brand documents | Optional* | PDF, DOCX, PPTX, MD, TXT | 20 MB total |
+| Brand images | Optional | JPG, PNG, WebP | 50 MB total |
 
-At least one document or a website URL is required to proceed.
+**Minimum to proceed:** a website URL **or** at least one document — one of the two is required. Images are always optional.
+
+In practice the recommended starting point is a brand URL + a brand book (PDF). Images add visual analysis but the KB builds fine without them.
 
 ### What happens in the background
 
