@@ -15,15 +15,13 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { KBSkeleton } from "@/components/kb/kb-skeleton";
 import type {
   ClientKBDocumentRow,
   ClientBrandImageRow,
   ClientKBJobRow,
 } from "@/lib/db/types";
 import { KB_DOC_SIZE_LIMIT_BYTES, KB_IMG_SIZE_LIMIT_BYTES } from "@/lib/kb/constants";
-import { startKBBuildJob, markStuckJobFailed } from "@/lib/actions/kb";
-import { useKBJobStatus } from "./use-kb-job-status";
+import { startKBBuildJob } from "@/lib/actions/kb";
 
 const DOC_EXTENSIONS = new Set(["pdf", "docx", "pptx", "md", "txt"]);
 const IMG_EXTENSIONS = new Set(["jpg", "jpeg", "png", "webp"]);
@@ -73,6 +71,7 @@ function UploadZone({ label, accept, onFilesSelected, isUploading, icon }: Uploa
 
 type Props = {
   clientId: string;
+  clientSlug: string;
   initialDocuments: ClientKBDocumentRow[];
   initialImages: ClientBrandImageRow[];
   initialWebsiteUrl: string | null;
@@ -81,10 +80,10 @@ type Props = {
 
 export function KBOnboardingUploadStep({
   clientId,
+  clientSlug,
   initialDocuments,
   initialImages,
   initialWebsiteUrl,
-  initialJob,
 }: Props) {
   const router = useRouter();
   const [documents, setDocuments] = useState(initialDocuments);
@@ -93,7 +92,6 @@ export function KBOnboardingUploadStep({
   const [uploadingImgs, setUploadingImgs] = useState(false);
   const [websiteUrl, setWebsiteUrl] = useState(initialWebsiteUrl ?? "");
   const [starting, startStartTransition] = useTransition();
-  const job = useKBJobStatus(clientId, initialJob);
 
   const docTotalBytes = documents.reduce((s, d) => s + (d.size_bytes ?? 0), 0);
   const imgTotalBytes = images.reduce((s, i) => s + (i.size_bytes ?? 0), 0);
@@ -200,61 +198,11 @@ export function KBOnboardingUploadStep({
     startStartTransition(async () => {
       try {
         await startKBBuildJob(clientId);
+        router.push(`/clients/${clientSlug}`);
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Failed to start build.");
       }
     });
-  }
-
-  const NON_TERMINAL = new Set(["queued", "researching", "extracting", "finalizing"]);
-  const isRunning = job !== null && NON_TERMINAL.has(job.status);
-  const tenMinAgo = Date.now() - 10 * 60 * 1000;
-  const isStuck = isRunning && new Date(job!.updated_at).getTime() < tenMinAgo;
-
-  useEffect(() => {
-    if (!job) return;
-    if (job.status === "succeeded") {
-      toast.success("KB built — review below");
-      router.refresh();
-    } else if (job.status === "failed") {
-      toast.error(job.error ?? "KB build failed");
-    }
-  }, [job?.status, job?.error, router]);
-
-  if (isRunning) {
-    return (
-      <div className="animate-rise space-y-6">
-        <Card className="p-4">
-          <div className="flex items-start gap-3">
-            <span className="size-4 mt-0.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
-            <div className="flex-1">
-              <p className="text-sm font-medium">{job!.phase_message ?? "Building knowledge base…"}</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                This usually takes 60–120 seconds. You can close this tab and come back — we&apos;ll keep building.
-              </p>
-            </div>
-          </div>
-          {isStuck && (
-            <div className="mt-4 border-t pt-3 flex items-center justify-between gap-3">
-              <p className="text-xs text-muted-foreground">
-                This build appears stuck. Clear it to start a new one.
-              </p>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={async () => {
-                  await markStuckJobFailed(job!.id);
-                  router.refresh();
-                }}
-              >
-                Clear stuck build
-              </Button>
-            </div>
-          )}
-        </Card>
-        <KBSkeleton />
-      </div>
-    );
   }
 
   return (

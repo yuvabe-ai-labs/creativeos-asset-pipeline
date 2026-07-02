@@ -57,6 +57,8 @@ export async function completeGeneration(
   }
   const videoBuffer = Buffer.from(await videoResponse.arrayBuffer());
 
+  console.log("[complete] GCP_PROJECT_ID present:", !!process.env.GCP_PROJECT_ID, "GCS_BUCKET present:", !!process.env.GCS_BUCKET);
+
   let storedVideoUrl: string;
   try {
     const result = await uploadVideoGen({
