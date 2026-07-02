@@ -160,8 +160,8 @@ export async function startKBBuildJob(clientId: string): Promise<{ jobId: string
       docIdsUsed: docs.map((d) => d.id),
     });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "";
-    if (msg.includes("client_kb_jobs_one_running_idx")) {
+    const msg = e instanceof Error ? e.message : JSON.stringify(e);
+    if (msg.includes("client_kb_jobs_one_running_idx") || msg.includes("23505")) {
       throw new Error("A KB build is already running for this client.");
     }
     throw e;

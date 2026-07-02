@@ -195,7 +195,13 @@ export function KBOnboardingUploadStep({
         await startKBBuildJob(clientId);
         router.push(`/clients/${clientSlug}`);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Failed to start build.");
+        const msg = e instanceof Error ? e.message : "Failed to start build.";
+        if (msg.includes("already running")) {
+          // Job already in progress — just go to the client page
+          router.push(`/clients/${clientSlug}`);
+          return;
+        }
+        toast.error(msg);
       }
     });
   }
