@@ -16,6 +16,8 @@ import { Canvas } from "@/components/canvas/canvas";
 import { listNodes } from "@/lib/db/nodes";
 import { listEdges } from "@/lib/db/edges";
 import { nodeRowToFlow } from "@/lib/canvas-nodes";
+import { getLatestKBJob } from "@/lib/db/kb-jobs";
+import { getActiveKBVersion } from "@/lib/db/kb";
 
 export const dynamic = "force-dynamic";
 
@@ -44,9 +46,11 @@ export default async function CanvasPage({
     );
   }
 
-  const [initialNodes, initialEdges] = await Promise.all([
+  const [initialNodes, initialEdges, latestKBJob, activeKBVersion] = await Promise.all([
     listNodes(canvas.id).then((rows) => rows.map(nodeRowToFlow)),
     listEdges(canvas.id),
+    getLatestKBJob(client.id),
+    getActiveKBVersion(client.id),
   ]);
 
   return (
@@ -78,7 +82,12 @@ export default async function CanvasPage({
       <div className="relative flex-1">
         {/* load this canvas's nodes from the DB, seed the store, autosave changes */}
         <CanvasStoreProvider key={canvas.id} initialNodes={initialNodes} initialEdges={initialEdges}>
-          <Canvas canvasId={canvas.id} />
+          <Canvas
+            canvasId={canvas.id}
+            clientId={client.id}
+            initialKBJob={latestKBJob}
+            hasActiveKB={activeKBVersion !== null}
+          />
         </CanvasStoreProvider>
       </div>
     </main>

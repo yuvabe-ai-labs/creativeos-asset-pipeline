@@ -31,6 +31,8 @@ import { VideoPromptNode } from "@/components/nodes/video-prompt-node";
 import { VideoGenNode } from "@/components/nodes/video-gen-node";
 import { useCanvasStore, useCanvasStoreApi } from "./canvas-store-provider";
 import { CanvasAutosave } from "./canvas-autosave";
+import { CanvasKBStatus, CanvasKBBadge } from "./canvas-kb-status";
+import type { ClientKBJobRow } from "@/lib/db/types";
 import { QuickAddMenu } from "./quick-add-menu";
 import { mnemonicToType, isEditableTarget } from "@/lib/canvas-node-options";
 
@@ -48,7 +50,17 @@ const nodeTypes: NodeTypes = {
   "video-gen": VideoGenNode,
 };
 
-export function Canvas({ canvasId }: { canvasId: string }) {
+export function Canvas({
+  canvasId,
+  clientId,
+  initialKBJob,
+  hasActiveKB,
+}: {
+  canvasId: string;
+  clientId: string;
+  initialKBJob: ClientKBJobRow | null;
+  hasActiveKB: boolean;
+}) {
   // One subscription, shallow-compared, so the component only re-renders when
   // these slices actually change.
   const {
@@ -279,6 +291,11 @@ export function Canvas({ canvasId }: { canvasId: string }) {
   return (
     <div className="absolute inset-0 bg-[var(--neutral-50)]">
       <CanvasAutosave canvasId={canvasId} />
+      <CanvasKBStatus
+        clientId={clientId}
+        initialJob={initialKBJob}
+        hasActiveKB={hasActiveKB}
+      />
 
       {quickAdd && (
         <QuickAddMenu
@@ -327,6 +344,9 @@ export function Canvas({ canvasId }: { canvasId: string }) {
           color="rgba(148,163,184,0.45)"
         />
         <Controls showInteractive={false} />
+        <div className="absolute left-1/2 top-3 z-10 -translate-x-1/2">
+          <CanvasKBBadge />
+        </div>
       </ReactFlow>
     </div>
   );
