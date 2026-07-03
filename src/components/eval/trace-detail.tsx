@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { ThumbsUp, ThumbsDown } from "lucide-react";
+import { ThumbsUp, ThumbsDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { TraceVersion } from "@/lib/eval/node-traces";
+import type { NodeTrace } from "@/lib/eval/node-traces";
+import { diffVersions } from "@/lib/eval/diff-versions";
 import { OutputRenderer } from "./output-renderer";
 import { ModelRequestPanel } from "@/components/nodes/model-request-panel";
 
@@ -65,13 +66,70 @@ function OpenCoding({
 }
 
 export function TraceDetail({
-  version, onLabel,
+  trace, versionIx, onStep, onLabel,
 }: {
-  version: TraceVersion;
+  trace: NodeTrace;
+  versionIx: number;
+  onStep: (ix: number) => void;
   onLabel: (versionId: string, decision: Decision, note: string) => void;
 }) {
+  const n = trace.versions.length;
+  const ix = Math.min(Math.max(versionIx, 0), n - 1);
+  const version = trace.versions[ix];
+  const prev = trace.versions[ix + 1]; // versions are newest → oldest; +1 is the older attempt
+  const delta = prev ? diffVersions(prev, version) : null;
+  const vNum = (i: number) => n - i; // index → human version number
+
   return (
     <div className="space-y-4">
+      {n > 1 && (
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="inline-flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-xs">
+            <button type="button" disabled={ix >= n - 1} onClick={() => onStep(ix + 1)} className="disabled:opacity-30" title="Older">
+              <ChevronLeft className="size-4" strokeWidth={1.5} />
+            </button>
+            <span>v{vNum(ix)} <span className="text-muted-foreground">of {n}</span></span>
+            <button type="button" disabled={ix <= 0} onClick={() => onStep(ix - 1)} className="disabled:opacity-30" title="Newer">
+              <ChevronRight className="size-4" strokeWidth={1.5} />
+            </button>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {trace.versions.map((v, i) => (
+              <button
+                key={v.versionId}
+                type="button"
+                onClick={() => onStep(i)}
+                className={cn(
+                  "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[0.7rem]",
+                  i === ix ? "border-primary bg-primary/8 font-medium text-primary" : "border-border text-muted-foreground hover:bg-muted",
+                )}
+              >
+                {v.decision === "pass" && <span className="text-emerald-600">✓</span>}
+                {v.decision === "fail" && <span className="text-red-600">✕</span>}
+                v{vNum(i)}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {delta && (
+        <div className="rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
+          <p className="text-eyebrow mb-1 text-primary">Δ vs v{vNum(ix + 1)} — what changed</p>
+          {delta.reroll ? (
+            <p className="text-xs text-amber-700">Re-roll — same request, output moved (model nondeterminism).</p>
+          ) : (
+            <ul className="space-y-0.5 text-xs">
+              {delta.changes.map((c) => (
+                <li key={c.field}>
+                  <b>{c.field}</b>: <span className="text-muted-foreground line-through">{c.from || "∅"}</span> → <span className="text-emerald-700">{c.to || "∅"}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
       <div className="grid grid-cols-2 gap-4">
         <Panel eyebrow="A · Input">
           {(version.input.images ?? []).length > 0 && (
@@ -90,7 +148,7 @@ export function TraceDetail({
         key={version.versionId}
         decision={version.decision}
         note={version.note ?? ""}
-        onLabel={(d, n) => onLabel(version.versionId, d, n)}
+        onLabel={(d, note) => onLabel(version.versionId, d, note)}
       />
     </div>
   );
