@@ -50,7 +50,7 @@ export function CanvasKBStatus({ clientId, initialJob, hasActiveKB }: Props) {
       return () => clearTimeout(timer);
     }
     prevStatus.current = job.status;
-  }, [job?.status, job?.error, setKbStatus, setKbJustReady]);
+  }, [job, setKbStatus, setKbJustReady]);
 
   return null;
 }
