@@ -55,6 +55,23 @@ export type TraceVersionRow = {
 function str(v: unknown): string | undefined { return typeof v === "string" ? v : undefined; }
 function strArr(v: unknown): string[] { return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []; }
 
+// The faithful, frozen input for panel A. Eval-canvas traces store `shotText`;
+// production traces don't, so fall back to the non-boilerplate blocks of the
+// captured compiled request (the shot/upstream the model actually received).
+const INPUT_BOILERPLATE = /^(Brand context:|Shot controls|Instruction:)/;
+function deriveInputText(inp: Record<string, unknown>, request: ModelRequestRecord | null): string | undefined {
+  const shot = str(inp.shotText);
+  if (shot) return shot;
+  const compiled = request?.compiledUser;
+  if (typeof compiled !== "string") return undefined;
+  const blocks = compiled
+    .split("\n\n")
+    .map((b) => b.trim())
+    .filter((b) => b.length > 0 && !INPUT_BOILERPLATE.test(b));
+  const text = blocks.join("\n\n").replace(/^Creating an image prompt for this specific shot:\s*/i, "");
+  return text || undefined;
+}
+
 function toVersion(action: NodeAction, row: TraceVersionRow): TraceVersion {
   const inp = (row.inputs_used ?? {}) as Record<string, unknown>;
   const params = (row.params_used ?? {}) as Record<string, unknown>;
@@ -70,7 +87,7 @@ function toVersion(action: NodeAction, row: TraceVersionRow): TraceVersion {
   return {
     versionId: row.id,
     createdAt: row.created_at,
-    input: { text: str(inp.shotText), images: request?.attachments ?? [] },
+    input: { text: deriveInputText(inp, request), images: request?.attachments ?? [] },
     output,
     request,
     instruction: str(params.instruction),

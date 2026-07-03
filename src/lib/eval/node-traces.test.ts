@@ -44,6 +44,18 @@ describe("mapNodeTraces", () => {
     expect(prompt.versions[0].decision).toBe(null);
   });
 
+  it("derives input text from the frozen compiled request when shotText is absent (production nodes)", () => {
+    const prodNode = { id: "p1", type: "prompt", data: { title: "Lip Balm" }, active_version_id: "pv1" };
+    const pv1 = { id: "pv1", node_id: "p1", created_at: "2026-07-01T09:00:00Z",
+      inputs_used: { upstream: [{ nodeId: "s", versionId: "sv1" }], kbSlices: ["Tone"],
+        request: { systemPrompt: "SYS",
+          compiledUser: "Brand context:\nPositioning: earthy premium\n\nCreating an image prompt for this specific shot:\nA lip balm on marble, soft light.\n\nInstruction:\nWrite a prompt.",
+          attachments: [], effectiveInstruction: "Write a prompt." } },
+      params_used: { instruction: "" }, generated_output: "out", output: "out", decision: null, note: null };
+    const [t] = mapNodeTraces([prodNode], [pv1]);
+    expect(t.versions[0].input.text).toBe("A lip balm on marble, soft light.");
+  });
+
   it("exposes the generated-type allowlist", () => {
     expect(GENERATED_TYPES).toContain("prompt");
     expect(GENERATED_TYPES).not.toContain("text");
