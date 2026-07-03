@@ -6,6 +6,7 @@ import { NewCanvasDialog } from "@/components/canvases/new-canvas-dialog";
 import { CanvasesTable } from "@/components/canvases/canvases-table";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { KBStatusBanner } from "@/components/clients/kb-status-banner";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -111,6 +112,8 @@ export default async function ClientPage({
           <NewCanvasDialog clientId={client.id} clientSlug={client.slug} />
         </div>
       </header>
+
+      <KBStatusBanner kbStatus={client.kb_status} clientSlug={client.slug} />
 
       {canvases.length === 0 ? (
         <Card className="animate-rise flex flex-col items-center gap-2 border-dashed p-14 text-center">
