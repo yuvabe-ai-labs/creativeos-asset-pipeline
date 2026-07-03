@@ -99,14 +99,12 @@ const EXT_ICON: Record<string, string> = {
 // ── Sheet content (purely presentational) ────────────────────────────────────
 
 function KBSheetContent({
-  clientId,
   clientSlug,
   loading,
   version,
   documents,
   images,
 }: {
-  clientId: string;
   clientSlug: string;
   loading: boolean;
   version: VersionMeta | null;
@@ -306,7 +304,6 @@ export function KBNode({ id, data, selected }: NodeProps) {
           />
           {open && (
             <KBSheetContent
-              clientId={d.clientId}
               clientSlug={d.clientSlug}
               loading={fetchState.loading}
               version={fetchState.version}
