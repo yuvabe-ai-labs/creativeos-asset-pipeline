@@ -56,6 +56,17 @@ describe("mapNodeTraces", () => {
     expect(t.versions[0].input.text).toBe("A lip balm on marble, soft light.");
   });
 
+  it("falls back to resolved upstream input when neither shotText nor request is present (old / media nodes)", () => {
+    const imgNode = { id: "im1", type: "image-gen", data: {}, active_version_id: "imv1" };
+    const imv1 = { id: "imv1", node_id: "im1", created_at: "2026-07-01T08:00:00Z",
+      inputs_used: {}, params_used: {}, generated_output: "https://cdn/out.png", output: "https://cdn/out.png", decision: null, note: null };
+    const up = new Map([["im1", { text: "a hero product prompt", images: ["https://cdn/ref.png"] }]]);
+    const [t] = mapNodeTraces([imgNode], [imv1], up);
+    expect(t.versions[0].input.text).toBe("a hero product prompt");
+    expect(t.versions[0].input.images).toEqual(["https://cdn/ref.png"]);
+    expect(t.versions[0].output).toEqual({ kind: "image", urls: ["https://cdn/out.png"] });
+  });
+
   it("exposes the generated-type allowlist", () => {
     expect(GENERATED_TYPES).toContain("prompt");
     expect(GENERATED_TYPES).not.toContain("text");

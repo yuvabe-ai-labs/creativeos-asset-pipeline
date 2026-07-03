@@ -13,7 +13,9 @@ import {
   type NodeTrace,
   type TraceNodeRow,
   type TraceVersionRow,
+  type ResolvedUpstream,
 } from "@/lib/eval/node-traces";
+import { getNodeOutput } from "@/lib/nodes/node-output";
 
 export type { EvalTrace } from "@/lib/eval/map-traces";
 export type { NodeTrace } from "@/lib/eval/node-traces";
@@ -68,5 +70,62 @@ export async function listNodeTraces(canvasId: string): Promise<NodeTrace[]> {
     .in("node_id", nodeIds);
   if (vErr) throw vErr;
 
-  return mapNodeTraces(nodeRows, (versions ?? []) as TraceVersionRow[]);
+  const upstreamByNode = await resolveUpstreamInputs(nodeIds);
+  return mapNodeTraces(nodeRows, (versions ?? []) as TraceVersionRow[], upstreamByNode);
+}
+
+// An image source contributes its URL to `images`; everything else renders to `text`.
+function upstreamImageUrl(type: string, data: Record<string, unknown>, activeOutput: unknown): string | undefined {
+  if (type === "image-gen" && typeof activeOutput === "string") return activeOutput;
+  const fileUrl = typeof data.fileUrl === "string" ? data.fileUrl : undefined;
+  if (type === "draw" && fileUrl) return fileUrl;
+  if (type === "file" && data.fileKind === "image" && fileUrl) return fileUrl;
+  return undefined;
+}
+
+// Resolve each node's LIVE upstream input (capture-independent), so panel A works for
+// every node type + version even when the version froze no shotText/request. Batched:
+// one edges query + one source-nodes query, then rendered via getNodeOutput.
+async function resolveUpstreamInputs(nodeIds: string[]): Promise<Map<string, ResolvedUpstream>> {
+  const result = new Map<string, ResolvedUpstream>();
+  if (nodeIds.length === 0) return result;
+  const supabase = createServerSupabase();
+
+  const { data: edges, error: eErr } = await supabase
+    .from("edges")
+    .select("source_node_id, target_node_id")
+    .in("target_node_id", nodeIds);
+  if (eErr) throw eErr;
+  const edgeRows = (edges ?? []) as { source_node_id: string; target_node_id: string }[];
+  const sourceIds = [...new Set(edgeRows.map((e) => e.source_node_id))];
+  if (sourceIds.length === 0) return result;
+
+  const { data: sources, error: sErr } = await supabase
+    .from("nodes")
+    .select("id, type, data, active:node_versions!nodes_active_version_fk(output)")
+    .in("id", sourceIds);
+  if (sErr) throw sErr;
+
+  const srcById = new Map<string, { type: string; data: Record<string, unknown>; activeOutput: unknown }>();
+  for (const s of (sources ?? []) as unknown as {
+    id: string; type: string; data: Record<string, unknown> | null; active: { output: unknown } | null;
+  }[]) {
+    srcById.set(s.id, { type: s.type, data: s.data ?? {}, activeOutput: s.active?.output ?? null });
+  }
+
+  for (const targetId of nodeIds) {
+    const texts: string[] = [];
+    const images: string[] = [];
+    for (const e of edgeRows) {
+      if (e.target_node_id !== targetId) continue;
+      const src = srcById.get(e.source_node_id);
+      if (!src) continue;
+      const img = upstreamImageUrl(src.type, src.data, src.activeOutput);
+      if (img) images.push(img);
+      const t = getNodeOutput({ type: src.type, data: src.data, activeOutput: src.activeOutput });
+      if (t && t !== img) texts.push(t);
+    }
+    if (texts.length || images.length) result.set(targetId, { text: texts.join("\n\n"), images });
+  }
+  return result;
 }

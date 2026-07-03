@@ -34,6 +34,11 @@ export type NodeTrace = {
   versions: TraceVersion[]; // newest → oldest
 };
 
+// A node's live upstream input, resolved server-side (capture-independent) so panel
+// A works for EVERY node type and version — used as the fallback when a version has
+// no frozen shotText/request. Keyed by nodeId in `mapNodeTraces`.
+export type ResolvedUpstream = { text: string; images: string[] };
+
 export type TraceNodeRow = {
   id: string;
   type: string;
@@ -72,7 +77,7 @@ function deriveInputText(inp: Record<string, unknown>, request: ModelRequestReco
   return text || undefined;
 }
 
-function toVersion(action: NodeAction, row: TraceVersionRow): TraceVersion {
+function toVersion(action: NodeAction, row: TraceVersionRow, up?: ResolvedUpstream): TraceVersion {
   const inp = (row.inputs_used ?? {}) as Record<string, unknown>;
   const params = (row.params_used ?? {}) as Record<string, unknown>;
   const request = (inp.request ?? null) as ModelRequestRecord | null;
@@ -84,10 +89,16 @@ function toVersion(action: NodeAction, row: TraceVersionRow): TraceVersion {
       ? { kind, text }
       : { kind, urls: str(row.output) ? [str(row.output)!] : [] };
 
+  const attachments = request?.attachments ?? [];
   return {
     versionId: row.id,
     createdAt: row.created_at,
-    input: { text: deriveInputText(inp, request), images: request?.attachments ?? [] },
+    input: {
+      // Prefer frozen at-generation input; fall back to the resolved live upstream
+      // so old / media nodes (no captured request) aren't blank.
+      text: deriveInputText(inp, request) ?? (up?.text || undefined),
+      images: attachments.length ? attachments : (up?.images ?? []),
+    },
     output,
     request,
     instruction: str(params.instruction),
@@ -100,7 +111,11 @@ function toVersion(action: NodeAction, row: TraceVersionRow): TraceVersion {
   };
 }
 
-export function mapNodeTraces(nodes: TraceNodeRow[], versions: TraceVersionRow[]): NodeTrace[] {
+export function mapNodeTraces(
+  nodes: TraceNodeRow[],
+  versions: TraceVersionRow[],
+  upstreamByNode?: Map<string, ResolvedUpstream>,
+): NodeTrace[] {
   const generated = nodes.filter((n) => (GENERATED_TYPES as string[]).includes(n.type));
   const byNode = new Map<string, TraceVersionRow[]>();
   for (const v of versions) {
@@ -114,12 +129,13 @@ export function mapNodeTraces(nodes: TraceNodeRow[], versions: TraceVersionRow[]
     const action = n.type as NodeAction;
     const rows = (byNode.get(n.id) ?? []).slice().sort((a, b) => b.created_at.localeCompare(a.created_at));
     if (rows.length === 0) continue;
+    const up = upstreamByNode?.get(n.id);
     traces.push({
       nodeId: n.id,
       action,
       title: str(n.data?.evalKey) ?? str(n.data?.title) ?? n.id,
       activeVersionId: n.active_version_id,
-      versions: rows.map((r) => toVersion(action, r)),
+      versions: rows.map((r) => toVersion(action, r, up)),
     });
   }
   return traces;
