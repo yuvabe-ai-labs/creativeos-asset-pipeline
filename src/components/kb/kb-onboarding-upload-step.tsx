@@ -102,7 +102,7 @@ export function KBOnboardingUploadStep({
   // Auto-redirect to client page when job succeeds
   useEffect(() => {
     if (job?.status === "succeeded") {
-      router.push(`/clients/${clientSlug}`);
+      router.push(`/clients/${clientSlug}/kb`);
     }
     if (job?.status === "failed") {
       toast.error(job.error ?? "KB build failed");
