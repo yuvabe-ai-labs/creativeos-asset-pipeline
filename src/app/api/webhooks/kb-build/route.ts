@@ -10,11 +10,9 @@ import { insertKBDocument, insertKBVersion, setActiveKBVersion } from "@/lib/db/
 import { setKBStatus } from "@/lib/db/clients";
 import { uploadKBDocument } from "@/lib/storage";
 import type { TraceableBrandKB } from "@/lib/kb/schema";
-import type { ClientKBJobStatus } from "@/lib/db/types";
+import { KB_JOB_NON_TERMINAL_STATUSES } from "@/lib/kb/constants";
 
-const NON_TERMINAL: ClientKBJobStatus[] = [
-  "queued", "researching", "extracting", "finalizing",
-];
+const NON_TERMINAL = KB_JOB_NON_TERMINAL_STATUSES;
 
 type PhasePayload = {
   jobId: string;

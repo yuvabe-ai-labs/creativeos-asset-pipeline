@@ -49,6 +49,8 @@ EXAMPLE KBField:
     "status": "needs_review"
   }`;
 
+export const KB_IMAGE_ANALYZE_SYSTEM_PROMPT = SYSTEM_PROMPT;
+
 export const kbImageAnalyzePrompt = {
   id: "kb-image-analyze",
   version: "2.0.0",

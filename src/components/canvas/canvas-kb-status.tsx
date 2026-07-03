@@ -6,8 +6,9 @@ import { CheckCircle2 } from "lucide-react";
 import { useKBJobStatus } from "@/components/kb/use-kb-job-status";
 import { useCanvasStore } from "./canvas-store-provider";
 import type { ClientKBJobRow } from "@/lib/db/types";
+import { KB_JOB_NON_TERMINAL } from "@/lib/kb/constants";
 
-const NON_TERMINAL = new Set(["queued", "researching", "extracting", "finalizing"]);
+const NON_TERMINAL = KB_JOB_NON_TERMINAL;
 
 type Props = {
   clientId: string;

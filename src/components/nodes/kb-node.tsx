@@ -81,7 +81,8 @@ function SheetSkeleton() {
 
 // ── Format helpers ────────────────────────────────────────────────────────────
 
-function formatBytes(bytes: number | null): string {
+// Wraps the shared formatBytes to handle null gracefully in display context.
+function formatBytesOrEmpty(bytes: number | null): string {
   if (!bytes) return "";
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
@@ -169,7 +170,7 @@ function KBSheetContent({
                         </p>
                         <p className="text-xs text-muted-foreground">
                           {[
-                            formatBytes(doc.sizeBytes),
+                            formatBytesOrEmpty(doc.sizeBytes),
                             formatDate(doc.createdAt),
                           ]
                             .filter(Boolean)

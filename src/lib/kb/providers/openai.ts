@@ -6,8 +6,8 @@ import { listKBDocuments, listBrandImages } from "@/lib/db/kb";
 import {
   TraceableBrandKBSchema,
   ImageAnalysisSchema,
+  defaultEmptyImageAnalysis,
   type TraceableBrandKB,
-  type KBField,
 } from "@/lib/kb/schema";
 import { computeFillRate } from "@/lib/kb/fill-rate";
 import { kbExtractPrompt } from "@/prompts/kb-extract";
@@ -21,21 +21,6 @@ const FILE_EXTENSIONS = new Set(["pdf", "docx", "pptx"]);
 const DocExtractionSchema = TraceableBrandKBSchema.omit({ image_analysis: true });
 type DocExtractionResult = z.infer<typeof DocExtractionSchema>;
 
-function emptyKBField<T>(value: T | null = null): KBField<T> {
-  return { value, confidence: "low", evidence_type: "inferred", status: "needs_review" };
-}
-
-function defaultEmptyImageAnalysis(): TraceableBrandKB["image_analysis"] {
-  return {
-    dominant_colors: emptyKBField<string[]>(null),
-    visual_mood: emptyKBField<string>(null),
-    aesthetic: emptyKBField<string>(null),
-    subjects: emptyKBField<string>(null),
-    composition_style: emptyKBField<string>(null),
-    lighting_character: emptyKBField<string>(null),
-    brand_consistency_notes: emptyKBField<string>(null),
-  };
-}
 
 export const openaiKBProvider: KBAnalysisProvider = {
   async extractKB({ clientId, docIds, researchMarkdown }) {

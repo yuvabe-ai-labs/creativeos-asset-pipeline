@@ -20,21 +20,20 @@ import type {
   ClientBrandImageRow,
   ClientKBJobRow,
 } from "@/lib/db/types";
-import { KB_DOC_SIZE_LIMIT_BYTES, KB_IMG_SIZE_LIMIT_BYTES } from "@/lib/kb/constants";
+import {
+  KB_DOC_SIZE_LIMIT_BYTES,
+  KB_IMG_SIZE_LIMIT_BYTES,
+  KB_JOB_NON_TERMINAL,
+  DOC_EXTENSIONS,
+  IMG_EXTENSIONS,
+} from "@/lib/kb/constants";
+import { formatBytes } from "@/lib/kb/utils";
 import { startKBBuildJob } from "@/lib/actions/kb";
 import { useKBJobStatus } from "./use-kb-job-status";
 
-const NON_TERMINAL = new Set(["queued", "researching", "extracting", "finalizing"]);
-const DOC_EXTENSIONS = new Set(["pdf", "docx", "pptx", "md", "txt"]);
-const IMG_EXTENSIONS = new Set(["jpg", "jpeg", "png", "webp"]);
+const NON_TERMINAL = KB_JOB_NON_TERMINAL;
 const DOC_LIMIT_BYTES = KB_DOC_SIZE_LIMIT_BYTES;
 const IMG_LIMIT_BYTES = KB_IMG_SIZE_LIMIT_BYTES;
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-}
 
 type UploadZoneProps = {
   label: string;
