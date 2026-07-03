@@ -374,15 +374,7 @@ export function KBOnboardingUploadStep({
               {job?.phase_message ?? "Building knowledge base…"}
             </p>
             <p className="text-xs text-muted-foreground">
-              This usually takes 60–120 seconds. You can{" "}
-              <button
-                type="button"
-                className="underline hover:text-foreground"
-                onClick={() => router.push(`/clients/${clientSlug}`)}
-              >
-                go to your canvases
-              </button>{" "}
-              — we&apos;ll keep building in the background.
+              This usually takes 60–120 seconds. We&apos;ll bring you to the review step when it&apos;s done.
             </p>
           </div>
         </div>
