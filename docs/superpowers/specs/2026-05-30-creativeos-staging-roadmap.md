@@ -780,6 +780,27 @@ schedules). **Deferred.** Cross-canvas inbox, submit lifecycle, notifications, b
 badges, shot-based grouping (needs shot lineage downstream nodes don't store), campaign entity.
 **Originated.** `2026-07-02-production-review-mode-design.md`.
 
+### D35 — Eval viewer generalizes to a per-node, all-action-types, version-aware error-analysis surface *(recorded 2026-07-02; builds on D4/D18/D22; extends the built eval viewer; consumes the model-request capture; separate axis from D29/D34)*
+**Decision.** The eval viewer becomes a per-canvas surface that lists **all generated nodes grouped by
+action** (a `listNodeTraces` query + pure `mapNodeTraces`), whose detail focuses on **input → output**
+(polymorphic renderers), shows the **exact request sent** (the actual `inputs_used.request` content —
+system / compiled user / attachments — via the reused `ModelRequestPanel`), supports **open coding only**
+(Good/Bad + note on the *viewed* version via `setVersionLabelAction`), and lets a reviewer **walk a node's
+versions** with a **Δ that names what the human changed** — computed by **structured field comparison**
+(pure `diffVersions`: `controls` / `instruction` / `kbSlices` / upstream `reference` / `promptVersion`),
+**no LLM**; media outputs compared side-by-side; a **re-roll** flagged when nothing structured changed
+(same request, output moved = model nondeterminism). A list+detail **`EvalWorkbench` replaces the
+sequential `ReviewScreen`** for this route. **The quality/learning axis (`decision`/`note`) stays distinct
+from the sign-off axis (`approval_status`, D29/D34).** **Why.** "See what we can learn to improve the
+prompt" — Hamel/Shankar error analysis (*look → open-code → cluster → fix*); the viewer is the microscope.
+Naming the Δ (not just diffing a blob) is possible because inputs are captured as *structured* fields.
+**Rejected.** Failure tags / axial clustering in this surface (deferred to a later analyse step, by-hand
+first); a blob text-diff as the *primary* Δ (loses the ability to name the changed knob); an LLM for the Δ
+(unnecessary, non-deterministic). **No migration** — a query + mapping generalization over the existing
+envelope. **Deferred.** Tags/axial, cross-client rollup, LLM-judge scorers, production upstream-input
+resolution for panel A, structured (script) rich rendering.
+**Originated.** `2026-07-02-eval-viewer-error-analysis-design.md`; plan `2026-07-02-eval-viewer.md`.
+
 ### Parked / out-of-scope (with revisit triggers)
 | Item | Status | Revisit when |
 |---|---|---|
