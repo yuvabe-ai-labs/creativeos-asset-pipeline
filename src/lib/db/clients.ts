@@ -107,6 +107,18 @@ export async function updateClientLogoUrl(
   if (error) throw error;
 }
 
+export async function updateClientWebsiteUrl(
+  clientId: string,
+  websiteUrl: string | null,
+): Promise<void> {
+  const supabase = createServerSupabase();
+  const { error } = await supabase
+    .from("clients")
+    .update({ website_url: websiteUrl })
+    .eq("id", clientId);
+  if (error) throw error;
+}
+
 export async function setKBStatus(
   clientId: string,
   status: ClientRow["kb_status"],

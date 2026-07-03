@@ -18,6 +18,8 @@ import { IdentityChip } from "@/components/identity/identity-chip";
 import { listNodes } from "@/lib/db/nodes";
 import { listEdges } from "@/lib/db/edges";
 import { nodeRowToFlow } from "@/lib/canvas-nodes";
+import { getLatestKBJob } from "@/lib/db/kb-jobs";
+import { getActiveKBVersion } from "@/lib/db/kb";
 
 export const dynamic = "force-dynamic";
 
@@ -46,9 +48,11 @@ export default async function CanvasPage({
     );
   }
 
-  const [initialNodes, initialEdges] = await Promise.all([
+  const [initialNodes, initialEdges, latestKBJob, activeKBVersion] = await Promise.all([
     listNodes(canvas.id).then((rows) => rows.map(nodeRowToFlow)),
     listEdges(canvas.id),
+    getLatestKBJob(client.id),
+    getActiveKBVersion(client.id),
   ]);
 
   return (

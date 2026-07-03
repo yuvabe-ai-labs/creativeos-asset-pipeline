@@ -41,6 +41,11 @@ export type CanvasState = {
   videoGenStatus: Record<string, { isGenerating: boolean; lastError: string | null }>;
   setVideoGenGenerating: (nodeId: string, v: boolean) => void;
   setVideoGenError: (nodeId: string, err: string | null) => void;
+  // KB build status — drives toolbar badge and node warnings
+  kbStatus: 'none' | 'building' | 'ready';
+  setKbStatus: (status: 'none' | 'building' | 'ready') => void;
+  kbJustReady: boolean;
+  setKbJustReady: (v: boolean) => void;
 };
 
 function defaultData(type: string): AppNode["data"] {
@@ -277,6 +282,11 @@ export function createCanvasStore(
           },
         },
       })),
+
+    kbStatus: 'none',
+    setKbStatus: (status) => set({ kbStatus: status }),
+    kbJustReady: false,
+    setKbJustReady: (v) => set({ kbJustReady: v }),
   }));
 }
 

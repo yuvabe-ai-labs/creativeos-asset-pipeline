@@ -6,12 +6,21 @@ import {
   updateKBVersionOutput,
   deleteKBDocument,
   deleteBrandImage,
+  listKBDocuments,
+  listBrandImages,
 } from "@/lib/db/kb";
-import { setKBStatus } from "@/lib/db/clients";
+import { setKBStatus, getClientById } from "@/lib/db/clients";
 import { setNestedField } from "@/lib/kb/utils";
 import { computeReadyStatus } from "@/lib/kb/fill-rate";
 import type { TraceableBrandKB } from "@/lib/kb/schema";
 import { removeObject } from "@/lib/storage";
+import { tasks } from "@trigger.dev/sdk/v3";
+import {
+  insertKBJob,
+  setKBJobTriggerRunId,
+  markKBJobStuckIfRunning,
+  getKBJob,
+} from "@/lib/db/kb-jobs";
 
 // ── Field Patch ───────────────────────────────────────────────────────────────
 // Replaces PATCH /api/clients/:id/kb/field
@@ -128,3 +137,53 @@ export async function deleteBrandImageAction(
   await deleteBrandImage(imageId);
 }
 
+// ── KB Build Job ──────────────────────────────────────────────────────────────
+
+export async function startKBBuildJob(clientId: string): Promise<{ jobId: string }> {
+  const client = await getClientById(clientId);
+  if (!client) throw new Error("Client not found.");
+
+  const [docs, images] = await Promise.all([
+    listKBDocuments(clientId),
+    listBrandImages(clientId),
+  ]);
+
+  if (!client.website_url && docs.length === 0) {
+    throw new Error("Add a website URL or upload at least one document.");
+  }
+
+  let job;
+  try {
+    job = await insertKBJob({
+      clientId,
+      websiteUrl: client.website_url,
+      docIdsUsed: docs.map((d) => d.id),
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : JSON.stringify(e);
+    if (msg.includes("client_kb_jobs_one_running_idx") || msg.includes("23505")) {
+      throw new Error("A KB build is already running for this client.");
+    }
+    throw e;
+  }
+
+  const run = await tasks.trigger("kb-build", {
+    jobId: job.id,
+    clientId,
+    websiteUrl: client.website_url,
+    docIds: docs.map((d) => d.id),
+    imageIds: images.map((i) => i.id),
+  });
+
+  await setKBJobTriggerRunId(job.id, run.id);
+  revalidatePath(`/clients/${client.slug}/kb`);
+  return { jobId: job.id };
+}
+
+export async function markStuckJobFailed(jobId: string): Promise<void> {
+  const job = await getKBJob(jobId);
+  if (!job) throw new Error("Job not found.");
+  await markKBJobStuckIfRunning(jobId);
+  const client = await getClientById(job.client_id);
+  if (client) revalidatePath(`/clients/${client.slug}/kb`);
+}

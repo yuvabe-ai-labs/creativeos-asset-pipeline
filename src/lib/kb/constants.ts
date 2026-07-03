@@ -1,7 +1,13 @@
 import type { ModuleKey } from "./types";
+import type { ClientKBJobStatus } from "@/lib/db/types";
 
 export const KB_DOC_SIZE_LIMIT_BYTES = 20 * 1024 * 1024; // 20 MB per client
 export const KB_IMG_SIZE_LIMIT_BYTES = 50 * 1024 * 1024; // 50 MB per client (OpenAI Vision limit)
+
+export const KB_JOB_NON_TERMINAL_STATUSES: ClientKBJobStatus[] = [
+  "queued", "researching", "extracting", "finalizing",
+];
+export const KB_JOB_NON_TERMINAL = new Set<ClientKBJobStatus>(KB_JOB_NON_TERMINAL_STATUSES);
 
 export const MODULES: { key: ModuleKey; label: string }[] = [
   { key: "brand_voice",      label: "Brand Voice" },

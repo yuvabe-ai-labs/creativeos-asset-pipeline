@@ -54,7 +54,11 @@ const nodeTypes: NodeTypes = {
   "video-gen": VideoGenNode,
 };
 
-export function Canvas({ canvasId }: { canvasId: string }) {
+export function Canvas({
+  canvasId,
+}: {
+  canvasId: string;
+}) {
   // One subscription, shallow-compared, so the component only re-renders when
   // these slices actually change.
   const {

@@ -81,7 +81,8 @@ function SheetSkeleton() {
 
 // ── Format helpers ────────────────────────────────────────────────────────────
 
-function formatBytes(bytes: number | null): string {
+// Wraps the shared formatBytes to handle null gracefully in display context.
+function formatBytesOrEmpty(bytes: number | null): string {
   if (!bytes) return "";
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
@@ -99,14 +100,12 @@ const EXT_ICON: Record<string, string> = {
 // ── Sheet content (purely presentational) ────────────────────────────────────
 
 function KBSheetContent({
-  clientId,
   clientSlug,
   loading,
   version,
   documents,
   images,
 }: {
-  clientId: string;
   clientSlug: string;
   loading: boolean;
   version: VersionMeta | null;
@@ -171,7 +170,7 @@ function KBSheetContent({
                         </p>
                         <p className="text-xs text-muted-foreground">
                           {[
-                            formatBytes(doc.sizeBytes),
+                            formatBytesOrEmpty(doc.sizeBytes),
                             formatDate(doc.createdAt),
                           ]
                             .filter(Boolean)
@@ -306,7 +305,6 @@ export function KBNode({ id, data, selected }: NodeProps) {
           />
           {open && (
             <KBSheetContent
-              clientId={d.clientId}
               clientSlug={d.clientSlug}
               loading={fetchState.loading}
               version={fetchState.version}

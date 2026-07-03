@@ -58,6 +58,7 @@ type Props = {
   isEditMode: boolean;
   initialDocuments?: ClientKBDocumentRow[];
   initialImages?: ClientBrandImageRow[];
+  initialWebsiteUrl?: string | null;
   docIdsAtExtraction?: string[];
 };
 
@@ -71,6 +72,7 @@ export function KBOnboardingReviewStep({
   isEditMode,
   initialDocuments = [],
   initialImages = [],
+  initialWebsiteUrl = null,
   docIdsAtExtraction = [],
 }: Props) {
   const router = useRouter();
@@ -430,11 +432,13 @@ export function KBOnboardingReviewStep({
             </SheetDescription>
           </SheetHeader>
           <KBSourcePanel
+            clientId={clientId}
             documents={documents}
             images={images}
             staged={staged}
             uploadingDocs={uploadingDocs}
             uploadingImgs={uploadingImgs}
+            initialWebsiteUrl={initialWebsiteUrl}
             onMarkDocForRemoval={markDocForRemoval}
             onUndoDocRemoval={undoDocRemoval}
             onMarkImageForRemoval={markImageForRemoval}

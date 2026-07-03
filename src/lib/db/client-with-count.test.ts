@@ -6,6 +6,7 @@ const base: RawClientWithCanvases = {
   slug: "acme",
   name: "Acme",
   logo_url: null,
+  website_url: null,
   kb_status: "pending",
   active_kb_version_id: null,
   created_at: "2026-06-01T00:00:00Z",
