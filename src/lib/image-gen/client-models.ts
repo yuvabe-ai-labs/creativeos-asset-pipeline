@@ -75,7 +75,7 @@ export const imageGenClientModelGroups: Array<{
   { provider: "gemini", label: "Gemini", models: imageGenClientModels.filter((m) => m.provider === "gemini") },
 ];
 
-export const DEFAULT_CLIENT_MODEL_ID = "openai:gpt-image-2";
+export const DEFAULT_CLIENT_MODEL_ID = "gemini:gemini-3.1-flash-image";
 
 // Extract defaults from ParamSpec array (replaces defaultsForSchema)
 export function defaultsForModel(model: ClientModelSpec): Record<string, unknown> {

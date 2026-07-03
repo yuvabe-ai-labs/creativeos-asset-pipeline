@@ -125,7 +125,7 @@ export const videoGenClientModelMap: Record<string, VideoGenClientModelSpec> = {
   },
 };
 
-export const DEFAULT_VIDEO_CLIENT_MODEL_ID = "veo:veo-3.1-fast";
+export const DEFAULT_VIDEO_CLIENT_MODEL_ID = "veo:veo-3.1-lite";
 
 export function defaultsForVideoModel(modelId: string): Record<string, unknown> {
   const spec = videoGenClientModelMap[modelId];
