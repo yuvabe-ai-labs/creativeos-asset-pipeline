@@ -5,13 +5,17 @@ import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { ImageIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
+import { useDeleteNode } from "@/hooks/use-delete-node";
 import { NodeContextMenu } from "./node-context-menu";
 import type { ImageGenNodeData } from "@/lib/canvas-nodes";
 import { ImageGenFocusView } from "./image-gen-focus-view";
+import { ProcessingPill } from "./processing-pill";
+import { ApprovalBadge } from "./approval-badge";
+import type { ApprovalStatus } from "@/lib/approval";
 
 export function ImageGenNode({ id, data, selected }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
-  const deleteNode    = useCanvasStore((s) => s.deleteNode);
+  const deleteNode    = useDeleteNode();
   const duplicateNode = useCanvasStore((s) => s.duplicateNode);
 
   // Select raw store slices (stable references) and derive the upstream list
@@ -41,14 +45,17 @@ export function ImageGenNode({ id, data, selected }: NodeProps) {
   const d = data as ImageGenNodeData;
   const title    = d.title ?? "";
   const imageUrl = (d.parsed ?? null) as string | null;
+  // D29: active version's approval status (present once a version exists).
+  const approvalStatus = (d as { approvalStatus?: ApprovalStatus }).approvalStatus;
   const [focusOpen, setFocusOpen] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   return (
     <NodeContextMenu onDuplicate={() => duplicateNode(id)} onDelete={() => deleteNode(id)}>
       <div
         onDoubleClick={(e) => { e.stopPropagation(); setFocusOpen(true); }}
         className={cn(
-          "w-44 rounded-lg border border-border bg-card shadow-card",
+          "w-60 rounded-lg border border-border bg-card shadow-card",
           "transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:scale-[1.006]",
           selected && "ring-2 ring-primary ring-offset-1 ring-offset-background",
         )}
@@ -56,20 +63,29 @@ export function ImageGenNode({ id, data, selected }: NodeProps) {
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border px-3 py-2">
           <div className="flex items-center gap-1.5">
-            <ImageIcon className="size-3.5 stroke-[1.5] text-primary" />
-            <span className="text-eyebrow !text-[0.65rem]">Image Gen</span>
+            <ImageIcon className="size-3.5 shrink-0 stroke-[1.5] text-primary" />
+            <span className="text-eyebrow !text-[0.65rem] whitespace-nowrap">Image Gen</span>
           </div>
-          <span
-            className={cn(
-              "size-1.5 rounded-full",
-              imageUrl ? "bg-primary" : "bg-muted-foreground/40",
-            )}
-            title={imageUrl ? "Image generated" : "Not generated"}
-          />
+          {isProcessing ? (
+            <ProcessingPill processing />
+          ) : (
+            <span
+              className={cn(
+                "size-1.5 rounded-full",
+                imageUrl ? "bg-primary" : "bg-muted-foreground/40",
+              )}
+              title={imageUrl ? "Image generated" : "Not generated"}
+            />
+          )}
         </div>
 
         {/* Body */}
         <div className="px-3 py-3">
+          {imageUrl && approvalStatus && (
+            <div className="mb-2">
+              <ApprovalBadge status={approvalStatus} />
+            </div>
+          )}
           {imageUrl && (
             <div className="mb-2 overflow-hidden rounded-md border border-border">
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -96,6 +112,7 @@ export function ImageGenNode({ id, data, selected }: NodeProps) {
           editIntent={d.editIntent}
           upstream={upstream}
           onPatch={(patch) => updateNodeData(id, patch)}
+          onProcessingChange={setIsProcessing}
         />
 
         <Handle

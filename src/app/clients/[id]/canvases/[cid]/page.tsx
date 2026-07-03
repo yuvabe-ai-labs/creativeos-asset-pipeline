@@ -13,6 +13,8 @@ import {
 } from "@/components/ui/breadcrumb";
 import { CanvasStoreProvider } from "@/components/canvas/canvas-store-provider";
 import { Canvas } from "@/components/canvas/canvas";
+import { IdentityGate } from "@/components/identity/identity-gate";
+import { IdentityChip } from "@/components/identity/identity-chip";
 import { listNodes } from "@/lib/db/nodes";
 import { listEdges } from "@/lib/db/edges";
 import { nodeRowToFlow } from "@/lib/canvas-nodes";
@@ -55,7 +57,7 @@ export default async function CanvasPage({
 
   return (
     <main className="flex flex-1 flex-col">
-      <header className="flex items-center border-b border-border/70 bg-background/60 px-6 py-3 backdrop-blur">
+      <header className="flex items-center justify-between border-b border-border/70 bg-background/60 px-6 py-3 backdrop-blur">
         <Breadcrumb>
           <BreadcrumbList>
             <BreadcrumbItem>
@@ -77,18 +79,18 @@ export default async function CanvasPage({
             </BreadcrumbItem>
           </BreadcrumbList>
         </Breadcrumb>
+        {/* D29: soft identity — who's the maker/checker. Set once at app start. */}
+        <IdentityChip />    
       </header>
 
       <div className="relative flex-1">
         {/* load this canvas's nodes from the DB, seed the store, autosave changes */}
-        <CanvasStoreProvider key={canvas.id} initialNodes={initialNodes} initialEdges={initialEdges}>
-          <Canvas
-            canvasId={canvas.id}
-            clientId={client.id}
-            initialKBJob={latestKBJob}
-            hasActiveKB={activeKBVersion !== null}
-          />
-        </CanvasStoreProvider>
+        {/* D29: block until an identity is set, so generations/approvals are attributed. */}
+        <IdentityGate>
+          <CanvasStoreProvider key={canvas.id} initialNodes={initialNodes} initialEdges={initialEdges}>
+            <Canvas canvasId={canvas.id} />
+          </CanvasStoreProvider>
+        </IdentityGate>
       </div>
     </main>
   );

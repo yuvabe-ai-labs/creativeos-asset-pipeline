@@ -5,6 +5,8 @@ import { motion, AnimatePresence } from "motion/react";
 import { ArrowLeft, Eye, EyeOff, RefreshCw, FileUp, Clapperboard } from "lucide-react";
 import { toast } from "sonner";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { EditableField } from "./editable-field";
+import { normalizeTitle } from "@/lib/nodes/title";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -22,6 +24,7 @@ import type { KBSliceKey } from "@/lib/kb/parse-context";
 import { ScriptDocument } from "./script-document";
 import { ScriptEmptyState } from "./script-empty-state";
 import { ScriptSkeleton } from "./script-skeleton";
+import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 
 type Path = (string | number)[];
 
@@ -61,6 +64,7 @@ export function ScriptFocusView({
   onFanOut,
   onParsingChange,
 }: ScriptFocusViewProps) {
+  const editable = useCanvasEditable(); // D33: false when this session is read-only
   const [draft, setDraft] = useState<ReelScript>(parsed ?? {});
   const [showOriginal, setShowOriginal] = useState(false);
   const [parsing, setParsing] = useState(false);
@@ -98,6 +102,7 @@ export function ScriptFocusView({
   const shotCount = parsed?.visual_script?.shots?.length ?? 0;
 
   async function runParse(src: string) {
+    if (!editable) return; // D33: read-only session cannot parse (a write)
     if (!src.trim()) return;
     setParsing(true);
     onParsingChange?.(true);
@@ -186,8 +191,13 @@ export function ScriptFocusView({
 
             <header className="mt-4 flex items-start justify-between gap-4">
               <div>
-                <SheetTitle className="font-display text-3xl font-semibold tracking-tight">
-                  {title || "Reel script"}
+                <SheetTitle className="p-0 font-display text-3xl font-semibold tracking-tight">
+                  <EditableField
+                    value={title || ""}
+                    onCommit={(t) => onPatch({ title: normalizeTitle(t) })}
+                    placeholder="Reel script"
+                    className="font-display text-3xl font-semibold tracking-tight"
+                  />
                 </SheetTitle>
                 <p className="mt-1.5 text-sm text-muted-foreground">{SUBTITLES[mode]}</p>
               </div>

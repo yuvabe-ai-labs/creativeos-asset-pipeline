@@ -4,6 +4,7 @@ import {
   applyEdgeChanges,
   applyNodeChanges,
   type Edge,
+  type EdgeRemoveChange,
   type NodeRemoveChange,
   type OnConnect,
   type OnEdgesChange,
@@ -26,6 +27,9 @@ export type CanvasState = {
   onNodesChange: OnNodesChange<AppNode>;
   onEdgesChange: OnEdgesChange;
   onConnect: OnConnect;
+  removedNodeIds: string[];
+  removedEdgeIds: string[];
+  clearRemoved: (nodeIds: string[], edgeIds: string[]) => void;
   addNode: (type: string, position: XYPosition, id?: string) => void;
   updateNodeData: (id: string, data: Record<string, unknown>) => void;
   connectNodes: (sourceId: string, targetId: string) => void;
@@ -74,21 +78,39 @@ export function createCanvasStore(
   return createStore<CanvasState>((set, get) => ({
     nodes: initialNodes,
     edges: initialEdges,
+    removedNodeIds: [],
+    removedEdgeIds: [],
     onNodesChange: (changes) => {
       const removedIds = new Set(
         changes.filter((c): c is NodeRemoveChange => c.type === "remove").map((c) => c.id),
       );
+      if (removedIds.size === 0) {
+        set({ nodes: applyNodeChanges(changes, get().nodes) });
+        return;
+      }
+      const cascadedEdges = get().edges.filter(
+        (e) => removedIds.has(e.source) || removedIds.has(e.target),
+      );
       set({
         nodes: applyNodeChanges(changes, get().nodes),
-        ...(removedIds.size > 0 && {
-          edges: get().edges.filter(
-            (e) => !removedIds.has(e.source) && !removedIds.has(e.target),
-          ),
+        edges: get().edges.filter(
+          (e) => !removedIds.has(e.source) && !removedIds.has(e.target),
+        ),
+        removedNodeIds: [...get().removedNodeIds, ...removedIds],
+        removedEdgeIds: [...get().removedEdgeIds, ...cascadedEdges.map((e) => e.id)],
+      });
+    },
+    onEdgesChange: (changes) => {
+      const removedEdgeIds = changes
+        .filter((c): c is EdgeRemoveChange => c.type === "remove")
+        .map((c) => c.id);
+      set({
+        edges: applyEdgeChanges(changes, get().edges),
+        ...(removedEdgeIds.length > 0 && {
+          removedEdgeIds: [...get().removedEdgeIds, ...removedEdgeIds],
         }),
       });
     },
-    onEdgesChange: (changes) =>
-      set({ edges: applyEdgeChanges(changes, get().edges) }),
     onConnect: (connection) => {
       const { source, target } = connection;
       if (source && target && wouldCreateCycle(get().edges, source, target)) {
@@ -126,13 +148,17 @@ export function createCanvasStore(
           get().edges,
         ),
       }),
-    deleteNode: (id) =>
+    deleteNode: (id) => {
+      const cascadedEdges = get().edges.filter(
+        (e) => e.source === id || e.target === id,
+      );
       set({
         nodes: get().nodes.filter((n) => n.id !== id),
-        edges: get().edges.filter(
-          (e) => e.source !== id && e.target !== id,
-        ),
-      }),
+        edges: get().edges.filter((e) => e.source !== id && e.target !== id),
+        removedNodeIds: [...get().removedNodeIds, id],
+        removedEdgeIds: [...get().removedEdgeIds, ...cascadedEdges.map((e) => e.id)],
+      });
+    },
     duplicateNode: (id) => {
       const node = get().nodes.find((n) => n.id === id);
       if (!node || node.type === "kb") return;
@@ -222,6 +248,15 @@ export function createCanvasStore(
       })) as AppNode[];
 
       set({ nodes: [...get().nodes, ...created] }); // NO edges
+    },
+
+    clearRemoved: (nodeIds, edgeIds) => {
+      const n = new Set(nodeIds);
+      const e = new Set(edgeIds);
+      set({
+        removedNodeIds: get().removedNodeIds.filter((id) => !n.has(id)),
+        removedEdgeIds: get().removedEdgeIds.filter((id) => !e.has(id)),
+      });
     },
 
     videoGenStatus: {},

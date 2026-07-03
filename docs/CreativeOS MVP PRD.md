@@ -31,6 +31,8 @@
 | 12 | **Image editing is a new *attempt*, not a node.** A targeted **remove / replace / add** edit on the Image Gen node's current image is a new **generation attempt** in that node's version log (not a separate Edit node, not an in-place overwrite — an edit runs the model, so by D18 it is an attempt). Surfaced as Remove/Replace/Add quick-action chips; a deterministic preservation prompt goes to an editing-capable model (Gemini default). Lineage breadcrumbs in `inputs_used`; no schema change. | §7.3, §11.6, §17 | D27 |
 | 13 | **Shot Composer.** A capture-only **"Compose variations"** action on the Shot node turns one thin shot seed into **4 role-aware, divergent ideas** (designer-picked role + KB compliance/tone + optional vision-read reference image on a new Shot image handle). Pick one to rewrite the shot's description, or multi-select to **promote** extras into sibling Shot nodes. Runs are captured in `node_versions` (frozen `generated_output`, **never made active** — Shot output stays its own `data.script`, D19/D20); no schema change. | §7.1, §10, §14 | D28 |
 | 14 | **Quick-add node palette + keyboard shortcuts.** Adding a node is now keyboard-first: `/` (or right-click) opens a type-to-filter command palette **at the cursor**; single-letter mnemonics (S/F/N/P/D/I/V/G) create a node instantly at the cursor without opening the palette. The palette is the single "add node" surface (`/` and right-click open the same thing), replacing the plain right-click context menu, and still offers **Paste image** when the clipboard holds one. Shortcuts are suppressed while editing a node's text. | §6 | spec: `docs/superpowers/specs/2026-06-28-quick-add-node-palette-design.md` |
+| 15 | **Soft identity + maker-checker approval.** A "who are you?" gate captures a spoofable **name + role** (senior / designer) at app start (stamped as the *maker* on generations). Each LLM attempt carries an **approval flag** (`pending → approved / changes_requested`) set by a senior in the node focus view and shown as an on-canvas badge — distinct from the pass/fail eval signal. **Flag only** (no gating/RBAC). Promotes parts of backlog F1/F4 into the build. | §5, §11.6, §13, §22 | D29 |
+| 16 | **Single-writer canvas lock (multi-user safety).** A canvas is edited by **one session at a time** — a second opener is **strict read-only** with a "{name} is editing" banner and a **take-over-when-stale** button. Per-tab session key + heartbeat/TTL; **server-enforced** so concurrent tabs can't corrupt the canvas. Replaces an earlier optimistic-merge autosave that let two sessions fight. | §5, §22 | D33 (supersedes D32) |
 
 Everything below the changelog is the full PRD with these changes applied. Sections
 not touched by the Script-node revision (problem, principles, downstream Prompt/Image/
@@ -200,6 +202,18 @@ They can:
 * Learn from version history
 
 For MVP, the same person may act as both designer and admin.
+
+### Identity & concurrent access *(D29 / D33 — see §22)*
+
+Users now identify themselves with a **soft identity** (name + role: **senior** or
+**designer**) set once at app start — spoofable by design, an audit trail rather than a
+login (real auth is still backlog, F1). The role gates only *cosmetics* (a senior sees the
+Approve control).
+
+Multiple people (or tabs) can open the same canvas, but **only one session edits at a
+time**: the first holds a **single-writer lock**; everyone else is **read-only** until they
+take it over. This is what makes the shared internal workspace safe without full multi-tenant
+auth. Details in **§22**.
 
 ---
 
@@ -1265,13 +1279,16 @@ it up. These are *additive* to the MVP — none block the Stage 1–5 pipeline.
 
 ### F1 — Multi-user & access control
 
-* **Now:** single shared internal workspace, no login (D14); multi-tenant auth is out of
-  scope for the MVP (§18). `node_versions.operator` is generic/empty.
-* **Backlog:**
-  * Supabase Auth (login / sessions).
+* **Now:** single shared internal workspace. **Soft identity shipped (D29, §22.1)** — a
+  spoofable name + role set at app start, stamped as maker/checker on versions — and a
+  **single-writer lock (D33, §22.3)** lets several people share a canvas safely (one editor at
+  a time). What's still missing is *real* auth: no login/sessions, no per-user ownership, no
+  RLS. `node_versions.operator` now carries the soft-identity name, not a real user id.
+* **Backlog (still):**
+  * Supabase Auth (login / sessions) — swaps in behind `useIdentity()` (§22 intro).
   * Per-user / owner identity on clients & canvases.
-  * Row-Level Security (RLS) once identities exist.
-  * Stamp the real operator on every `node_versions` row.
+  * Row-Level Security (RLS) once real identities exist.
+  * Promote the lock's soft `editing_name` and versions' `operator` to a real `user_id`.
 * **To decide when picked up:** scope (separate accounts + per-user ownership vs. just a
   shared internal app with named operators) and timing.
   * *Cheapest-safe path:* keep the `operator` field and reserve an owner / `user_id` hook
@@ -1310,14 +1327,15 @@ it up. These are *additive* to the MVP — none block the Stage 1–5 pipeline.
 
 ### F4 — Collaboration: approval flow & per-node commenting
 
-* **Now:** approval is a **single-operator, single-state** decision — an attempt is
-  approved/rejected by whoever is using the canvas (§11.6–11.7), with no reviewer role,
-  no request-for-review step, and no discussion thread. There is no commenting anywhere on
-  the canvas.
-* **Backlog:**
-  * **Approval flow** — a real review lifecycle on a node/attempt: `draft → submitted for
-    review → approved | changes requested`, with a distinct **reviewer** role separate from
-    the operator who produced the attempt. Surfaced as node-level status badges on the canvas.
+* **Now:** **maker-checker approval shipped as a flag (D29, §22.2)** — every attempt carries
+  `pending → approved | changes_requested`, set by a senior in the focus view, shown as an
+  on-canvas badge, with maker/checker attribution. What's **not** built: it's a *flag only* —
+  no request-for-review lifecycle that gates downstream wiring, no notifications, and **no
+  commenting anywhere** on the canvas.
+* **Backlog (still):**
+  * **Review lifecycle that gates** — extend the D29 flag from "records sign-off" to a
+    workflow (`submitted for review → …`) that can **block or flag** downstream wiring (lean
+    *mark, don't block*, per D9/D21). The distinct reviewer role + badges already exist (D29).
   * **Per-node commenting** — a comment thread anchored to a node (and ideally to a specific
     attempt/version), with author, timestamp, resolve/unresolve, and `@mention`. The "where a
     designer changed the model output" diff (§4.4) and the comment thread together become the
@@ -1372,3 +1390,66 @@ it up. These are *additive* to the MVP — none block the Stage 1–5 pipeline.
 * **Revisit when:** the studio has enough accumulated assets that re-finding past work (or
   reusing an approved asset across projects) becomes a real friction — this is the payoff of
   the "learn from every attempt" capture (§4.4).
+
+---
+
+## 22. Identity, approval & multi-user editing *(shipped)*
+
+Three capabilities were added after the original single-operator framing, promoting parts of
+backlog **F1** (multi-user) and **F4** (approval flow) into the build. They are deliberately
+*internal-grade* — **soft and spoofable**, an audit/coordination layer, not security. The
+seams for real auth (F1) are reserved, not built: when login lands, only the *source* of
+identity changes, not these call sites.
+
+### 22.1 Soft identity (D29)
+
+* On first use the app asks **"Who are you?"** — a **name + role** (`senior | designer`),
+  stored in `localStorage` and switchable any time from a **top-bar chip**. Read everywhere
+  via `useIdentity()`.
+* **Spoofable by design** — it *attributes* work, it does not *gate* access. The role hint is
+  cosmetic (a senior sees the Approve control).
+* The **maker** (who generated an attempt) is stamped into `node_versions.operator`; the
+  **checker** (who signed off) into `approved_by` — finally filling the operator seam D14
+  reserved.
+
+### 22.2 Maker-checker approval (D29)
+
+* Every LLM attempt (a `node_versions` row) carries an **approval flag**:
+  `pending → approved | changes_requested` (default `pending`).
+* Set from an **approval control** in each generating node's focus view (**Approve** /
+  **Request changes** + note / **Reset**), writing to the **active version**. Because approval
+  attaches to the *version* (D18), a **re-generate resets it to `pending`** — old sign-off does
+  not carry to a new attempt.
+* **Distinct from the eval `decision`** (pass/fail — the D22 quality/learning signal). An
+  output can be "good but not signed off." One is never written from the other.
+* Surfaced **on-canvas** as an approval **badge** on the node header, and per-attempt in
+  version history.
+* **Flag only.** It records sign-off; it does **not** gate downstream wiring, trigger the
+  graph, or enforce RBAC. Gating / notifications / commenting remain backlog (**F4**).
+
+### 22.3 Single-writer editing lock (D33)
+
+The MVP is a **shared** internal workspace, so two people (or two tabs) can land on the same
+canvas. Rather than merge concurrent edits, the canvas is edited by **one session at a time**:
+
+* **Pessimistic lock.** Opening a canvas **acquires** the lock; a second opener is **read-only**.
+* **Per-tab session key** (not per-person): even the *same* designer's second tab is read-only.
+  This is the point — the bug the lock fixes was two sessions' autosaves clobbering each other.
+* **Heartbeat + take-over-when-stale.** The holder refreshes a heartbeat every ~15s; a lock
+  idle > ~45s is **stale** and a waiting viewer can click **"Take over editing."** Closing the
+  tab releases it (best-effort; the TTL is the backstop).
+* **Server-enforced.** The save path rejects writes from non-holders, so a stale or buggy
+  client **cannot corrupt** the canvas.
+* **Strict read-only for viewers.** No drag / connect / delete, no inline edits, no generation,
+  no approval — a banner names the current editor. To act, take over the lock.
+* Lock state lives on the `canvases` row (`editing_session_id` / `editing_name` /
+  `editing_heartbeat_at`); staleness is **derived on read** (D9).
+
+**Why pessimistic (not merge).** An earlier optimistic-merge autosave (superseded) let two
+sessions fight — node positions oscillated and deleted nodes were resurrected. Preventing
+concurrency at the source is simpler and correct for an internal tool. **Live co-editing**
+(real-time presence, CRDT same-field merge) is deliberately future work.
+
+> Full designs: `docs/superpowers/specs/2026-06-29-approval-flag-design.md` (D29),
+> `docs/superpowers/specs/2026-07-01-canvas-pessimistic-lock-design.md` (D33). Decision log:
+> staging-roadmap §7, **D29 / D33** (D33 supersedes the optimistic **D32**).

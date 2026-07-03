@@ -708,24 +708,77 @@ later if privacy becomes a requirement.
 key — no browser-side GCS uploads in this iteration).
 **Originated.** `2026-06-30-gcs-storage-migration-design.md`.
 
-### D31 — KB build runs on Trigger.dev with a `client_kb_jobs` graduation table; Supabase Realtime pushes phases *(recorded 2026-06-30; refines D13; reuses D25 pattern)*
-**Decision.** The KB build pipeline (optional website research → docs extract → image analyze → graduate to `client_kb_versions`) moves off the Next.js route into a single **Trigger.dev** task `kb-build`. A new **`client_kb_jobs`** table tracks the run (`queued → researching → extracting → finalizing → succeeded/failed`, with `phase_message`, `website_url`, `doc_ids_used`, `trigger_run_id`, `version_id`). On success the job **graduates** into a `client_kb_versions` row + `setActiveKBVersion` + `kb_status='in_review'` — identical pattern to D25's `generations → node_versions` graduation, just at the client-KB level instead of the node-generation level. The Trigger.dev worker holds the OpenAI calls; **a single Vercel webhook owns every DB/Storage write** (same boundary as `video-generate.ts`). The KB onboarding page subscribes to `client_kb_jobs` via **Supabase Realtime** (D12) for phase updates and the terminal refresh; one running job per client is enforced by a partial unique index on non-terminal statuses. Website URL persists on `clients.website_url` so re-research is a button click. Brand website research is a free-form Markdown call (`gpt-5` + `web_search` tool); the output is saved as a `client_kb_documents` row and merged into `TraceableBrandKB` by the existing `kb-extract` UNION rules — **no schema change** to the KB itself.
-**Why.** The synchronous KB extract route hit a wall the moment `gpt-5 + web_search` joined the chain — total wall time (research + extract + image-analyze) now exceeds Vercel's 60s function limit, and split-route + cron-reconcile (D26's pattern for Veo) is the wrong shape for a 3-step always-multi-step pipeline that needs phase-by-phase progress visibility. Trigger.dev is **already in the stack** for video gen, so this is reuse, not new infra. Pushing the OpenAI calls onto the worker keeps Vercel time tiny; routing all DB/storage writes through one webhook preserves the "DB writes in one place, in one runtime" boundary that made `video-generate.ts` reasonable to reason about. Treating the research Markdown as just another `client_kb_documents` row means **the extractor's UNION-merge stays the single synthesis seam** — no parallel `website_analysis` section to drift against doc-derived fields.
-**Rejected.** (a) **Stay synchronous with extended Vercel function duration.** Brittle (extended duration is a Pro plan toggle, not a guarantee), no durable progress, no observability, no retries. (b) **D26's submit→cron pattern.** Designed for one async provider call with poll-based completion; KB build is three calls with internal phase transitions a cron poller cannot observe cleanly. (c) **Webhook per phase + direct DB writes from worker.** Duplicates the DB-write boundary; the `video-generate.ts` precedent already proved the "worker → webhook → DB" split works. (d) **Structured `website_analysis` section in `TraceableBrandKB`.** Duplicates the extractor's job and loses UNION-merge.
-**Refines.** D13 (Trigger.dev is rented async infra, not self-hosted queue — the spirit of D13 is preserved; the parked item "Real queue infra (Redis/SQS/BullMQ + workers)" is unchanged). **Reuses.** D25 (graduation pattern from execution-scratchpad table into the durable versioned table). **Builds on.** D12 (Realtime push, not polling). **D11 unchanged** (the human still clicks Extract & Build — nothing auto-runs).
-**Originated.** `2026-06-30-kb-build-trigger-website-research-design.md`.
+### D31 — Canvas autosave is non-destructive: delete only client-tracked tombstones *(recorded 2026-06-30; builds on D8/D11)*
+**Decision.** The whole-canvas snapshot save upserts present rows but deletes **only the
+node/edge ids the client explicitly removed since load** (tracked as `removedNodeIds` /
+`removedEdgeIds` tombstones in the canvas store), never "everything not in my snapshot." A
+pure `planReconcile(snapshotIds, removedIds)` computes the delete set; the DB layer is a thin
+caller. **Why.** The old `delete … NOT IN (snapshot)` made every client an authority on the
+entire canvas, so a stale session's autosave **deleted nodes another session had just added** —
+the reported data loss (and the same bug for one user with two tabs). Deleting only observed
+removals means a node this client never saw is never touched. **Rejected.** Per-node delta
+saves (more correct — never rewrites an untouched shared node — but adds dirty-tracking and
+reshapes the action contract; deferred as YAGNI for MVP). **Builds on** D8 (edges point to
+nodes), D11 (human-is-scheduler; saves stay whole-canvas, just safe).
+**Originated.** `2026-06-30-canvas-autosave-concurrency-design.md`.
 
-### D32 — Provider abstraction for KB analysis *(recorded 2026-07-01; refines D25, D31)*
+### D32 — Optimistic concurrency via `updated_at`; conflict = save-mine-then-merge *(recorded 2026-06-30; builds on D31; canvas-level complement to D11; **SUPERSEDED by D33**)*
+> **Superseded.** Two concurrent sessions ping-ponged (`replaceCanvas` re-triggered autosave → position oscillation) and mine-wins resurrected deleted nodes. Replaced by the D33 pessimistic lock. The merge machinery (`replaceCanvas`, the `updated_at` token) was removed; D31 non-destructive deletes were kept.
+**Decision.** Autosave carries the `canvases.updated_at` loaded with the canvas as an optimistic
+token (bumped by the migration-0008 child-table triggers — no new column). On a token mismatch
+the server **force-writes the local edits** (safe per D31, so the other session's added nodes
+survive) and returns the **refetched** canvas, which — because my write already landed — is
+exactly *mine ∪ their additions*; the client adopts it silently via `replaceCanvas` (preserving
+selection). **Why.** Detect overlap and never silently lose work, without real-time infra. The
+common disjoint-edit case keeps both sessions' work; only same-node edits resolve **mine-wins**.
+**Accepted limitations.** (a) same-node edit → mine wins; (b) a node the other session deleted
+but I still hold is resurrected; (c) a tiny in-flight-edit window can be overwritten by the
+merge. All inherent to safe-snapshot + mine-wins. **Rejected.** A new `version` column + RPC
+(YAGNI — `updated_at` already detects overlap); a Reload-button UX (discards in-flight work);
+silent auto-reload (discards local edits). **Deferred.** Real-time sync (Level 2, Supabase
+Realtime) and CRDT same-field merge (Level 3). **Builds on** D31; complements D11.
+**Originated.** `2026-06-30-canvas-autosave-concurrency-design.md`.
 
-**Decision.** Extract KB analysis (doc extraction, image analysis, website research) behind a `KBAnalysisProvider` interface. `getKBProvider()` reads `KB_ANALYSIS_PROVIDER` env var and returns the OpenAI or Gemini implementation. OpenAI is the default.
+### D33 — Pessimistic single-writer canvas lock; retires D32's optimistic merge *(recorded 2026-07-01; supersedes D32; builds on D31, D29, D9, D13)*
+**Decision.** A canvas is edited by one session at a time. The lock lives in `canvases` columns
+(`editing_session_id` / `editing_name` / `editing_heartbeat_at`, migration `0010` — `0009` was
+D29), keyed by an unguessable **per-tab session id** (not identity, so even the same person's
+second tab is read-only); held iff the heartbeat is within `STALE_MS` (45s), refreshed every 15s.
+An atomic `acquire_canvas_lock` RPC does acquire + stale take-over in one statement.
+**Server-enforced** — `saveCanvasAction` rejects writes from non-holders (`{ ok: false, lockLost
+}`). Second openers are **strict read-only** (one `canEdit` gate via `CanvasEditableContext`
+blocks canvas edits, generation, parse, AND D29 approval) with a "{name} is editing" banner and an
+explicit **take-over-when-stale** button. Depends on the D29 identity system (`<IdentityGate>`
+guarantees a holder name). **Why.** Mine-wins full-snapshot merge (D32) cannot give clean
+concurrent editing — preventing concurrency at the source is simpler and correct. **Rejected.**
+Realtime Presence (new dep; still needs a server guard — future), `pg_advisory_lock`
+(connection-bound; incompatible with serverless actions), client-only enforcement (a stale tab
+could still write), a per-person key (wouldn't stop the same person's two tabs), keep-D32-and-
+guard-the-loop (treats a symptom). **Deferred.** Live viewer sync (Level 2) + CRDT (Level 3);
+server-guarding the generate/approval routes for defense-in-depth (append-only, so client gate
+suffices for MVP). **Retires** D32's conflict/merge/`replaceCanvas`; **keeps** D31 (deletes now
+stick — no second writer). **Originated.** `2026-07-01-canvas-pessimistic-lock-design.md`.
 
-**Why.** Allows switching Gemini as the analysis backend without touching the Trigger.dev task, webhook, DB schema, or UI. The existing image-gen provider pattern (`src/lib/image-gen/providers/`) proved this approach works well.
-
-**Rejected.** Per-step provider selection (e.g. OpenAI for extract + Gemini for images) — unnecessary complexity. Fallback (try OpenAI if Gemini fails) — YAGNI.
-
-**Refines.** D25 (KB build pipeline), D31 (Trigger.dev KB pipeline).
-
-**Originated.** `docs/superpowers/specs/2026-07-01-kb-provider-switch-design.md`.
+### D34 — Canvas-level read-only Review surface; approval decoupled from the D33 lock *(recorded 2026-07-02; builds on D29, D33, D18/D5, D8; preserves D11; promotes the review-surface half of F4)*
+**Decision.** A per-canvas **read-only review queue** at `/clients/[id]/canvases/[cid]/review` — a
+master-detail surface (reusing the eval-review viewer shell) listing one row per node of type
+`prompt | video-prompt | image-gen | video-gen` whose **active** version (D18/D5) needs review
+(`approval_status ∈ pending | changes_requested`; an Approved filter flips it). Reached from a
+"Review" action on each canvas row (never via the lock-acquiring editor). Reuses `listNodes` (**no new
+query**) + a pure `buildReviewQueue`; Approve/Request-changes reuse `setVersionApprovalAction`, writing
+to the **displayed** version id. Detail pane is **progressive disclosure**: Tier 0 (output + maker/when
++ status + actions) eager; Tier 1 (prompt · refs/still · shot) lazy on expand via the existing
+`getUpstreamOutputs` (a `GET /api/nodes/[id]/context` route); Tier 2 = Open in canvas. **Approval is
+decoupled from the D33 lock** — the review route is not the canvas editor and the action has no lock
+guard, so a senior reviews N items without opening N canvases (D33's "viewers can't approve" is a
+canvas-UI gate, not a server guard). **Why.** The D29 approval *state* existed but had no fast surface;
+node-by-node canvas review is too slow for production volume. **Rejected.** Client-level aggregate
+inbox *for the MVP* (deferred — a later data-source swap on the same component), a submit-for-review
+state, gating/auto-advance generation (would revisit D11), a media-grid layout (fails text prompts), an
+in-editor review panel (would fight the D33 lock). **Preserves D11** (no auto-advance; human still
+schedules). **Deferred.** Cross-canvas inbox, submit lifecycle, notifications, batch approve, count
+badges, shot-based grouping (needs shot lineage downstream nodes don't store), campaign entity.
+**Originated.** `2026-07-02-production-review-mode-design.md`.
 
 ### Parked / out-of-scope (with revisit triggers)
 | Item | Status | Revisit when |

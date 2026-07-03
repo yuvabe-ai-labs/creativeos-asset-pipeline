@@ -18,7 +18,7 @@ export type CompilePromptInput = {
   controls?: ShotControls;
 };
 
-export function compilePrompt(input: CompilePromptInput): { system: string; user: string } {
+export function compilePrompt(input: CompilePromptInput): { system: string; user: string; effectiveInstruction: string } {
   const blocks: string[] = [];
 
   if (input.clientContext.trim()) {
@@ -36,8 +36,8 @@ export function compilePrompt(input: CompilePromptInput): { system: string; user
   const controlsBlock = input.controls ? renderShotControls(input.controls) : "";
   if (controlsBlock) blocks.push(controlsBlock);
 
-  const instruction = input.instruction.trim() || DEFAULT_INSTRUCTION;
-  blocks.push(`Instruction:\n${instruction}`);
+  const effectiveInstruction = input.instruction.trim() || DEFAULT_INSTRUCTION;
+  blocks.push(`Instruction:\n${effectiveInstruction}`);
 
-  return { system: promptGeneratePrompt.system, user: blocks.join("\n\n") };
+  return { system: promptGeneratePrompt.system, user: blocks.join("\n\n"), effectiveInstruction };
 }

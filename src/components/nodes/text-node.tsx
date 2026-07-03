@@ -4,13 +4,14 @@ import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { StickyNote } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
+import { useDeleteNode } from "@/hooks/use-delete-node";
 import { NodeContextMenu } from "./node-context-menu";
 
 // Text (Note) node — free-text context that feeds downstream Prompt nodes. No AI,
 // no version log: its content IS its output, read straight from node.data (D19).
 export function TextNode({ id, data, selected }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
-  const deleteNode = useCanvasStore((s) => s.deleteNode);
+  const deleteNode = useDeleteNode();
   const duplicateNode = useCanvasStore((s) => s.duplicateNode);
   const d = data as { text?: string };
 

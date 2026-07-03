@@ -44,6 +44,13 @@ describe("nodeRowToFlow", () => {
     const node = nodeRowToFlow(row({ type: "brief" }));
     expect(node.type).toBe("script");
   });
+
+  it("surfaces the active version's approval_status onto data (D29)", () => {
+    const node = nodeRowToFlow(
+      row({ active: { output: "http://img", approval_status: "approved" } }),
+    );
+    expect((node.data as { approvalStatus?: string }).approvalStatus).toBe("approved");
+  });
 });
 
 describe("flowToPersisted", () => {
@@ -56,6 +63,20 @@ describe("flowToPersisted", () => {
     } as never);
     expect(persisted.data).toEqual({ title: "Reel", source: "raw" });
     expect("parsed" in persisted.data).toBe(false);
+  });
+
+  it("never persists the derived approvalStatus field (D29)", () => {
+    // approvalStatus is hydrated from the active version for the on-canvas badge
+    // (like `parsed`); once the focus view writes it into the store to refresh the
+    // badge, autosave must NOT leak that display-only copy back into the row.
+    const persisted = flowToPersisted({
+      id: "n1",
+      type: "prompt",
+      position: { x: 1, y: 2 },
+      data: { title: "Shot", approvalStatus: "approved" },
+    } as never);
+    expect("approvalStatus" in persisted.data).toBe(false);
+    expect(persisted.data).toEqual({ title: "Shot" });
   });
 });
 

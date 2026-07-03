@@ -53,6 +53,10 @@ export type CanvasRow = {
   viewport: { x: number; y: number; zoom: number };
   created_at: string;
   updated_at: string;
+  // D33 pessimistic lock — null when no one holds it.
+  editing_session_id: string | null;
+  editing_name: string | null;
+  editing_heartbeat_at: string | null;
 };
 
 export type NodeRow = {
@@ -80,6 +84,10 @@ export type NodeVersionRow = {
   decision: string | null;
   note: string | null;
   operator: string | null;
+  // D29 maker-checker approval flag (distinct from `decision`, the D22 quality signal).
+  approval_status: "pending" | "approved" | "changes_requested";
+  approved_by: string | null;
+  approved_at: string | null;
   created_at: string;
 };
 

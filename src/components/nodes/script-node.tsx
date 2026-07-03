@@ -6,16 +6,19 @@ import { FileText } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
+import { useDeleteNode } from "@/hooks/use-delete-node";
 import { saveScriptOutputAction } from "@/lib/actions/nodes";
 import { ScriptFocusView } from "./script-focus-view";
 import { NodeContextMenu } from "./node-context-menu";
+import { NodeTitle } from "./node-title";
+import { ProcessingPill } from "./processing-pill";
 import type { ReelScript } from "@/lib/nodes/reel-script";
 import { DEFAULT_PARSE_SLICES, type KBSliceKey } from "@/lib/kb/parse-context";
 import { useNodeConnectionState } from "./use-node-connection-state";
 
 export function ScriptNode({ id, data, selected }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
-  const deleteNode = useCanvasStore((s) => s.deleteNode);
+  const deleteNode = useDeleteNode();
   const duplicateNode = useCanvasStore((s) => s.duplicateNode);
   const fanOutShots = useCanvasStore((s) => s.fanOutShots);
   const d = data as {
@@ -54,17 +57,17 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
           <FileText className="size-3.5 text-primary" />
           <span className="text-eyebrow !text-[0.65rem]">Script</span>
         </div>
-        <span
-          className={cn(
-            "size-1.5 rounded-full transition-colors",
-            isParsing
-              ? "animate-pulse bg-primary/60"
-              : parsed
-                ? "bg-primary"
-                : "bg-muted-foreground/40",
-          )}
-          title={isParsing ? "Extracting…" : parsed ? "Extracted" : "Not extracted"}
-        />
+        {isParsing ? (
+          <ProcessingPill processing />
+        ) : (
+          <span
+            className={cn(
+              "size-1.5 rounded-full transition-colors",
+              parsed ? "bg-primary" : "bg-muted-foreground/40",
+            )}
+            title={parsed ? "Extracted" : "Not extracted"}
+          />
+        )}
       </div>
 
       {isParsing && (
@@ -77,11 +80,11 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
       )}
 
       <div className="px-3 py-3">
-        <p className="truncate font-display text-sm font-medium">
-          {title || (
-            <span className="text-muted-foreground">Untitled script</span>
-          )}
-        </p>
+        <NodeTitle
+          value={title}
+          placeholder="Untitled script"
+          onCommit={(t) => updateNodeData(id, { title: t })}
+        />
         <button
           onClick={() => setFocusOpen(true)}
           className="nodrag -mx-1.5 mt-3 inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10"

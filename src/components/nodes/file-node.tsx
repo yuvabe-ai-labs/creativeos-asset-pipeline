@@ -5,16 +5,18 @@ import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { Paperclip, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
+import { useDeleteNode } from "@/hooks/use-delete-node";
 import type { FileNodeData } from "@/lib/canvas-nodes";
 import { FileFocusView } from "./file-focus-view";
 import { useNodeConnectionState } from "./use-node-connection-state";
 import { NodeContextMenu } from "./node-context-menu";
+import { NodeTitle } from "./node-title";
 
 const KIND_LABELS = { text: "TXT", image: "IMG", document: "DOC" } as const;
 
 export function FileNode({ id, data, selected }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
-  const deleteNode = useCanvasStore((s) => s.deleteNode);
+  const deleteNode = useDeleteNode();
   const duplicateNode = useCanvasStore((s) => s.duplicateNode);
   const d = data as FileNodeData;
   const [focusOpen, setFocusOpen] = useState(false);
@@ -70,9 +72,12 @@ export function FileNode({ id, data, selected }: NodeProps) {
 
       <div className="px-3 py-3">
         <div className="flex items-center gap-1.5">
-          <p className="min-w-0 flex-1 truncate font-display text-sm font-medium">
-            {d.title || <span className="text-muted-foreground">Untitled file</span>}
-          </p>
+          <NodeTitle
+            value={d.title ?? ""}
+            placeholder="Untitled file"
+            onCommit={(t) => updateNodeData(id, { title: t })}
+            className="flex-1"
+          />
           {hasFile && d.fileKind && (
             <span className="shrink-0 rounded px-1 py-0.5 text-[0.6rem] font-medium leading-none bg-muted text-muted-foreground">
               {KIND_LABELS[d.fileKind]}

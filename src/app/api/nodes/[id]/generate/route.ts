@@ -5,6 +5,7 @@ import { buildUserContent } from "@/lib/nodes/compose-message";
 import { promptGeneratePrompt } from "@/prompts/prompt-generate";
 import { type ShotControls } from "@/lib/nodes/shot-controls";
 import { insertVersion, setActiveVersion } from "@/lib/db/versions";
+import { describeModelRequest } from "@/lib/nodes/model-request";
 import { apiError, apiOk } from "@/lib/api/route-helpers";
 
 // Coerce the request body's controls into a well-shaped ShotControls (unknown values are
@@ -35,7 +36,7 @@ export async function POST(
   const resolved = await resolvePromptInputs(nodeId, body?.slices);
   if (!resolved) return apiError("Node not found.", 404);
 
-  const { system, user } = compilePrompt({
+  const { system, user, effectiveInstruction } = compilePrompt({
     clientContext: resolved.clientContext,
     upstream: resolved.upstream,
     instruction,
@@ -43,6 +44,13 @@ export async function POST(
   });
 
   const userContent = buildUserContent(user, resolved.upstream);
+
+  const request = describeModelRequest({
+    system,
+    compiledUser: user,
+    effectiveInstruction,
+    upstream: resolved.upstream,
+  });
 
   try {
     const openai = createOpenAI();
@@ -61,6 +69,7 @@ export async function POST(
         upstream: resolved.upstream.map((u) => ({ nodeId: u.nodeId, versionId: u.versionId })),
         kbVersionId: resolved.kbVersionId,
         kbSlices: resolved.slices,
+        request, // the exact request sent to the model (frozen provenance)
       },
       paramsUsed: {
         instruction,
@@ -80,6 +89,7 @@ export async function POST(
     // a failed attempt is still a version — the log learns from failures too
     await insertVersion({
       nodeId,
+      inputsUsed: { request },
       paramsUsed: {
         instruction,
         promptId: promptGeneratePrompt.id,

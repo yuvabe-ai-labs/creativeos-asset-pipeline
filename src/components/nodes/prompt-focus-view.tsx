@@ -15,6 +15,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { EditableField } from "./editable-field";
+import { normalizeTitle } from "@/lib/nodes/title";
 import { Button } from "@/components/ui/button";
 import { SliceToggles } from "./slice-toggles";
 import { DEFAULT_INSTRUCTION } from "@/lib/nodes/prompt";
@@ -37,8 +39,13 @@ import {
 } from "./prompt-version-history";
 import { UsagePopover } from "./prompt-usage-popover";
 import { InlineEvalBar } from "./inline-eval-bar";
+import { InlineApprovalBar } from "./inline-approval-bar";
+import { ModelRequestPanel } from "./model-request-panel";
 import { setVersionLabelAction } from "@/lib/actions/eval";
-import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
+import { setVersionApprovalAction } from "@/lib/actions/approval";
+import { useIdentity } from "@/hooks/use-identity";
+import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
+import type { ApprovalStatus } from "@/lib/approval";
 
 type PromptFocusViewProps = {
   open: boolean;
@@ -100,7 +107,6 @@ export function PromptFocusView({
   onSaveOutput,
 }: PromptFocusViewProps) {
   const params = useParams<{ id: string }>();
-  const kbStatus = useCanvasStore((s) => s.kbStatus);
   const [draft, setDraft] = useState(output ?? "");
   // Local mirror of the instruction prop. The textarea is controlled by THIS, not
   // by the prop directly: the prop round-trips through zustand + React Flow's
@@ -134,6 +140,12 @@ export function PromptFocusView({
   const [detailNodeId, setDetailNodeId] = useState<string | null>(null);
   const [evalDecision, setEvalDecision] = useState<"pass" | "fail" | null>(null);
   const [evalNote, setEvalNote] = useState("");
+  // D29 approval flag — sibling of the eval signal, distinct field.
+  const [approvalStatus, setApprovalStatus] = useState<ApprovalStatus>("pending");
+  const [approvalNote, setApprovalNote] = useState("");
+  const [approvalSaving, setApprovalSaving] = useState(false);
+  const { identity } = useIdentity();
+  const editable = useCanvasEditable(); // D33: false when this session is read-only
   const [evalSaving, setEvalSaving] = useState(false);
 
   if (seed.open !== open || seed.output !== output || seed.nodeId !== nodeId) {
@@ -192,6 +204,8 @@ export function PromptFocusView({
       const active = versions.find((v) => v.id === activeVid);
       setEvalDecision(active?.decision ?? null);
       setEvalNote(active?.note ?? "");
+      setApprovalStatus(active?.approvalStatus ?? "pending");
+      setApprovalNote(active?.note ?? "");
     } catch {
       /* best-effort */
     }
@@ -213,6 +227,8 @@ export function PromptFocusView({
           const active = versions.find((v) => v.id === activeVid);
           setEvalDecision(active?.decision ?? null);
           setEvalNote(active?.note ?? "");
+          setApprovalStatus(active?.approvalStatus ?? "pending");
+          setApprovalNote(active?.note ?? "");
         }
       } catch {
         /* best-effort */
@@ -282,6 +298,27 @@ export function PromptFocusView({
     }
   }
 
+  async function saveApproval(status: ApprovalStatus, note: string | null) {
+    if (!activeVersionId) return;
+    setApprovalSaving(true);
+    try {
+      await setVersionApprovalAction(activeVersionId, {
+        status,
+        approvedBy: identity?.name ?? null,
+        note,
+      });
+      setApprovalStatus(status);
+      setApprovalNote(note ?? "");
+      // Push into the store so the on-canvas badge refreshes immediately — without
+      // this the badge stays stale until a full reload re-hydrates from the DB.
+      onPatch({ approvalStatus: status });
+    } catch {
+      toast.error("Failed to save approval");
+    } finally {
+      setApprovalSaving(false);
+    }
+  }
+
   async function runGenerate() {
     setGenerating(true);
     setEvalDecision(null);
@@ -344,6 +381,9 @@ export function PromptFocusView({
     onPatch({ kbSlices: next });
   }
 
+  const activeRequest =
+    versions.find((v) => v.id === activeVersionId)?.inputsUsed?.request ?? null;
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
@@ -369,8 +409,13 @@ export function PromptFocusView({
 
             <header className="mt-4 flex items-start justify-between gap-4">
               <div>
-                <SheetTitle className="font-display text-3xl font-semibold tracking-tight">
-                  {title || "Image prompt"}
+                <SheetTitle className="p-0 font-display text-3xl font-semibold tracking-tight">
+                  <EditableField
+                    value={title || ""}
+                    onCommit={(t) => onPatch({ title: normalizeTitle(t) })}
+                    placeholder="Image prompt"
+                    className="font-display text-3xl font-semibold tracking-tight"
+                  />
                 </SheetTitle>
                 <p className="mt-1.5 text-sm text-muted-foreground">
                   Compose context into a generated image prompt.
@@ -438,16 +483,6 @@ export function PromptFocusView({
                   ) : undefined
                 }
               >
-                {(kbStatus === 'none' || kbStatus === 'building') && (
-                  <div className="mb-3 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs text-amber-700">
-                    <span className="mt-0.5 shrink-0">⚠</span>
-                    <span>
-                      {kbStatus === 'building'
-                        ? "Brand KB is still building — running without brand context for now."
-                        : "No brand KB found. Upload documents to add brand context."}
-                    </span>
-                  </div>
-                )}
                 <SliceToggles selected={slices} onToggle={toggleSlice} />
               </LeftSection>
 
@@ -509,7 +544,7 @@ export function PromptFocusView({
                   className="w-full"
                   size="default"
                   onClick={runGenerate}
-                  disabled={generating}
+                  disabled={generating || !editable}
                 >
                   <Sparkles className="size-4" />
                   {generating
@@ -534,6 +569,20 @@ export function PromptFocusView({
                   onNote={setEvalNote}
                   onNoteBlur={handleEvalNoteBlur}
                 />
+
+                {mode === "result" && !!activeVersionId && (
+                  <InlineApprovalBar
+                    status={approvalStatus}
+                    note={approvalNote}
+                    saving={approvalSaving}
+                    canApprove={editable && identity?.role === "senior"}
+                    onSet={saveApproval}
+                  />
+                )}
+
+                {mode === "result" && activeRequest && (
+                  <ModelRequestPanel request={activeRequest} />
+                )}
 
                 {mode === "skeleton" && (
                   <div className="flex-1 space-y-2.5 pt-1">

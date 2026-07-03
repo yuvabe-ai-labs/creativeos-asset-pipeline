@@ -3,6 +3,7 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import type { NodeWithActive } from "@/lib/canvas-nodes";
 import type { TraceableBrandKB } from "@/lib/kb/schema";
 import { getActiveKBVersion } from "./kb";
+import { planReconcile } from "./reconcile";
 
 // What the client sends us to persist (React Flow node, trimmed to DB columns).
 export type PersistedNode = {
@@ -71,17 +72,20 @@ export async function listNodes(canvasId: string): Promise<NodeWithActive[]> {
   // (constraint name disambiguates it from node_versions.node_id).
   const { data, error } = await supabase
     .from("nodes")
-    .select("*, active:node_versions!nodes_active_version_fk(output)")
+    .select("*, active:node_versions!nodes_active_version_fk(output, approval_status)")
     .eq("canvas_id", canvasId);
   if (error) throw error;
   return (data ?? []) as unknown as NodeWithActive[];
 }
 
-// Reconcile the DB with the current canvas: upsert everything present, delete
-// anything that's no longer there. (Simple whole-canvas save — fine at MVP size.)
+// Reconcile the DB with the current canvas: upsert everything present, delete ONLY
+// the nodes the client explicitly removed since load (passed as removedNodeIds).
+// No longer deletes "everything not in my snapshot" — so a stale session can never
+// delete a node another session added.
 export async function saveCanvasNodes(
   canvasId: string,
   nodes: PersistedNode[],
+  removedNodeIds: string[] = [],
 ): Promise<void> {
   const supabase = createServerSupabase();
 
@@ -97,13 +101,18 @@ export async function saveCanvasNodes(
     if (error) throw error;
   }
 
-  // delete nodes that exist in the DB but were removed on the canvas
-  const ids = nodes.map((n) => n.id);
-  const base = supabase.from("nodes").delete().eq("canvas_id", canvasId);
-  const { error: delErr } = ids.length
-    ? await base.not("id", "in", `(${ids.join(",")})`)
-    : await base; // none left → delete all for this canvas
-  if (delErr) throw delErr;
+  const { deleteIds } = planReconcile(
+    nodes.map((n) => n.id),
+    removedNodeIds,
+  );
+  if (deleteIds.length > 0) {
+    const { error: delErr } = await supabase
+      .from("nodes")
+      .delete()
+      .eq("canvas_id", canvasId)
+      .in("id", deleteIds);
+    if (delErr) throw delErr;
+  }
 }
 
 export type UpstreamOutput = {

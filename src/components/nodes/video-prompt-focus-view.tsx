@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { EditableField } from "./editable-field";
+import { normalizeTitle } from "@/lib/nodes/title";
 import { Button } from "@/components/ui/button";
 import { SliceToggles } from "./slice-toggles";
 import { DEFAULT_MOTION_INSTRUCTION } from "@/lib/nodes/video-prompt";
@@ -34,7 +36,12 @@ import {
 } from "./prompt-version-history";
 import { UsagePopover } from "./prompt-usage-popover";
 import { InlineEvalBar } from "./inline-eval-bar";
+import { InlineApprovalBar } from "./inline-approval-bar";
 import { setVersionLabelAction } from "@/lib/actions/eval";
+import { setVersionApprovalAction } from "@/lib/actions/approval";
+import { useIdentity } from "@/hooks/use-identity";
+import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
+import type { ApprovalStatus } from "@/lib/approval";
 
 type VideoPromptFocusViewProps = {
   open: boolean;
@@ -114,6 +121,12 @@ export function VideoPromptFocusView({
   const [detailNodeId, setDetailNodeId] = useState<string | null>(null);
   const [evalDecision, setEvalDecision] = useState<"pass" | "fail" | null>(null);
   const [evalNote, setEvalNote] = useState("");
+  // D29 approval flag — sibling of the eval signal, distinct field.
+  const [approvalStatus, setApprovalStatus] = useState<ApprovalStatus>("pending");
+  const [approvalNote, setApprovalNote] = useState("");
+  const [approvalSaving, setApprovalSaving] = useState(false);
+  const { identity } = useIdentity();
+  const editable = useCanvasEditable(); // D33: false when this session is read-only
   const [evalSaving, setEvalSaving] = useState(false);
 
   if (seed.open !== open || seed.output !== output || seed.nodeId !== nodeId) {
@@ -155,6 +168,8 @@ export function VideoPromptFocusView({
       const active = vs.find((v) => v.id === activeVid);
       setEvalDecision(active?.decision ?? null);
       setEvalNote(active?.note ?? "");
+      setApprovalStatus(active?.approvalStatus ?? "pending");
+      setApprovalNote(active?.note ?? "");
     } catch {
       /* best-effort */
     }
@@ -176,6 +191,8 @@ export function VideoPromptFocusView({
           const active = vs.find((v) => v.id === activeVid);
           setEvalDecision(active?.decision ?? null);
           setEvalNote(active?.note ?? "");
+          setApprovalStatus(active?.approvalStatus ?? "pending");
+          setApprovalNote(active?.note ?? "");
         }
       } catch {
         /* best-effort */
@@ -234,6 +251,27 @@ export function VideoPromptFocusView({
       toast.error("Failed to save note");
     } finally {
       setEvalSaving(false);
+    }
+  }
+
+  async function saveApproval(status: ApprovalStatus, note: string | null) {
+    if (!activeVersionId) return;
+    setApprovalSaving(true);
+    try {
+      await setVersionApprovalAction(activeVersionId, {
+        status,
+        approvedBy: identity?.name ?? null,
+        note,
+      });
+      setApprovalStatus(status);
+      setApprovalNote(note ?? "");
+      // Push into the store so the on-canvas badge refreshes immediately — without
+      // this the badge stays stale until a full reload re-hydrates from the DB.
+      onPatch({ approvalStatus: status });
+    } catch {
+      toast.error("Failed to save approval");
+    } finally {
+      setApprovalSaving(false);
     }
   }
 
@@ -324,8 +362,13 @@ export function VideoPromptFocusView({
 
             <header className="mt-4 flex items-start justify-between gap-4">
               <div>
-                <SheetTitle className="font-display text-3xl font-semibold tracking-tight">
-                  {title || "Motion prompt"}
+                <SheetTitle className="p-0 font-display text-3xl font-semibold tracking-tight">
+                  <EditableField
+                    value={title || ""}
+                    onCommit={(t) => onPatch({ title: normalizeTitle(t) })}
+                    placeholder="Motion prompt"
+                    className="font-display text-3xl font-semibold tracking-tight"
+                  />
                 </SheetTitle>
                 <p className="mt-1.5 text-sm text-muted-foreground">
                   Read the approved still and write how it should move.
@@ -461,7 +504,7 @@ export function VideoPromptFocusView({
                     placeholder={DEFAULT_MOTION_INSTRUCTION}
                     className="flex-1 min-h-0 w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-sm leading-relaxed focus:outline-none focus:ring-1 focus:ring-ring"
                   />
-                  <Button className="w-full" size="default" onClick={runGenerate} disabled={generating}>
+                  <Button className="w-full" size="default" onClick={runGenerate} disabled={generating || !editable}>
                     <Clapperboard className="size-4" />
                     {generating ? "Generating…" : output ? "Re-generate" : "Generate motion prompt"}
                   </Button>
@@ -481,6 +524,16 @@ export function VideoPromptFocusView({
                     onNote={setEvalNote}
                     onNoteBlur={handleEvalNoteBlur}
                   />
+
+                  {mode === "result" && !!activeVersionId && (
+                    <InlineApprovalBar
+                      status={approvalStatus}
+                      note={approvalNote}
+                      saving={approvalSaving}
+                      canApprove={editable && identity?.role === "senior"}
+                      onSet={saveApproval}
+                    />
+                  )}
 
                   {mode === "skeleton" && (
                     <div className="flex-1 space-y-2.5 pt-1">

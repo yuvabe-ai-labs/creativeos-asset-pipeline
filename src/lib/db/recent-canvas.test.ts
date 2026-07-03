@@ -9,6 +9,9 @@ const base: RawRecentCanvasRow = {
   viewport: { x: 0, y: 0, zoom: 1 },
   created_at: "2026-06-01T00:00:00Z",
   updated_at: "2026-06-14T00:00:00Z",
+  editing_session_id: null,
+  editing_name: null,
+  editing_heartbeat_at: null,
   clients: { slug: "acme", name: "Acme", logo_url: "http://logo/acme.png" },
 };
 

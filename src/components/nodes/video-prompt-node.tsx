@@ -5,11 +5,15 @@ import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { Clapperboard } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
+import { useDeleteNode } from "@/hooks/use-delete-node";
 import { savePromptOutputAction } from "@/lib/actions/nodes";
 import { VideoPromptFocusView } from "./video-prompt-focus-view";
 import { DEFAULT_IMAGE_PROMPT_SLICES, type KBSliceKey } from "@/lib/kb/parse-context";
 import type { VideoControls } from "@/lib/nodes/video-controls";
 import { NodeContextMenu } from "./node-context-menu";
+import { NodeTitle } from "./node-title";
+import { ApprovalBadge } from "./approval-badge";
+import type { ApprovalStatus } from "@/lib/approval";
 
 const TYPE_LABEL: Record<string, string> = {
   script: "Script", text: "Note", prompt: "Prompt", kb: "Brand KB",
@@ -20,7 +24,7 @@ const TYPE_LABEL: Record<string, string> = {
 // Prompt focus view. It vision-reads a connected Image Gen still and writes a motion prompt.
 export function VideoPromptNode({ id, data, selected }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
-  const deleteNode = useCanvasStore((s) => s.deleteNode);
+  const deleteNode = useDeleteNode();
   const duplicateNode = useCanvasStore((s) => s.duplicateNode);
   const nodes = useCanvasStore((s) => s.nodes);
   const edges = useCanvasStore((s) => s.edges);
@@ -63,6 +67,8 @@ export function VideoPromptNode({ id, data, selected }: NodeProps) {
   const title = d.title ?? "";
   const instruction = d.instruction ?? "";
   const output = (d.parsed ?? null) as string | null;
+  // D29: active version's approval status (present once a version exists).
+  const approvalStatus = (d as { approvalStatus?: ApprovalStatus }).approvalStatus;
   const slices = d.kbSlices ?? DEFAULT_IMAGE_PROMPT_SLICES;
   const controls = d.controls ?? null;
   const [focusOpen, setFocusOpen] = useState(false);
@@ -92,9 +98,16 @@ export function VideoPromptNode({ id, data, selected }: NodeProps) {
         </div>
 
         <div className="px-3 py-3">
-          <p className="truncate font-display text-sm font-medium">
-            {title || <span className="text-muted-foreground">Motion prompt</span>}
-          </p>
+          {output && approvalStatus && (
+            <div className="mb-2">
+              <ApprovalBadge status={approvalStatus} />
+            </div>
+          )}
+          <NodeTitle
+            value={title}
+            placeholder="Motion prompt"
+            onCommit={(t) => updateNodeData(id, { title: t })}
+          />
           <button
             onClick={() => setFocusOpen(true)}
             className="nodrag -mx-1.5 mt-3 inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10"

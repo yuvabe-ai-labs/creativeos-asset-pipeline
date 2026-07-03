@@ -24,6 +24,8 @@ import {
 } from "react-zoom-pan-pinch";
 
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { EditableField } from "./editable-field";
+import { normalizeTitle } from "@/lib/nodes/title";
 import { Button } from "@/components/ui/button";
 import {
   ConnectedInputsCard,
@@ -38,7 +40,12 @@ import { ImageGenUsagePopover } from "./image-gen-usage-popover";
 import { ImageGenEditPanel } from "./image-gen-edit-panel";
 import { buildEditPrompt, type EditIntent } from "@/lib/image-gen/edit-prompt";
 import { InlineEvalBar } from "./inline-eval-bar";
+import { InlineApprovalBar } from "./inline-approval-bar";
 import { setVersionLabelAction } from "@/lib/actions/eval";
+import { setVersionApprovalAction } from "@/lib/actions/approval";
+import { useIdentity } from "@/hooks/use-identity";
+import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
+import type { ApprovalStatus } from "@/lib/approval";
 import {
   imageGenClientModelMap,
   DEFAULT_CLIENT_MODEL_ID,
@@ -63,6 +70,9 @@ export type ImageGenFocusViewProps = {
     fileKind?: string;
   }>;
   onPatch: (patch: Record<string, unknown>) => void;
+  /** Mirrors in-flight generate/edit state up to the node so its card can show
+   *  a Processing pill even while the focus view is closed. */
+  onProcessingChange?: (v: boolean) => void;
 };
 
 type ParamFormValues = Record<string, unknown>;
@@ -163,6 +173,7 @@ export function ImageGenFocusView({
   editIntent,
   upstream,
   onPatch,
+  onProcessingChange,
 }: ImageGenFocusViewProps) {
   const selectedModelId = modelId ?? DEFAULT_CLIENT_MODEL_ID;
   const model =
@@ -176,6 +187,11 @@ export function ImageGenFocusView({
 
   const [generating, setGenerating] = useState(false);
   const [editing, setEditing] = useState(false);
+
+  // Mirror in-flight state up to the node card (survives focus-view close).
+  useEffect(() => {
+    onProcessingChange?.(generating || editing);
+  }, [generating, editing, onProcessingChange]);
   const [editInstr, setEditInstr] = useState(editInstruction ?? "");
   const [intent, setIntent] = useState<EditIntent>(editIntent ?? "freeform");
   // null = follow the per-intent template; a string = the operator's hand-edited final prompt.
@@ -189,6 +205,12 @@ export function ImageGenFocusView({
   );
   const [evalNote, setEvalNote] = useState("");
   const [evalSaving, setEvalSaving] = useState(false);
+  // D29 approval flag — sibling of the eval signal, distinct field.
+  const [approvalStatus, setApprovalStatus] = useState<ApprovalStatus>("pending");
+  const [approvalNote, setApprovalNote] = useState("");
+  const [approvalSaving, setApprovalSaving] = useState(false);
+  const { identity } = useIdentity();
+  const editable = useCanvasEditable(); // D33: false when this session is read-only
   const [fetchedPrompt, setFetchedPrompt] = useState<{
     nodeId: string;
     text: string;
@@ -222,6 +244,8 @@ export function ImageGenFocusView({
           );
           setEvalDecision(active?.decision ?? null);
           setEvalNote(active?.note ?? "");
+          setApprovalStatus(active?.approvalStatus ?? "pending");
+          setApprovalNote(active?.note ?? "");
         }
       } catch {
         /* best-effort */
@@ -354,6 +378,8 @@ export function ImageGenFocusView({
       );
       setEvalDecision(active?.decision ?? null);
       setEvalNote(active?.note ?? "");
+      setApprovalStatus(active?.approvalStatus ?? "pending");
+      setApprovalNote(active?.note ?? "");
     } catch {
       /* best-effort */
     }
@@ -505,6 +531,27 @@ export function ImageGenFocusView({
     }
   }
 
+  async function saveApproval(status: ApprovalStatus, note: string | null) {
+    if (!activeVersionId) return;
+    setApprovalSaving(true);
+    try {
+      await setVersionApprovalAction(activeVersionId, {
+        status,
+        approvedBy: identity?.name ?? null,
+        note,
+      });
+      setApprovalStatus(status);
+      setApprovalNote(note ?? "");
+      // Push into the store so the on-canvas badge refreshes immediately — without
+      // this the badge stays stale until a full reload re-hydrates from the DB.
+      onPatch({ approvalStatus: status });
+    } catch {
+      toast.error("Failed to save approval");
+    } finally {
+      setApprovalSaving(false);
+    }
+  }
+
   function commitParams(values: ParamFormValues) {
     onPatch({ params: values });
   }
@@ -558,8 +605,13 @@ export function ImageGenFocusView({
             </button>
             <header className="mt-4 flex items-start justify-between gap-4">
               <div>
-                <SheetTitle className="font-display text-3xl font-semibold tracking-tight">
-                  {title || "Image generation"}
+                <SheetTitle className="p-0 font-display text-3xl font-semibold tracking-tight">
+                  <EditableField
+                    value={title || ""}
+                    onCommit={(t) => onPatch({ title: normalizeTitle(t) })}
+                    placeholder="Image generation"
+                    className="font-display text-3xl font-semibold tracking-tight"
+                  />
                 </SheetTitle>
                 <p className="mt-1.5 text-sm text-muted-foreground">
                   Choose a model, tune params, and generate an image from your
@@ -573,7 +625,7 @@ export function ImageGenFocusView({
                 <Button
                   size="lg"
                   onClick={handleGenerate}
-                  disabled={generating || editing || !promptUpstream}
+                  disabled={generating || editing || !promptUpstream || !editable}
                 >
                   <Sparkles className="size-4" strokeWidth={1.5} />
                   {generating
@@ -600,7 +652,7 @@ export function ImageGenFocusView({
                   instruction={editInstr}
                   finalPrompt={finalPrompt}
                   editing={editing}
-                  canEdit={canEditBase}
+                  canEdit={canEditBase && editable}
                   referenceWarning={referenceWarning}
                   suggestGemini={suggestGemini}
                   onPickChip={handlePickChip}
@@ -667,6 +719,18 @@ export function ImageGenFocusView({
                 onNote={setEvalNote}
                 onNoteBlur={handleEvalNoteBlur}
               />
+
+              {mode === "result" && !!activeVersionId && (
+                <div className="mt-3">
+                  <InlineApprovalBar
+                    status={approvalStatus}
+                    note={approvalNote}
+                    saving={approvalSaving}
+                    canApprove={editable && identity?.role === "senior"}
+                    onSet={saveApproval}
+                  />
+                </div>
+              )}
 
               <div className="mt-3 flex-1 min-h-0">
                 {mode === "skeleton" && (

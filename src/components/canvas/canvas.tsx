@@ -12,11 +12,12 @@ import {
   type Connection,
   type Edge,
   type NodeTypes,
+  type OnBeforeDelete,
   type XYPosition,
 } from "@xyflow/react";
 import { useShallow } from "zustand/react/shallow";
 import { toast } from "sonner";
-import { VALID_CONNECTIONS, flowToPersisted } from "@/lib/canvas-nodes";
+import { VALID_CONNECTIONS, flowToPersisted, type AppNode } from "@/lib/canvas-nodes";
 import { saveCanvasNodesAction } from "@/lib/actions/nodes";
 import { readClipboardImage, clipboardHasImage } from "@/lib/nodes/clipboard-image";
 import { ScriptNode } from "@/components/nodes/script-node";
@@ -31,10 +32,13 @@ import { VideoPromptNode } from "@/components/nodes/video-prompt-node";
 import { VideoGenNode } from "@/components/nodes/video-gen-node";
 import { useCanvasStore, useCanvasStoreApi } from "./canvas-store-provider";
 import { CanvasAutosave } from "./canvas-autosave";
-import { CanvasKBStatus, CanvasKBBadge } from "./canvas-kb-status";
-import type { ClientKBJobRow } from "@/lib/db/types";
 import { QuickAddMenu } from "./quick-add-menu";
 import { mnemonicToType, isEditableTarget } from "@/lib/canvas-node-options";
+import { useCanvasLock } from "@/hooks/use-canvas-lock";
+import { CanvasEditableProvider } from "./canvas-editable-context";
+import { LockBanner } from "./lock-banner";
+import { DeleteConfirmDialog } from "./delete-confirm-dialog";
+import { useDeleteConfirmation } from "@/hooks/use-delete-confirmation";
 
 // Register custom node types once (stable reference — never inline this object).
 const nodeTypes: NodeTypes = {
@@ -52,14 +56,8 @@ const nodeTypes: NodeTypes = {
 
 export function Canvas({
   canvasId,
-  clientId,
-  initialKBJob,
-  hasActiveKB,
 }: {
   canvasId: string;
-  clientId: string;
-  initialKBJob: ClientKBJobRow | null;
-  hasActiveKB: boolean;
 }) {
   // One subscription, shallow-compared, so the component only re-renders when
   // these slices actually change.
@@ -90,6 +88,23 @@ export function Canvas({
   );
 
   const storeApi = useCanvasStoreApi();
+
+  const { canEdit, heldByName, canTakeOver, sessionId, takeOver, reportLockLost } =
+    useCanvasLock(canvasId);
+  // Read the latest canEdit from event handlers/closures without re-subscribing them.
+  const canEditRef = useRef(canEdit);
+  canEditRef.current = canEdit;
+
+  // Confirm every node deletion (context menu + keyboard) through one dialog.
+  const { onBeforeDelete: confirmDelete, dialogProps: deleteDialog } =
+    useDeleteConfirmation();
+  const onBeforeDelete = useCallback<OnBeforeDelete<AppNode>>(
+    (payload) => {
+      if (!canEditRef.current) return Promise.resolve(false); // read-only: no deletion
+      return confirmDelete(payload);
+    },
+    [confirmDelete],
+  );
 
   const nodesRef = useRef(nodes);
   useEffect(() => {
@@ -129,6 +144,7 @@ export function Canvas({
   // node first (replace-all upsert) so the /file route finds it (dodges the autosave race).
   const handlePasteImage = useCallback(
     async (flowPos: XYPosition) => {
+      if (!canEditRef.current) return; // read-only: no mutations
       const img = await readClipboardImage();
       if (!img) {
         toast.error("Couldn't read an image from the clipboard.");
@@ -168,6 +184,7 @@ export function Canvas({
   );
 
   const openQuickAddAt = useCallback((screenX: number, screenY: number) => {
+    if (!canEditRef.current) return; // read-only: no add menu
     if (!rfRef.current) return;
     const flowPos = rfRef.current.screenToFlowPosition({ x: screenX, y: screenY });
     setQuickAdd({ screenX, screenY, flowPos });
@@ -184,6 +201,7 @@ export function Canvas({
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if (!canEditRef.current) return; // read-only: no keyboard mutations
       // Duplicate (existing behavior) — modified key, fires regardless of focus.
       if ((e.ctrlKey || e.metaKey) && e.key === "d") {
         e.preventDefault();
@@ -289,13 +307,20 @@ export function Canvas({
   );
 
   return (
+    <CanvasEditableProvider value={canEdit}>
     <div className="absolute inset-0 bg-[var(--neutral-50)]">
-      <CanvasAutosave canvasId={canvasId} />
-      <CanvasKBStatus
-        clientId={clientId}
-        initialJob={initialKBJob}
-        hasActiveKB={hasActiveKB}
+      <CanvasAutosave
+        canvasId={canvasId}
+        sessionId={sessionId}
+        canEdit={canEdit}
+        onLockLost={reportLockLost}
       />
+
+      {!canEdit && (
+        <LockBanner heldByName={heldByName} canTakeOver={canTakeOver} onTakeOver={takeOver} />
+      )}
+
+      <DeleteConfirmDialog {...deleteDialog} />
 
       {quickAdd && (
         <QuickAddMenu
@@ -316,7 +341,10 @@ export function Canvas({
         onConnect={onConnect}
         isValidConnection={isValidConnection}
         nodeTypes={nodeTypes}
-        deleteKeyCode={["Backspace", "Delete"]}
+        nodesDraggable={canEdit}
+        nodesConnectable={canEdit}
+        onBeforeDelete={onBeforeDelete}
+        deleteKeyCode={canEdit ? ["Backspace", "Delete"] : null}
         selectionOnDrag
         selectionMode={SelectionMode.Partial}
         selectionKeyCode={null}
@@ -344,10 +372,8 @@ export function Canvas({
           color="rgba(148,163,184,0.45)"
         />
         <Controls showInteractive={false} />
-        <div className="absolute left-1/2 top-3 z-10 -translate-x-1/2">
-          <CanvasKBBadge />
-        </div>
       </ReactFlow>
     </div>
+    </CanvasEditableProvider>
   );
 }

@@ -1,6 +1,7 @@
 import "server-only";
 import { createServerSupabase } from "@/lib/supabase/server";
 import type { Edge } from "@xyflow/react";
+import { planReconcile } from "./reconcile";
 
 type EdgeRow = {
   id: string;
@@ -33,10 +34,12 @@ export async function listEdges(canvasId: string): Promise<Edge[]> {
   return (data ?? []).map((row) => edgeRowToFlow(row as EdgeRow));
 }
 
-// Reconcile DB edges with current canvas edges — upsert present, delete removed.
+// Reconcile DB edges with the current canvas: upsert present, delete ONLY the edges
+// the client explicitly removed since load (passed as removedEdgeIds).
 export async function saveCanvasEdges(
   canvasId: string,
   edges: Edge[],
+  removedEdgeIds: string[] = [],
 ): Promise<void> {
   const supabase = createServerSupabase();
 
@@ -53,10 +56,16 @@ export async function saveCanvasEdges(
     if (error) throw error;
   }
 
-  const ids = edges.map((e) => e.id);
-  const base = supabase.from("edges").delete().eq("canvas_id", canvasId);
-  const { error: delErr } = ids.length
-    ? await base.not("id", "in", `(${ids.join(",")})`)
-    : await base;
-  if (delErr) throw delErr;
+  const { deleteIds } = planReconcile(
+    edges.map((e) => e.id),
+    removedEdgeIds,
+  );
+  if (deleteIds.length > 0) {
+    const { error: delErr } = await supabase
+      .from("edges")
+      .delete()
+      .eq("canvas_id", canvasId)
+      .in("id", deleteIds);
+    if (delErr) throw delErr;
+  }
 }
