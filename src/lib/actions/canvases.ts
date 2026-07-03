@@ -17,42 +17,43 @@ export async function createCanvasAction(input: {
 
   const canvas = await createCanvas({ clientId: input.clientId, name });
 
+  // If the client has an active KB, seed a KB node + a connected Brief node.
   const activeKB = await getActiveKBVersion(input.clientId);
-  const kbNodeId = crypto.randomUUID();
-  const scriptNodeId = crypto.randomUUID();
+  if (activeKB) {
+    const kb = activeKB.output as TraceableBrandKB;
+    const kbNodeId = crypto.randomUUID();
+    const scriptNodeId = crypto.randomUUID();
 
-  const kb = activeKB ? (activeKB.output as TraceableBrandKB) : null;
-  const kbNodeData = {
-    clientId: input.clientId,
-    clientSlug: input.clientSlug,
-    kbVersionId: activeKB?.id ?? null,
-    brandName: kb?.brand?.value ?? kb?.brand_profile?.brand_name?.value ?? null,
-    fillRate: activeKB?.fill_rate ?? null,
-    extractedAt: activeKB?.created_at ?? null,
-  };
+    await saveCanvasNodes(canvas.id, [
+      {
+        id: kbNodeId,
+        type: "kb",
+        position: { x: 80, y: 120 },
+        data: {
+          clientId: input.clientId,
+          clientSlug: input.clientSlug,
+          kbVersionId: activeKB.id,
+          brandName: kb.brand?.value ?? kb.brand_profile?.brand_name?.value ?? null,
+          fillRate: activeKB.fill_rate,
+          extractedAt: activeKB.created_at,
+        },
+      },
+      {
+        id: scriptNodeId,
+        type: "script",
+        position: { x: 360, y: 120 },
+        data: { title: "" },
+      },
+    ]);
 
-  await saveCanvasNodes(canvas.id, [
-    {
-      id: kbNodeId,
-      type: "kb",
-      position: { x: 80, y: 120 },
-      data: kbNodeData,
-    },
-    {
-      id: scriptNodeId,
-      type: "script",
-      position: { x: 360, y: 120 },
-      data: { title: "" },
-    },
-  ]);
-
-  await saveCanvasEdges(canvas.id, [
-    {
-      id: crypto.randomUUID(),
-      source: kbNodeId,
-      target: scriptNodeId,
-    },
-  ]);
+    await saveCanvasEdges(canvas.id, [
+      {
+        id: crypto.randomUUID(),
+        source: kbNodeId,
+        target: scriptNodeId,
+      },
+    ]);
+  }
 
   revalidatePath(`/clients/${input.clientSlug}`);
   return canvas;

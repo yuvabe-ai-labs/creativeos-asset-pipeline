@@ -87,7 +87,6 @@ export default async function CanvasPage({
             clientId={client.id}
             initialKBJob={latestKBJob}
             hasActiveKB={activeKBVersion !== null}
-            clientKbStatus={client.kb_status}
           />
         </CanvasStoreProvider>
       </div>

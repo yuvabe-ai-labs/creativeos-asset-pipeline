@@ -13,10 +13,9 @@ type Props = {
   clientId: string;
   initialJob: ClientKBJobRow | null;
   hasActiveKB: boolean;
-  clientKbStatus: "pending" | "in_review" | "ready";
 };
 
-export function CanvasKBStatus({ clientId, initialJob, hasActiveKB, clientKbStatus }: Props) {
+export function CanvasKBStatus({ clientId, initialJob, hasActiveKB }: Props) {
   const job = useKBJobStatus(clientId, initialJob);
   const setKbStatus = useCanvasStore((s) => s.setKbStatus);
   const setKbJustReady = useCanvasStore((s) => s.setKbJustReady);
@@ -25,19 +24,20 @@ export function CanvasKBStatus({ clientId, initialJob, hasActiveKB, clientKbStat
   const prevStatus = useRef<string | null>(initialJob?.status ?? null);
 
   useEffect(() => {
-    if (job && NON_TERMINAL.has(job.status)) {
-      setKbStatus("building");
-    } else if (hasActiveKB && clientKbStatus === "ready") {
+    // Treat a succeeded job + no active KB version as 'none' — the webhook
+    // graduation may still be in flight. The second effect sets 'ready' when
+    // the Realtime event fires.
+    if (hasActiveKB && (!job || !NON_TERMINAL.has(job.status))) {
       setKbStatus("ready");
-    } else if (hasActiveKB && clientKbStatus === "in_review") {
-      setKbStatus("in_review");
+    } else if (job && NON_TERMINAL.has(job.status)) {
+      setKbStatus("building");
     } else {
       setKbStatus("none");
     }
-  }, [job, hasActiveKB, clientKbStatus, setKbStatus]);
+  }, [job, hasActiveKB, setKbStatus]);
 
   useEffect(() => {
-    if (!job?.status) return;
+    if (!job) return;
     if (prevStatus.current !== "succeeded" && job.status === "succeeded") {
       toast.success("Brand KB is ready! Your brand context is now active.", {
         icon: <CheckCircle2 className="size-4 text-green-500" />,

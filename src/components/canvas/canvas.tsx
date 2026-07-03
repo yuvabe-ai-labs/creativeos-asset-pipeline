@@ -55,13 +55,11 @@ export function Canvas({
   clientId,
   initialKBJob,
   hasActiveKB,
-  clientKbStatus,
 }: {
   canvasId: string;
   clientId: string;
   initialKBJob: ClientKBJobRow | null;
   hasActiveKB: boolean;
-  clientKbStatus: "pending" | "in_review" | "ready";
 }) {
   // One subscription, shallow-compared, so the component only re-renders when
   // these slices actually change.
@@ -297,7 +295,6 @@ export function Canvas({
         clientId={clientId}
         initialJob={initialKBJob}
         hasActiveKB={hasActiveKB}
-        clientKbStatus={clientKbStatus}
       />
 
       {quickAdd && (
