@@ -45,6 +45,34 @@ describe("buildEditPrompt", () => {
   });
 });
 
+describe("buildEditPrompt — modify intent", () => {
+  it("modify uses the change-only template", () => {
+    const p = buildEditPrompt({ instruction: "recolor the label to matte black", intent: "modify" });
+    expect(p).toContain("change only recolor the label to matte black");
+    expect(p).toContain("Keep everything else exactly the same");
+  });
+});
+
+describe("buildEditPrompt — annotation clause", () => {
+  it("appends a guides-only clause when annotated is true", () => {
+    const p = buildEditPrompt({ instruction: "the cup", intent: "remove", annotated: true });
+    expect(p).toContain("remove the cup"); // template still applies
+    expect(p).toContain("marked");
+    expect(p).toContain("do not include the marks");
+  });
+
+  it("adds no annotation clause when annotated is false/absent", () => {
+    const p = buildEditPrompt({ instruction: "the cup", intent: "remove" });
+    expect(p).not.toContain("do not include the marks");
+  });
+
+  it("applies the annotation clause to the reference (add) template too", () => {
+    const p = buildEditPrompt({ instruction: "the product", intent: "add", hasExtraReference: true, annotated: true });
+    expect(p).toContain("base scene");
+    expect(p).toContain("do not include the marks");
+  });
+});
+
 describe("assembleEditReferences", () => {
   it("puts the base image first", () => {
     expect(assembleEditReferences({ baseImageUrl: "base", extraUrls: ["a", "b"], max: 5 }))
