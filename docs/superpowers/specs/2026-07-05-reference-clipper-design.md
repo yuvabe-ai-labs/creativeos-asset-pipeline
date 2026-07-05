@@ -67,13 +67,13 @@ push time, so the risk is low and accepted for v1.
 
 ## 5. Architecture
 
-Two deliverables: a Chrome extension (all new, isolated in `extension/`) and **one** new API route.
+Two deliverables: a Chrome extension (all new, isolated in `clipper-extension/`) and **one** new API route.
 Nothing else in CreativeOS changes.
 
 ### 5.1 Chrome extension (Manifest V3)
 
 ```
-extension/
+clipper-extension/
   manifest.json      MV3; permissions: contextMenus, storage, sidePanel, tabs
                      host_permissions: <all_urls>  (fetch arbitrary image bytes + POST to the app)
   background.js      service worker: context menu + push orchestration
@@ -202,7 +202,7 @@ the app.
 ## 11. Implementation surface
 
 **New:**
-- `extension/` — `manifest.json`, `background.js`, `sidepanel.{html,js,css}` (no build step; loaded
+- `clipper-extension/` — `manifest.json`, `background.js`, `sidepanel.{html,js,css}` (no build step; loaded
   unpacked). The extension forwards the raw canvas URL; it holds no tested logic of its own.
 - `src/lib/reference-clipper/canvas-url.ts` + `.test.ts` — `parseCanvasUrl` (server-side, tested).
 - `src/lib/reference-clipper/position.ts` + `.test.ts` — `computeStaggeredPosition` (tested).

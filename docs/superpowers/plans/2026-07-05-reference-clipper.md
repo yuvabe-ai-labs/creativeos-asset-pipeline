@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- **Extension has no build step** — plain `.js`/`.html`/`.css` in `extension/`, loaded unpacked. No npm deps, no bundler, no TypeScript in the extension.
+- **Extension has no build step** — plain `.js`/`.html`/`.css` in `clipper-extension/`, loaded unpacked. No npm deps, no bundler, no TypeScript in the extension.
 - **Manifest V3.** Permissions: `contextMenus`, `storage`, `sidePanel`, `tabs`. `host_permissions: ["<all_urls>"]` (fetch arbitrary image bytes + POST to any app origin).
 - **No new npm dependencies** anywhere.
 - **Route conventions** ([docs/api-routes.md](../../api-routes.md)): use `apiError` / `apiOk` — never `NextResponse.json` directly. Wrap the async work in `withTryCatch`. The route is deliberately top-level and slug-based — it does **not** use `withClient` (that helper resolves a client **UUID**; the extension only has slugs).
@@ -34,11 +34,11 @@
 - `src/app/api/ingest-image/route.ts` — the ingest route (thin glue over the two pure functions + existing helpers).
 
 **New — extension (plain JS/HTML/CSS, manual verification):**
-- `extension/manifest.json`
-- `extension/background.js` — context menu → collect into storage.
-- `extension/sidepanel.html`
-- `extension/sidepanel.css`
-- `extension/sidepanel.js` — render collection + remove (Task 5), push (Task 6).
+- `clipper-extension/manifest.json`
+- `clipper-extension/background.js` — context menu → collect into storage.
+- `clipper-extension/sidepanel.html`
+- `clipper-extension/sidepanel.css`
+- `clipper-extension/sidepanel.js` — render collection + remove (Task 5), push (Task 6).
 
 **Modified:** none.
 
@@ -376,8 +376,8 @@ git commit -m "feat(reference-clipper): POST /api/ingest-image — create image 
 ## Task 4: Extension — manifest + collect (background service worker)
 
 **Files:**
-- Create: `extension/manifest.json`
-- Create: `extension/background.js`
+- Create: `clipper-extension/manifest.json`
+- Create: `clipper-extension/background.js`
 
 **Interfaces:**
 - Produces: a `references` array in `chrome.storage.local`, each item `{ id, srcUrl, pageUrl, pageTitle, capturedAt }` — consumed by the side panel (Tasks 5–6).
@@ -386,7 +386,7 @@ git commit -m "feat(reference-clipper): POST /api/ingest-image — create image 
 
 - [ ] **Step 1: Write the manifest**
 
-Create `extension/manifest.json`:
+Create `clipper-extension/manifest.json`:
 
 ```json
 {
@@ -404,7 +404,7 @@ Create `extension/manifest.json`:
 
 - [ ] **Step 2: Write the background service worker**
 
-Create `extension/background.js`:
+Create `clipper-extension/background.js`:
 
 ```js
 // background.js — a right-click "Add reference" menu that collects the clicked
@@ -440,7 +440,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 
 - [ ] **Step 3: Load the extension unpacked**
 
-In Chrome: `chrome://extensions` → enable Developer mode → "Load unpacked" → select the `extension/` folder. Expected: the extension appears with no errors ("Errors" button absent). Note: after editing `extension/` files later, click the reload ↻ on the card.
+In Chrome: `chrome://extensions` → enable Developer mode → "Load unpacked" → select the `clipper-extension/` folder. Expected: the extension appears with no errors ("Errors" button absent). Note: after editing `clipper-extension/` files later, click the reload ↻ on the card.
 
 - [ ] **Step 4: Verify collection works**
 
@@ -455,7 +455,7 @@ Expected: `{ references: [ { id, srcUrl, pageUrl, pageTitle, capturedAt } ] }` w
 - [ ] **Step 5: Commit**
 
 ```bash
-git add extension/manifest.json extension/background.js
+git add clipper-extension/manifest.json clipper-extension/background.js
 git commit -m "feat(reference-clipper): MV3 extension — collect images via context menu"
 ```
 
@@ -464,9 +464,9 @@ git commit -m "feat(reference-clipper): MV3 extension — collect images via con
 ## Task 5: Extension — side panel (render + remove)
 
 **Files:**
-- Create: `extension/sidepanel.html`
-- Create: `extension/sidepanel.css`
-- Create: `extension/sidepanel.js`
+- Create: `clipper-extension/sidepanel.html`
+- Create: `clipper-extension/sidepanel.css`
+- Create: `clipper-extension/sidepanel.js`
 
 **Interfaces:**
 - Consumes: the `references` array in `chrome.storage.local` (Task 4).
@@ -474,7 +474,7 @@ git commit -m "feat(reference-clipper): MV3 extension — collect images via con
 
 - [ ] **Step 1: Write the panel HTML**
 
-Create `extension/sidepanel.html`:
+Create `clipper-extension/sidepanel.html`:
 
 ```html
 <!doctype html>
@@ -497,7 +497,7 @@ Create `extension/sidepanel.html`:
 
 - [ ] **Step 2: Write the panel CSS**
 
-Create `extension/sidepanel.css` (simple, standalone styling — the panel is a separate surface, not bound to the app's design system):
+Create `clipper-extension/sidepanel.css` (simple, standalone styling — the panel is a separate surface, not bound to the app's design system):
 
 ```css
 body { font: 13px/1.4 system-ui, sans-serif; margin: 0; padding: 12px; color: #111; }
@@ -518,7 +518,7 @@ h1 { font-size: 14px; margin: 0; }
 
 - [ ] **Step 3: Write the panel script (render + remove)**
 
-Create `extension/sidepanel.js`:
+Create `clipper-extension/sidepanel.js`:
 
 ```js
 // sidepanel.js — renders the collected references and lets you remove them.
@@ -597,7 +597,7 @@ Reload the extension (↻ on `chrome://extensions`). Click the toolbar icon to o
 - [ ] **Step 5: Commit**
 
 ```bash
-git add extension/sidepanel.html extension/sidepanel.css extension/sidepanel.js
+git add clipper-extension/sidepanel.html clipper-extension/sidepanel.css clipper-extension/sidepanel.js
 git commit -m "feat(reference-clipper): side panel renders + removes collected references"
 ```
 
@@ -606,7 +606,7 @@ git commit -m "feat(reference-clipper): side panel renders + removes collected r
 ## Task 6: Extension — push to canvas
 
 **Files:**
-- Modify: `extension/sidepanel.js` (append the push logic + wire the button)
+- Modify: `clipper-extension/sidepanel.js` (append the push logic + wire the button)
 
 **Interfaces:**
 - Consumes: the active tab URL (`chrome.tabs.query`), the `references` collection, and `POST /api/ingest-image` (Task 3).
@@ -614,7 +614,7 @@ git commit -m "feat(reference-clipper): side panel renders + removes collected r
 
 - [ ] **Step 1: Append the push logic to `sidepanel.js`**
 
-Add to the end of `extension/sidepanel.js`:
+Add to the end of `clipper-extension/sidepanel.js`:
 
 ```js
 // --- Push to canvas ---
@@ -702,7 +702,7 @@ Collect one normal image plus one from a source that blocks cross-origin fetch (
 - [ ] **Step 5: Commit**
 
 ```bash
-git add extension/sidepanel.js
+git add clipper-extension/sidepanel.js
 git commit -m "feat(reference-clipper): push collected references to the active canvas"
 ```
 
