@@ -780,6 +780,27 @@ schedules). **Deferred.** Cross-canvas inbox, submit lifecycle, notifications, b
 badges, shot-based grouping (needs shot lineage downstream nodes don't store), campaign entity.
 **Originated.** `2026-07-02-production-review-mode-design.md`.
 
+### D37 — Image Edit mode: a tabbed composer (annotation + connected-ref selection) over the D27 edit pipeline
+
+**Decision.** Add a `Generate | Edit` tab to the Image Gen focus view. Edit mode adds (a) a
+separate-layer annotation overlay on the base image, (b) toggle tiles to mark which *connected*
+nodes are the edit's references, and (c) a "Modify" intent chip. It sends an annotated
+composite + a chosen `extraReferenceUrls` to the **existing** D27 edit route; the base image is
+shown even with no prior attempt, so a connected/clipped reference is editable immediately.
+
+**Why.** Designers need to *point* at edit regions and to *choose* which reference feeds an
+edit, and editing a connected/clipped reference must be visible without a prior generation —
+all without a new pipeline or storage mechanism.
+
+**Rejected.** Ad-hoc uploaded references in the composer (would add a storage path — instead
+mark connected nodes); pixel masks (prose-level visual hint only); a separate Edit node /
+second route (violates D27 §4.1).
+
+**Refines.** D27 (adds the composer UI + two additive route fields; the edit pipeline is
+unchanged).
+
+**Originated.** `2026-07-05-image-edit-mode-design.md`.
+
 ### Parked / out-of-scope (with revisit triggers)
 | Item | Status | Revisit when |
 |---|---|---|
