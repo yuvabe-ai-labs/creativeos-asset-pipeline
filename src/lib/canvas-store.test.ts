@@ -3,6 +3,7 @@ import { createCanvasStore } from "./canvas-store";
 import type { AppNode } from "./canvas-nodes";
 import type { Edge } from "@xyflow/react";
 import type { ShotComposeIdea } from "./nodes/shot-compose";
+import type { GenerationRow } from "./db/types";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -177,4 +178,42 @@ describe("canvas store — tombstones", () => {
     expect(store.getState().removedNodeIds).toEqual(["b"]);
   });
 
+});
+
+const genRow = (over: Partial<GenerationRow>): GenerationRow =>
+  ({
+    id: "j", node_id: "g", type: "image", status: "running",
+    provider_job_id: null, model_used: null, params_snapshot: null,
+    inputs_snapshot: null, tokens_used: null, credits_consumed: null,
+    version_id: null, user_id: null, error: null, meta: null,
+    created_at: "2026-07-05T00:00:00.000Z", updated_at: "2026-07-05T00:00:00.000Z",
+    ...over,
+  });
+
+describe("canvas store — tray slice", () => {
+  it("starts empty and seeds via setTrayJobs", () => {
+    const store = createCanvasStore();
+    expect(store.getState().trayJobs).toEqual({});
+    store.getState().setTrayJobs([genRow({ id: "a" }), genRow({ id: "b" })]);
+    expect(Object.keys(store.getState().trayJobs).sort()).toEqual(["a", "b"]);
+  });
+
+  it("upsertTrayJob replaces a row by id", () => {
+    const store = createCanvasStore();
+    store.getState().upsertTrayJob(genRow({ id: "a", status: "running" }));
+    store.getState().upsertTrayJob(genRow({ id: "a", status: "succeeded" }));
+    expect(Object.keys(store.getState().trayJobs)).toEqual(["a"]);
+    expect(store.getState().trayJobs.a.status).toBe("succeeded");
+  });
+});
+
+describe("canvas store — focusedNodeId", () => {
+  it("starts null and can be set/cleared", () => {
+    const store = createCanvasStore();
+    expect(store.getState().focusedNodeId).toBeNull();
+    store.getState().setFocusedNodeId("node-1");
+    expect(store.getState().focusedNodeId).toBe("node-1");
+    store.getState().setFocusedNodeId(null);
+    expect(store.getState().focusedNodeId).toBeNull();
+  });
 });
