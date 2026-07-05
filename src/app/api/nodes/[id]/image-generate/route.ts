@@ -15,7 +15,7 @@ function mimeToExt(mimeType: string): string {
   return "png";
 }
 
-const EDIT_INTENTS: readonly EditIntent[] = ["remove", "replace", "add", "freeform"];
+const EDIT_INTENTS: readonly EditIntent[] = ["remove", "replace", "add", "modify", "freeform"];
 function asIntent(v: unknown): EditIntent | undefined {
   return typeof v === "string" && (EDIT_INTENTS as readonly string[]).includes(v)
     ? (v as EditIntent)
@@ -37,6 +37,10 @@ export async function POST(
         prompt?: unknown;
         baseVersionId?: unknown;
         baseImageUrl?: unknown;
+        extraReferenceUrls?: unknown;
+        annotated?: unknown;
+        annotatedBaseImageBase64?: unknown;
+        annotatedBaseImageMime?: unknown;
       }
     | null;
 
@@ -87,23 +91,54 @@ export async function POST(
     // Base image = the node's current image: a prior attempt or a connected reference.
     const baseVersionId =
       typeof body?.baseVersionId === "string" ? body.baseVersionId : undefined;
-    let baseImageUrl: string | undefined;
+    let resolvedBaseUrl: string | undefined;
     let carriedPromptVersionId: string | null = null;
 
     if (baseVersionId) {
       const baseVersion = await getVersionById(baseVersionId);
-      if (typeof baseVersion?.output === "string") baseImageUrl = baseVersion.output;
+      if (typeof baseVersion?.output === "string") resolvedBaseUrl = baseVersion.output;
       const prevInputs = (baseVersion?.inputs_used ?? {}) as { promptVersionId?: string };
       carriedPromptVersionId = prevInputs.promptVersionId ?? null;
     } else if (typeof body?.baseImageUrl === "string") {
-      baseImageUrl = body.baseImageUrl;
+      resolvedBaseUrl = body.baseImageUrl;
       carriedPromptVersionId = promptNode?.versionId ?? null;
     }
-    if (!baseImageUrl) return apiError("No base image to edit.", 400);
+    if (!resolvedBaseUrl) return apiError("No base image to edit.", 400);
 
-    const extraReferenceUrls = connectedImageUrls.filter((u) => u !== baseImageUrl);
+    // Annotation: the client composited base + drawn marks into one PNG (base64). Upload it and
+    // send THAT as the image the model sees; lineage still points at the un-annotated base.
+    const annotated =
+      body?.annotated === true && typeof body?.annotatedBaseImageBase64 === "string";
+    let annotatedBaseUrl: string | null = null;
+    let modelBaseUrl = resolvedBaseUrl;
+    if (annotated) {
+      const mime =
+        typeof body?.annotatedBaseImageMime === "string"
+          ? body.annotatedBaseImageMime
+          : "image/png";
+      const uploaded = await uploadImageGen({
+        nodeId,
+        ext: mimeToExt(mime),
+        body: Buffer.from(body!.annotatedBaseImageBase64 as string, "base64"),
+        contentType: mime,
+      });
+      annotatedBaseUrl = uploaded.url;
+      modelBaseUrl = uploaded.url;
+    }
+
+    // Extra references: the client's chosen connected-node URLs when provided; otherwise the
+    // D27 default (all other connected images). Dedup the real base out either way.
+    const bodyExtras = Array.isArray(body?.extraReferenceUrls)
+      ? (body.extraReferenceUrls as unknown[]).filter(
+          (u): u is string => typeof u === "string",
+        )
+      : undefined;
+    const extraReferenceUrls = (bodyExtras ?? connectedImageUrls).filter(
+      (u) => u !== resolvedBaseUrl,
+    );
+
     referenceUrls = assembleEditReferences({
-      baseImageUrl,
+      baseImageUrl: modelBaseUrl,
       extraUrls: extraReferenceUrls,
       max: config.maxReferenceImages,
     });
@@ -117,6 +152,7 @@ export async function POST(
         instruction,
         intent,
         hasExtraReference: extraReferenceUrls.length > 0,
+        annotated,
       });
     inputsUsed = {
       promptVersionId: carriedPromptVersionId,
@@ -125,6 +161,8 @@ export async function POST(
       instruction,
       editPrompt: prompt,
       extraReferenceUrls,
+      annotated,
+      annotatedBaseUrl,
     };
   } else {
     // Fresh generation (unchanged): requires a connected Prompt node with output.
