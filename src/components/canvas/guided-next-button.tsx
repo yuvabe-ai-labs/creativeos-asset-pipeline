@@ -50,7 +50,7 @@ export function GuidedNextButton({
         disabled={disabled}
         title={plan.gate.nudge}
         className={cn(
-          "nodrag mt-1 flex items-center gap-1 rounded-md border border-dashed border-primary/40 px-2 py-1 text-[0.65rem] text-primary transition-colors hover:bg-primary/5",
+          "nodrag flex items-center gap-1 rounded-md border border-dashed border-primary/40 px-2 py-1 text-[0.65rem] text-primary transition-colors hover:bg-primary/5",
           disabled && "cursor-not-allowed opacity-50",
         )}
       >
