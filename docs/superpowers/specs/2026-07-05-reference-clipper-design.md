@@ -84,7 +84,10 @@ extension/
 
 - **Collect (background worker):** registers a `contexts: ["image"]` menu item "Add reference." On
   click, captures `{ srcUrl: info.srcUrl, pageUrl: info.pageUrl, pageTitle: tab.title, capturedAt }`
-  and appends it to a `references` array in `chrome.storage.local`.
+  and appends it to a `references` array in `chrome.storage.local`. It also **opens the side panel**
+  via `chrome.sidePanel.open({ windowId })` (Chrome 116+) so the pile is immediately visible — called
+  before any `await` so the click gesture (required by `open()`) isn't spent. The toolbar action stays
+  a secondary opener via `setPanelBehavior({ openPanelOnActionClick: true })`.
 - **Side panel (`sidepanel.js`):** reads `references` from `chrome.storage.local` and re-renders on
   `chrome.storage.onChanged`. Each item: a thumbnail (`<img src={srcUrl}>` — rendered straight from
   the source, costs nothing), the source hostname (links to `pageUrl`), and a remove button. A

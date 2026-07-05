@@ -16,6 +16,14 @@ chrome.runtime.onInstalled.addListener(() => {
 
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId !== MENU_ID || !info.srcUrl) return;
+
+  // Open the side panel within this user gesture. This MUST run before any
+  // await below — sidePanel.open() requires an unspent gesture, and the first
+  // await consumes it. No-op if the panel is already open.
+  if (tab?.windowId != null) {
+    chrome.sidePanel.open({ windowId: tab.windowId }).catch(() => {});
+  }
+
   const ref = {
     id: crypto.randomUUID(),
     srcUrl: info.srcUrl,
