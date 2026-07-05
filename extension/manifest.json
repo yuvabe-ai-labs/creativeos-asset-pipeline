@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "CreativeOS Reference Clipper",
+  "version": "0.1.0",
+  "description": "Collect image references while browsing and push them to a CreativeOS canvas.",
+  "permissions": ["contextMenus", "storage", "sidePanel", "tabs"],
+  "host_permissions": ["<all_urls>"],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_title": "CreativeOS Reference Clipper" },
+  "side_panel": { "default_path": "sidepanel.html" }
+}
