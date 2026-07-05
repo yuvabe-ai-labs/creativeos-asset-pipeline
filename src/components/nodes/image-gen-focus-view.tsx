@@ -38,7 +38,17 @@ import {
 } from "./image-gen-version-history";
 import { ImageGenUsagePopover } from "./image-gen-usage-popover";
 import { ImageGenEditPanel } from "./image-gen-edit-panel";
-import { buildEditPrompt, type EditIntent } from "@/lib/image-gen/edit-prompt";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ImageGenAnnotationCanvas, type AnnotationHandle } from "./image-gen-annotation-canvas";
+import {
+  ImageGenEditReferences,
+  type EditReferenceItem,
+} from "./image-gen-edit-references";
+import {
+  buildEditPrompt,
+  selectEditReferenceUrls,
+  type EditIntent,
+} from "@/lib/image-gen/edit-prompt";
 import { InlineEvalBar } from "./inline-eval-bar";
 import { InlineApprovalBar } from "./inline-approval-bar";
 import { setVersionLabelAction } from "@/lib/actions/eval";
@@ -63,6 +73,7 @@ export type ImageGenFocusViewProps = {
   params?: Record<string, unknown>;
   editInstruction?: string;
   editIntent?: EditIntent;
+  editReferenceNodeIds?: string[];
   upstream: Array<{
     id: string;
     type: string;
@@ -171,6 +182,7 @@ export function ImageGenFocusView({
   params,
   editInstruction,
   editIntent,
+  editReferenceNodeIds,
   upstream,
   onPatch,
   onProcessingChange,
@@ -194,6 +206,12 @@ export function ImageGenFocusView({
   }, [generating, editing, onProcessingChange]);
   const [editInstr, setEditInstr] = useState(editInstruction ?? "");
   const [intent, setIntent] = useState<EditIntent>(editIntent ?? "freeform");
+  const [activeTab, setActiveTab] = useState<"generate" | "edit">("generate");
+  const [selectedRefIds, setSelectedRefIds] = useState<string[]>(
+    editReferenceNodeIds ?? [],
+  );
+  const [hasAnnotation, setHasAnnotation] = useState(false);
+  const annotationRef = useRef<AnnotationHandle>(null);
   // null = follow the per-intent template; a string = the operator's hand-edited final prompt.
   const [promptOverride, setPromptOverride] = useState<string | null>(null);
   const [versions, setVersions] = useState<ImageGenVersionSummary[]>([]);
@@ -300,20 +318,48 @@ export function ImageGenFocusView({
     .map((u) => u.fileUrl as string);
   const firstConnectedImageUrl = connectedImageUrls[0];
 
+  // Connected image NODES (id + url), for the edit-mode reference tiles.
+  const connectedImageNodes = upstream
+    .filter(
+      (u) => (u.type === "file" || u.type === "draw" || u.type === "image-gen") && !!u.fileUrl,
+    )
+    .map((u) => ({ id: u.id, url: u.fileUrl as string, type: u.type }));
+
   // Base = the node's current image: the active attempt if present, else a connected image.
   const baseIsAttempt = Boolean(activeVersionId);
   const canEditBase = baseIsAttempt || Boolean(firstConnectedImageUrl);
-  // Extras = the other connected images (the "product to add"). When the base is itself a
-  // connected image, it is not also an extra.
-  const extraReferenceCount = baseIsAttempt
-    ? connectedImageUrls.length
-    : Math.max(0, connectedImageUrls.length - 1);
-  const hasExtraReference = extraReferenceCount > 0;
+
+  // Base image shown/annotated in Edit mode: the active attempt, else the first connected image.
+  const editBaseUrl = imageUrl ?? firstConnectedImageUrl ?? null;
+  const baseNodeId =
+    !baseIsAttempt && connectedImageNodes.length > 0 ? connectedImageNodes[0].id : null;
+
+  const referenceItems: EditReferenceItem[] = connectedImageNodes.map((n) => ({
+    id: n.id,
+    url: n.url,
+    label:
+      n.type === "draw" ? "Sketch" : n.type === "image-gen" ? "Image reference" : "Image file",
+    isBase: n.id === baseNodeId,
+  }));
+
+  // Extras = the connected image nodes the user marked (base excluded). Empty selection falls
+  // back to "all other connected images" (D27 default) via selectEditReferenceUrls.
+  const selectedExtraUrls = selectEditReferenceUrls({
+    connected: connectedImageNodes,
+    selectedIds: selectedRefIds,
+    baseUrl: editBaseUrl ?? undefined,
+  });
+  const hasExtraReference = selectedExtraUrls.length > 0;
 
   // Final prompt = the per-intent template, unless the operator has hand-edited it (override).
   // Picking a chip or changing the instruction clears the override so the template re-derives.
   const composedPrompt = editInstr.trim()
-    ? buildEditPrompt({ instruction: editInstr, intent, hasExtraReference })
+    ? buildEditPrompt({
+        instruction: editInstr,
+        intent,
+        hasExtraReference,
+        annotated: hasAnnotation,
+      })
     : "";
   const finalPrompt = promptOverride ?? composedPrompt;
   const referenceWarning =
@@ -430,6 +476,14 @@ export function ImageGenFocusView({
     }
   }
 
+  function handleToggleRef(id: string) {
+    setSelectedRefIds((prev) => {
+      const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
+      onPatch({ editReferenceNodeIds: next });
+      return next;
+    });
+  }
+
   function handleInstructionChange(v: string) {
     setEditInstr(v);
     setPromptOverride(null); // re-derive from the template as the instruction changes
@@ -448,6 +502,16 @@ export function ImageGenFocusView({
     }
     setEditing(true);
     try {
+      // Composite the annotation layer (if the user drew anything) into a PNG the route uploads.
+      let annotatedBaseImageBase64: string | undefined;
+      let annotatedBaseImageMime: string | undefined;
+      if (annotationRef.current?.hasMarks()) {
+        const composite = await annotationRef.current.toCompositeBase64();
+        if (composite) {
+          annotatedBaseImageBase64 = composite.base64;
+          annotatedBaseImageMime = composite.mime;
+        }
+      }
       const res = await fetch(`/api/nodes/${nodeId}/image-generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -457,6 +521,10 @@ export function ImageGenFocusView({
           instruction: editInstr,
           intent,
           prompt: finalPrompt,
+          extraReferenceUrls: selectedExtraUrls,
+          ...(annotatedBaseImageBase64
+            ? { annotated: true, annotatedBaseImageBase64, annotatedBaseImageMime }
+            : {}),
           ...(baseVersionId ? { baseVersionId } : { baseImageUrl }),
         }),
       });
@@ -468,6 +536,7 @@ export function ImageGenFocusView({
       if (!res.ok || !json.imageUrl) throw new Error(json.error ?? "Edit failed");
       onPatch({ parsed: json.imageUrl });
       setActiveVersionId(json.versionId ?? null);
+      annotationRef.current?.clear();
       await fetchVersions();
       toast.success("Image edited");
     } catch (e) {
@@ -619,6 +688,17 @@ export function ImageGenFocusView({
                 </p>
               </div>
               <div className="flex shrink-0 items-center gap-2">
+                {canEditBase && (
+                  <Tabs
+                    value={activeTab}
+                    onValueChange={(v) => setActiveTab(v as "generate" | "edit")}
+                  >
+                    <TabsList>
+                      <TabsTrigger value="generate">Generate</TabsTrigger>
+                      <TabsTrigger value="edit">Edit</TabsTrigger>
+                    </TabsList>
+                  </Tabs>
+                )}
                 {versions.length > 0 && (
                   <ImageGenUsagePopover versions={versions} />
                 )}
@@ -646,21 +726,28 @@ export function ImageGenFocusView({
           <div className="w-full max-w-5xl flex min-h-0 overflow-hidden">
             {/* Left panel */}
             <div className="w-[40%] border-r border-border overflow-y-auto px-6 py-6 flex flex-col gap-6">
-              {canEditBase && (
-                <ImageGenEditPanel
-                  intent={intent}
-                  instruction={editInstr}
-                  finalPrompt={finalPrompt}
-                  editing={editing}
-                  canEdit={canEditBase && editable}
-                  referenceWarning={referenceWarning}
-                  suggestGemini={suggestGemini}
-                  onPickChip={handlePickChip}
-                  onInstructionChange={handleInstructionChange}
-                  onInstructionBlur={handleInstructionBlur}
-                  onFinalPromptChange={setPromptOverride}
-                  onEdit={handleEdit}
-                />
+              {activeTab === "edit" && canEditBase && (
+                <div className="space-y-4">
+                  <ImageGenEditReferences
+                    items={referenceItems}
+                    selectedIds={selectedRefIds}
+                    onToggle={handleToggleRef}
+                  />
+                  <ImageGenEditPanel
+                    intent={intent}
+                    instruction={editInstr}
+                    finalPrompt={finalPrompt}
+                    editing={editing}
+                    canEdit={canEditBase && editable}
+                    referenceWarning={referenceWarning}
+                    suggestGemini={suggestGemini}
+                    onPickChip={handlePickChip}
+                    onInstructionChange={handleInstructionChange}
+                    onInstructionBlur={handleInstructionBlur}
+                    onFinalPromptChange={setPromptOverride}
+                    onEdit={handleEdit}
+                  />
+                </div>
               )}
 
               {versions.length > 0 && (
@@ -733,6 +820,15 @@ export function ImageGenFocusView({
               )}
 
               <div className="mt-3 flex-1 min-h-0">
+                {activeTab === "edit" && editBaseUrl && !editing ? (
+                  <ImageGenAnnotationCanvas
+                    ref={annotationRef}
+                    baseUrl={editBaseUrl}
+                    alt={title || "Base image"}
+                    onMarksChange={setHasAnnotation}
+                  />
+                ) : (
+                  <>
                 {mode === "skeleton" && (
                   <div className="size-full animate-pulse rounded-xl bg-muted-foreground/15" />
                 )}
@@ -799,6 +895,8 @@ export function ImageGenFocusView({
                       </button>
                     </div>
                   </div>
+                )}
+                  </>
                 )}
               </div>
             </div>
