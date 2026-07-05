@@ -809,6 +809,34 @@ flow** (auto-create/connect/place the next node + "Save and create…" CTAs) —
 origin note, a separate spec built on this one; live approval reconciliation across sessions (currently
 next-load); a cross-canvas/global tray. **Originated.** `2026-07-05-generation-tray-design.md`.
 
+### D36 — Guided next-node flow: declarative chain of "Create next" CTAs; never auto-generates *(recorded 2026-07-05; builds on D35, D21, D24, D8; preserves D11; the deferred second half of the D35 origin note)*
+**Decision.** A contextual **"Create next"** action on each pipeline node that **saves → creates →
+connects → places → opens** the next node, and **never runs a model** (the designer sets controls,
+verifies inputs, clicks Generate — preserves D11). The chain: `Shot →(image prompt) prompt →(image
+generation) image-gen →(video prompt) video-prompt →(video generation) video-gen` (video-gen is
+terminal). The whole progression is **one declarative config** `GUIDED_CHAIN` + a pure
+`planGuidedNext(source, nodes, edges)` (mirrors `deriveTrayItems`/`planReconcile`): returns the
+`nextType`, an `existingId` (**idempotent** — if the next node already exists it **navigates**, never
+duplicates), a `position` (`placeNextTo` = +360 x, nudge y on overlap), and `edgesToCreate`. Two steps
+wire **two** parents (D24): image-gen→video-prompt also wires **shot** (action context); video-prompt→
+video-gen also wires **image-gen** (start frame) — resolved by promoting the tray's `findShotAncestor`
+to a shared `findAncestorOfType` in `canvas/graph.ts` (findShotAncestor becomes a one-line delegate).
+A store action `guidedCreateNext(sourceId)` applies the plan (or returns the existing id) and flushes
+autosave; a shared `<GuidedNextButton>` renders as a **dashed-primary chip** on the Shot card (no focus
+view) or a **primary button** in the prompt/image-gen/video-prompt focus-view footers, and on click
+navigates via **`focusedNodeId`** (the D35 seam, now extended to `prompt`/`video-prompt` nodes). The
+image-gen CTA is **enabled once a still exists**, with a **"Not approved yet" nudge** when unapproved —
+approval **guides, never gates** (D29). **Why.** Four node-creates + six edges per shot was most of the
+setup clicks on a fanned-out reel; the tray removed *waiting* friction, this removes *setup* friction —
+and the tray already built the two seams it needs (`focusedNodeId`, the ancestor walk). **Rejected.**
+Auto-generating any step, even cheap prompt text (contradicts D11; the designer must set controls +
+verify inputs); a dedicated linear "Runner" surface (stays in-canvas); auto-selecting reference images
+(speculative/error-prone — the designer wires refs); creating a duplicate on repeat click (navigate
+instead); inferring "next" from `VALID_CONNECTIONS` (it allows multiple targets — a curated chain is
+needed). **Preserves D11** (never schedules a generation). **Deferred.** The dedicated Runner surface;
+batch "fan all shots' chains"; reference auto-selection. **Originated.**
+`2026-07-05-guided-next-node-flow-design.md`.
+
 ### Parked / out-of-scope (with revisit triggers)
 | Item | Status | Revisit when |
 |---|---|---|
