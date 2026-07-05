@@ -53,7 +53,7 @@ export function initDrawingCanvas(
 // the ref during render. `clear`/`toBlob` read `ref.current` only inside callbacks.
 export function useDrawingCanvas(
   canvasRef: React.RefObject<HTMLCanvasElement | null>,
-  opts?: { transparent?: boolean },
+  opts?: { transparent?: boolean; size?: number },
 ) {
   const drawingRef = useRef(false);
   const lastRef = useRef<{ x: number; y: number } | null>(null);

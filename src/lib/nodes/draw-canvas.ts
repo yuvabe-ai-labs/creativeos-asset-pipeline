@@ -21,9 +21,13 @@ export type CanvasToolSettings = {
 export function drawingContextSettings(
   tool: DrawTool,
   color: string,
-  opts?: { transparent?: boolean },
+  opts?: { transparent?: boolean; size?: number },
 ): CanvasToolSettings {
   if (tool === "eraser") {
+    // Eraser tracks the brush size but wider (3x), so clearing is faster than drawing. Falls
+    // back to the fixed ERASER_WIDTH when no size is given (the white-layer Draw node).
+    const lineWidth =
+      opts?.size != null ? Math.max(1, Math.round(opts.size * 3)) : ERASER_WIDTH;
     // On a transparent overlay (the annotation layer) the eraser must CLEAR ink to
     // transparent — a white pen would paint white marks over the base image. On the
     // white-background Draw node it stays a white pen (destination-out would punch holes).
@@ -31,17 +35,17 @@ export function drawingContextSettings(
       ? {
           globalCompositeOperation: "destination-out",
           strokeStyle: "rgba(0,0,0,1)",
-          lineWidth: ERASER_WIDTH,
+          lineWidth,
         }
       : {
           globalCompositeOperation: "source-over",
           strokeStyle: "#ffffff",
-          lineWidth: ERASER_WIDTH,
+          lineWidth,
         };
   }
   return {
     globalCompositeOperation: "source-over",
     strokeStyle: color,
-    lineWidth: PEN_WIDTH,
+    lineWidth: opts?.size != null ? Math.max(1, Math.round(opts.size)) : PEN_WIDTH,
   };
 }

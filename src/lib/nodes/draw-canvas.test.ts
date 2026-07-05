@@ -48,3 +48,20 @@ describe("drawingContextSettings — transparent layer (annotation overlay)", ()
     });
   });
 });
+
+describe("drawingContextSettings — brush size", () => {
+  it("pen uses the given brush size", () => {
+    expect(drawingContextSettings("pen", "#000", { size: 20 }).lineWidth).toBe(20);
+  });
+
+  it("eraser is 3x the brush size (wider than the pen)", () => {
+    const s = drawingContextSettings("eraser", "#000", { transparent: true, size: 10 });
+    expect(s.lineWidth).toBe(30);
+    expect(s.globalCompositeOperation).toBe("destination-out");
+  });
+
+  it("falls back to the fixed widths when no size is given", () => {
+    expect(drawingContextSettings("pen", "#000").lineWidth).toBe(PEN_WIDTH);
+    expect(drawingContextSettings("eraser", "#000").lineWidth).toBe(ERASER_WIDTH);
+  });
+});

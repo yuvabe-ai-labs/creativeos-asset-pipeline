@@ -330,6 +330,8 @@ export function ImageGenFocusView({
   const canEditBase = baseIsAttempt || Boolean(firstConnectedImageUrl);
 
   // Base image shown/annotated in Edit mode: the active attempt, else the first connected image.
+  // The annotation canvas is keyed on this url, so a new base remounts it with a blank overlay
+  // — marks never carry over onto a freshly generated image.
   const editBaseUrl = imageUrl ?? firstConnectedImageUrl ?? null;
   const baseNodeId =
     !baseIsAttempt && connectedImageNodes.length > 0 ? connectedImageNodes[0].id : null;
@@ -559,6 +561,7 @@ export function ImageGenFocusView({
       if (!res.ok) throw new Error(json.error ?? "Restore failed");
       if (json.output) onPatch({ parsed: json.output });
       setActiveVersionId(versionId);
+      setHasAnnotation(false); // restored a different base — drop any stale annotation flag
       await fetchVersions();
       toast.success("Version restored");
     } catch (e) {
@@ -822,6 +825,7 @@ export function ImageGenFocusView({
               <div className="mt-3 flex-1 min-h-0">
                 {activeTab === "edit" && editBaseUrl && !editing ? (
                   <ImageGenAnnotationCanvas
+                    key={editBaseUrl}
                     ref={annotationRef}
                     baseUrl={editBaseUrl}
                     alt={title || "Base image"}

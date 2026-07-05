@@ -10,6 +10,7 @@ import {
 } from "react";
 import { Eraser, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Slider } from "@/components/ui/slider";
 import {
   useDrawingCanvas,
   initDrawingCanvas,
@@ -28,15 +29,25 @@ type Props = {
   onMarksChange?: (has: boolean) => void;
 };
 
-// Load the base image cross-origin so the composited canvas is readable (toDataURL). Base
-// images are connected-node images in our storage (spec §7), which serve CORS.
+const MIN_BRUSH = 2;
+const MAX_BRUSH = 64;
+const DEFAULT_BRUSH = 12;
+
+// GCS public objects don't send CORS headers, so a `crossOrigin` load of the base image fails
+// and its pixels can't be read back out of a canvas (toDataURL taints). Route through our
+// same-origin proxy (/api/image-proxy) so the image is same-origin and canvas readback is
+// allowed with no bucket-CORS change (D37 §8).
+function proxied(url: string): string {
+  return `/api/image-proxy?url=${encodeURIComponent(url)}`;
+}
+
 function loadImage(url: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.crossOrigin = "anonymous";
     img.onload = () => resolve(img);
     img.onerror = () => reject(new Error("Failed to load base image for annotation"));
-    img.src = url;
+    img.src = proxied(url);
   });
 }
 
@@ -45,6 +56,7 @@ export const ImageGenAnnotationCanvas = forwardRef<AnnotationHandle, Props>(
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const dirtyRef = useRef(false);
     const [dims, setDims] = useState<{ w: number; h: number } | null>(null);
+    const [brushSize, setBrushSize] = useState(DEFAULT_BRUSH);
 
     const {
       tool,
@@ -56,7 +68,7 @@ export const ImageGenAnnotationCanvas = forwardRef<AnnotationHandle, Props>(
       onPointerUp,
       onPointerLeave,
       clear,
-    } = useDrawingCanvas(canvasRef, { transparent: true });
+    } = useDrawingCanvas(canvasRef, { transparent: true, size: brushSize });
 
     // Load the base image to learn its natural size, then size the overlay buffer to match so
     // marks map 1:1 to pixels; CSS scales it to the displayed box (getBoundingClientRect maps
@@ -121,9 +133,14 @@ export const ImageGenAnnotationCanvas = forwardRef<AnnotationHandle, Props>(
       [baseUrl, resetMarks],
     );
 
+    // A small preview dot for the current brush size, scaled from canvas px into a legible
+    // display size (the buffer is at the image's natural resolution, so px are large).
+    const previewPx = Math.max(3, Math.min(18, Math.round(brushSize / 1.6)));
+
     return (
-      <div className="flex min-h-0 flex-1 flex-col items-center gap-3">
-        <div className="flex min-h-0 w-full flex-1 items-center justify-center">
+      <div className="flex min-h-0 flex-1 gap-3">
+        {/* Canvas area */}
+        <div className="flex min-h-0 flex-1 items-center justify-center">
           {/* Wrapper matches the image aspect so the overlay lines up exactly. */}
           <div
             className="relative max-h-full max-w-full overflow-hidden rounded-xl border border-border bg-muted/20"
@@ -150,25 +167,29 @@ export const ImageGenAnnotationCanvas = forwardRef<AnnotationHandle, Props>(
           </div>
         </div>
 
-        {/* Tool strip — reuse the Draw node's control cluster styling. */}
-        <div className="flex shrink-0 items-center gap-3 rounded-xl border border-border bg-card px-3 py-2">
-          {DRAW_COLORS.map((c) => (
-            <button
-              key={c}
-              type="button"
-              onClick={() => {
-                setColor(c);
-                setTool("pen");
-              }}
-              className={cn(
-                "size-6 rounded-full border border-border transition",
-                tool === "pen" && color === c && "ring-2 ring-primary ring-offset-1",
-              )}
-              style={{ backgroundColor: c }}
-              aria-label={`Pen ${c}`}
-            />
-          ))}
-          <span className="mx-1 h-5 w-px bg-border" />
+        {/* Right rail — colors · eraser · brush size · clear */}
+        <div className="flex w-16 shrink-0 flex-col items-center gap-3 rounded-xl border border-border bg-card px-2 py-3">
+          <div className="flex flex-col items-center gap-2">
+            {DRAW_COLORS.map((c) => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => {
+                  setColor(c);
+                  setTool("pen");
+                }}
+                className={cn(
+                  "size-6 rounded-full border border-border transition",
+                  tool === "pen" && color === c && "ring-2 ring-primary ring-offset-1",
+                )}
+                style={{ backgroundColor: c }}
+                aria-label={`Pen ${c}`}
+              />
+            ))}
+          </div>
+
+          <span className="h-px w-6 bg-border" />
+
           <button
             type="button"
             onClick={() => setTool("eraser")}
@@ -180,6 +201,25 @@ export const ImageGenAnnotationCanvas = forwardRef<AnnotationHandle, Props>(
           >
             <Eraser className="size-4" strokeWidth={1.5} />
           </button>
+
+          {/* Brush size — vertical slider with a live preview dot */}
+          <div className="flex flex-1 flex-col items-center gap-2 py-1">
+            <span
+              className="shrink-0 rounded-full bg-foreground"
+              style={{ width: previewPx, height: previewPx }}
+              aria-hidden
+            />
+            <Slider
+              orientation="vertical"
+              min={MIN_BRUSH}
+              max={MAX_BRUSH}
+              value={[brushSize]}
+              onValueChange={(v) => setBrushSize(Array.isArray(v) ? v[0] : v)}
+              aria-label="Brush size"
+              className="flex-1"
+            />
+          </div>
+
           <button
             type="button"
             onClick={resetMarks}
