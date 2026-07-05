@@ -217,3 +217,30 @@ describe("canvas store — focusedNodeId", () => {
     expect(store.getState().focusedNodeId).toBeNull();
   });
 });
+
+describe("guidedCreateNext", () => {
+  it("creates the next node wired from the source and returns its id", () => {
+    const shot: AppNode = { id: "s", type: "shot", position: { x: 0, y: 0 }, data: {} } as AppNode;
+    const store = createCanvasStore([shot], []);
+    const newId = store.getState().guidedCreateNext("s");
+    expect(newId).not.toBeNull();
+    const created = store.getState().nodes.find((n) => n.id === newId);
+    expect(created?.type).toBe("prompt");
+    expect(store.getState().edges.some((e) => e.source === "s" && e.target === newId)).toBe(true);
+  });
+
+  it("returns the existing next id without creating a duplicate", () => {
+    const shot: AppNode = { id: "s", type: "shot", position: { x: 0, y: 0 }, data: {} } as AppNode;
+    const prompt: AppNode = { id: "p", type: "prompt", position: { x: 360, y: 0 }, data: {} } as AppNode;
+    const store = createCanvasStore([shot, prompt], [{ id: "s-p", source: "s", target: "p" }]);
+    const before = store.getState().nodes.length;
+    expect(store.getState().guidedCreateNext("s")).toBe("p");
+    expect(store.getState().nodes.length).toBe(before); // no new node
+  });
+
+  it("returns null for a gated source (image-gen with no image)", () => {
+    const ig: AppNode = { id: "g", type: "image-gen", position: { x: 0, y: 0 }, data: {} } as AppNode;
+    const store = createCanvasStore([ig], []);
+    expect(store.getState().guidedCreateNext("g")).toBeNull();
+  });
+});
