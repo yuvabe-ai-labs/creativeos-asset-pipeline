@@ -4,33 +4,16 @@
 import type { Edge } from "@xyflow/react";
 import type { AppNode } from "@/lib/canvas-nodes";
 import type { GenerationRow } from "@/lib/db/types";
+import { findAncestorOfType } from "@/lib/canvas/graph";
 
-/** Walk edges upstream (BFS, bounded depth) from `nodeId` to the nearest `shot` node. */
+/** Walk edges upstream from `nodeId` to the nearest `shot` node. */
 export function findShotAncestor(
   nodeId: string,
   nodes: AppNode[],
   edges: Edge[],
   maxDepth = 4,
 ): AppNode | null {
-  const byId = new Map(nodes.map((n) => [n.id, n]));
-  const parentsOf = (id: string) => edges.filter((e) => e.target === id).map((e) => e.source);
-  const seen = new Set<string>([nodeId]);
-  let frontier = [nodeId];
-  for (let depth = 0; depth < maxDepth; depth++) {
-    const next: string[] = [];
-    for (const id of frontier) {
-      for (const p of parentsOf(id)) {
-        if (seen.has(p)) continue;
-        seen.add(p);
-        const parent = byId.get(p);
-        if (parent?.type === "shot") return parent;
-        next.push(p);
-      }
-    }
-    if (next.length === 0) break;
-    frontier = next;
-  }
-  return null;
+  return findAncestorOfType(nodeId, nodes, edges, "shot", maxDepth);
 }
 
 /** Human label for a generation node: "Shot N" from its shot ancestor, else the node's title. */
