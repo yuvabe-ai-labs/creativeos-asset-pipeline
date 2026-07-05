@@ -91,11 +91,13 @@ extension/
   **"Push to canvas"** button and a status/error line.
 - **Push (on button click):**
   1. `chrome.tabs.query({ active: true, currentWindow: true })` → the target tab + its URL.
-  2. Parse the URL with `parseCanvasUrl` (§5.3). If it isn't a canvas URL → show
-     *"Open the canvas you want to push to, then Push."* and stop.
+  2. A quick regex gate (`/\/clients\/[^/]+\/canvases\/[^/]+/`) confirms it looks like a canvas
+     page; if not → show *"Open the canvas you want to push to, then Push."* and stop. (Authoritative
+     validation is server-side — the extension does not own the parse; see §5.3.)
   3. For each reference **sequentially** (so the server's node count advances between requests and
-     positions stagger deterministically): `fetch(srcUrl)` in the worker → `Blob` → POST
-     `multipart/form-data` to the ingest route (§5.2). Collect per-item success/failure.
+     positions stagger deterministically): `fetch(srcUrl)` in the panel → `Blob` → POST
+     `multipart/form-data` to `{origin}/api/ingest-image`, forwarding the **full tab URL** as
+     `canvasUrl` (the server parses out the slugs — §5.2). Collect per-item success/failure.
   4. Remove successfully-pushed items from `chrome.storage.local`; leave failures with an error mark.
   5. If anything succeeded, `chrome.tabs.reload(targetTabId)` **once**, at the end.
 
@@ -109,30 +111,37 @@ extension/
 `/api/clients/[id]/…`, because that convention's `withClient` resolves a client **UUID**, and the
 extension only has slugs from the canvas URL).
 
-- **Body** (`multipart/form-data`): `file` (image blob), `clientSlug`, `canvasSlug`, `sourceUrl`
-  (provenance), `filename`.
+- **Body** (`multipart/form-data`): `file` (image blob), `canvasUrl` (the full canvas page URL —
+  the server parses out the slugs), `sourceUrl` (provenance).
 - **Handler** (`apiOk`/`apiError`; wrap the async work in `withTryCatch`):
-  1. `getClientBySlug(clientSlug)` → `getCanvasBySlug(client.id, canvasSlug)`; 404 if either missing.
-  2. `parseFormFile` → `validateFileExtension(file, IMG_EXTENSIONS)` → `validateFileSize(...)`.
-  3. Mint `nodeId = crypto.randomUUID()`; compute a **staggered position** (§5.4).
-  4. Insert the File node row: `type: "file"`, `position`,
+  1. `parseCanvasUrl(canvasUrl)` → `{ clientSlug, canvasSlug }`; 400 if it doesn't match (§5.3).
+  2. `getClientBySlug(clientSlug)` → `getCanvasBySlug(client.id, canvasSlug)`; 404 if either missing.
+  3. Validate the file: `validateFileExtension(file, FILE_NODE_IMAGE_EXTENSIONS)` →
+     `validateFileSize(file.size, 0, FILE_NODE_IMAGE_SIZE_LIMIT, "10 MB")`. (Read `req.formData()`
+     once and pull `file`/`canvasUrl`/`sourceUrl` from it — `parseFormFile` re-reads the body, so it
+     isn't composable with also reading the URL fields; inline the `file instanceof File` check.)
+  4. Mint `nodeId = crypto.randomUUID()`; compute a **staggered position** (§5.4).
+  5. Insert the File node row: `type: "file"`, `position`,
      `data: { fileKind: "image", filename, fileExt, sourceUrl, fileUrl: "" }`. (Row must exist before
      upload so `resolveOwnership(nodeId)` can build the GCS path — same ordering the paste flow uses.)
-  5. `uploadNodeFile(nodeId, blob)` → `{ url }` in GCS.
-  6. Update the row: `data.fileUrl = url`.
-  7. `apiOk({ nodeId, fileUrl }, 201)`.
+  6. `uploadNodeFile({ nodeId, filename, body, contentType })` → `{ url }` in GCS.
+  7. Update the row's `data.fileUrl = url`.
+  8. `apiOk({ nodeId, fileUrl }, 201)`.
 
-### 5.3 `parseCanvasUrl` (pure, unit-tested)
+### 5.3 `parseCanvasUrl` (pure, unit-tested — **server-side**)
 
 ```
 parseCanvasUrl(url: string):
-  { origin, clientSlug, canvasSlug } | null
+  { clientSlug, canvasSlug } | null
 ```
 
 Matches `{origin}/clients/{clientSlug}/canvases/{canvasSlug}` (ignoring trailing segments/query),
-returns `null` otherwise. Lives in the extension (`extension/canvas-url.js`) and is the single source
-of truth for "is this a canvas tab?" Unit-tested against valid URLs, non-canvas URLs, trailing
-paths, and query strings.
+returns `null` otherwise. Lives in **`src/lib/reference-clipper/canvas-url.ts`** (not the extension)
+so it's the single, unit-tested source of truth and is exercised by the repo's vitest (node env,
+`src/**/*.test.ts`) — an unpacked extension can't import from `src/`, so putting it there and having
+the extension forward the raw URL keeps one tested implementation instead of a drifting copy. The
+extension only does a cheap regex gate for the UX hint (§5.1) and `new URL(tabUrl).origin` to know
+where to POST. Unit-tested against valid URLs, non-canvas URLs, trailing paths, and query strings.
 
 ### 5.4 Position staggering
 
@@ -190,9 +199,11 @@ the app.
 ## 11. Implementation surface
 
 **New:**
-- `extension/` — `manifest.json`, `background.js`, `sidepanel.{html,js,css}`, `canvas-url.js`.
+- `extension/` — `manifest.json`, `background.js`, `sidepanel.{html,js,css}` (no build step; loaded
+  unpacked). The extension forwards the raw canvas URL; it holds no tested logic of its own.
+- `src/lib/reference-clipper/canvas-url.ts` + `.test.ts` — `parseCanvasUrl` (server-side, tested).
+- `src/lib/reference-clipper/position.ts` + `.test.ts` — `computeStaggeredPosition` (tested).
 - `src/app/api/ingest-image/route.ts` — the ingest route.
-- Unit tests for `parseCanvasUrl` and the stagger function.
 
 **Changed:** nothing in the existing app (the File node type, paste flow, lock, autosave, and
 deletion are all reused as-is).
