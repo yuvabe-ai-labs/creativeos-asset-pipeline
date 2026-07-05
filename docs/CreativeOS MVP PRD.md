@@ -1329,20 +1329,33 @@ it up. These are *additive* to the MVP — none block the Stage 1–5 pipeline.
 
 * **Now:** **maker-checker approval shipped as a flag (D29, §22.2)** — every attempt carries
   `pending → approved | changes_requested`, set by a senior in the focus view, shown as an
-  on-canvas badge, with maker/checker attribution. What's **not** built: it's a *flag only* —
-  no request-for-review lifecycle that gates downstream wiring, no notifications, and **no
-  commenting anywhere** on the canvas.
+  on-canvas badge, with maker/checker attribution. **A canvas-level, read-only Review surface is
+  now an approved design (D34; implementation pending)** — spec
+  `docs/superpowers/specs/2026-07-02-production-review-mode-design.md`. It promotes the *fast
+  review-workflow* half of this feature: a per-canvas **list→detail queue** at
+  `…/canvases/[cid]/review` where a senior moves through a reel's prompts and generated outputs
+  (Image Prompt · Video Prompt · Image Gen · Video Gen), **approving / requesting changes inline**
+  (reusing the D29 action) **without opening the editor** — decoupled from the D33 lock, and
+  *mark-don't-block* (approval never triggers the next step; preserves D11). Still **not** built
+  anywhere: gating, notifications, and **commenting**.
 * **Backlog (still):**
   * **Review lifecycle that gates** — extend the D29 flag from "records sign-off" to a
     workflow (`submitted for review → …`) that can **block or flag** downstream wiring (lean
     *mark, don't block*, per D9/D21). The distinct reviewer role + badges already exist (D29).
+    **D34 deliberately does not gate** (preserves D11); this is the deferred escalation.
+  * **Cross-canvas / client-level review inbox** — D34 is per-canvas; a client-wide inbox that
+    aggregates every reel is a later data-source swap on the *same* surface (`listReviewQueue(clientId)`).
+  * **Submit-for-review lifecycle** — a `submitted_for_review` state + a junior "Submit" action so
+    the queue shows only pushed items (D34 instead derives the queue from the existing D29 states).
   * **Per-node commenting** — a comment thread anchored to a node (and ideally to a specific
     attempt/version), with author, timestamp, resolve/unresolve, and `@mention`. The "where a
     designer changed the model output" diff (§4.4) and the comment thread together become the
     review record.
   * Notifications (in-app, later email/Slack) when review is requested or a comment mentions you.
-* **Depends on:** **F1** (real user identities) — a reviewer role, comment authorship, and
-  `@mention` all require login + per-user identity. Build F1 first or in lockstep.
+* **Depends on:** the **review surface (D34) rides on soft identity (D29)** — no F1 needed to ship it.
+  **F1** (real user identities) is still required for comment authorship, `@mention`, and *enforced*
+  reviewer roles (D34's senior-only control is a cosmetic hint, spoofable). Build F1 first or in
+  lockstep for those.
 * **To decide when picked up:** comment granularity (node vs. attempt/version), whether
   "changes requested" blocks downstream wiring or only flags it (lean **mark, don't block** —
   consistent with D9/D21), and notification channels.
@@ -1451,5 +1464,7 @@ concurrency at the source is simpler and correct for an internal tool. **Live co
 (real-time presence, CRDT same-field merge) is deliberately future work.
 
 > Full designs: `docs/superpowers/specs/2026-06-29-approval-flag-design.md` (D29),
-> `docs/superpowers/specs/2026-07-01-canvas-pessimistic-lock-design.md` (D33). Decision log:
-> staging-roadmap §7, **D29 / D33** (D33 supersedes the optimistic **D32**).
+> `docs/superpowers/specs/2026-07-01-canvas-pessimistic-lock-design.md` (D33),
+> `docs/superpowers/specs/2026-07-02-production-review-mode-design.md` (**D34** — canvas-level
+> read-only review surface; *approved design, implementation pending*). Decision log:
+> staging-roadmap §7, **D29 / D33 / D34** (D33 supersedes the optimistic **D32**).
