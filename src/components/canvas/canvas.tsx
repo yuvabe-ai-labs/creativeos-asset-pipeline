@@ -8,6 +8,7 @@ import {
   BackgroundVariant,
   Controls,
   ReactFlow,
+  ReactFlowProvider,
   SelectionMode,
   type Connection,
   type Edge,
@@ -36,6 +37,7 @@ import { QuickAddMenu } from "./quick-add-menu";
 import { mnemonicToType, isEditableTarget } from "@/lib/canvas-node-options";
 import { useCanvasLock } from "@/hooks/use-canvas-lock";
 import { CanvasEditableProvider } from "./canvas-editable-context";
+import { GenerationTray } from "./generation-tray";
 import { LockBanner } from "./lock-banner";
 import { DeleteConfirmDialog } from "./delete-confirm-dialog";
 import { useDeleteConfirmation } from "@/hooks/use-delete-confirmation";
@@ -307,6 +309,7 @@ export function Canvas({
   );
 
   return (
+    <ReactFlowProvider>
     <CanvasEditableProvider value={canEdit}>
     <div className="absolute inset-0 bg-[var(--neutral-50)]">
       <CanvasAutosave
@@ -373,7 +376,10 @@ export function Canvas({
         />
         <Controls showInteractive={false} />
       </ReactFlow>
+
+      <GenerationTray canvasId={canvasId} />
     </div>
     </CanvasEditableProvider>
+    </ReactFlowProvider>
   );
 }

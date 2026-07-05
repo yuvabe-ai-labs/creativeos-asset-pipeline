@@ -23,6 +23,8 @@ export function ImageGenNode({ id, data, selected }: NodeProps) {
   // selector breaks useSyncExternalStore caching → infinite-loop error.
   const nodes = useCanvasStore((s) => s.nodes);
   const edges = useCanvasStore((s) => s.edges);
+  const focusedNodeId = useCanvasStore((s) => s.focusedNodeId);
+  const setFocusedNodeId = useCanvasStore((s) => s.setFocusedNodeId);
 
   const upstream = useMemo(() => {
     const sourceIds = edges.filter((e) => e.target === id).map((e) => e.source);
@@ -49,6 +51,15 @@ export function ImageGenNode({ id, data, selected }: NodeProps) {
   const approvalStatus = (d as { approvalStatus?: ApprovalStatus }).approvalStatus;
   const [focusOpen, setFocusOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // The focus view is open when opened locally (double-click / "Open ↗") OR when the
+  // Generation Tray points `focusedNodeId` at this node. Derived during render — no
+  // effect — so it never trips the set-state-in-effect rule.
+  const focusViewOpen = focusOpen || focusedNodeId === id;
+  const handleFocusOpenChange = (next: boolean) => {
+    setFocusOpen(next);
+    if (!next && focusedNodeId === id) setFocusedNodeId(null); // consume the tray signal
+  };
 
   return (
     <NodeContextMenu onDuplicate={() => duplicateNode(id)} onDelete={() => deleteNode(id)}>
@@ -101,8 +112,8 @@ export function ImageGenNode({ id, data, selected }: NodeProps) {
         </div>
 
         <ImageGenFocusView
-          open={focusOpen}
-          onOpenChange={setFocusOpen}
+          open={focusViewOpen}
+          onOpenChange={handleFocusOpenChange}
           nodeId={id}
           title={title}
           imageUrl={imageUrl}

@@ -30,6 +30,8 @@ export function PromptNode({ id, data, selected }: NodeProps) {
   // "getSnapshot should be cached" infinite-loop error once the list is non-empty.
   const nodes = useCanvasStore((s) => s.nodes);
   const edges = useCanvasStore((s) => s.edges);
+  const focusedNodeId = useCanvasStore((s) => s.focusedNodeId);
+  const setFocusedNodeId = useCanvasStore((s) => s.setFocusedNodeId);
   const upstream = useMemo(() => {
     const sourceIds = edges.filter((e) => e.target === id).map((e) => e.source);
     const directNodes = nodes.filter((n) => sourceIds.includes(n.id));
@@ -71,6 +73,12 @@ export function PromptNode({ id, data, selected }: NodeProps) {
   const controls = d.controls ?? null;
   const kbJustReady = useCanvasStore((s) => s.kbJustReady);
   const [focusOpen, setFocusOpen] = useState(false);
+  // Open locally (double-click / "Open ↗") OR when the guided flow points here (D35/D36).
+  const focusViewOpen = focusOpen || focusedNodeId === id;
+  const handleFocusOpenChange = (next: boolean) => {
+    setFocusOpen(next);
+    if (!next && focusedNodeId === id) setFocusedNodeId(null);
+  };
 
   return (
     <NodeContextMenu onDuplicate={() => duplicateNode(id)} onDelete={() => deleteNode(id)}>
@@ -117,8 +125,8 @@ export function PromptNode({ id, data, selected }: NodeProps) {
       </div>
 
       <PromptFocusView
-        open={focusOpen}
-        onOpenChange={setFocusOpen}
+        open={focusViewOpen}
+        onOpenChange={handleFocusOpenChange}
         nodeId={id}
         title={title}
         instruction={instruction}

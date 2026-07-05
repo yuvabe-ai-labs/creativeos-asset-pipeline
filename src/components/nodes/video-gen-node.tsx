@@ -18,6 +18,8 @@ export function VideoGenNode({ id, data, selected }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const deleteNode    = useDeleteNode();
   const duplicateNode = useCanvasStore((s) => s.duplicateNode);
+  const focusedNodeId = useCanvasStore((s) => s.focusedNodeId);
+  const setFocusedNodeId = useCanvasStore((s) => s.setFocusedNodeId);
 
   const d = data as VideoGenNodeData;
   const title    = d.title ?? "";
@@ -27,6 +29,14 @@ export function VideoGenNode({ id, data, selected }: NodeProps) {
 
   const [focusOpen, setFocusOpen] = useState(false);
   const { isGenerating } = useVideoGenStatus(id);
+
+  // Open when opened locally OR when the Generation Tray points `focusedNodeId` here.
+  // Derived during render — no effect — so it never trips the set-state-in-effect rule.
+  const focusViewOpen = focusOpen || focusedNodeId === id;
+  const handleFocusOpenChange = (next: boolean) => {
+    setFocusOpen(next);
+    if (!next && focusedNodeId === id) setFocusedNodeId(null); // consume the tray signal
+  };
 
   const handlePatch = useCallback(
     (patch: Record<string, unknown>) => updateNodeData(id, patch),
@@ -91,8 +101,8 @@ export function VideoGenNode({ id, data, selected }: NodeProps) {
         </div>
 
         <VideoGenFocusView
-          open={focusOpen}
-          onOpenChange={setFocusOpen}
+          open={focusViewOpen}
+          onOpenChange={handleFocusOpenChange}
           nodeId={id}
           title={title}
           videoUrl={videoUrl}

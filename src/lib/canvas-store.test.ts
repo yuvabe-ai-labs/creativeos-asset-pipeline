@@ -3,6 +3,7 @@ import { createCanvasStore } from "./canvas-store";
 import type { AppNode } from "./canvas-nodes";
 import type { Edge } from "@xyflow/react";
 import type { ShotComposeIdea } from "./nodes/shot-compose";
+import type { GenerationRow } from "./db/types";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -177,4 +178,69 @@ describe("canvas store — tombstones", () => {
     expect(store.getState().removedNodeIds).toEqual(["b"]);
   });
 
+});
+
+const genRow = (over: Partial<GenerationRow>): GenerationRow =>
+  ({
+    id: "j", node_id: "g", type: "image", status: "running",
+    provider_job_id: null, model_used: null, params_snapshot: null,
+    inputs_snapshot: null, tokens_used: null, credits_consumed: null,
+    version_id: null, user_id: null, error: null, meta: null,
+    created_at: "2026-07-05T00:00:00.000Z", updated_at: "2026-07-05T00:00:00.000Z",
+    ...over,
+  });
+
+describe("canvas store — tray slice", () => {
+  it("starts empty and seeds via setTrayJobs", () => {
+    const store = createCanvasStore();
+    expect(store.getState().trayJobs).toEqual({});
+    store.getState().setTrayJobs([genRow({ id: "a" }), genRow({ id: "b" })]);
+    expect(Object.keys(store.getState().trayJobs).sort()).toEqual(["a", "b"]);
+  });
+
+  it("upsertTrayJob replaces a row by id", () => {
+    const store = createCanvasStore();
+    store.getState().upsertTrayJob(genRow({ id: "a", status: "running" }));
+    store.getState().upsertTrayJob(genRow({ id: "a", status: "succeeded" }));
+    expect(Object.keys(store.getState().trayJobs)).toEqual(["a"]);
+    expect(store.getState().trayJobs.a.status).toBe("succeeded");
+  });
+});
+
+describe("canvas store — focusedNodeId", () => {
+  it("starts null and can be set/cleared", () => {
+    const store = createCanvasStore();
+    expect(store.getState().focusedNodeId).toBeNull();
+    store.getState().setFocusedNodeId("node-1");
+    expect(store.getState().focusedNodeId).toBe("node-1");
+    store.getState().setFocusedNodeId(null);
+    expect(store.getState().focusedNodeId).toBeNull();
+  });
+});
+
+describe("guidedCreateNext", () => {
+  it("creates the next node wired from the source and returns its id", () => {
+    const shot: AppNode = { id: "s", type: "shot", position: { x: 0, y: 0 }, data: {} } as AppNode;
+    const store = createCanvasStore([shot], []);
+    const newId = store.getState().guidedCreateNext("s");
+    expect(newId).not.toBeNull();
+    const created = store.getState().nodes.find((n) => n.id === newId);
+    expect(created?.type).toBe("prompt");
+    expect(store.getState().edges.some((e) => e.source === "s" && e.target === newId)).toBe(true);
+  });
+
+  it("returns the existing next id without creating a duplicate", () => {
+    const shot: AppNode = { id: "s", type: "shot", position: { x: 0, y: 0 }, data: {} } as AppNode;
+    const prompt: AppNode = { id: "p", type: "prompt", position: { x: 360, y: 0 }, data: {} } as AppNode;
+    const store = createCanvasStore([shot, prompt], [{ id: "s-p", source: "s", target: "p" }]);
+    const before = store.getState().nodes.length;
+    expect(store.getState().guidedCreateNext("s")).toBe("p");
+    expect(store.getState().nodes.length).toBe(before); // no new node
+  });
+
+  it("returns null for a gated source (image-gen with no image)", () => {
+    const ig: AppNode = { id: "g", type: "image-gen", position: { x: 0, y: 0 }, data: {} } as AppNode;
+    const store = createCanvasStore([ig], []);
+    expect(store.getState().guidedCreateNext("g")).toBeNull();
+  });
 });

@@ -19,6 +19,7 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { EditableField } from "./editable-field";
 import { normalizeTitle } from "@/lib/nodes/title";
 import { Button } from "@/components/ui/button";
+import { GuidedNextButton } from "@/components/canvas/guided-next-button";
 import { SliceToggles } from "./slice-toggles";
 import { DEFAULT_MOTION_INSTRUCTION } from "@/lib/nodes/video-prompt";
 import type { KBSliceKey } from "@/lib/kb/parse-context";
@@ -387,6 +388,11 @@ export function VideoPromptFocusView({
                     Save
                   </Button>
                 )}
+                <GuidedNextButton
+                  sourceId={nodeId}
+                  variant="button"
+                  onNavigate={() => onOpenChange(false)}
+                />
               </div>
             </header>
           </div>
