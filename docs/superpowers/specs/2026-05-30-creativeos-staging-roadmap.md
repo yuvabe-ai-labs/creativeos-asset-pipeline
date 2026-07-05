@@ -780,6 +780,35 @@ schedules). **Deferred.** Cross-canvas inbox, submit lifecycle, notifications, b
 badges, shot-based grouping (needs shot lineage downstream nodes don't store), campaign entity.
 **Originated.** `2026-07-02-production-review-mode-design.md`.
 
+### D35 — Generation Tray: canvas-scoped, navigation-only job shelf derived from the `generations` substrate; image gen joins the substrate *(recorded 2026-07-05; builds on D26, D12/D25, D9, D33, D18/D5; preserves D11)*
+**Decision.** A **flat, canvas-scoped shelf** floating over the canvas (right-edge overlay, hidden when
+empty) listing one item **per generation node** (`image-gen | video-gen`) whose latest `generations`
+job row is `running | succeeded | failed`, rendered **Running / Ready / Failed** with shot label +
+asset type. **Clicking an item does one thing: fly the canvas to that node (`setCenter`) and open its
+focus view.** No tray-level actions. Item **leaves** on approval of the active version (retention =
+"until approved"), a newer generation, or node deletion. Everything is **derived on read** (D9) — a
+pure `deriveTrayItems(nodes, edges, latestJobs, approvals, now)` + `resolveShotLabel` (upstream
+edge-walk to the nearest `shot`, fallback to node title); **no tray table, no new column, no
+migration.** Live via **one canvas-level Supabase Realtime channel** on `generations`
+(`node_id`-filtered client-side; coexists with the untouched per-node `use-video-gen-status`). **Image
+gen joins the substrate** — the (still synchronous) image route now writes `insertGeneration` →
+`succeedGeneration`/`failGeneration` (the primitives video already uses), which is what D26 always
+assumed but the route never did; a `running` **image** row past a ~60s threshold is **derived stale →
+Failed** (D9), covering a client that disconnects mid-request. Requires two small reusable plumbing
+additions: wrap the canvas in `<ReactFlowProvider>` (viewport API reachable from a sibling) and lift
+`focusedNodeId` to the canvas store (open a focus view programmatically). **Why.** Video was already
+non-blocking but had no consolidated cross-reel view of "what's generating / just finished"; image
+blocked its drawer and left **no** record at all. The tray removes waiting confusion and gives one
+click back to the finished node. **Rejected.** A stored `tray` table (duplicates derivable state —
+violates D9); denormalizing `canvas_id` onto `generations` (a migration for no gain — filter
+client-side); promoting image gen to trigger.dev async (contradicts D26's sync fast path; the row is
+memory, not a completion guarantee); tray-level approve/retry/edit (belongs in the focus view — concept
+note §8.4); prompt/compose/parse jobs in the tray (only long-running generation). **Preserves D11** (the
+tray never auto-advances or triggers a step — click = navigate). **Deferred.** The **guided next-node
+flow** (auto-create/connect/place the next node + "Save and create…" CTAs) — the *other half* of the
+origin note, a separate spec built on this one; live approval reconciliation across sessions (currently
+next-load); a cross-canvas/global tray. **Originated.** `2026-07-05-generation-tray-design.md`.
+
 ### Parked / out-of-scope (with revisit triggers)
 | Item | Status | Revisit when |
 |---|---|---|
