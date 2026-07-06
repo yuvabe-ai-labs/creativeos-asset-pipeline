@@ -208,8 +208,8 @@ export const ImageGenAnnotationCanvas = forwardRef<AnnotationHandle, Props>(
             <Eraser className="size-4" strokeWidth={1.5} />
           </button>
 
-          {/* Brush size — vertical slider with a live preview dot */}
-          <div className="flex flex-1 flex-col items-center gap-2 py-1">
+          {/* Brush size — vertical slider (fixed 200px) with a live preview dot */}
+          <div className="flex flex-col items-center gap-2 py-1">
             <span
               className="shrink-0 rounded-full bg-foreground"
               style={{ width: previewPx, height: previewPx }}
@@ -223,7 +223,7 @@ export const ImageGenAnnotationCanvas = forwardRef<AnnotationHandle, Props>(
               value={[brushSize]}
               onValueChange={(v) => setBrushSize(Array.isArray(v) ? v[0] : v)}
               aria-label="Brush size"
-              className="flex-1"
+              style={{ height: 200 }}
             />
           </div>
 
