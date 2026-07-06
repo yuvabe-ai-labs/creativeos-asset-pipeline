@@ -32,9 +32,12 @@ type Props = {
   onMarksChange?: (has: boolean) => void;
 };
 
-const MIN_BRUSH = 2;
-const MAX_BRUSH = 64;
-const DEFAULT_BRUSH = 12;
+// Brush is measured in the base image's NATURAL pixels (the buffer is full-res), so the range is
+// large and the step coarse — a short vertical slider covers it in a few notches.
+const MIN_BRUSH = 8;
+const MAX_BRUSH = 256;
+const BRUSH_STEP = 16;
+const DEFAULT_BRUSH = 48;
 
 export const ImageGenAnnotationCanvas = forwardRef<AnnotationHandle, Props>(
   function ImageGenAnnotationCanvas({ baseUrl, alt, onMarksChange }, ref) {
@@ -140,9 +143,9 @@ export const ImageGenAnnotationCanvas = forwardRef<AnnotationHandle, Props>(
       [resetMarks],
     );
 
-    // A small preview dot for the current brush size, scaled from canvas px into a legible
-    // display size (the buffer is at the image's natural resolution, so px are large).
-    const previewPx = Math.max(3, Math.min(18, Math.round(brushSize / 1.6)));
+    // A small preview dot for the current brush size, scaled from the (large, natural-pixel)
+    // brush range into a legible display size.
+    const previewPx = Math.max(4, Math.min(22, Math.round(brushSize / 12)));
 
     return (
       <div className="flex min-h-0 flex-1 gap-3">
@@ -216,6 +219,7 @@ export const ImageGenAnnotationCanvas = forwardRef<AnnotationHandle, Props>(
               orientation="vertical"
               min={MIN_BRUSH}
               max={MAX_BRUSH}
+              step={BRUSH_STEP}
               value={[brushSize]}
               onValueChange={(v) => setBrushSize(Array.isArray(v) ? v[0] : v)}
               aria-label="Brush size"
