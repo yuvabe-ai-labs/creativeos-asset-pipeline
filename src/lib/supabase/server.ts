@@ -19,7 +19,6 @@ export function createServerSupabase() {
   }
 
   return createClient(url, serviceRoleKey, {
-    // No user sessions yet (auth deferred — decision D14).
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }
