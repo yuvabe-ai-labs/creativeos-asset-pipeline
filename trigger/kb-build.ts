@@ -92,6 +92,7 @@ export const kbBuildTask = task({
         kbOutput: result.kbOutput,
         modelUsed: result.modelUsed,
         fillRate: result.fillRate,
+        skippedDocs: result.skipped ?? [],
       });
       logger.info("kb-build done", { jobId: payload.jobId, fillRate: result.fillRate });
     } catch (e) {

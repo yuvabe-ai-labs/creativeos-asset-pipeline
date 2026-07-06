@@ -10,6 +10,7 @@ import {
   type TraceableBrandKB,
 } from "@/lib/kb/schema";
 import { computeFillRate } from "@/lib/kb/fill-rate";
+import { KB_DOC_PER_FILE_LIMIT_BYTES } from "@/lib/kb/constants";
 import { kbExtractPrompt } from "@/prompts/kb-extract";
 import { kbImageAnalyzePrompt } from "@/prompts/kb-image-analyze";
 import { websiteResearchPrompt } from "@/prompts/website-research";
@@ -27,9 +28,14 @@ export const openaiKBProvider: KBAnalysisProvider = {
     const allDocs = await listKBDocuments(clientId);
     const docs = allDocs.filter((d) => docIds.includes(d.id));
 
+    const skipped: { filename: string; reason: string }[] = [];
     const docUserContent: unknown[] = [];
     for (const doc of docs) {
       if (FILE_EXTENSIONS.has(doc.file_ext)) {
+        if (doc.size_bytes > KB_DOC_PER_FILE_LIMIT_BYTES) {
+          skipped.push({ filename: doc.filename, reason: "exceeds 1 MB per-file limit" });
+          continue;
+        }
         docUserContent.push({ type: "input_file", file_url: doc.storage_url });
       } else if (TEXT_EXTENSIONS.has(doc.file_ext)) {
         const res = await fetch(doc.storage_url);
@@ -71,6 +77,7 @@ export const openaiKBProvider: KBAnalysisProvider = {
       kbOutput,
       modelUsed: kbExtractPrompt.model,
       fillRate: computeFillRate(kbOutput),
+      skipped,
     };
   },
 
