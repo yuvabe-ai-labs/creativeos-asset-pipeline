@@ -52,6 +52,7 @@ import {
   DEFAULT_CLIENT_MODEL_ID,
   defaultsForModel,
 } from "@/lib/image-gen/client-models";
+import { smartMergeParams } from "@/lib/image-gen/params/merge";
 import { ImageGenOutputSettings } from "./image-gen-output-settings";
 
 export type ImageGenFocusViewProps = {
@@ -221,10 +222,13 @@ export function ImageGenFocusView({
   useEffect(() => {
     if (model.id !== seenModelIdRef.current) {
       seenModelIdRef.current = model.id;
-      const defaults = defaultsForModel(model);
-      setParamValues(defaults);
-      onPatch({ params: defaults });
+      const merged = smartMergeParams(paramValues, model);
+      setParamValues(merged);
+      onPatch({ params: merged });
     }
+    // NOTE: paramValues is intentionally excluded from the dep array — we only
+    // want this effect to fire when the model changes, not on every param edit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [model, onPatch]);
 
   useEffect(() => {
