@@ -3,24 +3,23 @@
 
 export type EditIntent = "remove" | "replace" | "add" | "modify" | "freeform";
 
-// When the user has drawn on the image, tell the model the marks are a spatial guide, not
-// content to reproduce (Gemini annotation-pointing). Appended to whichever intent template.
-const ANNOTATION_CLAUSE =
-  " I have marked the area to change directly on the image. Apply the edit only within the " +
-  "marked region and blend it seamlessly; treat the drawn marks as guides only — do not " +
-  "include the marks themselves in the output.";
+// When the user painted a region, the edit is constrained by a real alpha mask (OpenAI). The
+// prompt reinforces the mask as soft guidance (mask + prompt are both "soft" — they reinforce).
+const MASK_CLAUSE =
+  " Apply the change only within the selected (masked) region and blend it seamlessly; " +
+  "keep everything outside the region unchanged.";
 
 // The preservation behavior is carried entirely by prompt phrasing (Gemini image-editing
 // guide). Each intent has a DISTINCT template so the quick-action chips never produce the same
 // prompt (modify shares the change-only template with freeform but is a labeled intent); when
 // intent is absent we fall back by whether a product reference is connected (add vs freeform).
-// `annotated` appends a guides-only clause. The result is the editable starting point shown in
-// the UI.
+// `masked` appends a region clause when the user painted a mask. The result is the editable
+// starting point shown in the UI.
 export function buildEditPrompt(input: {
   instruction: string;
   intent?: EditIntent;
   hasExtraReference?: boolean;
-  annotated?: boolean;
+  masked?: boolean;
 }): string {
   const instruction = input.instruction.trim();
   const intent = input.intent ?? (input.hasExtraReference ? "add" : "freeform");
@@ -54,7 +53,7 @@ export function buildEditPrompt(input: {
       break;
   }
 
-  return input.annotated ? base + ANNOTATION_CLAUSE : base;
+  return input.masked ? base + MASK_CLAUSE : base;
 }
 
 // Ordered reference list for an edit: base image first (Gemini treats the first image as the

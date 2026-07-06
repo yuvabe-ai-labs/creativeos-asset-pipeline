@@ -57,23 +57,23 @@ describe("buildEditPrompt — modify intent", () => {
   });
 });
 
-describe("buildEditPrompt — annotation clause", () => {
-  it("appends a guides-only clause when annotated is true", () => {
-    const p = buildEditPrompt({ instruction: "the cup", intent: "remove", annotated: true });
+describe("buildEditPrompt — mask clause", () => {
+  it("appends the mask region clause when masked is true", () => {
+    const p = buildEditPrompt({ instruction: "the cup", intent: "remove", masked: true });
     expect(p).toContain("remove the cup"); // template still applies
-    expect(p).toContain("marked");
-    expect(p).toContain("do not include the marks");
+    expect(p).toContain("within the selected (masked) region");
+    expect(p).not.toContain("drawn marks"); // old annotation clause is gone
   });
 
-  it("adds no annotation clause when annotated is false/absent", () => {
+  it("adds no mask clause when masked is false/absent", () => {
     const p = buildEditPrompt({ instruction: "the cup", intent: "remove" });
-    expect(p).not.toContain("do not include the marks");
+    expect(p).not.toContain("masked");
   });
 
-  it("applies the annotation clause to the reference (add) template too", () => {
-    const p = buildEditPrompt({ instruction: "the product", intent: "add", hasExtraReference: true, annotated: true });
+  it("applies the mask clause to the reference (add) template too", () => {
+    const p = buildEditPrompt({ instruction: "the product", intent: "add", hasExtraReference: true, masked: true });
     expect(p).toContain("base scene");
-    expect(p).toContain("do not include the marks");
+    expect(p).toContain("within the selected (masked) region");
   });
 });
 
