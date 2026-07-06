@@ -1,8 +1,5 @@
 import "server-only";
 import { createClient } from "@supabase/supabase-js";
-import { WebSocket as WsWebSocket } from "ws";
-
-const wsTransport = typeof WebSocket === "undefined" ? WsWebSocket : undefined;
 
 // The SERVER Supabase client. It uses the SERVICE ROLE key, which bypasses all
 // security — so this file must never be imported into a Client Component.
@@ -23,6 +20,7 @@ export function createServerSupabase() {
 
   return createClient(url, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
-    ...(wsTransport ? { realtime: { transport: wsTransport as never } } : {}),
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    ...(typeof WebSocket === "undefined" ? { realtime: { transport: require("ws").WebSocket as never } } : {}),
   });
 }
