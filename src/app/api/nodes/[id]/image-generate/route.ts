@@ -38,9 +38,9 @@ export async function POST(
         baseVersionId?: unknown;
         baseImageUrl?: unknown;
         extraReferenceUrls?: unknown;
-        annotated?: unknown;
-        annotatedBaseImageBase64?: unknown;
-        annotatedBaseImageMime?: unknown;
+        masked?: unknown;
+        maskBase64?: unknown;
+        maskMime?: unknown;
       }
     | null;
 
@@ -86,6 +86,8 @@ export async function POST(
   let prompt: string;
   let referenceUrls: string[];
   let inputsUsed: Record<string, unknown>;
+  let maskBase64: string | undefined;
+  let maskMime: string | undefined;
 
   if (isEdit) {
     // Base image = the node's current image: a prior attempt or a connected reference.
@@ -105,26 +107,14 @@ export async function POST(
     }
     if (!resolvedBaseUrl) return apiError("No base image to edit.", 400);
 
-    // Annotation: the client composited base + drawn marks into one PNG (base64). Upload it and
-    // send THAT as the image the model sees; lineage still points at the un-annotated base.
-    const annotated =
-      body?.annotated === true && typeof body?.annotatedBaseImageBase64 === "string";
-    let annotatedBaseUrl: string | null = null;
-    let modelBaseUrl = resolvedBaseUrl;
-    if (annotated) {
-      const mime =
-        typeof body?.annotatedBaseImageMime === "string"
-          ? body.annotatedBaseImageMime
-          : "image/png";
-      const uploaded = await uploadImageGen({
-        nodeId,
-        ext: mimeToExt(mime),
-        body: Buffer.from(body!.annotatedBaseImageBase64 as string, "base64"),
-        contentType: mime,
-      });
-      annotatedBaseUrl = uploaded.url;
-      modelBaseUrl = uploaded.url;
-    }
+    // Region mask (OpenAI): the client painted a region and sent it as a base64 alpha PNG. The
+    // base image stays CLEAN (never composited) — the mask travels separately to the provider.
+    const masked =
+      body?.masked === true && typeof body?.maskBase64 === "string";
+    maskBase64 = masked ? (body!.maskBase64 as string) : undefined;
+    maskMime =
+      masked && typeof body?.maskMime === "string" ? (body.maskMime as string) : "image/png";
+    const modelBaseUrl = resolvedBaseUrl; // clean base — no composite
 
     // Extra references: the client's chosen connected-node URLs when provided; otherwise the
     // D27 default (all other connected images). Dedup the real base out either way.
@@ -152,7 +142,7 @@ export async function POST(
         instruction,
         intent,
         hasExtraReference: extraReferenceUrls.length > 0,
-        annotated,
+        masked,
       });
     inputsUsed = {
       promptVersionId: carriedPromptVersionId,
@@ -161,8 +151,7 @@ export async function POST(
       instruction,
       editPrompt: prompt,
       extraReferenceUrls,
-      annotated,
-      annotatedBaseUrl,
+      masked,
     };
   } else {
     // Fresh generation (unchanged): requires a connected Prompt node with output.
@@ -179,7 +168,12 @@ export async function POST(
   }
 
   try {
-    const result = await config.generate({ prompt, referenceUrls, params: validatedParams });
+    const result = await config.generate({
+      prompt,
+      referenceUrls,
+      params: validatedParams,
+      ...(maskBase64 ? { maskBase64, maskMime } : {}),
+    });
 
     const { url: imageUrl } = await uploadImageGen({
       nodeId,
