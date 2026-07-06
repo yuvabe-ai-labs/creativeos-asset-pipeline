@@ -14,9 +14,11 @@ import { Slider } from "@/components/ui/slider";
 import { overlayToMaskRGBA } from "@/lib/image-gen/mask";
 import { useDrawingCanvas, initDrawingCanvas } from "./use-drawing-canvas";
 
-// A single translucent brand-purple highlight — reads as a "mask" overlay, and the alpha we
-// draw is all that matters (overlayToMaskRGBA only inspects painted-vs-not).
-const MASK_COLOR = "rgba(88, 41, 199, 0.4)"; // #5829c7 @ 40%
+// Brand purple, drawn FULLY OPAQUE into the buffer (a translucent stroke compounds alpha at
+// each overlapping round-cap → a dotted/beaded line). The translucent "mask overlay" look comes
+// from CSS opacity on the canvas element instead (uniform, no compounding). overlayToMaskRGBA
+// only inspects painted-vs-not, so opaque strokes give the cleanest mask.
+const MASK_COLOR = "#5829c7";
 
 export type AnnotationHandle = {
   hasMarks: () => boolean;
@@ -170,7 +172,7 @@ export const ImageGenAnnotationCanvas = forwardRef<AnnotationHandle, Props>(
                 onPointerMove={onPointerMove}
                 onPointerUp={onPointerUp}
                 onPointerLeave={onPointerLeave}
-                className="nodrag absolute inset-0 size-full"
+                className="nodrag absolute inset-0 size-full opacity-40"
                 style={{ cursor: "crosshair", touchAction: "none" }}
               />
             )}
