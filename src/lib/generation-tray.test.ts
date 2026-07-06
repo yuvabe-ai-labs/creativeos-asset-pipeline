@@ -87,12 +87,15 @@ describe("deriveTrayItems", () => {
     expect(byNode).toEqual({ g1: "ready", g2: "running", g3: "failed" });
   });
 
-  it("excludes prompt jobs and jobs whose node was deleted", () => {
+  it("includes prompt jobs and excludes jobs whose node was deleted", () => {
     const jobs = [
       job({ id: "p", node_id: "pr", type: "prompt", status: "succeeded" }),
       job({ id: "gone", node_id: "missing", type: "image", status: "succeeded" }),
     ];
-    expect(deriveTrayItems([node("pr", "prompt")], [], jobs, now)).toEqual([]);
+    const items = deriveTrayItems([node("pr", "prompt")], [], jobs, now);
+    expect(items).toHaveLength(1);
+    expect(items[0].nodeId).toBe("pr");
+    expect(items[0].assetType).toBe("prompt");
   });
 
   it("renders a stale running IMAGE job as failed, but not a running video", () => {

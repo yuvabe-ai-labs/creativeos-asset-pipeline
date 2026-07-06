@@ -35,7 +35,7 @@ export type TrayStatus = "running" | "ready" | "failed";
 
 export type TrayItem = {
   nodeId: string;
-  assetType: "image" | "video";
+  assetType: "image" | "video" | "prompt";
   status: TrayStatus;
   shotLabel: string;
   order: number;
@@ -68,10 +68,10 @@ export function deriveTrayItems(
   const items: TrayItem[] = [];
 
   for (const jobRow of latestJobPerNode(jobs)) {
-    if (jobRow.type === "prompt") continue;            // only long-running generation
     const node = byId.get(jobRow.node_id);
     if (!node) continue;                                // node deleted → orphan row
-    const assetType = jobRow.type;                      // "image" | "video"
+    const assetType: TrayItem["assetType"] =
+      jobRow.type === "video" ? "video" : jobRow.type === "prompt" ? "prompt" : "image";
 
     let status: TrayStatus =
       jobRow.status === "running" ? "running"

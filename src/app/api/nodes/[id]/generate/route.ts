@@ -5,6 +5,8 @@ import { buildUserContent } from "@/lib/nodes/compose-message";
 import { promptGeneratePrompt } from "@/prompts/prompt-generate";
 import { type ShotControls } from "@/lib/nodes/shot-controls";
 import { insertVersion, setActiveVersion } from "@/lib/db/versions";
+import { insertGeneration, succeedGeneration, failGeneration } from "@/lib/db/generations";
+import { computeCost } from "@/lib/pricing";
 import { describeModelRequest } from "@/lib/nodes/model-request";
 import { apiError, apiOk } from "@/lib/api/route-helpers";
 
@@ -52,7 +54,18 @@ export async function POST(
     upstream: resolved.upstream,
   });
 
+  const model = `openai:${promptGeneratePrompt.model}`;
+  let generation: Awaited<ReturnType<typeof insertGeneration>> | null = null;
+
   try {
+    generation = await insertGeneration({
+      nodeId,
+      type: "prompt",
+      modelUsed: model,
+      paramsSnapshot: { model: promptGeneratePrompt.model },
+      inputsSnapshot: { instruction: effectiveInstruction },
+    });
+
     const openai = createOpenAI();
     const completion = await openai.chat.completions.create({
       model: promptGeneratePrompt.model,
@@ -78,10 +91,24 @@ export async function POST(
         promptVersion: promptGeneratePrompt.version,
         tokensUsed: completion.usage ?? null,
       },
-      modelUsed: `openai:${promptGeneratePrompt.model}`,
+      modelUsed: model,
       output,
     });
     await setActiveVersion(nodeId, version.id);
+
+    const usage = completion.usage;
+    const cost = usage
+      ? computeCost(model, {
+          prompt_tokens: usage.prompt_tokens,
+          completion_tokens: usage.completion_tokens,
+          total_tokens: usage.total_tokens,
+        })
+      : null;
+    await succeedGeneration({
+      generationId: generation.id,
+      versionId: version.id,
+      creditsConsumed: cost?.usd,
+    });
 
     return apiOk({ output, versionId: version.id, compiled: user });
   } catch (e) {
@@ -95,9 +122,12 @@ export async function POST(
         promptId: promptGeneratePrompt.id,
         promptVersion: promptGeneratePrompt.version,
       },
-      modelUsed: `openai:${promptGeneratePrompt.model}`,
+      modelUsed: model,
       error: message,
     });
+    if (generation?.id) {
+      await failGeneration({ generationId: generation.id, error: message }).catch(() => null);
+    }
     return apiError(message, 500);
   }
 }
