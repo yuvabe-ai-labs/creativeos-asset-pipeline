@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { computeCost } from "@/lib/pricing";
 import type { VersionSummary } from "./prompt-version-history";
 import { UsagePopoverShell, type UsageRow, type OverallRow } from "./usage-popover-shell";
+import { formatRelativeTime } from "@/lib/format/relative-time";
 
 type Props = { versions: VersionSummary[] };
 
@@ -15,15 +16,6 @@ type GenStat = {
   costUsd: number;
   costInr: number;
 };
-
-function relativeTime(dateStr: string): string {
-  const diffMins = Math.floor((Date.now() - new Date(dateStr).getTime()) / 60_000);
-  if (diffMins < 1) return "just now";
-  if (diffMins < 60) return `${diffMins}m ago`;
-  const h = Math.floor(diffMins / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
-}
 
 export function UsagePopover({ versions }: Props) {
   const { totals, perGen } = useMemo(() => {
@@ -59,7 +51,7 @@ export function UsagePopover({ versions }: Props) {
 
   const rows: UsageRow[] = perGen.map((g) => ({
     label: `v${g.vNum}`,
-    time: relativeTime(g.createdAt),
+    time: formatRelativeTime(g.createdAt),
     meta: `${g.inputTokens.toLocaleString()} in · ${g.outputTokens.toLocaleString()} out`,
     costUsd: `$${g.costUsd.toFixed(4)}`,
     costInr: `₹${g.costInr.toFixed(2)}`,

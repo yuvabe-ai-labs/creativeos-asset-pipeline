@@ -5,15 +5,7 @@ import { computeImageCost } from "@/lib/image-gen/cost";
 import { USD_TO_INR } from "@/lib/pricing";
 import type { ImageGenVersionSummary } from "./image-gen-version-history";
 import { UsagePopoverShell, type UsageRow, type OverallRow } from "./usage-popover-shell";
-
-function relativeTime(dateStr: string): string {
-  const diffMins = Math.floor((Date.now() - new Date(dateStr).getTime()) / 60_000);
-  if (diffMins < 1) return "just now";
-  if (diffMins < 60) return `${diffMins}m ago`;
-  const h = Math.floor(diffMins / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
-}
+import { formatRelativeTime } from "@/lib/format/relative-time";
 
 type Props = { versions: ImageGenVersionSummary[] };
 
@@ -64,7 +56,7 @@ export function ImageGenUsagePopover({ versions }: Props) {
 
   const rows: UsageRow[] = perGen.map((g) => ({
     label: `v${g.vNum}`,
-    time: relativeTime(g.createdAt),
+    time: formatRelativeTime(g.createdAt),
     meta: g.hasData ? `${g.totalTokens.toLocaleString()} tokens` : undefined,
     costUsd: g.hasData ? `$${g.costUsd.toFixed(4)}` : "—",
     costInr: g.hasData ? `₹${g.costInr.toFixed(2)}` : undefined,

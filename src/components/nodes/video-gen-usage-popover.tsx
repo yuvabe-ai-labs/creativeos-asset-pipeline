@@ -5,15 +5,7 @@ import { computeVideoCost } from "@/lib/video-gen/cost";
 import { USD_TO_INR } from "@/lib/pricing";
 import type { VideoGenVersionSummary } from "./video-gen-version-history";
 import { UsagePopoverShell, type UsageRow } from "./usage-popover-shell";
-
-function relativeTime(dateStr: string): string {
-  const diffMins = Math.floor((Date.now() - new Date(dateStr).getTime()) / 60_000);
-  if (diffMins < 1) return "just now";
-  if (diffMins < 60) return `${diffMins}m ago`;
-  const h = Math.floor(diffMins / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
-}
+import { formatRelativeTime } from "@/lib/format/relative-time";
 
 type Props = { versions: VideoGenVersionSummary[] };
 
@@ -63,7 +55,7 @@ export function VideoGenUsagePopover({ versions }: Props) {
 
   const rows: UsageRow[] = perGen.map((g) => ({
     label: `v${g.vNum}`,
-    time: relativeTime(g.createdAt),
+    time: formatRelativeTime(g.createdAt),
     meta: `${g.durationSeconds}s · ${g.modelLabel}`,
     costUsd: `$${g.costUsd.toFixed(4)}`,
     costInr: `₹${g.costInr.toFixed(2)}`,
