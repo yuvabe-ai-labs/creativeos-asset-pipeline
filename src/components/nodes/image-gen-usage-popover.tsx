@@ -34,6 +34,7 @@ type GenStat = {
   costUsd: number;
   costInr: number;
   modelId: string;
+  hasData: boolean;
 };
 
 export function ImageGenUsagePopover({ versions }: Props) {
@@ -46,22 +47,22 @@ export function ImageGenUsagePopover({ versions }: Props) {
 
     const ordered = [...versions].reverse(); // oldest first → v1, v2, …
     ordered.forEach((v, i) => {
-      const tokens = v.paramsUsed?.tokensUsed;
-      if (!tokens) return;
+      const tokens = v.paramsUsed?.tokensUsed ?? null;
       const modelId = v.paramsUsed?.modelId ?? v.modelUsed ?? "";
-      const cost = computeImageCost(modelId, tokens);
-      if (!cost) return;
-      if (modelId) displayModel = modelId.split(":")[1] ?? modelId;
-      totalUsd    += cost.usd;
-      totalTokens += tokens.total_tokens;
-      counted++;
+      const cost = tokens ? computeImageCost(modelId, tokens) : null;
+
+      if (modelId && cost) displayModel = modelId.split(":")[1] ?? modelId;
+      if (tokens) totalTokens += tokens.total_tokens;
+      if (cost) { totalUsd += cost.usd; counted++; }
+
       perGen.push({
         vNum: i + 1,
         createdAt: v.createdAt,
-        totalTokens: tokens.total_tokens,
-        costUsd: cost.usd,
-        costInr: cost.inr,
-        modelId: modelId.split(":")[1] ?? modelId,
+        totalTokens: tokens?.total_tokens ?? 0,
+        costUsd: cost?.usd ?? 0,
+        costInr: cost?.inr ?? 0,
+        modelId: modelId ? (modelId.split(":")[1] ?? modelId) : "",
+        hasData: !!tokens,
       });
     });
 
@@ -85,7 +86,7 @@ export function ImageGenUsagePopover({ versions }: Props) {
         }
       />
       <PopoverContent align="end" className="w-64 p-4">
-        {totals.counted === 0 ? (
+        {perGen.length === 0 ? (
           <p className="text-xs text-muted-foreground">No usage data yet.</p>
         ) : (
           <div className="space-y-4">
@@ -120,8 +121,14 @@ export function ImageGenUsagePopover({ versions }: Props) {
                           {g.totalTokens.toLocaleString()} tokens
                         </span>
                         <span className="text-[0.65rem] font-medium tabular-nums text-foreground">
-                          ${g.costUsd.toFixed(4)}{" "}
-                          <span className="font-normal text-muted-foreground">(₹{g.costInr.toFixed(2)})</span>
+                          {g.hasData ? (
+                            <>
+                              ${g.costUsd.toFixed(4)}{" "}
+                              <span className="font-normal text-muted-foreground">(₹{g.costInr.toFixed(2)})</span>
+                            </>
+                          ) : (
+                            <span className="font-normal text-muted-foreground">—</span>
+                          )}
                         </span>
                       </div>
                     </li>
