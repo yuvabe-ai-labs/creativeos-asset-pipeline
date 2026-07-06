@@ -34,24 +34,6 @@ const MIN_BRUSH = 2;
 const MAX_BRUSH = 64;
 const DEFAULT_BRUSH = 12;
 
-// GCS public objects don't send CORS headers, so a `crossOrigin` load of the base image fails
-// and its pixels can't be read back out of a canvas (toDataURL taints). Route through our
-// same-origin proxy (/api/image-proxy) so the image is same-origin and canvas readback is
-// allowed with no bucket-CORS change (D37 §8).
-function proxied(url: string): string {
-  return `/api/image-proxy?url=${encodeURIComponent(url)}`;
-}
-
-function loadImage(url: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error("Failed to load base image for annotation"));
-    img.src = proxied(url);
-  });
-}
-
 export const ImageGenAnnotationCanvas = forwardRef<AnnotationHandle, Props>(
   function ImageGenAnnotationCanvas({ baseUrl, alt, onMarksChange }, ref) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -76,19 +58,28 @@ export const ImageGenAnnotationCanvas = forwardRef<AnnotationHandle, Props>(
       setTool("pen");
     }, [setColor, setTool]);
 
-    // Load the base image to learn its natural size, then size the overlay buffer to match so
-    // marks map 1:1 to pixels; CSS scales it to the displayed box (getBoundingClientRect maps
-    // pointer coords, so it works at any scale).
-    useEffect(() => {
-      let cancelled = false;
-      void loadImage(baseUrl).then((img) => {
-        if (cancelled) return;
-        setDims({ w: img.naturalWidth || 1024, h: img.naturalHeight || 1024 });
-      });
-      return () => {
-        cancelled = true;
-      };
-    }, [baseUrl]);
+    // Learn the base image's natural size from the <img> that already displays it, then size the
+    // overlay buffer to match so marks map 1:1 to pixels; CSS scales it to the displayed box. The
+    // mask never reads the base pixels, so no same-origin proxy is needed.
+    const readDims = useCallback((img: HTMLImageElement) => {
+      if (!img.naturalWidth) return;
+      const w = img.naturalWidth;
+      const h = img.naturalHeight;
+      // Idempotent: skip if unchanged so we don't re-init (and clear) the canvas after painting.
+      setDims((prev) => (prev && prev.w === w && prev.h === h ? prev : { w, h }));
+    }, []);
+    // Callback ref catches the already-cached case (a cached <img> may never fire onLoad); the
+    // onLoad handler catches a fresh network load.
+    const baseImgRef = useCallback(
+      (img: HTMLImageElement | null) => {
+        if (img?.complete) readDims(img);
+      },
+      [readDims],
+    );
+    const handleBaseLoad = useCallback(
+      (e: React.SyntheticEvent<HTMLImageElement>) => readDims(e.currentTarget),
+      [readDims],
+    );
 
     // Init the transparent buffer once the canvas element + dims exist.
     const setCanvasRef = useCallback(
@@ -165,10 +156,12 @@ export const ImageGenAnnotationCanvas = forwardRef<AnnotationHandle, Props>(
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
+              ref={baseImgRef}
               src={baseUrl}
               alt={alt || "Base image"}
               className="block size-full object-contain"
               draggable={false}
+              onLoad={handleBaseLoad}
             />
             {dims && (
               <canvas
