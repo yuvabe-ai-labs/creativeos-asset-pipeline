@@ -49,6 +49,7 @@ import {
   selectEditReferenceUrls,
   type EditIntent,
 } from "@/lib/image-gen/edit-prompt";
+import { editModeForModel } from "@/lib/image-gen/edit-mode";
 import { InlineEvalBar } from "./inline-eval-bar";
 import { InlineApprovalBar } from "./inline-approval-bar";
 import { setVersionLabelAction } from "@/lib/actions/eval";
@@ -191,6 +192,7 @@ export function ImageGenFocusView({
   const model =
     imageGenClientModelMap[selectedModelId] ??
     imageGenClientModelMap[DEFAULT_CLIENT_MODEL_ID];
+  const editMode = editModeForModel(model.supportsMask); // "paint" | "type"
 
   const [paramValues, setParamValues] = useState<ParamFormValues>(() => ({
     ...defaultsForModel(model),
@@ -210,7 +212,7 @@ export function ImageGenFocusView({
   const [selectedRefIds, setSelectedRefIds] = useState<string[]>(
     editReferenceNodeIds ?? [],
   );
-  const [hasAnnotation, setHasAnnotation] = useState(false);
+  const [hasMaskRegion, setHasMaskRegion] = useState(false);
   const annotationRef = useRef<AnnotationHandle>(null);
   // null = follow the per-intent template; a string = the operator's hand-edited final prompt.
   const [promptOverride, setPromptOverride] = useState<string | null>(null);
@@ -241,6 +243,8 @@ export function ImageGenFocusView({
       const defaults = defaultsForModel(model);
       setParamValues(defaults);
       onPatch({ params: defaults });
+      annotationRef.current?.clear(); // drop any painted mask — it must not cross models
+      setHasMaskRegion(false);
     }
   }, [model, onPatch]);
 
@@ -360,7 +364,7 @@ export function ImageGenFocusView({
         instruction: editInstr,
         intent,
         hasExtraReference,
-        annotated: hasAnnotation,
+        masked: editMode === "paint" && hasMaskRegion,
       })
     : "";
   const finalPrompt = promptOverride ?? composedPrompt;
@@ -504,14 +508,15 @@ export function ImageGenFocusView({
     }
     setEditing(true);
     try {
-      // Composite the annotation layer (if the user drew anything) into a PNG the route uploads.
-      let annotatedBaseImageBase64: string | undefined;
-      let annotatedBaseImageMime: string | undefined;
-      if (annotationRef.current?.hasMarks()) {
-        const composite = await annotationRef.current.toCompositeBase64();
-        if (composite) {
-          annotatedBaseImageBase64 = composite.base64;
-          annotatedBaseImageMime = composite.mime;
+      // Region mask (paint models only): convert the painted overlay into an alpha PNG and send
+      // it alongside the CLEAN base. Type-only models send no mask.
+      let maskBase64: string | undefined;
+      let maskMime: string | undefined;
+      if (editMode === "paint" && annotationRef.current?.hasMarks()) {
+        const mask = await annotationRef.current.toMaskBase64();
+        if (mask) {
+          maskBase64 = mask.base64;
+          maskMime = mask.mime;
         }
       }
       const res = await fetch(`/api/nodes/${nodeId}/image-generate`, {
@@ -524,9 +529,7 @@ export function ImageGenFocusView({
           intent,
           prompt: finalPrompt,
           extraReferenceUrls: selectedExtraUrls,
-          ...(annotatedBaseImageBase64
-            ? { annotated: true, annotatedBaseImageBase64, annotatedBaseImageMime }
-            : {}),
+          ...(maskBase64 ? { masked: true, maskBase64, maskMime } : {}),
           ...(baseVersionId ? { baseVersionId } : { baseImageUrl }),
         }),
       });
@@ -561,7 +564,7 @@ export function ImageGenFocusView({
       if (!res.ok) throw new Error(json.error ?? "Restore failed");
       if (json.output) onPatch({ parsed: json.output });
       setActiveVersionId(versionId);
-      setHasAnnotation(false); // restored a different base — drop any stale annotation flag
+      setHasMaskRegion(false); // restored a different base — drop any stale mask-region flag
       await fetchVersions();
       toast.success("Version restored");
     } catch (e) {
@@ -824,13 +827,28 @@ export function ImageGenFocusView({
 
               <div className="mt-3 flex-1 min-h-0">
                 {activeTab === "edit" && editBaseUrl && !editing ? (
-                  <ImageGenAnnotationCanvas
-                    key={editBaseUrl}
-                    ref={annotationRef}
-                    baseUrl={editBaseUrl}
-                    alt={title || "Base image"}
-                    onMarksChange={setHasAnnotation}
-                  />
+                  editMode === "paint" ? (
+                    <ImageGenAnnotationCanvas
+                      key={editBaseUrl}
+                      ref={annotationRef}
+                      baseUrl={editBaseUrl}
+                      alt={title || "Base image"}
+                      onMarksChange={setHasMaskRegion}
+                    />
+                  ) : (
+                    <div className="flex size-full flex-col items-center justify-center gap-3">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={editBaseUrl}
+                        alt={title || "Base image"}
+                        className="max-h-[80%] max-w-full rounded-xl border border-border object-contain"
+                        draggable={false}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        This model edits from your description — say what to change and where.
+                      </p>
+                    </div>
+                  )
                 ) : (
                   <>
                 {mode === "skeleton" && (
