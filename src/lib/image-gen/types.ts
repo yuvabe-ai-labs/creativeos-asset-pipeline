@@ -55,6 +55,7 @@ export type MediaGenModelSpec = {
   providerLabel:         string;
   maxReferenceImages:    number;
   maxReferenceSizeBytes: number;
+  supportsMask?:         boolean;   // model accepts an alpha edit-mask (OpenAI images.edit)
   params:                ParamSpec[];
   schema:                ZodTypeAny;
   generate:              (input: ImageGenInput) => Promise<ImageGenResult>;

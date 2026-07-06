@@ -35,4 +35,12 @@ describe("imageGenRegistry", () => {
       expect(groupIds, `${id} missing from groups`).toContain(id);
     }
   });
+
+  it("supportsMask is true for OpenAI gpt-image models and falsy for Gemini", () => {
+    expect(imageGenRegistry["openai:gpt-image-2"].supportsMask).toBe(true);
+    expect(imageGenRegistry["openai:gpt-image-1"].supportsMask).toBe(true);
+    expect(imageGenRegistry["openai:gpt-image-1-mini"].supportsMask).toBe(true);
+    expect(imageGenRegistry["gemini:gemini-2.5-flash-image"].supportsMask ?? false).toBe(false);
+    expect(imageGenRegistry["gemini:gemini-3-pro-image"].supportsMask ?? false).toBe(false);
+  });
 });
