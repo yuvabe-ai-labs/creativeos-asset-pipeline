@@ -11,15 +11,16 @@ import {
 import { Eraser, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Slider } from "@/components/ui/slider";
-import {
-  useDrawingCanvas,
-  initDrawingCanvas,
-  DRAW_COLORS,
-} from "./use-drawing-canvas";
+import { overlayToMaskRGBA } from "@/lib/image-gen/mask";
+import { useDrawingCanvas, initDrawingCanvas } from "./use-drawing-canvas";
+
+// A single translucent brand-purple highlight — reads as a "mask" overlay, and the alpha we
+// draw is all that matters (overlayToMaskRGBA only inspects painted-vs-not).
+const MASK_COLOR = "rgba(88, 41, 199, 0.4)"; // #5829c7 @ 40%
 
 export type AnnotationHandle = {
   hasMarks: () => boolean;
-  toCompositeBase64: () => Promise<{ base64: string; mime: string } | null>;
+  toMaskBase64: () => Promise<{ base64: string; mime: string } | null>;
   clear: () => void;
 };
 
@@ -61,7 +62,6 @@ export const ImageGenAnnotationCanvas = forwardRef<AnnotationHandle, Props>(
     const {
       tool,
       setTool,
-      color,
       setColor,
       onPointerDown,
       onPointerMove,
@@ -69,6 +69,12 @@ export const ImageGenAnnotationCanvas = forwardRef<AnnotationHandle, Props>(
       onPointerLeave,
       clear,
     } = useDrawingCanvas(canvasRef, { transparent: true, size: brushSize });
+
+    // Region painter: one fixed translucent mask color, pen tool by default.
+    useEffect(() => {
+      setColor(MASK_COLOR);
+      setTool("pen");
+    }, [setColor, setTool]);
 
     // Load the base image to learn its natural size, then size the overlay buffer to match so
     // marks map 1:1 to pixels; CSS scales it to the displayed box (getBoundingClientRect maps
@@ -115,22 +121,30 @@ export const ImageGenAnnotationCanvas = forwardRef<AnnotationHandle, Props>(
       () => ({
         hasMarks: () => dirtyRef.current,
         clear: resetMarks,
-        toCompositeBase64: async () => {
+        // Convert the painted overlay into an OpenAI alpha edit-mask. The base image is never
+        // read — the mask is base-independent (painted → editable, else preserved).
+        toMaskBase64: async () => {
           const overlay = canvasRef.current;
           if (!overlay || !dirtyRef.current) return null;
-          const img = await loadImage(baseUrl);
+          const octx = overlay.getContext("2d");
+          if (!octx) return null;
+          const src = octx.getImageData(0, 0, overlay.width, overlay.height);
+          const mask = overlayToMaskRGBA({
+            data: src.data,
+            width: src.width,
+            height: src.height,
+          });
           const out = document.createElement("canvas");
-          out.width = img.naturalWidth;
-          out.height = img.naturalHeight;
+          out.width = mask.width;
+          out.height = mask.height;
           const ctx = out.getContext("2d");
           if (!ctx) return null;
-          ctx.drawImage(img, 0, 0);
-          ctx.drawImage(overlay, 0, 0, out.width, out.height);
+          ctx.putImageData(new ImageData(mask.data, mask.width, mask.height), 0, 0);
           const dataUrl = out.toDataURL("image/png");
           return { base64: dataUrl.split(",")[1] ?? "", mime: "image/png" };
         },
       }),
-      [baseUrl, resetMarks],
+      [resetMarks],
     );
 
     // A small preview dot for the current brush size, scaled from canvas px into a legible
@@ -140,7 +154,10 @@ export const ImageGenAnnotationCanvas = forwardRef<AnnotationHandle, Props>(
     return (
       <div className="flex min-h-0 flex-1 gap-3">
         {/* Canvas area */}
-        <div className="flex min-h-0 flex-1 items-center justify-center">
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2">
+          <p className="text-xs text-muted-foreground">
+            Paint over the area you want to change.
+          </p>
           {/* Wrapper matches the image aspect so the overlay lines up exactly. */}
           <div
             className="relative max-h-full max-w-full overflow-hidden rounded-xl border border-border bg-muted/20"
@@ -167,28 +184,19 @@ export const ImageGenAnnotationCanvas = forwardRef<AnnotationHandle, Props>(
           </div>
         </div>
 
-        {/* Right rail — colors · eraser · brush size · clear */}
+        {/* Right rail — brush/eraser · brush size · clear */}
         <div className="flex w-16 shrink-0 flex-col items-center gap-3 rounded-xl border border-border bg-card px-2 py-3">
-          <div className="flex flex-col items-center gap-2">
-            {DRAW_COLORS.map((c) => (
-              <button
-                key={c}
-                type="button"
-                onClick={() => {
-                  setColor(c);
-                  setTool("pen");
-                }}
-                className={cn(
-                  "size-6 rounded-full border border-border transition",
-                  tool === "pen" && color === c && "ring-2 ring-primary ring-offset-1",
-                )}
-                style={{ backgroundColor: c }}
-                aria-label={`Pen ${c}`}
-              />
-            ))}
-          </div>
-
-          <span className="h-px w-6 bg-border" />
+          <button
+            type="button"
+            onClick={() => setTool("pen")}
+            className={cn(
+              "inline-flex size-8 items-center justify-center rounded-md transition hover:bg-muted",
+              tool === "pen" && "ring-2 ring-primary ring-offset-1",
+            )}
+            aria-label="Paint region"
+          >
+            <span className="size-4 rounded-full" style={{ backgroundColor: MASK_COLOR }} />
+          </button>
 
           <button
             type="button"
