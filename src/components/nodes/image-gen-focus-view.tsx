@@ -27,6 +27,7 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { EditableField } from "./editable-field";
 import { normalizeTitle } from "@/lib/nodes/title";
 import { Button } from "@/components/ui/button";
+import { GuidedNextButton } from "@/components/canvas/guided-next-button";
 import {
   ConnectedInputsCard,
   type UpstreamNode,
@@ -722,6 +723,11 @@ export function ImageGenFocusView({
                         ? "Re-generate"
                         : "Generate"}
                 </Button>
+                <GuidedNextButton
+                  sourceId={nodeId}
+                  variant="button"
+                  onNavigate={() => onOpenChange(false)}
+                />
               </div>
             </header>
           </div>

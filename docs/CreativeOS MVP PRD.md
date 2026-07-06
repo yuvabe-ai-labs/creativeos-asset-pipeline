@@ -33,6 +33,8 @@
 | 14 | **Quick-add node palette + keyboard shortcuts.** Adding a node is now keyboard-first: `/` (or right-click) opens a type-to-filter command palette **at the cursor**; single-letter mnemonics (S/F/N/P/D/I/V/G) create a node instantly at the cursor without opening the palette. The palette is the single "add node" surface (`/` and right-click open the same thing), replacing the plain right-click context menu, and still offers **Paste image** when the clipboard holds one. Shortcuts are suppressed while editing a node's text. | §6 | spec: `docs/superpowers/specs/2026-06-28-quick-add-node-palette-design.md` |
 | 15 | **Soft identity + maker-checker approval.** A "who are you?" gate captures a spoofable **name + role** (senior / designer) at app start (stamped as the *maker* on generations). Each LLM attempt carries an **approval flag** (`pending → approved / changes_requested`) set by a senior in the node focus view and shown as an on-canvas badge — distinct from the pass/fail eval signal. **Flag only** (no gating/RBAC). Promotes parts of backlog F1/F4 into the build. | §5, §11.6, §13, §22 | D29 |
 | 16 | **Single-writer canvas lock (multi-user safety).** A canvas is edited by **one session at a time** — a second opener is **strict read-only** with a "{name} is editing" banner and a **take-over-when-stale** button. Per-tab session key + heartbeat/TTL; **server-enforced** so concurrent tabs can't corrupt the canvas. Replaces an earlier optimistic-merge autosave that let two sessions fight. | §5, §22 | D33 (supersedes D32) |
+| 17 | **Generation Tray added.** A flat, canvas-scoped shelf floating over the canvas lists long-running **image + video** generation jobs (**Running / Ready / Failed**); clicking an item flies the canvas to that generation node and opens its focus view — **navigation only**, no tray-level actions. **Derived on read** from the `generations` job table (no new table); **image gen now also writes a `generations` row** so it appears alongside video (completing D26 — image stays synchronous). A Ready item persists **until approved**. The **guided next-node flow** (auto-create/connect the next node) is split into a separate later spec. | §11.6–11.7, §14, §17 | D35 |
+| 18 | **Guided next-node flow added.** A contextual **"Create next"** action on each pipeline node **saves → creates → connects → places → opens** the next node down the chain (Shot → image prompt → Image Gen → video prompt → Video Gen), wiring the extra parents each step needs (shot + still → Video Prompt; motion prompt + still → Video Gen). It **never runs a model** — the designer sets controls, verifies inputs, and clicks Generate (D11). **Idempotent** (navigates to an existing next node, never duplicates); the Image Gen → video CTA is enabled once a still exists, with a *"not approved yet"* nudge (approval guides, never gates — D29). Reuses the D35 seams (`focusedNodeId`, ancestor edge-walk). | §14, §17 | D36 |
 
 Everything below the changelog is the full PRD with these changes applied. Sections
 not touched by the Script-node revision (problem, principles, downstream Prompt/Image/
@@ -1187,6 +1189,8 @@ The MVP includes:
 * Prompt node
 * Image Gen node (incl. **image editing** — targeted remove / replace / add on a generated or reference image, as a new attempt — D27)
 * Video Gen node
+* **Generation Tray** — a flat, canvas-scoped, **navigation-only** shelf of long-running image/video generation jobs (**Running / Ready / Failed**); clicking an item flies the canvas to the generation node and opens its focus view. Derived on read from the `generations` job table; image gen joins the substrate (D35)
+* **Guided next-node flow** — a contextual **"Create next"** CTA on each pipeline node that creates + connects + places + opens the next node (Shot → image prompt → Image Gen → video prompt → Video Gen); never auto-generates, idempotent (navigates to an existing next) (D36)
 * Shared master controls for image and video generation
 * Selected control values inside Generate nodes
 * Final compiled prompt visible inside Generate nodes
@@ -1329,20 +1333,33 @@ it up. These are *additive* to the MVP — none block the Stage 1–5 pipeline.
 
 * **Now:** **maker-checker approval shipped as a flag (D29, §22.2)** — every attempt carries
   `pending → approved | changes_requested`, set by a senior in the focus view, shown as an
-  on-canvas badge, with maker/checker attribution. What's **not** built: it's a *flag only* —
-  no request-for-review lifecycle that gates downstream wiring, no notifications, and **no
-  commenting anywhere** on the canvas.
+  on-canvas badge, with maker/checker attribution. **A canvas-level, read-only Review surface is
+  now an approved design (D34; implementation pending)** — spec
+  `docs/superpowers/specs/2026-07-02-production-review-mode-design.md`. It promotes the *fast
+  review-workflow* half of this feature: a per-canvas **list→detail queue** at
+  `…/canvases/[cid]/review` where a senior moves through a reel's prompts and generated outputs
+  (Image Prompt · Video Prompt · Image Gen · Video Gen), **approving / requesting changes inline**
+  (reusing the D29 action) **without opening the editor** — decoupled from the D33 lock, and
+  *mark-don't-block* (approval never triggers the next step; preserves D11). Still **not** built
+  anywhere: gating, notifications, and **commenting**.
 * **Backlog (still):**
   * **Review lifecycle that gates** — extend the D29 flag from "records sign-off" to a
     workflow (`submitted for review → …`) that can **block or flag** downstream wiring (lean
     *mark, don't block*, per D9/D21). The distinct reviewer role + badges already exist (D29).
+    **D34 deliberately does not gate** (preserves D11); this is the deferred escalation.
+  * **Cross-canvas / client-level review inbox** — D34 is per-canvas; a client-wide inbox that
+    aggregates every reel is a later data-source swap on the *same* surface (`listReviewQueue(clientId)`).
+  * **Submit-for-review lifecycle** — a `submitted_for_review` state + a junior "Submit" action so
+    the queue shows only pushed items (D34 instead derives the queue from the existing D29 states).
   * **Per-node commenting** — a comment thread anchored to a node (and ideally to a specific
     attempt/version), with author, timestamp, resolve/unresolve, and `@mention`. The "where a
     designer changed the model output" diff (§4.4) and the comment thread together become the
     review record.
   * Notifications (in-app, later email/Slack) when review is requested or a comment mentions you.
-* **Depends on:** **F1** (real user identities) — a reviewer role, comment authorship, and
-  `@mention` all require login + per-user identity. Build F1 first or in lockstep.
+* **Depends on:** the **review surface (D34) rides on soft identity (D29)** — no F1 needed to ship it.
+  **F1** (real user identities) is still required for comment authorship, `@mention`, and *enforced*
+  reviewer roles (D34's senior-only control is a cosmetic hint, spoofable). Build F1 first or in
+  lockstep for those.
 * **To decide when picked up:** comment granularity (node vs. attempt/version), whether
   "changes requested" blocks downstream wiring or only flags it (lean **mark, don't block** —
   consistent with D9/D21), and notification channels.
@@ -1451,5 +1468,7 @@ concurrency at the source is simpler and correct for an internal tool. **Live co
 (real-time presence, CRDT same-field merge) is deliberately future work.
 
 > Full designs: `docs/superpowers/specs/2026-06-29-approval-flag-design.md` (D29),
-> `docs/superpowers/specs/2026-07-01-canvas-pessimistic-lock-design.md` (D33). Decision log:
-> staging-roadmap §7, **D29 / D33** (D33 supersedes the optimistic **D32**).
+> `docs/superpowers/specs/2026-07-01-canvas-pessimistic-lock-design.md` (D33),
+> `docs/superpowers/specs/2026-07-02-production-review-mode-design.md` (**D34** — canvas-level
+> read-only review surface; *approved design, implementation pending*). Decision log:
+> staging-roadmap §7, **D29 / D33 / D34** (D33 supersedes the optimistic **D32**).

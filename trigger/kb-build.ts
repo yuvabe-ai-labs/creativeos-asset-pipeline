@@ -25,8 +25,8 @@ export const kbBuildTask = task({
     if (!secret) throw new Error("TRIGGER_WEBHOOK_SECRET env var not set");
     const webhook = `${appUrl}/api/webhooks/kb-build`;
 
-    const postWebhook = (body: object) =>
-      fetch(webhook, {
+    const postWebhook = async (body: object) => {
+      const res = await fetch(webhook, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -34,6 +34,12 @@ export const kbBuildTask = task({
         },
         body: JSON.stringify(body),
       });
+      if (!res.ok) {
+        const text = await res.text().catch(() => "(unreadable)");
+        logger.error("Webhook call failed", { status: res.status, body: text, kind: (body as Record<string, unknown>).kind });
+      }
+      return res;
+    };
 
     const phase = (status: string, message: string) =>
       postWebhook({ jobId: payload.jobId, kind: "phase", status, message });
@@ -42,15 +48,26 @@ export const kbBuildTask = task({
       const docCount = payload.docIds.length;
       const imgCount = payload.imageIds.length;
 
+      logger.info("kb-build started", {
+        jobId: payload.jobId,
+        clientId: payload.clientId,
+        docCount,
+        imgCount,
+        hasWebsite: !!payload.websiteUrl,
+      });
+
       // Phase 1: research (optional)
       let researchMarkdown: string | null = null;
       if (payload.websiteUrl) {
+        logger.info("Phase 1: researching website", { url: payload.websiteUrl });
         await phase("researching", `Researching ${safeHost(payload.websiteUrl)}…`);
         const { researchBrandWebsite } = await import("@/lib/kb/website-research");
         researchMarkdown = await researchBrandWebsite(payload.websiteUrl);
+        logger.info("Phase 1: research complete", { chars: researchMarkdown?.length ?? 0 });
       }
 
       // Phase 2: extract + analyze (parallel inside runKBExtraction)
+      logger.info("Phase 2: extracting KB", { docCount, imgCount, hasResearch: researchMarkdown !== null });
       await phase("extracting", buildExtractingMessage({
         hasResearch: researchMarkdown !== null,
         docCount,
@@ -63,8 +80,10 @@ export const kbBuildTask = task({
         imageIds: payload.imageIds,
         researchMarkdown,
       });
+      logger.info("Phase 2: extraction complete", { modelUsed: result.modelUsed, fillRate: result.fillRate });
 
       // Phase 3: finalize
+      logger.info("Phase 3: posting succeeded webhook");
       await phase("finalizing", "Building knowledge base…");
       await postWebhook({
         jobId: payload.jobId,
@@ -74,9 +93,11 @@ export const kbBuildTask = task({
         modelUsed: result.modelUsed,
         fillRate: result.fillRate,
       });
+      logger.info("kb-build done", { jobId: payload.jobId, fillRate: result.fillRate });
     } catch (e) {
       const error = e instanceof Error ? e.message : "KB build failed";
-      logger.error("kb-build failed", { jobId: payload.jobId, error });
+      const stack = e instanceof Error ? e.stack : undefined;
+      logger.error("kb-build failed", { jobId: payload.jobId, error, stack });
       await postWebhook({ jobId: payload.jobId, kind: "failed", error });
     }
   },

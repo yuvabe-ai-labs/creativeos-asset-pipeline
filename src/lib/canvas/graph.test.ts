@@ -1,8 +1,9 @@
 import { describe, it, expect } from "vitest";
 import type { Edge } from "@xyflow/react";
-import { wouldCreateCycle } from "./graph";
+import { wouldCreateCycle, findAncestorOfType } from "./graph";
 
 const e = (source: string, target: string): Edge => ({ id: `${source}-${target}`, source, target });
+const n = (id: string, type: string) => ({ id, type });
 
 describe("wouldCreateCycle", () => {
   it("is false for a fresh connection on an empty graph", () => {
@@ -27,5 +28,24 @@ describe("wouldCreateCycle", () => {
     // A -> B, A -> C, B -> D, C -> D ; adding nothing problematic
     const edges = [e("A", "B"), e("A", "C"), e("B", "D"), e("C", "D")];
     expect(wouldCreateCycle(edges, "A", "D")).toBe(false); // A already reaches D, but A->D adds no loop
+  });
+});
+
+describe("findAncestorOfType", () => {
+  it("walks upstream to the nearest ancestor of the given type", () => {
+    const nodes = [n("s", "shot"), n("p", "prompt"), n("g", "image-gen")];
+    const edges = [e("s", "p"), e("p", "g")];
+    expect(findAncestorOfType("g", nodes, edges, "shot")?.id).toBe("s");
+  });
+
+  it("finds an image-gen ancestor across a video-prompt", () => {
+    const nodes = [n("ig", "image-gen"), n("vp", "video-prompt"), n("vg", "video-gen")];
+    const edges = [e("ig", "vp"), e("vp", "vg")];
+    expect(findAncestorOfType("vg", nodes, edges, "image-gen")?.id).toBe("ig");
+  });
+
+  it("returns null when no ancestor of that type exists", () => {
+    const nodes = [n("f", "file"), n("g", "image-gen")];
+    expect(findAncestorOfType("g", nodes, [e("f", "g")], "shot")).toBeNull();
   });
 });

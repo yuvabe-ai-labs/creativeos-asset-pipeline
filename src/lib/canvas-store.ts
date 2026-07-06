@@ -13,9 +13,11 @@ import {
 } from "@xyflow/react";
 import { toast } from "sonner";
 import { wouldCreateCycle } from "@/lib/canvas/graph";
+import { planGuidedNext } from "@/lib/guided-flow";
 import type { AppNode } from "./canvas-nodes";
 import type { ReelScript } from "@/lib/nodes/reel-script";
 import type { ShotComposeIdea } from "@/lib/nodes/shot-compose";
+import type { GenerationRow } from "@/lib/db/types";
 
 // 1C/1D: the canvas store. Nodes/edges live here; custom node components read
 // and write it directly (React Flow only hands a node `{ id, data }`).
@@ -41,6 +43,17 @@ export type CanvasState = {
   videoGenStatus: Record<string, { isGenerating: boolean; lastError: string | null }>;
   setVideoGenGenerating: (nodeId: string, v: boolean) => void;
   setVideoGenError: (nodeId: string, err: string | null) => void;
+  // Generation Tray — live job rows for this canvas (fed by the tray's Realtime hook),
+  // keyed by generation id. The tray derives its list from these + the node graph (D9).
+  trayJobs: Record<string, GenerationRow>;
+  setTrayJobs: (jobs: GenerationRow[]) => void;
+  upsertTrayJob: (job: GenerationRow) => void;
+  // Programmatic focus-view open signal — set by the tray to open a node's focus view.
+  focusedNodeId: string | null;
+  setFocusedNodeId: (id: string | null) => void;
+  // Guided next-node flow (D36): create/connect/place the next pipeline node, or return
+  // an existing next node's id to navigate to. Never runs a model.
+  guidedCreateNext: (sourceId: string) => string | null;
   // KB build status — drives toolbar badge and node warnings
   kbStatus: 'none' | 'building' | 'ready';
   setKbStatus: (status: 'none' | 'building' | 'ready') => void;
@@ -282,6 +295,37 @@ export function createCanvasStore(
           },
         },
       })),
+
+    trayJobs: {},
+    setTrayJobs: (jobs) =>
+      set({ trayJobs: Object.fromEntries(jobs.map((j) => [j.id, j])) }),
+    upsertTrayJob: (job) =>
+      set((s) => ({ trayJobs: { ...s.trayJobs, [job.id]: job } })),
+
+    focusedNodeId: null,
+    setFocusedNodeId: (id) => set({ focusedNodeId: id }),
+
+    guidedCreateNext: (sourceId) => {
+      const state = get();
+      const source = state.nodes.find((n) => n.id === sourceId);
+      if (!source) return null;
+      const plan = planGuidedNext(source, state.nodes, state.edges);
+      if (!plan || !plan.gate.enabled) return null;
+      if (plan.existingId) return plan.existingId; // navigate, no mutation
+
+      const newId = crypto.randomUUID();
+      const newNode = {
+        id: newId,
+        type: plan.nextType,
+        position: plan.position,
+        data: defaultData(plan.nextType),
+      } as AppNode;
+      const newEdges = plan.parentIds
+        .filter((pid) => !wouldCreateCycle(state.edges, pid, newId))
+        .map((pid) => ({ id: crypto.randomUUID(), source: pid, target: newId }));
+      set({ nodes: [...state.nodes, newNode], edges: [...state.edges, ...newEdges] });
+      return newId;
+    },
 
     kbStatus: 'none',
     setKbStatus: (status) => set({ kbStatus: status }),

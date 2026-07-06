@@ -1,5 +1,6 @@
 import { getUpstreamOutputs } from "@/lib/db/nodes";
 import { insertVersion, setActiveVersion, getVersionById } from "@/lib/db/versions";
+import { insertGeneration, succeedGeneration, failGeneration } from "@/lib/db/generations";
 import { imageGenRegistry, DEFAULT_MODEL_ID } from "@/lib/image-gen/registry";
 import {
   buildEditPrompt,
@@ -167,6 +168,15 @@ export async function POST(
     };
   }
 
+  // Join the shared generations substrate (D26) — image is the synchronous fast path.
+  const generation = await insertGeneration({
+    nodeId,
+    type: "image",
+    modelUsed: modelId,
+    paramsSnapshot: validatedParams,
+    inputsSnapshot: inputsUsed,
+  });
+
   try {
     const result = await config.generate({
       prompt,
@@ -192,6 +202,8 @@ export async function POST(
     });
     await setActiveVersion(nodeId, version.id);
 
+    await succeedGeneration({ generationId: generation.id, versionId: version.id });
+
     return apiOk({ imageUrl, versionId: version.id });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Image generation failed";
@@ -201,6 +213,7 @@ export async function POST(
       modelUsed: modelId,
       error: message,
     }).catch(() => null);
+    await failGeneration({ generationId: generation.id, error: message }).catch(() => null);
     return apiError(message, 500);
   }
 }

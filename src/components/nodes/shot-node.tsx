@@ -8,6 +8,7 @@ import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { useDeleteNode } from "@/hooks/use-delete-node";
 import { NodeContextMenu } from "./node-context-menu";
 import { ShotComposeSheet } from "./shot-compose-sheet";
+import { GuidedNextButton } from "@/components/canvas/guided-next-button";
 import type { ReelScript } from "@/lib/nodes/reel-script";
 
 // Shot node — one shot of a reel, forked from a parsed Script (D21). It carries the
@@ -73,13 +74,16 @@ export function ShotNode({ id, data, selected }: NodeProps) {
           <p className="px-1.5 pt-1 text-[0.6rem] text-muted-foreground">
             {d.seededFrom?.scriptTitle ? `from "${d.seededFrom.scriptTitle}" · ` : ""}full script context
           </p>
-          <button
-            type="button"
-            onClick={() => setComposeOpen(true)}
-            className="nodrag mt-1 flex items-center gap-1 rounded-md border border-dashed border-primary/40 px-2 py-1 text-[0.65rem] text-primary transition-colors hover:bg-primary/5"
-          >
-            <Sparkles className="size-3" strokeWidth={1.5} /> Compose
-          </button>
+          <div className="mt-1 flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setComposeOpen(true)}
+              className="nodrag flex items-center gap-1 rounded-md border border-dashed border-primary/40 px-2 py-1 text-[0.65rem] text-primary transition-colors hover:bg-primary/5"
+            >
+              <Sparkles className="size-3" strokeWidth={1.5} /> Compose
+            </button>
+            <GuidedNextButton sourceId={id} variant="chip" />
+          </div>
         </div>
         {/* lineage target (dashed Script->Shot edge) */}
         <Handle
