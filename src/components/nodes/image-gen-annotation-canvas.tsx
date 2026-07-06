@@ -148,37 +148,41 @@ export const ImageGenAnnotationCanvas = forwardRef<AnnotationHandle, Props>(
     const previewPx = Math.max(4, Math.min(22, Math.round(brushSize / 12)));
 
     return (
-      <div className="flex min-h-0 flex-1 gap-3">
+      <div className="flex h-full min-h-0 gap-3">
         {/* Canvas area */}
-        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2">
-          <p className="text-xs text-muted-foreground">
+        <div className="flex h-full min-h-0 flex-1 flex-col items-center gap-2">
+          <p className="shrink-0 text-xs text-muted-foreground">
             Paint over the area you want to change.
           </p>
-          {/* Wrapper matches the image aspect so the overlay lines up exactly. */}
-          <div
-            className="relative max-h-full max-w-full overflow-hidden rounded-xl border border-border bg-muted/20"
-            style={dims ? { aspectRatio: `${dims.w} / ${dims.h}` } : undefined}
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              ref={baseImgRef}
-              src={baseUrl}
-              alt={alt || "Base image"}
-              className="block size-full object-contain"
-              draggable={false}
-              onLoad={handleBaseLoad}
-            />
-            {dims && (
-              <canvas
-                ref={setCanvasRef}
-                onPointerDown={handlePointerDown}
-                onPointerMove={onPointerMove}
-                onPointerUp={onPointerUp}
-                onPointerLeave={onPointerLeave}
-                className="nodrag absolute inset-0 size-full opacity-40"
-                style={{ cursor: "crosshair", touchAction: "none" }}
+          {/* Bounded image area: takes the height left after the hint, so the wrapper's
+              max-h-full (below) resolves against THIS box and the image is contained, not clipped. */}
+          <div className="flex min-h-0 w-full flex-1 items-center justify-center">
+            {/* Wrapper matches the image aspect so the overlay lines up exactly. */}
+            <div
+              className="relative max-h-full max-w-full overflow-hidden rounded-xl border border-border bg-muted/20"
+              style={dims ? { aspectRatio: `${dims.w} / ${dims.h}` } : undefined}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                ref={baseImgRef}
+                src={baseUrl}
+                alt={alt || "Base image"}
+                className="block size-full object-contain"
+                draggable={false}
+                onLoad={handleBaseLoad}
               />
-            )}
+              {dims && (
+                <canvas
+                  ref={setCanvasRef}
+                  onPointerDown={handlePointerDown}
+                  onPointerMove={onPointerMove}
+                  onPointerUp={onPointerUp}
+                  onPointerLeave={onPointerLeave}
+                  className="nodrag absolute inset-0 size-full opacity-40"
+                  style={{ cursor: "crosshair", touchAction: "none" }}
+                />
+              )}
+            </div>
           </div>
         </div>
 
