@@ -13,6 +13,8 @@ export type ImageGenInput = {
   prompt: string;
   referenceUrls: string[];   // Supabase public URLs — never re-encoded to base64 for OpenAI
   params: Record<string, unknown>;
+  maskBase64?: string;       // OpenAI alpha edit-mask (base64 PNG), same size as the base image
+  maskMime?: string;         // defaults to image/png
 };
 
 export type ImageGenResult = {

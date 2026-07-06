@@ -19,6 +19,16 @@ async function urlToFile(url: string): Promise<File> {
   return new File([buffer], `reference.${ext}`, { type: contentType });
 }
 
+// Build the OpenAI edit `mask` File from the base64 the client painted. Returns undefined when
+// no mask was sent (whole-image edit). The mask's transparent pixels mark the editable region.
+export function maskFileFromInput(
+  input: Pick<ImageGenInput, "maskBase64" | "maskMime">,
+): File | undefined {
+  if (!input.maskBase64) return undefined;
+  const mime = input.maskMime ?? "image/png";
+  return new File([Buffer.from(input.maskBase64, "base64")], "mask.png", { type: mime });
+}
+
 // ── Generate function ─────────────────────────────────────────────────────────
 
 async function generateWithOpenAI(
@@ -44,10 +54,12 @@ async function generateWithOpenAI(
 
   if (input.referenceUrls.length > 0) {
     const imageFiles = await Promise.all(input.referenceUrls.map(urlToFile));
+    const mask = maskFileFromInput(input);
     response = await openai.images.edit({
       ...sharedParams,
       prompt: input.prompt,
       image: imageFiles.length === 1 ? imageFiles[0] : imageFiles,
+      ...(mask ? { mask } : {}),
     });
   } else {
     response = await openai.images.generate({
