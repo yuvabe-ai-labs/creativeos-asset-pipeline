@@ -1,11 +1,10 @@
 "use client";
 
 import { useMemo } from "react";
-import { ReceiptText } from "lucide-react";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { computeVideoCost } from "@/lib/video-gen/cost";
 import { USD_TO_INR } from "@/lib/pricing";
 import type { VideoGenVersionSummary } from "./video-gen-version-history";
+import { UsagePopoverShell, type UsageRow } from "./usage-popover-shell";
 
 function relativeTime(dateStr: string): string {
   const diffMins = Math.floor((Date.now() - new Date(dateStr).getTime()) / 60_000);
@@ -62,61 +61,19 @@ export function VideoGenUsagePopover({ versions }: Props) {
     };
   }, [versions]);
 
-  return (
-    <Popover>
-      <PopoverTrigger
-        render={
-          <button
-            type="button"
-            className="inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          >
-            <ReceiptText className="size-3.5" strokeWidth={1.5} />
-            Usage
-          </button>
-        }
-      />
-      <PopoverContent align="end" className="w-64 p-4">
-        {totals.counted === 0 ? (
-          <p className="text-xs text-muted-foreground">No usage data yet.</p>
-        ) : (
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <p className="text-eyebrow">Overall</p>
-              <p className="text-sm font-semibold text-foreground">
-                ${totals.totalUsd.toFixed(4)}{" "}
-                <span className="font-normal text-muted-foreground">(₹{totals.totalInr.toFixed(2)})</span>
-              </p>
-            </div>
+  const rows: UsageRow[] = perGen.map((g) => ({
+    label: `v${g.vNum}`,
+    time: relativeTime(g.createdAt),
+    meta: `${g.durationSeconds}s · ${g.modelLabel}`,
+    costUsd: `$${g.costUsd.toFixed(4)}`,
+    costInr: `₹${g.costInr.toFixed(2)}`,
+  }));
 
-            {perGen.length > 0 && (
-              <div className="space-y-2 border-t border-border pt-3">
-                <p className="text-eyebrow">Per generation</p>
-                <ul className="max-h-48 space-y-2 overflow-y-auto">
-                  {perGen.map((g) => (
-                    <li key={g.vNum} className="rounded-md bg-muted/50 px-2.5 py-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-medium text-foreground">v{g.vNum}</span>
-                        <span className="text-[0.65rem] text-muted-foreground">
-                          {relativeTime(g.createdAt)}
-                        </span>
-                      </div>
-                      <div className="mt-1 flex items-center justify-between">
-                        <span className="text-[0.65rem] text-muted-foreground tabular-nums">
-                          {g.durationSeconds}s · {g.modelLabel}
-                        </span>
-                        <span className="text-[0.65rem] font-medium tabular-nums text-foreground">
-                          ${g.costUsd.toFixed(4)}{" "}
-                          <span className="font-normal text-muted-foreground">(₹{g.costInr.toFixed(2)})</span>
-                        </span>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
-        )}
-      </PopoverContent>
-    </Popover>
+  return (
+    <UsagePopoverShell
+      rows={rows}
+      totalCostUsd={`$${totals.totalUsd.toFixed(4)}`}
+      totalCostInr={`₹${totals.totalInr.toFixed(2)}`}
+    />
   );
 }
