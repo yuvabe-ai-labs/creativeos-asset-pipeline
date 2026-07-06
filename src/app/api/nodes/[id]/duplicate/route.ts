@@ -28,10 +28,8 @@ export async function POST(
 
     // 2. Create new node
     const newNodeId = crypto.randomUUID();
-    const newPosition = {
-      x: (sourceNode.position as { x: number; y: number }).x + 32,
-      y: (sourceNode.position as { x: number; y: number }).y + 32,
-    };
+    const position = sourceNode.position as { x: number; y: number };
+    const newPosition = { x: position.x + 32, y: position.y + 32 };
 
     const { data: newNode, error: insertErr } = await supabase
       .from("nodes")
@@ -74,12 +72,14 @@ export async function POST(
           .single();
 
         if (!newVersionErr && newVersion) {
-          await supabase
+          const { error: updateErr } = await supabase
             .from("nodes")
             .update({ active_version_id: newVersion.id })
             .eq("id", newNodeId);
 
-          newNode.active_version_id = newVersion.id;
+          if (!updateErr) {
+            newNode.active_version_id = newVersion.id;
+          }
         }
       }
     }
