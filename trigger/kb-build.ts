@@ -1,13 +1,5 @@
-import { WebSocket } from "ws";
 import { task, logger } from "@trigger.dev/sdk/v3";
 import { buildExtractingMessage } from "@/lib/kb/build-message";
-
-// Supabase JS tries to init a Realtime WebSocket on client creation.
-// Trigger.dev workers run Node 21 (no native WebSocket) — polyfill before
-// any Supabase import so createClient doesn't throw.
-if (!("WebSocket" in globalThis)) {
-  (globalThis as unknown as Record<string, unknown>).WebSocket = WebSocket;
-}
 
 function safeHost(url: string): string {
   try {
