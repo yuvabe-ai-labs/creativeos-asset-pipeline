@@ -231,6 +231,26 @@ export function ImageGenFocusView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [model, onPatch]);
 
+  // Migrate legacy pixel-size params to unified aspect_ratio
+  useEffect(() => {
+    if (paramValues.size && !paramValues.aspect_ratio) {
+      const SIZE_TO_RATIO: Record<string, string> = {
+        "1024x1024": "1:1",
+        "1536x1024": "16:9",
+        "1024x1536": "9:16",
+        "auto": "1:1",
+      };
+      const migrated = {
+        ...paramValues,
+        aspect_ratio: SIZE_TO_RATIO[paramValues.size as string] ?? "1:1",
+      };
+      delete (migrated as Record<string, unknown>).size;
+      setParamValues(migrated);
+      onPatch({ params: migrated });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nodeId]);
+
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
