@@ -71,11 +71,15 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
       </div>
 
       {isParsing && (
-        <div className="space-y-1.5 border-b border-border px-3 py-2.5">
-          <div className="h-2 w-3/4 animate-pulse rounded bg-muted" />
-          <div className="h-2 w-full animate-pulse rounded bg-muted" />
-          <div className="h-2 w-2/3 animate-pulse rounded bg-muted" />
-          <div className="h-2 w-5/6 animate-pulse rounded bg-muted" />
+        <div className="space-y-2 border-b border-border px-3 py-3">
+          {/* Title placeholder */}
+          <div className="h-2.5 w-3/5 animate-pulse rounded-md bg-muted" />
+          {/* Content lines */}
+          <div className="space-y-1.5 pt-0.5">
+            <div className="h-1.5 w-full animate-pulse rounded bg-muted/80" />
+            <div className="h-1.5 w-4/5 animate-pulse rounded bg-muted/80" />
+            <div className="h-1.5 w-11/12 animate-pulse rounded bg-muted/80" />
+          </div>
         </div>
       )}
 
