@@ -39,6 +39,7 @@ type FileFocusViewProps = {
   llmPrompt?: string;
   processedOutput?: string;
   onPatch: (patch: Partial<FileNodeData>) => void;
+  onUploadingChange?: (uploading: boolean) => void;
 };
 
 type ConfirmState = {
@@ -61,6 +62,7 @@ export function FileFocusView({
   llmPrompt,
   processedOutput,
   onPatch,
+  onUploadingChange,
 }: FileFocusViewProps) {
   const [loading, setLoading] = useState(false);
   const [replacing, setReplacing] = useState(false);
@@ -78,6 +80,7 @@ export function FileFocusView({
 
   async function handleUpload(file: File) {
     setLoading(true);
+    onUploadingChange?.(true);
     try {
       const result = await fileNodeService.upload(nodeId, file);
       onPatch(result);
@@ -91,6 +94,7 @@ export function FileFocusView({
       toast.error(e instanceof Error ? e.message : "Upload failed");
     } finally {
       setLoading(false);
+      onUploadingChange?.(false);
     }
   }
 
