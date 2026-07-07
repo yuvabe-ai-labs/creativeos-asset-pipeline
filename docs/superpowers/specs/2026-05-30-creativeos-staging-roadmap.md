@@ -878,6 +878,27 @@ auto-interpreting freehand marks / drawing on Gemini (deferred, not this cut).
 
 **Originated.** `2026-07-06-image-edit-model-aware-masking-design.md`.
 
+### D39 — Explicit "Set as base" for connected reference images
+
+**Decision.** The edit base is an **explicit, persisted choice** (`baseReferenceNodeId` on
+`ImageGenNodeData`), surfaced as a hover **pin** on each non-base reference tile. Resolution
+(pure `resolveBaseNodeId`): a generated attempt always wins (base = the attempt); otherwise the
+pinned node wins **when still connected**, else fall back to the first-connected image (the prior
+implicit rule) — never a dangling base. The pin is hidden while an attempt is the base
+(`canSetBase = !baseIsAttempt`). The chosen base drives both the annotated preview and the
+`baseImageUrl` sent to the edit route; the previous base rejoins the selectable extras.
+
+**Why.** The base was silently `connectedImageNodes[0]` — the earliest node in the canvas node
+list (≈ creation order), *not* connection order — so it reassigned invisibly as the operator
+connected/disconnected references and could never be chosen. An explicit pin makes the base
+operator-controlled and stable across reconnection.
+
+**Rejected.** Re-basing onto a reference *after* a generation exists (bigger behavioral change to
+the generate→iterate loop; YAGNI for this cut — attempt still wins); a full base-picker in
+`ConnectedInputsCard`; inferring base from edge-creation order (still invisible/unstable).
+
+**Refines.** D37 / D27 (fills the base-selection gap both specs flagged as unbuilt).
+
 ### Parked / out-of-scope (with revisit triggers)
 | Item | Status | Revisit when |
 |---|---|---|

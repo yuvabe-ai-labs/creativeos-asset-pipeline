@@ -67,6 +67,24 @@ export function assembleEditReferences(input: {
   return [input.baseImageUrl, ...extras].slice(0, Math.max(1, input.max));
 }
 
+// Resolve which connected image node is the edit base. A generated attempt always wins (base
+// = the attempt, so this returns null and the caller uses the attempt's URL). Otherwise the
+// operator's explicit pick wins when that node is still connected; if it isn't (disconnected
+// or deleted) we fall back to the first connected image — today's implicit rule — never a
+// dangling base. Order of `connected` mirrors the canvas node list.
+export function resolveBaseNodeId(input: {
+  connected: Array<{ id: string }>;
+  baseReferenceNodeId?: string;
+  hasAttempt: boolean;
+}): string | null {
+  if (input.hasAttempt) return null;
+  const pinned =
+    input.baseReferenceNodeId &&
+    input.connected.find((c) => c.id === input.baseReferenceNodeId);
+  if (pinned) return pinned.id;
+  return input.connected[0]?.id ?? null;
+}
+
 // Resolve the connected nodes the user marked as references for this edit into URLs. Base is
 // excluded (it's the image being edited, not an extra). Empty selection = the D27 default (all
 // other connected images). Order-preserving, deduped (spec §7).

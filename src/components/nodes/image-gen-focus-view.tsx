@@ -48,6 +48,7 @@ import {
 import {
   buildEditPrompt,
   selectEditReferenceUrls,
+  resolveBaseNodeId,
   type EditIntent,
 } from "@/lib/image-gen/edit-prompt";
 import { editModeForModel } from "@/lib/image-gen/edit-mode";
@@ -77,6 +78,7 @@ export type ImageGenFocusViewProps = {
   editInstruction?: string;
   editIntent?: EditIntent;
   editReferenceNodeIds?: string[];
+  baseReferenceNodeId?: string;
   upstream: Array<{
     id: string;
     type: string;
@@ -186,6 +188,7 @@ export function ImageGenFocusView({
   editInstruction,
   editIntent,
   editReferenceNodeIds,
+  baseReferenceNodeId,
   upstream,
   onPatch,
   onProcessingChange,
@@ -348,12 +351,19 @@ export function ImageGenFocusView({
   const baseIsAttempt = Boolean(activeVersionId);
   const canEditBase = baseIsAttempt || Boolean(firstConnectedImageUrl);
 
-  // Base image shown/annotated in Edit mode: the active attempt, else the first connected image.
+  // D39: which connected image is the base — the operator's explicit pick if still connected,
+  // else the first connected image (attempt always wins → null; caller uses the attempt's URL).
+  const baseNodeId = resolveBaseNodeId({
+    connected: connectedImageNodes,
+    baseReferenceNodeId,
+    hasAttempt: baseIsAttempt,
+  });
+  const baseNodeUrl = connectedImageNodes.find((n) => n.id === baseNodeId)?.url ?? null;
+
+  // Base image shown/annotated in Edit mode: the active attempt, else the pinned/first connected.
   // The annotation canvas is keyed on this url, so a new base remounts it with a blank overlay
   // — marks never carry over onto a freshly generated image.
-  const editBaseUrl = imageUrl ?? firstConnectedImageUrl ?? null;
-  const baseNodeId =
-    !baseIsAttempt && connectedImageNodes.length > 0 ? connectedImageNodes[0].id : null;
+  const editBaseUrl = imageUrl ?? baseNodeUrl ?? null;
 
   const referenceItems: EditReferenceItem[] = connectedImageNodes.map((n) => ({
     id: n.id,
@@ -508,6 +518,12 @@ export function ImageGenFocusView({
     onPatch({ editReferenceNodeIds: next });
   }
 
+  // D39: pin a connected image as the edit base. The previous base rejoins the selectable
+  // extras; the new base is excluded from them (via editBaseUrl in selectEditReferenceUrls).
+  function handleSetBase(id: string) {
+    onPatch({ baseReferenceNodeId: id });
+  }
+
   function handleInstructionChange(v: string) {
     setEditInstr(v);
     setPromptOverride(null); // re-derive from the template as the instruction changes
@@ -519,7 +535,7 @@ export function ImageGenFocusView({
 
   async function handleEdit() {
     const baseVersionId = activeVersionId ?? undefined;
-    const baseImageUrl = baseVersionId ? undefined : firstConnectedImageUrl;
+    const baseImageUrl = baseVersionId ? undefined : (baseNodeUrl ?? undefined);
     if (!baseVersionId && !baseImageUrl) {
       toast.error("Generate an image, or connect an image reference, to edit it.");
       return;
@@ -765,6 +781,8 @@ export function ImageGenFocusView({
                     items={referenceItems}
                     selectedIds={selectedRefIds}
                     onToggle={handleToggleRef}
+                    onSetBase={handleSetBase}
+                    canSetBase={!baseIsAttempt}
                   />
                   <ImageGenEditPanel
                     intent={intent}

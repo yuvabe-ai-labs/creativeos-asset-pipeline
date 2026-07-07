@@ -62,6 +62,7 @@ export type ImageGenNodeData = {
   editInstruction?: string;           // current edit instruction (the delta), persisted; snapshotted per attempt
   editIntent?: EditIntent;            // selected edit action (remove/replace/add/modify/freeform)
   editReferenceNodeIds?: string[];    // D37: connected node ids marked as references for the edit
+  baseReferenceNodeId?: string;       // D39: connected image node pinned as the edit base (else first-connected)
 };
 
 export type VideoPromptNodeData = {
