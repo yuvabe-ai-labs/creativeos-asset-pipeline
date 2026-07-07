@@ -12,9 +12,9 @@ const IMAGE_MODEL_PRICING: Record<string, ImagePricingEntry> = {
   "openai:gpt-image-2":                    { textIn: 5.00, imgIn: 8.00,  imgOut: 30.00 },
   "openai:gpt-image-1":                    { textIn: 5.00, imgIn: 10.00, imgOut: 40.00 },
   "openai:gpt-image-1-mini":               { textIn: 2.00, imgIn: 2.50,  imgOut: 8.00  },
-  "gemini:gemini-2.5-flash-image":         { imgOut: 30.00 },
-  "gemini:gemini-3.1-flash-image-preview": { imgOut: 60.00 },
-  "gemini:gemini-3-pro-image-preview":     { imgOut: 80.00 }, // estimated — update when Google publishes
+  "gemini:gemini-2.5-flash-image": { textIn: 0.30, imgIn: 0.30, imgOut: 30.00 },
+  "gemini:gemini-3.1-flash-image": { textIn: 0.30, imgIn: 0.30, imgOut: 60.00 },
+  "gemini:gemini-3-pro-image":     { textIn: 1.25, imgIn: 1.25, imgOut: 80.00 }, // estimated — update when Google publishes
 };
 
 export function computeImageCost(

@@ -58,14 +58,19 @@ async function generateWithGemini(
   }
 
   const usage = response?.usageMetadata;
+  // promptTokenCount covers all input (text + reference images combined).
+  // Gemini doesn't break out text vs image input separately, so map the
+  // full prompt count to text_input_tokens and leave image_input_tokens at 0.
+  const promptTokens = usage?.promptTokenCount ?? 0;
+  const outputTokens = usage?.candidatesTokenCount ?? 0;
   return {
     imageBase64: imagePart.inlineData.data,
     mimeType: imagePart.inlineData.mimeType ?? "image/png",
     tokensUsed: {
-      text_input_tokens:   0,
+      text_input_tokens:   promptTokens,
       image_input_tokens:  0,
-      image_output_tokens: usage?.candidatesTokenCount ?? 0,
-      total_tokens:        usage?.totalTokenCount      ?? 0,
+      image_output_tokens: outputTokens,
+      total_tokens:        usage?.totalTokenCount ?? (promptTokens + outputTokens),
     },
   };
 }

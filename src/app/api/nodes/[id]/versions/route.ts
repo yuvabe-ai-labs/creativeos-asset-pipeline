@@ -33,7 +33,7 @@ export async function GET(
       modelUsed: v.model_used ?? null,
       paramsUsed: (v.params_used ?? {}) as {
         instruction?: string;
-        tokensUsed?: { prompt_tokens: number; completion_tokens: number; total_tokens: number } | null;
+        tokensUsed?: Record<string, number> | null;
       },
       createdAt: v.created_at,
       decision: (v.decision as "pass" | "fail" | null) ?? null,
