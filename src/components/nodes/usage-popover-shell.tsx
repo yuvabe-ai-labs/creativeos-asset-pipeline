@@ -11,6 +11,8 @@ export type UsageRow = {
   /** INR portion shown in muted color, e.g. "₹0.20". Omit when costUsd is "—". */
   costInr?: string;
   time?: string;   // relative time string
+  /** Cumulative cost from v1 up to this version, e.g. "₹1.20 to reach here" */
+  cumulativeLabel?: string;
 };
 
 /** Optional summary rows shown in the "Overall" section above the total cost. */
@@ -24,7 +26,6 @@ export function UsagePopoverShell({
   overallRows,
   totalCostUsd,
   totalCostInr,
-  modelLabel,
 }: {
   rows: UsageRow[];
   /** Extra key/value rows shown in the Overall section (e.g. token counts). */
@@ -33,7 +34,6 @@ export function UsagePopoverShell({
   totalCostUsd: string;
   /** Formatted INR total shown in muted color, e.g. "₹0.20" */
   totalCostInr?: string;
-  modelLabel?: string;
 }) {
   return (
     <Popover>
@@ -67,9 +67,6 @@ export function UsagePopoverShell({
                 </div>
               )}
               <div className="pt-0.5">
-                {modelLabel && (
-                  <p className="mb-0.5 text-[0.6rem] text-muted-foreground">{modelLabel}</p>
-                )}
                 <p className="text-sm font-semibold text-foreground">
                   {totalCostUsd}{" "}
                   {totalCostInr && (
@@ -112,6 +109,11 @@ export function UsagePopoverShell({
                         )}
                       </span>
                     </div>
+                    {row.cumulativeLabel && (
+                      <p className="mt-1 text-[0.6rem] tabular-nums text-muted-foreground/70">
+                        {row.cumulativeLabel}
+                      </p>
+                    )}
                   </li>
                 ))}
               </ul>

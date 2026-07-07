@@ -69,7 +69,6 @@ export function UsagePopover({ versions }: Props) {
       overallRows={overallRows}
       totalCostUsd={`$${totals.costUsd.toFixed(4)}`}
       totalCostInr={`₹${totals.costInr.toFixed(2)}`}
-      modelLabel={totals.displayModel || undefined}
     />
   );
 }

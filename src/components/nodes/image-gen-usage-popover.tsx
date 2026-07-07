@@ -17,13 +17,15 @@ type GenStat = {
   costInr: number;
   modelId: string;
   hasData: boolean;
+  // cumulative cost from v1 up to and including this version
+  cumulativeUsd: number;
+  cumulativeInr: number;
 };
 
 export function ImageGenUsagePopover({ versions }: Props) {
   const { totals, perGen } = useMemo(() => {
     let totalUsd = 0;
     let totalTokens = 0;
-    let displayModel = "";
     let counted = 0;
     const perGen: GenStat[] = [];
 
@@ -33,7 +35,6 @@ export function ImageGenUsagePopover({ versions }: Props) {
       const modelId = v.paramsUsed?.modelId ?? v.modelUsed ?? "";
       const cost = tokens ? computeImageCost(modelId, tokens) : null;
 
-      if (modelId && cost) displayModel = modelId.split(":")[1] ?? modelId;
       if (tokens) totalTokens += tokens.total_tokens;
       if (cost) { totalUsd += cost.usd; counted++; }
 
@@ -45,11 +46,13 @@ export function ImageGenUsagePopover({ versions }: Props) {
         costInr: cost?.inr ?? 0,
         modelId: modelId ? (modelId.split(":")[1] ?? modelId) : "",
         hasData: !!tokens,
+        cumulativeUsd: totalUsd,
+        cumulativeInr: totalUsd * USD_TO_INR,
       });
     });
 
     return {
-      totals: { totalUsd, totalInr: totalUsd * USD_TO_INR, totalTokens, displayModel, counted },
+      totals: { totalUsd, totalInr: totalUsd * USD_TO_INR, totalTokens, counted },
       perGen: perGen.reverse(), // newest first
     };
   }, [versions]);
@@ -60,6 +63,8 @@ export function ImageGenUsagePopover({ versions }: Props) {
     meta: g.hasData ? `${g.totalTokens.toLocaleString()} tokens` : undefined,
     costUsd: g.hasData ? `$${g.costUsd.toFixed(4)}` : "—",
     costInr: g.hasData ? `₹${g.costInr.toFixed(2)}` : undefined,
+    // cumulative cost to reach this version (shown as secondary line)
+    cumulativeLabel: g.cumulativeUsd > 0 ? `₹${g.cumulativeInr.toFixed(2)} to reach here` : undefined,
   }));
 
   const overallRows: OverallRow[] = totals.totalTokens > 0
@@ -72,7 +77,6 @@ export function ImageGenUsagePopover({ versions }: Props) {
       overallRows={overallRows}
       totalCostUsd={`$${totals.totalUsd.toFixed(4)}`}
       totalCostInr={`₹${totals.totalInr.toFixed(2)}`}
-      modelLabel={totals.displayModel || undefined}
     />
   );
 }

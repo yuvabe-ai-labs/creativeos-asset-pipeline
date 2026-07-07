@@ -70,32 +70,30 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
         )}
       </div>
 
-      {isParsing && (
-        <div className="space-y-2 border-b border-border px-3 py-3">
-          {/* Title placeholder */}
+      {isParsing ? (
+        <div className="space-y-2 px-3 py-3">
           <div className="h-2.5 w-3/5 animate-pulse rounded-md bg-muted" />
-          {/* Content lines */}
           <div className="space-y-1.5 pt-0.5">
             <div className="h-1.5 w-full animate-pulse rounded bg-muted/80" />
             <div className="h-1.5 w-4/5 animate-pulse rounded bg-muted/80" />
             <div className="h-1.5 w-11/12 animate-pulse rounded bg-muted/80" />
           </div>
         </div>
+      ) : (
+        <div className="px-3 py-3">
+          <NodeTitle
+            value={title}
+            placeholder="Untitled script"
+            onCommit={(t) => updateNodeData(id, { title: t })}
+          />
+          <button
+            onClick={() => setFocusOpen(true)}
+            className="nodrag -mx-1.5 mt-3 inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10"
+          >
+            Open ↗
+          </button>
+        </div>
       )}
-
-      <div className="px-3 py-3">
-        <NodeTitle
-          value={title}
-          placeholder="Untitled script"
-          onCommit={(t) => updateNodeData(id, { title: t })}
-        />
-        <button
-          onClick={() => setFocusOpen(true)}
-          className="nodrag -mx-1.5 mt-3 inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10"
-        >
-          Open ↗
-        </button>
-      </div>
 
       <ScriptFocusView
         open={focusOpen}
