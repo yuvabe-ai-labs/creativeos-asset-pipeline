@@ -81,6 +81,15 @@ const VEO_REFS_RULES: ConstraintRule[] = [
   },
 ];
 
+const SORA_RULES: ConstraintRule[] = [
+  {
+    id: "sora-start-frame-locks-size",
+    when: { field: "hasStartFrame", op: "eq", value: true },
+    effect: { lockParams: [{ name: "size", value: "1280x720" }] },
+    reason: "Size is set by the start frame image — cannot be changed",
+  },
+];
+
 // ── Model map ─────────────────────────────────────────────────────────────────
 
 export const videoGenClientModelMap: Record<string, VideoGenClientModelSpec> = {
@@ -122,6 +131,7 @@ export const videoGenClientModelMap: Record<string, VideoGenClientModelSpec> = {
     maxDurationSeconds: 12,
     imageInputs: { startFrame: true, endFrame: false, maxReferenceImages: 0 },
     params: soraParams,
+    rules: SORA_RULES,
   },
 };
 

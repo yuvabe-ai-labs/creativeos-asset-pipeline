@@ -55,11 +55,25 @@ async function generateWithOpenAI(
   const openai = createOpenAI();
   const p = input.params;
 
+  // Server-side migration: params saved before the aspect_ratio field existed may carry a
+  // legacy "size" string (e.g. "1024x1024"). Map it back to a ratio so the API receives
+  // the correct pixel dimensions even for old nodes.
+  const SIZE_TO_RATIO: Record<string, string> = {
+    "1024x1024": "1:1",
+    "1536x1024": "16:9",
+    "1024x1536": "9:16",
+    "auto":      "1:1",
+  };
+  const aspectRatio =
+    (p.aspect_ratio as string | undefined) ??
+    SIZE_TO_RATIO[p.size as string] ??
+    "1:1";
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sharedParams: Record<string, any> = {
     model: apiModelId,
     n: 1,
-    size: aspectRatioToOpenAISize((p.aspect_ratio as string) ?? "1:1"),
+    size: aspectRatioToOpenAISize(aspectRatio),
     quality: (p.quality as string) ?? "medium",
     // response_format is NOT supported for gpt-image-* models — they always return b64_json
   };
