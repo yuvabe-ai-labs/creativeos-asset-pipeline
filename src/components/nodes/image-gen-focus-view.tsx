@@ -498,11 +498,14 @@ export function ImageGenFocusView({
   }
 
   function handleToggleRef(id: string) {
-    setSelectedRefIds((prev) => {
-      const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
-      onPatch({ editReferenceNodeIds: next });
-      return next;
-    });
+    // Compute + persist in the event body — never inside the setState updater,
+    // which React runs during render (a store write there updates GenerationTray
+    // mid-render → "cannot update a component while rendering a different one").
+    const next = selectedRefIds.includes(id)
+      ? selectedRefIds.filter((x) => x !== id)
+      : [...selectedRefIds, id];
+    setSelectedRefIds(next);
+    onPatch({ editReferenceNodeIds: next });
   }
 
   function handleInstructionChange(v: string) {
