@@ -11,8 +11,6 @@ export type UsageRow = {
   /** INR portion shown in muted color, e.g. "₹0.20". Omit when costUsd is "—". */
   costInr?: string;
   time?: string;   // relative time string
-  /** Cumulative cost from v1 up to this version, e.g. "₹1.20 to reach here" */
-  cumulativeLabel?: string;
 };
 
 /** Optional summary rows shown in the "Overall" section above the total cost. */
@@ -26,6 +24,7 @@ export function UsagePopoverShell({
   overallRows,
   totalCostUsd,
   totalCostInr,
+  pipelineTotalInr,
 }: {
   rows: UsageRow[];
   /** Extra key/value rows shown in the Overall section (e.g. token counts). */
@@ -34,6 +33,8 @@ export function UsagePopoverShell({
   totalCostUsd: string;
   /** Formatted INR total shown in muted color, e.g. "₹0.20" */
   totalCostInr?: string;
+  /** Full upstream pipeline cost in INR (this node + all connected upstream nodes). */
+  pipelineTotalInr?: string;
 }) {
   return (
     <Popover>
@@ -73,6 +74,12 @@ export function UsagePopoverShell({
                     <span className="font-normal text-muted-foreground">({totalCostInr})</span>
                   )}
                 </p>
+                {pipelineTotalInr && (
+                  <p className="mt-1 text-[0.65rem] text-muted-foreground">
+                    Pipeline total:{" "}
+                    <span className="font-medium tabular-nums text-foreground">{pipelineTotalInr}</span>
+                  </p>
+                )}
               </div>
             </div>
 
@@ -109,11 +116,6 @@ export function UsagePopoverShell({
                         )}
                       </span>
                     </div>
-                    {row.cumulativeLabel && (
-                      <p className="mt-1 text-[0.6rem] tabular-nums text-muted-foreground/70">
-                        {row.cumulativeLabel}
-                      </p>
-                    )}
                   </li>
                 ))}
               </ul>

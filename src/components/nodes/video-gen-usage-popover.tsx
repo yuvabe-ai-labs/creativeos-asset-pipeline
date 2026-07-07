@@ -6,8 +6,13 @@ import { USD_TO_INR } from "@/lib/pricing";
 import type { VideoGenVersionSummary } from "./video-gen-version-history";
 import { UsagePopoverShell, type UsageRow } from "./usage-popover-shell";
 import { formatRelativeTime } from "@/lib/format/relative-time";
+import { useNodeCost } from "@/hooks/use-node-cost";
 
-type Props = { versions: VideoGenVersionSummary[] };
+type Props = {
+  versions: VideoGenVersionSummary[];
+  nodeId: string;
+  upstreamNodeIds?: string[];
+};
 
 type GenStat = {
   vNum: number;
@@ -16,11 +21,9 @@ type GenStat = {
   costUsd: number;
   costInr: number;
   modelLabel: string;
-  cumulativeUsd: number;
-  cumulativeInr: number;
 };
 
-export function VideoGenUsagePopover({ versions }: Props) {
+export function VideoGenUsagePopover({ versions, nodeId, upstreamNodeIds }: Props) {
   const { totals, perGen } = useMemo(() => {
     let totalUsd = 0;
     let counted = 0;
@@ -44,8 +47,6 @@ export function VideoGenUsagePopover({ versions }: Props) {
         costUsd: cost.usd,
         costInr: cost.inr,
         modelLabel: v.modelUsed.split(":")[1] ?? v.modelUsed,
-        cumulativeUsd: totalUsd,
-        cumulativeInr: totalUsd * USD_TO_INR,
       });
     });
 
@@ -55,13 +56,14 @@ export function VideoGenUsagePopover({ versions }: Props) {
     };
   }, [versions]);
 
+  const pipelineInr = useNodeCost(nodeId, upstreamNodeIds);
+
   const rows: UsageRow[] = perGen.map((g) => ({
     label: `v${g.vNum}`,
     time: formatRelativeTime(g.createdAt),
     meta: `${g.durationSeconds}s · ${g.modelLabel}`,
     costUsd: `$${g.costUsd.toFixed(4)}`,
     costInr: `₹${g.costInr.toFixed(2)}`,
-    cumulativeLabel: g.cumulativeUsd > 0 ? `₹${g.cumulativeInr.toFixed(2)} to reach here` : undefined,
   }));
 
   return (
@@ -69,6 +71,11 @@ export function VideoGenUsagePopover({ versions }: Props) {
       rows={rows}
       totalCostUsd={`$${totals.totalUsd.toFixed(4)}`}
       totalCostInr={`₹${totals.totalInr.toFixed(2)}`}
+      pipelineTotalInr={
+        pipelineInr !== null && upstreamNodeIds && upstreamNodeIds.length > 0
+          ? `₹${pipelineInr.toFixed(2)}`
+          : undefined
+      }
     />
   );
 }

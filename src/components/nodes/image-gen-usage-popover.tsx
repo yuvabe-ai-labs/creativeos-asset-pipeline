@@ -6,8 +6,13 @@ import { USD_TO_INR } from "@/lib/pricing";
 import type { ImageGenVersionSummary } from "./image-gen-version-history";
 import { UsagePopoverShell, type UsageRow, type OverallRow } from "./usage-popover-shell";
 import { formatRelativeTime } from "@/lib/format/relative-time";
+import { useNodeCost } from "@/hooks/use-node-cost";
 
-type Props = { versions: ImageGenVersionSummary[] };
+type Props = {
+  versions: ImageGenVersionSummary[];
+  nodeId: string;
+  upstreamNodeIds?: string[];
+};
 
 type GenStat = {
   vNum: number;
@@ -17,12 +22,9 @@ type GenStat = {
   costInr: number;
   modelId: string;
   hasData: boolean;
-  // cumulative cost from v1 up to and including this version
-  cumulativeUsd: number;
-  cumulativeInr: number;
 };
 
-export function ImageGenUsagePopover({ versions }: Props) {
+export function ImageGenUsagePopover({ versions, nodeId, upstreamNodeIds }: Props) {
   const { totals, perGen } = useMemo(() => {
     let totalUsd = 0;
     let totalTokens = 0;
@@ -46,8 +48,6 @@ export function ImageGenUsagePopover({ versions }: Props) {
         costInr: cost?.inr ?? 0,
         modelId: modelId ? (modelId.split(":")[1] ?? modelId) : "",
         hasData: !!tokens,
-        cumulativeUsd: totalUsd,
-        cumulativeInr: totalUsd * USD_TO_INR,
       });
     });
 
@@ -57,14 +57,14 @@ export function ImageGenUsagePopover({ versions }: Props) {
     };
   }, [versions]);
 
+  const pipelineInr = useNodeCost(nodeId, upstreamNodeIds);
+
   const rows: UsageRow[] = perGen.map((g) => ({
     label: `v${g.vNum}`,
     time: formatRelativeTime(g.createdAt),
     meta: g.hasData ? `${g.totalTokens.toLocaleString()} tokens` : undefined,
     costUsd: g.hasData ? `$${g.costUsd.toFixed(4)}` : "—",
     costInr: g.hasData ? `₹${g.costInr.toFixed(2)}` : undefined,
-    // cumulative cost to reach this version (shown as secondary line)
-    cumulativeLabel: g.cumulativeUsd > 0 ? `₹${g.cumulativeInr.toFixed(2)} to reach here` : undefined,
   }));
 
   const overallRows: OverallRow[] = totals.totalTokens > 0
@@ -77,6 +77,11 @@ export function ImageGenUsagePopover({ versions }: Props) {
       overallRows={overallRows}
       totalCostUsd={`$${totals.totalUsd.toFixed(4)}`}
       totalCostInr={`₹${totals.totalInr.toFixed(2)}`}
+      pipelineTotalInr={
+        pipelineInr !== null && upstreamNodeIds && upstreamNodeIds.length > 0
+          ? `₹${pipelineInr.toFixed(2)}`
+          : undefined
+      }
     />
   );
 }

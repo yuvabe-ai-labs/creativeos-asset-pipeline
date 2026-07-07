@@ -719,7 +719,14 @@ export function VideoGenFocusView({
                     </div>
                   </button>
                   {versions.length > 0 && (
-                    <VideoGenUsagePopover versions={versions} />
+                    <VideoGenUsagePopover
+                      versions={versions}
+                      nodeId={nodeId}
+                      upstreamNodeIds={[
+                        ...(promptNode ? [promptNode.id] : []),
+                        ...upstreamImages.map((u) => u.id),
+                      ]}
+                    />
                   )}
                   <Tooltip>
                     <TooltipTrigger render={<span />}>

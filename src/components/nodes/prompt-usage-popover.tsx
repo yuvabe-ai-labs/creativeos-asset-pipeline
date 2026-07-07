@@ -57,6 +57,7 @@ export function UsagePopover({ versions }: Props) {
     costInr: `₹${g.costInr.toFixed(2)}`,
   }));
 
+
   const overallRows: OverallRow[] = [
     { label: "Input tokens",  value: totals.inputTokens.toLocaleString()  },
     { label: "Output tokens", value: totals.outputTokens.toLocaleString() },

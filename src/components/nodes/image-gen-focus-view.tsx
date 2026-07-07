@@ -645,7 +645,11 @@ export function ImageGenFocusView({
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 {versions.length > 0 && (
-                  <ImageGenUsagePopover versions={versions} />
+                  <ImageGenUsagePopover
+                    versions={versions}
+                    nodeId={nodeId}
+                    upstreamNodeIds={upstream.map((u) => u.id)}
+                  />
                 )}
                 <Button
                   size="lg"
