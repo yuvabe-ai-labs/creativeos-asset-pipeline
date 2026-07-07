@@ -60,7 +60,8 @@ export type ImageGenNodeData = {
   params?: Record<string, unknown>;   // last-used param values for selected model
   parsed?: unknown;                   // D19: active version output (image URL, display only — never persisted)
   editInstruction?: string;           // current edit instruction (the delta), persisted; snapshotted per attempt
-  editIntent?: EditIntent;            // selected edit action (remove/replace/add/freeform)
+  editIntent?: EditIntent;            // selected edit action (remove/replace/add/modify/freeform)
+  editReferenceNodeIds?: string[];    // D37: connected node ids marked as references for the edit
 };
 
 export type VideoPromptNodeData = {

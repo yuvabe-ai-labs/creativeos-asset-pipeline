@@ -26,6 +26,8 @@ async function generateWithGemini(
   apiModelId: string,
   input: ImageGenInput,
 ): Promise<ImageGenResult> {
+  // masks are OpenAI-only; Gemini does region targeting via prompt text (D38). input.maskBase64
+  // is intentionally ignored here.
   const ai = createGemini();
   const p = input.params;
 

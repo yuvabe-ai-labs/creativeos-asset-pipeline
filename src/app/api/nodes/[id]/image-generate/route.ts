@@ -17,7 +17,7 @@ function mimeToExt(mimeType: string): string {
   return "png";
 }
 
-const EDIT_INTENTS: readonly EditIntent[] = ["remove", "replace", "add", "freeform"];
+const EDIT_INTENTS: readonly EditIntent[] = ["remove", "replace", "add", "modify", "freeform"];
 function asIntent(v: unknown): EditIntent | undefined {
   return typeof v === "string" && (EDIT_INTENTS as readonly string[]).includes(v)
     ? (v as EditIntent)
@@ -39,6 +39,10 @@ export async function POST(
         prompt?: unknown;
         baseVersionId?: unknown;
         baseImageUrl?: unknown;
+        extraReferenceUrls?: unknown;
+        masked?: unknown;
+        maskBase64?: unknown;
+        maskMime?: unknown;
       }
     | null;
 
@@ -84,28 +88,49 @@ export async function POST(
   let prompt: string;
   let referenceUrls: string[];
   let inputsUsed: Record<string, unknown>;
+  let maskBase64: string | undefined;
+  let maskMime: string | undefined;
 
   if (isEdit) {
     // Base image = the node's current image: a prior attempt or a connected reference.
     const baseVersionId =
       typeof body?.baseVersionId === "string" ? body.baseVersionId : undefined;
-    let baseImageUrl: string | undefined;
+    let resolvedBaseUrl: string | undefined;
     let carriedPromptVersionId: string | null = null;
 
     if (baseVersionId) {
       const baseVersion = await getVersionById(baseVersionId);
-      if (typeof baseVersion?.output === "string") baseImageUrl = baseVersion.output;
+      if (typeof baseVersion?.output === "string") resolvedBaseUrl = baseVersion.output;
       const prevInputs = (baseVersion?.inputs_used ?? {}) as { promptVersionId?: string };
       carriedPromptVersionId = prevInputs.promptVersionId ?? null;
     } else if (typeof body?.baseImageUrl === "string") {
-      baseImageUrl = body.baseImageUrl;
+      resolvedBaseUrl = body.baseImageUrl;
       carriedPromptVersionId = promptNode?.versionId ?? null;
     }
-    if (!baseImageUrl) return apiError("No base image to edit.", 400);
+    if (!resolvedBaseUrl) return apiError("No base image to edit.", 400);
 
-    const extraReferenceUrls = connectedImageUrls.filter((u) => u !== baseImageUrl);
+    // Region mask (OpenAI): the client painted a region and sent it as a base64 alpha PNG. The
+    // base image stays CLEAN (never composited) — the mask travels separately to the provider.
+    const masked =
+      body?.masked === true && typeof body?.maskBase64 === "string";
+    maskBase64 = masked ? (body!.maskBase64 as string) : undefined;
+    maskMime =
+      masked && typeof body?.maskMime === "string" ? (body.maskMime as string) : "image/png";
+    const modelBaseUrl = resolvedBaseUrl; // clean base — no composite
+
+    // Extra references: the client's chosen connected-node URLs when provided; otherwise the
+    // D27 default (all other connected images). Dedup the real base out either way.
+    const bodyExtras = Array.isArray(body?.extraReferenceUrls)
+      ? (body.extraReferenceUrls as unknown[]).filter(
+          (u): u is string => typeof u === "string",
+        )
+      : undefined;
+    const extraReferenceUrls = (bodyExtras ?? connectedImageUrls).filter(
+      (u) => u !== resolvedBaseUrl,
+    );
+
     referenceUrls = assembleEditReferences({
-      baseImageUrl,
+      baseImageUrl: modelBaseUrl,
       extraUrls: extraReferenceUrls,
       max: config.maxReferenceImages,
     });
@@ -119,6 +144,7 @@ export async function POST(
         instruction,
         intent,
         hasExtraReference: extraReferenceUrls.length > 0,
+        masked,
       });
     inputsUsed = {
       promptVersionId: carriedPromptVersionId,
@@ -127,6 +153,7 @@ export async function POST(
       instruction,
       editPrompt: prompt,
       extraReferenceUrls,
+      masked,
     };
   } else {
     // Fresh generation (unchanged): requires a connected Prompt node with output.
@@ -152,7 +179,12 @@ export async function POST(
   });
 
   try {
-    const result = await config.generate({ prompt, referenceUrls, params: validatedParams });
+    const result = await config.generate({
+      prompt,
+      referenceUrls,
+      params: validatedParams,
+      ...(maskBase64 ? { maskBase64, maskMime } : {}),
+    });
 
     const { url: imageUrl } = await uploadImageGen({
       nodeId,

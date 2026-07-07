@@ -31,11 +31,21 @@ function fillWhite(ctx: CanvasRenderingContext2D, w: number, h: number) {
 // sees a null ref and never re-runs. Without this the buffer stays the default 300x150 and
 // strokes land off-canvas. Re-keying the canvas on orientation change remounts it, so this
 // re-runs at the new size (and gives a fresh sheet on flip / reopen).
-export function initDrawingCanvas(el: HTMLCanvasElement, w: number, h: number) {
+export function initDrawingCanvas(
+  el: HTMLCanvasElement,
+  w: number,
+  h: number,
+  opts?: { transparent?: boolean },
+) {
   el.width = w;
   el.height = h;
   const ctx = el.getContext("2d");
-  if (ctx) fillWhite(ctx, w, h);
+  if (!ctx) return;
+  if (opts?.transparent) {
+    ctx.clearRect(0, 0, w, h); // transparent overlay — no white fill
+  } else {
+    fillWhite(ctx, w, h);
+  }
 }
 
 // The canvas ref is owned by the component (the blessed pattern — see FileFocusView) and
@@ -43,6 +53,7 @@ export function initDrawingCanvas(el: HTMLCanvasElement, w: number, h: number) {
 // the ref during render. `clear`/`toBlob` read `ref.current` only inside callbacks.
 export function useDrawingCanvas(
   canvasRef: React.RefObject<HTMLCanvasElement | null>,
+  opts?: { transparent?: boolean; size?: number },
 ) {
   const drawingRef = useRef(false);
   const lastRef = useRef<{ x: number; y: number } | null>(null);
@@ -76,7 +87,7 @@ export function useDrawingCanvas(
       if (!ctx) return;
       const p = toCanvasPoint(e);
       const last = lastRef.current ?? p;
-      const s = drawingContextSettings(tool, color);
+      const s = drawingContextSettings(tool, color, opts);
       ctx.globalCompositeOperation = s.globalCompositeOperation;
       ctx.strokeStyle = s.strokeStyle;
       ctx.lineWidth = s.lineWidth;
@@ -88,7 +99,7 @@ export function useDrawingCanvas(
       ctx.stroke();
       lastRef.current = p;
     },
-    [toCanvasPoint, tool, color],
+    [toCanvasPoint, tool, color, opts],
   );
 
   const onPointerUp = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -105,8 +116,8 @@ export function useDrawingCanvas(
     const ctx = el.getContext("2d");
     if (!ctx) return;
     ctx.clearRect(0, 0, el.width, el.height);
-    fillWhite(ctx, el.width, el.height);
-  }, [canvasRef]);
+    if (!opts?.transparent) fillWhite(ctx, el.width, el.height);
+  }, [canvasRef, opts]);
 
   const toBlob = useCallback(
     () =>
