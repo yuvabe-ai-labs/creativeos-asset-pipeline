@@ -54,6 +54,7 @@ export function PromptNode({ id, data, selected }: NodeProps) {
             ? (d.fileKind as string | undefined)
             : undefined,
         useLlm: n.type === "file" ? (d.useLlm as boolean | undefined) : undefined,
+        role: n.type === "shot" ? (d.role as string | undefined) : undefined,
       };
     });
   }, [nodes, edges, id]);

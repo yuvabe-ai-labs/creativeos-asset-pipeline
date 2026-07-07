@@ -127,7 +127,10 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
         if (json.ideas?.length) {
           setIdeas(json.ideas);
           setVersionId(json.versionId ?? null);
-          if (json.role) setRole(json.role);
+          if (json.role) {
+            setRole(json.role);
+            updateNodeData(nodeId, { role: json.role });
+          }
         }
       } catch {
         /* best-effort — leave the empty state if it fails */
@@ -155,6 +158,7 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
       if (!res.ok) throw new Error(json.error ?? "Compose failed");
       setIdeas(json.ideas ?? []);
       setVersionId(json.versionId ?? null);
+      updateNodeData(nodeId, { role });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Compose failed");
     } finally {

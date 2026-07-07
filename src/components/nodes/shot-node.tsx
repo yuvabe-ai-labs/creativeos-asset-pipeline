@@ -75,13 +75,7 @@ export function ShotNode({ id, data, selected }: NodeProps) {
           <p className="px-1.5 pt-1 text-[0.6rem] text-muted-foreground">
             {d.seededFrom?.scriptTitle ? `from "${d.seededFrom.scriptTitle}" · ` : ""}full script context
           </p>
-          {d.shot_type && (
-            <div className="px-1.5 pb-1">
-              <span className="inline-flex shrink-0 rounded px-1.5 py-0.5 text-[0.6rem] font-medium leading-none bg-primary/10 text-primary/80">
-                {d.shot_type}
-              </span>
-            </div>
-          )}
+
           <div className="mt-1 flex items-center gap-1.5">
             <button
               type="button"
