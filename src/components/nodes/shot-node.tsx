@@ -23,6 +23,7 @@ export function ShotNode({ id, data, selected }: NodeProps) {
   const d = data as {
     script?: ReelScript;
     order?: number;
+    shot_type?: string;
     seededFrom?: { scriptTitle?: string };
   };
   const shot = d.script?.visual_script?.shots?.[0];
@@ -74,6 +75,11 @@ export function ShotNode({ id, data, selected }: NodeProps) {
           <p className="px-1.5 pt-1 text-[0.6rem] text-muted-foreground">
             {d.seededFrom?.scriptTitle ? `from "${d.seededFrom.scriptTitle}" · ` : ""}full script context
           </p>
+          {d.shot_type && (
+            <p className="px-1.5 pb-1 text-[0.6rem] font-medium text-primary/80">
+              {d.shot_type}
+            </p>
+          )}
           <div className="mt-1 flex items-center gap-1.5">
             <button
               type="button"
