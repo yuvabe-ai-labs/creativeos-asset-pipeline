@@ -45,12 +45,18 @@ export function ImageGenNode({ id, data, selected }: NodeProps) {
     });
   }, [nodes, edges, id]);
 
+  // Include upstream node costs so the badge reflects the full pipeline cost.
+  const upstreamNodeIds = useMemo(
+    () => upstream.map((n) => n.id),
+    [upstream],
+  );
+
   const d = data as ImageGenNodeData;
   const title    = d.title ?? "";
   const imageUrl = (d.parsed ?? null) as string | null;
   // D29: active version's approval status (present once a version exists).
   const approvalStatus = (d as { approvalStatus?: ApprovalStatus }).approvalStatus;
-  const totalInr = useNodeCost(id);
+  const totalInr = useNodeCost(id, upstreamNodeIds);
   const [focusOpen, setFocusOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 

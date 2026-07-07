@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { Clapperboard } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -22,13 +22,21 @@ export function VideoGenNode({ id, data, selected }: NodeProps) {
   const focusedNodeId = useCanvasStore((s) => s.focusedNodeId);
   const setFocusedNodeId = useCanvasStore((s) => s.setFocusedNodeId);
 
+  // Select raw store slices (stable references) and derive upstream IDs with
+  // useMemo so the cost badge reflects the full pipeline cost.
+  const edges = useCanvasStore((s) => s.edges);
+  const upstreamNodeIds = useMemo(
+    () => edges.filter((e) => e.target === id).map((e) => e.source),
+    [edges, id],
+  );
+
   const d = data as VideoGenNodeData;
   const title    = d.title ?? "";
   const videoUrl = (d.parsed ?? null) as string | null;
   // D29: active version's approval status (present once a version exists).
   const approvalStatus = (d as { approvalStatus?: ApprovalStatus }).approvalStatus;
 
-  const totalInr = useNodeCost(id);
+  const totalInr = useNodeCost(id, upstreamNodeIds);
   const [focusOpen, setFocusOpen] = useState(false);
   const { isGenerating } = useVideoGenStatus(id);
 

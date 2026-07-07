@@ -2,15 +2,21 @@
 
 import { useEffect, useState } from "react";
 
-export function useNodeCost(nodeId: string) {
+export function useNodeCost(nodeId: string, upstreamNodeIds?: string[]) {
   const [totalInr, setTotalInr] = useState<number | null>(null);
+
+  // Stable cache key so effect only re-runs when the set of IDs actually changes.
+  const upstreamKey = upstreamNodeIds?.slice().sort().join(",") ?? "";
 
   useEffect(() => {
     let cancelled = false;
 
     async function fetchCost() {
       try {
-        const res = await fetch(`/api/nodes/${nodeId}/cost`);
+        const url = upstreamKey
+          ? `/api/nodes/${nodeId}/cost?also=${encodeURIComponent(upstreamKey)}`
+          : `/api/nodes/${nodeId}/cost`;
+        const res = await fetch(url);
         if (!res.ok || cancelled) return;
         const data = await res.json() as { totalInr: number };
         if (!cancelled) setTotalInr(data.totalInr);
@@ -21,7 +27,8 @@ export function useNodeCost(nodeId: string) {
 
     void fetchCost();
     return () => { cancelled = true; };
-  }, [nodeId]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nodeId, upstreamKey]);
 
   return totalInr;
 }
