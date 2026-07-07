@@ -6,12 +6,14 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { EditIntent } from "@/lib/image-gen/edit-prompt";
 
-// 3 chips → 3 distinct templates. The instruction is the bare target; the chip's template
-// supplies the verb (remove / replace / add). "freeform" = typing with no chip.
+// Quick-action chips. The instruction is the bare target; the chip's template supplies the
+// verb (remove / replace / add). "modify" shares the change-only template but is a labeled
+// action; "freeform" = typing with no chip.
 const CHIPS: Array<{ intent: EditIntent; label: string; starter: string }> = [
   { intent: "remove", label: "Remove", starter: "the cup on the table" },
   { intent: "replace", label: "Replace product", starter: "the bottle on the shelf" },
   { intent: "add", label: "Add product", starter: "it to the scene" },
+  { intent: "modify", label: "Modify", starter: "recolor the label to matte black" },
 ];
 
 export type ImageGenEditPanelProps = {

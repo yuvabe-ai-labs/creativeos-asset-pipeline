@@ -837,6 +837,47 @@ needed). **Preserves D11** (never schedules a generation). **Deferred.** The ded
 batch "fan all shots' chains"; reference auto-selection. **Originated.**
 `2026-07-05-guided-next-node-flow-design.md`.
 
+### D37 — Image Edit mode: a tabbed composer (annotation + connected-ref selection) over the D27 edit pipeline
+
+**Decision.** Add a `Generate | Edit` tab to the Image Gen focus view. Edit mode adds (a) a
+separate-layer annotation overlay on the base image, (b) toggle tiles to mark which *connected*
+nodes are the edit's references, and (c) a "Modify" intent chip. It sends an annotated
+composite + a chosen `extraReferenceUrls` to the **existing** D27 edit route; the base image is
+shown even with no prior attempt, so a connected/clipped reference is editable immediately.
+
+**Why.** Designers need to *point* at edit regions and to *choose* which reference feeds an
+edit, and editing a connected/clipped reference must be visible without a prior generation —
+all without a new pipeline or storage mechanism.
+
+**Rejected.** Ad-hoc uploaded references in the composer (would add a storage path — instead
+mark connected nodes); pixel masks (prose-level visual hint only); a separate Edit node /
+second route (violates D27 §4.1).
+
+**Refines.** D27 (adds the composer UI + two additive route fields; the edit pipeline is
+unchanged).
+
+**Originated.** `2026-07-05-image-edit-mode-design.md`.
+
+### D38 — Model-aware image-edit region control (mask vs text); retire the burned-in composite
+
+**Decision.** The Edit region is carried in the *selected model's* native channel — OpenAI via a
+real alpha **mask** (`images.edit` mask; the user **paints the region**; the base image is sent
+**clean**), Gemini via **text only** (no drawing). A `supportsMask` capability flag on the model
+spec drives both the UI (paint vs type) and the payload. The D37 burned-in annotation composite
+is **retired**.
+
+**Why.** Compositing the drawn marks into the base image reproduces them into the output (a black
+scribble rendered onto the edited photo); native channels (mask / text) don't. Mask polarity is
+locked by empirical verification.
+
+**Rejected.** Keeping the composite (it is the bug); passing an annotated image as a Gemini
+reference (reintroduces marks-in-pixels, off-pattern for Gemini multi-image, undocumented);
+auto-interpreting freehand marks / drawing on Gemini (deferred, not this cut).
+
+**Refines.** D37 (partially reverses its "pixel masks are a non-goal" stance) / D27.
+
+**Originated.** `2026-07-06-image-edit-model-aware-masking-design.md`.
+
 ### Parked / out-of-scope (with revisit triggers)
 | Item | Status | Revisit when |
 |---|---|---|
