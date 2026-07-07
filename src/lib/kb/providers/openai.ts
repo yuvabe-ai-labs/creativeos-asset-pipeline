@@ -32,7 +32,7 @@ export const openaiKBProvider: KBAnalysisProvider = {
     const docUserContent: unknown[] = [];
     for (const doc of docs) {
       if (FILE_EXTENSIONS.has(doc.file_ext)) {
-        if (doc.size_bytes > KB_DOC_PER_FILE_LIMIT_BYTES) {
+        if ((doc.size_bytes ?? 0) > KB_DOC_PER_FILE_LIMIT_BYTES) {
           skipped.push({ filename: doc.filename, reason: "exceeds 1 MB per-file limit" });
           continue;
         }
