@@ -20,7 +20,8 @@ export function GenerationTrayItem({
 }) {
   const meta = STATUS_META[item.status];
   const Icon = meta.icon;
-  const assetLabel = item.assetType === "image" ? "Image" : "Video";
+  const assetLabel =
+    item.assetType === "video" ? "Video" : item.assetType === "prompt" ? "Prompt" : "Image";
   return (
     <button
       onClick={() => onOpen(item.nodeId)}

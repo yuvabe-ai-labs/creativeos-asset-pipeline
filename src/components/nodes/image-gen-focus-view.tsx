@@ -63,6 +63,7 @@ import {
   DEFAULT_CLIENT_MODEL_ID,
   defaultsForModel,
 } from "@/lib/image-gen/client-models";
+import { smartMergeParams } from "@/lib/image-gen/params/merge";
 import { ImageGenOutputSettings } from "./image-gen-output-settings";
 
 export type ImageGenFocusViewProps = {
@@ -195,10 +196,19 @@ export function ImageGenFocusView({
     imageGenClientModelMap[DEFAULT_CLIENT_MODEL_ID];
   const editMode = editModeForModel(model.supportsMask); // "paint" | "type"
 
-  const [paramValues, setParamValues] = useState<ParamFormValues>(() => ({
-    ...defaultsForModel(model),
-    ...(params ?? {}),
-  }));
+  const [paramValues, setParamValues] = useState<ParamFormValues>(() => {
+    const base = { ...defaultsForModel(model), ...(params ?? {}) };
+    // Migrate legacy pixel-size params to unified aspect_ratio (one-time at mount).
+    if (base.size && !base.aspect_ratio) {
+      const SIZE_TO_RATIO: Record<string, string> = {
+        "1024x1024": "1:1", "1536x1024": "16:9",
+        "1024x1536": "9:16", "auto": "1:1",
+      };
+      base.aspect_ratio = SIZE_TO_RATIO[base.size as string] ?? "1:1";
+      delete base.size;
+    }
+    return base;
+  });
 
   const [generating, setGenerating] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -241,13 +251,17 @@ export function ImageGenFocusView({
   useEffect(() => {
     if (model.id !== seenModelIdRef.current) {
       seenModelIdRef.current = model.id;
-      const defaults = defaultsForModel(model);
-      setParamValues(defaults);
-      onPatch({ params: defaults });
+      const merged = smartMergeParams(paramValues, model);
+      setParamValues(merged);
+      onPatch({ params: merged });
       annotationRef.current?.clear(); // drop any painted mask — it must not cross models
       setHasMaskRegion(false);
     }
+    // NOTE: paramValues is intentionally excluded from the dep array — we only
+    // want this effect to fire when the model changes, not on every param edit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [model, onPatch]);
+
 
   useEffect(() => {
     if (!open) return;
@@ -707,7 +721,11 @@ export function ImageGenFocusView({
                   </Tabs>
                 )}
                 {versions.length > 0 && (
-                  <ImageGenUsagePopover versions={versions} />
+                  <ImageGenUsagePopover
+                    versions={versions}
+                    nodeId={nodeId}
+                    upstreamNodeIds={upstream.map((u) => u.id)}
+                  />
                 )}
                 <Button
                   size="lg"

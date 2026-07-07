@@ -100,6 +100,7 @@ export function VideoGenNode({ id, data, selected }: NodeProps) {
           </button>
         </div>
 
+
         <VideoGenFocusView
           open={focusViewOpen}
           onOpenChange={handleFocusOpenChange}

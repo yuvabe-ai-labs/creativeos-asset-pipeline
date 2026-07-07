@@ -34,6 +34,7 @@ import {
   defaultsForVideoModel,
   videoGenClientModelMap,
 } from "@/lib/video-gen/client-models";
+import { smartMergeVideoParams } from "@/lib/video-gen/params/merge";
 import {
   buildConstraintState,
   evaluateConstraints,
@@ -485,7 +486,10 @@ export function VideoGenFocusView({
 
   function handleModelChange(nextModelId: string) {
     setModelId(nextModelId);
-    const defaults = defaultsForVideoModel(nextModelId);
+    const nextModel = videoGenClientModelMap[nextModelId];
+    const defaults = nextModel
+      ? smartMergeVideoParams(params, nextModel)
+      : defaultsForVideoModel(nextModelId);
 
     // Migrate image roles — remove roles the new model doesn't support
     const nextInputs = videoGenClientModelMap[nextModelId]?.imageInputs;
@@ -719,7 +723,14 @@ export function VideoGenFocusView({
                     </div>
                   </button>
                   {versions.length > 0 && (
-                    <VideoGenUsagePopover versions={versions} />
+                    <VideoGenUsagePopover
+                      versions={versions}
+                      nodeId={nodeId}
+                      upstreamNodeIds={[
+                        ...(promptNode ? [promptNode.id] : []),
+                        ...upstreamImages.map((u) => u.id),
+                      ]}
+                    />
                   )}
                   <Tooltip>
                     <TooltipTrigger render={<span />}>

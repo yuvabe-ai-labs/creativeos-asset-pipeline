@@ -8,6 +8,7 @@ export type KBExtractionResult = {
   kbOutput: TraceableBrandKB;
   modelUsed: string;
   fillRate: number;
+  skipped?: { filename: string; reason: string }[];
 };
 
 function emptyKBField<T>(value: T | null = null): KBField<T> {
@@ -63,5 +64,6 @@ export async function runKBExtraction(input: {
     kbOutput,
     modelUsed: extractResult.modelUsed,
     fillRate: computeFillRate(kbOutput),
+    skipped: extractResult.skipped ?? [],
   };
 }

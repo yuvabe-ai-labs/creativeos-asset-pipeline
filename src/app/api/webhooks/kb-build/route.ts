@@ -28,6 +28,7 @@ type SucceededPayload = {
   kbOutput: TraceableBrandKB;
   modelUsed: string;
   fillRate: number;
+  skippedDocs?: { filename: string; reason: string }[];
 };
 
 type FailedPayload = {

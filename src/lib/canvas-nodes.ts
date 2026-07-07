@@ -87,6 +87,7 @@ export type ShotNodeData = {
   // Editable; this node's output (D19/D20) — rendered via renderScriptAsText.
   script?: ReelScript;
   order?: number; // 1-based position in the script (display + Stage 5 assembly)
+  shot_type?: string; // e.g. "Wide Shot", "Close-Up" — user-selected or keyword-derived
   seededFrom?: {
     scriptNodeId: string;
     shotIndex: number; // 0-based index in visual_script.shots at fork time

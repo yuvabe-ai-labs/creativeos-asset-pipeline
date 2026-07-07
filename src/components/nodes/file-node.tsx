@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import { Paperclip, Sparkles } from "lucide-react";
+import { Loader2, Paperclip, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { useDeleteNode } from "@/hooks/use-delete-node";
@@ -20,6 +20,7 @@ export function FileNode({ id, data, selected }: NodeProps) {
   const duplicateNode = useCanvasStore((s) => s.duplicateNode);
   const d = data as FileNodeData;
   const [focusOpen, setFocusOpen] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const connState = useNodeConnectionState(id, "file");
 
   const hasFile = !!d.filename;
@@ -47,13 +48,17 @@ export function FileNode({ id, data, selected }: NodeProps) {
           <span className="text-eyebrow text-[0.65rem]!">File</span>
         </div>
         <div className="flex items-center gap-1">
-          <span
-            className={cn(
-              "size-1.5 rounded-full",
-              hasFile ? "bg-primary" : "bg-muted-foreground/40",
-            )}
-            title={hasFile ? "File attached" : "No file"}
-          />
+          {isUploading ? (
+            <Loader2 className="size-3 animate-spin text-primary" />
+          ) : (
+            <span
+              className={cn(
+                "size-1.5 rounded-full",
+                hasFile ? "bg-primary" : "bg-muted-foreground/40",
+              )}
+              title={hasFile ? "File attached" : "No file"}
+            />
+          )}
           {d.useLlm && <Sparkles className="size-2.5 text-primary" />}
         </div>
       </div>
@@ -111,6 +116,7 @@ export function FileNode({ id, data, selected }: NodeProps) {
         llmPrompt={d.llmPrompt}
         processedOutput={d.processedOutput}
         onPatch={(patch) => updateNodeData(id, patch)}
+        onUploadingChange={setIsUploading}
       />
 
       <Handle

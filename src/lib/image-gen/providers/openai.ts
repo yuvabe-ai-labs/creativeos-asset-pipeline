@@ -19,6 +19,23 @@ async function urlToFile(url: string): Promise<File> {
   return new File([buffer], `reference.${ext}`, { type: contentType });
 }
 
+// ── Aspect ratio → pixel size mapping ────────────────────────────────────────
+
+const ASPECT_RATIO_TO_OPENAI_SIZE: Record<string, string> = {
+  "1:1":  "1024x1024",
+  "16:9": "1536x1024",
+  "9:16": "1024x1536",
+  "4:3":  "1536x1024",
+  "3:4":  "1024x1536",
+  "21:9": "1536x1024",
+  "4:1":  "1536x1024",
+  "1:4":  "1024x1536",
+};
+
+export function aspectRatioToOpenAISize(ratio: string): string {
+  return ASPECT_RATIO_TO_OPENAI_SIZE[ratio] ?? "1024x1024";
+}
+
 // Build the OpenAI edit `mask` File from the base64 the client painted. Returns undefined when
 // no mask was sent (whole-image edit). The mask's transparent pixels mark the editable region.
 export function maskFileFromInput(
@@ -42,7 +59,7 @@ async function generateWithOpenAI(
   const sharedParams: Record<string, any> = {
     model: apiModelId,
     n: 1,
-    size: (p.size as string) ?? "1024x1024",
+    size: aspectRatioToOpenAISize((p.aspect_ratio as string) ?? "1:1"),
     quality: (p.quality as string) ?? "medium",
     // response_format is NOT supported for gpt-image-* models — they always return b64_json
   };
@@ -95,7 +112,7 @@ export const openaiModels: MediaGenModelSpec[] = [
     id: "openai:gpt-image-2",
     provider: "openai", mediaType: "image",
     label: "GPT Image 2", providerLabel: "OpenAI",
-    maxReferenceImages: 10, maxReferenceSizeBytes: 50 * 1024 * 1024,
+    maxReferenceImages: 16, maxReferenceSizeBytes: 50 * 1024 * 1024,
     supportsMask: true,
     params: gptImage2Params,
     schema: buildZodFromParams(gptImage2Params),
@@ -105,7 +122,7 @@ export const openaiModels: MediaGenModelSpec[] = [
     id: "openai:gpt-image-1",
     provider: "openai", mediaType: "image",
     label: "GPT Image 1", providerLabel: "OpenAI",
-    maxReferenceImages: 10, maxReferenceSizeBytes: 50 * 1024 * 1024,
+    maxReferenceImages: 16, maxReferenceSizeBytes: 50 * 1024 * 1024,
     supportsMask: true,
     params: gptImage1Params,
     schema: buildZodFromParams(gptImage1Params),
@@ -115,7 +132,7 @@ export const openaiModels: MediaGenModelSpec[] = [
     id: "openai:gpt-image-1-mini",
     provider: "openai", mediaType: "image",
     label: "GPT Image 1 Mini", providerLabel: "OpenAI",
-    maxReferenceImages: 5, maxReferenceSizeBytes: 50 * 1024 * 1024,
+    maxReferenceImages: 16, maxReferenceSizeBytes: 50 * 1024 * 1024,
     supportsMask: true,
     params: gptImage1MiniParams,
     schema: buildZodFromParams(gptImage1MiniParams),

@@ -111,6 +111,7 @@ export function ImageGenNode({ id, data, selected }: NodeProps) {
           </button>
         </div>
 
+
         <ImageGenFocusView
           open={focusViewOpen}
           onOpenChange={handleFocusOpenChange}

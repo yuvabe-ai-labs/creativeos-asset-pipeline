@@ -17,6 +17,7 @@ import { planGuidedNext } from "@/lib/guided-flow";
 import type { AppNode } from "./canvas-nodes";
 import type { ReelScript } from "@/lib/nodes/reel-script";
 import type { ShotComposeIdea } from "@/lib/nodes/shot-compose";
+import { deriveShotType } from "@/lib/nodes/shot-types";
 import type { GenerationRow } from "@/lib/db/types";
 
 // 1C/1D: the canvas store. Nodes/edges live here; custom node components read
@@ -36,7 +37,7 @@ export type CanvasState = {
   updateNodeData: (id: string, data: Record<string, unknown>) => void;
   connectNodes: (sourceId: string, targetId: string) => void;
   deleteNode: (id: string) => void;
-  duplicateNode: (id: string) => void;
+  duplicateNode: (id: string) => Promise<void>;
   fanOutShots: (scriptNodeId: string) => void;
   promoteIdeasToShots: (shotNodeId: string, ideas: ShotComposeIdea[]) => void;
   // Per-node video generation status — shared between VideoGenNode and VideoGenFocusView
@@ -172,20 +173,35 @@ export function createCanvasStore(
         removedEdgeIds: [...get().removedEdgeIds, ...cascadedEdges.map((e) => e.id)],
       });
     },
-    duplicateNode: (id) => {
+    duplicateNode: async (id) => {
       const node = get().nodes.find((n) => n.id === id);
       if (!node || node.type === "kb") return;
-      set({
-        nodes: [
-          ...get().nodes,
-          {
-            ...node,
-            id: crypto.randomUUID(),
-            position: { x: node.position.x + 32, y: node.position.y + 32 },
-            selected: false,
-          } as AppNode,
-        ],
-      });
+
+      try {
+        const res = await fetch(`/api/nodes/${id}/duplicate`, { method: "POST" });
+        if (!res.ok) {
+          console.error("Duplicate node failed:", await res.text());
+          return;
+        }
+        const { node: newNode } = await res.json() as { node: { id: string; position: { x: number; y: number }; type: string; data: Record<string, unknown>; active_version_id: string | null } };
+
+        const data = { ...(node.data as Record<string, unknown>), ...(newNode.data as Record<string, unknown>) };
+
+        set({
+          nodes: [
+            ...get().nodes,
+            {
+              ...node,
+              id: newNode.id,
+              position: newNode.position,
+              data,
+              selected: false,
+            } as AppNode,
+          ],
+        });
+      } catch (err) {
+        console.error("Duplicate node error:", err);
+      }
     },
     // Materialize each shot of a parsed Script into its own Shot node (seed-and-fork,
     // D21). Each Shot carries the FULL parent script narrowed to its single shot
@@ -213,6 +229,7 @@ export function createCanvasStore(
             visual_script: { ...parsed?.visual_script, shots: [shot] },
           },
           order: i + 1,
+          shot_type: deriveShotType(shot.description ?? ""),
           seededFrom: { scriptNodeId, shotIndex: i, scriptTitle },
         },
       })) as AppNode[];
