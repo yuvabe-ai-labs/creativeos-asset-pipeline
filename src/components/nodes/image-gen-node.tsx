@@ -12,7 +12,6 @@ import { ImageGenFocusView } from "./image-gen-focus-view";
 import { ProcessingPill } from "./processing-pill";
 import { ApprovalBadge } from "./approval-badge";
 import type { ApprovalStatus } from "@/lib/approval";
-import { useNodeCost } from "@/hooks/use-node-cost";
 
 export function ImageGenNode({ id, data, selected }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
@@ -45,18 +44,11 @@ export function ImageGenNode({ id, data, selected }: NodeProps) {
     });
   }, [nodes, edges, id]);
 
-  // Include upstream node costs so the badge reflects the full pipeline cost.
-  const upstreamNodeIds = useMemo(
-    () => upstream.map((n) => n.id),
-    [upstream],
-  );
-
   const d = data as ImageGenNodeData;
   const title    = d.title ?? "";
   const imageUrl = (d.parsed ?? null) as string | null;
   // D29: active version's approval status (present once a version exists).
   const approvalStatus = (d as { approvalStatus?: ApprovalStatus }).approvalStatus;
-  const totalInr = useNodeCost(id, upstreamNodeIds);
   const [focusOpen, setFocusOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -119,13 +111,6 @@ export function ImageGenNode({ id, data, selected }: NodeProps) {
           </button>
         </div>
 
-        {totalInr !== null && totalInr > 0 && (
-          <div className="border-t border-border px-3 py-1.5">
-            <p className="text-[0.6rem] tabular-nums text-muted-foreground">
-              ₹{totalInr.toFixed(2)} spent
-            </p>
-          </div>
-        )}
 
         <ImageGenFocusView
           open={focusViewOpen}
