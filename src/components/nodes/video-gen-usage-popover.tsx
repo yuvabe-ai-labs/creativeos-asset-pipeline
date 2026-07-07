@@ -16,6 +16,8 @@ type GenStat = {
   costUsd: number;
   costInr: number;
   modelLabel: string;
+  cumulativeUsd: number;
+  cumulativeInr: number;
 };
 
 export function VideoGenUsagePopover({ versions }: Props) {
@@ -27,8 +29,6 @@ export function VideoGenUsagePopover({ versions }: Props) {
     const ordered = [...versions].reverse();
     ordered.forEach((v, i) => {
       if (!v.output || !v.modelUsed) return;
-      // durationSeconds is set by complete.ts for all providers;
-      // duration (Veo) and seconds (Sora) are provider-specific fallbacks for older rows.
       const duration = Number(
         v.paramsUsed?.durationSeconds ?? v.paramsUsed?.duration ?? v.paramsUsed?.seconds ?? 5,
       );
@@ -44,6 +44,8 @@ export function VideoGenUsagePopover({ versions }: Props) {
         costUsd: cost.usd,
         costInr: cost.inr,
         modelLabel: v.modelUsed.split(":")[1] ?? v.modelUsed,
+        cumulativeUsd: totalUsd,
+        cumulativeInr: totalUsd * USD_TO_INR,
       });
     });
 
@@ -59,6 +61,7 @@ export function VideoGenUsagePopover({ versions }: Props) {
     meta: `${g.durationSeconds}s · ${g.modelLabel}`,
     costUsd: `$${g.costUsd.toFixed(4)}`,
     costInr: `₹${g.costInr.toFixed(2)}`,
+    cumulativeLabel: g.cumulativeUsd > 0 ? `₹${g.cumulativeInr.toFixed(2)} to reach here` : undefined,
   }));
 
   return (
