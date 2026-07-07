@@ -7,6 +7,7 @@ import {
   assembleEditReferences,
   type EditIntent,
 } from "@/lib/image-gen/edit-prompt";
+import { computeImageCost } from "@/lib/image-gen/cost";
 import { apiError, apiOk } from "@/lib/api/route-helpers";
 import { uploadImageGen } from "@/lib/storage";
 
@@ -170,7 +171,12 @@ export async function POST(
     });
     await setActiveVersion(nodeId, version.id);
 
-    await succeedGeneration({ generationId: generation.id, versionId: version.id });
+    const cost = result.tokensUsed ? computeImageCost(modelId, result.tokensUsed) : null;
+    await succeedGeneration({
+      generationId: generation.id,
+      versionId: version.id,
+      creditsConsumed: cost?.usd,
+    });
 
     return apiOk({ imageUrl, versionId: version.id });
   } catch (e) {
