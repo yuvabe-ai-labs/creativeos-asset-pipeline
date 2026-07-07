@@ -14,6 +14,7 @@ import { NodeContextMenu } from "./node-context-menu";
 import { NodeTitle } from "./node-title";
 import { ApprovalBadge } from "./approval-badge";
 import type { ApprovalStatus } from "@/lib/approval";
+import { useNodeCost } from "@/hooks/use-node-cost";
 
 const TYPE_LABEL: Record<string, string> = { script: "Script", text: "Note", prompt: "Prompt", kb: "Brand KB", file: "File", shot: "Shot", draw: "Sketch" };
 
@@ -71,6 +72,7 @@ export function PromptNode({ id, data, selected }: NodeProps) {
   const approvalStatus = (d as { approvalStatus?: ApprovalStatus }).approvalStatus;
   const slices = d.kbSlices ?? DEFAULT_IMAGE_PROMPT_SLICES;
   const controls = d.controls ?? null;
+  const totalInr = useNodeCost(id);
   const kbJustReady = useCanvasStore((s) => s.kbJustReady);
   const [focusOpen, setFocusOpen] = useState(false);
   // Open locally (double-click / "Open ↗") OR when the guided flow points here (D35/D36).
@@ -123,6 +125,14 @@ export function PromptNode({ id, data, selected }: NodeProps) {
           Open ↗
         </button>
       </div>
+
+      {totalInr !== null && totalInr > 0 && (
+        <div className="border-t border-border px-3 py-1.5">
+          <p className="text-[0.6rem] tabular-nums text-muted-foreground">
+            ₹{totalInr.toFixed(2)} spent
+          </p>
+        </div>
+      )}
 
       <PromptFocusView
         open={focusViewOpen}

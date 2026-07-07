@@ -15,6 +15,7 @@ import { CanvasStoreProvider } from "@/components/canvas/canvas-store-provider";
 import { Canvas } from "@/components/canvas/canvas";
 import { IdentityGate } from "@/components/identity/identity-gate";
 import { IdentityChip } from "@/components/identity/identity-chip";
+import { CanvasCostChip } from "@/components/canvas/canvas-cost-chip";
 import { listNodes } from "@/lib/db/nodes";
 import { listEdges } from "@/lib/db/edges";
 import { nodeRowToFlow } from "@/lib/canvas-nodes";
@@ -80,7 +81,10 @@ export default async function CanvasPage({
           </BreadcrumbList>
         </Breadcrumb>
         {/* D29: soft identity — who's the maker/checker. Set once at app start. */}
-        <IdentityChip />    
+        <div className="flex items-center gap-2">
+          <CanvasCostChip canvasId={canvas.id} />
+          <IdentityChip />
+        </div>
       </header>
 
       <div className="relative flex-1">

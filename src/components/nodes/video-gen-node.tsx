@@ -13,6 +13,7 @@ import { useVideoGenStatus } from "@/hooks/use-video-gen-status";
 import { ProcessingPill } from "./processing-pill";
 import { ApprovalBadge } from "./approval-badge";
 import type { ApprovalStatus } from "@/lib/approval";
+import { useNodeCost } from "@/hooks/use-node-cost";
 
 export function VideoGenNode({ id, data, selected }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
@@ -27,6 +28,7 @@ export function VideoGenNode({ id, data, selected }: NodeProps) {
   // D29: active version's approval status (present once a version exists).
   const approvalStatus = (d as { approvalStatus?: ApprovalStatus }).approvalStatus;
 
+  const totalInr = useNodeCost(id);
   const [focusOpen, setFocusOpen] = useState(false);
   const { isGenerating } = useVideoGenStatus(id);
 
@@ -99,6 +101,14 @@ export function VideoGenNode({ id, data, selected }: NodeProps) {
             Open ↗
           </button>
         </div>
+
+        {totalInr !== null && totalInr > 0 && (
+          <div className="border-t border-border px-3 py-1.5">
+            <p className="text-[0.6rem] tabular-nums text-muted-foreground">
+              ₹{totalInr.toFixed(2)} spent
+            </p>
+          </div>
+        )}
 
         <VideoGenFocusView
           open={focusViewOpen}
