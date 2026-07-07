@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { FileText, Paperclip, Pencil, Sparkles, ChevronRight, Clapperboard, Maximize2, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getShotRole } from "@/lib/nodes/shot-roles";
 
 export type UpstreamNode = {
   id: string;
@@ -11,6 +12,7 @@ export type UpstreamNode = {
   fileUrl?: string;
   fileKind?: string;
   useLlm?: boolean;
+  role?: string;
 };
 
 export type ConnectedPreview = {
@@ -97,6 +99,11 @@ export function ConnectedInputsCard({ upstream, preview, onOpenDetail }: Props) 
                 )}
                 <NodeIcon type={u.type} />
                 <span className="text-xs font-semibold truncate text-foreground">{u.label}</span>
+                {u.type === "shot" && u.role && (
+                  <span className="shrink-0 rounded px-1.5 py-0.5 text-[0.6rem] font-semibold leading-none bg-primary/10 text-primary">
+                    {getShotRole(u.role).label}
+                  </span>
+                )}
                 {useLlm && (
                   <span className="shrink-0 rounded px-1 py-0.5 text-[0.6rem] font-semibold leading-none bg-primary/10 text-primary">
                     LLM
