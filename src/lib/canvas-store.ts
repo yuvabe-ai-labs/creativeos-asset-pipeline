@@ -17,6 +17,7 @@ import { planGuidedNext } from "@/lib/guided-flow";
 import type { AppNode } from "./canvas-nodes";
 import type { ReelScript } from "@/lib/nodes/reel-script";
 import type { ShotComposeIdea } from "@/lib/nodes/shot-compose";
+import { deriveShotType } from "@/lib/nodes/shot-types";
 import type { GenerationRow } from "@/lib/db/types";
 
 // 1C/1D: the canvas store. Nodes/edges live here; custom node components read
@@ -228,6 +229,7 @@ export function createCanvasStore(
             visual_script: { ...parsed?.visual_script, shots: [shot] },
           },
           order: i + 1,
+          shot_type: deriveShotType(shot.description ?? ""),
           seededFrom: { scriptNodeId, shotIndex: i, scriptTitle },
         },
       })) as AppNode[];
