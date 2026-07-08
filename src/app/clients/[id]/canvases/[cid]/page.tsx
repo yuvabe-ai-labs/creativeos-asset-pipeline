@@ -92,7 +92,12 @@ export default async function CanvasPage({
         {/* D29: block until an identity is set, so generations/approvals are attributed. */}
         <IdentityGate>
           <CanvasStoreProvider key={canvas.id} initialNodes={initialNodes} initialEdges={initialEdges}>
-            <Canvas canvasId={canvas.id} />
+            <Canvas
+              canvasId={canvas.id}
+              clientId={client.id}
+              initialKBJob={latestKBJob}
+              hasActiveKB={!!activeKBVersion}
+            />
           </CanvasStoreProvider>
         </IdentityGate>
       </div>

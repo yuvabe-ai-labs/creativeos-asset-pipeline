@@ -40,7 +40,7 @@ export function LlmPromptPanel({
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Extraction prompt
           </p>
-          {onClear && localPrompt.trim() && (
+          {onClear && (localPrompt.trim() || processedOutput) && (
             <Button
               variant="ghost"
               size="sm"

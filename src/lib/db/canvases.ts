@@ -87,3 +87,37 @@ export async function getCanvasUpdatedAt(
   if (error) throw error;
   return (data as { updated_at: string } | null)?.updated_at ?? null;
 }
+
+export async function renameCanvas(
+  id: string,
+  name: string,
+): Promise<CanvasRow> {
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("canvases")
+    .update({ name })
+    .eq("id", id)
+    .select()
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) throw new Error("Canvas not found");
+  return data as CanvasRow;
+}
+
+export async function deleteCanvas(id: string): Promise<void> {
+  const supabase = createServerSupabase();
+  // Guard: refuse to delete if a session is actively editing (fresh heartbeat within 60s)
+  const { data: canvas } = await supabase
+    .from("canvases")
+    .select("editing_session_id, editing_heartbeat_at")
+    .eq("id", id)
+    .maybeSingle();
+  if (canvas?.editing_session_id && canvas.editing_heartbeat_at) {
+    const heartbeat = new Date(canvas.editing_heartbeat_at).getTime();
+    if (Date.now() - heartbeat < 60_000) {
+      throw new Error("Canvas is currently being edited — close all editor tabs first.");
+    }
+  }
+  const { error } = await supabase.from("canvases").delete().eq("id", id);
+  if (error) throw error;
+}

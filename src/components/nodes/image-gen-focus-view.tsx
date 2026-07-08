@@ -249,7 +249,19 @@ export function ImageGenFocusView({
     nodeId: string;
     text: string;
   } | null>(null);
+  const [loadingVersions, setLoadingVersions] = useState(false);
+  const [loadingPreview, setLoadingPreview] = useState(false);
+  const [openSeed, setOpenSeed] = useState(open);
   const seenModelIdRef = useRef(model.id);
+
+  // Re-arm skeletons on open transition.
+  if (open !== openSeed) {
+    setOpenSeed(open);
+    if (open) {
+      setLoadingVersions(true);
+      setLoadingPreview(true);
+    }
+  }
 
   useEffect(() => {
     if (model.id !== seenModelIdRef.current) {
@@ -289,6 +301,8 @@ export function ImageGenFocusView({
         }
       } catch {
         /* best-effort */
+      } finally {
+        if (!cancelled) setLoadingVersions(false);
       }
     })();
     return () => {
@@ -300,7 +314,10 @@ export function ImageGenFocusView({
     if (!open) return;
     let cancelled = false;
     const promptNode = upstream.find((u) => u.type === "prompt");
-    if (!promptNode) return;
+    if (!promptNode) {
+      setLoadingPreview(false);
+      return;
+    }
     void (async () => {
       try {
         const res = await fetch(`/api/nodes/${promptNode.id}/versions`);
@@ -317,6 +334,8 @@ export function ImageGenFocusView({
         }
       } catch {
         /* best-effort */
+      } finally {
+        if (!cancelled) setLoadingPreview(false);
       }
     })();
     return () => {
@@ -801,14 +820,26 @@ export function ImageGenFocusView({
                 </div>
               )}
 
-              {versions.length > 0 && (
+              {loadingVersions ? (
+                <div className="space-y-2">
+                  <div className="h-3 w-24 animate-pulse rounded bg-muted-foreground/20" />
+                  <div className="space-y-1.5 pt-1">
+                    {Array.from({ length: 3 }).map((_, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <div className="size-2 shrink-0 animate-pulse rounded-full bg-muted-foreground/20" />
+                        <div className="h-3 animate-pulse rounded bg-muted-foreground/20" style={{ width: `${55 + i * 12}%` }} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : versions.length > 0 ? (
                 <ImageGenVersionHistory
                   versions={versions}
                   activeVersionId={activeVersionId}
                   onRestore={handleRestoreVersion}
                   restoring={restoring}
                 />
-              )}
+              ) : null}
 
               <LeftSection icon={Settings2} label="Output settings">
                 <ImageGenOutputSettings
@@ -825,22 +856,37 @@ export function ImageGenFocusView({
                 label="Connected"
                 badge={`${upstream.length} input${upstream.length === 1 ? "" : "s"}`}
               >
-                <ConnectedInputsCard
-                  upstream={upstreamForCard}
-                  preview={preview}
-                />
-                {refOverLimit && (
-                  <div className="mt-2 flex items-start gap-1.5 rounded-md border border-amber-300 bg-amber-50 px-2 py-1.5 text-[0.7rem] text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300">
-                    <AlertTriangle
-                      className="mt-0.5 size-3 shrink-0"
-                      strokeWidth={1.5}
-                    />
-                    <span>
-                      {referenceCount} reference images connected — only the
-                      first {model.maxReferenceImages} will be used by{" "}
-                      {model.label}.
-                    </span>
+                {loadingPreview ? (
+                  <div className="space-y-2">
+                    {Array.from({ length: Math.max(upstream.length, 2) }).map((_, i) => (
+                      <div key={i} className="space-y-1.5 rounded-lg border border-border p-3">
+                        <div className="h-3 w-1/3 animate-pulse rounded bg-muted-foreground/20" />
+                        <div className="h-3 w-full animate-pulse rounded bg-muted-foreground/20" />
+                        <div className="h-3 w-4/5 animate-pulse rounded bg-muted-foreground/20" />
+                      </div>
+                    ))}
                   </div>
+                ) : (
+                  <>
+                    <ConnectedInputsCard
+                      upstream={upstreamForCard}
+                      preview={preview}
+                      imageOnlyContext
+                    />
+                    {refOverLimit && (
+                      <div className="mt-2 flex items-start gap-1.5 rounded-md border border-amber-300 bg-amber-50 px-2 py-1.5 text-[0.7rem] text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300">
+                        <AlertTriangle
+                          className="mt-0.5 size-3 shrink-0"
+                          strokeWidth={1.5}
+                        />
+                        <span>
+                          {referenceCount} reference images connected — only the
+                          first {model.maxReferenceImages} will be used by{" "}
+                          {model.label}.
+                        </span>
+                      </div>
+                    )}
+                  </>
                 )}
               </LeftSection>
             </div>

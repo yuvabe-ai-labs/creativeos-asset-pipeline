@@ -30,9 +30,12 @@ type Props = {
   preview: ConnectedPreview[];
   // Open a connected input's full content in the focus view's detail panel.
   onOpenDetail?: (nodeId: string) => void;
+  // Set true in image-only contexts (e.g. Image Gen) to show a mismatch warning
+  // when a DOC/text File node is connected instead of showing extracted text.
+  imageOnlyContext?: boolean;
 };
 
-export function ConnectedInputsCard({ upstream, preview, onOpenDetail }: Props) {
+export function ConnectedInputsCard({ upstream, preview, onOpenDetail, imageOnlyContext = false }: Props) {
   // Sort: shot first (primary context), then script/full-reel, then others.
   const sorted = [...upstream].sort((a, b) => {
     const rank = (t: string) => (t === "shot" ? 0 : t === "script" ? 1 : 2);
@@ -70,9 +73,14 @@ export function ConnectedInputsCard({ upstream, preview, onOpenDetail }: Props) 
         const useLlm = p?.useLlm ?? u.useLlm;
         const isExpanded = expanded.has(u.id);
         const isImage =
-          (u.type === "file" || u.type === "draw") &&
-          fileKind === "image" &&
-          !!fileUrl;
+          !!fileUrl &&
+          (u.type === "image-gen" ||
+            ((u.type === "file" || u.type === "draw") && fileKind === "image"));
+        // A DOC/text file connected to an image-consuming node (e.g. Image Gen) is a
+        // type mismatch — show a clear message instead of the raw extracted text.
+        const isDocTypeMismatch =
+          imageOnlyContext &&
+          u.type === "file" && (fileKind === "document" || fileKind === "text");
 
         return (
           <li key={u.id} className="rounded-lg border border-border overflow-hidden">
@@ -131,6 +139,10 @@ export function ConnectedInputsCard({ upstream, preview, onOpenDetail }: Props) 
                     alt={u.label}
                     className="aspect-4/3 w-full rounded-md border border-border object-cover"
                   />
+                ) : isDocTypeMismatch ? (
+                  <p className="text-xs text-muted-foreground">
+                    Document files can&apos;t be used as image inputs — connect an image file instead.
+                  </p>
                 ) : useLlm && !text.trim() ? (
                   <p className="text-xs text-muted-foreground">
                     Run extraction in this File node first.
@@ -178,9 +190,9 @@ export function ConnectedDetailView({
   onBack: () => void;
 }) {
   const isImage =
-    (node.type === "file" || node.type === "draw") &&
-    node.fileKind === "image" &&
-    !!node.fileUrl;
+    !!node.fileUrl &&
+    (node.type === "image-gen" ||
+      ((node.type === "file" || node.type === "draw") && node.fileKind === "image"));
 
   return (
     <div className="w-full max-w-5xl flex flex-col min-h-0 overflow-hidden px-6 py-6 gap-4">
