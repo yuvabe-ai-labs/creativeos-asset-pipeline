@@ -66,6 +66,7 @@ export async function renameCanvasAction(input: {
 }): Promise<void> {
   const name = input.name?.trim();
   if (!name) throw new Error("Canvas needs a name");
+  if (name.length > 100) throw new Error("Canvas name is too long (max 100 characters)");
   await renameCanvas(input.canvasId, name);
   revalidatePath(`/clients/${input.clientSlug}`);
 }

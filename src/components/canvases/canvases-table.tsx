@@ -20,6 +20,8 @@ import {
 } from "@/components/ui/dialog";
 import {
   AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
@@ -124,7 +126,7 @@ export function CanvasesTable({
 
           {rows.length === 0 ? (
             <p className="px-5 py-10 text-center text-sm text-muted-foreground">
-              No canvases match &quot;{query}&quot;.
+              {query ? `No canvases match "${query}".` : "No canvases yet."}
             </p>
           ) : (
             <ul>
@@ -159,6 +161,7 @@ export function CanvasesTable({
                             variant="ghost"
                             size="icon"
                             className="size-7 text-muted-foreground"
+                            aria-label="Canvas actions"
                             onClick={(e) => e.preventDefault()}
                           >
                             <MoreHorizontal className="size-4" strokeWidth={1.5} />
@@ -237,16 +240,16 @@ export function CanvasesTable({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <Button variant="outline" onClick={() => setDeletingCanvas(null)}>
+            <AlertDialogCancel onClick={() => setDeletingCanvas(null)}>
               Cancel
-            </Button>
-            <Button
+            </AlertDialogCancel>
+            <AlertDialogAction
               variant="destructive"
               onClick={handleDelete}
               disabled={deletePending}
             >
               {deletePending ? "Deleting…" : "Delete"}
-            </Button>
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
