@@ -50,6 +50,7 @@ import {
   selectEditReferenceUrls,
   type EditIntent,
 } from "@/lib/image-gen/edit-prompt";
+import type { MentionUpstream } from "@/lib/nodes/resolve-mention-tokens";
 import { editModeForModel } from "@/lib/image-gen/edit-mode";
 import { InlineEvalBar } from "./inline-eval-bar";
 import { InlineApprovalBar } from "./inline-approval-bar";
@@ -393,12 +394,21 @@ export function ImageGenFocusView({
 
   // Final prompt = the per-intent template, unless the operator has hand-edited it (override).
   // Picking a chip or changing the instruction clears the override so the template re-derives.
+  const mentionUpstreamForEdit: MentionUpstream[] = upstream.map((u) => ({
+    nodeId: u.id,
+    type: u.type,
+    text: "",
+    fileUrl: u.fileUrl,
+    fileKind: u.fileKind,
+  }));
+
   const composedPrompt = editInstr.trim()
     ? buildEditPrompt({
         instruction: editInstr,
         intent,
         hasExtraReference,
         masked: editMode === "paint" && hasMaskRegion,
+        upstream: mentionUpstreamForEdit,
       })
     : "";
   const finalPrompt = promptOverride ?? composedPrompt;
@@ -785,6 +795,7 @@ export function ImageGenFocusView({
                   <ImageGenEditPanel
                     intent={intent}
                     instruction={editInstr}
+                    upstream={upstreamForCard}
                     finalPrompt={finalPrompt}
                     editing={editing}
                     canEdit={canEditBase && editable}
