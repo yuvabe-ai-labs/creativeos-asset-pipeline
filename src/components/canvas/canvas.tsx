@@ -38,6 +38,7 @@ import { mnemonicToType, isEditableTarget } from "@/lib/canvas-node-options";
 import { useCanvasLock } from "@/hooks/use-canvas-lock";
 import { CanvasEditableProvider } from "./canvas-editable-context";
 import { GenerationTray } from "./generation-tray";
+import { CopilotPanel } from "./copilot-panel";
 import { LockBanner } from "./lock-banner";
 import { DeleteConfirmDialog } from "./delete-confirm-dialog";
 import { useDeleteConfirmation } from "@/hooks/use-delete-confirmation";
@@ -378,6 +379,7 @@ export function Canvas({
       </ReactFlow>
 
       <GenerationTray canvasId={canvasId} />
+      <CopilotPanel canvasId={canvasId} />
     </div>
     </CanvasEditableProvider>
     </ReactFlowProvider>

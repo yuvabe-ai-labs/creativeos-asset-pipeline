@@ -2,41 +2,48 @@
 
 > ## 📍 RESUME HERE (session pointer)
 >
-> **Status:** Lesson 1 ✅ — `agent-lab/00-plain-call.ts` written + ran (real reply printed), and
-> matched to the same `openai.chat.completions.create` call in the app at
-> `src/app/api/nodes/[id]/parse/route.ts:34`. `agent-lab/02-one-tool.ts` is staged but not filled.
->
-> **Scope pivot (1-day constraint):** chose **"copilot in the real app today."** We stopped going
-> lesson-by-lesson in the sandbox and switched to **building a real copilot MVP in the app** (this
-> worktree), learning primitives inline. Sandbox Lessons 2–6 are now optional reference.
+> **Approach (locked):** build the copilot **in the real app**, incrementally. Every lesson runs
+> in this order → **① teach the engineering concept → ② implement it via fill-in-the-blanks (you
+> type the concept lines, I explain each) → ③ then a UX pass** (Shape of AI patterns —
+> https://www.shapeof.ai). The console lessons in `agent-lab/` are optional reference; the real
+> work is in `src/`.
 >
 > **Where the work lives:** git worktree `.claude/worktrees/minimal-agent`, branch
-> `worktree-minimal-agent`. `.env.local` (with `OPENAI_API_KEY`) is copied in. Sandbox scripts run
-> with `npx tsx --env-file=.env.local agent-lab/<file>`. To run the app: `npm install` (if
-> `node_modules` is missing) then `npm run dev`.
+> `worktree-minimal-agent`. `.env.local` (OPENAI_API_KEY + Supabase) is copied in. Run the app:
+> `npm install` (if `node_modules` missing) then `npm run dev` → Next 16 on
+> http://localhost:3000 → open a client → a canvas → click **✨ Copilot** (top-right).
 >
-> **MVP architecture (agreed) — the client owns mutations; the server just thinks:**
-> - Chat panel (client) → POST `{ message, conversation, canvasSnapshot }` to a new route.
-> - Route runs an OpenAI tool-calling loop; graph tools (`add_node`, `connect_nodes`) come back as
->   **proposals**, NOT executed server-side.
-> - Panel shows the proposal → **user approves (HITL)** → client applies it via the existing store
->   methods → node appears live + autosave persists. No SSE, no new DB plumbing for v1.
+> **The copilot files (the MVP so far):**
+> - `src/app/api/copilot/route.ts` — the copilot's server brain (OpenAI chat call).
+> - `src/components/canvas/copilot-panel.tsx` — the chat panel, docked in the canvas (shadcn).
+> - Mounted in `src/components/canvas/canvas.tsx` (next to `<GenerationTray>`, inside the store provider).
 >
-> **Integration anchors (verified in code):**
-> - Canvas page: `src/app/clients/[id]/canvases/[cid]/page.tsx`
-> - Store: `useCanvasStore(selector)` / `useCanvasStoreApi()` from
->   `src/components/canvas/canvas-store-provider.tsx`. API in `src/lib/canvas-store.ts`:
->   `addNode(type, position, id?)`, `connectNodes(sourceId, targetId)`, plus `nodes` / `edges`.
-> - Node types + connection rules: `src/lib/canvas-nodes.ts` (`AppNode`, `VALID_CONNECTIONS`).
-> - Server OpenAI: `createOpenAI()` from `src/lib/openai/server.ts`.
-> - Route helpers: `apiOk` / `apiError` from `src/lib/api/route-helpers.ts`; routes live under `src/app/api/…`.
+> **Progress:**
+> - ✅ **Lesson 1 — plain call.** DONE + verified (route returns a real reply). Panel chats via
+>   `/api/copilot`. Concept: one `chat.completions.create` call + the `system` role.
+>   UX applied: prompt entry, thinking state, "Copilot · AI" notice.
+> - ⏳ **Lesson 2 — grounding (IN PROGRESS).** Concept: inject real app state into `messages` as
+>   text so the model can "see" the canvas. Panel already sends `canvasId`.
+>   **`route.ts` has 3 🔵 FILL-IN blanks to complete:**
+>   1. `const nodes = await listNodes(canvasId)`
+>   2. `const edges = await listEdges(canvasId)`
+>   3. `const canvasContext = <build a text description of the nodes/edges>`
+>   (the route won't compile until these are filled — that's the exercise.)
+>   TEST: open a canvas with nodes → ask "what's on this canvas?" → expect a grounded answer.
+>   Then do the ③ UX pass (how the copilot signals it can see; later, highlight the node it means).
 >
-> **Next steps (do these next):**
-> 1. New route `src/app/api/canvas/agent/route.ts` — OpenAI tool-loop; graph tools return proposals.
-> 2. Chat panel component (shadcn) + an approve/reject UI (the HITL gate).
-> 3. Mount the panel in the canvas page; wire approve → the store methods above.
-> 4. `npm run dev` → open a canvas → test: "what's on this canvas?" then "add a text node" → approve → watch it appear.
-> 5. Stretch: `connect_nodes`, `generate_prompt`, token streaming, the expert-agent team.
+> **The lesson arc from here:** L3 tools (the model *requests* an action) → **L4 ⚑ HITL**
+> (approve / edit / reject — the priority) → L5 execute-on-approve (node appears via the store) →
+> L6 the loop → expert team.
+>
+> **Store methods for L5 (applying approved actions, client-side):** `useCanvasStore` /
+> `useCanvasStoreApi` from `src/components/canvas/canvas-store-provider.tsx`;
+> `addNode(type, position, id?)`, `connectNodes(sourceId, targetId)`, plus `nodes` / `edges`.
+> Node types + rules: `src/lib/canvas-nodes.ts` (`AppNode`, `VALID_CONNECTIONS`).
+>
+> **MVP architecture (still holds):** client owns graph mutations; the server just thinks — the
+> LLM returns graph ops as **proposals**, the user approves (HITL), the client applies them via the
+> store methods above. No SSE for v1.
 
 **The destination:** a chat copilot beside your canvas where you describe intent and a team of
 expert agents **build, wire, and generate nodes live** — while you stay in control. You learn
