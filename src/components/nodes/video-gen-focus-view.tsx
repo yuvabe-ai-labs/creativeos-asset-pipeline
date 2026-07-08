@@ -381,11 +381,18 @@ export function VideoGenFocusView({
     type: "prompt" | "image";
   } | null>(null);
 
-  // Reset detail view when the sheet opens or switches to a different node
+  const [loadingVersions, setLoadingVersions] = useState(false);
+  const [loadingConnected, setLoadingConnected] = useState(false);
+
+  // Reset detail view when the sheet opens or switches to a different node; re-arm skeletons.
   const [openNodeSeed, setOpenNodeSeed] = useState({ open, nodeId });
   if (openNodeSeed.open !== open || openNodeSeed.nodeId !== nodeId) {
     setOpenNodeSeed({ open, nodeId });
-    if (open) setDetailItem(null);
+    if (open) {
+      setDetailItem(null);
+      setLoadingVersions(true);
+      setLoadingConnected(true);
+    }
   }
 
   const { isGenerating, lastError, setGenerating, setLastError } =
@@ -446,7 +453,8 @@ export function VideoGenFocusView({
         const active = data.versions.find((v) => v.id === data.activeVersionId);
         if (active?.output) onPatchRef.current({ parsed: active.output });
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setLoadingVersions(false));
     videoGenApi
       .fetchUpstreamImages(nodeId)
       .then(({ images, promptNode: pn }) => {
@@ -461,7 +469,8 @@ export function VideoGenFocusView({
           }
         }
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setLoadingConnected(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, nodeId, setVideoGenGenerating, setVideoGenError]);
 
@@ -781,7 +790,19 @@ export function VideoGenFocusView({
             <div className="w-full max-w-5xl flex min-h-0 overflow-hidden">
               {/* Left panel */}
               <div className="w-[40%] border-r border-border overflow-y-auto px-6 py-6 flex flex-col gap-6">
-                {versions.length > 0 && (
+                {loadingVersions ? (
+                  <div className="space-y-2">
+                    <div className="h-3 w-24 animate-pulse rounded bg-muted-foreground/20" />
+                    <div className="space-y-1.5 pt-1">
+                      {Array.from({ length: 3 }).map((_, i) => (
+                        <div key={i} className="flex items-center gap-2">
+                          <div className="size-2 shrink-0 animate-pulse rounded-full bg-muted-foreground/20" />
+                          <div className="h-3 animate-pulse rounded bg-muted-foreground/20" style={{ width: `${55 + i * 12}%` }} />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : versions.length > 0 ? (
                   <LeftSection
                     icon={History}
                     label="History"
@@ -804,7 +825,7 @@ export function VideoGenFocusView({
                       />
                     )}
                   </LeftSection>
-                )}
+                ) : null}
 
                 <LeftSection
                   icon={Settings2}
@@ -827,11 +848,20 @@ export function VideoGenFocusView({
                 <LeftSection
                   icon={Link2}
                   label="Connected"
-                  badge={`${(promptNode ? 1 : 0) + upstreamImages.length} input${(promptNode ? 1 : 0) + upstreamImages.length === 1 ? "" : "s"}`}
+                  badge={loadingConnected ? undefined : `${(promptNode ? 1 : 0) + upstreamImages.length} input${(promptNode ? 1 : 0) + upstreamImages.length === 1 ? "" : "s"}`}
                   open={connectedOpen}
                   onToggle={() => setConnectedOpen((p) => !p)}
                 >
-                  {connectedOpen && (
+                  {loadingConnected ? (
+                    <div className="space-y-2">
+                      {Array.from({ length: 2 }).map((_, i) => (
+                        <div key={i} className="space-y-1.5 rounded-lg border border-border p-3">
+                          <div className="h-3 w-1/3 animate-pulse rounded bg-muted-foreground/20" />
+                          <div className="h-3 w-full animate-pulse rounded bg-muted-foreground/20" />
+                        </div>
+                      ))}
+                    </div>
+                  ) : connectedOpen && (
                     <VideoGenConnectedSection
                       promptNode={promptNode}
                       images={upstreamImages}

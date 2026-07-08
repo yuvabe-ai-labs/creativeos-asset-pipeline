@@ -41,6 +41,8 @@ import { GenerationTray } from "./generation-tray";
 import { LockBanner } from "./lock-banner";
 import { DeleteConfirmDialog } from "./delete-confirm-dialog";
 import { useDeleteConfirmation } from "@/hooks/use-delete-confirmation";
+import { CanvasKBStatus, CanvasKBBadge } from "./canvas-kb-status";
+import type { ClientKBJobRow } from "@/lib/db/types";
 
 // Register custom node types once (stable reference — never inline this object).
 const nodeTypes: NodeTypes = {
@@ -58,8 +60,14 @@ const nodeTypes: NodeTypes = {
 
 export function Canvas({
   canvasId,
+  clientId,
+  initialKBJob,
+  hasActiveKB,
 }: {
   canvasId: string;
+  clientId: string;
+  initialKBJob: ClientKBJobRow | null;
+  hasActiveKB: boolean;
 }) {
   // One subscription, shallow-compared, so the component only re-renders when
   // these slices actually change.
@@ -318,6 +326,14 @@ export function Canvas({
         canEdit={canEdit}
         onLockLost={reportLockLost}
       />
+
+      {/* Headless KB status subscriber — drives kbStatus in the canvas store */}
+      <CanvasKBStatus clientId={clientId} initialJob={initialKBJob} hasActiveKB={hasActiveKB} />
+
+      {/* KB building badge — top-right overlay */}
+      <div className="absolute right-4 top-4 z-10 pointer-events-none">
+        <CanvasKBBadge />
+      </div>
 
       {!canEdit && (
         <LockBanner heldByName={heldByName} canTakeOver={canTakeOver} onTakeOver={takeOver} />
