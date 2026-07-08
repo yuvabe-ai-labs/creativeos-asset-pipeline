@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -196,20 +197,27 @@ function MentionsPlugin({
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
 
-  const eligible: DropdownItem[] = upstream
-    .filter((u) => u.type === "image-gen" || u.type === "draw" || u.type === "file")
-    .map((u) => ({
-      id: u.id,
-      label: `${nodeTypeLabel(u.type)}: ${u.label}`,
-      type: u.type,
-    }));
+  const eligible: DropdownItem[] = useMemo(
+    () =>
+      upstream
+        .filter((u) => u.type === "image-gen" || u.type === "draw" || u.type === "file")
+        .map((u) => ({
+          id: u.id,
+          label: `${nodeTypeLabel(u.type)}: ${u.label}`,
+          type: u.type,
+        })),
+    [upstream],
+  );
 
-  const filtered =
-    query === null
-      ? []
-      : eligible.filter((item) =>
-          item.label.toLowerCase().includes(query.toLowerCase()),
-        );
+  const filtered: DropdownItem[] = useMemo(
+    () =>
+      query === null
+        ? []
+        : eligible.filter((item) =>
+            item.label.toLowerCase().includes(query.toLowerCase()),
+          ),
+    [query, eligible],
+  );
 
   const open = query !== null && filtered.length > 0;
 
@@ -245,6 +253,7 @@ function MentionsPlugin({
         const selection = $getSelection();
         if (!$isRangeSelection(selection)) {
           setQuery(null);
+          setActiveIndex(0);
           return;
         }
         const anchor = selection.anchor;
@@ -254,10 +263,14 @@ function MentionsPlugin({
         const atIndex = text.lastIndexOf("@", offset - 1);
         if (atIndex === -1 || atIndex < offset - 30) {
           setQuery(null);
+          setActiveIndex(0);
           return;
         }
         const q = text.slice(atIndex + 1, offset);
-        setQuery(q);
+        setQuery((prev) => {
+          if (prev !== q) setActiveIndex(0);
+          return q;
+        });
 
         const domSelection = window.getSelection();
         if (domSelection && domSelection.rangeCount > 0) {
@@ -312,10 +325,6 @@ function MentionsPlugin({
       removeEsc();
     };
   }, [open, activeIndex, filtered, editor, insertMention]);
-
-  useEffect(() => {
-    setActiveIndex(0);
-  }, [query]);
 
   if (!open || !anchorRect) return null;
 
