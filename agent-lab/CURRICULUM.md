@@ -3,8 +3,8 @@
 > ## 📍 RESUME HERE (session pointer)
 >
 > **Approach (locked):** build the copilot **in the real app**, incrementally. Every lesson runs
-> in this order → **① teach the engineering concept → ② implement it via fill-in-the-blanks (you
-> type the concept lines, I explain each) → ③ then a UX pass** (Shape of AI patterns —
+> in this order → **① teach the engineering concept → ② implement it (I write the code and
+> explain it — user's preference) → ③ then a UX pass** (Shape of AI patterns —
 > https://www.shapeof.ai). The console lessons in `agent-lab/` are optional reference; the real
 > work is in `src/`.
 >
@@ -14,27 +14,28 @@
 > http://localhost:3000 → open a client → a canvas → click **✨ Copilot** (top-right).
 >
 > **The copilot files (the MVP so far):**
-> - `src/app/api/copilot/route.ts` — the copilot's server brain (OpenAI chat call).
+> - `src/app/api/copilot/route.ts` — the copilot's server brain (OpenAI call; now **streaming**).
+> - `src/lib/nodes/describe-node.ts` — per-node-type label helper (grounding's "representation layer").
 > - `src/components/canvas/copilot-panel.tsx` — the chat panel, docked in the canvas (shadcn).
 > - Mounted in `src/components/canvas/canvas.tsx` (next to `<GenerationTray>`, inside the store provider).
 >
-> **Progress:**
-> - ✅ **Lesson 1 — plain call.** DONE + verified (route returns a real reply). Panel chats via
->   `/api/copilot`. Concept: one `chat.completions.create` call + the `system` role.
->   UX applied: prompt entry, thinking state, "Copilot · AI" notice.
-> - ⏳ **Lesson 2 — grounding (IN PROGRESS).** Concept: inject real app state into `messages` as
->   text so the model can "see" the canvas. Panel already sends `canvasId`.
->   **`route.ts` has 3 🔵 FILL-IN blanks to complete:**
->   1. `const nodes = await listNodes(canvasId)`
->   2. `const edges = await listEdges(canvasId)`
->   3. `const canvasContext = <build a text description of the nodes/edges>`
->   (the route won't compile until these are filled — that's the exercise.)
->   TEST: open a canvas with nodes → ask "what's on this canvas?" → expect a grounded answer.
->   Then do the ③ UX pass (how the copilot signals it can see; later, highlight the node it means).
+> **Progress (all committed):**
+> - ✅ **L1 — plain call.** Panel chats via `/api/copilot`. Concept: one `chat.completions.create`
+>   + the `system` role. UX: prompt entry, thinking state, "Copilot · AI" notice.
+> - ✅ **L2 — grounding.** Reads the real canvas (`listNodes`/`listEdges`), describes it via
+>   `describeNode` (per-type "representation layer" so untitled nodes still get labels), injects it
+>   into `messages`. Ids kept internal (system prompt), not shown to the user.
+> - ✅ **L3 — streaming.** Route returns a `ReadableStream` of token deltas (`stream: true`); the
+>   panel reads `res.body` and appends live (the typing effect).
+> - ⏭ **L4 — NEXT: structured output.** Give the reply a strict JSON schema (`{ reply,
+>   referencedNodes }`, **prose field FIRST**) so the UI renders node **chips** instead of raw
+>   text/ids. Pattern to copy: the Script parse route's `response_format: { type: "json_schema",
+>   json_schema: { schema, strict: true } }` in `src/app/api/nodes/[id]/parse/route.ts`.
+>   ⚠️ OPEN DECISION: how to combine it with L3 streaming (structured-non-streaming first, vs.
+>   keep streaming + resolve chips at the end, vs. full streaming-structured). Ask the user.
 >
-> **The lesson arc from here:** L3 tools (the model *requests* an action) → **L4 ⚑ HITL**
-> (approve / edit / reject — the priority) → L5 execute-on-approve (node appears via the store) →
-> L6 the loop → expert team.
+> **Arc after L4:** tools (the model *requests* an action) → **⚑ HITL** (approve / edit / reject —
+> the user's priority) → execute-on-approve (node appears via the store) → the loop → expert team.
 >
 > **Store methods for L5 (applying approved actions, client-side):** `useCanvasStore` /
 > `useCanvasStoreApi` from `src/components/canvas/canvas-store-provider.tsx`;
