@@ -30,9 +30,12 @@ type Props = {
   preview: ConnectedPreview[];
   // Open a connected input's full content in the focus view's detail panel.
   onOpenDetail?: (nodeId: string) => void;
+  // Set true in image-only contexts (e.g. Image Gen) to show a mismatch warning
+  // when a DOC/text File node is connected instead of showing extracted text.
+  imageOnlyContext?: boolean;
 };
 
-export function ConnectedInputsCard({ upstream, preview, onOpenDetail }: Props) {
+export function ConnectedInputsCard({ upstream, preview, onOpenDetail, imageOnlyContext = false }: Props) {
   // Sort: shot first (primary context), then script/full-reel, then others.
   const sorted = [...upstream].sort((a, b) => {
     const rank = (t: string) => (t === "shot" ? 0 : t === "script" ? 1 : 2);
@@ -76,6 +79,7 @@ export function ConnectedInputsCard({ upstream, preview, onOpenDetail }: Props) 
         // A DOC/text file connected to an image-consuming node (e.g. Image Gen) is a
         // type mismatch — show a clear message instead of the raw extracted text.
         const isDocTypeMismatch =
+          imageOnlyContext &&
           u.type === "file" && (fileKind === "document" || fileKind === "text");
 
         return (

@@ -850,6 +850,7 @@ export function ImageGenFocusView({
                     <ConnectedInputsCard
                       upstream={upstreamForCard}
                       preview={preview}
+                      imageOnlyContext
                     />
                     {refOverLimit && (
                       <div className="mt-2 flex items-start gap-1.5 rounded-md border border-amber-300 bg-amber-50 px-2 py-1.5 text-[0.7rem] text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300">
