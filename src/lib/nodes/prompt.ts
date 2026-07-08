@@ -1,24 +1,32 @@
-// The Prompt node's `compile` step — pure: (client context + upstream outputs +
-// instruction) → the model payload. The `user` string is the visible "final
-// compiled prompt" the PRD requires be shown before generation (ADR D3).
 import { promptGeneratePrompt } from "@/prompts/prompt-generate";
 import { renderShotControls, type ShotControls } from "./shot-controls";
+import { resolveMentionTokens, type MentionUpstream } from "./resolve-mention-tokens";
 
-// The instruction sent when the operator leaves the Inline box blank. Exported so
-// the Prompt focus view can show the exact sentence the model will receive.
 export const DEFAULT_INSTRUCTION =
   "Write a detailed image prompt — subject, setting, lighting, and visual style — from the context above.";
 
+export type CompilePromptUpstream = {
+  nodeId?: string;
+  label: string;
+  text: string;
+  type?: string;
+  fileUrl?: string;
+  fileKind?: string;
+  useLlm?: boolean;
+};
+
 export type CompilePromptInput = {
   clientContext: string;
-  upstream: { label: string; text: string; type?: string }[];
+  upstream: CompilePromptUpstream[];
   instruction: string;
-  // Per-shot descriptive controls (lens/composition/lighting). When set (non-Auto) they are
-  // injected as constraints the model must honor (PRD §12). Optional → existing callers unchanged.
   controls?: ShotControls;
 };
 
-export function compilePrompt(input: CompilePromptInput): { system: string; user: string; effectiveInstruction: string } {
+export function compilePrompt(input: CompilePromptInput): {
+  system: string;
+  user: string;
+  effectiveInstruction: string;
+} {
   const blocks: string[] = [];
 
   if (input.clientContext.trim()) {
@@ -36,7 +44,19 @@ export function compilePrompt(input: CompilePromptInput): { system: string; user
   const controlsBlock = input.controls ? renderShotControls(input.controls) : "";
   if (controlsBlock) blocks.push(controlsBlock);
 
-  const effectiveInstruction = input.instruction.trim() || DEFAULT_INSTRUCTION;
+  const rawInstruction = input.instruction.trim() || DEFAULT_INSTRUCTION;
+
+  // Resolve @[Label](nodeId) mention tokens before building the instruction block.
+  const mentionUpstream: MentionUpstream[] = input.upstream.map((u) => ({
+    nodeId: u.nodeId ?? "",
+    type: u.type ?? "",
+    text: u.text,
+    fileUrl: u.fileUrl,
+    fileKind: u.fileKind,
+    useLlm: u.useLlm,
+  }));
+  const effectiveInstruction = resolveMentionTokens(rawInstruction, mentionUpstream);
+
   blocks.push(`Instruction:\n${effectiveInstruction}`);
 
   return { system: promptGeneratePrompt.system, user: blocks.join("\n\n"), effectiveInstruction };

@@ -61,4 +61,30 @@ describe("compilePrompt", () => {
       compilePrompt({ clientContext: "", upstream: [], instruction: "  make it airy " }).effectiveInstruction,
     ).toBe("make it airy");
   });
+
+  it("resolves @[Label](nodeId) image tokens to positional references in instruction", () => {
+    const { user } = compilePrompt({
+      clientContext: "",
+      upstream: [
+        {
+          nodeId: "img-1",
+          label: "Image",
+          type: "image-gen",
+          text: "",
+          fileUrl: "https://cdn.example.com/hero.jpg",
+          fileKind: "image",
+        },
+        {
+          nodeId: "img-2",
+          label: "Image",
+          type: "file",
+          text: "",
+          fileUrl: "https://cdn.example.com/ref.jpg",
+          fileKind: "image",
+        },
+      ],
+      instruction: "use @[Image: Hero](img-1) as base, composition from @[Image: Ref](img-2)",
+    });
+    expect(user).toContain("Instruction:\nuse the first image as base, composition from the second image");
+  });
 });
