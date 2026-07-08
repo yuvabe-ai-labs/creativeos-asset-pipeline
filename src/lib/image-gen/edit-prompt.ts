@@ -1,27 +1,23 @@
-// Pure edit-request construction. NO "server-only" import — also imported by the
-// client focus view to render the composed-prompt preview (spec §6 / D3).
+import { resolveMentionTokens, type MentionUpstream } from "@/lib/nodes/resolve-mention-tokens";
 
 export type EditIntent = "remove" | "replace" | "add" | "modify" | "freeform";
 
-// When the user painted a region, the edit is constrained by a real alpha mask (OpenAI). The
-// prompt reinforces the mask as soft guidance (mask + prompt are both "soft" — they reinforce).
 const MASK_CLAUSE =
   " Apply the change only within the selected (masked) region and blend it seamlessly; " +
   "keep everything outside the region unchanged.";
 
-// The preservation behavior is carried entirely by prompt phrasing (Gemini image-editing
-// guide). Each intent has a DISTINCT template so the quick-action chips never produce the same
-// prompt (modify shares the change-only template with freeform but is a labeled intent); when
-// intent is absent we fall back by whether a product reference is connected (add vs freeform).
-// `masked` appends a region clause when the user painted a mask. The result is the editable
-// starting point shown in the UI.
 export function buildEditPrompt(input: {
   instruction: string;
   intent?: EditIntent;
   hasExtraReference?: boolean;
   masked?: boolean;
+  upstream?: MentionUpstream[];
 }): string {
-  const instruction = input.instruction.trim();
+  // Resolve @[Label](nodeId) tokens before building the template.
+  const instruction = input.upstream
+    ? resolveMentionTokens(input.instruction.trim(), input.upstream)
+    : input.instruction.trim();
+
   const intent = input.intent ?? (input.hasExtraReference ? "add" : "freeform");
 
   let base: string;
@@ -56,8 +52,6 @@ export function buildEditPrompt(input: {
   return input.masked ? base + MASK_CLAUSE : base;
 }
 
-// Ordered reference list for an edit: base image first (Gemini treats the first image as the
-// scene to preserve), then the other connected references, deduped and clamped (spec §7).
 export function assembleEditReferences(input: {
   baseImageUrl: string;
   extraUrls: string[];
@@ -67,9 +61,6 @@ export function assembleEditReferences(input: {
   return [input.baseImageUrl, ...extras].slice(0, Math.max(1, input.max));
 }
 
-// Resolve the connected nodes the user marked as references for this edit into URLs. Base is
-// excluded (it's the image being edited, not an extra). Empty selection = the D27 default (all
-// other connected images). Order-preserving, deduped (spec §7).
 export function selectEditReferenceUrls(input: {
   connected: Array<{ id: string; url: string }>;
   selectedIds: string[];
