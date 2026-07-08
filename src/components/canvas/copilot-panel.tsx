@@ -38,11 +38,36 @@ export function CopilotPanel({ canvasId }: { canvasId: string }) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ message: text, canvasId }),
       });
-      const json = (await res.json()) as { reply?: string; error?: string };
-      setMessages((m) => [
-        ...m,
-        { role: "assistant", content: json.reply ?? json.error ?? "(no reply)" },
-      ]);
+
+      // Error path is still JSON; the success path is a live text stream.
+      if (!res.ok || !res.body) {
+        const err = (await res.json().catch(() => ({}))) as { error?: string };
+        setMessages((m) => [
+          ...m,
+          { role: "assistant", content: err.error ?? "Something went wrong." },
+        ]);
+        return;
+      }
+
+      // Add an empty assistant message we'll fill as tokens stream in.
+      setMessages((m) => [...m, { role: "assistant", content: "" }]);
+      setThinking(false); // the "thinking…" pulse gives way to live text
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const piece = decoder.decode(value, { stream: true });
+        // Append this piece to the LAST message (the assistant one we just added).
+        setMessages((m) => {
+          const copy = [...m];
+          const last = copy[copy.length - 1];
+          copy[copy.length - 1] = { ...last, content: last.content + piece };
+          return copy;
+        });
+        scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
+      }
     } catch {
       setMessages((m) => [
         ...m,
@@ -50,9 +75,6 @@ export function CopilotPanel({ canvasId }: { canvasId: string }) {
       ]);
     } finally {
       setThinking(false);
-      requestAnimationFrame(() =>
-        scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight }),
-      );
     }
   }
 
