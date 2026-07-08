@@ -34,7 +34,7 @@ describe("computeImageCost", () => {
 
   it("computes gemini flash cost (image-out only)", () => {
     // 1120 output tokens = 1K image at $60/M
-    const result = computeImageCost("gemini:gemini-3.1-flash-image-preview", {
+    const result = computeImageCost("gemini:gemini-3.1-flash-image", {
       text_input_tokens: 0, image_input_tokens: 0,
       image_output_tokens: 1_120, total_tokens: 1_120,
     });
