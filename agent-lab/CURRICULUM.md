@@ -14,7 +14,8 @@
 > http://localhost:3000 → open a client → a canvas → click **✨ Copilot** (top-right).
 >
 > **The copilot files (the MVP so far):**
-> - `src/app/api/copilot/route.ts` — the copilot's server brain (OpenAI call; now **streaming**).
+> - `src/app/api/copilot/route.ts` — CALL 1: streams the prose reply (plain text).
+> - `src/app/api/copilot/references/route.ts` — CALL 2: structured JSON → the node chips.
 > - `src/lib/nodes/describe-node.ts` — per-node-type label helper (grounding's "representation layer").
 > - `src/components/canvas/copilot-panel.tsx` — the chat panel, docked in the canvas (shadcn).
 > - Mounted in `src/components/canvas/canvas.tsx` (next to `<GenerationTray>`, inside the store provider).
@@ -27,12 +28,15 @@
 >   into `messages`. Ids kept internal (system prompt), not shown to the user.
 > - ✅ **L3 — streaming.** Route returns a `ReadableStream` of token deltas (`stream: true`); the
 >   panel reads `res.body` and appends live (the typing effect).
-> - ⏭ **L4 — NEXT: structured output.** Give the reply a strict JSON schema (`{ reply,
->   referencedNodes }`, **prose field FIRST**) so the UI renders node **chips** instead of raw
->   text/ids. Pattern to copy: the Script parse route's `response_format: { type: "json_schema",
->   json_schema: { schema, strict: true } }` in `src/app/api/nodes/[id]/parse/route.ts`.
->   ⚠️ OPEN DECISION: how to combine it with L3 streaming (structured-non-streaming first, vs.
->   keep streaming + resolve chips at the end, vs. full streaming-structured). Ask the user.
+> - ✅ **L4 — structured output → node chips (two-call approach; no AI SDK, raw `openai`).**
+>   CALL 1 streams the prose (plain text). CALL 2 (`/api/copilot/references`, strict
+>   `response_format: json_schema`) returns `{ referencedNodes: [{id,label,type}] }` → rendered as
+>   clickable chips that highlight the node on the canvas (`storeApi.getState().onNodesChange`
+>   select). Chose two-call because it needs ZERO partial-JSON parsing.
+>   ⚠️ KNOWN LIMITATION (open, discussed): the chips are **LLM-chosen → non-deterministic** (some
+>   nodes missing / vary per run; LLMs are bad at exhaustive enumeration). **Next improvement:
+>   make chips deterministic in code** — the principle "LLM writes the prose (judgment), code picks
+>   the chips (fact)". Also: `describeNode` gives identical labels to untitled same-type nodes.
 >
 > **Arc after L4:** tools (the model *requests* an action) → **⚑ HITL** (approve / edit / reject —
 > the user's priority) → execute-on-approve (node appears via the store) → the loop → expert team.
