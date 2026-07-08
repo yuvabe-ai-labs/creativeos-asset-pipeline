@@ -362,15 +362,29 @@ function MentionsPlugin({
 
 // ── InitialValuePlugin ────────────────────────────────────────────────────────
 
-function InitialValuePlugin({ value }: { value: string }) {
+// lastEmitted tracks the most-recently serialized value so InitialValuePlugin
+// can skip re-parsing values that the editor itself just emitted (avoids the
+// type → onChange → value prop → re-parse → type loop).
+function InitialValuePlugin({
+  value,
+  lastEmitted,
+}: {
+  value: string;
+  lastEmitted: React.RefObject<string>;
+}) {
   const [editor] = useLexicalComposerContext();
   const prevValue = useRef<string | null>(null);
 
   useEffect(() => {
+    // Skip if value hasn't changed OR if we just emitted this value ourselves.
     if (prevValue.current === value) return;
+    if (lastEmitted.current === value) {
+      prevValue.current = value;
+      return;
+    }
     prevValue.current = value;
     parseInitialValue(value, editor);
-  }, [value, editor]);
+  }, [value, editor, lastEmitted]);
 
   return null;
 }
@@ -426,8 +440,17 @@ export function MentionInstructionEditor({
     editable: !disabled,
   };
 
+  const rafRef = useRef<number | null>(null);
+  const lastEmitted = useRef<string>("");
+
   function handleChange(state: EditorState) {
-    onChange(serializeEditorState(state));
+    if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = null;
+      const serialized = serializeEditorState(state);
+      lastEmitted.current = serialized;
+      onChange(serialized);
+    });
   }
 
   return (
@@ -451,9 +474,9 @@ export function MentionInstructionEditor({
           placeholder={null}
           ErrorBoundary={MentionEditorErrorBoundary}
         />
-        <OnChangePlugin onChange={handleChange} />
+        <OnChangePlugin onChange={handleChange} ignoreSelectionChange ignoreHistoryMergeTagChange />
         <HistoryPlugin />
-        <InitialValuePlugin value={value} />
+        <InitialValuePlugin value={value} lastEmitted={lastEmitted} />
         <MentionsPlugin upstream={upstream} />
       </div>
     </LexicalComposer>
