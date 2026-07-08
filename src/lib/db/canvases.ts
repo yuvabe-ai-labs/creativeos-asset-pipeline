@@ -87,3 +87,27 @@ export async function getCanvasUpdatedAt(
   if (error) throw error;
   return (data as { updated_at: string } | null)?.updated_at ?? null;
 }
+
+export async function renameCanvas(
+  id: string,
+  name: string,
+): Promise<CanvasRow> {
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("canvases")
+    .update({ name })
+    .eq("id", id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as CanvasRow;
+}
+
+export async function deleteCanvas(id: string): Promise<void> {
+  const supabase = createServerSupabase();
+  const { error } = await supabase
+    .from("canvases")
+    .delete()
+    .eq("id", id);
+  if (error) throw error;
+}
