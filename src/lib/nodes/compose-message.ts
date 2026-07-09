@@ -24,7 +24,7 @@ export type UserContent = string | ContentPart[];
 // Conditions: file or draw node, image kind, public URL present, useLlm off (operator
 // is not in extraction-only mode — the image itself is the intended input). A draw node's
 // saved sketch qualifies the same way as an uploaded File image.
-function isVisionAttachment(u: UpstreamPreview): boolean {
+export function isVisionAttachment(u: UpstreamPreview): boolean {
   const hasImageUrl = typeof u.fileUrl === "string" && u.fileUrl.length > 0;
   // File / Draw image uploads (not in extraction-only mode).
   if ((u.type === "file" || u.type === "draw") && u.fileKind === "image" && hasImageUrl && !u.useLlm) {
