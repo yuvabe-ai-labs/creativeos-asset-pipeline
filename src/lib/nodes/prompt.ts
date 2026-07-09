@@ -1,6 +1,7 @@
 import { promptGeneratePrompt } from "@/prompts/prompt-generate";
 import { renderShotControls, type ShotControls } from "./shot-controls";
 import { resolveMentionTokens, type MentionUpstream } from "./resolve-mention-tokens";
+import { isVisionAttachment } from "./compose-message";
 
 export const DEFAULT_INSTRUCTION =
   "Write a detailed image prompt — subject, setting, lighting, and visual style — from the context above.";
@@ -21,6 +22,39 @@ export type CompilePromptInput = {
   instruction: string;
   controls?: ShotControls;
 };
+
+function buildCompositionBlock(upstream: CompilePromptUpstream[]): string | null {
+  const visionNodes = upstream.filter((u) =>
+    isVisionAttachment({
+      nodeId: u.nodeId ?? "",
+      versionId: null,
+      label: u.label,
+      type: u.type ?? "",
+      text: u.text,
+      fileUrl: u.fileUrl,
+      fileKind: u.fileKind,
+      useLlm: u.useLlm,
+    } as Parameters<typeof isVisionAttachment>[0]),
+  );
+  if (visionNodes.length < 2) return null;
+
+  const words = [
+    "first", "second", "third", "fourth", "fifth",
+    "sixth", "seventh", "eighth", "ninth", "tenth",
+  ];
+  const lines = visionNodes.map((u, i) => {
+    const ordinal = i < words.length ? `the ${words[i]} image` : `image ${i + 1}`;
+    return `${i + 1}. ${ordinal} — ${u.label}`;
+  });
+
+  return [
+    "Reference images (attached in order):",
+    ...lines,
+    "",
+    "Write a composition prompt that references these images by their positional names above.",
+    "Describe how elements from each image combine — placement, blending, lighting match, and scale.",
+  ].join("\n");
+}
 
 export function compilePrompt(input: CompilePromptInput): {
   system: string;
@@ -46,7 +80,6 @@ export function compilePrompt(input: CompilePromptInput): {
 
   const rawInstruction = input.instruction.trim() || DEFAULT_INSTRUCTION;
 
-  // Resolve @[Label](nodeId) mention tokens before building the instruction block.
   const mentionUpstream: MentionUpstream[] = input.upstream.map((u) => ({
     nodeId: u.nodeId ?? "",
     type: u.type ?? "",
@@ -56,6 +89,11 @@ export function compilePrompt(input: CompilePromptInput): {
     useLlm: u.useLlm,
   }));
   const effectiveInstruction = resolveMentionTokens(rawInstruction, mentionUpstream);
+
+  if (rawInstruction.includes("@[")) {
+    const compositionBlock = buildCompositionBlock(input.upstream);
+    if (compositionBlock) blocks.push(compositionBlock);
+  }
 
   blocks.push(`Instruction:\n${effectiveInstruction}`);
 
