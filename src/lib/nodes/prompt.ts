@@ -39,7 +39,8 @@ function buildCompositionBlock(upstream: CompilePromptUpstream[]): string | null
   if (visionNodes.length < 2) return null;
 
   const lines = visionNodes.map((u, i) => {
-    return `${i + 1}. ${ordinalToEnglish(i + 1)} — ${u.label}`;
+    const safeLabel = u.label.replace(/\n/g, " ").slice(0, 80);
+    return `${i + 1}. ${ordinalToEnglish(i + 1)} — ${safeLabel}`;
   });
 
   return [
