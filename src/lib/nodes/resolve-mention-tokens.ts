@@ -23,7 +23,7 @@ function isVisionNode(u: MentionUpstream): boolean {
   return false;
 }
 
-function ordinalToEnglish(n: number): string {
+export function ordinalToEnglish(n: number): string {
   const words = [
     "first", "second", "third", "fourth", "fifth",
     "sixth", "seventh", "eighth", "ninth", "tenth",

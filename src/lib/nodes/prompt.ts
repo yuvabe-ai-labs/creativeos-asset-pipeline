@@ -1,6 +1,6 @@
 import { promptGeneratePrompt } from "@/prompts/prompt-generate";
 import { renderShotControls, type ShotControls } from "./shot-controls";
-import { resolveMentionTokens, type MentionUpstream } from "./resolve-mention-tokens";
+import { resolveMentionTokens, ordinalToEnglish, type MentionUpstream } from "./resolve-mention-tokens";
 import { isVisionAttachment } from "./compose-message";
 
 export const DEFAULT_INSTRUCTION =
@@ -38,13 +38,8 @@ function buildCompositionBlock(upstream: CompilePromptUpstream[]): string | null
   );
   if (visionNodes.length < 2) return null;
 
-  const words = [
-    "first", "second", "third", "fourth", "fifth",
-    "sixth", "seventh", "eighth", "ninth", "tenth",
-  ];
   const lines = visionNodes.map((u, i) => {
-    const ordinal = i < words.length ? `the ${words[i]} image` : `image ${i + 1}`;
-    return `${i + 1}. ${ordinal} — ${u.label}`;
+    return `${i + 1}. ${ordinalToEnglish(i + 1)} — ${u.label}`;
   });
 
   return [
