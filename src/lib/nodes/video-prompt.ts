@@ -1,6 +1,7 @@
 import { videoPromptGeneratePrompt } from "@/prompts/video-prompt-generate";
 import { renderVideoControls, type VideoControls } from "./video-controls";
-import { resolveMentionTokens, type MentionUpstream } from "./resolve-mention-tokens";
+import { resolveMentionTokens, ordinalToEnglish, type MentionUpstream } from "./resolve-mention-tokens";
+import { isVisionAttachment } from "./compose-message";
 
 export const DEFAULT_MOTION_INSTRUCTION =
   "Describe how the still should move over ~8 seconds — camera movement first, then the secondary motion already implied by the frame.";
@@ -21,6 +22,34 @@ export type CompileVideoPromptInput = {
   instruction: string;
   controls?: VideoControls;
 };
+
+function buildCompositionBlock(upstream: CompileVideoPromptUpstream[]): string | null {
+  const visionNodes = upstream.filter((u) =>
+    isVisionAttachment({
+      nodeId: u.nodeId ?? "",
+      versionId: null,
+      label: u.label,
+      type: u.type ?? "",
+      text: u.text,
+      fileUrl: u.fileUrl,
+      fileKind: u.fileKind,
+      useLlm: u.useLlm,
+    }),
+  );
+  if (visionNodes.length < 2) return null;
+
+  const lines = visionNodes.map((u, i) => {
+    return `${i + 1}. ${ordinalToEnglish(i + 1)} — ${u.label}`;
+  });
+
+  return [
+    "Reference images (attached in order):",
+    ...lines,
+    "",
+    "Write a motion prompt that references these images by their positional names above.",
+    "Describe camera movement and secondary motion for each referenced image.",
+  ].join("\n");
+}
 
 export function compileVideoPrompt(input: CompileVideoPromptInput): {
   system: string;
@@ -54,6 +83,11 @@ export function compileVideoPrompt(input: CompileVideoPromptInput): {
     useLlm: u.useLlm,
   }));
   const instruction = resolveMentionTokens(rawInstruction, mentionUpstream);
+
+  if (rawInstruction.includes("@[")) {
+    const compositionBlock = buildCompositionBlock(input.upstream);
+    if (compositionBlock) blocks.push(compositionBlock);
+  }
 
   blocks.push(`Instruction:\n${instruction}`);
 
