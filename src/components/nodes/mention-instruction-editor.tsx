@@ -1,13 +1,39 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { ImageIcon, Paperclip, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { UpstreamNode } from "./connected-inputs-card";
 
+// ── Segment model ─────────────────────────────────────────────────────────────
+
+export type TextSegment = { kind: "text"; text: string };
+export type MentionSegment = { kind: "mention"; label: string; id: string };
+export type Segment = TextSegment | MentionSegment;
+
+const TOKEN_RE = /@\[([^\]]+)\]\(([^)]+)\)/g;
+
+export function parseSegments(value: string): Segment[] {
+  if (!value) return [];
+  const segments: Segment[] = [];
+  let last = 0;
+  for (const m of value.matchAll(TOKEN_RE)) {
+    if (m.index! > last) segments.push({ kind: "text", text: value.slice(last, m.index) });
+    segments.push({ kind: "mention", label: m[1], id: m[2] });
+    last = m.index! + m[0].length;
+  }
+  if (last < value.length) segments.push({ kind: "text", text: value.slice(last) });
+  return segments;
+}
+
+export function serializeSegments(segments: Segment[]): string {
+  return segments.map((s) => (s.kind === "text" ? s.text : `@[${s.label}](${s.id})`)).join("");
+}
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type DropdownItem = { id: string; label: string; type: string };
+type DropdownItem = { id: string; label: string; type: string; fileUrl?: string; fileKind?: string };
 
 export type MentionInstructionEditorProps = {
   value: string;
@@ -37,12 +63,10 @@ function NodeIcon({ type }: { type: string }) {
 // Detect whether the caret is inside an @-query. Returns the query string
 // (text after @, may be empty) or null if not in a mention context.
 function getAtQuery(value: string, caretPos: number): string | null {
-  // Walk backwards from caret to find an unresolved @ within 40 chars
   const slice = value.slice(Math.max(0, caretPos - 40), caretPos);
   const atIdx = slice.lastIndexOf("@");
   if (atIdx === -1) return null;
   const afterAt = slice.slice(atIdx + 1);
-  // If there's a space after @ the user moved on — not a mention trigger
   if (afterAt.includes(" ") || afterAt.includes("\n")) return null;
   return afterAt;
 }
@@ -61,15 +85,18 @@ export function MentionInstructionEditor({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState<string | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
+  // Viewport-absolute coords for the portal dropdown
   const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number } | null>(null);
 
-  // Eligible mention targets: image-gen, file, draw nodes only
   const eligible: DropdownItem[] = upstream
     .filter((u) => u.type === "image-gen" || u.type === "draw" || u.type === "file")
     .map((u) => ({
       id: u.id,
+      // token label keeps type prefix so the stored string is unambiguous
       label: `${nodeTypeLabel(u.type)}: ${u.label}`,
       type: u.type,
+      fileUrl: u.fileUrl,
+      fileKind: u.fileKind,
     }));
 
   const filtered =
@@ -79,46 +106,48 @@ export function MentionInstructionEditor({
 
   const open = query !== null && filtered.length > 0;
 
-  // Position the dropdown near the caret using a mirror div technique
-  function updateDropdownPos(textarea: HTMLTextAreaElement, caretPos: number) {
-    // Create a temporary mirror to measure caret coordinates
+  // Measure caret position using a mirror div, return viewport-absolute coords.
+  function measureCaretPos(textarea: HTMLTextAreaElement, caretPos: number): { top: number; left: number } {
     const mirror = document.createElement("div");
     const style = window.getComputedStyle(textarea);
     for (const prop of [
       "fontFamily", "fontSize", "fontWeight", "lineHeight",
       "letterSpacing", "paddingTop", "paddingRight", "paddingBottom", "paddingLeft",
       "borderTopWidth", "borderRightWidth", "borderBottomWidth", "borderLeftWidth",
-      "boxSizing", "wordWrap", "whiteSpace",
+      "boxSizing", "wordWrap",
     ] as const) {
-      // @ts-expect-error — style props are valid
       mirror.style[prop] = style[prop];
     }
-    mirror.style.position = "absolute";
+    mirror.style.position = "fixed";
     mirror.style.visibility = "hidden";
-    mirror.style.top = "0";
-    mirror.style.left = "0";
-    mirror.style.width = `${textarea.clientWidth}px`;
+    mirror.style.pointerEvents = "none";
+    // Position the mirror exactly over the textarea in the viewport
+    const rect = textarea.getBoundingClientRect();
+    mirror.style.top = `${rect.top}px`;
+    mirror.style.left = `${rect.left}px`;
+    mirror.style.width = `${rect.width}px`;
     mirror.style.height = "auto";
     mirror.style.overflow = "hidden";
     mirror.style.whiteSpace = "pre-wrap";
+    mirror.style.wordBreak = "break-word";
 
     const textBefore = textarea.value.slice(0, caretPos);
     mirror.textContent = textBefore;
 
     const caretSpan = document.createElement("span");
-    caretSpan.textContent = "|";
+    caretSpan.textContent = "​"; // zero-width space — correct height, no visual offset
     mirror.appendChild(caretSpan);
 
     document.body.appendChild(mirror);
-    const mirrorRect = mirror.getBoundingClientRect();
     const spanRect = caretSpan.getBoundingClientRect();
     document.body.removeChild(mirror);
 
-    const textareaRect = textarea.getBoundingClientRect();
-    setDropdownPos({
-      top: spanRect.top - textareaRect.top - textarea.scrollTop,
-      left: spanRect.left - textareaRect.left,
-    });
+    return { top: spanRect.top - textarea.scrollTop, left: spanRect.left };
+  }
+
+  function updateDropdownPos(textarea: HTMLTextAreaElement, caretPos: number) {
+    const pos = measureCaretPos(textarea, caretPos);
+    setDropdownPos(pos);
   }
 
   function handleChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
@@ -175,7 +204,6 @@ export function MentionInstructionEditor({
     const next = value.slice(0, absoluteAt) + token + " " + value.slice(caret);
     onChange(next);
     setQuery(null);
-    // Restore focus and move caret after the inserted token
     requestAnimationFrame(() => {
       ta.focus();
       const newCaret = absoluteAt + token.length + 1;
@@ -216,37 +244,56 @@ export function MentionInstructionEditor({
         )}
       />
 
-      {open && dropdownPos && (
-        <div
-          ref={dropdownRef}
-          style={{
-            position: "absolute",
-            top: dropdownPos.top,
-            left: dropdownPos.left,
-            transform: "translateY(-100%)",
-            zIndex: 50,
-          }}
-          className="min-w-50 max-w-xs rounded-lg border border-border bg-popover shadow-lg overflow-hidden"
-        >
-          {filtered.map((item, i) => (
-            <button
-              key={item.id}
-              type="button"
-              onMouseDown={(e) => {
-                e.preventDefault(); // don't blur the textarea
-                insertMention(item);
-              }}
-              className={cn(
-                "flex w-full items-center gap-2 px-3 py-2 text-xs text-left transition-colors",
-                i === activeIndex ? "bg-primary/10 text-primary" : "hover:bg-muted text-foreground",
-              )}
-            >
-              <NodeIcon type={item.type} />
-              <span className="truncate">{item.label}</span>
-            </button>
-          ))}
-        </div>
-      )}
+      {open && dropdownPos && typeof document !== "undefined" &&
+        createPortal(
+          <div
+            ref={dropdownRef}
+            style={{
+              position: "fixed",
+              top: dropdownPos.top,
+              left: dropdownPos.left,
+              transform: "translateY(-100%)",
+              zIndex: 9999,
+            }}
+            className="min-w-50 max-w-xs rounded-lg border border-border bg-popover shadow-lg overflow-hidden"
+          >
+            {filtered.map((item, i) => (
+              <button
+                key={item.id}
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  insertMention(item);
+                }}
+                className={cn(
+                  "flex w-full items-center gap-2 px-3 py-2 text-xs text-left transition-colors",
+                  i === activeIndex ? "bg-primary/10 text-primary" : "hover:bg-muted text-foreground",
+                )}
+              >
+                {item.fileUrl && item.fileKind === "image" ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={item.fileUrl}
+                    alt=""
+                    className="size-6 rounded object-cover shrink-0 border border-border"
+                  />
+                ) : (
+                  <span className="size-6 flex items-center justify-center shrink-0">
+                    <NodeIcon type={item.type} />
+                  </span>
+                )}
+                <div className="min-w-0">
+                  <span className="block truncate font-medium leading-tight">
+                    {/* strip "Type: " prefix for display — the stored token keeps it */}
+                    {item.label.replace(/^[^:]+:\s*/, "")}
+                  </span>
+                  <span className="block text-[10px] opacity-50 leading-tight">{nodeTypeLabel(item.type)}</span>
+                </div>
+              </button>
+            ))}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
