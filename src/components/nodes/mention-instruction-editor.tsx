@@ -94,12 +94,6 @@ function readEditorState(el: HTMLElement): { text: string; caretOffset: number }
       } else if (node.contains && node.contains(range.startContainer)) {
         caretOffset = text.length;
         foundCaret = true;
-      } else if (range.startContainer === el) {
-        const nodeIndex = childNodes.indexOf(node as ChildNode);
-        if (range.startOffset === nodeIndex) {
-          caretOffset = text.length;
-          foundCaret = true;
-        }
       }
     }
 
@@ -146,7 +140,7 @@ function restoreCaretAt(el: HTMLElement, targetOffset: number) {
       const label = node.dataset.mentionLabel ?? "";
       const id = node.dataset.mentionId;
       const tokenLen = `@[${label}](${id})`.length;
-      if (remaining <= tokenLen) {
+      if (remaining < tokenLen) {
         const range = document.createRange();
         const nodeIndex = Array.from(el.childNodes).indexOf(node as ChildNode);
         range.setStart(el, nodeIndex + 1);
@@ -316,10 +310,11 @@ export function MentionInstructionEditor({
     lastEmittedRef.current = newValue;
     onChange(newValue);
     requestAnimationFrame(() => {
-      if (!el) return;
-      populateEditor(el, newValue, upstreamMapRef.current);
-      restoreCaretAt(el, absoluteAt + token.length + 1);
-      el.focus();
+      const rafEl = editorRef.current;
+      if (!rafEl) return;
+      populateEditor(rafEl, newValue, upstreamMapRef.current);
+      restoreCaretAt(rafEl, absoluteAt + token.length + 1);
+      rafEl.focus();
     });
   }
 
@@ -338,7 +333,7 @@ export function MentionInstructionEditor({
       closeDropdown();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onChange, upstream]);
+  }, [onChange]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -423,7 +418,7 @@ export function MentionInstructionEditor({
     range.collapse(false);
     sel.removeAllRanges();
     sel.addRange(range);
-    editorRef.current?.dispatchEvent(new Event("input", { bubbles: true }));
+    handleInput();
   }, []);
 
   useEffect(() => {
@@ -444,7 +439,7 @@ export function MentionInstructionEditor({
       <div
         ref={editorRef}
         role="textbox"
-        aria-multiline="false"
+        aria-multiline="true"
         aria-label={placeholder}
         aria-disabled={disabled}
         contentEditable={disabled ? false : true}
