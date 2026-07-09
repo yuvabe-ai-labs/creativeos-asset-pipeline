@@ -24,7 +24,10 @@ function isVisionNode(u: MentionUpstream): boolean {
 }
 
 function ordinalToEnglish(n: number): string {
-  const words = ["first", "second", "third"];
+  const words = [
+    "first", "second", "third", "fourth", "fifth",
+    "sixth", "seventh", "eighth", "ninth", "tenth",
+  ];
   if (n <= words.length) return `the ${words[n - 1]} image`;
   return `image ${n}`;
 }

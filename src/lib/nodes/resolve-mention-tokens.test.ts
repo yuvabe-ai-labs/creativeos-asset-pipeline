@@ -73,10 +73,10 @@ describe("resolveMentionTokens", () => {
     expect(result).toBe("the first image start, the second image mid, the third image end");
   });
 
-  it("uses 'image N' for ordinal 4+", () => {
+  it("uses 'the Nth image' for ordinal 4-10", () => {
     const upstream = [img("a"), img("b"), img("c"), img("d")];
     const result = resolveMentionTokens("@[Image: D](d) last", upstream);
-    expect(result).toBe("image 4 last");
+    expect(result).toBe("the fourth image last");
   });
 
   it("resolves a file text node by inlining its extracted text", () => {
@@ -109,5 +109,25 @@ describe("resolveMentionTokens", () => {
 
   it("is a no-op on empty instruction", () => {
     expect(resolveMentionTokens("", [img("a")])).toBe("");
+  });
+
+  it("names ordinals 4-10 correctly", () => {
+    const upstream = [
+      img("a"), img("b"), img("c"), img("d"), img("e"),
+      img("f"), img("g"), img("h"), img("i"), img("j"),
+    ];
+    const result = resolveMentionTokens(
+      "@[Image: D](d) @[Image: E](e) @[Image: F](f) @[Image: G](g) @[Image: H](h) @[Image: I](i) @[Image: J](j)",
+      upstream,
+    );
+    expect(result).toBe(
+      "the fourth image the fifth image the sixth image the seventh image the eighth image the ninth image the tenth image",
+    );
+  });
+
+  it("falls back to 'image N' for ordinals beyond 10", () => {
+    const upstream = Array.from({ length: 11 }, (_, i) => img(`n${i}`));
+    const result = resolveMentionTokens("@[Image: K](n10)", upstream);
+    expect(result).toBe("image 11");
   });
 });
