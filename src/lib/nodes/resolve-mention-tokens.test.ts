@@ -73,7 +73,7 @@ describe("resolveMentionTokens", () => {
     expect(result).toBe("the first image start, the second image mid, the third image end");
   });
 
-  it("uses 'the Nth image' for ordinal 4-10", () => {
+  it("resolves ordinal 4 to 'the fourth image'", () => {
     const upstream = [img("a"), img("b"), img("c"), img("d")];
     const result = resolveMentionTokens("@[Image: D](d) last", upstream);
     expect(result).toBe("the fourth image last");
