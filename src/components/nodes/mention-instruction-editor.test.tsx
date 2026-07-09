@@ -56,3 +56,41 @@ describe("serializeSegments", () => {
     expect(serializeSegments(parseSegments(original))).toBe(original);
   });
 });
+
+describe("parseSegments — edge cases", () => {
+  it("handles a token immediately at end of string (no trailing text)", () => {
+    const result = parseSegments("base @[Image: X](n1)");
+    expect(result).toEqual([
+      { kind: "text", text: "base " },
+      { kind: "mention", label: "Image: X", id: "n1" },
+    ]);
+  });
+
+  it("handles back-to-back tokens with no separator", () => {
+    const result = parseSegments("@[Image: A](n1)@[File: B](n2)");
+    expect(result).toEqual([
+      { kind: "mention", label: "Image: A", id: "n1" },
+      { kind: "mention", label: "File: B", id: "n2" },
+    ]);
+  });
+
+  it("treats malformed @ (no brackets) as plain text", () => {
+    const result = parseSegments("hello @world");
+    expect(result).toEqual([{ kind: "text", text: "hello @world" }]);
+  });
+});
+
+describe("serializeSegments — edge cases", () => {
+  it("returns empty string for empty array", () => {
+    expect(serializeSegments([])).toBe("");
+  });
+
+  it("concatenates multiple text segments", () => {
+    expect(
+      serializeSegments([
+        { kind: "text", text: "foo" },
+        { kind: "text", text: "bar" },
+      ])
+    ).toBe("foobar");
+  });
+});
