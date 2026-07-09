@@ -177,7 +177,7 @@ function buildChip(segment: MentionSegment, upstreamMap: Map<string, UpstreamNod
   chip.dataset.mentionId = segment.id;
   chip.dataset.mentionLabel = segment.label;
   chip.className =
-    "inline-flex items-center gap-1 align-middle mx-0.5 px-1.5 py-0.5 rounded text-xs font-medium bg-primary/10 text-primary select-none cursor-default";
+    "inline-flex items-center gap-1 align-middle mx-0.5 px-1.5 py-0.5 rounded text-xs font-medium bg-primary/10 text-primary select-none cursor-default hover:bg-primary/20 transition-colors";
 
   if (upstream?.fileUrl && upstream?.fileKind === "image") {
     const img = document.createElement("img");
