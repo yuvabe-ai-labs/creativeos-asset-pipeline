@@ -3,6 +3,7 @@ import {
   buildEditPrompt,
   assembleEditReferences,
   selectEditReferenceUrls,
+  resolveBaseNodeId,
 } from "../edit-prompt";
 
 describe("buildEditPrompt", () => {
@@ -126,5 +127,39 @@ describe("selectEditReferenceUrls", () => {
       { id: "b", url: "same" },
     ];
     expect(selectEditReferenceUrls({ connected: dup, selectedIds: ["a", "b"] })).toEqual(["same"]);
+  });
+});
+
+describe("resolveBaseNodeId", () => {
+  const connected = [{ id: "a" }, { id: "b" }, { id: "c" }];
+
+  it("returns null when an attempt exists (the generated attempt is the base)", () => {
+    expect(
+      resolveBaseNodeId({ connected, baseReferenceNodeId: "b", hasAttempt: true }),
+    ).toBeNull();
+  });
+
+  it("honors the explicit pick when that node is still connected", () => {
+    expect(
+      resolveBaseNodeId({ connected, baseReferenceNodeId: "b", hasAttempt: false }),
+    ).toBe("b");
+  });
+
+  it("falls back to the first connected node when no explicit pick", () => {
+    expect(
+      resolveBaseNodeId({ connected, baseReferenceNodeId: undefined, hasAttempt: false }),
+    ).toBe("a");
+  });
+
+  it("falls back to first connected when the pinned node is no longer connected", () => {
+    expect(
+      resolveBaseNodeId({ connected, baseReferenceNodeId: "gone", hasAttempt: false }),
+    ).toBe("a");
+  });
+
+  it("returns null when nothing is connected", () => {
+    expect(
+      resolveBaseNodeId({ connected: [], baseReferenceNodeId: "a", hasAttempt: false }),
+    ).toBeNull();
   });
 });

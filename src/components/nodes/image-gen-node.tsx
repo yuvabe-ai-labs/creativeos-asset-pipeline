@@ -123,6 +123,7 @@ export function ImageGenNode({ id, data, selected }: NodeProps) {
           editInstruction={d.editInstruction}
           editIntent={d.editIntent}
           editReferenceNodeIds={d.editReferenceNodeIds}
+          baseReferenceNodeId={d.baseReferenceNodeId}
           upstream={upstream}
           onPatch={(patch) => updateNodeData(id, patch)}
           onProcessingChange={setIsProcessing}
