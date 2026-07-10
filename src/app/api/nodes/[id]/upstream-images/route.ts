@@ -41,13 +41,19 @@ export async function GET(
         }
         return false;
       })
-      .map((u) => ({
-        id: u.nodeId,
-        type: u.type,
-        imageUrl: u.type === "image-gen"
-          ? (u.activeOutput as string)
-          : ((u.data as Record<string, unknown>).fileUrl as string),
-      }));
+      .map((u) => {
+        const d = u.data as Record<string, unknown>;
+        return {
+          id: u.nodeId,
+          type: u.type,
+          imageUrl: u.type === "image-gen"
+            ? (u.activeOutput as string)
+            : (d.fileUrl as string),
+          fileSizeBytes: d.fileSizeBytes as number | undefined,
+          imageWidth: d.imageWidth as number | undefined,
+          imageHeight: d.imageHeight as number | undefined,
+        };
+      });
 
     // Surface the connected video-prompt node so the focus view can display the motion prompt text.
     const videoPromptNode = direct.find((u) => u.type === "video-prompt");
