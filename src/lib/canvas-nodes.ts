@@ -33,6 +33,9 @@ export type FileNodeData = {
   useLlm?: boolean;
   llmPrompt?: string;
   processedOutput?: string;
+  fileSizeBytes?: number;
+  imageWidth?: number;
+  imageHeight?: number;
 };
 
 export type TextNodeData = {
@@ -45,6 +48,9 @@ export type DrawNodeData = {
   fileKind?: "image"; // always "image" when present
   filename?: string; // e.g. "sketch-1718539200000.png"
   instructions?: string; // composition instructions — the text handed downstream (D19, like Text)
+  fileSizeBytes?: number;
+  imageWidth?: number;
+  imageHeight?: number;
 };
 
 export type PromptNodeData = {
