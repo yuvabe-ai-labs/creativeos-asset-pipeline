@@ -12,6 +12,8 @@ import { computeImageCost } from "@/lib/image-gen/cost";
 import { apiError, apiOk } from "@/lib/api/route-helpers";
 import { uploadImageGen } from "@/lib/storage";
 import sharp from "sharp";
+import { validateReferenceImages, type RefImageMeta } from "@/lib/image-gen/validate";
+import { createServerSupabase } from "@/lib/supabase/server";
 
 function mimeToExt(mimeType: string): string {
   if (mimeType === "image/jpeg") return "jpg";
@@ -185,6 +187,58 @@ export async function POST(
       promptVersionId: promptNode.versionId,
       referenceImageUrls: referenceUrls,
     };
+  }
+
+  // Build RefImageMeta[] from upstream node data; lazy-backfill missing metadata
+  const refMetas: RefImageMeta[] = await Promise.all(
+    referenceUrls.map(async (url) => {
+      const ownerNode = upstream.find((u) => {
+        if (u.type === "image-gen") return u.activeOutput === url;
+        const d = u.data as Record<string, unknown>;
+        return d.fileUrl === url;
+      });
+
+      const data = ownerNode?.data as Record<string, unknown> | undefined;
+      let fileSizeBytes = data?.fileSizeBytes as number | undefined;
+      let imageWidth = data?.imageWidth as number | undefined;
+      let imageHeight = data?.imageHeight as number | undefined;
+
+      if (fileSizeBytes === undefined && ownerNode) {
+        try {
+          const res = await fetch(url);
+          if (res.ok) {
+            const buf = Buffer.from(await res.arrayBuffer());
+            fileSizeBytes = buf.length;
+            const meta = await sharp(buf).metadata();
+            imageWidth = meta.width;
+            imageHeight = meta.height;
+            const supabase = createServerSupabase();
+            await supabase
+              .from("nodes")
+              .update({
+                data: {
+                  ...(ownerNode.data as Record<string, unknown>),
+                  fileSizeBytes,
+                  imageWidth,
+                  imageHeight,
+                },
+              })
+              .eq("id", ownerNode.nodeId);
+          }
+        } catch {
+          // best-effort
+        }
+      }
+
+      const filename = data?.filename as string | undefined;
+      return { url, filename, fileSizeBytes, imageWidth, imageHeight };
+    }),
+  );
+
+  const validationResult = validateReferenceImages(refMetas, config);
+  if (!validationResult.ok) {
+    const message = validationResult.violations.map((v) => v.message).join(" | ");
+    return apiError(message, 422);
   }
 
   // Join the shared generations substrate (D26) — image is the synchronous fast path.
