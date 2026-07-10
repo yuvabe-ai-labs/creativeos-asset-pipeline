@@ -11,6 +11,7 @@ import type { MentionUpstream } from "@/lib/nodes/resolve-mention-tokens";
 import { computeImageCost } from "@/lib/image-gen/cost";
 import { apiError, apiOk } from "@/lib/api/route-helpers";
 import { uploadImageGen } from "@/lib/storage";
+import sharp from "sharp";
 
 function mimeToExt(mimeType: string): string {
   if (mimeType === "image/jpeg") return "jpg";
@@ -203,18 +204,36 @@ export async function POST(
       ...(maskBase64 ? { maskBase64, maskMime } : {}),
     });
 
+    const genBuffer = Buffer.from(result.imageBase64, "base64");
     const { url: imageUrl } = await uploadImageGen({
       nodeId,
       ext: mimeToExt(result.mimeType),
-      body: Buffer.from(result.imageBase64, "base64"),
+      body: genBuffer,
       contentType: result.mimeType,
     });
+
+    let genWidth: number | undefined;
+    let genHeight: number | undefined;
+    try {
+      const meta = await sharp(genBuffer).metadata();
+      genWidth = meta.width;
+      genHeight = meta.height;
+    } catch {
+      // best-effort
+    }
 
     // Record the version
     const version = await insertVersion({
       nodeId,
       inputsUsed,
-      paramsUsed: { modelId, ...validatedParams, tokensUsed: result.tokensUsed },
+      paramsUsed: {
+        modelId,
+        ...validatedParams,
+        tokensUsed: result.tokensUsed,
+        imageWidth: genWidth,
+        imageHeight: genHeight,
+        fileSizeBytes: genBuffer.length,
+      },
       modelUsed: modelId,
       output: imageUrl,
     });
@@ -227,7 +246,13 @@ export async function POST(
       creditsConsumed: cost?.usd,
     });
 
-    return apiOk({ imageUrl, versionId: version.id });
+    return apiOk({
+      imageUrl,
+      versionId: version.id,
+      fileSizeBytes: genBuffer.length,
+      imageWidth: genWidth,
+      imageHeight: genHeight,
+    });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Image generation failed";
     await insertVersion({
