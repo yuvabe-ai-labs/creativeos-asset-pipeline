@@ -1,3 +1,4 @@
+import sharp from "sharp";
 import { createServerSupabase } from "@/lib/supabase/server";
 import {
   FILE_NODE_ALL_EXTENSIONS,
@@ -76,17 +77,36 @@ export async function POST(
   }
 
   try {
+    const buffer = Buffer.from(await file.arrayBuffer());
     const { url } = await uploadNodeFile({
       nodeId,
       filename: file.name,
-      body: await file.arrayBuffer(),
+      body: buffer,
       contentType: file.type,
     });
+
+    let imageWidth: number | undefined;
+    let imageHeight: number | undefined;
+    if (isImage) {
+      try {
+        const meta = await sharp(buffer).metadata();
+        imageWidth = meta.width;
+        imageHeight = meta.height;
+      } catch {
+        // best-effort — proceed without dimensions
+      }
+    }
+
     return apiOk({
       filename: file.name,
       fileExt: ext,
       fileKind: isDocument ? ("document" as const) : ("image" as const),
       fileUrl: url,
+      ...(isImage && {
+        fileSizeBytes: file.size,
+        imageWidth,
+        imageHeight,
+      }),
     });
   } catch (e) {
     return apiError(
