@@ -67,6 +67,7 @@ import {
 } from "@/lib/image-gen/client-models";
 import { smartMergeParams } from "@/lib/image-gen/params/merge";
 import { ImageGenOutputSettings } from "./image-gen-output-settings";
+import { validateReferenceImages, type RefImageMeta } from "@/lib/image-gen/validate";
 
 export type ImageGenFocusViewProps = {
   open: boolean;
@@ -85,6 +86,9 @@ export type ImageGenFocusViewProps = {
     type: string;
     fileUrl?: string;
     fileKind?: string;
+    fileSizeBytes?: number;
+    imageWidth?: number;
+    imageHeight?: number;
   }>;
   onPatch: (patch: Record<string, unknown>) => void;
   /** Mirrors in-flight generate/edit state up to the node so its card can show
@@ -385,12 +389,31 @@ export function ImageGenFocusView({
   // — marks never carry over onto a freshly generated image.
   const editBaseUrl = imageUrl ?? baseNodeUrl ?? null;
 
+  // Validation for reference image limits
+  const refMetas: RefImageMeta[] = upstream
+    .filter((u) => (u.type === "file" || u.type === "draw" || u.type === "image-gen") && !!u.fileUrl)
+    .map((u) => ({
+      url: u.fileUrl!,
+      fileSizeBytes: u.fileSizeBytes,
+      imageWidth: u.imageWidth,
+      imageHeight: u.imageHeight,
+    }));
+
+  const refValidation = validateReferenceImages(refMetas, model);
+  const refViolationsByUrl = new Map(
+    refValidation.ok
+      ? []
+      : refValidation.violations.map((v) => [v.url, v.message]),
+  );
+  const hasRefViolation = !refValidation.ok;
+
   const referenceItems: EditReferenceItem[] = connectedImageNodes.map((n) => ({
     id: n.id,
     url: n.url,
     label:
       n.type === "draw" ? "Sketch" : n.type === "image-gen" ? "Image reference" : "Image file",
     isBase: n.id === baseNodeId,
+    violation: refViolationsByUrl.get(n.url),
   }));
 
   // Extras = the connected image nodes the user marked (base excluded). Empty selection falls
@@ -775,20 +798,29 @@ export function ImageGenFocusView({
                     upstreamNodeIds={upstream.map((u) => u.id)}
                   />
                 )}
-                <Button
-                  size="lg"
-                  onClick={handleGenerate}
-                  disabled={generating || editing || !promptUpstream || !editable}
-                >
-                  <Sparkles className="size-4" strokeWidth={1.5} />
-                  {generating
-                    ? "Generating…"
-                    : editing
-                      ? "Editing…"
-                      : imageUrl
-                        ? "Re-generate"
-                        : "Generate"}
-                </Button>
+                <div className="flex flex-col items-end">
+                  <Button
+                    size="lg"
+                    onClick={handleGenerate}
+                    disabled={generating || editing || !promptUpstream || !editable || hasRefViolation}
+                  >
+                    <Sparkles className="size-4" strokeWidth={1.5} />
+                    {generating
+                      ? "Generating…"
+                      : editing
+                        ? "Editing…"
+                        : imageUrl
+                          ? "Re-generate"
+                          : "Generate"}
+                  </Button>
+                  {hasRefViolation && !refValidation.ok && (
+                    <p className="mt-1.5 text-center text-xs text-amber-600">
+                      {refValidation.violations.length === 1
+                        ? refValidation.violations[0].message
+                        : `Fix ${refValidation.violations.length} oversized images to generate.`}
+                    </p>
+                  )}
+                </div>
                 <GuidedNextButton
                   sourceId={nodeId}
                   variant="button"

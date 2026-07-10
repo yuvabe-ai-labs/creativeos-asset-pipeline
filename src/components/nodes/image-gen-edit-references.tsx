@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ImageIcon, Pin } from "lucide-react";
+import { AlertTriangle, Check, ImageIcon, Pin } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type EditReferenceItem = {
@@ -8,6 +8,7 @@ export type EditReferenceItem = {
   label: string;
   url: string;
   isBase: boolean;
+  violation?: string;
 };
 
 type Props = {
@@ -74,6 +75,15 @@ export function ImageGenEditReferences({
                   )
                 )}
               </button>
+              {it.violation && (
+                <span
+                  className="absolute right-0.5 bottom-0.5 inline-flex items-center justify-center rounded-full bg-background/90 p-0.5"
+                  title={it.violation}
+                  aria-label={it.violation}
+                >
+                  <AlertTriangle className="size-3 text-amber-500" strokeWidth={1.5} />
+                </span>
+              )}
               {!it.isBase && canSetBase && (
                 <button
                   type="button"
