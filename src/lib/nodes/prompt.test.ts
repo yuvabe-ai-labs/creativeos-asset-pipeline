@@ -61,4 +61,103 @@ describe("compilePrompt", () => {
       compilePrompt({ clientContext: "", upstream: [], instruction: "  make it airy " }).effectiveInstruction,
     ).toBe("make it airy");
   });
+
+  it("resolves @[Label](nodeId) image tokens to positional references in instruction", () => {
+    const { user } = compilePrompt({
+      clientContext: "",
+      upstream: [
+        {
+          nodeId: "img-1",
+          label: "Image",
+          type: "image-gen",
+          text: "",
+          fileUrl: "https://cdn.example.com/hero.jpg",
+          fileKind: "image",
+        },
+        {
+          nodeId: "img-2",
+          label: "Image",
+          type: "file",
+          text: "",
+          fileUrl: "https://cdn.example.com/ref.jpg",
+          fileKind: "image",
+        },
+      ],
+      instruction: "use @[Image: Hero](img-1) as base, composition from @[Image: Ref](img-2)",
+    });
+    expect(user).toContain("Instruction:\nuse the first image as base, composition from the second image");
+  });
+
+  it("injects a composition context block when ≥2 vision nodes and @[ token present", () => {
+    const { user } = compilePrompt({
+      clientContext: "",
+      upstream: [
+        {
+          nodeId: "img1",
+          label: "Image",
+          type: "image-gen",
+          text: "",
+          fileUrl: "https://cdn.example.com/hero.jpg",
+          fileKind: "image",
+        },
+        {
+          nodeId: "img2",
+          label: "File",
+          type: "file",
+          text: "",
+          fileUrl: "https://cdn.example.com/product.jpg",
+          fileKind: "image",
+        },
+      ],
+      instruction: "use @[Image: Hero](img1) as base, overlay @[File: Product](img2)",
+    });
+    expect(user).toContain("Reference images (attached in order):");
+    expect(user).toContain("1. the first image");
+    expect(user).toContain("2. the second image");
+    expect(user.indexOf("Reference images")).toBeLessThan(user.indexOf("Instruction:"));
+  });
+
+  it("does NOT inject composition block when only 1 vision node", () => {
+    const { user } = compilePrompt({
+      clientContext: "",
+      upstream: [
+        {
+          nodeId: "img1",
+          label: "Image",
+          type: "image-gen",
+          text: "",
+          fileUrl: "https://cdn.example.com/hero.jpg",
+          fileKind: "image",
+        },
+      ],
+      instruction: "use @[Image: Hero](img1) as base",
+    });
+    expect(user).not.toContain("Reference images (attached in order):");
+  });
+
+  it("does NOT inject composition block when no @[ token in instruction", () => {
+    const { user } = compilePrompt({
+      clientContext: "",
+      upstream: [
+        {
+          nodeId: "img1",
+          label: "Image",
+          type: "image-gen",
+          text: "",
+          fileUrl: "https://cdn.example.com/hero.jpg",
+          fileKind: "image",
+        },
+        {
+          nodeId: "img2",
+          label: "File",
+          type: "file",
+          text: "",
+          fileUrl: "https://cdn.example.com/product.jpg",
+          fileKind: "image",
+        },
+      ],
+      instruction: "make it cinematic",
+    });
+    expect(user).not.toContain("Reference images (attached in order):");
+  });
 });

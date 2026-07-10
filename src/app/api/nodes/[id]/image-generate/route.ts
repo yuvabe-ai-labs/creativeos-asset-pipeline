@@ -7,6 +7,7 @@ import {
   assembleEditReferences,
   type EditIntent,
 } from "@/lib/image-gen/edit-prompt";
+import type { MentionUpstream } from "@/lib/nodes/resolve-mention-tokens";
 import { computeImageCost } from "@/lib/image-gen/cost";
 import { apiError, apiOk } from "@/lib/api/route-helpers";
 import { uploadImageGen } from "@/lib/storage";
@@ -85,6 +86,21 @@ export async function POST(
     typeof body?.instruction === "string" ? body.instruction.trim() : "";
   const isEdit = instruction.length > 0;
 
+  const mentionUpstream: MentionUpstream[] = upstream.map((u) => ({
+    nodeId: u.nodeId,
+    type: u.type,
+    text: typeof u.activeOutput === "string" ? u.activeOutput : "",
+    fileUrl:
+      u.type === "image-gen"
+        ? (typeof u.activeOutput === "string" ? u.activeOutput : undefined)
+        : (u.data.fileUrl as string | undefined),
+    fileKind:
+      u.type === "image-gen"
+        ? "image"
+        : (u.data.fileKind as string | undefined),
+    useLlm: u.type === "file" ? (u.data.useLlm as boolean | undefined) : undefined,
+  }));
+
   let prompt: string;
   let referenceUrls: string[];
   let inputsUsed: Record<string, unknown>;
@@ -145,6 +161,7 @@ export async function POST(
         intent,
         hasExtraReference: extraReferenceUrls.length > 0,
         masked,
+        upstream: mentionUpstream,
       });
     inputsUsed = {
       promptVersionId: carriedPromptVersionId,
