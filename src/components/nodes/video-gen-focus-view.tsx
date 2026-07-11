@@ -549,18 +549,56 @@ export function VideoGenFocusView({
 
   function handleRoleChange(imageId: string, newRole: ImageRole) {
     const updated = { ...effectiveImageRoles };
+
+    // Toggle: clicking the role already assigned to this image clears it
     if (updated[imageId] === newRole) {
       delete updated[imageId];
-    } else {
-      if (newRole === "start_frame" || newRole === "end_frame") {
-        for (const [id, role] of Object.entries(updated)) {
-          if (id !== imageId && role === newRole) updated[id] = "reference";
-        }
-      }
-      updated[imageId] = newRole;
+      onPatch({ imageRoles: updated });
+      return;
     }
 
-    // Commit any constraint-locked values into params so they persist after the lock clears.
+    // Conflict check (§D): role is blocked by an active constraint
+    const isFrameRole = newRole === "start_frame" || newRole === "end_frame";
+    const isRefRole = newRole === "reference";
+    if (isFrameRole && constraints.disableFrameInputs) {
+      // Frames are blocked because refs are active
+      const conflictingRole: ImageRole = "reference";
+      setPendingDialog({ type: "role-conflict", imageId, role: newRole, conflictingRole });
+      return;
+    }
+    if (isRefRole && constraints.disableRefs) {
+      // Refs are blocked because frames are active
+      const hasStart = Object.values(updated).includes("start_frame");
+      const conflictingRole: ImageRole = hasStart ? "start_frame" : "end_frame";
+      setPendingDialog({ type: "role-conflict", imageId, role: newRole, conflictingRole });
+      return;
+    }
+
+    // Singleton replacement check (§G): start_frame or end_frame already held by another image
+    if (newRole === "start_frame" || newRole === "end_frame") {
+      const incumbentId = Object.entries(updated).find(
+        ([id, r]) => id !== imageId && r === newRole,
+      )?.[0];
+      if (incumbentId) {
+        const incumbentImage = upstreamImages.find((img) => img.id === incumbentId);
+        const incumbentName = incumbentImage?.filename ?? "";
+        setPendingDialog({
+          type: "replace-singleton",
+          imageId,
+          role: newRole,
+          incumbentId,
+          incumbentName,
+        });
+        return;
+      }
+    }
+
+    // No conflict, no replacement needed — apply directly
+    updated[imageId] = newRole;
+    commitRoleChange(updated);
+  }
+
+  function commitRoleChange(updated: Record<string, ImageRole>) {
     const nextConstraints = evaluateConstraints(
       currentModel?.rules,
       buildConstraintState(updated, params),
