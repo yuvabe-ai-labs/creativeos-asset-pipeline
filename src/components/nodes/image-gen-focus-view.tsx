@@ -826,8 +826,8 @@ export function ImageGenFocusView({
                       {hasRefViolation && !refValidation.ok && (
                         <TooltipContent side="top" className="max-w-56 text-center">
                           {refValidation.violations.length === 1
-                            ? refValidation.violations[0].message
-                            : `${refValidation.violations.length} reference images aren't supported by this model.`}
+                            ? "A reference image doesn't meet this model's requirements. Try resizing it or switching to a different model."
+                            : `${refValidation.violations.length} reference images don't meet this model's requirements. Try resizing them or switching to a different model.`}
                         </TooltipContent>
                       )}
                     </Tooltip>
