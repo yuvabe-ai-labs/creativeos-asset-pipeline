@@ -813,11 +813,11 @@ export function ImageGenFocusView({
                           ? "Re-generate"
                           : "Generate"}
                   </Button>
-                  {hasRefViolation && !refValidation.ok && (
+                  {hasRefViolation && (
                     <p className="mt-1.5 text-center text-xs text-amber-600">
-                      {refValidation.violations.length === 1
-                        ? refValidation.violations[0].message
-                        : `Fix ${refValidation.violations.length} oversized images to generate.`}
+                      {refValidation.ok ? null : refValidation.violations.length === 1
+                        ? "A reference image isn't supported — hover it to see why."
+                        : `${refValidation.violations.length} reference images aren't supported — hover them to see why.`}
                     </p>
                   )}
                 </div>
