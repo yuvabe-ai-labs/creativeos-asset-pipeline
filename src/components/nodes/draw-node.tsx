@@ -69,6 +69,8 @@ export function DrawNode({ id, data, selected }: NodeProps) {
             value={d.title ?? ""}
             placeholder="Untitled sketch"
             onCommit={(t) => updateNodeData(id, { title: t })}
+            nodeId={id}
+            nodeType="draw"
           />
           <button
             onClick={() => setFocusOpen(true)}

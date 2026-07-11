@@ -115,6 +115,8 @@ export function VideoPromptNode({ id, data, selected }: NodeProps) {
             value={title}
             placeholder="Motion prompt"
             onCommit={(t) => updateNodeData(id, { title: t })}
+            nodeId={id}
+            nodeType="video-prompt"
           />
           <button
             onClick={() => setFocusOpen(true)}

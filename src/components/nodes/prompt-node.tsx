@@ -117,6 +117,8 @@ export function PromptNode({ id, data, selected }: NodeProps) {
           value={title}
           placeholder="Image prompt"
           onCommit={(t) => updateNodeData(id, { title: t })}
+          nodeId={id}
+          nodeType="prompt"
         />
         <button
           onClick={() => setFocusOpen(true)}

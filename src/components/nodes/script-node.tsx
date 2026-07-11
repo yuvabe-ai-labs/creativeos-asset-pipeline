@@ -85,6 +85,8 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
             value={title}
             placeholder="Untitled script"
             onCommit={(t) => updateNodeData(id, { title: t })}
+            nodeId={id}
+            nodeType="script"
           />
           <button
             onClick={() => setFocusOpen(true)}

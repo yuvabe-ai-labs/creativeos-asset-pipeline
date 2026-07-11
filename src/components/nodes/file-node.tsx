@@ -82,6 +82,8 @@ export function FileNode({ id, data, selected }: NodeProps) {
             placeholder="Untitled file"
             onCommit={(t) => updateNodeData(id, { title: t })}
             className="flex-1"
+            nodeId={id}
+            nodeType="file"
           />
           {hasFile && d.fileKind && (
             <span className="shrink-0 rounded px-1 py-0.5 text-[0.6rem] font-medium leading-none bg-muted text-muted-foreground">

@@ -45,6 +45,53 @@ export function describeNode(node: { type?: string; data: Record<string, unknown
   }
 }
 
+// ── Ref handles ───────────────────────────────────────────────────────────────
+// A node's THIRD identity (alongside the uuid it's stored under and the optional
+// title): a short, stable, human-visible handle like "PRM-A3F9". It lets a human —
+// and the copilot — refer to a specific node ("wire it to SHOT-7C2B") even when the
+// node is untitled. Derived purely from the immutable uuid, so it never re-points.
+const NODE_ABBREV: Record<string, string> = {
+  script: "SCR",
+  kb: "KB",
+  file: "FILE",
+  text: "TXT",
+  prompt: "PRM",
+  shot: "SHOT",
+  draw: "DRAW",
+  "image-gen": "IMG",
+  "video-prompt": "VPR",
+  "video-gen": "VID",
+};
+
+export function nodeHandle(node: { id: string; type?: string }): string {
+  const abbrev = (node.type && NODE_ABBREV[node.type]) || "NODE";
+  return `${abbrev}-${node.id.slice(0, 4).toUpperCase()}`;
+}
+
+// The pair a UI needs to show a referenceable node: its friendly name (may collide
+// for untitled twins) plus its handle (never collides). Consumers compose the two.
+export function nodeLabel(node: {
+  id: string;
+  type?: string;
+  data: Record<string, unknown>;
+}): { name: string; handle: string } {
+  return { name: describeNode(node), handle: nodeHandle(node) };
+}
+
+// Parse "@HANDLE" tokens out of a human's message and resolve them to node ids. This is
+// the server-bound half of @-mention: the human named exact nodes, we turn those names
+// back into real ids so the copilot can be grounded on precisely them (no LLM guessing).
+export function resolveMentions(
+  text: string,
+  nodes: { id: string; type?: string }[],
+): string[] {
+  const tokens = new Set(
+    (text.match(/@[\w-]+/g) ?? []).map((t) => t.slice(1).toUpperCase()),
+  );
+  if (tokens.size === 0) return [];
+  return nodes.filter((n) => tokens.has(nodeHandle(n).toUpperCase())).map((n) => n.id);
+}
+
 function str(v: unknown): string {
   return typeof v === "string" ? v.trim() : "";
 }

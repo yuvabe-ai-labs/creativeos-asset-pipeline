@@ -1,8 +1,6 @@
 import { apiError, apiOk } from "@/lib/api/route-helpers";
 import { createOpenAI } from "@/lib/openai/server";
-import { listNodes } from "@/lib/db/nodes";
-import { listEdges } from "@/lib/db/edges";
-import { describeNode } from "@/lib/nodes/describe-node";
+import { buildCopilotContext } from "@/lib/copilot/context";
 
 // Lesson 4 — CALL 2: a plain (non-streaming) STRUCTURED call. Given the answer the
 // copilot just streamed, it returns which canvas nodes that answer referenced, as
@@ -36,14 +34,7 @@ export async function POST(req: Request) {
   const canvasId = body?.canvasId;
   if (!canvasId) return apiError("A 'canvasId' is required.", 400);
 
-  const nodes = await listNodes(canvasId);
-  const edges = await listEdges(canvasId);
-  const canvasContext =
-    nodes.length === 0
-      ? "The canvas is empty."
-      : `The canvas has ${nodes.length} node(s):\n` +
-        nodes.map((n) => `- ${n.type}: ${describeNode(n)} (id ${n.id})`).join("\n") +
-        `\nThere are ${edges.length} connection(s).`;
+  const canvasContext = await buildCopilotContext(canvasId);
 
   try {
     const openai = createOpenAI();
