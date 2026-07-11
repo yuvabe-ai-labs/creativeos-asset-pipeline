@@ -1,6 +1,7 @@
 import type { VideoGenClientModelSpec, ConstraintRule } from "./types";
 import { veoParams, veoLiteParams } from "./params/veo";
 import { soraParams } from "./params/sora";
+import { klingLegacyParams, klingV3Params } from "./params/kling";
 
 // ── Shared image input capability shapes ──────────────────────────────────────
 
@@ -90,6 +91,12 @@ const SORA_RULES: ConstraintRule[] = [
   },
 ];
 
+const KLING_IMAGE_INPUTS = {
+  startFrame: true,
+  endFrame: false,
+  maxReferenceImages: 0,
+} as const;
+
 // ── Model map ─────────────────────────────────────────────────────────────────
 
 export const videoGenClientModelMap: Record<string, VideoGenClientModelSpec> = {
@@ -132,6 +139,66 @@ export const videoGenClientModelMap: Record<string, VideoGenClientModelSpec> = {
     imageInputs: { startFrame: true, endFrame: false, maxReferenceImages: 0 },
     params: soraParams,
     rules: SORA_RULES,
+  },
+  "kling:kling-v1-5": {
+    id: "kling:kling-v1-5",
+    provider: "kling",
+    label: "Kling 1.5",
+    providerLabel: "Kling",
+    maxDurationSeconds: 10,
+    imageInputs: KLING_IMAGE_INPUTS,
+    params: klingLegacyParams,
+    rules: [],
+  },
+  "kling:kling-v1-6": {
+    id: "kling:kling-v1-6",
+    provider: "kling",
+    label: "Kling 1.6",
+    providerLabel: "Kling",
+    maxDurationSeconds: 10,
+    imageInputs: KLING_IMAGE_INPUTS,
+    params: klingLegacyParams,
+    rules: [],
+  },
+  "kling:kling-v2-1": {
+    id: "kling:kling-v2-1",
+    provider: "kling",
+    label: "Kling 2.1",
+    providerLabel: "Kling",
+    maxDurationSeconds: 10,
+    imageInputs: KLING_IMAGE_INPUTS,
+    params: klingLegacyParams,
+    rules: [],
+  },
+  "kling:kling-v2-1-master": {
+    id: "kling:kling-v2-1-master",
+    provider: "kling",
+    label: "Kling 2.1 Master",
+    providerLabel: "Kling",
+    maxDurationSeconds: 10,
+    imageInputs: KLING_IMAGE_INPUTS,
+    params: klingLegacyParams,
+    rules: [],
+  },
+  "kling:kling-v2-6": {
+    id: "kling:kling-v2-6",
+    provider: "kling",
+    label: "Kling 2.6",
+    providerLabel: "Kling",
+    maxDurationSeconds: 10,
+    imageInputs: KLING_IMAGE_INPUTS,
+    params: klingLegacyParams,
+    rules: [],
+  },
+  "kling:kling-v3": {
+    id: "kling:kling-v3",
+    provider: "kling",
+    label: "Kling 3.0",
+    providerLabel: "Kling",
+    maxDurationSeconds: 15,
+    imageInputs: KLING_IMAGE_INPUTS,
+    params: klingV3Params,
+    rules: [],
   },
 };
 
