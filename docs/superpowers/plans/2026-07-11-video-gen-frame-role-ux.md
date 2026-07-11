@@ -182,39 +182,30 @@ git commit -m "feat(video-gen): rewrite constraint reason strings to user-friend
 
 ---
 
-## Task 2 — Add shadcn AlertDialog component
+## Task 2 — Verify AlertDialog component
 
 **Files:**
-- Create: `src/components/ui/alert-dialog.tsx`
+- Read: `src/components/ui/alert-dialog.tsx` (already exists — uses `@base-ui/react/alert-dialog`)
 
-`AlertDialog` doesn't exist yet in `src/components/ui/`. Add it via the shadcn CLI.
+`alert-dialog.tsx` already exists. It uses Base UI (`@base-ui/react/alert-dialog`) not Radix. The key behavioral difference: `AlertDialogAction` and `AlertDialogCancel` are both Base UI `Close` wrappers — clicking either closes the dialog automatically. Our `onClick` handlers on these buttons run in addition to the close. **Do not call `setPendingDialog(null)` inside `AlertDialogAction`/`AlertDialogCancel` `onClick` — the dialog closes automatically via Base UI's `open`/`onOpenChange` wiring.**
 
-- [ ] **Step 1: Add the component**
+Wait — actually the `AlertDialog` open state in our implementation is controlled externally via `open={pendingDialog !== null}` and `onOpenChange={(open) => { if (!open) setPendingDialog(null); }}`. When `AlertDialogAction` or `AlertDialogCancel` fires its `Close` primitive, Base UI calls `onOpenChange(false)`, which sets `pendingDialog` to `null`. So `onClick` handlers on these buttons do NOT need to call `setPendingDialog(null)`.
+
+However the confirm handlers DO need to read `pendingDialog` before it's cleared. Since Base UI's `Close` fires `onOpenChange` asynchronously (after the click), the `onClick` runs first — so `pendingDialog` is still set when the handler reads it. Safe.
+
+**Exported names already available:**
+`AlertDialog`, `AlertDialogContent`, `AlertDialogHeader`, `AlertDialogFooter`, `AlertDialogTitle`, `AlertDialogDescription`, `AlertDialogAction`, `AlertDialogCancel`.
+
+- [ ] **Step 1: Verify TypeScript compiles (nothing to install)**
 
 ```
 cd e:\CreativeOS\creativeos-mvp
-npx shadcn@latest add alert-dialog
-```
-
-Expected: `src/components/ui/alert-dialog.tsx` is created.
-
-- [ ] **Step 2: Verify the file exists and exports the expected named exports**
-
-Open `src/components/ui/alert-dialog.tsx` and confirm it exports:
-`AlertDialog`, `AlertDialogContent`, `AlertDialogHeader`, `AlertDialogFooter`, `AlertDialogTitle`, `AlertDialogDescription`, `AlertDialogAction`, `AlertDialogCancel`.
-
-- [ ] **Step 3: Verify TypeScript still compiles**
-
-```
 npx tsc --noEmit
 ```
 
-- [ ] **Step 4: Commit**
+Expected: no errors related to `alert-dialog`.
 
-```
-git add src/components/ui/alert-dialog.tsx
-git commit -m "feat: add shadcn AlertDialog component"
-```
+- [ ] **Step 2: No commit needed** — file already exists and committed. Move to Task 3.
 
 ---
 
@@ -890,13 +881,8 @@ Inside the `<Sheet>` but after `<SheetContent>`, add — or more precisely, insi
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel onClick={() => setPendingDialog(null)}>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            onClick={() => {
-              setPendingDialog(null);
-              void doGenerate();
-            }}
-          >
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction onClick={() => void doGenerate()}>
             Generate anyway
           </AlertDialogAction>
         </AlertDialogFooter>
@@ -913,11 +899,10 @@ Inside the `<Sheet>` but after `<SheetContent>`, add — or more precisely, insi
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel onClick={() => setPendingDialog(null)}>Cancel</AlertDialogCancel>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
           <AlertDialogAction
             onClick={() => {
               hasExplicitlySkippedEndFrameRef.current = true;
-              setPendingDialog(null);
               void doGenerate();
             }}
           >
@@ -943,20 +928,19 @@ Inside the `<Sheet>` but after `<SheetContent>`, add — or more precisely, insi
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setPendingDialog(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 // Clear the conflicting side and apply the new role
                 const updated = { ...effectiveImageRoles };
                 for (const [id, r] of Object.entries(updated)) {
-                  if (r === d.conflictingRole) delete updated[id];
-                  // Also clear the other singleton if we're switching away from frames
                   if (isAddingRef && (r === "start_frame" || r === "end_frame")) {
+                    delete updated[id];
+                  } else if (!isAddingRef && r === "reference") {
                     delete updated[id];
                   }
                 }
                 updated[d.imageId] = d.role;
-                setPendingDialog(null);
                 commitRoleChange(updated);
               }}
             >
@@ -985,7 +969,7 @@ Inside the `<Sheet>` but after `<SheetContent>`, add — or more precisely, insi
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setPendingDialog(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 const updated = { ...effectiveImageRoles };
@@ -996,7 +980,6 @@ Inside the `<Sheet>` but after `<SheetContent>`, add — or more precisely, insi
                   delete updated[d.incumbentId];
                 }
                 updated[d.imageId] = d.role;
-                setPendingDialog(null);
                 commitRoleChange(updated);
               }}
             >
