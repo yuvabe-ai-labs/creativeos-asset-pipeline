@@ -908,6 +908,11 @@ export function VideoGenFocusView({
                       imageRoles={effectiveImageRoles}
                       imageInputs={imageInputs}
                       onRoleChange={handleRoleChange}
+                      onConflictingRoleRequest={(imageId, role) => {
+                        const isFrameRole = role === "start_frame" || role === "end_frame";
+                        const conflictingRole: ImageRole = isFrameRole ? "reference" : "start_frame";
+                        setPendingDialog({ type: "role-conflict", imageId, role, conflictingRole });
+                      }}
                       onOpenDetail={(id, type) => setDetailItem({ id, type })}
                       disableFrameInputs={constraints.disableFrameInputs}
                       disableFrameInputsReason={
