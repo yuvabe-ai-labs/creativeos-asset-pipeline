@@ -19,6 +19,7 @@ export type VideoGenInput = {
 export type VideoGenResult = {
   videoUrl: string;
   durationSeconds: number;
+  providerJobId?: string;
 };
 
 // ── Constraint rule system (JSON-serializable, DB-ready) ──────────────────────
@@ -75,7 +76,7 @@ export type EvaluatedConstraints = {
 
 export type VideoGenModelSpec = {
   id: string;
-  provider: "veo" | "openai";
+  provider: "veo" | "openai" | "kling";
   label: string;
   providerLabel: string;
   maxDurationSeconds: number;
