@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { placeNewNode, buildHistory, resolveScriptTarget, fileNameToTitle } from "./actions";
+import { placeNewNode, buildHistory, resolveScriptTarget, fileNameToTitle, scriptCreatedMessage } from "./actions";
 import { nodeHandle } from "@/lib/nodes/describe-node";
 import type { AppNode } from "@/lib/canvas-nodes";
 
@@ -68,5 +68,18 @@ describe("fileNameToTitle", () => {
     expect(fileNameToTitle("my_script.txt")).toBe("My Script");
     expect(fileNameToTitle("notes")).toBe("Notes");
     expect(fileNameToTitle("")).toBe("");
+  });
+});
+
+describe("scriptCreatedMessage", () => {
+  it("includes the handle so the model can target THIS node on 'yes'", () => {
+    const msg = scriptCreatedMessage("SCR-7C2A", "One Script");
+    expect(msg).toContain("SCR-7C2A");
+    expect(msg).toContain("One Script");
+    expect(msg.toLowerCase()).toContain("parse");
+  });
+
+  it("still includes the handle when there is no title", () => {
+    expect(scriptCreatedMessage("SCR-7C2A")).toContain("SCR-7C2A");
   });
 });

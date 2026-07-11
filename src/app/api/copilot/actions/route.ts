@@ -118,11 +118,14 @@ export async function POST(req: Request) {
         {
           role: "system",
           content:
-            "You are the copilot inside CreativeOS. Read the whole conversation. " +
-            "If the user pasted/attached a reel script and wants it turned into a script node, " +
-            "call create_script_node. If the user asks to parse/extract a script node they " +
-            "already made (or confirms an offer to parse it, e.g. 'yes'), call parse_script. " +
-            "Otherwise, if they ask to add/create a node, call add_node with the best-fitting " +
+            "You are the copilot inside CreativeOS. Read the WHOLE conversation, especially your " +
+            "own last message. A short reply that confirms your last offer — 'yes', 'yeah', 'ok', " +
+            "'sure', 'do it', even misspelled ('reyes', 'yse') — means DO WHAT YOU JUST OFFERED, " +
+            "not create something new. If you offered to parse a script you just created, call " +
+            "parse_script and pass the handle from your 'Created a Script node …' message. " +
+            "Call create_script_node ONLY when the message itself contains an actual reel script " +
+            "(multiple lines / shot descriptions) to turn into a node — never for a short reply. " +
+            "If the user asks to add/create some other node, call add_node with the best-fitting " +
             "type. If it is just a question about the canvas, do not call any tool.",
         },
         { role: "system", content: canvasContext },

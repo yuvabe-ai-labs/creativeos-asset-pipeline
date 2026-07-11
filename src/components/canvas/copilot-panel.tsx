@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useCanvasStore, useCanvasStoreApi } from "./canvas-store-provider";
 import { nodeHandle, nodeLabel, resolveMentions } from "@/lib/nodes/describe-node";
-import { placeNewNode, buildHistory, resolveScriptTarget, fileNameToTitle, type CopilotAction } from "@/lib/copilot/actions";
+import { placeNewNode, buildHistory, resolveScriptTarget, fileNameToTitle, scriptCreatedMessage, type CopilotAction } from "@/lib/copilot/actions";
 import { cn } from "@/lib/utils";
 import type { AppNode } from "@/lib/canvas-nodes";
 import type { ReelScript } from "@/lib/nodes/reel-script";
@@ -71,14 +71,12 @@ export function CopilotPanel({ canvasId }: { canvasId: string }) {
     updateNodeData(id, { source, ...(title ? { title } : {}) });
     highlightNode(id); // select it on the canvas
     setCenter(position.x + 120, position.y + 60, { zoom: 1, duration: 500 }); // pan to it
+    // The confirmation carries the node's HANDLE — on a later "yes", the model reads it from
+    // the conversation and passes it to parse_script, so parse targets THIS node (not a stale one).
+    const handle = nodeHandle({ id, type: "script" });
     setMessages((m) => [
       ...m,
-      {
-        role: "assistant",
-        content: title
-          ? `Created a Script node — “${title}” — from your text. Want me to parse it into shots?`
-          : "Created a Script node from your text. Want me to parse it into shots?",
-      },
+      { role: "assistant", content: scriptCreatedMessage(handle, title) },
     ]);
   }
 

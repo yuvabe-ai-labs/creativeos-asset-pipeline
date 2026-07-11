@@ -51,6 +51,15 @@ export function resolveScriptTarget(nodes: AppNode[], handle?: string): AppNode 
   return scripts.length > 0 ? scripts[scripts.length - 1] : null;
 }
 
+// The copilot's confirmation after creating a Script node. It MUST include the node's
+// handle: on a follow-up "yes", the model reads this message from the conversation and
+// passes that handle to parse_script — so the parse targets THIS node, not a stale one.
+export function scriptCreatedMessage(handle: string, title?: string): string {
+  return title
+    ? `Created a Script node ${handle} — “${title}”. Want me to parse it into shots?`
+    : `Created a Script node ${handle}. Want me to parse it into shots?`;
+}
+
 // Derive a readable node title from an uploaded file's name: drop the extension, turn
 // dashes/underscores into spaces, and title-case each word ("prakriti-reel.md" → "Prakriti Reel").
 export function fileNameToTitle(name: string): string {
