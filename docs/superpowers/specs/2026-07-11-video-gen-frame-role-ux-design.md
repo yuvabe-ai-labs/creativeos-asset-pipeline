@@ -100,7 +100,19 @@ Returns `null` when no constraints are active.
 
 ### C. Generate-click warnings and dialogs
 
-Three new checks run when the Generate button is clicked, before the API call:
+Checks run when the Generate button is clicked, before the API call. C0 is a **disabled-button guard** (evaluated on render, not click); C1–C4 are click-time checks.
+
+#### C0. Provider requires start frame (Kling)
+
+Kling models (`provider === "kling"`) require a start frame to generate — the server throws if `startFrameUrl` is missing. This is a hard requirement, not a user choice.
+
+When `currentModel.provider === "kling"` AND no `start_frame` in `effectiveImageRoles`: the Generate button is **disabled** (added to the existing `disabled` condition, same logic as `constraints.disableGenerate`) with tooltip:
+
+> `"Kling requires a start frame — connect an image and assign it as Start Frame"`
+
+No dialog — this is a missing prerequisite, not a conflict the user resolves by confirming.
+
+This condition is checked on render, not at click time. It clears automatically when the user assigns a start frame.
 
 #### C1. No images connected at all
 
@@ -110,7 +122,9 @@ If `upstreamImages.length === 0`: proceed silently. Generating from prompt only 
 
 If `upstreamImages.length > 0` AND `Object.keys(effectiveImageRoles).length === 0`:
 
-Show a confirmation dialog before generating:
+**Exception: if `currentModel.provider === "kling"`** — handled by C0 (disabled button). C2 does not fire for Kling.
+
+For all other providers, show a confirmation dialog before generating:
 
 > **"No frame selected"**
 > You have connected images but haven't assigned any role (start frame, end frame, or reference). Generate anyway using only the text prompt?
@@ -129,12 +143,14 @@ Show a confirmation dialog:
 > **"End frame not assigned"**
 > You have a connected image without a role, and this model supports an end frame. Generate with just the start frame?
 >
-> [Assign end frame] [Generate anyway]
+> [Cancel] [Generate anyway]
 
-"Assign end frame" → dismiss dialog, auto-assign the first unassigned image as end frame.
 "Generate anyway" → proceed.
+"Cancel" → dismiss, return to panel (user can manually assign the end frame from the connected section).
 
-This dialog does NOT fire if the user has already explicitly cleared the end frame slot (we track this with a `hasExplicitlySkippedEndFrame` ref that gets set when the user clicks "Generate anyway" and cleared when `upstreamImages` changes — i.e. when a new image is connected or an existing one is removed).
+**No auto-assign button.** When multiple images are connected, auto-picking the first unassigned one may not be what the user wants. Let them choose from the panel instead.
+
+This dialog does NOT fire if the user has already explicitly skipped the end frame (tracked via `hasExplicitlySkippedEndFrame` ref, set on "Generate anyway", cleared when `upstreamImages` changes).
 
 #### C4. End frame without start frame → keep disabled button
 
@@ -246,7 +262,7 @@ Three dialog states are managed in `VideoGenFocusView`:
 type DialogState =
   | null
   | { type: "no-roles" }
-  | { type: "missing-end-frame"; unassignedId: string }
+  | { type: "missing-end-frame" }
   | { type: "role-conflict"; imageId: string; role: ImageRole; conflictingRole: "start_frame" | "end_frame" | "reference" }
   | { type: "replace-singleton"; imageId: string; role: "start_frame" | "end_frame"; incumbentId: string; incumbentName: string };
 
@@ -275,8 +291,9 @@ One `AlertDialog` renders at the bottom of the JSX, controlled by `pendingDialog
 |---|---|
 | Focus view opens, images connected, no roles set | Nothing auto-assigned; nudge visible in connected section |
 | Generate with no images connected | Proceed silently |
-| Generate with images connected, none assigned | Dialog: "Generate with no frame input?" |
-| Generate with start frame but end frame slot unused | Dialog: "Assign end frame or generate anyway?" |
+| Generate with images connected, none assigned (non-Kling) | Dialog: "Generate with no frame input?" |
+| Kling model, images connected, no start frame assigned | Generate button disabled with tooltip |
+| Generate with start frame but end frame slot unused | Dialog: "Generate anyway or Cancel?" (no auto-assign) |
 | Generate with end frame but no start frame | Button disabled (unchanged) |
 | Click reference role when start/end frame active (Veo Fast/Quality) | Conflict dialog → confirm clears frame assignments |
 | Click start/end frame role when references active (Veo Fast/Quality) | Conflict dialog → confirm clears reference assignments |
