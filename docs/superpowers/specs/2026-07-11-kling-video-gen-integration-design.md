@@ -53,11 +53,18 @@ All 6 share the same provider (`kling`). The `model_name` sent to the API is the
 
 ### klingLegacyParams (v1.5, v1.6, v2.1, v2.1-master, v2.6)
 
+**Primary params** (always visible, rendered flat):
+
 | Param | Component | Valid values | Default |
 |---|---|---|---|
 | `mode` | select | `std`, `pro` | `pro` |
 | `duration` | select | `5`, `10` | `5` |
 | `aspect_ratio` | select | `16:9`, `9:16`, `1:1` | `16:9` |
+
+**Advanced params** (collapsed under "Advanced" accordion, same pattern as image gen):
+
+| Param | Component | Valid values | Default |
+|---|---|---|---|
 | `cfg_scale` | slider | `0`–`1`, step `0.1` | `0.5` |
 | `negative_prompt` | text | free text | `""` |
 | `pan` | slider | `-10`–`10` | `0` |
@@ -69,7 +76,17 @@ All 6 share the same provider (`kling`). The `model_name` sent to the API is the
 
 ### klingV3Params (v3 only)
 
-Same as above except `duration` is a select with values `3` through `15` (all integers, 13 options).
+Same primary/advanced split as above, except `duration` (primary) is a select with values `3` through `15` (all integers, 13 options).
+
+### UI — VideoGenParamsPanel accordion
+
+`video-gen-params-panel.tsx` currently renders all visible params flat. It needs the same accordion split as `image-gen-output-settings.tsx`:
+
+1. Split `visibleParams` into `primaryParams` (`group === "primary"`) and `advancedParams` (`group === "advanced"`)
+2. Render primary params flat (existing behavior)
+3. Wrap advanced params in a collapsed `<Accordion>` with an "Advanced" trigger — only rendered when `advancedParams.length > 0`
+
+This affects all models: existing Veo/Sora params are all `group: "primary"` so they are unaffected (no accordion rendered). Only Kling models trigger the accordion.
 
 ---
 
@@ -173,6 +190,7 @@ Migration: `ALTER TABLE generations ADD COLUMN external_task_id TEXT;`
 | `src/lib/video-gen/registry.ts` | Add 6 Kling model entries |
 | `src/lib/video-gen/client-models.ts` | Add 6 Kling client specs |
 | `src/lib/video-gen/cost.ts` | Add Kling pricing table |
+| `src/components/nodes/video-gen-params-panel.tsx` | Split params by group; wrap advanced in collapsed Accordion |
 | `src/app/api/nodes/[id]/video-generate/route.ts` | Save `externalTaskId` to generations row |
 | `trigger/video-generate.ts` | Return `externalTaskId` from provider, persist it |
 | `src/app/api/webhooks/generation/route.ts` | Add `?provider=kling` branch |
