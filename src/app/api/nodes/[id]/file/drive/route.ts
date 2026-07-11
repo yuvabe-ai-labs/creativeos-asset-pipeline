@@ -55,22 +55,25 @@ export async function POST(
   const sizeLabel = isText ? "100 KB" : "10 MB";
   const fileKind = isText ? "text" : isImage ? "image" : "document";
 
+  // Verify node exists before touching Drive or GCS
+  const supabase = createServerSupabase();
+  const { data: nodeRow } = await supabase
+    .from("nodes")
+    .select("data")
+    .eq("id", nodeId)
+    .maybeSingle();
+  if (!nodeRow) return apiError("Node not found.", 404);
+
   try {
     const accessToken = await exchangeRefreshToken();
-    const { buffer, contentType } = await fetchDriveFileBuffer(driveFileId, accessToken);
+    const { buffer } = await fetchDriveFileBuffer(driveFileId, accessToken);
 
     if (buffer.byteLength > sizeLimit) {
       return apiError(`File too large. Maximum size is ${sizeLabel}.`, 400);
     }
 
     // Clean up existing file if present
-    const supabase = createServerSupabase();
-    const { data: nodeRow } = await supabase
-      .from("nodes")
-      .select("data")
-      .eq("id", nodeId)
-      .maybeSingle();
-    const existingUrl = (nodeRow as { data: Record<string, unknown> } | null)?.data
+    const existingUrl = (nodeRow as { data: Record<string, unknown> }).data
       ?.fileUrl as string | undefined;
     if (existingUrl) {
       try {
@@ -94,11 +97,14 @@ export async function POST(
       });
     }
 
+    // Use driveMimeType (validated against our allowlist) as the canonical content-type,
+    // not the content-type header from Drive (which could diverge if the picker returns
+    // a Google Workspace file that Drive exports on the fly).
     const { url: fileUrl } = await uploadNodeFile({
       nodeId,
       filename: driveFileName,
       body: Buffer.from(buffer),
-      contentType,
+      contentType: driveMimeType,
     });
 
     return apiOk({

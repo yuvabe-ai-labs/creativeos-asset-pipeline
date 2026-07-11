@@ -249,7 +249,7 @@ export function FileFocusView({
                       variant="outline"
                       size="lg"
                       onClick={handleOpenPicker}
-                      disabled={replacing}
+                      disabled={replacing || loading}
                     >
                       Replace from Drive
                     </Button>

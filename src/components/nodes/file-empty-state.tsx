@@ -68,7 +68,7 @@ export function FileEmptyState({ onUpload, onPickFromDrive }: FileEmptyStateProp
           Drop a file here, or click to browse
         </span>
         <span className="text-xs text-muted-foreground/60">
-          Images: .png .jpg .webp up to 10 MB · Text: .txt up to 100 KB · Docs: .pdf .docx up to 50 MB
+          Images: .png .jpg .webp up to 10 MB · Text: .txt up to 100 KB · Docs: .pdf .docx up to 10 MB
         </span>
         <input
           ref={inputRef}
