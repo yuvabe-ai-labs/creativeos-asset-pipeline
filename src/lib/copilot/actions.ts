@@ -50,3 +50,16 @@ export function resolveScriptTarget(nodes: AppNode[], handle?: string): AppNode 
   }
   return scripts.length > 0 ? scripts[scripts.length - 1] : null;
 }
+
+// Derive a readable node title from an uploaded file's name: drop the extension, turn
+// dashes/underscores into spaces, and title-case each word ("prakriti-reel.md" → "Prakriti Reel").
+export function fileNameToTitle(name: string): string {
+  const base = name.replace(/\.[^.]+$/, "");
+  return base
+    .replace(/[-_]+/g, " ")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}

@@ -1,13 +1,13 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, type ChangeEvent } from "react";
 import { useReactFlow, type NodeChange } from "@xyflow/react";
-import { Sparkles, Send, X, Plus, Check } from "lucide-react";
+import { Sparkles, Send, X, Plus, Check, Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useCanvasStore, useCanvasStoreApi } from "./canvas-store-provider";
 import { nodeHandle, nodeLabel, resolveMentions } from "@/lib/nodes/describe-node";
-import { placeNewNode, buildHistory, resolveScriptTarget, type CopilotAction } from "@/lib/copilot/actions";
+import { placeNewNode, buildHistory, resolveScriptTarget, fileNameToTitle, type CopilotAction } from "@/lib/copilot/actions";
 import { cn } from "@/lib/utils";
 import type { AppNode } from "@/lib/canvas-nodes";
 import type { ReelScript } from "@/lib/nodes/reel-script";
@@ -36,6 +36,8 @@ export function CopilotPanel({ canvasId }: { canvasId: string }) {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [thinking, setThinking] = useState(false);
+  const [attachment, setAttachment] = useState<{ name: string; text: string } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const storeApi = useCanvasStoreApi();
   const { setCenter } = useReactFlow();
@@ -222,9 +224,32 @@ export function CopilotPanel({ canvasId }: { canvasId: string }) {
     });
   }
 
+  // Read an uploaded .md/.txt script into a pending attachment (its text becomes the
+  // Script node source on send). Clear the input value so the same file can be re-picked.
+  function onPickFile(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setAttachment({ name: file.name, text: String(reader.result ?? "") });
+    reader.readAsText(file);
+  }
+
   async function send() {
     const text = input.trim();
-    if (!text || thinking) return;
+    if ((!text && !attachment) || thinking) return;
+
+    // File upload path: a .md/.txt script file → create a Script node from its text
+    // (deterministic — an uploaded script is unambiguous, no model call needed).
+    if (attachment) {
+      const file = attachment;
+      setAttachment(null);
+      setInput("");
+      setMessages((m) => [...m, { role: "user", content: `📄 ${file.name}` }]);
+      createScriptNode(file.text, fileNameToTitle(file.name));
+      return;
+    }
+
     // Resolve the @HANDLE tokens the human typed → the exact node ids they pointed at.
     // These travel with the request so the server grounds the copilot on precisely them.
     const mentionedIds = resolveMentions(text, storeApi.getState().nodes);
@@ -435,6 +460,20 @@ export function CopilotPanel({ canvasId }: { canvasId: string }) {
       </div>
 
       <div className="border-t border-border/70 p-3">
+        {attachment && (
+          <div className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/5 px-2.5 py-1 text-xs text-primary">
+            <Paperclip className="size-3" />
+            <span className="max-w-[200px] truncate">{attachment.name}</span>
+            <button
+              type="button"
+              onClick={() => setAttachment(null)}
+              aria-label="Remove attachment"
+              className="text-primary/60 transition-colors hover:text-primary"
+            >
+              <X className="size-3" />
+            </button>
+          </div>
+        )}
         <div className="relative">
           {/* @-mention picker: appears above the composer when you type "@". YOU drive
               it — the list is the canvas nodes, shown by title/type + stable handle. */}
@@ -510,10 +549,25 @@ export function CopilotPanel({ canvasId }: { canvasId: string }) {
             className="resize-none"
           />
         </div>
-        <div className="mt-2 flex justify-end">
+        <div className="mt-2 flex items-center justify-between">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".md,.txt"
+            onChange={onPickFile}
+            className="hidden"
+          />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            title="Attach a .md / .txt script"
+            className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <Paperclip className="size-3.5" /> Attach script
+          </button>
           <Button
             onClick={() => void send()}
-            disabled={thinking || input.trim().length === 0}
+            disabled={thinking || (input.trim().length === 0 && !attachment)}
             className="gap-1.5"
           >
             <Send className="size-3.5" /> Send

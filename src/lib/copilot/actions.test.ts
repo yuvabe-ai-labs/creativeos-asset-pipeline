@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { placeNewNode, buildHistory, resolveScriptTarget } from "./actions";
+import { placeNewNode, buildHistory, resolveScriptTarget, fileNameToTitle } from "./actions";
 import { nodeHandle } from "@/lib/nodes/describe-node";
 import type { AppNode } from "@/lib/canvas-nodes";
 
@@ -59,5 +59,14 @@ describe("resolveScriptTarget", () => {
     ];
     const h = nodeHandle({ id: nodes[0].id, type: "script" });
     expect(resolveScriptTarget(nodes, h)?.id).toBe(nodes[0].id);
+  });
+});
+
+describe("fileNameToTitle", () => {
+  it("strips the extension, de-dashes/underscores, and title-cases", () => {
+    expect(fileNameToTitle("prakriti-reel.md")).toBe("Prakriti Reel");
+    expect(fileNameToTitle("my_script.txt")).toBe("My Script");
+    expect(fileNameToTitle("notes")).toBe("Notes");
+    expect(fileNameToTitle("")).toBe("");
   });
 });
