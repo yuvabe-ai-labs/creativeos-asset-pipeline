@@ -408,6 +408,8 @@ export function VideoGenFocusView({
   const [openNodeSeed, setOpenNodeSeed] = useState({ open, nodeId });
   if (openNodeSeed.open !== open || openNodeSeed.nodeId !== nodeId) {
     setOpenNodeSeed({ open, nodeId });
+    setPendingDialog(null);
+    hasExplicitlySkippedEndFrameRef.current = false;
     if (open) {
       setDetailItem(null);
       setLoadingVersions(true);
@@ -547,7 +549,7 @@ export function VideoGenFocusView({
     );
     const toastMessages = droppedImages.map((img) => {
       const oldRole = (currentRoles[img.id] as string).replace(/_/g, " ");
-      return `"${img.filename ?? "Image"}" removed from ${oldRole} — not supported by ${nextModel?.label ?? nextModelId}`;
+      return `"${img.filename || "Image"}" removed from ${oldRole} — not supported by ${nextModel?.label ?? nextModelId}`;
     });
     if (toastMessages.length > 0) {
       if (toastMessages.length <= 3) {
