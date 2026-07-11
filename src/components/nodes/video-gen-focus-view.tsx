@@ -52,12 +52,30 @@ import { VideoGenUsagePopover } from "./video-gen-usage-popover";
 import { VideoGenParamsPanel } from "./video-gen-params-panel";
 import { VideoGenConnectedSection } from "./video-gen-connected-section";
 import type { UpstreamImage, UpstreamPromptNode } from "@/lib/video-gen/api";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { ActiveRulesCard } from "./video-gen-active-rules-card";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type ImageRole = "start_frame" | "end_frame" | "reference";
 
 type ImageInputs = { startFrame: boolean; endFrame: boolean; maxReferenceImages: number };
+
+type DialogState =
+  | null
+  | { type: "no-roles" }
+  | { type: "missing-end-frame" }
+  | { type: "role-conflict"; imageId: string; role: ImageRole; conflictingRole: "start_frame" | "end_frame" | "reference" }
+  | { type: "replace-singleton"; imageId: string; role: "start_frame" | "end_frame"; incumbentId: string; incumbentName: string };
 
 // Fill in default roles for any unassigned images:
 // - refs available → all images get "reference" (up to the cap)
@@ -380,6 +398,8 @@ export function VideoGenFocusView({
     id: string;
     type: "prompt" | "image";
   } | null>(null);
+  const [pendingDialog, setPendingDialog] = useState<DialogState>(null);
+  const hasExplicitlySkippedEndFrameRef = useRef(false);
 
   const [loadingVersions, setLoadingVersions] = useState(false);
   const [loadingConnected, setLoadingConnected] = useState(false);
@@ -388,6 +408,8 @@ export function VideoGenFocusView({
   const [openNodeSeed, setOpenNodeSeed] = useState({ open, nodeId });
   if (openNodeSeed.open !== open || openNodeSeed.nodeId !== nodeId) {
     setOpenNodeSeed({ open, nodeId });
+    setPendingDialog(null);
+    hasExplicitlySkippedEndFrameRef.current = false;
     if (open) {
       setDetailItem(null);
       setLoadingVersions(true);
@@ -460,14 +482,7 @@ export function VideoGenFocusView({
       .then(({ images, promptNode: pn }) => {
         setUpstreamImages(images);
         setPromptNode(pn);
-        // Auto-assign default roles for any unassigned images
-        const inputs = videoGenClientModelMap[modelId]?.imageInputs;
-        if (inputs && images.length > 0) {
-          const withDefaults = applyDefaultImageRoles(images, inputs, imageRolesProp);
-          if (images.some((img) => img.id in withDefaults && !(img.id in imageRolesProp))) {
-            onPatchRef.current({ imageRoles: withDefaults });
-          }
-        }
+        hasExplicitlySkippedEndFrameRef.current = false;
       })
       .catch(() => {})
       .finally(() => setLoadingConnected(false));
@@ -528,6 +543,23 @@ export function VideoGenFocusView({
       ? applyDefaultImageRoles(upstreamImages, nextInputs, currentRoles)
       : currentRoles;
 
+    // Toast for dropped role assignments (§E)
+    const droppedImages = upstreamImages.filter(
+      (img) => img.id in currentRoles && !(img.id in finalRoles),
+    );
+    const toastMessages = droppedImages.map((img) => {
+      const oldRole = (currentRoles[img.id] as string).replace(/_/g, " ");
+      return `"${img.filename || "Image"}" removed from ${oldRole} — not supported by ${nextModel?.label ?? nextModelId}`;
+    });
+    if (toastMessages.length > 0) {
+      if (toastMessages.length <= 3) {
+        toastMessages.forEach((msg) => toast.info(msg, { duration: 3500 }));
+      } else {
+        toastMessages.slice(0, 3).forEach((msg) => toast.info(msg, { duration: 3500 }));
+        toast.info(`…and ${toastMessages.length - 3} more role${toastMessages.length - 3 === 1 ? "" : "s"} removed`, { duration: 3500 });
+      }
+    }
+
     // Commit any constraint-locked values into params so they persist after the lock clears.
     const nextConstraints = evaluateConstraints(
       videoGenClientModelMap[nextModelId]?.rules,
@@ -547,18 +579,56 @@ export function VideoGenFocusView({
 
   function handleRoleChange(imageId: string, newRole: ImageRole) {
     const updated = { ...effectiveImageRoles };
+
+    // Toggle: clicking the role already assigned to this image clears it
     if (updated[imageId] === newRole) {
       delete updated[imageId];
-    } else {
-      if (newRole === "start_frame" || newRole === "end_frame") {
-        for (const [id, role] of Object.entries(updated)) {
-          if (id !== imageId && role === newRole) updated[id] = "reference";
-        }
-      }
-      updated[imageId] = newRole;
+      onPatch({ imageRoles: updated });
+      return;
     }
 
-    // Commit any constraint-locked values into params so they persist after the lock clears.
+    // Conflict check (§D): role is blocked by an active constraint
+    const isFrameRole = newRole === "start_frame" || newRole === "end_frame";
+    const isRefRole = newRole === "reference";
+    if (isFrameRole && constraints.disableFrameInputs) {
+      // Frames are blocked because refs are active
+      const conflictingRole: ImageRole = "reference";
+      setPendingDialog({ type: "role-conflict", imageId, role: newRole, conflictingRole });
+      return;
+    }
+    if (isRefRole && constraints.disableRefs) {
+      // Refs are blocked because frames are active
+      const hasStart = Object.values(updated).includes("start_frame");
+      const conflictingRole: ImageRole = hasStart ? "start_frame" : "end_frame";
+      setPendingDialog({ type: "role-conflict", imageId, role: newRole, conflictingRole });
+      return;
+    }
+
+    // Singleton replacement check (§G): start_frame or end_frame already held by another image
+    if (newRole === "start_frame" || newRole === "end_frame") {
+      const incumbentId = Object.entries(updated).find(
+        ([id, r]) => id !== imageId && r === newRole,
+      )?.[0];
+      if (incumbentId) {
+        const incumbentImage = upstreamImages.find((img) => img.id === incumbentId);
+        const incumbentName = incumbentImage?.filename ?? "";
+        setPendingDialog({
+          type: "replace-singleton",
+          imageId,
+          role: newRole,
+          incumbentId,
+          incumbentName,
+        });
+        return;
+      }
+    }
+
+    // No conflict, no replacement needed — apply directly
+    updated[imageId] = newRole;
+    commitRoleChange(updated);
+  }
+
+  function commitRoleChange(updated: Record<string, ImageRole>) {
     const nextConstraints = evaluateConstraints(
       currentModel?.rules,
       buildConstraintState(updated, params),
@@ -579,6 +649,37 @@ export function VideoGenFocusView({
   }
 
   async function handleGenerate() {
+    // C0 (Kling): start frame required — button should be disabled, but guard anyway
+    if (currentModel?.provider === "kling") {
+      const hasStartFrame = Object.values(effectiveImageRoles).includes("start_frame");
+      if (!hasStartFrame) return;
+    }
+
+    // C2: images connected but none assigned (non-Kling providers)
+    if (upstreamImages.length > 0 && Object.keys(effectiveImageRoles).length === 0) {
+      setPendingDialog({ type: "no-roles" });
+      return;
+    }
+
+    // C3: end frame slot available, start frame assigned, unassigned images exist, no end frame
+    const hasStartFrame = Object.values(effectiveImageRoles).includes("start_frame");
+    const hasEndFrame = Object.values(effectiveImageRoles).includes("end_frame");
+    const hasUnassigned = upstreamImages.some((img) => !(img.id in effectiveImageRoles));
+    if (
+      imageInputs.endFrame &&
+      hasStartFrame &&
+      !hasEndFrame &&
+      hasUnassigned &&
+      !hasExplicitlySkippedEndFrameRef.current
+    ) {
+      setPendingDialog({ type: "missing-end-frame" });
+      return;
+    }
+
+    await doGenerate();
+  }
+
+  async function doGenerate() {
     setGenerating(true);
     setLastError(null);
     try {
@@ -746,7 +847,13 @@ export function VideoGenFocusView({
                       <Button
                         size="lg"
                         onClick={handleGenerate}
-                        disabled={isGenerating || constraints.disableGenerate || !editable}
+                        disabled={
+                          isGenerating ||
+                          constraints.disableGenerate ||
+                          !editable ||
+                          (currentModel?.provider === "kling" &&
+                            !Object.values(effectiveImageRoles).includes("start_frame"))
+                        }
                       >
                         <Sparkles className="size-4" strokeWidth={1.5} />
                         {isGenerating
@@ -756,11 +863,16 @@ export function VideoGenFocusView({
                             : "Generate"}
                       </Button>
                     </TooltipTrigger>
-                    {constraints.disableGenerate && constraints.disableGenerateReason && (
+                    {(constraints.disableGenerate && constraints.disableGenerateReason) ? (
                       <TooltipContent side="bottom">
                         {constraints.disableGenerateReason}
                       </TooltipContent>
-                    )}
+                    ) : currentModel?.provider === "kling" &&
+                      !Object.values(effectiveImageRoles).includes("start_frame") ? (
+                      <TooltipContent side="bottom">
+                        Kling requires a start frame — connect an image and assign it as Start Frame
+                      </TooltipContent>
+                    ) : null}
                   </Tooltip>
                 </div>
                 {lastError && !isGenerating && (
@@ -868,6 +980,20 @@ export function VideoGenFocusView({
                       imageRoles={effectiveImageRoles}
                       imageInputs={imageInputs}
                       onRoleChange={handleRoleChange}
+                      onConflictingRoleRequest={(imageId, role) => {
+                        const isFrameRole = role === "start_frame" || role === "end_frame";
+                        if (isFrameRole) {
+                          setPendingDialog({ type: "role-conflict", imageId, role, conflictingRole: "reference" });
+                        } else {
+                          const hasStart = Object.values(effectiveImageRoles).includes("start_frame");
+                          setPendingDialog({
+                            type: "role-conflict",
+                            imageId,
+                            role,
+                            conflictingRole: hasStart ? "start_frame" : "end_frame",
+                          });
+                        }
+                      }}
                       onOpenDetail={(id, type) => setDetailItem({ id, type })}
                       disableFrameInputs={constraints.disableFrameInputs}
                       disableFrameInputsReason={
@@ -879,6 +1005,8 @@ export function VideoGenFocusView({
                     />
                   )}
                 </LeftSection>
+
+                <ActiveRulesCard constraints={constraints} />
               </div>
 
               {/* Right panel */}
@@ -917,6 +1045,129 @@ export function VideoGenFocusView({
             </div>
           )}
         </div>
+
+        {/* ── Dialog hub — all dialogs driven by pendingDialog state ── */}
+        <AlertDialog
+          open={pendingDialog !== null}
+          onOpenChange={(open) => { if (!open) setPendingDialog(null); }}
+        >
+          <AlertDialogContent>
+            {pendingDialog?.type === "no-roles" && (
+              <>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>No frame selected</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    You have connected images but haven&apos;t assigned any role (start frame, end
+                    frame, or reference). Generate anyway using only the text prompt?
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => void doGenerate()}>
+                    Generate anyway
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </>
+            )}
+
+            {pendingDialog?.type === "missing-end-frame" && (
+              <>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>End frame not assigned</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    You have a connected image without a role, and this model supports an end
+                    frame. Generate with just the start frame?
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => {
+                      hasExplicitlySkippedEndFrameRef.current = true;
+                      void doGenerate();
+                    }}
+                  >
+                    Generate anyway
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </>
+            )}
+
+            {pendingDialog?.type === "role-conflict" && (() => {
+              const d = pendingDialog;
+              const isAddingRef = d.role === "reference";
+              const modelLabel = currentModel?.label ?? "This model";
+              const removeWhat = isAddingRef ? "start/end frame assignments" : "reference image assignments";
+              const switchingTo = isAddingRef ? "reference images" : "start/end frames";
+              return (
+                <>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Can&apos;t combine these roles</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      {modelLabel} doesn&apos;t support reference images together with start/end
+                      frames. Switching to {switchingTo} will remove your {removeWhat}.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => {
+                        const updated = { ...effectiveImageRoles };
+                        for (const [id, r] of Object.entries(updated)) {
+                          if (isAddingRef && (r === "start_frame" || r === "end_frame")) {
+                            delete updated[id];
+                          } else if (!isAddingRef && r === "reference") {
+                            delete updated[id];
+                          }
+                        }
+                        updated[d.imageId] = d.role;
+                        commitRoleChange(updated);
+                      }}
+                    >
+                      Switch to {switchingTo}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </>
+              );
+            })()}
+
+            {pendingDialog?.type === "replace-singleton" && (() => {
+              const d = pendingDialog;
+              const roleLabel = d.role === "start_frame" ? "start frame" : "end frame";
+              const incumbentLabel = d.incumbentName
+                ? `"${d.incumbentName}"`
+                : `the current ${roleLabel}`;
+              return (
+                <>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Replace {roleLabel}?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      {incumbentLabel} is currently set as the {roleLabel}. Replace it with this
+                      image?
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => {
+                        const updated = { ...effectiveImageRoles };
+                        if (imageInputs.maxReferenceImages > 0) {
+                          updated[d.incumbentId] = "reference";
+                        } else {
+                          delete updated[d.incumbentId];
+                        }
+                        updated[d.imageId] = d.role;
+                        commitRoleChange(updated);
+                      }}
+                    >
+                      Replace
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </>
+              );
+            })()}
+          </AlertDialogContent>
+        </AlertDialog>
       </SheetContent>
     </Sheet>
   );

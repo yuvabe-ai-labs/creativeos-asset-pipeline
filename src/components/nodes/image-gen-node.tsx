@@ -40,6 +40,9 @@ export function ImageGenNode({ id, data, selected }: NodeProps) {
               ? (d.parsed as string | undefined)
               : undefined,
         fileKind: n.type === "file" ? (d.fileKind as string | undefined) : undefined,
+        fileSizeBytes: d.fileSizeBytes as number | undefined,
+        imageWidth: d.imageWidth as number | undefined,
+        imageHeight: d.imageHeight as number | undefined,
       };
     });
   }, [nodes, edges, id]);

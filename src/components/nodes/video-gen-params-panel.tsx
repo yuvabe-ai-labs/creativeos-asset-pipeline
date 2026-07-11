@@ -3,7 +3,10 @@
 import {
   Cpu,
   Crop,
+  Gauge,
   LayoutGrid,
+  Maximize2,
+  Move,
   Settings2,
   Timer,
   type LucideIcon,
@@ -14,15 +17,31 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { videoGenClientModelMap } from "@/lib/video-gen/client-models";
 import { ImageGenParamRow } from "./image-gen-param-row";
 import { ParamControl } from "./param-controls";
+import type { ParamSpec } from "@/lib/image-gen/types";
 
 const PARAM_ICONS: Record<string, LucideIcon> = {
-  aspect_ratio: Crop,
-  duration:     Timer,
-  seconds:      Timer,
-  size:         LayoutGrid,
+  aspect_ratio:        Crop,
+  duration:            Timer,
+  seconds:             Timer,
+  size:                LayoutGrid,
+  mode:                Gauge,
+  cfg_scale:           Settings2,
+  negative_prompt:     Settings2,
+  pan:                 Move,
+  tilt:                Move,
+  zoom:                Maximize2,
+  roll:                Move,
+  horizontal_movement: Move,
+  vertical_movement:   Move,
 };
 
 const SELECT_CLS =
@@ -46,7 +65,60 @@ export function VideoGenParamsPanel({
   lockedParamReasons = {},
 }: Props) {
   const model = videoGenClientModelMap[modelId];
-  const visibleParams = model?.params.filter((p) => p.visible) ?? [];
+  const visibleParams = (model?.params ?? [])
+    .filter((p: ParamSpec) => p.visible)
+    .sort((a: ParamSpec, b: ParamSpec) => a.order - b.order);
+
+  const primaryParams = visibleParams.filter((p: ParamSpec) => p.group === "primary");
+  const advancedParams = visibleParams.filter((p: ParamSpec) => p.group === "advanced");
+
+  function renderParamRow(spec: ParamSpec) {
+    const lockedValue = lockedParams[spec.name];
+    const isLocked = spec.name in lockedParams;
+    const reason = lockedParamReasons[spec.name];
+
+    if (isLocked && spec.constraints.type === "select") {
+      const options = spec.constraints.options;
+      return (
+        <ImageGenParamRow
+          key={spec.name}
+          icon={PARAM_ICONS[spec.name] ?? Settings2}
+          label={spec.label}
+        >
+          <Tooltip>
+            <TooltipTrigger render={<span className="min-w-0 flex-1" />}>
+              <select
+                value={String(lockedValue)}
+                onChange={() => {}}
+                className={SELECT_CLS}
+              >
+                {options.map((opt) => (
+                  <option key={opt} value={opt} disabled={opt !== String(lockedValue)}>
+                    {opt}
+                  </option>
+                ))}
+              </select>
+            </TooltipTrigger>
+            {reason && <TooltipContent side="top">{reason}</TooltipContent>}
+          </Tooltip>
+        </ImageGenParamRow>
+      );
+    }
+
+    return (
+      <ImageGenParamRow
+        key={spec.name}
+        icon={PARAM_ICONS[spec.name] ?? Settings2}
+        label={spec.label}
+      >
+        <ParamControl
+          spec={spec}
+          value={params[spec.name] ?? spec.defaultValue}
+          onChange={(v) => onParamChange(spec.name, v)}
+        />
+      </ImageGenParamRow>
+    );
+  }
 
   return (
     <TooltipProvider>
@@ -66,56 +138,24 @@ export function VideoGenParamsPanel({
           </select>
         </ImageGenParamRow>
 
-        {/* Param rows */}
-        {visibleParams.map((spec) => {
-          const lockedValue = lockedParams[spec.name];
-          const isLocked = spec.name in lockedParams;
-          const reason = lockedParamReasons[spec.name];
+        {/* Primary params */}
+        {primaryParams.map(renderParamRow)}
 
-          // For select params with a locked value: show all options but disable invalid ones.
-          // Tooltip on hover explains why it's locked.
-          if (isLocked && spec.constraints.type === "select") {
-            const options = spec.constraints.options;
-            return (
-              <ImageGenParamRow
-                key={spec.name}
-                icon={PARAM_ICONS[spec.name] ?? Settings2}
-                label={spec.label}
-              >
-                <Tooltip>
-                  <TooltipTrigger render={<span className="min-w-0 flex-1" />}>
-                    <select
-                      value={String(lockedValue)}
-                      onChange={() => {}}
-                      className={SELECT_CLS}
-                    >
-                      {options.map((opt) => (
-                        <option key={opt} value={opt} disabled={opt !== String(lockedValue)}>
-                          {opt}
-                        </option>
-                      ))}
-                    </select>
-                  </TooltipTrigger>
-                  {reason && <TooltipContent side="top">{reason}</TooltipContent>}
-                </Tooltip>
-              </ImageGenParamRow>
-            );
-          }
-
-          return (
-            <ImageGenParamRow
-              key={spec.name}
-              icon={PARAM_ICONS[spec.name] ?? Settings2}
-              label={spec.label}
-            >
-              <ParamControl
-                spec={spec}
-                value={params[spec.name] ?? spec.defaultValue}
-                onChange={(v) => onParamChange(spec.name, v)}
-              />
-            </ImageGenParamRow>
-          );
-        })}
+        {/* Advanced params — collapsed accordion */}
+        {advancedParams.length > 0 && (
+          <Accordion multiple={false} className="pt-1">
+            <AccordionItem value="advanced" className="border-none">
+              <AccordionTrigger className="py-1 text-[0.7rem] tracking-wide uppercase text-muted-foreground hover:text-foreground hover:no-underline">
+                Advanced
+              </AccordionTrigger>
+              <AccordionContent className="pt-2">
+                <div className="space-y-2">
+                  {advancedParams.map(renderParamRow)}
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
+        )}
       </div>
     </TooltipProvider>
   );

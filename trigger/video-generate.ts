@@ -72,8 +72,24 @@ export const videoGenerateTask = task({
         params: payload.params,
       });
 
-      logger.info("Video generation succeeded", { generationId, videoUrl: result.videoUrl, durationSeconds: result.durationSeconds });
+      logger.info("Video generation call succeeded", {
+        generationId,
+        modelId,
+        videoUrl: result.videoUrl,
+        durationSeconds: result.durationSeconds,
+        providerJobId: result.providerJobId,
+      });
 
+      // Kling uses webhook delivery — store providerJobId and return.
+      // The webhook handler calls completeGeneration() on its own.
+      if (result.providerJobId) {
+        const { setProviderJobId } = await import("@/lib/db/generations");
+        await setProviderJobId(generationId, result.providerJobId);
+        logger.info("Kling job submitted — waiting for webhook", { generationId, taskId: result.providerJobId });
+        return;
+      }
+
+      // Non-webhook providers (Veo, Sora): post completion immediately
       await postWebhook({
         generationId,
         status: "succeeded",

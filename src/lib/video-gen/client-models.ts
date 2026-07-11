@@ -1,6 +1,7 @@
 import type { VideoGenClientModelSpec, ConstraintRule } from "./types";
 import { veoParams, veoLiteParams } from "./params/veo";
 import { soraParams } from "./params/sora";
+import { klingLegacyParams, klingV3Params } from "./params/kling";
 
 // ── Shared image input capability shapes ──────────────────────────────────────
 
@@ -23,7 +24,7 @@ const VEO_LITE_RULES: ConstraintRule[] = [
     id: "lite-end-frame-duration",
     when: { field: "hasEndFrame", op: "eq", value: true },
     effect: { lockParams: [{ name: "duration", value: "8" }] },
-    reason: "End frame requires 8s duration",
+    reason: "End frame selected → duration locked to 8s",
   },
   {
     id: "end-frame-requires-start-frame",
@@ -35,7 +36,7 @@ const VEO_LITE_RULES: ConstraintRule[] = [
       ],
     },
     effect: { disableGenerate: true },
-    reason: "End frame requires a start frame",
+    reason: "End frame needs a start frame before you can generate",
   },
 ];
 
@@ -47,7 +48,7 @@ const VEO_REFS_RULES: ConstraintRule[] = [
       lockParams: [{ name: "duration", value: "8" }],
       disableFrameInputs: true,
     },
-    reason: "Reference images require 8s and can't be combined with start/end frame",
+    reason: "Reference images selected → duration locked to 8s, start/end frames unavailable",
   },
   {
     id: "frames-disable-refs",
@@ -59,13 +60,13 @@ const VEO_REFS_RULES: ConstraintRule[] = [
       ],
     },
     effect: { disableRefs: true },
-    reason: "Start/end frame can't be combined with reference images",
+    reason: "Start/end frame selected → reference images unavailable",
   },
   {
     id: "end-frame-lock-duration",
     when: { field: "hasEndFrame", op: "eq", value: true },
     effect: { lockParams: [{ name: "duration", value: "8" }] },
-    reason: "End frame requires 8s duration",
+    reason: "End frame selected → duration locked to 8s",
   },
   {
     id: "end-frame-requires-start-frame",
@@ -77,7 +78,7 @@ const VEO_REFS_RULES: ConstraintRule[] = [
       ],
     },
     effect: { disableGenerate: true },
-    reason: "End frame requires a start frame",
+    reason: "End frame needs a start frame before you can generate",
   },
 ];
 
@@ -86,9 +87,15 @@ const SORA_RULES: ConstraintRule[] = [
     id: "sora-start-frame-locks-size",
     when: { field: "hasStartFrame", op: "eq", value: true },
     effect: { lockParams: [{ name: "size", value: "1280x720" }] },
-    reason: "Size is set by the start frame image — cannot be changed",
+    reason: "Start frame selected → output size locked to match your image",
   },
 ];
+
+const KLING_IMAGE_INPUTS = {
+  startFrame: true,
+  endFrame: false,
+  maxReferenceImages: 0,
+} as const;
 
 // ── Model map ─────────────────────────────────────────────────────────────────
 
@@ -132,6 +139,66 @@ export const videoGenClientModelMap: Record<string, VideoGenClientModelSpec> = {
     imageInputs: { startFrame: true, endFrame: false, maxReferenceImages: 0 },
     params: soraParams,
     rules: SORA_RULES,
+  },
+  "kling:kling-v1-5": {
+    id: "kling:kling-v1-5",
+    provider: "kling",
+    label: "Kling 1.5",
+    providerLabel: "Kling",
+    maxDurationSeconds: 10,
+    imageInputs: KLING_IMAGE_INPUTS,
+    params: klingLegacyParams,
+    rules: [],
+  },
+  "kling:kling-v1-6": {
+    id: "kling:kling-v1-6",
+    provider: "kling",
+    label: "Kling 1.6",
+    providerLabel: "Kling",
+    maxDurationSeconds: 10,
+    imageInputs: KLING_IMAGE_INPUTS,
+    params: klingLegacyParams,
+    rules: [],
+  },
+  "kling:kling-v2-1": {
+    id: "kling:kling-v2-1",
+    provider: "kling",
+    label: "Kling 2.1",
+    providerLabel: "Kling",
+    maxDurationSeconds: 10,
+    imageInputs: KLING_IMAGE_INPUTS,
+    params: klingLegacyParams,
+    rules: [],
+  },
+  "kling:kling-v2-1-master": {
+    id: "kling:kling-v2-1-master",
+    provider: "kling",
+    label: "Kling 2.1 Master",
+    providerLabel: "Kling",
+    maxDurationSeconds: 10,
+    imageInputs: KLING_IMAGE_INPUTS,
+    params: klingLegacyParams,
+    rules: [],
+  },
+  "kling:kling-v2-6": {
+    id: "kling:kling-v2-6",
+    provider: "kling",
+    label: "Kling 2.6",
+    providerLabel: "Kling",
+    maxDurationSeconds: 10,
+    imageInputs: KLING_IMAGE_INPUTS,
+    params: klingLegacyParams,
+    rules: [],
+  },
+  "kling:kling-v3": {
+    id: "kling:kling-v3",
+    provider: "kling",
+    label: "Kling 3.0",
+    providerLabel: "Kling",
+    maxDurationSeconds: 15,
+    imageInputs: KLING_IMAGE_INPUTS,
+    params: klingV3Params,
+    rules: [],
   },
 };
 
