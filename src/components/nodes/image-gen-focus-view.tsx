@@ -68,6 +68,12 @@ import {
 import { smartMergeParams } from "@/lib/image-gen/params/merge";
 import { ImageGenOutputSettings } from "./image-gen-output-settings";
 import { validateReferenceImages, type RefImageMeta } from "@/lib/image-gen/validate";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 export type ImageGenFocusViewProps = {
   open: boolean;
@@ -799,27 +805,33 @@ export function ImageGenFocusView({
                   />
                 )}
                 <div className="flex flex-col items-end">
-                  <Button
-                    size="lg"
-                    onClick={handleGenerate}
-                    disabled={generating || editing || !promptUpstream || !editable || hasRefViolation}
-                  >
-                    <Sparkles className="size-4" strokeWidth={1.5} />
-                    {generating
-                      ? "Generating…"
-                      : editing
-                        ? "Editing…"
-                        : imageUrl
-                          ? "Re-generate"
-                          : "Generate"}
-                  </Button>
-                  {hasRefViolation && (
-                    <p className="mt-1.5 text-center text-xs text-amber-600">
-                      {refValidation.ok ? null : refValidation.violations.length === 1
-                        ? "A reference image isn't supported — hover it to see why."
-                        : `${refValidation.violations.length} reference images aren't supported — hover them to see why.`}
-                    </p>
-                  )}
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger render={<span className="inline-flex" />}>
+                        <Button
+                          size="lg"
+                          onClick={handleGenerate}
+                          disabled={generating || editing || !promptUpstream || !editable || hasRefViolation}
+                        >
+                          <Sparkles className="size-4" strokeWidth={1.5} />
+                          {generating
+                            ? "Generating…"
+                            : editing
+                              ? "Editing…"
+                              : imageUrl
+                                ? "Re-generate"
+                                : "Generate"}
+                        </Button>
+                      </TooltipTrigger>
+                      {hasRefViolation && !refValidation.ok && (
+                        <TooltipContent side="top" className="max-w-56 text-center">
+                          {refValidation.violations.length === 1
+                            ? refValidation.violations[0].message
+                            : `${refValidation.violations.length} reference images aren't supported by this model.`}
+                        </TooltipContent>
+                      )}
+                    </Tooltip>
+                  </TooltipProvider>
                 </div>
                 <GuidedNextButton
                   sourceId={nodeId}

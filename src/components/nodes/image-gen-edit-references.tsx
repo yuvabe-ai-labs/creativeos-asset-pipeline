@@ -2,12 +2,6 @@
 
 import { AlertTriangle, Check, ImageIcon, Pin } from "lucide-react";
 import { cn } from "@/lib/utils";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 
 export type EditReferenceItem = {
   id: string;
@@ -40,8 +34,7 @@ export function ImageGenEditReferences({
 }: Props) {
   if (items.length === 0) return null;
   return (
-    <TooltipProvider>
-      <div className="space-y-2">
+    <div className="space-y-2">
         <span className="text-eyebrow text-[0.6rem]! text-muted-foreground">
           References for this edit
         </span>
@@ -94,22 +87,11 @@ export function ImageGenEditReferences({
                   )}
                 </button>
 
-                {/* Violation badge — amber triangle, tooltip on hover */}
+                {/* Violation badge */}
                 {hasViolation && (
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={
-                        <span className="absolute right-0.5 top-0.5 inline-flex items-center justify-center rounded-full bg-amber-50 border border-amber-300 p-0.5 shadow-sm" />
-                      }
-                    >
-                      <AlertTriangle className="size-3 text-amber-500" strokeWidth={1.5} />
-                    </TooltipTrigger>
-                    <TooltipContent side="top" className="max-w-56 text-center">
-                      <p className="font-medium text-amber-700">Not supported by this model</p>
-                      <p className="text-muted-foreground mt-0.5">{it.violation}</p>
-                      <p className="text-muted-foreground mt-0.5">Try a different model.</p>
-                    </TooltipContent>
-                  </Tooltip>
+                  <span className="absolute right-0.5 top-0.5 inline-flex items-center justify-center rounded-full bg-amber-50 border border-amber-300 p-0.5 shadow-sm">
+                    <AlertTriangle className="size-3 text-amber-500" strokeWidth={1.5} />
+                  </span>
                 )}
 
                 {!it.isBase && canSetBase && !hasViolation && (
@@ -132,7 +114,6 @@ export function ImageGenEditReferences({
             );
           })}
         </div>
-      </div>
-    </TooltipProvider>
+    </div>
   );
 }
