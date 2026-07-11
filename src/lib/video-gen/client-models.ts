@@ -24,7 +24,7 @@ const VEO_LITE_RULES: ConstraintRule[] = [
     id: "lite-end-frame-duration",
     when: { field: "hasEndFrame", op: "eq", value: true },
     effect: { lockParams: [{ name: "duration", value: "8" }] },
-    reason: "End frame requires 8s duration",
+    reason: "End frame selected → duration locked to 8s",
   },
   {
     id: "end-frame-requires-start-frame",
@@ -36,7 +36,7 @@ const VEO_LITE_RULES: ConstraintRule[] = [
       ],
     },
     effect: { disableGenerate: true },
-    reason: "End frame requires a start frame",
+    reason: "End frame needs a start frame before you can generate",
   },
 ];
 
@@ -48,7 +48,7 @@ const VEO_REFS_RULES: ConstraintRule[] = [
       lockParams: [{ name: "duration", value: "8" }],
       disableFrameInputs: true,
     },
-    reason: "Reference images require 8s and can't be combined with start/end frame",
+    reason: "Reference images selected → duration locked to 8s, start/end frames unavailable",
   },
   {
     id: "frames-disable-refs",
@@ -60,13 +60,13 @@ const VEO_REFS_RULES: ConstraintRule[] = [
       ],
     },
     effect: { disableRefs: true },
-    reason: "Start/end frame can't be combined with reference images",
+    reason: "Start/end frame selected → reference images unavailable",
   },
   {
     id: "end-frame-lock-duration",
     when: { field: "hasEndFrame", op: "eq", value: true },
     effect: { lockParams: [{ name: "duration", value: "8" }] },
-    reason: "End frame requires 8s duration",
+    reason: "End frame selected → duration locked to 8s",
   },
   {
     id: "end-frame-requires-start-frame",
@@ -78,7 +78,7 @@ const VEO_REFS_RULES: ConstraintRule[] = [
       ],
     },
     effect: { disableGenerate: true },
-    reason: "End frame requires a start frame",
+    reason: "End frame needs a start frame before you can generate",
   },
 ];
 
@@ -87,7 +87,7 @@ const SORA_RULES: ConstraintRule[] = [
     id: "sora-start-frame-locks-size",
     when: { field: "hasStartFrame", op: "eq", value: true },
     effect: { lockParams: [{ name: "size", value: "1280x720" }] },
-    reason: "Size is set by the start frame image — cannot be changed",
+    reason: "Start frame selected → output size locked to match your image",
   },
 ];
 
