@@ -1,30 +1,21 @@
 import { apiError } from "@/lib/api/route-helpers";
 import { createOpenAI } from "@/lib/openai/server";
-import { listNodes } from "@/lib/db/nodes";
-import { listEdges } from "@/lib/db/edges";
-import { describeNode } from "@/lib/nodes/describe-node";
+import { buildCopilotContext } from "@/lib/copilot/context";
 
 // Lesson 4 (two-call, simplest path) — CALL 1: stream the PROSE reply as plain text
 // (same as Lesson 3). The node chips come from a SEPARATE structured call:
 // /api/copilot/references. No partial-JSON parsing needed anywhere.
 export async function POST(req: Request) {
   const body = (await req.json().catch(() => null)) as
-    | { message?: string; canvasId?: string }
+    | { messages?: { role: "user" | "assistant"; content: string }[]; canvasId?: string; mentionedIds?: string[] }
     | null;
-  const message = body?.message?.trim();
+  const history = Array.isArray(body?.messages) ? body.messages : [];
   const canvasId = body?.canvasId;
-  if (!message) return apiError("A 'message' is required.", 400);
+  if (history.length === 0) return apiError("A 'messages' history is required.", 400);
   if (!canvasId) return apiError("A 'canvasId' is required.", 400);
 
-  // Grounding (Lesson 2) — unchanged.
-  const nodes = await listNodes(canvasId);
-  const edges = await listEdges(canvasId);
-  const canvasContext =
-    nodes.length === 0
-      ? "The canvas is currently empty (it has no nodes)."
-      : `The canvas has ${nodes.length} node(s):\n` +
-        nodes.map((n) => `- ${n.type}: ${describeNode(n)} (id ${n.id})`).join("\n") +
-        `\nThere are ${edges.length} connection(s) between them.`;
+  // Grounding (Lesson 2), now with handles + the human's @-referenced nodes spotlighted.
+  const canvasContext = await buildCopilotContext(canvasId, body?.mentionedIds ?? []);
 
   try {
     const openai = createOpenAI();
@@ -36,11 +27,13 @@ export async function POST(req: Request) {
           role: "system",
           content:
             "You are the copilot inside CreativeOS. You CAN see the canvas — it is described " +
-            "in the next message. Be brief and concrete; refer to nodes by their label and type. " +
-            "Each node lists an internal id for reference only — never show raw ids to the user.",
+            "in the next message. Be brief and concrete. Refer to nodes by their HANDLE (e.g. " +
+            "PRM-A3F9) and type; the user sees the same handles on the canvas. When the user " +
+            "writes an @HANDLE, that is a specific node they are pointing at — use it. Each node " +
+            "also lists a bracketed internal [id …] for your reference only — never show it.",
         },
         { role: "system", content: canvasContext },
-        { role: "user", content: message },
+        ...history,
       ],
     });
 
