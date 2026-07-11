@@ -59,6 +59,13 @@ type ImageRole = "start_frame" | "end_frame" | "reference";
 
 type ImageInputs = { startFrame: boolean; endFrame: boolean; maxReferenceImages: number };
 
+type DialogState =
+  | null
+  | { type: "no-roles" }
+  | { type: "missing-end-frame" }
+  | { type: "role-conflict"; imageId: string; role: ImageRole; conflictingRole: "start_frame" | "end_frame" | "reference" }
+  | { type: "replace-singleton"; imageId: string; role: "start_frame" | "end_frame"; incumbentId: string; incumbentName: string };
+
 // Fill in default roles for any unassigned images:
 // - refs available → all images get "reference" (up to the cap)
 // - no refs → first unassigned = "start_frame", second = "end_frame"
@@ -380,6 +387,8 @@ export function VideoGenFocusView({
     id: string;
     type: "prompt" | "image";
   } | null>(null);
+  const [pendingDialog, setPendingDialog] = useState<DialogState>(null);
+  const hasExplicitlySkippedEndFrameRef = useRef(false);
 
   const [loadingVersions, setLoadingVersions] = useState(false);
   const [loadingConnected, setLoadingConnected] = useState(false);
@@ -460,14 +469,7 @@ export function VideoGenFocusView({
       .then(({ images, promptNode: pn }) => {
         setUpstreamImages(images);
         setPromptNode(pn);
-        // Auto-assign default roles for any unassigned images
-        const inputs = videoGenClientModelMap[modelId]?.imageInputs;
-        if (inputs && images.length > 0) {
-          const withDefaults = applyDefaultImageRoles(images, inputs, imageRolesProp);
-          if (images.some((img) => img.id in withDefaults && !(img.id in imageRolesProp))) {
-            onPatchRef.current({ imageRoles: withDefaults });
-          }
-        }
+        hasExplicitlySkippedEndFrameRef.current = false;
       })
       .catch(() => {})
       .finally(() => setLoadingConnected(false));
