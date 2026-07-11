@@ -83,7 +83,7 @@ export function VideoGenConnectedSection({
 
   return (
     <div className="flex flex-col gap-3">
-      {/* Clear all button — only shown when at least one role is assigned */}
+      {/* Clear roles button — only shown when at least one role is assigned */}
       {hasAnyAssignment && onReset && (
         <div className="flex justify-end">
           <button
