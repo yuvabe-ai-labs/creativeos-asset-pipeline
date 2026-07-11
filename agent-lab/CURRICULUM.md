@@ -2,6 +2,61 @@
 
 > ## 📍 RESUME HERE (session pointer)
 >
+> ## 🔵 SESSION UPDATE — 2026-07-11 (READ THIS FIRST; supersedes "Arc after L5" below)
+>
+> **Direction chosen (option A): product-first around the script → shot pipeline**, not
+> primitive-first. We build the real copilot feature by feature; each primitive is learned as it's
+> needed. The lesson shape (teach → implement → UX) still holds, but the driver is the product.
+>
+> **HITL decision — gate by BLAST RADIUS:** cheap, reversible, structural ops (create a node,
+> parse, add, wire) **execute INSTANTLY — no approve gate.** The HITL **approve / edit / reject**
+> gate (curriculum L6) is **DEFERRED to the GENERATION step** (real cost + irreversibility), where
+> it earns its keep. So L6 is intentionally NOT built on cheap ops — **it is owed at generation**
+> (that's the real L6 to build later). The dead `approveProposal`/`rejectProposal` in
+> `copilot-panel.tsx` is the KEPT seam for that gate.
+>
+> **Shipped this session (committed on `worktree-minimal-agent`, newest first):**
+> - `415b0d0` fix — create confirmation carries the node **handle** so `parse_script` targets the
+>   RIGHT node; actions prompt steers short/misspelled "yes" ("reyes") → parse, not create.
+> - `682db97` **upload a `.md`/`.txt` script** into the composer (📎) → `createScriptNode`.
+> - `9a3bb0e` **conversation memory** — the whole chat window is sent to the prose AND actions
+>   calls, so the model interprets "yes" itself (NO client pending-action/affirmation pattern); +
+>   the client `parseScript` recipe.
+> - `ef34e8c` actions route accepts history + the `parse_script` tool.
+> - `1e31cac` prose route accepts history.
+> - `19272b7` `parse_script` type + pure helpers (`buildHistory`, `resolveScriptTarget`).
+> - `ca77b82` + `3299251` — the conversation-memory **design spec + implementation plan** under
+>   `docs/superpowers/{specs,plans}/2026-07-11-*`.
+> - The **`create_script_node` "atom"** (instant client recipe: `addNode` + set `source` + focus)
+>   is folded into the commits above.
+>
+> **New architecture (the copilot's spine now):**
+> - `src/lib/copilot/actions.ts` — `CopilotAction` union (`add_node | create_script_node |
+>   parse_script`) + PURE, unit-tested helpers `placeNewNode`, `buildHistory`, `resolveScriptTarget`,
+>   `fileNameToTitle`, `scriptCreatedMessage` (`actions.test.ts`, **10 green**).
+> - `src/app/api/copilot/actions/route.ts` — message HISTORY + 3 tools (a router).
+> - `src/app/api/copilot/route.ts` — prose route takes the message HISTORY (memory).
+> - `src/components/canvas/copilot-panel.tsx` — `createScriptNode` + `parseScript` recipes, the 📎
+>   upload, sends history to both calls.
+>
+> **⚠️ OPEN / OWED — pick up here next session:**
+> 1. **UNCOMMITTED foundation the committed work DEPENDS ON.** `src/lib/copilot/context.ts`
+>    (`buildCopilotContext`, imported by all 3 copilot routes), `src/components/nodes/node-handle.tsx`,
+>    `src/lib/nodes/describe-node.ts(.test)`, `src/lib/copilot/context.ts`, and the on-card handle
+>    changes across node components are **still untracked/modified in the working tree.** COMMIT
+>    THESE FIRST — the committed routes import `context.ts`, so a clean checkout breaks without it.
+> 2. **Router-prompt cleanup (NOT applied).** The actions system prompt is script-heavy; make it a
+>    GENERIC tool-router and move script specifics into the tool DESCRIPTIONS. (Reviewed, proposed,
+>    not committed.)
+> 3. **Runtime verification pending.** "attach → yes → parsed shots" and the handle/typo fixes are
+>    static-clean (10 tests, tsc, lint) but were **not yet run in the browser.**
+> 4. **The real L6 — the HITL approve/edit/reject gate — is owed at the GENERATION step** (above).
+>
+> **Next product steps (shot journey):** fan out shots → compose ideas (D28) → image prompt →
+> Image Gen — with the **HITL gate landing at the generate step.**
+>
+> ---
+>
 > **Approach (locked):** build the copilot **in the real app**, incrementally. Every lesson runs
 > in this order → **① teach the engineering concept → ② implement it (I write the code and
 > explain it — user's preference) → ③ then a UX pass** (Shape of AI patterns —
@@ -16,6 +71,8 @@
 > **The copilot files (the MVP so far):**
 > - `src/app/api/copilot/route.ts` — CALL 1: streams the prose reply (plain text).
 > - `src/app/api/copilot/references/route.ts` — CALL 2: structured JSON → the node chips.
+> - `src/app/api/copilot/actions/route.ts` — CALL 3 (L5): function calling. Offers the
+>   `add_node` tool (`tool_choice:"auto"`); returns the model's *requested* action or null.
 > - `src/lib/nodes/describe-node.ts` — per-node-type label helper (grounding's "representation layer").
 > - `src/components/canvas/copilot-panel.tsx` — the chat panel, docked in the canvas (shadcn).
 > - Mounted in `src/components/canvas/canvas.tsx` (next to `<GenerationTray>`, inside the store provider).
@@ -37,9 +94,52 @@
 >   nodes missing / vary per run; LLMs are bad at exhaustive enumeration). **Next improvement:
 >   make chips deterministic in code** — the principle "LLM writes the prose (judgment), code picks
 >   the chips (fact)". Also: `describeNode` gives identical labels to untitled same-type nodes.
+> - ✅ **L5 — tools / function calling (the model *requests* an action).** CALL 3
+>   (`/api/copilot/actions`) offers ONE tool `add_node({type,title?})` with `tool_choice:"auto"`.
+>   The model returns `tool_calls` (NOT content) only when the user asks to add a node; we parse the
+>   JSON-string args, re-validate the `type` enum server-side, and return `{action}` or `{action:null}`.
+>   The panel renders it as a **read-only "Proposed action" card** (dashed primary chip). Nothing
+>   executes — the request→execute gap is intentional, it's where HITL lives. Concept nailed: a tool
+>   is CALL 2's structured-output machinery with the initiative flipped (model chooses the shape).
 >
-> **Arc after L4:** tools (the model *requests* an action) → **⚑ HITL** (approve / edit / reject —
-> the user's priority) → execute-on-approve (node appears via the store) → the loop → expert team.
+> **Arc after L5:** **⚑ L6 — HITL** (approve / edit / reject — the user's priority): add the gate +
+> buttons to the L5 proposal card, and on approve, EXECUTE via the store (`addNode(type, position)`,
+> then `updateNodeData` for the title) so the node appears live. Then → the loop → expert team.
+>
+> - ✅ **Refs (node identity layer).** `nodeHandle(node)` / `nodeLabel(node)` in `describe-node.ts`
+>   give every node a stable, uuid-derived, human-visible handle (`PRM-A3F9`) — a THIRD identity
+>   beside uuid + optional title, so untitled twins are distinguishable and you can "speak to the
+>   canvas in terms of which node." Shown on card faces via `NodeTitle` (new `node-handle.tsx`,
+>   5 title-bearing nodes) and on copilot chips, so chat + canvas share one vocabulary. TDD:
+>   `describe-node.test.ts` (7 green). Load-bearing for the questions-based HITL loop (candidate picking).
+>   PARKED as feature-drift (do NOT build unless a lesson needs it): @-mention typeahead, chip
+>   scaling, per-node prerequisite registries. See memory `feedback-concepts-not-features`.
+>
+> - ✅ **@-mention = human-directed grounding (the chosen paradigm).** The HUMAN references nodes;
+>   the copilot never volunteers candidate pickers (user: "options are never presented — I always
+>   select the references"). Two increments, both shipped:
+>   - *Increment 1 (input UX):* typing `@` in the composer opens a picker of canvas nodes
+>     (handle + title/type, filterable, ↑/↓/Enter/click) that inserts an `@PRM-A3F9` token.
+>     Built on the refs layer — the list is just `nodeLabel` per node. In `copilot-panel.tsx`.
+>   - *Increment 2 (the grounding payoff):* on send, `resolveMentions(text, nodes)` parses the
+>     `@HANDLE` tokens → node ids → sent as `mentionedIds`. New shared `src/lib/copilot/context.ts`
+>     (`buildCopilotContext`) now grounds ALL three calls (prose/references/actions), includes each
+>     node's handle, and spotlights the @-referenced nodes ("focus on them"). Prose system prompt
+>     updated to speak handles. TDD: `resolveMentions` covered (10 green total).
+>   Title used when present (search + label), handle always (agent-made nodes won't be named).
+>
+> **Superseded:** the model-asks-questions candidate-picker HITL loop is DROPPED — @-mention is the
+> paradigm (human drives). Approve/reject scaffolding in `copilot-panel.tsx` is now dead code.
+>
+> **Candidate next concepts (undecided — ask the user):**
+> - *@-mention polish:* render inserted `@HANDLE` tokens as pills; highlight referenced nodes on
+>   the canvas when hovering the message. (Feature-y — only if the user wants it.)
+> - *The loop / agency (L7):* the model works a goal across multiple tool calls (add_node +
+>   connect_nodes), needing conversation MEMORY. This is the real remaining PRIMITIVE.
+> - *Write tools + execute:* wire `add_node` / `connect_nodes` so the copilot actually builds the
+>   graph (the L5 proposal → real mutation), now grounded by @-references.
+>
+> **Open polish (deferred, not blocking):** make the L4 chips deterministic in code.
 >
 > **Store methods for L5 (applying approved actions, client-side):** `useCanvasStore` /
 > `useCanvasStoreApi` from `src/components/canvas/canvas-store-provider.tsx`;
