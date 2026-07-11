@@ -112,17 +112,15 @@ Cost is computed in `cost.ts` via `computeVideoCost(modelId, durationSeconds, au
 
 ## Authentication
 
-Kling uses JWT (HS256) generated server-side from an Access Key + Secret Key pair obtained from the Kling developer platform.
+Kling's new API key format: single Bearer token, no JWT generation required.
 
 ```
-Header:  { alg: "HS256", typ: "JWT" }
-Payload: { iss: KLING_ACCESS_KEY, exp: now + 1800, nbf: now - 5 }
-Signed with: KLING_SECRET_KEY
+Authorization: Bearer <KLING_API_KEY>
 ```
 
-Token is generated fresh per request (30-min TTL is well within task duration). Generation happens in `providers/kling.ts` using the `jose` package (already in the ecosystem via Next.js auth dependencies) or `jsonwebtoken`.
+Obtained once from the Kling console (shown only once — copy immediately). Used directly in all requests, identical pattern to OpenAI.
 
-New env vars: `KLING_ACCESS_KEY`, `KLING_SECRET_KEY`.
+New env var: `KLING_API_KEY` (single key, replaces the old AK+SK+JWT approach).
 
 ---
 
@@ -131,8 +129,7 @@ New env vars: `KLING_ACCESS_KEY`, `KLING_SECRET_KEY`.
 1. `video-generate` API route resolves model, params, image URLs — same as today
 2. `providers/kling.ts` `generate()`:
    a. Fetch start frame image → base64 (same `fetchAsBase64` helper pattern as Veo)
-   b. Generate JWT token
-   c. POST `https://api.klingai.com/v1/videos/image2video` with:
+   b. POST `https://api.klingai.com/v1/videos/image2video` with `Authorization: Bearer KLING_API_KEY` and:
       - `model_name`, `image_url` (base64), `prompt`, `duration`, `aspect_ratio`, `mode`, `cfg_scale`, `negative_prompt`, camera motion params
       - `callback_url: ${APP_URL}/api/webhooks/generation?provider=kling`
    d. Return `{ externalTaskId: task_id }` to the Trigger.dev task
@@ -197,7 +194,7 @@ Migration: `ALTER TABLE generations ADD COLUMN external_task_id TEXT;`
 | `trigger/video-generate.ts` | Return `externalTaskId` from provider, persist it |
 | `src/app/api/webhooks/generation/route.ts` | Add `?provider=kling` branch |
 | `src/lib/generations/complete.ts` | Accept lookup-by-externalTaskId path if needed |
-| `.env.example` | Add `KLING_ACCESS_KEY`, `KLING_SECRET_KEY` |
+| `.env.example` | Add `KLING_API_KEY` |
 | Supabase migration | Add `external_task_id` column to `generations` |
 
 ---
