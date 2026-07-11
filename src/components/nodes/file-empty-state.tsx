@@ -3,8 +3,10 @@
 import { type ChangeEvent, type DragEvent, useRef, useState } from "react";
 import { UploadCloud } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 type FileEmptyStateProps = {
   onUpload: (file: File) => void;
+  onPickFromDrive?: () => void;
 };
 
 const ACCEPTED = ".txt,.png,.jpg,.jpeg,.webp,.pdf,.docx";
@@ -17,7 +19,7 @@ const ACCEPTED_MIME = new Set([
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ]);
 
-export function FileEmptyState({ onUpload }: FileEmptyStateProps) {
+export function FileEmptyState({ onUpload, onPickFromDrive }: FileEmptyStateProps) {
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -77,6 +79,11 @@ export function FileEmptyState({ onUpload }: FileEmptyStateProps) {
         />
       </label>
 
+      {onPickFromDrive && (
+        <Button variant="outline" className="w-full gap-2" onClick={onPickFromDrive}>
+          Pick from Google Drive
+        </Button>
+      )}
     </div>
   );
 }
