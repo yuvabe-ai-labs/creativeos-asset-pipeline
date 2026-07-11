@@ -49,6 +49,7 @@ export async function GET(
           imageUrl: u.type === "image-gen"
             ? (u.activeOutput as string)
             : (d.fileUrl as string),
+          filename: typeof d.filename === "string" ? d.filename : undefined,
           fileSizeBytes: d.fileSizeBytes as number | undefined,
           imageWidth: d.imageWidth as number | undefined,
           imageHeight: d.imageHeight as number | undefined,
