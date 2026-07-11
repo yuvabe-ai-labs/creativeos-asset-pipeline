@@ -80,13 +80,15 @@ Same primary/advanced split as above, except `duration` (primary) is a select wi
 
 ### UI — VideoGenParamsPanel accordion
 
-`video-gen-params-panel.tsx` currently renders all visible params flat. It needs the same accordion split as `image-gen-output-settings.tsx`:
+`ParamSpec` is already shared from `src/lib/image-gen/types.ts` — video gen re-exports it. It already carries `group`, `order`, `visible`, and `description`. The params panel just isn't using `group` and `order` yet.
 
-1. Split `visibleParams` into `primaryParams` (`group === "primary"`) and `advancedParams` (`group === "advanced"`)
+`video-gen-params-panel.tsx` needs to match `image-gen-output-settings.tsx` exactly:
+
+1. Filter `model.params` by `visible`, then split into `primaryParams` (`group === "primary"`) and `advancedParams` (`group === "advanced"`), each sorted by `order`
 2. Render primary params flat (existing behavior)
 3. Wrap advanced params in a collapsed `<Accordion>` with an "Advanced" trigger — only rendered when `advancedParams.length > 0`
 
-This affects all models: existing Veo/Sora params are all `group: "primary"` so they are unaffected (no accordion rendered). Only Kling models trigger the accordion.
+Existing Veo/Sora params are all `group: "primary"` so they are unaffected (no accordion shown for those models). Only Kling triggers the accordion.
 
 ---
 
