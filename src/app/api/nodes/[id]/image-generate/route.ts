@@ -237,7 +237,11 @@ export async function POST(
 
   const validationResult = validateReferenceImages(refMetas, config);
   if (!validationResult.ok) {
-    const message = validationResult.violations.map((v) => v.message).join(" | ");
+    const count = validationResult.violations.length;
+    const message =
+      count === 1
+        ? `One of your reference images can't be used: ${validationResult.violations[0].message}`
+        : `${count} reference images can't be used — resize them before generating.`;
     return apiError(message, 422);
   }
 
