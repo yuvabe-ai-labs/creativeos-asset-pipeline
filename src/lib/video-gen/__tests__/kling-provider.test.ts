@@ -1,0 +1,74 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+
+// Mock fetch globally
+const mockFetch = vi.fn();
+vi.stubGlobal("fetch", mockFetch);
+
+describe("buildKlingRequestBody", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    process.env.KLING_API_KEY = "test-key";
+  });
+
+  it("maps params to correct Kling API fields", async () => {
+    const { buildKlingRequestBody } = await import("../providers/kling");
+    const body = buildKlingRequestBody({
+      modelName: "kling-v1-5",
+      imageBase64: "base64data",
+      mimeType: "image/jpeg",
+      prompt: "a cat walking",
+      params: {
+        mode: "pro",
+        duration: "5",
+        aspect_ratio: "16:9",
+        cfg_scale: 0.5,
+        negative_prompt: "",
+        pan: 0,
+        tilt: 0,
+        zoom: 0,
+        roll: 0,
+        horizontal_movement: 0,
+        vertical_movement: 0,
+      },
+      callbackUrl: "https://app.example.com/api/webhooks/generation?provider=kling",
+    });
+
+    expect(body.model_name).toBe("kling-v1-5");
+    expect(body.mode).toBe("pro");
+    expect(body.duration).toBe(5);
+    expect(body.aspect_ratio).toBe("16:9");
+    expect(body.cfg_scale).toBe(0.5);
+    expect(body.callback_url).toBe("https://app.example.com/api/webhooks/generation?provider=kling");
+    expect(body.image).toEqual({ type: "base64", value: "base64data" });
+  });
+
+  it("omits camera motion params when all are zero", async () => {
+    const { buildKlingRequestBody } = await import("../providers/kling");
+    const body = buildKlingRequestBody({
+      modelName: "kling-v1-5",
+      imageBase64: "base64data",
+      mimeType: "image/jpeg",
+      prompt: "test",
+      params: { mode: "pro", duration: "5", aspect_ratio: "16:9", cfg_scale: 0.5,
+        negative_prompt: "", pan: 0, tilt: 0, zoom: 0, roll: 0,
+        horizontal_movement: 0, vertical_movement: 0 },
+      callbackUrl: "https://example.com/webhook",
+    });
+    expect(body.camera_control).toBeUndefined();
+  });
+
+  it("includes camera_control when any motion param is non-zero", async () => {
+    const { buildKlingRequestBody } = await import("../providers/kling");
+    const body = buildKlingRequestBody({
+      modelName: "kling-v1-5",
+      imageBase64: "base64data",
+      mimeType: "image/jpeg",
+      prompt: "test",
+      params: { mode: "pro", duration: "5", aspect_ratio: "16:9", cfg_scale: 0.5,
+        negative_prompt: "", pan: 3, tilt: 0, zoom: 0, roll: 0,
+        horizontal_movement: 0, vertical_movement: 0 },
+      callbackUrl: "https://example.com/webhook",
+    });
+    expect(body.camera_control).toEqual({ type: "customize", config: { pan: 3, tilt: 0, zoom: 0, roll: 0, horizontal: 0, vertical: 0 } });
+  });
+});
