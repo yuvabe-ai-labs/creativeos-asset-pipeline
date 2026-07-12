@@ -3,7 +3,6 @@ import { useReactFlow, type NodeChange } from "@xyflow/react";
 import { useCanvasStoreApi } from "./canvas-store-provider";
 import { nodeHandle, resolveMentions } from "@/lib/nodes/describe-node";
 import {
-  placeNewNode,
   buildHistory,
   resolveScriptTarget,
   resolveNodeTarget,
@@ -17,20 +16,10 @@ import type { ReelScript } from "@/lib/nodes/reel-script";
 // A node the copilot referenced — arrives as STRUCTURED data (not text), so we can
 // render it as a clickable chip that highlights the real node on the canvas.
 export type NodeRef = { id: string; label: string; type: string };
-// The action the copilot *requested* via function calling (L5) — the raw server payload.
-type ActionRequest = { name: "add_node"; args: { type: string; title?: string } };
-// The same action once it enters the HITL gate (L6): it gains a lifecycle. It stays
-// `pending` until the human decides. Only on `approved` does anything run; `createdNodeId`
-// records the node the approval produced, so we can highlight it.
-export type ProposedAction = ActionRequest & {
-  status: "pending" | "approved" | "rejected";
-  createdNodeId?: string;
-};
 export type Msg = {
   role: "user" | "assistant";
   content: string;
   nodes?: NodeRef[];
-  proposal?: ProposedAction;
 };
 // A .md/.txt script the human dropped into the composer, pending send.
 export type Attachment = { name: string; text: string };
@@ -42,7 +31,7 @@ export function useCopilotChat(canvasId: string) {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [thinking, setThinking] = useState(false);
   const storeApi = useCanvasStoreApi();
-  const { setCenter } = useReactFlow();
+  const { setCenter, screenToFlowPosition } = useReactFlow();
 
   // Clicking a chip selects (highlights) that node on the real canvas.
   function highlightNode(id: string) {
@@ -56,13 +45,21 @@ export function useCopilotChat(canvasId: string) {
     onNodesChange(changes);
   }
 
+  // Where an agent-created node lands: the CENTER of the visible canvas, so it appears where
+  // the human is looking (not off-screen to the right like placeNewNode). Offsets by a half
+  // node so the node's center — not its top-left — sits at the viewport center.
+  function viewportCenterPosition() {
+    const c = screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
+    return { x: c.x - 120, y: c.y - 60 };
+  }
+
   // RECIPE — "create a script node from this". One model DECISION (create_script_node)
   // expands into this fixed, code-owned sequence: create the node, write the pasted text
   // into it as the source, name it, and bring it into view.
   function createScriptNode(source: string, title?: string) {
-    const { addNode, updateNodeData, nodes } = storeApi.getState();
+    const { addNode, updateNodeData } = storeApi.getState();
     const id = crypto.randomUUID();
-    const position = placeNewNode(nodes);
+    const position = viewportCenterPosition();
     addNode("script", position, id);
     updateNodeData(id, { source, ...(title ? { title } : {}) });
     highlightNode(id); // select it on the canvas
@@ -145,39 +142,21 @@ export function useCopilotChat(canvasId: string) {
     }
   }
 
-  // APPROVE — the gate opens. THIS is the first line in the whole copilot that mutates
-  // the canvas, and it runs only on a human click. The server merely proposed {type,title};
-  // we execute it here via the store, then mark the proposal approved. (Kept seam for the
-  // generation-step HITL gate; not wired to the current read-only proposal card.)
-  function approveProposal(msgIndex: number) {
-    const proposal = messages[msgIndex]?.proposal;
-    if (!proposal || proposal.status !== "pending") return;
-
-    const { addNode, updateNodeData, nodes } = storeApi.getState();
+  // RECIPE — add a node the model requested, then open its detail view. add_node is a
+  // cheap, reversible, structural op, so (per the blast-radius rule) it executes INSTANTLY
+  // like create_script_node / parse_script — no proposal gate. The real HITL gate is owed
+  // later at the GENERATION step, where cost + irreversibility earn it.
+  function addNodeAndOpen(args: { type: string; title?: string }) {
+    const { addNode, updateNodeData } = storeApi.getState();
     const id = crypto.randomUUID();
-    addNode(proposal.args.type, placeNewNode(nodes), id);
-    if (proposal.args.title) updateNodeData(id, { title: proposal.args.title });
-
-    setMessages((m) =>
-      m.map((msg, i) =>
-        i === msgIndex && msg.proposal
-          ? { ...msg, proposal: { ...msg.proposal, status: "approved", createdNodeId: id } }
-          : msg,
-      ),
-    );
-    highlightNode(id); // select the new node so the user sees what appeared
-  }
-
-  // REJECT — the gate stays shut. No store mutation; we just record the decision so the
-  // card shows it was dismissed (and can't be approved afterward).
-  function rejectProposal(msgIndex: number) {
-    setMessages((m) =>
-      m.map((msg, i) =>
-        i === msgIndex && msg.proposal?.status === "pending"
-          ? { ...msg, proposal: { ...msg.proposal, status: "rejected" } }
-          : msg,
-      ),
-    );
+    const position = viewportCenterPosition();
+    addNode(args.type, position, id);
+    if (args.title) updateNodeData(id, { title: args.title });
+    // Pan to it, then open its detail view via the shared focus signal (same as open_node).
+    setCenter(position.x + 120, position.y + 60, { zoom: 1, duration: 500 });
+    storeApi.getState().setFocusedNodeId(id);
+    const h = nodeHandle({ id, type: args.type });
+    setMessages((m) => [...m, { role: "assistant", content: `Added ${h} — its editor is in view.` }]);
   }
 
   // RECIPE — open a node's surface (Composer for a Shot, focus view otherwise). Reuses the
@@ -314,15 +293,10 @@ export function useCopilotChat(canvasId: string) {
         /* ignore — chips are optional */
       }
 
-      // CALL 3 (Lesson 5): a REQUESTED add_node becomes a read-only proposal card.
-      // Reuses the decision already fetched in Phase 1 — no second model call.
+      // CALL 3: a REQUESTED add_node executes INSTANTLY — create the node and open its
+      // detail view (blast-radius rule: cheap/reversible structural ops don't gate).
       if (action?.name === "add_node") {
-        const proposal = { ...action, status: "pending" as const };
-        setMessages((m) => {
-          const copy = [...m];
-          copy[copy.length - 1] = { ...copy[copy.length - 1], proposal };
-          return copy;
-        });
+        addNodeAndOpen(action.args);
       }
     } catch {
       setMessages((m) => [
@@ -334,5 +308,5 @@ export function useCopilotChat(canvasId: string) {
     }
   }
 
-  return { messages, thinking, highlightNode, approveProposal, rejectProposal, send };
+  return { messages, thinking, highlightNode, send };
 }
