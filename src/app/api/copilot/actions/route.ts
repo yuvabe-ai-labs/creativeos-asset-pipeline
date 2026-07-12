@@ -93,6 +93,28 @@ const tools = [
       },
     },
   },
+  {
+    type: "function" as const,
+    function: {
+      name: "open_node",
+      description:
+        "Open a node's editor / focus view so the user can work on it — for a Shot this opens " +
+        "its Composer, for a Prompt/Image/Video node its focus view. Call this when the user asks " +
+        "to open, edit, compose, or work on a specific existing node. Identify it by its handle " +
+        "(e.g. SHOT-1A2B).",
+      parameters: {
+        type: "object",
+        properties: {
+          handle: {
+            type: "string",
+            description: "Handle of the node to open, e.g. SHOT-1A2B.",
+          },
+        },
+        required: ["handle"],
+        additionalProperties: false,
+      },
+    },
+  },
 ];
 
 export async function POST(req: Request) {
@@ -156,6 +178,14 @@ export async function POST(req: Request) {
           args: { handle: args.handle?.trim() || undefined },
         },
       });
+    }
+
+    // open_node: needs an explicit handle — the client resolves it to a node id and opens
+    // that node's surface (Composer for a Shot, focus view otherwise) via setFocusedNodeId.
+    if (call.function.name === "open_node") {
+      const handle = args.handle?.trim();
+      if (!handle) return apiOk({ action: null });
+      return apiOk({ action: { name: "open_node" as const, args: { handle } } });
     }
 
     // create_script_node: nothing to guard — the source is the user's pasted text

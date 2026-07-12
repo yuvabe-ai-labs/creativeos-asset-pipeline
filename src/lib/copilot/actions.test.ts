@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { placeNewNode, buildHistory, resolveScriptTarget, fileNameToTitle, scriptCreatedMessage } from "./actions";
+import { placeNewNode, buildHistory, resolveScriptTarget, resolveNodeTarget, fileNameToTitle, scriptCreatedMessage } from "./actions";
 import { nodeHandle } from "@/lib/nodes/describe-node";
 import type { AppNode } from "@/lib/canvas-nodes";
 
@@ -59,6 +59,24 @@ describe("resolveScriptTarget", () => {
     ];
     const h = nodeHandle({ id: nodes[0].id, type: "script" });
     expect(resolveScriptTarget(nodes, h)?.id).toBe(nodes[0].id);
+  });
+});
+
+describe("resolveNodeTarget", () => {
+  const node = (id: string, type: string): AppNode =>
+    ({ id, type, position: { x: 0, y: 0 }, data: {} }) as AppNode;
+
+  it("resolves ANY node type by its handle (case-insensitive)", () => {
+    const nodes = [
+      node("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "shot"),
+      node("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", "prompt"),
+    ];
+    const h = nodeHandle({ id: nodes[0].id, type: "shot" });
+    expect(resolveNodeTarget(nodes, h.toLowerCase())?.id).toBe(nodes[0].id);
+  });
+
+  it("returns null when no node matches the handle (no 'most recent' fallback)", () => {
+    expect(resolveNodeTarget([node("n1", "shot")], "SHOT-XXXX")).toBeNull();
   });
 });
 

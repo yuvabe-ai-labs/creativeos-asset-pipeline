@@ -8,10 +8,13 @@ import { nodeHandle } from "@/lib/nodes/describe-node";
 //
 // - add_node          → "drop a bare node of this type" (Lesson 5)
 // - create_script_node → "turn the reel script the user pasted into a Script node"
+// - parse_script       → "extract an existing Script node into shots"
+// - open_node          → "open a node's editor/focus view (for a Shot, its Composer)"
 export type CopilotAction =
   | { name: "add_node"; args: { type: string; title?: string } }
   | { name: "create_script_node"; args: { title?: string } }
-  | { name: "parse_script"; args: { handle?: string } };
+  | { name: "parse_script"; args: { handle?: string } }
+  | { name: "open_node"; args: { handle: string } };
 
 // Where a copilot-created node lands: just right of the rightmost node (same row),
 // or a sensible spot on an empty canvas. Pure + deterministic — the caller can pan
@@ -49,6 +52,13 @@ export function resolveScriptTarget(nodes: AppNode[], handle?: string): AppNode 
     if (byHandle) return byHandle;
   }
   return scripts.length > 0 ? scripts[scripts.length - 1] : null;
+}
+
+// Resolve any node the copilot named by handle (e.g. SHOT-1A2B) → the node, else null. Unlike
+// resolveScriptTarget there is no "most recent" fallback — opening a node needs an explicit target.
+export function resolveNodeTarget(nodes: AppNode[], handle: string): AppNode | null {
+  const want = handle.trim().toUpperCase();
+  return nodes.find((n) => nodeHandle({ id: n.id, type: n.type }).toUpperCase() === want) ?? null;
 }
 
 // The copilot's confirmation after creating a Script node. It MUST include the node's

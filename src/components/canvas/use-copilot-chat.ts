@@ -1,0 +1,338 @@
+import { useState } from "react";
+import { useReactFlow, type NodeChange } from "@xyflow/react";
+import { useCanvasStoreApi } from "./canvas-store-provider";
+import { nodeHandle, resolveMentions } from "@/lib/nodes/describe-node";
+import {
+  placeNewNode,
+  buildHistory,
+  resolveScriptTarget,
+  resolveNodeTarget,
+  fileNameToTitle,
+  scriptCreatedMessage,
+  type CopilotAction,
+} from "@/lib/copilot/actions";
+import type { AppNode } from "@/lib/canvas-nodes";
+import type { ReelScript } from "@/lib/nodes/reel-script";
+
+// A node the copilot referenced — arrives as STRUCTURED data (not text), so we can
+// render it as a clickable chip that highlights the real node on the canvas.
+export type NodeRef = { id: string; label: string; type: string };
+// The action the copilot *requested* via function calling (L5) — the raw server payload.
+type ActionRequest = { name: "add_node"; args: { type: string; title?: string } };
+// The same action once it enters the HITL gate (L6): it gains a lifecycle. It stays
+// `pending` until the human decides. Only on `approved` does anything run; `createdNodeId`
+// records the node the approval produced, so we can highlight it.
+export type ProposedAction = ActionRequest & {
+  status: "pending" | "approved" | "rejected";
+  createdNodeId?: string;
+};
+export type Msg = {
+  role: "user" | "assistant";
+  content: string;
+  nodes?: NodeRef[];
+  proposal?: ProposedAction;
+};
+// A .md/.txt script the human dropped into the composer, pending send.
+export type Attachment = { name: string; text: string };
+
+// The copilot's "brain": all conversation state + the code-owned recipes that run the model's
+// decisions. Deliberately DOM-free — it only pushes Msgs and mutates the canvas store, so the
+// panel/composer/message components stay purely presentational (no prop-drilled logic).
+export function useCopilotChat(canvasId: string) {
+  const [messages, setMessages] = useState<Msg[]>([]);
+  const [thinking, setThinking] = useState(false);
+  const storeApi = useCanvasStoreApi();
+  const { setCenter } = useReactFlow();
+
+  // Clicking a chip selects (highlights) that node on the real canvas.
+  function highlightNode(id: string) {
+    const { nodes, onNodesChange } = storeApi.getState();
+    const changes: NodeChange<AppNode>[] = [
+      ...nodes
+        .filter((n) => n.selected)
+        .map((n) => ({ type: "select" as const, id: n.id, selected: false })),
+      { type: "select", id, selected: true },
+    ];
+    onNodesChange(changes);
+  }
+
+  // RECIPE — "create a script node from this". One model DECISION (create_script_node)
+  // expands into this fixed, code-owned sequence: create the node, write the pasted text
+  // into it as the source, name it, and bring it into view.
+  function createScriptNode(source: string, title?: string) {
+    const { addNode, updateNodeData, nodes } = storeApi.getState();
+    const id = crypto.randomUUID();
+    const position = placeNewNode(nodes);
+    addNode("script", position, id);
+    updateNodeData(id, { source, ...(title ? { title } : {}) });
+    highlightNode(id); // select it on the canvas
+    setCenter(position.x + 120, position.y + 60, { zoom: 1, duration: 500 }); // pan to it
+    // The confirmation carries the node's HANDLE — on a later "yes", the model reads it from
+    // the conversation and passes it to parse_script, so parse targets THIS node (not a stale one).
+    const handle = nodeHandle({ id, type: "script" });
+    setMessages((m) => [
+      ...m,
+      { role: "assistant", content: scriptCreatedMessage(handle, title) },
+    ]);
+  }
+
+  // RECIPE — parse a Script node the user already created. Resolve the target, POST to the
+  // parse route (retrying if the node is still autosaving — the app's own runParse pattern),
+  // store the parsed output, then auto fan-out the shots onto the canvas.
+  async function parseScript(handle?: string) {
+    const target = resolveScriptTarget(storeApi.getState().nodes, handle);
+    if (!target) {
+      setMessages((m) => [...m, { role: "assistant", content: "I don't see a script node to parse." }]);
+      setThinking(false);
+      return;
+    }
+    const source = ((target.data as { source?: string }).source ?? "").trim();
+    if (!source) {
+      setMessages((m) => [
+        ...m,
+        { role: "assistant", content: "That script node has no text to parse yet." },
+      ]);
+      setThinking(false);
+      return;
+    }
+    try {
+      let output: ReelScript | null = null;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const res = await fetch(`/api/nodes/${target.id}/parse`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ source }),
+        });
+        if (res.ok) {
+          output = ((await res.json()) as { output: ReelScript }).output;
+          break;
+        }
+        if (res.status === 404 && attempt < 2) {
+          await new Promise((r) => setTimeout(r, 900)); // node still autosaving — wait past the debounce
+          continue;
+        }
+        const err = (await res.json().catch(() => ({}))) as { error?: string };
+        setMessages((m) => [...m, { role: "assistant", content: err.error ?? "Parsing failed." }]);
+        return;
+      }
+      if (!output) {
+        setMessages((m) => [
+          ...m,
+          { role: "assistant", content: "The node is still saving — ask me to parse it again in a moment." },
+        ]);
+        return;
+      }
+      storeApi.getState().updateNodeData(target.id, { parsed: output });
+      // Auto fan-out: parsing now drops the shots onto the canvas as Shot nodes wired from the
+      // script. fanOutShots reads the `parsed` we just wrote — Zustand's set is synchronous, so
+      // it sees it this tick — and self-guards on zero shots, so the count>0 check here only
+      // picks the chat wording. This is the whole "parse fans out automatically" feature.
+      const count = output.visual_script?.shots?.length ?? 0;
+      if (count > 0) storeApi.getState().fanOutShots(target.id);
+      highlightNode(target.id);
+      setMessages((m) => [
+        ...m,
+        {
+          role: "assistant",
+          content:
+            count > 0
+              ? `Parsed and fanned out ${count} shot${count === 1 ? "" : "s"} onto the canvas.`
+              : "Parsed the script, but I didn't find any shots in it.",
+        },
+      ]);
+    } finally {
+      setThinking(false);
+    }
+  }
+
+  // APPROVE — the gate opens. THIS is the first line in the whole copilot that mutates
+  // the canvas, and it runs only on a human click. The server merely proposed {type,title};
+  // we execute it here via the store, then mark the proposal approved. (Kept seam for the
+  // generation-step HITL gate; not wired to the current read-only proposal card.)
+  function approveProposal(msgIndex: number) {
+    const proposal = messages[msgIndex]?.proposal;
+    if (!proposal || proposal.status !== "pending") return;
+
+    const { addNode, updateNodeData, nodes } = storeApi.getState();
+    const id = crypto.randomUUID();
+    addNode(proposal.args.type, placeNewNode(nodes), id);
+    if (proposal.args.title) updateNodeData(id, { title: proposal.args.title });
+
+    setMessages((m) =>
+      m.map((msg, i) =>
+        i === msgIndex && msg.proposal
+          ? { ...msg, proposal: { ...msg.proposal, status: "approved", createdNodeId: id } }
+          : msg,
+      ),
+    );
+    highlightNode(id); // select the new node so the user sees what appeared
+  }
+
+  // REJECT — the gate stays shut. No store mutation; we just record the decision so the
+  // card shows it was dismissed (and can't be approved afterward).
+  function rejectProposal(msgIndex: number) {
+    setMessages((m) =>
+      m.map((msg, i) =>
+        i === msgIndex && msg.proposal?.status === "pending"
+          ? { ...msg, proposal: { ...msg.proposal, status: "rejected" } }
+          : msg,
+      ),
+    );
+  }
+
+  // RECIPE — open a node's surface (Composer for a Shot, focus view otherwise). Reuses the
+  // store's focus-view signal the tray/guided-flow already use: setFocusedNodeId(id).
+  function openNode(handle: string) {
+    const target = resolveNodeTarget(storeApi.getState().nodes, handle);
+    if (!target) {
+      setMessages((m) => [
+        ...m,
+        { role: "assistant", content: `I couldn't find a node called ${handle}.` },
+      ]);
+      return;
+    }
+    // Navigate to it first (same glide the Generation Tray uses), then open its surface —
+    // so the node is centered on the canvas behind the sheet, not left off-screen.
+    setCenter(target.position.x + 120, target.position.y + 60, { zoom: 1, duration: 500 });
+    storeApi.getState().setFocusedNodeId(target.id);
+    const h = nodeHandle({ id: target.id, type: target.type });
+    setMessages((m) => [...m, { role: "assistant", content: `Opened ${h} — its editor is in view.` }]);
+  }
+
+  // Send a turn. `attachment` (an uploaded script) short-circuits to a deterministic
+  // create-script recipe — no model call. Otherwise: resolve @-mentions, ask the actions
+  // route whether this is a COMMAND (create/parse/add/open) and route accordingly, else fall
+  // through to the streamed prose answer + reference chips.
+  async function send(text: string, attachment: Attachment | null) {
+    // File upload path: a .md/.txt script file → create a Script node from its text
+    // (deterministic — an uploaded script is unambiguous, no model call needed).
+    if (attachment) {
+      const file = attachment;
+      setMessages((m) => [...m, { role: "user", content: `📄 ${file.name}` }]);
+      createScriptNode(file.text, fileNameToTitle(file.name));
+      return;
+    }
+
+    // Resolve the @HANDLE tokens the human typed → the exact node ids they pointed at.
+    // These travel with the request so the server grounds the copilot on precisely them.
+    const mentionedIds = resolveMentions(text, storeApi.getState().nodes);
+    // The whole chat window travels with the turn — this is the copilot's memory.
+    const history = buildHistory(messages, text);
+    setMessages((m) => [...m, { role: "user", content: text }]);
+    setThinking(true);
+    try {
+      // PHASE 1 — decision. Ask the actions route FIRST: is this a COMMAND to act on,
+      // or a question to answer? (Lesson 5 machinery, now used to route the turn.)
+      let action: CopilotAction | null = null;
+      try {
+        const actRes = await fetch("/api/copilot/actions", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ messages: history, canvasId, mentionedIds }),
+        });
+        if (actRes.ok) {
+          action = ((await actRes.json()) as { action?: CopilotAction | null }).action ?? null;
+        }
+      } catch {
+        /* best-effort — a failed decision just falls through to a normal answer */
+      }
+
+      // "Turn this pasted script into a Script node" is a COMMAND → run the code recipe
+      // and stop. The model decided; code does the work (no prose paragraph + a node).
+      if (action?.name === "create_script_node") {
+        createScriptNode(text, action.args.title);
+        setThinking(false);
+        return;
+      }
+
+      // "yes" / "parse it" → the model returns parse_script; run the recipe and stop.
+      if (action?.name === "parse_script") {
+        await parseScript(action.args.handle);
+        return;
+      }
+
+      // "open @SHOT-1A2B" → open that node's surface (Composer / focus view) and stop.
+      if (action?.name === "open_node") {
+        openNode(action.args.handle);
+        setThinking(false);
+        return;
+      }
+
+      const res = await fetch("/api/copilot", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ messages: history, canvasId, mentionedIds }),
+      });
+
+      if (!res.ok || !res.body) {
+        const err = (await res.json().catch(() => ({}))) as { error?: string };
+        setMessages((m) => [
+          ...m,
+          { role: "assistant", content: err.error ?? "Something went wrong." },
+        ]);
+        return;
+      }
+
+      setMessages((m) => [...m, { role: "assistant", content: "" }]);
+      setThinking(false);
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let reply = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        reply += decoder.decode(value, { stream: true });
+        // CALL 1: plain-text prose streams straight into the message (like Lesson 3).
+        setMessages((m) => {
+          const copy = [...m];
+          copy[copy.length - 1] = { ...copy[copy.length - 1], content: reply };
+          return copy;
+        });
+      }
+
+      // CALL 2: after the prose is done, a separate STRUCTURED call resolves which
+      // nodes the answer referenced → we render them as chips. (chips are a bonus,
+      // so any failure here is swallowed.)
+      try {
+        const refRes = await fetch("/api/copilot/references", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ message: text, canvasId, reply }),
+        });
+        if (refRes.ok) {
+          const { referencedNodes } = (await refRes.json()) as { referencedNodes?: NodeRef[] };
+          if (referencedNodes?.length) {
+            setMessages((m) => {
+              const copy = [...m];
+              copy[copy.length - 1] = { ...copy[copy.length - 1], nodes: referencedNodes };
+              return copy;
+            });
+          }
+        }
+      } catch {
+        /* ignore — chips are optional */
+      }
+
+      // CALL 3 (Lesson 5): a REQUESTED add_node becomes a read-only proposal card.
+      // Reuses the decision already fetched in Phase 1 — no second model call.
+      if (action?.name === "add_node") {
+        const proposal = { ...action, status: "pending" as const };
+        setMessages((m) => {
+          const copy = [...m];
+          copy[copy.length - 1] = { ...copy[copy.length - 1], proposal };
+          return copy;
+        });
+      }
+    } catch {
+      setMessages((m) => [
+        ...m,
+        { role: "assistant", content: "Something went wrong reaching the copilot." },
+      ]);
+    } finally {
+      setThinking(false);
+    }
+  }
+
+  return { messages, thinking, highlightNode, approveProposal, rejectProposal, send };
+}
