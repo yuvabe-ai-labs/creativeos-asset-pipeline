@@ -115,6 +115,29 @@ const tools = [
       },
     },
   },
+  {
+    type: "function" as const,
+    function: {
+      name: "connect_nodes",
+      description:
+        "Wire nodes together. Call this when the user asks to connect/link/wire nodes. Each " +
+        "handle in `from` becomes the SOURCE of an edge into the single `to` target " +
+        "(direction: from → to). Handles look like FILE-469A / PRM-3C4D.",
+      parameters: {
+        type: "object",
+        properties: {
+          from: {
+            type: "array",
+            items: { type: "string" },
+            description: "One or more source node handles.",
+          },
+          to: { type: "string", description: "The single target node handle." },
+        },
+        required: ["from", "to"],
+        additionalProperties: false,
+      },
+    },
+  },
 ];
 
 export async function POST(req: Request) {
@@ -162,9 +185,15 @@ export async function POST(req: Request) {
       return apiOk({ action: null });
     }
 
-    let args: { type?: string; title?: string; handle?: string };
+    let args: { type?: string; title?: string; handle?: string; from?: string[]; to?: string };
     try {
-      args = JSON.parse(call.function.arguments) as { type?: string; title?: string; handle?: string };
+      args = JSON.parse(call.function.arguments) as {
+        type?: string;
+        title?: string;
+        handle?: string;
+        from?: string[];
+        to?: string;
+      };
     } catch {
       return apiOk({ action: null });
     }
@@ -211,6 +240,13 @@ export async function POST(req: Request) {
           args: { type, title: args.title?.trim() || undefined },
         },
       });
+    }
+
+    if (call.function.name === "connect_nodes") {
+      const from = (args.from ?? []).map((h) => h.trim()).filter(Boolean);
+      const to = args.to?.trim();
+      if (!from.length || !to) return apiOk({ action: null });
+      return apiOk({ action: { name: "connect_nodes" as const, args: { from, to } } });
     }
 
     return apiOk({ action: null });

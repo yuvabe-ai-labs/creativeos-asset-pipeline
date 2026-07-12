@@ -1,5 +1,5 @@
 import type { XYPosition } from "@xyflow/react";
-import type { AppNode } from "@/lib/canvas-nodes";
+import { canConnect, type AppNode } from "@/lib/canvas-nodes";
 import { nodeHandle, nodeLabel } from "@/lib/nodes/describe-node";
 
 // The action the copilot's `/api/copilot/actions` call may return — a DECISION the
@@ -14,7 +14,8 @@ export type CopilotAction =
   | { name: "add_node"; args: { type: string; title?: string } }
   | { name: "create_script_node"; args: { title?: string } }
   | { name: "parse_script"; args: { handle?: string } }
-  | { name: "open_node"; args: { handle: string } };
+  | { name: "open_node"; args: { handle: string } }
+  | { name: "connect_nodes"; args: { from: string[]; to: string } };
 
 // Where a copilot-created node lands: just right of the rightmost node (same row),
 // or a sensible spot on an empty canvas. Pure + deterministic — the caller can pan
@@ -59,6 +60,33 @@ export function resolveScriptTarget(nodes: AppNode[], handle?: string): AppNode 
 export function resolveNodeTarget(nodes: AppNode[], handle: string): AppNode | null {
   const want = handle.trim().toUpperCase();
   return nodes.find((n) => nodeHandle({ id: n.id, type: n.type }).toUpperCase() === want) ?? null;
+}
+
+export type ConnectPlan = {
+  target: AppNode | null;
+  wired: { handle: string; sourceId: string }[];
+  rejected: { handle: string }[];
+  unknown: string[];
+};
+
+// Pure planner for connect_nodes: resolve the target + each source handle, then partition the
+// sources into wired (valid pair), rejected (resolvable but the direction violates canConnect),
+// and unknown (handle resolved to nothing). The recipe maps `wired` through store.connectNodes.
+export function planConnections(
+  fromHandles: string[],
+  toHandle: string,
+  nodes: AppNode[],
+): ConnectPlan {
+  const target = resolveNodeTarget(nodes, toHandle);
+  const plan: ConnectPlan = { target, wired: [], rejected: [], unknown: [] };
+  if (!target) return plan;
+  for (const handle of fromHandles) {
+    const source = resolveNodeTarget(nodes, handle);
+    if (!source) plan.unknown.push(handle);
+    else if (!canConnect(source.type ?? "", target.type ?? "")) plan.rejected.push({ handle });
+    else plan.wired.push({ handle, sourceId: source.id });
+  }
+  return plan;
 }
 
 // The copilot's confirmation after creating a Script node. It MUST include the node's

@@ -8,6 +8,7 @@ import {
   resolveNodeTarget,
   fileNameToTitle,
   scriptCreatedMessage,
+  planConnections,
   type CopilotAction,
 } from "@/lib/copilot/actions";
 import type { AppNode } from "@/lib/canvas-nodes";
@@ -178,6 +179,24 @@ export function useCopilotChat(canvasId: string) {
     setMessages((m) => [...m, { role: "assistant", content: `Opened ${h} — its editor is in view.` }]);
   }
 
+  // RECIPE — wire @from… → @to. Cheap/reversible/structural → runs instantly (no gate).
+  // Validation lives here because store.connectNodes is a dumb addEdge (no rule check).
+  function connectHandles(fromHandles: string[], toHandle: string) {
+    const { nodes, connectNodes } = storeApi.getState();
+    const plan = planConnections(fromHandles, toHandle, nodes);
+    if (!plan.target) {
+      setMessages((m) => [...m, { role: "assistant", content: `I couldn't find a node called ${toHandle}.` }]);
+      return;
+    }
+    plan.wired.forEach((w) => connectNodes(w.sourceId, plan.target!.id));
+    const toH = nodeHandle({ id: plan.target.id, type: plan.target.type });
+    const parts: string[] = [];
+    if (plan.wired.length) parts.push(`Wired ${plan.wired.map((w) => w.handle).join(", ")} → ${toH}.`);
+    if (plan.rejected.length) parts.push(`Can't connect ${plan.rejected.map((r) => r.handle).join(", ")} to ${toH} (not an allowed connection).`);
+    if (plan.unknown.length) parts.push(`Couldn't find ${plan.unknown.join(", ")}.`);
+    setMessages((m) => [...m, { role: "assistant", content: parts.join(" ") || "Nothing to connect." }]);
+  }
+
   // Send a turn. `attachment` (an uploaded script) short-circuits to a deterministic
   // create-script recipe — no model call. Otherwise: resolve @-mentions, ask the actions
   // route whether this is a COMMAND (create/parse/add/open) and route accordingly, else fall
@@ -233,6 +252,13 @@ export function useCopilotChat(canvasId: string) {
       // "open @SHOT-1A2B" → open that node's surface (Composer / focus view) and stop.
       if (action?.name === "open_node") {
         openNode(action.args.handle);
+        setThinking(false);
+        return;
+      }
+
+      // "connect @FILE-… to @VID-…" → wire the edges instantly and stop.
+      if (action?.name === "connect_nodes") {
+        connectHandles(action.args.from, action.args.to);
         setThinking(false);
         return;
       }

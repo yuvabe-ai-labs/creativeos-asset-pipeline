@@ -122,3 +122,32 @@ describe("expandSelected", () => {
     expect(out).toBe("@FILE-A1B2 Hero @PRM-E5F6 untitled prompt ");
   });
 });
+
+import { planConnections } from "./actions";
+
+const n = (id: string, type: string) => ({ id, type, position: { x: 0, y: 0 }, data: {} }) as never;
+
+describe("planConnections", () => {
+  const file = n("aaaa1111", "file");   // FILE-AAAA
+  const draw = n("bbbb2222", "draw");   // DRAW-BBBB
+  const prompt = n("cccc3333", "prompt"); // PRM-CCCC
+  const nodes = [file, draw, prompt];
+
+  it("returns target:null when the target handle is unknown", () => {
+    const plan = planConnections(["FILE-AAAA"], "PRM-ZZZZ", nodes);
+    expect(plan.target).toBeNull();
+  });
+  it("wires valid sources, rejects invalid pairs, flags unknown handles", () => {
+    const plan = planConnections(["FILE-AAAA", "DRAW-BBBB", "SHOT-ZZZZ"], "PRM-CCCC", nodes);
+    expect(plan.target?.id).toBe("cccc3333");
+    expect(plan.wired.map((w) => w.handle)).toEqual(["FILE-AAAA", "DRAW-BBBB"]);
+    expect(plan.rejected).toEqual([]);
+    expect(plan.unknown).toEqual(["SHOT-ZZZZ"]);
+  });
+  it("rejects a source that cannot connect to the target type", () => {
+    // prompt → file is not in VALID_CONNECTIONS
+    const plan = planConnections(["PRM-CCCC"], "FILE-AAAA", nodes);
+    expect(plan.wired).toEqual([]);
+    expect(plan.rejected.map((r) => r.handle)).toEqual(["PRM-CCCC"]);
+  });
+});
