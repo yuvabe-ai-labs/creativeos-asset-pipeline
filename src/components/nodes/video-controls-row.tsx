@@ -30,20 +30,22 @@ export function VideoControlsRow({
   onChange: (next: VideoControls) => void;
 }) {
   return (
-    <div className="space-y-2">
+    <div className="flex items-start gap-3">
       {VIDEO_CONTROLS.map((group) => {
         const Icon = ICONS[group.key];
         return (
-          <div key={group.key} className="flex items-center gap-2">
-            <Icon className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.5} />
-            <span className="w-24 shrink-0 text-xs text-muted-foreground">{group.label}</span>
+          <div key={group.key} className="min-w-0 flex-1">
+            <div className="mb-1 flex items-center gap-1 text-xs text-muted-foreground">
+              <Icon className="size-3.5 shrink-0" strokeWidth={1.5} />
+              <span className="truncate">{group.label}</span>
+            </div>
             <Select
               value={controls[group.key]}
               onValueChange={(value) =>
                 onChange({ ...controls, [group.key]: value as string })
               }
             >
-              <SelectTrigger size="sm" className="min-w-0 flex-1 text-xs">
+              <SelectTrigger size="sm" className="w-full min-w-0 text-xs">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

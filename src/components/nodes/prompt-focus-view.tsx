@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, type ReactNode } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
@@ -12,7 +12,6 @@ import {
   SlidersHorizontal,
   FileInput,
   ExternalLink,
-  type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -50,6 +49,8 @@ import type { ApprovalStatus } from "@/lib/approval";
 import { cn } from "@/lib/utils";
 import { PromptVersionChips } from "./prompt-version-chips";
 import { describeApprovalPill } from "@/lib/nodes/prompt-focus";
+import { LeftSection } from "./focus-left-section";
+import { RailItem } from "./focus-rail-item";
 
 type PromptFocusViewProps = {
   open: boolean;
@@ -64,71 +65,6 @@ type PromptFocusViewProps = {
   onPatch: (patch: Record<string, unknown>) => void;
   onSaveOutput: (output: string) => Promise<void>;
 };
-
-function LeftSection({
-  icon: Icon,
-  label,
-  badge,
-  action,
-  children,
-}: {
-  icon: LucideIcon;
-  label: string;
-  badge?: string;
-  action?: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <div>
-      <div className="mb-2 flex items-center justify-between">
-        <div className="flex items-center gap-1.5">
-          <Icon className="size-3.5 text-primary" />
-          <span className="text-eyebrow">{label}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          {badge && (
-            <span className="text-xs text-muted-foreground">{badge}</span>
-          )}
-          {action}
-        </div>
-      </div>
-      {children}
-    </div>
-  );
-}
-
-// One entry in the left rail. `icon` is a pre-rendered element so both Lucide icons
-// and the connected-node <NodeIcon> can be passed uniformly.
-function RailItem({
-  icon,
-  label,
-  active,
-  onClick,
-  badge,
-}: {
-  icon: ReactNode;
-  label: string;
-  active: boolean;
-  onClick: () => void;
-  badge?: ReactNode;
-}) {
-  return (
-    <Button
-      variant="ghost"
-      onClick={onClick}
-      className={cn(
-        "h-auto w-full justify-start gap-2 px-2.5 py-2 text-sm font-normal",
-        active
-          ? "border-primary/25 bg-primary/8 font-medium text-foreground hover:bg-primary/8"
-          : "text-muted-foreground",
-      )}
-    >
-      <span className="flex w-4 shrink-0 items-center justify-center">{icon}</span>
-      <span className="min-w-0 flex-1 truncate text-left">{label}</span>
-      {badge}
-    </Button>
-  );
-}
 
 export function PromptFocusView({
   open,
@@ -565,6 +501,7 @@ export function PromptFocusView({
                     placeholder={instructionPlaceholder}
                     upstream={upstream}
                     disabled={!editable}
+                    className="min-h-20"
                   />
                   <ShotControlsRow
                     controls={controls ?? DEFAULT_SHOT_CONTROLS}

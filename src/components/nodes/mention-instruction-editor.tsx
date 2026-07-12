@@ -435,7 +435,10 @@ export function MentionInstructionEditor({
   }, [dropdownState.open]);
 
   return (
-    <div className={cn("relative flex-1 min-h-0", className)}>
+    // Flex column so a `min-h-*` passed via className stretches the bordered
+    // editable box itself — not just this wrapper — keeping the absolutely
+    // positioned placeholder inside the border.
+    <div className={cn("relative flex min-h-0 flex-1 flex-col", className)}>
       <div
         ref={editorRef}
         role="textbox"

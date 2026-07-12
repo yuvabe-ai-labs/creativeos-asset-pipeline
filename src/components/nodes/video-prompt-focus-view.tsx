@@ -1,18 +1,18 @@
 "use client";
 
-import { useState, useEffect, type ReactNode } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
   ArrowLeft,
   Clapperboard,
   Palette,
-  Video,
   PencilLine,
-  Link2,
+  BadgeCheck,
+  SlidersHorizontal,
+  FileInput,
   ImageIcon,
   ExternalLink,
-  type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -20,6 +20,7 @@ import { EditableField } from "./editable-field";
 import { MentionInstructionEditor } from "./mention-instruction-editor";
 import { normalizeTitle } from "@/lib/nodes/title";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { GuidedNextButton } from "@/components/canvas/guided-next-button";
 import { SliceToggles } from "./slice-toggles";
 import { DEFAULT_MOTION_INSTRUCTION } from "@/lib/nodes/video-prompt";
@@ -27,23 +28,26 @@ import type { KBSliceKey } from "@/lib/kb/parse-context";
 import { VideoControlsRow } from "./video-controls-row";
 import { DEFAULT_VIDEO_CONTROLS, type VideoControls } from "@/lib/nodes/video-controls";
 import {
-  ConnectedInputsCard,
   ConnectedDetailView,
+  NodeIcon,
   type UpstreamNode,
   type ConnectedPreview,
 } from "./connected-inputs-card";
-import {
-  PromptVersionHistory,
-  type VersionSummary,
-} from "./prompt-version-history";
+import type { VersionSummary } from "./prompt-version-history";
 import { UsagePopover } from "./prompt-usage-popover";
 import { InlineEvalBar } from "./inline-eval-bar";
 import { InlineApprovalBar } from "./inline-approval-bar";
+import { ModelRequestPanel } from "./model-request-panel";
 import { setVersionLabelAction } from "@/lib/actions/eval";
 import { setVersionApprovalAction } from "@/lib/actions/approval";
 import { useIdentity } from "@/hooks/use-identity";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import type { ApprovalStatus } from "@/lib/approval";
+import { cn } from "@/lib/utils";
+import { PromptVersionChips } from "./prompt-version-chips";
+import { describeApprovalPill } from "@/lib/nodes/prompt-focus";
+import { LeftSection } from "./focus-left-section";
+import { RailItem } from "./focus-rail-item";
 
 type VideoPromptFocusViewProps = {
   open: boolean;
@@ -58,36 +62,6 @@ type VideoPromptFocusViewProps = {
   onPatch: (patch: Record<string, unknown>) => void;
   onSaveOutput: (output: string) => Promise<void>;
 };
-
-function LeftSection({
-  icon: Icon,
-  label,
-  badge,
-  action,
-  children,
-}: {
-  icon: LucideIcon;
-  label: string;
-  badge?: string;
-  action?: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <div>
-      <div className="mb-2 flex items-center justify-between">
-        <div className="flex items-center gap-1.5">
-          <Icon className="size-3.5 text-primary" />
-          <span className="text-eyebrow">{label}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          {badge && <span className="text-xs text-muted-foreground">{badge}</span>}
-          {action}
-        </div>
-      </div>
-      {children}
-    </div>
-  );
-}
 
 export function VideoPromptFocusView({
   open,
@@ -104,6 +78,11 @@ export function VideoPromptFocusView({
 }: VideoPromptFocusViewProps) {
   const params = useParams<{ id: string }>();
   const [draft, setDraft] = useState(output ?? "");
+  // Local mirror of the instruction prop. The textarea is controlled by THIS, not
+  // by the prop directly: the prop round-trips through zustand + React Flow's
+  // internal node store, so binding the textarea straight to it re-renders the
+  // input with a not-yet-synced value and the browser resets the caret to the end
+  // on every keystroke. Local state updates synchronously, so the caret is kept.
   const [instructionDraft, setInstructionDraft] = useState(instruction);
   const [generating, setGenerating] = useState(false);
   const [preview, setPreview] = useState<{ ambient: string; connected: ConnectedPreview[] }>({
@@ -118,9 +97,10 @@ export function VideoPromptFocusView({
   const [versions, setVersions] = useState<VersionSummary[]>([]);
   const [activeVersionId, setActiveVersionId] = useState<string | null>(null);
   const [restoring, setRestoring] = useState(false);
-  const [loadingVersions, setLoadingVersions] = useState(false);
   const [loadingPreview, setLoadingPreview] = useState(false);
-  const [detailNodeId, setDetailNodeId] = useState<string | null>(null);
+  // The selected rail item: "prompt" (the compose editor), "details", "request", or a
+  // connected node's id (right pane shows that node's read-only detail).
+  const [selected, setSelected] = useState<string>("prompt");
   const [evalDecision, setEvalDecision] = useState<"pass" | "fail" | null>(null);
   const [evalNote, setEvalNote] = useState("");
   // D29 approval flag — sibling of the eval signal, distinct field.
@@ -132,20 +112,29 @@ export function VideoPromptFocusView({
   const [evalSaving, setEvalSaving] = useState(false);
 
   if (seed.open !== open || seed.output !== output || seed.nodeId !== nodeId) {
-    const opening = open && !seed.open;
-    const nodeChanged = seed.nodeId !== nodeId;
+    const opening = open && !seed.open; // sheet just opened (false → true)
+    const nodeChanged = seed.nodeId !== nodeId; // sheet reused for a different node
     setSeed({ open, output, nodeId });
     setDraft(output ?? "");
-    setDetailNodeId(null);
+    setSelected("prompt"); // return to the compose editor on open / fresh generation
+    // Re-seed the instruction buffer ONLY when opening or switching nodes — never on
+    // an output change (that would clobber an in-progress instruction edit) and never
+    // on the echo of our own per-keystroke write-through (that would re-introduce the
+    // caret jump this buffer exists to prevent).
     if (opening || nodeChanged) setInstructionDraft(instruction);
+    // Re-arm the left-panel skeletons ONLY on the open transition. The effect
+    // below (keyed on [open, nodeId, slices]) is the sole thing that clears
+    // them, and it does not re-run on output change — so re-arming here on a
+    // regenerate/restore/save would strand them `true` forever.
     if (opening) {
-      setLoadingVersions(true);
       setLoadingPreview(true);
     }
   }
 
-  const detailNode = detailNodeId
-    ? preview.connected.find((c) => c.nodeId === detailNodeId) ?? null
+  // A connected node is selected when `selected` isn't one of the fixed rail keys.
+  const isNodeSelected = !["prompt", "details", "request"].includes(selected);
+  const selectedNode = isNodeSelected
+    ? preview.connected.find((c) => c.nodeId === selected) ?? null
     : null;
 
   // The Image Gen still the motion prompt is grounded on (vision frame).
@@ -198,8 +187,6 @@ export function VideoPromptFocusView({
         }
       } catch {
         /* best-effort */
-      } finally {
-        if (!cancelled) setLoadingVersions(false);
       }
     })();
 
@@ -341,6 +328,29 @@ export function VideoPromptFocusView({
     onPatch({ kbSlices: next });
   }
 
+  const activeRequest =
+    versions.find((v) => v.id === activeVersionId)?.inputsUsed?.request ?? null;
+
+  const pill = describeApprovalPill(approvalStatus);
+  const pillTone =
+    pill.tone === "positive"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-900/20 dark:text-emerald-400"
+      : pill.tone === "warning"
+        ? "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-400"
+        : "border-border bg-muted text-muted-foreground";
+
+  const reviewBadge =
+    mode === "result" ? (
+      <span
+        className={cn(
+          "shrink-0 rounded-full border px-1.5 py-0.5 text-[0.6rem] font-semibold",
+          pillTone,
+        )}
+      >
+        {pill.tone === "positive" ? "Approved" : pill.tone === "warning" ? "Changes" : "Pending"}
+      </span>
+    ) : undefined;
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
@@ -348,19 +358,22 @@ export function VideoPromptFocusView({
         showCloseButton={false}
         className="gap-0 overflow-hidden rounded-t-2xl bg-background data-[side=bottom]:h-[92vh]"
       >
+        {/* Drag handle */}
         <div className="flex shrink-0 justify-center pt-3">
           <div className="h-1.5 w-12 rounded-full bg-border" />
         </div>
 
+        {/* Header */}
         <div className="shrink-0 border-b">
-          <div className="mx-auto w-full max-w-5xl px-6 pb-5 pt-3">
-            <button
-              type="button"
+          <div className="mx-auto w-full max-w-6xl px-6 pb-5 pt-3">
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => onOpenChange(false)}
-              className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+              className="-ml-2.5 gap-1.5 font-medium text-muted-foreground hover:text-foreground"
             >
               <ArrowLeft className="size-4" /> Back to canvas
-            </button>
+            </Button>
 
             <header className="mt-4 flex items-start justify-between gap-4">
               <div>
@@ -399,48 +412,175 @@ export function VideoPromptFocusView({
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 flex justify-center overflow-hidden">
-          {detailNode ? (
-            <ConnectedDetailView node={detailNode} onBack={() => setDetailNodeId(null)} />
-          ) : (
-            <div className="w-full max-w-5xl flex min-h-0 overflow-hidden">
-              <div className="w-[45%] border-r border-border overflow-y-auto px-6 py-6 flex flex-col gap-6">
-                {loadingVersions ? (
-                  <div className="space-y-2">
-                    <div className="h-3 w-24 animate-pulse rounded bg-muted-foreground/20" />
-                    <div className="space-y-1.5 pt-1">
-                      {Array.from({ length: 3 }).map((_, i) => (
-                        <div key={i} className="flex items-center gap-2">
-                          <div className="size-2 shrink-0 animate-pulse rounded-full bg-muted-foreground/20" />
-                          <div className="h-3 animate-pulse rounded bg-muted-foreground/20" style={{ width: `${55 + i * 12}%` }} />
-                        </div>
+        {/* Body: left rail + detail pane */}
+        <div className="mx-auto flex w-full max-w-6xl min-h-0 flex-1 overflow-hidden">
+          {/* Rail */}
+          <nav className="flex w-56 shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-border px-3 py-4">
+            <RailItem
+              icon={<Clapperboard className="size-4 text-primary" />}
+              label="Prompt"
+              active={selected === "prompt"}
+              onClick={() => setSelected("prompt")}
+            />
+
+            <div className="px-2.5 pb-1 pt-3 text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground/70">
+              Connected · {upstream.length}
+            </div>
+            {upstream.length === 0 ? (
+              <p className="px-2.5 text-xs text-muted-foreground">No inputs connected.</p>
+            ) : (
+              upstream.map((u) => (
+                <RailItem
+                  key={u.id}
+                  icon={<NodeIcon type={u.type} />}
+                  label={u.label}
+                  active={selected === u.id}
+                  onClick={() => setSelected(u.id)}
+                />
+              ))
+            )}
+
+            <div className="mx-2.5 my-2 h-px bg-border" />
+            <RailItem
+              icon={<SlidersHorizontal className="size-4 text-primary" />}
+              label="Details"
+              active={selected === "details"}
+              onClick={() => setSelected("details")}
+              badge={reviewBadge}
+            />
+            <RailItem
+              icon={<FileInput className="size-4 text-primary" />}
+              label="Sent to model"
+              active={selected === "request"}
+              onClick={() => setSelected("request")}
+            />
+          </nav>
+
+          {/* Detail pane */}
+          <div className="min-h-0 flex-1 overflow-hidden">
+            {/* Prompt — the compose editor (instruction on top, output below) */}
+            {selected === "prompt" && (
+              <div className="flex h-full w-full max-w-3xl min-h-0 flex-col overflow-y-auto">
+                {/* Frame (left) + instruction & controls (right) — on top */}
+                <div className="flex shrink-0 gap-5 border-b border-border px-6 py-5">
+                  <div className="flex w-40 shrink-0 flex-col gap-2">
+                    <div className="flex items-center gap-1.5">
+                      <ImageIcon className="size-3.5 text-primary" />
+                      <span className="text-eyebrow">Frame</span>
+                    </div>
+                    {visionFrame?.fileUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={visionFrame.fileUrl}
+                        alt="Approved still the motion prompt is grounded on"
+                        className="max-h-48 w-auto max-w-full self-start rounded-lg border border-border object-contain"
+                      />
+                    ) : (
+                      <p className="rounded-lg border border-dashed border-border px-3 py-4 text-center text-xs text-muted-foreground">
+                        Connect an approved image to ground the motion.
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="flex min-w-0 flex-1 flex-col gap-3">
+                    <div className="flex items-center gap-1.5">
+                      <PencilLine className="size-3.5 text-primary" />
+                      <span className="text-eyebrow">Instruction</span>
+                    </div>
+                    <MentionInstructionEditor
+                      value={instructionDraft}
+                      onChange={(v) => {
+                        setInstructionDraft(v);
+                        onPatch({ instruction: v });
+                      }}
+                      placeholder={DEFAULT_MOTION_INSTRUCTION}
+                      upstream={upstream}
+                      disabled={!editable}
+                      className="min-h-20"
+                    />
+                    <VideoControlsRow
+                      controls={controls ?? DEFAULT_VIDEO_CONTROLS}
+                      onChange={(next) => onPatch({ controls: next })}
+                    />
+                    <Button
+                      className="w-full"
+                      size="default"
+                      onClick={runGenerate}
+                      disabled={generating || !editable}
+                    >
+                      <Clapperboard className="size-4" />
+                      {generating ? "Generating…" : output ? "Re-generate" : "Generate motion prompt"}
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Output zone — the main focus, below the instruction */}
+                <div className="flex shrink-0 flex-col gap-3 px-6 py-5">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5">
+                      <Clapperboard className="size-3.5 text-primary" />
+                      <span className="text-eyebrow">Generated motion prompt</span>
+                    </div>
+                    <PromptVersionChips
+                      versions={versions}
+                      activeVersionId={activeVersionId}
+                      restoring={restoring}
+                      onSwitch={handleRestoreVersion}
+                    />
+                  </div>
+
+                  {mode === "skeleton" && (
+                    <div className="space-y-2.5 pt-1">
+                      {Array.from({ length: 9 }).map((_, i) => (
+                        <div
+                          key={i}
+                          className="h-4 animate-pulse rounded bg-muted-foreground/20"
+                          style={{ width: `${70 + (i % 4) * 7}%` }}
+                        />
                       ))}
                     </div>
-                  </div>
-                ) : versions.length > 0 ? (
-                  <PromptVersionHistory
-                    versions={versions}
-                    activeVersionId={activeVersionId}
-                    onRestore={handleRestoreVersion}
-                    restoring={restoring}
-                  />
-                ) : null}
-
-                <LeftSection icon={ImageIcon} label="Reading this frame">
-                  {visionFrame?.fileUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={visionFrame.fileUrl}
-                      alt="Approved still the motion prompt is grounded on"
-                      className="max-h-40 w-auto rounded-lg border border-border object-contain"
-                    />
-                  ) : (
-                    <p className="rounded-lg border border-dashed border-border px-3 py-4 text-center text-xs text-muted-foreground">
-                      Connect an approved image to ground the motion.
-                    </p>
                   )}
-                </LeftSection>
 
+                  {mode === "empty" && (
+                    <div className="flex h-64 items-center justify-center rounded-xl border border-dashed border-border">
+                      <div className="text-center px-8">
+                        <Clapperboard className="size-8 mx-auto text-muted-foreground/40 mb-3" />
+                        <p className="text-sm font-medium text-muted-foreground">
+                          Not generated yet
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground/70">
+                          Connect a still, set an instruction, and click Generate.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {mode === "result" && (
+                    <Textarea
+                      value={draft}
+                      onChange={(e) => setDraft(e.target.value)}
+                      className="h-64 resize-none rounded-xl p-4 text-base leading-relaxed [field-sizing:fixed]"
+                    />
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Connected node — read-only detail */}
+            {isNodeSelected &&
+              (selectedNode ? (
+                <ConnectedDetailView node={selectedNode} />
+              ) : (
+                <div className="flex h-full items-center justify-center px-6 py-6">
+                  <p className="text-sm text-muted-foreground">
+                    {loadingPreview ? "Loading…" : "This input has no preview yet."}
+                  </p>
+                </div>
+              ))}
+
+            {/* Details — Brand KB + Review (eval, approval) */}
+            {selected === "details" && (
+              <div className="flex h-full w-full max-w-3xl min-h-0 flex-col gap-6 overflow-y-auto px-6 py-6">
                 <LeftSection
                   icon={Palette}
                   label="Brand KB"
@@ -459,125 +599,51 @@ export function VideoPromptFocusView({
                   <SliceToggles selected={slices} onToggle={toggleSlice} />
                 </LeftSection>
 
-                <LeftSection icon={Video} label="Motion controls">
-                  <VideoControlsRow
-                    controls={controls ?? DEFAULT_VIDEO_CONTROLS}
-                    onChange={(next) => onPatch({ controls: next })}
-                  />
-                </LeftSection>
+                <hr className="border-border" />
 
-                <LeftSection
-                  icon={Link2}
-                  label="Connected"
-                  badge={`${upstream.length} input${upstream.length === 1 ? "" : "s"}`}
-                >
-                  <div className="max-h-72 overflow-y-auto pb-2">
-                    {loadingPreview ? (
-                      <div className="space-y-2">
-                        {Array.from({ length: Math.max(upstream.length, 2) }).map((_, i) => (
-                          <div key={i} className="space-y-1.5 rounded-lg border border-border p-3">
-                            <div className="h-3 w-1/3 animate-pulse rounded bg-muted-foreground/20" />
-                            <div className="h-3 w-full animate-pulse rounded bg-muted-foreground/20" />
-                            <div className="h-3 w-4/5 animate-pulse rounded bg-muted-foreground/20" />
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <ConnectedInputsCard
-                        upstream={upstream}
-                        preview={preview.connected}
-                        onOpenDetail={setDetailNodeId}
+                <LeftSection icon={BadgeCheck} label="Review">
+                  {mode === "result" && !!activeVersionId ? (
+                    <div className="flex flex-col gap-3">
+                      <InlineEvalBar
+                        decision={evalDecision}
+                        note={evalNote}
+                        saving={evalSaving}
+                        visible={mode === "result" && !!activeVersionId}
+                        onDecision={handleEvalDecision}
+                        onNote={setEvalNote}
+                        onNoteBlur={handleEvalNoteBlur}
                       />
-                    )}
-                  </div>
+                      <InlineApprovalBar
+                        status={approvalStatus}
+                        note={approvalNote}
+                        saving={approvalSaving}
+                        canApprove={editable && identity?.role === "senior"}
+                        onSet={saveApproval}
+                      />
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      Generate a motion prompt first to review and approve it.
+                    </p>
+                  )}
                 </LeftSection>
               </div>
+            )}
 
-              <div className="flex-1 min-h-0 flex flex-col">
-                <div
-                  className="flex flex-col gap-3 px-6 py-5 border-b border-border overflow-hidden"
-                  style={{ flex: "3 3 0%" }}
-                >
-                  <div className="flex items-center gap-1.5">
-                    <PencilLine className="size-3.5 text-primary" />
-                    <span className="text-eyebrow">Instruction</span>
-                  </div>
-                  <MentionInstructionEditor
-                    value={instructionDraft}
-                    onChange={(v) => {
-                      setInstructionDraft(v);
-                      onPatch({ instruction: v });
-                    }}
-                    placeholder={DEFAULT_MOTION_INSTRUCTION}
-                    upstream={upstream}
-                    disabled={!editable}
-                  />
-                  <Button className="w-full" size="default" onClick={runGenerate} disabled={generating || !editable}>
-                    <Clapperboard className="size-4" />
-                    {generating ? "Generating…" : output ? "Re-generate" : "Generate motion prompt"}
-                  </Button>
-                </div>
-
-                <div
-                  className="flex flex-col gap-3 px-6 py-5 min-h-0 overflow-hidden"
-                  style={{ flex: "7 7 0%" }}
-                >
-                  <InlineEvalBar
-                    decision={evalDecision}
-                    note={evalNote}
-                    saving={evalSaving}
-                    visible={mode === "result" && !!activeVersionId}
-                    label="Generated Motion Prompt"
-                    onDecision={handleEvalDecision}
-                    onNote={setEvalNote}
-                    onNoteBlur={handleEvalNoteBlur}
-                  />
-
-                  {mode === "result" && !!activeVersionId && (
-                    <InlineApprovalBar
-                      status={approvalStatus}
-                      note={approvalNote}
-                      saving={approvalSaving}
-                      canApprove={editable && identity?.role === "senior"}
-                      onSet={saveApproval}
-                    />
-                  )}
-
-                  {mode === "skeleton" && (
-                    <div className="flex-1 space-y-2.5 pt-1">
-                      {Array.from({ length: 5 }).map((_, i) => (
-                        <div
-                          key={i}
-                          className="h-4 animate-pulse rounded bg-muted-foreground/20"
-                          style={{ width: `${70 + (i % 4) * 7}%` }}
-                        />
-                      ))}
-                    </div>
-                  )}
-
-                  {mode === "empty" && (
-                    <div className="flex-1 flex items-center justify-center rounded-xl border border-dashed border-border">
-                      <div className="text-center px-8">
-                        <Clapperboard className="size-8 mx-auto text-muted-foreground/40 mb-3" />
-                        <p className="text-sm font-medium text-muted-foreground">Not generated yet</p>
-                        <p className="mt-1 text-xs text-muted-foreground/70">
-                          Connect a still, set an instruction, and click Generate.
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                  {mode === "result" && (
-                    <textarea
-                      value={draft}
-                      onChange={(e) => setDraft(e.target.value)}
-                      className="flex-1 w-full resize-none rounded-xl border border-border bg-background p-4 text-sm leading-relaxed focus:outline-none focus:ring-1 focus:ring-ring"
-                    />
-                  )}
-                </div>
+            {/* Sent to model — the exact request the active version sent (standalone) */}
+            {selected === "request" && (
+              <div className="flex h-full w-full max-w-3xl min-h-0 flex-col overflow-y-auto px-6 py-6">
+                {activeRequest ? (
+                  <ModelRequestPanel request={activeRequest} />
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    No request recorded for this version — generate a motion prompt to capture
+                    the system prompt, compiled input, and attachments sent to the model.
+                  </p>
+                )}
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </SheetContent>
     </Sheet>
