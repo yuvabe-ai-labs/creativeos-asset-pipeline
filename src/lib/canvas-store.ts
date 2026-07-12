@@ -187,17 +187,17 @@ export function createCanvasStore(
 
         const data = { ...(node.data as Record<string, unknown>), ...(newNode.data as Record<string, unknown>) };
 
-        // Preserve the source node's connections so the copy is a true, editable
-        // replica: re-point every edge touching the source onto the new node —
-        // both incoming (parent → node) and outgoing (node → child). Fresh edge
-        // ids; autosave persists them like any other edge.
+        // Copy only the INCOMING connections (parent → node) so the copy inherits
+        // the same inputs/context. Outgoing edges (node → child) are intentionally
+        // NOT copied: the point of duplicating is to rewire the output differently,
+        // so the operator connects the copy's output themselves. Fresh edge ids;
+        // autosave persists them like any other edge.
         const clonedEdges = get()
-          .edges.filter((e) => e.source === id || e.target === id)
+          .edges.filter((e) => e.target === id)
           .map((e) => ({
             ...e,
             id: crypto.randomUUID(),
-            source: e.source === id ? newNode.id : e.source,
-            target: e.target === id ? newNode.id : e.target,
+            target: newNode.id,
           }));
 
         set({
