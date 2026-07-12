@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { FileText, Paperclip, Pencil, Sparkles, ChevronRight, Clapperboard, Maximize2, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getShotRole } from "@/lib/nodes/shot-roles";
+import { Button } from "@/components/ui/button";
 
 export type UpstreamNode = {
   id: string;
@@ -11,6 +13,7 @@ export type UpstreamNode = {
   fileUrl?: string;
   fileKind?: string;
   useLlm?: boolean;
+  role?: string;
 };
 
 export type ConnectedPreview = {
@@ -28,9 +31,12 @@ type Props = {
   preview: ConnectedPreview[];
   // Open a connected input's full content in the focus view's detail panel.
   onOpenDetail?: (nodeId: string) => void;
+  // Set true in image-only contexts (e.g. Image Gen) to show a mismatch warning
+  // when a DOC/text File node is connected instead of showing extracted text.
+  imageOnlyContext?: boolean;
 };
 
-export function ConnectedInputsCard({ upstream, preview, onOpenDetail }: Props) {
+export function ConnectedInputsCard({ upstream, preview, onOpenDetail, imageOnlyContext = false }: Props) {
   // Sort: shot first (primary context), then script/full-reel, then others.
   const sorted = [...upstream].sort((a, b) => {
     const rank = (t: string) => (t === "shot" ? 0 : t === "script" ? 1 : 2);
@@ -68,9 +74,14 @@ export function ConnectedInputsCard({ upstream, preview, onOpenDetail }: Props) 
         const useLlm = p?.useLlm ?? u.useLlm;
         const isExpanded = expanded.has(u.id);
         const isImage =
-          (u.type === "file" || u.type === "draw") &&
-          fileKind === "image" &&
-          !!fileUrl;
+          !!fileUrl &&
+          (u.type === "image-gen" ||
+            ((u.type === "file" || u.type === "draw") && fileKind === "image"));
+        // A DOC/text file connected to an image-consuming node (e.g. Image Gen) is a
+        // type mismatch — show a clear message instead of the raw extracted text.
+        const isDocTypeMismatch =
+          imageOnlyContext &&
+          u.type === "file" && (fileKind === "document" || fileKind === "text");
 
         return (
           <li key={u.id} className="rounded-lg border border-border overflow-hidden">
@@ -97,6 +108,11 @@ export function ConnectedInputsCard({ upstream, preview, onOpenDetail }: Props) 
                 )}
                 <NodeIcon type={u.type} />
                 <span className="text-xs font-semibold truncate text-foreground">{u.label}</span>
+                {u.type === "shot" && u.role && (
+                  <span className="shrink-0 rounded px-1.5 py-0.5 text-[0.6rem] font-semibold leading-none bg-primary/10 text-primary">
+                    {getShotRole(u.role).label}
+                  </span>
+                )}
                 {useLlm && (
                   <span className="shrink-0 rounded px-1 py-0.5 text-[0.6rem] font-semibold leading-none bg-primary/10 text-primary">
                     LLM
@@ -124,6 +140,10 @@ export function ConnectedInputsCard({ upstream, preview, onOpenDetail }: Props) 
                     alt={u.label}
                     className="aspect-4/3 w-full rounded-md border border-border object-cover"
                   />
+                ) : isDocTypeMismatch ? (
+                  <p className="text-xs text-muted-foreground">
+                    Document files can&apos;t be used as image inputs — connect an image file instead.
+                  </p>
                 ) : useLlm && !text.trim() ? (
                   <p className="text-xs text-muted-foreground">
                     Run extraction in this File node first.
@@ -168,22 +188,27 @@ export function ConnectedDetailView({
   onBack,
 }: {
   node: ConnectedPreview;
-  onBack: () => void;
+  // Optional: when the surrounding UI already provides a way back (e.g. a nav
+  // rail), omit this and no back button renders.
+  onBack?: () => void;
 }) {
   const isImage =
-    (node.type === "file" || node.type === "draw") &&
-    node.fileKind === "image" &&
-    !!node.fileUrl;
+    !!node.fileUrl &&
+    (node.type === "image-gen" ||
+      ((node.type === "file" || node.type === "draw") && node.fileKind === "image"));
 
   return (
     <div className="w-full max-w-5xl flex flex-col min-h-0 overflow-hidden px-6 py-6 gap-4">
-      <button
-        type="button"
-        onClick={onBack}
-        className="inline-flex items-center gap-1.5 self-start text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-      >
-        <ArrowLeft className="size-4" /> Back to prompt
-      </button>
+      {onBack && (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onBack}
+          className="-ml-2.5 gap-1.5 self-start font-medium text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="size-4" /> Back to prompt
+        </Button>
+      )}
       <div className="flex items-center gap-1.5">
         <NodeIcon type={node.type} />
         <span className="text-eyebrow">{node.label}</span>
@@ -207,7 +232,7 @@ export function ConnectedDetailView({
   );
 }
 
-function NodeIcon({ type }: { type: string }) {
+export function NodeIcon({ type }: { type: string }) {
   if (type === "shot") return <Clapperboard className="size-3 shrink-0 text-primary" />;
   if (type === "script") return <FileText className="size-3 shrink-0 text-primary" />;
   if (type === "file") return <Paperclip className="size-3 shrink-0 text-primary" />;

@@ -15,7 +15,6 @@ import {
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { SHOT_ROLES, DEFAULT_SHOT_ROLE } from "@/lib/nodes/shot-roles";
-import { SHOT_TYPES } from "@/lib/nodes/shot-types";
 import type { ShotComposeIdea } from "@/lib/nodes/shot-compose";
 import type { ReelScript } from "@/lib/nodes/reel-script";
 import { DEFAULT_PARSE_SLICES, type KBSliceKey } from "@/lib/kb/parse-context";
@@ -68,9 +67,6 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
   // Reactive read of THIS shot's current script (to preserve other fields when we set the desc).
   const currentScript = useCanvasStore(
     (s) => (s.nodes.find((n) => n.id === nodeId)?.data as { script?: ReelScript } | undefined)?.script,
-  );
-  const currentShotType = useCanvasStore(
-    (s) => (s.nodes.find((n) => n.id === nodeId)?.data as { shot_type?: string } | undefined)?.shot_type,
   );
 
   const seedDescription = currentScript?.visual_script?.shots?.[0]?.description ?? "";
@@ -127,7 +123,10 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
         if (json.ideas?.length) {
           setIdeas(json.ideas);
           setVersionId(json.versionId ?? null);
-          if (json.role) setRole(json.role);
+          if (json.role) {
+            setRole(json.role);
+            updateNodeData(nodeId, { role: json.role });
+          }
         }
       } catch {
         /* best-effort — leave the empty state if it fails */
@@ -155,6 +154,7 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
       if (!res.ok) throw new Error(json.error ?? "Compose failed");
       setIdeas(json.ideas ?? []);
       setVersionId(json.versionId ?? null);
+      updateNodeData(nodeId, { role });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Compose failed");
     } finally {
@@ -276,22 +276,6 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
                 <p className="rounded-md border border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
                   {seedDescription || "(no shot text yet)"}
                 </p>
-              </div>
-
-              <div>
-                <SectionLabel icon={Clapperboard} className="mb-2">Shot Type</SectionLabel>
-                <select
-                  value={currentShotType ?? ""}
-                  onChange={(e) =>
-                    updateNodeData(nodeId, { shot_type: e.target.value || undefined })
-                  }
-                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-                >
-                  <option value="">— not set —</option>
-                  {SHOT_TYPES.map((t) => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
-                </select>
               </div>
 
               {referenceImages.length > 0 && (

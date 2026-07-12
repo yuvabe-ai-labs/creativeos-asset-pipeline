@@ -5,6 +5,8 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { EditIntent } from "@/lib/image-gen/edit-prompt";
+import { MentionInstructionEditor } from "./mention-instruction-editor";
+import type { UpstreamNode } from "./connected-inputs-card";
 
 // Quick-action chips. The instruction is the bare target; the chip's template supplies the
 // verb (remove / replace / add). "modify" shares the change-only template but is a labeled
@@ -19,6 +21,7 @@ const CHIPS: Array<{ intent: EditIntent; label: string; starter: string }> = [
 export type ImageGenEditPanelProps = {
   intent: EditIntent;
   instruction: string;
+  upstream: UpstreamNode[];
   finalPrompt: string;
   editing: boolean;
   canEdit: boolean;
@@ -34,6 +37,7 @@ export type ImageGenEditPanelProps = {
 export function ImageGenEditPanel({
   intent,
   instruction,
+  upstream,
   finalPrompt,
   editing,
   canEdit,
@@ -69,13 +73,12 @@ export function ImageGenEditPanel({
         ))}
       </div>
 
-      <Textarea
+      <MentionInstructionEditor
         value={instruction}
-        onChange={(e) => onInstructionChange(e.target.value)}
-        onBlur={onInstructionBlur}
-        rows={2}
+        onChange={onInstructionChange}
         placeholder="remove the cup… · replace the bottle with the product reference… · add the product…"
-        className="nodrag resize-none text-sm"
+        upstream={upstream}
+        className="nodrag min-h-16"
       />
 
       {referenceWarning && (

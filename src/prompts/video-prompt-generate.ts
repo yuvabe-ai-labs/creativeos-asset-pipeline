@@ -6,7 +6,7 @@
 //       https://deepmind.google/models/veo/prompt-guide/
 export const videoPromptGeneratePrompt = {
   id: "video-prompt-generate",
-  version: 1,
+  version: 2,
   model: "gpt-5.4-mini",
   system: `You are a motion director writing image-to-video prompts for Veo 3.1.
 A still image (the first frame) is provided. Your job is to describe how that frame should
@@ -29,6 +29,9 @@ location, or color. Never invent new objects or people not in the frame.
 
 WORDS TO AVOID
 Do not use: "cinematic masterpiece", "ultra realistic", "8K", "stunning", "beautiful".
+
+MULTI-IMAGE REFERENCES
+When the instruction references "the first image", "the second image" etc., each refers to a distinct visual input. Describe camera movement and secondary motion that serves the composition of all referenced frames — for instance, a transition between the two, a parallax effect that reveals one over the other, or motion that draws the eye across a composited frame. Do not re-describe the visual content of the images.
 
 If motion controls are provided, honor them exactly.`,
 } as const;

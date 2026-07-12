@@ -17,6 +17,7 @@ import {
 import { toast } from "sonner";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { EditableField } from "./editable-field";
+import { MentionInstructionEditor } from "./mention-instruction-editor";
 import { normalizeTitle } from "@/lib/nodes/title";
 import { Button } from "@/components/ui/button";
 import { GuidedNextButton } from "@/components/canvas/guided-next-button";
@@ -501,14 +502,15 @@ export function VideoPromptFocusView({
                     <PencilLine className="size-3.5 text-primary" />
                     <span className="text-eyebrow">Instruction</span>
                   </div>
-                  <textarea
+                  <MentionInstructionEditor
                     value={instructionDraft}
-                    onChange={(e) => {
-                      setInstructionDraft(e.target.value);
-                      onPatch({ instruction: e.target.value });
+                    onChange={(v) => {
+                      setInstructionDraft(v);
+                      onPatch({ instruction: v });
                     }}
                     placeholder={DEFAULT_MOTION_INSTRUCTION}
-                    className="flex-1 min-h-0 w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-sm leading-relaxed focus:outline-none focus:ring-1 focus:ring-ring"
+                    upstream={upstream}
+                    disabled={!editable}
                   />
                   <Button className="w-full" size="default" onClick={runGenerate} disabled={generating || !editable}>
                     <Clapperboard className="size-4" />

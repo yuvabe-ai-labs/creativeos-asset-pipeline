@@ -16,7 +16,7 @@ import { ApprovalBadge } from "./approval-badge";
 import type { ApprovalStatus } from "@/lib/approval";
 import { useNodeCost } from "@/hooks/use-node-cost";
 
-const TYPE_LABEL: Record<string, string> = { script: "Script", text: "Note", prompt: "Prompt", kb: "Brand KB", file: "File", shot: "Shot", draw: "Sketch" };
+const TYPE_LABEL: Record<string, string> = { script: "Script", text: "Note", prompt: "Prompt", kb: "Brand KB", file: "File", shot: "Shot", draw: "Sketch", "image-gen": "Image" };
 
 // Prompt node. A compact launcher; double-click / Open hands off to the Prompt
 // focus view. The Inputs panel's connected-node list is derived from the store graph.
@@ -41,19 +41,26 @@ export function PromptNode({ id, data, selected }: NodeProps) {
     // we do NOT also surface the parent Script, which would pass the whole reel.
     return directNodes.map((n) => {
       const d = n.data as Record<string, unknown>;
+      const typeLabel = TYPE_LABEL[n.type ?? ""] ?? String(n.type);
+      const fileUrl =
+        n.type === "file" || n.type === "draw"
+          ? (d.fileUrl as string | undefined)
+          : n.type === "image-gen"
+            ? (typeof d.parsed === "string" ? d.parsed : undefined)
+            : undefined;
       return {
         id: n.id,
-        label: TYPE_LABEL[n.type ?? ""] ?? String(n.type),
+        label: (d.title as string | undefined)?.trim() || typeLabel,
         type: n.type ?? "",
-        fileUrl:
-          n.type === "file" || n.type === "draw"
-            ? (d.fileUrl as string | undefined)
-            : undefined,
+        fileUrl,
         fileKind:
           n.type === "file" || n.type === "draw"
             ? (d.fileKind as string | undefined)
-            : undefined,
+            : n.type === "image-gen"
+              ? "image"
+              : undefined,
         useLlm: n.type === "file" ? (d.useLlm as boolean | undefined) : undefined,
+        role: n.type === "shot" ? (d.role as string | undefined) : undefined,
       };
     });
   }, [nodes, edges, id]);

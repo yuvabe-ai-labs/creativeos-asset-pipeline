@@ -55,11 +55,25 @@ async function generateWithOpenAI(
   const openai = createOpenAI();
   const p = input.params;
 
+  // Server-side migration: params saved before the aspect_ratio field existed may carry a
+  // legacy "size" string (e.g. "1024x1024"). Map it back to a ratio so the API receives
+  // the correct pixel dimensions even for old nodes.
+  const SIZE_TO_RATIO: Record<string, string> = {
+    "1024x1024": "1:1",
+    "1536x1024": "16:9",
+    "1024x1536": "9:16",
+    "auto":      "1:1",
+  };
+  const aspectRatio =
+    (p.aspect_ratio as string | undefined) ??
+    SIZE_TO_RATIO[p.size as string] ??
+    "1:1";
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sharedParams: Record<string, any> = {
     model: apiModelId,
     n: 1,
-    size: aspectRatioToOpenAISize((p.aspect_ratio as string) ?? "1:1"),
+    size: aspectRatioToOpenAISize(aspectRatio),
     quality: (p.quality as string) ?? "medium",
     // response_format is NOT supported for gpt-image-* models — they always return b64_json
   };
@@ -113,6 +127,9 @@ export const openaiModels: MediaGenModelSpec[] = [
     provider: "openai", mediaType: "image",
     label: "GPT Image 2", providerLabel: "OpenAI",
     maxReferenceImages: 16, maxReferenceSizeBytes: 50 * 1024 * 1024,
+    maxImageEdgePx: 3840,
+    maxAspectRatio: 3.0,
+    minDimensionMultiple: 16,
     supportsMask: true,
     params: gptImage2Params,
     schema: buildZodFromParams(gptImage2Params),
@@ -123,6 +140,9 @@ export const openaiModels: MediaGenModelSpec[] = [
     provider: "openai", mediaType: "image",
     label: "GPT Image 1", providerLabel: "OpenAI",
     maxReferenceImages: 16, maxReferenceSizeBytes: 50 * 1024 * 1024,
+    maxImageEdgePx: 3840,
+    maxAspectRatio: 3.0,
+    minDimensionMultiple: 16,
     supportsMask: true,
     params: gptImage1Params,
     schema: buildZodFromParams(gptImage1Params),
@@ -133,6 +153,9 @@ export const openaiModels: MediaGenModelSpec[] = [
     provider: "openai", mediaType: "image",
     label: "GPT Image 1 Mini", providerLabel: "OpenAI",
     maxReferenceImages: 16, maxReferenceSizeBytes: 50 * 1024 * 1024,
+    maxImageEdgePx: 3840,
+    maxAspectRatio: 3.0,
+    minDimensionMultiple: 16,
     supportsMask: true,
     params: gptImage1MiniParams,
     schema: buildZodFromParams(gptImage1MiniParams),

@@ -187,17 +187,34 @@ export function createCanvasStore(
 
         const data = { ...(node.data as Record<string, unknown>), ...(newNode.data as Record<string, unknown>) };
 
+        // Copy only the INCOMING connections (parent → node) so the copy inherits
+        // the same inputs/context. Outgoing edges (node → child) are intentionally
+        // NOT copied: the point of duplicating is to rewire the output differently,
+        // so the operator connects the copy's output themselves. Fresh edge ids;
+        // autosave persists them like any other edge.
+        const clonedEdges = get()
+          .edges.filter((e) => e.target === id)
+          .map((e) => ({
+            ...e,
+            id: crypto.randomUUID(),
+            target: newNode.id,
+          }));
+
+        // Select the duplicate (and deselect everything else) so it becomes the
+        // active node AND renders on top — React Flow elevates the selected node,
+        // so leaving the original selected would keep the copy visually behind it.
         set({
           nodes: [
-            ...get().nodes,
+            ...get().nodes.map((n) => (n.selected ? { ...n, selected: false } : n)),
             {
               ...node,
               id: newNode.id,
               position: newNode.position,
               data,
-              selected: false,
+              selected: true,
             } as AppNode,
           ],
+          edges: [...get().edges, ...clonedEdges],
         });
       } catch (err) {
         console.error("Duplicate node error:", err);

@@ -7,9 +7,13 @@ import {
   assembleEditReferences,
   type EditIntent,
 } from "@/lib/image-gen/edit-prompt";
+import type { MentionUpstream } from "@/lib/nodes/resolve-mention-tokens";
 import { computeImageCost } from "@/lib/image-gen/cost";
 import { apiError, apiOk } from "@/lib/api/route-helpers";
 import { uploadImageGen } from "@/lib/storage";
+import sharp from "sharp";
+import { validateReferenceImages, type RefImageMeta } from "@/lib/image-gen/validate";
+import { createServerSupabase } from "@/lib/supabase/server";
 
 function mimeToExt(mimeType: string): string {
   if (mimeType === "image/jpeg") return "jpg";
@@ -85,6 +89,21 @@ export async function POST(
     typeof body?.instruction === "string" ? body.instruction.trim() : "";
   const isEdit = instruction.length > 0;
 
+  const mentionUpstream: MentionUpstream[] = upstream.map((u) => ({
+    nodeId: u.nodeId,
+    type: u.type,
+    text: typeof u.activeOutput === "string" ? u.activeOutput : "",
+    fileUrl:
+      u.type === "image-gen"
+        ? (typeof u.activeOutput === "string" ? u.activeOutput : undefined)
+        : (u.data.fileUrl as string | undefined),
+    fileKind:
+      u.type === "image-gen"
+        ? "image"
+        : (u.data.fileKind as string | undefined),
+    useLlm: u.type === "file" ? (u.data.useLlm as boolean | undefined) : undefined,
+  }));
+
   let prompt: string;
   let referenceUrls: string[];
   let inputsUsed: Record<string, unknown>;
@@ -145,6 +164,7 @@ export async function POST(
         intent,
         hasExtraReference: extraReferenceUrls.length > 0,
         masked,
+        upstream: mentionUpstream,
       });
     inputsUsed = {
       promptVersionId: carriedPromptVersionId,
@@ -169,6 +189,62 @@ export async function POST(
     };
   }
 
+  // Build RefImageMeta[] from upstream node data; lazy-backfill missing metadata
+  const refMetas: RefImageMeta[] = await Promise.all(
+    referenceUrls.map(async (url) => {
+      const ownerNode = upstream.find((u) => {
+        if (u.type === "image-gen") return u.activeOutput === url;
+        const d = u.data as Record<string, unknown>;
+        return d.fileUrl === url;
+      });
+
+      const data = ownerNode?.data as Record<string, unknown> | undefined;
+      let fileSizeBytes = data?.fileSizeBytes as number | undefined;
+      let imageWidth = data?.imageWidth as number | undefined;
+      let imageHeight = data?.imageHeight as number | undefined;
+
+      if (fileSizeBytes === undefined && ownerNode) {
+        try {
+          const res = await fetch(url);
+          if (res.ok) {
+            const buf = Buffer.from(await res.arrayBuffer());
+            fileSizeBytes = buf.length;
+            const meta = await sharp(buf).metadata();
+            imageWidth = meta.width;
+            imageHeight = meta.height;
+            const supabase = createServerSupabase();
+            await supabase
+              .from("nodes")
+              .update({
+                data: {
+                  ...(ownerNode.data as Record<string, unknown>),
+                  fileSizeBytes,
+                  imageWidth,
+                  imageHeight,
+                },
+              })
+              .eq("id", ownerNode.nodeId);
+          }
+        } catch {
+          // best-effort
+        }
+      }
+
+      const filename = data?.filename as string | undefined;
+      return { url, filename, fileSizeBytes, imageWidth, imageHeight };
+    }),
+  );
+
+  const validationResult = validateReferenceImages(refMetas, config);
+  if (!validationResult.ok) {
+    const count = validationResult.violations.length;
+    const message =
+      count === 1
+        ? `One of your reference images can't be used: ${validationResult.violations[0].message}`
+        : `${count} reference images can't be used — resize them before generating.`;
+    return apiError(message, 422);
+  }
+
   // Join the shared generations substrate (D26) — image is the synchronous fast path.
   const generation = await insertGeneration({
     nodeId,
@@ -186,18 +262,36 @@ export async function POST(
       ...(maskBase64 ? { maskBase64, maskMime } : {}),
     });
 
+    const genBuffer = Buffer.from(result.imageBase64, "base64");
     const { url: imageUrl } = await uploadImageGen({
       nodeId,
       ext: mimeToExt(result.mimeType),
-      body: Buffer.from(result.imageBase64, "base64"),
+      body: genBuffer,
       contentType: result.mimeType,
     });
+
+    let genWidth: number | undefined;
+    let genHeight: number | undefined;
+    try {
+      const meta = await sharp(genBuffer).metadata();
+      genWidth = meta.width;
+      genHeight = meta.height;
+    } catch {
+      // best-effort
+    }
 
     // Record the version
     const version = await insertVersion({
       nodeId,
       inputsUsed,
-      paramsUsed: { modelId, ...validatedParams, tokensUsed: result.tokensUsed },
+      paramsUsed: {
+        modelId,
+        ...validatedParams,
+        tokensUsed: result.tokensUsed,
+        imageWidth: genWidth,
+        imageHeight: genHeight,
+        fileSizeBytes: genBuffer.length,
+      },
       modelUsed: modelId,
       output: imageUrl,
     });
@@ -210,7 +304,13 @@ export async function POST(
       creditsConsumed: cost?.usd,
     });
 
-    return apiOk({ imageUrl, versionId: version.id });
+    return apiOk({
+      imageUrl,
+      versionId: version.id,
+      fileSizeBytes: genBuffer.length,
+      imageWidth: genWidth,
+      imageHeight: genHeight,
+    });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Image generation failed";
     await insertVersion({

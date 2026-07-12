@@ -17,7 +17,11 @@ export function findShotAncestor(
 }
 
 /** Human label for a generation node: "Shot N" from its shot ancestor, else the node's title. */
-export function resolveShotLabel(nodeId: string, nodes: AppNode[], edges: Edge[]): string {
+export function resolveShotLabel(
+  nodeId: string,
+  nodes: AppNode[],
+  edges: Edge[],
+): string {
   const shot = findShotAncestor(nodeId, nodes, edges);
   if (shot) {
     const order = (shot.data as { order?: number }).order;
@@ -29,7 +33,7 @@ export function resolveShotLabel(nodeId: string, nodes: AppNode[], edges: Edge[]
 }
 
 /** A running IMAGE job older than this (no completion) is derived Failed (D9). */
-export const STALE_RUNNING_MS = 60_000;
+export const STALE_RUNNING_MS = 300_000;
 
 export type TrayStatus = "running" | "ready" | "failed";
 
@@ -43,7 +47,11 @@ export type TrayItem = {
   versionId: string | null;
 };
 
-const STATUS_RANK: Record<TrayStatus, number> = { running: 0, failed: 1, ready: 2 };
+const STATUS_RANK: Record<TrayStatus, number> = {
+  running: 0,
+  failed: 1,
+  ready: 2,
+};
 
 /** Reduce all rows to the single newest row per node_id (by created_at). */
 export function latestJobPerNode(jobs: GenerationRow[]): GenerationRow[] {
@@ -69,24 +77,32 @@ export function deriveTrayItems(
 
   for (const jobRow of latestJobPerNode(jobs)) {
     const node = byId.get(jobRow.node_id);
-    if (!node) continue;                                // node deleted → orphan row
+    if (!node) continue; // node deleted → orphan row
     const assetType: TrayItem["assetType"] =
-      jobRow.type === "video" ? "video" : jobRow.type === "prompt" ? "prompt" : "image";
+      jobRow.type === "video"
+        ? "video"
+        : jobRow.type === "prompt"
+          ? "prompt"
+          : "image";
 
     let status: TrayStatus =
-      jobRow.status === "running" ? "running"
-      : jobRow.status === "succeeded" ? "ready"
-      : "failed";
+      jobRow.status === "running"
+        ? "running"
+        : jobRow.status === "succeeded"
+          ? "ready"
+          : "failed";
 
     // Stale running IMAGE (client disconnected mid-request) → Failed. Video is owned
     // by the async pipeline's own reconciliation, so it is not stale-timed here.
     if (status === "running" && assetType === "image") {
-      if (nowMs - Date.parse(jobRow.created_at) > STALE_RUNNING_MS) status = "failed";
+      if (nowMs - Date.parse(jobRow.created_at) > STALE_RUNNING_MS)
+        status = "failed";
     }
 
     // Ready persists until the active version is approved (retention = "until approved").
     if (status === "ready") {
-      const approval = (node.data as { approvalStatus?: string }).approvalStatus;
+      const approval = (node.data as { approvalStatus?: string })
+        .approvalStatus;
       if (approval === "approved") continue;
     }
 
@@ -107,6 +123,9 @@ export function deriveTrayItems(
     });
   }
 
-  items.sort((a, b) => STATUS_RANK[a.status] - STATUS_RANK[b.status] || a.order - b.order);
+  items.sort(
+    (a, b) =>
+      STATUS_RANK[a.status] - STATUS_RANK[b.status] || a.order - b.order,
+  );
   return items;
 }

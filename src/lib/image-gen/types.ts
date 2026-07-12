@@ -50,17 +50,21 @@ export type ParamSpec = {
 
 // Server-side model config (includes generate function + derived Zod schema)
 export type MediaGenModelSpec = {
-  id:                    string;
-  provider:              string;
-  mediaType:             MediaType;
-  label:                 string;
-  providerLabel:         string;
-  maxReferenceImages:    number;
-  maxReferenceSizeBytes: number;
-  supportsMask?:         boolean;   // model accepts an alpha edit-mask (OpenAI images.edit)
-  params:                ParamSpec[];
-  schema:                ZodTypeAny;
-  generate:              (input: ImageGenInput) => Promise<ImageGenResult>;
+  id:                          string;
+  provider:                    string;
+  mediaType:                   MediaType;
+  label:                       string;
+  providerLabel:               string;
+  maxReferenceImages:          number;
+  maxReferenceSizeBytes:       number;
+  maxTotalReferenceSizeBytes?: number;   // aggregate all images combined (Gemini: 100 MB)
+  maxImageEdgePx?:             number;   // max pixels on either edge (OpenAI: 3840)
+  maxAspectRatio?:             number;   // max long:short ratio (OpenAI: 3.0)
+  minDimensionMultiple?:       number;   // both edges must be multiples of N (OpenAI: 16)
+  supportsMask?:               boolean;   // model accepts an alpha edit-mask (OpenAI images.edit)
+  params:                      ParamSpec[];
+  schema:                      ZodTypeAny;
+  generate:                    (input: ImageGenInput) => Promise<ImageGenResult>;
 };
 
 // Client-safe subset (no generate function)

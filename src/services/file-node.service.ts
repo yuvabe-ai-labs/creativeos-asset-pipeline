@@ -3,7 +3,7 @@ import { FILE_NODE_MAX_SIZE } from "@/lib/nodes/file-constants";
 
 type FileUploadResult = Pick<
   FileNodeData,
-  "filename" | "fileExt" | "fileKind" | "fileUrl" | "rawText"
+  "filename" | "fileExt" | "fileKind" | "fileUrl" | "rawText" | "fileSizeBytes" | "imageWidth" | "imageHeight"
 >;
 
 type ExtractResult = { processedOutput: string };

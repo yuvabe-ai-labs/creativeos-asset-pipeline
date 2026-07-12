@@ -48,9 +48,10 @@ export function VideoPromptNode({ id, data, selected }: NodeProps) {
           : n.type === "image-gen"
             ? "image"
             : undefined;
+      const typeLabel = TYPE_LABEL[n.type ?? ""] ?? String(n.type);
       return {
         id: n.id,
-        label: TYPE_LABEL[n.type ?? ""] ?? String(n.type),
+        label: (d.title as string | undefined)?.trim() || typeLabel,
         type: n.type ?? "",
         fileUrl,
         fileKind,

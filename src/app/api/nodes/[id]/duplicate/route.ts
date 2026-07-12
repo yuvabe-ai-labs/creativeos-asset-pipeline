@@ -29,7 +29,8 @@ export async function POST(
     // 2. Create new node
     const newNodeId = crypto.randomUUID();
     const position = sourceNode.position as { x: number; y: number };
-    const newPosition = { x: position.x + 32, y: position.y + 32 };
+    // Place the duplicate ABOVE the original (YUV-195): mirror the 32px cascade upward.
+    const newPosition = { x: position.x + 32, y: position.y - 32 };
 
     const { data: newNode, error: insertErr } = await supabase
       .from("nodes")

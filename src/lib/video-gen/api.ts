@@ -9,6 +9,7 @@ export type UpstreamImage = {
   id: string;
   type: string;
   imageUrl: string;
+  filename?: string;
 };
 
 export type UpstreamPromptNode = {

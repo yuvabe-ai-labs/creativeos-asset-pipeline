@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createCanvas } from "@/lib/db/canvases";
+import { createCanvas, renameCanvas, deleteCanvas } from "@/lib/db/canvases";
 import { getActiveKBVersion } from "@/lib/db/kb";
 import { saveCanvasNodes } from "@/lib/db/nodes";
 import { saveCanvasEdges } from "@/lib/db/edges";
@@ -57,4 +57,24 @@ export async function createCanvasAction(input: {
 
   revalidatePath(`/clients/${input.clientSlug}`);
   return canvas;
+}
+
+export async function renameCanvasAction(input: {
+  canvasId: string;
+  clientSlug: string;
+  name: string;
+}): Promise<void> {
+  const name = input.name?.trim();
+  if (!name) throw new Error("Canvas needs a name");
+  if (name.length > 100) throw new Error("Canvas name is too long (max 100 characters)");
+  await renameCanvas(input.canvasId, name);
+  revalidatePath(`/clients/${input.clientSlug}`);
+}
+
+export async function deleteCanvasAction(input: {
+  canvasId: string;
+  clientSlug: string;
+}): Promise<void> {
+  await deleteCanvas(input.canvasId);
+  revalidatePath(`/clients/${input.clientSlug}`);
 }

@@ -27,7 +27,9 @@ async function generateWithSora(input: VideoGenInput): Promise<VideoGenResult> {
     model: SORA_MODEL,
     prompt: input.prompt,
     seconds,
-    size,
+    // The Sora API rejects "size" when a start frame is provided because the output
+    // dimensions must match the reference image — omit it in that case.
+    ...(!input.startFrameUrl ? { size } : {}),
   };
 
   if (input.startFrameUrl) {

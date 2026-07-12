@@ -51,6 +51,7 @@ import {
   resolveBaseNodeId,
   type EditIntent,
 } from "@/lib/image-gen/edit-prompt";
+import type { MentionUpstream } from "@/lib/nodes/resolve-mention-tokens";
 import { editModeForModel } from "@/lib/image-gen/edit-mode";
 import { InlineEvalBar } from "./inline-eval-bar";
 import { InlineApprovalBar } from "./inline-approval-bar";
@@ -66,6 +67,13 @@ import {
 } from "@/lib/image-gen/client-models";
 import { smartMergeParams } from "@/lib/image-gen/params/merge";
 import { ImageGenOutputSettings } from "./image-gen-output-settings";
+import { validateReferenceImages, type RefImageMeta } from "@/lib/image-gen/validate";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 export type ImageGenFocusViewProps = {
   open: boolean;
@@ -84,6 +92,9 @@ export type ImageGenFocusViewProps = {
     type: string;
     fileUrl?: string;
     fileKind?: string;
+    fileSizeBytes?: number;
+    imageWidth?: number;
+    imageHeight?: number;
   }>;
   onPatch: (patch: Record<string, unknown>) => void;
   /** Mirrors in-flight generate/edit state up to the node so its card can show
@@ -249,7 +260,19 @@ export function ImageGenFocusView({
     nodeId: string;
     text: string;
   } | null>(null);
+  const [loadingVersions, setLoadingVersions] = useState(false);
+  const [loadingPreview, setLoadingPreview] = useState(false);
+  const [openSeed, setOpenSeed] = useState(open);
   const seenModelIdRef = useRef(model.id);
+
+  // Re-arm skeletons on open transition.
+  if (open !== openSeed) {
+    setOpenSeed(open);
+    if (open) {
+      setLoadingVersions(true);
+      setLoadingPreview(true);
+    }
+  }
 
   useEffect(() => {
     if (model.id !== seenModelIdRef.current) {
@@ -289,6 +312,8 @@ export function ImageGenFocusView({
         }
       } catch {
         /* best-effort */
+      } finally {
+        if (!cancelled) setLoadingVersions(false);
       }
     })();
     return () => {
@@ -300,7 +325,10 @@ export function ImageGenFocusView({
     if (!open) return;
     let cancelled = false;
     const promptNode = upstream.find((u) => u.type === "prompt");
-    if (!promptNode) return;
+    if (!promptNode) {
+      setLoadingPreview(false);
+      return;
+    }
     void (async () => {
       try {
         const res = await fetch(`/api/nodes/${promptNode.id}/versions`);
@@ -317,6 +345,8 @@ export function ImageGenFocusView({
         }
       } catch {
         /* best-effort */
+      } finally {
+        if (!cancelled) setLoadingPreview(false);
       }
     })();
     return () => {
@@ -365,12 +395,31 @@ export function ImageGenFocusView({
   // — marks never carry over onto a freshly generated image.
   const editBaseUrl = imageUrl ?? baseNodeUrl ?? null;
 
+  // Validation for reference image limits
+  const refMetas: RefImageMeta[] = upstream
+    .filter((u) => (u.type === "file" || u.type === "draw" || u.type === "image-gen") && !!u.fileUrl)
+    .map((u) => ({
+      url: u.fileUrl!,
+      fileSizeBytes: u.fileSizeBytes,
+      imageWidth: u.imageWidth,
+      imageHeight: u.imageHeight,
+    }));
+
+  const refValidation = validateReferenceImages(refMetas, model);
+  const refViolationsByUrl = new Map(
+    refValidation.ok
+      ? []
+      : refValidation.violations.map((v) => [v.url, v.message]),
+  );
+  const hasRefViolation = !refValidation.ok;
+
   const referenceItems: EditReferenceItem[] = connectedImageNodes.map((n) => ({
     id: n.id,
     url: n.url,
     label:
       n.type === "draw" ? "Sketch" : n.type === "image-gen" ? "Image reference" : "Image file",
     isBase: n.id === baseNodeId,
+    violation: refViolationsByUrl.get(n.url),
   }));
 
   // Extras = the connected image nodes the user marked (base excluded). Empty selection falls
@@ -384,12 +433,21 @@ export function ImageGenFocusView({
 
   // Final prompt = the per-intent template, unless the operator has hand-edited it (override).
   // Picking a chip or changing the instruction clears the override so the template re-derives.
+  const mentionUpstreamForEdit: MentionUpstream[] = upstream.map((u) => ({
+    nodeId: u.id,
+    type: u.type,
+    text: "",
+    fileUrl: u.fileUrl,
+    fileKind: u.fileKind,
+  }));
+
   const composedPrompt = editInstr.trim()
     ? buildEditPrompt({
         instruction: editInstr,
         intent,
         hasExtraReference,
         masked: editMode === "paint" && hasMaskRegion,
+        upstream: mentionUpstreamForEdit,
       })
     : "";
   const finalPrompt = promptOverride ?? composedPrompt;
@@ -746,20 +804,35 @@ export function ImageGenFocusView({
                     upstreamNodeIds={upstream.map((u) => u.id)}
                   />
                 )}
-                <Button
-                  size="lg"
-                  onClick={handleGenerate}
-                  disabled={generating || editing || !promptUpstream || !editable}
-                >
-                  <Sparkles className="size-4" strokeWidth={1.5} />
-                  {generating
-                    ? "Generating…"
-                    : editing
-                      ? "Editing…"
-                      : imageUrl
-                        ? "Re-generate"
-                        : "Generate"}
-                </Button>
+                <div className="flex flex-col items-end">
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger render={<span className="inline-flex" />}>
+                        <Button
+                          size="lg"
+                          onClick={handleGenerate}
+                          disabled={generating || editing || !promptUpstream || !editable || hasRefViolation}
+                        >
+                          <Sparkles className="size-4" strokeWidth={1.5} />
+                          {generating
+                            ? "Generating…"
+                            : editing
+                              ? "Editing…"
+                              : imageUrl
+                                ? "Re-generate"
+                                : "Generate"}
+                        </Button>
+                      </TooltipTrigger>
+                      {hasRefViolation && !refValidation.ok && (
+                        <TooltipContent side="top" className="max-w-56 text-center">
+                          {refValidation.violations.length === 1
+                            ? "A reference image doesn't meet this model's requirements. Try resizing it or switching to a different model."
+                            : `${refValidation.violations.length} reference images don't meet this model's requirements. Try resizing them or switching to a different model.`}
+                        </TooltipContent>
+                      )}
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
                 <GuidedNextButton
                   sourceId={nodeId}
                   variant="button"
@@ -787,6 +860,7 @@ export function ImageGenFocusView({
                   <ImageGenEditPanel
                     intent={intent}
                     instruction={editInstr}
+                    upstream={upstreamForCard}
                     finalPrompt={finalPrompt}
                     editing={editing}
                     canEdit={canEditBase && editable}
@@ -801,14 +875,26 @@ export function ImageGenFocusView({
                 </div>
               )}
 
-              {versions.length > 0 && (
+              {loadingVersions ? (
+                <div className="space-y-2">
+                  <div className="h-3 w-24 animate-pulse rounded bg-muted-foreground/20" />
+                  <div className="space-y-1.5 pt-1">
+                    {Array.from({ length: 3 }).map((_, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <div className="size-2 shrink-0 animate-pulse rounded-full bg-muted-foreground/20" />
+                        <div className="h-3 animate-pulse rounded bg-muted-foreground/20" style={{ width: `${55 + i * 12}%` }} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : versions.length > 0 ? (
                 <ImageGenVersionHistory
                   versions={versions}
                   activeVersionId={activeVersionId}
                   onRestore={handleRestoreVersion}
                   restoring={restoring}
                 />
-              )}
+              ) : null}
 
               <LeftSection icon={Settings2} label="Output settings">
                 <ImageGenOutputSettings
@@ -825,22 +911,37 @@ export function ImageGenFocusView({
                 label="Connected"
                 badge={`${upstream.length} input${upstream.length === 1 ? "" : "s"}`}
               >
-                <ConnectedInputsCard
-                  upstream={upstreamForCard}
-                  preview={preview}
-                />
-                {refOverLimit && (
-                  <div className="mt-2 flex items-start gap-1.5 rounded-md border border-amber-300 bg-amber-50 px-2 py-1.5 text-[0.7rem] text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300">
-                    <AlertTriangle
-                      className="mt-0.5 size-3 shrink-0"
-                      strokeWidth={1.5}
-                    />
-                    <span>
-                      {referenceCount} reference images connected — only the
-                      first {model.maxReferenceImages} will be used by{" "}
-                      {model.label}.
-                    </span>
+                {loadingPreview ? (
+                  <div className="space-y-2">
+                    {Array.from({ length: Math.max(upstream.length, 2) }).map((_, i) => (
+                      <div key={i} className="space-y-1.5 rounded-lg border border-border p-3">
+                        <div className="h-3 w-1/3 animate-pulse rounded bg-muted-foreground/20" />
+                        <div className="h-3 w-full animate-pulse rounded bg-muted-foreground/20" />
+                        <div className="h-3 w-4/5 animate-pulse rounded bg-muted-foreground/20" />
+                      </div>
+                    ))}
                   </div>
+                ) : (
+                  <>
+                    <ConnectedInputsCard
+                      upstream={upstreamForCard}
+                      preview={preview}
+                      imageOnlyContext
+                    />
+                    {refOverLimit && (
+                      <div className="mt-2 flex items-start gap-1.5 rounded-md border border-amber-300 bg-amber-50 px-2 py-1.5 text-[0.7rem] text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300">
+                        <AlertTriangle
+                          className="mt-0.5 size-3 shrink-0"
+                          strokeWidth={1.5}
+                        />
+                        <span>
+                          {referenceCount} reference images connected — only the
+                          first {model.maxReferenceImages} will be used by{" "}
+                          {model.label}.
+                        </span>
+                      </div>
+                    )}
+                  </>
                 )}
               </LeftSection>
             </div>

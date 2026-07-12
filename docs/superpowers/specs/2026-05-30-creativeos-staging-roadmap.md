@@ -899,6 +899,43 @@ the generate→iterate loop; YAGNI for this cut — attempt still wins); a full 
 
 **Refines.** D37 / D27 (fills the base-selection gap both specs flagged as unbuilt).
 
+### D40 — Prompt focus view becomes a left-rail master–detail
+
+**Decision.** The Prompt focus view (`prompt-focus-view.tsx`) is reorganized into a **left rail +
+detail pane** (master–detail). Rail items, top to bottom: **Prompt** (default) → a **Connected · N**
+group listing each upstream node → **Details** → **Sent to model**. The right pane renders the
+selected item:
+- **Prompt** — the compose editor: **Instruction** (textarea + one-row shot controls + Generate) on
+  top, **Generated prompt** below (eyebrow + a `v1 v2…` **version-chip strip**: hover = version
+  details, click = switch via the existing restore; output at 16px, capped height).
+- **A connected node** — that node's read-only detail (reuses `ConnectedDetailView`; no back button
+  needed — the rail returns).
+- **Details** — Brand KB slices, then an `hr`, then Review (eval + approval). Carries the approval
+  status badge on its rail item.
+- **Sent to model** — the frozen request as `line`-variant tabs (System prompt / Compiled input /
+  Attachments), heading supplied by the rail item.
+Usage/cost stays in the header. **All controls are shadcn primitives** (`Button`, `Textarea`, `Tabs`)
+— no native controls (this rule was codified in `CLAUDE.md`). New pieces: `prompt-version-chips.tsx`,
+pure helpers `describeApprovalPill` / `buildVersionChips` (`lib/nodes/prompt-focus.ts`), and
+`NodeIcon` exported from `connected-inputs-card.tsx`. Folds in **YUV-165** (the "Generated prompt"
+eyebrow + output prominence); YUV-165's Video Prompt view is a tracked fast follow.
+
+**Why.** The view showed everything at once, so the primary path (write → generate → read) competed
+with metadata/approval/eval/model-request, and the generated output sat *last*, unlabelled (YUV-165).
+A master–detail rail makes Prompt the primary surface and turns each secondary concern (each connected
+input, the Brand KB + review, the model request) into a plain "select → render" item — simpler and a
+better fit than peer tabs for "one editor + a list of inspectable things."
+
+**Rejected.** Segmented **Compose/Details tabs** (first built; the Base UI `Tabs` controlled-value
+switching fought the bottom-sheet flex layout and didn't switch reliably — replaced by the rail);
+a right-side drawer; collapsible icon rails; a fully-minimal editor with no review-state signal (kept
+the approval badge on the Details rail item instead).
+
+**Refines.** Supersedes YUV-165's "keep bars but de-emphasize" with "move off the primary surface into
+rail items." Preserves D29 (approval flag), D33 (read-only sessions), D35/D36 (`GuidedNextButton` in
+the header). **Originated →** `2026-07-12-yuv187-prompt-focus-simplify-design.md` (that spec's tab
+design was superseded during implementation by this rail; see its top note).
+
 ### Parked / out-of-scope (with revisit triggers)
 | Item | Status | Revisit when |
 |---|---|---|
