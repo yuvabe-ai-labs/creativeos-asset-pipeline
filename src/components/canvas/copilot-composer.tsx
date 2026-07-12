@@ -20,6 +20,8 @@ export function CopilotComposer({
   thinking: boolean;
 }) {
   const [input, setInput] = useState("");
+  // The last message the human sent — recalled by ArrowUp on an empty composer (shell-style).
+  const [lastSent, setLastSent] = useState("");
   const [attachment, setAttachment] = useState<Attachment | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -55,14 +57,18 @@ export function CopilotComposer({
     }
   }
 
-  // Replace the "@query" at the caret with the chosen node's stable handle token.
-  function insertMention(o: { handle: string }) {
+  // Replace the "@query" at the caret with the chosen node's handle token AND its
+  // friendly name (e.g. "@FILE-469A Product image "). The handle stays the machine
+  // anchor — `resolveMentions` matches `/@[\w-]+/`, which stops at the space, so it
+  // still resolves the id from the handle alone; the name that follows is legible
+  // context for the human's chat history and inline grounding for the model.
+  function insertMention(o: { handle: string; name: string }) {
     if (mention === null) return;
     const el = inputRef.current;
     const caret = el?.selectionStart ?? input.length;
     const before = input.slice(0, mention.start);
     const after = input.slice(caret);
-    const token = `@${o.handle} `;
+    const token = `@${o.handle} ${o.name} `;
     setInput(before + token + after);
     setMention(null);
     const pos = (before + token).length;
@@ -86,6 +92,7 @@ export function CopilotComposer({
   function submit() {
     const text = input.trim();
     if ((!text && !attachment) || thinking) return;
+    if (text) setLastSent(text); // remember it for ArrowUp recall
     onSend(text, attachment);
     setInput("");
     setAttachment(null);
@@ -173,6 +180,18 @@ export function CopilotComposer({
                 setMention(null);
                 return;
               }
+            }
+            // Shell-style history: ArrowUp on an empty composer recalls the last sent
+            // message. Guarded to empty input so it never fights caret movement mid-draft.
+            if (e.key === "ArrowUp" && input.length === 0 && lastSent) {
+              e.preventDefault();
+              setInput(lastSent);
+              requestAnimationFrame(() => {
+                const el = inputRef.current;
+                el?.focus();
+                el?.setSelectionRange(lastSent.length, lastSent.length);
+              });
+              return;
             }
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
