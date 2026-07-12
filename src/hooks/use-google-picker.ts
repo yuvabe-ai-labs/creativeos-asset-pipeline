@@ -54,12 +54,35 @@ export function useGooglePicker(onPick: (file: DrivePickedFile) => void) {
 
     const google = (window as any).google;
 
+    // My Drive — full folder tree navigation
+    const myDriveView = new google.picker.DocsView(google.picker.ViewId.DOCS)
+      .setIncludeFolders(true)
+      .setSelectFolderEnabled(false)
+      .setMimeTypes(ALLOWED_MIME_TYPES);
+
+    // Shared with me — shows folders shared by clients
+    const sharedView = new google.picker.DocsView(google.picker.ViewId.DOCS)
+      .setIncludeFolders(true)
+      .setSelectFolderEnabled(false)
+      .setMimeTypes(ALLOWED_MIME_TYPES)
+      .setEnableDrives(true)
+      .setMode(google.picker.DocsViewMode.LIST);
+
+    // Shared drives (Google Workspace team drives)
+    const sharedDrivesView = new google.picker.DocsView()
+      .setIncludeFolders(true)
+      .setSelectFolderEnabled(false)
+      .setEnableDrives(true)
+      .setMimeTypes(ALLOWED_MIME_TYPES);
+
     const picker = new google.picker.PickerBuilder()
-      .addView(
-        new google.picker.View(google.picker.ViewId.DOCS).setMimeTypes(ALLOWED_MIME_TYPES)
-      )
+      .setTitle("Select a file")
+      .addView(myDriveView)
+      .addView(sharedView)
+      .addView(sharedDrivesView)
+      .enableFeature(google.picker.Feature.MULTISELECT_ENABLED, false)
+      .enableFeature(google.picker.Feature.SUPPORT_DRIVES, true)
       .setOAuthToken(accessToken)
-      .setDeveloperKey("")
       .setAppId(clientId)
       .setSelectableMimeTypes(ALLOWED_MIME_TYPES)
       .setCallback((data: any) => {
