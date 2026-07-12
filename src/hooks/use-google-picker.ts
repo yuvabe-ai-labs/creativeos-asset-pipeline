@@ -28,9 +28,9 @@ export function useGooglePicker(onPick: (file: DrivePickedFile) => void) {
   const openPicker = useCallback(async () => {
     await loadPickerScript();
 
-    await new Promise<void>((resolve) => {
+    await new Promise<void>((resolve, reject) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (window as any).gapi.load("picker", { callback: resolve });
+      (window as any).gapi.load("picker", { callback: resolve, onerror: reject });
     });
 
     const tokenRes = await fetch("/api/drive/picker-token");
