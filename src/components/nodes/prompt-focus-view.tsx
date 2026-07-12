@@ -7,9 +7,10 @@ import {
   ArrowLeft,
   Sparkles,
   Palette,
-  Aperture,
   PencilLine,
-  Link2,
+  BadgeCheck,
+  SlidersHorizontal,
+  FileInput,
   ExternalLink,
   type LucideIcon,
 } from "lucide-react";
@@ -19,6 +20,7 @@ import { EditableField } from "./editable-field";
 import { MentionInstructionEditor } from "./mention-instruction-editor";
 import { normalizeTitle } from "@/lib/nodes/title";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { GuidedNextButton } from "@/components/canvas/guided-next-button";
 import { SliceToggles } from "./slice-toggles";
 import { DEFAULT_INSTRUCTION } from "@/lib/nodes/prompt";
@@ -30,15 +32,12 @@ import {
   type ShotControls,
 } from "@/lib/nodes/shot-controls";
 import {
-  ConnectedInputsCard,
   ConnectedDetailView,
+  NodeIcon,
   type UpstreamNode,
   type ConnectedPreview,
 } from "./connected-inputs-card";
-import {
-  PromptVersionHistory,
-  type VersionSummary,
-} from "./prompt-version-history";
+import type { VersionSummary } from "./prompt-version-history";
 import { UsagePopover } from "./prompt-usage-popover";
 import { InlineEvalBar } from "./inline-eval-bar";
 import { InlineApprovalBar } from "./inline-approval-bar";
@@ -48,6 +47,9 @@ import { setVersionApprovalAction } from "@/lib/actions/approval";
 import { useIdentity } from "@/hooks/use-identity";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import type { ApprovalStatus } from "@/lib/approval";
+import { cn } from "@/lib/utils";
+import { PromptVersionChips } from "./prompt-version-chips";
+import { describeApprovalPill } from "@/lib/nodes/prompt-focus";
 
 type PromptFocusViewProps = {
   open: boolean;
@@ -95,6 +97,39 @@ function LeftSection({
   );
 }
 
+// One entry in the left rail. `icon` is a pre-rendered element so both Lucide icons
+// and the connected-node <NodeIcon> can be passed uniformly.
+function RailItem({
+  icon,
+  label,
+  active,
+  onClick,
+  badge,
+}: {
+  icon: ReactNode;
+  label: string;
+  active: boolean;
+  onClick: () => void;
+  badge?: ReactNode;
+}) {
+  return (
+    <Button
+      variant="ghost"
+      onClick={onClick}
+      className={cn(
+        "h-auto w-full justify-start gap-2 px-2.5 py-2 text-sm font-normal",
+        active
+          ? "border-primary/25 bg-primary/8 font-medium text-foreground hover:bg-primary/8"
+          : "text-muted-foreground",
+      )}
+    >
+      <span className="flex w-4 shrink-0 items-center justify-center">{icon}</span>
+      <span className="min-w-0 flex-1 truncate text-left">{label}</span>
+      {badge}
+    </Button>
+  );
+}
+
 export function PromptFocusView({
   open,
   onOpenChange,
@@ -136,10 +171,10 @@ export function PromptFocusView({
   const [versions, setVersions] = useState<VersionSummary[]>([]);
   const [activeVersionId, setActiveVersionId] = useState<string | null>(null);
   const [restoring, setRestoring] = useState(false);
-  const [loadingVersions, setLoadingVersions] = useState(false);
   const [loadingPreview, setLoadingPreview] = useState(false);
-  // When set, the body shows a read-only full view of that connected input.
-  const [detailNodeId, setDetailNodeId] = useState<string | null>(null);
+  // The selected rail item: "prompt" (the compose editor), "kb", "review", or a
+  // connected node's id (right pane shows that node's read-only detail).
+  const [selected, setSelected] = useState<string>("prompt");
   const [evalDecision, setEvalDecision] = useState<"pass" | "fail" | null>(null);
   const [evalNote, setEvalNote] = useState("");
   // D29 approval flag — sibling of the eval signal, distinct field.
@@ -155,7 +190,7 @@ export function PromptFocusView({
     const nodeChanged = seed.nodeId !== nodeId; // sheet reused for a different node
     setSeed({ open, output, nodeId });
     setDraft(output ?? "");
-    setDetailNodeId(null); // return to composition on open / fresh generation
+    setSelected("prompt"); // return to the compose editor on open / fresh generation
     // Re-seed the instruction buffer ONLY when opening or switching nodes — never on
     // an output change (that would clobber an in-progress instruction edit) and never
     // on the echo of our own per-keystroke write-through (that would re-introduce the
@@ -166,13 +201,14 @@ export function PromptFocusView({
     // them, and it does not re-run on output change — so re-arming here on a
     // regenerate/restore/save would strand them `true` forever.
     if (opening) {
-      setLoadingVersions(true);
       setLoadingPreview(true);
     }
   }
 
-  const detailNode = detailNodeId
-    ? preview.connected.find((c) => c.nodeId === detailNodeId) ?? null
+  // A connected node is selected when `selected` isn't one of the fixed rail keys.
+  const isNodeSelected = !["prompt", "details", "request"].includes(selected);
+  const selectedNode = isNodeSelected
+    ? preview.connected.find((c) => c.nodeId === selected) ?? null
     : null;
 
   const dirty = (output ?? "") !== draft && draft.trim() !== "";
@@ -234,8 +270,6 @@ export function PromptFocusView({
         }
       } catch {
         /* best-effort */
-      } finally {
-        if (!cancelled) setLoadingVersions(false);
       }
     })();
 
@@ -386,6 +420,26 @@ export function PromptFocusView({
   const activeRequest =
     versions.find((v) => v.id === activeVersionId)?.inputsUsed?.request ?? null;
 
+  const pill = describeApprovalPill(approvalStatus);
+  const pillTone =
+    pill.tone === "positive"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-900/20 dark:text-emerald-400"
+      : pill.tone === "warning"
+        ? "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-400"
+        : "border-border bg-muted text-muted-foreground";
+
+  const reviewBadge =
+    mode === "result" ? (
+      <span
+        className={cn(
+          "shrink-0 rounded-full border px-1.5 py-0.5 text-[0.6rem] font-semibold",
+          pillTone,
+        )}
+      >
+        {pill.tone === "positive" ? "Approved" : pill.tone === "warning" ? "Changes" : "Pending"}
+      </span>
+    ) : undefined;
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
@@ -400,14 +454,15 @@ export function PromptFocusView({
 
         {/* Header */}
         <div className="shrink-0 border-b">
-          <div className="mx-auto w-full max-w-5xl px-6 pb-5 pt-3">
-            <button
-              type="button"
+          <div className="mx-auto w-full max-w-6xl px-6 pb-5 pt-3">
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => onOpenChange(false)}
-              className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+              className="-ml-2.5 gap-1.5 font-medium text-muted-foreground hover:text-foreground"
             >
               <ArrowLeft className="size-4" /> Back to canvas
-            </button>
+            </Button>
 
             <header className="mt-4 flex items-start justify-between gap-4">
               <div>
@@ -446,189 +501,216 @@ export function PromptFocusView({
           </div>
         </div>
 
-        {/* Body — constrained to max-w-5xl, matching script node width */}
-        <div className="min-h-0 flex-1 flex justify-center overflow-hidden">
-          {detailNode ? (
-            <ConnectedDetailView node={detailNode} onBack={() => setDetailNodeId(null)} />
-          ) : (
-          <div className="w-full max-w-5xl flex min-h-0 overflow-hidden">
-            {/* Left panel — Version history + Brand KB + Connected inputs */}
-            <div className="w-[45%] border-r border-border overflow-hidden px-6 py-6 flex flex-col gap-6">
-              {loadingVersions ? (
-                <div className="space-y-2">
-                  <div className="h-3 w-24 animate-pulse rounded bg-muted-foreground/20" />
-                  <div className="space-y-1.5 pt-1">
-                    {Array.from({ length: 3 }).map((_, i) => (
-                      <div key={i} className="flex items-center gap-2">
-                        <div className="size-2 shrink-0 animate-pulse rounded-full bg-muted-foreground/20" />
-                        <div className="h-3 animate-pulse rounded bg-muted-foreground/20" style={{ width: `${55 + i * 12}%` }} />
-                      </div>
-                    ))}
+        {/* Body: left rail + detail pane */}
+        <div className="mx-auto flex w-full max-w-6xl min-h-0 flex-1 overflow-hidden">
+          {/* Rail */}
+          <nav className="flex w-56 shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-border px-3 py-4">
+            <RailItem
+              icon={<Sparkles className="size-4 text-primary" />}
+              label="Prompt"
+              active={selected === "prompt"}
+              onClick={() => setSelected("prompt")}
+            />
+
+            <div className="px-2.5 pb-1 pt-3 text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground/70">
+              Connected · {upstream.length}
+            </div>
+            {upstream.length === 0 ? (
+              <p className="px-2.5 text-xs text-muted-foreground">No inputs connected.</p>
+            ) : (
+              upstream.map((u) => (
+                <RailItem
+                  key={u.id}
+                  icon={<NodeIcon type={u.type} />}
+                  label={u.label}
+                  active={selected === u.id}
+                  onClick={() => setSelected(u.id)}
+                />
+              ))
+            )}
+
+            <div className="mx-2.5 my-2 h-px bg-border" />
+            <RailItem
+              icon={<SlidersHorizontal className="size-4 text-primary" />}
+              label="Details"
+              active={selected === "details"}
+              onClick={() => setSelected("details")}
+              badge={reviewBadge}
+            />
+            <RailItem
+              icon={<FileInput className="size-4 text-primary" />}
+              label="Sent to model"
+              active={selected === "request"}
+              onClick={() => setSelected("request")}
+            />
+          </nav>
+
+          {/* Detail pane */}
+          <div className="min-h-0 flex-1 overflow-hidden">
+            {/* Prompt — the compose editor (output on top, input below) */}
+            {selected === "prompt" && (
+              <div className="flex h-full w-full max-w-3xl min-h-0 flex-col overflow-y-auto">
+                {/* Instruction + controls — on top */}
+                <div className="flex shrink-0 flex-col gap-3 border-b border-border px-6 py-5">
+                  <div className="flex items-center gap-1.5">
+                    <PencilLine className="size-3.5 text-primary" />
+                    <span className="text-eyebrow">Instruction</span>
                   </div>
+                  <MentionInstructionEditor
+                    value={instructionDraft}
+                    onChange={(v) => {
+                      setInstructionDraft(v);
+                      onPatch({ instruction: v });
+                    }}
+                    placeholder={instructionPlaceholder}
+                    upstream={upstream}
+                    disabled={!editable}
+                  />
+                  <ShotControlsRow
+                    controls={controls ?? DEFAULT_SHOT_CONTROLS}
+                    onChange={(next) => onPatch({ controls: next })}
+                  />
+                  <Button
+                    className="w-full"
+                    size="default"
+                    onClick={runGenerate}
+                    disabled={generating || !editable}
+                  >
+                    <Sparkles className="size-4" />
+                    {generating ? "Generating…" : output ? "Re-generate" : "Generate prompt"}
+                  </Button>
                 </div>
-              ) : versions.length > 0 ? (
-                <PromptVersionHistory
-                  versions={versions}
-                  activeVersionId={activeVersionId}
-                  onRestore={handleRestoreVersion}
-                  restoring={restoring}
-                />
-              ) : null}
 
-              <LeftSection
-                icon={Palette}
-                label="Brand KB"
-                action={
-                  params?.id ? (
-                    <Link
-                      href={`/clients/${params.id}/kb`}
-                      title="Edit Brand KB"
-                      className="inline-flex items-center text-muted-foreground transition-colors hover:text-primary"
-                    >
-                      <ExternalLink className="size-3.5" />
-                    </Link>
-                  ) : undefined
-                }
-              >
-                <SliceToggles selected={slices} onToggle={toggleSlice} />
-              </LeftSection>
+                {/* Output zone — the main focus, below the instruction */}
+                <div className="flex shrink-0 flex-col gap-3 px-6 py-5">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5">
+                      <Sparkles className="size-3.5 text-primary" />
+                      <span className="text-eyebrow">Generated prompt</span>
+                    </div>
+                    <PromptVersionChips
+                      versions={versions}
+                      activeVersionId={activeVersionId}
+                      restoring={restoring}
+                      onSwitch={handleRestoreVersion}
+                    />
+                  </div>
 
-              <LeftSection icon={Aperture} label="Shot controls">
-                <ShotControlsRow
-                  controls={controls ?? DEFAULT_SHOT_CONTROLS}
-                  onChange={(next) => onPatch({ controls: next })}
-                />
-              </LeftSection>
-
-              <LeftSection
-                icon={Link2}
-                label="Connected"
-                badge={`${upstream.length} input${upstream.length === 1 ? "" : "s"}`}
-              >
-                <div className="max-h-72 overflow-y-auto pb-2">
-                  {loadingPreview ? (
-                    <div className="space-y-2">
-                      {Array.from({ length: Math.max(upstream.length, 2) }).map((_, i) => (
-                        <div key={i} className="space-y-1.5 rounded-lg border border-border p-3">
-                          <div className="h-3 w-1/3 animate-pulse rounded bg-muted-foreground/20" />
-                          <div className="h-3 w-full animate-pulse rounded bg-muted-foreground/20" />
-                          <div className="h-3 w-4/5 animate-pulse rounded bg-muted-foreground/20" />
-                        </div>
+                  {mode === "skeleton" && (
+                    <div className="space-y-2.5 pt-1">
+                      {Array.from({ length: 9 }).map((_, i) => (
+                        <div
+                          key={i}
+                          className="h-4 animate-pulse rounded bg-muted-foreground/20"
+                          style={{ width: `${70 + (i % 4) * 7}%` }}
+                        />
                       ))}
                     </div>
-                  ) : (
-                    <ConnectedInputsCard
-                      upstream={upstream}
-                      preview={preview.connected}
-                      onOpenDetail={setDetailNodeId}
+                  )}
+
+                  {mode === "empty" && (
+                    <div className="flex h-64 items-center justify-center rounded-xl border border-dashed border-border">
+                      <div className="text-center px-8">
+                        <Sparkles className="size-8 mx-auto text-muted-foreground/40 mb-3" />
+                        <p className="text-sm font-medium text-muted-foreground">
+                          Not generated yet
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground/70">
+                          Write an instruction above and click Generate.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {mode === "result" && (
+                    <Textarea
+                      value={draft}
+                      onChange={(e) => setDraft(e.target.value)}
+                      className="h-64 resize-none rounded-xl p-4 text-base leading-relaxed [field-sizing:fixed]"
                     />
                   )}
                 </div>
-              </LeftSection>
-            </div>
+              </div>
+            )}
 
-            {/* Right panel — instruction (30%) + output (70%) */}
-            <div className="flex-1 min-h-0 flex flex-col">
-              {/* Instruction zone */}
-              <div
-                className="flex flex-col gap-3 px-6 py-5 border-b border-border overflow-hidden"
-                style={{ flex: "3 3 0%" }}
-              >
-                <div className="flex items-center gap-1.5">
-                  <PencilLine className="size-3.5 text-primary" />
-                  <span className="text-eyebrow">Instruction</span>
+            {/* Connected node — read-only detail */}
+            {isNodeSelected &&
+              (selectedNode ? (
+                <ConnectedDetailView node={selectedNode} />
+              ) : (
+                <div className="flex h-full items-center justify-center px-6 py-6">
+                  <p className="text-sm text-muted-foreground">
+                    {loadingPreview ? "Loading…" : "This input has no preview yet."}
+                  </p>
                 </div>
-                <MentionInstructionEditor
-                  value={instructionDraft}
-                  onChange={(v) => {
-                    setInstructionDraft(v);
-                    onPatch({ instruction: v });
-                  }}
-                  placeholder={instructionPlaceholder}
-                  upstream={upstream}
-                  disabled={!editable}
-                />
-                <Button
-                  className="w-full"
-                  size="default"
-                  onClick={runGenerate}
-                  disabled={generating || !editable}
+              ))}
+
+            {/* Details — Brand KB + Review (eval, approval) */}
+            {selected === "details" && (
+              <div className="flex h-full w-full max-w-3xl min-h-0 flex-col gap-6 overflow-y-auto px-6 py-6">
+                <LeftSection
+                  icon={Palette}
+                  label="Brand KB"
+                  action={
+                    params?.id ? (
+                      <Link
+                        href={`/clients/${params.id}/kb`}
+                        title="Edit Brand KB"
+                        className="inline-flex items-center text-muted-foreground transition-colors hover:text-primary"
+                      >
+                        <ExternalLink className="size-3.5" />
+                      </Link>
+                    ) : undefined
+                  }
                 >
-                  <Sparkles className="size-4" />
-                  {generating
-                    ? "Generating…"
-                    : output
-                      ? "Re-generate"
-                      : "Generate prompt"}
-                </Button>
-              </div>
+                  <SliceToggles selected={slices} onToggle={toggleSlice} />
+                </LeftSection>
 
-              {/* Output zone */}
-              <div
-                className="flex flex-col gap-3 px-6 py-5 min-h-0 overflow-hidden"
-                style={{ flex: "7 7 0%" }}
-              >
-                <InlineEvalBar
-                  decision={evalDecision}
-                  note={evalNote}
-                  saving={evalSaving}
-                  visible={mode === "result" && !!activeVersionId}
-                  onDecision={handleEvalDecision}
-                  onNote={setEvalNote}
-                  onNoteBlur={handleEvalNoteBlur}
-                />
+                <hr className="border-border" />
 
-                {mode === "result" && !!activeVersionId && (
-                  <InlineApprovalBar
-                    status={approvalStatus}
-                    note={approvalNote}
-                    saving={approvalSaving}
-                    canApprove={editable && identity?.role === "senior"}
-                    onSet={saveApproval}
-                  />
-                )}
-
-                {mode === "result" && activeRequest && (
-                  <ModelRequestPanel request={activeRequest} />
-                )}
-
-                {mode === "skeleton" && (
-                  <div className="flex-1 space-y-2.5 pt-1">
-                    {Array.from({ length: 9 }).map((_, i) => (
-                      <div
-                        key={i}
-                        className="h-4 animate-pulse rounded bg-muted-foreground/20"
-                        style={{ width: `${70 + (i % 4) * 7}%` }}
+                <LeftSection icon={BadgeCheck} label="Review">
+                  {mode === "result" && !!activeVersionId ? (
+                    <div className="flex flex-col gap-3">
+                      <InlineEvalBar
+                        decision={evalDecision}
+                        note={evalNote}
+                        saving={evalSaving}
+                        visible={mode === "result" && !!activeVersionId}
+                        onDecision={handleEvalDecision}
+                        onNote={setEvalNote}
+                        onNoteBlur={handleEvalNoteBlur}
                       />
-                    ))}
-                  </div>
-                )}
-
-                {mode === "empty" && (
-                  <div className="flex-1 flex items-center justify-center rounded-xl border border-dashed border-border">
-                    <div className="text-center px-8">
-                      <Sparkles className="size-8 mx-auto text-muted-foreground/40 mb-3" />
-                      <p className="text-sm font-medium text-muted-foreground">
-                        Not generated yet
-                      </p>
-                      <p className="mt-1 text-xs text-muted-foreground/70">
-                        Set an instruction and click Generate.
-                      </p>
+                      <InlineApprovalBar
+                        status={approvalStatus}
+                        note={approvalNote}
+                        saving={approvalSaving}
+                        canApprove={editable && identity?.role === "senior"}
+                        onSet={saveApproval}
+                      />
                     </div>
-                  </div>
-                )}
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      Generate a prompt first to review and approve it.
+                    </p>
+                  )}
+                </LeftSection>
+              </div>
+            )}
 
-                {mode === "result" && (
-                  <textarea
-                    value={draft}
-                    onChange={(e) => setDraft(e.target.value)}
-                    className="flex-1 w-full resize-none rounded-xl border border-border bg-background p-4 text-sm leading-relaxed focus:outline-none focus:ring-1 focus:ring-ring"
-                  />
+            {/* Sent to model — the exact request the active version sent (standalone) */}
+            {selected === "request" && (
+              <div className="flex h-full w-full max-w-3xl min-h-0 flex-col overflow-y-auto px-6 py-6">
+                {activeRequest ? (
+                  <ModelRequestPanel request={activeRequest} />
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    No request recorded for this version — generate a prompt to capture the
+                    system prompt, compiled input, and attachments sent to the model.
+                  </p>
                 )}
               </div>
-            </div>
+            )}
           </div>
-          )}
         </div>
       </SheetContent>
     </Sheet>

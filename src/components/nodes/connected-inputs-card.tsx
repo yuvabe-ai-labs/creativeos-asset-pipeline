@@ -4,6 +4,7 @@ import { useState } from "react";
 import { FileText, Paperclip, Pencil, Sparkles, ChevronRight, Clapperboard, Maximize2, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getShotRole } from "@/lib/nodes/shot-roles";
+import { Button } from "@/components/ui/button";
 
 export type UpstreamNode = {
   id: string;
@@ -187,7 +188,9 @@ export function ConnectedDetailView({
   onBack,
 }: {
   node: ConnectedPreview;
-  onBack: () => void;
+  // Optional: when the surrounding UI already provides a way back (e.g. a nav
+  // rail), omit this and no back button renders.
+  onBack?: () => void;
 }) {
   const isImage =
     !!node.fileUrl &&
@@ -196,13 +199,16 @@ export function ConnectedDetailView({
 
   return (
     <div className="w-full max-w-5xl flex flex-col min-h-0 overflow-hidden px-6 py-6 gap-4">
-      <button
-        type="button"
-        onClick={onBack}
-        className="inline-flex items-center gap-1.5 self-start text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-      >
-        <ArrowLeft className="size-4" /> Back to prompt
-      </button>
+      {onBack && (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onBack}
+          className="-ml-2.5 gap-1.5 self-start font-medium text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="size-4" /> Back to prompt
+        </Button>
+      )}
       <div className="flex items-center gap-1.5">
         <NodeIcon type={node.type} />
         <span className="text-eyebrow">{node.label}</span>
@@ -226,7 +232,7 @@ export function ConnectedDetailView({
   );
 }
 
-function NodeIcon({ type }: { type: string }) {
+export function NodeIcon({ type }: { type: string }) {
   if (type === "shot") return <Clapperboard className="size-3 shrink-0 text-primary" />;
   if (type === "script") return <FileText className="size-3 shrink-0 text-primary" />;
   if (type === "file") return <Paperclip className="size-3 shrink-0 text-primary" />;
