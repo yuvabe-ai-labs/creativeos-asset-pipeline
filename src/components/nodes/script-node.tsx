@@ -11,6 +11,7 @@ import { saveScriptOutputAction } from "@/lib/actions/nodes";
 import { ScriptFocusView } from "./script-focus-view";
 import { NodeContextMenu } from "./node-context-menu";
 import { NodeTitle } from "./node-title";
+import { NodeHandle } from "./node-handle";
 import { ProcessingPill } from "./processing-pill";
 import type { ReelScript } from "@/lib/nodes/reel-script";
 import { DEFAULT_PARSE_SLICES, type KBSliceKey } from "@/lib/kb/parse-context";
@@ -56,6 +57,7 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
         <div className="flex items-center gap-1.5">
           <FileText className="size-3.5 text-primary" />
           <span className="text-eyebrow !text-[0.65rem]">Script</span>
+          <NodeHandle nodeId={id} nodeType="script" />
         </div>
         {isParsing ? (
           <ProcessingPill processing />
@@ -85,8 +87,6 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
             value={title}
             placeholder="Untitled script"
             onCommit={(t) => updateNodeData(id, { title: t })}
-            nodeId={id}
-            nodeType="script"
           />
           <button
             onClick={() => setFocusOpen(true)}

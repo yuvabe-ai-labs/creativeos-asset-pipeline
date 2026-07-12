@@ -12,6 +12,7 @@ import { DEFAULT_IMAGE_PROMPT_SLICES, type KBSliceKey } from "@/lib/kb/parse-con
 import type { VideoControls } from "@/lib/nodes/video-controls";
 import { NodeContextMenu } from "./node-context-menu";
 import { NodeTitle } from "./node-title";
+import { NodeHandle } from "./node-handle";
 import { ApprovalBadge } from "./approval-badge";
 import type { ApprovalStatus } from "@/lib/approval";
 
@@ -99,6 +100,7 @@ export function VideoPromptNode({ id, data, selected }: NodeProps) {
           <div className="flex items-center gap-1.5">
             <Clapperboard className="size-3.5 text-primary" strokeWidth={1.5} />
             <span className="text-eyebrow !text-[0.65rem]">Video Prompt</span>
+            <NodeHandle nodeId={id} nodeType="video-prompt" />
           </div>
           <span
             className={cn("size-1.5 rounded-full", output ? "bg-primary" : "bg-muted-foreground/40")}
@@ -116,8 +118,6 @@ export function VideoPromptNode({ id, data, selected }: NodeProps) {
             value={title}
             placeholder="Motion prompt"
             onCommit={(t) => updateNodeData(id, { title: t })}
-            nodeId={id}
-            nodeType="video-prompt"
           />
           <button
             onClick={() => setFocusOpen(true)}

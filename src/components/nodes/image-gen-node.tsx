@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { useDeleteNode } from "@/hooks/use-delete-node";
 import { NodeContextMenu } from "./node-context-menu";
+import { NodeHandle } from "./node-handle";
 import type { ImageGenNodeData } from "@/lib/canvas-nodes";
 import { ImageGenFocusView } from "./image-gen-focus-view";
 import { ProcessingPill } from "./processing-pill";
@@ -79,6 +80,7 @@ export function ImageGenNode({ id, data, selected }: NodeProps) {
           <div className="flex items-center gap-1.5">
             <ImageIcon className="size-3.5 shrink-0 stroke-[1.5] text-primary" />
             <span className="text-eyebrow !text-[0.65rem] whitespace-nowrap">Image Gen</span>
+            <NodeHandle nodeId={id} nodeType="image-gen" />
           </div>
           {isProcessing ? (
             <ProcessingPill processing />

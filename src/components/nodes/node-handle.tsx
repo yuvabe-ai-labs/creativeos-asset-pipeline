@@ -15,7 +15,7 @@ export function NodeHandle({
 }) {
   return (
     <span
-      className={cn("text-eyebrow text-[10px] text-muted-foreground", className)}
+      className={cn("text-eyebrow text-[10px] font-medium text-foreground/70", className)}
       title="Node reference"
     >
       {nodeHandle({ id: nodeId, type: nodeType })}

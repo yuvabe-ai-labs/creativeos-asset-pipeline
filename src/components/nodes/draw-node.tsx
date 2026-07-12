@@ -11,6 +11,7 @@ import { DrawFocusView } from "./draw-focus-view";
 import { useNodeConnectionState } from "./use-node-connection-state";
 import { NodeContextMenu } from "./node-context-menu";
 import { NodeTitle } from "./node-title";
+import { NodeHandle } from "./node-handle";
 
 export function DrawNode({ id, data, selected }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
@@ -43,6 +44,7 @@ export function DrawNode({ id, data, selected }: NodeProps) {
           <div className="flex items-center gap-1.5">
             <Pencil className="size-3.5 text-primary" strokeWidth={1.5} />
             <span className="text-eyebrow text-[0.65rem]!">Draw</span>
+            <NodeHandle nodeId={id} nodeType="draw" />
           </div>
           <span
             className={cn(
@@ -69,8 +71,6 @@ export function DrawNode({ id, data, selected }: NodeProps) {
             value={d.title ?? ""}
             placeholder="Untitled sketch"
             onCommit={(t) => updateNodeData(id, { title: t })}
-            nodeId={id}
-            nodeType="draw"
           />
           <button
             onClick={() => setFocusOpen(true)}

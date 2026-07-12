@@ -11,6 +11,7 @@ import { FileFocusView } from "./file-focus-view";
 import { useNodeConnectionState } from "./use-node-connection-state";
 import { NodeContextMenu } from "./node-context-menu";
 import { NodeTitle } from "./node-title";
+import { NodeHandle } from "./node-handle";
 
 const KIND_LABELS = { text: "TXT", image: "IMG", document: "DOC" } as const;
 
@@ -46,6 +47,7 @@ export function FileNode({ id, data, selected }: NodeProps) {
         <div className="flex items-center gap-1.5">
           <Paperclip className="size-3.5 text-primary" />
           <span className="text-eyebrow text-[0.65rem]!">File</span>
+          <NodeHandle nodeId={id} nodeType="file" />
         </div>
         <div className="flex items-center gap-1">
           {isUploading ? (
@@ -82,8 +84,6 @@ export function FileNode({ id, data, selected }: NodeProps) {
             placeholder="Untitled file"
             onCommit={(t) => updateNodeData(id, { title: t })}
             className="flex-1"
-            nodeId={id}
-            nodeType="file"
           />
           {hasFile && d.fileKind && (
             <span className="shrink-0 rounded px-1 py-0.5 text-[0.6rem] font-medium leading-none bg-muted text-muted-foreground">

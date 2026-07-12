@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/sheet";
 import type { KBNodeData } from "@/lib/canvas-nodes";
 import { useNodeConnectionState } from "./use-node-connection-state";
+import { NodeHandle } from "./node-handle";
 import { formatDate } from "@/lib/kb/utils";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -275,6 +276,7 @@ export function KBNode({ id, data, selected }: NodeProps) {
         <div className="flex items-center gap-1.5">
           <BookOpenIcon className="size-3 text-primary" />
           <span className="text-eyebrow text-[0.6rem]!">Brand KB</span>
+          <NodeHandle nodeId={id} nodeType="kb" />
         </div>
         {fillPct != null && (
           <span className="rounded-full bg-primary/10 px-1.5 py-px text-[0.55rem] font-semibold text-primary">
