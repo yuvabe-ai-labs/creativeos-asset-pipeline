@@ -200,15 +200,18 @@ export function createCanvasStore(
             target: newNode.id,
           }));
 
+        // Select the duplicate (and deselect everything else) so it becomes the
+        // active node AND renders on top — React Flow elevates the selected node,
+        // so leaving the original selected would keep the copy visually behind it.
         set({
           nodes: [
-            ...get().nodes,
+            ...get().nodes.map((n) => (n.selected ? { ...n, selected: false } : n)),
             {
               ...node,
               id: newNode.id,
               position: newNode.position,
               data,
-              selected: false,
+              selected: true,
             } as AppNode,
           ],
           edges: [...get().edges, ...clonedEdges],
