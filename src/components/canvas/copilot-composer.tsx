@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useCanvasStore } from "./canvas-store-provider";
 import { nodeLabel } from "@/lib/nodes/describe-node";
+import { expandSelected } from "@/lib/copilot/actions";
 import { cn } from "@/lib/utils";
 import type { Attachment } from "./use-copilot-chat";
 
@@ -45,6 +46,13 @@ export function CopilotComposer({
           .slice(0, 8)
       : [];
 
+  // "@selected" sugar row — offered when there is a selection and the query matches.
+  const selectedCount = nodes.filter((n) => n.selected).length;
+  const showSelectedRow =
+    mention !== null &&
+    selectedCount > 0 &&
+    "selected".startsWith(mention.query.toLowerCase());
+
   // On each keystroke, detect an "@word" at the caret → open/refresh the picker.
   function onComposerChange(value: string, caret: number) {
     setInput(value);
@@ -72,6 +80,24 @@ export function CopilotComposer({
     setInput(before + token + after);
     setMention(null);
     const pos = (before + token).length;
+    requestAnimationFrame(() => {
+      el?.focus();
+      el?.setSelectionRange(pos, pos);
+    });
+  }
+
+  // Replace the "@query" with the expanded selection tokens (insert-time expansion).
+  function insertSelected() {
+    if (mention === null) return;
+    const tokens = expandSelected(nodes);
+    if (!tokens) return;
+    const el = inputRef.current;
+    const caret = el?.selectionStart ?? input.length;
+    const before = input.slice(0, mention.start);
+    const after = input.slice(caret);
+    setInput(before + tokens + after);
+    setMention(null);
+    const pos = (before + tokens).length;
     requestAnimationFrame(() => {
       el?.focus();
       el?.setSelectionRange(pos, pos);
@@ -120,12 +146,28 @@ export function CopilotComposer({
       <div className="relative">
         {/* @-mention picker: appears above the composer when you type "@". YOU drive
             it — the list is the canvas nodes, shown by title/type + stable handle. */}
-        {mention !== null && mentionOptions.length > 0 && (
+        {mention !== null && (mentionOptions.length > 0 || showSelectedRow) && (
           <div className="absolute bottom-full left-0 right-0 mb-2 overflow-hidden rounded-xl border border-border bg-background shadow-lg">
             <div className="text-eyebrow px-3 py-1.5 text-[10px] text-muted-foreground">
               Reference a node
             </div>
             <ul className="max-h-56 overflow-y-auto pb-1">
+              {showSelectedRow && (
+                <li>
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    type="button"
+                    onClick={insertSelected}
+                    className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm font-normal hover:bg-muted"
+                  >
+                    <span className="text-eyebrow text-[9px] text-primary">SELECTED</span>
+                    <span className="truncate text-muted-foreground">
+                      {selectedCount} node{selectedCount === 1 ? "" : "s"} on canvas
+                    </span>
+                  </Button>
+                </li>
+              )}
               {mentionOptions.map((o, i) => (
                 <li key={o.id}>
                   <Button
@@ -158,6 +200,20 @@ export function CopilotComposer({
             onComposerChange(e.target.value, e.target.selectionStart ?? e.target.value.length)
           }
           onKeyDown={(e) => {
+            // While only the synthetic "@selected" row is offered (no matching nodes),
+            // Enter/Escape still drive the picker — there's just no arrow-key list under it.
+            if (mention !== null && mentionOptions.length === 0 && showSelectedRow) {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                insertSelected();
+                return;
+              }
+              if (e.key === "Escape") {
+                e.preventDefault();
+                setMention(null);
+                return;
+              }
+            }
             // While the picker is open, the arrow/enter/esc keys drive it — not the composer.
             if (mention !== null && mentionOptions.length > 0) {
               if (e.key === "ArrowDown") {

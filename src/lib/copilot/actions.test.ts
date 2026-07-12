@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { placeNewNode, buildHistory, resolveScriptTarget, resolveNodeTarget, fileNameToTitle, scriptCreatedMessage } from "./actions";
+import { expandSelected } from "./actions";
 import { nodeHandle } from "@/lib/nodes/describe-node";
 import type { AppNode } from "@/lib/canvas-nodes";
 
@@ -99,5 +100,25 @@ describe("scriptCreatedMessage", () => {
 
   it("still includes the handle when there is no title", () => {
     expect(scriptCreatedMessage("SCR-7C2A")).toContain("SCR-7C2A");
+  });
+});
+
+const node = (id: string, type: string, selected: boolean, title?: string) =>
+  ({ id, type, position: { x: 0, y: 0 }, data: title ? { title } : {}, selected }) as never;
+
+describe("expandSelected", () => {
+  it("returns empty string when nothing is selected", () => {
+    expect(expandSelected([node("a1b2c3d4", "file", false)])).toBe("");
+  });
+  it("expands one selected node to its @HANDLE name token with trailing space", () => {
+    expect(expandSelected([node("a1b2c3d4", "file", true, "Hero")])).toBe("@FILE-A1B2 Hero ");
+  });
+  it("space-joins multiple selected nodes", () => {
+    const out = expandSelected([
+      node("a1b2c3d4", "file", true, "Hero"),
+      node("e5f6a7b8", "prompt", true),
+      node("c9d0e1f2", "shot", false),
+    ]);
+    expect(out).toBe("@FILE-A1B2 Hero @PRM-E5F6 untitled prompt ");
   });
 });
