@@ -19,12 +19,22 @@ export function FileNode({ id, data, selected }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const deleteNode = useDeleteNode();
   const duplicateNode = useCanvasStore((s) => s.duplicateNode);
+  const focusedNodeId = useCanvasStore((s) => s.focusedNodeId);
+  const setFocusedNodeId = useCanvasStore((s) => s.setFocusedNodeId);
   const d = data as FileNodeData;
   const [focusOpen, setFocusOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const connState = useNodeConnectionState(id, "file");
 
   const hasFile = !!d.filename;
+
+  // Open locally (double-click / "Open ↗") OR when a shared signal points here — the
+  // Generation Tray, guided flow, or the copilot's open_node (setFocusedNodeId).
+  const focusViewOpen = focusOpen || focusedNodeId === id;
+  const handleFocusOpenChange = (next: boolean) => {
+    setFocusOpen(next);
+    if (!next && focusedNodeId === id) setFocusedNodeId(null); // consume the signal
+  };
 
   return (
     <NodeContextMenu
@@ -105,8 +115,8 @@ export function FileNode({ id, data, selected }: NodeProps) {
       </div>
 
       <FileFocusView
-        open={focusOpen}
-        onOpenChange={setFocusOpen}
+        open={focusViewOpen}
+        onOpenChange={handleFocusOpenChange}
         nodeId={id}
         title={d.title ?? ""}
         filename={d.filename}
