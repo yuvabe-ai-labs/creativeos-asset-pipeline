@@ -2,7 +2,43 @@
 
 > ## 📍 RESUME HERE (session pointer)
 >
-> ## 🔵 SESSION UPDATE — 2026-07-11 (READ THIS FIRST; supersedes "Arc after L5" below)
+> ## 🟢 SESSION UPDATE — 2026-07-12 (READ THIS FIRST; supersedes the 07-11 note below)
+>
+> **State reconciled against git + `docs/superpowers/specs/2026-07-09-creativeos-copilot-design.md`
+> §9 "As-built delta" — which is now the true current state.** Worktree `worktree-minimal-agent` is
+> **clean** at `fe70994` (only an untracked `one script.md` test artifact).
+>
+> **The 07-11 "OPEN/OWED" list is DONE** — four commits landed after that note was written:
+> - ✅ `141dbdc` — the untracked foundation (`src/lib/copilot/context.ts`, `node-handle.tsx`,
+>   `describe-node`) is **committed**; a clean checkout no longer breaks. (was OWED #1)
+> - ✅ `1333c7b` — `copilot-panel.tsx` **split** (shell / `use-copilot-chat.ts` / composer / message)
+>   and the actions route became a **4-tool router**: `create_script_node`, `parse_script`,
+>   `open_node`, `add_node` (verified in `src/app/api/copilot/actions/route.ts`).
+> - ✅ `141dbdc` — the ref **handle shows on all 10 node types**, in the header next to the type label.
+> - ✅ `8922852` / `fe70994` — design spec §9 + package-lock sync.
+>
+> **The lane so far (§8.4 single-shot lane):**
+> `script node → parse_script (auto-fans-out Shot nodes, D21 + wires edges) → open_node opens a Shot's
+> Composer`. Blast-radius gating holds: cheap/reversible ops run instantly; the HITL gate is **owed at
+> generation** (still the kept seam — `add_node`'s dead proposal card).
+>
+> **⚠️ STILL OPEN / OWED (unchanged from 07-11, re-verified):**
+> 1. **Runtime verification pending.** The 07-12 commits (router, panel split, `parse_script`
+>    auto-fan-out, `open_node`) are static-clean (447 tests, tsc, lint per §9.4) but **not yet driven
+>    in the browser.**
+> 2. **Router-prompt cleanup (NOT applied).** Actions system prompt is still script-heavy; make it a
+>    GENERIC tool-router, move script specifics into the tool DESCRIPTIONS.
+> 3. **The real L6 — HITL approve/edit/reject gate — is owed at the GENERATION step**, not on cheap ops.
+>
+> **Next lane increment (undecided — user to pick when we build):** the **"options" step — D28
+> "Compose variations"** (Shot seed → 4 role-aware divergent ideas). The Shot **Composer surface
+> already exists** (`open_node` opens it), so the copilot-side work is a tool that *drives* compose,
+> not a from-scratch feature. **Build mode chosen for next build: "I write it, you focus on the
+> interaction."** Per locked rules, run brainstorm→design→plan (superpowers) BEFORE any feature code.
+>
+> ---
+>
+> ## 🔵 SESSION UPDATE — 2026-07-11 (superseded by the 07-12 note above; kept for history)
 >
 > **Direction chosen (option A): product-first around the script → shot pipeline**, not
 > primitive-first. We build the real copilot feature by feature; each primitive is learned as it's
