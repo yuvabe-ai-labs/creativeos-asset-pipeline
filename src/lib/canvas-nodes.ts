@@ -36,6 +36,10 @@ export type FileNodeData = {
   fileSizeBytes?: number;
   imageWidth?: number;
   imageHeight?: number;
+  // Drive provenance — set when file originated from Google Drive
+  driveFileId?: string;
+  driveFileName?: string;
+  driveMimeType?: string;
 };
 
 export type TextNodeData = {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { ArrowLeft, Loader2, RefreshCw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -19,6 +19,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { FileNodeData } from "@/lib/canvas-nodes";
 import { fileNodeService } from "@/services/file-node.service";
+import { useGooglePicker } from "@/hooks/use-google-picker";
+import { DriveIcon } from "@/components/ui/drive-icon";
 import { FileEmptyState } from "./file-empty-state";
 import { EditableField } from "./editable-field";
 import { FilePreview } from "./file-preview";
@@ -161,6 +163,34 @@ export function FileFocusView({
     e.target.value = "";
   }
 
+  const { openPicker } = useGooglePicker(async (driveFile) => {
+    setLoading(true);
+    onUploadingChange?.(true);
+    try {
+      const result = await fileNodeService.pickFromDrive(nodeId, driveFile);
+      onPatch(result);
+      if (!title) {
+        const derived = (result.filename ?? "").replace(/\.[^.]+$/, "").replace(/[-_]+/g, " ");
+        onPatch({ title: derived });
+      }
+      setReplacing(false);
+      toast.success("File imported from Google Drive");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to import from Google Drive");
+    } finally {
+      setLoading(false);
+      onUploadingChange?.(false);
+    }
+  });
+
+  const handleOpenPicker = useCallback(async () => {
+    try {
+      await openPicker();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not open Google Drive");
+    }
+  }, [openPicker]);
+
   return (
     <TooltipProvider>
       <Sheet open={open} onOpenChange={onOpenChange}>
@@ -216,6 +246,15 @@ export function FileFocusView({
                     >
                       <RefreshCw className="size-4 text-primary" /> Replace
                     </Button>
+                    <button
+                      type="button"
+                      onClick={handleOpenPicker}
+                      disabled={replacing || loading}
+                      className="inline-flex h-11 items-center gap-2.5 rounded-lg border border-neutral-200 bg-white px-4 text-sm font-medium text-neutral-700 shadow-sm transition-all hover:bg-neutral-50 hover:shadow disabled:pointer-events-none disabled:opacity-50 active:scale-[0.99]"
+                    >
+                      <DriveIcon size={16} />
+                      Replace from Drive
+                    </button>
                     <Button variant="outline" size="lg" onClick={handleRemove}>
                       <Trash2 className="size-4 text-destructive" />
                       <span className="text-destructive">Remove</span>
@@ -246,7 +285,7 @@ export function FileFocusView({
               )}
 
               {mode === "empty" && (
-                <FileEmptyState onUpload={handleUpload} />
+                <FileEmptyState onUpload={handleUpload} onPickFromDrive={handleOpenPicker} />
               )}
 
               {mode === "ready" && (
