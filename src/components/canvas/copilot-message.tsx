@@ -1,11 +1,9 @@
-import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { nodeHandle } from "@/lib/nodes/describe-node";
 import type { Msg } from "./use-copilot-chat";
 
-// One chat message: the role bubble, plus (for assistant replies) any node-reference chips
-// and the read-only "Proposed action" card. Presentational — it only reads the Msg and calls
-// onHighlight when a chip is clicked.
+// One chat message: the role bubble plus (for assistant replies) any node-reference chips.
+// Presentational — it only reads the Msg and calls onHighlight when a chip is clicked.
 export function CopilotMessage({ msg, onHighlight }: { msg: Msg; onHighlight: (id: string) => void }) {
   return (
     <div className={msg.role === "user" ? "text-right" : ""}>
@@ -39,20 +37,6 @@ export function CopilotMessage({ msg, onHighlight }: { msg: Msg; onHighlight: (i
               {n.label}
             </Button>
           ))}
-        </div>
-      )}
-      {/* Lesson 5: a REQUESTED action, shown read-only. The model asked to add a
-          node; nothing has run. Approve/edit/reject buttons arrive in Lesson 6. */}
-      {msg.role === "assistant" && msg.proposal && (
-        <div className="mt-2 rounded-xl border border-dashed border-primary/40 bg-primary/5 px-3 py-2">
-          <div className="text-eyebrow mb-0.5 text-[10px] text-primary">Proposed action</div>
-          <div className="flex items-center gap-1.5 text-sm text-foreground">
-            <Plus className="size-3.5 text-primary" />
-            Add a <span className="font-medium">{msg.proposal.args.type}</span> node
-            {msg.proposal.args.title && (
-              <span className="text-muted-foreground">— “{msg.proposal.args.title}”</span>
-            )}
-          </div>
         </div>
       )}
     </div>

@@ -292,7 +292,7 @@ union + its client recipes (in `use-copilot-chat.ts`):
 | `create_script_node` | **instant** | client recipe: `addNode` + seed source + pan/focus |
 | `parse_script` | **instant** | parse route → store `parsed` → **auto fan-out shots** (D21) + wire edges (§9.2) |
 | `open_node` | **instant** | resolve handle → **pan to it** (the tray's glide) → `setFocusedNodeId(id)` opens the node's surface (Shot → Composer; others → focus view) |
-| `add_node` | **proposal only** | read-only "Proposed action" card — the kept HITL seam |
+| `add_node` | **instant** *(since 2026-07-12; was proposal-only)* | client recipe: `addNode` + title + pan + open detail view via `setFocusedNodeId`. The read-only proposal card is REMOVED — the HITL seam now lives nowhere in the UI and is owed wholly at the GENERATION step. |
 
 **Blast-radius rule (from §8):** cheap / reversible / structural ops run **instantly** via client
 recipes; only real-cost, irreversible ops (generation) get the HITL gate. `open_node` is the copilot's
