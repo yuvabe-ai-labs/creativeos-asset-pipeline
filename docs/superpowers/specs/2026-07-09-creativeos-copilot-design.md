@@ -52,8 +52,10 @@ identities**:
   / reorders. Abbreviations: `SCR, KB, FILE, TXT, PRM, SHOT, DRAW, IMG, VPR, VID`.
 - **`nodeLabel(node)`** → `{ name, handle }` — friendly name (title, else type-derived) + handle.
 - **`resolveMentions(text, nodes)`** → node ids — parses `@HANDLE` tokens back to ids (case-insensitive).
-- Shown on the **card face** (eyebrow tag above the title, via `NodeTitle`) for the 5 title-bearing
-  node types, and on **copilot chips** — so chat and canvas share one vocabulary.
+- Shown on the **card face of every node type** — a readable eyebrow tag in the **header, next to the
+  type label** (via `NodeHandle`), standardized across all 10 node types — and on **copilot chips**, so
+  chat and canvas share one vocabulary. *(Until 2026-07-12 it sat above the title via `NodeTitle` on
+  only the 5 title-bearing types; now uniform — see §9.3.)*
 
 **Why uuid-derived, not a sequence/counter:** stability beats prettiness for a chat reference — a
 positional "Image 2" rots when nodes are added/deleted; a uuid-derived handle cannot. Handles matter
@@ -101,6 +103,10 @@ nodes. Encode and decode use the *same* pure `nodeHandle`, so they cannot disagr
 | `src/lib/nodes/describe-node.ts` | `describeNode`, `nodeHandle`, `nodeLabel`, `resolveMentions`. |
 | `src/components/nodes/node-handle.tsx` | The on-card handle tag. |
 | `src/lib/nodes/describe-node.test.ts` | Unit tests for handles + mention resolution (10). |
+
+> **Update (2026-07-12):** `copilot-panel.tsx` has since been **split** (shell / hook / composer /
+> message) and the actions route grew from `add_node`-only into a **tool router** (`create_script_node`,
+> `parse_script`, `open_node`, `add_node`). See **§9** for the current file map + tool set.
 
 ---
 
@@ -268,3 +274,67 @@ the canvas.
   techniques — not from agency.** *Why:* names the real levers, so agency isn't mistaken for a speed tool.
 - *(Deferred — §8.5)* **Parallel runs are visualized on the canvas matrix (rows = shots, columns =
   stages), not in tabs or a panel.** *Rejected:* per-shot tabs; a floating run-board panel.
+
+---
+
+## 9. As-built delta — the single-lane build *(2026-07-12)*
+
+> What has shipped toward the §8.4 lane. Where this conflicts with §1–4 (e.g. "only `add_node`", the
+> single `copilot-panel.tsx` file), **this section is current.**
+
+### 9.1 The copilot action router
+
+`POST /api/copilot/actions` is now a **tool router**, not a single-tool call. The `CopilotAction`
+union + its client recipes (in `use-copilot-chat.ts`):
+
+| Tool | Execution | Recipe |
+|---|---|---|
+| `create_script_node` | **instant** | client recipe: `addNode` + seed source + pan/focus |
+| `parse_script` | **instant** | parse route → store `parsed` → **auto fan-out shots** (D21) + wire edges (§9.2) |
+| `open_node` | **instant** | resolve handle → **pan to it** (the tray's glide) → `setFocusedNodeId(id)` opens the node's surface (Shot → Composer; others → focus view) |
+| `add_node` | **proposal only** | read-only "Proposed action" card — the kept HITL seam |
+
+**Blast-radius rule (from §8):** cheap / reversible / structural ops run **instantly** via client
+recipes; only real-cost, irreversible ops (generation) get the HITL gate. `open_node` is the copilot's
+first **drive-the-UI** verb — general across *every* node type because it reuses the store's existing
+`setFocusedNodeId` focus-signal (the Generation Tray + guided-flow already drove it).
+
+### 9.2 `parse_script` auto-fans-out
+
+Parsing now **drops the shots onto the canvas** as Shot nodes wired from the script (`fanOutShots`),
+not just storing `parsed` on the script node. The recipe writes `parsed`, then calls the same store
+method the manual "Fan out" button uses — Zustand's `set` is synchronous, so the reader sees the fresh
+write in the same tick. This is the first built step of the §8.4 lane.
+
+### 9.3 Ref handle on every node, standardized
+
+The handle (§3) now shows on **all 10 node types**, in the **header next to the type label** (via
+`NodeHandle`, readable weight/tone) — so any node is referenceable at a glance and what you *see* is
+byte-identical to what you *type* (`@SHOT-1A2B`). The shot node also joined the shared `focusedNodeId`
+pattern, so the tray/guided-flow/copilot can all open it.
+
+### 9.4 `copilot-panel.tsx` split (supersedes the §4 file map)
+
+| File | Role |
+|---|---|
+| `copilot-panel.tsx` | Shell — open/close, layout, scroll-to-bottom. |
+| `use-copilot-chat.ts` | The **brain** — messages/thinking state, `send()`, and the write recipes. |
+| `copilot-composer.tsx` | Composer — textarea, @-mention picker, attach, send. |
+| `copilot-message.tsx` | One message — bubble, node chips, proposal card. |
+
+Native `<button>`s → shadcn `<Button>`; behavior preserved (tsc + 447 tests green).
+
+### 9.5 Draft decisions (stage into the ADR log)
+
+- **Gate copilot writes by blast radius.** Structural/cheap ops (`create_script_node`, `parse_script`,
+  `open_node`) execute **instantly** via client recipes; only generation gets the HITL gate. *Why:*
+  friction only where it earns its keep. *Rejected:* gating every mutation.
+- **`open_node` is one general verb, not per-type openers.** It drives the shared `setFocusedNodeId`
+  signal; each node owns which surface opens. *Why:* keeps the `create → open → act` grammar general.
+  *Rejected:* `open_shot_composer` + one opener per node type.
+- **`parse_script` auto-fans-out.** Parsing produces the Shot nodes directly. *Why:* the fan-out is the
+  next lane step and the engine (`fanOutShots`) already existed. *Rejected:* leaving fan-out a separate
+  manual click.
+- **The ref handle shows on every node, in the header.** *Why:* uniform, discoverable, and identical to
+  the reference the copilot/@-mention resolve. *Rejected:* handle on only the title-bearing nodes;
+  above-the-title placement (inconsistent across types).
