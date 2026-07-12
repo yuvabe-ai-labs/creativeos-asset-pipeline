@@ -65,6 +65,24 @@ export function CopilotComposer({
     }
   }
 
+  // Shared insertion logic: replace the "@query" at mention.start with the given text,
+  // focus the textarea, and position the caret after the inserted text. Called by both
+  // insertMention and insertSelected.
+  function insertAtMention(text: string) {
+    if (mention === null) return;
+    const el = inputRef.current;
+    const caret = el?.selectionStart ?? input.length;
+    const before = input.slice(0, mention.start);
+    const after = input.slice(caret);
+    setInput(before + text + after);
+    setMention(null);
+    const pos = (before + text).length;
+    requestAnimationFrame(() => {
+      el?.focus();
+      el?.setSelectionRange(pos, pos);
+    });
+  }
+
   // Replace the "@query" at the caret with the chosen node's handle token AND its
   // friendly name (e.g. "@FILE-469A Product image "). The handle stays the machine
   // anchor — `resolveMentions` matches `/@[\w-]+/`, which stops at the space, so it
@@ -72,18 +90,7 @@ export function CopilotComposer({
   // context for the human's chat history and inline grounding for the model.
   function insertMention(o: { handle: string; name: string }) {
     if (mention === null) return;
-    const el = inputRef.current;
-    const caret = el?.selectionStart ?? input.length;
-    const before = input.slice(0, mention.start);
-    const after = input.slice(caret);
-    const token = `@${o.handle} ${o.name} `;
-    setInput(before + token + after);
-    setMention(null);
-    const pos = (before + token).length;
-    requestAnimationFrame(() => {
-      el?.focus();
-      el?.setSelectionRange(pos, pos);
-    });
+    insertAtMention(`@${o.handle} ${o.name} `);
   }
 
   // Replace the "@query" with the expanded selection tokens (insert-time expansion).
@@ -91,17 +98,7 @@ export function CopilotComposer({
     if (mention === null) return;
     const tokens = expandSelected(nodes);
     if (!tokens) return;
-    const el = inputRef.current;
-    const caret = el?.selectionStart ?? input.length;
-    const before = input.slice(0, mention.start);
-    const after = input.slice(caret);
-    setInput(before + tokens + after);
-    setMention(null);
-    const pos = (before + tokens).length;
-    requestAnimationFrame(() => {
-      el?.focus();
-      el?.setSelectionRange(pos, pos);
-    });
+    insertAtMention(tokens);
   }
 
   // Read an uploaded .md/.txt script into a pending attachment (its text becomes the
@@ -158,7 +155,10 @@ export function CopilotComposer({
                     variant="ghost"
                     size="xs"
                     type="button"
-                    onClick={insertSelected}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      insertSelected();
+                    }}
                     className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm font-normal hover:bg-muted"
                   >
                     <span className="text-eyebrow text-[9px] text-primary">SELECTED</span>
