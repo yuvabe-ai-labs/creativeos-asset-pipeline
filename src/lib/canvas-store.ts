@@ -187,6 +187,19 @@ export function createCanvasStore(
 
         const data = { ...(node.data as Record<string, unknown>), ...(newNode.data as Record<string, unknown>) };
 
+        // Preserve the source node's connections so the copy is a true, editable
+        // replica: re-point every edge touching the source onto the new node —
+        // both incoming (parent → node) and outgoing (node → child). Fresh edge
+        // ids; autosave persists them like any other edge.
+        const clonedEdges = get()
+          .edges.filter((e) => e.source === id || e.target === id)
+          .map((e) => ({
+            ...e,
+            id: crypto.randomUUID(),
+            source: e.source === id ? newNode.id : e.source,
+            target: e.target === id ? newNode.id : e.target,
+          }));
+
         set({
           nodes: [
             ...get().nodes,
@@ -198,6 +211,7 @@ export function createCanvasStore(
               selected: false,
             } as AppNode,
           ],
+          edges: [...get().edges, ...clonedEdges],
         });
       } catch (err) {
         console.error("Duplicate node error:", err);
