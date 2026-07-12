@@ -199,7 +199,7 @@ export function useCopilotChat(canvasId: string) {
 
   // Send a turn. `attachment` (an uploaded script) short-circuits to a deterministic
   // create-script recipe — no model call. Otherwise: resolve @-mentions, ask the actions
-  // route whether this is a COMMAND (create/parse/add/open) and route accordingly, else fall
+  // route whether this is a COMMAND (create/parse/add/open/connect) and route accordingly, else fall
   // through to the streamed prose answer + reference chips.
   async function send(text: string, attachment: Attachment | null) {
     // File upload path: a .md/.txt script file → create a Script node from its text

@@ -41,6 +41,7 @@ export function AddConnection({
             size="xs"
             type="button"
             title="Add a connection"
+            aria-label="Add a connection"
             className="size-5 rounded p-0 text-muted-foreground hover:text-primary"
           >
             <Plus className="size-3.5" />

@@ -10,6 +10,7 @@ import { nodeHandle, nodeLabel } from "@/lib/nodes/describe-node";
 // - create_script_node → "turn the reel script the user pasted into a Script node"
 // - parse_script       → "extract an existing Script node into shots"
 // - open_node          → "open a node's editor/focus view (for a Shot, its Composer)"
+// - connect_nodes      → "wire each `from` handle as a source edge into the `to` handle"
 export type CopilotAction =
   | { name: "add_node"; args: { type: string; title?: string } }
   | { name: "create_script_node"; args: { title?: string } }
