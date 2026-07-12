@@ -6,7 +6,7 @@ export function loadPickerScript(): Promise<void> {
   if (typeof window === "undefined") {
     return Promise.reject(new Error("Not in browser"));
   }
-  if ((window as any).google?.picker) {
+  if ((window as unknown as { google?: { picker?: unknown } }).google?.picker) {
     return Promise.resolve();
   }
   if (pendingLoad) return pendingLoad;
@@ -15,7 +15,7 @@ export function loadPickerScript(): Promise<void> {
     const existing = document.getElementById("gapi-script");
     if (existing) {
       // Script tag exists — may have already loaded
-      if ((window as any).gapi) {
+      if ((window as unknown as { gapi?: unknown }).gapi) {
         resolve();
         return;
       }
