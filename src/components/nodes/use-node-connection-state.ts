@@ -1,7 +1,7 @@
 "use client";
 
 import { useConnection } from "@xyflow/react";
-import { VALID_CONNECTIONS } from "@/lib/canvas-nodes";
+import { canConnect } from "@/lib/canvas-nodes";
 
 type ConnectionState = "idle" | "source" | "valid" | "invalid";
 
@@ -19,6 +19,5 @@ export function useNodeConnectionState(
   const connection = useConnection();
   if (!connection.inProgress) return "idle";
   if (connection.fromNode?.id === nodeId) return "source";
-  const validTargets = VALID_CONNECTIONS[connection.fromNode?.type ?? ""] ?? [];
-  return validTargets.includes(nodeType) ? "valid" : "invalid";
+  return canConnect(connection.fromNode?.type ?? "", nodeType) ? "valid" : "invalid";
 }

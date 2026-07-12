@@ -131,6 +131,13 @@ export const VALID_CONNECTIONS: Record<string, readonly string[]> = {
   "video-gen":    [],
 } as const;
 
+// The single ordered connection check: may a `sourceType` node feed a `targetType` node?
+// One helper, several call sites (manual drag, drag affordance, copilot connect, focus-view +).
+// Ordered on purpose — connection direction is meaningful; there is no symmetric variant.
+export function canConnect(sourceType: string, targetType: string): boolean {
+  return (VALID_CONNECTIONS[sourceType] ?? []).includes(targetType);
+}
+
 // A node row joined with its active version's output (canvas-load shape).
 // `active` is the to-one embed of node_versions via nodes.active_version_id.
 export type NodeWithActive = NodeRow & {
