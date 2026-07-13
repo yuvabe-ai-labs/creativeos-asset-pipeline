@@ -52,6 +52,10 @@ export function CopilotComposer({
     mention !== null &&
     selectedCount > 0 &&
     "selected".startsWith(mention.query.toLowerCase());
+  // The picker is ONE keyboard-navigable list: when shown, the SELECTED row occupies
+  // index 0 and the node options shift down by one, so ↑/↓/Enter reach every row.
+  const rowOffset = showSelectedRow ? 1 : 0;
+  const totalRows = rowOffset + mentionOptions.length;
 
   // On each keystroke, detect an "@word" at the caret → open/refresh the picker.
   function onComposerChange(value: string, caret: number) {
@@ -143,7 +147,7 @@ export function CopilotComposer({
       <div className="relative">
         {/* @-mention picker: appears above the composer when you type "@". YOU drive
             it — the list is the canvas nodes, shown by title/type + stable handle. */}
-        {mention !== null && (mentionOptions.length > 0 || showSelectedRow) && (
+        {mention !== null && totalRows > 0 && (
           <div className="absolute bottom-full left-0 right-0 mb-2 overflow-hidden rounded-xl border border-border bg-background shadow-lg">
             <div className="text-eyebrow px-3 py-1.5 text-[10px] text-muted-foreground">
               Reference a node
@@ -153,13 +157,16 @@ export function CopilotComposer({
                 <li>
                   <Button
                     variant="ghost"
-                    size="xs"
                     type="button"
                     onMouseDown={(e) => {
                       e.preventDefault();
                       insertSelected();
                     }}
-                    className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm font-normal hover:bg-muted"
+                    onMouseEnter={() => setMentionIndex(0)}
+                    className={cn(
+                      "h-auto w-full justify-start gap-2 rounded-none px-3 py-1.5 text-left text-sm font-normal",
+                      mentionIndex === 0 ? "bg-primary/10 hover:bg-primary/10" : "hover:bg-muted",
+                    )}
                   >
                     <span className="text-eyebrow text-[9px] text-primary">SELECTED</span>
                     <span className="truncate text-muted-foreground">
@@ -179,10 +186,10 @@ export function CopilotComposer({
                       e.preventDefault();
                       insertMention(o);
                     }}
-                    onMouseEnter={() => setMentionIndex(i)}
+                    onMouseEnter={() => setMentionIndex(i + rowOffset)}
                     className={cn(
                       "h-auto w-full justify-start gap-2 rounded-none px-3 py-1.5 text-left text-sm font-normal",
-                      i === mentionIndex ? "bg-primary/10 hover:bg-primary/10" : "hover:bg-muted",
+                      i + rowOffset === mentionIndex ? "bg-primary/10 hover:bg-primary/10" : "hover:bg-muted",
                     )}
                   >
                     <span className="text-eyebrow text-[9px] text-muted-foreground">{o.handle}</span>
@@ -200,35 +207,28 @@ export function CopilotComposer({
             onComposerChange(e.target.value, e.target.selectionStart ?? e.target.value.length)
           }
           onKeyDown={(e) => {
-            // While only the synthetic "@selected" row is offered (no matching nodes),
-            // Enter/Escape still drive the picker — there's just no arrow-key list under it.
-            if (mention !== null && mentionOptions.length === 0 && showSelectedRow) {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                insertSelected();
-                return;
-              }
-              if (e.key === "Escape") {
-                e.preventDefault();
-                setMention(null);
-                return;
-              }
-            }
-            // While the picker is open, the arrow/enter/esc keys drive it — not the composer.
-            if (mention !== null && mentionOptions.length > 0) {
+            // While the picker is open, the arrow/enter/esc keys drive it — not the
+            // composer. One list: index 0 is the SELECTED row (when shown), node
+            // options follow at +rowOffset.
+            if (mention !== null && totalRows > 0) {
               if (e.key === "ArrowDown") {
                 e.preventDefault();
-                setMentionIndex((i) => (i + 1) % mentionOptions.length);
+                setMentionIndex((i) => (i + 1) % totalRows);
                 return;
               }
               if (e.key === "ArrowUp") {
                 e.preventDefault();
-                setMentionIndex((i) => (i - 1 + mentionOptions.length) % mentionOptions.length);
+                setMentionIndex((i) => (i - 1 + totalRows) % totalRows);
                 return;
               }
               if (e.key === "Enter") {
                 e.preventDefault();
-                insertMention(mentionOptions[mentionIndex]);
+                if (showSelectedRow && mentionIndex === 0) {
+                  insertSelected();
+                } else {
+                  const option = mentionOptions[mentionIndex - rowOffset];
+                  if (option) insertMention(option);
+                }
                 return;
               }
               if (e.key === "Escape") {
