@@ -33,10 +33,13 @@ export function GenerationsImageBrowser({
 
   useEffect(() => {
     if (!open) return;
-    setLoading(true);
-    fetch(`/api/canvas/${canvasId}/generations`)
-      .then((r) => r.json())
-      .then((res: { data: { items: CanvasGenerationItem[] } }) => {
+    const controller = new AbortController();
+
+    async function load() {
+      setLoading(true);
+      try {
+        const r = await fetch(`/api/canvas/${canvasId}/generations`, { signal: controller.signal });
+        const res = (await r.json()) as { data: { items: CanvasGenerationItem[] } };
         setImages(
           res.data.items.map((item) => ({
             id: item.id,
@@ -45,8 +48,15 @@ export function GenerationsImageBrowser({
             subtitle: `${item.modelUsed ?? "unknown"} · ${new Date(item.createdAt).toLocaleDateString()}`,
           }))
         );
-      })
-      .finally(() => setLoading(false));
+      } catch (err) {
+        if ((err as { name?: string }).name !== "AbortError") throw err;
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    void load();
+    return () => controller.abort();
   }, [open, canvasId]);
 
   return (
