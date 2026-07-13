@@ -47,15 +47,17 @@ export function AddConnection({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
         render={
+          // Design system: "Add" actions are discoverable dashed-border primary chips,
+          // never faint icon-only buttons (same scale as GuidedNextButton's chip).
           <Button
             variant="ghost"
             size="xs"
             type="button"
-            title="Add a connection"
             aria-label="Add a connection"
-            className="size-5 rounded p-0 text-muted-foreground hover:text-primary"
+            className="h-auto gap-1 rounded-md border border-dashed border-primary/40 px-2 py-1 text-[0.65rem] font-medium text-primary hover:bg-primary/5"
           >
-            <Plus className="size-3.5" />
+            <Plus className="size-3" strokeWidth={1.5} />
+            Add
           </Button>
         }
       />
