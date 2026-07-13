@@ -1,7 +1,7 @@
 "use client";
 
 import "@xyflow/react/dist/style.css";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import {
   Background,
@@ -103,7 +103,9 @@ export function Canvas({
     useCanvasLock(canvasId);
   // Read the latest canEdit from event handlers/closures without re-subscribing them.
   const canEditRef = useRef(canEdit);
-  canEditRef.current = canEdit;
+  useLayoutEffect(() => {
+    canEditRef.current = canEdit;
+  });
 
   // Confirm every node deletion (context menu + keyboard) through one dialog.
   const { onBeforeDelete: confirmDelete, dialogProps: deleteDialog } =
