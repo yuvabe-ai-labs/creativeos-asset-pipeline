@@ -4,11 +4,18 @@ import { useEffect, useState } from "react";
 import { ReferenceImageGrid, type GridImage } from "../reference-image-grid";
 import type { CanvasGenerationItem } from "@/app/api/canvas/[id]/generations/route";
 
+export type GeneratedSelectedImage = {
+  source: "generated";
+  imageUrl: string;
+  filename: string;
+  generationId: string;
+};
+
 type Props = {
   canvasId: string;
   open: boolean;
   selectedIds: Set<string>;
-  onToggle: (id: string) => void;
+  onToggle: (id: string, image: GeneratedSelectedImage) => void;
   searchQuery: string;
   onSearchChange: (q: string) => void;
 };
@@ -46,7 +53,16 @@ export function GenerationsImageBrowser({
     <ReferenceImageGrid
       images={images}
       selectedIds={selectedIds}
-      onToggle={onToggle}
+      onToggle={(id) => {
+        const img = images.find((i) => i.id === id);
+        if (!img) return;
+        onToggle(id, {
+          source: "generated",
+          imageUrl: img.imageUrl,
+          filename: img.filename,
+          generationId: id,
+        });
+      }}
       loading={loading}
       searchQuery={searchQuery}
       onSearchChange={onSearchChange}
