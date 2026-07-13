@@ -1,15 +1,15 @@
 "use client";
 
-import { Input } from "@/components/ui/input";
-import { Search } from "lucide-react";
-import { ReferenceImageCard } from "./reference-image-card";
+import { useMemo, useState } from "react";
+import { SearchBar } from "./reference-image-picker/search-bar";
+import { ViewModeToggle } from "./reference-image-picker/view-mode-toggle";
+import { ImageMasonryView } from "./reference-image-picker/image-masonry-view";
+import { ImageListView } from "./reference-image-picker/image-list-view";
+import { CenteredLoader } from "./reference-image-picker/centered-loader";
+import { FullScreenImageZoom } from "@/components/shared/full-screen-image-zoom";
+import type { GridImage, ViewMode } from "./reference-image-picker/types";
 
-export type GridImage = {
-  id: string;
-  imageUrl: string;
-  filename: string;
-  subtitle: string;
-};
+export type { GridImage } from "./reference-image-picker/types";
 
 type Props = {
   images: GridImage[];
@@ -32,51 +32,72 @@ export function ReferenceImageGrid({
   searchPlaceholder = "Search…",
   emptyMessage,
 }: Props) {
-  const filtered = images.filter((img) =>
-    img.filename.toLowerCase().includes(searchQuery.toLowerCase())
+  const [viewMode, setViewMode] = useState<ViewMode>("grid");
+  const [previewId, setPreviewId] = useState<string | null>(null);
+
+  const filtered = useMemo(
+    () =>
+      images.filter((img) =>
+        img.filename.toLowerCase().includes(searchQuery.toLowerCase()),
+      ),
+    [images, searchQuery],
   );
 
   return (
     <div className="flex flex-1 flex-col gap-3 overflow-hidden">
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" strokeWidth={1.5} />
-        <Input
-          value={searchQuery}
-          onChange={(e) => onSearchChange(e.target.value)}
-          placeholder={searchPlaceholder}
-          className="pl-8 text-sm"
-        />
+      <div className="flex shrink-0 items-center gap-2">
+        <div className="flex-1">
+          <SearchBar
+            value={searchQuery}
+            onChange={onSearchChange}
+            placeholder={searchPlaceholder}
+          />
+        </div>
+        <ViewModeToggle value={viewMode} onChange={setViewMode} />
       </div>
 
       <div className="flex-1 overflow-y-auto pr-1">
         {loading ? (
-          <div className="grid grid-cols-3 gap-3">
-            {Array.from({ length: 9 }).map((_, i) => (
-              <div
-                key={i}
-                className="h-48 animate-pulse rounded-xl bg-muted"
-              />
-            ))}
-          </div>
+          <CenteredLoader />
         ) : filtered.length === 0 ? (
-          <div className="flex h-48 items-center justify-center">
-            <p className="text-sm text-muted-foreground">{emptyMessage}</p>
-          </div>
+          <EmptyState message={emptyMessage} />
+        ) : viewMode === "grid" ? (
+          <ImageMasonryView
+            images={filtered}
+            selectedIds={selectedIds}
+            onToggle={onToggle}
+            onPreview={setPreviewId}
+          />
         ) : (
-          <div className="grid grid-cols-3 gap-3">
-            {filtered.map((img) => (
-              <ReferenceImageCard
-                key={img.id}
-                imageUrl={img.imageUrl}
-                filename={img.filename}
-                subtitle={img.subtitle}
-                selected={selectedIds.has(img.id)}
-                onToggle={() => onToggle(img.id)}
-              />
-            ))}
-          </div>
+          <ImageListView
+            images={filtered}
+            selectedIds={selectedIds}
+            onToggle={onToggle}
+            onPreview={setPreviewId}
+          />
         )}
       </div>
+
+      {previewId &&
+        (() => {
+          const img = images.find((i) => i.id === previewId);
+          if (!img) return null;
+          return (
+            <FullScreenImageZoom
+              imageUrl={img.previewUrl ?? img.imageUrl}
+              title={img.filename}
+              onClose={() => setPreviewId(null)}
+            />
+          );
+        })()}
+    </div>
+  );
+}
+
+function EmptyState({ message }: { message: string }) {
+  return (
+    <div className="flex h-48 items-center justify-center">
+      <p className="text-sm text-muted-foreground">{message}</p>
     </div>
   );
 }

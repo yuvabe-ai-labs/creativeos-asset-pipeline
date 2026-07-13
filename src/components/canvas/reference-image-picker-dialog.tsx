@@ -67,7 +67,7 @@ export function ReferenceImagePickerDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="flex h-170 max-w-260 flex-col gap-0 p-0 overflow-hidden">
+      <DialogContent className="flex h-[76vh] w-[95vw] max-w-[95vw] sm:max-w-[1400px] flex-col gap-0 p-0 overflow-hidden">
         <DialogHeader className="shrink-0 border-b border-border px-5 py-4">
           <DialogTitle className="font-display text-base font-semibold">
             Add Reference Image

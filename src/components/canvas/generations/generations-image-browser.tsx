@@ -29,29 +29,32 @@ export function GenerationsImageBrowser({
   onSearchChange,
 }: Props) {
   const [images, setImages] = useState<GridImage[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!open) return;
     const controller = new AbortController();
+    setLoading(true);
+    setImages([]);
 
     async function load() {
-      setLoading(true);
       try {
         const r = await fetch(`/api/canvas/${canvasId}/generations`, { signal: controller.signal });
-        const res = (await r.json()) as { data: { items: CanvasGenerationItem[] } };
+        const res = (await r.json()) as { items: CanvasGenerationItem[] };
+        if (controller.signal.aborted) return;
         setImages(
-          res.data.items.map((item) => ({
+          res.items.map((item) => ({
             id: item.id,
             imageUrl: item.imageUrl,
             filename: item.nodeName ?? "Image Gen",
             subtitle: `${item.modelUsed ?? "unknown"} · ${new Date(item.createdAt).toLocaleDateString()}`,
           }))
         );
-      } catch (err) {
-        if ((err as { name?: string }).name !== "AbortError") throw err;
-      } finally {
         setLoading(false);
+      } catch (err) {
+        if ((err as { name?: string }).name === "AbortError") return;
+        setLoading(false);
+        throw err;
       }
     }
 
