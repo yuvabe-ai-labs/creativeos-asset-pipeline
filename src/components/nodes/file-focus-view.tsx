@@ -223,11 +223,9 @@ export function FileFocusView({
                       className="font-display text-3xl font-semibold tracking-tight"
                     />
                   </SheetTitle>
-                  <p className="mt-1.5 text-sm text-muted-foreground">
-                    {mode === "empty" || mode === "loading"
-                      ? "Attach a .txt, image, .pdf, or .docx file to use as a reference on the canvas."
-                      : (filename ?? "")}
-                  </p>
+                  {mode !== "empty" && mode !== "loading" && filename && (
+                    <p className="mt-1.5 text-sm text-muted-foreground">{filename}</p>
+                  )}
                 </div>
 
                 {mode === "ready" && (

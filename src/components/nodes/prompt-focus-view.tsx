@@ -410,9 +410,6 @@ export function PromptFocusView({
                     className="font-display text-3xl font-semibold tracking-tight"
                   />
                 </SheetTitle>
-                <p className="mt-1.5 text-sm text-muted-foreground">
-                  Compose context into a generated image prompt.
-                </p>
               </div>
 
               <div className="flex shrink-0 items-center gap-2">

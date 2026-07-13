@@ -1,20 +1,21 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   ArrowLeft,
+  BadgeCheck,
   Download,
+  History,
   ImageIcon,
-  Link2,
   Maximize2,
   Settings2,
+  SlidersHorizontal,
   Sparkles,
   X,
   ZoomIn,
   ZoomOut,
   AlertTriangle,
-  type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -29,7 +30,8 @@ import { normalizeTitle } from "@/lib/nodes/title";
 import { Button } from "@/components/ui/button";
 import { GuidedNextButton } from "@/components/canvas/guided-next-button";
 import {
-  ConnectedInputsCard,
+  ConnectedDetailView,
+  NodeIcon,
   type UpstreamNode,
   type ConnectedPreview,
 } from "./connected-inputs-card";
@@ -68,6 +70,10 @@ import {
 import { smartMergeParams } from "@/lib/image-gen/params/merge";
 import { ImageGenOutputSettings } from "./image-gen-output-settings";
 import { validateReferenceImages, type RefImageMeta } from "@/lib/image-gen/validate";
+import { cn } from "@/lib/utils";
+import { describeApprovalPill } from "@/lib/nodes/prompt-focus";
+import { LeftSection } from "./focus-left-section";
+import { RailItem } from "./focus-rail-item";
 import {
   Tooltip,
   TooltipContent,
@@ -103,40 +109,6 @@ export type ImageGenFocusViewProps = {
 };
 
 type ParamFormValues = Record<string, unknown>;
-
-// ── Section header (matches prompt-focus-view.tsx LeftSection pattern) ────────
-
-function LeftSection({
-  icon: Icon,
-  label,
-  badge,
-  action,
-  children,
-}: {
-  icon: LucideIcon;
-  label: string;
-  badge?: string;
-  action?: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <div>
-      <div className="mb-2 flex items-center justify-between">
-        <div className="flex items-center gap-1.5">
-          <Icon className="size-3.5 text-primary" strokeWidth={1.5} />
-          <span className="text-eyebrow">{label}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          {badge && (
-            <span className="text-xs text-muted-foreground">{badge}</span>
-          )}
-          {action}
-        </div>
-      </div>
-      {children}
-    </div>
-  );
-}
 
 // ── Full-screen zoom controls (must be inside TransformWrapper) ───────────────
 
@@ -262,6 +234,9 @@ export function ImageGenFocusView({
   } | null>(null);
   const [loadingVersions, setLoadingVersions] = useState(false);
   const [loadingPreview, setLoadingPreview] = useState(false);
+  // The selected rail item: "image" (the hero pane), "history", "details", or a
+  // connected node's id (right pane shows that node's read-only detail).
+  const [selected, setSelected] = useState<string>("image");
   const [openSeed, setOpenSeed] = useState(open);
   const seenModelIdRef = useRef(model.id);
 
@@ -271,8 +246,12 @@ export function ImageGenFocusView({
     if (open) {
       setLoadingVersions(true);
       setLoadingPreview(true);
+      setSelected("image"); // return to the hero pane on open
     }
   }
+
+  // A connected node is selected when `selected` isn't one of the fixed rail keys.
+  const isNodeSelected = !["image", "history", "details"].includes(selected);
 
   useEffect(() => {
     if (model.id !== seenModelIdRef.current) {
@@ -479,18 +458,31 @@ export function ImageGenFocusView({
     [upstream],
   );
 
-  const preview = useMemo<ConnectedPreview[]>(() => {
-    const promptNode = upstream.find((u) => u.type === "prompt");
-    if (!promptNode || fetchedPrompt?.nodeId !== promptNode.id) return [];
-    return [
-      {
-        nodeId: promptNode.id,
-        type: "prompt",
-        label: "Image prompt",
-        text: fetchedPrompt.text,
-      },
-    ];
-  }, [upstream, fetchedPrompt]);
+  // One preview per upstream node so every rail item has a detail view: the
+  // connected prompt gets its fetched active output, image inputs their fileUrl.
+  const connectedPreviews = useMemo<ConnectedPreview[]>(
+    () =>
+      upstreamForCard.map((u) => ({
+        nodeId: u.id,
+        type: u.type,
+        label: u.label,
+        text:
+          u.type === "prompt" && fetchedPrompt?.nodeId === u.id
+            ? fetchedPrompt.text
+            : "",
+        fileUrl: u.fileUrl,
+        fileKind: u.fileKind,
+      })),
+    [upstreamForCard, fetchedPrompt],
+  );
+
+  const selectedNode = isNodeSelected
+    ? connectedPreviews.find((c) => c.nodeId === selected) ?? null
+    : null;
+  // The prompt's text arrives async — show the loading fallback until it lands.
+  const selectedNodeReady =
+    !!selectedNode &&
+    !(selectedNode.type === "prompt" && !selectedNode.text.trim() && loadingPreview);
 
   const mode: "skeleton" | "result" | "empty" = generating
     ? "skeleton"
@@ -749,6 +741,26 @@ export function ImageGenFocusView({
     }
   }
 
+  const pill = describeApprovalPill(approvalStatus);
+  const pillTone =
+    pill.tone === "positive"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-900/20 dark:text-emerald-400"
+      : pill.tone === "warning"
+        ? "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-400"
+        : "border-border bg-muted text-muted-foreground";
+
+  const reviewBadge =
+    mode === "result" ? (
+      <span
+        className={cn(
+          "shrink-0 rounded-full border px-1.5 py-0.5 text-[0.6rem] font-semibold",
+          pillTone,
+        )}
+      >
+        {pill.tone === "positive" ? "Approved" : pill.tone === "warning" ? "Changes" : "Pending"}
+      </span>
+    ) : undefined;
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
@@ -762,14 +774,15 @@ export function ImageGenFocusView({
 
         {/* Header */}
         <div className="shrink-0 border-b">
-          <div className="mx-auto w-full max-w-5xl px-6 pb-5 pt-3">
-            <button
-              type="button"
+          <div className="mx-auto w-full max-w-6xl px-6 pb-5 pt-3">
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => onOpenChange(false)}
-              className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+              className="-ml-2.5 gap-1.5 font-medium text-muted-foreground hover:text-foreground"
             >
               <ArrowLeft className="size-4" strokeWidth={1.5} /> Back to canvas
-            </button>
+            </Button>
             <header className="mt-4 flex items-start justify-between gap-4">
               <div>
                 <SheetTitle className="p-0 font-display text-3xl font-semibold tracking-tight">
@@ -780,16 +793,15 @@ export function ImageGenFocusView({
                     className="font-display text-3xl font-semibold tracking-tight"
                   />
                 </SheetTitle>
-                <p className="mt-1.5 text-sm text-muted-foreground">
-                  Choose a model, tune params, and generate an image from your
-                  connected prompt.
-                </p>
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 {canEditBase && (
                   <Tabs
                     value={activeTab}
-                    onValueChange={(v) => setActiveTab(v as "generate" | "edit")}
+                    onValueChange={(v) => {
+                      setActiveTab(v as "generate" | "edit");
+                      setSelected("image"); // the tab's UI lives in the hero pane
+                    }}
                   >
                     <TabsList>
                       <TabsTrigger value="generate">Generate</TabsTrigger>
@@ -804,35 +816,6 @@ export function ImageGenFocusView({
                     upstreamNodeIds={upstream.map((u) => u.id)}
                   />
                 )}
-                <div className="flex flex-col items-end">
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger render={<span className="inline-flex" />}>
-                        <Button
-                          size="lg"
-                          onClick={handleGenerate}
-                          disabled={generating || editing || !promptUpstream || !editable || hasRefViolation}
-                        >
-                          <Sparkles className="size-4" strokeWidth={1.5} />
-                          {generating
-                            ? "Generating…"
-                            : editing
-                              ? "Editing…"
-                              : imageUrl
-                                ? "Re-generate"
-                                : "Generate"}
-                        </Button>
-                      </TooltipTrigger>
-                      {hasRefViolation && !refValidation.ok && (
-                        <TooltipContent side="top" className="max-w-56 text-center">
-                          {refValidation.violations.length === 1
-                            ? "A reference image doesn't meet this model's requirements. Try resizing it or switching to a different model."
-                            : `${refValidation.violations.length} reference images don't meet this model's requirements. Try resizing them or switching to a different model.`}
-                        </TooltipContent>
-                      )}
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
                 <GuidedNextButton
                   sourceId={nodeId}
                   variant="button"
@@ -843,93 +826,76 @@ export function ImageGenFocusView({
           </div>
         </div>
 
-        {/* Body */}
-        <div className="min-h-0 flex-1 flex justify-center overflow-hidden">
-          <div className="w-full max-w-5xl flex min-h-0 overflow-hidden">
-            {/* Left panel */}
-            <div className="w-[40%] border-r border-border overflow-y-auto px-6 py-6 flex flex-col gap-6">
-              {activeTab === "edit" && canEditBase && (
-                <div className="space-y-4">
-                  <ImageGenEditReferences
-                    items={referenceItems}
-                    selectedIds={selectedRefIds}
-                    onToggle={handleToggleRef}
-                    onSetBase={handleSetBase}
-                    canSetBase={!baseIsAttempt}
-                  />
-                  <ImageGenEditPanel
-                    intent={intent}
-                    instruction={editInstr}
-                    upstream={upstreamForCard}
-                    finalPrompt={finalPrompt}
-                    editing={editing}
-                    canEdit={canEditBase && editable}
-                    referenceWarning={referenceWarning}
-                    suggestGemini={suggestGemini}
-                    onPickChip={handlePickChip}
-                    onInstructionChange={handleInstructionChange}
-                    onInstructionBlur={handleInstructionBlur}
-                    onFinalPromptChange={setPromptOverride}
-                    onEdit={handleEdit}
-                  />
-                </div>
-              )}
+        {/* Body: left rail + detail pane */}
+        <div className="mx-auto flex w-full max-w-6xl min-h-0 flex-1 overflow-hidden">
+          {/* Rail */}
+          <nav className="flex w-56 shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-border px-3 py-4">
+            <RailItem
+              icon={<ImageIcon className="size-4 text-primary" />}
+              label="Image"
+              active={selected === "image"}
+              onClick={() => setSelected("image")}
+            />
 
-              {loadingVersions ? (
-                <div className="space-y-2">
-                  <div className="h-3 w-24 animate-pulse rounded bg-muted-foreground/20" />
-                  <div className="space-y-1.5 pt-1">
-                    {Array.from({ length: 3 }).map((_, i) => (
-                      <div key={i} className="flex items-center gap-2">
-                        <div className="size-2 shrink-0 animate-pulse rounded-full bg-muted-foreground/20" />
-                        <div className="h-3 animate-pulse rounded bg-muted-foreground/20" style={{ width: `${55 + i * 12}%` }} />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : versions.length > 0 ? (
-                <ImageGenVersionHistory
-                  versions={versions}
-                  activeVersionId={activeVersionId}
-                  onRestore={handleRestoreVersion}
-                  restoring={restoring}
+            <div className="px-2.5 pb-1 pt-3 text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground/70">
+              Connected · {upstream.length}
+            </div>
+            {upstream.length === 0 ? (
+              <p className="px-2.5 text-xs text-muted-foreground">No inputs connected.</p>
+            ) : (
+              upstreamForCard.map((u) => (
+                <RailItem
+                  key={u.id}
+                  icon={<NodeIcon type={u.type} />}
+                  label={u.label}
+                  active={selected === u.id}
+                  onClick={() => setSelected(u.id)}
                 />
-              ) : null}
+              ))
+            )}
 
-              <LeftSection icon={Settings2} label="Output settings">
-                <ImageGenOutputSettings
-                  model={model}
-                  values={paramValues}
-                  onValuesChange={setParamValues}
-                  onCommit={commitParams}
-                  onModelChange={changeModel}
-                />
-              </LeftSection>
+            <div className="mx-2.5 my-2 h-px bg-border" />
+            <RailItem
+              icon={<History className="size-4 text-primary" />}
+              label="History"
+              active={selected === "history"}
+              onClick={() => setSelected("history")}
+              badge={
+                versions.length > 0 ? (
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    {versions.length}
+                  </span>
+                ) : undefined
+              }
+            />
+            <RailItem
+              icon={<SlidersHorizontal className="size-4 text-primary" />}
+              label="Details"
+              active={selected === "details"}
+              onClick={() => setSelected("details")}
+              badge={reviewBadge}
+            />
+          </nav>
 
-              <LeftSection
-                icon={Link2}
-                label="Connected"
-                badge={`${upstream.length} input${upstream.length === 1 ? "" : "s"}`}
-              >
-                {loadingPreview ? (
-                  <div className="space-y-2">
-                    {Array.from({ length: Math.max(upstream.length, 2) }).map((_, i) => (
-                      <div key={i} className="space-y-1.5 rounded-lg border border-border p-3">
-                        <div className="h-3 w-1/3 animate-pulse rounded bg-muted-foreground/20" />
-                        <div className="h-3 w-full animate-pulse rounded bg-muted-foreground/20" />
-                        <div className="h-3 w-4/5 animate-pulse rounded bg-muted-foreground/20" />
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <>
-                    <ConnectedInputsCard
-                      upstream={upstreamForCard}
-                      preview={preview}
-                      imageOnlyContext
+          {/* Detail pane */}
+          <div className="min-h-0 flex-1 overflow-hidden">
+            {/* Image — settings (or edit tools) on top, the hero image below */}
+            {selected === "image" && (
+              <div className="flex h-full min-h-0">
+                {/* Left column — model & controls on top; the edit tools below them
+                    on the Edit tab. The image/canvas keeps the right side, which
+                    stays narrower since outputs are portrait (reel stills). */}
+                <div className="flex w-[45%] shrink-0 flex-col gap-6 overflow-y-auto border-r border-border px-6 py-5">
+                  <LeftSection icon={Settings2} label="Output settings">
+                    <ImageGenOutputSettings
+                      model={model}
+                      values={paramValues}
+                      onValuesChange={setParamValues}
+                      onCommit={commitParams}
+                      onModelChange={changeModel}
                     />
                     {refOverLimit && (
-                      <div className="mt-2 flex items-start gap-1.5 rounded-md border border-amber-300 bg-amber-50 px-2 py-1.5 text-[0.7rem] text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300">
+                      <div className="mt-3 flex items-start gap-1.5 rounded-md border border-amber-300 bg-amber-50 px-2 py-1.5 text-[0.7rem] text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300">
                         <AlertTriangle
                           className="mt-0.5 size-3 shrink-0"
                           strokeWidth={1.5}
@@ -941,37 +907,76 @@ export function ImageGenFocusView({
                         </span>
                       </div>
                     )}
-                  </>
-                )}
-              </LeftSection>
-            </div>
+                    {activeTab !== "edit" && (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger render={<span className="mt-3 flex w-full" />}>
+                            <Button
+                              className="w-full"
+                              size="default"
+                              onClick={handleGenerate}
+                              disabled={generating || editing || !promptUpstream || !editable || hasRefViolation}
+                            >
+                              <Sparkles className="size-4" strokeWidth={1.5} />
+                              {generating
+                                ? "Generating…"
+                                : editing
+                                  ? "Editing…"
+                                  : imageUrl
+                                    ? "Re-generate"
+                                    : "Generate"}
+                            </Button>
+                          </TooltipTrigger>
+                          {hasRefViolation && !refValidation.ok && (
+                            <TooltipContent side="top" className="max-w-56 text-center">
+                              {refValidation.violations.length === 1
+                                ? "A reference image doesn't meet this model's requirements. Try resizing it or switching to a different model."
+                                : `${refValidation.violations.length} reference images don't meet this model's requirements. Try resizing them or switching to a different model.`}
+                            </TooltipContent>
+                          )}
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
+                  </LeftSection>
 
-            {/* Right panel */}
-            <div className="flex-1 min-h-0 flex flex-col px-6 py-6">
-              <InlineEvalBar
-                label="Generated Image"
-                decision={evalDecision}
-                note={evalNote}
-                saving={evalSaving}
-                visible={mode === "result" && !!activeVersionId}
-                onDecision={handleEvalDecision}
-                onNote={setEvalNote}
-                onNoteBlur={handleEvalNoteBlur}
-              />
-
-              {mode === "result" && !!activeVersionId && (
-                <div className="mt-3">
-                  <InlineApprovalBar
-                    status={approvalStatus}
-                    note={approvalNote}
-                    saving={approvalSaving}
-                    canApprove={editable && identity?.role === "senior"}
-                    onSet={saveApproval}
-                  />
+                  {activeTab === "edit" && canEditBase && (
+                    <>
+                      <ImageGenEditReferences
+                        items={referenceItems}
+                        selectedIds={selectedRefIds}
+                        onToggle={handleToggleRef}
+                        onSetBase={handleSetBase}
+                        canSetBase={!baseIsAttempt}
+                      />
+                      <ImageGenEditPanel
+                        intent={intent}
+                        instruction={editInstr}
+                        upstream={upstreamForCard}
+                        finalPrompt={finalPrompt}
+                        editing={editing}
+                        canEdit={canEditBase && editable}
+                        referenceWarning={referenceWarning}
+                        suggestGemini={suggestGemini}
+                        onPickChip={handlePickChip}
+                        onInstructionChange={handleInstructionChange}
+                        onInstructionBlur={handleInstructionBlur}
+                        onFinalPromptChange={setPromptOverride}
+                        onEdit={handleEdit}
+                      />
+                    </>
+                  )}
                 </div>
-              )}
 
-              <div className="mt-3 flex-1 min-h-0">
+                <div className="flex min-h-0 flex-1 flex-col gap-3 px-6 py-5">
+                  <div className="flex items-center gap-1.5">
+                    <Sparkles className="size-3.5 text-primary" strokeWidth={1.5} />
+                    <span className="text-eyebrow">
+                      {activeTab === "edit" && editBaseUrl && !editing
+                        ? "Base image"
+                        : "Generated image"}
+                    </span>
+                  </div>
+                  <div className="min-h-0 flex-1">
                 {activeTab === "edit" && editBaseUrl && !editing ? (
                   editMode === "paint" ? (
                     <ImageGenAnnotationCanvas
@@ -1066,8 +1071,84 @@ export function ImageGenFocusView({
                 )}
                   </>
                 )}
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
+
+            {/* Connected node — read-only detail */}
+            {isNodeSelected &&
+              (selectedNodeReady && selectedNode ? (
+                <ConnectedDetailView node={selectedNode} />
+              ) : (
+                <div className="flex h-full items-center justify-center px-6 py-6">
+                  <p className="text-sm text-muted-foreground">
+                    {loadingPreview ? "Loading…" : "This input has no preview yet."}
+                  </p>
+                </div>
+              ))}
+
+            {/* History — every generation with thumbnails and edit lineage */}
+            {selected === "history" && (
+              <div className="flex h-full w-full max-w-3xl min-h-0 flex-col overflow-y-auto px-6 py-6">
+                {loadingVersions ? (
+                  <div className="space-y-2">
+                    <div className="h-3 w-24 animate-pulse rounded bg-muted-foreground/20" />
+                    <div className="space-y-1.5 pt-1">
+                      {Array.from({ length: 3 }).map((_, i) => (
+                        <div key={i} className="flex items-center gap-2">
+                          <div className="size-2 shrink-0 animate-pulse rounded-full bg-muted-foreground/20" />
+                          <div className="h-3 animate-pulse rounded bg-muted-foreground/20" style={{ width: `${55 + i * 12}%` }} />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : versions.length > 0 ? (
+                  <ImageGenVersionHistory
+                    versions={versions}
+                    activeVersionId={activeVersionId}
+                    onRestore={handleRestoreVersion}
+                    restoring={restoring}
+                  />
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    No generations yet — every attempt will show up here.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Details — Review (eval, approval) */}
+            {selected === "details" && (
+              <div className="flex h-full w-full max-w-3xl min-h-0 flex-col gap-6 overflow-y-auto px-6 py-6">
+                <LeftSection icon={BadgeCheck} label="Review">
+                  {mode === "result" && !!activeVersionId ? (
+                    <div className="flex flex-col gap-3">
+                      <InlineEvalBar
+                        decision={evalDecision}
+                        note={evalNote}
+                        saving={evalSaving}
+                        visible={mode === "result" && !!activeVersionId}
+                        onDecision={handleEvalDecision}
+                        onNote={setEvalNote}
+                        onNoteBlur={handleEvalNoteBlur}
+                      />
+                      <InlineApprovalBar
+                        status={approvalStatus}
+                        note={approvalNote}
+                        saving={approvalSaving}
+                        canApprove={editable && identity?.role === "senior"}
+                        onSet={saveApproval}
+                      />
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      Generate an image first to review and approve it.
+                    </p>
+                  )}
+                </LeftSection>
+              </div>
+            )}
           </div>
         </div>
 
