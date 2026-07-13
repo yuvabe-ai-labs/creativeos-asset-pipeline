@@ -32,6 +32,7 @@ import {
   type UpstreamNode,
   type ConnectedPreview,
 } from "./connected-inputs-card";
+import { AddConnection } from "./add-connection";
 import {
   PromptVersionHistory,
   type VersionSummary,
@@ -470,6 +471,13 @@ export function VideoPromptFocusView({
                   icon={Link2}
                   label="Connected"
                   badge={`${upstream.length} input${upstream.length === 1 ? "" : "s"}`}
+                  action={
+                    <AddConnection
+                      targetId={nodeId}
+                      targetType="video-prompt"
+                      connectedIds={upstream.map((u) => u.id)}
+                    />
+                  }
                 >
                   <div className="max-h-72 overflow-y-auto pb-2">
                     {loadingPreview ? (

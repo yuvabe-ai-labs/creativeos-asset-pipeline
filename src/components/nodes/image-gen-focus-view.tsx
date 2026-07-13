@@ -33,6 +33,7 @@ import {
   type UpstreamNode,
   type ConnectedPreview,
 } from "./connected-inputs-card";
+import { AddConnection } from "./add-connection";
 import {
   ImageGenVersionHistory,
   type ImageGenVersionSummary,
@@ -910,6 +911,13 @@ export function ImageGenFocusView({
                 icon={Link2}
                 label="Connected"
                 badge={`${upstream.length} input${upstream.length === 1 ? "" : "s"}`}
+                action={
+                  <AddConnection
+                    targetId={nodeId}
+                    targetType="image-gen"
+                    connectedIds={upstream.map((u) => u.id)}
+                  />
+                }
               >
                 {loadingPreview ? (
                   <div className="space-y-2">
