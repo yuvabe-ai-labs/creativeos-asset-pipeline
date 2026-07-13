@@ -11,12 +11,6 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
-import {
   imageGenClientModelGroups,
   type ClientModelSpec,
 } from "@/lib/image-gen/client-models";
@@ -76,10 +70,6 @@ export function ImageGenOutputSettings({
     .filter((p: ParamSpec) => p.group === "primary" && p.visible)
     .sort((a: ParamSpec, b: ParamSpec) => a.order - b.order);
 
-  const advancedParams = model.params
-    .filter((p: ParamSpec) => p.group === "advanced" && p.visible)
-    .sort((a: ParamSpec, b: ParamSpec) => a.order - b.order);
-
   return (
     <div className="space-y-2">
       {/* Model + primary params — one row of label-above-control cells */}
@@ -124,34 +114,6 @@ export function ImageGenOutputSettings({
         </ImageGenParamRow>
       ))}
       </div>
-
-      {/* Advanced params — collapsible accordion */}
-      {advancedParams.length > 0 && (
-        <Accordion multiple={false} className="pt-1">
-          <AccordionItem value="advanced" className="border-none">
-            <AccordionTrigger className="py-1 text-[0.7rem] tracking-wide uppercase text-muted-foreground hover:text-foreground hover:no-underline">
-              Advanced
-            </AccordionTrigger>
-            <AccordionContent className="pt-2">
-              <div className="flex flex-wrap items-start gap-3">
-                {advancedParams.map((param: ParamSpec) => (
-                  <ImageGenParamRow
-                    key={param.name}
-                    icon={PARAM_ICONS[param.name] ?? Settings2}
-                    label={param.label}
-                  >
-                    <ParamControl
-                      spec={param}
-                      value={values[param.name] ?? param.defaultValue}
-                      onChange={(v) => patch({ [param.name]: v })}
-                    />
-                  </ImageGenParamRow>
-                ))}
-              </div>
-            </AccordionContent>
-          </AccordionItem>
-        </Accordion>
-      )}
     </div>
   );
 }

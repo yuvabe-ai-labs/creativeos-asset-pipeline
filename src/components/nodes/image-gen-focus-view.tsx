@@ -877,15 +877,15 @@ export function ImageGenFocusView({
             />
           </nav>
 
-          {/* Detail pane */}
-          <div className="min-h-0 flex-1 overflow-hidden">
-            {/* Image — settings (or edit tools) on top, the hero image below */}
-            {selected === "image" && (
-              <div className="flex h-full min-h-0">
-                {/* Left column — model & controls on top; the edit tools below them
-                    on the Edit tab. The image/canvas keeps the right side, which
-                    stays narrower since outputs are portrait (reel stills). */}
-                <div className="flex w-[45%] shrink-0 flex-col gap-6 overflow-y-auto border-r border-border px-6 py-5">
+          {/* Detail pane: the middle column swaps with the rail selection; the
+              output column on the right is ALWAYS visible, so the operator can
+              look at refs, settings, or the prompt while watching the result. */}
+          <div className="flex min-h-0 flex-1 overflow-hidden">
+            {/* Middle column */}
+            <div className="min-h-0 w-[45%] shrink-0 overflow-y-auto border-r border-border">
+              {/* Image — model & controls; plus the edit tools on the Edit tab */}
+              {selected === "image" && (
+                <div className="flex flex-col gap-6 px-6 py-5">
                   <LeftSection icon={Settings2} label="Output settings">
                     <ImageGenOutputSettings
                       model={model}
@@ -966,8 +966,85 @@ export function ImageGenFocusView({
                     </>
                   )}
                 </div>
+              )}
 
-                <div className="flex min-h-0 flex-1 flex-col gap-3 px-6 py-5">
+              {/* Connected node — read-only detail */}
+              {isNodeSelected &&
+                (selectedNodeReady && selectedNode ? (
+                  <ConnectedDetailView node={selectedNode} />
+                ) : (
+                  <div className="flex h-full items-center justify-center px-6 py-6">
+                    <p className="text-sm text-muted-foreground">
+                      {loadingPreview ? "Loading…" : "This input has no preview yet."}
+                    </p>
+                  </div>
+                ))}
+
+              {/* History — every generation with thumbnails and edit lineage */}
+              {selected === "history" && (
+                <div className="px-6 py-5">
+                  {loadingVersions ? (
+                    <div className="space-y-2">
+                      <div className="h-3 w-24 animate-pulse rounded bg-muted-foreground/20" />
+                      <div className="space-y-1.5 pt-1">
+                        {Array.from({ length: 3 }).map((_, i) => (
+                          <div key={i} className="flex items-center gap-2">
+                            <div className="size-2 shrink-0 animate-pulse rounded-full bg-muted-foreground/20" />
+                            <div className="h-3 animate-pulse rounded bg-muted-foreground/20" style={{ width: `${55 + i * 12}%` }} />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : versions.length > 0 ? (
+                    <ImageGenVersionHistory
+                      versions={versions}
+                      activeVersionId={activeVersionId}
+                      onRestore={handleRestoreVersion}
+                      restoring={restoring}
+                    />
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      No generations yet — every attempt will show up here.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Details — Review (eval, approval) */}
+              {selected === "details" && (
+                <div className="flex flex-col gap-6 px-6 py-5">
+                  <LeftSection icon={BadgeCheck} label="Review">
+                    {mode === "result" && !!activeVersionId ? (
+                      <div className="flex flex-col gap-3">
+                        <InlineEvalBar
+                          decision={evalDecision}
+                          note={evalNote}
+                          saving={evalSaving}
+                          visible={mode === "result" && !!activeVersionId}
+                          onDecision={handleEvalDecision}
+                          onNote={setEvalNote}
+                          onNoteBlur={handleEvalNoteBlur}
+                        />
+                        <InlineApprovalBar
+                          status={approvalStatus}
+                          note={approvalNote}
+                          saving={approvalSaving}
+                          canApprove={editable && identity?.role === "senior"}
+                          onSet={saveApproval}
+                        />
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        Generate an image first to review and approve it.
+                      </p>
+                    )}
+                  </LeftSection>
+                </div>
+              )}
+            </div>
+
+            {/* Right column — the output, always visible */}
+            <div className="flex min-h-0 flex-1 flex-col gap-3 px-6 py-5">
                   <div className="flex items-center gap-1.5">
                     <Sparkles className="size-3.5 text-primary" strokeWidth={1.5} />
                     <span className="text-eyebrow">
@@ -1073,82 +1150,6 @@ export function ImageGenFocusView({
                 )}
                   </div>
                 </div>
-              </div>
-            )}
-
-            {/* Connected node — read-only detail */}
-            {isNodeSelected &&
-              (selectedNodeReady && selectedNode ? (
-                <ConnectedDetailView node={selectedNode} />
-              ) : (
-                <div className="flex h-full items-center justify-center px-6 py-6">
-                  <p className="text-sm text-muted-foreground">
-                    {loadingPreview ? "Loading…" : "This input has no preview yet."}
-                  </p>
-                </div>
-              ))}
-
-            {/* History — every generation with thumbnails and edit lineage */}
-            {selected === "history" && (
-              <div className="flex h-full w-full max-w-3xl min-h-0 flex-col overflow-y-auto px-6 py-6">
-                {loadingVersions ? (
-                  <div className="space-y-2">
-                    <div className="h-3 w-24 animate-pulse rounded bg-muted-foreground/20" />
-                    <div className="space-y-1.5 pt-1">
-                      {Array.from({ length: 3 }).map((_, i) => (
-                        <div key={i} className="flex items-center gap-2">
-                          <div className="size-2 shrink-0 animate-pulse rounded-full bg-muted-foreground/20" />
-                          <div className="h-3 animate-pulse rounded bg-muted-foreground/20" style={{ width: `${55 + i * 12}%` }} />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : versions.length > 0 ? (
-                  <ImageGenVersionHistory
-                    versions={versions}
-                    activeVersionId={activeVersionId}
-                    onRestore={handleRestoreVersion}
-                    restoring={restoring}
-                  />
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    No generations yet — every attempt will show up here.
-                  </p>
-                )}
-              </div>
-            )}
-
-            {/* Details — Review (eval, approval) */}
-            {selected === "details" && (
-              <div className="flex h-full w-full max-w-3xl min-h-0 flex-col gap-6 overflow-y-auto px-6 py-6">
-                <LeftSection icon={BadgeCheck} label="Review">
-                  {mode === "result" && !!activeVersionId ? (
-                    <div className="flex flex-col gap-3">
-                      <InlineEvalBar
-                        decision={evalDecision}
-                        note={evalNote}
-                        saving={evalSaving}
-                        visible={mode === "result" && !!activeVersionId}
-                        onDecision={handleEvalDecision}
-                        onNote={setEvalNote}
-                        onNoteBlur={handleEvalNoteBlur}
-                      />
-                      <InlineApprovalBar
-                        status={approvalStatus}
-                        note={approvalNote}
-                        saving={approvalSaving}
-                        canApprove={editable && identity?.role === "senior"}
-                        onSet={saveApproval}
-                      />
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">
-                      Generate an image first to review and approve it.
-                    </p>
-                  )}
-                </LeftSection>
-              </div>
-            )}
           </div>
         </div>
 

@@ -414,16 +414,6 @@ export function PromptFocusView({
 
               <div className="flex shrink-0 items-center gap-2">
                 {versions.length > 0 && <UsagePopover versions={versions} />}
-                {mode === "result" && dirty && (
-                  <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[0.65rem] font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-400">
-                    Unsaved changes
-                  </span>
-                )}
-                {mode === "result" && (
-                  <Button size="lg" onClick={handleSave} disabled={!dirty}>
-                    Save
-                  </Button>
-                )}
                 <GuidedNextButton
                   sourceId={nodeId}
                   variant="button"
@@ -557,11 +547,23 @@ export function PromptFocusView({
                   )}
 
                   {mode === "result" && (
-                    <Textarea
-                      value={draft}
-                      onChange={(e) => setDraft(e.target.value)}
-                      className="h-64 resize-none rounded-xl p-4 text-base leading-relaxed [field-sizing:fixed]"
-                    />
+                    <>
+                      <Textarea
+                        value={draft}
+                        onChange={(e) => setDraft(e.target.value)}
+                        className="h-64 resize-none rounded-xl p-4 text-base leading-relaxed [field-sizing:fixed]"
+                      />
+                      <div className="flex items-center gap-2 self-start">
+                        <Button onClick={handleSave} disabled={!dirty}>
+                          Save
+                        </Button>
+                        {dirty && (
+                          <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[0.65rem] font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                            Unsaved changes
+                          </span>
+                        )}
+                      </div>
+                    </>
                   )}
                 </div>
               </div>

@@ -60,13 +60,8 @@ export function GuidedNextButton({
   }
 
   return (
-    <div className="flex items-center gap-2">
-      <Button size="sm" onClick={handleClick} disabled={disabled}>
-        {label} <ArrowRight className="size-4" strokeWidth={1.5} />
-      </Button>
-      {plan.gate.nudge && (
-        <span className="text-[0.7rem] text-muted-foreground">{plan.gate.nudge}</span>
-      )}
-    </div>
+    <Button size="sm" onClick={handleClick} disabled={disabled} title={plan.gate.nudge}>
+      {label} <ArrowRight className="size-4" strokeWidth={1.5} />
+    </Button>
   );
 }
