@@ -35,6 +35,7 @@ import {
   type UpstreamNode,
   type ConnectedPreview,
 } from "./connected-inputs-card";
+import { AddConnection } from "./add-connection";
 import {
   ImageGenVersionHistory,
   type ImageGenVersionSummary,
@@ -837,8 +838,15 @@ export function ImageGenFocusView({
               onClick={() => setSelected("image")}
             />
 
-            <div className="px-2.5 pb-1 pt-3 text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground/70">
-              Connected · {upstream.length}
+            <div className="flex items-center justify-between px-2.5 pb-1 pt-3">
+              <span className="text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                Connected · {upstream.length}
+              </span>
+              <AddConnection
+                targetId={nodeId}
+                targetType="image-gen"
+                connectedIds={upstream.map((u) => u.id)}
+              />
             </div>
             {upstream.length === 0 ? (
               <p className="px-2.5 text-xs text-muted-foreground">No inputs connected.</p>
