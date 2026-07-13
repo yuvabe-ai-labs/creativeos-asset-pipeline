@@ -3,6 +3,7 @@
 import { Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DriveIcon } from "@/components/ui/drive-icon";
+import { Button } from "@/components/ui/button";
 
 export type PickerTab = "drive" | "generated";
 
@@ -29,20 +30,20 @@ export function ReferenceImagePickerTabs({ activeTab, onTabChange }: Props) {
     <nav className="flex flex-col gap-0.5">
       <p className="text-eyebrow mb-2 px-2 text-[0.65rem]!">Source</p>
       {TABS.map((tab) => (
-        <button
+        <Button
           key={tab.id}
-          type="button"
+          variant="ghost"
           onClick={() => onTabChange(tab.id)}
           className={cn(
-            "flex items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm transition-colors duration-150",
+            "w-full justify-start gap-2.5 rounded-lg px-3 py-2 text-left text-sm transition-colors duration-150 h-auto",
             activeTab === tab.id
-              ? "bg-primary/10 text-primary font-medium"
+              ? "bg-primary/10 text-primary font-medium hover:bg-primary/10 hover:text-primary"
               : "text-muted-foreground hover:bg-muted hover:text-foreground",
           )}
         >
           {tab.icon}
           {tab.label}
-        </button>
+        </Button>
       ))}
     </nav>
   );
