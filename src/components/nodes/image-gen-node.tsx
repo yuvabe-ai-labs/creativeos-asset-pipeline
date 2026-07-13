@@ -23,28 +23,44 @@ export function ImageGenNode({ id, data, selected }: NodeProps) {
   // selector breaks useSyncExternalStore caching → infinite-loop error.
   const nodes = useCanvasStore((s) => s.nodes);
   const edges = useCanvasStore((s) => s.edges);
+  const canvasName = useCanvasStore((s) => s.canvasName);
   const focusedNodeId = useCanvasStore((s) => s.focusedNodeId);
   const setFocusedNodeId = useCanvasStore((s) => s.setFocusedNodeId);
 
-  const upstream = useMemo(() => {
+  const { upstream, scriptTitle } = useMemo(() => {
     const sourceIds = edges.filter((e) => e.target === id).map((e) => e.source);
-    return nodes.filter((n) => sourceIds.includes(n.id)).map((n) => {
-      const d = n.data as Record<string, unknown>;
-      return {
-        id: n.id,
-        type: n.type ?? "",
-        fileUrl:
-          n.type === "file" || n.type === "draw"
-            ? (d.fileUrl as string | undefined)
-            : n.type === "image-gen"
-              ? (d.parsed as string | undefined)
-              : undefined,
-        fileKind: n.type === "file" ? (d.fileKind as string | undefined) : undefined,
-        fileSizeBytes: d.fileSizeBytes as number | undefined,
-        imageWidth: d.imageWidth as number | undefined,
-        imageHeight: d.imageHeight as number | undefined,
-      };
-    });
+    const sourceNodes = nodes.filter((n) => sourceIds.includes(n.id));
+
+    // Walk up one more level to find any script node grandparent for the filename
+    const grandparentIds = edges
+      .filter((e) => sourceIds.includes(e.target))
+      .map((e) => e.source);
+    const allAncestors = [...sourceNodes, ...nodes.filter((n) => grandparentIds.includes(n.id))];
+    const scriptNode = allAncestors.find((n) => n.type === "script");
+    const scriptTitle = scriptNode
+      ? ((scriptNode.data as Record<string, unknown>).title as string | undefined) ?? ""
+      : "";
+
+    return {
+      scriptTitle,
+      upstream: sourceNodes.map((n) => {
+        const d = n.data as Record<string, unknown>;
+        return {
+          id: n.id,
+          type: n.type ?? "",
+          fileUrl:
+            n.type === "file" || n.type === "draw"
+              ? (d.fileUrl as string | undefined)
+              : n.type === "image-gen"
+                ? (d.parsed as string | undefined)
+                : undefined,
+          fileKind: n.type === "file" ? (d.fileKind as string | undefined) : undefined,
+          fileSizeBytes: d.fileSizeBytes as number | undefined,
+          imageWidth: d.imageWidth as number | undefined,
+          imageHeight: d.imageHeight as number | undefined,
+        };
+      }),
+    };
   }, [nodes, edges, id]);
 
   const d = data as ImageGenNodeData;
@@ -120,6 +136,8 @@ export function ImageGenNode({ id, data, selected }: NodeProps) {
           onOpenChange={handleFocusOpenChange}
           nodeId={id}
           title={title}
+          canvasName={canvasName}
+          scriptTitle={scriptTitle}
           imageUrl={imageUrl}
           modelId={d.modelId}
           params={d.params}

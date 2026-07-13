@@ -19,15 +19,17 @@ const CanvasStoreContext = createContext<CanvasStore | null>(null);
 export function CanvasStoreProvider({
   initialNodes = [],
   initialEdges = [],
+  canvasName = "",
   children,
 }: {
   initialNodes?: AppNode[];
   initialEdges?: Edge[];
+  canvasName?: string;
   children: ReactNode;
 }) {
   const storeRef = useRef<CanvasStore | null>(null);
   if (storeRef.current === null) {
-    storeRef.current = createCanvasStore(initialNodes, initialEdges);
+    storeRef.current = createCanvasStore(initialNodes, initialEdges, canvasName);
   }
   return (
     <CanvasStoreContext.Provider value={storeRef.current}>

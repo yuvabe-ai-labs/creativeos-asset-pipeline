@@ -91,7 +91,7 @@ export default async function CanvasPage({
         {/* load this canvas's nodes from the DB, seed the store, autosave changes */}
         {/* D29: block until an identity is set, so generations/approvals are attributed. */}
         <IdentityGate>
-          <CanvasStoreProvider key={canvas.id} initialNodes={initialNodes} initialEdges={initialEdges}>
+          <CanvasStoreProvider key={canvas.id} initialNodes={initialNodes} initialEdges={initialEdges} canvasName={canvas.name}>
             <Canvas
               canvasId={canvas.id}
               clientId={client.id}

@@ -86,6 +86,8 @@ export type ImageGenFocusViewProps = {
   onOpenChange: (open: boolean) => void;
   nodeId: string;
   title: string;
+  canvasName?: string;
+  scriptTitle?: string;
   imageUrl: string | null;
   modelId?: string;
   params?: Record<string, unknown>;
@@ -165,6 +167,8 @@ export function ImageGenFocusView({
   onOpenChange,
   nodeId,
   title,
+  canvasName,
+  scriptTitle,
   imageUrl,
   modelId,
   params,
@@ -722,11 +726,22 @@ export function ImageGenFocusView({
   async function handleDownload() {
     if (!imageUrl) return;
     try {
-      const res = await fetch(imageUrl, { mode: "cors" });
+      const fetchUrl = imageUrl.startsWith("https://storage.googleapis.com/")
+        ? `/api/image-proxy?url=${encodeURIComponent(imageUrl)}`
+        : imageUrl;
+      const res = await fetch(fetchUrl);
       if (!res.ok) throw new Error("fetch failed");
       const blob = await res.blob();
       const ext = blob.type.split("/")[1]?.replace("jpeg", "jpg") ?? "png";
-      const filename = `${(title || "generated-image").replace(/\s+/g, "-").toLowerCase()}.${ext}`;
+      const slug = (s: string) => s.trim().replace(/\s+/g, "-").toLowerCase();
+      const shortId = nodeId.slice(0, 8);
+      const parts = [
+        canvasName ? slug(canvasName) : null,
+        scriptTitle ? slug(scriptTitle) : null,
+        slug(title || "image"),
+        shortId,
+      ].filter(Boolean);
+      const filename = `${parts.join("_")}.${ext}`;
       const blobUrl = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = blobUrl;

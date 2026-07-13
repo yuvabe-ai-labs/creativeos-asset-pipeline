@@ -25,6 +25,7 @@ import type { GenerationRow } from "@/lib/db/types";
 // Seeded on creation with nodes loaded from the DB (1D-5).
 
 export type CanvasState = {
+  canvasName: string;
   nodes: AppNode[];
   edges: Edge[];
   onNodesChange: OnNodesChange<AppNode>;
@@ -88,8 +89,10 @@ function defaultData(type: string): AppNode["data"] {
 export function createCanvasStore(
   initialNodes: AppNode[] = [],
   initialEdges: Edge[] = [],
+  initialCanvasName: string = "",
 ) {
   return createStore<CanvasState>((set, get) => ({
+    canvasName: initialCanvasName,
     nodes: initialNodes,
     edges: initialEdges,
     removedNodeIds: [],
