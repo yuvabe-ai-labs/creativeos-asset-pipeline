@@ -5,19 +5,24 @@ import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { Loader2, Paperclip, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
+import { useCanvasId } from "@/components/canvas/canvas-id-context";
 import { useDeleteNode } from "@/hooks/use-delete-node";
+import { useReferenceImagePicker } from "@/hooks/use-reference-image-picker";
 import type { FileNodeData } from "@/lib/canvas-nodes";
 import { FileFocusView } from "./file-focus-view";
 import { useNodeConnectionState } from "./use-node-connection-state";
 import { NodeContextMenu } from "./node-context-menu";
 import { NodeTitle } from "./node-title";
+import { ReferenceImagePickerDialog } from "@/components/canvas/reference-image-picker-dialog";
 
 const KIND_LABELS = { text: "TXT", image: "IMG", document: "DOC" } as const;
 
-export function FileNode({ id, data, selected }: NodeProps) {
+export function FileNode({ id, data, selected, positionAbsoluteX, positionAbsoluteY }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const deleteNode = useDeleteNode();
   const duplicateNode = useCanvasStore((s) => s.duplicateNode);
+  const canvasId = useCanvasId();
+  const { open, setOpen, openPicker, handleAdd } = useReferenceImagePicker();
   const d = data as FileNodeData;
   const [focusOpen, setFocusOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -26,9 +31,11 @@ export function FileNode({ id, data, selected }: NodeProps) {
   const hasFile = !!d.filename;
 
   return (
+    <>
     <NodeContextMenu
       onDuplicate={() => duplicateNode(id)}
       onDelete={() => deleteNode(id)}
+      onAddReferenceImage={() => openPicker({ x: positionAbsoluteX ?? 0, y: positionAbsoluteY ?? 0 })}
     >
     <div
       onDoubleClick={(e) => {
@@ -126,5 +133,12 @@ export function FileNode({ id, data, selected }: NodeProps) {
       />
     </div>
     </NodeContextMenu>
+    <ReferenceImagePickerDialog
+      canvasId={canvasId}
+      open={open}
+      onOpenChange={setOpen}
+      onAdd={handleAdd}
+    />
+    </>
   );
 }
