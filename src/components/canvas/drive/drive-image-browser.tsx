@@ -45,8 +45,7 @@ export function DriveImageBrowser({
     const params = new URLSearchParams({ folderId });
     if (pageToken) params.set("pageToken", pageToken);
     const res = await fetch(`/api/drive/files?${params}`);
-    const json = (await res.json()) as { data: DriveFilesResponse };
-    return json.data;
+    return (await res.json()) as DriveFilesResponse;
   }, []);
 
   useEffect(() => {

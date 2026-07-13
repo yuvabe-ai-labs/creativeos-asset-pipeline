@@ -6,9 +6,7 @@ import { FileText } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
-import { useCanvasId } from "@/components/canvas/canvas-id-context";
 import { useDeleteNode } from "@/hooks/use-delete-node";
-import { useReferenceImagePicker } from "@/hooks/use-reference-image-picker";
 import { saveScriptOutputAction } from "@/lib/actions/nodes";
 import { ScriptFocusView } from "./script-focus-view";
 import { NodeContextMenu } from "./node-context-menu";
@@ -17,14 +15,11 @@ import { ProcessingPill } from "./processing-pill";
 import type { ReelScript } from "@/lib/nodes/reel-script";
 import { DEFAULT_PARSE_SLICES, type KBSliceKey } from "@/lib/kb/parse-context";
 import { useNodeConnectionState } from "./use-node-connection-state";
-import { ReferenceImagePickerDialog } from "@/components/canvas/reference-image-picker-dialog";
 
-export function ScriptNode({ id, data, selected, positionAbsoluteX, positionAbsoluteY }: NodeProps) {
+export function ScriptNode({ id, data, selected }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const deleteNode = useDeleteNode();
   const duplicateNode = useCanvasStore((s) => s.duplicateNode);
-  const canvasId = useCanvasId();
-  const { open, setOpen, openPicker, handleAdd } = useReferenceImagePicker();
   const fanOutShots = useCanvasStore((s) => s.fanOutShots);
   const d = data as {
     title?: string;
@@ -41,11 +36,9 @@ export function ScriptNode({ id, data, selected, positionAbsoluteX, positionAbso
   const connState = useNodeConnectionState(id, "script");
 
   return (
-    <>
     <NodeContextMenu
       onDuplicate={() => duplicateNode(id)}
       onDelete={() => deleteNode(id)}
-      onAddReferenceImage={() => openPicker({ x: positionAbsoluteX ?? 0, y: positionAbsoluteY ?? 0 })}
     >
     <div
       onDoubleClick={(e) => {
@@ -133,12 +126,5 @@ export function ScriptNode({ id, data, selected, positionAbsoluteX, positionAbso
       />
     </div>
     </NodeContextMenu>
-    <ReferenceImagePickerDialog
-      canvasId={canvasId}
-      open={open}
-      onOpenChange={setOpen}
-      onAdd={handleAdd}
-    />
-    </>
   );
 }

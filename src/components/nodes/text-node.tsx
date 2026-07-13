@@ -4,25 +4,19 @@ import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { StickyNote } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
-import { useCanvasId } from "@/components/canvas/canvas-id-context";
 import { useDeleteNode } from "@/hooks/use-delete-node";
-import { useReferenceImagePicker } from "@/hooks/use-reference-image-picker";
 import { NodeContextMenu } from "./node-context-menu";
-import { ReferenceImagePickerDialog } from "@/components/canvas/reference-image-picker-dialog";
 
 // Text (Note) node — free-text context that feeds downstream Prompt nodes. No AI,
 // no version log: its content IS its output, read straight from node.data (D19).
-export function TextNode({ id, data, selected, positionAbsoluteX, positionAbsoluteY }: NodeProps) {
+export function TextNode({ id, data, selected }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const deleteNode = useDeleteNode();
   const duplicateNode = useCanvasStore((s) => s.duplicateNode);
-  const canvasId = useCanvasId();
-  const { open, setOpen, openPicker, handleAdd } = useReferenceImagePicker();
   const d = data as { text?: string };
 
   return (
-    <>
-    <NodeContextMenu onDuplicate={() => duplicateNode(id)} onDelete={() => deleteNode(id)} onAddReferenceImage={() => openPicker({ x: positionAbsoluteX ?? 0, y: positionAbsoluteY ?? 0 })}>
+    <NodeContextMenu onDuplicate={() => duplicateNode(id)} onDelete={() => deleteNode(id)}>
     <div
       className={cn(
         "w-56 rounded-lg border border-border bg-card shadow-card",
@@ -49,12 +43,5 @@ export function TextNode({ id, data, selected, positionAbsoluteX, positionAbsolu
       />
     </div>
     </NodeContextMenu>
-    <ReferenceImagePickerDialog
-      canvasId={canvasId}
-      open={open}
-      onOpenChange={setOpen}
-      onAdd={handleAdd}
-    />
-    </>
   );
 }

@@ -48,7 +48,7 @@ export function ShotNode({ id, data, selected, positionAbsoluteX, positionAbsolu
     <NodeContextMenu
       onDuplicate={() => duplicateNode(id)}
       onDelete={() => deleteNode(id)}
-      onAddReferenceImage={() => openPicker({ x: positionAbsoluteX ?? 0, y: positionAbsoluteY ?? 0 })}
+      onAddReferenceImage={() => openPicker({ position: { x: positionAbsoluteX ?? 0, y: positionAbsoluteY ?? 0 }, connectToNodeId: id })}
     >
       <div
         onDoubleClick={(e) => {

@@ -89,7 +89,7 @@ export function VideoPromptNode({ id, data, selected, positionAbsoluteX, positio
 
   return (
     <>
-    <NodeContextMenu onDuplicate={() => duplicateNode(id)} onDelete={() => deleteNode(id)} onAddReferenceImage={() => openPicker({ x: positionAbsoluteX ?? 0, y: positionAbsoluteY ?? 0 })}>
+    <NodeContextMenu onDuplicate={() => duplicateNode(id)} onDelete={() => deleteNode(id)} onAddReferenceImage={() => openPicker({ position: { x: positionAbsoluteX ?? 0, y: positionAbsoluteY ?? 0 }, connectToNodeId: id })}>
       <div
         onDoubleClick={(e) => {
           e.stopPropagation();

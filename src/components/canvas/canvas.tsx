@@ -43,6 +43,8 @@ import { LockBanner } from "./lock-banner";
 import { DeleteConfirmDialog } from "./delete-confirm-dialog";
 import { useDeleteConfirmation } from "@/hooks/use-delete-confirmation";
 import { CanvasKBStatus, CanvasKBBadge } from "./canvas-kb-status";
+import { useReferenceImagePicker } from "@/hooks/use-reference-image-picker";
+import { ReferenceImagePickerDialog } from "./reference-image-picker-dialog";
 import type { ClientKBJobRow } from "@/lib/db/types";
 
 // Register custom node types once (stable reference — never inline this object).
@@ -140,6 +142,14 @@ export function Canvas({
   useEffect(() => {
     quickAddOpenRef.current = quickAdd !== null;
   }, [quickAdd]);
+
+  // Pane-level reference image picker (no auto-connect — free-floating file nodes).
+  const {
+    open: pickerOpen,
+    setOpen: setPickerOpen,
+    openPicker,
+    handleAdd: handlePickerAdd,
+  } = useReferenceImagePicker();
 
   const handleAddNode = useCallback(
     (type: string, position: XYPosition) => {
@@ -353,8 +363,20 @@ export function Canvas({
           onClose={() => { setQuickAdd(null); setCanPaste(false); }}
           canPasteImage={canPaste}
           onPasteImage={() => handlePasteImage(quickAdd.flowPos)}
+          onAddReferenceImage={() => {
+            setQuickAdd(null);
+            setCanPaste(false);
+            openPicker({ position: quickAdd.flowPos });
+          }}
         />
       )}
+
+      <ReferenceImagePickerDialog
+        canvasId={canvasId}
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        onAdd={handlePickerAdd}
+      />
 
       <ReactFlow
         nodes={nodes}
