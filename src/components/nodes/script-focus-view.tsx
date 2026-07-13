@@ -41,12 +41,6 @@ type ScriptFocusViewProps = {
   onParsingChange?: (parsing: boolean) => void;
 };
 
-const SUBTITLES = {
-  empty: "Upload a reel brief to extract its structured script.",
-  skeleton: "Extracting the script…",
-  parsed: "Review and edit the extracted reel script.",
-} as const;
-
 // The Script node's surface — a full-width bottom sheet. A three-state machine:
 // EMPTY (upload + toggles) → SKELETON (parsing) → PARSED (editable doc).
 // Manual edits are buffered in a draft and committed by an explicit Save.
@@ -198,7 +192,6 @@ export function ScriptFocusView({
                     className="font-display text-3xl font-semibold tracking-tight"
                   />
                 </SheetTitle>
-                <p className="mt-1.5 text-sm text-muted-foreground">{SUBTITLES[mode]}</p>
               </div>
 
               {mode === "parsed" && (

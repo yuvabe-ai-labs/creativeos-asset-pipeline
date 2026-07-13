@@ -55,6 +55,7 @@ function buildCompositionBlock(upstream: CompileVideoPromptUpstream[]): string |
 export function compileVideoPrompt(input: CompileVideoPromptInput): {
   system: string;
   user: string;
+  effectiveInstruction: string;
 } {
   const blocks: string[] = [];
 
@@ -83,14 +84,18 @@ export function compileVideoPrompt(input: CompileVideoPromptInput): {
     fileKind: u.fileKind,
     useLlm: u.useLlm,
   }));
-  const instruction = resolveMentionTokens(rawInstruction, mentionUpstream);
+  const effectiveInstruction = resolveMentionTokens(rawInstruction, mentionUpstream);
 
   if (rawInstruction.includes("@[")) {
     const compositionBlock = buildCompositionBlock(input.upstream);
     if (compositionBlock) blocks.push(compositionBlock);
   }
 
-  blocks.push(`Instruction:\n${instruction}`);
+  blocks.push(`Instruction:\n${effectiveInstruction}`);
 
-  return { system: videoPromptGeneratePrompt.system, user: blocks.join("\n\n") };
+  return {
+    system: videoPromptGeneratePrompt.system,
+    user: blocks.join("\n\n"),
+    effectiveInstruction,
+  };
 }

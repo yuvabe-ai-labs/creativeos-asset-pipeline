@@ -803,9 +803,6 @@ export function VideoGenFocusView({
                     className="font-display text-3xl font-semibold tracking-tight"
                   />
                 </SheetTitle>
-                <p className="mt-1.5 text-sm text-muted-foreground">
-                  Choose a model, set params, and generate a video.
-                </p>
               </div>
               <div className="flex shrink-0 flex-col items-end gap-2">
                 <div className="flex items-center gap-2">

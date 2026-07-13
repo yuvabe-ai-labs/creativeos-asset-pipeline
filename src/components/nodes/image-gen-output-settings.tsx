@@ -82,7 +82,8 @@ export function ImageGenOutputSettings({
 
   return (
     <div className="space-y-2">
-      {/* Model selector */}
+      {/* Model + primary params — one row of label-above-control cells */}
+      <div className="flex items-start gap-3">
       <ImageGenParamRow icon={Cpu} label="Model">
         <Select
           items={MODEL_ITEMS}
@@ -109,7 +110,6 @@ export function ImageGenOutputSettings({
         </Select>
       </ImageGenParamRow>
 
-      {/* Primary params */}
       {primaryParams.map((param: ParamSpec) => (
         <ImageGenParamRow
           key={param.name}
@@ -123,6 +123,7 @@ export function ImageGenOutputSettings({
           />
         </ImageGenParamRow>
       ))}
+      </div>
 
       {/* Advanced params — collapsible accordion */}
       {advancedParams.length > 0 && (
@@ -132,7 +133,7 @@ export function ImageGenOutputSettings({
               Advanced
             </AccordionTrigger>
             <AccordionContent className="pt-2">
-              <div className="space-y-2">
+              <div className="flex flex-wrap items-start gap-3">
                 {advancedParams.map((param: ParamSpec) => (
                   <ImageGenParamRow
                     key={param.name}

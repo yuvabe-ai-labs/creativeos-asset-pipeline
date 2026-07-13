@@ -1,9 +1,10 @@
 import type { FileNodeData } from "@/lib/canvas-nodes";
 import { FILE_NODE_MAX_SIZE } from "@/lib/nodes/file-constants";
+import type { DrivePickedFile } from "@/hooks/use-google-picker";
 
 type FileUploadResult = Pick<
   FileNodeData,
-  "filename" | "fileExt" | "fileKind" | "fileUrl" | "rawText" | "fileSizeBytes" | "imageWidth" | "imageHeight"
+  "filename" | "fileExt" | "fileKind" | "fileUrl" | "rawText" | "fileSizeBytes" | "imageWidth" | "imageHeight" | "driveFileId" | "driveFileName" | "driveMimeType"
 >;
 
 type ExtractResult = { processedOutput: string };
@@ -42,6 +43,17 @@ class FileNodeService {
     const json = await res.json();
     if (!res.ok) throw new Error((json as { error?: string }).error ?? "Extraction failed");
     return json as ExtractResult;
+  }
+
+  async pickFromDrive(nodeId: string, driveFile: DrivePickedFile): Promise<FileUploadResult> {
+    const res = await fetch(`/api/nodes/${nodeId}/file/drive`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(driveFile),
+    });
+    const json = await res.json();
+    if (!res.ok) throw new Error((json as { error?: string }).error ?? "Failed to import file from Google Drive");
+    return json as FileUploadResult;
   }
 }
 

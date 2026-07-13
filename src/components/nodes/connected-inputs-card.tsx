@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { FileText, Paperclip, Pencil, Sparkles, ChevronRight, Clapperboard, Maximize2, ArrowLeft } from "lucide-react";
+import { FileText, ImageIcon, Paperclip, Pencil, Sparkles, ChevronRight, Clapperboard, Maximize2, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getShotRole } from "@/lib/nodes/shot-roles";
 import { Button } from "@/components/ui/button";
@@ -198,7 +198,7 @@ export function ConnectedDetailView({
       ((node.type === "file" || node.type === "draw") && node.fileKind === "image"));
 
   return (
-    <div className="w-full max-w-5xl flex flex-col min-h-0 overflow-hidden px-6 py-6 gap-4">
+    <div className="w-full max-w-5xl flex h-full flex-col min-h-0 overflow-hidden px-6 py-6 gap-4">
       {onBack && (
         <Button
           variant="ghost"
@@ -238,6 +238,7 @@ export function NodeIcon({ type }: { type: string }) {
   if (type === "file") return <Paperclip className="size-3 shrink-0 text-primary" />;
   if (type === "draw") return <Pencil className="size-3 shrink-0 text-primary" />;
   if (type === "prompt") return <Sparkles className="size-3 shrink-0 text-primary" />;
+  if (type === "image-gen") return <ImageIcon className="size-3 shrink-0 text-primary" />;
   return <FileText className="size-3 shrink-0 text-muted-foreground" />;
 }
 

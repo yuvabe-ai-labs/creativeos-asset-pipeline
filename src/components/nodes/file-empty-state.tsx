@@ -3,8 +3,11 @@
 import { type ChangeEvent, type DragEvent, useRef, useState } from "react";
 import { UploadCloud } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { DriveIcon } from "@/components/ui/drive-icon";
+
 type FileEmptyStateProps = {
   onUpload: (file: File) => void;
+  onPickFromDrive?: () => void;
 };
 
 const ACCEPTED = ".txt,.png,.jpg,.jpeg,.webp,.pdf,.docx";
@@ -17,7 +20,7 @@ const ACCEPTED_MIME = new Set([
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ]);
 
-export function FileEmptyState({ onUpload }: FileEmptyStateProps) {
+export function FileEmptyState({ onUpload, onPickFromDrive }: FileEmptyStateProps) {
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -66,7 +69,7 @@ export function FileEmptyState({ onUpload }: FileEmptyStateProps) {
           Drop a file here, or click to browse
         </span>
         <span className="text-xs text-muted-foreground/60">
-          Images: .png .jpg .webp up to 10 MB · Text: .txt up to 100 KB · Docs: .pdf .docx up to 50 MB
+          Images: .png .jpg .webp up to 10 MB · Text: .txt up to 100 KB · Docs: .pdf .docx up to 10 MB
         </span>
         <input
           ref={inputRef}
@@ -77,6 +80,16 @@ export function FileEmptyState({ onUpload }: FileEmptyStateProps) {
         />
       </label>
 
+      {onPickFromDrive && (
+        <button
+          type="button"
+          onClick={onPickFromDrive}
+          className="nodrag flex w-full items-center justify-center gap-3 rounded-xl border border-neutral-200 bg-white px-4 py-3 text-sm font-medium text-neutral-700 shadow-sm transition-all hover:bg-neutral-50 hover:shadow active:scale-[0.99]"
+        >
+          <DriveIcon size={18} />
+          Pick from Google Drive
+        </button>
+      )}
     </div>
   );
 }
