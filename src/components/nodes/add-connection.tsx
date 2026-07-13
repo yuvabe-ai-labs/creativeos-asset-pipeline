@@ -6,8 +6,19 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
-import { canConnect } from "@/lib/canvas-nodes";
+import { canConnect, type AppNode } from "@/lib/canvas-nodes";
 import { nodeLabel } from "@/lib/nodes/describe-node";
+
+// The candidate's image, when it has one: an image File's upload, a Draw's sketch,
+// an Image Gen's generated still (`parsed` is its URL). Text-bearing nodes → none.
+function thumbUrl(node: AppNode): string | undefined {
+  const d = node.data as Record<string, unknown>;
+  if (node.type === "file")
+    return d.fileKind === "image" && typeof d.fileUrl === "string" ? d.fileUrl : undefined;
+  if (node.type === "draw") return typeof d.fileUrl === "string" ? d.fileUrl : undefined;
+  if (node.type === "image-gen") return typeof d.parsed === "string" ? d.parsed : undefined;
+  return undefined;
+}
 
 // The "+" on a focus view's Connected header: pick a canvas node that MAY feed this node
 // (canConnect(candidate → this)) and isn't already wired, then create the incoming edge.
@@ -56,6 +67,7 @@ export function AddConnection({
             <CommandGroup>
               {candidates.map((n) => {
                 const { name, handle } = nodeLabel(n);
+                const thumb = thumbUrl(n);
                 return (
                   <CommandItem
                     key={n.id}
@@ -66,6 +78,14 @@ export function AddConnection({
                     }}
                     className="flex items-center gap-2"
                   >
+                    {thumb && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={thumb}
+                        alt=""
+                        className="size-8 shrink-0 rounded-md border border-border object-cover"
+                      />
+                    )}
                     <span className="text-eyebrow text-[9px] text-primary">{handle}</span>
                     <span className="truncate">{name}</span>
                   </CommandItem>
