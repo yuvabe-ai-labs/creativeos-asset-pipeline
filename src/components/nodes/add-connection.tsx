@@ -61,7 +61,7 @@ export function AddConnection({
           </Button>
         }
       />
-      <PopoverContent align="start" className="w-56 p-0">
+      <PopoverContent align="start" className="w-80 p-0">
         <Command>
           <CommandInput placeholder="Connect a node…" />
           <CommandList>
@@ -85,10 +85,12 @@ export function AddConnection({
                       <img
                         src={thumb}
                         alt=""
-                        className="size-8 shrink-0 rounded-md border border-border object-cover"
+                        className="size-12 shrink-0 rounded-md border border-border object-cover"
                       />
                     )}
-                    <span className="text-eyebrow text-[9px] text-primary">{handle}</span>
+                    <span className="text-eyebrow shrink-0 whitespace-nowrap text-[9px] text-primary">
+                      {handle}
+                    </span>
                     <span className="truncate">{name}</span>
                   </CommandItem>
                 );
