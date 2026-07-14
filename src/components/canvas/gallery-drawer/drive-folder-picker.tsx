@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { startTransition, useEffect, useRef, useState } from "react";
 import { Folder, Loader2 } from "lucide-react";
 import {
   Dialog,
@@ -55,7 +55,7 @@ export function DriveFolderPicker({
     if (!open) return;
 
     const attempt = ++attemptRef.current;
-    setState(LOADING);
+    startTransition(() => setState(LOADING));
 
     fetch("/api/drive/folders")
       .then((r) => r.json())
@@ -156,7 +156,7 @@ export function DriveFolderPicker({
           {state.status === "error" && (
             <div className="flex h-28 flex-col items-center justify-center gap-2">
               <p className="text-sm text-muted-foreground">
-                Couldn't load folders.
+                Couldn&apos;t load folders.
               </p>
 
               <Button variant="link" size="sm" onClick={handleRetry}>
