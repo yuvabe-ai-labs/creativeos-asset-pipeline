@@ -58,6 +58,7 @@ describe("GET /api/drive/images", () => {
 
     const firstCallUrl = fetchMock.mock.calls[0][0] as string;
     expect(firstCallUrl).toContain("mimeType+contains+%27image%2F%27");
+    expect(firstCallUrl).toContain("sharedWithMe%3Dtrue");
     expect(firstCallUrl).toContain("orderBy=modifiedTime+desc");
     expect(firstCallUrl).toContain("pageSize=50");
     expect(firstCallUrl).toContain("includeItemsFromAllDrives=true");

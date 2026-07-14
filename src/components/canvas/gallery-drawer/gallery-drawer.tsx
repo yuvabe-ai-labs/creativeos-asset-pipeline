@@ -183,7 +183,7 @@ export function GalleryDrawer({ canvasId }: Props) {
       <SheetContent
         side="right"
         showCloseButton={false}
-        className="flex w-full flex-col gap-0 p-0 sm:max-w-[480px]"
+        className="flex w-full flex-col gap-0 p-0 sm:max-w-180"
       >
         <SheetTitle className="sr-only">Gallery</SheetTitle>
         <GalleryHeader

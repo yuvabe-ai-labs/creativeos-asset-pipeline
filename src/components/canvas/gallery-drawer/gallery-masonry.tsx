@@ -69,8 +69,8 @@ export function GalleryMasonry({
     <>
       <MasonryPhotoAlbum
         photos={photos}
-        columns={(width) => (width < 640 ? 2 : 3)}
-        spacing={8}
+        columns={(width) => (width < 480 ? 3 : width < 720 ? 4 : 5)}
+        spacing={6}
         render={{
           photo: ({ onClick }, { photo, width, height }) => {
             const p = photo as AlbumPhoto;

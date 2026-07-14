@@ -53,8 +53,15 @@ export async function GET(req: NextRequest) {
     return apiError("Could not connect to Google Drive. Check server configuration.", 500);
   }
 
+  // Query all image files visible to the user across My Drive + Shared with me
+  // + any shared drives they can read. The membership clause explicitly names
+  // 'me' in owners/readers/writers so we don't miss files that were shared
+  // directly (which don't always match under a bare mime filter).
   const url = new URL("https://www.googleapis.com/drive/v3/files");
-  url.searchParams.set("q", "mimeType contains 'image/' and trashed=false");
+  url.searchParams.set(
+    "q",
+    "(mimeType contains 'image/') and trashed=false and ('me' in owners or 'me' in readers or 'me' in writers or sharedWithMe=true)",
+  );
   url.searchParams.set(
     "fields",
     "nextPageToken,files(id,name,mimeType,modifiedTime,ownedByMe,shared,parents)",

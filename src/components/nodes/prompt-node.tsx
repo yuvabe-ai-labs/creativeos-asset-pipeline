@@ -5,9 +5,9 @@ import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
-import { useCanvasId } from "@/components/canvas/canvas-id-context";
 import { useDeleteNode } from "@/hooks/use-delete-node";
-import { useReferenceImagePicker } from "@/hooks/use-reference-image-picker";
+import { useGalleryDrawer } from "@/components/canvas/gallery-drawer-context";
+import { useGalleryNodeDrop } from "@/hooks/use-gallery-node-drop";
 import { savePromptOutputAction } from "@/lib/actions/nodes";
 import { PromptFocusView } from "./prompt-focus-view";
 import { DEFAULT_IMAGE_PROMPT_SLICES, type KBSliceKey } from "@/lib/kb/parse-context";
@@ -17,7 +17,6 @@ import { NodeTitle } from "./node-title";
 import { ApprovalBadge } from "./approval-badge";
 import type { ApprovalStatus } from "@/lib/approval";
 import { useNodeCost } from "@/hooks/use-node-cost";
-import { ReferenceImagePickerDialog } from "@/components/canvas/reference-image-picker-dialog";
 
 const TYPE_LABEL: Record<string, string> = { script: "Script", text: "Note", prompt: "Prompt", kb: "Brand KB", file: "File", shot: "Shot", draw: "Sketch", "image-gen": "Image" };
 
@@ -27,8 +26,11 @@ export function PromptNode({ id, data, selected, positionAbsoluteX, positionAbso
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const deleteNode = useDeleteNode();
   const duplicateNode = useCanvasStore((s) => s.duplicateNode);
-  const canvasId = useCanvasId();
-  const { open, setOpen, openPicker, handleAdd } = useReferenceImagePicker();
+  const gallery = useGalleryDrawer();
+  const drop = useGalleryNodeDrop(id, {
+    x: positionAbsoluteX ?? 0,
+    y: positionAbsoluteY ?? 0,
+  });
   // Select the raw store slices (stable references) and DERIVE the upstream list
   // with useMemo. Returning a freshly-built array of objects straight from the
   // selector breaks useSyncExternalStore caching (useShallow only stabilizes one
@@ -95,13 +97,23 @@ export function PromptNode({ id, data, selected, positionAbsoluteX, positionAbso
   };
 
   return (
-    <>
-    <NodeContextMenu onDuplicate={() => duplicateNode(id)} onDelete={() => deleteNode(id)} onAddReferenceImage={() => openPicker({ position: { x: positionAbsoluteX ?? 0, y: positionAbsoluteY ?? 0 }, connectToNodeId: id })}>
+    <NodeContextMenu
+      onDuplicate={() => duplicateNode(id)}
+      onDelete={() => deleteNode(id)}
+      onAddReferenceImage={() =>
+        gallery.openDrawer({
+          position: { x: positionAbsoluteX ?? 0, y: positionAbsoluteY ?? 0 },
+          connectToNodeId: id,
+        })
+      }
+    >
     <div
       onDoubleClick={(e) => {
         e.stopPropagation();
         setFocusOpen(true);
       }}
+      onDragOver={drop.onDragOver}
+      onDrop={drop.onDrop}
       className={cn(
         "w-44 rounded-lg border border-border bg-card shadow-card",
         "transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:scale-[1.006]",
@@ -173,12 +185,5 @@ export function PromptNode({ id, data, selected, positionAbsoluteX, positionAbso
       />
     </div>
     </NodeContextMenu>
-    <ReferenceImagePickerDialog
-      canvasId={canvasId}
-      open={open}
-      onOpenChange={setOpen}
-      onAdd={handleAdd}
-    />
-    </>
   );
 }
