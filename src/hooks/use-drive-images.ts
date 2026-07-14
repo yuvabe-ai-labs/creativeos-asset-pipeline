@@ -6,15 +6,22 @@ import type {
   DriveImagesResponse,
 } from "@/app/api/drive/images/route";
 
-type CacheState = {
+export type DriveImagesFilters = {
+  sharedOnly: boolean;
+  folderIds: string[]; // sorted client-side for stable cache keys
+  search: string;
+};
+
+type CacheEntry = {
   pages: DriveImageItem[][];
   nextPageToken: string | null;
   loadError: Error | null;
 };
 
-// Module-level singleton: survives drawer close/open, cleared on page reload.
-let cache: CacheState = { pages: [], nextPageToken: null, loadError: null };
-let hasFetchedOnce = false;
+// Module-level cache keyed by the filter tuple. Refreshing / changing filters
+// keeps existing entries alive so tabs feel snappy on toggle.
+const cacheByKey = new Map<string, CacheEntry>();
+const hasFetchedByKey = new Set<string>();
 let inFlightController: AbortController | null = null;
 const subscribers = new Set<() => void>();
 
@@ -22,9 +29,26 @@ function notify() {
   for (const cb of subscribers) cb();
 }
 
-function setCache(next: CacheState) {
-  cache = next;
-  notify();
+function normalize(filters: DriveImagesFilters): DriveImagesFilters {
+  return {
+    sharedOnly: !!filters.sharedOnly,
+    folderIds: [...filters.folderIds].sort(),
+    search: filters.search.trim(),
+  };
+}
+
+function keyOf(filters: DriveImagesFilters): string {
+  return JSON.stringify(normalize(filters));
+}
+
+function buildUrl(filters: DriveImagesFilters, pageToken?: string): string {
+  const params = new URLSearchParams();
+  if (filters.sharedOnly) params.set("sharedOnly", "1");
+  if (filters.folderIds.length > 0) params.set("folderIds", filters.folderIds.join(","));
+  if (filters.search) params.set("q", filters.search);
+  if (pageToken) params.set("pageToken", pageToken);
+  const qs = params.toString();
+  return qs ? `/api/drive/images?${qs}` : "/api/drive/images";
 }
 
 function computeAvailableFolders(pages: DriveImageItem[][]) {
@@ -40,65 +64,78 @@ function computeAvailableFolders(pages: DriveImageItem[][]) {
 }
 
 async function fetchPage(
+  filters: DriveImagesFilters,
   pageToken: string | undefined,
   signal: AbortSignal,
 ): Promise<DriveImagesResponse> {
-  const url = pageToken
-    ? `/api/drive/images?pageToken=${encodeURIComponent(pageToken)}`
-    : "/api/drive/images";
-  const res = await fetch(url, { signal });
+  const res = await fetch(buildUrl(filters, pageToken), { signal });
   if (!res.ok) throw new Error(`Drive images fetch failed: ${res.status}`);
   return (await res.json()) as DriveImagesResponse;
 }
 
-/** Core fetch + cache-write, extracted so it's testable without React. */
 async function doFetch(
+  filters: DriveImagesFilters,
   pageToken: string | undefined,
   mode: "initial" | "more" | "refresh",
   onLoadingChange?: (loading: boolean, kind: "initial" | "more") => void,
 ) {
+  const key = keyOf(filters);
   inFlightController?.abort();
   const controller = new AbortController();
   inFlightController = controller;
   const kind = mode === "more" ? "more" : "initial";
   onLoadingChange?.(true, kind);
   try {
-    const data = await fetchPage(pageToken, controller.signal);
+    const data = await fetchPage(filters, pageToken, controller.signal);
     if (controller.signal.aborted) return;
-    if (mode === "more") {
-      setCache({
-        pages: [...cache.pages, data.items],
+    const prev = cacheByKey.get(key);
+    if (mode === "more" && prev) {
+      cacheByKey.set(key, {
+        pages: [...prev.pages, data.items],
         nextPageToken: data.nextPageToken,
         loadError: null,
       });
     } else {
-      setCache({ pages: [data.items], nextPageToken: data.nextPageToken, loadError: null });
+      cacheByKey.set(key, {
+        pages: [data.items],
+        nextPageToken: data.nextPageToken,
+        loadError: null,
+      });
     }
+    notify();
   } catch (err) {
     if (controller.signal.aborted) return;
     if ((err as { name?: string }).name === "AbortError") return;
-    setCache({ ...cache, loadError: err as Error });
+    const prev = cacheByKey.get(key) ?? {
+      pages: [],
+      nextPageToken: null,
+      loadError: null,
+    };
+    cacheByKey.set(key, { ...prev, loadError: err as Error });
+    notify();
   } finally {
     if (!controller.signal.aborted) onLoadingChange?.(false, kind);
   }
 }
 
-/** Test-only: reset module state between tests. */
 export function __resetDriveImagesCache() {
-  cache = { pages: [], nextPageToken: null, loadError: null };
-  hasFetchedOnce = false;
+  cacheByKey.clear();
+  hasFetchedByKey.clear();
   inFlightController?.abort();
   inFlightController = null;
 }
 
-/** Test-only: pure internals for cache manipulation. */
 export const __driveImagesInternals = {
   doFetch,
-  getState: () => cache,
+  getEntry: (filters: DriveImagesFilters) =>
+    cacheByKey.get(keyOf(filters)),
   computeAvailableFolders,
 };
 
-export function useDriveImages() {
+export function useDriveImages(filters: DriveImagesFilters) {
+  const normalized = useMemo(() => normalize(filters), [filters]);
+  const key = useMemo(() => keyOf(normalized), [normalized]);
+
   const [, force] = useState(0);
   const rerender = useCallback(() => force((n) => n + 1), []);
 
@@ -109,7 +146,8 @@ export function useDriveImages() {
     };
   }, [rerender]);
 
-  const [loading, setLoading] = useState(!hasFetchedOnce);
+  const entry = cacheByKey.get(key);
+  const [loading, setLoading] = useState(!hasFetchedByKey.has(key));
   const [loadingMore, setLoadingMore] = useState(false);
 
   const onLoadingChange = useCallback(
@@ -121,37 +159,37 @@ export function useDriveImages() {
   );
 
   useEffect(() => {
-    if (hasFetchedOnce) {
+    if (hasFetchedByKey.has(key)) {
       setLoading(false);
       return;
     }
-    hasFetchedOnce = true;
-    void doFetch(undefined, "initial", onLoadingChange);
-  }, [onLoadingChange]);
+    hasFetchedByKey.add(key);
+    void doFetch(normalized, undefined, "initial", onLoadingChange);
+  }, [key, normalized, onLoadingChange]);
 
   const loadMore = useCallback(async () => {
-    if (!cache.nextPageToken || loadingMore) return;
-    await doFetch(cache.nextPageToken, "more", onLoadingChange);
-  }, [loadingMore, onLoadingChange]);
+    const current = cacheByKey.get(key);
+    if (!current?.nextPageToken || loadingMore) return;
+    await doFetch(normalized, current.nextPageToken, "more", onLoadingChange);
+  }, [key, normalized, loadingMore, onLoadingChange]);
 
   const refresh = useCallback(async () => {
-    hasFetchedOnce = true;
-    setCache({ pages: [], nextPageToken: null, loadError: null });
-    await doFetch(undefined, "refresh", onLoadingChange);
-  }, [onLoadingChange]);
+    hasFetchedByKey.add(key);
+    cacheByKey.delete(key);
+    await doFetch(normalized, undefined, "refresh", onLoadingChange);
+  }, [key, normalized, onLoadingChange]);
 
   const availableFolders = useMemo(
-    () => computeAvailableFolders(cache.pages),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [cache.pages],
+    () => computeAvailableFolders(entry?.pages ?? []),
+    [entry?.pages],
   );
 
   return {
-    pages: cache.pages,
-    nextPageToken: cache.nextPageToken,
+    pages: entry?.pages ?? [],
+    nextPageToken: entry?.nextPageToken ?? null,
     loading,
     loadingMore,
-    loadError: cache.loadError,
+    loadError: entry?.loadError ?? null,
     availableFolders,
     loadMore,
     refresh,

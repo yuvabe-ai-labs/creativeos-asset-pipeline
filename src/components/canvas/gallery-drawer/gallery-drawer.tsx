@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useReactFlow } from "@xyflow/react";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -44,7 +44,24 @@ export function GalleryDrawer({ canvasId }: Props) {
   const [imageMap, setImageMap] = useState<Map<string, GalleryImage>>(new Map());
   const [previewId, setPreviewId] = useState<string | null>(null);
 
-  const drive = useDriveImages();
+  // Debounce the search query before sending to the Drive endpoint. Typing
+  // still updates the input immediately; the fetch fires after 250ms of idle.
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 250);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+
+  const driveFilters = useMemo(
+    () => ({
+      sharedOnly: filters.sharedOnly,
+      folderIds: Array.from(filters.folderIds),
+      search: debouncedSearch,
+    }),
+    [filters.sharedOnly, filters.folderIds, debouncedSearch],
+  );
+
+  const drive = useDriveImages(driveFilters);
   const generations = useCanvasGenerations(canvasId);
 
   // Reset transient state on drawer close.
@@ -92,24 +109,15 @@ export function GalleryDrawer({ canvasId }: Props) {
   const activeLoading = tab === "references" ? drive.loading : generations.loading;
   const activeError = tab === "references" ? drive.loadError : generations.loadError;
 
+  // Drive is filtered server-side (sharedOnly, folderIds, search) — trust the
+  // response. Generations have no server-side filter surface, so we apply
+  // search client-side for the Assets tab only.
   const filtered = useMemo(() => {
-    return activeImages.filter((img) => {
-      if (tab === "references" && img.drive) {
-        if (filters.sharedOnly && !img.drive.isShared) return false;
-        if (
-          filters.folderIds.size > 0 &&
-          (!img.drive.parentFolder ||
-            !filters.folderIds.has(img.drive.parentFolder.id))
-        )
-          return false;
-      }
-      if (searchQuery) {
-        if (!img.filename.toLowerCase().includes(searchQuery.toLowerCase()))
-          return false;
-      }
-      return true;
-    });
-  }, [activeImages, filters, searchQuery, tab]);
+    if (tab === "references") return activeImages;
+    if (!searchQuery) return activeImages;
+    const q = searchQuery.toLowerCase();
+    return activeImages.filter((img) => img.filename.toLowerCase().includes(q));
+  }, [activeImages, searchQuery, tab]);
 
   function toggleSelect(id: string) {
     const image = activeImages.find((i) => i.id === id);

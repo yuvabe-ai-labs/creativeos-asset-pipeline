@@ -1,9 +1,19 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { __resetDriveImagesCache, __driveImagesInternals } from "./use-drive-images";
+import {
+  __resetDriveImagesCache,
+  __driveImagesInternals,
+  type DriveImagesFilters,
+} from "./use-drive-images";
 import type { DriveImageItem, DriveImagesResponse } from "@/app/api/drive/images/route";
 
 const fetchMock = vi.fn();
 vi.stubGlobal("fetch", fetchMock);
+
+const noFilters: DriveImagesFilters = {
+  sharedOnly: false,
+  folderIds: [],
+  search: "",
+};
 
 function makeItem(overrides: Partial<DriveImageItem>): DriveImageItem {
   return {
@@ -37,13 +47,13 @@ describe("useDriveImages internals", () => {
     const items = [makeItem({ id: "a", parentFolder: { id: "fA", name: "Folder A" } })];
     fetchMock.mockResolvedValueOnce(mockPageResponse(items, "cursor-2"));
 
-    await __driveImagesInternals.doFetch(undefined, "initial");
+    await __driveImagesInternals.doFetch(noFilters, undefined, "initial");
 
-    const state = __driveImagesInternals.getState();
-    expect(state.pages).toHaveLength(1);
-    expect(state.pages[0]).toHaveLength(1);
-    expect(state.nextPageToken).toBe("cursor-2");
-    expect(state.loadError).toBeNull();
+    const entry = __driveImagesInternals.getEntry(noFilters);
+    expect(entry?.pages).toHaveLength(1);
+    expect(entry?.pages[0]).toHaveLength(1);
+    expect(entry?.nextPageToken).toBe("cursor-2");
+    expect(entry?.loadError).toBeNull();
   });
 
   it("loadMore appends a page", async () => {
@@ -54,29 +64,58 @@ describe("useDriveImages internals", () => {
       mockPageResponse([makeItem({ id: "b" })], null),
     );
 
-    await __driveImagesInternals.doFetch(undefined, "initial");
-    await __driveImagesInternals.doFetch("cursor-2", "more");
+    await __driveImagesInternals.doFetch(noFilters, undefined, "initial");
+    await __driveImagesInternals.doFetch(noFilters, "cursor-2", "more");
 
-    const state = __driveImagesInternals.getState();
-    expect(state.pages).toHaveLength(2);
-    expect(state.pages.flat().map((i) => i.id)).toEqual(["a", "b"]);
-    expect(state.nextPageToken).toBeNull();
+    const entry = __driveImagesInternals.getEntry(noFilters);
+    expect(entry?.pages).toHaveLength(2);
+    expect(entry?.pages.flat().map((i) => i.id)).toEqual(["a", "b"]);
+    expect(entry?.nextPageToken).toBeNull();
   });
 
   it("refresh replaces cache", async () => {
     fetchMock.mockResolvedValueOnce(
       mockPageResponse([makeItem({ id: "old" })], null),
     );
-    await __driveImagesInternals.doFetch(undefined, "initial");
-    expect(__driveImagesInternals.getState().pages[0][0].id).toBe("old");
+    await __driveImagesInternals.doFetch(noFilters, undefined, "initial");
+    expect(__driveImagesInternals.getEntry(noFilters)?.pages[0][0].id).toBe("old");
 
     fetchMock.mockResolvedValueOnce(
       mockPageResponse([makeItem({ id: "new" })], null),
     );
-    await __driveImagesInternals.doFetch(undefined, "refresh");
-    const state = __driveImagesInternals.getState();
-    expect(state.pages).toHaveLength(1);
-    expect(state.pages[0][0].id).toBe("new");
+    await __driveImagesInternals.doFetch(noFilters, undefined, "refresh");
+    const entry = __driveImagesInternals.getEntry(noFilters);
+    expect(entry?.pages).toHaveLength(1);
+    expect(entry?.pages[0][0].id).toBe("new");
+  });
+
+  it("keeps separate caches per filter set", async () => {
+    fetchMock.mockResolvedValueOnce(
+      mockPageResponse([makeItem({ id: "unfiltered" })], null),
+    );
+    await __driveImagesInternals.doFetch(noFilters, undefined, "initial");
+
+    const sharedFilters: DriveImagesFilters = { ...noFilters, sharedOnly: true };
+    fetchMock.mockResolvedValueOnce(
+      mockPageResponse([makeItem({ id: "shared-only" })], null),
+    );
+    await __driveImagesInternals.doFetch(sharedFilters, undefined, "initial");
+
+    expect(__driveImagesInternals.getEntry(noFilters)?.pages[0][0].id).toBe("unfiltered");
+    expect(__driveImagesInternals.getEntry(sharedFilters)?.pages[0][0].id).toBe("shared-only");
+  });
+
+  it("sends filter params in the URL query string", async () => {
+    fetchMock.mockResolvedValueOnce(mockPageResponse([], null));
+    await __driveImagesInternals.doFetch(
+      { sharedOnly: true, folderIds: ["fA", "fB"], search: "logo" },
+      undefined,
+      "initial",
+    );
+    const url = fetchMock.mock.calls[0][0] as string;
+    expect(url).toContain("sharedOnly=1");
+    expect(url).toContain("folderIds=fA%2CfB");
+    expect(url).toContain("q=logo");
   });
 
   it("computes availableFolders as unique sorted list from loaded pages", async () => {
@@ -90,24 +129,24 @@ describe("useDriveImages internals", () => {
         null,
       ),
     );
-    await __driveImagesInternals.doFetch(undefined, "initial");
+    await __driveImagesInternals.doFetch(noFilters, undefined, "initial");
     const folders = __driveImagesInternals.computeAvailableFolders(
-      __driveImagesInternals.getState().pages,
+      __driveImagesInternals.getEntry(noFilters)?.pages ?? [],
     );
     expect(folders.map((f) => f.name)).toEqual(["Alpha", "Beta"]);
   });
 
-  it("sets loadError on fetch failure and keeps cache untouched", async () => {
+  it("sets loadError on fetch failure and keeps existing pages", async () => {
     fetchMock.mockResolvedValueOnce({
       ok: false,
       status: 500,
       text: async () => "boom",
     });
 
-    await __driveImagesInternals.doFetch(undefined, "initial");
+    await __driveImagesInternals.doFetch(noFilters, undefined, "initial");
 
-    const state = __driveImagesInternals.getState();
-    expect(state.loadError).toBeTruthy();
-    expect(state.pages).toHaveLength(0);
+    const entry = __driveImagesInternals.getEntry(noFilters);
+    expect(entry?.loadError).toBeTruthy();
+    expect(entry?.pages ?? []).toHaveLength(0);
   });
 });

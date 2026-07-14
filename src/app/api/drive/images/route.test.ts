@@ -17,64 +17,30 @@ function mockOk(body: unknown) {
   return { ok: true, json: async () => body };
 }
 
-describe("GET /api/drive/images", () => {
+describe("GET /api/drive/images (default corpus)", () => {
   beforeEach(() => {
     fetchMock.mockReset();
   });
 
-  it("makes two parallel queries (owned + shared) and merges results, deduped by id, sorted by modifiedTime desc", async () => {
-    // Owned query
+  it("makes two parallel queries (owned + shared) and merges deduped, sorted desc", async () => {
     fetchMock.mockResolvedValueOnce(
       mockOk({
         nextPageToken: "owned-2",
         files: [
-          {
-            id: "owned-1",
-            name: "mine-old.jpg",
-            mimeType: "image/jpeg",
-            modifiedTime: "2026-07-10T00:00:00Z",
-            ownedByMe: true,
-            shared: false,
-            parents: ["fA"],
-          },
-          {
-            id: "dup-x",
-            name: "dup.jpg",
-            mimeType: "image/jpeg",
-            modifiedTime: "2026-07-12T00:00:00Z",
-            ownedByMe: true,
-            parents: ["fB"],
-          },
+          { id: "owned-1", name: "mine-old.jpg", mimeType: "image/jpeg", modifiedTime: "2026-07-10T00:00:00Z", ownedByMe: true, parents: ["fA"] },
+          { id: "dup-x", name: "dup.jpg", mimeType: "image/jpeg", modifiedTime: "2026-07-12T00:00:00Z", ownedByMe: true, parents: ["fB"] },
         ],
       }),
     );
-    // Shared query
     fetchMock.mockResolvedValueOnce(
       mockOk({
         nextPageToken: null,
         files: [
-          {
-            id: "shared-1",
-            name: "colleague.jpg",
-            mimeType: "image/jpeg",
-            modifiedTime: "2026-07-14T00:00:00Z",
-            ownedByMe: false,
-            shared: true,
-            parents: ["fC"],
-          },
-          {
-            id: "dup-x",
-            name: "dup.jpg",
-            mimeType: "image/jpeg",
-            modifiedTime: "2026-07-12T00:00:00Z",
-            ownedByMe: false,
-            shared: true,
-            parents: ["fB"],
-          },
+          { id: "shared-1", name: "colleague.jpg", mimeType: "image/jpeg", modifiedTime: "2026-07-14T00:00:00Z", ownedByMe: false, shared: true, parents: ["fC"] },
+          { id: "dup-x", name: "dup.jpg", mimeType: "image/jpeg", modifiedTime: "2026-07-12T00:00:00Z", ownedByMe: false, shared: true, parents: ["fB"] },
         ],
       }),
     );
-    // Folder lookups (3 unique folders)
     fetchMock.mockResolvedValueOnce(mockOk({ id: "fA", name: "Folder A" }));
     fetchMock.mockResolvedValueOnce(mockOk({ id: "fB", name: "Folder B" }));
     fetchMock.mockResolvedValueOnce(mockOk({ id: "fC", name: "Folder C" }));
@@ -82,56 +48,32 @@ describe("GET /api/drive/images", () => {
     const res = await GET(makeReq("http://x/api/drive/images"));
     const body = await res.json();
 
-    // 3 unique items after dedupe (owned-1, dup-x, shared-1)
     expect(body.items).toHaveLength(3);
-    // Sorted by modifiedTime desc: shared-1 (2026-07-14) > dup-x (2026-07-12) > owned-1 (2026-07-10)
-    expect(body.items.map((i: { id: string }) => i.id)).toEqual([
-      "shared-1",
-      "dup-x",
-      "owned-1",
-    ]);
-    // The owned copy of the duplicate wins (first inserted)
+    expect(body.items.map((i: { id: string }) => i.id)).toEqual(["shared-1", "dup-x", "owned-1"]);
     expect(body.items[1].isShared).toBe(false);
-
-    // Two files.list queries + 3 folder lookups = 5 fetches total
     expect(fetchMock).toHaveBeenCalledTimes(5);
 
-    // First query should be the owned one
     const firstCallUrl = fetchMock.mock.calls[0][0] as string;
     expect(firstCallUrl).toContain("%27me%27+in+owners");
-    // Second query should be sharedWithMe=true
     const secondCallUrl = fetchMock.mock.calls[1][0] as string;
     expect(secondCallUrl).toContain("sharedWithMe%3Dtrue");
   });
 
   it("encodes nextPageToken as base64 of both cursors when either corpus has more", async () => {
-    fetchMock.mockResolvedValueOnce(
-      mockOk({ nextPageToken: "owned-cursor", files: [] }),
-    );
-    fetchMock.mockResolvedValueOnce(
-      mockOk({ nextPageToken: "shared-cursor", files: [] }),
-    );
+    fetchMock.mockResolvedValueOnce(mockOk({ nextPageToken: "owned-cursor", files: [] }));
+    fetchMock.mockResolvedValueOnce(mockOk({ nextPageToken: "shared-cursor", files: [] }));
 
     const res = await GET(makeReq("http://x/api/drive/images"));
     const body = await res.json();
 
     expect(body.nextPageToken).toBeTruthy();
-    const decoded = JSON.parse(
-      Buffer.from(body.nextPageToken, "base64").toString("utf-8"),
-    );
-    expect(decoded).toEqual({
-      ownedToken: "owned-cursor",
-      sharedToken: "shared-cursor",
-    });
+    const decoded = JSON.parse(Buffer.from(body.nextPageToken, "base64").toString("utf-8"));
+    expect(decoded).toEqual({ ownedToken: "owned-cursor", sharedToken: "shared-cursor" });
   });
 
   it("returns null nextPageToken when both corpora are exhausted", async () => {
-    fetchMock.mockResolvedValueOnce(
-      mockOk({ files: [] }),
-    );
-    fetchMock.mockResolvedValueOnce(
-      mockOk({ files: [] }),
-    );
+    fetchMock.mockResolvedValueOnce(mockOk({ files: [] }));
+    fetchMock.mockResolvedValueOnce(mockOk({ files: [] }));
 
     const res = await GET(makeReq("http://x/api/drive/images"));
     const body = await res.json();
@@ -139,48 +81,138 @@ describe("GET /api/drive/images", () => {
   });
 
   it("only re-queries a corpus if its cursor is still present", async () => {
-    // Follow-up page where only the shared corpus has more.
-    const cursor = Buffer.from(
-      JSON.stringify({ sharedToken: "shared-next" }),
-    ).toString("base64");
+    const cursor = Buffer.from(JSON.stringify({ sharedToken: "shared-next" })).toString("base64");
+    fetchMock.mockResolvedValueOnce(mockOk({ files: [], nextPageToken: null }));
 
-    // Only one files.list call expected (shared).
-    fetchMock.mockResolvedValueOnce(
-      mockOk({ files: [], nextPageToken: null }),
-    );
+    await GET(makeReq(`http://x/api/drive/images?pageToken=${encodeURIComponent(cursor)}`));
 
-    await GET(
-      makeReq(`http://x/api/drive/images?pageToken=${encodeURIComponent(cursor)}`),
-    );
-
-    // 1 shared query only (no owned query, no folder lookups since files is empty)
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const url = fetchMock.mock.calls[0][0] as string;
     expect(url).toContain("sharedWithMe%3Dtrue");
     expect(url).toContain("pageToken=shared-next");
   });
+});
 
-  it("marks isShared true when ownedByMe is false", async () => {
+describe("GET /api/drive/images (search)", () => {
+  beforeEach(() => {
+    fetchMock.mockReset();
+  });
+
+  it("passes q as fullText contains in both owned and shared queries", async () => {
     fetchMock.mockResolvedValueOnce(mockOk({ files: [] }));
+    fetchMock.mockResolvedValueOnce(mockOk({ files: [] }));
+
+    await GET(makeReq("http://x/api/drive/images?q=logo"));
+
+    const ownedUrl = fetchMock.mock.calls[0][0] as string;
+    const sharedUrl = fetchMock.mock.calls[1][0] as string;
+    expect(ownedUrl).toContain("fullText+contains+%27logo%27");
+    expect(sharedUrl).toContain("fullText+contains+%27logo%27");
+  });
+
+  it("escapes single quotes in search term to prevent q-string injection", async () => {
+    fetchMock.mockResolvedValueOnce(mockOk({ files: [] }));
+    fetchMock.mockResolvedValueOnce(mockOk({ files: [] }));
+
+    await GET(makeReq("http://x/api/drive/images?q=" + encodeURIComponent("a'b")));
+
+    const url = fetchMock.mock.calls[0][0] as string;
+    // '\'' is encoded as %5C%27 in URL
+    expect(url).toContain("%5C%27");
+  });
+});
+
+describe("GET /api/drive/images (sharedOnly)", () => {
+  beforeEach(() => {
+    fetchMock.mockReset();
+  });
+
+  it("walks the sharedWithMe subtree and returns images from nested shared folders", async () => {
+    // Roots: 1 image + 1 folder shared with me.
     fetchMock.mockResolvedValueOnce(
       mockOk({
         files: [
-          {
-            id: "s1",
-            name: "shared.jpg",
-            mimeType: "image/jpeg",
-            modifiedTime: "2026-07-14T00:00:00Z",
-            ownedByMe: false,
-            parents: ["fA"],
-          },
+          { id: "top-img", name: "top.jpg", mimeType: "image/jpeg", modifiedTime: "2026-07-14T00:00:00Z", ownedByMe: false, shared: true, parents: ["shared-root"] },
+          { id: "shared-folder", name: "Shared Folder", mimeType: "application/vnd.google-apps.folder", modifiedTime: "2026-07-13T00:00:00Z", ownedByMe: false, shared: true },
         ],
       }),
     );
-    fetchMock.mockResolvedValueOnce(mockOk({ id: "fA", name: "F" }));
+    // Depth 1: contents of shared-folder — 1 subfolder + 1 image
+    fetchMock.mockResolvedValueOnce(
+      mockOk({
+        files: [
+          { id: "nested-img", name: "nested.jpg", mimeType: "image/jpeg", modifiedTime: "2026-07-12T00:00:00Z", ownedByMe: false, shared: true, parents: ["shared-folder"] },
+          { id: "deeper-folder", name: "Deeper", mimeType: "application/vnd.google-apps.folder", modifiedTime: "2026-07-11T00:00:00Z", ownedByMe: false, shared: true },
+        ],
+      }),
+    );
+    // Depth 2: contents of deeper-folder — 1 image
+    fetchMock.mockResolvedValueOnce(
+      mockOk({
+        files: [
+          { id: "deep-img", name: "deep.jpg", mimeType: "image/jpeg", modifiedTime: "2026-07-10T00:00:00Z", ownedByMe: false, shared: true, parents: ["deeper-folder"] },
+        ],
+      }),
+    );
+    // Depth 3: nothing more.
+    // Folder metadata lookups for 3 unique parents.
+    fetchMock.mockResolvedValueOnce(mockOk({ id: "shared-root", name: "Root" }));
+    fetchMock.mockResolvedValueOnce(mockOk({ id: "shared-folder", name: "Shared Folder" }));
+    fetchMock.mockResolvedValueOnce(mockOk({ id: "deeper-folder", name: "Deeper" }));
 
-    const res = await GET(makeReq("http://x/api/drive/images"));
+    const res = await GET(makeReq("http://x/api/drive/images?sharedOnly=1"));
     const body = await res.json();
-    expect(body.items[0].isShared).toBe(true);
+
+    // All 3 images from the subtree — no folders in the result.
+    expect(body.items.map((i: { id: string }) => i.id)).toEqual(["top-img", "nested-img", "deep-img"]);
+    for (const i of body.items) expect(i.isShared).toBe(true);
+    expect(body.nextPageToken).toBeNull();
+
+    const rootUrl = fetchMock.mock.calls[0][0] as string;
+    expect(rootUrl).toContain("sharedWithMe%3Dtrue");
+  });
+});
+
+describe("GET /api/drive/images (folderIds)", () => {
+  beforeEach(() => {
+    fetchMock.mockReset();
+  });
+
+  it("queries each folder in parallel and merges deduped", async () => {
+    fetchMock.mockResolvedValueOnce(
+      mockOk({
+        files: [
+          { id: "a", name: "a.jpg", mimeType: "image/jpeg", modifiedTime: "2026-07-14T00:00:00Z", parents: ["fA"] },
+          { id: "shared-x", name: "shared.jpg", mimeType: "image/jpeg", modifiedTime: "2026-07-13T00:00:00Z", parents: ["fA"] },
+        ],
+      }),
+    );
+    fetchMock.mockResolvedValueOnce(
+      mockOk({
+        files: [
+          { id: "b", name: "b.jpg", mimeType: "image/jpeg", modifiedTime: "2026-07-12T00:00:00Z", parents: ["fB"] },
+          { id: "shared-x", name: "shared.jpg", mimeType: "image/jpeg", modifiedTime: "2026-07-13T00:00:00Z", parents: ["fA"] },
+        ],
+      }),
+    );
+    fetchMock.mockResolvedValueOnce(mockOk({ id: "fA", name: "A" }));
+    fetchMock.mockResolvedValueOnce(mockOk({ id: "fB", name: "B" }));
+
+    const res = await GET(makeReq("http://x/api/drive/images?folderIds=fA,fB"));
+    const body = await res.json();
+
+    expect(body.items.map((i: { id: string }) => i.id)).toEqual(["a", "shared-x", "b"]);
+
+    const fAUrl = fetchMock.mock.calls[0][0] as string;
+    const fBUrl = fetchMock.mock.calls[1][0] as string;
+    expect(fAUrl).toContain("%27fA%27+in+parents");
+    expect(fBUrl).toContain("%27fB%27+in+parents");
+  });
+});
+
+describe("GET /api/drive/images (errors)", () => {
+  beforeEach(() => {
+    fetchMock.mockReset();
   });
 
   it("returns apiError on 5xx from Drive", async () => {
