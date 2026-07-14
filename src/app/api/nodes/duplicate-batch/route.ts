@@ -1,7 +1,7 @@
 import { createServerSupabase } from "@/lib/supabase/server";
 import { apiError, apiOk, withTryCatch } from "@/lib/api/route-helpers";
 
-type InternalEdge = { id: string; source: string; target: string };
+type InternalEdge = { source: string; target: string };
 
 type BatchDuplicateBody = {
   canvasId: string;
@@ -14,7 +14,7 @@ export async function POST(req: Request) {
     const body = (await req.json()) as BatchDuplicateBody;
     const { canvasId, nodeIds, internalEdges } = body;
 
-    if (!canvasId || !Array.isArray(nodeIds) || nodeIds.length === 0) {
+    if (typeof canvasId !== "string" || !canvasId || !Array.isArray(nodeIds) || nodeIds.length === 0) {
       return apiError("canvasId and nodeIds are required.", 400);
     }
 
@@ -65,7 +65,9 @@ export async function POST(req: Request) {
       return apiError("Failed to insert duplicate nodes.", 500);
     }
 
-    // 4. Copy active versions (guarded — silent skip if version missing, never fail the batch)
+    // 4. Copy active versions — guarded, same as the single-node duplicate route.
+    // Silent skip on any version failure is spec-intentional: version loss never blocks node creation.
+    // Callers receive nodes with active_version_id: null for any skipped versions.
     for (const sourceNode of eligible) {
       if (!sourceNode.active_version_id) continue;
 
@@ -111,6 +113,7 @@ export async function POST(req: Request) {
     // Only remap edges where both endpoints are in the eligible set
     const eligibleIds = new Set(eligible.map((n) => n.id));
     const edgesToInsert = (internalEdges ?? [])
+      .filter((e): e is InternalEdge => typeof e?.source === "string" && typeof e?.target === "string")
       .filter((e) => eligibleIds.has(e.source) && eligibleIds.has(e.target))
       .map((e) => ({
         id: crypto.randomUUID(),
