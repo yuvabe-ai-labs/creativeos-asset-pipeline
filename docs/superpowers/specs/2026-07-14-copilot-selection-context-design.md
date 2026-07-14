@@ -69,7 +69,12 @@ volunteering context.
 
 ## 3. Part 2 — zoom-legible ref badges
 
-- New `ZoomAwareNodeHandle` (canvas card faces only) wraps the existing `NodeHandle`:
+> **Amended at implementation:** a call-site audit found **all 12 `NodeHandle` references
+> are canvas node card components** (none in focus views), so the flip lives **directly in
+> `NodeHandle`** — no `ZoomAwareNodeHandle` wrapper, no `NodeTitle` swap, zero call-site
+> changes. Mechanics and threshold unchanged.
+
+- `NodeHandle` subscribes to zoom:
 
   ```tsx
   const zoomedOut = useStore((s) => s.transform[2] < 0.65);
@@ -79,9 +84,8 @@ volunteering context.
   (React Flow contextual-zoom pattern, reactflow.dev/examples/interaction/contextual-zoom).
 - When `zoomedOut`, the badge renders at ~15px (`text-[15px]`), full-opacity foreground;
   otherwise today's `text-[10px] text-foreground/70`.
-- `NodeHandle` stays a pure span — focus views (`connected-inputs-card.tsx` etc.) render
-  outside the React Flow provider, where `useStore` throws; they keep using it unchanged.
-- `NodeTitle` (card faces only) swaps to `ZoomAwareNodeHandle`.
+- If a future non-canvas surface ever needs the plain tag, extract a pure span variant
+  then — `useStore` throws outside the React Flow provider.
 
 ---
 
