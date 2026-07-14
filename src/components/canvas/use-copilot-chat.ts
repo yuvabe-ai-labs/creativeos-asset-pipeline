@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { useReactFlow, type NodeChange } from "@xyflow/react";
 import { useCanvasStoreApi } from "./canvas-store-provider";
-import { nodeHandle, resolveMentions } from "@/lib/nodes/describe-node";
+import { nodeHandle, nodeLabel, resolveMentions } from "@/lib/nodes/describe-node";
 import {
   buildHistory,
+  mergeMentionedIds,
   resolveScriptTarget,
   resolveNodeTarget,
   fileNameToTitle,
@@ -21,6 +22,9 @@ export type Msg = {
   role: "user" | "assistant";
   content: string;
   nodes?: NodeRef[];
+  // Implicit grounding (the canvas selection) this turn was sent with — labels are
+  // captured AT SEND TIME so history survives later node deletion/renaming.
+  context?: { handle: string; name: string }[];
 };
 // A .md/.txt script the human dropped into the composer, pending send.
 export type Attachment = { name: string; text: string };
@@ -201,7 +205,7 @@ export function useCopilotChat(canvasId: string) {
   // create-script recipe — no model call. Otherwise: resolve @-mentions, ask the actions
   // route whether this is a COMMAND (create/parse/add/open/connect) and route accordingly, else fall
   // through to the streamed prose answer + reference chips.
-  async function send(text: string, attachment: Attachment | null) {
+  async function send(text: string, attachment: Attachment | null, contextIds: string[] = []) {
     // File upload path: a .md/.txt script file → create a Script node from its text
     // (deterministic — an uploaded script is unambiguous, no model call needed).
     if (attachment) {
@@ -212,11 +216,21 @@ export function useCopilotChat(canvasId: string) {
     }
 
     // Resolve the @HANDLE tokens the human typed → the exact node ids they pointed at.
-    // These travel with the request so the server grounds the copilot on precisely them.
-    const mentionedIds = resolveMentions(text, storeApi.getState().nodes);
+    // Grounding set = those typed mentions ∪ the selection chip's ids. These travel with
+    // the request so the server grounds the copilot on precisely them.
+    const nodesNow = storeApi.getState().nodes;
+    const mentionedIds = mergeMentionedIds(resolveMentions(text, nodesNow), contextIds);
+    // Labels for history — resolved now, tolerating ids whose node vanished mid-send.
+    const context = contextIds.flatMap((id) => {
+      const n = nodesNow.find((node) => node.id === id);
+      return n ? [nodeLabel(n)] : [];
+    });
     // The whole chat window travels with the turn — this is the copilot's memory.
     const history = buildHistory(messages, text);
-    setMessages((m) => [...m, { role: "user", content: text }]);
+    setMessages((m) => [
+      ...m,
+      { role: "user", content: text, ...(context.length ? { context } : {}) },
+    ]);
     setThinking(true);
     try {
       // PHASE 1 — decision. Ask the actions route FIRST: is this a COMMAND to act on,
