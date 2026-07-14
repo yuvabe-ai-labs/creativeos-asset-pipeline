@@ -40,13 +40,13 @@ export function useGalleryDrawer() {
 
         const title = titleFromFilename(image.filename);
 
-        if (image.source === "drive" && image.drive) {
+        if (image.source === "drive" && image.driveMimeType) {
           updateNodeData(nodeId, {
             title,
             fileKind: "image",
             filename: image.filename,
-            driveFileId: image.drive.id,
-            driveMimeType: image.drive.mimeType,
+            driveFileId: image.id,
+            driveMimeType: image.driveMimeType,
             driveFileName: image.filename,
             uploading: true,
           });
@@ -98,7 +98,7 @@ async function importDriveFile({
   image: GalleryImage;
   updateNodeData: (id: string, patch: Record<string, unknown>) => void;
 }) {
-  if (image.source !== "drive" || !image.drive) return;
+  if (image.source !== "drive" || !image.driveMimeType) return;
   const BACKOFF_MS = [400, 800, 1600];
   try {
     let result: Awaited<ReturnType<typeof fileNodeService.pickFromDrive>>;
@@ -106,9 +106,9 @@ async function importDriveFile({
     for (let attempt = 0; attempt <= BACKOFF_MS.length; attempt++) {
       try {
         result = await fileNodeService.pickFromDrive(nodeId, {
-          driveFileId: image.drive.id,
+          driveFileId: image.id,
           driveFileName: image.filename,
-          driveMimeType: image.drive.mimeType,
+          driveMimeType: image.driveMimeType,
         });
         lastErr = null;
         break;

@@ -347,7 +347,11 @@ export function Canvas({
       </div>
 
       {/* Gallery drawer + its canvas integrations (G shortcut, pane drop). */}
-      <GalleryDrawerIntegration canvasId={canvasId} />
+      <GalleryDrawerIntegration
+        canvasId={canvasId}
+        clientId={clientId}
+        initialDriveRootFolder={null}
+      />
 
       {!canEdit && (
         <LockBanner heldByName={heldByName} canTakeOver={canTakeOver} onTakeOver={takeOver} />

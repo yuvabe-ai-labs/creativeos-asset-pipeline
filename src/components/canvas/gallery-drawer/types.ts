@@ -1,13 +1,5 @@
-import type { DriveImageItem } from "@/app/api/drive/images/route";
-
 export type GalleryTab = "references" | "assets";
-
 export type ViewMode = "grid" | "list";
-
-export type Filters = {
-  sharedOnly: boolean;
-  folderIds: Set<string>;
-};
 
 /** Unified shape rendered by the grid/list — covers both Drive and Assets sources. */
 export type GalleryImage = {
@@ -19,11 +11,21 @@ export type GalleryImage = {
   filename: string;
   subtitle: string;
   source: "drive" | "generated";
-  drive?: DriveImageItem;
+  /** MIME type of the Drive file — required when source === "drive" for import. */
+  driveMimeType?: string;
   generationId?: string;
 };
 
 export type OpenDrawerOptions = {
   position?: { x: number; y: number };
   connectToNodeId?: string;
+};
+
+/**
+ * @deprecated Will be removed in Task 11 when gallery-filter-popover.tsx is deleted.
+ * Kept here only so the old file continues to compile until then.
+ */
+export type Filters = {
+  sharedOnly: boolean;
+  folderIds: Set<string>;
 };

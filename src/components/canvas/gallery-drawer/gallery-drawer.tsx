@@ -2,10 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { FolderOpen, Loader2 } from "lucide-react";
 import { useReactFlow } from "@xyflow/react";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { Button } from "@/components/ui/button";
 import { FullScreenImageZoom } from "@/components/shared/full-screen-image-zoom";
-import { useDriveImages } from "@/hooks/use-drive-images";
+import { useDriveBrowser } from "@/hooks/use-drive-browser";
 import { useCanvasGenerations } from "@/hooks/use-canvas-generations";
 import { useGalleryDrawer as useGalleryCommit } from "@/hooks/use-gallery-drawer";
 import { useGalleryDrawer as useDrawerCtx } from "../gallery-drawer-context";
@@ -14,54 +16,35 @@ import { GalleryTabs } from "./gallery-tabs";
 import { GalleryToolbar } from "./gallery-toolbar";
 import { GalleryContent } from "./gallery-content";
 import { GalleryFooter } from "./gallery-footer";
-import type {
-  Filters,
-  GalleryImage,
-  GalleryTab,
-  ViewMode,
-} from "./types";
+import { GalleryBreadcrumb } from "./gallery-breadcrumb";
+import { GalleryFolderTile } from "./gallery-folder-tile";
+import { DriveFolderPicker } from "./drive-folder-picker";
+import type { GalleryImage, GalleryTab, ViewMode } from "./types";
+import type { DriveBrowseItem } from "@/hooks/use-drive-browser";
 
 const MAX_SELECTION = 10;
 export const GALLERY_DRAG_MIME = "application/x-creativeos-gallery-image";
 
 type Props = {
   canvasId: string;
+  clientId: string;
+  initialDriveRootFolder: { id: string; name: string } | null;
 };
 
-export function GalleryDrawer({ canvasId }: Props) {
+export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Props) {
   const { open, options, closeDrawer } = useDrawerCtx();
   const { handleAdd } = useGalleryCommit();
   const reactFlow = useReactFlow();
 
   const [tab, setTab] = useState<GalleryTab>("references");
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [filters, setFilters] = useState<Filters>({
-    sharedOnly: false,
-    folderIds: new Set(),
-  });
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [imageMap, setImageMap] = useState<Map<string, GalleryImage>>(new Map());
   const [previewId, setPreviewId] = useState<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [rootFolder, setRootFolder] = useState(initialDriveRootFolder);
 
-  // Debounce the search query before sending to the Drive endpoint. Typing
-  // still updates the input immediately; the fetch fires after 250ms of idle.
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 250);
-    return () => clearTimeout(t);
-  }, [searchQuery]);
-
-  const driveFilters = useMemo(
-    () => ({
-      sharedOnly: filters.sharedOnly,
-      folderIds: Array.from(filters.folderIds),
-      search: debouncedSearch,
-    }),
-    [filters.sharedOnly, filters.folderIds, debouncedSearch],
-  );
-
-  const drive = useDriveImages(driveFilters);
+  const browser = useDriveBrowser(rootFolder);
   const generations = useCanvasGenerations(canvasId);
 
   // Reset transient state on drawer close.
@@ -71,25 +54,35 @@ export function GalleryDrawer({ canvasId }: Props) {
     if (!open) {
       setSelectedIds(new Set());
       setImageMap(new Map());
-      setSearchQuery("");
-      setFilters({ sharedOnly: false, folderIds: new Set() });
       setPreviewId(null);
     }
   }
 
-  const references: GalleryImage[] = useMemo(
-    () =>
-      drive.pages.flat().map((item) => ({
+  // Auto-clear stale folder ID from DB when Drive says it's gone.
+  useEffect(() => {
+    if (browser.loadError === "folder_not_found" && rootFolder) {
+      fetch(`/api/clients/${clientId}/drive-folder`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ driveRootFolderId: null }),
+      }).catch(() => {});
+      setRootFolder(null);
+    }
+  }, [browser.loadError, rootFolder, clientId]);
+
+  const references: GalleryImage[] = useMemo(() => {
+    return browser.items
+      .filter((item: DriveBrowseItem) => !item.mimeType.includes("folder"))
+      .map((item: DriveBrowseItem) => ({
         id: item.id,
-        imageUrl: item.thumbnailUrl,
-        previewUrl: item.previewUrl,
+        imageUrl: item.thumbnailUrl ?? "",
+        previewUrl: item.previewUrl ?? undefined,
         filename: item.name,
         subtitle: new Date(item.modifiedTime).toLocaleDateString(),
         source: "drive" as const,
-        drive: item,
-      })),
-    [drive.pages],
-  );
+        driveMimeType: item.mimeType,
+      }));
+  }, [browser.items]);
 
   const assets: GalleryImage[] = useMemo(
     () =>
@@ -105,22 +98,26 @@ export function GalleryDrawer({ canvasId }: Props) {
     [generations.items],
   );
 
-  const activeImages = tab === "references" ? references : assets;
-  const activeLoading = tab === "references" ? drive.loading : generations.loading;
-  const activeError = tab === "references" ? drive.loadError : generations.loadError;
+  const activeLoading = tab === "references" ? browser.loading : generations.loading;
+  const activeError =
+    tab === "references"
+      ? browser.loadError && browser.loadError !== "folder_not_found"
+        ? new Error(browser.loadError)
+        : null
+      : generations.loadError;
 
-  // Drive is filtered server-side (sharedOnly, folderIds, search) — trust the
-  // response. Generations have no server-side filter surface, so we apply
-  // search client-side for the Assets tab only.
-  const filtered = useMemo(() => {
-    if (tab === "references") return activeImages;
-    if (!searchQuery) return activeImages;
-    const q = searchQuery.toLowerCase();
-    return activeImages.filter((img) => img.filename.toLowerCase().includes(q));
-  }, [activeImages, searchQuery, tab]);
+  // Assets tab: client-side search filter.
+  const filteredAssets = useMemo(() => {
+    if (!browser.search) return assets;
+    const q = browser.search.toLowerCase();
+    return assets.filter((img) => img.filename.toLowerCase().includes(q));
+  }, [assets, browser.search]);
+
+  const activeImages = tab === "references" ? references : filteredAssets;
 
   function toggleSelect(id: string) {
-    const image = activeImages.find((i) => i.id === id);
+    const allImages = [...references, ...assets];
+    const image = allImages.find((i) => i.id === id);
     if (!image) return;
     setSelectedIds((prev) => {
       if (prev.has(id)) {
@@ -140,11 +137,11 @@ export function GalleryDrawer({ canvasId }: Props) {
   }
 
   function handleSentinelInView() {
-    if (tab === "references") void drive.loadMore();
+    if (tab === "references") browser.loadMore();
   }
 
   function handleRefresh() {
-    if (tab === "references") void drive.refresh();
+    if (tab === "references") browser.refresh();
     else void generations.refresh();
   }
 
@@ -186,74 +183,127 @@ export function GalleryDrawer({ canvasId }: Props) {
     ? [...references, ...assets].find((i) => i.id === previewId)
     : null;
 
+  const folderItems = browser.items.filter(
+    (item: DriveBrowseItem) => item.mimeType === "application/vnd.google-apps.folder",
+  );
+
+  const searchPlaceholder = browser.currentFolder
+    ? `Search in ${browser.currentFolder.name}…`
+    : "Search…";
+
+  const noFolderLinked = tab === "references" && !rootFolder;
+
   return (
-    <Sheet
-      open={open}
-      onOpenChange={(v) => { if (!v) closeDrawer(); }}
-      modal={false}
-    >
-      <SheetContent
-        side="right"
-        showCloseButton={false}
-        className="flex w-full flex-col gap-0 p-0 shadow-lg data-[side=right]:sm:max-w-180"
+    <>
+      <Sheet
+        open={open}
+        onOpenChange={(v) => {
+          if (!v) closeDrawer();
+        }}
+        modal={false}
       >
-        <SheetTitle className="sr-only">Gallery</SheetTitle>
-        <GalleryHeader
-          onRefresh={handleRefresh}
-          onClose={closeDrawer}
-          refreshing={tab === "references" ? drive.loading : generations.loading}
-        />
-        <GalleryTabs value={tab} onChange={setTab} />
-        <GalleryToolbar
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-          filters={filters}
-          onFiltersChange={setFilters}
-          availableFolders={drive.availableFolders}
-          viewMode={viewMode}
-          onViewModeChange={setViewMode}
-          showFilters={tab === "references"}
-        />
-
-        <div className="flex-1 overflow-y-auto px-4 py-3">
-          <GalleryContent
-            loading={activeLoading}
-            loadError={activeError}
-            onRetry={handleRefresh}
-            images={filtered}
-            emptyMessage={
-              searchQuery || filters.sharedOnly || filters.folderIds.size > 0
-                ? "No images match your filters."
-                : tab === "references"
-                  ? "No images found in your Drive."
-                  : "No generated images yet on this canvas."
-            }
-            viewMode={viewMode}
-            selectedIds={selectedIds}
-            onToggle={toggleSelect}
-            onPreview={setPreviewId}
-            onDragStartImage={handleDragStartImage}
-            onSentinelInView={handleSentinelInView}
-            hasMore={tab === "references" ? drive.nextPageToken !== null : false}
-            loadingMore={tab === "references" ? drive.loadingMore : false}
+        <SheetContent
+          side="right"
+          showCloseButton={false}
+          className="flex w-full flex-col gap-0 p-0 shadow-lg data-[side=right]:sm:max-w-180"
+        >
+          <SheetTitle className="sr-only">Gallery</SheetTitle>
+          <GalleryHeader
+            onRefresh={handleRefresh}
+            onClose={closeDrawer}
+            refreshing={tab === "references" ? browser.loading : generations.loading}
           />
-        </div>
+          <GalleryTabs value={tab} onChange={setTab} />
 
-        <GalleryFooter
-          selectedCount={selectedIds.size}
-          maxSelection={MAX_SELECTION}
-          onAdd={handleCommit}
-          onCancel={closeDrawer}
-        />
+          {!noFolderLinked && (
+            <GalleryToolbar
+              searchQuery={browser.search}
+              onSearchChange={browser.setSearch}
+              searchPlaceholder={searchPlaceholder}
+              viewMode={viewMode}
+              onViewModeChange={setViewMode}
+            />
+          )}
 
-        {previewImage && (
-          <FullScreenImageZoom
-            imageUrl={previewImage.previewUrl ?? previewImage.imageUrl}
-            title={previewImage.filename}
-            onClose={() => setPreviewId(null)}
+          {tab === "references" && (
+            <GalleryBreadcrumb stack={browser.stack} onNavigateTo={browser.navigateTo} />
+          )}
+
+          <div className="flex-1 overflow-y-auto px-4 py-3">
+            {noFolderLinked ? (
+              <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
+                <FolderOpen className="size-10 text-muted-foreground/40" strokeWidth={1.5} />
+                <div className="space-y-1">
+                  <p className="text-sm font-medium">No Drive folder linked</p>
+                  <p className="text-xs text-muted-foreground">
+                    Link a folder to browse this client&apos;s assets
+                  </p>
+                </div>
+                <Button size="sm" onClick={() => setPickerOpen(true)}>
+                  Link Drive Folder
+                </Button>
+              </div>
+            ) : (
+              <>
+                {tab === "references" && folderItems.length > 0 && (
+                  <div className="mb-2 flex flex-col gap-1">
+                    {folderItems.map((f: DriveBrowseItem) => (
+                      <GalleryFolderTile
+                        key={f.id}
+                        folder={{ id: f.id, name: f.name }}
+                        onClick={() => browser.navigateInto({ id: f.id, name: f.name })}
+                      />
+                    ))}
+                  </div>
+                )}
+                <GalleryContent
+                  loading={activeLoading}
+                  loadError={activeError}
+                  onRetry={handleRefresh}
+                  images={activeImages}
+                  emptyMessage={
+                    browser.search
+                      ? `No results in ${browser.currentFolder?.name ?? "this folder"}.`
+                      : tab === "references"
+                        ? "This folder is empty."
+                        : "No generated images yet on this canvas."
+                  }
+                  viewMode={viewMode}
+                  selectedIds={selectedIds}
+                  onToggle={toggleSelect}
+                  onPreview={setPreviewId}
+                  onDragStartImage={handleDragStartImage}
+                  onSentinelInView={handleSentinelInView}
+                  hasMore={tab === "references" ? browser.nextPageToken !== null : false}
+                  loadingMore={tab === "references" ? browser.loadingMore : false}
+                />
+              </>
+            )}
+          </div>
+
+          <GalleryFooter
+            selectedCount={selectedIds.size}
+            maxSelection={MAX_SELECTION}
+            onAdd={handleCommit}
+            onCancel={closeDrawer}
           />
-        )}
-      </SheetContent>
-    </Sheet>
+        </SheetContent>
+      </Sheet>
+
+      {previewImage && (
+        <FullScreenImageZoom
+          imageUrl={previewImage.previewUrl ?? previewImage.imageUrl}
+          title={previewImage.filename}
+          onClose={() => setPreviewId(null)}
+        />
+      )}
+
+      <DriveFolderPicker
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        clientId={clientId}
+        onLinked={(folder) => setRootFolder(folder)}
+      />
+    </>
   );
 }
