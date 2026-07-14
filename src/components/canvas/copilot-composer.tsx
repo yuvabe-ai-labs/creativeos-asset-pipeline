@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useCanvasStore } from "./canvas-store-provider";
 import { nodeLabel } from "@/lib/nodes/describe-node";
-import { expandSelected } from "@/lib/copilot/actions";
+import { selectionSignature } from "@/lib/copilot/actions";
 import { cn } from "@/lib/utils";
 import type { Attachment } from "./use-copilot-chat";
 
@@ -17,7 +17,7 @@ export function CopilotComposer({
   onSend,
   thinking,
 }: {
-  onSend: (text: string, attachment: Attachment | null) => void;
+  onSend: (text: string, attachment: Attachment | null, contextIds: string[]) => void;
   thinking: boolean;
 }) {
   const [input, setInput] = useState("");
@@ -52,16 +52,13 @@ export function CopilotComposer({
           .slice(0, 8)
       : [];
 
-  // "@selected" sugar row — offered when there is a selection and the query matches.
-  const selectedCount = nodes.filter((n) => n.selected).length;
-  const showSelectedRow =
-    mention !== null &&
-    selectedCount > 0 &&
-    "selected".startsWith(mention.query.toLowerCase());
-  // The picker is ONE keyboard-navigable list: when shown, the SELECTED row occupies
-  // index 0 and the node options shift down by one, so ↑/↓/Enter reach every row.
-  const rowOffset = showSelectedRow ? 1 : 0;
-  const totalRows = rowOffset + mentionOptions.length;
+  // Auto-attached selection context: the current canvas selection rides along as
+  // grounding unless dismissed for this turn. Dismissal is keyed to the selection
+  // SIGNATURE — it holds while the selection is unchanged and resets when it differs.
+  const [dismissedSig, setDismissedSig] = useState<string | null>(null);
+  const signature = selectionSignature(nodes);
+  const contextNodes =
+    signature && dismissedSig !== signature ? nodes.filter((n) => n.selected) : [];
 
   // On each keystroke, detect an "@word" at the caret → open/refresh the picker.
   function onComposerChange(value: string, caret: number) {
@@ -76,8 +73,7 @@ export function CopilotComposer({
   }
 
   // Shared insertion logic: replace the "@query" at mention.start with the given text,
-  // focus the textarea, and position the caret after the inserted text. Called by both
-  // insertMention and insertSelected.
+  // focus the textarea, and position the caret after the inserted text.
   function insertAtMention(text: string) {
     if (mention === null) return;
     const el = inputRef.current;
@@ -103,14 +99,6 @@ export function CopilotComposer({
     insertAtMention(`@${o.handle} ${o.name} `);
   }
 
-  // Replace the "@query" with the expanded selection tokens (insert-time expansion).
-  function insertSelected() {
-    if (mention === null) return;
-    const tokens = expandSelected(nodes);
-    if (!tokens) return;
-    insertAtMention(tokens);
-  }
-
   // Read an uploaded .md/.txt script into a pending attachment (its text becomes the
   // Script node source on send). Clear the input value so the same file can be re-picked.
   function onPickFile(e: ChangeEvent<HTMLInputElement>) {
@@ -126,10 +114,11 @@ export function CopilotComposer({
     const text = input.trim();
     if ((!text && !attachment) || thinking) return;
     if (text) setLastSent(text); // remember it for ArrowUp recall
-    onSend(text, attachment);
+    onSend(text, attachment, contextNodes.map((n) => n.id));
     setInput("");
     setAttachment(null);
     setMention(null);
+    setDismissedSig(null); // a dismissal lasts one turn — the next draft re-attaches
   }
 
   return (
@@ -150,37 +139,48 @@ export function CopilotComposer({
           </Button>
         </div>
       )}
+      {/* Selection context chips: the canvas selection rides along as grounding.
+          Live mirror of the selection; × opts this one message out. */}
+      {contextNodes.length > 0 && (
+        <div className="mb-2 flex flex-wrap items-center gap-1.5">
+          {contextNodes.slice(0, 3).map((n) => {
+            const { name, handle } = nodeLabel(n);
+            return (
+              <span
+                key={n.id}
+                className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/5 px-2.5 py-1 text-xs text-primary"
+              >
+                <span className="text-eyebrow text-[9px] opacity-60">{handle}</span>
+                <span className="max-w-[120px] truncate">{name}</span>
+              </span>
+            );
+          })}
+          {contextNodes.length > 3 && (
+            <span className="rounded-full border border-primary/30 bg-primary/5 px-2 py-1 text-xs text-primary">
+              +{contextNodes.length - 3}
+            </span>
+          )}
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            type="button"
+            onClick={() => setDismissedSig(signature)}
+            aria-label="Don't include selection this message"
+            className="size-4 text-primary/60 hover:bg-transparent hover:text-primary"
+          >
+            <X className="size-3" />
+          </Button>
+        </div>
+      )}
       <div className="relative">
         {/* @-mention picker: appears above the composer when you type "@". YOU drive
             it — the list is the canvas nodes, shown by title/type + stable handle. */}
-        {mention !== null && totalRows > 0 && (
+        {mention !== null && mentionOptions.length > 0 && (
           <div className="absolute bottom-full left-0 right-0 mb-2 overflow-hidden rounded-xl border border-border bg-background shadow-lg">
             <div className="text-eyebrow px-3 py-1.5 text-[10px] text-muted-foreground">
               Reference a node
             </div>
             <ul className="max-h-56 overflow-y-auto pb-1">
-              {showSelectedRow && (
-                <li>
-                  <Button
-                    variant="ghost"
-                    type="button"
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      insertSelected();
-                    }}
-                    onMouseEnter={() => setMentionIndex(0)}
-                    className={cn(
-                      "h-auto w-full justify-start gap-2 rounded-none px-3 py-1.5 text-left text-sm font-normal",
-                      mentionIndex === 0 ? "bg-primary/10 hover:bg-primary/10" : "hover:bg-muted",
-                    )}
-                  >
-                    <span className="text-eyebrow text-[9px] text-primary">SELECTED</span>
-                    <span className="truncate text-muted-foreground">
-                      {selectedCount} node{selectedCount === 1 ? "" : "s"} on canvas
-                    </span>
-                  </Button>
-                </li>
-              )}
               {mentionOptions.map((o, i) => (
                 <li key={o.id}>
                   <Button
@@ -192,10 +192,10 @@ export function CopilotComposer({
                       e.preventDefault();
                       insertMention(o);
                     }}
-                    onMouseEnter={() => setMentionIndex(i + rowOffset)}
+                    onMouseEnter={() => setMentionIndex(i)}
                     className={cn(
                       "h-auto w-full justify-start gap-2 rounded-none px-3 py-1.5 text-left text-sm font-normal",
-                      i + rowOffset === mentionIndex ? "bg-primary/10 hover:bg-primary/10" : "hover:bg-muted",
+                      i === mentionIndex ? "bg-primary/10 hover:bg-primary/10" : "hover:bg-muted",
                     )}
                   >
                     <span className="text-eyebrow text-[9px] text-muted-foreground">{o.handle}</span>
@@ -214,27 +214,22 @@ export function CopilotComposer({
           }
           onKeyDown={(e) => {
             // While the picker is open, the arrow/enter/esc keys drive it — not the
-            // composer. One list: index 0 is the SELECTED row (when shown), node
-            // options follow at +rowOffset.
-            if (mention !== null && totalRows > 0) {
+            // composer.
+            if (mention !== null && mentionOptions.length > 0) {
               if (e.key === "ArrowDown") {
                 e.preventDefault();
-                setMentionIndex((i) => (i + 1) % totalRows);
+                setMentionIndex((i) => (i + 1) % mentionOptions.length);
                 return;
               }
               if (e.key === "ArrowUp") {
                 e.preventDefault();
-                setMentionIndex((i) => (i - 1 + totalRows) % totalRows);
+                setMentionIndex((i) => (i - 1 + mentionOptions.length) % mentionOptions.length);
                 return;
               }
               if (e.key === "Enter") {
                 e.preventDefault();
-                if (showSelectedRow && mentionIndex === 0) {
-                  insertSelected();
-                } else {
-                  const option = mentionOptions[mentionIndex - rowOffset];
-                  if (option) insertMention(option);
-                }
+                const option = mentionOptions[mentionIndex];
+                if (option) insertMention(option);
                 return;
               }
               if (e.key === "Escape") {

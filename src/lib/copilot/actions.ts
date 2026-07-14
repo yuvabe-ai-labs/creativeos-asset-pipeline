@@ -1,6 +1,6 @@
 import type { XYPosition } from "@xyflow/react";
 import { canConnect, type AppNode } from "@/lib/canvas-nodes";
-import { nodeHandle, nodeLabel } from "@/lib/nodes/describe-node";
+import { nodeHandle } from "@/lib/nodes/describe-node";
 
 // The action the copilot's `/api/copilot/actions` call may return — a DECISION the
 // model made, NOT the work itself. Each variant is one tool the model could call;
@@ -97,19 +97,6 @@ export function scriptCreatedMessage(handle: string, title?: string): string {
   return title
     ? `Created a Script node ${handle} — “${title}”. Want me to parse it into shots?`
     : `Created a Script node ${handle}. Want me to parse it into shots?`;
-}
-
-// "@selected" sugar: translate the current canvas selection into the same visible
-// "@HANDLE name" tokens the @-mention picker inserts, so resolveMentions handles them
-// unchanged. Trailing space so the caret continues cleanly; "" when nothing is selected.
-export function expandSelected(nodes: AppNode[]): string {
-  const tokens = nodes
-    .filter((n) => n.selected)
-    .map((n) => {
-      const { name, handle } = nodeLabel(n);
-      return `@${handle} ${name}`;
-    });
-  return tokens.length ? `${tokens.join(" ")} ` : "";
 }
 
 // Union of the @HANDLE mentions the human typed and the ids attached implicitly by
