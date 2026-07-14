@@ -68,11 +68,13 @@ export function Canvas({
   clientId,
   initialKBJob,
   hasActiveKB,
+  initialDriveRootFolder,
 }: {
   canvasId: string;
   clientId: string;
   initialKBJob: ClientKBJobRow | null;
   hasActiveKB: boolean;
+  initialDriveRootFolder: { id: string; name: string } | null;
 }) {
   // One subscription, shallow-compared, so the component only re-renders when
   // these slices actually change.
@@ -350,7 +352,7 @@ export function Canvas({
       <GalleryDrawerIntegration
         canvasId={canvasId}
         clientId={clientId}
-        initialDriveRootFolder={null}
+        initialDriveRootFolder={initialDriveRootFolder}
       />
 
       {!canEdit && (

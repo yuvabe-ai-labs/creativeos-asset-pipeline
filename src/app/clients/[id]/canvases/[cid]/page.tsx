@@ -56,6 +56,24 @@ export default async function CanvasPage({
     getActiveKBVersion(client.id),
   ]);
 
+  let initialDriveRootFolder: { id: string; name: string } | null = null;
+  if (client.drive_root_folder_id) {
+    try {
+      const { exchangeRefreshToken } = await import("@/lib/drive/client");
+      const token = await exchangeRefreshToken();
+      const metaRes = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${client.drive_root_folder_id}?fields=id,name&supportsAllDrives=true`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      if (metaRes.ok) {
+        const meta = (await metaRes.json()) as { id: string; name: string };
+        initialDriveRootFolder = { id: meta.id, name: meta.name };
+      }
+    } catch {
+      // Non-fatal — drawer shows empty state
+    }
+  }
+
   return (
     <main className="flex flex-1 flex-col">
       <header className="flex items-center justify-between border-b border-border/70 bg-background/60 px-6 py-3 backdrop-blur">
@@ -97,6 +115,7 @@ export default async function CanvasPage({
               clientId={client.id}
               initialKBJob={latestKBJob}
               hasActiveKB={!!activeKBVersion}
+              initialDriveRootFolder={initialDriveRootFolder}
             />
           </CanvasStoreProvider>
         </IdentityGate>
