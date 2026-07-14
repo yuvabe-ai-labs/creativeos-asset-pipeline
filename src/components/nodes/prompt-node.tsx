@@ -5,7 +5,9 @@ import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
+import { useCanvasId } from "@/components/canvas/canvas-id-context";
 import { useDeleteNode } from "@/hooks/use-delete-node";
+import { useReferenceImagePicker } from "@/hooks/use-reference-image-picker";
 import { savePromptOutputAction } from "@/lib/actions/nodes";
 import { PromptFocusView } from "./prompt-focus-view";
 import { DEFAULT_IMAGE_PROMPT_SLICES, type KBSliceKey } from "@/lib/kb/parse-context";
@@ -15,15 +17,18 @@ import { NodeTitle } from "./node-title";
 import { ApprovalBadge } from "./approval-badge";
 import type { ApprovalStatus } from "@/lib/approval";
 import { useNodeCost } from "@/hooks/use-node-cost";
+import { ReferenceImagePickerDialog } from "@/components/canvas/reference-image-picker-dialog";
 
 const TYPE_LABEL: Record<string, string> = { script: "Script", text: "Note", prompt: "Prompt", kb: "Brand KB", file: "File", shot: "Shot", draw: "Sketch", "image-gen": "Image" };
 
 // Prompt node. A compact launcher; double-click / Open hands off to the Prompt
 // focus view. The Inputs panel's connected-node list is derived from the store graph.
-export function PromptNode({ id, data, selected }: NodeProps) {
+export function PromptNode({ id, data, selected, positionAbsoluteX, positionAbsoluteY }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const deleteNode = useDeleteNode();
   const duplicateNode = useCanvasStore((s) => s.duplicateNode);
+  const canvasId = useCanvasId();
+  const { open, setOpen, openPicker, handleAdd } = useReferenceImagePicker();
   // Select the raw store slices (stable references) and DERIVE the upstream list
   // with useMemo. Returning a freshly-built array of objects straight from the
   // selector breaks useSyncExternalStore caching (useShallow only stabilizes one
@@ -90,7 +95,8 @@ export function PromptNode({ id, data, selected }: NodeProps) {
   };
 
   return (
-    <NodeContextMenu onDuplicate={() => duplicateNode(id)} onDelete={() => deleteNode(id)}>
+    <>
+    <NodeContextMenu onDuplicate={() => duplicateNode(id)} onDelete={() => deleteNode(id)} onAddReferenceImage={() => openPicker({ position: { x: positionAbsoluteX ?? 0, y: positionAbsoluteY ?? 0 }, connectToNodeId: id })}>
     <div
       onDoubleClick={(e) => {
         e.stopPropagation();
@@ -167,5 +173,12 @@ export function PromptNode({ id, data, selected }: NodeProps) {
       />
     </div>
     </NodeContextMenu>
+    <ReferenceImagePickerDialog
+      canvasId={canvasId}
+      open={open}
+      onOpenChange={setOpen}
+      onAdd={handleAdd}
+    />
+    </>
   );
 }

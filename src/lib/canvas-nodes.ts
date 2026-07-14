@@ -40,6 +40,9 @@ export type FileNodeData = {
   driveFileId?: string;
   driveFileName?: string;
   driveMimeType?: string;
+  // Transient upload state — true while a Drive import is streaming to GCS.
+  uploading?: boolean;
+  uploadError?: string;
 };
 
 export type TextNodeData = {

@@ -1,7 +1,7 @@
 "use client";
 
 import "@xyflow/react/dist/style.css";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import {
   Background,
@@ -37,11 +37,15 @@ import { QuickAddMenu } from "./quick-add-menu";
 import { mnemonicToType, isEditableTarget } from "@/lib/canvas-node-options";
 import { useCanvasLock } from "@/hooks/use-canvas-lock";
 import { CanvasEditableProvider } from "./canvas-editable-context";
+import { AutosaveFlushProvider } from "./autosave-flush-context";
+import { CanvasIdProvider } from "./canvas-id-context";
 import { GenerationTray } from "./generation-tray";
 import { LockBanner } from "./lock-banner";
 import { DeleteConfirmDialog } from "./delete-confirm-dialog";
 import { useDeleteConfirmation } from "@/hooks/use-delete-confirmation";
 import { CanvasKBStatus, CanvasKBBadge } from "./canvas-kb-status";
+import { useReferenceImagePicker } from "@/hooks/use-reference-image-picker";
+import { ReferenceImagePickerDialog } from "./reference-image-picker-dialog";
 import type { ClientKBJobRow } from "@/lib/db/types";
 
 // Register custom node types once (stable reference — never inline this object).
@@ -103,7 +107,9 @@ export function Canvas({
     useCanvasLock(canvasId);
   // Read the latest canEdit from event handlers/closures without re-subscribing them.
   const canEditRef = useRef(canEdit);
-  canEditRef.current = canEdit;
+  useLayoutEffect(() => {
+    canEditRef.current = canEdit;
+  });
 
   // Confirm every node deletion (context menu + keyboard) through one dialog.
   const { onBeforeDelete: confirmDelete, dialogProps: deleteDialog } =
@@ -137,6 +143,14 @@ export function Canvas({
   useEffect(() => {
     quickAddOpenRef.current = quickAdd !== null;
   }, [quickAdd]);
+
+  // Pane-level reference image picker (no auto-connect — free-floating file nodes).
+  const {
+    open: pickerOpen,
+    setOpen: setPickerOpen,
+    openPicker,
+    handleAdd: handlePickerAdd,
+  } = useReferenceImagePicker();
 
   const handleAddNode = useCallback(
     (type: string, position: XYPosition) => {
@@ -318,7 +332,9 @@ export function Canvas({
 
   return (
     <ReactFlowProvider>
+    <CanvasIdProvider value={canvasId}>
     <CanvasEditableProvider value={canEdit}>
+    <AutosaveFlushProvider>
     <div className="absolute inset-0 bg-[var(--neutral-50)]">
       <CanvasAutosave
         canvasId={canvasId}
@@ -349,8 +365,20 @@ export function Canvas({
           onClose={() => { setQuickAdd(null); setCanPaste(false); }}
           canPasteImage={canPaste}
           onPasteImage={() => handlePasteImage(quickAdd.flowPos)}
+          onAddReferenceImage={() => {
+            setQuickAdd(null);
+            setCanPaste(false);
+            openPicker({ position: quickAdd.flowPos });
+          }}
         />
       )}
+
+      <ReferenceImagePickerDialog
+        canvasId={canvasId}
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        onAdd={handlePickerAdd}
+      />
 
       <ReactFlow
         nodes={nodes}
@@ -395,7 +423,9 @@ export function Canvas({
 
       <GenerationTray canvasId={canvasId} />
     </div>
+    </AutosaveFlushProvider>
     </CanvasEditableProvider>
+    </CanvasIdProvider>
     </ReactFlowProvider>
   );
 }

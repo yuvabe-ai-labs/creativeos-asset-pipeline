@@ -5,20 +5,25 @@ import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { Clapperboard, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
+import { useCanvasId } from "@/components/canvas/canvas-id-context";
 import { useDeleteNode } from "@/hooks/use-delete-node";
+import { useReferenceImagePicker } from "@/hooks/use-reference-image-picker";
 import { NodeContextMenu } from "./node-context-menu";
 import { ShotComposeSheet } from "./shot-compose-sheet";
 import { GuidedNextButton } from "@/components/canvas/guided-next-button";
 import type { ReelScript } from "@/lib/nodes/reel-script";
+import { ReferenceImagePickerDialog } from "@/components/canvas/reference-image-picker-dialog";
 
 // Shot node — one shot of a reel, forked from a parsed Script (D21). It carries the
 // FULL parent script narrowed to a single shot ("a Script node with one shot"), so
 // downstream prompts keep the objective/tone/on-screen/voiceover, not just the shot
 // line. Its content IS its output (edit-at-source, D19/D20): no AI, no version log.
-export function ShotNode({ id, data, selected }: NodeProps) {
+export function ShotNode({ id, data, selected, positionAbsoluteX, positionAbsoluteY }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const deleteNode = useDeleteNode();
   const duplicateNode = useCanvasStore((s) => s.duplicateNode);
+  const canvasId = useCanvasId();
+  const { open, setOpen, openPicker, handleAdd } = useReferenceImagePicker();
   const [composeOpen, setComposeOpen] = useState(false);
   const d = data as {
     script?: ReelScript;
@@ -39,9 +44,11 @@ export function ShotNode({ id, data, selected }: NodeProps) {
   }
 
   return (
+    <>
     <NodeContextMenu
       onDuplicate={() => duplicateNode(id)}
       onDelete={() => deleteNode(id)}
+      onAddReferenceImage={() => openPicker({ position: { x: positionAbsoluteX ?? 0, y: positionAbsoluteY ?? 0 }, connectToNodeId: id })}
     >
       <div
         onDoubleClick={(e) => {
@@ -108,5 +115,12 @@ export function ShotNode({ id, data, selected }: NodeProps) {
         <ShotComposeSheet nodeId={id} open={composeOpen} onOpenChange={setComposeOpen} />
       </div>
     </NodeContextMenu>
+    <ReferenceImagePickerDialog
+      canvasId={canvasId}
+      open={open}
+      onOpenChange={setOpen}
+      onAdd={handleAdd}
+    />
+    </>
   );
 }

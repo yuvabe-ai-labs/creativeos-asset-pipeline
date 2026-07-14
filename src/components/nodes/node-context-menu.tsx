@@ -1,6 +1,6 @@
 "use client";
 
-import { Copy, Trash2 } from "lucide-react";
+import { Copy, ImagePlus, Trash2 } from "lucide-react";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -14,9 +14,10 @@ type Props = {
   children: React.ReactNode;
   onDuplicate: () => void;
   onDelete?: () => void;
+  onAddReferenceImage?: () => void;
 };
 
-export function NodeContextMenu({ children, onDuplicate, onDelete }: Props) {
+export function NodeContextMenu({ children, onDuplicate, onDelete, onAddReferenceImage }: Props) {
   return (
     <ContextMenu>
       <ContextMenuTrigger>{children}</ContextMenuTrigger>
@@ -26,6 +27,12 @@ export function NodeContextMenu({ children, onDuplicate, onDelete }: Props) {
           Duplicate
           <ContextMenuShortcut>⌘D</ContextMenuShortcut>
         </ContextMenuItem>
+        {onAddReferenceImage && (
+          <ContextMenuItem onClick={onAddReferenceImage}>
+            <ImagePlus className="mr-2 size-3.5" strokeWidth={1.5} />
+            Add Reference Image
+          </ContextMenuItem>
+        )}
         {onDelete && (
           <>
             <ContextMenuSeparator />
