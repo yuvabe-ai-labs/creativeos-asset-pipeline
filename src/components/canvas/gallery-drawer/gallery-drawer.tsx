@@ -179,11 +179,15 @@ export function GalleryDrawer({ canvasId }: Props) {
     : null;
 
   return (
-    <Sheet open={open} onOpenChange={(v) => { if (!v) closeDrawer(); }}>
+    <Sheet
+      open={open}
+      onOpenChange={(v) => { if (!v) closeDrawer(); }}
+      modal={false}
+    >
       <SheetContent
         side="right"
         showCloseButton={false}
-        className="flex w-full flex-col gap-0 p-0 sm:max-w-180"
+        className="flex w-full flex-col gap-0 p-0 shadow-lg data-[side=right]:sm:max-w-180"
       >
         <SheetTitle className="sr-only">Gallery</SheetTitle>
         <GalleryHeader
