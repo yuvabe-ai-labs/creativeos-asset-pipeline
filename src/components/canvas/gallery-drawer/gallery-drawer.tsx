@@ -2,10 +2,15 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { FolderOpen, Loader2 } from "lucide-react";
+import { FolderOpen, Settings2 } from "lucide-react";
 import { useReactFlow } from "@xyflow/react";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { FullScreenImageZoom } from "@/components/shared/full-screen-image-zoom";
 import { useDriveBrowser } from "@/hooks/use-drive-browser";
 import { useCanvasGenerations } from "@/hooks/use-canvas-generations";
@@ -42,6 +47,7 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
   const [imageMap, setImageMap] = useState<Map<string, GalleryImage>>(new Map());
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [folderPopoverOpen, setFolderPopoverOpen] = useState(false);
   const [rootFolder, setRootFolder] = useState(initialDriveRootFolder);
 
   const browser = useDriveBrowser(rootFolder);
@@ -136,6 +142,16 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
     });
   }
 
+  function handleUnlinkFolder() {
+    fetch(`/api/clients/${clientId}/drive-folder`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ driveRootFolderId: null }),
+    }).catch(() => {});
+    setRootFolder(null);
+    setFolderPopoverOpen(false);
+  }
+
   function handleSentinelInView() {
     if (tab === "references") browser.loadMore();
   }
@@ -222,6 +238,48 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
               searchPlaceholder={searchPlaceholder}
               viewMode={viewMode}
               onViewModeChange={setViewMode}
+              folderActions={
+                tab === "references" && rootFolder ? (
+                  <Popover
+                    open={folderPopoverOpen}
+                    onOpenChange={setFolderPopoverOpen}
+                  >
+                    <PopoverTrigger
+                      render={
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-8 shrink-0"
+                          aria-label="Folder settings"
+                        >
+                          <Settings2 className="size-3.5" strokeWidth={1.5} />
+                        </Button>
+                      }
+                    />
+                    <PopoverContent className="w-44 p-1" side="bottom" align="end">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full justify-start text-sm"
+                        onClick={() => {
+                          setFolderPopoverOpen(false);
+                          setPickerOpen(true);
+                        }}
+                      >
+                        Change folder
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full justify-start text-sm text-destructive hover:text-destructive"
+                        onClick={handleUnlinkFolder}
+                      >
+                        Unlink folder
+                      </Button>
+                    </PopoverContent>
+                  </Popover>
+                ) : null
+              }
             />
           )}
 
