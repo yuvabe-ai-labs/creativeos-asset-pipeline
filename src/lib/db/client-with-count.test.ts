@@ -12,6 +12,7 @@ const base: RawClientWithCanvases = {
   created_at: "2026-06-01T00:00:00Z",
   updated_at: "2026-06-01T00:00:00Z",
   archived_at: null,
+  drive_root_folder_id: null,
   canvases: [
     { updated_at: "2026-06-10T00:00:00Z" },
     { updated_at: "2026-06-14T00:00:00Z" },

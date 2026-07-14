@@ -44,8 +44,9 @@ import { LockBanner } from "./lock-banner";
 import { DeleteConfirmDialog } from "./delete-confirm-dialog";
 import { useDeleteConfirmation } from "@/hooks/use-delete-confirmation";
 import { CanvasKBStatus, CanvasKBBadge } from "./canvas-kb-status";
-import { useReferenceImagePicker } from "@/hooks/use-reference-image-picker";
-import { ReferenceImagePickerDialog } from "./reference-image-picker-dialog";
+import { GalleryDrawerProvider } from "./gallery-drawer-context";
+import { GalleryDrawerTrigger } from "./gallery-drawer-trigger";
+import { GalleryDrawerIntegration } from "./gallery-drawer-integration";
 import type { ClientKBJobRow } from "@/lib/db/types";
 
 // Register custom node types once (stable reference — never inline this object).
@@ -67,11 +68,13 @@ export function Canvas({
   clientId,
   initialKBJob,
   hasActiveKB,
+  initialDriveRootFolder,
 }: {
   canvasId: string;
   clientId: string;
   initialKBJob: ClientKBJobRow | null;
   hasActiveKB: boolean;
+  initialDriveRootFolder: { id: string; name: string } | null;
 }) {
   // One subscription, shallow-compared, so the component only re-renders when
   // these slices actually change.
@@ -143,14 +146,6 @@ export function Canvas({
   useEffect(() => {
     quickAddOpenRef.current = quickAdd !== null;
   }, [quickAdd]);
-
-  // Pane-level reference image picker (no auto-connect — free-floating file nodes).
-  const {
-    open: pickerOpen,
-    setOpen: setPickerOpen,
-    openPicker,
-    handleAdd: handlePickerAdd,
-  } = useReferenceImagePicker();
 
   const handleAddNode = useCallback(
     (type: string, position: XYPosition) => {
@@ -335,6 +330,7 @@ export function Canvas({
     <CanvasIdProvider value={canvasId}>
     <CanvasEditableProvider value={canEdit}>
     <AutosaveFlushProvider>
+    <GalleryDrawerProvider>
     <div className="absolute inset-0 bg-[var(--neutral-50)]">
       <CanvasAutosave
         canvasId={canvasId}
@@ -346,10 +342,18 @@ export function Canvas({
       {/* Headless KB status subscriber — drives kbStatus in the canvas store */}
       <CanvasKBStatus clientId={clientId} initialJob={initialKBJob} hasActiveKB={hasActiveKB} />
 
-      {/* KB building badge — top-right overlay */}
-      <div className="absolute right-4 top-4 z-10 pointer-events-none">
+      {/* Top-right overlay: gallery trigger + KB badge */}
+      <div className="absolute right-4 top-4 z-10 flex items-center gap-2">
+        <GalleryDrawerTrigger />
         <CanvasKBBadge />
       </div>
+
+      {/* Gallery drawer + its canvas integrations (G shortcut, pane drop). */}
+      <GalleryDrawerIntegration
+        canvasId={canvasId}
+        clientId={clientId}
+        initialDriveRootFolder={initialDriveRootFolder}
+      />
 
       {!canEdit && (
         <LockBanner heldByName={heldByName} canTakeOver={canTakeOver} onTakeOver={takeOver} />
@@ -361,24 +365,13 @@ export function Canvas({
         <QuickAddMenu
           screenX={quickAdd.screenX}
           screenY={quickAdd.screenY}
+          flowPos={quickAdd.flowPos}
           onSelect={(type) => handleAddNode(type, quickAdd.flowPos)}
           onClose={() => { setQuickAdd(null); setCanPaste(false); }}
           canPasteImage={canPaste}
           onPasteImage={() => handlePasteImage(quickAdd.flowPos)}
-          onAddReferenceImage={() => {
-            setQuickAdd(null);
-            setCanPaste(false);
-            openPicker({ position: quickAdd.flowPos });
-          }}
         />
       )}
-
-      <ReferenceImagePickerDialog
-        canvasId={canvasId}
-        open={pickerOpen}
-        onOpenChange={setPickerOpen}
-        onAdd={handlePickerAdd}
-      />
 
       <ReactFlow
         nodes={nodes}
@@ -423,6 +416,7 @@ export function Canvas({
 
       <GenerationTray canvasId={canvasId} />
     </div>
+    </GalleryDrawerProvider>
     </AutosaveFlushProvider>
     </CanvasEditableProvider>
     </CanvasIdProvider>

@@ -936,6 +936,38 @@ rail items." Preserves D29 (approval flag), D33 (read-only sessions), D35/D36 (`
 the header). **Originated →** `2026-07-12-yuv187-prompt-focus-simplify-design.md` (that spec's tab
 design was superseded during implementation by this rail; see its top note).
 
+### D41 — Reference gallery is a right drawer, not a modal *(recorded 2026-07-14)*
+
+**Decision.** The reference-image picker becomes a **right-side drawer** (`Sheet` primitive) that
+stays open across canvas interactions. Two tabs — **References** (Drive) and **Assets** (canvas
+generations) — feed a masonry / list content area with `react-intersection-observer` infinite
+scroll. Selection persists across tabs; commit is either the Add button or **drag-and-drop** onto
+the canvas pane or an eligible node (auto-connects on node drop). Drive images are queried
+**flat by recency** across My Drive + Shared with me + shared drives in a single call — no folder
+tree; folder + "shared only" filters live in a popover and are applied client-side over the
+loaded pages. Full-res is only fetched when the operator commits (click-Add or drop), then
+streamed to GCS via the existing `/api/nodes/[id]/file/drive` endpoint. Session-cached
+(module-level singletons); an explicit refresh button re-fetches.
+
+**Why.** The old dialog blocked the canvas — the operator couldn't drag a picked image onto a
+specific node. Folder-tree navigation was slow when the actual mental model is "recent images
+across everything." A drawer that stays open + recency-sorted flat listing + drag-drop turns the
+picker into a working surface.
+
+**Rejected.** Modal dialog (blocks canvas, no drag-onto-node); left sidebar (cramps the canvas
+surface); floating palette (fights the generation tray); server-side Drive search (deferred —
+client-side substring over loaded pages is enough for v1); persistent selection across
+drawer close (deliberate reset on close to avoid stale-selection surprises); infinite scroll
+via `scroll` event handler (`react-intersection-observer` is cleaner).
+
+**Refines.** Supersedes the D8-era modal picker. Preserves D33 (autosave flush is called before
+Drive uploads, so the newly-added node rows exist by the time `/api/nodes/[id]/file/drive`
+runs — falls back to a bounded retry on "not found"). Preserves D14 (Drive thumbnail/file
+proxies remain unauthenticated but obscurity-gated). Preserves D29/D34 (adding via the drawer
+doesn't touch approval state; it just spawns new file nodes).
+
+**Originated →** `2026-07-14-gallery-drawer-design.md`.
+
 ### Parked / out-of-scope (with revisit triggers)
 | Item | Status | Revisit when |
 |---|---|---|
