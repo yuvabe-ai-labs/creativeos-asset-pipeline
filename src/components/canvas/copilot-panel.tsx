@@ -22,6 +22,19 @@ export function CopilotPanel({ canvasId }: { canvasId: string }) {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [messages, thinking]);
 
+  // Ctrl+Space toggles the copilot from anywhere on the canvas — the command-bar
+  // launcher (like Cmd+K palettes). `e.code` because `e.key` for Space is " ".
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.code === "Space" && !e.repeat) {
+        e.preventDefault();
+        setOpen((o) => !o);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
   if (!open) {
     return (
       <Button onClick={() => setOpen(true)} className="absolute right-4 top-4 z-20 gap-2 shadow-md">

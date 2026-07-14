@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type ChangeEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { Send, X, Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -30,6 +30,12 @@ export function CopilotComposer({
   // @-mention picker state: non-null while the composer is mid-@reference.
   const [mention, setMention] = useState<{ query: string; start: number } | null>(null);
   const [mentionIndex, setMentionIndex] = useState(0);
+
+  // The composer mounts when the panel opens — focus it so launching the copilot
+  // (✨ button or Ctrl+Space) lands the cursor ready to type.
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
 
   // @-mention: candidate node references for the current @query. Human-directed
   // grounding — YOU pick which nodes matter; the copilot never volunteers them. Matches
