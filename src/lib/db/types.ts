@@ -12,6 +12,7 @@ export type ClientRow = {
   created_at: string;
   updated_at: string;
   archived_at: string | null; // null = active; ISO timestamp = archived
+  drive_root_folder_id: string | null;
 };
 
 export type ClientBrandImageRow = {

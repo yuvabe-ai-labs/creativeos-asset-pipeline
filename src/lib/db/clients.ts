@@ -119,6 +119,18 @@ export async function updateClientWebsiteUrl(
   if (error) throw error;
 }
 
+export async function updateClientDriveFolderId(
+  clientId: string,
+  folderId: string | null,
+): Promise<void> {
+  const supabase = createServerSupabase();
+  const { error } = await supabase
+    .from("clients")
+    .update({ drive_root_folder_id: folderId })
+    .eq("id", clientId);
+  if (error) throw error;
+}
+
 export async function setKBStatus(
   clientId: string,
   status: ClientRow["kb_status"],
