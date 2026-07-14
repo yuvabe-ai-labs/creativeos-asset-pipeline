@@ -15,6 +15,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
+import { ClientDriveFolderRow } from "@/components/clients/client-drive-folder-row";
 
 export const dynamic = "force-dynamic";
 
@@ -59,6 +60,22 @@ export default async function ClientPage({
   const canvases = await listCanvases(client.id);
   const evalCanvas = canvases.find((c) => c.slug === "eval-harness");
 
+  let initialDriveFolder: { id: string; name: string } | null = null;
+  if (client.drive_root_folder_id) {
+    try {
+      const { exchangeRefreshToken } = await import("@/lib/drive/client");
+      const token = await exchangeRefreshToken();
+      const metaRes = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${client.drive_root_folder_id}?fields=id,name&supportsAllDrives=true`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      if (metaRes.ok) {
+        const meta = (await metaRes.json()) as { id: string; name: string };
+        initialDriveFolder = { id: meta.id, name: meta.name };
+      }
+    } catch { /* non-fatal */ }
+  }
+
   return (
     <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-12">
       <Breadcrumb className="animate-rise">
@@ -91,6 +108,7 @@ export default async function ClientPage({
             <h1 className="font-display text-4xl font-semibold tracking-[-0.02em]">
               {client.name}
             </h1>
+            <ClientDriveFolderRow clientId={client.id} initialFolder={initialDriveFolder} />
           </div>
         </div>
 
