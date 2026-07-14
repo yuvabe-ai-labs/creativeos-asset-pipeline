@@ -37,6 +37,7 @@ import { QuickAddMenu } from "./quick-add-menu";
 import { mnemonicToType, isEditableTarget } from "@/lib/canvas-node-options";
 import { useCanvasLock } from "@/hooks/use-canvas-lock";
 import { CanvasEditableProvider } from "./canvas-editable-context";
+import { AutosaveFlushProvider } from "./autosave-flush-context";
 import { CanvasIdProvider } from "./canvas-id-context";
 import { GenerationTray } from "./generation-tray";
 import { LockBanner } from "./lock-banner";
@@ -333,6 +334,7 @@ export function Canvas({
     <ReactFlowProvider>
     <CanvasIdProvider value={canvasId}>
     <CanvasEditableProvider value={canEdit}>
+    <AutosaveFlushProvider>
     <div className="absolute inset-0 bg-[var(--neutral-50)]">
       <CanvasAutosave
         canvasId={canvasId}
@@ -421,6 +423,7 @@ export function Canvas({
 
       <GenerationTray canvasId={canvasId} />
     </div>
+    </AutosaveFlushProvider>
     </CanvasEditableProvider>
     </CanvasIdProvider>
     </ReactFlowProvider>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "sonner";
 import {
   Dialog,
   DialogContent,
@@ -13,6 +14,8 @@ import { GenerationsImageBrowser, type GeneratedSelectedImage } from "./generati
 import { ReferenceImageFooter } from "./reference-image-footer";
 
 export type SelectedImage = DriveSelectedImage | GeneratedSelectedImage;
+
+const MAX_SELECTION = 10;
 
 type Props = {
   canvasId: string;
@@ -34,13 +37,18 @@ export function ReferenceImagePickerDialog({
 
   function handleToggle(id: string, image: SelectedImage) {
     setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
+      if (prev.has(id)) {
+        const next = new Set(prev);
         next.delete(id);
-      } else {
-        next.add(id);
-        setImageMap((m) => new Map(m).set(id, image));
+        return next;
       }
+      if (prev.size >= MAX_SELECTION) {
+        toast.error(`You can select up to ${MAX_SELECTION} images at a time.`);
+        return prev;
+      }
+      const next = new Set(prev);
+      next.add(id);
+      setImageMap((m) => new Map(m).set(id, image));
       return next;
     });
   }
@@ -82,7 +90,7 @@ export function ReferenceImagePickerDialog({
             />
           </div>
 
-          <div className="flex flex-1 flex-col gap-3 overflow-hidden p-4">
+          <div className="flex flex-1 flex-col gap-3 overflow-hidden px-6 py-5">
             {activeTab === "drive" ? (
               <DriveImageBrowser
                 open={open}
@@ -106,6 +114,7 @@ export function ReferenceImagePickerDialog({
 
         <ReferenceImageFooter
           selectedCount={selectedIds.size}
+          maxSelection={MAX_SELECTION}
           onAdd={handleAdd}
           onCancel={handleClose}
         />

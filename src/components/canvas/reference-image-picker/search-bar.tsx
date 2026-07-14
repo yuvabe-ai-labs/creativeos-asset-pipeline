@@ -11,7 +11,7 @@ type Props = {
 
 export function SearchBar({ value, onChange, placeholder = "Search…" }: Props) {
   return (
-    <div className="relative">
+    <div className="relative mt-1 ml-1">
       <Search
         className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
         strokeWidth={1.5}
@@ -20,7 +20,7 @@ export function SearchBar({ value, onChange, placeholder = "Search…" }: Props)
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="h-9 pl-8 text-sm"
+        className="h-9 pl-8 text-sm focus-visible:border-input focus-visible:ring-[0.5px]"
       />
     </div>
   );

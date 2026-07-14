@@ -34,8 +34,8 @@ export function GenerationsImageBrowser({
   useEffect(() => {
     if (!open) return;
     const controller = new AbortController();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
-    setImages([]);
 
     async function load() {
       try {

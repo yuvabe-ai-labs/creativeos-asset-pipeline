@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { Folder, HardDrive, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -83,21 +83,30 @@ export function DriveImageBrowser({
     driveMimeType: f.mimeType,
   });
 
+  // Request-ID guard: only apply the latest fetch's result. Ignores stale responses
+  // when the user rapidly switches folders.
+  const fetchIdRef = useRef(0);
+
   useEffect(() => {
     if (!open) return;
+    const id = ++fetchIdRef.current;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
-    setFolders([]);
-    setDriveImages([]);
-    setNextPageToken(null);
     fetchFiles(currentFolderId)
       .then((data) => {
+        if (id !== fetchIdRef.current) return;
         setFolders(data.files.filter((f) => f.isFolder));
-        setDriveImages(
-          data.files.filter((f) => !f.isFolder).map(toGridImage),
-        );
+        setDriveImages(data.files.filter((f) => !f.isFolder).map(toGridImage));
         setNextPageToken(data.nextPageToken);
+        setLoading(false);
       })
-      .finally(() => setLoading(false));
+      .catch(() => {
+        if (id !== fetchIdRef.current) return;
+        setFolders([]);
+        setDriveImages([]);
+        setNextPageToken(null);
+        setLoading(false);
+      });
   }, [open, currentFolderId, fetchFiles]);
 
   function handleNavigate(_folderId: string, crumbIndex: number) {
@@ -161,10 +170,10 @@ export function DriveImageBrowser({
         </div>
       )}
 
-      {/* Folders — dominant, larger tiles */}
+      {/* Folders — soft-muted tiles that read as distinct surfaces against the dialog. */}
       {!loading && folders.length > 0 && (
         <div className="shrink-0">
-          <div className="mb-1.5 flex items-center gap-1.5">
+          <div className="mb-2 flex items-center gap-1.5">
             <Folder className="size-3.5 text-muted-foreground" strokeWidth={1.5} />
             <p className="text-eyebrow text-[0.65rem]!">
               Folders · {folders.length}
@@ -176,9 +185,9 @@ export function DriveImageBrowser({
                 key={folder.id}
                 variant="ghost"
                 onClick={() => handleEnterFolder(folder)}
-                className="group h-auto justify-start gap-2.5 rounded-xl border border-border bg-card px-3 py-3 text-left text-sm font-medium text-foreground shadow-card transition-all hover:-translate-y-0.5 hover:bg-muted/60"
+                className="group h-auto justify-start gap-2.5 rounded-xl border border-border/80 bg-muted/50 px-3 py-2.5 text-left text-sm font-medium text-foreground transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:bg-primary/5"
               >
-                <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary transition-colors group-hover:bg-primary/15">
+                <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary transition-colors group-hover:bg-primary/20">
                   <Folder className="size-4" strokeWidth={1.5} />
                 </div>
                 <span className="truncate">{folder.name}</span>
@@ -186,7 +195,7 @@ export function DriveImageBrowser({
             ))}
           </div>
           {driveImages.length > 0 && (
-            <div className="mt-3 flex items-center gap-1.5">
+            <div className="mt-4 flex items-center gap-1.5">
               <p className="text-eyebrow text-[0.65rem]!">
                 Images · {driveImages.length}
               </p>
