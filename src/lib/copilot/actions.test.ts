@@ -151,3 +151,35 @@ describe("planConnections", () => {
     expect(plan.rejected.map((r) => r.handle)).toEqual(["PRM-CCCC"]);
   });
 });
+
+import { mergeMentionedIds, selectionSignature } from "./actions";
+
+describe("mergeMentionedIds", () => {
+  it("keeps typed mentions first, then context ids", () => {
+    expect(mergeMentionedIds(["a", "b"], ["c"])).toEqual(["a", "b", "c"]);
+  });
+  it("dedupes a node that was both typed and selected", () => {
+    expect(mergeMentionedIds(["a"], ["a", "b"])).toEqual(["a", "b"]);
+  });
+  it("handles empty sides", () => {
+    expect(mergeMentionedIds([], [])).toEqual([]);
+    expect(mergeMentionedIds([], ["x"])).toEqual(["x"]);
+  });
+});
+
+describe("selectionSignature", () => {
+  it("returns empty string when nothing is selected", () => {
+    expect(selectionSignature([node("a1b2c3d4", "file", false)])).toBe("");
+  });
+  it("is order-stable regardless of node order", () => {
+    const a = node("bbbb2222", "file", true);
+    const b = node("aaaa1111", "prompt", true);
+    expect(selectionSignature([a, b])).toBe(selectionSignature([b, a]));
+    expect(selectionSignature([a, b])).toBe("aaaa1111,bbbb2222");
+  });
+  it("ignores unselected nodes", () => {
+    expect(
+      selectionSignature([node("aaaa1111", "file", true), node("bbbb2222", "shot", false)]),
+    ).toBe("aaaa1111");
+  });
+});

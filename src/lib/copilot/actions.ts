@@ -112,6 +112,23 @@ export function expandSelected(nodes: AppNode[]): string {
   return tokens.length ? `${tokens.join(" ")} ` : "";
 }
 
+// Union of the @HANDLE mentions the human typed and the ids attached implicitly by
+// the selection chip — typed mentions first, deduped. This is the turn's grounding set.
+export function mergeMentionedIds(typed: string[], context: string[]): string[] {
+  return [...new Set([...typed, ...context])];
+}
+
+// Stable fingerprint of the current selection (sorted ids). The composer keys its
+// per-turn chip dismissal to this: dismissal holds while the signature is unchanged
+// and resets the moment the selection differs. "" when nothing is selected.
+export function selectionSignature(nodes: AppNode[]): string {
+  return nodes
+    .filter((n) => n.selected)
+    .map((n) => n.id)
+    .sort()
+    .join(",");
+}
+
 // Derive a readable node title from an uploaded file's name: drop the extension, turn
 // dashes/underscores into spaces, and title-case each word ("prakriti-reel.md" → "Prakriti Reel").
 export function fileNameToTitle(name: string): string {
