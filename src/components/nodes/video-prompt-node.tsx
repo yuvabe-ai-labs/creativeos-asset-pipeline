@@ -5,7 +5,9 @@ import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { Clapperboard } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
+import { useCanvasId } from "@/components/canvas/canvas-id-context";
 import { useDeleteNode } from "@/hooks/use-delete-node";
+import { useReferenceImagePicker } from "@/hooks/use-reference-image-picker";
 import { savePromptOutputAction } from "@/lib/actions/nodes";
 import { VideoPromptFocusView } from "./video-prompt-focus-view";
 import { DEFAULT_IMAGE_PROMPT_SLICES, type KBSliceKey } from "@/lib/kb/parse-context";
@@ -15,6 +17,7 @@ import { NodeTitle } from "./node-title";
 import { NodeHandle } from "./node-handle";
 import { ApprovalBadge } from "./approval-badge";
 import type { ApprovalStatus } from "@/lib/approval";
+import { ReferenceImagePickerDialog } from "@/components/canvas/reference-image-picker-dialog";
 
 const TYPE_LABEL: Record<string, string> = {
   script: "Script", text: "Note", prompt: "Prompt", kb: "Brand KB",
@@ -23,10 +26,12 @@ const TYPE_LABEL: Record<string, string> = {
 
 // Video Prompt node (D24). A compact launcher; double-click / Open hands off to the Video
 // Prompt focus view. It vision-reads a connected Image Gen still and writes a motion prompt.
-export function VideoPromptNode({ id, data, selected }: NodeProps) {
+export function VideoPromptNode({ id, data, selected, positionAbsoluteX, positionAbsoluteY }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const deleteNode = useDeleteNode();
   const duplicateNode = useCanvasStore((s) => s.duplicateNode);
+  const canvasId = useCanvasId();
+  const { open, setOpen, openPicker, handleAdd } = useReferenceImagePicker();
   const nodes = useCanvasStore((s) => s.nodes);
   const edges = useCanvasStore((s) => s.edges);
   const focusedNodeId = useCanvasStore((s) => s.focusedNodeId);
@@ -84,7 +89,8 @@ export function VideoPromptNode({ id, data, selected }: NodeProps) {
   };
 
   return (
-    <NodeContextMenu onDuplicate={() => duplicateNode(id)} onDelete={() => deleteNode(id)}>
+    <>
+    <NodeContextMenu onDuplicate={() => duplicateNode(id)} onDelete={() => deleteNode(id)} onAddReferenceImage={() => openPicker({ position: { x: positionAbsoluteX ?? 0, y: positionAbsoluteY ?? 0 }, connectToNodeId: id })}>
       <div
         onDoubleClick={(e) => {
           e.stopPropagation();
@@ -153,5 +159,12 @@ export function VideoPromptNode({ id, data, selected }: NodeProps) {
         />
       </div>
     </NodeContextMenu>
+    <ReferenceImagePickerDialog
+      canvasId={canvasId}
+      open={open}
+      onOpenChange={setOpen}
+      onAdd={handleAdd}
+    />
+    </>
   );
 }

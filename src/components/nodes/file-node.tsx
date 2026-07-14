@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import { Loader2, Paperclip, Sparkles } from "lucide-react";
+import { AlertTriangle, Loader2, Paperclip, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { useDeleteNode } from "@/hooks/use-delete-node";
@@ -27,6 +27,8 @@ export function FileNode({ id, data, selected }: NodeProps) {
   const connState = useNodeConnectionState(id, "file");
 
   const hasFile = !!d.filename;
+  const showUploading = isUploading || d.uploading === true;
+  const uploadError = d.uploadError;
 
   // Open locally (double-click / "Open ↗") OR when a shared signal points here — the
   // Generation Tray, guided flow, or the copilot's open_node (setFocusedNodeId).
@@ -60,8 +62,14 @@ export function FileNode({ id, data, selected }: NodeProps) {
           <NodeHandle nodeId={id} nodeType="file" />
         </div>
         <div className="flex items-center gap-1">
-          {isUploading ? (
+          {showUploading ? (
             <Loader2 className="size-3 animate-spin text-primary" />
+          ) : uploadError ? (
+            <AlertTriangle
+              className="size-3 text-destructive"
+              strokeWidth={2}
+              aria-label={uploadError}
+            />
           ) : (
             <span
               className={cn(
@@ -75,15 +83,32 @@ export function FileNode({ id, data, selected }: NodeProps) {
         </div>
       </div>
 
-      {/* image thumbnail */}
-      {d.fileKind === "image" && d.fileUrl && (
-        <div className="overflow-hidden border-b border-border">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={d.fileUrl}
-            alt={d.filename ?? "image"}
-            className="h-16 w-full object-cover"
-          />
+      {/* image thumbnail slot: loader while uploading, error if failed, image if ready */}
+      {(d.fileKind === "image" || showUploading) && (
+        <div className="flex h-16 items-center justify-center overflow-hidden border-b border-border bg-muted/40">
+          {showUploading ? (
+            <Loader2
+              className="size-4 animate-spin text-muted-foreground"
+              strokeWidth={1.5}
+            />
+          ) : uploadError ? (
+            <div className="flex flex-col items-center gap-1 px-2 text-center">
+              <AlertTriangle
+                className="size-3.5 text-destructive"
+                strokeWidth={1.5}
+              />
+              <p className="truncate text-[0.6rem] text-destructive">
+                Upload failed
+              </p>
+            </div>
+          ) : d.fileUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={d.fileUrl}
+              alt={d.filename ?? "image"}
+              className="h-16 w-full object-cover"
+            />
+          ) : null}
         </div>
       )}
 

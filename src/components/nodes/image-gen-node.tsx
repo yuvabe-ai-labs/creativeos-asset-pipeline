@@ -5,7 +5,9 @@ import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { ImageIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
+import { useCanvasId } from "@/components/canvas/canvas-id-context";
 import { useDeleteNode } from "@/hooks/use-delete-node";
+import { useReferenceImagePicker } from "@/hooks/use-reference-image-picker";
 import { NodeContextMenu } from "./node-context-menu";
 import { NodeHandle } from "./node-handle";
 import type { ImageGenNodeData } from "@/lib/canvas-nodes";
@@ -13,39 +15,58 @@ import { ImageGenFocusView } from "./image-gen-focus-view";
 import { ProcessingPill } from "./processing-pill";
 import { ApprovalBadge } from "./approval-badge";
 import type { ApprovalStatus } from "@/lib/approval";
+import { ReferenceImagePickerDialog } from "@/components/canvas/reference-image-picker-dialog";
 
-export function ImageGenNode({ id, data, selected }: NodeProps) {
+export function ImageGenNode({ id, data, selected, positionAbsoluteX, positionAbsoluteY }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const deleteNode    = useDeleteNode();
   const duplicateNode = useCanvasStore((s) => s.duplicateNode);
+  const canvasId = useCanvasId();
+  const { open, setOpen, openPicker, handleAdd } = useReferenceImagePicker();
 
   // Select raw store slices (stable references) and derive the upstream list
   // with useMemo. Returning a freshly-built array of objects straight from the
   // selector breaks useSyncExternalStore caching → infinite-loop error.
   const nodes = useCanvasStore((s) => s.nodes);
   const edges = useCanvasStore((s) => s.edges);
+  const canvasName = useCanvasStore((s) => s.canvasName);
   const focusedNodeId = useCanvasStore((s) => s.focusedNodeId);
   const setFocusedNodeId = useCanvasStore((s) => s.setFocusedNodeId);
 
-  const upstream = useMemo(() => {
+  const { upstream, scriptTitle } = useMemo(() => {
     const sourceIds = edges.filter((e) => e.target === id).map((e) => e.source);
-    return nodes.filter((n) => sourceIds.includes(n.id)).map((n) => {
-      const d = n.data as Record<string, unknown>;
-      return {
-        id: n.id,
-        type: n.type ?? "",
-        fileUrl:
-          n.type === "file" || n.type === "draw"
-            ? (d.fileUrl as string | undefined)
-            : n.type === "image-gen"
-              ? (d.parsed as string | undefined)
-              : undefined,
-        fileKind: n.type === "file" ? (d.fileKind as string | undefined) : undefined,
-        fileSizeBytes: d.fileSizeBytes as number | undefined,
-        imageWidth: d.imageWidth as number | undefined,
-        imageHeight: d.imageHeight as number | undefined,
-      };
-    });
+    const sourceNodes = nodes.filter((n) => sourceIds.includes(n.id));
+
+    // Walk up one more level to find any script node grandparent for the filename
+    const grandparentIds = edges
+      .filter((e) => sourceIds.includes(e.target))
+      .map((e) => e.source);
+    const allAncestors = [...sourceNodes, ...nodes.filter((n) => grandparentIds.includes(n.id))];
+    const scriptNode = allAncestors.find((n) => n.type === "script");
+    const scriptTitle = scriptNode
+      ? ((scriptNode.data as Record<string, unknown>).title as string | undefined) ?? ""
+      : "";
+
+    return {
+      scriptTitle,
+      upstream: sourceNodes.map((n) => {
+        const d = n.data as Record<string, unknown>;
+        return {
+          id: n.id,
+          type: n.type ?? "",
+          fileUrl:
+            n.type === "file" || n.type === "draw"
+              ? (d.fileUrl as string | undefined)
+              : n.type === "image-gen"
+                ? (d.parsed as string | undefined)
+                : undefined,
+          fileKind: n.type === "file" ? (d.fileKind as string | undefined) : undefined,
+          fileSizeBytes: d.fileSizeBytes as number | undefined,
+          imageWidth: d.imageWidth as number | undefined,
+          imageHeight: d.imageHeight as number | undefined,
+        };
+      }),
+    };
   }, [nodes, edges, id]);
 
   const d = data as ImageGenNodeData;
@@ -66,7 +87,8 @@ export function ImageGenNode({ id, data, selected }: NodeProps) {
   };
 
   return (
-    <NodeContextMenu onDuplicate={() => duplicateNode(id)} onDelete={() => deleteNode(id)}>
+    <>
+    <NodeContextMenu onDuplicate={() => duplicateNode(id)} onDelete={() => deleteNode(id)} onAddReferenceImage={() => openPicker({ position: { x: positionAbsoluteX ?? 0, y: positionAbsoluteY ?? 0 }, connectToNodeId: id })}>
       <div
         onDoubleClick={(e) => { e.stopPropagation(); setFocusOpen(true); }}
         className={cn(
@@ -122,6 +144,8 @@ export function ImageGenNode({ id, data, selected }: NodeProps) {
           onOpenChange={handleFocusOpenChange}
           nodeId={id}
           title={title}
+          canvasName={canvasName}
+          scriptTitle={scriptTitle}
           imageUrl={imageUrl}
           modelId={d.modelId}
           params={d.params}
@@ -146,5 +170,12 @@ export function ImageGenNode({ id, data, selected }: NodeProps) {
         />
       </div>
     </NodeContextMenu>
+    <ReferenceImagePickerDialog
+      canvasId={canvasId}
+      open={open}
+      onOpenChange={setOpen}
+      onAdd={handleAdd}
+    />
+    </>
   );
 }

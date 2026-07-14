@@ -10,6 +10,7 @@ import {
   ImageIcon,
   Clapperboard,
   ClipboardPaste,
+  Images,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -51,6 +52,7 @@ interface QuickAddMenuProps {
   onClose: () => void;
   canPasteImage?: boolean;
   onPasteImage?: () => void;
+  onAddReferenceImage?: () => void;
 }
 
 export function QuickAddMenu({
@@ -60,6 +62,7 @@ export function QuickAddMenu({
   onClose,
   canPasteImage,
   onPasteImage,
+  onAddReferenceImage,
 }: QuickAddMenuProps) {
   const ref = useRef<HTMLDivElement>(null);
 
@@ -101,19 +104,34 @@ export function QuickAddMenu({
             without the list scrolling; still caps height on short viewports. */}
         <CommandList className="max-h-[420px]">
           <CommandEmpty>No node type found.</CommandEmpty>
-          {canPasteImage && onPasteImage && (
+          {(canPasteImage && onPasteImage || onAddReferenceImage) && (
             <CommandGroup>
-              <CommandItem
-                value="paste image"
-                onSelect={() => {
-                  onPasteImage();
-                  onClose();
-                }}
-                className="text-primary"
-              >
-                <ClipboardPaste className="size-4 shrink-0" strokeWidth={1.5} />
-                Paste image
-              </CommandItem>
+              {canPasteImage && onPasteImage && (
+                <CommandItem
+                  value="paste image"
+                  onSelect={() => {
+                    onPasteImage();
+                    onClose();
+                  }}
+                  className="text-primary"
+                >
+                  <ClipboardPaste className="size-4 shrink-0" strokeWidth={1.5} />
+                  Paste image
+                </CommandItem>
+              )}
+              {onAddReferenceImage && (
+                <CommandItem
+                  value="add reference image"
+                  onSelect={() => {
+                    onAddReferenceImage();
+                    onClose();
+                  }}
+                  className="text-primary"
+                >
+                  <Images className="size-4 shrink-0" strokeWidth={1.5} />
+                  Add reference image
+                </CommandItem>
+              )}
             </CommandGroup>
           )}
           <CommandGroup heading="Add node">

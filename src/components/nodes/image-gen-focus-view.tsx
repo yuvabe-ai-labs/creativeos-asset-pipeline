@@ -1,30 +1,22 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import {
   ArrowLeft,
   BadgeCheck,
   Download,
   History,
   ImageIcon,
-  Maximize2,
   Settings2,
   SlidersHorizontal,
   Sparkles,
-  X,
   ZoomIn,
-  ZoomOut,
   AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
-import {
-  TransformWrapper,
-  TransformComponent,
-  useControls,
-} from "react-zoom-pan-pinch";
 
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { FullScreenImageZoom } from "@/components/shared/full-screen-image-zoom";
 import { EditableField } from "./editable-field";
 import { normalizeTitle } from "@/lib/nodes/title";
 import { Button } from "@/components/ui/button";
@@ -87,6 +79,8 @@ export type ImageGenFocusViewProps = {
   onOpenChange: (open: boolean) => void;
   nodeId: string;
   title: string;
+  canvasName?: string;
+  scriptTitle?: string;
   imageUrl: string | null;
   modelId?: string;
   params?: Record<string, unknown>;
@@ -111,54 +105,6 @@ export type ImageGenFocusViewProps = {
 
 type ParamFormValues = Record<string, unknown>;
 
-// ── Full-screen zoom controls (must be inside TransformWrapper) ───────────────
-
-function ZoomControls({ onDownload }: { onDownload: () => void }) {
-  const { zoomIn, zoomOut, resetTransform } = useControls();
-  return (
-    <div className="absolute bottom-6 inset-x-0 flex flex-col items-center gap-2 pointer-events-none z-10">
-      <p className="text-[0.6rem] tracking-widest text-white/30 uppercase select-none">
-        scroll to zoom · drag to pan · double-click to reset
-      </p>
-      <div className="pointer-events-auto flex items-center gap-0.5 rounded-full border border-white/10 bg-white/10 px-3 py-1.5 backdrop-blur-sm">
-        <button
-          type="button"
-          onClick={() => zoomOut()}
-          aria-label="Zoom out"
-          className="rounded-full p-1.5 text-white/60 transition-colors hover:text-white"
-        >
-          <ZoomOut className="size-3.5" strokeWidth={1.5} />
-        </button>
-        <button
-          type="button"
-          onClick={() => resetTransform()}
-          aria-label="Fit to screen"
-          className="rounded-full p-1.5 text-white/60 transition-colors hover:text-white"
-        >
-          <Maximize2 className="size-3.5" strokeWidth={1.5} />
-        </button>
-        <button
-          type="button"
-          onClick={() => zoomIn()}
-          aria-label="Zoom in"
-          className="rounded-full p-1.5 text-white/60 transition-colors hover:text-white"
-        >
-          <ZoomIn className="size-3.5" strokeWidth={1.5} />
-        </button>
-        <div className="mx-1.5 h-3.5 w-px bg-white/20" />
-        <button
-          type="button"
-          onClick={onDownload}
-          aria-label="Download image"
-          className="rounded-full p-1.5 text-white/60 transition-colors hover:text-white"
-        >
-          <Download className="size-3.5" strokeWidth={1.5} />
-        </button>
-      </div>
-    </div>
-  );
-}
-
 // ── Main focus view ───────────────────────────────────────────────────────────
 
 export function ImageGenFocusView({
@@ -166,6 +112,8 @@ export function ImageGenFocusView({
   onOpenChange,
   nodeId,
   title,
+  canvasName,
+  scriptTitle,
   imageUrl,
   modelId,
   params,
@@ -723,11 +671,22 @@ export function ImageGenFocusView({
   async function handleDownload() {
     if (!imageUrl) return;
     try {
-      const res = await fetch(imageUrl, { mode: "cors" });
+      const fetchUrl = imageUrl.startsWith("https://storage.googleapis.com/")
+        ? `/api/image-proxy?url=${encodeURIComponent(imageUrl)}`
+        : imageUrl;
+      const res = await fetch(fetchUrl);
       if (!res.ok) throw new Error("fetch failed");
       const blob = await res.blob();
       const ext = blob.type.split("/")[1]?.replace("jpeg", "jpg") ?? "png";
-      const filename = `${(title || "generated-image").replace(/\s+/g, "-").toLowerCase()}.${ext}`;
+      const slug = (s: string) => s.trim().replace(/\s+/g, "-").toLowerCase();
+      const shortId = nodeId.slice(0, 8);
+      const parts = [
+        canvasName ? slug(canvasName) : null,
+        scriptTitle ? slug(scriptTitle) : null,
+        slug(title || "image"),
+        shortId,
+      ].filter(Boolean);
+      const filename = `${parts.join("_")}.${ext}`;
       const blobUrl = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = blobUrl;
@@ -1174,71 +1133,3 @@ export function ImageGenFocusView({
   );
 }
 
-// ── Full-screen image viewer (portal-rendered, bypasses Dialog positioning) ──
-
-function FullScreenImageZoom({
-  imageUrl,
-  title,
-  onClose,
-  onDownload,
-}: {
-  imageUrl: string;
-  title: string;
-  onClose: () => void;
-  onDownload: () => void;
-}) {
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    document.addEventListener("keydown", onKey);
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = prevOverflow;
-    };
-  }, [onClose]);
-
-  if (typeof document === "undefined") return null;
-
-  return createPortal(
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label="Generated image"
-      className="fixed inset-0 z-[100] flex flex-col bg-black/97 text-white animate-in fade-in-0 duration-200"
-    >
-      <button
-        type="button"
-        onClick={onClose}
-        aria-label="Close"
-        className="absolute right-4 top-4 z-10 rounded-full p-2 text-white/60 transition-colors hover:bg-white/10 hover:text-white"
-      >
-        <X className="size-5" strokeWidth={1.5} />
-      </button>
-      <TransformWrapper
-        doubleClick={{ mode: "reset" }}
-        minScale={0.5}
-        maxScale={8}
-        centerOnInit
-        wheel={{ step: 0.03 }}
-      >
-        <TransformComponent
-          wrapperClass="!w-screen !h-screen"
-          contentClass="!w-full !h-full flex items-center justify-center"
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={imageUrl}
-            alt={title || "Generated image"}
-            className="max-h-screen max-w-full object-contain"
-            draggable={false}
-          />
-        </TransformComponent>
-        <ZoomControls onDownload={onDownload} />
-      </TransformWrapper>
-    </div>,
-    document.body,
-  );
-}
