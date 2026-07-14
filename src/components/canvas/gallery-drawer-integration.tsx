@@ -51,6 +51,7 @@ export function GalleryDrawerIntegration({
     }
 
     function onDrop(e: DragEvent) {
+      if ((e as DragEvent & { __galleryHandled?: boolean }).__galleryHandled) return;
       const raw = e.dataTransfer?.getData(GALLERY_DRAG_MIME);
       if (!raw) return;
       e.preventDefault();
@@ -60,7 +61,7 @@ export function GalleryDrawerIntegration({
           x: e.clientX,
           y: e.clientY,
         });
-        handleAdd(parsed.images, { position });
+        handleAdd(parsed.images, { position, applyOffset: false });
       } catch (err) {
         console.warn("[gallery] pane drop payload malformed:", err);
       }

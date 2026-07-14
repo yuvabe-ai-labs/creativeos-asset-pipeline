@@ -30,6 +30,75 @@ import type { DriveBrowseItem } from "@/hooks/use-drive-browser";
 const MAX_SELECTION = 10;
 export const GALLERY_DRAG_MIME = "application/x-creativeos-gallery-image";
 
+const GHOST_THUMB = 84;
+const GHOST_STACK_OFFSET = 5;
+const GHOST_MAX_THUMBS = 3;
+
+function buildMultiDragGhost(images: GalleryImage[]): HTMLElement {
+  const count = images.length;
+  const visible = images.slice(0, GHOST_MAX_THUMBS);
+  // Container is just big enough for the front tile + the furthest back offset
+  const extra = (visible.length - 1) * GHOST_STACK_OFFSET;
+  const size = GHOST_THUMB + extra;
+
+  const wrap = document.createElement("div");
+  wrap.style.cssText = `position:fixed;top:-9999px;left:-9999px;width:${size}px;height:${size}px;pointer-events:none;`;
+
+  // Render back-to-front so front tile is on top
+  [...visible].reverse().forEach((img, revI) => {
+    const i = visible.length - 1 - revI; // 0 = front tile
+    const offset = i * GHOST_STACK_OFFSET;
+    const tile = document.createElement("div");
+    tile.style.cssText = [
+      `position:absolute`,
+      `top:${offset}px`,
+      `left:${offset}px`,
+      `width:${GHOST_THUMB}px`,
+      `height:${GHOST_THUMB}px`,
+      `border-radius:10px`,
+      `overflow:hidden`,
+      `border:2px solid white`,
+      `box-shadow:0 2px 8px rgba(0,0,0,0.20)`,
+      `background:#e5e7eb`,
+      `z-index:${visible.length - i}`,
+    ].join(";");
+
+    if (img.imageUrl) {
+      const el = document.createElement("img");
+      el.src = img.imageUrl;
+      el.style.cssText = "width:100%;height:100%;object-fit:cover;display:block;";
+      tile.appendChild(el);
+    }
+    wrap.appendChild(tile);
+  });
+
+  // Badge pinned to bottom-right corner of the front tile
+  const badge = document.createElement("div");
+  badge.textContent = String(count);
+  const badgeSize = 20;
+  badge.style.cssText = [
+    `position:absolute`,
+    `bottom:${extra - 6}px`,
+    `right:${extra - 6}px`,
+    `min-width:${badgeSize}px`,
+    `height:${badgeSize}px`,
+    `padding:0 5px`,
+    `border-radius:10px`,
+    `background:#5829c7`,
+    `color:white`,
+    `font-size:11px`,
+    `font-weight:700`,
+    `line-height:${badgeSize}px`,
+    `text-align:center`,
+    `z-index:20`,
+    `box-shadow:0 1px 4px rgba(0,0,0,0.30)`,
+    `box-sizing:border-box`,
+  ].join(";");
+  wrap.appendChild(badge);
+
+  return wrap;
+}
+
 type Props = {
   canvasId: string;
   clientId: string;
@@ -66,14 +135,14 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
 
   // Auto-clear stale folder ID from DB when Drive says it's gone.
   useEffect(() => {
-    if (browser.loadError === "folder_not_found" && rootFolder) {
-      fetch(`/api/clients/${clientId}/drive-folder`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ driveRootFolderId: null }),
-      }).catch(() => {});
+    if (browser.loadError !== "folder_not_found" || !rootFolder) return;
+    fetch(`/api/clients/${clientId}/drive-folder`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ driveRootFolderId: null }),
+    }).finally(() => {
       setRootFolder(null);
-    }
+    });
   }, [browser.loadError, rootFolder, clientId]);
 
   const references: GalleryImage[] = useMemo(() => {
@@ -185,14 +254,21 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
   }
 
   function handleDragStartImage(image: GalleryImage, e: React.DragEvent) {
-    const payload =
-      selectedIds.has(image.id) && selectedIds.size > 0
-        ? Array.from(selectedIds)
-            .map((id) => imageMap.get(id))
-            .filter((v): v is GalleryImage => v != null)
-        : [image];
+    const isMulti = selectedIds.has(image.id) && selectedIds.size > 1;
+    const payload = isMulti
+      ? Array.from(selectedIds)
+          .map((id) => imageMap.get(id))
+          .filter((v): v is GalleryImage => v != null)
+      : [image];
     e.dataTransfer.setData(GALLERY_DRAG_MIME, JSON.stringify({ images: payload }));
     e.dataTransfer.effectAllowed = "copy";
+
+    if (isMulti) {
+      const ghost = buildMultiDragGhost(payload);
+      document.body.appendChild(ghost);
+      e.dataTransfer.setDragImage(ghost, 28, 28);
+      requestAnimationFrame(() => document.body.removeChild(ghost));
+    }
   }
 
   const previewImage = previewId
@@ -221,7 +297,8 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
         <SheetContent
           side="right"
           showCloseButton={false}
-          className="flex w-full flex-col gap-0 p-0 shadow-lg data-[side=right]:sm:max-w-180"
+          noOverlay
+          className="flex w-full flex-col gap-0 p-0 shadow-lg data-[side=right]:sm:max-w-xl"
         >
           <SheetTitle className="sr-only">Gallery</SheetTitle>
           <GalleryHeader

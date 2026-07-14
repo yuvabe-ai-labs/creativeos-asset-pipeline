@@ -25,9 +25,10 @@ export function useGalleryDrawer() {
   const handleAdd = useCallback(
     (
       images: GalleryImage[],
-      opts: { position: { x: number; y: number }; connectToNodeId?: string },
+      opts: { position: { x: number; y: number }; connectToNodeId?: string; applyOffset?: boolean },
     ) => {
-      const base = { x: opts.position.x + OFFSET_X, y: opts.position.y };
+      const offset = opts.applyOffset !== false ? OFFSET_X : 0;
+      const base = { x: opts.position.x + offset, y: opts.position.y };
       const drivePicks: { nodeId: string; image: GalleryImage }[] = [];
 
       images.forEach((image, i) => {

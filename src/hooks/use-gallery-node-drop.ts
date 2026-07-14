@@ -32,9 +32,11 @@ export function useGalleryNodeDrop(
       if (!raw) return;
       e.preventDefault();
       e.stopPropagation();
+      // Mark the native event so the pane-level listener skips it.
+      (e.nativeEvent as DragEvent & { __galleryHandled?: boolean }).__galleryHandled = true;
       try {
         const parsed = JSON.parse(raw) as { images: GalleryImage[] };
-        handleAdd(parsed.images, { position, connectToNodeId: nodeId });
+        handleAdd(parsed.images, { position, connectToNodeId: nodeId, applyOffset: false });
       } catch (err) {
         console.warn("[gallery] node drop payload malformed:", err);
       }
