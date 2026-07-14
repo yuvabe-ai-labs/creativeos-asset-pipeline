@@ -100,7 +100,7 @@ async function importDriveFile({
   updateNodeData: (id: string, patch: Record<string, unknown>) => void;
 }) {
   if (image.source !== "drive" || !image.driveMimeType) return;
-  const BACKOFF_MS = [400, 800, 1600];
+  const BACKOFF_MS = [500, 1000, 2000, 4000, 8000];
   try {
     let result: Awaited<ReturnType<typeof fileNodeService.pickFromDrive>>;
     let lastErr: unknown;
