@@ -19,6 +19,16 @@ export function CopilotMessage({ msg, onHighlight }: { msg: Msg; onHighlight: (i
       >
         {msg.content}
       </div>
+      {/* What this turn was implicitly grounded on (the canvas selection at send time). */}
+      {msg.role === "user" && msg.context && msg.context.length > 0 && (
+        <div
+          className="mt-1 text-[10px] text-muted-foreground"
+          title="Sent with this selection as context"
+        >
+          ⌞ {msg.context.slice(0, 3).map((c) => c.handle).join(", ")}
+          {msg.context.length > 3 ? ` +${msg.context.length - 3}` : ""}
+        </div>
+      )}
       {msg.role === "assistant" && msg.nodes && msg.nodes.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1.5">
           {msg.nodes.map((n) => (
