@@ -39,7 +39,7 @@ describe("buildKlingRequestBody", () => {
     expect(body.aspect_ratio).toBe("16:9");
     expect(body.cfg_scale).toBe(0.5);
     expect(body.callback_url).toBe("https://app.example.com/api/webhooks/generation?provider=kling");
-    expect(body.image).toEqual({ type: "base64", value: "base64data" });
+    expect(body.image).toBe("base64data");
   });
 
   it("omits camera motion params when all are zero", async () => {
