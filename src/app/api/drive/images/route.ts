@@ -61,11 +61,10 @@ async function queryDrive(
   url.searchParams.set("orderBy", "modifiedTime desc");
   url.searchParams.set("supportsAllDrives", "true");
   url.searchParams.set("includeItemsFromAllDrives", "true");
-  // corpora=allDrives + the two flags above widens the corpus to include
-  // Shared Drives (Team Drives), not just the user's My Drive + explicit
-  // shares. sharedWithMe=true in `q` still adds the shared-with-me virtual
-  // corpus on top of that.
-  url.searchParams.set("corpora", "allDrives");
+  // corpora defaults to `user` = "files owned by or shared to the user". Do NOT
+  // set corpora=allDrives — it silently drops sharedWithMe=true results per
+  // Google's docs (the combination returns "incomplete results"). Shared Drives
+  // still surface via includeItemsFromAllDrives=true above.
   if (opts.pageToken) url.searchParams.set("pageToken", opts.pageToken);
 
   const res = await fetch(url.toString(), {
@@ -228,7 +227,13 @@ export async function GET(req: NextRequest) {
       // folders. Also single-shot; realistic folder scopes are bounded.
       files = await walkFoldersByIds(folderIds, accessToken, search);
     } else {
-      // Default recency corpus: union of owned + directly-shared, paginated.
+      // Default corpus. Google's API has no "all files I can see" operator, so
+      // we build the union manually:
+      //   (1) owned images                       — paginated via ownedToken
+      //   (2) images directly shared with me      — paginated via sharedToken
+      //   (3) images inside folders shared with me — walker (single-shot on
+      //       first page only; subsequent pages skip it since we already have
+      //       all shared-tree results in the first response).
       let cursor: PageCursor = {};
       if (cursorParam) {
         try {
@@ -240,17 +245,24 @@ export async function GET(req: NextRequest) {
       const OWNED_Q = `mimeType contains 'image/' and trashed=false and 'me' in owners ${searchQ}`;
       const SHARED_Q = `mimeType contains 'image/' and trashed=false and sharedWithMe=true ${searchQ}`;
       const firstPage = !cursorParam;
-      const [ownedRes, sharedRes] = await Promise.all([
+
+      const [ownedRes, sharedRes, sharedTreeFiles] = await Promise.all([
         firstPage || cursor.ownedToken
           ? queryDrive(OWNED_Q, accessToken, { pageToken: cursor.ownedToken })
           : Promise.resolve({ files: [] as DriveFile[], nextPageToken: undefined }),
         firstPage || cursor.sharedToken
           ? queryDrive(SHARED_Q, accessToken, { pageToken: cursor.sharedToken })
           : Promise.resolve({ files: [] as DriveFile[], nextPageToken: undefined }),
+        // Walk the shared-folder subtree on the first page only. The walker
+        // returns all descendants up-front (no incremental fetch), so on
+        // follow-up pages we've already exhausted this corpus.
+        firstPage
+          ? walkSharedTree(accessToken, search)
+          : Promise.resolve([] as DriveFile[]),
       ]);
 
       const merged = new Map<string, DriveFile>();
-      for (const f of [...ownedRes.files, ...sharedRes.files]) {
+      for (const f of [...ownedRes.files, ...sharedRes.files, ...sharedTreeFiles]) {
         if (!merged.has(f.id)) merged.set(f.id, f);
       }
       files = Array.from(merged.values());

@@ -1,5 +1,6 @@
 "use client";
 
+import { useCallback, useEffect, useState } from "react";
 import { useInView } from "react-intersection-observer";
 import { Loader2 } from "lucide-react";
 import { ImageRow } from "@/components/canvas/reference-image-picker/image-row";
@@ -26,18 +27,41 @@ export function GalleryList({
   hasMore,
   loadingMore,
 }: Props) {
+  const [scrollRoot, setScrollRoot] = useState<Element | null>(null);
+  const attachSentinelParent = useCallback((node: HTMLDivElement | null) => {
+    if (!node) return;
+    let cur: HTMLElement | null = node.parentElement;
+    while (cur) {
+      const style = getComputedStyle(cur);
+      if (
+        style.overflowY === "auto" ||
+        style.overflowY === "scroll" ||
+        style.overflow === "auto" ||
+        style.overflow === "scroll"
+      ) {
+        setScrollRoot(cur);
+        return;
+      }
+      cur = cur.parentElement;
+    }
+  }, []);
+
   const { ref: sentinelRef, inView } = useInView({
     rootMargin: "200px",
+    threshold: 0,
+    root: scrollRoot,
     triggerOnce: false,
   });
 
-  if (inView && hasMore && !loadingMore) {
-    onSentinelInView();
-  }
+  useEffect(() => {
+    if (inView && hasMore && !loadingMore) {
+      onSentinelInView();
+    }
+  }, [inView, hasMore, loadingMore, onSentinelInView]);
 
   return (
     <>
-      <div className="flex flex-col gap-0.5">
+      <div className="flex flex-col gap-0.5" ref={attachSentinelParent}>
         {images.map((image) => (
           <div
             key={image.id}

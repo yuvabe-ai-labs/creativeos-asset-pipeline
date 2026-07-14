@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { MasonryPhotoAlbum } from "react-photo-album";
 import "react-photo-album/masonry.css";
 import { useInView } from "react-intersection-observer";
@@ -56,17 +56,46 @@ export function GalleryMasonry({
     [images, dimensions],
   );
 
+  // The sentinel lives inside the drawer's scrollable div (overflow-y-auto).
+  // We resolve that ancestor at mount and pass it as the IntersectionObserver
+  // root so the trigger fires as content scrolls past the container edge —
+  // not the browser viewport, which would never intersect.
+  const [scrollRoot, setScrollRoot] = useState<Element | null>(null);
+  const attachSentinelParent = useCallback((node: HTMLDivElement | null) => {
+    if (!node) return;
+    // Walk up until we find an element with a scroll overflow style.
+    let cur: HTMLElement | null = node.parentElement;
+    while (cur) {
+      const style = getComputedStyle(cur);
+      if (
+        style.overflowY === "auto" ||
+        style.overflowY === "scroll" ||
+        style.overflow === "auto" ||
+        style.overflow === "scroll"
+      ) {
+        setScrollRoot(cur);
+        return;
+      }
+      cur = cur.parentElement;
+    }
+  }, []);
   const { ref: sentinelRef, inView } = useInView({
     rootMargin: "200px",
+    threshold: 0,
+    root: scrollRoot,
     triggerOnce: false,
   });
 
-  if (inView && hasMore && !loadingMore) {
-    onSentinelInView();
-  }
+  // Firing setState during render violates React rules. Trigger in an effect
+  // when inView flips to true and we're not already loading.
+  useEffect(() => {
+    if (inView && hasMore && !loadingMore) {
+      onSentinelInView();
+    }
+  }, [inView, hasMore, loadingMore, onSentinelInView]);
 
   return (
-    <>
+    <div ref={attachSentinelParent}>
       <MasonryPhotoAlbum
         photos={photos}
         columns={(width) => (width < 480 ? 4 : width < 720 ? 5 : 6)}
@@ -104,6 +133,6 @@ export function GalleryMasonry({
           )}
         </div>
       )}
-    </>
+    </div>
   );
 }
