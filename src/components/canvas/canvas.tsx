@@ -87,6 +87,7 @@ export function Canvas({
     addNode,
     connectNodes,
     duplicateNode,
+    duplicateNodes,
     updateNodeData,
     deleteNode,
   } = useCanvasStore(
@@ -99,6 +100,7 @@ export function Canvas({
       addNode: s.addNode,
       connectNodes: s.connectNodes,
       duplicateNode: s.duplicateNode,
+      duplicateNodes: s.duplicateNodes,
       updateNodeData: s.updateNodeData,
       deleteNode: s.deleteNode,
     })),
@@ -224,9 +226,10 @@ export function Canvas({
       // Duplicate (existing behavior) — modified key, fires regardless of focus.
       if ((e.ctrlKey || e.metaKey) && e.key === "d") {
         e.preventDefault();
-        nodesRef.current
+        const selectedIds = nodesRef.current
           .filter((n) => n.selected && n.type !== "kb")
-          .forEach((n) => duplicateNode(n.id));
+          .map((n) => n.id);
+        void duplicateNodes(selectedIds, canvasId);
         return;
       }
 
@@ -255,7 +258,7 @@ export function Canvas({
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [duplicateNode, openQuickAddAt, handleAddNode, pointerOrCenter]);
+  }, [duplicateNode, duplicateNodes, canvasId, openQuickAddAt, handleAddNode, pointerOrCenter]);
 
   const isValidConnection = useCallback(
     (connection: Connection | Edge) => {

@@ -251,6 +251,7 @@ export function createCanvasStore(
         });
 
         if (!res.ok) {
+          console.error("Batch duplicate failed:", await res.text());
           toast.error("Couldn't duplicate nodes");
           return;
         }
