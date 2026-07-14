@@ -39,6 +39,7 @@ export type CanvasState = {
   connectNodes: (sourceId: string, targetId: string) => void;
   deleteNode: (id: string) => void;
   duplicateNode: (id: string) => Promise<void>;
+  duplicateNodes: (ids: string[], canvasId: string) => Promise<void>;
   fanOutShots: (scriptNodeId: string) => void;
   promoteIdeasToShots: (shotNodeId: string, ideas: ShotComposeIdea[]) => void;
   // Per-node video generation status — shared between VideoGenNode and VideoGenFocusView
@@ -221,6 +222,73 @@ export function createCanvasStore(
         });
       } catch (err) {
         console.error("Duplicate node error:", err);
+      }
+    },
+    duplicateNodes: async (ids, canvasId) => {
+      // Filter KB nodes client-side (server also guards, but fail fast here)
+      const eligible = ids.filter((id) => {
+        const n = get().nodes.find((n) => n.id === id);
+        return n && n.type !== "kb";
+      });
+
+      // Single-node fast path — preserves existing tested behaviour unchanged
+      if (eligible.length === 1) {
+        return get().duplicateNode(eligible[0]);
+      }
+      if (eligible.length === 0) return;
+
+      // Resolve internal edges: both source and target must be in the selection
+      const eligibleSet = new Set(eligible);
+      const internalEdges = get()
+        .edges.filter((e) => eligibleSet.has(e.source) && eligibleSet.has(e.target))
+        .map((e) => ({ source: e.source, target: e.target }));
+
+      try {
+        const res = await fetch("/api/nodes/duplicate-batch", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ canvasId, nodeIds: eligible, internalEdges }),
+        });
+
+        if (!res.ok) {
+          toast.error("Couldn't duplicate nodes");
+          return;
+        }
+
+        const { nodes: newNodes, edges: newEdges } = (await res.json()) as {
+          nodes: { id: string; position: { x: number; y: number }; type: string; data: Record<string, unknown>; active_version_id: string | null }[];
+          edges: { id: string; source: string; target: string }[];
+        };
+
+        // Zip new nodes with source nodes by index (server preserves insertion order)
+        const sourceById = new Map(get().nodes.map((n) => [n.id, n]));
+        const newAppNodes = newNodes.map((newNode, i) => {
+          const sourceId = eligible[i];
+          const source = sourceById.get(sourceId);
+          const data = { ...(source?.data as Record<string, unknown> ?? {}), ...(newNode.data as Record<string, unknown>) };
+          return {
+            ...(source as Partial<AppNode> ?? {}),
+            id: newNode.id,
+            position: newNode.position,
+            data,
+            selected: true,
+          } as AppNode;
+        });
+
+        // Deselect originals, add all new nodes + remapped edges in one set()
+        set({
+          nodes: [
+            ...get().nodes.map((n) => ({ ...n, selected: false })),
+            ...newAppNodes,
+          ],
+          edges: [
+            ...get().edges,
+            ...newEdges.map((e) => ({ ...e })) as Edge[],
+          ],
+        });
+      } catch (err) {
+        console.error("Batch duplicate error:", err);
+        toast.error("Couldn't duplicate nodes");
       }
     },
     // Materialize each shot of a parsed Script into its own Shot node (seed-and-fork,
