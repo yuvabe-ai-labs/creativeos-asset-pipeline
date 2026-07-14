@@ -20,12 +20,3 @@ export type OpenDrawerOptions = {
   position?: { x: number; y: number };
   connectToNodeId?: string;
 };
-
-/**
- * @deprecated Will be removed in Task 11 when gallery-filter-popover.tsx is deleted.
- * Kept here only so the old file continues to compile until then.
- */
-export type Filters = {
-  sharedOnly: boolean;
-  folderIds: Set<string>;
-};

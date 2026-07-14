@@ -25,7 +25,7 @@ export type DriveFoldersResponse = {
   items: { id: string; name: string; isShared: boolean }[];
 };
 
-export async function GET() {
+export async function GET(_req?: Request) {
   let accessToken: string;
   try {
     accessToken = await exchangeRefreshToken();
