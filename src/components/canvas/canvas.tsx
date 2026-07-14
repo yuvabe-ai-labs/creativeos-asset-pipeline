@@ -46,6 +46,9 @@ import { useDeleteConfirmation } from "@/hooks/use-delete-confirmation";
 import { CanvasKBStatus, CanvasKBBadge } from "./canvas-kb-status";
 import { useReferenceImagePicker } from "@/hooks/use-reference-image-picker";
 import { ReferenceImagePickerDialog } from "./reference-image-picker-dialog";
+import { GalleryDrawerProvider } from "./gallery-drawer-context";
+import { GalleryDrawerTrigger } from "./gallery-drawer-trigger";
+import { GalleryDrawerIntegration } from "./gallery-drawer-integration";
 import type { ClientKBJobRow } from "@/lib/db/types";
 
 // Register custom node types once (stable reference — never inline this object).
@@ -335,6 +338,7 @@ export function Canvas({
     <CanvasIdProvider value={canvasId}>
     <CanvasEditableProvider value={canEdit}>
     <AutosaveFlushProvider>
+    <GalleryDrawerProvider>
     <div className="absolute inset-0 bg-[var(--neutral-50)]">
       <CanvasAutosave
         canvasId={canvasId}
@@ -346,10 +350,14 @@ export function Canvas({
       {/* Headless KB status subscriber — drives kbStatus in the canvas store */}
       <CanvasKBStatus clientId={clientId} initialJob={initialKBJob} hasActiveKB={hasActiveKB} />
 
-      {/* KB building badge — top-right overlay */}
-      <div className="absolute right-4 top-4 z-10 pointer-events-none">
+      {/* Top-right overlay: gallery trigger + KB badge */}
+      <div className="absolute right-4 top-4 z-10 flex items-center gap-2">
+        <GalleryDrawerTrigger />
         <CanvasKBBadge />
       </div>
+
+      {/* Gallery drawer + its canvas integrations (G shortcut, pane drop). */}
+      <GalleryDrawerIntegration canvasId={canvasId} />
 
       {!canEdit && (
         <LockBanner heldByName={heldByName} canTakeOver={canTakeOver} onTakeOver={takeOver} />
@@ -423,6 +431,7 @@ export function Canvas({
 
       <GenerationTray canvasId={canvasId} />
     </div>
+    </GalleryDrawerProvider>
     </AutosaveFlushProvider>
     </CanvasEditableProvider>
     </CanvasIdProvider>
