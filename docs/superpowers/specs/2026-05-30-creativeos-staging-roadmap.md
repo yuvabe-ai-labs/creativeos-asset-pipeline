@@ -285,7 +285,7 @@ the path. Durable job state in the DB is the one async piece we cannot skip.
 applies to an internal MVP. Start with a `status` column + Realtime; graduate to real queue
 infra only when a named pressure forces it.
 
-### D14 — Stage 1 auth: none yet
+### D14 — Stage 1 auth: none yet *(**SUPERSEDED by D43** — pilot auth, 2026-07-15)*
 **Decision.** Ship Stage 1 as an open app (private/internal URL); add Supabase Auth in a
 later stage.
 **Why.** PRD §18 puts multi-tenant auth out of scope; speed to a usable increment.
@@ -967,6 +967,122 @@ proxies remain unauthenticated but obscurity-gated). Preserves D29/D34 (adding v
 doesn't touch approval state; it just spawns new file nodes).
 
 **Originated →** `2026-07-14-gallery-drawer-design.md`.
+
+### D42 — Organizations: the tenant layer above `clients` *(recorded 2026-07-15; extends the D1/D10 single ownership tree; promotes the tenancy half of F1)*
+
+**Decision.** A new `organizations` table is the tenant and isolation boundary. `clients`
+gains an `org_id` FK; because every table already FKs up to `clients`, every row inherits
+its org through the tree — no other table changes. Users live in `profiles`
+(`user_id` → `auth.users`, `org_id`, `display_name`, `role`), membership-shaped so
+multi-seat later is additive rows, not a schema change. The pilot runs **one user per org**.
+
+**Why.** First external agency. Agencies never share client brands, so org = agency is the
+smallest model with hard isolation; user-as-tenant breaks the moment an agency wants a
+second seat.
+
+**Rejected.** User-as-tenant (no org layer); per-agency separate deployments (operational
+dead end — every fix ships N times, no product-level org concept).
+
+**Originated →** `docs/CreativeOS Multi-Tenancy Pilot PRD.md` (§4, §6.1).
+
+### D43 — Supabase Auth (email+password, invite-only) fills the D29 identity seam *(recorded 2026-07-15; supersedes D14; fulfills the seam D29 reserved)*
+
+**Decision.** Supabase Auth with email+password, **invite-only** (seed script creates each
+org + user; no self-serve signup). Next.js middleware guards every page and API route
+(no session → `/login`); webhook/cron routes keep shared-secret auth. `useIdentity()`
+swaps its *source* from localStorage to the session + `profiles` row — call sites
+unchanged, exactly as D29 planned. `node_versions.operator` / `approved_by` stay text,
+now stamped from the profile's display name; promotion to `user_id` FKs remains backlog.
+Role stays cosmetic (D29). The D33 lock is unchanged (per-tab, composes with login).
+
+**Why.** Real isolation needs a real caller identity; Supabase Auth is already in the
+stack and password reset comes free.
+
+**Rejected.** SSO / Google login (pilot); self-serve signup; enforced RBAC (needs
+multi-seat to matter).
+
+**Originated →** `docs/CreativeOS Multi-Tenancy Pilot PRD.md` (§5).
+
+### D44 — App-layer org enforcement at the chokepoints; RLS only where the browser reads *(recorded 2026-07-15; builds on D42/D43; preserves the D14-era service-role server path)*
+
+**Decision.** The service-role server client stays. Org isolation is enforced in app code
+at the existing chokepoints: `withClient` verifies `client.org_id` = caller's org
+(**404** on mismatch — never confirm foreign resources exist); deeper routes (nodes,
+canvas, eval, server actions) walk their ownership chain (node → canvas → client) and
+apply the same check; list queries filter by `org_id`; `/api/ingest-image` loses its
+deliberate D14 openness. RLS is enabled on exactly the two browser-read tables
+(`generations`, `client_kb_jobs`) so authenticated realtime only delivers the caller's
+org's rows.
+
+**Why.** Same isolation for a fraction of the risk: an RLS-everywhere rewrite touches all
+34 service-role call sites and 10+ tables; the chokepoints already exist.
+
+**Rejected.** RLS-everywhere (deferred to hardening as defense-in-depth, not undone by
+this path); per-agency deploys (see D41).
+
+**Originated →** `docs/CreativeOS Multi-Tenancy Pilot PRD.md` (§6.2–6.3).
+
+### D45 — Learning scopes: platform / segment / client; knowledge flows downward only *(recorded 2026-07-15; extends D6/D17's ambient-context model across the tenant boundary)*
+
+**Decision.** Three scopes: **platform** (common system prompts/playbooks — code, ships to
+all orgs), **segment** (e.g. DTC — future, a tag on clients + platform-curated artifacts),
+**client** (Brand KB / instruction set — that org only). Shared pools are
+**hand-curated by Yuvabe only** — never pipeline-fed from tenant data. Tenant data never
+flows up or sideways; "do you learn from our data?" → no. No segment schema in the pilot.
+
+**Why.** Composition downward is safe; automatic upward distillation would move one
+agency's client insights into another agency's outputs — a data leak in IP form.
+
+**Originated →** `docs/CreativeOS Multi-Tenancy Pilot PRD.md` (§8).
+
+### D46 — Pilot accepts public GCS capability URLs; signed access is hardening *(recorded 2026-07-15; extends D30; risk accepted in writing)*
+
+**Decision.** Generated/uploaded files stay public GCS URLs in the pilot. Paths embed
+UUIDs (unguessable capability links, server-derived per D30), but a leaked URL is
+world-readable indefinitely. Accepted because signed URLs / an authenticated media proxy
+touch every image/video render path — too much surface for the pilot. Step-2 fix: signed
+URLs or a media proxy.
+
+**Originated →** `docs/CreativeOS Multi-Tenancy Pilot PRD.md` (§10).
+
+### D47 — Org credits: derived-on-read metering, monthly hard cap, off-platform invoicing *(recorded 2026-07-15; extends D9 and the D26 generation substrate)*
+
+**Decision.** 1 credit = 1 USD of provider cost (the existing
+`generations.credits_consumed` unit). `organizations.monthly_credit_limit` (`null` =
+unlimited); month-to-date usage is **derived on read** — `SUM(credits_consumed)` over the
+org's tree for the calendar month; no ledger table, no cron. A single
+`assertOrgWithinBudget` check at the generate chokepoint hard-stops new model runs at the
+limit (viewing/editing/approving unaffected; in-flight overshoot accepted). Monitoring:
+org-facing `used / limit` readout; Yuvabe-facing `org_credit_usage` DB view. Payments,
+invoices, plans stay off-platform.
+
+**Why.** The pilot needs to *monitor* consumption per org (and cap runaways) — not to be
+a billing product. Metering already existed; only the org dimension was missing.
+
+**Originated →** `docs/CreativeOS Multi-Tenancy Pilot PRD.md` (§9).
+
+### D48 — Multi-tenancy hardening of the Drive gallery: subtree containment; folder picker is platform-org-only *(recorded 2026-07-15; builds on D41 and `clients.drive_root_folder_id`; closes the cross-tenant gaps the PRD's artifact inventory surfaced)*
+
+**Decision.** The per-client Drive root that already ships
+(**`clients.drive_root_folder_id`**, set via the client-settings folder picker) becomes
+the Drive **tenancy boundary**: `/api/drive/browse` and the file/thumbnail proxies are
+session-guarded and **server-constrained to the client's configured root subtree**
+(retiring D41's "unauthenticated but obscurity-gated" proxies note). The **folder picker**
+(`/api/drive/folders`) necessarily browses the whole platform Drive, so it is restricted
+to **Yuvabe's org**; agency clients get their root set by Yuvabe — an agency-shared
+folder can be wired the same way, no per-org OAuth. A `null` root (the default) means no
+Drive gallery for that client. Scoping is by folder **ID**, never name-matching.
+`ingest-image` likewise loses its D14 openness and joins the org-checked chokepoints.
+
+**Why.** The Drive token is Yuvabe's account: without containment, an external agency
+could browse Yuvabe's Drive (other clients' references) — and the picker exposes exactly
+that by design. Name-matching was rejected because renames break it and a name collision
+(an agency naming its client after a Yuvabe folder) would cross orgs.
+
+**Rejected.** Org-level on/off gate (coarser than the shipped per-client root);
+name-matching; per-org Drive OAuth (too heavy for the pilot).
+
+**Originated →** `docs/CreativeOS Multi-Tenancy Pilot PRD.md` (§7).
 
 ### Parked / out-of-scope (with revisit triggers)
 | Item | Status | Revisit when |
