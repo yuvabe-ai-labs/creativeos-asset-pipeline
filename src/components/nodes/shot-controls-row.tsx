@@ -6,13 +6,8 @@ import {
   type ShotControls,
   type ShotControlKey,
 } from "@/lib/nodes/shot-controls";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { ParamChipGroup } from "./param-chip-group";
+import { FieldLabel } from "./field-label";
 
 const ICONS: Record<ShotControlKey, LucideIcon> = {
   lens: Aperture,
@@ -22,6 +17,7 @@ const ICONS: Record<ShotControlKey, LucideIcon> = {
 
 // Per-shot descriptive controls (lens / composition / lighting). Set values are injected into
 // the compiled prompt as constraints the model must honor (PRD §12). "Auto" = no constraint.
+// Rendered as horizontal chip groups (like the image-gen output settings), one group per row.
 export function ShotControlsRow({
   controls,
   onChange,
@@ -30,35 +26,17 @@ export function ShotControlsRow({
   onChange: (next: ShotControls) => void;
 }) {
   return (
-    <div className="flex items-start gap-3">
-      {SHOT_CONTROLS.map((group) => {
-        const Icon = ICONS[group.key];
-        return (
-          <div key={group.key} className="min-w-0 flex-1">
-            <div className="mb-1 flex items-center gap-1 text-xs text-muted-foreground">
-              <Icon className="size-3.5 shrink-0" strokeWidth={1.5} />
-              <span className="truncate">{group.label}</span>
-            </div>
-            <Select
-              value={controls[group.key]}
-              onValueChange={(value) =>
-                onChange({ ...controls, [group.key]: value as string })
-              }
-            >
-              <SelectTrigger size="sm" className="w-full min-w-0 text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {group.options.map((o) => (
-                  <SelectItem key={o.value} value={o.value} className="text-xs">
-                    {o.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        );
-      })}
+    <div className="flex flex-col gap-4">
+      {SHOT_CONTROLS.map((group) => (
+        <div key={group.key} className="space-y-2">
+          <FieldLabel icon={ICONS[group.key]} label={group.label} />
+          <ParamChipGroup
+            options={group.options.map((o) => ({ value: o.value, label: o.label }))}
+            value={controls[group.key]}
+            onValueChange={(value) => onChange({ ...controls, [group.key]: value })}
+          />
+        </div>
+      ))}
     </div>
   );
 }

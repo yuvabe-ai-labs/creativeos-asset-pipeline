@@ -15,6 +15,12 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { FullScreenImageZoom } from "@/components/shared/full-screen-image-zoom";
 import { EditableField } from "./editable-field";
@@ -720,6 +726,60 @@ export function ImageGenFocusView({
       </span>
     ) : undefined;
 
+  // The Output-settings body — the model/param chips, the reference-limit warning,
+  // and (Generate tab only) the Generate button. Shared between the plain section
+  // on the Generate tab and the collapsible accordion on the Edit tab.
+  const outputSettingsBody = (
+    <>
+      <ImageGenOutputSettings
+        model={model}
+        values={paramValues}
+        onValuesChange={setParamValues}
+        onCommit={commitParams}
+        onModelChange={changeModel}
+      />
+      {refOverLimit && (
+        <div className="mt-3 flex items-start gap-1.5 rounded-md border border-amber-300 bg-amber-50 px-2 py-1.5 text-[0.7rem] text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300">
+          <AlertTriangle className="mt-0.5 size-3 shrink-0" strokeWidth={1.5} />
+          <span>
+            {referenceCount} reference images connected — only the first{" "}
+            {model.maxReferenceImages} will be used by {model.label}.
+          </span>
+        </div>
+      )}
+      {activeTab !== "edit" && (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger render={<span className="mt-3 flex w-full" />}>
+              <Button
+                className="w-full"
+                size="default"
+                onClick={handleGenerate}
+                disabled={generating || editing || !promptUpstream || !editable || hasRefViolation}
+              >
+                <Sparkles className="size-4" strokeWidth={1.5} />
+                {generating
+                  ? "Generating…"
+                  : editing
+                    ? "Editing…"
+                    : imageUrl
+                      ? "Re-generate"
+                      : "Generate"}
+              </Button>
+            </TooltipTrigger>
+            {hasRefViolation && !refValidation.ok && (
+              <TooltipContent side="top" className="max-w-56 text-center">
+                {refValidation.violations.length === 1
+                  ? "A reference image doesn't meet this model's requirements. Try resizing it or switching to a different model."
+                  : `${refValidation.violations.length} reference images don't meet this model's requirements. Try resizing them or switching to a different model.`}
+              </TooltipContent>
+            )}
+          </Tooltip>
+        </TooltipProvider>
+      )}
+    </>
+  );
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
@@ -733,7 +793,7 @@ export function ImageGenFocusView({
 
         {/* Header */}
         <div className="shrink-0 border-b">
-          <div className="mx-auto w-full max-w-6xl px-6 pb-5 pt-3">
+          <div className="mx-auto w-full max-w-7xl px-6 pb-5 pt-3">
             <Button
               variant="ghost"
               size="sm"
@@ -786,7 +846,7 @@ export function ImageGenFocusView({
         </div>
 
         {/* Body: left rail + detail pane */}
-        <div className="mx-auto flex w-full max-w-6xl min-h-0 flex-1 overflow-hidden">
+        <div className="mx-auto flex w-full max-w-7xl min-h-0 flex-1 overflow-hidden">
           {/* Rail */}
           <nav className="flex w-56 shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-border px-3 py-4">
             <RailItem
@@ -841,62 +901,31 @@ export function ImageGenFocusView({
               look at refs, settings, or the prompt while watching the result. */}
           <div className="flex min-h-0 flex-1 overflow-hidden">
             {/* Middle column */}
-            <div className="min-h-0 w-[45%] shrink-0 overflow-y-auto border-r border-border">
+            <div className="min-h-0 w-[54%] shrink-0 overflow-y-auto border-r border-border">
               {/* Image — model & controls; plus the edit tools on the Edit tab */}
               {selected === "image" && (
                 <div className="flex flex-col gap-6 px-6 py-5">
-                  <LeftSection icon={Settings2} label="Output settings">
-                    <ImageGenOutputSettings
-                      model={model}
-                      values={paramValues}
-                      onValuesChange={setParamValues}
-                      onCommit={commitParams}
-                      onModelChange={changeModel}
-                    />
-                    {refOverLimit && (
-                      <div className="mt-3 flex items-start gap-1.5 rounded-md border border-amber-300 bg-amber-50 px-2 py-1.5 text-[0.7rem] text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300">
-                        <AlertTriangle
-                          className="mt-0.5 size-3 shrink-0"
-                          strokeWidth={1.5}
-                        />
-                        <span>
-                          {referenceCount} reference images connected — only the
-                          first {model.maxReferenceImages} will be used by{" "}
-                          {model.label}.
-                        </span>
-                      </div>
-                    )}
-                    {activeTab !== "edit" && (
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger render={<span className="mt-3 flex w-full" />}>
-                            <Button
-                              className="w-full"
-                              size="default"
-                              onClick={handleGenerate}
-                              disabled={generating || editing || !promptUpstream || !editable || hasRefViolation}
-                            >
-                              <Sparkles className="size-4" strokeWidth={1.5} />
-                              {generating
-                                ? "Generating…"
-                                : editing
-                                  ? "Editing…"
-                                  : imageUrl
-                                    ? "Re-generate"
-                                    : "Generate"}
-                            </Button>
-                          </TooltipTrigger>
-                          {hasRefViolation && !refValidation.ok && (
-                            <TooltipContent side="top" className="max-w-56 text-center">
-                              {refValidation.violations.length === 1
-                                ? "A reference image doesn't meet this model's requirements. Try resizing it or switching to a different model."
-                                : `${refValidation.violations.length} reference images don't meet this model's requirements. Try resizing them or switching to a different model.`}
-                            </TooltipContent>
-                          )}
-                        </Tooltip>
-                      </TooltipProvider>
-                    )}
-                  </LeftSection>
+                  {activeTab === "edit" ? (
+                    // Edit tab: same output settings, collapsed into an accordion so
+                    // the edit instructions get the room. Open by default.
+                    <Accordion defaultValue={["output"]}>
+                      <AccordionItem value="output" className="border-none">
+                        <AccordionTrigger className="py-0 hover:no-underline">
+                          <span className="flex items-center gap-1.5">
+                            <Settings2 className="size-3.5 text-primary" strokeWidth={1.5} />
+                            <span className="text-eyebrow">Output settings</span>
+                          </span>
+                        </AccordionTrigger>
+                        <AccordionContent className="pt-3">
+                          {outputSettingsBody}
+                        </AccordionContent>
+                      </AccordionItem>
+                    </Accordion>
+                  ) : (
+                    <LeftSection icon={Settings2} label="Output settings">
+                      {outputSettingsBody}
+                    </LeftSection>
+                  )}
 
                   {activeTab === "edit" && canEditBase && (
                     <>

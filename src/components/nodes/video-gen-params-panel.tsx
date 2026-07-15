@@ -26,6 +26,8 @@ import {
 import { videoGenClientModelMap } from "@/lib/video-gen/client-models";
 import { ImageGenParamRow } from "./image-gen-param-row";
 import { ParamControl } from "./param-controls";
+import { ParamChipGroup } from "./param-chip-group";
+import { FieldLabel } from "./field-label";
 import type { ParamSpec } from "@/lib/image-gen/types";
 
 const PARAM_ICONS: Record<string, LucideIcon> = {
@@ -44,9 +46,6 @@ const PARAM_ICONS: Record<string, LucideIcon> = {
   vertical_movement:   Move,
 };
 
-const SELECT_CLS =
-  "min-w-0 flex-1 rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring";
-
 type Props = {
   modelId: string;
   params: Record<string, unknown>;
@@ -55,6 +54,17 @@ type Props = {
   lockedParams?: Record<string, unknown>;
   lockedParamReasons?: Record<string, string>;
 };
+
+// Models grouped by provider, preserving the map's declaration order.
+const MODEL_GROUPS = (() => {
+  const models = Object.values(videoGenClientModelMap);
+  const order: string[] = [];
+  for (const m of models) if (!order.includes(m.providerLabel)) order.push(m.providerLabel);
+  return order.map((label) => ({
+    label,
+    models: models.filter((m) => m.providerLabel === label),
+  }));
+})();
 
 export function VideoGenParamsPanel({
   modelId,
@@ -73,38 +83,41 @@ export function VideoGenParamsPanel({
   const advancedParams = visibleParams.filter((p: ParamSpec) => p.group === "advanced");
 
   function renderParamRow(spec: ParamSpec) {
-    const lockedValue = lockedParams[spec.name];
     const isLocked = spec.name in lockedParams;
     const reason = lockedParamReasons[spec.name];
 
-    if (isLocked && spec.constraints.type === "select") {
-      const options = spec.constraints.options;
+    // Select params → horizontal chip group. Locked params are shown disabled with
+    // the locked value active and a tooltip explaining why.
+    if (spec.constraints.type === "select") {
+      const options = spec.constraints.options.map((o) => ({ value: o, label: o }));
+      const value = String(
+        (isLocked ? lockedParams[spec.name] : params[spec.name]) ?? spec.defaultValue ?? "",
+      );
+      const chips = (
+        <ParamChipGroup
+          options={options}
+          value={value}
+          onValueChange={(v) => onParamChange(spec.name, v)}
+          disabled={isLocked}
+        />
+      );
       return (
-        <ImageGenParamRow
-          key={spec.name}
-          icon={PARAM_ICONS[spec.name] ?? Settings2}
-          label={spec.label}
-        >
-          <Tooltip>
-            <TooltipTrigger render={<span className="min-w-0 flex-1" />}>
-              <select
-                value={String(lockedValue)}
-                onChange={() => {}}
-                className={SELECT_CLS}
-              >
-                {options.map((opt) => (
-                  <option key={opt} value={opt} disabled={opt !== String(lockedValue)}>
-                    {opt}
-                  </option>
-                ))}
-              </select>
-            </TooltipTrigger>
-            {reason && <TooltipContent side="top">{reason}</TooltipContent>}
-          </Tooltip>
-        </ImageGenParamRow>
+        <div key={spec.name} className="space-y-2">
+          <FieldLabel icon={PARAM_ICONS[spec.name] ?? Settings2} label={spec.label} />
+          {isLocked && reason ? (
+            <Tooltip>
+              <TooltipTrigger render={<div className="w-fit" />}>{chips}</TooltipTrigger>
+              <TooltipContent side="top">{reason}</TooltipContent>
+            </Tooltip>
+          ) : (
+            chips
+          )}
+        </div>
       );
     }
 
+    // Non-select params (slider / number / toggle / textarea) keep the compact
+    // label-above-control cell.
     return (
       <ImageGenParamRow
         key={spec.name}
@@ -122,24 +135,28 @@ export function VideoGenParamsPanel({
 
   return (
     <TooltipProvider>
-      <div className="space-y-2">
-        {/* Model row */}
-        <ImageGenParamRow icon={Cpu} label="Model">
-          <select
-            value={modelId}
-            onChange={(e) => onModelChange(e.target.value)}
-            className={SELECT_CLS}
-          >
-            {Object.values(videoGenClientModelMap).map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.label} ({m.providerLabel})
-              </option>
+      <div className="space-y-5">
+        {/* Model — grouped chips inside a card, one chip row per provider. */}
+        <div className="space-y-2">
+          <FieldLabel icon={Cpu} label="Model" />
+          <div className="space-y-3 rounded-xl border border-border p-3">
+            {MODEL_GROUPS.map((group) => (
+              <div key={group.label} className="space-y-1.5">
+                <span className="text-[0.7rem] font-medium text-muted-foreground">
+                  {group.label}
+                </span>
+                <ParamChipGroup
+                  options={group.models.map((m) => ({ value: m.id, label: m.label }))}
+                  value={modelId}
+                  onValueChange={onModelChange}
+                />
+              </div>
             ))}
-          </select>
-        </ImageGenParamRow>
+          </div>
+        </div>
 
-        {/* Primary params */}
-        {primaryParams.map(renderParamRow)}
+        {/* Primary params — stacked chip groups */}
+        <div className="flex flex-col gap-5">{primaryParams.map(renderParamRow)}</div>
 
         {/* Advanced params — collapsed accordion */}
         {advancedParams.length > 0 && (
@@ -149,7 +166,7 @@ export function VideoGenParamsPanel({
                 Advanced
               </AccordionTrigger>
               <AccordionContent className="pt-2">
-                <div className="space-y-2">
+                <div className="flex flex-col gap-5">
                   {advancedParams.map(renderParamRow)}
                 </div>
               </AccordionContent>
