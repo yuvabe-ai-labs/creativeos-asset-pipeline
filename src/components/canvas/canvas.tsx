@@ -406,6 +406,26 @@ export function Canvas({
           e.preventDefault();
           openQuickAddAt(e.clientX, e.clientY);
         }}
+        onSelectionContextMenu={(e) => {
+          // The NodesSelection overlay sits above nodes and intercepts contextmenu
+          // events after drag-select. Temporarily hide it so elementFromPoint finds
+          // the node underneath, then re-dispatch so ContextMenuTrigger fires.
+          e.preventDefault();
+          const overlay = e.target as HTMLElement;
+          overlay.style.pointerEvents = "none";
+          const underneath = document.elementFromPoint(e.clientX, e.clientY);
+          overlay.style.pointerEvents = "";
+          underneath?.dispatchEvent(
+            new MouseEvent("contextmenu", {
+              bubbles: true,
+              cancelable: true,
+              clientX: e.clientX,
+              clientY: e.clientY,
+              screenX: e.screenX,
+              screenY: e.screenY,
+            }),
+          );
+        }}
         onPaneClick={() => { setQuickAdd(null); setCanPaste(false); }}
       >
         <Background
