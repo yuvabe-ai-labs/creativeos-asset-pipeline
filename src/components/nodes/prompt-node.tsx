@@ -1,8 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Handle, Position, useReactFlow, type NodeProps } from "@xyflow/react";
-import { useCanvasId } from "@/components/canvas/canvas-id-context";
+import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
@@ -27,14 +26,6 @@ export function PromptNode({ id, data, selected, positionAbsoluteX, positionAbso
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const deleteNode = useDeleteNode();
   const duplicateNode = useCanvasStore((s) => s.duplicateNode);
-  const canvasId = useCanvasId();
-  const allNodes = useCanvasStore((s) => s.nodes);
-  const duplicateNodes = useCanvasStore((s) => s.duplicateNodes);
-  const { deleteElements } = useReactFlow();
-
-  const selectedNonKbNodes = allNodes.filter((n) => n.selected && n.type !== "kb");
-  const selectedCount = selectedNonKbNodes.length;
-  const selectedIds = selectedNonKbNodes.map((n) => n.id);
   const gallery = useGalleryDrawer();
   const drop = useGalleryNodeDrop(id, {
     x: positionAbsoluteX ?? 0,
@@ -107,17 +98,8 @@ export function PromptNode({ id, data, selected, positionAbsoluteX, positionAbso
 
   return (
     <NodeContextMenu
-      selectedCount={selectedCount}
-      onDuplicate={() =>
-        selectedCount > 1
-          ? void duplicateNodes(selectedIds, canvasId)
-          : void duplicateNode(id)
-      }
-      onDelete={() =>
-        selectedCount > 1
-          ? void deleteElements({ nodes: selectedIds.map((sid) => ({ id: sid })) })
-          : deleteNode(id)
-      }
+      onDuplicate={() => duplicateNode(id)}
+      onDelete={() => deleteNode(id)}
       onAddReferenceImage={() =>
         gallery.openDrawer({
           position: { x: positionAbsoluteX ?? 0, y: positionAbsoluteY ?? 0 },

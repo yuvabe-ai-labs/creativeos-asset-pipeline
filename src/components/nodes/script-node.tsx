@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Handle, Position, useReactFlow, type NodeProps } from "@xyflow/react";
-import { useCanvasId } from "@/components/canvas/canvas-id-context";
+import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { FileText } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -22,14 +21,6 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
   const deleteNode = useDeleteNode();
   const duplicateNode = useCanvasStore((s) => s.duplicateNode);
   const fanOutShots = useCanvasStore((s) => s.fanOutShots);
-  const canvasId = useCanvasId();
-  const allNodes = useCanvasStore((s) => s.nodes);
-  const duplicateNodes = useCanvasStore((s) => s.duplicateNodes);
-  const { deleteElements } = useReactFlow();
-
-  const selectedNonKbNodes = allNodes.filter((n) => n.selected && n.type !== "kb");
-  const selectedCount = selectedNonKbNodes.length;
-  const selectedIds = selectedNonKbNodes.map((n) => n.id);
   const d = data as {
     title?: string;
     source?: string;
@@ -46,17 +37,8 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
 
   return (
     <NodeContextMenu
-      selectedCount={selectedCount}
-      onDuplicate={() =>
-        selectedCount > 1
-          ? void duplicateNodes(selectedIds, canvasId)
-          : void duplicateNode(id)
-      }
-      onDelete={() =>
-        selectedCount > 1
-          ? void deleteElements({ nodes: selectedIds.map((sid) => ({ id: sid })) })
-          : deleteNode(id)
-      }
+      onDuplicate={() => duplicateNode(id)}
+      onDelete={() => deleteNode(id)}
     >
     <div
       onDoubleClick={(e) => {

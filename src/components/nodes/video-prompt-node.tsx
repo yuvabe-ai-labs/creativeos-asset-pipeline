@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Handle, Position, type NodeProps, useReactFlow } from "@xyflow/react";
+import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { Clapperboard } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
@@ -12,7 +12,6 @@ import { savePromptOutputAction } from "@/lib/actions/nodes";
 import { VideoPromptFocusView } from "./video-prompt-focus-view";
 import { DEFAULT_IMAGE_PROMPT_SLICES, type KBSliceKey } from "@/lib/kb/parse-context";
 import type { VideoControls } from "@/lib/nodes/video-controls";
-import { useCanvasId } from "@/components/canvas/canvas-id-context";
 import { NodeContextMenu } from "./node-context-menu";
 import { NodeTitle } from "./node-title";
 import { ApprovalBadge } from "./approval-badge";
@@ -29,9 +28,6 @@ export function VideoPromptNode({ id, data, selected, positionAbsoluteX, positio
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const deleteNode = useDeleteNode();
   const duplicateNode = useCanvasStore((s) => s.duplicateNode);
-  const canvasId = useCanvasId();
-  const duplicateNodes = useCanvasStore((s) => s.duplicateNodes);
-  const { deleteElements } = useReactFlow();
   const gallery = useGalleryDrawer();
   const drop = useGalleryNodeDrop(id, {
     x: positionAbsoluteX ?? 0,
@@ -93,23 +89,10 @@ export function VideoPromptNode({ id, data, selected, positionAbsoluteX, positio
     if (!next && focusedNodeId === id) setFocusedNodeId(null);
   };
 
-  const selectedNonKbNodes = nodes.filter((n) => n.selected && n.type !== "kb");
-  const selectedCount = selectedNonKbNodes.length;
-  const selectedIds = selectedNonKbNodes.map((n) => n.id);
-
   return (
     <NodeContextMenu
-      selectedCount={selectedCount}
-      onDuplicate={() =>
-        selectedCount > 1
-          ? void duplicateNodes(selectedIds, canvasId)
-          : void duplicateNode(id)
-      }
-      onDelete={() =>
-        selectedCount > 1
-          ? void deleteElements({ nodes: selectedIds.map((sid) => ({ id: sid })) })
-          : deleteNode(id)
-      }
+      onDuplicate={() => duplicateNode(id)}
+      onDelete={() => deleteNode(id)}
       onAddReferenceImage={() =>
         gallery.openDrawer({
           position: { x: positionAbsoluteX ?? 0, y: positionAbsoluteY ?? 0 },
