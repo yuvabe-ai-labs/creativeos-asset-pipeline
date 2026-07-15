@@ -4,7 +4,7 @@
 >
 > ## 🟢 SESSION UPDATE — 2026-07-12 (READ THIS FIRST; supersedes the 07-11 note below)
 >
-> **State reconciled against git + `docs/superpowers/specs/2026-07-09-creativeos-copilot-design.md`
+> **State reconciled against git + `docs/superpowers/specs/2026-07-14-creativeos-copilot-design.md`
 > §9 "As-built delta" — which is now the true current state.** Worktree `worktree-minimal-agent` is
 > **clean** at `fe70994` (only an untracked `one script.md` test artifact).
 >

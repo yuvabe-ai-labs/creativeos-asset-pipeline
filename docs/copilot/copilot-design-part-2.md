@@ -1,7 +1,7 @@
 # CreativeOS Copilot — design spec, part 2 (the verb vocabulary + composing complex commands)
 
 > **Status:** part as-built, part designed-not-built, on branch `worktree-minimal-agent`.
-> **Continues** [part 1](../superpowers/specs/2026-07-09-creativeos-copilot-design.md) — its §1–§7
+> **Continues** [part 1](../superpowers/specs/2026-07-14-creativeos-copilot-design.md) — its §1–§7
 > (interaction model, handles, three-call architecture) and §8 (the workflow-with-one-agentic-cell
 > direction) still govern; its §9 as-built delta ends 2026-07-12. This part covers what shipped
 > **after** §9 and the **playbook runner** design that composes it all.

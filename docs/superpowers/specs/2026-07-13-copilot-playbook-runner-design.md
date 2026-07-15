@@ -1,7 +1,7 @@
 # Copilot playbook runner — complex commands as routed, slot-filled, interruptible workflows
 
 > **Status:** design, not yet built. Branch `worktree-minimal-agent`. Extends the copilot as-built
-> spec (`2026-07-09-creativeos-copilot-design.md` §8–§9). Draft decisions in §10; assign D-numbers
+> spec (`2026-07-14-creativeos-copilot-design.md` §8–§9). Draft decisions in §10; assign D-numbers
 > on merge.
 
 ---

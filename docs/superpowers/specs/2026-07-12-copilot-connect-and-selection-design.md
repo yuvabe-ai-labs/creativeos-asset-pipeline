@@ -1,7 +1,7 @@
 # Copilot connect primitive, `@selected`, and viewport placement — design spec
 
 > **Status:** design, not yet built. Branch `worktree-minimal-agent`. Builds on the copilot
-> as-built spec (`2026-07-09-creativeos-copilot-design.md` §9) and its blast-radius gating rule.
+> as-built spec (`2026-07-14-creativeos-copilot-design.md` §9) and its blast-radius gating rule.
 > Draft decisions (§9) are staged for the ADR log; assign D-numbers on merge.
 
 ---

@@ -3,7 +3,7 @@
 > **Status:** reference doc, not a build spec. Captures the principles discovered while building the
 > copilot (branch `worktree-minimal-agent`) and the research that grounds them — so future decisions
 > cite a pattern, not a vibe. Companion docs: the as-built PRDs
-> (part 1: `../superpowers/specs/2026-07-09-creativeos-copilot-design.md`; part 2:
+> (part 1: `../superpowers/specs/2026-07-14-creativeos-copilot-design.md`; part 2:
 > `./copilot-design-part-2.md`) and the runner build spec
 > (`../superpowers/specs/2026-07-13-copilot-playbook-runner-design.md`).
 

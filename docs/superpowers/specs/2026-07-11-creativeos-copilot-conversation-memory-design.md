@@ -1,7 +1,7 @@
 # CreativeOS Copilot — Conversation Memory (design spec)
 
 > **Status:** approved design, implementation pending. Branch `worktree-minimal-agent`.
-> Builds on the copilot as-built (`2026-07-09-creativeos-copilot-design.md`) and the create-script
+> Builds on the copilot as-built (`2026-07-14-creativeos-copilot-design.md`) and the create-script
 > recipe (increment 1a: the `create_script_node` tool + `createScriptNode` recipe in the panel).
 
 ---

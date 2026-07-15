@@ -1,5 +1,50 @@
 # CreativeOS Copilot — design spec (as-built)
 
+> ## 📍 RESUME HERE (cross-session pointer — updated 2026-07-14)
+>
+> This file is the **hand-off document between chat sessions**. Read this block first; the layered
+> sections below record history (§9 → §10 are as-built deltas; later sections supersede earlier ones
+> where they conflict).
+>
+> **Where the work lives:** git worktree `.claude/worktrees/minimal-agent`, branch
+> `worktree-minimal-agent`, **synced with origin/main through the reference-gallery merge
+> (2026-07-14)**. Run: `npm install` then `npm run dev` → open a client → a canvas → **✨ Copilot**
+> (top-right) or **Ctrl+Space**.
+>
+> **The copilot doc set (read in this order to load context):**
+> 1. **This file** — part 1 PRD: interaction model, handles, 3-call architecture (§1–4), the
+>    workflow-vs-agent doctrine + rung ladder (§8), as-built deltas (§9–10).
+> 2. [`docs/copilot/copilot-design-part-2.md`](../../copilot/copilot-design-part-2.md) — part 2 PRD:
+>    the completed verb vocabulary, playbook library + tool audit, runner summary, draft decisions.
+> 3. [`docs/copilot/copilot-primitives-and-patterns.md`](../../copilot/copilot-primitives-and-patterns.md)
+>    — **P1–P8**: the engineering principles + research grounding (Anthropic workflow patterns,
+>    slot-filling/Ask-when-Needed, LangGraph interrupts, Temporal, **Kubernetes level-triggered
+>    reconciliation for the "eyes"**, AG-UI). Cite these, don't re-derive them.
+> 4. [`2026-07-13-copilot-playbook-runner-design.md`](./2026-07-13-copilot-playbook-runner-design.md)
+>    — the approved build spec for the next feature (complex commands).
+>
+> **State right now:**
+> - ✅ **Built + committed:** all 5 verbs (`create_script_node`, `parse_script`+fan-out, `add_node`
+>   instant + opens detail view + viewport-center placement, `open_node`, `connect_nodes` validated
+>   by the single `canConnect` helper); `@selected`; @-mentions with names; ↑ history; `+ Add`
+>   combobox (thumbnails) on prompt/image-gen/video-prompt focus views; Ctrl+Space launcher.
+>   Gate green: tsc 0 · 470 tests · per-task + whole-feature reviews passed.
+> - 📐 **Designed, NOT built:** the **playbook runner** (route → slot-fill → interrupt/resume run
+>   with store-predicate "eyes"; v1 playbook `image-for-shot`; run card in chat; generation steps
+>   pause = the owed L6 HITL gate).
+> - **⏭️ NEXT STEP: write the implementation plan** for the runner spec (superpowers writing-plans →
+>   then subagent-driven execution). Include the two audit **prep tasks**: (1) wire **script + kb**
+>   nodes to `focusedNodeId` (same one-line pattern as File/Draw — see §10.2) so `open_node` is
+>   universal; (2) add **`file` + `draw`** to `ADDABLE_NODE_TYPES` in the actions route.
+> - **Known open items:** programmatic connects bypass manual-drag cardinality guards (pre-existing,
+>   recorded); image-gen-focus-view has a pre-existing `set-state-in-effect` lint error (~line 311,
+>   NOT ours); L4 chips still LLM-chosen (deterministic-chips improvement parked); video-gen focus
+>   view has no `+ Add` (its Connected header is a collapse toggle — needs its own pass).
+> - **Execution ledger** for the last build: `.superpowers/sdd/progress.md` (SDD subagent flow:
+>   task briefs → implementer → reviewer → fix loop → final whole-branch review).
+>
+> ---
+>
 > **Status:** partial build on branch `worktree-minimal-agent`. This spec captures **what has
 > shipped so far** so it can be merged into the MVP PRD. Sections marked **Deferred** are named but
 > not built. Decisions at the end are drafted for the ADR log (`§7`); assign real D-numbers on merge.
@@ -338,3 +383,62 @@ Native `<button>`s → shadcn `<Button>`; behavior preserved (tsc + 447 tests gr
 - **The ref handle shows on every node, in the header.** *Why:* uniform, discoverable, and identical to
   the reference the copilot/@-mention resolve. *Rejected:* handle on only the title-bearing nodes;
   above-the-title placement (inconsistent across types).
+
+---
+
+## 10. As-built delta — the verb vocabulary completed *(2026-07-12 → 07-14)*
+
+> Where this conflicts with §5 (Deferred) or §9, **this section is current.** Full detail lives in
+> [part 2](../../copilot/copilot-design-part-2.md); this is the summary that keeps one file
+> resumable.
+
+### 10.1 Executed via a spec'd, subagent-driven build (connect + selection feature)
+
+- **`connect_nodes`** — the 5th tool: `{from: handle[], to: handle}`; the client resolves handles
+  (`planConnections`, unit-tested), validates each pair with **`canConnect(src,tgt)`** — a new
+  single helper in `canvas-nodes.ts` now backing all four connection call sites (manual drag, drag
+  affordance, this tool, the `+ Add` UI) — wires via `store.connectNodes`, and reports
+  wired/rejected/unknown. §5's "write tools beyond add" is DONE.
+- **`@selected`** — a synthetic top row in the @-picker that expands the current canvas selection
+  into `@HANDLE name` tokens at insert time (resolver unchanged). Keyboard-navigable (index 0 of
+  ONE unified list; node rows shift by one).
+- **@-mentions insert handle + name**; **↑** on an empty composer recalls the last message.
+- **Viewport-center placement** — `add_node`/`create_script_node` place at the visible canvas
+  center (`screenToFlowPosition`), not off-screen right.
+- **`add_node` executes instantly** and opens the created node's detail view. The read-only
+  proposal card and dead approve/reject code are REMOVED — §5's "execute-on-approve" is superseded:
+  the HITL gate belongs at generation, inside runs (§10.3).
+- **`+ Add` on focus views** — `<AddConnection>`: a dashed-primary chip on the "Connected · N" rail
+  header (prompt, image-gen, video-prompt) opening a searchable combobox of valid, not-yet-wired
+  sources with 48px thumbnails for image-bearing nodes. The manual twin of `connect_nodes`.
+- **`open_node` fixed for File + Draw** (they never subscribed to `focusedNodeId`). Script + KB
+  still have the same gap — prep task, §10.3.
+- **Ctrl+Space** toggles the copilot; the composer autofocuses on open.
+
+### 10.2 Merged from main (kept current through 2026-07-14)
+
+D40 left-rail focus views (image-gen, video-prompt — same rail pattern as prompt; `AddConnection`
+re-landed on the new headers), the Google Drive picker, focus-view header cleanup + persistent
+output column, and the **reference-gallery** (image picker, "Add Reference Image" context-menu on
+all nodes — conceptually adjacent to `+ Add`; revisit when building the refs step of playbooks).
+
+### 10.3 Designed, not built — the playbook runner (complex commands)
+
+Spec: [`2026-07-13-copilot-playbook-runner-design.md`](./2026-07-13-copilot-playbook-runner-design.md).
+Principles: [P1–P8](../../copilot/copilot-primitives-and-patterns.md). One sentence — "generate an
+image reference for shot 2" — becomes: **route** (`run_playbook` tool picks a hardcoded playbook +
+extracts slots) → **frame** (code checks completeness; authored questions elicit missing slots;
+@-mention/"none" replies resolve without the model) → **run** (a ~30-line cursor; human actions are
+first-class steps that pause the run and resume via **level-triggered store predicates** — the
+Kubernetes reconciliation pattern; no LangGraph needed client-side). Generation steps always pause
+(the owed L6 gate). v1 playbook: `image-for-shot`. A live checklist **run card** renders from store
+state. Prep tasks before the runner: script/kb `focusedNodeId` wiring; `file`/`draw` into
+`ADDABLE_NODE_TYPES`.
+
+### 10.4 Taxonomy settled (extends §8.1)
+
+Loops don't make an agent (evaluator-optimizer is a workflow); *in a workflow you can number the
+steps before running; in an agent you can only number the iterations*. Routing + slot-filling +
+interrupt/resume are all workflow patterns — the runner is a workflow that *feels* agentic.
+Genuine agency stays reserved for the §8.3 repair cell, which later plugs into one playbook step's
+`run` without touching router/frame/runner.
