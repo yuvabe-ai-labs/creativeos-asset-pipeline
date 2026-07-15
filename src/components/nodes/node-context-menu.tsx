@@ -15,19 +15,28 @@ type Props = {
   onDuplicate: () => void;
   onDelete?: () => void;
   onAddReferenceImage?: () => void;
+  selectedCount?: number;
 };
 
-export function NodeContextMenu({ children, onDuplicate, onDelete, onAddReferenceImage }: Props) {
+export function NodeContextMenu({
+  children,
+  onDuplicate,
+  onDelete,
+  onAddReferenceImage,
+  selectedCount,
+}: Props) {
+  const isMulti = (selectedCount ?? 1) > 1;
+
   return (
     <ContextMenu>
       <ContextMenuTrigger>{children}</ContextMenuTrigger>
       <ContextMenuContent className="w-44">
         <ContextMenuItem onClick={onDuplicate}>
           <Copy className="mr-2 size-3.5" strokeWidth={1.5} />
-          Duplicate
+          {isMulti ? `Duplicate ${selectedCount} nodes` : "Duplicate"}
           <ContextMenuShortcut>⌘D</ContextMenuShortcut>
         </ContextMenuItem>
-        {onAddReferenceImage && (
+        {!isMulti && onAddReferenceImage && (
           <ContextMenuItem onClick={onAddReferenceImage}>
             <ImagePlus className="mr-2 size-3.5" strokeWidth={1.5} />
             Add Reference Image
@@ -38,7 +47,7 @@ export function NodeContextMenu({ children, onDuplicate, onDelete, onAddReferenc
             <ContextMenuSeparator />
             <ContextMenuItem variant="destructive" onClick={onDelete}>
               <Trash2 className="mr-2 size-3.5" strokeWidth={1.5} />
-              Delete
+              {isMulti ? `Delete ${selectedCount} nodes` : "Delete"}
             </ContextMenuItem>
           </>
         )}
