@@ -1,6 +1,7 @@
 "use client";
 
-import { Handle, Position, type NodeProps } from "@xyflow/react";
+import { Handle, Position, useReactFlow, type NodeProps } from "@xyflow/react";
+import { useCanvasId } from "@/components/canvas/canvas-id-context";
 import { StickyNote } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
@@ -13,10 +14,30 @@ export function TextNode({ id, data, selected }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const deleteNode = useDeleteNode();
   const duplicateNode = useCanvasStore((s) => s.duplicateNode);
+  const canvasId = useCanvasId();
+  const allNodes = useCanvasStore((s) => s.nodes);
+  const duplicateNodes = useCanvasStore((s) => s.duplicateNodes);
+  const { deleteElements } = useReactFlow();
+
+  const selectedNonKbNodes = allNodes.filter((n) => n.selected && n.type !== "kb");
+  const selectedCount = selectedNonKbNodes.length;
+  const selectedIds = selectedNonKbNodes.map((n) => n.id);
   const d = data as { text?: string };
 
   return (
-    <NodeContextMenu onDuplicate={() => duplicateNode(id)} onDelete={() => deleteNode(id)}>
+    <NodeContextMenu
+      selectedCount={selectedCount}
+      onDuplicate={() =>
+        selectedCount > 1
+          ? void duplicateNodes(selectedIds, canvasId)
+          : void duplicateNode(id)
+      }
+      onDelete={() =>
+        selectedCount > 1
+          ? void deleteElements({ nodes: selectedIds.map((sid) => ({ id: sid })) })
+          : deleteNode(id)
+      }
+    >
     <div
       className={cn(
         "w-56 rounded-lg border border-border bg-card shadow-card",
