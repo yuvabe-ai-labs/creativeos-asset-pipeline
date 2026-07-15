@@ -87,6 +87,7 @@ export function Canvas({
     addNode,
     connectNodes,
     duplicateNode,
+    duplicateNodes,
     updateNodeData,
     deleteNode,
   } = useCanvasStore(
@@ -99,6 +100,7 @@ export function Canvas({
       addNode: s.addNode,
       connectNodes: s.connectNodes,
       duplicateNode: s.duplicateNode,
+      duplicateNodes: s.duplicateNodes,
       updateNodeData: s.updateNodeData,
       deleteNode: s.deleteNode,
     })),
@@ -224,9 +226,10 @@ export function Canvas({
       // Duplicate (existing behavior) — modified key, fires regardless of focus.
       if ((e.ctrlKey || e.metaKey) && e.key === "d") {
         e.preventDefault();
-        nodesRef.current
+        const selectedIds = nodesRef.current
           .filter((n) => n.selected && n.type !== "kb")
-          .forEach((n) => duplicateNode(n.id));
+          .map((n) => n.id);
+        void duplicateNodes(selectedIds, canvasId);
         return;
       }
 
@@ -255,7 +258,7 @@ export function Canvas({
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [duplicateNode, openQuickAddAt, handleAddNode, pointerOrCenter]);
+  }, [duplicateNode, duplicateNodes, canvasId, openQuickAddAt, handleAddNode, pointerOrCenter]);
 
   const isValidConnection = useCallback(
     (connection: Connection | Edge) => {
@@ -402,6 +405,26 @@ export function Canvas({
         onPaneContextMenu={(e) => {
           e.preventDefault();
           openQuickAddAt(e.clientX, e.clientY);
+        }}
+        onSelectionContextMenu={(e) => {
+          // The NodesSelection overlay sits above nodes and intercepts contextmenu
+          // events after drag-select. Temporarily hide it so elementFromPoint finds
+          // the node underneath, then re-dispatch so ContextMenuTrigger fires.
+          e.preventDefault();
+          const overlay = e.target as HTMLElement;
+          overlay.style.pointerEvents = "none";
+          const underneath = document.elementFromPoint(e.clientX, e.clientY);
+          overlay.style.pointerEvents = "";
+          underneath?.dispatchEvent(
+            new MouseEvent("contextmenu", {
+              bubbles: true,
+              cancelable: true,
+              clientX: e.clientX,
+              clientY: e.clientY,
+              screenX: e.screenX,
+              screenY: e.screenY,
+            }),
+          );
         }}
         onPaneClick={() => { setQuickAdd(null); setCanPaste(false); }}
       >
