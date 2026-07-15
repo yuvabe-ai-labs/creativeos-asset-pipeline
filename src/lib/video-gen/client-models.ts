@@ -202,6 +202,20 @@ export const videoGenClientModelMap: Record<string, VideoGenClientModelSpec> = {
   },
 };
 
+// Models grouped by provider, preserving the map's declaration order.
+export const videoGenClientModelGroups: Array<{
+  label: string;
+  models: VideoGenClientModelSpec[];
+}> = (() => {
+  const models = Object.values(videoGenClientModelMap);
+  const order: string[] = [];
+  for (const m of models) if (!order.includes(m.providerLabel)) order.push(m.providerLabel);
+  return order.map((label) => ({
+    label,
+    models: models.filter((m) => m.providerLabel === label),
+  }));
+})();
+
 export const DEFAULT_VIDEO_CLIENT_MODEL_ID = "veo:veo-3.1-lite";
 
 export function defaultsForVideoModel(modelId: string): Record<string, unknown> {

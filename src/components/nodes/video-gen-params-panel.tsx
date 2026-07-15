@@ -23,7 +23,10 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { videoGenClientModelMap } from "@/lib/video-gen/client-models";
+import {
+  videoGenClientModelMap,
+  videoGenClientModelGroups,
+} from "@/lib/video-gen/client-models";
 import { ImageGenParamRow } from "./image-gen-param-row";
 import { ParamControl } from "./param-controls";
 import { ParamChipGroup } from "./param-chip-group";
@@ -54,17 +57,6 @@ type Props = {
   lockedParams?: Record<string, unknown>;
   lockedParamReasons?: Record<string, string>;
 };
-
-// Models grouped by provider, preserving the map's declaration order.
-const MODEL_GROUPS = (() => {
-  const models = Object.values(videoGenClientModelMap);
-  const order: string[] = [];
-  for (const m of models) if (!order.includes(m.providerLabel)) order.push(m.providerLabel);
-  return order.map((label) => ({
-    label,
-    models: models.filter((m) => m.providerLabel === label),
-  }));
-})();
 
 export function VideoGenParamsPanel({
   modelId,
@@ -140,7 +132,7 @@ export function VideoGenParamsPanel({
         <div className="space-y-2">
           <FieldLabel icon={Cpu} label="Model" />
           <div className="space-y-3 rounded-xl border border-border p-3">
-            {MODEL_GROUPS.map((group) => (
+            {videoGenClientModelGroups.map((group) => (
               <div key={group.label} className="space-y-1.5">
                 <span className="text-[0.7rem] font-medium text-muted-foreground">
                   {group.label}
