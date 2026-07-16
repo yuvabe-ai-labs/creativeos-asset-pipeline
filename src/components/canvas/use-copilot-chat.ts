@@ -14,6 +14,8 @@ import {
 } from "@/lib/copilot/actions";
 import type { AppNode } from "@/lib/canvas-nodes";
 import type { ReelScript } from "@/lib/nodes/reel-script";
+import { usePlaybookRunner } from "./use-playbook-runner";
+import { normalizeSlots } from "@/lib/copilot/runner";
 
 // A node the copilot referenced — arrives as STRUCTURED data (not text), so we can
 // render it as a clickable chip that highlights the real node on the canvas.
@@ -37,6 +39,12 @@ export function useCopilotChat(canvasId: string) {
   const [thinking, setThinking] = useState(false);
   const storeApi = useCanvasStoreApi();
   const { setCenter, screenToFlowPosition } = useReactFlow();
+
+  // Run narration (instructions, ✓ lines, cancellations) lands in the transcript
+  // like any other assistant message.
+  const say = (text: string) =>
+    setMessages((m) => [...m, { role: "assistant" as const, content: text }]);
+  const runner = usePlaybookRunner(say);
 
   // Clicking a chip selects (highlights) that node on the real canvas.
   function highlightNode(id: string) {
@@ -215,6 +223,55 @@ export function useCopilotChat(canvasId: string) {
       return;
     }
 
+    // A live run owns some turns: "cancel" stops it; while ELICITING, the message is
+    // the answer to the asked slot (client-first, model fallback — spec §2.2). While
+    // waiting-human, ordinary chat/commands still work — the run just keeps watching.
+    const liveRun = storeApi.getState().playbookRun;
+    const runLive =
+      !!liveRun && ["eliciting", "running", "waiting-human"].includes(liveRun.status);
+    if (runLive && /^\s*(cancel|stop|abort)\s*[.!]?\s*$/i.test(text)) {
+      setMessages((m) => [...m, { role: "user", content: text }]);
+      runner.cancelRun();
+      return;
+    }
+    if (liveRun?.status === "eliciting") {
+      setMessages((m) => [...m, { role: "user", content: text }]);
+      const answered = runner.answerWithText(text);
+      if (answered.kind !== "model") return; // filled (or run vanished) — runner spoke
+      // Model fallback: the actions route extracts the handle from a free-text reply.
+      setThinking(true);
+      try {
+        const res = await fetch("/api/copilot/actions", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            messages: buildHistory(messages, text),
+            canvasId,
+            mentionedIds: [],
+            elicit: {
+              playbook: liveRun.playbook,
+              slotKey: answered.slot.key,
+              question: answered.slot.ask,
+            },
+          }),
+        });
+        const action = res.ok
+          ? (((await res.json()) as { action?: CopilotAction | null }).action ?? null)
+          : null;
+        const value =
+          action?.name === "run_playbook"
+            ? normalizeSlots(action.args.slots)[answered.slot.key]
+            : undefined;
+        if (value !== undefined) runner.fillSlot(answered.slot.key, value);
+        else runner.reaskOrWait();
+      } catch {
+        runner.reaskOrWait();
+      } finally {
+        setThinking(false);
+      }
+      return;
+    }
+
     // Resolve the @HANDLE tokens the human typed → the exact node ids they pointed at.
     // Grounding set = those typed mentions ∪ the selection chip's ids. These travel with
     // the request so the server grounds the copilot on precisely them.
@@ -273,6 +330,14 @@ export function useCopilotChat(canvasId: string) {
       // "connect @FILE-… to @VID-…" → wire the edges instantly and stop.
       if (action?.name === "connect_nodes") {
         connectHandles(action.args.from, action.args.to);
+        setThinking(false);
+        return;
+      }
+
+      // A COMPLEX command → route to a playbook run. startPlaybook handles the
+      // one-run-at-a-time guard, unanswerable slots, inference, and elicitation.
+      if (action?.name === "run_playbook") {
+        runner.startPlaybook(action.args.name, action.args.slots);
         setThinking(false);
         return;
       }
@@ -348,5 +413,12 @@ export function useCopilotChat(canvasId: string) {
     }
   }
 
-  return { messages, thinking, highlightNode, send };
+  return {
+    messages,
+    thinking,
+    highlightNode,
+    send,
+    cancelRun: runner.cancelRun,
+    dismissRun: runner.dismissRun,
+  };
 }
