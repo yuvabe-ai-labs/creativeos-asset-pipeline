@@ -10,9 +10,10 @@ import { buildCopilotContext } from "@/lib/copilot/context";
 // Note the shift from CALL 2: response_format forces a shape WE picked. A tool offers
 // a shape the model may CHOOSE. Same structured-output machinery, opposite initiative.
 
-// Node types the copilot may propose adding. A curated, additive subset — the types
-// whose creation is a plain addNode(type) with no special seeding (kb/shot/file/draw
-// are deliberately excluded; they need context or uploads a bare "add" can't supply).
+// Node types the copilot may add. A curated, additive subset — the types whose
+// creation is a plain addNode(type). file/draw open their editors on create, so the
+// user lands in the upload/draw surface. kb/shot stay excluded (they need context —
+// a client KB, a parsed script — a bare "add" can't supply).
 const ADDABLE_NODE_TYPES = [
   "text",
   "script",
@@ -20,6 +21,8 @@ const ADDABLE_NODE_TYPES = [
   "image-gen",
   "video-prompt",
   "video-gen",
+  "file",
+  "draw",
 ] as const;
 
 const tools = [
