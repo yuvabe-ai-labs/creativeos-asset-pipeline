@@ -52,6 +52,7 @@ import { PromptVersionChips } from "./prompt-version-chips";
 import { describeApprovalPill } from "@/lib/nodes/prompt-focus";
 import { LeftSection } from "./focus-left-section";
 import { RailItem } from "./focus-rail-item";
+import { PromptShotReference, PromptShotReferenceEmpty } from "./prompt-shot-reference";
 
 type PromptFocusViewProps = {
   open: boolean;
@@ -147,6 +148,15 @@ export function PromptFocusView({
   const selectedNode = isNodeSelected
     ? preview.connected.find((c) => c.nodeId === selected) ?? null
     : null;
+  // The connected Shot's text is PINNED in the compose layout's center column — it's what
+  // the operator reads to decide Lens/Composition/Lighting, so it never hides behind a rail
+  // click. Prompt nodes carry one shot in practice; show the first.
+  const shotPreview = preview.connected.find((c) => c.type === "shot") ?? null;
+  // The compose layout owns both the "Prompt" rail item and any connected-input selection:
+  // selecting a connected input shows its detail in the RIGHT column while shot + compose
+  // stay put. The Shot rail item keeps its as-is behavior (its detail shows on the right too).
+  const showComposeLayout = selected === "prompt" || isNodeSelected;
+  const detailNode = selectedNode;
 
   const dirty = (output ?? "") !== draft && draft.trim() !== "";
   const mode: "skeleton" | "result" | "empty" = generating
@@ -478,116 +488,128 @@ export function PromptFocusView({
 
           {/* Detail pane */}
           <div className="min-h-0 flex-1 overflow-hidden">
-            {/* Prompt — the compose editor (output on top, input below) */}
-            {selected === "prompt" && (
-              <div className="flex h-full w-full max-w-3xl min-h-0 flex-col overflow-y-auto">
-                {/* Instruction + controls — on top */}
-                <div className="flex shrink-0 flex-col gap-3 border-b border-border px-6 py-5">
-                  <div className="flex items-center gap-1.5">
-                    <PencilLine className="size-3.5 text-primary" />
-                    <span className="text-eyebrow">Instruction</span>
+            {/* Prompt — three-column compose: the connected Shot text is pinned in the
+                center column (always readable while you pick Lens/Composition/Lighting),
+                with the instruction + controls beneath it; the generated prompt owns the
+                right column (or a selected connected input's detail takes it over). */}
+            {showComposeLayout && (
+              <div className="flex h-full min-h-0 w-full">
+                {/* Center column — pinned shot text (top) + instruction & controls (bottom) */}
+                <div className="flex h-full w-full max-w-md min-h-0 flex-col overflow-hidden border-r border-border">
+                  {shotPreview ? (
+                    <PromptShotReference label={shotPreview.label} text={shotPreview.text} />
+                  ) : (
+                    <PromptShotReferenceEmpty />
+                  )}
+
+                  {/* Instruction + controls — bottom of the center column */}
+                  <div className="flex shrink-0 flex-col gap-3 border-t border-border px-6 py-5">
+                    <div className="flex items-center gap-1.5">
+                      <PencilLine className="size-3.5 text-primary" />
+                      <span className="text-eyebrow">Instruction</span>
+                    </div>
+                    <MentionInstructionEditor
+                      value={instructionDraft}
+                      onChange={(v) => {
+                        setInstructionDraft(v);
+                        onPatch({ instruction: v });
+                      }}
+                      placeholder={instructionPlaceholder}
+                      upstream={upstream}
+                      disabled={!editable}
+                      className="min-h-20"
+                    />
+                    <ShotControlsRow
+                      controls={controls ?? DEFAULT_SHOT_CONTROLS}
+                      onChange={(next) => onPatch({ controls: next })}
+                    />
+                    <Button
+                      className="w-full"
+                      size="default"
+                      onClick={runGenerate}
+                      disabled={generating || !editable}
+                    >
+                      <Sparkles className="size-4" />
+                      {generating ? "Generating…" : output ? "Re-generate" : "Generate prompt"}
+                    </Button>
                   </div>
-                  <MentionInstructionEditor
-                    value={instructionDraft}
-                    onChange={(v) => {
-                      setInstructionDraft(v);
-                      onPatch({ instruction: v });
-                    }}
-                    placeholder={instructionPlaceholder}
-                    upstream={upstream}
-                    disabled={!editable}
-                    className="min-h-20"
-                  />
-                  <ShotControlsRow
-                    controls={controls ?? DEFAULT_SHOT_CONTROLS}
-                    onChange={(next) => onPatch({ controls: next })}
-                  />
-                  <Button
-                    className="w-full"
-                    size="default"
-                    onClick={runGenerate}
-                    disabled={generating || !editable}
-                  >
-                    <Sparkles className="size-4" />
-                    {generating ? "Generating…" : output ? "Re-generate" : "Generate prompt"}
-                  </Button>
                 </div>
 
-                {/* Output zone — the main focus, below the instruction */}
-                <div className="flex shrink-0 flex-col gap-3 px-6 py-5">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-1.5">
-                      <Sparkles className="size-3.5 text-primary" />
-                      <span className="text-eyebrow">Generated prompt</span>
+                {/* Right column — a selected connected input's detail, else the output */}
+                <div className="min-h-0 flex-1 overflow-y-auto">
+                  {detailNode ? (
+                    <ConnectedDetailView node={detailNode} />
+                  ) : isNodeSelected ? (
+                    <div className="flex h-full items-center justify-center px-6 py-6">
+                      <p className="text-sm text-muted-foreground">
+                        {loadingPreview ? "Loading…" : "This input has no preview yet."}
+                      </p>
                     </div>
-                    <PromptVersionChips
-                      versions={versions}
-                      activeVersionId={activeVersionId}
-                      restoring={restoring}
-                      onSwitch={handleRestoreVersion}
-                    />
-                  </div>
-
-                  {mode === "skeleton" && (
-                    <div className="space-y-2.5 pt-1">
-                      {Array.from({ length: 9 }).map((_, i) => (
-                        <div
-                          key={i}
-                          className="h-4 animate-pulse rounded bg-muted-foreground/20"
-                          style={{ width: `${70 + (i % 4) * 7}%` }}
+                  ) : (
+                    <div className="flex shrink-0 flex-col gap-3 px-6 py-5">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5">
+                          <Sparkles className="size-3.5 text-primary" />
+                          <span className="text-eyebrow">Generated prompt</span>
+                        </div>
+                        <PromptVersionChips
+                          versions={versions}
+                          activeVersionId={activeVersionId}
+                          restoring={restoring}
+                          onSwitch={handleRestoreVersion}
                         />
-                      ))}
-                    </div>
-                  )}
-
-                  {mode === "empty" && (
-                    <div className="flex h-64 items-center justify-center rounded-xl border border-dashed border-border">
-                      <div className="text-center px-8">
-                        <Sparkles className="size-8 mx-auto text-muted-foreground/40 mb-3" />
-                        <p className="text-sm font-medium text-muted-foreground">
-                          Not generated yet
-                        </p>
-                        <p className="mt-1 text-xs text-muted-foreground/70">
-                          Write an instruction above and click Generate.
-                        </p>
                       </div>
-                    </div>
-                  )}
 
-                  {mode === "result" && (
-                    <>
-                      <Textarea
-                        value={draft}
-                        onChange={(e) => setDraft(e.target.value)}
-                        className="h-64 resize-none rounded-xl p-4 text-base leading-relaxed [field-sizing:fixed]"
-                      />
-                      <div className="flex items-center gap-2 self-start">
-                        <Button onClick={handleSave} disabled={!dirty}>
-                          Save
-                        </Button>
-                        {dirty && (
-                          <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[0.65rem] font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-400">
-                            Unsaved changes
-                          </span>
-                        )}
-                      </div>
-                    </>
+                      {mode === "skeleton" && (
+                        <div className="space-y-2.5 pt-1">
+                          {Array.from({ length: 9 }).map((_, i) => (
+                            <div
+                              key={i}
+                              className="h-4 animate-pulse rounded bg-muted-foreground/20"
+                              style={{ width: `${70 + (i % 4) * 7}%` }}
+                            />
+                          ))}
+                        </div>
+                      )}
+
+                      {mode === "empty" && (
+                        <div className="flex h-64 items-center justify-center rounded-xl border border-dashed border-border">
+                          <div className="text-center px-8">
+                            <Sparkles className="size-8 mx-auto text-muted-foreground/40 mb-3" />
+                            <p className="text-sm font-medium text-muted-foreground">
+                              Not generated yet
+                            </p>
+                            <p className="mt-1 text-xs text-muted-foreground/70">
+                              Write an instruction and click Generate.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
+                      {mode === "result" && (
+                        <>
+                          <Textarea
+                            value={draft}
+                            onChange={(e) => setDraft(e.target.value)}
+                            className="h-64 resize-none rounded-xl p-4 text-base leading-relaxed [field-sizing:fixed]"
+                          />
+                          <div className="flex items-center gap-2 self-start">
+                            <Button onClick={handleSave} disabled={!dirty}>
+                              Save
+                            </Button>
+                            {dirty && (
+                              <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[0.65rem] font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                                Unsaved changes
+                              </span>
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>
             )}
-
-            {/* Connected node — read-only detail */}
-            {isNodeSelected &&
-              (selectedNode ? (
-                <ConnectedDetailView node={selectedNode} />
-              ) : (
-                <div className="flex h-full items-center justify-center px-6 py-6">
-                  <p className="text-sm text-muted-foreground">
-                    {loadingPreview ? "Loading…" : "This input has no preview yet."}
-                  </p>
-                </div>
-              ))}
 
             {/* Details — Brand KB + Review (eval, approval) */}
             {selected === "details" && (
