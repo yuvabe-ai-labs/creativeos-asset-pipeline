@@ -10,7 +10,7 @@ export function PromptShotReference({ label, text }: { label: string; text: stri
   const shotType = text.trim() ? deriveShotType(text) : undefined;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3 px-6 py-5">
+    <div className="flex shrink-0 flex-col gap-3 px-6 py-5">
       <div className="flex items-center gap-1.5">
         <NodeIcon type="shot" />
         <span className="text-eyebrow">{label || "Shot"}</span>
@@ -20,7 +20,7 @@ export function PromptShotReference({ label, text }: { label: string; text: stri
           </span>
         )}
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto rounded-xl border border-border bg-muted/20 p-4">
+      <div className="max-h-56 overflow-y-auto rounded-xl border border-border bg-muted/20 p-4">
         {text.trim() ? (
           <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/80">{text}</p>
         ) : (
@@ -34,12 +34,12 @@ export function PromptShotReference({ label, text }: { label: string; text: stri
 // Empty state for the center column when no Shot is connected to this prompt.
 export function PromptShotReferenceEmpty() {
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3 px-6 py-5">
+    <div className="flex shrink-0 flex-col gap-3 px-6 py-5">
       <div className="flex items-center gap-1.5">
         <NodeIcon type="shot" />
         <span className="text-eyebrow">Shot</span>
       </div>
-      <div className="flex min-h-0 flex-1 items-center justify-center rounded-xl border border-dashed border-border p-4">
+      <div className="flex h-40 items-center justify-center rounded-xl border border-dashed border-border p-4">
         <p className="max-w-xs text-center text-sm text-muted-foreground">
           Connect a Shot to see its text and steer the camera &amp; lighting.
         </p>

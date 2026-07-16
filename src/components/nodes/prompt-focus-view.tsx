@@ -546,8 +546,8 @@ export function PromptFocusView({
                       </p>
                     </div>
                   ) : (
-                    <div className="flex shrink-0 flex-col gap-3 px-6 py-5">
-                      <div className="flex items-center justify-between gap-2">
+                    <div className="flex h-full flex-col gap-3 px-6 py-5">
+                      <div className="flex shrink-0 items-center justify-between gap-2">
                         <div className="flex items-center gap-1.5">
                           <Sparkles className="size-3.5 text-primary" />
                           <span className="text-eyebrow">Generated prompt</span>
@@ -591,9 +591,9 @@ export function PromptFocusView({
                           <Textarea
                             value={draft}
                             onChange={(e) => setDraft(e.target.value)}
-                            className="h-64 resize-none rounded-xl p-4 text-base leading-relaxed [field-sizing:fixed]"
+                            className="min-h-64 flex-1 resize-none rounded-xl p-4 text-base leading-relaxed [field-sizing:fixed]"
                           />
-                          <div className="flex items-center gap-2 self-start">
+                          <div className="flex shrink-0 items-center gap-2 self-start">
                             <Button onClick={handleSave} disabled={!dirty}>
                               Save
                             </Button>
