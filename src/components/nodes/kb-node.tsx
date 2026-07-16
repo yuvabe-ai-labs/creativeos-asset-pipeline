@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { BookOpenIcon, ArrowUpRightIcon } from "lucide-react";
@@ -14,6 +14,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import type { KBNodeData } from "@/lib/canvas-nodes";
+import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { useNodeConnectionState } from "./use-node-connection-state";
 import { NodeHandle } from "./node-handle";
 import { formatDate } from "@/lib/kb/utils";
@@ -229,6 +230,14 @@ function KBSheetContent({
 export function KBNode({ id, data, selected }: NodeProps) {
   const d = data as KBNodeData;
   const [open, setOpen] = useState(false);
+  const focusedNodeId = useCanvasStore((s) => s.focusedNodeId);
+  const setFocusedNodeId = useCanvasStore((s) => s.setFocusedNodeId);
+  // Open locally OR when the shared focus signal points here (copilot open_node).
+  const sheetOpen = open || focusedNodeId === id;
+  const handleOpenChange = (next: boolean) => {
+    setOpen(next);
+    if (!next && focusedNodeId === id) setFocusedNodeId(null); // consume the signal
+  };
   const connState = useNodeConnectionState(id, "kb");
   const [fetchState, setFetchState] = useState<FetchState>({
     loading: true,
@@ -254,6 +263,11 @@ export function KBNode({ id, data, selected }: NodeProps) {
       )
       .catch(() => setFetchState((s) => ({ ...s, loading: false })));
   }
+
+  // A signal-driven open skips hover/double-click, so prime the fetch here.
+  useEffect(() => {
+    if (sheetOpen) prefetch();
+  });
 
   const fillPct = d.fillRate != null ? Math.round(d.fillRate * 100) : null;
 
@@ -297,7 +311,7 @@ export function KBNode({ id, data, selected }: NodeProps) {
           </p>
         )}
 
-        <Sheet open={open} onOpenChange={setOpen}>
+        <Sheet open={sheetOpen} onOpenChange={handleOpenChange}>
           <SheetTrigger
             render={
               <button className="nodrag mt-1.5 text-[0.65rem] font-medium text-primary hover:underline">
@@ -305,7 +319,7 @@ export function KBNode({ id, data, selected }: NodeProps) {
               </button>
             }
           />
-          {open && (
+          {sheetOpen && (
             <KBSheetContent
               clientSlug={d.clientSlug}
               loading={fetchState.loading}
