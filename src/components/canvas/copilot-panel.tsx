@@ -39,14 +39,16 @@ export function CopilotPanel({ canvasId }: { canvasId: string }) {
 
   if (!open) {
     return (
-      <Button onClick={() => setOpen(true)} className="absolute right-4 top-4 z-20 gap-2 shadow-md">
+      <Button onClick={() => setOpen(true)} className="absolute right-4 top-4 z-[60] gap-2 shadow-md">
         <Sparkles className="size-4" /> Copilot
       </Button>
     );
   }
 
   return (
-    <div className="absolute right-4 top-4 bottom-4 z-20 flex w-[360px] flex-col overflow-hidden rounded-2xl border border-border bg-background/95 shadow-lg backdrop-blur">
+    // z-[60] keeps the copilot ABOVE focus-view sheets (portaled at z-50): mid-run,
+    // the runner opens a sheet while the run card narrates — both must stay visible.
+    <div className="absolute right-4 top-4 bottom-4 z-[60] flex w-[360px] flex-col overflow-hidden rounded-2xl border border-border bg-background/95 shadow-lg backdrop-blur">
       <header className="flex items-center justify-between border-b border-border/70 px-4 py-3">
         <div className="flex items-center gap-2 font-display font-medium">
           <Sparkles className="size-4 text-primary" /> Copilot
