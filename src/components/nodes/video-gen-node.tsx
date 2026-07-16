@@ -5,9 +5,9 @@ import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { Clapperboard } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
-import { useCanvasId } from "@/components/canvas/canvas-id-context";
 import { useDeleteNode } from "@/hooks/use-delete-node";
-import { useReferenceImagePicker } from "@/hooks/use-reference-image-picker";
+import { useGalleryDrawer } from "@/components/canvas/gallery-drawer-context";
+import { useGalleryNodeDrop } from "@/hooks/use-gallery-node-drop";
 import { NodeContextMenu } from "./node-context-menu";
 import { NodeHandle } from "./node-handle";
 import type { VideoGenNodeData } from "@/lib/canvas-nodes";
@@ -16,14 +16,16 @@ import { useVideoGenStatus } from "@/hooks/use-video-gen-status";
 import { ProcessingPill } from "./processing-pill";
 import { ApprovalBadge } from "./approval-badge";
 import type { ApprovalStatus } from "@/lib/approval";
-import { ReferenceImagePickerDialog } from "@/components/canvas/reference-image-picker-dialog";
 
 export function VideoGenNode({ id, data, selected, positionAbsoluteX, positionAbsoluteY }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const deleteNode    = useDeleteNode();
   const duplicateNode = useCanvasStore((s) => s.duplicateNode);
-  const canvasId = useCanvasId();
-  const { open, setOpen, openPicker, handleAdd } = useReferenceImagePicker();
+  const gallery = useGalleryDrawer();
+  const drop = useGalleryNodeDrop(id, {
+    x: positionAbsoluteX ?? 0,
+    y: positionAbsoluteY ?? 0,
+  });
   const focusedNodeId = useCanvasStore((s) => s.focusedNodeId);
   const setFocusedNodeId = useCanvasStore((s) => s.setFocusedNodeId);
 
@@ -50,10 +52,20 @@ export function VideoGenNode({ id, data, selected, positionAbsoluteX, positionAb
   );
 
   return (
-    <>
-    <NodeContextMenu onDuplicate={() => duplicateNode(id)} onDelete={() => deleteNode(id)} onAddReferenceImage={() => openPicker({ position: { x: positionAbsoluteX ?? 0, y: positionAbsoluteY ?? 0 }, connectToNodeId: id })}>
+    <NodeContextMenu
+      onDuplicate={() => duplicateNode(id)}
+      onDelete={() => deleteNode(id)}
+      onAddReferenceImage={() =>
+        gallery.openDrawer({
+          position: { x: positionAbsoluteX ?? 0, y: positionAbsoluteY ?? 0 },
+          connectToNodeId: id,
+        })
+      }
+    >
       <div
         onDoubleClick={(e) => { e.stopPropagation(); setFocusOpen(true); }}
+        onDragOver={drop.onDragOver}
+        onDrop={drop.onDrop}
         className={cn(
           "w-60 rounded-lg border border-border bg-card shadow-card",
           "transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:scale-[1.006]",
@@ -129,12 +141,5 @@ export function VideoGenNode({ id, data, selected, positionAbsoluteX, positionAb
         />
       </div>
     </NodeContextMenu>
-    <ReferenceImagePickerDialog
-      canvasId={canvasId}
-      open={open}
-      onOpenChange={setOpen}
-      onAdd={handleAdd}
-    />
-    </>
   );
 }

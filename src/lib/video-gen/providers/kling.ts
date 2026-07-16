@@ -46,7 +46,7 @@ export function buildKlingRequestBody(input: KlingRequestBodyInput): Record<stri
 
   return {
     model_name: modelName,
-    image: { type: "base64", value: imageBase64 },
+    image: imageBase64,
     prompt,
     mode: String(params.mode ?? "pro"),
     duration: Number(params.duration ?? 5),

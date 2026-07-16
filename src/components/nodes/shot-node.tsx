@@ -5,15 +5,14 @@ import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { Clapperboard, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
-import { useCanvasId } from "@/components/canvas/canvas-id-context";
 import { useDeleteNode } from "@/hooks/use-delete-node";
-import { useReferenceImagePicker } from "@/hooks/use-reference-image-picker";
+import { useGalleryDrawer } from "@/components/canvas/gallery-drawer-context";
+import { useGalleryNodeDrop } from "@/hooks/use-gallery-node-drop";
 import { NodeContextMenu } from "./node-context-menu";
 import { NodeHandle } from "./node-handle";
 import { ShotComposeSheet } from "./shot-compose-sheet";
 import { GuidedNextButton } from "@/components/canvas/guided-next-button";
 import type { ReelScript } from "@/lib/nodes/reel-script";
-import { ReferenceImagePickerDialog } from "@/components/canvas/reference-image-picker-dialog";
 
 // Shot node — one shot of a reel, forked from a parsed Script (D21). It carries the
 // FULL parent script narrowed to a single shot ("a Script node with one shot"), so
@@ -23,8 +22,11 @@ export function ShotNode({ id, data, selected, positionAbsoluteX, positionAbsolu
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const deleteNode = useDeleteNode();
   const duplicateNode = useCanvasStore((s) => s.duplicateNode);
-  const canvasId = useCanvasId();
-  const { open, setOpen, openPicker, handleAdd } = useReferenceImagePicker();
+  const gallery = useGalleryDrawer();
+  const drop = useGalleryNodeDrop(id, {
+    x: positionAbsoluteX ?? 0,
+    y: positionAbsoluteY ?? 0,
+  });
   const [composeOpen, setComposeOpen] = useState(false);
   const focusedNodeId = useCanvasStore((s) => s.focusedNodeId);
   const setFocusedNodeId = useCanvasStore((s) => s.setFocusedNodeId);
@@ -56,17 +58,23 @@ export function ShotNode({ id, data, selected, positionAbsoluteX, positionAbsolu
   };
 
   return (
-    <>
     <NodeContextMenu
       onDuplicate={() => duplicateNode(id)}
       onDelete={() => deleteNode(id)}
-      onAddReferenceImage={() => openPicker({ position: { x: positionAbsoluteX ?? 0, y: positionAbsoluteY ?? 0 }, connectToNodeId: id })}
+      onAddReferenceImage={() =>
+        gallery.openDrawer({
+          position: { x: positionAbsoluteX ?? 0, y: positionAbsoluteY ?? 0 },
+          connectToNodeId: id,
+        })
+      }
     >
       <div
         onDoubleClick={(e) => {
           e.stopPropagation();
           setComposeOpen(true);
         }}
+        onDragOver={drop.onDragOver}
+        onDrop={drop.onDrop}
         className={cn(
           "w-56 rounded-lg border border-border bg-card shadow-card",
           "transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:scale-[1.006]",
@@ -128,12 +136,5 @@ export function ShotNode({ id, data, selected, positionAbsoluteX, positionAbsolu
         <ShotComposeSheet nodeId={id} open={composeViewOpen} onOpenChange={handleComposeOpenChange} />
       </div>
     </NodeContextMenu>
-    <ReferenceImagePickerDialog
-      canvasId={canvasId}
-      open={open}
-      onOpenChange={setOpen}
-      onAdd={handleAdd}
-    />
-    </>
   );
 }

@@ -17,7 +17,10 @@ export function TextNode({ id, data, selected }: NodeProps) {
   const d = data as { text?: string };
 
   return (
-    <NodeContextMenu onDuplicate={() => duplicateNode(id)} onDelete={() => deleteNode(id)}>
+    <NodeContextMenu
+      onDuplicate={() => duplicateNode(id)}
+      onDelete={() => deleteNode(id)}
+    >
     <div
       className={cn(
         "w-56 rounded-lg border border-border bg-card shadow-card",
