@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { useCopilotChat } from "./use-copilot-chat";
 import { CopilotMessage } from "./copilot-message";
 import { CopilotComposer } from "./copilot-composer";
+import { CopilotRunCard } from "./copilot-run-card";
 
 // The docked copilot panel: shell + open/close only. All conversation logic lives in
 // useCopilotChat; the message rows and composer are their own components. This file owns
@@ -13,7 +14,8 @@ import { CopilotComposer } from "./copilot-composer";
 export function CopilotPanel({ canvasId }: { canvasId: string }) {
   const [open, setOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const { messages, thinking, highlightNode, send } = useCopilotChat(canvasId);
+  const { messages, thinking, highlightNode, send, cancelRun, dismissRun } =
+    useCopilotChat(canvasId);
 
   // Keep the transcript pinned to the newest message. Fires on EVERY message change —
   // sending, recipe replies (parse/fan-out), proposal cards, and each streamed token —
@@ -70,6 +72,7 @@ export function CopilotPanel({ canvasId }: { canvasId: string }) {
         {messages.map((m, i) => (
           <CopilotMessage key={i} msg={m} onHighlight={highlightNode} />
         ))}
+        <CopilotRunCard onCancel={cancelRun} onDismiss={dismissRun} />
         {thinking && (
           <div className="text-eyebrow animate-pulse text-[10px] text-muted-foreground">
             Copilot is thinking…
