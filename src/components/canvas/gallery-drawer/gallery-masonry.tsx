@@ -105,6 +105,7 @@ export function GalleryMasonry({
             const p = photo as AlbumPhoto;
             return (
               <div
+                key={p.key}
                 draggable
                 onDragStart={(e) => onDragStartImage(p.gridImage, e)}
                 style={{ width, height }}
