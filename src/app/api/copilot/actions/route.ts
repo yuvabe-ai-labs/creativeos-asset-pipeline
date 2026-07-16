@@ -1,6 +1,8 @@
 import { apiError, apiOk } from "@/lib/api/route-helpers";
 import { createOpenAI } from "@/lib/openai/server";
 import { buildCopilotContext } from "@/lib/copilot/context";
+import { PLAYBOOKS, PLAYBOOK_NAMES } from "@/lib/copilot/playbooks";
+import { normalizeSlots } from "@/lib/copilot/runner";
 
 // Lesson 5 — CALL 3: FUNCTION CALLING. We hand the model ONE tool (add_node) and let
 // it decide — via tool_choice:"auto" — whether the user's message warrants an action.
@@ -24,6 +26,27 @@ const ADDABLE_NODE_TYPES = [
   "file",
   "draw",
 ] as const;
+
+// The run_playbook tool's slot schema is built FROM the registry: every registered
+// playbook contributes its slot keys, typed by kind. The model fills only what the
+// sentence provides; the client's frame check asks for the rest.
+const playbookSlotProperties = Object.fromEntries(
+  Object.values(PLAYBOOKS).flatMap((p) =>
+    p.slots.map((s) => [
+      s.key,
+      s.kind === "node-handles"
+        ? {
+            type: "array" as const,
+            items: { type: "string" as const },
+            description: `Node handles for "${s.key}" (e.g. FILE-08F1), if the user named any.`,
+          }
+        : {
+            type: "string" as const,
+            description: `Node handle for "${s.key}" (e.g. SHOT-1A2B), if identifiable from the message + canvas.`,
+          },
+    ]),
+  ),
+);
 
 const tools = [
   {
@@ -141,11 +164,45 @@ const tools = [
       },
     },
   },
+  {
+    type: "function" as const,
+    function: {
+      name: "run_playbook",
+      description:
+        "Run a multi-step playbook for a COMPLEX request that needs several actions in " +
+        "sequence. Available playbooks:\n" +
+        Object.values(PLAYBOOKS)
+          .map((p) => `- ${p.name}: ${p.description}`)
+          .join("\n") +
+        "\nExtract only the slot values the user's message actually provides (resolve " +
+        "references like 'shot 2' to the handle using the canvas above) — leave missing " +
+        "slots out; the client asks for them. Prefer the single-action tools for simple " +
+        "one-step commands.",
+      parameters: {
+        type: "object",
+        properties: {
+          name: { type: "string", enum: PLAYBOOK_NAMES },
+          slots: {
+            type: "object",
+            properties: playbookSlotProperties,
+            additionalProperties: false,
+          },
+        },
+        required: ["name"],
+        additionalProperties: false,
+      },
+    },
+  },
 ];
 
 export async function POST(req: Request) {
   const body = (await req.json().catch(() => null)) as
-    | { messages?: { role: "user" | "assistant"; content: string }[]; canvasId?: string; mentionedIds?: string[] }
+    | {
+        messages?: { role: "user" | "assistant"; content: string }[];
+        canvasId?: string;
+        mentionedIds?: string[];
+        elicit?: { playbook?: string; slotKey?: string; question?: string };
+      }
     | null;
   const history = Array.isArray(body?.messages) ? body.messages : [];
   const canvasId = body?.canvasId;
@@ -155,6 +212,13 @@ export async function POST(req: Request) {
   // Same grounding as the other calls (handles + @-referenced nodes spotlighted) — so
   // "add a prompt like @PRM-A3F9" has the exact node in view.
   const canvasContext = await buildCopilotContext(canvasId, body?.mentionedIds ?? []);
+
+  // Elicitation fallback (runner spec §2.2): the client couldn't resolve a slot answer
+  // itself (no @-mention, not "none"), so the model extracts the handle from free text.
+  const elicit =
+    body?.elicit?.playbook && body?.elicit?.slotKey && body?.elicit?.question
+      ? { playbook: body.elicit.playbook, slotKey: body.elicit.slotKey, question: body.elicit.question }
+      : null;
 
   try {
     const openai = createOpenAI();
@@ -177,6 +241,18 @@ export async function POST(req: Request) {
             "type. If it is just a question about the canvas, do not call any tool.",
         },
         { role: "system", content: canvasContext },
+        ...(elicit
+          ? [
+              {
+                role: "system" as const,
+                content:
+                  `The user's latest message answers your question: "${elicit.question}". ` +
+                  `Work out which node(s) on the canvas above it refers to and call run_playbook ` +
+                  `with name "${elicit.playbook}" and ONLY the slot "${elicit.slotKey}" filled ` +
+                  `with the handle(s). If the message doesn't identify any node, call no tool.`,
+              },
+            ]
+          : []),
         ...history,
       ],
     });
@@ -188,7 +264,15 @@ export async function POST(req: Request) {
       return apiOk({ action: null });
     }
 
-    let args: { type?: string; title?: string; handle?: string; from?: string[]; to?: string };
+    let args: {
+      type?: string;
+      title?: string;
+      handle?: string;
+      from?: string[];
+      to?: string;
+      name?: string;
+      slots?: unknown;
+    };
     try {
       args = JSON.parse(call.function.arguments) as {
         type?: string;
@@ -196,6 +280,8 @@ export async function POST(req: Request) {
         handle?: string;
         from?: string[];
         to?: string;
+        name?: string;
+        slots?: unknown;
       };
     } catch {
       return apiOk({ action: null });
@@ -250,6 +336,16 @@ export async function POST(req: Request) {
       const to = args.to?.trim();
       if (!from.length || !to) return apiOk({ action: null });
       return apiOk({ action: { name: "connect_nodes" as const, args: { from, to } } });
+    }
+
+    // run_playbook: guard the enum, defensively normalize the model-written slots,
+    // and pass through — frame completeness is the CLIENT's job (spec §2.2).
+    if (call.function.name === "run_playbook") {
+      const name = args.name?.trim();
+      if (!name || !PLAYBOOK_NAMES.includes(name)) return apiOk({ action: null });
+      return apiOk({
+        action: { name: "run_playbook" as const, args: { name, slots: normalizeSlots(args.slots) } },
+      });
     }
 
     return apiOk({ action: null });

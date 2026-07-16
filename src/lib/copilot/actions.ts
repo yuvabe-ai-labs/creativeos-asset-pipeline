@@ -11,12 +11,14 @@ import { nodeHandle } from "@/lib/nodes/describe-node";
 // - parse_script       → "extract an existing Script node into shots"
 // - open_node          → "open a node's editor/focus view (for a Shot, its Composer)"
 // - connect_nodes      → "wire each `from` handle as a source edge into the `to` handle"
+// - run_playbook       → "route this sentence to a multi-step playbook, slots as extracted"
 export type CopilotAction =
   | { name: "add_node"; args: { type: string; title?: string } }
   | { name: "create_script_node"; args: { title?: string } }
   | { name: "parse_script"; args: { handle?: string } }
   | { name: "open_node"; args: { handle: string } }
-  | { name: "connect_nodes"; args: { from: string[]; to: string } };
+  | { name: "connect_nodes"; args: { from: string[]; to: string } }
+  | { name: "run_playbook"; args: { name: string; slots: Record<string, string | string[]> } };
 
 // Where a copilot-created node lands: just right of the rightmost node (same row),
 // or a sensible spot on an empty canvas. Pure + deterministic — the caller can pan
