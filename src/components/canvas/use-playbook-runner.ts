@@ -126,13 +126,20 @@ export function usePlaybookRunner(say: (text: string) => void) {
         return;
       }
       if (step.done({ nodes: state.nodes, edges: state.edges }, run)) {
-        say(`✓ ${step.label} — moving on.`);
-        tick({
+        // Publish the advance BEFORE running any recipe: recipes write the store,
+        // which re-fires this subscription synchronously — flipping status to
+        // "running" first is what makes the re-entrant call a no-op. Without it,
+        // the stale "waiting-human" + still-true predicate re-advances on every
+        // node the next step creates (observed: a stack of duplicate image nodes).
+        const advanced: PlaybookRun = {
           ...run,
           status: "running",
           stepIndex: run.stepIndex + 1,
           log: [...run.log, step.label],
-        });
+        };
+        state.setPlaybookRun(advanced);
+        say(`✓ ${step.label} — moving on.`);
+        tick(advanced);
       }
     };
     check(); // level-triggered: the predicate may ALREADY be true on arrival
