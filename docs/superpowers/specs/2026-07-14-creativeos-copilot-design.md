@@ -1,6 +1,6 @@
 # CreativeOS Copilot — design spec (as-built)
 
-> ## 📍 RESUME HERE (cross-session pointer — updated 2026-07-14)
+> ## 📍 RESUME HERE (cross-session pointer — updated 2026-07-16)
 >
 > This file is the **hand-off document between chat sessions**. Read this block first; the layered
 > sections below record history (§9 → §10 are as-built deltas; later sections supersede earlier ones
@@ -28,14 +28,18 @@
 >   instant + opens detail view + viewport-center placement, `open_node`, `connect_nodes` validated
 >   by the single `canConnect` helper); `@selected`; @-mentions with names; ↑ history; `+ Add`
 >   combobox (thumbnails) on prompt/image-gen/video-prompt focus views; Ctrl+Space launcher.
->   Gate green: tsc 0 · 470 tests · per-task + whole-feature reviews passed.
-> - 📐 **Designed, NOT built:** the **playbook runner** (route → slot-fill → interrupt/resume run
->   with store-predicate "eyes"; v1 playbook `image-for-shot`; run card in chat; generation steps
->   pause = the owed L6 HITL gate).
-> - **⏭️ NEXT STEP: write the implementation plan** for the runner spec (superpowers writing-plans →
->   then subagent-driven execution). Include the two audit **prep tasks**: (1) wire **script + kb**
->   nodes to `focusedNodeId` (same one-line pattern as File/Draw — see §10.2) so `open_node` is
->   universal; (2) add **`file` + `draw`** to `ADDABLE_NODE_TYPES` in the actions route.
+> - ✅ **Built + committed (2026-07-16): the playbook runner** — `run_playbook` router tool
+>   (registry-driven slots + `elicit` fallback), code-checked frames with authored asks
+>   (client-first @-mention/"none" resolution, one-shot inference, unanswerable guards), the
+>   ~30-line advance loop + **level-triggered store-predicate "eyes"**, run card in chat,
+>   v1 playbook `image-for-shot` (generation steps = human pauses, the owed L6 gate). Prep
+>   tasks done: script+kb wired to `focusedNodeId` (open_node now universal); `file`+`draw`
+>   addable. Plan: `docs/superpowers/plans/2026-07-16-copilot-playbook-runner.md` (inline
+>   execution, 10 tasks). Gate green: tsc 0 · 501 tests · no new lint errors.
+> - **⏭️ NEXT STEP: manual browser verification** of the runner (the 8-item edge checklist in
+>   the plan's Task 10 — pre-completed step, inference, "none", unanswerable, one-run guard,
+>   cancel, delete-mid-wait, panel close/reopen), then merge to main and **assign D-numbers**
+>   to the draft decisions (§7, §8.7, §9.5 here + runner spec §10) in the ADR log.
 > - **Known open items:** programmatic connects bypass manual-drag cardinality guards (pre-existing,
 >   recorded); image-gen-focus-view has a pre-existing `set-state-in-effect` lint error (~line 311,
 >   NOT ours); L4 chips still LLM-chosen (deterministic-chips improvement parked); video-gen focus
