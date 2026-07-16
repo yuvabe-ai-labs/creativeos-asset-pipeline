@@ -341,6 +341,23 @@ export function ImageGenFocusView({
   );
   const hasRefViolation = !refValidation.ok;
 
+  // One derived reason drives both the Generate button's disabled state and its
+  // tooltip — the button is never disabled without an explanation, and the two
+  // can't drift apart.
+  const generateDisabledReason: string | null = generating
+    ? "A generation is already running."
+    : editing
+      ? "An edit is already running."
+      : !editable
+        ? "Another session is editing — this canvas is read-only."
+        : !promptUpstream
+          ? "Connect a Prompt node to generate."
+          : hasRefViolation
+            ? refValidation.violations.length === 1
+              ? "A reference image doesn't meet this model's requirements. Try resizing it or switching to a different model."
+              : `${refValidation.violations.length} reference images don't meet this model's requirements. Try resizing them or switching to a different model.`
+            : null;
+
   const referenceItems: EditReferenceItem[] = connectedImageNodes.map((n) => ({
     id: n.id,
     url: n.url,
@@ -882,7 +899,7 @@ export function ImageGenFocusView({
                               className="w-full"
                               size="default"
                               onClick={handleGenerate}
-                              disabled={generating || editing || !promptUpstream || !editable || hasRefViolation}
+                              disabled={Boolean(generateDisabledReason)}
                             >
                               <Sparkles className="size-4" strokeWidth={1.5} />
                               {generating
@@ -894,11 +911,9 @@ export function ImageGenFocusView({
                                     : "Generate"}
                             </Button>
                           </TooltipTrigger>
-                          {hasRefViolation && !refValidation.ok && (
+                          {generateDisabledReason && (
                             <TooltipContent side="top" className="max-w-56 text-center">
-                              {refValidation.violations.length === 1
-                                ? "A reference image doesn't meet this model's requirements. Try resizing it or switching to a different model."
-                                : `${refValidation.violations.length} reference images don't meet this model's requirements. Try resizing them or switching to a different model.`}
+                              {generateDisabledReason}
                             </TooltipContent>
                           )}
                         </Tooltip>

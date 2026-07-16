@@ -153,8 +153,8 @@ export function PromptFocusView({
   // click. Prompt nodes carry one shot in practice; show the first.
   const shotPreview = preview.connected.find((c) => c.type === "shot") ?? null;
   // The compose layout owns both the "Prompt" rail item and any connected-input selection:
-  // selecting a connected input shows its detail in the RIGHT column while shot + compose
-  // stay put. The Shot rail item keeps its as-is behavior (its detail shows on the right too).
+  // selecting a connected input swaps the CENTER column to its read-only detail; the right
+  // column is ALWAYS the generated output.
   const showComposeLayout = selected === "prompt" || isNodeSelected;
   const detailNode = selectedNode;
 
@@ -494,8 +494,22 @@ export function PromptFocusView({
                 right column (or a selected connected input's detail takes it over). */}
             {showComposeLayout && (
               <div className="flex h-full min-h-0 w-full">
-                {/* Center column — pinned shot text (top) + instruction & controls (bottom) */}
+                {/* Center column — pinned shot text (top) + instruction & controls (bottom);
+                    swaps to a connected input's read-only detail when one is selected in
+                    the rail. The right column stays the generated output either way. */}
                 <div className="flex h-full w-full max-w-md min-h-0 flex-col overflow-hidden border-r border-border">
+                  {isNodeSelected ? (
+                    detailNode ? (
+                      <ConnectedDetailView node={detailNode} />
+                    ) : (
+                      <div className="flex h-full items-center justify-center px-6 py-6">
+                        <p className="text-sm text-muted-foreground">
+                          {loadingPreview ? "Loading…" : "This input has no preview yet."}
+                        </p>
+                      </div>
+                    )
+                  ) : (
+                    <>
                   {shotPreview ? (
                     <PromptShotReference label={shotPreview.label} text={shotPreview.text} />
                   ) : (
@@ -533,20 +547,13 @@ export function PromptFocusView({
                       {generating ? "Generating…" : output ? "Re-generate" : "Generate prompt"}
                     </Button>
                   </div>
+                    </>
+                  )}
                 </div>
 
-                {/* Right column — a selected connected input's detail, else the output */}
+                {/* Right column — ALWAYS the generated output */}
                 <div className="min-h-0 flex-1 overflow-y-auto">
-                  {detailNode ? (
-                    <ConnectedDetailView node={detailNode} />
-                  ) : isNodeSelected ? (
-                    <div className="flex h-full items-center justify-center px-6 py-6">
-                      <p className="text-sm text-muted-foreground">
-                        {loadingPreview ? "Loading…" : "This input has no preview yet."}
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="flex h-full flex-col gap-3 px-6 py-5">
+                  <div className="flex h-full flex-col gap-3 px-6 py-5">
                       <div className="flex shrink-0 items-center justify-between gap-2">
                         <div className="flex items-center gap-1.5">
                           <Sparkles className="size-3.5 text-primary" />
@@ -606,7 +613,6 @@ export function PromptFocusView({
                         </>
                       )}
                     </div>
-                  )}
                 </div>
               </div>
             )}

@@ -104,7 +104,7 @@ export function ImageGenNode({ id, data, selected, positionAbsoluteX, positionAb
         onDragOver={drop.onDragOver}
         onDrop={drop.onDrop}
         className={cn(
-          "w-60 rounded-lg border border-border bg-card shadow-card",
+          "w-[480px] rounded-lg border border-border bg-card shadow-card",
           "transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:scale-[1.006]",
           selected && "ring-2 ring-primary ring-offset-1 ring-offset-background",
         )}
@@ -139,7 +139,7 @@ export function ImageGenNode({ id, data, selected, positionAbsoluteX, positionAb
           {imageUrl && (
             <div className="mb-2 overflow-hidden rounded-md border border-border">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={imageUrl} alt="Generated" className="h-16 w-full object-cover" />
+              <img src={imageUrl} alt="Generated" className="aspect-video w-full object-cover" />
             </div>
           )}
           <button
