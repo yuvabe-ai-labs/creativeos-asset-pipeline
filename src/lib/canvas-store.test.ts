@@ -244,3 +244,33 @@ describe("guidedCreateNext", () => {
     expect(store.getState().guidedCreateNext("g")).toBeNull();
   });
 });
+
+import type { PlaybookRun } from "./copilot/runner";
+
+describe("playbookRun slice", () => {
+  const run: PlaybookRun = {
+    playbook: "image-for-shot",
+    title: "Image for SHOT-1A2B",
+    slots: { shot: "SHOT-1A2B", refs: [] },
+    created: {},
+    stepIndex: 0,
+    status: "running",
+    log: [],
+  };
+
+  it("starts null; set/patch/clear round-trips", () => {
+    const store = createCanvasStore([], []);
+    expect(store.getState().playbookRun).toBeNull();
+    store.getState().setPlaybookRun(run);
+    store.getState().patchPlaybookRun({ status: "waiting-human", stepIndex: 3 });
+    expect(store.getState().playbookRun).toMatchObject({ status: "waiting-human", stepIndex: 3 });
+    store.getState().setPlaybookRun(null);
+    expect(store.getState().playbookRun).toBeNull();
+  });
+
+  it("patch is a no-op when there is no run", () => {
+    const store = createCanvasStore([], []);
+    store.getState().patchPlaybookRun({ status: "cancelled" });
+    expect(store.getState().playbookRun).toBeNull();
+  });
+});
