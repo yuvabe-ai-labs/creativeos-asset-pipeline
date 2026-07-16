@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { planReconcile } from "./reconcile";
+import { chunkIds, planReconcile } from "./reconcile";
 
 describe("planReconcile", () => {
   it("never deletes a node that is not in my removed list (the regression case)", () => {
@@ -22,5 +22,19 @@ describe("planReconcile", () => {
   it("dedupes repeated removed ids", () => {
     const { deleteIds } = planReconcile([], ["9", "9"]);
     expect(deleteIds).toEqual(["9"]);
+  });
+});
+
+describe("chunkIds", () => {
+  it("returns no chunks for no ids (no empty delete request)", () => {
+    expect(chunkIds([])).toEqual([]);
+  });
+
+  it("splits a mass delete into URL-safe batches, preserving order and count", () => {
+    const ids = Array.from({ length: 933 }, (_, i) => `id-${i}`);
+    const chunks = chunkIds(ids);
+    expect(chunks).toHaveLength(10); // 9×100 + 33
+    expect(chunks.every((c) => c.length <= 100)).toBe(true);
+    expect(chunks.flat()).toEqual(ids);
   });
 });
