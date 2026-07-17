@@ -15,25 +15,25 @@ function deps(save: unknown, onLockLost = vi.fn()) {
 }
 
 describe("runAutosaveFlush", () => {
-  it("sends the snapshot with the sessionId and does nothing extra on ok", async () => {
+  it("sends the snapshot with the sessionId and reports 'saved' on ok", async () => {
     const save = vi.fn().mockResolvedValue({ ok: true });
     const onLockLost = vi.fn();
-    await runAutosaveFlush(deps(save, onLockLost));
+    await expect(runAutosaveFlush(deps(save, onLockLost))).resolves.toBe("saved");
     expect(save).toHaveBeenCalledWith("c1", { ...snapshot, sessionId: "s1" });
     expect(onLockLost).not.toHaveBeenCalled();
   });
 
-  it("calls onLockLost when the save is rejected", async () => {
+  it("calls onLockLost and reports 'lock-lost' when the save is rejected", async () => {
     const save = vi.fn().mockResolvedValue({ ok: false, lockLost: true });
     const onLockLost = vi.fn();
-    await runAutosaveFlush(deps(save, onLockLost));
+    await expect(runAutosaveFlush(deps(save, onLockLost))).resolves.toBe("lock-lost");
     expect(onLockLost).toHaveBeenCalledTimes(1);
   });
 
-  it("swallows save errors (best-effort) and does not call onLockLost", async () => {
+  it("never throws, but REPORTS a save error (so deletion intent is not cleared)", async () => {
     const save = vi.fn().mockRejectedValue(new Error("network"));
     const onLockLost = vi.fn();
-    await expect(runAutosaveFlush(deps(save, onLockLost))).resolves.toBeUndefined();
+    await expect(runAutosaveFlush(deps(save, onLockLost))).resolves.toBe("error");
     expect(onLockLost).not.toHaveBeenCalled();
   });
 });
