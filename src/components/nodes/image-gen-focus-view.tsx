@@ -11,10 +11,15 @@ import {
   SlidersHorizontal,
   Sparkles,
   ZoomIn,
-  AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
 
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { FullScreenImageZoom } from "@/components/shared/full-screen-image-zoom";
 import { EditableField } from "./editable-field";
@@ -34,7 +39,10 @@ import {
 import { ImageGenUsagePopover } from "./image-gen-usage-popover";
 import { ImageGenEditPanel } from "./image-gen-edit-panel";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ImageGenAnnotationCanvas, type AnnotationHandle } from "./image-gen-annotation-canvas";
+import {
+  ImageGenAnnotationCanvas,
+  type AnnotationHandle,
+} from "./image-gen-annotation-canvas";
 import {
   ImageGenEditReferences,
   type EditReferenceItem,
@@ -60,18 +68,15 @@ import {
   defaultsForModel,
 } from "@/lib/image-gen/client-models";
 import { smartMergeParams } from "@/lib/image-gen/params/merge";
-import { ImageGenOutputSettings } from "./image-gen-output-settings";
-import { validateReferenceImages, type RefImageMeta } from "@/lib/image-gen/validate";
+import { ImageGenOutputSettingsBody } from "./image-gen-output-settings-body";
+import {
+  validateReferenceImages,
+  type RefImageMeta,
+} from "@/lib/image-gen/validate";
 import { cn } from "@/lib/utils";
 import { describeApprovalPill } from "@/lib/nodes/prompt-focus";
 import { LeftSection } from "./focus-left-section";
 import { RailItem } from "./focus-rail-item";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 
 export type ImageGenFocusViewProps = {
   open: boolean;
@@ -135,8 +140,10 @@ export function ImageGenFocusView({
     // Migrate legacy pixel-size params to unified aspect_ratio (one-time at mount).
     if (base.size && !base.aspect_ratio) {
       const SIZE_TO_RATIO: Record<string, string> = {
-        "1024x1024": "1:1", "1536x1024": "16:9",
-        "1024x1536": "9:16", "auto": "1:1",
+        "1024x1024": "1:1",
+        "1536x1024": "16:9",
+        "1024x1536": "9:16",
+        auto: "1:1",
       };
       base.aspect_ratio = SIZE_TO_RATIO[base.size as string] ?? "1:1";
       delete base.size;
@@ -155,7 +162,7 @@ export function ImageGenFocusView({
   const [intent, setIntent] = useState<EditIntent>(editIntent ?? "freeform");
   const [activeTab, setActiveTab] = useState<"generate" | "edit">("generate");
   const [selectedRefIds, setSelectedRefIds] = useState<string[]>(
-    editReferenceNodeIds ?? [],
+    editReferenceNodeIds ?? []
   );
   const [hasMaskRegion, setHasMaskRegion] = useState(false);
   const annotationRef = useRef<AnnotationHandle>(null);
@@ -166,12 +173,13 @@ export function ImageGenFocusView({
   const [restoring, setRestoring] = useState(false);
   const [zoomOpen, setZoomOpen] = useState(false);
   const [evalDecision, setEvalDecision] = useState<"pass" | "fail" | null>(
-    null,
+    null
   );
   const [evalNote, setEvalNote] = useState("");
   const [evalSaving, setEvalSaving] = useState(false);
   // D29 approval flag — sibling of the eval signal, distinct field.
-  const [approvalStatus, setApprovalStatus] = useState<ApprovalStatus>("pending");
+  const [approvalStatus, setApprovalStatus] =
+    useState<ApprovalStatus>("pending");
   const [approvalNote, setApprovalNote] = useState("");
   const [approvalSaving, setApprovalSaving] = useState(false);
   const { identity } = useIdentity();
@@ -193,7 +201,8 @@ export function ImageGenFocusView({
     setOpenSeed(open);
     if (open) {
       setLoadingVersions(true);
-      setLoadingPreview(true);
+      // Only arm the preview skeleton if there's actually a prompt node to fetch.
+      setLoadingPreview(upstream.some((u) => u.type === "prompt"));
       setSelected("image"); // return to the hero pane on open
     }
   }
@@ -215,7 +224,6 @@ export function ImageGenFocusView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [model, onPatch]);
 
-
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
@@ -230,7 +238,7 @@ export function ImageGenFocusView({
           setVersions(json.versions ?? []);
           setActiveVersionId(json.activeVersionId ?? null);
           const active = (json.versions ?? []).find(
-            (v) => v.id === json.activeVersionId,
+            (v) => v.id === json.activeVersionId
           );
           setEvalDecision(active?.decision ?? null);
           setEvalNote(active?.note ?? "");
@@ -252,10 +260,7 @@ export function ImageGenFocusView({
     if (!open) return;
     let cancelled = false;
     const promptNode = upstream.find((u) => u.type === "prompt");
-    if (!promptNode) {
-      setLoadingPreview(false);
-      return;
-    }
+    if (!promptNode) return;
     void (async () => {
       try {
         const res = await fetch(`/api/nodes/${promptNode.id}/versions`);
@@ -265,7 +270,7 @@ export function ImageGenFocusView({
           versions: Array<{ id: string; output: string | null }>;
         };
         const active = (json.versions ?? []).find(
-          (v) => v.id === json.activeVersionId,
+          (v) => v.id === json.activeVersionId
         );
         if (!cancelled && active?.output) {
           setFetchedPrompt({ nodeId: promptNode.id, text: active.output });
@@ -288,19 +293,24 @@ export function ImageGenFocusView({
     if (u.type === "draw") return !!u.fileUrl;
     return false;
   }).length;
-  const refOverLimit = referenceCount > model.maxReferenceImages;
 
   // ── Edit-this-image derived values ──────────────────────────────────────────
   // Connected image URLs (file/draw/image-gen all expose fileUrl in `upstream`).
   const connectedImageUrls = upstream
-    .filter((u) => (u.type === "file" || u.type === "draw" || u.type === "image-gen") && !!u.fileUrl)
+    .filter(
+      (u) =>
+        (u.type === "file" || u.type === "draw" || u.type === "image-gen") &&
+        !!u.fileUrl
+    )
     .map((u) => u.fileUrl as string);
   const firstConnectedImageUrl = connectedImageUrls[0];
 
   // Connected image NODES (id + url), for the edit-mode reference tiles.
   const connectedImageNodes = upstream
     .filter(
-      (u) => (u.type === "file" || u.type === "draw" || u.type === "image-gen") && !!u.fileUrl,
+      (u) =>
+        (u.type === "file" || u.type === "draw" || u.type === "image-gen") &&
+        !!u.fileUrl
     )
     .map((u) => ({ id: u.id, url: u.fileUrl as string, type: u.type }));
 
@@ -315,7 +325,8 @@ export function ImageGenFocusView({
     baseReferenceNodeId,
     hasAttempt: baseIsAttempt,
   });
-  const baseNodeUrl = connectedImageNodes.find((n) => n.id === baseNodeId)?.url ?? null;
+  const baseNodeUrl =
+    connectedImageNodes.find((n) => n.id === baseNodeId)?.url ?? null;
 
   // Base image shown/annotated in Edit mode: the active attempt, else the pinned/first connected.
   // The annotation canvas is keyed on this url, so a new base remounts it with a blank overlay
@@ -324,7 +335,11 @@ export function ImageGenFocusView({
 
   // Validation for reference image limits
   const refMetas: RefImageMeta[] = upstream
-    .filter((u) => (u.type === "file" || u.type === "draw" || u.type === "image-gen") && !!u.fileUrl)
+    .filter(
+      (u) =>
+        (u.type === "file" || u.type === "draw" || u.type === "image-gen") &&
+        !!u.fileUrl
+    )
     .map((u) => ({
       url: u.fileUrl!,
       fileSizeBytes: u.fileSizeBytes,
@@ -336,15 +351,18 @@ export function ImageGenFocusView({
   const refViolationsByUrl = new Map(
     refValidation.ok
       ? []
-      : refValidation.violations.map((v) => [v.url, v.message]),
+      : refValidation.violations.map((v) => [v.url, v.message])
   );
-  const hasRefViolation = !refValidation.ok;
 
   const referenceItems: EditReferenceItem[] = connectedImageNodes.map((n) => ({
     id: n.id,
     url: n.url,
     label:
-      n.type === "draw" ? "Sketch" : n.type === "image-gen" ? "Image reference" : "Image file",
+      n.type === "draw"
+        ? "Sketch"
+        : n.type === "image-gen"
+        ? "Image reference"
+        : "Image file",
     isBase: n.id === baseNodeId,
     violation: refViolationsByUrl.get(n.url),
   }));
@@ -389,12 +407,12 @@ export function ImageGenFocusView({
           u.type === "prompt"
             ? "Image prompt"
             : u.type === "image-gen"
-              ? "Image reference"
-              : u.type === "draw"
-                ? "Sketch"
-                : u.type === "file"
-                  ? "Image file"
-                  : u.type;
+            ? "Image reference"
+            : u.type === "draw"
+            ? "Sketch"
+            : u.type === "file"
+            ? "Image file"
+            : u.type;
         return {
           id: u.id,
           label: typeLabel,
@@ -403,7 +421,7 @@ export function ImageGenFocusView({
           fileKind: u.fileKind,
         };
       }),
-    [upstream],
+    [upstream]
   );
 
   // One preview per upstream node so every rail item has a detail view: the
@@ -421,7 +439,7 @@ export function ImageGenFocusView({
         fileUrl: u.fileUrl,
         fileKind: u.fileKind,
       })),
-    [upstreamForCard, fetchedPrompt],
+    [upstreamForCard, fetchedPrompt]
   );
 
   const selectedNode = isNodeSelected
@@ -430,13 +448,17 @@ export function ImageGenFocusView({
   // The prompt's text arrives async — show the loading fallback until it lands.
   const selectedNodeReady =
     !!selectedNode &&
-    !(selectedNode.type === "prompt" && !selectedNode.text.trim() && loadingPreview);
+    !(
+      selectedNode.type === "prompt" &&
+      !selectedNode.text.trim() &&
+      loadingPreview
+    );
 
   const mode: "skeleton" | "result" | "empty" = generating
     ? "skeleton"
     : imageUrl
-      ? "result"
-      : "empty";
+    ? "result"
+    : "empty";
 
   async function fetchVersions() {
     try {
@@ -449,7 +471,7 @@ export function ImageGenFocusView({
       setVersions(json.versions ?? []);
       setActiveVersionId(json.activeVersionId ?? null);
       const active = (json.versions ?? []).find(
-        (v) => v.id === json.activeVersionId,
+        (v) => v.id === json.activeVersionId
       );
       setEvalDecision(active?.decision ?? null);
       setEvalNote(active?.note ?? "");
@@ -533,9 +555,11 @@ export function ImageGenFocusView({
 
   async function handleEdit() {
     const baseVersionId = activeVersionId ?? undefined;
-    const baseImageUrl = baseVersionId ? undefined : (baseNodeUrl ?? undefined);
+    const baseImageUrl = baseVersionId ? undefined : baseNodeUrl ?? undefined;
     if (!baseVersionId && !baseImageUrl) {
-      toast.error("Generate an image, or connect an image reference, to edit it.");
+      toast.error(
+        "Generate an image, or connect an image reference, to edit it."
+      );
       return;
     }
     setEditing(true);
@@ -570,7 +594,8 @@ export function ImageGenFocusView({
         versionId?: string;
         error?: string;
       };
-      if (!res.ok || !json.imageUrl) throw new Error(json.error ?? "Edit failed");
+      if (!res.ok || !json.imageUrl)
+        throw new Error(json.error ?? "Edit failed");
       onPatch({ parsed: json.imageUrl });
       setActiveVersionId(json.versionId ?? null);
       annotationRef.current?.clear();
@@ -705,20 +730,42 @@ export function ImageGenFocusView({
     pill.tone === "positive"
       ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-900/20 dark:text-emerald-400"
       : pill.tone === "warning"
-        ? "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-400"
-        : "border-border bg-muted text-muted-foreground";
+      ? "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-400"
+      : "border-border bg-muted text-muted-foreground";
 
   const reviewBadge =
     mode === "result" ? (
       <span
         className={cn(
           "shrink-0 rounded-full border px-1.5 py-0.5 text-[0.6rem] font-semibold",
-          pillTone,
+          pillTone
         )}
       >
-        {pill.tone === "positive" ? "Approved" : pill.tone === "warning" ? "Changes" : "Pending"}
+        {pill.tone === "positive"
+          ? "Approved"
+          : pill.tone === "warning"
+          ? "Changes"
+          : "Pending"}
       </span>
     ) : undefined;
+
+  const outputSettingsBody = (
+    <ImageGenOutputSettingsBody
+      model={model}
+      values={paramValues}
+      onValuesChange={setParamValues}
+      onCommit={commitParams}
+      onModelChange={changeModel}
+      referenceCount={referenceCount}
+      refValidation={refValidation}
+      showGenerate={activeTab !== "edit"}
+      onGenerate={handleGenerate}
+      generating={generating}
+      editing={editing}
+      hasPrompt={Boolean(promptUpstream)}
+      hasImage={Boolean(imageUrl)}
+    />
+  );
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -733,7 +780,7 @@ export function ImageGenFocusView({
 
         {/* Header */}
         <div className="shrink-0 border-b">
-          <div className="mx-auto w-full max-w-6xl px-6 pb-5 pt-3">
+          <div className="mx-auto w-full max-w-7xl px-6 pb-5 pt-3">
             <Button
               variant="ghost"
               size="sm"
@@ -786,7 +833,7 @@ export function ImageGenFocusView({
         </div>
 
         {/* Body: left rail + detail pane */}
-        <div className="mx-auto flex w-full max-w-6xl min-h-0 flex-1 overflow-hidden">
+        <div className="mx-auto flex w-full max-w-7xl min-h-0 flex-1 overflow-hidden">
           {/* Rail */}
           <nav className="flex w-56 shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-border px-3 py-4">
             <RailItem
@@ -800,7 +847,9 @@ export function ImageGenFocusView({
               Connected · {upstream.length}
             </div>
             {upstream.length === 0 ? (
-              <p className="px-2.5 text-xs text-muted-foreground">No inputs connected.</p>
+              <p className="px-2.5 text-xs text-muted-foreground">
+                No inputs connected.
+              </p>
             ) : (
               upstreamForCard.map((u) => (
                 <RailItem
@@ -841,62 +890,36 @@ export function ImageGenFocusView({
               look at refs, settings, or the prompt while watching the result. */}
           <div className="flex min-h-0 flex-1 overflow-hidden">
             {/* Middle column */}
-            <div className="min-h-0 w-[45%] shrink-0 overflow-y-auto border-r border-border">
+            <div className="min-h-0 w-[54%] shrink-0 overflow-y-auto border-r border-border">
               {/* Image — model & controls; plus the edit tools on the Edit tab */}
               {selected === "image" && (
                 <div className="flex flex-col gap-6 px-6 py-5">
-                  <LeftSection icon={Settings2} label="Output settings">
-                    <ImageGenOutputSettings
-                      model={model}
-                      values={paramValues}
-                      onValuesChange={setParamValues}
-                      onCommit={commitParams}
-                      onModelChange={changeModel}
-                    />
-                    {refOverLimit && (
-                      <div className="mt-3 flex items-start gap-1.5 rounded-md border border-amber-300 bg-amber-50 px-2 py-1.5 text-[0.7rem] text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300">
-                        <AlertTriangle
-                          className="mt-0.5 size-3 shrink-0"
-                          strokeWidth={1.5}
-                        />
-                        <span>
-                          {referenceCount} reference images connected — only the
-                          first {model.maxReferenceImages} will be used by{" "}
-                          {model.label}.
-                        </span>
-                      </div>
-                    )}
-                    {activeTab !== "edit" && (
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger render={<span className="mt-3 flex w-full" />}>
-                            <Button
-                              className="w-full"
-                              size="default"
-                              onClick={handleGenerate}
-                              disabled={generating || editing || !promptUpstream || !editable || hasRefViolation}
-                            >
-                              <Sparkles className="size-4" strokeWidth={1.5} />
-                              {generating
-                                ? "Generating…"
-                                : editing
-                                  ? "Editing…"
-                                  : imageUrl
-                                    ? "Re-generate"
-                                    : "Generate"}
-                            </Button>
-                          </TooltipTrigger>
-                          {hasRefViolation && !refValidation.ok && (
-                            <TooltipContent side="top" className="max-w-56 text-center">
-                              {refValidation.violations.length === 1
-                                ? "A reference image doesn't meet this model's requirements. Try resizing it or switching to a different model."
-                                : `${refValidation.violations.length} reference images don't meet this model's requirements. Try resizing them or switching to a different model.`}
-                            </TooltipContent>
-                          )}
-                        </Tooltip>
-                      </TooltipProvider>
-                    )}
-                  </LeftSection>
+                  {activeTab === "edit" ? (
+                    // Edit tab: same output settings, collapsed into an accordion so
+                    // the edit instructions get the room. Closed by default.
+                    <Accordion>
+                      <AccordionItem value="output" className="border-none">
+                        <AccordionTrigger className="py-0 hover:no-underline">
+                          <span className="flex items-center gap-1.5">
+                            <Settings2
+                              className="size-3.5 text-primary"
+                              strokeWidth={1.5}
+                            />
+                            <span className="text-eyebrow">
+                              Output settings
+                            </span>
+                          </span>
+                        </AccordionTrigger>
+                        <AccordionContent className="pt-3">
+                          {outputSettingsBody}
+                        </AccordionContent>
+                      </AccordionItem>
+                    </Accordion>
+                  ) : (
+                    <LeftSection icon={Settings2} label="Output settings">
+                      {outputSettingsBody}
+                    </LeftSection>
+                  )}
 
                   {activeTab === "edit" && canEditBase && (
                     <>
@@ -934,7 +957,9 @@ export function ImageGenFocusView({
                 ) : (
                   <div className="flex h-full items-center justify-center px-6 py-6">
                     <p className="text-sm text-muted-foreground">
-                      {loadingPreview ? "Loading…" : "This input has no preview yet."}
+                      {loadingPreview
+                        ? "Loading…"
+                        : "This input has no preview yet."}
                     </p>
                   </div>
                 ))}
@@ -949,7 +974,10 @@ export function ImageGenFocusView({
                         {Array.from({ length: 3 }).map((_, i) => (
                           <div key={i} className="flex items-center gap-2">
                             <div className="size-2 shrink-0 animate-pulse rounded-full bg-muted-foreground/20" />
-                            <div className="h-3 animate-pulse rounded bg-muted-foreground/20" style={{ width: `${55 + i * 12}%` }} />
+                            <div
+                              className="h-3 animate-pulse rounded bg-muted-foreground/20"
+                              style={{ width: `${55 + i * 12}%` }}
+                            />
                           </div>
                         ))}
                       </div>
@@ -1004,15 +1032,15 @@ export function ImageGenFocusView({
 
             {/* Right column — the output, always visible */}
             <div className="flex min-h-0 flex-1 flex-col gap-3 px-6 py-5">
-                  <div className="flex items-center gap-1.5">
-                    <Sparkles className="size-3.5 text-primary" strokeWidth={1.5} />
-                    <span className="text-eyebrow">
-                      {activeTab === "edit" && editBaseUrl && !editing
-                        ? "Base image"
-                        : "Generated image"}
-                    </span>
-                  </div>
-                  <div className="min-h-0 flex-1">
+              <div className="flex items-center gap-1.5">
+                <Sparkles className="size-3.5 text-primary" strokeWidth={1.5} />
+                <span className="text-eyebrow">
+                  {activeTab === "edit" && editBaseUrl && !editing
+                    ? "Base image"
+                    : "Generated image"}
+                </span>
+              </div>
+              <div className="min-h-0 flex-1">
                 {activeTab === "edit" && editBaseUrl && !editing ? (
                   editMode === "paint" ? (
                     <ImageGenAnnotationCanvas
@@ -1032,83 +1060,91 @@ export function ImageGenFocusView({
                         draggable={false}
                       />
                       <p className="text-xs text-muted-foreground">
-                        This model edits from your description — say what to change and where.
+                        This model edits from your description — say what to
+                        change and where.
                       </p>
                     </div>
                   )
                 ) : (
                   <>
-                {mode === "skeleton" && (
-                  <div className="size-full animate-pulse rounded-xl bg-muted-foreground/15" />
-                )}
+                    {mode === "skeleton" && (
+                      <div className="size-full animate-pulse rounded-xl bg-muted-foreground/15" />
+                    )}
 
-                {mode === "empty" && !editing && (
-                  <div className="flex size-full items-center justify-center rounded-xl border border-dashed border-border">
-                    <div className="text-center px-8">
-                      <ImageIcon
-                        className="mx-auto size-8 text-muted-foreground/40"
-                        strokeWidth={1.5}
-                      />
-                      <p className="mt-3 text-sm font-medium text-muted-foreground">
-                        Not generated yet
-                      </p>
-                      <p className="mt-1 text-xs text-muted-foreground/70">
-                        {promptUpstream
-                          ? "Tune your params and click Generate."
-                          : "Connect a Prompt node, then click Generate."}
-                      </p>
-                    </div>
-                  </div>
-                )}
+                    {mode === "empty" && !editing && (
+                      <div className="flex size-full items-center justify-center rounded-xl border border-dashed border-border">
+                        <div className="text-center px-8">
+                          <ImageIcon
+                            className="mx-auto size-8 text-muted-foreground/40"
+                            strokeWidth={1.5}
+                          />
+                          <p className="mt-3 text-sm font-medium text-muted-foreground">
+                            Not generated yet
+                          </p>
+                          <p className="mt-1 text-xs text-muted-foreground/70">
+                            {promptUpstream
+                              ? "Tune your params and click Generate."
+                              : "Connect a Prompt node, then click Generate."}
+                          </p>
+                        </div>
+                      </div>
+                    )}
 
-                {mode === "empty" && editing && (
-                  <div className="flex size-full items-center justify-center rounded-xl border border-border bg-muted/20">
-                    <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                      <Sparkles className="size-4 animate-pulse text-primary" strokeWidth={1.5} />
-                      Editing image…
-                    </div>
-                  </div>
-                )}
-
-                {mode === "result" && imageUrl && (
-                  <div className="group relative size-full overflow-hidden rounded-xl border border-border bg-muted/20">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={imageUrl}
-                      alt={title || "Generated image"}
-                      className="size-full object-contain"
-                    />
-                    {editing && (
-                      <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/60 backdrop-blur-sm">
-                        <div className="flex items-center gap-2 rounded-full border border-border bg-background/90 px-3 py-1.5 text-sm font-medium shadow-card">
-                          <Sparkles className="size-4 animate-pulse text-primary" strokeWidth={1.5} />
+                    {mode === "empty" && editing && (
+                      <div className="flex size-full items-center justify-center rounded-xl border border-border bg-muted/20">
+                        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                          <Sparkles
+                            className="size-4 animate-pulse text-primary"
+                            strokeWidth={1.5}
+                          />
                           Editing image…
                         </div>
                       </div>
                     )}
-                    <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                      <button
-                        type="button"
-                        onClick={handleDownload}
-                        className="inline-flex items-center gap-1 rounded-md bg-background/80 px-2 py-1 text-xs font-medium text-foreground backdrop-blur"
-                        aria-label="Download image"
-                      >
-                        <Download className="size-3.5" strokeWidth={1.5} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setZoomOpen(true)}
-                        className="inline-flex items-center gap-1 rounded-md bg-background/80 px-2 py-1 text-xs font-medium text-foreground backdrop-blur"
-                      >
-                        <ZoomIn className="size-3.5" strokeWidth={1.5} /> Zoom
-                      </button>
-                    </div>
-                  </div>
-                )}
+
+                    {mode === "result" && imageUrl && (
+                      <div className="group relative size-full overflow-hidden rounded-xl border border-border bg-muted/20">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={imageUrl}
+                          alt={title || "Generated image"}
+                          className="size-full object-contain"
+                        />
+                        {editing && (
+                          <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/60 backdrop-blur-sm">
+                            <div className="flex items-center gap-2 rounded-full border border-border bg-background/90 px-3 py-1.5 text-sm font-medium shadow-card">
+                              <Sparkles
+                                className="size-4 animate-pulse text-primary"
+                                strokeWidth={1.5}
+                              />
+                              Editing image…
+                            </div>
+                          </div>
+                        )}
+                        <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                          <button
+                            type="button"
+                            onClick={handleDownload}
+                            className="inline-flex items-center gap-1 rounded-md bg-background/80 px-2 py-1 text-xs font-medium text-foreground backdrop-blur"
+                            aria-label="Download image"
+                          >
+                            <Download className="size-3.5" strokeWidth={1.5} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setZoomOpen(true)}
+                            className="inline-flex items-center gap-1 rounded-md bg-background/80 px-2 py-1 text-xs font-medium text-foreground backdrop-blur"
+                          >
+                            <ZoomIn className="size-3.5" strokeWidth={1.5} />{" "}
+                            Zoom
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </>
                 )}
-                  </div>
-                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -1124,4 +1160,3 @@ export function ImageGenFocusView({
     </Sheet>
   );
 }
-
