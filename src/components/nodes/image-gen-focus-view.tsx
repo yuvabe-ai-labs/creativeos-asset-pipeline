@@ -916,9 +916,11 @@ export function ImageGenFocusView({
                       </AccordionItem>
                     </Accordion>
                   ) : (
-                    <LeftSection icon={Settings2} label="Output settings">
-                      {outputSettingsBody}
-                    </LeftSection>
+                    <div className="rounded-xl border border-border bg-card p-4 shadow-card">
+                      <LeftSection icon={Settings2} label="Output settings">
+                        {outputSettingsBody}
+                      </LeftSection>
+                    </div>
                   )}
 
                   {activeTab === "edit" && canEditBase && (

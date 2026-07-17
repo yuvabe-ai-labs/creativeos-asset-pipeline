@@ -81,9 +81,9 @@ export function ImageGenOutputSettingsBody({
       {showGenerate && (
         <TooltipProvider>
           <Tooltip>
-            <TooltipTrigger render={<span className="mt-3 flex w-full" />}>
+            <TooltipTrigger render={<span className="mt-5 flex w-full justify-center" />}>
               <Button
-                className="w-full"
+                className="p-2"
                 size="default"
                 onClick={onGenerate}
                 disabled={generating || editing || !hasPrompt || !editable || hasRefViolation}
