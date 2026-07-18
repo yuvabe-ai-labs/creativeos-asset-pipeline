@@ -116,7 +116,7 @@ export function ImageGenEditPanel({
       <Button
         onClick={onEdit}
         disabled={editing || !canEdit || !finalPrompt.trim()}
-        className="mx-auto flex p-2"
+        className="flex px-14 py-4 text-sm"
       >
         <Sparkles className="size-4" strokeWidth={1.5} />
         {editing ? "Editing…" : "Edit image"}
