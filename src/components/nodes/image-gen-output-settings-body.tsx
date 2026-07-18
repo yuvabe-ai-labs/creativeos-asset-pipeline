@@ -81,21 +81,29 @@ export function ImageGenOutputSettingsBody({
       {showGenerate && (
         <TooltipProvider>
           <Tooltip>
-            <TooltipTrigger render={<span className="mt-5 flex w-full justify-center" />}>
+            <TooltipTrigger
+              render={<span className="mt-5 flex w-full justify-start" />}
+            >
               <Button
-                className="p-2"
+                className="px-14 py-4 text-sm"
                 size="default"
                 onClick={onGenerate}
-                disabled={generating || editing || !hasPrompt || !editable || hasRefViolation}
+                disabled={
+                  generating ||
+                  editing ||
+                  !hasPrompt ||
+                  !editable ||
+                  hasRefViolation
+                }
               >
                 <Sparkles className="size-4" strokeWidth={1.5} />
                 {generating
                   ? "Generating…"
                   : editing
-                    ? "Editing…"
-                    : hasImage
-                      ? "Re-generate"
-                      : "Generate"}
+                  ? "Editing…"
+                  : hasImage
+                  ? "Re-generate"
+                  : "Generate"}
               </Button>
             </TooltipTrigger>
             {!refValidation.ok && (
