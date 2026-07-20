@@ -36,10 +36,14 @@
 >   tasks done: script+kb wired to `focusedNodeId` (open_node now universal); `file`+`draw`
 >   addable. Plan: `docs/superpowers/plans/2026-07-16-copilot-playbook-runner.md` (inline
 >   execution, 10 tasks). Gate green: tsc 0 · 501 tests · no new lint errors.
-> - **⏭️ NEXT STEP: manual browser verification** of the runner (the 8-item edge checklist in
->   the plan's Task 10 — pre-completed step, inference, "none", unanswerable, one-run guard,
->   cancel, delete-mid-wait, panel close/reopen), then merge to main and **assign D-numbers**
->   to the draft decisions (§7, §8.7, §9.5 here + runner spec §10) in the ADR log.
+> - ✅ **MERGED TO MAIN (2026-07-16, fast-forward, pushed).** Browser testing surfaced + fixed
+>   three bugs: idempotent runner advance (publish state BEFORE recipes — re-entrancy duplicated
+>   nodes), chunked mass deletes (a giant `.in()` overflowed the URL limit and silently dropped
+>   deletions), autosave failures now toast + retry instead of swallowing. **ADR D-numbers
+>   assigned: D54–D76** (this doc set; auth spec renumbered to D49–D53 to clear its D48 collision).
+> - **⏭️ NEXT STEP: user-directed.** Candidates: more playbooks (video-for-shot, add-reference —
+>   data additions, D67); the §8.3 image-repair agentic cell (plugs into one step's `run`);
+>   parallel lanes (§8.5 / D62); remaining runner edge-checklist passes in the plan's Task 10.
 > - **Known open items:** programmatic connects bypass manual-drag cardinality guards (pre-existing,
 >   recorded); image-gen-focus-view has a pre-existing `set-state-in-effect` lint error (~line 311,
 >   NOT ours); L4 chips still LLM-chosen (deterministic-chips improvement parked); video-gen focus
@@ -51,7 +55,7 @@
 >
 > **Status:** partial build on branch `worktree-minimal-agent`. This spec captures **what has
 > shipped so far** so it can be merged into the MVP PRD. Sections marked **Deferred** are named but
-> not built. Decisions at the end are drafted for the ADR log (`§7`); assign real D-numbers on merge.
+> not built. Decisions from this doc set are **recorded in the ADR log as D54–D76** (2026-07-16).
 >
 > **Origin:** built as a "learn-by-building" exercise (`agent-lab/CURRICULUM.md`), but the code is
 > real, lives in `src/`, and is production-shaped. This spec is the product/engineering view, not the
@@ -181,7 +185,7 @@ nodes. Encode and decode use the *same* pure `nodeHandle`, so they cannot disagr
 
 ---
 
-## 7. Draft decisions for the ADR log (assign D-numbers on merge)
+## 7. Decisions — recorded in the ADR log as **D54–D57** *(2026-07-16)*
 
 - **Copilot architecture — server thinks, client acts, human gates.** The model returns proposals and
   references only; all graph mutation is client-side via the store. *Why:* keeps the security/undo
@@ -203,8 +207,8 @@ nodes. Encode and decode use the *same* pure `nodeHandle`, so they cannot disagr
 
 > Capture of a brainstorming session on making CreativeOS **agentic** rather than merely automating
 > the manual click-path. Everything here is **direction**, not as-built. **Current build scope: one
-> single-shot lane first — parallelism is deferred (§8.5).** Draft decisions (§8.7) are staged for the
-> ADR log; assign D-numbers on merge.
+> single-shot lane first — parallelism is deferred (§8.5).** §8.7's decisions are recorded in the
+> ADR log as D58–D62.
 
 ### 8.1 Workflow vs. agent — the distinction that governs everything
 
@@ -306,7 +310,7 @@ the canvas.
   folds into the options gate.
 - The rung-2 image loop's **budget + rubric source** — deferred until the workflow ships.
 
-### 8.7 Draft decisions (stage into the ADR log on acceptance)
+### 8.7 Decisions — recorded in the ADR log as **D58–D62** *(2026-07-16; D62 = the deferred §8.5 direction)*
 
 - **CreativeOS is a workflow with one agentic cell, not an autonomous agent.** The script→shots→image
   run is a deterministic (later parallel) workflow; agency — an observe-decide loop — is reserved for the
@@ -373,7 +377,7 @@ pattern, so the tray/guided-flow/copilot can all open it.
 
 Native `<button>`s → shadcn `<Button>`; behavior preserved (tsc + 447 tests green).
 
-### 9.5 Draft decisions (stage into the ADR log)
+### 9.5 Decisions — recorded in the ADR log as **D63–D66** *(2026-07-16)*
 
 - **Gate copilot writes by blast radius.** Structural/cheap ops (`create_script_node`, `parse_script`,
   `open_node`) execute **instantly** via client recipes; only generation gets the HITL gate. *Why:*

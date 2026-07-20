@@ -7,7 +7,7 @@
 > **after** §9 and the **playbook runner** design that composes it all.
 > Engineering principles + research grounding live in
 > [copilot-primitives-and-patterns.md](./copilot-primitives-and-patterns.md) (P1–P8, cited below).
-> Draft decisions in §7; assign D-numbers on merge.
+> §7's decisions are recorded in the ADR log under **D54–D76** (2026-07-16) — see the mapping note in §7.
 
 ---
 
@@ -149,7 +149,7 @@ sentence → ROUTE (run_playbook tool: pick playbook, extract slots)
 - video-gen focus view `+ Add`; run durability across reloads (Trigger.dev if ever needed).
 - Editing a run in flight; concurrent runs.
 
-## 7. Draft decisions (stage into the ADR log on merge; extends part 1 §7/§8.7/§9.5)
+## 7. Decisions — recorded in the ADR log *(2026-07-16; mapping: connect semantics → D72, `@selected` → D73, viewport-center placement → D75, add_node-instant/blast radius → D63, playbooks → D67–D69)*
 
 - **`connect_nodes` + `+ Add` share one validated connect semantics** — same `canConnect`, same
   store call, chat and canvas as two entry points. *Rejected:* per-surface ad-hoc wiring.

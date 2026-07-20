@@ -2,7 +2,7 @@
 
 > **Status:** design, not yet built. Branch `worktree-minimal-agent`. Builds on the copilot
 > as-built spec (`2026-07-14-creativeos-copilot-design.md` §9) and its blast-radius gating rule.
-> Draft decisions (§9) are staged for the ADR log; assign D-numbers on merge.
+> §9's decisions are recorded in the ADR log (2026-07-16): connect semantics/one-helper → **D72**, `@selected` insert-time expansion → **D73**, viewport-center placement → **D75**; connect-is-instant falls under **D63** (blast radius).
 
 ---
 
@@ -187,7 +187,7 @@ position = { x: c.x - HALF_W, y: c.y - HALF_H };   // offset so the node's CENTE
 
 ---
 
-## 9. Draft decisions (stage into the ADR log on acceptance)
+## 9. Decisions — recorded in the ADR log as **D72, D73, D75** (+ D63 covers connect-is-instant) *(2026-07-16)*
 
 - **`connect_nodes` is a validated, instant copilot tool.** The model requests `from[] → to`;
   the client resolves handles, checks `canConnect`, and wires via the store — no gate. *Why:*

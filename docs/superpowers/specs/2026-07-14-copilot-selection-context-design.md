@@ -2,8 +2,9 @@
 
 > **Status:** design, not yet built. Branch `worktree-minimal-agent`. Refines the `@selected`
 > primitive from `2026-07-12-copilot-connect-and-selection-design.md` — this spec **replaces**
-> its insert-time expansion with an implicit, dismissible context chip. Draft decisions
-> (§6) are staged for the ADR log; assign D-numbers on merge.
+> its insert-time expansion with an implicit, dismissible context chip. §6's decisions are
+> recorded in the ADR log (2026-07-16): side-channel selection context → **D74**, zoom-threshold
+> ref badges → **D76**.
 
 ---
 
@@ -114,7 +115,7 @@ volunteering context.
 
 ---
 
-## 6. Draft decisions (staged for ADR log §7)
+## 6. Decisions — recorded in the ADR log as **D74, D76** *(2026-07-16)*
 
 - **Selection context is side-channel, not text injection.** Selected node ids merge into
   `mentionedIds` at send; the typed message is never rewritten. *Rejected:* prepending

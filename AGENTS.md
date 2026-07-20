@@ -8,7 +8,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 # Architecture & decisions (ADR log)
 
 Before making — or silently re-deciding — any architectural choice, consult the **ADR log**:
-**[docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md](docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md) §7** (decisions **D1–D27**).
+**[docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md](docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md) §7** (decisions **D1–D76** and growing).
 It records *what* was chosen, *why*, and *what was rejected*, so decisions aren't quietly
 re-litigated. Per-feature design specs live alongside it under
 [docs/superpowers/specs/](docs/superpowers/specs/); the data-model "spine" is in

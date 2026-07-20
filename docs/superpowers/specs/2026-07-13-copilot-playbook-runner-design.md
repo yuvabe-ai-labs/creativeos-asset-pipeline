@@ -1,8 +1,8 @@
 # Copilot playbook runner — complex commands as routed, slot-filled, interruptible workflows
 
 > **Status:** design, not yet built. Branch `worktree-minimal-agent`. Extends the copilot as-built
-> spec (`2026-07-14-creativeos-copilot-design.md` §8–§9). Draft decisions in §10; assign D-numbers
-> on merge.
+> spec (`2026-07-14-creativeos-copilot-design.md` §8–§9). §10's decisions are recorded in the ADR
+> log as **D67–D71** (2026-07-16). Built + merged to main 2026-07-16.
 
 ---
 
@@ -243,7 +243,7 @@ with the blast-radius ADR; scope = one plan (machinery + one playbook + one card
 resolved explicitly: elicitation is client-first/model-fallback; one run at a time; cancelled runs
 keep created nodes.
 
-## 10. Draft decisions (stage into the ADR log on acceptance)
+## 10. Decisions — recorded in the ADR log as **D67–D71** *(2026-07-16)*
 
 - **Complex copilot commands are routed workflows (playbooks), not agent plans.** The model picks a
   playbook and fills slots at predefined decision points; code owns all step sequencing. *Why:*
