@@ -28,6 +28,7 @@ import {
   IMG_EXTENSIONS,
 } from "@/lib/kb/constants";
 import { formatBytes } from "@/lib/kb/utils";
+import { uploadViaSignedUrl } from "@/lib/uploads/client";
 import { startKBBuildJob } from "@/lib/actions/kb";
 import { useKBJobStatus } from "./use-kb-job-status";
 
@@ -131,19 +132,21 @@ export function KBOnboardingUploadStep({
         toast.error(`Adding this file would exceed the ${formatBytes(limitBytes)} limit`);
         continue;
       }
-      const formData = new FormData();
-      formData.append("file", file);
       try {
-        const res = await fetch(endpoint, { method: "POST", body: formData });
-        const json = await res.json();
-        if (!res.ok) {
-          toast.error(json.error ?? "Upload failed");
-        } else {
-          onAdded(json.document ?? json.image);
+        const json = await uploadViaSignedUrl<{
+          document?: ClientKBDocumentRow;
+          image?: ClientBrandImageRow;
+        }>(file, {
+          signEndpoint: `${endpoint}/sign`,
+          finalizeEndpoint: `${endpoint}/finalize`,
+        });
+        const item = json.document ?? json.image;
+        if (item) {
+          onAdded(item);
           currentBytes += file.size;
         }
-      } catch {
-        toast.error(`Failed to upload ${file.name}`);
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : `Failed to upload ${file.name}`);
       }
     }
     setUploading(false);
