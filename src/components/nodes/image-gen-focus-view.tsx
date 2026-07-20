@@ -355,23 +355,6 @@ export function ImageGenFocusView({
       : refValidation.violations.map((v) => [v.url, v.message])
   );
 
-  // One derived reason drives both the Generate button's disabled state and its
-  // tooltip — the button is never disabled without an explanation, and the two
-  // can't drift apart.
-  const generateDisabledReason: string | null = generating
-    ? "A generation is already running."
-    : editing
-      ? "An edit is already running."
-      : !editable
-        ? "Another session is editing — this canvas is read-only."
-        : !promptUpstream
-          ? "Connect a Prompt node to generate."
-          : hasRefViolation
-            ? refValidation.violations.length === 1
-              ? "A reference image doesn't meet this model's requirements. Try resizing it or switching to a different model."
-              : `${refValidation.violations.length} reference images don't meet this model's requirements. Try resizing them or switching to a different model.`
-            : null;
-
   const referenceItems: EditReferenceItem[] = connectedImageNodes.map((n) => ({
     id: n.id,
     url: n.url,
