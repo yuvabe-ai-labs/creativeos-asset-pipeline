@@ -71,7 +71,9 @@ export const ImageGenAnnotationCanvas = forwardRef<AnnotationHandle, Props>(
       const w = img.naturalWidth;
       const h = img.naturalHeight;
       // Idempotent: skip if unchanged so we don't re-init (and clear) the canvas after painting.
-      setDims((prev) => (prev && prev.w === w && prev.h === h ? prev : { w, h }));
+      setDims((prev) =>
+        prev && prev.w === w && prev.h === h ? prev : { w, h }
+      );
     }, []);
     // Callback ref catches the already-cached case (a cached <img> may never fire onLoad); the
     // onLoad handler catches a fresh network load.
@@ -79,20 +81,21 @@ export const ImageGenAnnotationCanvas = forwardRef<AnnotationHandle, Props>(
       (img: HTMLImageElement | null) => {
         if (img?.complete) readDims(img);
       },
-      [readDims],
+      [readDims]
     );
     const handleBaseLoad = useCallback(
       (e: React.SyntheticEvent<HTMLImageElement>) => readDims(e.currentTarget),
-      [readDims],
+      [readDims]
     );
 
     // Init the transparent buffer once the canvas element + dims exist.
     const setCanvasRef = useCallback(
       (el: HTMLCanvasElement | null) => {
         canvasRef.current = el;
-        if (el && dims) initDrawingCanvas(el, dims.w, dims.h, { transparent: true });
+        if (el && dims)
+          initDrawingCanvas(el, dims.w, dims.h, { transparent: true });
       },
-      [dims],
+      [dims]
     );
 
     const handlePointerDown = useCallback(
@@ -103,7 +106,7 @@ export const ImageGenAnnotationCanvas = forwardRef<AnnotationHandle, Props>(
         }
         onPointerDown(e);
       },
-      [onPointerDown, onMarksChange],
+      [onPointerDown, onMarksChange]
     );
 
     const resetMarks = useCallback(() => {
@@ -135,12 +138,20 @@ export const ImageGenAnnotationCanvas = forwardRef<AnnotationHandle, Props>(
           out.height = mask.height;
           const ctx = out.getContext("2d");
           if (!ctx) return null;
-          ctx.putImageData(new ImageData(mask.data, mask.width, mask.height), 0, 0);
+          ctx.putImageData(
+            new ImageData(
+              new Uint8ClampedArray(mask.data),
+              mask.width,
+              mask.height
+            ),
+            0,
+            0
+          );
           const dataUrl = out.toDataURL("image/png");
           return { base64: dataUrl.split(",")[1] ?? "", mime: "image/png" };
         },
       }),
-      [resetMarks],
+      [resetMarks]
     );
 
     // A small preview dot for the current brush size, scaled from the (large, natural-pixel)
@@ -160,7 +171,9 @@ export const ImageGenAnnotationCanvas = forwardRef<AnnotationHandle, Props>(
             {/* Wrapper matches the image aspect so the overlay lines up exactly. */}
             <div
               className="relative max-h-full max-w-full overflow-hidden rounded-xl border border-border bg-muted/20"
-              style={dims ? { aspectRatio: `${dims.w} / ${dims.h}` } : undefined}
+              style={
+                dims ? { aspectRatio: `${dims.w} / ${dims.h}` } : undefined
+              }
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -193,11 +206,14 @@ export const ImageGenAnnotationCanvas = forwardRef<AnnotationHandle, Props>(
             onClick={() => setTool("pen")}
             className={cn(
               "inline-flex size-8 items-center justify-center rounded-md transition hover:bg-muted",
-              tool === "pen" && "ring-2 ring-primary ring-offset-1",
+              tool === "pen" && "ring-2 ring-primary ring-offset-1"
             )}
             aria-label="Paint region"
           >
-            <span className="size-4 rounded-full" style={{ backgroundColor: MASK_COLOR }} />
+            <span
+              className="size-4 rounded-full"
+              style={{ backgroundColor: MASK_COLOR }}
+            />
           </button>
 
           <button
@@ -205,7 +221,7 @@ export const ImageGenAnnotationCanvas = forwardRef<AnnotationHandle, Props>(
             onClick={() => setTool("eraser")}
             className={cn(
               "inline-flex size-8 items-center justify-center rounded-md transition hover:bg-muted",
-              tool === "eraser" && "ring-2 ring-primary ring-offset-1",
+              tool === "eraser" && "ring-2 ring-primary ring-offset-1"
             )}
             aria-label="Eraser"
           >
@@ -242,5 +258,5 @@ export const ImageGenAnnotationCanvas = forwardRef<AnnotationHandle, Props>(
         </div>
       </div>
     );
-  },
+  }
 );
