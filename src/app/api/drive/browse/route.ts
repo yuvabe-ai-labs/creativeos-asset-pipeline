@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
   }
 
   const searchQ = search
-    ? ` and fullText contains '${escapeDriveLiteral(search)}'`
+    ? ` and name contains '${escapeDriveLiteral(search)}'`
     : "";
 
   const q =
