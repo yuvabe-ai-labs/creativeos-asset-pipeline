@@ -49,7 +49,8 @@ describe("GET /api/drive/browse", () => {
     fetchMock.mockResolvedValueOnce(mockOk({ files: [] }));
     await GET(makeReq("folderId=abc&q=logo"));
     const url = fetchMock.mock.calls[0][0] as string;
-    expect(url).toContain("fullText+contains");
+    // main switched search from fullText to name matching (059ccf3)
+    expect(url).toContain("name+contains");
     expect(url).toContain("logo");
   });
 
