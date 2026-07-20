@@ -140,7 +140,7 @@ export const ImageGenAnnotationCanvas = forwardRef<AnnotationHandle, Props>(
           if (!ctx) return null;
           ctx.putImageData(
             new ImageData(
-              mask.data as Uint8ClampedArray<ArrayBuffer>,
+              new Uint8ClampedArray(mask.data),
               mask.width,
               mask.height
             ),
