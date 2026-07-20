@@ -11,6 +11,7 @@ import { FileFocusView } from "./file-focus-view";
 import { useNodeConnectionState } from "./use-node-connection-state";
 import { NodeContextMenu } from "./node-context-menu";
 import { NodeTitle } from "./node-title";
+import { NodeHandle } from "./node-handle";
 
 const KIND_LABELS = { text: "TXT", image: "IMG", document: "DOC" } as const;
 
@@ -18,6 +19,8 @@ export function FileNode({ id, data, selected }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const deleteNode = useDeleteNode();
   const duplicateNode = useCanvasStore((s) => s.duplicateNode);
+  const focusedNodeId = useCanvasStore((s) => s.focusedNodeId);
+  const setFocusedNodeId = useCanvasStore((s) => s.setFocusedNodeId);
   const d = data as FileNodeData;
   const [focusOpen, setFocusOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -26,6 +29,14 @@ export function FileNode({ id, data, selected }: NodeProps) {
   const hasFile = !!d.filename;
   const showUploading = isUploading || d.uploading === true;
   const uploadError = d.uploadError;
+
+  // Open locally (double-click / "Open ↗") OR when a shared signal points here — the
+  // Generation Tray, guided flow, or the copilot's open_node (setFocusedNodeId).
+  const focusViewOpen = focusOpen || focusedNodeId === id;
+  const handleFocusOpenChange = (next: boolean) => {
+    setFocusOpen(next);
+    if (!next && focusedNodeId === id) setFocusedNodeId(null); // consume the signal
+  };
 
   return (
     <NodeContextMenu
@@ -48,6 +59,7 @@ export function FileNode({ id, data, selected }: NodeProps) {
         <div className="flex items-center gap-1.5">
           <Paperclip className="size-3.5 text-primary" />
           <span className="text-eyebrow text-[0.65rem]!">File</span>
+          <NodeHandle nodeId={id} nodeType="file" />
         </div>
         <div className="flex items-center gap-1">
           {showUploading ? (
@@ -128,8 +140,8 @@ export function FileNode({ id, data, selected }: NodeProps) {
       </div>
 
       <FileFocusView
-        open={focusOpen}
-        onOpenChange={setFocusOpen}
+        open={focusViewOpen}
+        onOpenChange={handleFocusOpenChange}
         nodeId={id}
         title={d.title ?? ""}
         filename={d.filename}

@@ -19,6 +19,7 @@ import type { ReelScript } from "@/lib/nodes/reel-script";
 import type { ShotComposeIdea } from "@/lib/nodes/shot-compose";
 import { deriveShotType } from "@/lib/nodes/shot-types";
 import type { GenerationRow } from "@/lib/db/types";
+import type { PlaybookRun } from "@/lib/copilot/runner";
 
 // 1C/1D: the canvas store. Nodes/edges live here; custom node components read
 // and write it directly (React Flow only hands a node `{ id, data }`).
@@ -54,6 +55,12 @@ export type CanvasState = {
   // Programmatic focus-view open signal — set by the tray to open a node's focus view.
   focusedNodeId: string | null;
   setFocusedNodeId: (id: string | null) => void;
+  // Copilot playbook run (runner spec §2.3) — ONE run at a time, session-scoped.
+  // Lives here (not in the chat hook) so the run card, canvas, and future surfaces
+  // all read the same checkpoint and the run survives the panel closing.
+  playbookRun: PlaybookRun | null;
+  setPlaybookRun: (run: PlaybookRun | null) => void;
+  patchPlaybookRun: (patch: Partial<PlaybookRun>) => void;
   // Guided next-node flow (D36): create/connect/place the next pipeline node, or return
   // an existing next node's id to navigate to. Never runs a model.
   guidedCreateNext: (sourceId: string) => string | null;
@@ -410,6 +417,11 @@ export function createCanvasStore(
 
     focusedNodeId: null,
     setFocusedNodeId: (id) => set({ focusedNodeId: id }),
+
+    playbookRun: null,
+    setPlaybookRun: (run) => set({ playbookRun: run }),
+    patchPlaybookRun: (patch) =>
+      set((s) => (s.playbookRun ? { playbookRun: { ...s.playbookRun, ...patch } } : {})),
 
     guidedCreateNext: (sourceId) => {
       const state = get();

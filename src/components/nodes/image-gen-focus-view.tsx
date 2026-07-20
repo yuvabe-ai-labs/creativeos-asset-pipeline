@@ -32,6 +32,7 @@ import {
   type UpstreamNode,
   type ConnectedPreview,
 } from "./connected-inputs-card";
+import { AddConnection } from "./add-connection";
 import {
   ImageGenVersionHistory,
   type ImageGenVersionSummary,
@@ -353,6 +354,23 @@ export function ImageGenFocusView({
       ? []
       : refValidation.violations.map((v) => [v.url, v.message])
   );
+
+  // One derived reason drives both the Generate button's disabled state and its
+  // tooltip — the button is never disabled without an explanation, and the two
+  // can't drift apart.
+  const generateDisabledReason: string | null = generating
+    ? "A generation is already running."
+    : editing
+      ? "An edit is already running."
+      : !editable
+        ? "Another session is editing — this canvas is read-only."
+        : !promptUpstream
+          ? "Connect a Prompt node to generate."
+          : hasRefViolation
+            ? refValidation.violations.length === 1
+              ? "A reference image doesn't meet this model's requirements. Try resizing it or switching to a different model."
+              : `${refValidation.violations.length} reference images don't meet this model's requirements. Try resizing them or switching to a different model.`
+            : null;
 
   const referenceItems: EditReferenceItem[] = connectedImageNodes.map((n) => ({
     id: n.id,
@@ -843,8 +861,15 @@ export function ImageGenFocusView({
               onClick={() => setSelected("image")}
             />
 
-            <div className="px-2.5 pb-1 pt-3 text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground/70">
-              Connected · {upstream.length}
+            <div className="flex items-center justify-between px-2.5 pb-1 pt-3">
+              <span className="text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                Connected · {upstream.length}
+              </span>
+              <AddConnection
+                targetId={nodeId}
+                targetType="image-gen"
+                connectedIds={upstream.map((u) => u.id)}
+              />
             </div>
             {upstream.length === 0 ? (
               <p className="px-2.5 text-xs text-muted-foreground">

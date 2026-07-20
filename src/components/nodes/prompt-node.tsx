@@ -14,6 +14,7 @@ import { DEFAULT_IMAGE_PROMPT_SLICES, type KBSliceKey } from "@/lib/kb/parse-con
 import type { ShotControls } from "@/lib/nodes/shot-controls";
 import { NodeContextMenu } from "./node-context-menu";
 import { NodeTitle } from "./node-title";
+import { NodeHandle } from "./node-handle";
 import { ApprovalBadge } from "./approval-badge";
 import type { ApprovalStatus } from "@/lib/approval";
 import { useNodeCost } from "@/hooks/use-node-cost";
@@ -125,6 +126,7 @@ export function PromptNode({ id, data, selected, positionAbsoluteX, positionAbso
         <div className="flex items-center gap-1.5">
           <Sparkles className="size-3.5 text-primary" />
           <span className="text-eyebrow !text-[0.65rem]">Prompt</span>
+          <NodeHandle nodeId={id} nodeType="prompt" />
         </div>
         <span
           className={cn("size-1.5 rounded-full", output ? "bg-primary" : "bg-muted-foreground/40")}

@@ -1084,6 +1084,280 @@ name-matching; per-org Drive OAuth (too heavy for the pilot).
 
 **Originated →** `docs/CreativeOS Multi-Tenancy Pilot PRD.md` (§7).
 
+### D49 — Org membership is a join table from day one *(recorded 2026-07-16 from the auth design spec of 2026-07-15; design-stage, not yet built. Note: the spec originally numbered its decisions D48–D52, colliding with D48 above — renumbered here to D49–D53; the spec was corrected to match)*
+
+**Decision.** User↔org membership lives in an **`org_memberships` join table** from day one — not a `profiles.org_id` column.
+
+**Why.** Multi-seat orgs become row inserts, never a schema migration.
+
+**Rejected.** A single `org_id` column on profiles.
+
+**Originated →** `2026-07-15-auth-multi-tenancy-design.md` (§13).
+
+### D50 — Two role axes: `platform_role` in the JWT, `org_role` on the membership *(recorded 2026-07-16; design-stage)*
+
+**Decision.** `platform_role` lives in `auth.users.app_metadata` (a server-set JWT claim); `org_role` lives on `org_memberships` (mutable, per-membership).
+
+**Why.** Platform powers and org seats are independent axes — two homes, no collision.
+
+**Rejected.** One merged role field.
+
+**Originated →** `2026-07-15-auth-multi-tenancy-design.md` (§13).
+
+### D51 — `proxy.ts` is optimistic-only; the DAL owns identity *(recorded 2026-07-16; design-stage)*
+
+**Decision.** Next.js 16 `proxy.ts` performs only an optimistic session check; full identity/org context resolution lives in the DAL (`src/lib/dal.ts`) wrapped in React `cache()`.
+
+**Why.** Authorization must live at the data-access layer, resolved once per request — the edge proxy can only be a fast first filter.
+
+**Rejected.** Resolving full auth context in middleware.
+
+**Originated →** `2026-07-15-auth-multi-tenancy-design.md` (§13).
+
+### D52 — Impersonation via HttpOnly cookie override *(recorded 2026-07-16; design-stage)*
+
+**Decision.** Super-admin impersonation is an HttpOnly cookie (`orgId` override read in the DAL) — no session swap — with a persistent banner.
+
+**Why.** No credential switching, trivially reversible, always visible.
+
+**Rejected.** Swapping the Supabase session.
+
+**Originated →** `2026-07-15-auth-multi-tenancy-design.md` (§13).
+
+### D53 — `useIdentity()` API frozen; internals swapped *(recorded 2026-07-16; design-stage)*
+
+**Decision.** The `useIdentity()` public API is frozen; its internals move from localStorage to Supabase session + profiles.
+
+**Why.** Every call site survives the auth migration unchanged.
+
+**Rejected.** A new identity hook plus a call-site rewrite.
+
+**Originated →** `2026-07-15-auth-multi-tenancy-design.md` (§13).
+
+### D54 — Copilot architecture: server thinks, client acts, human gates *(recorded 2026-07-16; the copilot build — D54–D71 — merged to main this date. Specs: `2026-07-14-creativeos-copilot-design.md` (part 1), `../../copilot/copilot-design-part-2.md`, `2026-07-13-copilot-playbook-runner-design.md`; principles P1–P8 in `../../copilot/copilot-primitives-and-patterns.md`)*
+
+**Decision.** The copilot's model only ever returns decisions, proposals, and references; **all graph mutation is client-side** through the canvas store's recipes.
+
+**Why.** Keeps the security/undo boundary in the client — a confused model can propose, never mutate.
+
+**Rejected.** Server-applied mutations; one mega-call streaming prose+refs+actions (forces partial-JSON parsing).
+
+**Originated →** `2026-07-14-creativeos-copilot-design.md` (§4, §7).
+
+### D55 — Three stateless calls per copilot turn *(recorded 2026-07-16)*
+
+**Decision.** Prose (stream), references (`json_schema`), and actions (`tools`) are three separate stateless calls orchestrated by the client.
+
+**Why.** Zero partial-JSON parsing; each call has one job.
+
+**Rejected.** Unified AI-SDK streaming with interleaved tool calls.
+
+**Originated →** `2026-07-14-creativeos-copilot-design.md` (§4, §7).
+
+### D56 — Node ref handle: uuid-derived `TYPE-XXXX` *(recorded 2026-07-16)*
+
+**Decision.** Every node has a stable, human-visible handle (`nodeHandle` = type abbrev + first 4 uuid chars, a pure function). Chat, tools, @-mentions, and elicitation all speak handles.
+
+**Why.** Referenceable identity with zero storage that can never re-point; agent-created nodes are usually untitled.
+
+**Rejected.** Positional numbering (rots on add/delete); a persisted counter (storage + concurrency).
+
+**Originated →** `2026-07-14-creativeos-copilot-design.md` (§3, §7).
+
+### D57 — @-mention is human-directed grounding *(recorded 2026-07-16)*
+
+**Decision.** The human names the nodes that matter (`@HANDLE`, `@selected`); resolution is client-side (`resolveMentions`, zero model calls); the copilot never volunteers candidate pickers.
+
+**Why.** Removes LLM guessing/enumeration; the human owns relevance.
+
+**Rejected.** A model-asks-clarifying-questions candidate-picker flow.
+
+**Originated →** `2026-07-14-creativeos-copilot-design.md` (§7, §10.1).
+
+### D58 — CreativeOS is a workflow with one agentic cell *(recorded 2026-07-16)*
+
+**Decision.** The script→shots→image run is a deterministic workflow; genuine agency (an observe-decide loop) is reserved for the per-shot "is this image good enough?" repair cell — added later, budget-capped, plugged into one playbook step's `run`.
+
+**Why.** The flow's steps are enumerable in advance, so an agent adds latency/cost without benefit; a loop earns its cost only where outcomes are unpredictable. Test: *in a workflow you can number the steps before running; in an agent you can only number the iterations.*
+
+**Rejected.** An autonomous agent that plans the whole run.
+
+**Originated →** `2026-07-14-creativeos-copilot-design.md` (§8.1–8.3, §8.7, §10.4).
+
+### D59 — One single-shot lane first; parallelize after it works *(recorded 2026-07-16)*
+
+**Decision.** Build one shot's lane end-to-end (script → shot → prompt → image) before any multi-shot orchestration.
+
+**Why.** The parallel run is the same lane repeated per row — proving one lane de-risks everything and wastes nothing.
+
+**Rejected.** Building the multi-shot orchestrator up front.
+
+**Originated →** `2026-07-14-creativeos-copilot-design.md` (§8.4, §8.7).
+
+### D60 — The copilot is the run's command bar + driver + narrator *(recorded 2026-07-16; refines D54's docked-panel interaction model)*
+
+**Decision.** Language drives the existing nodes; the canvas holds the work. The copilot is not a container you work inside.
+
+**Why.** Work stays visible and editable in the graph the rest of the product understands.
+
+**Originated →** `2026-07-14-creativeos-copilot-design.md` (§8.7).
+
+### D61 — Speed comes from workflow techniques, not agency *(recorded 2026-07-16)*
+
+**Decision.** The speed levers are parallelism, a language entry point, and model-filled control defaults — all workflow techniques.
+
+**Why.** Names the real levers so agency isn't mistaken for a speed tool.
+
+**Originated →** `2026-07-14-creativeos-copilot-design.md` (§8.3, §8.7).
+
+### D62 — Parallel runs visualize on the canvas matrix *(recorded 2026-07-16; agreed direction, DEFERRED — not built)*
+
+**Decision.** When runs parallelize: rows = shots, columns = stages; the run moves a spotlight across columns; completed stages collapse to compact launchers.
+
+**Why.** The canvas already IS the parallel view (fan-out lays N rows); anything else duplicates it.
+
+**Rejected.** Per-shot tabs (parallel in name only); a floating run-board panel (a second canvas to keep in sync).
+
+**Originated →** `2026-07-14-creativeos-copilot-design.md` (§8.5, §8.7).
+
+### D63 — Copilot writes gate by blast radius *(recorded 2026-07-16)*
+
+**Decision.** Cheap / reversible / structural ops (`create_script_node`, `parse_script`, `add_node`, `open_node`, `connect_nodes`) execute instantly via client recipes; only real-cost, irreversible ops (generation) pause for the human.
+
+**Why.** Friction only where it earns its keep.
+
+**Rejected.** Gating every mutation (the original read-only proposal card, since removed).
+
+**Originated →** `2026-07-14-creativeos-copilot-design.md` (§9.1, §9.5).
+
+### D64 — `open_node` is one general verb, not per-type openers *(recorded 2026-07-16)*
+
+**Decision.** One opener drives the shared `focusedNodeId` store signal; each node type owns which surface opens (Composer for a Shot, focus view otherwise). All 10 node types are wired to the signal.
+
+**Why.** Keeps the `create → open → act` grammar general; the tray and guided flow already drove the same signal.
+
+**Rejected.** `open_shot_composer` and friends — one opener per node type.
+
+**Originated →** `2026-07-14-creativeos-copilot-design.md` (§9.1, §9.5, §10.3 prep).
+
+### D65 — `parse_script` auto-fans-out *(recorded 2026-07-16)*
+
+**Decision.** Parsing a script drops its Shot nodes onto the canvas directly (the same `fanOutShots` engine as the manual button).
+
+**Why.** Fan-out is the next lane step and the engine already existed.
+
+**Rejected.** Leaving fan-out a separate manual click.
+
+**Originated →** `2026-07-14-creativeos-copilot-design.md` (§9.2, §9.5).
+
+### D66 — The ref handle shows on every node, in the header *(recorded 2026-07-16; refines D56)*
+
+**Decision.** All 10 node types render the handle in the card header next to the type label — what you SEE is byte-identical to what you TYPE (`@SHOT-1A2B`).
+
+**Why.** Uniform, discoverable, and identical to what the copilot and @-mentions resolve.
+
+**Rejected.** Handle on only title-bearing types; above-the-title placement.
+
+**Originated →** `2026-07-14-creativeos-copilot-design.md` (§9.3, §9.5).
+
+### D67 — Complex copilot commands are routed playbooks, not agent plans *(recorded 2026-07-16; the playbook runner shipped in the same merge)*
+
+**Decision.** The model routes a sentence to a **hardcoded playbook** (`run_playbook(name, slots)`) and extracts slot values at predefined decision points; code owns all step sequencing. Playbooks are data — new ones are registry additions, not architecture.
+
+**Why.** Every target flow's steps are enumerable in advance (routing is a workflow pattern, per Anthropic); debuggability and cost.
+
+**Rejected.** Model-authored step lists; an autonomous planning agent.
+
+**Originated →** `2026-07-13-copilot-playbook-runner-design.md` (§2.1–2.2, §10).
+
+### D68 — Slot-filling is frame-based with authored elicitation *(recorded 2026-07-16)*
+
+**Decision.** Playbook slots are required/optional fields with **authored per-slot questions**; completeness is checked by CODE. Replies resolve client-first (`@`-mentions / "none" — zero model calls) with a model fallback; inferable slots are never asked (one shot on canvas → it's the shot).
+
+**Why.** The task-oriented-dialogue pattern: deterministic, testable asks; Ask-when-Needed.
+
+**Rejected.** Letting the model decide when and what to ask.
+
+**Originated →** `2026-07-13-copilot-playbook-runner-design.md` (§2.2, §8, §10).
+
+### D69 — Human actions are first-class playbook steps with store-predicate completion *(recorded 2026-07-16)*
+
+**Decision.** A run pauses on a human step and resumes when a **pure predicate over the canvas store** goes true — level-triggered: one subscription is the wake-up, the predicate over current state is the decision. The advance is **published to the store before any recipe fires** (idempotent advance — a re-entrant subscription call must no-op; violating this duplicated 931 image nodes in testing).
+
+**Why.** LangGraph's HITL shape with zero framework — the client-side brain already shares state with the UI; level-triggering survives pre-completed steps, and missed or duplicate wake-ups are harmless.
+
+**Rejected.** LangGraph/AG-UI infrastructure; polling the model to ask "is the user done?"; edge-triggered event listeners (the lost-signal problem).
+
+**Originated →** `2026-07-13-copilot-playbook-runner-design.md` (§2.3, §10); principles P5–P6.
+
+### D70 — Generation steps always pause: the L6 HITL gate *(recorded 2026-07-16; refines D63)*
+
+**Decision.** In a playbook run, generation steps are HUMAN steps — the run never auto-fires a generation. The long-owed HITL gate lands as a *pause in the run*, not an approve-button card.
+
+**Why.** Blast-radius rule: real cost + irreversibility pause; structural steps stay instant.
+
+**Originated →** `2026-07-13-copilot-playbook-runner-design.md` (§2.5, §10).
+
+### D71 — One run at a time, session-scoped; cancel keeps created nodes *(recorded 2026-07-16)*
+
+**Decision.** A new complex command mid-run asks finish-or-cancel; cancelled runs keep the nodes they created; run state lives in the canvas store with no page-reload durability.
+
+**Why.** v1 simplicity; created nodes are real work (delete is one click); Trigger.dev is this repo's durability answer *if ever needed*.
+
+**Rejected.** Concurrent runs; cross-session checkpoint persistence.
+
+**Originated →** `2026-07-13-copilot-playbook-runner-design.md` (§2.3, §6, §10).
+
+### D72 — One connect semantics: `canConnect(src, tgt)` backs every connection entry point *(recorded 2026-07-16)*
+
+**Decision.** One ordered helper in `canvas-nodes.ts` validates all four connection call sites — manual drag, drag affordance, the copilot's `connect_nodes`, and the focus-view `+ Add`. Chat and canvas are two entry points into the same semantics; connect itself is instant (cheap/reversible, per D63).
+
+**Why.** The rule was inlined twice and two more consumers arrived; one helper prevents divergence. Ordered on purpose — direction is load-bearing.
+
+**Rejected.** Per-surface ad-hoc wiring; a symmetric `areConnectable`; a proposal gate for connect.
+
+**Originated →** `2026-07-12-copilot-connect-and-selection-design.md` (§9).
+
+### D73 — `@selected` is insert-time expansion to visible handle tokens *(recorded 2026-07-16)*
+
+**Decision.** Picking `@selected` expands the current canvas selection into literal `@HANDLE name` tokens in the composer at insert time; the resolver is unchanged.
+
+**Why.** Transparent and editable; can't drift between typing and send; reuses `resolveMentions`.
+
+**Rejected.** A live `@selected` keyword resolved at send time (selection drift; resolver special-case).
+
+**Originated →** `2026-07-12-copilot-connect-and-selection-design.md` (§9).
+
+### D74 — Implicit selection context travels side-channel, dismissible per turn *(recorded 2026-07-16)*
+
+**Decision.** The canvas selection rides along as ids merged into `mentionedIds` at send — the typed message is never rewritten — shown as a dismissible chip whose dismissal is keyed to the selection signature.
+
+**Why.** Grounding without polluting the visible history; dismissal must reset when the selection actually changes.
+
+**Rejected.** Prepending expanded `@HANDLE` tokens (pollutes history); always-attached context (forces deselection to ask unrelated questions).
+
+**Originated →** `2026-07-14-copilot-selection-context-design.md` (§6).
+
+### D75 — Agent-created nodes place at the viewport center *(recorded 2026-07-16)*
+
+**Decision.** `add_node` / `create_script_node` place the new node at the visible canvas center (`screenToFlowPosition`), offset half a node so its center sits there.
+
+**Why.** "Appears where I'm looking" beats off-screen-right on a populated canvas.
+
+**Rejected.** Cursor position (undefined for chat-driven actions); the rightmost-plus-offset `placeNewNode` heuristic for copilot creates.
+
+**Originated →** `2026-07-12-copilot-connect-and-selection-design.md` (§9).
+
+### D76 — Ref badges flip size at a zoom threshold, never counter-scale *(recorded 2026-07-16)*
+
+**Decision.** Node ref badges switch between two sizes at a zoom threshold via a boolean store selector — no continuous `scale(1/zoom)` counter-scaling.
+
+**Why.** Constant-size labels overflow and collide at far zoom; continuous interpolation re-renders on every zoom tick.
+
+**Rejected.** `scale(1/zoom)`; continuous font interpolation.
+
+**Originated →** `2026-07-14-copilot-selection-context-design.md` (§6).
+
 ### Parked / out-of-scope (with revisit triggers)
 | Item | Status | Revisit when |
 |---|---|---|

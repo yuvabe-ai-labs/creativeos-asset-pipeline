@@ -9,6 +9,7 @@ import { useDeleteNode } from "@/hooks/use-delete-node";
 import { useGalleryDrawer } from "@/components/canvas/gallery-drawer-context";
 import { useGalleryNodeDrop } from "@/hooks/use-gallery-node-drop";
 import { NodeContextMenu } from "./node-context-menu";
+import { NodeHandle } from "./node-handle";
 import type { ImageGenNodeData } from "@/lib/canvas-nodes";
 import { ImageGenFocusView } from "./image-gen-focus-view";
 import { ProcessingPill } from "./processing-pill";
@@ -103,7 +104,7 @@ export function ImageGenNode({ id, data, selected, positionAbsoluteX, positionAb
         onDragOver={drop.onDragOver}
         onDrop={drop.onDrop}
         className={cn(
-          "w-60 rounded-lg border border-border bg-card shadow-card",
+          "w-[480px] rounded-lg border border-border bg-card shadow-card",
           "transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:scale-[1.006]",
           selected && "ring-2 ring-primary ring-offset-1 ring-offset-background",
         )}
@@ -113,6 +114,7 @@ export function ImageGenNode({ id, data, selected, positionAbsoluteX, positionAb
           <div className="flex items-center gap-1.5">
             <ImageIcon className="size-3.5 shrink-0 stroke-[1.5] text-primary" />
             <span className="text-eyebrow !text-[0.65rem] whitespace-nowrap">Image Gen</span>
+            <NodeHandle nodeId={id} nodeType="image-gen" />
           </div>
           {isProcessing ? (
             <ProcessingPill processing />
@@ -137,7 +139,7 @@ export function ImageGenNode({ id, data, selected, positionAbsoluteX, positionAb
           {imageUrl && (
             <div className="mb-2 overflow-hidden rounded-md border border-border">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={imageUrl} alt="Generated" className="h-16 w-full object-cover" />
+              <img src={imageUrl} alt="Generated" className="aspect-video w-full object-cover" />
             </div>
           )}
           <button

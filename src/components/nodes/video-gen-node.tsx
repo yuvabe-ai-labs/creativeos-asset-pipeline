@@ -9,6 +9,7 @@ import { useDeleteNode } from "@/hooks/use-delete-node";
 import { useGalleryDrawer } from "@/components/canvas/gallery-drawer-context";
 import { useGalleryNodeDrop } from "@/hooks/use-gallery-node-drop";
 import { NodeContextMenu } from "./node-context-menu";
+import { NodeHandle } from "./node-handle";
 import type { VideoGenNodeData } from "@/lib/canvas-nodes";
 import { VideoGenFocusView } from "./video-gen-focus-view";
 import { useVideoGenStatus } from "@/hooks/use-video-gen-status";
@@ -76,6 +77,7 @@ export function VideoGenNode({ id, data, selected, positionAbsoluteX, positionAb
           <div className="flex items-center gap-1.5">
             <Clapperboard className="size-3.5 shrink-0 stroke-[1.5] text-primary" />
             <span className="text-eyebrow !text-[0.65rem] whitespace-nowrap">Video Gen</span>
+            <NodeHandle nodeId={id} nodeType="video-gen" />
           </div>
           {isGenerating ? (
             <ProcessingPill processing />

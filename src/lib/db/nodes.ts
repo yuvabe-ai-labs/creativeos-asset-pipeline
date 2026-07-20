@@ -3,7 +3,7 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import type { NodeWithActive } from "@/lib/canvas-nodes";
 import type { TraceableBrandKB } from "@/lib/kb/schema";
 import { getActiveKBVersion } from "./kb";
-import { planReconcile } from "./reconcile";
+import { chunkIds, planReconcile } from "./reconcile";
 
 // What the client sends us to persist (React Flow node, trimmed to DB columns).
 export type PersistedNode = {
@@ -105,12 +105,14 @@ export async function saveCanvasNodes(
     nodes.map((n) => n.id),
     removedNodeIds,
   );
-  if (deleteIds.length > 0) {
+  // Chunked: one giant .in() list overflows the gateway's URL limit and the
+  // delete silently fails (observed with a 900+ node mass-delete).
+  for (const chunk of chunkIds(deleteIds)) {
     const { error: delErr } = await supabase
       .from("nodes")
       .delete()
       .eq("canvas_id", canvasId)
-      .in("id", deleteIds);
+      .in("id", chunk);
     if (delErr) throw delErr;
   }
 }

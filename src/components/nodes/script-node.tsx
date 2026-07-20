@@ -11,6 +11,7 @@ import { saveScriptOutputAction } from "@/lib/actions/nodes";
 import { ScriptFocusView } from "./script-focus-view";
 import { NodeContextMenu } from "./node-context-menu";
 import { NodeTitle } from "./node-title";
+import { NodeHandle } from "./node-handle";
 import { ProcessingPill } from "./processing-pill";
 import type { ReelScript } from "@/lib/nodes/reel-script";
 import { DEFAULT_PARSE_SLICES, type KBSliceKey } from "@/lib/kb/parse-context";
@@ -21,6 +22,8 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
   const deleteNode = useDeleteNode();
   const duplicateNode = useCanvasStore((s) => s.duplicateNode);
   const fanOutShots = useCanvasStore((s) => s.fanOutShots);
+  const focusedNodeId = useCanvasStore((s) => s.focusedNodeId);
+  const setFocusedNodeId = useCanvasStore((s) => s.setFocusedNodeId);
   const d = data as {
     title?: string;
     source?: string;
@@ -34,6 +37,14 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
   const [focusOpen, setFocusOpen] = useState(false);
   const [isParsing, setIsParsing] = useState(false);
   const connState = useNodeConnectionState(id, "script");
+
+  // Open locally (double-click / "Open ↗") OR when the shared signal points here —
+  // the Generation Tray, guided flow, or the copilot's open_node (setFocusedNodeId).
+  const focusViewOpen = focusOpen || focusedNodeId === id;
+  const handleFocusOpenChange = (next: boolean) => {
+    setFocusOpen(next);
+    if (!next && focusedNodeId === id) setFocusedNodeId(null); // consume the signal
+  };
 
   return (
     <NodeContextMenu
@@ -56,6 +67,7 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
         <div className="flex items-center gap-1.5">
           <FileText className="size-3.5 text-primary" />
           <span className="text-eyebrow !text-[0.65rem]">Script</span>
+          <NodeHandle nodeId={id} nodeType="script" />
         </div>
         {isParsing ? (
           <ProcessingPill processing />
@@ -96,8 +108,8 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
       )}
 
       <ScriptFocusView
-        open={focusOpen}
-        onOpenChange={setFocusOpen}
+        open={focusViewOpen}
+        onOpenChange={handleFocusOpenChange}
         nodeId={id}
         title={title}
         source={source}
@@ -109,7 +121,7 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
         onFanOut={() => {
           const n = parsed?.visual_script?.shots?.length ?? 0;
           fanOutShots(id);
-          setFocusOpen(false);
+          handleFocusOpenChange(false);
           toast.success(`Fanned out ${n} shot${n === 1 ? "" : "s"}`);
         }}
       />

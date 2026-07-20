@@ -2,7 +2,7 @@
 **Date:** 2026-07-15
 **Status:** Approved
 **Supersedes:** D14 (no-auth posture), D29 (localStorage identity)
-**ADR decisions:** D41–D47 (PRD), D48–D52 (this doc)
+**ADR decisions:** D42–D48 (PRD), **D49–D53** (this doc — renumbered 2026-07-16; this spec's original D48–D52 collided with the log's D48, the Drive-gallery hardening from the PRD)
 
 ---
 
@@ -349,8 +349,8 @@ Onboarding a new agency = one command, no redeploy, no hand-written SQL.
 
 Appended to `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md §7`:
 
-- **D48** — `org_memberships` join table from day one (not `profiles.org_id` column). Multi-seat = insert rows, no migration.
-- **D49** — `platform_role` in `auth.users.app_metadata` (JWT claim, server-set only). `org_role` in `org_memberships` (mutable, per-membership). Two axes, no collision.
-- **D50** — Next.js 16 `proxy.ts` for optimistic session check only; full context resolution in DAL (`src/lib/dal.ts`) wrapped in React `cache()`.
-- **D51** — Super_admin impersonation via HttpOnly cookie (`orgId` override in DAL); no session swap; persistent banner.
-- **D52** — `useIdentity()` public API frozen; internals swap from localStorage to Supabase session + profiles. Call sites unchanged.
+- **D49** — `org_memberships` join table from day one (not `profiles.org_id` column). Multi-seat = insert rows, no migration.
+- **D50** — `platform_role` in `auth.users.app_metadata` (JWT claim, server-set only). `org_role` in `org_memberships` (mutable, per-membership). Two axes, no collision.
+- **D51** — Next.js 16 `proxy.ts` for optimistic session check only; full context resolution in DAL (`src/lib/dal.ts`) wrapped in React `cache()`.
+- **D52** — Super_admin impersonation via HttpOnly cookie (`orgId` override in DAL); no session swap; persistent banner.
+- **D53** — `useIdentity()` public API frozen; internals swap from localStorage to Supabase session + profiles. Call sites unchanged.

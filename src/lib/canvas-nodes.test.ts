@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  canConnect,
   nodeRowToFlow,
   flowToPersisted,
   VALID_CONNECTIONS,
@@ -136,5 +137,21 @@ describe("flowToPersisted (image-gen edit fields)", () => {
     expect(d.editReferenceNodeIds).toEqual(["file-1", "file-2"]);
     expect(d.editIntent).toBe("modify");
     expect(d.parsed).toBeUndefined();
+  });
+});
+
+describe("canConnect", () => {
+  it("allows a documented pair (draw → prompt)", () => {
+    expect(canConnect("draw", "prompt")).toBe(true);
+  });
+  it("rejects an undocumented pair (draw → script)", () => {
+    expect(canConnect("draw", "script")).toBe(false);
+  });
+  it("rejects an unknown source type", () => {
+    expect(canConnect("nonsense", "prompt")).toBe(false);
+  });
+  it("is directional (video-prompt → video-gen only, not reverse)", () => {
+    expect(canConnect("video-prompt", "video-gen")).toBe(true);
+    expect(canConnect("video-gen", "video-prompt")).toBe(false);
   });
 });

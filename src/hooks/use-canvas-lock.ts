@@ -14,6 +14,7 @@ import {
   heartbeatCanvasLockAction,
   getCanvasLockAction,
 } from "@/lib/actions/canvas-lock";
+import { trackConnection } from "@/lib/canvas/connection-status";
 
 const POLL_MS = 10_000;
 
@@ -33,8 +34,10 @@ export function useCanvasLock(canvasId: string) {
   // Acquire on mount.
   useEffect(() => {
     let cancelled = false;
-    void acquireCanvasLockAction(canvasId, sessionId, nameRef.current).then((r) => {
-      if (cancelled) return;
+    void trackConnection(() =>
+      acquireCanvasLockAction(canvasId, sessionId, nameRef.current),
+    ).then((r) => {
+      if (cancelled || !r) return; // null = server unreachable; leave state, badge shows offline
       dispatch(r.ok ? { type: "acquired" } : { type: "denied", heldByName: r.heldBy.name });
     });
     return () => {
@@ -48,8 +51,10 @@ export function useCanvasLock(canvasId: string) {
   useEffect(() => {
     if (!isEditor) return;
     const id = setInterval(() => {
-      void heartbeatCanvasLockAction(canvasId, sessionId).then((r) => {
-        if (!r.ok) dispatch({ type: "heartbeatLost" });
+      void trackConnection(() => heartbeatCanvasLockAction(canvasId, sessionId)).then((r) => {
+        // null = unreachable (offline, NOT a lost lock). Only a real {ok:false} means
+        // someone else took the lock, which flips us to read-only.
+        if (r && !r.ok) dispatch({ type: "heartbeatLost" });
       });
     }, HEARTBEAT_MS);
 
@@ -72,7 +77,8 @@ export function useCanvasLock(canvasId: string) {
   useEffect(() => {
     if (!isViewer) return;
     const id = setInterval(() => {
-      void getCanvasLockAction(canvasId).then((lock) => {
+      void trackConnection(() => getCanvasLockAction(canvasId)).then((lock) => {
+        if (!lock) return; // unreachable; badge shows offline, poll retries next tick
         if (lock.heldBy === null || isLockStale(lock.heartbeatAt, Date.now())) {
           dispatch({ type: "lockFreed" });
         }

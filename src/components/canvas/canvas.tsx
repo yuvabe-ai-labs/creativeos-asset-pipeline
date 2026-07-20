@@ -18,7 +18,7 @@ import {
 } from "@xyflow/react";
 import { useShallow } from "zustand/react/shallow";
 import { toast } from "sonner";
-import { VALID_CONNECTIONS, flowToPersisted, type AppNode } from "@/lib/canvas-nodes";
+import { canConnect, flowToPersisted, type AppNode } from "@/lib/canvas-nodes";
 import { saveCanvasNodesAction } from "@/lib/actions/nodes";
 import { readClipboardImage, clipboardHasImage } from "@/lib/nodes/clipboard-image";
 import { ScriptNode } from "@/components/nodes/script-node";
@@ -33,6 +33,7 @@ import { VideoPromptNode } from "@/components/nodes/video-prompt-node";
 import { VideoGenNode } from "@/components/nodes/video-gen-node";
 import { useCanvasStore, useCanvasStoreApi } from "./canvas-store-provider";
 import { CanvasAutosave } from "./canvas-autosave";
+import { ConnectionBadge } from "./connection-badge";
 import { QuickAddMenu } from "./quick-add-menu";
 import { mnemonicToType, isEditableTarget } from "@/lib/canvas-node-options";
 import { useCanvasLock } from "@/hooks/use-canvas-lock";
@@ -40,6 +41,7 @@ import { CanvasEditableProvider } from "./canvas-editable-context";
 import { AutosaveFlushProvider } from "./autosave-flush-context";
 import { CanvasIdProvider } from "./canvas-id-context";
 import { GenerationTray } from "./generation-tray";
+import { CopilotPanel } from "./copilot-panel";
 import { LockBanner } from "./lock-banner";
 import { DeleteConfirmDialog } from "./delete-confirm-dialog";
 import { useDeleteConfirmation } from "@/hooks/use-delete-confirmation";
@@ -265,12 +267,7 @@ export function Canvas({
       const source = nodes.find((n) => n.id === connection.source);
       const target = nodes.find((n) => n.id === connection.target);
       if (!source || !target) return false;
-      if (
-        !(VALID_CONNECTIONS[source.type ?? ""] ?? []).includes(
-          target.type ?? "",
-        )
-      )
-        return false;
+      if (!canConnect(source.type ?? "", target.type ?? "")) return false;
       // script → prompt: one script can only wire to a single prompt
       if (source.type === "script" && target.type === "prompt") {
         const alreadyConnected = edges.some(
@@ -341,6 +338,8 @@ export function Canvas({
         canEdit={canEdit}
         onLockLost={reportLockLost}
       />
+
+      <ConnectionBadge />
 
       {/* Headless KB status subscriber — drives kbStatus in the canvas store */}
       <CanvasKBStatus clientId={clientId} initialJob={initialKBJob} hasActiveKB={hasActiveKB} />
@@ -438,6 +437,7 @@ export function Canvas({
       </ReactFlow>
 
       <GenerationTray canvasId={canvasId} />
+      <CopilotPanel canvasId={canvasId} />
     </div>
     </GalleryDrawerProvider>
     </AutosaveFlushProvider>

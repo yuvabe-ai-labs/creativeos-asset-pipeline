@@ -9,6 +9,7 @@ import { useDeleteNode } from "@/hooks/use-delete-node";
 import { useGalleryDrawer } from "@/components/canvas/gallery-drawer-context";
 import { useGalleryNodeDrop } from "@/hooks/use-gallery-node-drop";
 import { NodeContextMenu } from "./node-context-menu";
+import { NodeHandle } from "./node-handle";
 import { ShotComposeSheet } from "./shot-compose-sheet";
 import { GuidedNextButton } from "@/components/canvas/guided-next-button";
 import type { ReelScript } from "@/lib/nodes/reel-script";
@@ -27,6 +28,8 @@ export function ShotNode({ id, data, selected, positionAbsoluteX, positionAbsolu
     y: positionAbsoluteY ?? 0,
   });
   const [composeOpen, setComposeOpen] = useState(false);
+  const focusedNodeId = useCanvasStore((s) => s.focusedNodeId);
+  const setFocusedNodeId = useCanvasStore((s) => s.setFocusedNodeId);
   const d = data as {
     script?: ReelScript;
     order?: number;
@@ -44,6 +47,15 @@ export function ShotNode({ id, data, selected, positionAbsoluteX, positionAbsolu
       script: { ...base, visual_script: { ...vs, shots: [{ ...first, description: value }] } },
     });
   }
+
+  // Open the Composer when opened locally (double-click / Compose) OR when something points
+  // `focusedNodeId` here — the tray, guided-flow, or the copilot's open_node. Mirrors the
+  // focus-view pattern the other node types use.
+  const composeViewOpen = composeOpen || focusedNodeId === id;
+  const handleComposeOpenChange = (next: boolean) => {
+    setComposeOpen(next);
+    if (!next && focusedNodeId === id) setFocusedNodeId(null); // consume the signal
+  };
 
   return (
     <NodeContextMenu
@@ -73,6 +85,7 @@ export function ShotNode({ id, data, selected, positionAbsoluteX, positionAbsolu
           <div className="flex items-center gap-1.5">
             <Clapperboard className="size-3.5 text-primary" />
             <span className="text-eyebrow text-[0.65rem]!">Shot{d.order ? ` ${d.order}` : ""}</span>
+            <NodeHandle nodeId={id} nodeType="shot" />
           </div>
           {shot?.duration && (
             <span className="text-[0.6rem] text-muted-foreground">{shot.duration}</span>
@@ -120,7 +133,7 @@ export function ShotNode({ id, data, selected, positionAbsoluteX, positionAbsolu
           position={Position.Right}
           className="size-4! border-2! border-card! bg-primary!"
         />
-        <ShotComposeSheet nodeId={id} open={composeOpen} onOpenChange={setComposeOpen} />
+        <ShotComposeSheet nodeId={id} open={composeViewOpen} onOpenChange={handleComposeOpenChange} />
       </div>
     </NodeContextMenu>
   );
