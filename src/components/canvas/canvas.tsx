@@ -21,6 +21,7 @@ import { toast } from "sonner";
 import { canConnect, flowToPersisted, type AppNode } from "@/lib/canvas-nodes";
 import { saveCanvasNodesAction } from "@/lib/actions/nodes";
 import { readClipboardImage, clipboardHasImage } from "@/lib/nodes/clipboard-image";
+import { fileNodeService } from "@/services/file-node.service";
 import { ScriptNode } from "@/components/nodes/script-node";
 import { KBNode } from "@/components/nodes/kb-node";
 import { FileNode } from "@/components/nodes/file-node";
@@ -180,22 +181,17 @@ export function Canvas({
           canvasId,
           storeApi.getState().nodes.map(flowToPersisted),
         );
-        const form = new FormData();
-        form.append("file", new File([img.blob], img.filename, { type: img.blob.type }));
-        const res = await fetch(`/api/nodes/${newNodeId}/file`, { method: "POST", body: form });
-        const json = (await res.json()) as {
-          filename?: string;
-          fileExt?: string;
-          fileKind?: string;
-          fileUrl?: string;
-          error?: string;
-        };
-        if (!res.ok || !json.fileUrl) throw new Error(json.error ?? "Upload failed");
+        const file = new File([img.blob], img.filename, { type: img.blob.type });
+        const result = await fileNodeService.upload(newNodeId, file);
+        if (!result.fileUrl) throw new Error("Upload failed");
         updateNodeData(newNodeId, {
-          filename: json.filename,
-          fileExt: json.fileExt,
-          fileKind: json.fileKind,
-          fileUrl: json.fileUrl,
+          filename: result.filename,
+          fileExt: result.fileExt,
+          fileKind: result.fileKind,
+          fileUrl: result.fileUrl,
+          fileSizeBytes: result.fileSizeBytes,
+          imageWidth: result.imageWidth,
+          imageHeight: result.imageHeight,
         });
         toast.success("Image pasted");
       } catch (e) {
