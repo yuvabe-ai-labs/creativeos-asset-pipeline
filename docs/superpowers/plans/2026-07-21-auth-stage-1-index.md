@@ -13,7 +13,7 @@ switch" moment in **1C**, every checkpoint leaves the app in a working state.
 | Sub-plan | Scope | Leaves app… | Plan doc | Status |
 |---|---|---|---|---|
 | **1A** | Schema + **data migration** (existing data → Yuvabe org) + bootstrap doc | Working, still unauthenticated | `2026-07-21-auth-stage-1a-schema-data-migration.md` | ✅ **done (staging) — see log below** |
-| **1B** | Session foundation: `@supabase/ssr` clients, DAL, `/api/me`, `requireSuperAdmin`, pure tests | Working, still open (no gating yet) | _written after 1A_ | ⏳ not written |
+| **1B** | Session foundation: `@supabase/ssr` clients, DAL, `/api/me`, `requireSuperAdmin`, pure tests | Working, still open (no gating yet) | `2026-07-21-auth-stage-1b-session-foundation.md` | ✍️ **written — awaiting review/execution** |
 | **1C** | Login page + auth actions + forced password change, **then** `proxy.ts` + `withClient` org check + org-scoped queries + `useIdentity` swap | **Login required; isolation live** (the switch) | _written after 1B_ | ⏳ not written |
 | **1D** | Admin onboarding UI: organizations repo, admin actions, `/admin`, `/admin/orgs/new`, `/admin/orgs/[id]` | Working; UI onboarding end-to-end | _written after 1C_ | ⏳ not written |
 
