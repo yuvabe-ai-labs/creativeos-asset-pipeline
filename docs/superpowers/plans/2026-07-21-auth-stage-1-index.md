@@ -13,7 +13,7 @@ switch" moment in **1C**, every checkpoint leaves the app in a working state.
 | Sub-plan | Scope | Leaves app… | Plan doc | Status |
 |---|---|---|---|---|
 | **1A** | Schema + **data migration** (existing data → Yuvabe org) + bootstrap doc | Working, still unauthenticated | `2026-07-21-auth-stage-1a-schema-data-migration.md` | ✅ **done (staging) — see log below** |
-| **1B** | Session foundation: `@supabase/ssr` clients, DAL, `/api/me`, `requireSuperAdmin`, pure tests | Working, still open (no gating yet) | `2026-07-21-auth-stage-1b-session-foundation.md` | ✍️ **written — awaiting review/execution** |
+| **1B** | Session foundation: `@supabase/ssr` clients, DAL, `/api/me`, `requireSuperAdmin`, pure tests | Working, still open (no gating yet) | `2026-07-21-auth-stage-1b-session-foundation.md` | ✅ **done (staging) — see log below** |
 | **1C** | Login page + auth actions + forced password change, **then** `proxy.ts` + `withClient` org check + org-scoped queries + `useIdentity` swap | **Login required; isolation live** (the switch) | _written after 1B_ | ⏳ not written |
 | **1D** | Admin onboarding UI: organizations repo, admin actions, `/admin`, `/admin/orgs/new`, `/admin/orgs/[id]` | Working; UI onboarding end-to-end | _written after 1C_ | ⏳ not written |
 
@@ -63,6 +63,24 @@ version.
   low-risk, but it's genuinely unverified — worth running before/with 1B rather than assuming).
 
 **Next:** write sub-plan **1B (Session Foundation)**.
+
+## 1B completion log (2026-07-21, staging)
+
+- Commits `4f770c5` (ssr clients), `66b1cb0` (dal-logic, TDD), `9008f5c` (dal.ts),
+  `7b223aa` (requireSuperAdmin), `6bf604c` (/api/me).
+- **Unplanned knock-on fix:** swapping the browser client to `@supabase/ssr`'s
+  `createBrowserClient` broke implicit type inference on 5 pre-existing Realtime
+  `.on()`/`.subscribe()` callbacks and `.then()` query-destructuring call sites across
+  `use-kb-job-status.ts`, `use-generation-tray.ts`, `use-video-gen-status.ts`, and
+  `video-gen-focus-view.tsx`. Fixed with explicit types
+  (`RealtimePostgresChangesPayload`, `REALTIME_SUBSCRIBE_STATES`, or inline shapes) —
+  no runtime behavior change, bundled into the same commit as the client swap that
+  caused it.
+- `npm test`: 519/519 passing. `npm run build`: clean.
+- Manual check: `/api/me` unauthenticated → 307 to `/login` → `/login` 404s (expected;
+  no login page until 1C — confirms the DAL's redirect fires, not a bug).
+
+**Next:** write sub-plan **1C (Login & Enforcement)**.
 
 ## Definition of done for Stage 1 (all four sub-plans)
 
