@@ -394,11 +394,6 @@ export function PromptFocusView({
         showCloseButton={false}
         className="gap-0 overflow-hidden rounded-t-2xl bg-background data-[side=bottom]:h-[92vh]"
       >
-        {/* Drag handle */}
-        <div className="flex shrink-0 justify-center pt-3">
-          <div className="h-1.5 w-12 rounded-full bg-border" />
-        </div>
-
         {/* Header */}
         <div className="shrink-0 border-b">
           <div className="mx-auto w-full max-w-6xl px-6 pb-5 pt-3">
@@ -510,42 +505,51 @@ export function PromptFocusView({
                     )
                   ) : (
                     <>
-                  {shotPreview ? (
-                    <PromptShotReference label={shotPreview.label} text={shotPreview.text} />
-                  ) : (
-                    <PromptShotReferenceEmpty />
-                  )}
+                  {/* Whole column scrolls — shot reference + instruction + controls + the
+                      Generate button all flow together; when content extends you reach the
+                      button via the scrollbar rather than pinning it to the bottom. */}
+                  <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+                    {shotPreview ? (
+                      <PromptShotReference label={shotPreview.label} text={shotPreview.text} />
+                    ) : (
+                      <PromptShotReferenceEmpty />
+                    )}
 
-                  {/* Instruction + controls — bottom of the center column */}
-                  <div className="flex shrink-0 flex-col gap-3 border-t border-border px-6 py-5">
-                    <div className="flex items-center gap-1.5">
-                      <PencilLine className="size-3.5 text-primary" />
-                      <span className="text-eyebrow">Instruction</span>
+                    {/* Instruction + controls */}
+                    <div className="flex flex-col gap-3 border-t border-border px-6 py-5">
+                      <div className="flex items-center gap-1.5">
+                        <PencilLine className="size-3.5 text-primary" />
+                        <span className="text-eyebrow">Instruction</span>
+                      </div>
+                      <MentionInstructionEditor
+                        value={instructionDraft}
+                        onChange={(v) => {
+                          setInstructionDraft(v);
+                          onPatch({ instruction: v });
+                        }}
+                        placeholder={instructionPlaceholder}
+                        upstream={upstream}
+                        disabled={!editable}
+                        className="min-h-20"
+                      />
+                      <ShotControlsRow
+                        controls={controls ?? DEFAULT_SHOT_CONTROLS}
+                        onChange={(next) => onPatch({ controls: next })}
+                      />
                     </div>
-                    <MentionInstructionEditor
-                      value={instructionDraft}
-                      onChange={(v) => {
-                        setInstructionDraft(v);
-                        onPatch({ instruction: v });
-                      }}
-                      placeholder={instructionPlaceholder}
-                      upstream={upstream}
-                      disabled={!editable}
-                      className="min-h-20"
-                    />
-                    <ShotControlsRow
-                      controls={controls ?? DEFAULT_SHOT_CONTROLS}
-                      onChange={(next) => onPatch({ controls: next })}
-                    />
-                    <Button
-                      className="w-full"
-                      size="default"
-                      onClick={runGenerate}
-                      disabled={generating || !editable}
-                    >
-                      <Sparkles className="size-4" />
-                      {generating ? "Generating…" : output ? "Re-generate" : "Generate prompt"}
-                    </Button>
+
+                    {/* Generate — flows after the controls, reached via the scrollbar */}
+                    <div className="border-t border-border px-6 py-4">
+                      <Button
+                        className="w-full"
+                        size="default"
+                        onClick={runGenerate}
+                        disabled={generating || !editable}
+                      >
+                        <Sparkles className="size-4" />
+                        {generating ? "Generating…" : output ? "Re-generate" : "Generate prompt"}
+                      </Button>
+                    </div>
                   </div>
                     </>
                   )}
