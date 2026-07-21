@@ -14,7 +14,7 @@ switch" moment in **1C**, every checkpoint leaves the app in a working state.
 |---|---|---|---|---|
 | **1A** | Schema + **data migration** (existing data → Yuvabe org) + bootstrap doc | Working, still unauthenticated | `2026-07-21-auth-stage-1a-schema-data-migration.md` | ✅ **done (staging) — see log below** |
 | **1B** | Session foundation: `@supabase/ssr` clients, DAL, `/api/me`, `requireSuperAdmin`, pure tests | Working, still open (no gating yet) | `2026-07-21-auth-stage-1b-session-foundation.md` | ✅ **done (staging) — see log below** |
-| **1C** | Login page + sign-in/sign-out actions, **then** `proxy.ts` + `withClient` org check + org-scoped queries + `useIdentity` swap. Forced password change deferred (D84). | **Login required; isolation live** (the switch) | `2026-07-21-auth-stage-1c-login-enforcement.md` | ✍️ **written — awaiting review/execution** |
+| **1C** | Login page + sign-in/sign-out actions, **then** `proxy.ts` + `withClient` org check + org-scoped queries + `useIdentity` swap. Forced password change deferred (D84). | **Login required; isolation live** (the switch) | `2026-07-21-auth-stage-1c-login-enforcement.md` | ✅ **done (staging) — see log below** |
 | **1D** | Admin onboarding UI: organizations repo, admin actions, `/admin`, `/admin/orgs/new`, `/admin/orgs/[id]` | Working; UI onboarding end-to-end | _written after 1C_ | ⏳ not written |
 
 ## Parked follow-up (not blocking)
@@ -81,6 +81,33 @@ version.
   no login page until 1C — confirms the DAL's redirect fires, not a bug).
 
 **Next:** write sub-plan **1C (Login & Enforcement)**.
+
+## 1C completion log (2026-07-21, staging)
+
+- Commits `e7001c7` (login schema + actions), `e238e8f` (login page), `ee6870a`
+  (proxy.ts activated), `83c01be` (withClient org check), `f20833e` (org-scoped
+  queries), `c70aee5` (useIdentity swap + gate removal). Six commits, as planned.
+- **Scope change mid-plan:** forced password change deferred entirely — see D84.
+  Simplified Task 1/2 accordingly before execution.
+- Switch-flip verified live via curl (no cookies): `/` → 307 to `/login`;
+  `/api/clients/anything` → 401 JSON; `/login` itself → 200, unaffected.
+- `npm test`: 518/518 passing (519 minus the one deleted `identity-gate` test).
+  `npm run build`: clean throughout.
+- Manual verification (developer@yuvabe.com, browser): sign-in redirects to `/`;
+  home page still shows all 28 Yuvabe clients unfiltered (super_admin); header shows
+  "Yuvabe Operator" + working sign-out; Approve button confirmed showing in a focus
+  view (owner→senior mapping works end-to-end through `/api/me`).
+- **Real bug caught and fixed during manual verification:** `IdentityChip` was
+  rendered both in the new root-layout header (global) and in the canvas page's own
+  local header (left over from the pre-auth design) — canvas pages showed the
+  name/sign-out chip twice. Fixed by removing the canvas page's local copy; folded
+  into the Task 6 commit since it was found during that task's own verification.
+- **Known limitation, as planned:** full cross-org isolation (a second org/user
+  seeing only its own data) is still unverified end-to-end — no second org exists
+  yet. That first becomes testable in 1D, once `/admin/orgs/new` can create one.
+
+**Next:** write sub-plan **1D (Admin Onboarding UI)** — also the first point at
+which cross-org isolation can be fully verified.
 
 ## Definition of done for Stage 1 (all four sub-plans)
 
