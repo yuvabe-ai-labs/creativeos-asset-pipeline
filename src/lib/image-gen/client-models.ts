@@ -2,7 +2,7 @@
 // Params are imported from providers (single source of truth, no Zod duplication).
 
 import { gptImage2Params, gptImage1Params, gptImage1MiniParams } from "./params/openai";
-import { geminiFlashParams, geminiProParams } from "./params/gemini";
+import { geminiFlashParams, geminiFlash2Params, geminiProParams } from "./params/gemini";
 import { buildZodFromParams } from "./schema-builder";
 import type { ClientModelSpec, ParamSpec } from "./types";
 
@@ -64,8 +64,8 @@ export const imageGenClientModels: ClientModelSpec[] = [
     label: "Nano Banana 2", providerLabel: "Gemini",
     maxReferenceImages: 14, maxReferenceSizeBytes: 0,
     maxTotalReferenceSizeBytes: 100 * 1024 * 1024,
-    params: geminiFlashParams,
-    schema: buildZodFromParams(geminiFlashParams),
+    params: geminiFlash2Params,
+    schema: buildZodFromParams(geminiFlash2Params),
   },
   {
     id: "gemini:gemini-3-pro-image",
@@ -90,7 +90,7 @@ export const imageGenClientModelGroups: Array<{
   { provider: "gemini", label: "Gemini", models: imageGenClientModels.filter((m) => m.provider === "gemini") },
 ];
 
-export const DEFAULT_CLIENT_MODEL_ID = "gemini:gemini-3.1-flash-image";
+export const DEFAULT_CLIENT_MODEL_ID = "gemini:gemini-3-pro-image";
 
 // Extract defaults from ParamSpec array (replaces defaultsForSchema)
 export function defaultsForModel(model: ClientModelSpec): Record<string, unknown> {

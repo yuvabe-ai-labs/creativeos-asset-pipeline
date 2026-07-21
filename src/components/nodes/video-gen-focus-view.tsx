@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { isDebugMode } from "@/lib/debug";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { EditableField } from "./editable-field";
 import { normalizeTitle } from "@/lib/nodes/title";
@@ -387,10 +388,6 @@ export function VideoGenFocusView({
   const [versions, setVersions] = useState<VideoGenVersionSummary[]>([]);
   const [activeVersionId, setActiveVersionId] = useState<string | null>(null);
   const [restoring, setRestoring] = useState(false);
-  const [useMock, setUseMock] = useState(() => {
-    if (typeof window === "undefined") return true;
-    return localStorage.getItem("video-gen-mock") !== "false";
-  });
   const [historyOpen, setHistoryOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(true);
   const [connectedOpen, setConnectedOpen] = useState(true);
@@ -499,14 +496,6 @@ export function VideoGenFocusView({
   }, [isGenerating, open, fetchVersions]);
 
   // ── Handlers ───────────────────────────────────────────────────────────────
-
-  function toggleMock() {
-    setUseMock((prev) => {
-      const next = !prev;
-      localStorage.setItem("video-gen-mock", next ? "true" : "false");
-      return next;
-    });
-  }
 
   function handleModelChange(nextModelId: string) {
     setModelId(nextModelId);
@@ -682,12 +671,13 @@ export function VideoGenFocusView({
   async function doGenerate() {
     setGenerating(true);
     setLastError(null);
+    // Mock generation is enabled only in debug mode (?debug-mode=true).
     try {
       await videoGenApi.startGeneration(nodeId, {
         modelId,
         params,
         imageRoles: effectiveImageRoles,
-        mock: useMock,
+        mock: isDebugMode(),
       });
       // 202 Accepted — hook's Realtime subscription clears isGenerating on completion
     } catch (e) {
@@ -801,29 +791,6 @@ export function VideoGenFocusView({
               </div>
               <div className="flex shrink-0 flex-col items-end gap-2">
                 <div className="flex items-center gap-2">
-                  {/* Mock mode switch */}
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={useMock}
-                    onClick={toggleMock}
-                    className="flex items-center gap-2 text-xs text-muted-foreground transition-colors hover:text-foreground"
-                  >
-                    <span>Mock</span>
-                    <div
-                      className={cn(
-                        "relative inline-flex h-4 w-7 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200",
-                        useMock ? "bg-amber-400" : "bg-muted-foreground/25",
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          "block h-3 w-3 rounded-full bg-white shadow-sm transition-transform duration-200",
-                          useMock ? "translate-x-3" : "translate-x-0",
-                        )}
-                      />
-                    </div>
-                  </button>
                   {versions.length > 0 && (
                     <VideoGenUsagePopover
                       versions={versions}
