@@ -13,8 +13,9 @@ import {
 } from "@/components/ui/breadcrumb";
 import { CanvasStoreProvider } from "@/components/canvas/canvas-store-provider";
 import { Canvas } from "@/components/canvas/canvas";
+import { GalleryDrawerProvider } from "@/components/canvas/gallery-drawer-context";
+import { GalleryDrawerTrigger } from "@/components/canvas/gallery-drawer-trigger";
 import { IdentityGate } from "@/components/identity/identity-gate";
-import { IdentityChip } from "@/components/identity/identity-chip";
 import { CanvasCostChip } from "@/components/canvas/canvas-cost-chip";
 import { listNodes } from "@/lib/db/nodes";
 import { listEdges } from "@/lib/db/edges";
@@ -75,6 +76,7 @@ export default async function CanvasPage({
   }
 
   return (
+    <GalleryDrawerProvider>
     <main className="flex flex-1 flex-col">
       <header className="flex items-center justify-between border-b border-border/70 bg-background/60 px-6 py-3 backdrop-blur">
         <Breadcrumb>
@@ -99,9 +101,9 @@ export default async function CanvasPage({
           </BreadcrumbList>
         </Breadcrumb>
         {/* D29: soft identity — who's the maker/checker. Set once at app start. */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          <GalleryDrawerTrigger />
           <CanvasCostChip canvasId={canvas.id} />
-          <IdentityChip />
         </div>
       </header>
 
@@ -121,5 +123,6 @@ export default async function CanvasPage({
         </IdentityGate>
       </div>
     </main>
+    </GalleryDrawerProvider>
   );
 }

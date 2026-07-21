@@ -10,9 +10,11 @@ type Props = {
   selected: boolean;
   onToggle: () => void;
   onPreview: () => void;
+  size?: "sm" | "lg";
 };
 
-export function ImageRow({ image, selected, onToggle, onPreview }: Props) {
+export function ImageRow({ image, selected, onToggle, onPreview, size = "sm" }: Props) {
+  const large = size === "lg";
   return (
     <div
       role="button"
@@ -31,7 +33,12 @@ export function ImageRow({ image, selected, onToggle, onPreview }: Props) {
           : "border-transparent hover:border-border hover:bg-muted/50",
       )}
     >
-      <div className="relative size-8 shrink-0 overflow-hidden rounded-md bg-muted ring-1 ring-inset ring-black/10">
+      <div
+        className={cn(
+          "relative shrink-0 overflow-hidden rounded-md bg-muted ring-1 ring-inset ring-black/10",
+          large ? "size-24" : "size-8",
+        )}
+      >
         {image.imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -42,14 +49,22 @@ export function ImageRow({ image, selected, onToggle, onPreview }: Props) {
           />
         ) : (
           <ImageIcon
-            className="absolute inset-0 m-auto size-3.5 text-muted-foreground"
+            className={cn(
+              "absolute inset-0 m-auto text-muted-foreground",
+              large ? "size-10" : "size-3.5",
+            )}
             strokeWidth={1.5}
           />
         )}
       </div>
 
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-foreground">
+        <p
+          className={cn(
+            "text-sm font-medium text-foreground",
+            large ? "break-words" : "truncate",
+          )}
+        >
           {image.filename}
         </p>
         <p className="truncate text-xs text-muted-foreground">
