@@ -13,26 +13,37 @@ import {
 
 export type { ClientWithCount };
 
-export async function listClients(): Promise<ClientWithCount[]> {
+// Org-scoped: members see only their org's clients; super_admin sees everything.
+export async function listClients(scope: {
+  orgId: string;
+  isSuperAdmin: boolean;
+}): Promise<ClientWithCount[]> {
   const supabase = createServerSupabase();
   // Embed canvas timestamps over the FK relationship; derive count + last_active in JS.
-  const { data, error } = await supabase
+  let query = supabase
     .from("clients")
     .select("*, canvases(updated_at)")
     .is("archived_at", null) // active clients only
     .order("created_at", { ascending: false });
+  if (!scope.isSuperAdmin) query = query.eq("org_id", scope.orgId);
+  const { data, error } = await query;
   if (error) throw error;
   return ((data ?? []) as RawClientWithCanvases[]).map(mapClientWithCount);
 }
 
-// Archived clients, most-recently-archived first — for the Archived tab.
-export async function listArchivedClients(): Promise<ClientWithCount[]> {
+// Archived clients, most-recently-archived first — for the Archived tab. Org-scoped.
+export async function listArchivedClients(scope: {
+  orgId: string;
+  isSuperAdmin: boolean;
+}): Promise<ClientWithCount[]> {
   const supabase = createServerSupabase();
-  const { data, error } = await supabase
+  let query = supabase
     .from("clients")
     .select("*, canvases(updated_at)")
     .not("archived_at", "is", null)
     .order("archived_at", { ascending: false });
+  if (!scope.isSuperAdmin) query = query.eq("org_id", scope.orgId);
+  const { data, error } = await query;
   if (error) throw error;
   return ((data ?? []) as RawClientWithCanvases[]).map(mapClientWithCount);
 }
@@ -74,6 +85,7 @@ export async function getClientBySlug(slug: string): Promise<ClientRow | null> {
 
 export async function createClient(input: {
   name: string;
+  orgId: string;
 }): Promise<ClientRow> {
   const supabase = createServerSupabase();
 
@@ -88,7 +100,7 @@ export async function createClient(input: {
 
   const { data, error } = await supabase
     .from("clients")
-    .insert({ slug, name: input.name })
+    .insert({ slug, name: input.name, org_id: input.orgId })
     .select()
     .single();
   if (error) throw error;

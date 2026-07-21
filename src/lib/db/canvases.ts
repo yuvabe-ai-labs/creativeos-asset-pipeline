@@ -62,13 +62,19 @@ export async function createCanvas(input: {
 
 // Global, recency-sorted canvases across every client (for the Clients-home
 // "Recent canvases" tab). Capped so the list stays bounded as canvas count grows.
-export async function listRecentCanvases(limit = 30): Promise<RecentCanvas[]> {
+// Org-scoped: members see only their org's canvases; super_admin sees everything.
+export async function listRecentCanvases(
+  scope: { orgId: string; isSuperAdmin: boolean },
+  limit = 30,
+): Promise<RecentCanvas[]> {
   const supabase = createServerSupabase();
-  const { data, error } = await supabase
+  let query = supabase
     .from("canvases")
-    .select("*, clients(slug, name, logo_url)")
+    .select("*, clients!inner(slug, name, logo_url, org_id)")
     .order("updated_at", { ascending: false })
     .limit(limit);
+  if (!scope.isSuperAdmin) query = query.eq("clients.org_id", scope.orgId);
+  const { data, error } = await query;
   if (error) throw error;
   return ((data ?? []) as RawRecentCanvasRow[]).map(mapRecentCanvas);
 }
