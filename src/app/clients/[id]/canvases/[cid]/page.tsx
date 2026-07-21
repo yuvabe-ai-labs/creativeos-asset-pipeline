@@ -13,8 +13,6 @@ import {
 } from "@/components/ui/breadcrumb";
 import { CanvasStoreProvider } from "@/components/canvas/canvas-store-provider";
 import { Canvas } from "@/components/canvas/canvas";
-import { IdentityGate } from "@/components/identity/identity-gate";
-import { IdentityChip } from "@/components/identity/identity-chip";
 import { CanvasCostChip } from "@/components/canvas/canvas-cost-chip";
 import { listNodes } from "@/lib/db/nodes";
 import { listEdges } from "@/lib/db/edges";
@@ -98,27 +96,22 @@ export default async function CanvasPage({
             </BreadcrumbItem>
           </BreadcrumbList>
         </Breadcrumb>
-        {/* D29: soft identity — who's the maker/checker. Set once at app start. */}
-        <div className="flex items-center gap-2">
-          <CanvasCostChip canvasId={canvas.id} />
-          <IdentityChip />
-        </div>
+        {/* IdentityChip now lives in the root layout header (shown on every page) —
+            not duplicated here. */}
+        <CanvasCostChip canvasId={canvas.id} />
       </header>
 
       <div className="relative flex-1">
         {/* load this canvas's nodes from the DB, seed the store, autosave changes */}
-        {/* D29: block until an identity is set, so generations/approvals are attributed. */}
-        <IdentityGate>
-          <CanvasStoreProvider key={canvas.id} initialNodes={initialNodes} initialEdges={initialEdges} canvasName={canvas.name}>
-            <Canvas
-              canvasId={canvas.id}
-              clientId={client.id}
-              initialKBJob={latestKBJob}
-              hasActiveKB={!!activeKBVersion}
-              initialDriveRootFolder={initialDriveRootFolder}
-            />
-          </CanvasStoreProvider>
-        </IdentityGate>
+        <CanvasStoreProvider key={canvas.id} initialNodes={initialNodes} initialEdges={initialEdges} canvasName={canvas.name}>
+          <Canvas
+            canvasId={canvas.id}
+            clientId={client.id}
+            initialKBJob={latestKBJob}
+            hasActiveKB={!!activeKBVersion}
+            initialDriveRootFolder={initialDriveRootFolder}
+          />
+        </CanvasStoreProvider>
       </div>
     </main>
   );

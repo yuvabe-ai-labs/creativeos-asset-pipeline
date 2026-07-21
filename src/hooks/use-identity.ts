@@ -1,52 +1,37 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import {
-  IDENTITY_KEY,
-  parseIdentity,
-  serializeIdentity,
-  type Identity,
-} from "@/lib/identity";
+import { useEffect, useState } from "react";
+import type { Identity } from "@/lib/identity";
 
-// The browser's "storage" event fires only in OTHER tabs, so two useIdentity()
-// consumers in the SAME tab (e.g. the gate and the chip) won't see each other's
-// setIdentity without an explicit in-page broadcast. This custom event bridges that.
-const IDENTITY_EVENT = "creativeos:identity";
-
-// Reads the soft identity from localStorage and keeps every consumer in sync — across
-// tabs (storage event) and within the tab (our broadcast). `hydrated` flips true once
-// we've actually read localStorage: until then `identity === null` means "not checked
-// yet", NOT "empty", so the gate must wait for `hydrated` before blocking (D29/D33 —
-// gating during the pre-hydration window flashed the dialog open→closed and stranded
-// the Base UI popup). When auth lands (spec §5.2) this hook's innards swap to read the
-// session — call sites stay put.
+// Reads the logged-in user's identity from the session (via /api/me). Public API is
+// frozen (D53): { identity, hydrated }. `setIdentity` is gone — login owns identity now.
+// `hydrated` flips true once the fetch resolves; until then identity === null means
+// "not checked yet", so consumers must wait for `hydrated` before acting on null.
 export function useIdentity(): {
   identity: Identity | null;
   hydrated: boolean;
-  setIdentity: (id: Identity) => void;
 } {
-  const [identity, setState] = useState<Identity | null>(null);
+  const [identity, setIdentity] = useState<Identity | null>(null);
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    const sync = () => {
-      setState(parseIdentity(localStorage.getItem(IDENTITY_KEY)));
-      setHydrated(true);
-    };
-    sync(); // hydrate on mount
-    window.addEventListener("storage", sync); // cross-tab
-    window.addEventListener(IDENTITY_EVENT, sync); // same-tab
+    let cancelled = false;
+    fetch("/api/me")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (cancelled) return;
+        if (data && typeof data.name === "string") {
+          setIdentity({ name: data.name, role: data.role });
+        }
+        setHydrated(true);
+      })
+      .catch(() => {
+        if (!cancelled) setHydrated(true);
+      });
     return () => {
-      window.removeEventListener("storage", sync);
-      window.removeEventListener(IDENTITY_EVENT, sync);
+      cancelled = true;
     };
   }, []);
 
-  const setIdentity = useCallback((id: Identity) => {
-    localStorage.setItem(IDENTITY_KEY, serializeIdentity(id));
-    setState(id); // update this instance immediately
-    window.dispatchEvent(new Event(IDENTITY_EVENT)); // notify all other instances in this tab
-  }, []);
-
-  return { identity, hydrated, setIdentity };
+  return { identity, hydrated };
 }

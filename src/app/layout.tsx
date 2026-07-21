@@ -3,6 +3,7 @@ import localFont from "next/font/local";
 import Link from "next/link";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
+import { IdentityChip } from "@/components/identity/identity-chip";
 
 // Yuvabe brand fonts (ref/Yuvabe Studios Design System). Two families only.
 const clash = localFont({
@@ -51,7 +52,7 @@ export default function RootLayout({
               Creative<span className="text-primary">OS</span>
             </span>
           </Link>
-          <span className="text-eyebrow hidden sm:block">Yuvabe Studios</span>
+          <IdentityChip />
         </header>
         {children}
         <Toaster />

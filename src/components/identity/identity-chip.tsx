@@ -1,36 +1,24 @@
 "use client";
 
-import { useState } from "react";
 import { UserRound } from "lucide-react";
 import { useIdentity } from "@/hooks/use-identity";
-import { IdentityDialog } from "./identity-dialog";
+import { logoutAction } from "@/lib/actions/auth";
+import { Button } from "@/components/ui/button";
 
-// Shows the current identity; click to switch (e.g. a senior at the intern's machine).
+// Shows the logged-in user's display name + a sign-out button.
 export function IdentityChip() {
-  const { identity, setIdentity } = useIdentity();
-  const [open, setOpen] = useState(false);
+  const { identity } = useIdentity();
   return (
-    <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-      >
+    <div className="flex items-center gap-2">
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground">
         <UserRound className="size-3.5" strokeWidth={1.5} />
-        {identity
-          ? `${identity.name} · ${identity.role === "senior" ? "Senior" : "Designer"}`
-          : "Set who you are"}
-      </button>
-      <IdentityDialog
-        open={open}
-        initial={identity}
-        dismissable
-        onOpenChange={setOpen}
-        onSubmit={(id) => {
-          setIdentity(id);
-          setOpen(false);
-        }}
-      />
-    </>
+        {identity ? identity.name : "…"}
+      </span>
+      <form action={logoutAction}>
+        <Button type="submit" variant="ghost" size="sm">
+          Sign out
+        </Button>
+      </form>
+    </div>
   );
 }
