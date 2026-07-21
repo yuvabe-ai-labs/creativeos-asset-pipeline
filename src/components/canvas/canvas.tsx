@@ -187,6 +187,9 @@ export function Canvas({
           fileExt?: string;
           fileKind?: string;
           fileUrl?: string;
+          fileSizeBytes?: number;
+          imageWidth?: number;
+          imageHeight?: number;
           error?: string;
         };
         if (!res.ok || !json.fileUrl) throw new Error(json.error ?? "Upload failed");
@@ -195,6 +198,9 @@ export function Canvas({
           fileExt: json.fileExt,
           fileKind: json.fileKind,
           fileUrl: json.fileUrl,
+          fileSizeBytes: json.fileSizeBytes,
+          imageWidth: json.imageWidth,
+          imageHeight: json.imageHeight,
         });
         toast.success("Image pasted");
       } catch (e) {
