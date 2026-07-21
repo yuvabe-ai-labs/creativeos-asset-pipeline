@@ -505,8 +505,9 @@ export function PromptFocusView({
                     )
                   ) : (
                     <>
-                  {/* Whole column scrolls — shot reference + instruction + controls together —
-                      so nothing is clipped; the Generate button stays pinned in the footer below. */}
+                  {/* Whole column scrolls — shot reference + instruction + controls + the
+                      Generate button all flow together; when content extends you reach the
+                      button via the scrollbar rather than pinning it to the bottom. */}
                   <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
                     {shotPreview ? (
                       <PromptShotReference label={shotPreview.label} text={shotPreview.text} />
@@ -536,19 +537,19 @@ export function PromptFocusView({
                         onChange={(next) => onPatch({ controls: next })}
                       />
                     </div>
-                  </div>
 
-                  {/* Generate — pinned footer, always reachable regardless of control height */}
-                  <div className="shrink-0 border-t border-border px-6 py-4">
-                    <Button
-                      className="w-full"
-                      size="default"
-                      onClick={runGenerate}
-                      disabled={generating || !editable}
-                    >
-                      <Sparkles className="size-4" />
-                      {generating ? "Generating…" : output ? "Re-generate" : "Generate prompt"}
-                    </Button>
+                    {/* Generate — flows after the controls, reached via the scrollbar */}
+                    <div className="border-t border-border px-6 py-4">
+                      <Button
+                        className="w-full"
+                        size="default"
+                        onClick={runGenerate}
+                        disabled={generating || !editable}
+                      >
+                        <Sparkles className="size-4" />
+                        {generating ? "Generating…" : output ? "Re-generate" : "Generate prompt"}
+                      </Button>
+                    </div>
                   </div>
                     </>
                   )}
