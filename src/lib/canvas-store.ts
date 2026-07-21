@@ -13,6 +13,7 @@ import {
 } from "@xyflow/react";
 import { toast } from "sonner";
 import { wouldCreateCycle } from "@/lib/canvas/graph";
+import { DEFAULT_CLIENT_MODEL_ID } from "@/lib/image-gen/client-models";
 import { planGuidedNext } from "@/lib/guided-flow";
 import type { AppNode } from "./canvas-nodes";
 import type { ReelScript } from "@/lib/nodes/reel-script";
@@ -84,7 +85,7 @@ function defaultData(type: string): AppNode["data"] {
     case "draw":
       return { title: "" };
     case "image-gen":
-      return { title: "", modelId: "openai:gpt-image-2" };
+      return { title: "", modelId: DEFAULT_CLIENT_MODEL_ID };
     case "video-gen":
       return { title: "", modelId: "veo:veo-3.1-fast" };
     case "script":
