@@ -33,7 +33,7 @@
 | `package.json` | Add `supabase` devDependency + `db:push` helper scripts |
 | `supabase/migrations/0008_touch_canvas_updated_at.sql` → renamed | Resolve the duplicate `0008` version |
 | `.github/workflows/db-migrate.yml` | The migration workflow (staging auto, prod gated) |
-| ADR log `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` | Record the decision (D84) |
+| ADR log `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` | Record the decision (D85) |
 | `docs/superpowers/plans/2026-07-21-auth-stage-1-index.md` | Add this prerequisite row + note 1A's apply mechanism change |
 
 ---
@@ -231,15 +231,15 @@ git commit -m "ci(db): auto-apply migrations on staging; gated on production"
 ## Task 6: Record the decision + update the tracker
 
 **Files:**
-- Modify: `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` (append D84)
+- Modify: `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` (append D85)
 - Modify: `docs/superpowers/plans/2026-07-21-auth-stage-1-index.md`
 
-- [ ] **Step 1 [Claude]: Append ADR D84**
+- [ ] **Step 1 [Claude]: Append ADR D85**
 
 Add to the ADR log (§7), after D83:
 
 ```markdown
-### D84 — Migrations run through the Supabase CLI in CI; staging auto, production gated *(recorded 2026-07-21)*
+### D85 — Migrations run through the Supabase CLI in CI; staging auto, production gated *(recorded 2026-07-21)*
 
 **Decision.** Adopt the Supabase CLI over hand-applied SQL. A GitHub Actions workflow runs
 `supabase db push` against the staging DB on merge to `staging` (automatic) and the production
@@ -267,7 +267,7 @@ and add a note under it: once this lands, migration files are applied by **pushi
 
 ```bash
 git add docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md docs/superpowers/plans/2026-07-21-auth-stage-1-index.md
-git commit -m "docs(db): record migration-CI decision (D84) + update Stage 1 tracker"
+git commit -m "docs(db): record migration-CI decision (D85) + update Stage 1 tracker"
 ```
 
 ---

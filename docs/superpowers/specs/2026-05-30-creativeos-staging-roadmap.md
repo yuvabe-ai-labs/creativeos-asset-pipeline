@@ -1474,6 +1474,26 @@ require re-testing impersonation to isolate.
 
 **Originated →** `2026-07-21-auth-staging-rollout-plan.md` (all sections).
 
+### D84 — Forced password change on first login is deferred, not built in the pilot *(recorded 2026-07-21; Stage 1C)*
+
+**Decision.** No forced password-change flow ships in this pass. `loginAction` redirects
+straight to `/` on a successful sign-in — no `must_change_password` app_metadata flag, no
+`/account/password` page. Applies to every login, operator or future agency owner alike: they
+sign in with whatever password they were given and that's it.
+
+**Why.** Cut to reduce complexity in the pilot's first login pass — an explicit scope
+reduction, not an oversight. Nothing about the rest of the design depends on it; the temp
+password shown once at org-creation time (D82) remains the only credential-handoff step.
+
+**Rejected.** Building it now as originally sketched in the 2026-07-15 spec's User Lifecycle
+(§ "Prompted to change password on first login").
+
+**Note for 1D:** the future `createOrgWithOwner` (Stage 1D, admin onboarding UI) must not set
+`must_change_password` either — this decision applies there too, not just to the Stage 1C
+login path.
+
+**Originated →** `2026-07-21-auth-stage-1c-login-enforcement.md`.
+
 ### Parked / out-of-scope (with revisit triggers)
 | Item | Status | Revisit when |
 |---|---|---|

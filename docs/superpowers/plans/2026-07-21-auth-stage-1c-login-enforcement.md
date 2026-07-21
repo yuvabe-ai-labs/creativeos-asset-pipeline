@@ -2,9 +2,14 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Flip the switch. After this sub-plan, the app requires login for the first time: a real user signs in, is forced to set a password on first login, and sees only their own org's clients — while Yuvabe's own data and workflows keep working exactly as before.
+**Goal:** Flip the switch. After this sub-plan, the app requires login for the first time: a real user signs in and sees only their own org's clients — while Yuvabe's own data and workflows keep working exactly as before.
 
-**Architecture:** Build the login surface *before* activating enforcement, so there's always a page to land on. Order within this sub-plan matters: (1) login page + auth actions + forced password change first, (2) `proxy.ts` activates — safe now that `/login` exists to redirect to, (3) `withClient()` starts enforcing org checks, (4) list/create queries become org-scoped, (5) `useIdentity()` swaps from localStorage to `/api/me` (built in 1B) and the old blocking "who are you?" gate is removed. Each task individually keeps the app in a working state; only after task 2 (proxy activates) does login actually become mandatory — that is the deliberate "switch flip" moment, done deliberately in the middle so login exists first and isolation lands right after.
+**Architecture:** Build the login surface *before* activating enforcement, so there's always a page to land on. Order within this sub-plan matters: (1) login page + sign-in/sign-out actions first, (2) `proxy.ts` activates — safe now that `/login` exists to redirect to, (3) `withClient()` starts enforcing org checks, (4) list/create queries become org-scoped, (5) `useIdentity()` swaps from localStorage to `/api/me` (built in 1B) and the old blocking "who are you?" gate is removed. Each task individually keeps the app in a working state; only after task 2 (proxy activates) does login actually become mandatory — that is the deliberate "switch flip" moment, done deliberately in the middle so login exists first and isolation lands right after.
+
+**Deferred scope (D84):** forced password change on first login is cut from this pilot pass to
+reduce complexity — every login (operator or future agency owner) just signs in with whatever
+password they were given, no forced reset. See the ADR entry for why and what this changes for
+1D's onboarding flow.
 
 **Tech Stack:** Next.js 16 (`proxy.ts`, Server Actions, `useActionState`), `@supabase/ssr`, Zod v4, shadcn/Base UI primitives (`Button`, `Input`, `Label`, `Card`), Vitest.
 
@@ -26,10 +31,8 @@
 | File | Responsibility |
 |---|---|
 | `src/lib/auth/login-schema.ts` + `.test.ts` | `LoginSchema` (Zod) — pure, unit-tested |
-| `src/lib/auth/password-schema.ts` + `.test.ts` | `PasswordSchema` (Zod) — pure, unit-tested |
-| `src/lib/actions/auth.ts` | `loginAction`, `changePasswordAction`, `logoutAction` |
+| `src/lib/actions/auth.ts` | `loginAction`, `logoutAction` |
 | `src/app/login/page.tsx` + `login-form.tsx` | Login page (email + password) |
-| `src/app/account/password/page.tsx` + `change-password-form.tsx` | Forced first-login password change |
 | `src/proxy.ts` | Next 16 proxy — optimistic session check, activated |
 
 **Modified files**
@@ -57,11 +60,10 @@
 
 **Files:**
 - Create: `src/lib/auth/login-schema.ts` + `src/lib/auth/login-schema.test.ts`
-- Create: `src/lib/auth/password-schema.ts` + `src/lib/auth/password-schema.test.ts`
 - Create: `src/lib/actions/auth.ts`
 
 **Interfaces:**
-- Produces: `LoginSchema` (Zod: `email`, `password`), `PasswordSchema` (Zod: `password`, min 8 + letter + number), `loginAction(prev, formData)`, `changePasswordAction(prev, formData)`, `logoutAction()`.
+- Produces: `LoginSchema` (Zod: `email`, `password`), `loginAction(prev, formData)`, `logoutAction()`.
 
 - [ ] **Step 1: Write the failing login-schema test**
 
@@ -84,36 +86,12 @@ describe("LoginSchema", () => {
 });
 ```
 
-- [ ] **Step 2: Write the failing password-schema test**
+- [ ] **Step 2: Run to verify it fails**
 
-Create `src/lib/auth/password-schema.test.ts`:
+Run: `npx vitest run login-schema`
+Expected: FAIL (module doesn't exist).
 
-```ts
-import { describe, it, expect } from "vitest";
-import { PasswordSchema } from "./password-schema";
-
-describe("PasswordSchema", () => {
-  it("accepts a strong password", () => {
-    expect(PasswordSchema.safeParse({ password: "abcd1234" }).success).toBe(true);
-  });
-  it("rejects a short password", () => {
-    expect(PasswordSchema.safeParse({ password: "ab1" }).success).toBe(false);
-  });
-  it("rejects a password with no number", () => {
-    expect(PasswordSchema.safeParse({ password: "abcdefgh" }).success).toBe(false);
-  });
-  it("rejects a password with no letter", () => {
-    expect(PasswordSchema.safeParse({ password: "12345678" }).success).toBe(false);
-  });
-});
-```
-
-- [ ] **Step 3: Run both to verify they fail**
-
-Run: `npx vitest run login-schema password-schema`
-Expected: FAIL (modules don't exist).
-
-- [ ] **Step 4: Implement both schemas**
+- [ ] **Step 3: Implement the schema**
 
 Create `src/lib/auth/login-schema.ts`:
 
@@ -128,37 +106,22 @@ export const LoginSchema = z.object({
 export type LoginFields = z.infer<typeof LoginSchema>;
 ```
 
-Create `src/lib/auth/password-schema.ts`:
+- [ ] **Step 4: Run to verify it passes**
 
-```ts
-import * as z from "zod";
+Run: `npx vitest run login-schema`
+Expected: PASS, 3 tests.
 
-export const PasswordSchema = z.object({
-  password: z
-    .string()
-    .min(8, { error: "At least 8 characters." })
-    .regex(/[a-zA-Z]/, { error: "Include at least one letter." })
-    .regex(/[0-9]/, { error: "Include at least one number." }),
-});
-```
+- [ ] **Step 5: Implement the auth actions**
 
-- [ ] **Step 5: Run both to verify they pass**
-
-Run: `npx vitest run login-schema password-schema`
-Expected: PASS, 7 tests total.
-
-- [ ] **Step 6: Implement the auth actions**
-
-Create `src/lib/actions/auth.ts`:
+Create `src/lib/actions/auth.ts`. No forced password change (D84) — a successful sign-in goes
+straight to `/`:
 
 ```ts
 "use server";
 
 import { redirect } from "next/navigation";
 import { createSSRServerClient } from "@/lib/supabase/ssr-server";
-import { createServerSupabase } from "@/lib/supabase/server";
 import { LoginSchema } from "@/lib/auth/login-schema";
-import { PasswordSchema } from "@/lib/auth/password-schema";
 
 export type AuthActionState = { error?: string } | undefined;
 
@@ -183,36 +146,6 @@ export async function loginAction(
     return { error: "Incorrect email or password." };
   }
 
-  if (data.user.app_metadata?.must_change_password) {
-    redirect("/account/password");
-  }
-  redirect("/");
-}
-
-export async function changePasswordAction(
-  _prev: AuthActionState,
-  formData: FormData,
-): Promise<AuthActionState> {
-  const parsed = PasswordSchema.safeParse({ password: formData.get("password") });
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Invalid password." };
-  }
-
-  const supabase = await createSSRServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
-  if (error) return { error: "Could not update password. Try again." };
-
-  // Clear the first-login flag via the admin API (app_metadata is server-only).
-  const admin = createServerSupabase();
-  await admin.auth.admin.updateUserById(user.id, {
-    app_metadata: { ...user.app_metadata, must_change_password: false },
-  });
-
   redirect("/");
 }
 
@@ -223,28 +156,27 @@ export async function logoutAction(): Promise<void> {
 }
 ```
 
-- [ ] **Step 7: Verify the build compiles**
+- [ ] **Step 6: Verify the build compiles**
 
 Run: `npm run build`
 Expected: PASS.
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add src/lib/auth/login-schema.ts src/lib/auth/login-schema.test.ts src/lib/auth/password-schema.ts src/lib/auth/password-schema.test.ts src/lib/actions/auth.ts
-git commit -m "feat(auth): login/password schemas (TDD) + sign-in, change-password, sign-out actions"
+git add src/lib/auth/login-schema.ts src/lib/auth/login-schema.test.ts src/lib/actions/auth.ts
+git commit -m "feat(auth): login schema (TDD) + sign-in/sign-out actions"
 ```
 
 ---
 
-## Task 2: Login page + forced password-change page
+## Task 2: Login page
 
 **Files:**
 - Create: `src/app/login/page.tsx` + `src/app/login/login-form.tsx`
-- Create: `src/app/account/password/page.tsx` + `src/app/account/password/change-password-form.tsx`
 
 **Interfaces:**
-- Consumes: `loginAction`, `changePasswordAction` (Task 1).
+- Consumes: `loginAction` (Task 1).
 
 - [ ] **Step 1: Build the login form (client component)**
 
@@ -314,87 +246,21 @@ export default function LoginPage() {
 }
 ```
 
-- [ ] **Step 3: Build the change-password form (client component)**
-
-Create `src/app/account/password/change-password-form.tsx`:
-
-```tsx
-"use client";
-
-import { useActionState } from "react";
-import { changePasswordAction, type AuthActionState } from "@/lib/actions/auth";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-
-export function ChangePasswordForm() {
-  const [state, action, pending] = useActionState<AuthActionState, FormData>(
-    changePasswordAction,
-    undefined,
-  );
-  return (
-    <form action={action} className="flex flex-col gap-4">
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="password">New password</Label>
-        <Input
-          id="password"
-          name="password"
-          type="password"
-          autoComplete="new-password"
-          required
-        />
-      </div>
-      {state?.error && <p className="text-sm text-destructive">{state.error}</p>}
-      <Button type="submit" disabled={pending} className="mt-2">
-        {pending ? "Saving…" : "Set password"}
-      </Button>
-    </form>
-  );
-}
-```
-
-- [ ] **Step 4: Build the change-password page**
-
-Create `src/app/account/password/page.tsx`:
-
-```tsx
-import { ChangePasswordForm } from "./change-password-form";
-import { Card } from "@/components/ui/card";
-
-export const metadata = { title: "Set a new password — CreativeOS" };
-
-export default function ChangePasswordPage() {
-  return (
-    <main className="flex min-h-full flex-1 items-center justify-center px-6 py-20">
-      <Card className="w-full max-w-sm p-8 shadow-card">
-        <h1 className="font-display text-2xl font-semibold tracking-tight">
-          Set a new password
-        </h1>
-        <p className="mt-1 mb-6 text-sm text-muted-foreground">
-          Choose a password before continuing.
-        </p>
-        <ChangePasswordForm />
-      </Card>
-    </main>
-  );
-}
-```
-
-- [ ] **Step 5: Verify the build compiles**
+- [ ] **Step 3: Verify the build compiles**
 
 Run: `npm run build`
 Expected: PASS.
 
-- [ ] **Step 6: Manual verification — login works, proxy not active yet**
+- [ ] **Step 4: Manual verification — login works, proxy not active yet**
 
 Run: `npm run env:staging`. Visit `/login`, sign in with the bootstrapped super_admin credentials (`developer@yuvabe.com`, from 1A).
 Expected: redirected to `/`. The home page still shows unfiltered data (proxy/withClient enforcement isn't active until Tasks 3–5) — that's expected at this point.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
-git add src/app/login src/app/account
-git commit -m "feat(auth): login page + forced first-login password change page"
+git add src/app/login
+git commit -m "feat(auth): login page"
 ```
 
 ---
@@ -864,7 +730,7 @@ git commit -m "feat(auth): swap useIdentity to session; remove the old identity 
 - [ ] `developer@yuvabe.com` logs in → sees Yuvabe's 28 clients unfiltered (super_admin) → header shows their name + working sign-out
 - [ ] Approve button still shows for the logged-in owner in a prompt/image/video focus view
 - [ ] No `identity-gate`/`identity-dialog`/`gate-logic`/`setIdentity` references remain anywhere
-- [ ] Ten commits made across Tasks 1–6
+- [ ] Six commits made across Tasks 1–6
 
 **Known limitation, by design:** full cross-org isolation (Agency A can't see Yuvabe's data and vice versa) can't be *end-to-end* verified until 1D exists — there's no second org/user yet, since onboarding is a 1D deliverable. What *is* verified here: the enforcement code paths exist and are live (`withClient`'s org check, scoped queries), and Yuvabe's own workflow has zero regression. Note this explicitly in the 1C completion log rather than claiming untested cross-org isolation as done.
 
@@ -880,3 +746,4 @@ git commit -m "feat(auth): swap useIdentity to session; remove the old identity 
 - **"Don't lose the Yuvabe workflow"** → Task 5 Step 8 and the Final checklist both explicitly re-verify Yuvabe's 28 clients are visible and unaffected, not just that new isolation code exists.
 - **Honest scope limit stated, not hidden** → the Final verification section names what 1C can't fully prove (cross-org isolation, no second org yet) instead of claiming untested behavior as verified.
 - **No RLS, no migrations** → File Structure lists no `supabase/migrations/*`; Global Constraints repeat the Stage 1 rule.
+- **Forced password change deferred (D84)** → dropped from Task 1's `loginAction` and from Task 2 entirely (no `/account/password` page); `1D`'s future `createOrgWithOwner` must not set `must_change_password` either — flagged in the ADR so that's not silently reintroduced when 1D is written.
