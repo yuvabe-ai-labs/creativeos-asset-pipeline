@@ -13,6 +13,7 @@ export type ClientRow = {
   updated_at: string;
   archived_at: string | null; // null = active; ISO timestamp = archived
   drive_root_folder_id: string | null;
+  org_id: string; // tenant boundary (D42), added in migration 0013
 };
 
 export type ClientBrandImageRow = {

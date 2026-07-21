@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getClientById } from "@/lib/db/clients";
 import type { ClientRow } from "@/lib/db/types";
+import { resolveCallerContext } from "@/lib/dal";
 
 // ── Route param type ──────────────────────────────────────────────────────────
 
@@ -36,6 +37,13 @@ export async function withClient(
   const { id: clientId } = await params;
   const client = await getClientById(clientId);
   if (!client) return apiError("Client not found.", 404);
+
+  // Org isolation: a client outside the caller's org is a 404 (never 403 — do not
+  // confirm foreign resources exist). super_admin bypasses the org check.
+  const caller = await resolveCallerContext();
+  if (caller.platformRole !== "super_admin" && client.org_id !== caller.orgId) {
+    return apiError("Client not found.", 404);
+  }
   return handler(clientId, client);
 }
 
