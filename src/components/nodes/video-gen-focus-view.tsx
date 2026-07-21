@@ -456,7 +456,7 @@ export function VideoGenFocusView({
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle()
-      .then(({ data }) => {
+      .then(({ data }: { data: unknown }) => {
         const row = data as { status: string; error: string | null } | null;
         if (!row) return;
         if (row.status === "succeeded" || row.status === "failed") {
