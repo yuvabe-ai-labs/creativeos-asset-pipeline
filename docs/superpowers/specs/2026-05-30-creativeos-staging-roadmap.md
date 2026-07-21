@@ -1358,13 +1358,129 @@ name-matching; per-org Drive OAuth (too heavy for the pilot).
 
 **Originated →** `2026-07-14-copilot-selection-context-design.md` (§6).
 
+### D77 — Credit accounting becomes an append-only ledger with atomic row-locked reservation; supersedes D47 *(recorded 2026-07-21; from the auth staging rollout plan, Stage 3)*
+
+**Decision.** `credit_transactions` (`org_id`, `generation_id`, `amount`, `type` ∈
+{reservation, consumption, refund, adjustment}, `created_at`) replaces the derived-on-read
+`SUM(credits_consumed)`. `reserveCredits()` locks the org's row, sums this-month
+reservation+consumption rows, rejects if the estimate would exceed the limit, else inserts a
+`reservation` row before the job dispatches. Job success settles the reservation to actual
+cost via a `consumption` row; failure/cancel zeroes it via a `refund` row. Month boundary
+pinned to UTC.
+
+**Why.** Derived-on-read summing can't stop two concurrent requests near the cap from both
+passing — nothing is reserved until after the job runs. A row lock at reservation time closes
+that race, and an append-only ledger gives reconciliation and future billing a real audit
+trail instead of one mutable number.
+
+**Rejected.** Keeping `SUM(credits_consumed)` derived-on-read (D47's original shape) —
+right-sized for the initial design, revisited once the race condition and audit-trail gap
+were named explicit requirements for the rollout.
+
+**Originated →** `2026-07-21-auth-staging-rollout-plan.md` (Stage 3).
+
+### D78 — RLS backstop expands to every independently-read org_id table; standing rule going forward; refines D44 *(recorded 2026-07-21; Stage 2)*
+
+**Decision.** RLS moves from "the two Realtime tables" (D44) to every table that carries
+`org_id` directly and is read by something other than a `withClient()`-guarded route —
+`generations`, `node_files`, `client_kb_jobs`, `canvases`, `credit_transactions`. Standing
+rule: any future migration adding an `org_id` column adds its RLS policy in the same
+migration. Each policy also matches the JWT's `platform_role` claim directly, so a
+super_admin's own Realtime subscription or impersonation session isn't blocked. `clients`
+itself stays app-layer-only (D44) — it's never read outside a `withClient()`-guarded path.
+
+**Why.** Workers, webhooks, and Realtime subscriptions read these tables independently of
+`clients` — D44's chokepoint-only model didn't reach them once `org_id` was pushed down
+directly onto each one.
+
+**Rejected.** RLS on every table regardless of read path (D44's original reasoning still
+holds for `clients`, `nodes`, `node_versions` — no independent read path exists for them yet).
+
+**Originated →** `2026-07-21-auth-staging-rollout-plan.md` (Stage 2).
+
+### D79 — Async workers revalidate a job's org_id against the resource's current org_id before processing *(recorded 2026-07-21; Stage 2)*
+
+**Decision.** Generation workers run under the service-role key (RLS-bypassing by design, no
+session to check against). Each job row carries its `client_id`/`org_id` immutably from
+creation; before processing, the worker re-fetches the target resource and confirms its
+current `org_id` still matches the job's. A mismatch is dropped and logged, never processed.
+
+**Why.** D44's app-layer chokepoints and D78's RLS both assume a session; workers have
+neither. The job row is the only trustworthy source of tenant identity available to them.
+
+**Originated →** `2026-07-21-auth-staging-rollout-plan.md` (Stage 2).
+
+### D80 — org_memberships: one active org per user enforced by a unique index; last owner of an org can't be removed or demoted; refines D49 *(recorded 2026-07-21; Stage 1)*
+
+**Decision.** `UNIQUE(user_id)` on `org_memberships` makes "one org per user" a database
+guarantee in the pilot, not just convention. A trigger blocks removing or demoting the last
+`owner` row of an org.
+
+**Why.** D49 designed the join table for future multi-seat but left both invariants implicit;
+an org silently left without an owner, or a user in two orgs at once during the single-seat
+pilot, are bugs worth making structurally impossible now rather than debugging later.
+
+**Originated →** `2026-07-21-auth-staging-rollout-plan.md` (Stage 1).
+
+### D81 — Impersonation adds an audit log and a read-only default; writes require explicit elevated-mode entry; refines D52 *(recorded 2026-07-21; Stage 4)*
+
+**Decision.** Impersonation sessions are read-only by default. Making a write as an
+impersonated org requires a separate, explicit "enter elevated support mode" action.
+`impersonation_audit_log` records operator, target org, start/end time, mode, and actions for
+every session and every elevated-mode entry. The impersonation cookie is also re-checked
+against the operator's *live* super_admin status on every request, not just when the cookie
+was set.
+
+**Why.** D52 established the no-session-swap cookie mechanism but didn't distinguish looking
+from acting, or log either — for a feature whose whole purpose is one operator quietly
+seeing/touching another org's data, both are the difference between "support tool" and
+"unaudited backdoor."
+
+**Originated →** `2026-07-21-auth-staging-rollout-plan.md` (Stage 4).
+
+### D82 — No CLI onboarding script; org/user creation ships as the admin UI in Stage 1 *(recorded 2026-07-21; Stage 1)*
+
+**Decision.** `scripts/seed-org.ts` is dropped from the plan. `/admin/orgs/new` (org + user +
+membership in one submission) is the only onboarding path, built as part of Stage 1 rather
+than deferred behind a script-first MVP. Bootstrapping the very first Yuvabe super_admin
+account (before any UI can exist to create it) is a one-time manual step via the Supabase
+dashboard/admin API, documented as a setup note — not app code, not a maintained script.
+
+**Why.** A CLI script and a UI form for the same six steps is duplicated logic with two things
+to keep in sync; building the UI first (not the script-then-UI dual path the 2026-07-15 spec
+described) means there's exactly one onboarding path to test and maintain, and it's the one
+non-technical Yuvabe staff can actually use.
+
+**Rejected.** Script-first with the UI as a later nice-to-have (the 2026-07-15 spec's original
+§10/§11 shape); building both in parallel.
+
+**Originated →** `2026-07-21-auth-staging-rollout-plan.md` (Stage 1).
+
+### D83 — Auth ships to staging as four independently-deployable stages *(recorded 2026-07-21)*
+
+**Decision.** The auth build lands on staging as four ordered stages, each a mergeable,
+demoable increment: **(1)** foundation — schema, Supabase Auth, DAL, `withClient()` org check,
+and the admin onboarding UI; **(2)** RLS backstop + async worker tenant check (D78/D79); **(3)**
+credit ledger (D77); **(4)** impersonation (D81). (1) is a hard prerequisite for the rest. (2)
+ships next because it's the cheapest, most isolated hardening with no new user-visible
+surface — no reason to hold it behind feature work. (3) and (4) each depend only on (1) and
+can build in parallel with (2); (4) is sequenced last because it's the highest-blast-radius
+feature (an operator viewing/acting inside another org's data), and benefits from (1)–(3)
+having already proven out on staging first.
+
+**Why.** Each stage is independently testable and reversible on staging; a defect isolated to
+one stage (say a ledger bug in Stage 3) doesn't block onboarding new agencies via Stage 1 or
+require re-testing impersonation to isolate.
+
+**Originated →** `2026-07-21-auth-staging-rollout-plan.md` (all sections).
+
 ### Parked / out-of-scope (with revisit triggers)
 | Item | Status | Revisit when |
 |---|---|---|
 | **Brief node** (upstream-brief parsing) | Defined MVP node type; **retained, not built** — Script node shipped instead (D16) | A project needs to start from a brief, not a finished script |
 | Context "% slider" / relevance ranking | Parked (D7) | Client KB outgrows the context window → add RAG |
 | Full client KB (structured + files + selection) | ✅ Pulled forward into Stage 1 (D17) | — |
-| Multi-tenant auth | Out of scope (PRD §18) | Post-MVP external access |
+| Multi-tenant auth | 🟡 In staged rollout (Stage 1 of 4 — see `2026-07-21-auth-staging-rollout-plan.md`) | — |
 | Automated branching / auto-rewiring | Out of scope (PRD §15) — **except** human-triggered Shot fan-out, which creates nodes (not edges) on explicit click (D21) | Not planned (beyond D21's bounded, manual fan-out) |
 | Edge `pinned_version_id` (freeze a connection) | Optional extension (D8) | If "don't auto-follow active" is ever needed |
 | Real queue infra (Redis/SQS/BullMQ + workers) | Parked (D12/D13) | Own GPU compute, high concurrency, or complex retries |
