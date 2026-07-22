@@ -7,14 +7,10 @@ export const dynamic = "force-dynamic"; // always read fresh from the DB
 
 export default async function ClientsPage() {
   const caller = await resolveCallerContext();
-  const scope = {
-    orgId: caller.orgId,
-    isSuperAdmin: caller.platformRole === "super_admin",
-  };
   const [clients, archivedClients, recentCanvases] = await Promise.all([
-    listClients(scope),
-    listArchivedClients(scope),
-    listRecentCanvases(scope),
+    listClients(caller.orgId),
+    listArchivedClients(caller.orgId),
+    listRecentCanvases(caller.orgId),
   ]);
 
   return (

@@ -39,9 +39,11 @@ export async function withClient(
   if (!client) return apiError("Client not found.", 404);
 
   // Org isolation: a client outside the caller's org is a 404 (never 403 — do not
-  // confirm foreign resources exist). super_admin bypasses the org check.
+  // confirm foreign resources exist). No super_admin bypass here — cross-org access
+  // to a client's actual data is /admin's job or, later, impersonation (Stage 4), not
+  // a standing exception on every route. super_admin's own clients still work fine.
   const caller = await resolveCallerContext();
-  if (caller.platformRole !== "super_admin" && client.org_id !== caller.orgId) {
+  if (client.org_id !== caller.orgId) {
     return apiError("Client not found.", 404);
   }
   return handler(clientId, client);

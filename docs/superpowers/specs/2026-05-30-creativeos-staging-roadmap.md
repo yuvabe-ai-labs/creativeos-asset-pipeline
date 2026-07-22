@@ -1494,6 +1494,35 @@ login path.
 
 **Originated →** `2026-07-21-auth-stage-1c-login-enforcement.md`.
 
+### D85 — super_admin's normal app view is scoped to their own org; cross-org visibility lives only in /admin and (later) impersonation *(recorded 2026-07-21; Stage 1D; resolves a tension between D42's spec §6 and §7)*
+
+**Decision.** `withClient()` and the client/canvas list queries (`listClients`,
+`listArchivedClients`, `listRecentCanvases`) no longer bypass the org check for
+`super_admin`. On the normal app — client list, canvases, everything outside `/admin` —
+`developer@yuvabe.com` sees only Yuvabe's own clients, exactly like any other org's owner.
+Cross-org visibility is confined to `/admin`'s own queries (`listOrgsWithClientCount`,
+`getOrgById`, `listOrgMembers`), which operate on `organizations`, not `clients`, and are
+already `requireSuperAdmin()`-gated. Broader cross-org access (viewing another org's actual
+canvas workspace) is deferred to Stage 4 impersonation — until it ships, not even
+super_admin can browse an agency's data outside `/admin`'s summary view.
+
+**Why.** The original 2026-07-15 spec (D42) was internally inconsistent: §6 said list
+queries have "no filter for super_admin" (unfiltered, always); §7's impersonation flow
+implied the opposite — `resolveOrgId()` returns the caller's own org from the membership
+table by default, only switching on an explicit impersonation cookie. Built to §6 first
+(1C/1D initial pass), then caught during 1D's manual isolation testing: with §6's behavior,
+the Yuvabe operator's own workspace showed every onboarded agency's clients mixed in with
+Yuvabe's — doesn't scale past a couple of agencies, and makes the whole point of an audited
+impersonation feature moot (why build "enter as org," logged, if you can already see
+everything all the time regardless). §7's model is more secure, matches the design's own
+stated impersonation semantics, and keeps blast radius proportional to intent: "administering
+the platform" (`/admin`) is a different action from "acting as an org" (the normal app).
+
+**Rejected.** Keeping the blanket bypass (§6 as literally written) — simpler, no rework, but
+doesn't scale and undercuts D52's impersonation design.
+
+**Originated →** `2026-07-21-auth-stage-1d-admin-onboarding-ui.md`.
+
 ### Parked / out-of-scope (with revisit triggers)
 | Item | Status | Revisit when |
 |---|---|---|

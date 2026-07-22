@@ -13,37 +13,31 @@ import {
 
 export type { ClientWithCount };
 
-// Org-scoped: members see only their org's clients; super_admin sees everything.
-export async function listClients(scope: {
-  orgId: string;
-  isSuperAdmin: boolean;
-}): Promise<ClientWithCount[]> {
+// Org-scoped: every caller — including super_admin — sees only their own org's
+// clients here. Cross-org visibility is /admin's job (organizations.ts), not this
+// repository's; super_admin's own everyday workspace stays exactly like any owner's.
+export async function listClients(orgId: string): Promise<ClientWithCount[]> {
   const supabase = createServerSupabase();
   // Embed canvas timestamps over the FK relationship; derive count + last_active in JS.
-  let query = supabase
+  const { data, error } = await supabase
     .from("clients")
     .select("*, canvases(updated_at)")
+    .eq("org_id", orgId)
     .is("archived_at", null) // active clients only
     .order("created_at", { ascending: false });
-  if (!scope.isSuperAdmin) query = query.eq("org_id", scope.orgId);
-  const { data, error } = await query;
   if (error) throw error;
   return ((data ?? []) as RawClientWithCanvases[]).map(mapClientWithCount);
 }
 
 // Archived clients, most-recently-archived first — for the Archived tab. Org-scoped.
-export async function listArchivedClients(scope: {
-  orgId: string;
-  isSuperAdmin: boolean;
-}): Promise<ClientWithCount[]> {
+export async function listArchivedClients(orgId: string): Promise<ClientWithCount[]> {
   const supabase = createServerSupabase();
-  let query = supabase
+  const { data, error } = await supabase
     .from("clients")
     .select("*, canvases(updated_at)")
+    .eq("org_id", orgId)
     .not("archived_at", "is", null)
     .order("archived_at", { ascending: false });
-  if (!scope.isSuperAdmin) query = query.eq("org_id", scope.orgId);
-  const { data, error } = await query;
   if (error) throw error;
   return ((data ?? []) as RawClientWithCanvases[]).map(mapClientWithCount);
 }
