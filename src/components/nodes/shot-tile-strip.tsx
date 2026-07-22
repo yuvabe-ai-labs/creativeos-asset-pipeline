@@ -89,7 +89,8 @@ export function ShotTileStrip({
                       onClick={() => onChange(opt.value)}
                       className={cn(
                         "nodrag h-auto flex-1 flex-col gap-1 p-1 duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]",
-                        active && "z-10 scale-105 border-primary/50 bg-primary/5 shadow-md",
+                        active &&
+                          "z-10 scale-105 border-primary bg-primary/5 shadow-lg ring-2 ring-primary",
                       )}
                     >
                       <span className="relative block aspect-square w-full overflow-hidden rounded-[6px]">
@@ -104,8 +105,11 @@ export function ShotTileStrip({
                       </span>
                       <span
                         className={cn(
-                          "text-[11px] leading-none",
-                          active ? "text-primary" : "text-muted-foreground",
+                          // Consistent padding in both states so selecting doesn't shift the label.
+                          "rounded-full px-2 py-0.5 text-[11px] leading-none transition-colors",
+                          active
+                            ? "bg-primary font-medium text-primary-foreground"
+                            : "text-muted-foreground",
                         )}
                       >
                         {tileLabel(opt.value)}
