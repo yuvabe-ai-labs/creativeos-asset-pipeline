@@ -1,0 +1,12 @@
+* { box-sizing: border-box; }
+body { font: 13px/1.4 system-ui, sans-serif; margin: 0; padding: 12px; color: #0b0f19; }
+h1 { font-size: 14px; margin: 0 0 8px; }
+.current { background: #f5f3ff; border: 1px solid #ddd6fe; border-radius: 8px; padding: 8px; color: #5829c7; font-weight: 600; }
+.field { display: block; margin: 12px 0 8px; font-weight: 600; }
+select { display: block; width: 100%; margin-top: 4px; padding: 6px; border: 1px solid #e5e7eb; border-radius: 8px; }
+.boards { display: flex; flex-direction: column; gap: 6px; }
+.board { text-align: left; padding: 8px 10px; border: 1px solid #e5e7eb; border-radius: 8px; background: #fff; cursor: pointer; }
+.board:hover { border-color: #5829c7; background: #faf9ff; }
+.empty { color: #6b7280; }
+.refresh { margin-top: 12px; padding: 6px 10px; border: 1px solid #e5e7eb; border-radius: 8px; background: #fff; cursor: pointer; }
+.status { color: #6b7280; margin-top: 10px; }
