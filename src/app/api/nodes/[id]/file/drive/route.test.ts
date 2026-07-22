@@ -13,15 +13,46 @@ vi.mock("@/lib/storage", () => ({
 
 vi.mock("server-only", () => ({}));
 
+// withNode() (route-helpers.ts) now gates this route: it resolves the caller's org via
+// resolveCallerContext, and the node's org via an embedded nodes->canvases->clients query
+// on createServerSupabase(). Mock both directly rather than the DAL's internal Supabase
+// calls, so the test doesn't need real env vars or a real session.
+vi.mock("@/lib/dal", () => ({
+  resolveCallerContext: vi.fn(async () => ({
+    userId: "user-1",
+    platformRole: "member",
+    orgId: "org-1",
+    orgRole: "owner",
+  })),
+}));
+
 vi.mock("@/lib/supabase/server", () => ({
   createServerSupabase: vi.fn(() => ({
-    from: () => ({
-      select: () => ({
-        eq: () => ({
-          maybeSingle: async () => ({ data: { data: {} } }),
-        }),
-      }),
-    }),
+    from: (table: string) => {
+      if (table === "nodes") {
+        return {
+          select: () => ({
+            eq: () => ({
+              maybeSingle: async () => ({
+                data: {
+                  id: "node-1",
+                  canvas_id: "canvas-1",
+                  type: "file",
+                  position: { x: 0, y: 0 },
+                  data: {},
+                  active_version_id: null,
+                  created_at: "",
+                  updated_at: "",
+                  canvases: { client_id: "client-1", clients: { org_id: "org-1" } },
+                },
+                error: null,
+              }),
+            }),
+          }),
+        };
+      }
+      throw new Error(`Unexpected table in mock: ${table}`);
+    },
   })),
 }));
 

@@ -8,7 +8,7 @@ import { insertVersion, setActiveVersion } from "@/lib/db/versions";
 import { insertGeneration, succeedGeneration, failGeneration } from "@/lib/db/generations";
 import { computeCost } from "@/lib/pricing";
 import { describeModelRequest } from "@/lib/nodes/model-request";
-import { apiError, apiOk } from "@/lib/api/route-helpers";
+import { apiError, apiOk, withNode } from "@/lib/api/route-helpers";
 
 // Coerce the request body's controls into a well-shaped ShotControls (unknown values are
 // harmless — renderShotControls ignores anything not in the catalog).
@@ -28,106 +28,107 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const { id: nodeId } = await params;
-  const body = (await req.json().catch(() => null)) as
-    | { instruction?: unknown; slices?: unknown; controls?: unknown }
-    | null;
-  const instruction = typeof body?.instruction === "string" ? body.instruction : "";
-  const controls = normalizeControls(body?.controls);
+  return withNode(params, async (nodeId) => {
+    const body = (await req.json().catch(() => null)) as
+      | { instruction?: unknown; slices?: unknown; controls?: unknown }
+      | null;
+    const instruction = typeof body?.instruction === "string" ? body.instruction : "";
+    const controls = normalizeControls(body?.controls);
 
-  const resolved = await resolvePromptInputs(nodeId, body?.slices);
-  if (!resolved) return apiError("Node not found.", 404);
+    const resolved = await resolvePromptInputs(nodeId, body?.slices);
+    if (!resolved) return apiError("Node not found.", 404);
 
-  const { system, user, effectiveInstruction } = compilePrompt({
-    clientContext: resolved.clientContext,
-    upstream: resolved.upstream,
-    instruction,
-    controls,
-  });
-
-  const userContent = buildUserContent(user, resolved.upstream);
-
-  const request = describeModelRequest({
-    system,
-    compiledUser: user,
-    effectiveInstruction,
-    upstream: resolved.upstream,
-  });
-
-  const model = `openai:${promptGeneratePrompt.model}`;
-  let generation: Awaited<ReturnType<typeof insertGeneration>> | null = null;
-
-  try {
-    generation = await insertGeneration({
-      nodeId,
-      type: "prompt",
-      modelUsed: model,
-      paramsSnapshot: { model: promptGeneratePrompt.model },
-      inputsSnapshot: { instruction: effectiveInstruction },
+    const { system, user, effectiveInstruction } = compilePrompt({
+      clientContext: resolved.clientContext,
+      upstream: resolved.upstream,
+      instruction,
+      controls,
     });
 
-    const openai = createOpenAI();
-    const completion = await openai.chat.completions.create({
-      model: promptGeneratePrompt.model,
-      messages: [
-        { role: "system", content: system },
-        { role: "user",   content: userContent },
-      ],
-    });
-    const output = completion.choices[0]?.message?.content?.trim() ?? "";
+    const userContent = buildUserContent(user, resolved.upstream);
 
-    const version = await insertVersion({
-      nodeId,
-      inputsUsed: {
-        upstream: resolved.upstream.map((u) => ({ nodeId: u.nodeId, versionId: u.versionId })),
-        kbVersionId: resolved.kbVersionId,
-        kbSlices: resolved.slices,
-        request, // the exact request sent to the model (frozen provenance)
-      },
-      paramsUsed: {
-        instruction,
-        controls,
-        promptId: promptGeneratePrompt.id,
-        promptVersion: promptGeneratePrompt.version,
-        tokensUsed: completion.usage ?? null,
-      },
-      modelUsed: model,
-      output,
-    });
-    await setActiveVersion(nodeId, version.id);
-
-    const usage = completion.usage;
-    const cost = usage
-      ? computeCost(model, {
-          prompt_tokens: usage.prompt_tokens,
-          completion_tokens: usage.completion_tokens,
-          total_tokens: usage.total_tokens,
-        })
-      : null;
-    await succeedGeneration({
-      generationId: generation.id,
-      versionId: version.id,
-      creditsConsumed: cost?.usd,
+    const request = describeModelRequest({
+      system,
+      compiledUser: user,
+      effectiveInstruction,
+      upstream: resolved.upstream,
     });
 
-    return apiOk({ output, versionId: version.id, compiled: user });
-  } catch (e) {
-    const message = e instanceof Error ? e.message : "Generation failed";
-    // a failed attempt is still a version — the log learns from failures too
-    await insertVersion({
-      nodeId,
-      inputsUsed: { request },
-      paramsUsed: {
-        instruction,
-        promptId: promptGeneratePrompt.id,
-        promptVersion: promptGeneratePrompt.version,
-      },
-      modelUsed: model,
-      error: message,
-    });
-    if (generation?.id) {
-      await failGeneration({ generationId: generation.id, error: message }).catch(() => null);
+    const model = `openai:${promptGeneratePrompt.model}`;
+    let generation: Awaited<ReturnType<typeof insertGeneration>> | null = null;
+
+    try {
+      generation = await insertGeneration({
+        nodeId,
+        type: "prompt",
+        modelUsed: model,
+        paramsSnapshot: { model: promptGeneratePrompt.model },
+        inputsSnapshot: { instruction: effectiveInstruction },
+      });
+
+      const openai = createOpenAI();
+      const completion = await openai.chat.completions.create({
+        model: promptGeneratePrompt.model,
+        messages: [
+          { role: "system", content: system },
+          { role: "user",   content: userContent },
+        ],
+      });
+      const output = completion.choices[0]?.message?.content?.trim() ?? "";
+
+      const version = await insertVersion({
+        nodeId,
+        inputsUsed: {
+          upstream: resolved.upstream.map((u) => ({ nodeId: u.nodeId, versionId: u.versionId })),
+          kbVersionId: resolved.kbVersionId,
+          kbSlices: resolved.slices,
+          request, // the exact request sent to the model (frozen provenance)
+        },
+        paramsUsed: {
+          instruction,
+          controls,
+          promptId: promptGeneratePrompt.id,
+          promptVersion: promptGeneratePrompt.version,
+          tokensUsed: completion.usage ?? null,
+        },
+        modelUsed: model,
+        output,
+      });
+      await setActiveVersion(nodeId, version.id);
+
+      const usage = completion.usage;
+      const cost = usage
+        ? computeCost(model, {
+            prompt_tokens: usage.prompt_tokens,
+            completion_tokens: usage.completion_tokens,
+            total_tokens: usage.total_tokens,
+          })
+        : null;
+      await succeedGeneration({
+        generationId: generation.id,
+        versionId: version.id,
+        creditsConsumed: cost?.usd,
+      });
+
+      return apiOk({ output, versionId: version.id, compiled: user });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Generation failed";
+      // a failed attempt is still a version — the log learns from failures too
+      await insertVersion({
+        nodeId,
+        inputsUsed: { request },
+        paramsUsed: {
+          instruction,
+          promptId: promptGeneratePrompt.id,
+          promptVersion: promptGeneratePrompt.version,
+        },
+        modelUsed: model,
+        error: message,
+      });
+      if (generation?.id) {
+        await failGeneration({ generationId: generation.id, error: message }).catch(() => null);
+      }
+      return apiError(message, 500);
     }
-    return apiError(message, 500);
-  }
+  });
 }
