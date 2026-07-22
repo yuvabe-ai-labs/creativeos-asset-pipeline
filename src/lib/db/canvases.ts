@@ -21,6 +21,17 @@ export async function listCanvases(clientId: string): Promise<CanvasRow[]> {
   return (data ?? []) as CanvasRow[];
 }
 
+export async function getCanvasById(id: string): Promise<CanvasRow | null> {
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("canvases")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw error;
+  return (data as CanvasRow) ?? null;
+}
+
 export async function getCanvasBySlug(
   clientId: string,
   slug: string,

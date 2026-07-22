@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getClientById } from "@/lib/db/clients";
-import type { ClientRow } from "@/lib/db/types";
+import { getCanvasById } from "@/lib/db/canvases";
+import type { ClientRow, CanvasRow } from "@/lib/db/types";
 import { resolveCallerContext } from "@/lib/dal";
 
 // ── Route param type ──────────────────────────────────────────────────────────
@@ -47,6 +48,28 @@ export async function withClient(
     return apiError("Client not found.", 404);
   }
   return handler(clientId, client);
+}
+
+// ── Canvas resolution ──────────────────────────────────────────────────────────
+
+// Same org-isolation shape as withClient(), for the handful of routes rooted at a
+// canvas id instead of a client id (/api/canvas/[id]/*, /api/canvases/[cid]/*) —
+// these never went through withClient() at all, since it only guards
+// /api/clients/[id]/*, so they had no org check whatsoever. Canvas -> client -> org.
+export async function withCanvas(
+  params: Promise<{ id: string }>,
+  handler: (canvasId: string, canvas: CanvasRow) => Promise<AnyResponse>,
+): Promise<AnyResponse> {
+  const { id: canvasId } = await params;
+  const canvas = await getCanvasById(canvasId);
+  if (!canvas) return apiError("Canvas not found.", 404);
+
+  const client = await getClientById(canvas.client_id);
+  const caller = await resolveCallerContext();
+  if (!client || client.org_id !== caller.orgId) {
+    return apiError("Canvas not found.", 404);
+  }
+  return handler(canvasId, canvas);
 }
 
 // ── Try/catch wrapper ─────────────────────────────────────────────────────────
