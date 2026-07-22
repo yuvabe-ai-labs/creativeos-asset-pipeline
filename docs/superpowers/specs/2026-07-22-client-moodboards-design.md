@@ -203,14 +203,26 @@ of existing behavior:
 - **Thumbnail cache** — add a nullable `thumb_url`; on `POST …/items`, fetch the image once,
   `sharp`-resize to a small thumb, store to GCS, render tiles from `thumb_url`. Fixes link-rot
   *display*.
-- **Embeddings / shot→reference vector search (PRD F6)** — add a nullable `embedding vector(N)`
-  (`pgvector` ships with Supabase). Compute a multimodal (CLIP/SigLIP-class) embedding **at add
-  time** (the only moment the URL is guaranteed live) from the same fetch used for the thumbnail;
-  a shot's visual description is embedded into the same space and nearest-neighbored against the
-  board. **This is what F6 actually needs — a few-KB vector per item, not hoarded full images** —
-  which is the whole reason v1 does *not* store bytes now.
+- **Embeddings / shot→reference vector search (PRD F6)** — **CLIP is the right model here**: it is a
+  *joint text–image space*, so a shot's visual description (CLIP **text** encoder) retrieves moodboard
+  images (CLIP **image** encoder) by cosine similarity — exactly the "find references for this shot"
+  query. Readiness:
+  - Add a nullable **`embedding vector(D)`** (`pgvector`, native to Supabase) with **D pinned to the
+    chosen CLIP variant** (512 for ViT-B/32, 768 for ViT-L/14 — both well under pgvector's ~2000-dim
+    index limit), plus **`embedding_model`** + **`embedded_at`** columns so a model swap is a
+    *versioned re-embed*, not a stuck column. Search with cosine distance (`<=>`) + an HNSW index.
+  - **Compute the embedding at _add_ time** from a single fetch of the image (self-hosted OpenCLIP or
+    a hosted CLIP endpoint — note OpenAI embeddings are text-only, so this is Vertex multimodal /
+    Replicate / HF / self-host: an F6 infra choice, not v1's). **The durable artifact is the vector
+    (~1–3 KB), *not* the bytes** — which is the whole reason v1 need not hoard full images.
+  - **Caveat (the one real limit of URL-first):** an item can only be embedded while its source URL is
+    live. So when F6 lands, embed **going forward**; items collected during the URL-only window whose
+    URLs have since rotted are *not* back-embeddable. Zero-loss mitigation: flip on the **add-time
+    thumbnail capture** (above) *before* the URL-only backlog grows — every item then has a durable
+    local copy to embed from later.
 
-Both are pure `ALTER TABLE … ADD COLUMN` + new write-path code; nothing in v1 blocks them.
+Both are pure `ALTER TABLE … ADD COLUMN` + new write-path code; nothing in v1 blocks them, and v1
+stores nothing that would have to be thrown away or migrated.
 
 ## 8. Non-goals (each a clean later increment)
 
