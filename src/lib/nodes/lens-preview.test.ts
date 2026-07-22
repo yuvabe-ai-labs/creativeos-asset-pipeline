@@ -6,6 +6,7 @@ import {
   lensZoom,
   lensTileLabel,
   lensCaption,
+  lensTooltip,
 } from "./lens-preview";
 
 describe("lensFocalMm", () => {
@@ -64,5 +65,22 @@ describe("lensCaption", () => {
   });
   it("describes auto as model-chosen", () => {
     expect(lensCaption("auto")).toBe("Auto · lens chosen by the model");
+  });
+});
+
+describe("lensTooltip", () => {
+  it("gives every focal tile a non-empty usage hint", () => {
+    for (const tile of LENS_TILES) {
+      expect(lensTooltip(tile.value).length).toBeGreaterThan(0);
+    }
+  });
+  it("frames 100mm around emphasizing label detail", () => {
+    expect(lensTooltip("macro-100")).toMatch(/label/i);
+  });
+  it("describes auto as model-chosen", () => {
+    expect(lensTooltip("auto")).toMatch(/model/i);
+  });
+  it("falls back to empty string for unknown values", () => {
+    expect(lensTooltip("nope")).toBe("");
   });
 });

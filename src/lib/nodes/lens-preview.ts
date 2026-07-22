@@ -28,6 +28,18 @@ export const LENS_DESCRIPTORS: Record<string, string> = {
   auto: "lens chosen by the model",
 };
 
+// "When would I reach for this?" hint shown in each tile's tooltip. One line per focal length,
+// grounded in product-photography practice (wide = context but edge distortion; 35 = lifestyle;
+// 50 = natural/versatile; 85 = compression + shallow depth for beauty/jewelry; 100 = macro detail).
+export const LENS_TOOLTIPS: Record<string, string> = {
+  "wide-24": "The whole scene — your product in its setting. Wide, though edges distort up close.",
+  "wide-35": "Lifestyle shots — the product with props and breathing room, still natural.",
+  "standard-50": "True-to-the-eye perspective — the versatile, safe default.",
+  "portrait-85": "Compresses and softens the background — flattering for beauty and jewelry.",
+  "macro-100": "Extreme close-up — texture and the label detail you want to emphasize.",
+  auto: "Let the model choose the focal length for you.",
+};
+
 // Focal length in mm parsed from the option value ("standard-50" -> 50). null for auto/malformed.
 // Note: the empty-token guard matters — Number("") is 0, not NaN, so "" would otherwise parse to 0.
 export function lensFocalMm(value: string): number | null {
@@ -59,4 +71,9 @@ export function lensTileLabel(value: string): string {
 export function lensCaption(value: string): string {
   const descriptor = LENS_DESCRIPTORS[value] ?? "";
   return descriptor ? `${lensLabel(value)} · ${descriptor}` : lensLabel(value);
+}
+
+// One-line "when to use this lens" hint for a tile's tooltip. "" for unknown values.
+export function lensTooltip(value: string): string {
+  return LENS_TOOLTIPS[value] ?? "";
 }
