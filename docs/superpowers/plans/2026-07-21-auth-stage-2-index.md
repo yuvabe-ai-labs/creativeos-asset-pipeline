@@ -17,7 +17,7 @@ one sub-plan written, reviewed, and executed before the next is written.
 
 | Sub-plan | Scope | Priority | Plan doc | Status |
 |---|---|---|---|---|
-| **2A** | `withNode()` helper + wire all 13 node-rooted routes through it | **Urgent — real, currently-open gap** | `2026-07-21-auth-stage-2a-node-isolation-fix.md` | ✍️ **written — awaiting review/execution** |
+| **2A** | `withNode()` helper + wire all node-rooted routes through it | **Urgent — real, currently-open gap** | `2026-07-21-auth-stage-2a-node-isolation-fix.md` | ✅ **done (staging) — see log below** |
 | **2B** | `org_id` + RLS on `generations`, `client_kb_jobs`, `canvases` (corrected from the original spec's 5-table list — `node_files` doesn't exist as a DB table, see note below) | Hardening, no urgency | _written after 2A_ | ⏳ not written |
 | **2C** | Async worker tenant check: generation + kb-build webhooks re-validate `org_id` before processing | Hardening, no urgency | _written after 2B_ | ⏳ not written |
 
@@ -53,6 +53,40 @@ one sub-plan written, reviewed, and executed before the next is written.
 ```
 
 2A can ship on its own the moment it's reviewed — it doesn't block or get blocked by 2B/2C.
+
+## 2A completion log (2026-07-21, staging)
+
+- Commits `8735185` (single-query `withNode` + `withCanvas` retrofit), `b0876af` (worked
+  examples: `cost`, `duplicate`), `7947cea` (remaining routes).
+- **Performance-conscious design, decided before writing code, not after:** raised as a
+  concern before Task 1 was written — `withNode()` resolves `node → canvas → client.org_id`
+  in a single PostgREST embedded-join query, not three sequential round trips.
+  `withCanvas()` (shipped earlier, commit `7b6a0c5`) was retrofitted the same way in the
+  same task, since leaving it at two queries while `withNode` used one would've been
+  inconsistent for no reason. A real (and rejected) alternative was discussed: moving the
+  node pipeline onto RLS instead of app-layer checks, which would have been an equally
+  elegant fix for the same performance question — rejected because it reopens D44
+  (RLS-everywhere touches ~34 service-role call sites) for no reason beyond this one perf
+  question; the single-query collapse gets the same benefit without touching that boundary.
+- **Scope grew mid-task, not silently:** the plan named 13 files; a directory listing had
+  missed 3 nested route files (`compose/select`, `file/drive`, `file/extract`) plus one
+  sibling route with a different shape (`duplicate-batch`, takes `canvasId` from the body,
+  not a URL param — wired via `withCanvas()` instead of `withNode()`). All caught by the
+  plan's own completeness check (`git grep -L`), not assumed complete from the file list.
+  `file/extract` additionally had a stale comment citing D14 ("auth deferred") — D14 was
+  superseded by D43 back when auth was designed; comment removed, not left misleading.
+- **One test suite break, fixed correctly:** `file/drive/route.test.ts` mocked the old
+  service-role-only node-existence check; `withNode()` now also resolves caller context and
+  queries via an embedded join. Mocks updated to match the new shape (`resolveCallerContext`
+  + the `nodes → canvases → clients` embed), not deleted or loosened.
+- `npm test`: 523/523 passing. `npm run build`: clean.
+- Manual verification: `cost` route confirmed blocking cross-org access (`{"error":"Node not
+  found."}`) while same-org access returns real data; reasoned (not individually retested)
+  that this generalizes to every other node route since all 17 files call the identical
+  `withNode()`/`withCanvas()` gate — no per-route variation in the isolation logic itself.
+  Yuvabe's own generation pipeline confirmed still working end-to-end post-fix.
+
+**Next:** write sub-plan **2B (RLS backstop)**.
 
 ## Definition of done for Stage 2 (all three sub-plans)
 
