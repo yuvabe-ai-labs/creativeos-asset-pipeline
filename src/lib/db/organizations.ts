@@ -40,32 +40,39 @@ export async function getOrgById(id: string): Promise<OrgRow | null> {
   return (data as OrgRow) ?? null;
 }
 
-// PostgREST may surface the profiles to-one relation as an object or a single-element
-// array (same ambiguity handled in src/lib/db/recent-canvas.ts).
-type EmbeddedProfile = { display_name: string };
-type RawOrgMemberRow = {
-  user_id: string;
-  org_role: string;
-  profiles: EmbeddedProfile | EmbeddedProfile[] | null;
-};
-
+// org_memberships and profiles both reference auth.users, but neither has a direct FK
+// to the other — PostgREST can't auto-embed across that, so this is two queries + a
+// JS join, not `profiles(display_name)`. Same pattern as resolveCallerContext (dal.ts).
 export async function listOrgMembers(
   orgId: string,
 ): Promise<{ user_id: string; display_name: string; org_role: string }[]> {
   const supabase = createServerSupabase();
-  const { data, error } = await supabase
+  const { data: memberships, error: memErr } = await supabase
     .from("org_memberships")
-    .select("user_id, org_role, profiles(display_name)")
+    .select("user_id, org_role")
     .eq("org_id", orgId);
-  if (error) throw error;
-  return ((data ?? []) as unknown as RawOrgMemberRow[]).map((m) => {
-    const profile = Array.isArray(m.profiles) ? (m.profiles[0] ?? null) : m.profiles;
-    return {
-      user_id: m.user_id,
-      org_role: m.org_role,
-      display_name: profile?.display_name ?? "Unknown",
-    };
-  });
+  if (memErr) throw memErr;
+  const rows = (memberships ?? []) as { user_id: string; org_role: string }[];
+  if (rows.length === 0) return [];
+
+  const userIds = rows.map((r) => r.user_id);
+  const { data: profiles, error: profErr } = await supabase
+    .from("profiles")
+    .select("user_id, display_name")
+    .in("user_id", userIds);
+  if (profErr) throw profErr;
+  const nameByUserId = new Map(
+    ((profiles ?? []) as { user_id: string; display_name: string }[]).map((p) => [
+      p.user_id,
+      p.display_name,
+    ]),
+  );
+
+  return rows.map((r) => ({
+    user_id: r.user_id,
+    org_role: r.org_role,
+    display_name: nameByUserId.get(r.user_id) ?? "Unknown",
+  }));
 }
 
 export async function updateOrgCreditLimit(
