@@ -1,8 +1,17 @@
 import { NextResponse } from "next/server";
 import { getClientById } from "@/lib/db/clients";
-import { getCanvasById } from "@/lib/db/canvases";
-import type { ClientRow, CanvasRow } from "@/lib/db/types";
+import { createServerSupabase } from "@/lib/supabase/server";
+import type { ClientRow, CanvasRow, NodeRow } from "@/lib/db/types";
 import { resolveCallerContext } from "@/lib/dal";
+
+// PostgREST may surface an embedded to-one relation as an object or a single-element
+// array, depending on schema-cache heuristics (same ambiguity handled in
+// recent-canvas.ts and organizations.ts::listOrgMembers). Shared here since withCanvas
+// and withNode both need it (withNode needs it twice, for two nested levels).
+function unwrapEmbed<T>(value: T | T[] | null | undefined): T | null {
+  if (Array.isArray(value)) return value[0] ?? null;
+  return value ?? null;
+}
 
 // ── Route param type ──────────────────────────────────────────────────────────
 
@@ -52,24 +61,76 @@ export async function withClient(
 
 // ── Canvas resolution ──────────────────────────────────────────────────────────
 
+type CanvasWithOrg = CanvasRow & {
+  clients: { org_id: string } | { org_id: string }[] | null;
+};
+
 // Same org-isolation shape as withClient(), for the handful of routes rooted at a
 // canvas id instead of a client id (/api/canvas/[id]/*, /api/canvases/[cid]/*) —
 // these never went through withClient() at all, since it only guards
-// /api/clients/[id]/*, so they had no org check whatsoever. Canvas -> client -> org.
+// /api/clients/[id]/*, so they had no org check whatsoever. Canvas -> client -> org,
+// resolved in one query via an embedded join, not two sequential lookups.
 export async function withCanvas(
   params: Promise<{ id: string }>,
   handler: (canvasId: string, canvas: CanvasRow) => Promise<AnyResponse>,
 ): Promise<AnyResponse> {
   const { id: canvasId } = await params;
-  const canvas = await getCanvasById(canvasId);
-  if (!canvas) return apiError("Canvas not found.", 404);
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("canvases")
+    .select("*, clients!inner(org_id)")
+    .eq("id", canvasId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return apiError("Canvas not found.", 404);
 
-  const client = await getClientById(canvas.client_id);
+  const row = data as unknown as CanvasWithOrg;
+  const client = unwrapEmbed(row.clients);
   const caller = await resolveCallerContext();
   if (!client || client.org_id !== caller.orgId) {
     return apiError("Canvas not found.", 404);
   }
-  return handler(canvasId, canvas);
+  const { clients: _clients, ...canvas } = row;
+  return handler(canvasId, canvas as CanvasRow);
+}
+
+// ── Node resolution ───────────────────────────────────────────────────────────
+
+type NodeWithOrgChain = NodeRow & {
+  canvases:
+    | { client_id: string; clients: { org_id: string } | { org_id: string }[] | null }
+    | { client_id: string; clients: { org_id: string } | { org_id: string }[] | null }[]
+    | null;
+};
+
+// Same org-isolation shape as withClient()/withCanvas(), for the 13 route files under
+// /api/nodes/[id]/* — none of them went through withClient() (it only guards
+// /api/clients/[id]/*), so they had no org check at all. Node -> canvas -> client -> org,
+// resolved in ONE query via embedded joins (not three sequential round trips) — this
+// runs on every generation request, so the chain is collapsed up front, not after the fact.
+export async function withNode(
+  params: Promise<{ id: string }>,
+  handler: (nodeId: string, node: NodeRow) => Promise<AnyResponse>,
+): Promise<AnyResponse> {
+  const { id: nodeId } = await params;
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("nodes")
+    .select("*, canvases!inner(client_id, clients!inner(org_id))")
+    .eq("id", nodeId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return apiError("Node not found.", 404);
+
+  const row = data as unknown as NodeWithOrgChain;
+  const canvas = unwrapEmbed(row.canvases);
+  const client = canvas ? unwrapEmbed(canvas.clients) : null;
+  const caller = await resolveCallerContext();
+  if (!client || client.org_id !== caller.orgId) {
+    return apiError("Node not found.", 404);
+  }
+  const { canvases: _canvases, ...node } = row;
+  return handler(nodeId, node as NodeRow);
 }
 
 // ── Try/catch wrapper ─────────────────────────────────────────────────────────
