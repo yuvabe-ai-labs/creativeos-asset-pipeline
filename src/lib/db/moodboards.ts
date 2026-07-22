@@ -75,3 +75,23 @@ export async function removeItem(itemId: string): Promise<void> {
   const { error } = await supabase.from("moodboard_items").delete().eq("id", itemId);
   if (error) throw error;
 }
+
+export type ClientWithBoards = {
+  slug: string;
+  name: string;
+  boards: { id: string; name: string }[];
+};
+
+// For the capture extension's picker: active clients + their boards, one round-trip.
+export async function listClientsWithMoodboards(): Promise<ClientWithBoards[]> {
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("clients")
+    .select("slug, name, moodboards(id, name)")
+    .is("archived_at", null)
+    .order("name", { ascending: true });
+  if (error) throw error;
+  return (
+    (data ?? []) as { slug: string; name: string; moodboards: { id: string; name: string }[] | null }[]
+  ).map((c) => ({ slug: c.slug, name: c.name, boards: c.moodboards ?? [] }));
+}
