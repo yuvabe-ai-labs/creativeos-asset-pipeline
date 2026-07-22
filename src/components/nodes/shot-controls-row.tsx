@@ -8,6 +8,7 @@ import {
 } from "@/lib/nodes/shot-controls";
 import { ParamChipGroup } from "./param-chip-group";
 import { FieldLabel } from "./field-label";
+import { LensSelect } from "./lens-select";
 
 const ICONS: Record<ShotControlKey, LucideIcon> = {
   lens: Aperture,
@@ -27,16 +28,24 @@ export function ShotControlsRow({
 }) {
   return (
     <div className="flex flex-col gap-4">
-      {SHOT_CONTROLS.map((group) => (
-        <div key={group.key} className="space-y-2">
-          <FieldLabel icon={ICONS[group.key]} label={group.label} />
-          <ParamChipGroup
-            options={group.options.map((o) => ({ value: o.value, label: o.label }))}
-            value={controls[group.key]}
-            onValueChange={(value) => onChange({ ...controls, [group.key]: value })}
+      {SHOT_CONTROLS.map((group) =>
+        group.key === "lens" ? (
+          <LensSelect
+            key={group.key}
+            value={controls.lens}
+            onChange={(v) => onChange({ ...controls, lens: v })}
           />
-        </div>
-      ))}
+        ) : (
+          <div key={group.key} className="space-y-2">
+            <FieldLabel icon={ICONS[group.key]} label={group.label} />
+            <ParamChipGroup
+              options={group.options.map((o) => ({ value: o.value, label: o.label }))}
+              value={controls[group.key]}
+              onValueChange={(value) => onChange({ ...controls, [group.key]: value })}
+            />
+          </div>
+        ),
+      )}
     </div>
   );
 }
