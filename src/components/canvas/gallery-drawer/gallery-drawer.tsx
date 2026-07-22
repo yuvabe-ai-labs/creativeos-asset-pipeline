@@ -14,6 +14,7 @@ import {
 import { FullScreenImageZoom } from "@/components/shared/full-screen-image-zoom";
 import { useDriveBrowser } from "@/hooks/use-drive-browser";
 import { useCanvasGenerations } from "@/hooks/use-canvas-generations";
+import { useMoodboards } from "@/hooks/use-moodboards";
 import { useGalleryDrawer as useGalleryCommit } from "@/hooks/use-gallery-drawer";
 import { useGalleryDrawer as useDrawerCtx } from "../gallery-drawer-context";
 import { GalleryHeader } from "./gallery-header";
@@ -123,6 +124,7 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
 
   const browser = useDriveBrowser(rootFolder);
   const generations = useCanvasGenerations(canvasId);
+  const moodboards = useMoodboards(clientId);
 
   // Reset transient state on drawer close.
   const [wasOpen, setWasOpen] = useState(false);
@@ -229,6 +231,7 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
 
   function handleRefresh() {
     if (tab === "references") browser.refresh();
+    else if (tab === "moodboard") moodboards.refresh();
     else void generations.refresh();
   }
 
@@ -311,7 +314,7 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
           />
           <GalleryTabs value={tab} onChange={setTab} />
 
-          {!noFolderLinked && (
+          {!noFolderLinked && tab !== "moodboard" && (
             <GalleryToolbar
               searchQuery={browser.search}
               onSearchChange={browser.setSearch}
@@ -369,7 +372,31 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
           )}
 
           <div className="flex-1 overflow-y-auto px-4 py-3">
-            {noFolderLinked ? (
+            {tab === "moodboard" && !moodboards.selectedBoardId && (
+              <div className="flex flex-col gap-1">
+                {moodboards.boards.map((b) => (
+                  <GalleryFolderTile
+                    key={b.id}
+                    folder={{ id: b.id, name: b.name }}
+                    onClick={() => moodboards.selectBoard(b.id)}
+                  />
+                ))}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="mt-1 w-full justify-start border border-dashed border-primary/40 text-primary hover:bg-primary/5"
+                  onClick={() => {
+                    const name = window.prompt("New moodboard name");
+                    if (name?.trim()) void moodboards.createBoard(name.trim());
+                  }}
+                >
+                  + New moodboard
+                </Button>
+              </div>
+            )}
+
+            {tab !== "moodboard" &&
+              (noFolderLinked ? (
               <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
                 <FolderOpen className="size-10 text-muted-foreground/40" strokeWidth={1.5} />
                 <div className="space-y-1">
@@ -417,7 +444,7 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
                   loadingMore={tab === "references" ? browser.loadingMore : false}
                 />
               </>
-            )}
+              ))}
           </div>
 
           <GalleryFooter
