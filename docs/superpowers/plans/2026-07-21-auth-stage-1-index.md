@@ -150,6 +150,13 @@ which cross-org isolation can be fully verified.
 **Stage 1 (1A–1D) is now fully shipped to staging.** Next: Stage 2 (RLS backstop + async
 worker tenant check) per the rollout plan, whenever that work starts.
 
+**Post-1D fix (commit `7b6a0c5`):** found while scoping Stage 2 — three routes rooted at a
+canvas id (`/api/canvas/[id]/cost`, `/api/canvas/[id]/generations`,
+`/api/canvases/[cid]/lock/release`) never went through `withClient()` (it only guards
+`/api/clients/[id]/*`), so they had **no org isolation at all**. Fixed with a new
+`withCanvas()` helper (canvas → client → org check, same shape as `withClient`). Verified
+fixed on staging.
+
 **Production is not touched yet.** When ready to promote Stage 1's schema + data migration to
 production, follow `docs/auth-production-migration.md` — same procedure as 1A, replayed
 against the production Supabase project, with an ordering caveat about deploying the DB
