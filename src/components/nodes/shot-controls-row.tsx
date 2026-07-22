@@ -9,6 +9,7 @@ import {
 import { ParamChipGroup } from "./param-chip-group";
 import { FieldLabel } from "./field-label";
 import { LensSelect } from "./lens-select";
+import { CompositionSelect } from "./composition-select";
 
 const ICONS: Record<ShotControlKey, LucideIcon> = {
   lens: Aperture,
@@ -28,14 +29,26 @@ export function ShotControlsRow({
 }) {
   return (
     <div className="flex flex-col gap-4">
-      {SHOT_CONTROLS.map((group) =>
-        group.key === "lens" ? (
-          <LensSelect
-            key={group.key}
-            value={controls.lens}
-            onChange={(v) => onChange({ ...controls, lens: v })}
-          />
-        ) : (
+      {SHOT_CONTROLS.map((group) => {
+        if (group.key === "lens") {
+          return (
+            <LensSelect
+              key={group.key}
+              value={controls.lens}
+              onChange={(v) => onChange({ ...controls, lens: v })}
+            />
+          );
+        }
+        if (group.key === "composition") {
+          return (
+            <CompositionSelect
+              key={group.key}
+              value={controls.composition}
+              onChange={(v) => onChange({ ...controls, composition: v })}
+            />
+          );
+        }
+        return (
           <div key={group.key} className="space-y-2">
             <FieldLabel icon={ICONS[group.key]} label={group.label} />
             <ParamChipGroup
@@ -44,8 +57,8 @@ export function ShotControlsRow({
               onValueChange={(value) => onChange({ ...controls, [group.key]: value })}
             />
           </div>
-        ),
-      )}
+        );
+      })}
     </div>
   );
 }
