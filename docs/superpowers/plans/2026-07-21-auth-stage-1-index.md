@@ -150,6 +150,11 @@ which cross-org isolation can be fully verified.
 **Stage 1 (1A–1D) is now fully shipped to staging.** Next: Stage 2 (RLS backstop + async
 worker tenant check) per the rollout plan, whenever that work starts.
 
+**Production is not touched yet.** When ready to promote Stage 1's schema + data migration to
+production, follow `docs/auth-production-migration.md` — same procedure as 1A, replayed
+against the production Supabase project, with an ordering caveat about deploying the DB
+migration and the app code together (read the doc's last section before doing it).
+
 ## Definition of done for Stage 1 (all four sub-plans)
 
 See the rollout plan's Stage 1 "Shippable-to-staging checklist." Rolled up: an agency is
