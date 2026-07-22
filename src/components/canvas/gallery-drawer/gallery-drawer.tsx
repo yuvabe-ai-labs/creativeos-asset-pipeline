@@ -25,6 +25,8 @@ import { GalleryFooter } from "./gallery-footer";
 import { GalleryBreadcrumb } from "./gallery-breadcrumb";
 import { GalleryFolderTile } from "./gallery-folder-tile";
 import { DriveFolderPicker } from "./drive-folder-picker";
+import { GalleryAddUrl } from "./gallery-add-url";
+import { filenameFromUrl } from "@/lib/moodboards/filename";
 import type { GalleryImage, GalleryTab, ViewMode } from "./types";
 import type { DriveBrowseItem } from "@/hooks/use-drive-browser";
 
@@ -192,10 +194,25 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
     return assets.filter((img) => img.filename.toLowerCase().includes(q));
   }, [assets, browser.search]);
 
-  const activeImages = tab === "references" ? references : filteredAssets;
+  const moodboardImages: GalleryImage[] = useMemo(
+    () =>
+      moodboards.items.map((it) => ({
+        id: it.id,
+        imageUrl: it.image_url,
+        previewUrl: it.image_url,
+        filename: filenameFromUrl(it.image_url),
+        subtitle: new Date(it.added_at).toLocaleDateString(),
+        source: "moodboard" as const,
+        sourceUrl: it.source_url ?? undefined,
+      })),
+    [moodboards.items],
+  );
+
+  const activeImages =
+    tab === "references" ? references : tab === "assets" ? filteredAssets : moodboardImages;
 
   function toggleSelect(id: string) {
-    const allImages = [...references, ...assets];
+    const allImages = [...references, ...assets, ...moodboardImages];
     const image = allImages.find((i) => i.id === id);
     if (!image) return;
     setSelectedIds((prev) => {
@@ -277,7 +294,7 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
   }
 
   const previewImage = previewId
-    ? [...references, ...assets].find((i) => i.id === previewId)
+    ? [...references, ...assets, ...moodboardImages].find((i) => i.id === previewId)
     : null;
 
   const folderItems = browser.items.filter(
@@ -394,6 +411,41 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
                 </Button>
               </div>
             )}
+
+            {tab === "moodboard" && moodboards.selectedBoardId ? (
+              <>
+                <GalleryBreadcrumb
+                  stack={[
+                    { id: "__root__", name: "Moodboards" },
+                    {
+                      id: moodboards.selectedBoardId,
+                      name:
+                        moodboards.boards.find((b) => b.id === moodboards.selectedBoardId)?.name ??
+                        "Board",
+                    },
+                  ]}
+                  onNavigateTo={(i) => {
+                    if (i === 0) moodboards.selectBoard(null);
+                  }}
+                />
+                <GalleryAddUrl onAdd={(url) => void moodboards.addItemUrl(url)} />
+                <GalleryContent
+                  loading={moodboards.loading}
+                  loadError={null}
+                  onRetry={moodboards.refresh}
+                  images={activeImages}
+                  emptyMessage="No references yet — paste an image URL to add one."
+                  viewMode={viewMode}
+                  selectedIds={selectedIds}
+                  onToggle={toggleSelect}
+                  onPreview={setPreviewId}
+                  onDragStartImage={handleDragStartImage}
+                  onSentinelInView={() => {}}
+                  hasMore={false}
+                  loadingMore={false}
+                />
+              </>
+            ) : null}
 
             {tab !== "moodboard" &&
               (noFolderLinked ? (
