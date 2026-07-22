@@ -5,9 +5,8 @@
 
 import { SHOT_CONTROLS, type ShotControlOption } from "./shot-controls";
 
-// The demo asset cropped five ways. Swap this one constant to the operator's real product shot
-// (e.g. "/lens-preview.jpg") — nothing else changes.
-export const LENS_PREVIEW_SRC = "/lens-preview.svg";
+// The demo asset cropped five ways. One constant — swap it to change the shot; nothing else moves.
+export const LENS_PREVIEW_SRC = "/lens-preview.png";
 
 const LENS_OPTIONS: ShotControlOption[] =
   SHOT_CONTROLS.find((g) => g.key === "lens")?.options ?? [];
