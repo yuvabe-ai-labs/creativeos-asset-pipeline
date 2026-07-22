@@ -15,7 +15,7 @@ switch" moment in **1C**, every checkpoint leaves the app in a working state.
 | **1A** | Schema + **data migration** (existing data → Yuvabe org) + bootstrap doc | Working, still unauthenticated | `2026-07-21-auth-stage-1a-schema-data-migration.md` | ✅ **done (staging) — see log below** |
 | **1B** | Session foundation: `@supabase/ssr` clients, DAL, `/api/me`, `requireSuperAdmin`, pure tests | Working, still open (no gating yet) | `2026-07-21-auth-stage-1b-session-foundation.md` | ✅ **done (staging) — see log below** |
 | **1C** | Login page + sign-in/sign-out actions, **then** `proxy.ts` + `withClient` org check + org-scoped queries + `useIdentity` swap. Forced password change deferred (D84). | **Login required; isolation live** (the switch) | `2026-07-21-auth-stage-1c-login-enforcement.md` | ✅ **done (staging) — see log below** |
-| **1D** | Admin onboarding UI: organizations repo, admin actions, `/admin`, `/admin/orgs/new`, `/admin/orgs/[id]` | Working; UI onboarding end-to-end | `2026-07-21-auth-stage-1d-admin-onboarding-ui.md` | ✍️ **written — awaiting review/execution** |
+| **1D** | Admin onboarding UI: organizations repo, admin actions, `/admin`, `/admin/orgs/new`, `/admin/orgs/[id]` | Working; UI onboarding end-to-end | `2026-07-21-auth-stage-1d-admin-onboarding-ui.md` | ✅ **done (staging) — see log below** |
 
 ## Parked follow-up (not blocking)
 
@@ -108,6 +108,47 @@ version.
 
 **Next:** write sub-plan **1D (Admin Onboarding UI)** — also the first point at
 which cross-org isolation can be fully verified.
+
+## 1D completion log (2026-07-21, staging) — Stage 1 complete
+
+- Commits `5279a9b` (org schema, TDD), `7517268` (organizations repo), `5fb2bfa`
+  (admin actions), `1124e2a` (org list page), `2cea6df` (create-org form), `f7c7717`
+  (org detail page), `1cf0c62` (unrelated copy cleanup found while testing), `55227da`
+  (D85 — super_admin scoping fix). Eight commits total (six planned + two found during
+  verification).
+- `npm test`: 523/523 passing. `npm run build`: clean (one transient Windows file-lock
+  conflict with the running dev server, not a code issue — resolved by verifying via
+  the dev server's own compiler instead of fighting the lock).
+- **Real bug caught and fixed during manual verification:** `listOrgMembers`'s embedded
+  `profiles(display_name)` select failed at runtime (PGRST200) — `org_memberships` and
+  `profiles` both reference `auth.users` but have no direct FK to *each other*, so
+  PostgREST can't auto-join them. Not a build-time error; only surfaced by actually
+  opening the org detail page. Fixed with two batched queries + a JS join (same pattern
+  as `resolveCallerContext`). Considered adding the FK instead (`org_memberships.user_id
+  → profiles.user_id`, valid since `profiles.user_id` is a PK) for a single round trip,
+  but deferred since it would reopen 1D's "no new migrations" boundary — candidate for
+  Stage 2's migration work instead.
+- **Architecture correction mid-plan (D85):** caught during isolation testing that
+  super_admin's blanket bypass (built in 1C, per the original spec's §6) meant Yuvabe's
+  own workspace showed every onboarded agency's clients mixed in — didn't scale, and
+  made impersonation pointless. Reverted the bypass in `withClient` + the three list
+  queries; super_admin now sees only their own org outside `/admin`, matching what the
+  spec's §7 (impersonation) actually implied. Full ADR entry: D85.
+- **The real, corrected cross-org isolation test — full end-to-end pass:**
+  - Created a second org ("Arun Kumar J") + owner via `/admin/orgs/new` (no CLI, D82)
+  - Agency owner's first login: empty client list (not Yuvabe's 28)
+  - Created a client as the agency: appeared correctly in their own list
+  - Attempted to reach a Yuvabe client (`/api/clients/<yuvabe-client-id>/kb/active`)
+    while signed in as the agency: **404** — `withClient`'s org check holds
+  - `/admin` while signed in as the agency: **404** — not super_admin
+  - Signed back in as `developer@yuvabe.com`: sees **only** Yuvabe's clients now (not
+    the agency's) — confirms D85's fix; `/admin` still correctly shows both orgs
+- Two unrelated dev-artifact strings found and cleaned up while testing (a leftover
+  "Increment 1D · persisted" debug label, and implementation-detail empty-state copy)
+  — not auth-related, folded in since they were spotted mid-verification.
+
+**Stage 1 (1A–1D) is now fully shipped to staging.** Next: Stage 2 (RLS backstop + async
+worker tenant check) per the rollout plan, whenever that work starts.
 
 ## Definition of done for Stage 1 (all four sub-plans)
 
