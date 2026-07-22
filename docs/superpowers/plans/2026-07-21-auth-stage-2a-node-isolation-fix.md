@@ -4,7 +4,7 @@
 
 **Goal:** Close a real, currently-open org-isolation gap. All 13 `/api/nodes/[id]/*` route files (16 exported handlers) never pass through `withClient()` — it only guards `/api/clients/[id]/*` — so right now any authenticated user can trigger generation, mutate, or read any org's nodes by id. Same architectural class of bug as the canvas-rooted routes fixed post-1D (commit `7b6a0c5`), same fix shape: a new `withNode()` helper, wired through every route.
 
-**Architecture:** `withNode()` mirrors `withClient()`/`withCanvas()` exactly — resolve the node by id, walk `node → canvas → client`, compare `client.org_id` to the caller's, 404 (never 403) on mismatch, then hand `(nodeId, node)` to the route's existing logic unchanged. Every one of the 13 files gets the identical mechanical transform: wrap the existing handler body in `withNode(params, async (nodeId, node) => { ...unchanged... })`. No route's actual behavior changes for a same-org caller — only the org check is added.
+**Architecture:** `withNode()` resolves `node → canvas → client.org_id` in a **single PostgREST query** (embedded `!inner` joins: `nodes.select("*, canvases!inner(client_id, clients!inner(org_id))")`), not three sequential round trips — raised as a real performance concern before writing any code, so the chain is collapsed up front rather than optimized later. `withCanvas()` (already shipped, commit `7b6a0c5`) gets the same treatment retrofitted in this task for consistency — it currently does two sequential queries where one now suffices. `withClient()` is unaffected — it was already a single query. Every node route gets the identical mechanical transform: wrap the existing handler body in `withNode(params, async (nodeId, node) => { ...unchanged... })`. No route's actual behavior changes for a same-org caller — only the org check is added, and it costs one query, not three.
 
 **Tech Stack:** TypeScript, Next.js 16 Route Handlers, existing `route-helpers.ts` patterns (`withClient`, `withCanvas`, `withTryCatch`).
 
@@ -22,80 +22,144 @@
 **New/modified**
 | File | Change |
 |---|---|
-| `src/lib/db/nodes.ts` | Add `getNodeById(id): Promise<NodeRow \| null>` |
-| `src/lib/api/route-helpers.ts` | Add `withNode()` |
+| `src/lib/api/route-helpers.ts` | Add `withNode()` (single-query) + `unwrapEmbed()`; retrofit `withCanvas()` to single-query |
 | 13 route files under `src/app/api/nodes/[id]/*/route.ts` | Wrap each exported handler in `withNode()` |
 
 ---
 
-## Task 1: `getNodeById` + `withNode()` helper
+## Task 1: `withNode()` helper (single-query) + retrofit `withCanvas()` to match
 
 **Files:**
-- Modify: `src/lib/db/nodes.ts`
 - Modify: `src/lib/api/route-helpers.ts`
 
 **Interfaces:**
-- Produces: `getNodeById(id: string): Promise<NodeRow | null>`; `withNode(params: Promise<{id: string}>, handler: (nodeId: string, node: NodeRow) => Promise<AnyResponse>): Promise<AnyResponse>`.
+- Produces: `withNode(params: Promise<{id: string}>, handler: (nodeId: string, node: NodeRow) => Promise<AnyResponse>): Promise<AnyResponse>` — one query via embedded joins, not three sequential lookups.
+- Changes: `withCanvas()`'s internals (same public signature, callers unaffected) — one query instead of two.
 
-- [ ] **Step 1: Add `getNodeById`**
+- [ ] **Step 1: Add a small embed-unwrap helper**
 
-In `src/lib/db/nodes.ts`, add (matching the existing file's style — check its top imports for `createServerSupabase` and `NodeRow` before adding, reuse what's already imported):
+PostgREST returns an embedded to-one relation as either an object or a single-element array
+depending on schema-cache heuristics (the same ambiguity already handled in
+`recent-canvas.ts` and `organizations.ts::listOrgMembers`). Both `withCanvas` and `withNode`
+need to unwrap this twice now (once for `withNode`'s two nested levels), so factor it out
+once instead of repeating the `Array.isArray` check inline:
 
 ```ts
-export async function getNodeById(id: string): Promise<NodeRow | null> {
-  const supabase = createServerSupabase();
-  const { data, error } = await supabase
-    .from("nodes")
-    .select("*")
-    .eq("id", id)
-    .maybeSingle();
-  if (error) throw error;
-  return (data as NodeRow) ?? null;
+function unwrapEmbed<T>(value: T | T[] | null | undefined): T | null {
+  if (Array.isArray(value)) return value[0] ?? null;
+  return value ?? null;
 }
 ```
 
-- [ ] **Step 2: Add `withNode()`**
+- [ ] **Step 2: Rewrite `withCanvas()` as a single query**
 
-In `src/lib/api/route-helpers.ts`, add the import and the helper, following `withCanvas`'s exact shape:
+Replace the existing `withCanvas()` (currently `getCanvasById` + `getClientById`, two
+sequential queries) with:
 
 ```ts
-import { getNodeById } from "@/lib/db/nodes";
-import type { ClientRow, CanvasRow, NodeRow } from "@/lib/db/types";
+type CanvasWithOrg = CanvasRow & {
+  clients: { org_id: string } | { org_id: string }[] | null;
+};
+
+export async function withCanvas(
+  params: Promise<{ id: string }>,
+  handler: (canvasId: string, canvas: CanvasRow) => Promise<AnyResponse>,
+): Promise<AnyResponse> {
+  const { id: canvasId } = await params;
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("canvases")
+    .select("*, clients!inner(org_id)")
+    .eq("id", canvasId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return apiError("Canvas not found.", 404);
+
+  const row = data as unknown as CanvasWithOrg;
+  const client = unwrapEmbed(row.clients);
+  const caller = await resolveCallerContext();
+  if (!client || client.org_id !== caller.orgId) {
+    return apiError("Canvas not found.", 404);
+  }
+  const { clients: _clients, ...canvas } = row;
+  return handler(canvasId, canvas as CanvasRow);
+}
 ```
 
+Note: `clients!inner(...)` (inner join) means a canvas whose client somehow doesn't exist
+(shouldn't happen, FK-enforced) is excluded by the query itself rather than needing a
+separate null check — `maybeSingle()` just returns `null` for that case, same 404 path.
+
+- [ ] **Step 3: Add `withNode()` as a single query (double-embedded)**
+
+Add the import at the top: `import { createServerSupabase } from "@/lib/supabase/server";`
+(needed by both the rewritten `withCanvas` and the new `withNode`). Then:
+
 ```ts
+type NodeWithOrgChain = NodeRow & {
+  canvases:
+    | { client_id: string; clients: { org_id: string } | { org_id: string }[] | null }
+    | { client_id: string; clients: { org_id: string } | { org_id: string }[] | null }[]
+    | null;
+};
+
 // Same org-isolation shape as withClient()/withCanvas(), for the 13 route files under
 // /api/nodes/[id]/* — none of them went through withClient() (it only guards
-// /api/clients/[id]/*), so they had no org check at all. Node -> canvas -> client -> org.
+// /api/clients/[id]/*), so they had no org check at all. Node -> canvas -> client -> org,
+// resolved in ONE query via embedded joins (not three sequential round trips) — this
+// runs on every generation request, so the chain is collapsed up front, not after the fact.
 export async function withNode(
   params: Promise<{ id: string }>,
   handler: (nodeId: string, node: NodeRow) => Promise<AnyResponse>,
 ): Promise<AnyResponse> {
   const { id: nodeId } = await params;
-  const node = await getNodeById(nodeId);
-  if (!node) return apiError("Node not found.", 404);
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("nodes")
+    .select("*, canvases!inner(client_id, clients!inner(org_id))")
+    .eq("id", nodeId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return apiError("Node not found.", 404);
 
-  const canvas = await getCanvasById(node.canvas_id);
-  if (!canvas) return apiError("Node not found.", 404);
-  const client = await getClientById(canvas.client_id);
+  const row = data as unknown as NodeWithOrgChain;
+  const canvas = unwrapEmbed(row.canvases);
+  const client = canvas ? unwrapEmbed(canvas.clients) : null;
   const caller = await resolveCallerContext();
   if (!client || client.org_id !== caller.orgId) {
     return apiError("Node not found.", 404);
   }
-  return handler(nodeId, node);
+  const { canvases: _canvases, ...node } = row;
+  return handler(nodeId, node as NodeRow);
 }
 ```
 
-- [ ] **Step 3: Verify the build compiles**
+- [ ] **Step 4: Remove now-unused imports**
+
+`withCanvas`'s rewrite no longer calls `getCanvasById`/`getClientById` internally — but
+`getClientById` is still used by `withClient()`, so only drop `getCanvasById` from the
+imports if nothing else in this file uses it (check first: `grep -n "getCanvasById"
+src/lib/api/route-helpers.ts`). Do **not** delete `getCanvasById` from
+`src/lib/db/canvases.ts` itself — it may be used elsewhere (check before removing anything
+there; this task only touches `route-helpers.ts`).
+
+- [ ] **Step 5: Verify the build compiles**
 
 Run: `npm run build`
-Expected: PASS (nothing calls `withNode` yet, so this only proves the helper itself type-checks).
+Expected: PASS.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 6: Manual verification — `withCanvas` still works after the retrofit**
+
+The 3 canvas routes fixed earlier (`/api/canvas/[id]/cost`, `/api/canvas/[id]/generations`,
+`/api/canvases/[cid]/lock/release`) didn't change their own code, only what `withCanvas`
+does internally. Signed in as Yuvabe, confirm a canvas's cost badge / generation history
+still loads normally (same-org access unaffected by the rewrite).
+
+- [ ] **Step 7: Commit**
 
 ```bash
-git add src/lib/db/nodes.ts src/lib/api/route-helpers.ts
-git commit -m "feat(auth): withNode helper (node -> canvas -> client -> org check)"
+git add src/lib/api/route-helpers.ts
+git commit -m "feat(auth): withNode helper (single query) + collapse withCanvas to one query"
 ```
 
 ---
@@ -368,3 +432,7 @@ backstop)**.
   check rather than assume it has no isolation logic at all, since it's the one route already
   touching an ownership-resolution helper (for storage paths) — verify what it actually does
   before concluding it needs the exact same treatment as the other 12.
+- **Performance concern raised before writing code, not after** → `withNode()` was designed
+  as a single embedded-join query from the start (Task 1), not shipped as 3 sequential
+  queries and optimized later; `withCanvas()` (already shipped) is retrofitted in the same
+  task for consistency rather than left inconsistent with the new pattern.
