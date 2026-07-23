@@ -26,6 +26,8 @@ type ShotTileStripProps = {
   caption: (value: string) => string; // full label + descriptor under the strip
   mediaSrc: (value: string) => string; // the tile image
   mediaStyle?: (value: string) => CSSProperties | undefined; // e.g. Lens' focal-length zoom
+  columns?: number; // set → CSS-grid layout with N columns; unset → single flex row
+  placeholderIcon?: LucideIcon; // shown when a tile's mediaSrc is "" (default: the strip's `icon`)
 };
 
 // Shared "show-don't-tell" strip for a shot control: an image tile per option cropped/framed to
@@ -45,8 +47,11 @@ export function ShotTileStrip({
   caption,
   mediaSrc,
   mediaStyle,
+  columns,
+  placeholderIcon,
 }: ShotTileStripProps) {
   const autoActive = value === autoOption.value;
+  const PlaceholderIcon = placeholderIcon ?? icon;
   return (
     // One provider for the row so that, once any tooltip opens, hovering a neighbour opens instantly.
     <TooltipProvider delay={300}>
@@ -76,9 +81,15 @@ export function ShotTileStrip({
           </Tooltip>
         </div>
 
-        <div className="flex gap-1.5">
+        <div
+          className={cn(columns ? "grid gap-1.5" : "flex gap-1.5")}
+          style={
+            columns ? { gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` } : undefined
+          }
+        >
           {tiles.map((opt) => {
             const active = opt.value === value;
+            const src = mediaSrc(opt.value);
             return (
               <Tooltip key={opt.value}>
                 <TooltipTrigger
@@ -88,20 +99,30 @@ export function ShotTileStrip({
                       aria-pressed={active}
                       onClick={() => onChange(opt.value)}
                       className={cn(
-                        "nodrag h-auto flex-1 flex-col gap-1 p-1 duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]",
+                        "nodrag h-auto flex-col gap-1 p-1 duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]",
+                        columns ? "w-full" : "flex-1",
                         active &&
                           "z-10 scale-105 border-primary bg-primary/5 shadow-lg ring-2 ring-primary",
                       )}
                     >
                       <span className="relative block aspect-square w-full overflow-hidden rounded-[6px]">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={mediaSrc(opt.value)}
-                          alt=""
-                          aria-hidden
-                          className="absolute inset-0 block h-full w-full object-cover object-center"
-                          style={mediaStyle?.(opt.value)}
-                        />
+                        {src ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={src}
+                            alt=""
+                            aria-hidden
+                            className="absolute inset-0 block h-full w-full object-cover object-center"
+                            style={mediaStyle?.(opt.value)}
+                          />
+                        ) : (
+                          <span className="absolute inset-0 flex items-center justify-center bg-muted">
+                            <PlaceholderIcon
+                              className="size-5 text-muted-foreground/60"
+                              strokeWidth={1.5}
+                            />
+                          </span>
+                        )}
                       </span>
                       <span
                         className={cn(
