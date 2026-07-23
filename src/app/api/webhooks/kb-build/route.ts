@@ -50,6 +50,20 @@ export async function POST(req: Request) {
   }
   if (!body?.jobId || !body?.kind) return apiError("Missing jobId or kind.", 400);
 
+  // D79: same backstop as the generation webhook — the job's recorded org must still
+  // match its client's current org. Checked for every kind, not just "succeeded".
+  const jobForCheck = await getKBJob(body.jobId);
+  if (!jobForCheck) return apiError("Job not found.", 404);
+  const clientForCheck = await getClientById(jobForCheck.client_id);
+  if (!clientForCheck || clientForCheck.org_id !== jobForCheck.org_id) {
+    console.error("[webhooks/kb-build] org mismatch — dropping", {
+      jobId: body.jobId,
+      recordedOrgId: jobForCheck.org_id,
+      currentOrgId: clientForCheck?.org_id ?? null,
+    });
+    return apiOk({ ok: true, dropped: "org mismatch" });
+  }
+
   try {
     if (body.kind === "phase") {
       await updateKBJobPhase({
@@ -66,8 +80,7 @@ export async function POST(req: Request) {
     }
 
     // kind === "succeeded" — terminal: do all the graduation writes.
-    const job = await getKBJob(body.jobId);
-    if (!job) return apiError("Job not found.", 404);
+    const job = jobForCheck;
     if (!NON_TERMINAL.includes(job.status)) {
       // Already terminal — idempotent no-op.
       return apiOk({ ok: true, alreadyTerminal: true });
