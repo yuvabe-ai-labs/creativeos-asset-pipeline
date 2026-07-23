@@ -502,7 +502,7 @@ export function VideoPromptFocusView({
 
                   {/* Top row: Frame (fixed 9:16 preview) beside the Camera grid / Kling breadcrumb */}
                   <div className="flex items-start gap-5">
-                    <div className="flex w-48 shrink-0 flex-col gap-2">
+                    <div className="flex w-32 shrink-0 flex-col gap-2">
                       <div className="flex items-center gap-1.5">
                         <ImageIcon className="size-3.5 text-primary" />
                         <span className="text-eyebrow">Frame</span>
