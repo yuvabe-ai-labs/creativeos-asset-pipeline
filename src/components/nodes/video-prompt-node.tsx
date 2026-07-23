@@ -12,6 +12,7 @@ import { savePromptOutputAction } from "@/lib/actions/nodes";
 import { VideoPromptFocusView } from "./video-prompt-focus-view";
 import { DEFAULT_IMAGE_PROMPT_SLICES, type KBSliceKey } from "@/lib/kb/parse-context";
 import type { VideoControls } from "@/lib/nodes/video-controls";
+import type { VideoProvider } from "@/prompts/video-prompt-generate";
 import { NodeContextMenu } from "./node-context-menu";
 import { NodeTitle } from "./node-title";
 import { NodeHandle } from "./node-handle";
@@ -74,6 +75,7 @@ export function VideoPromptNode({ id, data, selected, positionAbsoluteX, positio
     parsed?: unknown;
     kbSlices?: KBSliceKey[];
     controls?: VideoControls;
+    targetProvider?: VideoProvider;
   };
   const title = d.title ?? "";
   const instruction = d.instruction ?? "";
@@ -154,6 +156,7 @@ export function VideoPromptNode({ id, data, selected, positionAbsoluteX, positio
           output={output}
           slices={slices}
           controls={controls}
+          targetProvider={d.targetProvider ?? null}
           upstream={upstream}
           onPatch={(patch) => updateNodeData(id, patch)}
           onSaveOutput={(o) => savePromptOutputAction(id, o)}

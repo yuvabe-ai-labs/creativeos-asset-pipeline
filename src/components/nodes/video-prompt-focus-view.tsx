@@ -13,6 +13,7 @@ import {
   FileInput,
   ImageIcon,
   ExternalLink,
+  Video,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -27,7 +28,12 @@ import { DEFAULT_MOTION_INSTRUCTION } from "@/lib/nodes/video-prompt";
 import type { KBSliceKey } from "@/lib/kb/parse-context";
 import { CameraSelect } from "./camera-select";
 import { SpeedSelect } from "./speed-select";
+import { TargetProviderSelect } from "./target-provider-select";
 import { DEFAULT_VIDEO_CONTROLS, type VideoControls } from "@/lib/nodes/video-controls";
+import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
+import { findDescendantsOfType } from "@/lib/canvas/graph";
+import { videoGenClientModelMap, DEFAULT_VIDEO_CLIENT_MODEL_ID } from "@/lib/video-gen/client-models";
+import type { VideoProvider } from "@/prompts/video-prompt-generate";
 import {
   ConnectedDetailView,
   NodeIcon,
@@ -60,6 +66,7 @@ type VideoPromptFocusViewProps = {
   output: string | null;
   slices: KBSliceKey[];
   controls: VideoControls | null;
+  targetProvider: VideoProvider | null;
   upstream: UpstreamNode[];
   onPatch: (patch: Record<string, unknown>) => void;
   onSaveOutput: (output: string) => Promise<void>;
@@ -74,6 +81,7 @@ export function VideoPromptFocusView({
   output,
   slices,
   controls,
+  targetProvider,
   upstream,
   onPatch,
   onSaveOutput,
@@ -141,6 +149,31 @@ export function VideoPromptFocusView({
 
   // The Image Gen still the motion prompt is grounded on (vision frame).
   const visionFrame = upstream.find((u) => u.type === "image-gen" && !!u.fileUrl) ?? null;
+
+  // D77: connected downstream Video Gen nodes are the single source of truth for the target
+  // provider. None connected → the node's own selector value governs; multiple with differing
+  // providers → provider-neutral (text-camera).
+  const nodes = useCanvasStore((s) => s.nodes);
+  const edges = useCanvasStore((s) => s.edges);
+  const downstreamGen = findDescendantsOfType(nodeId, nodes, edges, "video-gen");
+  const providerOf = (modelId?: string): VideoProvider =>
+    (videoGenClientModelMap[modelId ?? DEFAULT_VIDEO_CLIENT_MODEL_ID]?.provider ?? "veo") as VideoProvider;
+  const downstreamProviders = Array.from(
+    new Set(downstreamGen.map((n) => providerOf((n.data as { modelId?: string })?.modelId))),
+  );
+  const locked = downstreamProviders.length >= 1;
+  const mixed = downstreamProviders.length > 1;
+  const selectorValue: VideoProvider = targetProvider ?? "veo";
+  const effectiveProvider: VideoProvider = mixed
+    ? "veo"
+    : locked
+      ? downstreamProviders[0]
+      : selectorValue;
+  const lockedLabel = mixed
+    ? "Mixed downstream — writing provider-neutral"
+    : locked
+      ? `${videoGenClientModelMap[(downstreamGen[0].data as { modelId?: string })?.modelId ?? DEFAULT_VIDEO_CLIENT_MODEL_ID]?.label ?? "Video model"} · set by connected video node`
+      : undefined;
 
   const dirty = (output ?? "") !== draft && draft.trim() !== "";
   const mode: "skeleton" | "result" | "empty" = generating
@@ -278,6 +311,7 @@ export function VideoPromptFocusView({
           instruction: instructionDraft,
           slices,
           controls: controls ?? DEFAULT_VIDEO_CONTROLS,
+          targetProvider: effectiveProvider,
         }),
       });
       const json = await res.json();
@@ -459,6 +493,13 @@ export function VideoPromptFocusView({
               <div className="flex h-full w-full min-h-0 overflow-hidden">
                 {/* Left column — compose: Frame beside Camera/Speed, Instruction below */}
                 <div className="flex w-[58%] shrink-0 min-h-0 flex-col gap-5 overflow-y-auto border-r border-border px-6 py-5">
+                  {/* Target model — provider this motion prompt is written for (D77) */}
+                  <TargetProviderSelect
+                    value={effectiveProvider}
+                    onChange={(p) => onPatch({ targetProvider: p })}
+                    lockedLabel={lockedLabel}
+                  />
+
                   {/* Top row: Frame beside the Camera grid — heights matched (no dead gap) */}
                   <div className="flex items-stretch gap-5">
                     <div className="flex w-48 shrink-0 flex-col gap-2">
@@ -483,14 +524,21 @@ export function VideoPromptFocusView({
                     </div>
 
                     <div className="min-w-0 flex-1">
-                      <CameraSelect
-                        value={(controls ?? DEFAULT_VIDEO_CONTROLS).camera}
-                        onChange={(v) =>
-                          onPatch({
-                            controls: { ...(controls ?? DEFAULT_VIDEO_CONTROLS), camera: v },
-                          })
-                        }
-                      />
+                      {effectiveProvider === "kling" ? (
+                        <div className="flex h-full items-center gap-1.5 rounded-lg border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">
+                          <Video className="size-3.5 text-primary" strokeWidth={1.5} />
+                          Camera — set on the connected Kling video node
+                        </div>
+                      ) : (
+                        <CameraSelect
+                          value={(controls ?? DEFAULT_VIDEO_CONTROLS).camera}
+                          onChange={(v) =>
+                            onPatch({
+                              controls: { ...(controls ?? DEFAULT_VIDEO_CONTROLS), camera: v },
+                            })
+                          }
+                        />
+                      )}
                     </div>
                   </div>
 
