@@ -4,6 +4,7 @@ import Link from "next/link";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { IdentityChip } from "@/components/identity/identity-chip";
+import { AdminNavLink } from "@/components/identity/admin-nav-link";
 
 // Yuvabe brand fonts (ref/Yuvabe Studios Design System). Two families only.
 const clash = localFont({
@@ -52,7 +53,10 @@ export default function RootLayout({
               Creative<span className="text-primary">OS</span>
             </span>
           </Link>
-          <IdentityChip />
+          <div className="flex items-center gap-3">
+            <AdminNavLink />
+            <IdentityChip />
+          </div>
         </header>
         {children}
         <Toaster />
