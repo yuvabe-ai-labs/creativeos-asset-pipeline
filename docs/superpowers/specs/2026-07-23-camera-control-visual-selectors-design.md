@@ -61,10 +61,10 @@ with the Image Prompt.
 ```
  🎥 Camera                                   [ ✦ Auto ]     header: FieldLabel left, Auto chip right
  ┌────┐ ┌────┐ ┌────┐ ┌────┐
- │ img│ │ img│ │ img│ │ img│                 row 1: Push in · Pull back · Orbit · Pan
+ │ ▨  │ │ img│ │ img│ │ img│                 row 1: Static(placeholder) · Push in · Pull back · Orbit
  └────┘ └────┘ └────┘ └────┘
  ┌────┐ ┌────┐ ┌────┐ ┌────┐
- │ img│ │ img│ │ ▨  │ │ ▨  │                 row 2: Tilt · Crane · Static(placeholder) · Handheld(placeholder)
+ │ img│ │ img│ │ ▨  │ │ img│                 row 2: Pan · Tilt · Handheld(placeholder) · Crane
  └────┘ └────┘ └────┘ └────┘
   Push in                                     tile label (selected → inverted pill)
  A slow push-in toward the subject            caption: prose of the selected option
@@ -74,7 +74,8 @@ with the Image Prompt.
 ```
 
 - Camera tiles in a **4-column grid** (2 rows of 4). Order follows `VIDEO_CONTROLS` (minus Auto):
-  push-in, pull-back, orbit, pan, tilt, crane, static, handheld.
+  static, push-in, pull-back, orbit, pan, tilt, handheld, crane — placeholders sit in their natural
+  positions (matching the old dropdown order), not grouped at the end.
 - When `camera === "auto"`: no tile ring; Auto chip is active; caption reads
   `Camera move chosen by the model`.
 - Speed chips: `Auto / Subtle / Moderate / Dynamic`, active chip in brand purple (existing
