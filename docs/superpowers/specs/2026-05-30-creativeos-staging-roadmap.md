@@ -1523,6 +1523,23 @@ doesn't scale and undercuts D52's impersonation design.
 
 **Originated →** `2026-07-21-auth-stage-1d-admin-onboarding-ui.md`.
 
+### D86 — Dropped a pre-existing `anon_read_generations` RLS policy that silently defeated the new org-isolation policy *(recorded 2026-07-23; Stage 2B)*
+
+**Decision.** `generations` carried a pre-existing `anon_read_generations` policy
+(`qual: true`, `roles: {public}`) predating this rollout — not recorded in any migration,
+likely a leftover from the pre-auth era (D14, "whole app open," never cleaned up when login
+was added). Postgres OR's permissive RLS policies together, so this unconditional policy
+granted public read access to every row — including to unauthenticated `anon` requests
+hitting Supabase's REST API directly, bypassing the Next.js app entirely — regardless of
+0014's new org-scoped `org isolation` policy on the same table. Dropped in migration `0015`.
+
+**Why.** Found only by inspecting `pg_policies` directly after applying 0014; the migration's
+own `rowsecurity`/row-count checks reported success without revealing a second policy quietly
+overriding the first. Left in place, the RLS backstop just built for `generations` would have
+been cosmetic — present in the catalog, provably inert in practice.
+
+**Originated →** `2026-07-21-auth-stage-2b-rls-backstop.md`.
+
 ### Parked / out-of-scope (with revisit triggers)
 | Item | Status | Revisit when |
 |---|---|---|
