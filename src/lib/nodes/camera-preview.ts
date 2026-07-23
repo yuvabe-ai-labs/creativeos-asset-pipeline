@@ -20,7 +20,7 @@ export const CAMERA_AUTO: VideoControlOption =
 export const CAMERA_IMAGES: Record<string, string> = {
   "push-in": "/camera-controls/zoom-in.webp",
   "pull-back": "/camera-controls/zoom-out.webp",
-  orbit: "/camera-controls/tracking-shot.webp",
+  tracking: "/camera-controls/tracking-shot.webp",
   pan: "/camera-controls/pan-left.webp",
   tilt: "/camera-controls/tilt-up.webp",
   crane: "/camera-controls/crane.webp",
