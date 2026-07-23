@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
-import Link from "next/link";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
-import { IdentityChip } from "@/components/identity/identity-chip";
-import { AdminNavLink } from "@/components/identity/admin-nav-link";
+import { HeaderBrand } from "@/components/layout/header-brand";
+import { HeaderActions } from "@/components/layout/header-actions";
 
 // Yuvabe brand fonts (ref/Yuvabe Studios Design System). Two families only.
 const clash = localFont({
@@ -48,15 +47,8 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <header className="sticky top-0 z-40 flex h-16 shrink-0 items-center justify-between border-b border-border/80 bg-background/80 px-6 backdrop-blur-md">
-          <Link href="/" className="flex items-baseline gap-2">
-            <span className="font-display text-xl font-semibold tracking-tight">
-              Creative<span className="text-primary">OS</span>
-            </span>
-          </Link>
-          <div className="flex items-center gap-3">
-            <AdminNavLink />
-            <IdentityChip />
-          </div>
+          <HeaderBrand />
+          <HeaderActions />
         </header>
         {children}
         <Toaster />
