@@ -3,6 +3,7 @@ import { insertVersion, setActiveVersion } from "@/lib/db/versions";
 import { getGeneration, succeedGeneration, failGeneration } from "@/lib/db/generations";
 import { computeVideoCost } from "@/lib/video-gen/cost";
 import { uploadVideoGen } from "@/lib/storage";
+import { createServerSupabase } from "@/lib/supabase/server";
 
 function buildVideoDownloadHeaders(modelUsed: string | null): HeadersInit {
   const base = { "User-Agent": "Mozilla/5.0 (compatible; CreativeOS/1.0)" };
@@ -38,6 +39,31 @@ export async function completeGeneration(
 
   // Idempotency: skip if already resolved (duplicate webhook delivery)
   if (generation.status !== "running") return;
+
+  // D79: the org recorded on the job at creation must still match the current org of
+  // the node it targets. Should be impossible in practice (nothing in this app moves a
+  // client between orgs) — this is a backstop against exactly the class of bug this
+  // rollout already found three times, not a response to a real observed drift.
+  const { data: currentChain, error: chainError } = await createServerSupabase()
+    .from("nodes")
+    .select("canvases!inner(clients!inner(org_id))")
+    .eq("id", generation.node_id)
+    .maybeSingle();
+  if (chainError) throw chainError;
+  const canvas = currentChain
+    ? Array.isArray(currentChain.canvases) ? currentChain.canvases[0] : currentChain.canvases
+    : null;
+  const client = canvas
+    ? Array.isArray(canvas.clients) ? canvas.clients[0] : canvas.clients
+    : null;
+  if (!client || client.org_id !== generation.org_id) {
+    console.error("[completeGeneration] org mismatch — dropping", {
+      generationId: input.generationId,
+      recordedOrgId: generation.org_id,
+      currentOrgId: client?.org_id ?? null,
+    });
+    return;
+  }
 
   if (input.status === "failed") {
     await failGeneration({ generationId: input.generationId, error: input.error });
@@ -99,6 +125,7 @@ export async function completeGeneration(
     generationId: input.generationId,
     versionId: version.id,
     creditsConsumed: cost?.usd,
+    outputSnapshot: storedVideoUrl,
     meta: input.meta,
   });
 }

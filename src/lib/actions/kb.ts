@@ -156,6 +156,7 @@ export async function startKBBuildJob(clientId: string): Promise<{ jobId: string
   try {
     job = await insertKBJob({
       clientId,
+      orgId: client.org_id,
       websiteUrl: client.website_url,
       docIdsUsed: docs.map((d) => d.id),
     });
