@@ -102,6 +102,16 @@ export async function listGenerations(nodeId: string): Promise<GenerationRow[]> 
   return (data ?? []) as GenerationRow[];
 }
 
+export async function countGenerationsForOrg(orgId: string): Promise<number> {
+  const supabase = createServerSupabase();
+  const { count, error } = await supabase
+    .from("generations")
+    .select("*", { count: "exact", head: true })
+    .eq("org_id", orgId);
+  if (error) throw error;
+  return count ?? 0;
+}
+
 export async function getGenerationByProviderJobId(
   providerJobId: string,
 ): Promise<GenerationRow | null> {
