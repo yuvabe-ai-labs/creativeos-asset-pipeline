@@ -23,6 +23,12 @@ describe("klingLegacyParams", () => {
   it("all params are visible", () => {
     expect(klingLegacyParams.every((p) => p.visible)).toBe(true);
   });
+
+  it("prefills a visual-defect negative prompt", () => {
+    const neg = klingLegacyParams.find((p) => p.name === "negative_prompt");
+    expect(neg?.defaultValue).toContain("blurry");
+    expect(neg?.defaultValue).toContain("watermark");
+  });
 });
 
 describe("klingV3Params", () => {

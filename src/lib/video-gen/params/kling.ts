@@ -104,7 +104,9 @@ const KLING_ADVANCED_BASE: ParamSpec[] = [
     group: "advanced",
     order: 1,
     visible: true,
-    defaultValue: "",
+    // D77: prefilled visual-defect list (editable); distinct from positive-prompt hype hygiene.
+    defaultValue:
+      "blurry, low quality, distorted, deformed, warped hands, extra fingers, morphing, flickering, jitter, text, watermark, logo",
     constraints: { type: "textarea", maxLength: 2500 },
   },
   ...KLING_MOTION_PARAMS,
