@@ -105,23 +105,27 @@ export function CreditLimitEditor({
             placeholder="e.g. 500"
             className="max-w-40"
           />
-          <Button
-            type="button"
-            size="sm"
-            onClick={() => void save(draft)}
-            disabled={saving || draft === committedValue}
-          >
-            {saving ? "Saving…" : "Save"}
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={cancelEdit}
-            disabled={saving || draft === committedValue}
-          >
-            Cancel
-          </Button>
+          {draft !== committedValue && (
+            <>
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => void save(draft)}
+                disabled={saving}
+              >
+                {saving ? "Saving…" : "Save"}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={cancelEdit}
+                disabled={saving}
+              >
+                Cancel
+              </Button>
+            </>
+          )}
           {saved && !saving && <span className="text-xs text-muted-foreground">Saved</span>}
         </div>
       )}
