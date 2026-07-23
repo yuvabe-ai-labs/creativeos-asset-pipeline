@@ -1358,6 +1358,23 @@ name-matching; per-org Drive OAuth (too heavy for the pilot).
 
 **Originated →** `2026-07-14-copilot-selection-context-design.md` (§6).
 
+### D77 — Video Prompt → Video Gen is provider-aware; Kling camera via `camera_control` *(recorded 2026-07-23; refines D24)*
+
+**Decision.** The motion prompt is shaped for its target provider (`text-camera` for Veo/Sora,
+`external-camera` for Kling), selected by a Target selector on the Video Prompt node that locks to a
+connected Video Gen node's provider when present. For Kling, camera is driven by the native
+`camera_control` param via a curated visual grid on the Video Gen node, and the prompt is written
+camera-silent — one camera signal, never two. A default `negative_prompt` is prefilled for Kling.
+
+**Why.** D24 shipped a Veo-only motion prompt; the registry has since grown six Kling models with a
+different prompt shape and a native camera API. Deterministic Kling camera + a proper
+`negative_prompt` are quality levers the Veo-shaped path can't reach.
+
+**Rejected — text-primary (A).** Simpler/single-node but leaves Kling's camera to prose and the
+`negative_prompt` unused; optimizes for the smallest diff over the better Kling result.
+
+**Refines** D24. **Originated →** `2026-07-23-provider-aware-video-prompt-design.md`.
+
 ### Parked / out-of-scope (with revisit triggers)
 | Item | Status | Revisit when |
 |---|---|---|
