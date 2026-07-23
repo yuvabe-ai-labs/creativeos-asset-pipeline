@@ -1,4 +1,4 @@
-import { videoPromptGeneratePrompt } from "@/prompts/video-prompt-generate";
+import { videoPromptGeneratePromptFor, type VideoProvider } from "@/prompts/video-prompt-generate";
 import { renderVideoControls, type VideoControls } from "./video-controls";
 import { resolveMentionTokens, ordinalToEnglish, type MentionUpstream } from "./resolve-mention-tokens";
 import { isVisionAttachment } from "./compose-message";
@@ -21,6 +21,7 @@ export type CompileVideoPromptInput = {
   upstream: CompileVideoPromptUpstream[];
   instruction: string;
   controls?: VideoControls;
+  targetProvider?: VideoProvider; // D77: selects text-camera (veo/sora) vs external-camera (kling)
 };
 
 function buildCompositionBlock(upstream: CompileVideoPromptUpstream[]): string | null {
@@ -71,7 +72,12 @@ export function compileVideoPrompt(input: CompileVideoPromptInput): {
     }
   }
 
-  const controlsBlock = input.controls ? renderVideoControls(input.controls) : "";
+  const targetProvider: VideoProvider = input.targetProvider ?? "veo";
+  const includeCamera = targetProvider !== "kling";
+
+  const controlsBlock = input.controls
+    ? renderVideoControls(input.controls, { includeCamera })
+    : "";
   if (controlsBlock) blocks.push(controlsBlock);
 
   const rawInstruction = input.instruction.trim() || DEFAULT_MOTION_INSTRUCTION;
@@ -94,7 +100,7 @@ export function compileVideoPrompt(input: CompileVideoPromptInput): {
   blocks.push(`Instruction:\n${effectiveInstruction}`);
 
   return {
-    system: videoPromptGeneratePrompt.system,
+    system: videoPromptGeneratePromptFor(targetProvider).system,
     user: blocks.join("\n\n"),
     effectiveInstruction,
   };
