@@ -31,7 +31,15 @@ import { ImageGenParamRow } from "./image-gen-param-row";
 import { ParamControl } from "./param-controls";
 import { ParamChipGroup } from "./param-chip-group";
 import { FieldLabel } from "./field-label";
+import { KlingCameraSelect } from "./kling-camera-select";
 import type { ParamSpec } from "@/lib/image-gen/types";
+
+// D77: the Kling camera params are rendered by KlingCameraSelect (grid + Fine-tune), so they are
+// excluded from the panel's normal param rows.
+const KLING_CAMERA_PARAM_NAMES = new Set([
+  "camera_move", "pan", "tilt", "zoom", "roll", "horizontal_movement", "vertical_movement",
+]);
+const KLING_AXIS_NAMES = ["pan", "tilt", "zoom", "roll", "horizontal_movement", "vertical_movement"];
 
 const PARAM_ICONS: Record<string, LucideIcon> = {
   aspect_ratio:        Crop,
@@ -73,6 +81,12 @@ export function VideoGenParamsPanel({
 
   const primaryParams = visibleParams.filter((p: ParamSpec) => p.group === "primary");
   const advancedParams = visibleParams.filter((p: ParamSpec) => p.group === "advanced");
+
+  // D77: for Kling, pull the camera params out of the normal rows — KlingCameraSelect renders them.
+  const isKling = model?.provider === "kling";
+  const axisSpecs = (model?.params ?? []).filter((p: ParamSpec) => KLING_AXIS_NAMES.includes(p.name));
+  const primaryRows = primaryParams.filter((p) => !(isKling && KLING_CAMERA_PARAM_NAMES.has(p.name)));
+  const advancedRows = advancedParams.filter((p) => !(isKling && KLING_CAMERA_PARAM_NAMES.has(p.name)));
 
   function renderParamRow(spec: ParamSpec) {
     const isLocked = spec.name in lockedParams;
@@ -148,10 +162,15 @@ export function VideoGenParamsPanel({
         </div>
 
         {/* Primary params — stacked chip groups */}
-        <div className="flex flex-col gap-5">{primaryParams.map(renderParamRow)}</div>
+        <div className="flex flex-col gap-5">{primaryRows.map(renderParamRow)}</div>
+
+        {/* D77: Kling camera grid (drives camera_move) + Fine-tune axes */}
+        {isKling && (
+          <KlingCameraSelect params={params} axisSpecs={axisSpecs} onParamChange={onParamChange} />
+        )}
 
         {/* Advanced params — collapsed accordion */}
-        {advancedParams.length > 0 && (
+        {advancedRows.length > 0 && (
           <Accordion multiple={false} className="pt-1">
             <AccordionItem value="advanced" className="border-none">
               <AccordionTrigger className="py-1 text-[0.7rem] tracking-wide uppercase text-muted-foreground hover:text-foreground hover:no-underline">
@@ -159,7 +178,7 @@ export function VideoGenParamsPanel({
               </AccordionTrigger>
               <AccordionContent className="pt-2">
                 <div className="flex flex-col gap-5">
-                  {advancedParams.map(renderParamRow)}
+                  {advancedRows.map(renderParamRow)}
                 </div>
               </AccordionContent>
             </AccordionItem>

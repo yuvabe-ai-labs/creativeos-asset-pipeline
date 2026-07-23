@@ -84,6 +84,21 @@ const KLING_PRIMARY_BASE: ParamSpec[] = [
     defaultValue: "16:9",
     constraints: { type: "select", options: ["16:9", "9:16", "1:1"] },
   },
+  {
+    // D77: the visual camera grid drives this; buildKlingRequestBody maps it to camera_control.
+    // Rendered as a tile grid (not a chip group) in video-gen-params-panel. "custom" → axis sliders.
+    name: "camera_move",
+    label: "Camera",
+    component: "select",
+    group: "primary",
+    order: 3,
+    visible: true,
+    defaultValue: "static",
+    constraints: {
+      type: "select",
+      options: ["static", "push-in", "pull-back", "pan", "tilt", "tracking", "crane", "orbit", "custom"],
+    },
+  },
 ];
 
 const KLING_ADVANCED_BASE: ParamSpec[] = [

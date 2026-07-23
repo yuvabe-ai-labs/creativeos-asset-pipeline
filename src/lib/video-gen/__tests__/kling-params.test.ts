@@ -2,9 +2,18 @@ import { describe, it, expect } from "vitest";
 import { klingLegacyParams, klingV3Params } from "../params/kling";
 
 describe("klingLegacyParams", () => {
-  it("has mode, duration, aspect_ratio as primary", () => {
+  it("has mode, duration, aspect_ratio, camera_move as primary", () => {
     const primary = klingLegacyParams.filter((p) => p.group === "primary");
-    expect(primary.map((p) => p.name)).toEqual(["mode", "duration", "aspect_ratio"]);
+    expect(primary.map((p) => p.name)).toEqual(["mode", "duration", "aspect_ratio", "camera_move"]);
+  });
+
+  it("camera_move defaults to static with the mappable moves + custom", () => {
+    const move = klingLegacyParams.find((p) => p.name === "camera_move")!;
+    expect(move.defaultValue).toBe("static");
+    expect(move.constraints).toEqual({
+      type: "select",
+      options: ["static", "push-in", "pull-back", "pan", "tilt", "tracking", "crane", "orbit", "custom"],
+    });
   });
 
   it("has advanced params: cfg_scale, negative_prompt, pan, tilt, zoom, roll, horizontal_movement, vertical_movement", () => {
