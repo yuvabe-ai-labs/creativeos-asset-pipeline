@@ -18,5 +18,6 @@ export async function GET() {
   return apiOk({
     name: (data?.display_name as string) ?? "User",
     role: orgRoleToIdentityRole(caller.orgRole),
+    platformRole: caller.platformRole,
   });
 }
