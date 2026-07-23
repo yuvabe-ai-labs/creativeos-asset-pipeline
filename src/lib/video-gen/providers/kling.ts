@@ -78,6 +78,8 @@ async function generateWithKling(
   const apiKey = getApiKey();
   const appUrl = process.env.APP_URL;
   if (!appUrl) throw new Error("Missing APP_URL");
+  const secret = process.env.TRIGGER_WEBHOOK_SECRET;
+  if (!secret) throw new Error("Missing TRIGGER_WEBHOOK_SECRET");
 
   if (!input.startFrameUrl) {
     throw new Error("Kling image-to-video requires a start frame image");
@@ -85,7 +87,7 @@ async function generateWithKling(
 
   const { imageBase64, mimeType } = await fetchAsBase64(input.startFrameUrl);
 
-  const callbackUrl = `${appUrl}/api/webhooks/generation?provider=kling`;
+  const callbackUrl = `${appUrl}/api/webhooks/generation?provider=kling&token=${encodeURIComponent(secret)}`;
   const body = buildKlingRequestBody({
     modelName,
     imageBase64,

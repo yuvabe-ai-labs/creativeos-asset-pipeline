@@ -141,6 +141,21 @@ export async function withNode(
   return handler(nodeId, node as NodeRow, caller, canvas.client_id);
 }
 
+// ── Webhook auth ──────────────────────────────────────────────────────────────
+
+// Shared-secret check for server-to-server webhooks (Trigger.dev tasks calling back
+// into this app). No user session exists at this boundary — this answers "is this
+// actually our own task/a trusted caller," not "who is this user."
+export function isAuthorizedWebhook(req: Request): boolean {
+  const secret = process.env.TRIGGER_WEBHOOK_SECRET;
+  if (!secret) {
+    console.error("TRIGGER_WEBHOOK_SECRET is not set — all webhook calls will be rejected");
+    return false;
+  }
+  const header = req.headers.get("authorization") ?? "";
+  return header === `Bearer ${secret}`;
+}
+
 // ── Try/catch wrapper ─────────────────────────────────────────────────────────
 
 export async function withTryCatch(

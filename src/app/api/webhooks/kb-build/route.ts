@@ -1,5 +1,5 @@
 import "server-only";
-import { apiError, apiOk } from "@/lib/api/route-helpers";
+import { apiError, apiOk, isAuthorizedWebhook } from "@/lib/api/route-helpers";
 import {
   updateKBJobPhase,
   markKBJobSucceeded,
@@ -7,7 +7,7 @@ import {
   getKBJob,
 } from "@/lib/db/kb-jobs";
 import { insertKBDocument, insertKBVersion, setActiveKBVersion } from "@/lib/db/kb";
-import { setKBStatus } from "@/lib/db/clients";
+import { getClientById, setKBStatus } from "@/lib/db/clients";
 import { uploadKBDocument } from "@/lib/storage";
 import type { TraceableBrandKB } from "@/lib/kb/schema";
 import { KB_JOB_NON_TERMINAL_STATUSES } from "@/lib/kb/constants";
@@ -39,18 +39,8 @@ type FailedPayload = {
 
 type Payload = PhasePayload | SucceededPayload | FailedPayload;
 
-function isAuthorized(req: Request): boolean {
-  const secret = process.env.TRIGGER_WEBHOOK_SECRET;
-  if (!secret) {
-    console.error("TRIGGER_WEBHOOK_SECRET is not set — all webhook calls will be rejected");
-    return false;
-  }
-  const header = req.headers.get("authorization") ?? "";
-  return header === `Bearer ${secret}`;
-}
-
 export async function POST(req: Request) {
-  if (!isAuthorized(req)) return apiError("Unauthorized.", 401);
+  if (!isAuthorizedWebhook(req)) return apiError("Unauthorized.", 401);
 
   let body: Payload;
   try {
