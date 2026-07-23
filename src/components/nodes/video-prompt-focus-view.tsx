@@ -25,7 +25,8 @@ import { GuidedNextButton } from "@/components/canvas/guided-next-button";
 import { SliceToggles } from "./slice-toggles";
 import { DEFAULT_MOTION_INSTRUCTION } from "@/lib/nodes/video-prompt";
 import type { KBSliceKey } from "@/lib/kb/parse-context";
-import { VideoControlsRow } from "./video-controls-row";
+import { CameraSelect } from "./camera-select";
+import { SpeedSelect } from "./speed-select";
 import { DEFAULT_VIDEO_CONTROLS, type VideoControls } from "@/lib/nodes/video-controls";
 import {
   ConnectedDetailView,
@@ -458,34 +459,50 @@ export function VideoPromptFocusView({
               <div className="flex h-full w-full min-h-0 overflow-hidden">
                 {/* Left column — compose: Frame beside Camera/Speed, Instruction below */}
                 <div className="flex w-[58%] shrink-0 min-h-0 flex-col gap-5 overflow-y-auto border-r border-border px-6 py-5">
-                  {/* Top row: Frame (bigger) beside the Camera/Speed controls */}
-                  <div className="flex gap-5">
+                  {/* Top row: Frame beside the Camera grid — heights matched (no dead gap) */}
+                  <div className="flex items-stretch gap-5">
                     <div className="flex w-48 shrink-0 flex-col gap-2">
                       <div className="flex items-center gap-1.5">
                         <ImageIcon className="size-3.5 text-primary" />
                         <span className="text-eyebrow">Frame</span>
                       </div>
                       {visionFrame?.fileUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={visionFrame.fileUrl}
-                          alt="Approved still the motion prompt is grounded on"
-                          className="max-h-72 w-full rounded-lg border border-border object-contain"
-                        />
+                        <div className="relative min-h-0 flex-1 overflow-hidden rounded-lg border border-border bg-muted/30">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={visionFrame.fileUrl}
+                            alt="Approved still the motion prompt is grounded on"
+                            className="absolute inset-0 h-full w-full object-contain"
+                          />
+                        </div>
                       ) : (
-                        <p className="rounded-lg border border-dashed border-border px-3 py-6 text-center text-xs text-muted-foreground">
+                        <div className="flex min-h-40 flex-1 items-center justify-center rounded-lg border border-dashed border-border px-3 py-6 text-center text-xs text-muted-foreground">
                           Connect an approved image to ground the motion.
-                        </p>
+                        </div>
                       )}
                     </div>
 
                     <div className="min-w-0 flex-1">
-                      <VideoControlsRow
-                        controls={controls ?? DEFAULT_VIDEO_CONTROLS}
-                        onChange={(next) => onPatch({ controls: next })}
+                      <CameraSelect
+                        value={(controls ?? DEFAULT_VIDEO_CONTROLS).camera}
+                        onChange={(v) =>
+                          onPatch({
+                            controls: { ...(controls ?? DEFAULT_VIDEO_CONTROLS), camera: v },
+                          })
+                        }
                       />
                     </div>
                   </div>
+
+                  {/* Speed — full column width, one equal 4-up row */}
+                  <SpeedSelect
+                    value={(controls ?? DEFAULT_VIDEO_CONTROLS).speed}
+                    onChange={(v) =>
+                      onPatch({
+                        controls: { ...(controls ?? DEFAULT_VIDEO_CONTROLS), speed: v },
+                      })
+                    }
+                  />
 
                   {/* Instruction + Generate — full column width, below */}
                   <div className="flex flex-col gap-3">
