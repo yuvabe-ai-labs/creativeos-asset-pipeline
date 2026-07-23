@@ -60,3 +60,36 @@ export function findAncestorOfType<T extends { id: string; type?: string }>(
   }
   return null;
 }
+
+/**
+ * Walk edges downstream (BFS, bounded depth) from `nodeId`, collecting every node of `type`.
+ * Mirror of findAncestorOfType, following source -> target instead of target -> source.
+ */
+export function findDescendantsOfType<T extends { id: string; type?: string }>(
+  nodeId: string,
+  nodes: T[],
+  edges: Edge[],
+  type: string,
+  maxDepth = 4,
+): T[] {
+  const byId = new Map(nodes.map((node) => [node.id, node]));
+  const childrenOf = (id: string) => edges.filter((edge) => edge.source === id).map((edge) => edge.target);
+  const seen = new Set<string>([nodeId]);
+  const found: T[] = [];
+  let frontier = [nodeId];
+  for (let depth = 0; depth < maxDepth; depth++) {
+    const next: string[] = [];
+    for (const id of frontier) {
+      for (const c of childrenOf(id)) {
+        if (seen.has(c)) continue;
+        seen.add(c);
+        const child = byId.get(c);
+        if (child?.type === type) found.push(child);
+        next.push(c);
+      }
+    }
+    if (next.length === 0) break;
+    frontier = next;
+  }
+  return found;
+}
