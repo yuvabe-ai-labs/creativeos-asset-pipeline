@@ -19,7 +19,7 @@ one sub-plan written, reviewed, and executed before the next is written.
 |---|---|---|---|---|
 | **2A** | `withNode()` helper + wire all node-rooted routes through it | **Urgent — real, currently-open gap** | `2026-07-21-auth-stage-2a-node-isolation-fix.md` | ✅ **done (staging) — see log below** |
 | **2B** | `org_id` + RLS on `generations`, `client_kb_jobs`, `canvases` (corrected from the original spec's 5-table list — `node_files` doesn't exist as a DB table, see note below) | Hardening, no urgency | `2026-07-21-auth-stage-2b-rls-backstop.md` | ✅ **done (staging) — see log below** |
-| **2C** | Async worker tenant check: generation + kb-build webhooks re-validate `org_id` before processing | Hardening, no urgency | _written after 2B_ | ⏳ not written |
+| **2C** | Async worker tenant check: generation + kb-build webhooks re-validate `org_id` before processing. Expanded to also cover: the generation webhook has **no authentication at all** (found while scoping this plan — bigger than D79's original scope) | Hardening + a real, currently-open gap | `2026-07-21-auth-stage-2c-worker-tenant-check.md` | ✍️ **written — awaiting review/execution** |
 
 ## Corrections to the original Stage 2 scope (found during investigation, not guessed)
 
