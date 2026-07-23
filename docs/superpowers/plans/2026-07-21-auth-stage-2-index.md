@@ -137,6 +137,38 @@ one sub-plan written, reviewed, and executed before the next is written.
 
 **Next:** write sub-plan **2C (async worker tenant check)** — now unblocked.
 
+## Post-2B urgent finding: default-deny RLS on every remaining table (D88)
+
+- Commits `bdbc1f2` (migrations `0017` + `0018`).
+- While reviewing the Supabase dashboard after 2B, noticed most tables were marked
+  "UNRESTRICTED." Verified via `information_schema.role_table_grants`: **`anon`
+  (unauthenticated, no login) held full `SELECT`/`INSERT`/`UPDATE`/`DELETE`/`TRUNCATE`
+  grants on `clients`, `nodes`, `node_versions`, `edges`, `organizations`, `profiles`,
+  `org_memberships`, and the KB tables** — reachable directly via Supabase's REST API
+  with the public anon key, completely bypassing every isolation mechanism built across
+  Stage 1, 2A, and 2B. Live on staging, not theoretical.
+- Fixed with `0017`: RLS enabled, **zero policies**, on all 10 tables — default-deny.
+  Cheap (one line per table, no policy design), unlike the "RLS-everywhere" D44 rejected,
+  because the app's real access always goes through the service-role client (bypasses RLS
+  regardless) — nothing in the app changes.
+- **Immediate regression, fixed in `0018`:** the `canvases`/`client_kb_jobs`/`generations`
+  policies subquery `org_memberships` to find the caller's org; RLS is contagious across
+  that subquery. With `org_memberships` locked to zero policies, the subquery returned
+  nothing for everyone — silently denying all three tables, including same-org reads. The
+  Generation Tray stopped rendering immediately after `0017`; caught live within minutes,
+  not in a later review. Fixed with one narrow policy: self-read on `org_memberships`.
+- **Audited before calling it done, not just patched and moved on:** grepped every
+  browser-side Supabase query in the codebase (5 files) — confirmed all touch only
+  `generations`/`client_kb_jobs`, both already correctly policied, nothing else breaks.
+  Confirmed via a full `pg_policies` dump that no other existing policy has a similar
+  hidden cross-table dependency.
+- Recorded as **D88** — supersedes the "app-layer only, no RLS" half of D44 for these 10
+  tables specifically (D44's *reasoning* about avoiding per-org policy-writing still
+  holds; what changed is that "no RLS at all" turned out to mean "world-writable," not
+  "merely unreached," once actually checked).
+- `npm test`: 523/523 passing. `npm run build`: clean. Generation Tray confirmed working
+  again post-fix.
+
 ## Definition of done for Stage 2 (all three sub-plans)
 
 Per the rollout plan's Stage 2 checklist, expanded for 2A's addition: a hand-crafted

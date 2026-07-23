@@ -1540,6 +1540,42 @@ been cosmetic — present in the catalog, provably inert in practice.
 
 **Originated →** `2026-07-21-auth-stage-2b-rls-backstop.md`.
 
+### D88 — Default-deny RLS enabled on every remaining table; supersedes the "app-layer only, no RLS" half of D44 *(recorded 2026-07-23; Stage 2B follow-on)*
+
+**Decision.** All 10 tables that still had RLS disabled after 2B (`clients`, `nodes`,
+`node_versions`, `edges`, `organizations`, `profiles`, `org_memberships`,
+`client_brand_images`, `client_kb_documents`, `client_kb_versions`) now have RLS enabled
+with **zero policies** — default-deny for `anon`/`authenticated`. `org_memberships`
+additionally got one narrow policy (`user_id = auth.uid()`, self-read only), because the
+`org isolation` policies on `canvases`/`client_kb_jobs`/`generations` (D78) subquery it to
+find the caller's org, and RLS applies across that subquery too.
+
+**Why.** Confirmed via `information_schema.role_table_grants` on staging: `anon` — fully
+unauthenticated, no login required — held `SELECT`/`INSERT`/`UPDATE`/`DELETE`/`TRUNCATE` on
+all 10 tables, reachable directly through Supabase's REST API using the public anon key
+(embedded in every page the site serves), completely bypassing `proxy.ts`, the DAL, and
+every `withClient`/`withCanvas`/`withNode` check built across Stage 1 and 2A. D44's
+"app-layer only, RLS deferred as backstop" reasoning assumed these tables were merely
+*unreached* by direct browser access — it did not verify the underlying grants, which
+(per Supabase's default project setup) make "RLS disabled" equivalent to "world-readable
+and world-writable" for any table the default grants still cover. This was a live,
+currently-exploitable gap on staging, not a theoretical one.
+
+**Fix was cheap, unlike what D44 avoided.** D44 rejected "RLS-everywhere" because writing
+and maintaining correct per-org *policies* across ~34 service-role call sites and 10+
+tables was too large a lift for the pilot. This decision does not do that — it enables RLS
+with **no policies**, which is a single `alter table ... enable row level security`
+per table and nothing else, since the app's real data access always goes through the
+service-role client (`createServerSupabase()`), which bypasses RLS regardless of policy
+count. Nothing in the app's behavior changes. Only the unintended direct-REST-API path
+closes.
+
+**Rejected.** Leaving these tables as app-layer-only (D44 as originally scoped) — correct
+in spirit, but never actually verified against the real grant state, and wrong in practice
+once checked.
+
+**Originated →** `2026-07-21-auth-stage-2-index.md` (post-2B finding).
+
 ### Parked / out-of-scope (with revisit triggers)
 | Item | Status | Revisit when |
 |---|---|---|
