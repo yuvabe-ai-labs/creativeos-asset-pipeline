@@ -500,8 +500,9 @@ export function VideoPromptFocusView({
                     lockedLabel={lockedLabel}
                   />
 
-                  {/* Top row: Frame (fixed 9:16 preview) beside the Camera grid / Kling breadcrumb */}
-                  <div className="flex items-start gap-5">
+                  {/* Top row: Frame (fixed 9:16 preview) beside the Camera grid / Kling empty state.
+                      items-stretch is safe now the Frame height is aspect-driven (can't collapse). */}
+                  <div className="flex items-stretch gap-5">
                     <div className="flex w-32 shrink-0 flex-col gap-2">
                       <div className="flex items-center gap-1.5">
                         <ImageIcon className="size-3.5 text-primary" />
@@ -525,9 +526,14 @@ export function VideoPromptFocusView({
 
                     <div className="min-w-0 flex-1">
                       {effectiveProvider === "kling" ? (
-                        <div className="flex items-center gap-1.5 rounded-lg border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">
-                          <Video className="size-3.5 text-primary" strokeWidth={1.5} />
-                          Camera — set on the connected Kling video node
+                        <div className="flex h-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border px-4 text-center">
+                          <Video className="size-6 text-muted-foreground/50" strokeWidth={1.5} />
+                          <p className="text-sm font-medium text-muted-foreground">
+                            Camera set on the video node
+                          </p>
+                          <p className="text-xs text-muted-foreground/70">
+                            Choose a camera move on the connected Kling video node.
+                          </p>
                         </div>
                       ) : (
                         <CameraSelect
