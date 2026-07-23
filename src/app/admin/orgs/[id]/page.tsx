@@ -35,7 +35,7 @@ export default async function OrgDetailPage({
       <Breadcrumb className="mb-4">
         <BreadcrumbList>
           <BreadcrumbItem>
-            <BreadcrumbLink render={<Link href="/admin">Organizations</Link>} />
+            <BreadcrumbLink render={<Link href="/admin">Agencies</Link>} />
           </BreadcrumbItem>
           <BreadcrumbSeparator />
           <BreadcrumbItem>

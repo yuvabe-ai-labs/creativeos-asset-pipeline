@@ -16,7 +16,7 @@ export function NewOrgForm() {
   if (state?.result) {
     return (
       <Card className="p-6 shadow-card">
-        <h2 className="font-medium">Organization created</h2>
+        <h2 className="font-medium">Agency created</h2>
         <p className="mt-2 text-sm text-muted-foreground">
           Share these credentials with the agency out-of-band (Slack, email). Shown once —
           this page will not show the password again.
@@ -33,13 +33,13 @@ export function NewOrgForm() {
 
   return (
     <form action={action} className="flex flex-col gap-4">
-      <Field name="name" label="Organization name" />
+      <Field name="name" label="Agency name" />
       <Field name="email" label="Owner email" type="email" />
       <Field name="displayName" label="Owner display name" />
       <Field name="creditLimit" label="Monthly credit limit (blank = unlimited)" />
       {state?.error && <p className="text-sm text-destructive">{state.error}</p>}
       <Button type="submit" disabled={pending} className="mt-2">
-        {pending ? "Creating…" : "Create organization"}
+        {pending ? "Creating…" : "Create agency"}
       </Button>
     </form>
   );

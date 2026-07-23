@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { OrgsTable } from "@/components/admin/orgs-table";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Organizations — Admin" };
+export const metadata = { title: "Agencies — Admin" };
 
 export default async function AdminOrgsPage() {
   await requireSuperAdmin();
@@ -15,11 +15,11 @@ export default async function AdminOrgsPage() {
     <main className="mx-auto w-full max-w-3xl flex-1 px-6 py-14">
       <div className="mb-8 flex items-center justify-between">
         <h1 className="font-display text-2xl font-semibold tracking-tight">
-          Organizations
+          Agencies
         </h1>
         <Button
           nativeButton={false}
-          render={<Link href="/admin/orgs/new">+ New org</Link>}
+          render={<Link href="/admin/orgs/new">+ New agency</Link>}
         />
       </div>
       <OrgsTable orgs={orgs} />
