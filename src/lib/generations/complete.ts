@@ -1,7 +1,7 @@
 import "server-only";
 import { insertVersion, setActiveVersion } from "@/lib/db/versions";
 import { getGeneration, succeedGeneration, failGeneration } from "@/lib/db/generations";
-import { computeVideoCost } from "@/lib/video-gen/cost";
+import { computeVideoCost, isVideoAudioEnabled, asResolutionString } from "@/lib/video-gen/cost";
 import { uploadVideoGen } from "@/lib/storage";
 
 function buildVideoDownloadHeaders(modelUsed: string | null): HeadersInit {
@@ -91,12 +91,8 @@ export async function completeGeneration(
   await setActiveVersion(generation.node_id, version.id);
 
   // 4. Compute cost and mark succeeded
-  const audioValue = generation.params_snapshot?.audio;
-  const audioEnabled = audioValue === "native" || audioValue === "original";
-  const resolution =
-    typeof generation.params_snapshot?.resolution === "string"
-      ? (generation.params_snapshot.resolution as string)
-      : undefined;
+  const audioEnabled = isVideoAudioEnabled(generation.params_snapshot?.audio);
+  const resolution = asResolutionString(generation.params_snapshot?.resolution);
 
   const cost = generation.model_used
     ? computeVideoCost(generation.model_used, input.durationSeconds, audioEnabled, resolution)

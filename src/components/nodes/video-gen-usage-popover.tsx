@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { computeVideoCost } from "@/lib/video-gen/cost";
+import { computeVideoCost, isVideoAudioEnabled, asResolutionString } from "@/lib/video-gen/cost";
 import { USD_TO_INR } from "@/lib/pricing";
 import type { VideoGenVersionSummary } from "./video-gen-version-history";
 import { UsagePopoverShell, type UsageRow } from "./usage-popover-shell";
@@ -35,10 +35,8 @@ export function VideoGenUsagePopover({ versions, nodeId, upstreamNodeIds }: Prop
       const duration = Number(
         v.paramsUsed?.durationSeconds ?? v.paramsUsed?.duration ?? v.paramsUsed?.seconds ?? 5,
       );
-      const audioValue = v.paramsUsed?.audio;
-      const audio = audioValue === "native" || audioValue === "original";
-      const resolution =
-        typeof v.paramsUsed?.resolution === "string" ? v.paramsUsed.resolution : undefined;
+      const audio = isVideoAudioEnabled(v.paramsUsed?.audio);
+      const resolution = asResolutionString(v.paramsUsed?.resolution);
       const cost = computeVideoCost(v.modelUsed, duration, audio, resolution);
       if (!cost) return;
       totalUsd += cost.usd;

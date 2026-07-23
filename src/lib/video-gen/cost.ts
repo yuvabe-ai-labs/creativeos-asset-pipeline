@@ -51,6 +51,21 @@ const KLING_RESOLUTION_PRICING: Record<string, KlingResolutionRates> = {
   },
 };
 
+/**
+ * Determines whether audio is enabled for a video generation.
+ * Returns true only when audioValue is explicitly "native" or "original".
+ */
+export function isVideoAudioEnabled(audioValue: unknown): boolean {
+  return audioValue === "native" || audioValue === "original";
+}
+
+/**
+ * Coerces a value to a resolution string if it's already a string, otherwise undefined.
+ */
+export function asResolutionString(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
+}
+
 export function computeVideoCost(
   modelId: string,
   durationSeconds: number,
