@@ -18,7 +18,7 @@ one sub-plan written, reviewed, and executed before the next is written.
 | Sub-plan | Scope | Priority | Plan doc | Status |
 |---|---|---|---|---|
 | **2A** | `withNode()` helper + wire all node-rooted routes through it | **Urgent — real, currently-open gap** | `2026-07-21-auth-stage-2a-node-isolation-fix.md` | ✅ **done (staging) — see log below** |
-| **2B** | `org_id` + RLS on `generations`, `client_kb_jobs`, `canvases` (corrected from the original spec's 5-table list — `node_files` doesn't exist as a DB table, see note below) | Hardening, no urgency | `2026-07-21-auth-stage-2b-rls-backstop.md` | ✍️ **written — awaiting review/execution** |
+| **2B** | `org_id` + RLS on `generations`, `client_kb_jobs`, `canvases` (corrected from the original spec's 5-table list — `node_files` doesn't exist as a DB table, see note below) | Hardening, no urgency | `2026-07-21-auth-stage-2b-rls-backstop.md` | ✅ **done (staging) — see log below** |
 | **2C** | Async worker tenant check: generation + kb-build webhooks re-validate `org_id` before processing | Hardening, no urgency | _written after 2B_ | ⏳ not written |
 
 ## Corrections to the original Stage 2 scope (found during investigation, not guessed)
@@ -87,6 +87,55 @@ one sub-plan written, reviewed, and executed before the next is written.
   Yuvabe's own generation pipeline confirmed still working end-to-end post-fix.
 
 **Next:** write sub-plan **2B (RLS backstop)**.
+
+## 2B completion log (2026-07-21/23, staging)
+
+- Commits `5db2cf1` (migration `0014`), `ef44a75` (migration `0015` — D86, dropped a
+  pre-existing exposure), `62877cf` (fixed org_id insert-path breakage), `a1889b6`
+  (client_id/output_snapshot/email additions). Four commits — one planned, three from
+  things verification surfaced.
+- **Planned work:** migration `0014` — `org_id` + a single `select`-only RLS policy on
+  `canvases`, `client_kb_jobs`, `generations`, no super_admin bypass (D85). Count parity
+  confirmed (36/23/252 before and after), zero unbackfilled rows, `rowsecurity = true` on
+  all three, `generations` confirmed in the `supabase_realtime` publication.
+- **Real, currently-exploitable finding (D86):** `pg_policies` inspection after applying
+  `0014` revealed `generations` already carried an unrecorded `anon_read_generations`
+  policy (`qual: true`, `roles: {public}`) — unconditional read access for anyone with
+  the public anon key, including unauthenticated requests, direct to Supabase's REST API,
+  bypassing the Next.js app entirely. Since Postgres OR's permissive RLS policies
+  together, this made the brand-new `org isolation` policy on `generations` functionally
+  inert. Not caught by row-count/`rowsecurity` checks alone — only found by inspecting
+  `pg_policies` directly. Dropped in migration `0015`.
+- **Critical bug, caught live, not in review:** `0014`'s `not null` constraint on
+  `org_id` broke every *new* insert into all three tables — the backfill only covered
+  existing rows; no app code path setting `org_id` on creation was ever checked. A real
+  `image-generate` attempt on staging failed immediately with a not-null violation.
+  Fixed all 4 real insert paths (`insertGeneration` via 3 node routes + `withNode` now
+  threading the resolved org through, `createCanvas`/`createCanvasAction`, `insertKBJob`/
+  `startKBBuildJob`, and the temporary `eval-bootstrap` route) — found via exhaustive
+  grep across the whole tree, not just the files the first error happened to surface.
+  This is the same lesson as 2A's `git grep -L` completeness check, one level deeper:
+  verifying a migration's backfill is not the same as verifying every future insert.
+- **Follow-on addition (explicitly requested, not scope creep):** `generations` gained
+  `client_id` and `output_snapshot` (migration `0016`, nullable, not backfilled —
+  populated going forward only) plus `meta.email` captured at creation. Found and fixed a
+  second real bug while wiring this up: `succeedGeneration()` unconditionally overwrote
+  `meta` on every completion (`meta: input.meta ?? null`), which would have silently
+  wiped the just-set email the moment a generation completed, since neither `generate`
+  nor `image-generate` ever pass `meta`. Fixed to only touch `meta` when explicitly given
+  a new value. `CallerContext` gained `email`; `withNode()` now passes the full caller
+  context + resolved `clientId` to its callback (both already computed internally for the
+  org check, so no extra query). Also backfilled `org_id` into `GenerationRow`/
+  `CanvasRow`/`ClientKBJobRow`'s TypeScript types in `db/types.ts` — missed when `0014`
+  added the columns, only caught while touching the same types again for this addition.
+  Verified live: a real generation's row showed `org_id`, `client_id`, a real GCS
+  `output_snapshot` URL, and `meta.email` all correctly populated.
+- `npm test`: 523/523 passing throughout. `npm run build`: clean throughout.
+- Manual verification: Generation Tray confirmed still updating live post-RLS (no
+  Realtime regression); a same-org generation runs end-to-end for real, not just via unit
+  tests.
+
+**Next:** write sub-plan **2C (async worker tenant check)** — now unblocked.
 
 ## Definition of done for Stage 2 (all three sub-plans)
 
