@@ -19,7 +19,7 @@ one sub-plan written, reviewed, and executed before the next is written.
 |---|---|---|---|---|
 | **2A** | `withNode()` helper + wire all node-rooted routes through it | **Urgent — real, currently-open gap** | `2026-07-21-auth-stage-2a-node-isolation-fix.md` | ✅ **done (staging) — see log below** |
 | **2B** | `org_id` + RLS on `generations`, `client_kb_jobs`, `canvases` (corrected from the original spec's 5-table list — `node_files` doesn't exist as a DB table, see note below) | Hardening, no urgency | `2026-07-21-auth-stage-2b-rls-backstop.md` | ✅ **done (staging) — see log below** |
-| **2C** | Async worker tenant check: generation + kb-build webhooks re-validate `org_id` before processing. Expanded to also cover: the generation webhook has **no authentication at all** (found while scoping this plan — bigger than D79's original scope) | Hardening + a real, currently-open gap | `2026-07-21-auth-stage-2c-worker-tenant-check.md` | ✍️ **written — awaiting review/execution** |
+| **2C** | Async worker tenant check: generation + kb-build webhooks re-validate `org_id` before processing. Expanded to also cover: the generation webhook has **no authentication at all** (found while scoping this plan — bigger than D79's original scope) | Hardening + a real, currently-open gap | `2026-07-21-auth-stage-2c-worker-tenant-check.md` | ✅ **done (staging) — see log below** |
 
 ## Corrections to the original Stage 2 scope (found during investigation, not guessed)
 
@@ -168,6 +168,40 @@ one sub-plan written, reviewed, and executed before the next is written.
   "merely unreached," once actually checked).
 - `npm test`: 523/523 passing. `npm run build`: clean. Generation Tray confirmed working
   again post-fix.
+
+## 2C completion log (2026-07-23, staging) — closes Stage 2
+
+- Commits `12d018a` (webhook auth), `0c339d5` (D79 tenant check).
+- **Task 1 — the bigger finding, sequenced first:** `/api/webhooks/generation` had zero
+  authentication — confirmed while scoping D79, distinct from and larger than D79 itself.
+  Fixed with the same `TRIGGER_WEBHOOK_SECRET` `kb-build`'s webhook already used
+  correctly: header-based for the internal Trigger.dev path, URL-embedded `token` for
+  Kling (external provider, header support not guaranteed). Extracted into a shared
+  `isAuthorizedWebhook()` helper, used by both webhooks now. Recorded as **D89**.
+  Verified live: unauthenticated POST → 401 before any DB lookup; a real mock-mode video
+  generation completes end-to-end with the new header.
+- **Unplanned but necessary detour to get there:** testing the internal webhook path
+  required running the Trigger.dev CLI locally against staging, which surfaced that
+  `trigger.config.ts` hardcoded **production's** project ref regardless of which
+  environment was active — this account is on Trigger.dev's free tier, which doesn't
+  support multiple environments within one project, so staging and production are
+  genuinely separate Trigger.dev projects. Fixed to read `TRIGGER_PROJECT_ID` from env,
+  loading `.env` itself via Node's built-in `loadEnvFile()` (no new dependency) since the
+  Trigger CLI's own config loader doesn't inject `.env` before evaluating the config file.
+- **Task 2 — the originally-planned D79 check:** both webhooks now re-validate the job's
+  recorded `org_id` against its resource's current org before processing; a mismatch is
+  logged and dropped, not processed. `kb-build`'s webhook fetches the job once and reuses
+  it for both the check and the existing `succeeded`-branch logic, rather than querying
+  twice. Framed honestly in the plan as defense-in-depth for something that shouldn't be
+  reachable today (nothing in this app moves a client between orgs), not sold as closing
+  an active exploit — that distinction belongs to Task 1.
+- `npm test`: 523/523 passing throughout. `npm run build`: clean throughout. Manual
+  verification: a real mock-mode video generation and a real KB build both completed
+  normally on staging with the new checks in place — no false positives on the only case
+  that happens today (same org throughout).
+
+**Stage 2 (2A, 2B, 2C) is now fully shipped to staging.** Next per the rollout plan:
+Stage 3 (credit ledger), whenever that work starts.
 
 ## Definition of done for Stage 2 (all three sub-plans)
 

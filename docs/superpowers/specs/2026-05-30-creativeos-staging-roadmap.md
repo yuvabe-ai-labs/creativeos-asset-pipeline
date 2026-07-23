@@ -1576,6 +1576,26 @@ once checked.
 
 **Originated →** `2026-07-21-auth-stage-2-index.md` (post-2B finding).
 
+### D89 — Authenticate the generation completion webhook with a shared secret *(recorded 2026-07-23; Stage 2C)*
+
+**Decision.** `/api/webhooks/generation` had no authentication at all — unlike
+`/api/webhooks/kb-build`, which already checked `Authorization: Bearer
+TRIGGER_WEBHOOK_SECRET` before processing anything. Fixed with the same secret, in two
+forms: the internal Trigger.dev path (`video-generate.ts` calling this app's own webhook)
+sends the identical `Authorization` header; the Kling path (an external provider calling
+back a URL, not guaranteed to forward custom headers) carries the secret as a `token`
+query parameter on the callback URL instead. Both checks share one extracted helper,
+`isAuthorizedWebhook()`, now used by both webhooks.
+
+**Why.** Found while scoping Stage 2C's originally-planned D79 tenant check — a distinct,
+larger gap than D79 itself. Without this, anyone who knew or guessed a `generationId` (or
+a Kling `provider_job_id`) could POST a fake "succeeded" result with an
+attacker-controlled `videoUrl`, which the server fetches and uploads to GCS as if it were
+the real output — a data-integrity issue and a mild SSRF-adjacent risk, not just a
+missing-check formality.
+
+**Originated →** `2026-07-21-auth-stage-2c-worker-tenant-check.md`.
+
 ### Parked / out-of-scope (with revisit triggers)
 | Item | Status | Revisit when |
 |---|---|---|
