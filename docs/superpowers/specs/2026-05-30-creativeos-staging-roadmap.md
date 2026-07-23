@@ -1358,6 +1358,43 @@ name-matching; per-org Drive OAuth (too heavy for the pilot).
 
 **Originated →** `2026-07-14-copilot-selection-context-design.md` (§6).
 
+### D77 — Kling integration rebuilt against verified docs; polling replaces webhook *(recorded 2026-07-23)*
+
+**Decision.** The 6 live Kling models (`v1-5`/`v1-6`/`v2-1`/`v2-1-master`/`v2-6`/`v3`) were
+built with no working citation and no working host — every Kling generation on `main` is
+broken. Turns out Kling runs two real API generations side by side: a legacy unified
+`/v1/videos/image2video` endpoint (`model_name` field selects version; this is where
+`cfg_scale`/`camera_control`/`mode` genuinely live) and 5 dedicated per-model endpoints
+(`contents[]`/`settings`/`options` shape, no `cfg_scale`/`camera_control`/`mode` at all).
+The old code reached for generation-1 fields but called the wrong host with the wrong
+body shape, so it never worked either way. Rebuilt against exactly the 5
+latest-generation models, verified from official docs the user fetched directly from
+`kling.ai/document-api/`: `kling-3.0-turbo`, `kling-2.6`, `kling-2.5-turbo`, `kling-3.0`,
+`kling-o1`. The legacy-endpoint models (`v1`/`v1-5`/`v1-6`/`v2-master`/`v2-1`/
+`v2-1-master`) are confirmed real but deliberately out of scope for this pass, not
+re-added. Completion moves from webhook (`callback_url` + `provider_job_id` DB lookup) to
+polling `GET /tasks` inside the Trigger.dev task, matching the existing Veo pattern —
+chosen specifically for log visibility into in-flight/failed jobs, which the pure-webhook
+design couldn't provide (webhook route had no logging, and a lost callback left a
+generation stuck with no trace).
+
+**Why.** Unverified third-party API surfaces are exactly where a plausible-looking
+contract silently fails end-to-end; the fix is citing every field against a real, fetched
+doc, not re-deriving from memory or assuming "looks familiar" means "verified." Polling
+was chosen over webhook+reconciliation because it's the simpler mechanism already proven
+by `veo.ts`, and per-iteration logging directly answers "is this job alive and what's it
+doing" without a second scheduled job.
+
+**Rejected.** Re-adding the legacy-endpoint models in this pass (real, but needs the
+linked Capability Map page first to know which fields apply per model — not implementing
+without that source, same mistake otherwise). Webhook + structured logging only (still
+has a delivery-failure blind spot). Webhook + scheduled reconciliation sweep (adds a
+second job/code path for marginal benefit over polling, which already logs and can't
+lose a callback since there is none).
+
+**Originated →** `2026-07-23-kling-api-correction-design.md`, supersedes
+`2026-07-11-kling-video-gen-integration-design.md`.
+
 ### Parked / out-of-scope (with revisit triggers)
 | Item | Status | Revisit when |
 |---|---|---|
