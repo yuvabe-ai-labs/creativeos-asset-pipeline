@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { GenerationStatusBadge } from "@/components/admin/generation-status-badge";
 import { filterAndSort, type SortKey } from "@/lib/list/filter-sort";
 import { formatRelativeTime } from "@/lib/format/relative-time";
+import { USD_TO_INR } from "@/lib/pricing";
 import type { GenerationForOrgList } from "@/lib/db/generations";
 
 const PAGE_SIZE = 25;
@@ -63,8 +64,8 @@ export function GenerationsTable({
         placeholder="Search by model…"
       />
 
-      <div className="overflow-hidden rounded-xl border bg-card shadow-card">
-        <div className="text-eyebrow flex items-center gap-4 border-b bg-muted/40 px-5 py-3 text-[0.7rem] text-muted-foreground/80">
+      <div className="flex max-h-[60vh] flex-col overflow-hidden rounded-xl border bg-card shadow-card">
+        <div className="text-eyebrow flex items-center gap-4 border-b bg-muted/40 px-5 py-2.5 text-[0.7rem] text-muted-foreground/80">
           <span className="flex-1">Type</span>
           <span className="flex-1">Status</span>
           <span className="flex-[2]">Model</span>
@@ -73,43 +74,50 @@ export function GenerationsTable({
           <span className="flex-1 text-right">Created</span>
         </div>
 
-        {pageRows.length === 0 ? (
-          <p className="px-5 py-10 text-center text-sm text-muted-foreground">
-            No generations match “{query}”.
-          </p>
-        ) : (
-          <ul>
-            {pageRows.map((g) => (
-              <li
-                key={g.id}
-                className="flex items-center gap-4 border-b px-5 py-3.5 last:border-b-0"
-              >
-                <span className="flex-1 text-sm capitalize">{g.type}</span>
-                <span className="flex-1">
-                  <GenerationStatusBadge status={g.status} />
-                </span>
-                <span className="flex-[2] text-sm text-muted-foreground">
-                  {g.model_used ?? "—"}
-                </span>
-                <span className="flex-[2] text-sm text-muted-foreground">
-                  {g.client_name ?? "—"}
-                </span>
-                <span className="flex-1 text-sm text-muted-foreground">
-                  {g.credits_consumed ?? "—"}
-                </span>
-                <span className="flex-1 text-right text-sm text-muted-foreground">
-                  {formatRelativeTime(g.created_at)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
+        <div className="overflow-y-auto">
+          {pageRows.length === 0 ? (
+            <p className="px-5 py-10 text-center text-sm text-muted-foreground">
+              No generations match “{query}”.
+            </p>
+          ) : (
+            <ul>
+              {pageRows.map((g) => (
+                <li
+                  key={g.id}
+                  className="flex items-center gap-4 border-b px-5 py-3 last:border-b-0"
+                >
+                  <span className="flex-1 text-sm capitalize">{g.type}</span>
+                  <span className="flex-1">
+                    <GenerationStatusBadge status={g.status} />
+                  </span>
+                  <span className="flex-[2] truncate text-sm text-muted-foreground">
+                    {g.model_used ?? "—"}
+                  </span>
+                  <span
+                    className="flex-[2] truncate text-sm text-muted-foreground"
+                    title={g.client_name ?? undefined}
+                  >
+                    {g.client_name ?? "—"}
+                  </span>
+                  <span className="flex-1 text-sm text-muted-foreground">
+                    {g.credits_consumed === null
+                      ? "—"
+                      : `₹${(g.credits_consumed * USD_TO_INR).toFixed(2)}`}
+                  </span>
+                  <span className="flex-1 text-right text-sm text-muted-foreground">
+                    {formatRelativeTime(g.created_at)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
 
         <Pagination
           page={clampedPage}
           pageCount={pageCount}
           onPageChange={setPage}
-          className="border-t"
+          className="border-t bg-card"
         />
       </div>
     </div>
