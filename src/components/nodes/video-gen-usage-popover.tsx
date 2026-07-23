@@ -35,8 +35,11 @@ export function VideoGenUsagePopover({ versions, nodeId, upstreamNodeIds }: Prop
       const duration = Number(
         v.paramsUsed?.durationSeconds ?? v.paramsUsed?.duration ?? v.paramsUsed?.seconds ?? 5,
       );
-      const audio = Boolean(v.paramsUsed?.audio);
-      const cost = computeVideoCost(v.modelUsed, duration, audio);
+      const audioValue = v.paramsUsed?.audio;
+      const audio = audioValue === "native" || audioValue === "original";
+      const resolution =
+        typeof v.paramsUsed?.resolution === "string" ? v.paramsUsed.resolution : undefined;
+      const cost = computeVideoCost(v.modelUsed, duration, audio, resolution);
       if (!cost) return;
       totalUsd += cost.usd;
       counted++;
