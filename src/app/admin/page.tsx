@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requireSuperAdmin } from "@/lib/auth/require-super-admin";
 import { listOrgsWithClientCount } from "@/lib/db/organizations";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { OrgsTable } from "@/components/admin/orgs-table";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Organizations — Admin" };
@@ -22,22 +22,7 @@ export default async function AdminOrgsPage() {
           render={<Link href="/admin/orgs/new">+ New org</Link>}
         />
       </div>
-      <div className="flex flex-col gap-3">
-        {orgs.map((o) => (
-          <Card key={o.id} className="p-4 shadow-card">
-            <Link href={`/admin/orgs/${o.id}`} className="flex flex-col">
-              <span className="font-medium">{o.name}</span>
-              <span className="text-xs text-muted-foreground">
-                {o.monthly_credit_limit === null
-                  ? "Unlimited credits"
-                  : `Limit ${o.monthly_credit_limit}`}
-                {" · "}
-                {o.client_count} client{o.client_count === 1 ? "" : "s"}
-              </span>
-            </Link>
-          </Card>
-        ))}
-      </div>
+      <OrgsTable orgs={orgs} />
     </main>
   );
 }
