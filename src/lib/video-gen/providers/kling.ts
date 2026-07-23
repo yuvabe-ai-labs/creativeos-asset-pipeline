@@ -1,6 +1,7 @@
 import "server-only";
 import type { VideoGenInput, VideoGenResult, VideoGenModelSpec } from "../types";
 import { klingLegacyParams, klingV3Params } from "../params/kling";
+import { klingCameraControl } from "../kling-camera";
 
 const KLING_API_BASE = "https://api.klingai.com/v1";
 
@@ -40,7 +41,19 @@ export function buildKlingRequestBody(input: KlingRequestBodyInput): Record<stri
   const roll = Number(params.roll ?? 0);
   const horizontal = Number(params.horizontal_movement ?? 0);
   const vertical = Number(params.vertical_movement ?? 0);
-  const hasMotion = [pan, tilt, zoom, roll, horizontal, vertical].some((v) => v !== 0);
+
+  // D77: mapped moves come from the visual grid (camera_move). "custom" — and legacy params with
+  // no camera_move — fall back to the proven axis-based path.
+  const move = params.camera_move as string | undefined;
+  let cameraControl: Record<string, unknown> | undefined;
+  if (move && move !== "custom") {
+    cameraControl = klingCameraControl(move);
+  } else {
+    const hasMotion = [pan, tilt, zoom, roll, horizontal, vertical].some((v) => v !== 0);
+    cameraControl = hasMotion
+      ? { type: "customize", config: { pan, tilt, zoom, roll, horizontal, vertical } }
+      : undefined;
+  }
 
   const negativePrompt = String(params.negative_prompt ?? "").trim();
 
@@ -53,14 +66,7 @@ export function buildKlingRequestBody(input: KlingRequestBodyInput): Record<stri
     aspect_ratio: String(params.aspect_ratio ?? "16:9"),
     cfg_scale: Number(params.cfg_scale ?? 0.5),
     ...(negativePrompt ? { negative_prompt: negativePrompt } : {}),
-    ...(hasMotion
-      ? {
-          camera_control: {
-            type: "customize",
-            config: { pan, tilt, zoom, roll, horizontal, vertical },
-          },
-        }
-      : {}),
+    ...(cameraControl ? { camera_control: cameraControl } : {}),
     callback_url: callbackUrl,
   };
 }

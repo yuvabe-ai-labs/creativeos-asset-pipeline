@@ -71,4 +71,36 @@ describe("buildKlingRequestBody", () => {
     });
     expect(body.camera_control).toEqual({ type: "customize", config: { pan: 3, tilt: 0, zoom: 0, roll: 0, horizontal: 0, vertical: 0 } });
   });
+
+  const cameraBase = {
+    modelName: "kling-v2-6",
+    imageBase64: "x",
+    mimeType: "image/jpeg",
+    prompt: "steam drifts",
+    callbackUrl: "https://app/cb",
+  };
+
+  it("maps a camera_move to camera_control", async () => {
+    const { buildKlingRequestBody } = await import("../providers/kling");
+    const body = buildKlingRequestBody({ ...cameraBase, params: { camera_move: "push-in" } });
+    expect(body.camera_control).toEqual({ type: "customize", config: expect.objectContaining({ zoom: 5 }) });
+  });
+
+  it("maps orbit to the turn preset", async () => {
+    const { buildKlingRequestBody } = await import("../providers/kling");
+    const body = buildKlingRequestBody({ ...cameraBase, params: { camera_move: "orbit" } });
+    expect(body.camera_control).toEqual({ type: "left_turn_forward" });
+  });
+
+  it("omits camera_control for static", async () => {
+    const { buildKlingRequestBody } = await import("../providers/kling");
+    const body = buildKlingRequestBody({ ...cameraBase, params: { camera_move: "static" } });
+    expect(body.camera_control).toBeUndefined();
+  });
+
+  it("custom mode uses the axis sliders (legacy path)", async () => {
+    const { buildKlingRequestBody } = await import("../providers/kling");
+    const body = buildKlingRequestBody({ ...cameraBase, params: { camera_move: "custom", zoom: 3 } });
+    expect(body.camera_control).toEqual({ type: "customize", config: expect.objectContaining({ zoom: 3 }) });
+  });
 });
