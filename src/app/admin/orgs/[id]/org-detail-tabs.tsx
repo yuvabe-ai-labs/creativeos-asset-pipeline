@@ -4,8 +4,10 @@ import { useState } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
 import { CreditLimitEditor } from "./credit-limit-editor";
+import { GenerationsTable } from "@/components/admin/generations-table";
 import { formatRelativeTime } from "@/lib/format/relative-time";
 import type { OrgRow } from "@/lib/db/organizations";
+import type { GenerationForOrgList } from "@/lib/db/generations";
 
 const triggerClass =
   "flex-none px-0 py-0 font-display text-xl font-semibold tracking-tight text-foreground/40 data-active:text-foreground";
@@ -27,10 +29,12 @@ export function OrgDetailTabs({
   org,
   members,
   generationCount,
+  generations,
 }: {
   org: OrgRow;
   members: Member[];
   generationCount: number;
+  generations: GenerationForOrgList[];
 }) {
   const [tab, setTab] = useState("overview");
 
@@ -84,12 +88,7 @@ export function OrgDetailTabs({
       </TabsContent>
 
       <TabsContent value="generations" className="animate-rise">
-        <Card className="flex flex-col items-center justify-center gap-2 border-dashed p-14 text-center">
-          <p className="font-display text-lg font-medium">Generations view coming soon</p>
-          <p className="max-w-sm text-sm text-muted-foreground">
-            This org's generation activity will show up here.
-          </p>
-        </Card>
+        <GenerationsTable generations={generations} />
       </TabsContent>
 
       <TabsContent value="settings" className="animate-rise">
