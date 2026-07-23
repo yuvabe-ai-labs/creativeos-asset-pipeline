@@ -136,3 +136,22 @@ export async function setProviderJobId(
     .eq("id", generationId);
   if (error) throw error;
 }
+
+export type GenerationForOrgList = GenerationRow & { client_name: string | null };
+
+export async function listGenerationsForOrg(
+  orgId: string,
+  limit = 100,
+): Promise<GenerationForOrgList[]> {
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("generations")
+    .select("*, clients(name)")
+    .eq("org_id", orgId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return ((data ?? []) as (GenerationRow & { clients: { name: string } | null })[]).map(
+    ({ clients, ...g }) => ({ ...g, client_name: clients?.name ?? null }),
+  );
+}
