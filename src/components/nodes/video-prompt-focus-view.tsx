@@ -500,15 +500,15 @@ export function VideoPromptFocusView({
                     lockedLabel={lockedLabel}
                   />
 
-                  {/* Top row: Frame beside the Camera grid — heights matched (no dead gap) */}
-                  <div className="flex items-stretch gap-5">
+                  {/* Top row: Frame (fixed 9:16 preview) beside the Camera grid / Kling breadcrumb */}
+                  <div className="flex items-start gap-5">
                     <div className="flex w-48 shrink-0 flex-col gap-2">
                       <div className="flex items-center gap-1.5">
                         <ImageIcon className="size-3.5 text-primary" />
                         <span className="text-eyebrow">Frame</span>
                       </div>
                       {visionFrame?.fileUrl ? (
-                        <div className="relative min-h-0 flex-1 overflow-hidden rounded-lg border border-border bg-muted/30">
+                        <div className="relative aspect-[9/16] w-full overflow-hidden rounded-lg border border-border bg-muted/30">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
                             src={visionFrame.fileUrl}
@@ -517,7 +517,7 @@ export function VideoPromptFocusView({
                           />
                         </div>
                       ) : (
-                        <div className="flex min-h-40 flex-1 items-center justify-center rounded-lg border border-dashed border-border px-3 py-6 text-center text-xs text-muted-foreground">
+                        <div className="flex aspect-[9/16] w-full items-center justify-center rounded-lg border border-dashed border-border px-3 text-center text-xs text-muted-foreground">
                           Connect an approved image to ground the motion.
                         </div>
                       )}
@@ -525,7 +525,7 @@ export function VideoPromptFocusView({
 
                     <div className="min-w-0 flex-1">
                       {effectiveProvider === "kling" ? (
-                        <div className="flex h-full items-center gap-1.5 rounded-lg border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">
+                        <div className="flex items-center gap-1.5 rounded-lg border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">
                           <Video className="size-3.5 text-primary" strokeWidth={1.5} />
                           Camera — set on the connected Kling video node
                         </div>
