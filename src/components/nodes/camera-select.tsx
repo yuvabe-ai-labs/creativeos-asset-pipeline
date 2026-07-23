@@ -34,7 +34,7 @@ export function CameraSelect({
       tooltip={cameraTooltip}
       caption={cameraCaption}
       mediaSrc={cameraImage}
-      columns={4}
+      columns={3}
     />
   );
 }
