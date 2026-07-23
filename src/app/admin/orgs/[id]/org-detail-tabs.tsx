@@ -14,13 +14,22 @@ const triggerClass =
 
 type Member = { user_id: string; display_name: string; org_role: string };
 
-function StatTile({ label, value }: { label: string; value: string }) {
+function StatTile({
+  label,
+  value,
+  note,
+}: {
+  label: string;
+  value: string;
+  note?: string;
+}) {
   return (
     <div className="flex flex-col gap-1">
       <span className="text-eyebrow text-muted-foreground/80">{label}</span>
       <span className="font-display text-2xl font-semibold tracking-tight">
         {value}
       </span>
+      {note && <span className="text-xs text-muted-foreground/70">{note}</span>}
     </div>
   );
 }
@@ -66,6 +75,7 @@ export function OrgDetailTabs({
                 ? "Unlimited"
                 : String(org.monthly_credit_limit)
             }
+            note="Edit in Settings"
           />
           <StatTile label="Created" value={formatRelativeTime(org.created_at)} />
         </Card>

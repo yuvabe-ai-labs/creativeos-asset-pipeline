@@ -41,7 +41,7 @@ export function OrgsTable({ orgs }: { orgs: OrgWithCount[] }) {
 
         {rows.length === 0 ? (
           <p className="px-5 py-10 text-center text-sm text-muted-foreground">
-            No organizations match "{query}".
+            No organizations match “{query}”.
           </p>
         ) : (
           <ul>

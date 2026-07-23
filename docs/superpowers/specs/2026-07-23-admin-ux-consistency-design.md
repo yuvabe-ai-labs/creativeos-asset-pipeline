@@ -102,8 +102,9 @@ Kept simple on purpose — no server-side range/count pagination.
 Component (`generations-table.tsx`) follows the `RecentCanvasesTable` shape: same
 `ListToolbar` + table look, columns Type (image/video/prompt), Status (new
 `GenerationStatusBadge`, same visual pattern as `KBStatusBadge` — running/succeeded/failed →
-amber/emerald/muted), Model, Client (name or "—"), Credits (number or "—"), Created (relative
-time).
+amber/emerald/destructive, using the destructive tokens rather than a muted/neutral color so a
+failed generation stands out), Model, Client (name or "—"), Credits (number or "—"), Created
+(relative time).
 
 **Pagination:** the 100 fetched rows are paged client-side, 25 per page, with a new shadcn
 `Pagination` primitive added to `src/components/ui/` (built from `Button` + Lucide
