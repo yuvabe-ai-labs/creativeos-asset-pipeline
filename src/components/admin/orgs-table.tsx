@@ -28,12 +28,12 @@ export function OrgsTable({ orgs }: { orgs: OrgWithCount[] }) {
         onQueryChange={setQuery}
         sort={sort}
         onSortChange={setSort}
-        placeholder="Search organizations…"
+        placeholder="Search agencies…"
       />
 
       <div className="overflow-hidden rounded-xl border bg-card shadow-card">
         <div className="text-eyebrow flex items-center gap-4 border-b bg-muted/40 px-5 py-3 text-[0.7rem] text-muted-foreground/80">
-          <span className="flex-[3]">Org</span>
+          <span className="flex-[3]">Agency</span>
           <span className="flex-1">Clients</span>
           <span className="flex-1">Credit limit</span>
           <span className="flex-1 text-right">Created</span>
@@ -41,7 +41,7 @@ export function OrgsTable({ orgs }: { orgs: OrgWithCount[] }) {
 
         {rows.length === 0 ? (
           <p className="px-5 py-10 text-center text-sm text-muted-foreground">
-            No organizations match “{query}”.
+            No agencies match “{query}”.
           </p>
         ) : (
           <ul>
