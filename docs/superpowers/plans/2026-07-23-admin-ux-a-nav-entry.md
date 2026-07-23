@@ -40,7 +40,7 @@ hook pattern, shadcn `Button` (Base UI `render` prop).
 - Consumes: `caller.platformRole` — already present on `CallerContext` (`src/lib/dal-logic.ts:7`, type `PlatformRole = "super_admin" | "member"`), returned by `resolveCallerContext()` (`src/lib/dal.ts:19`). No new server-side lookup needed.
 - Produces: `/api/me`'s JSON response gains a `platformRole: "super_admin" | "member"` field, alongside the existing `name` and `role` fields. Consumed by Task 2.
 
-- [ ] **Step 1: Add `platformRole` to the response**
+- [x] **Step 1: Add `platformRole` to the response**
 
 Edit `src/app/api/me/route.ts` — the current `GET` handler ends with:
 
@@ -63,12 +63,12 @@ Change it to:
 }
 ```
 
-- [ ] **Step 2: Typecheck**
+- [x] **Step 2: Typecheck**
 
 Run: `npm run build`
 Expected: builds successfully, no type errors in `src/app/api/me/route.ts`.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/app/api/me/route.ts
@@ -86,7 +86,7 @@ git commit -m "feat(admin): expose platformRole from /api/me"
 - Consumes: `/api/me`'s JSON response now includes `platformRole` (Task 1). `PlatformRole` type from `src/lib/dal-logic.ts` (pure types/logic file, no `server-only` import — safe to import into a `"use client"` file).
 - Produces: `useIdentity()` now returns `{ identity: Identity | null; hydrated: boolean; platformRole: PlatformRole | null }`. `platformRole` is `null` until hydrated (mirrors how `identity` behaves pre-hydration). Consumed by Task 3.
 
-- [ ] **Step 1: Rewrite the hook to carry `platformRole` through the same cache/dedup**
+- [x] **Step 1: Rewrite the hook to carry `platformRole` through the same cache/dedup**
 
 Replace the full contents of `src/hooks/use-identity.ts`:
 
@@ -170,20 +170,20 @@ export function useIdentity(): {
 }
 ```
 
-- [ ] **Step 2: Typecheck**
+- [x] **Step 2: Typecheck**
 
 Run: `npm run build`
 Expected: builds successfully. This confirms every existing call site of `useIdentity()`
 (identity chip, prompt/image-gen/video-prompt focus views) still destructures fine, since
 `identity`/`hydrated` are unchanged and `platformRole` is additive.
 
-- [ ] **Step 3: Regression test suite**
+- [x] **Step 3: Regression test suite**
 
 Run: `npm test`
 Expected: all existing tests still pass (this hook has no dedicated test file — see Global
 Constraints — this just confirms no unrelated breakage).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/hooks/use-identity.ts
@@ -202,7 +202,7 @@ git commit -m "feat(admin): carry platformRole through useIdentity"
 - Consumes: `useIdentity()` from Task 2 (`{ hydrated, platformRole }`). `Button` from `src/components/ui/button.tsx` (same `nativeButton={false}` + `render={<Link .../>}` pattern already used in `src/app/admin/page.tsx:20-23` and `IdentityChip`'s sign-out button).
 - Produces: `AdminNavLink` component, rendered in the root layout's header, immediately before `IdentityChip`.
 
-- [ ] **Step 1: Write the component**
+- [x] **Step 1: Write the component**
 
 Create `src/components/identity/admin-nav-link.tsx`:
 
@@ -232,7 +232,7 @@ export function AdminNavLink() {
 }
 ```
 
-- [ ] **Step 2: Wire it into the header**
+- [x] **Step 2: Wire it into the header**
 
 In `src/app/layout.tsx`, add the import alongside the existing `IdentityChip` import:
 
@@ -264,12 +264,12 @@ to:
         </header>
 ```
 
-- [ ] **Step 3: Typecheck and build**
+- [x] **Step 3: Typecheck and build**
 
 Run: `npm run build`
 Expected: builds successfully.
 
-- [ ] **Step 4: Manual verification on staging**
+- [ ] **Step 4: Manual verification on staging — PENDING, not yet done**
 
 Run the app against staging (`npm run env:staging`), then in the browser:
 1. Log in as the super_admin (`developer@yuvabe.com`). Confirm an "Admin" link now appears
@@ -279,7 +279,7 @@ Run the app against staging (`npm run env:staging`), then in the browser:
 3. Confirm the existing `IdentityChip` (name + sign-out) still renders correctly in both
    cases, unchanged.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/components/identity/admin-nav-link.tsx src/app/layout.tsx

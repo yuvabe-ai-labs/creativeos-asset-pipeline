@@ -11,7 +11,9 @@ scope and status; each sub-plan gets its own file with full task-level detail.
 - **AX-A — Nav entry point + platformRole plumbing** (spec §2)
   `/api/me` exposes `platformRole`; `useIdentity()` exposes it as a sibling field (Identity
   stays frozen, D53); new `AdminNavLink` component in the header, super_admin-only.
-  → `2026-07-23-admin-ux-a-nav-entry.md`. **Status: not started.**
+  → `2026-07-23-admin-ux-a-nav-entry.md`. **Status: implemented, reviewed clean (commits
+  6572819, 3b92f7a, 25adc75). Manual staging verification (plan Task 3 Step 4) still
+  pending.**
 
 - **AX-B — Org list page restyle** (spec §3)
   `/admin` swaps its plain Card list for the `ClientsTable`-style row-table + `ListToolbar`.
