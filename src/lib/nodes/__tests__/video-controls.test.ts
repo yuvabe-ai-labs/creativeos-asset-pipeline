@@ -36,4 +36,16 @@ describe("video-controls", () => {
       }
     }
   });
+
+  it("omits camera prose but keeps speed when includeCamera is false (external-camera)", () => {
+    const out = renderVideoControls({ camera: "push-in", speed: "dynamic" }, { includeCamera: false });
+    expect(out).not.toContain("Camera:");
+    expect(out).toContain("Speed:");
+  });
+
+  it("includes camera prose by default (text-camera, back-compat)", () => {
+    const out = renderVideoControls({ camera: "push-in", speed: "dynamic" });
+    expect(out).toContain("Camera:");
+    expect(out).toContain("Speed:");
+  });
 });
