@@ -28,7 +28,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withNode(params, async (nodeId, _node, caller) => {
+  return withNode(params, async (nodeId, _node, caller, clientId) => {
     const body = (await req.json().catch(() => null)) as
       | { instruction?: unknown; slices?: unknown; controls?: unknown }
       | null;
@@ -61,7 +61,9 @@ export async function POST(
       generation = await insertGeneration({
         nodeId,
         orgId: caller.orgId,
+        clientId,
         userId: caller.userId,
+        userEmail: caller.email,
         type: "prompt",
         modelUsed: model,
         paramsSnapshot: { model: promptGeneratePrompt.model },
@@ -110,6 +112,7 @@ export async function POST(
         generationId: generation.id,
         versionId: version.id,
         creditsConsumed: cost?.usd,
+        outputSnapshot: output,
       });
 
       return apiOk({ output, versionId: version.id, compiled: user });

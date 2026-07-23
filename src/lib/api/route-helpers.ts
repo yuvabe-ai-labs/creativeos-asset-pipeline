@@ -108,12 +108,17 @@ type NodeWithOrgChain = NodeRow & {
 // /api/clients/[id]/*), so they had no org check at all. Node -> canvas -> client -> org,
 // resolved in ONE query via embedded joins (not three sequential round trips) — this
 // runs on every generation request, so the chain is collapsed up front, not after the fact.
-// Also hands the resolved CallerContext to the callback — routes that insert into
-// generations (org_id not-null since 0014; user_id available too) need it and
-// resolveCallerContext() is already called here, so no extra work to pass it along.
+// Also hands the resolved CallerContext + clientId to the callback — routes that insert
+// into generations (org_id not-null since 0014; client_id/user_id/email available too)
+// need them and both are already resolved here, so no extra query to pass them along.
 export async function withNode(
   params: Promise<{ id: string }>,
-  handler: (nodeId: string, node: NodeRow, caller: CallerContext) => Promise<AnyResponse>,
+  handler: (
+    nodeId: string,
+    node: NodeRow,
+    caller: CallerContext,
+    clientId: string,
+  ) => Promise<AnyResponse>,
 ): Promise<AnyResponse> {
   const { id: nodeId } = await params;
   const supabase = createServerSupabase();
@@ -129,11 +134,11 @@ export async function withNode(
   const canvas = unwrapEmbed(row.canvases);
   const client = canvas ? unwrapEmbed(canvas.clients) : null;
   const caller = await resolveCallerContext();
-  if (!client || client.org_id !== caller.orgId) {
+  if (!canvas || !client || client.org_id !== caller.orgId) {
     return apiError("Node not found.", 404);
   }
   const { canvases: _canvases, ...node } = row;
-  return handler(nodeId, node as NodeRow, caller);
+  return handler(nodeId, node as NodeRow, caller, canvas.client_id);
 }
 
 // ── Try/catch wrapper ─────────────────────────────────────────────────────────

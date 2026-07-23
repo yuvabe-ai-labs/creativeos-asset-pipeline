@@ -32,7 +32,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withNode(params, async (nodeId, _node, caller) => {
+  return withNode(params, async (nodeId, _node, caller, clientId) => {
     const body = (await req.json().catch(() => null)) as
       | {
           modelId?: unknown;
@@ -248,7 +248,9 @@ export async function POST(
     const generation = await insertGeneration({
       nodeId,
       orgId: caller.orgId,
+      clientId,
       userId: caller.userId,
+      userEmail: caller.email,
       type: "image",
       modelUsed: modelId,
       paramsSnapshot: validatedParams,
@@ -303,6 +305,7 @@ export async function POST(
         generationId: generation.id,
         versionId: version.id,
         creditsConsumed: cost?.usd,
+        outputSnapshot: imageUrl,
       });
 
       return apiOk({

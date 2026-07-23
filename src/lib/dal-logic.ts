@@ -3,6 +3,7 @@ export type OrgRole = "owner" | "senior" | "designer";
 
 export type CallerContext = {
   userId: string;
+  email: string | null;
   platformRole: PlatformRole;
   orgId: string;
   orgRole: OrgRole;

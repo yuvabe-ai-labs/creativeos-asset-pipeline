@@ -41,6 +41,7 @@ export const resolveCallerContext = cache(async (): Promise<CallerContext> => {
 
   return {
     userId: user.id,
+    email: user.email ?? null,
     platformRole,
     orgId: membership.org_id as string,
     orgRole: membership.org_role as OrgRole,

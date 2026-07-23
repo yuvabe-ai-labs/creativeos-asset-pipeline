@@ -50,6 +50,7 @@ export type ClientKBVersionRow = {
 export type CanvasRow = {
   id: string;
   client_id: string;
+  org_id: string; // RLS backstop (D78), added in migration 0014
   slug: string;
   name: string;
   viewport: { x: number; y: number; zoom: number };
@@ -96,12 +97,15 @@ export type NodeVersionRow = {
 export type GenerationRow = {
   id: string;
   node_id: string;
+  org_id: string; // RLS backstop (D78), added in migration 0014
+  client_id: string | null; // forward-looking, added in 0016 — nullable, not backfilled
   type: "image" | "video" | "prompt";
   status: "running" | "succeeded" | "failed";
   provider_job_id: string | null;
   model_used: string | null;
   params_snapshot: Record<string, unknown> | null;
   inputs_snapshot: Record<string, unknown> | null;
+  output_snapshot: string | null; // forward-looking, added in 0016
   tokens_used: Record<string, unknown> | null;
   credits_consumed: number | null;
   version_id: string | null;
@@ -123,6 +127,7 @@ export type ClientKBJobStatus =
 export type ClientKBJobRow = {
   id: string;
   client_id: string;
+  org_id: string; // RLS backstop (D78), added in migration 0014
   status: ClientKBJobStatus;
   phase_message: string | null;
   website_url: string | null;

@@ -99,6 +99,7 @@ export async function completeGeneration(
     generationId: input.generationId,
     versionId: version.id,
     creditsConsumed: cost?.usd,
+    outputSnapshot: storedVideoUrl,
     meta: input.meta,
   });
 }

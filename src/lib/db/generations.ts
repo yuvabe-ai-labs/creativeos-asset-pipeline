@@ -5,7 +5,9 @@ import type { GenerationRow } from "./types";
 export async function insertGeneration(input: {
   nodeId: string;
   orgId: string;
+  clientId?: string;
   userId?: string;
+  userEmail?: string | null;
   type: GenerationRow["type"];
   modelUsed?: string;
   paramsSnapshot?: Record<string, unknown>;
@@ -17,7 +19,12 @@ export async function insertGeneration(input: {
     .insert({
       node_id: input.nodeId,
       org_id: input.orgId,
+      client_id: input.clientId ?? null,
       user_id: input.userId ?? null,
+      // Lightweight snapshot for support/debugging — who kicked this off, captured once
+      // at creation. Not overwritten later: succeedGeneration only touches `meta` when
+      // explicitly given a value, so this survives completion.
+      meta: input.userEmail ? { email: input.userEmail } : null,
       type: input.type,
       status: "running",
       model_used: input.modelUsed ?? null,
@@ -34,18 +41,25 @@ export async function succeedGeneration(input: {
   generationId: string;
   versionId: string;
   creditsConsumed?: number;
+  outputSnapshot?: string;
   meta?: Record<string, unknown>;
 }): Promise<void> {
   const supabase = createServerSupabase();
+  const update: Record<string, unknown> = {
+    status: "succeeded",
+    version_id: input.versionId,
+    credits_consumed: input.creditsConsumed ?? null,
+    updated_at: new Date().toISOString(),
+  };
+  if (input.outputSnapshot !== undefined) update.output_snapshot = input.outputSnapshot;
+  // Only touch meta when explicitly given a new value — insertGeneration already set it
+  // (e.g. the creator's email) and an unconditional overwrite here would silently wipe
+  // that out on every completion, since most callers never pass meta.
+  if (input.meta !== undefined) update.meta = input.meta;
+
   const { error } = await supabase
     .from("generations")
-    .update({
-      status: "succeeded",
-      version_id: input.versionId,
-      credits_consumed: input.creditsConsumed ?? null,
-      meta: input.meta ?? null,
-      updated_at: new Date().toISOString(),
-    })
+    .update(update)
     .eq("id", input.generationId);
   if (error) throw error;
 }
