@@ -18,7 +18,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withNode(params, async (nodeId) => {
+  return withNode(params, async (nodeId, _node, caller) => {
     const raw = await req.json().catch(() => null);
     const parsed = GenerateBodySchema.safeParse(raw);
     if (!parsed.success) {
@@ -96,6 +96,8 @@ export async function POST(
     // Insert generation record (status: 'running')
     const generation = await insertGeneration({
       nodeId,
+      orgId: caller.orgId,
+      userId: caller.userId,
       type: "video",
       modelUsed: modelId,
       paramsSnapshot: resolvedParams,

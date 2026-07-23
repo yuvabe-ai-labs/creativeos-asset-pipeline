@@ -28,7 +28,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withNode(params, async (nodeId) => {
+  return withNode(params, async (nodeId, _node, caller) => {
     const body = (await req.json().catch(() => null)) as
       | { instruction?: unknown; slices?: unknown; controls?: unknown }
       | null;
@@ -60,6 +60,8 @@ export async function POST(
     try {
       generation = await insertGeneration({
         nodeId,
+        orgId: caller.orgId,
+        userId: caller.userId,
         type: "prompt",
         modelUsed: model,
         paramsSnapshot: { model: promptGeneratePrompt.model },

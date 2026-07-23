@@ -32,7 +32,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withNode(params, async (nodeId) => {
+  return withNode(params, async (nodeId, _node, caller) => {
     const body = (await req.json().catch(() => null)) as
       | {
           modelId?: unknown;
@@ -247,6 +247,8 @@ export async function POST(
     // Join the shared generations substrate (D26) — image is the synchronous fast path.
     const generation = await insertGeneration({
       nodeId,
+      orgId: caller.orgId,
+      userId: caller.userId,
       type: "image",
       modelUsed: modelId,
       paramsSnapshot: validatedParams,

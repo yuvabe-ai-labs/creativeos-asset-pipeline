@@ -4,6 +4,8 @@ import type { GenerationRow } from "./types";
 
 export async function insertGeneration(input: {
   nodeId: string;
+  orgId: string;
+  userId?: string;
   type: GenerationRow["type"];
   modelUsed?: string;
   paramsSnapshot?: Record<string, unknown>;
@@ -14,6 +16,8 @@ export async function insertGeneration(input: {
     .from("generations")
     .insert({
       node_id: input.nodeId,
+      org_id: input.orgId,
+      user_id: input.userId ?? null,
       type: input.type,
       status: "running",
       model_used: input.modelUsed ?? null,

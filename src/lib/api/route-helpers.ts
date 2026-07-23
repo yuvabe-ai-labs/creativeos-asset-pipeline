@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getClientById } from "@/lib/db/clients";
 import { createServerSupabase } from "@/lib/supabase/server";
 import type { ClientRow, CanvasRow, NodeRow } from "@/lib/db/types";
-import { resolveCallerContext } from "@/lib/dal";
+import { resolveCallerContext, type CallerContext } from "@/lib/dal";
 
 // PostgREST may surface an embedded to-one relation as an object or a single-element
 // array, depending on schema-cache heuristics (same ambiguity handled in
@@ -108,9 +108,12 @@ type NodeWithOrgChain = NodeRow & {
 // /api/clients/[id]/*), so they had no org check at all. Node -> canvas -> client -> org,
 // resolved in ONE query via embedded joins (not three sequential round trips) — this
 // runs on every generation request, so the chain is collapsed up front, not after the fact.
+// Also hands the resolved CallerContext to the callback — routes that insert into
+// generations (org_id not-null since 0014; user_id available too) need it and
+// resolveCallerContext() is already called here, so no extra work to pass it along.
 export async function withNode(
   params: Promise<{ id: string }>,
-  handler: (nodeId: string, node: NodeRow) => Promise<AnyResponse>,
+  handler: (nodeId: string, node: NodeRow, caller: CallerContext) => Promise<AnyResponse>,
 ): Promise<AnyResponse> {
   const { id: nodeId } = await params;
   const supabase = createServerSupabase();
@@ -130,7 +133,7 @@ export async function withNode(
     return apiError("Node not found.", 404);
   }
   const { canvases: _canvases, ...node } = row;
-  return handler(nodeId, node as NodeRow);
+  return handler(nodeId, node as NodeRow, caller);
 }
 
 // ── Try/catch wrapper ─────────────────────────────────────────────────────────

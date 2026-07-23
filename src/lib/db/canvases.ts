@@ -49,6 +49,7 @@ export async function getCanvasBySlug(
 
 export async function createCanvas(input: {
   clientId: string;
+  orgId: string;
   name: string;
 }): Promise<CanvasRow> {
   const supabase = createServerSupabase();
@@ -64,7 +65,7 @@ export async function createCanvas(input: {
 
   const { data, error } = await supabase
     .from("canvases")
-    .insert({ client_id: input.clientId, slug, name: input.name })
+    .insert({ client_id: input.clientId, org_id: input.orgId, slug, name: input.name })
     .select()
     .single();
   if (error) throw error;

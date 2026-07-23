@@ -4,6 +4,7 @@ import type { ClientKBJobRow, ClientKBJobStatus } from "./types";
 
 export async function insertKBJob(input: {
   clientId: string;
+  orgId: string;
   websiteUrl: string | null;
   docIdsUsed: string[];
 }): Promise<ClientKBJobRow> {
@@ -12,6 +13,7 @@ export async function insertKBJob(input: {
     .from("client_kb_jobs")
     .insert({
       client_id: input.clientId,
+      org_id: input.orgId,
       website_url: input.websiteUrl,
       doc_ids_used: input.docIdsUsed,
       status: "queued",
