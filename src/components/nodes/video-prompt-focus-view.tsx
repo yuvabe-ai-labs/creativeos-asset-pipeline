@@ -529,10 +529,11 @@ export function VideoPromptFocusView({
                         <div className="flex h-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border px-4 text-center">
                           <Video className="size-6 text-muted-foreground/50" strokeWidth={1.5} />
                           <p className="text-sm font-medium text-muted-foreground">
-                            Camera set on the video node
+                            Camera is on the video node
                           </p>
                           <p className="text-xs text-muted-foreground/70">
-                            Choose a camera move on the connected Kling video node.
+                            You&apos;ve selected Kling as the video model, so the camera controls
+                            are on the connected video node.
                           </p>
                         </div>
                       ) : (
