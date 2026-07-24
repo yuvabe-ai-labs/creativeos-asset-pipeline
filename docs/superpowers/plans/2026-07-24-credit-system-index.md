@@ -52,13 +52,23 @@ full task-level detail.
   priced worst-case (the higher rate, for the whole count) whenever the live token count
   can't be split by the provider. Depends on 3A's schema and 3B's estimate functions +
   `usdToFinalCredits`.
-  → `2026-07-24-credit-system-3c-reservation-settlement.md`. **Status: plan written, not yet
-  executed.**
+  → `2026-07-24-credit-system-3c-reservation-settlement.md`. **Status: complete** (all 7
+  tasks implemented and reviewed clean, including a real double-refund race caught during
+  Task 5's review and fixed centrally in `credit-transactions.ts`, commit `e0487cd`;
+  87/87 test files, 616/616 tests passing).
 
 - **3D — Reconciliation sweep** (design spec §4)
   New scheduled Trigger.dev task, `trigger/reconcile-stuck-generations.ts`, closing out
   anything stuck in `running` past 15 minutes. Depends on 3C's refund path (reuses it
-  exactly). **Status: not started.**
+  exactly). **Scope note added while reviewing 3C's final task:** `failAndRefund` (and every
+  route's own fail-then-refund sequence) calls `failGeneration` then `refundReservation`
+  non-atomically — if the generation update succeeds but the refund call itself then throws,
+  the row becomes terminal (`failed`) with its reservation never refunded, and 3C's own
+  idempotency guard (`if status !== "running"`) means nothing else will ever retry it. 3D's
+  sweep needs to catch this case too, not just rows stuck in `running` — i.e. also find
+  terminal (`failed`/`succeeded`) rows with an outstanding, unrefunded `reservation` ledger
+  row (a `reservation` with no matching `refund`/`consumption` row for that
+  `generation_id`), not only `status = 'running'` past the timeout. **Status: not started.**
 
 - **3E — Pre-generation estimate UI** (design spec §5)
   Wire the 3B estimate functions into the three focus views
