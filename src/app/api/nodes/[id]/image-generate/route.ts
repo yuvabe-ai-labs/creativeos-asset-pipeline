@@ -8,9 +8,8 @@ import {
   type EditIntent,
 } from "@/lib/image-gen/edit-prompt";
 import type { MentionUpstream } from "@/lib/nodes/resolve-mention-tokens";
-import { computeImageCost, estimateImageOutputCost, estimateImageInputCost } from "@/lib/image-gen/cost";
-import { countGeminiInputTokens } from "@/lib/image-gen/providers/gemini";
-import { countOpenAIInputTokens, aspectRatioToOpenAISize } from "@/lib/image-gen/providers/openai";
+import { computeImageCost } from "@/lib/image-gen/cost";
+import { estimateImageGenerationCostUsd } from "@/lib/image-gen/estimate";
 import { usdToFinalCredits } from "@/lib/credits/units";
 import {
   reserveCredits,
@@ -267,24 +266,19 @@ export async function POST(
     });
 
     try {
-      const hasReferenceImages = referenceUrls.length > 0;
-      const isOpenAI = modelId.startsWith("openai:");
-      const quality = validatedParams.quality as string | undefined;
-      const sizeKey = isOpenAI
-        ? aspectRatioToOpenAISize((validatedParams.aspect_ratio as string) ?? "1:1")
-        : ((validatedParams.image_size as string) ?? "1K");
-
-      const outputCostUsd = estimateImageOutputCost(modelId, quality, sizeKey);
-      if (outputCostUsd === null) {
+      const costUsd = await estimateImageGenerationCostUsd({
+        modelId,
+        quality: validatedParams.quality as string | undefined,
+        aspectRatio: validatedParams.aspect_ratio as string | undefined,
+        imageSize: validatedParams.image_size as string | undefined,
+        prompt,
+        referenceUrls,
+      });
+      if (costUsd === null) {
         throw new Error(`No cost estimate available for ${modelId} at this quality/size.`);
       }
 
-      const inputTokens = isOpenAI
-        ? await countOpenAIInputTokens(prompt, referenceUrls)
-        : await countGeminiInputTokens(modelId.split(":")[1], prompt, referenceUrls);
-      const inputCostUsd = estimateImageInputCost(modelId, inputTokens, hasReferenceImages) ?? 0;
-
-      const estimatedCredits = usdToFinalCredits(outputCostUsd + inputCostUsd);
+      const estimatedCredits = usdToFinalCredits(costUsd);
       const reservation = await reserveCredits(caller.orgId, generation.id, estimatedCredits);
       if (!reservation.ok) {
         throw new CreditLimitError("Monthly credit limit reached");
