@@ -8,7 +8,16 @@ import {
   type EditIntent,
 } from "@/lib/image-gen/edit-prompt";
 import type { MentionUpstream } from "@/lib/nodes/resolve-mention-tokens";
-import { computeImageCost } from "@/lib/image-gen/cost";
+import { computeImageCost, estimateImageOutputCost, estimateImageInputCost } from "@/lib/image-gen/cost";
+import { countGeminiInputTokens } from "@/lib/image-gen/providers/gemini";
+import { countOpenAIInputTokens, aspectRatioToOpenAISize } from "@/lib/image-gen/providers/openai";
+import { usdToFinalCredits } from "@/lib/credits/units";
+import {
+  reserveCredits,
+  settleGeneration,
+  refundReservation,
+  CreditLimitError,
+} from "@/lib/db/credit-transactions";
 import { apiError, apiOk, withNode } from "@/lib/api/route-helpers";
 import { uploadImageGen } from "@/lib/storage";
 import sharp from "sharp";
@@ -258,6 +267,29 @@ export async function POST(
     });
 
     try {
+      const hasReferenceImages = referenceUrls.length > 0;
+      const isOpenAI = modelId.startsWith("openai:");
+      const quality = validatedParams.quality as string | undefined;
+      const sizeKey = isOpenAI
+        ? aspectRatioToOpenAISize((validatedParams.aspect_ratio as string) ?? "1:1")
+        : ((validatedParams.image_size as string) ?? "1K");
+
+      const outputCostUsd = estimateImageOutputCost(modelId, quality, sizeKey);
+      if (outputCostUsd === null) {
+        throw new Error(`No cost estimate available for ${modelId} at this quality/size.`);
+      }
+
+      const inputTokens = isOpenAI
+        ? await countOpenAIInputTokens(prompt, referenceUrls)
+        : await countGeminiInputTokens(modelId.split(":")[1], prompt, referenceUrls);
+      const inputCostUsd = estimateImageInputCost(modelId, inputTokens, hasReferenceImages) ?? 0;
+
+      const estimatedCredits = usdToFinalCredits(outputCostUsd + inputCostUsd);
+      const reservation = await reserveCredits(caller.orgId, generation.id, estimatedCredits);
+      if (!reservation.ok) {
+        throw new CreditLimitError("Monthly credit limit reached");
+      }
+
       const result = await config.generate({
         prompt,
         referenceUrls,
@@ -301,10 +333,19 @@ export async function POST(
       await setActiveVersion(nodeId, version.id);
 
       const cost = result.tokensUsed ? computeImageCost(modelId, result.tokensUsed) : null;
+      // cost is only ever null when the provider returned no token usage — an actual cost
+      // of 0 credits in that case, not a reason to skip settlement.
+      const actualCredits = cost ? usdToFinalCredits(cost.usd) : 0;
+      await settleGeneration({
+        orgId: caller.orgId,
+        generationId: generation.id,
+        actualAmount: actualCredits,
+      });
       await succeedGeneration({
         generationId: generation.id,
         versionId: version.id,
         costUsd: cost?.usd,
+        creditsCharged: actualCredits,
         outputSnapshot: imageUrl,
       });
 
@@ -324,7 +365,9 @@ export async function POST(
         error: message,
       }).catch(() => null);
       await failGeneration({ generationId: generation.id, error: message }).catch(() => null);
-      return apiError(message, 500);
+      await refundReservation({ orgId: caller.orgId, generationId: generation.id }).catch(() => null);
+      const status = e instanceof CreditLimitError ? 402 : 500;
+      return apiError(message, status);
     }
   });
 }
