@@ -20,14 +20,16 @@ threshold is a fixed design constant), Trigger.dev v3 `schedules.task`.
 
 ## Global Constraints
 
-- **`trigger/*.ts` files never statically import a `@/lib/*` module.** Confirmed by reading
-  both existing task files (`trigger/video-generate.ts`, `trigger/kb-build.ts`) — neither has
-  a single static `from "@/lib/..."` import; both use `const { X } = await import("@/lib/...")`
-  inside the `run` function instead. This matters here specifically because
+- **`trigger/*.ts` files never statically import a `@/lib/*` module that carries `import
+  "server-only"`.** Confirmed by reading both existing task files: `trigger/video-generate.ts`
+  has one `@/lib` import (`video-gen/registry`, which is `server-only`) and it's dynamic,
+  inside `run`. `trigger/kb-build.ts` has one static `@/lib` import (`kb/build-message`) —
+  safe there specifically because that module carries no `server-only` sentinel, not because
+  the rule is "never import `@/lib` statically" in general. This matters here because
   `@/lib/db/generations.ts`, `@/lib/db/credit-transactions.ts`, and `@/lib/supabase/server.ts`
-  all carry `import "server-only"` at their top — a Next.js-specific sentinel not meant to be
-  statically bundled into Trigger.dev's separate build. Follow this exactly: every `@/lib`
-  import in the new task file is a dynamic `await import(...)` inside `run`.
+  all carry `import "server-only"` — a Next.js-specific sentinel not meant to be statically
+  bundled into Trigger.dev's separate build. Follow this exactly: every `@/lib` import in the
+  new task file is a dynamic `await import(...)` inside `run`.
 - **The sweep covers two cases with one query, not two.** A row can need reconciling either
   because it's still `running` past the timeout, or because it's already terminal (`failed`)
   but its reservation was never refunded (the fail-then-refund race found in 3C's Task 7
