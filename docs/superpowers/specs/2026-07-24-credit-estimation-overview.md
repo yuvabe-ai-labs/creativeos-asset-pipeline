@@ -97,3 +97,14 @@ Every estimate shown before generating is just that — an estimate to inform th
 actual credits charged always come from the real cost the provider reports back afterward.
 Nothing here risks over- or under-charging based on a wrong guess; the estimate only affects
 what's shown *before* you click Generate.
+
+---
+
+## Sources
+
+- [OpenAI — Image generation guide](https://developers.openai.com/api/docs/guides/image-generation) — GPT Image output cost by quality/size
+- [OpenAI — Pricing](https://developers.openai.com/api/docs/pricing) — GPT Image/Sora per-token and per-second rates
+- [OpenAI — Token counting](https://developers.openai.com/api/docs/guides/token-counting) — official pre-flight input-token counting (text and images, one call)
+- [Google — Gemini API pricing](https://ai.google.dev/gemini-api/docs/pricing) — Gemini image models and Veo
+- [Google — Counting tokens](https://ai.google.dev/gemini-api/docs/generate-content/tokens) — official pre-flight `countTokens` (text and images, one call)
+- [Kling — Video pricing](https://kling.ai/document-api/pricing/base/video) — all 5 current Kling models
