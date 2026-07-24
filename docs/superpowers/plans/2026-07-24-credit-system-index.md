@@ -17,7 +17,8 @@ full task-level detail.
   `credits_charged` column. `monthly_credit_limit` ×1000 migration. The rename touches 9
   application files and 3 test fixtures — done in the same sub-plan as the migration, since
   a partial rename leaves the build broken either way.
-  → `2026-07-24-credit-system-3a-schema.md`. **Status: not started.**
+  → `2026-07-24-credit-system-3a-schema.md`. **Status: complete** (migration `0019` applied
+  to Supabase; rename landed in commit `25e1234`, task review clean, 597/597 tests passing).
 
 - **3B — Pre-generation estimate functions + credit-unit conversion** (design spec §2a, §5)
   `src/lib/credits/units.ts`: `USD_TO_CREDITS`/`MARGIN_PERCENT`/`CREDIT_ROUND_STEP`/
