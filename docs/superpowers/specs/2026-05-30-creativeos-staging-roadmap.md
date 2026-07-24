@@ -1594,6 +1594,13 @@ attacker-controlled `videoUrl`, which the server fetches and uploads to GCS as i
 the real output — a data-integrity issue and a mild SSRF-adjacent risk, not just a
 missing-check formality.
 
+**Superseded in part by D90.** The Kling path described above (URL-token auth, since an
+external provider calling back isn't guaranteed to forward headers) no longer exists — D90's
+Kling rewrite moved completion to internal polling, so Kling never calls this webhook at all
+anymore. `isAuthorizedWebhook()`'s header-based check (the internal Trigger.dev path) still
+stands unchanged; only the now-dead Kling branch and its `?provider=kling&token=...` URL
+shape were removed from `route.ts` when merging D90's rewrite in.
+
 **Originated →** `2026-07-21-auth-stage-2c-worker-tenant-check.md`.
 
 ### D90 — Kling integration rebuilt against verified docs; polling replaces webhook *(recorded 2026-07-23; renumbered from a D77 collision at merge — this branch had already assigned D77 to the credit-ledger decision above)*

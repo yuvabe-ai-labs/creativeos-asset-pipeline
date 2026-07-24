@@ -106,8 +106,16 @@ server-side from the same request params (`modelId`, `quality`/`size`, or `durat
 it already has, the same way it already independently computes actual cost at settlement — a
 client could otherwise submit a fabricated low estimate to slip past the cap.
 
-- **Video — exact.** `computeVideoCost(modelId, requestedDuration, requestedAudio)` — already
-  sourced, already exists, duration/audio are known request params before firing the task.
+- **Video — exact.** `computeVideoCost(modelId, durationSeconds, audioEnabled, resolution?)` —
+  already sourced, already exists (signature updated post-merge: Kling's 5 current models
+  were rewritten against verified pricing docs — D90 — and now price by resolution as well
+  as audio, via a separate `KLING_RESOLUTION_PRICING` table; Veo/Sora keep the simpler
+  duration×rate×audio-multiplier shape, unaffected). Duration, audio, and (for Kling)
+  resolution are all known request params before firing the task, so this stays exact. One
+  inherited caveat, already flagged inline in that file: `kling-o1`'s audio-on pricing is
+  marked `ASSUMPTION` (reused from `kling-3-0`'s delta, since Kling's pricing page doesn't
+  split it out for o1) — not this stage's gap to fix, just worth knowing the estimate
+  inherits that one model's uncertainty.
 - **Image — exact.** New lookup table, `IMAGE_ESTIMATE_TABLE` in `src/lib/image-gen/cost.ts`,
   keyed by model + quality + size, giving the exact USD cost — sourced today directly from
   OpenAI's and Google's own docs (not derived from the token-based `IMAGE_MODEL_PRICING` used
