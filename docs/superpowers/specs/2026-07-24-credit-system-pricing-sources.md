@@ -44,7 +44,7 @@ Two separate stored facts, not one value with a live formula:
 | `veo:veo-3.1-lite` | $0.05/s (720p) | 🟢 | `ai.google.dev/gemini-api/docs/pricing`, page pasted directly by the user 2026-07-24 |
 | `veo:veo-3.1-fast` | $0.10/s (720p) | 🟢 | same |
 | `veo:veo-3.1` (Quality) | $0.40/s (720p) | 🟢 | same — **corrected this session**, was $0.2667/s (a stale "base rate" a 1.5× audio multiplier never actually applied, since Veo has no audio toggle in this app) |
-| `openai:sora-2` | $0.10/s (720p) | 🟡 | `platform.openai.com/docs/pricing`, comment dated "verified June 2026" — not re-checked this session |
+| `openai:sora-2` | $0.10/s (720p) | 🟢 | `developers.openai.com/api/docs/pricing`, "Video generation models" table, pasted directly by the user 2026-07-24 — exact match. (That page also lists `sora-2-pro` at $0.30–$0.70/s by resolution — a real model, just not one this app's registry offers.) |
 | `kling:kling-3-0-turbo` | $0.112/s (720p, native audio only) / $0.14/s (1080p) | 🟢 | `kling.ai/document-api/pricing/base/video`, full table pasted directly by the user 2026-07-24 |
 | `kling:kling-2-6` | $0.042/s (720p, off) / $0.07–$0.14/s (1080p) | 🟢 | same |
 | `kling:kling-2-5-turbo` | $0.042/s (720p) / $0.07/s (1080p) | 🟢 | same |
@@ -68,9 +68,9 @@ API response) — this is what actually gets written to `credits_consumed`.
 
 | Model | textIn | imgIn | imgOut | Confidence | Source |
 |---|---|---|---|---|---|
-| `openai:gpt-image-2` | $5.00/1M | $8.00/1M | $30.00/1M | 🟡 | not independently re-verified this session |
-| `openai:gpt-image-1` | $5.00/1M | $10.00/1M | $40.00/1M | 🟢 | cross-checked: `gpt-image-1` Medium/1024×1024 = 1056 tokens × $40/1M = $0.0422, matching the estimate table's $0.042 (§5) |
-| `openai:gpt-image-1-mini` | $2.00/1M | $2.50/1M | $8.00/1M | 🟡 | not independently re-verified this session |
+| `openai:gpt-image-2` | $5.00/1M | $8.00/1M | $30.00/1M | 🟢 | `developers.openai.com/api/docs/pricing`, "Image generation models" table, pasted directly by the user 2026-07-24 — exact match |
+| `openai:gpt-image-1` | $5.00/1M | $10.00/1M | $40.00/1M | 🟢 | cross-checked: `gpt-image-1` Medium/1024×1024 = 1056 tokens × $40/1M = $0.0422, matching the estimate table's $0.042 (§5). Not in the pricing-table paste above — that table lists `gpt-image-2`/`gpt-image-1.5`/`gpt-image-1-mini` only; `gpt-image-1` (this app's model, not `1.5`) isn't shown there, only in the "Calculating costs" comparison table (§5's source) |
+| `openai:gpt-image-1-mini` | $2.00/1M | $2.50/1M | $8.00/1M | 🟢 | same pricing-table paste as `gpt-image-2` above — exact match |
 | `gemini:gemini-2.5-flash-image` | $0.30/1M | $0.30/1M | $30.00/1M | 🟢 | `ai.google.dev/gemini-api/docs/pricing`, pasted by the user 2026-07-24 |
 | `gemini:gemini-3.1-flash-image` | $0.50/1M | $0.50/1M | $60.00/1M | 🟢 | same — **corrected this session**, textIn/imgIn were $0.30/$0.30 (Google prices combined text+image input as one $0.50 rate, not split) |
 | `gemini:gemini-3-pro-image` | $2.00/1M | $2.00/1M | $120.00/1M | 🟢 | same — **corrected this session**, imgOut was $80.00 (marked "estimated — update when Google publishes"; Google has published it) and textIn/imgIn were $1.25/$1.25 (same combined-rate fix as 3.1-flash-image) |
@@ -161,12 +161,14 @@ real usage accumulates). Labeled "~estimated" in the UI, unlike video/image.
 - `developers.openai.com/api/docs/guides/image-generation` ("Calculating costs" section) —
   OpenAI image models' estimate table (§5). Pasted directly by the user, 2026-07-24, after
   automated fetches proved unreliable for this specific table.
-- `developers.openai.com/api/docs/pricing` — checked, confirmed to have **no** static image
-  pricing table (defers to the guide above); ruled out as a source, not used.
+- `developers.openai.com/api/docs/pricing` — two different things live on this page, don't
+  conflate them: the quality/size-tiered **estimate** breakdown (§5) genuinely isn't here
+  (correctly sourced from the guide above instead) — but the flat per-1M-token **actual-cost**
+  rates for `gpt-image-2`/`gpt-image-1-mini` (§4) and `sora-2` (§3) *are* here, in the "Image
+  generation models" / "Video generation models" tables. An earlier automated fetch of this
+  page missed that distinction and wrongly reported no usable table at all; the user pasted
+  the real tables directly 2026-07-24, which is what upgraded those three rows from 🟡 to 🟢.
 - `kling.ai/document-api/pricing/base/video` — Kling's 5 current models (§3). Originally
   fetched 2026-07-23 as part of the D90 Kling rewrite; **the full table was re-pasted
   directly by the user 2026-07-24**, which is what caught and corrected the `kling-3-0` /
   `kling-o1` audio-pricing bugs — the 2026-07-23 fetch had gotten those two wrong.
-- `platform.openai.com/docs/pricing` — Sora (§3), `gpt-image-2`/`gpt-image-1-mini` actual-cost
-  rates (§4). Pre-existing citations in the code, dated "verified June 2026" — not
-  re-checked this session.
