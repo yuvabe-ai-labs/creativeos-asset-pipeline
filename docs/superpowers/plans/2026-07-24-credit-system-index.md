@@ -76,8 +76,14 @@ full task-level detail.
 - **3E — Pre-generation estimate UI** (design spec §5)
   Wire the 3B estimate functions into the three focus views
   (`video-gen-focus-view.tsx:844`, `image-gen-focus-view.tsx`, `prompt-focus-view.tsx`),
-  reactive to param changes, shown next to each Generate button. Depends on 3B. **Status:
-  not started.**
+  reactive to param changes, shown next to each Generate button. Video/prompt compute fully
+  client-side (pure functions, no network call); image needs one new read-only route
+  (`image-generate/estimate`) since live token counting can't run in the browser — the exact
+  computation is extracted out of 3C's already-shipped reservation logic
+  (`estimateImageGenerationCostUsd`) so both call sites can never drift apart. Scoped to each
+  view's primary Generate button only — the image view's separate Edit-mode button is
+  explicitly out of scope (stated in the plan, not silently dropped). Depends on 3B.
+  → `2026-07-24-credit-system-3e-estimate-ui.md`. **Status: plan written, not yet executed.**
 
 - **3F — Admin UI wiring** (design spec §6)
   Overview tab gains a "Used this month" tile (`org_credit_usage`). Generations table splits
