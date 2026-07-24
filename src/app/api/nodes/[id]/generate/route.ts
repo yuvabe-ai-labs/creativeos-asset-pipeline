@@ -7,6 +7,14 @@ import { type ShotControls } from "@/lib/nodes/shot-controls";
 import { insertVersion, setActiveVersion } from "@/lib/db/versions";
 import { insertGeneration, succeedGeneration, failGeneration } from "@/lib/db/generations";
 import { computeCost } from "@/lib/pricing";
+import { estimatePromptCredits } from "@/lib/credits/prompt-estimate";
+import { usdToFinalCredits } from "@/lib/credits/units";
+import {
+  reserveCredits,
+  settleGeneration,
+  refundReservation,
+  CreditLimitError,
+} from "@/lib/db/credit-transactions";
 import { describeModelRequest } from "@/lib/nodes/model-request";
 import { apiError, apiOk, withNode } from "@/lib/api/route-helpers";
 
@@ -70,6 +78,12 @@ export async function POST(
         inputsSnapshot: { instruction: effectiveInstruction },
       });
 
+      const estimatedCredits = estimatePromptCredits(resolved.upstream.length);
+      const reservation = await reserveCredits(caller.orgId, generation.id, estimatedCredits);
+      if (!reservation.ok) {
+        throw new CreditLimitError("Monthly credit limit reached");
+      }
+
       const openai = createOpenAI();
       const completion = await openai.chat.completions.create({
         model: promptGeneratePrompt.model,
@@ -108,10 +122,20 @@ export async function POST(
             total_tokens: usage.total_tokens,
           })
         : null;
+      // cost is only ever null when the provider returned no usage data — an actual cost
+      // of 0 credits in that case, not a reason to skip settlement (every terminal state
+      // still refunds its reservation exactly once).
+      const actualCredits = cost ? usdToFinalCredits(cost.usd) : 0;
+      await settleGeneration({
+        orgId: caller.orgId,
+        generationId: generation.id,
+        actualAmount: actualCredits,
+      });
       await succeedGeneration({
         generationId: generation.id,
         versionId: version.id,
         costUsd: cost?.usd,
+        creditsCharged: actualCredits,
         outputSnapshot: output,
       });
 
@@ -132,8 +156,10 @@ export async function POST(
       });
       if (generation?.id) {
         await failGeneration({ generationId: generation.id, error: message }).catch(() => null);
+        await refundReservation({ orgId: caller.orgId, generationId: generation.id }).catch(() => null);
       }
-      return apiError(message, 500);
+      const status = e instanceof CreditLimitError ? 402 : 500;
+      return apiError(message, status);
     }
   });
 }
