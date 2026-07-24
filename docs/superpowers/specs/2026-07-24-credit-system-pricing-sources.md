@@ -108,33 +108,35 @@ exist) — **do not trust an automated fetch for this table again; get it pasted
 
 Source: same Gemini pricing page as §3/§4.
 
-### Input tokens: tooling found for text (both providers) and Gemini's reference images
+### Input tokens: one official pre-flight counting call per provider
 
 The output table above is **output-only**. OpenAI's own docs state final cost sums input
-text tokens + input image tokens (edits) + output tokens.
+text tokens + input image tokens (edits) + output tokens. For both providers, input
+(text-only, or text+reference-images together) is covered by **one official API call each**
+— no separate local-tokenizer library needed for the text-only case, since both official
+endpoints already handle plain text as their simplest input shape.
 
-- **Prompt text tokens (OpenAI):** 🟢 exact — `js-tiktoken` (npm), matches OpenAI's own
-  encoding. A real, named library, not just "a tokenizer exists somewhere."
-- **Prompt text tokens (Gemini):** 🟢 exact — `ai.models.countTokens()` (`@google/genai`,
-  already a dependency) on a text-only `contents` array.
-- **Reference/edit image input tokens (Gemini):** 🟢 **closed.** `countTokens()` accepts the
-  same multimodal `contents` shape (text + `inlineData` image parts) `generateWithGemini()`
-  already builds — call it before generating for an exact pre-flight count including
-  reference images. Source: `ai.google.dev/gemini-api/docs/generate-content/tokens` — this
-  is the `generateContent`-API version of the docs, matching what `gemini.ts` actually
-  calls (not the newer Interactions API) — pasted directly by the user, with a worked
-  multimodal example matching this app's request shape. Google also publishes the underlying
-  formula (images ≤384px = 258 tokens; larger images tile into 768×768 sections, 258 tokens
-  each) — usable as a local computation from `imageWidth`/`imageHeight` (already tracked in
-  `image-generate/route.ts`) instead of a live API call, if preferred at implementation time.
-- **Reference/edit image input tokens (OpenAI):** 🟢 closable, one inference away from fully
-  confirmed. `client.responses.input_tokens.count()` (`POST /v1/responses/input_tokens`) is
-  a real, official token-counting endpoint that explicitly handles images ("no guesswork").
-  Source: `developers.openai.com/api/docs/guides/token-counting`, pasted directly by the
-  user, worked image example uses `image_url` (this app's reference images are already
-  public Supabase URLs — same shape). **The one open inference:** this endpoint counts
-  tokens for a **Responses API** request; GPT Image models go through the separate **Images
-  API** (`images.generate`/`images.edit`). The earlier "Calculating costs" guide explicitly
+- **Gemini — text and reference images, one call:** 🟢 closed. `ai.models.countTokens()`
+  (`@google/genai`, already a dependency) accepts the exact same `contents` shape
+  `generateWithGemini()` already builds for a real generation — a text-only array for
+  prompt-only requests, or text + `inlineData` image parts for edits — call it before
+  generating for an exact pre-flight count either way. Source:
+  `ai.google.dev/gemini-api/docs/generate-content/tokens` — the `generateContent`-API
+  version of the docs, matching what `gemini.ts` actually calls (not the newer Interactions
+  API) — pasted directly by the user, with a worked multimodal example matching this app's
+  request shape. Google also publishes the underlying image-token formula (≤384px = 258
+  tokens; larger images tile into 768×768 sections, 258 tokens each) — usable as a local
+  computation from `imageWidth`/`imageHeight` (already tracked in `image-generate/route.ts`)
+  instead of a live call, if preferred at implementation time.
+- **OpenAI — text and reference images, one call:** 🟢 closable, one inference away from
+  fully confirmed. `client.responses.input_tokens.count()` (`POST /v1/responses/input_tokens`)
+  handles both — its first documented example is plain text input, and it "explicitly
+  handles images... no guesswork" per its own docs. Source:
+  `developers.openai.com/api/docs/guides/token-counting`, pasted directly by the user,
+  worked image example uses `image_url` (this app's reference images are already public
+  Supabase URLs — same shape). **The one open inference:** this endpoint counts tokens for a
+  **Responses API** request; GPT Image models go through the separate **Images API**
+  (`images.generate`/`images.edit`). The earlier "Calculating costs" guide explicitly
   pointed to this same vision-token machinery for GPT Image's input costs, strongly
   suggesting shared tokenization — not directly confirmed as "this is exactly what
   `images.edit()` bills." Worth a real-world sanity check against

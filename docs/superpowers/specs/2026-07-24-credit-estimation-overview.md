@@ -27,11 +27,10 @@ guide](https://developers.openai.com/api/docs/guides/image-generation) and [pric
 page](https://developers.openai.com/api/docs/pricing))*
 
 **How the estimate is built:** the numbers above cover output — a direct lookup by
-quality/size, no guessing. On top of that, input is added: prompt text is counted exactly
-via [`js-tiktoken`](https://github.com/openai/tiktoken), and reference-image tokens (for
-edits) via OpenAI's official [token-counting
-API](https://developers.openai.com/api/docs/guides/token-counting), which explicitly
-supports images.
+quality/size, no guessing. On top of that, input is added: OpenAI's official
+[token-counting API](https://developers.openai.com/api/docs/guides/token-counting) counts
+prompt text and reference images together in one call — no separate tool needed for
+text-only vs. text+image requests.
 
 ### Gemini
 
