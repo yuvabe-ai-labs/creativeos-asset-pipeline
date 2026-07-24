@@ -44,9 +44,16 @@ describe("computeVideoCost — Kling (resolution-keyed)", () => {
 });
 
 describe("computeVideoCost — Veo/Sora unaffected by the resolution param", () => {
-  it("veo:veo-3.1-fast ignores resolution, uses flat per-second + audio multiplier", () => {
-    const cost = computeVideoCost("veo:veo-3.1-fast", 8, true, "1080p");
-    expect(cost?.usd).toBeCloseTo(8 * 0.1 * 1.5);
+  it("veo:veo-3.1-fast ignores resolution and the audio flag — Google publishes one flat with-audio rate, no cheaper no-audio tier", () => {
+    const withAudioFlagTrue = computeVideoCost("veo:veo-3.1-fast", 8, true, "1080p");
+    const withAudioFlagFalse = computeVideoCost("veo:veo-3.1-fast", 8, false, "1080p");
+    expect(withAudioFlagTrue?.usd).toBeCloseTo(8 * 0.1);
+    expect(withAudioFlagFalse?.usd).toBeCloseTo(8 * 0.1);
+  });
+
+  it("veo:veo-3.1 (Quality) uses the corrected $0.40/s rate", () => {
+    const cost = computeVideoCost("veo:veo-3.1", 10, false);
+    expect(cost?.usd).toBeCloseTo(10 * 0.4);
   });
 
   it("unknown model returns null", () => {

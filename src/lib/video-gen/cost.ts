@@ -1,17 +1,26 @@
 import { USD_TO_INR } from "@/lib/pricing";
 
-// perSecond = no-audio base rate; audioMultiplier applied when audio is enabled.
-// Source: ai.google.dev/gemini-api/docs/pricing (verified June 2026)
-//   Lite:    $0.05/s (audio not priced separately for Lite)
-//   Fast:    $0.10/s base → $0.15/s with audio  (0.10 × 1.5 = 0.15 ✓)
-//   Quality: $0.267/s base → $0.40/s with audio (0.267 × 1.5 ≈ 0.40 ✓)
+// Source: ai.google.dev/gemini-api/docs/pricing (verified 2026-07-24, page fetched by the
+// user directly — every Veo 3.1 row is explicitly labeled "with audio price (default)",
+// with no separate, cheaper no-audio tier listed at all). This app never toggles Veo's
+// audio either way — params/veo.ts has no audio field, so Veo always runs at the API's own
+// default, which generates audio. audioMultiplier is kept at 1.0 for all three Veo models
+// (no real audio-based price split exists to multiply) purely so this table shares a shape
+// with Kling's. Resolution tiers above 720p (1080p/4k) aren't modeled: this app doesn't
+// expose a resolution param for Veo, so 720p is the only reachable tier.
+//   Lite:    $0.05/s (720p)
+//   Fast:    $0.10/s (720p)
+//   Quality: $0.40/s (720p) — previously 0.2667 here (a stale "base rate" that a 1.5x
+//     audio multiplier never actually applied, since Veo has no audio toggle) — a
+//     confirmed 33% under-count on every Quality generation to date. Not backfilled,
+//     corrected going forward only.
 const VIDEO_MODEL_PRICING: Record<
   string,
   { perSecond: number; audioMultiplier: number }
 > = {
-  "veo:veo-3.1-lite":  { perSecond: 0.05,   audioMultiplier: 1.0 },
-  "veo:veo-3.1-fast":  { perSecond: 0.10,   audioMultiplier: 1.5 },
-  "veo:veo-3.1":       { perSecond: 0.2667, audioMultiplier: 1.5 },
+  "veo:veo-3.1-lite":  { perSecond: 0.05, audioMultiplier: 1.0 },
+  "veo:veo-3.1-fast":  { perSecond: 0.10, audioMultiplier: 1.0 },
+  "veo:veo-3.1":       { perSecond: 0.40, audioMultiplier: 1.0 },
   // Source: platform.openai.com/docs/pricing (verified June 2026)
   // $0.10/s at 720p; no audio output, no premium multiplier
   "openai:sora-2":     { perSecond: 0.10,   audioMultiplier: 1.0 },

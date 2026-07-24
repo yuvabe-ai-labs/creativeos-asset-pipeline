@@ -110,12 +110,18 @@ client could otherwise submit a fabricated low estimate to slip past the cap.
   already sourced, already exists (signature updated post-merge: Kling's 5 current models
   were rewritten against verified pricing docs — D90 — and now price by resolution as well
   as audio, via a separate `KLING_RESOLUTION_PRICING` table; Veo/Sora keep the simpler
-  duration×rate×audio-multiplier shape, unaffected). Duration, audio, and (for Kling)
-  resolution are all known request params before firing the task, so this stays exact. One
-  inherited caveat, already flagged inline in that file: `kling-o1`'s audio-on pricing is
-  marked `ASSUMPTION` (reused from `kling-3-0`'s delta, since Kling's pricing page doesn't
-  split it out for o1) — not this stage's gap to fix, just worth knowing the estimate
-  inherits that one model's uncertainty.
+  duration×rate shape, unaffected). Duration, audio, and (for Kling) resolution are all known
+  request params before firing the task, so this stays exact. Two caveats, both already
+  fixed or flagged inline in `video-gen/cost.ts`, not open questions for this stage:
+  - Veo 3.1's rates were corrected during this spec's review: Google publishes one flat
+    "with audio (default)" price per resolution, no separate cheaper no-audio tier — this
+    app never toggles Veo's audio either way (no such param exists), so the old
+    base-rate-×-1.5-multiplier model was wrong for `veo:veo-3.1` specifically (under-priced
+    by 33%, corrected going forward only, not backfilled — same policy as the
+    gemini-3-pro-image fix in §7).
+  - `kling-o1`'s audio-on pricing is marked `ASSUMPTION` in the code (reused from
+    `kling-3-0`'s delta, since Kling's pricing page doesn't split it out for o1) — inherited
+    uncertainty, not introduced by this stage.
 - **Image — exact.** New lookup table, `IMAGE_ESTIMATE_TABLE` in `src/lib/image-gen/cost.ts`,
   keyed by model + quality + size, giving the exact USD cost — sourced today directly from
   OpenAI's and Google's own docs (not derived from the token-based `IMAGE_MODEL_PRICING` used
