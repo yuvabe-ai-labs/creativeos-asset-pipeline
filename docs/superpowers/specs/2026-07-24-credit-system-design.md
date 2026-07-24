@@ -119,11 +119,25 @@ and again as its actual cost. Caught during final review, fixed before any imple
 This mirrors the async-worker-revalidation pattern D79 already established for org
 mismatches — same shape, applied to credits.
 
-**Known limitation, out of scope for this stage:** a generation whose job hangs forever
-(Trigger.dev task never calls back success or failure) leaves its reservation stuck,
-permanently consuming that budget. No reconciliation sweep is planned — the original Stage 3
-scope didn't call for one, and this app has no observed case of a truly stuck job today.
-Worth revisiting if it ever becomes a real problem, not a reason to hold up this stage.
+**Reconciliation for stuck generations.** `video-generate.ts`'s `try/catch` already posts a
+"failed" webhook on any JS-catchable error (provider errors, network failures) — that part's
+covered. The real gap is `maxDuration: 600` (10 minutes), a hard Trigger.dev-enforced kill
+switch: if a run gets forcibly terminated for exceeding it, or the worker crashes/restarts
+mid-task, the `catch` block never runs, no webhook ever fires, and the reservation is stuck
+permanently consuming budget. This is reachable, not hypothetical — it's exactly what
+`maxDuration` exists to enforce.
+
+Fix: a new scheduled Trigger.dev task (`trigger/reconcile-stuck-generations.ts`, using
+`schedules.task` — this app already depends on Trigger.dev for exactly this kind of
+background work), running every 15 minutes. It finds every `generations` row with `status =
+'running'` and `created_at` older than 15 minutes (a 5-minute buffer above the video task's
+600-second hard cap; image/prompt generations are synchronous HTTP requests that should
+never legitimately still be `running` this long — if one is, the server process itself must
+have died mid-request, and this same sweep catches that case too, not just video's). For
+each: `failGeneration({ generationId, error: "Generation timed out — no response from
+provider" })` plus the same `refund` ledger row every other failure path already writes —
+no new refund logic, just a timer-triggered entry into the terminal-state path §4 already
+defines.
 
 ---
 
@@ -220,10 +234,13 @@ client could otherwise submit a fabricated low estimate to slip past the cap.
   requires *you* to already know the output; it doesn't forecast an unknown one). Formula:
   `fixed_base + (per_attached_node_multiplier × count of upstream nodes connected to the
   prompt node)`. `fixed_base` and the multiplier are derived from this app's own historical
-  `credits_consumed` data (regression: average cost at 0 attachments ≈ base, average
+  `credits_charged` data (regression: average cost at 0 attachments ≈ base, average
   incremental cost per attachment ≈ multiplier), recomputed periodically as more real usage
-  accumulates; a conservative placeholder value is used until there's enough history to fit
-  from (this app has no prompt-type generation history yet on staging).
+  accumulates. **Starting placeholder (no real data to fit from yet): `fixed_base = 10`
+  credits, `per_attached_node_multiplier = 5` credits.** Explicitly a rounder, softer number
+  than everything else in this spec — those figures came from primary vendor docs, this one
+  is a starting guess with no usage data to check it against. Fine by design: it self-corrects
+  within days of real prompt-type generations recording actual cost.
 
 ---
 
@@ -281,3 +298,5 @@ bar):
 - [ ] `monthly_credit_limit` values already on staging correctly ×1000-migrated
 - [ ] Generations table shows both Amount ($) and Credits columns, sourced from the renamed
       `cost_usd`/new `credits_charged` fields, not the old single `credits_consumed` column
+- [ ] A generation stuck in `running` for >15 minutes gets picked up by the reconciliation
+      sweep, marked failed, and its reservation refunded
