@@ -1,0 +1,149 @@
+# Credit System — Cost Estimate Reference & Sources
+
+**Date:** 2026-07-24
+**Companion to:** `2026-07-24-credit-system-design.md` (architecture) — this doc is the
+pricing data itself: what each model costs, where every number came from, and exactly how
+confident each figure is. Read this before touching `video-gen/cost.ts` or
+`image-gen/cost.ts` again.
+
+---
+
+## 1. The unit
+
+**1 credit = $0.001 USD.** USD stays the tracked source of truth
+(`generations.credits_consumed`); credits are `usd * 1000`, a display/ledger conversion on
+top, not a replacement.
+
+---
+
+## 2. Confidence key
+
+- 🟢 **Verified this session** — sourced from a primary vendor page, fetched or pasted
+  directly by the user or cross-checked against independently-known figures before being
+  trusted.
+- 🟡 **Inherited, cited, not re-verified** — has a source comment in the code, predates this
+  session's research, not independently re-checked.
+- 🔴 **Known gap or explicit assumption** — flagged in the code or spec as approximate/missing,
+  not silently treated as exact.
+
+---
+
+## 3. Video — `src/lib/video-gen/cost.ts`
+
+| Model | Rate | Confidence | Source |
+|---|---|---|---|
+| `veo:veo-3.1-lite` | $0.05/s (720p) | 🟢 | `ai.google.dev/gemini-api/docs/pricing`, page pasted directly by the user 2026-07-24 |
+| `veo:veo-3.1-fast` | $0.10/s (720p) | 🟢 | same |
+| `veo:veo-3.1` (Quality) | $0.40/s (720p) | 🟢 | same — **corrected this session**, was $0.2667/s (a stale "base rate" a 1.5× audio multiplier never actually applied, since Veo has no audio toggle in this app) |
+| `openai:sora-2` | $0.10/s (720p) | 🟡 | `platform.openai.com/docs/pricing`, comment dated "verified June 2026" — not re-checked this session |
+| `kling:kling-3-0-turbo` | $0.112/s (720p, native audio only) / $0.14/s (1080p) | 🟡 | `kling.ai/document-api/pricing/base/video`, fetched 2026-07-23 by the D90 rewrite (not this session) |
+| `kling:kling-2-6` | $0.042/s (720p, off) / $0.07–$0.14/s (1080p) | 🟡 | same |
+| `kling:kling-2-5-turbo` | $0.042/s (720p) / $0.07/s (1080p) | 🟡 | same |
+| `kling:kling-3-0` | $0.084–$0.112/s (720p) / $0.112–$0.14/s (1080p) / $0.42/s (4k) | 🟡 | same |
+| `kling:kling-o1` | $0.084–$0.112/s (720p) / $0.112–$0.14/s (1080p) | 🔴 | same page, but **audio-on delta is an explicit `ASSUMPTION`** (reused from `kling-3-0`'s delta) — Kling's page doesn't split it out for o1 |
+
+**Why Veo has no resolution tiers above 720p:** this app doesn't expose a resolution param
+for Veo at all (`params/veo.ts` has none) — 720p is the only reachable tier regardless of
+what Google publishes for 1080p/4k.
+
+**Why Veo has no real audio multiplier:** confirmed directly against the pasted page — every
+Veo 3.1 price is labeled "with audio price (default)," no separate cheaper no-audio tier
+exists. This app never toggles Veo's audio either way, so there's nothing to multiply.
+
+---
+
+## 4. Image — actual/settlement cost, `src/lib/image-gen/cost.ts`
+
+Computed from real token usage the provider returns *after* generation (`tokensUsed` on the
+API response) — this is what actually gets written to `credits_consumed`.
+
+| Model | textIn | imgIn | imgOut | Confidence | Source |
+|---|---|---|---|---|---|
+| `openai:gpt-image-2` | $5.00/1M | $8.00/1M | $30.00/1M | 🟡 | not independently re-verified this session |
+| `openai:gpt-image-1` | $5.00/1M | $10.00/1M | $40.00/1M | 🟢 | cross-checked: `gpt-image-1` Medium/1024×1024 = 1056 tokens × $40/1M = $0.0422, matching the estimate table's $0.042 (§5) |
+| `openai:gpt-image-1-mini` | $2.00/1M | $2.50/1M | $8.00/1M | 🟡 | not independently re-verified this session |
+| `gemini:gemini-2.5-flash-image` | $0.30/1M | $0.30/1M | $30.00/1M | 🟢 | `ai.google.dev/gemini-api/docs/pricing`, pasted by the user 2026-07-24 |
+| `gemini:gemini-3.1-flash-image` | $0.50/1M | $0.50/1M | $60.00/1M | 🟢 | same — **corrected this session**, textIn/imgIn were $0.30/$0.30 (Google prices combined text+image input as one $0.50 rate, not split) |
+| `gemini:gemini-3-pro-image` | $2.00/1M | $2.00/1M | $120.00/1M | 🟢 | same — **corrected this session**, imgOut was $80.00 (marked "estimated — update when Google publishes"; Google has published it) and textIn/imgIn were $1.25/$1.25 (same combined-rate fix as 3.1-flash-image) |
+
+Both `gemini-3-pro-image` corrections apply **going forward only** — past `credits_consumed`
+values are not backfilled.
+
+---
+
+## 5. Image — pre-generation estimate
+
+Different from §4: this is what's shown to the user *before* they click Generate, computed
+from request params alone (quality/size), not real usage. Lives in a new
+`IMAGE_ESTIMATE_TABLE` (not built yet — see the design spec §5), sourced directly:
+
+| Model | Low | Medium | High | Confidence |
+|---|---|---|---|---|
+| `gpt-image-2` | $0.005–$0.006 | $0.041–$0.053 | $0.165–$0.211 | 🟢 |
+| `gpt-image-1` | $0.011–$0.016 | $0.042–$0.063 | $0.167–$0.25 | 🟢 |
+| `gpt-image-1-mini` | $0.005–$0.006 | $0.011–$0.015 | $0.036–$0.052 | 🟢 |
+
+(ranges = across the app's 3 reachable sizes: 1024×1024 / 1024×1536 / 1536×1024 — the only
+sizes `ASPECT_RATIO_TO_OPENAI_SIZE` ever produces)
+
+Source: `developers.openai.com/api/docs/guides/image-generation`, "Calculating costs"
+section — pasted directly by the user 2026-07-24, after two earlier automated-fetch attempts
+gave inconsistent/wrong results (one mislabeled the model, one claimed the table didn't
+exist) — **do not trust an automated fetch for this table again; get it pasted directly.**
+
+| Model | Estimate | Confidence |
+|---|---|---|
+| `gemini-2.5-flash-image` | flat $0.039/image | 🟢 — genuinely fixed at 1K, confirmed via Google's model docs (pre-dates the "Gemini 3 image models" generation that introduced multi-resolution output); `params/gemini.ts` corrected this session to stop offering 512/2K/4K for this model, since it never supported them |
+| `gemini-3.1-flash-image` | $0.045 (512px) / $0.067 (1024px) / $0.101 (2048px) / $0.151 (4096px) | 🟢 |
+| `gemini-3-pro-image` | $0.134 (1K/2K) / $0.24 (4K) | 🟢 |
+
+Source: same Gemini pricing page as §3/§4.
+
+### Known gap: reference/edit image input tokens
+
+The estimate above is **output-only**. OpenAI's own docs state final cost sums input text
+tokens + input image tokens (edits) + output tokens. This app allows up to 16 reference
+images per generation — that input-side cost is **excluded** from the pre-gen estimate:
+- Prompt **text** tokens: coverable exactly (tokenizer count on the known prompt string) —
+  planned, not yet built.
+- Reference/edit **image** tokens: excluded. Two research attempts (automated fetch, one
+  user page-check) could not reliably source OpenAI's input-image-token formula, unlike the
+  output table above.
+- **Not a financial-integrity issue** — settlement (§4) always corrects to the real actual
+  cost regardless of what the estimate said. Only the number shown *before* clicking
+  Generate can undershoot, and only for edit-heavy generations with many/large reference
+  images.
+- Gemini's case is milder: its provider code (`gemini.ts`) reports combined text+image input
+  as one `promptTokenCount`, only known after the call — there's no local-tokenizer path for
+  it at all (unlike OpenAI's `tiktoken`), so the same exclusion applies there for the same
+  reason, not a separate gap.
+
+---
+
+## 6. Prompt/text generation — approximate by design
+
+No vendor can predict an LLM's output length before generating it (checked directly —
+OpenAI's "Predicted Outputs" feature requires *you* to already know the output; it doesn't
+forecast an unknown one). Estimate formula: `fixed_base + (per_attached_node_multiplier ×
+count of upstream nodes attached to the prompt node)`, both constants derived from this
+app's own historical `credits_consumed` data once enough exists (this app has zero
+prompt-type generation history on staging today — starts on a placeholder, self-corrects as
+real usage accumulates). Labeled "~estimated" in the UI, unlike video/image.
+
+---
+
+## 7. Full source list
+
+- `ai.google.dev/gemini-api/docs/pricing` — Gemini image models (§4/§5), Veo 3.1 (§3). Pasted
+  directly by the user, 2026-07-24.
+- `developers.openai.com/api/docs/guides/image-generation` ("Calculating costs" section) —
+  OpenAI image models' estimate table (§5). Pasted directly by the user, 2026-07-24, after
+  automated fetches proved unreliable for this specific table.
+- `developers.openai.com/api/docs/pricing` — checked, confirmed to have **no** static image
+  pricing table (defers to the guide above); ruled out as a source, not used.
+- `kling.ai/document-api/pricing/base/video` — Kling's 5 current models (§3). Fetched
+  2026-07-23 as part of the D90 Kling rewrite (a separate branch, merged into this one) —
+  not independently re-verified in this session.
+- `platform.openai.com/docs/pricing` — Sora (§3), `gpt-image-2`/`gpt-image-1-mini` actual-cost
+  rates (§4). Pre-existing citations in the code, dated "verified June 2026" — not
+  re-checked this session.
