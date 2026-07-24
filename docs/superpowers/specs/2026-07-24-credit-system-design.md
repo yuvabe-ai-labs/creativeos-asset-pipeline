@@ -163,9 +163,9 @@ client could otherwise submit a fabricated low estimate to slip past the cap.
   as trusted.) The app's aspect-ratio system (`ASPECT_RATIO_TO_OPENAI_SIZE`) only ever
   produces the three OpenAI sizes in this table, so every real request maps cleanly.
 
-  **Input tokens — covered for Gemini, still open for OpenAI.** OpenAI's own docs are
-  explicit that "the final cost is the sum of: input text tokens, input image tokens if
-  using the edits endpoint, image output tokens" — the table above is output-only.
+  **Input tokens — covered for both providers now.** OpenAI's own docs are explicit that
+  "the final cost is the sum of: input text tokens, input image tokens if using the edits
+  endpoint, image output tokens" — the table above is output-only.
   - **Text tokens (all providers):** exact — OpenAI via `js-tiktoken` (a real, named library;
     matches OpenAI's own encoding), Gemini via `countTokens()` (below) on a text-only
     `contents` array.
@@ -181,15 +181,23 @@ client could otherwise submit a fabricated low estimate to slip past the cap.
     locally from `imageWidth`/`imageHeight` (already tracked on upstream nodes in
     `image-generate/route.ts`) without an extra network call — either approach works;
     implementation picks one at plan time.
-  - **Reference/edit image input tokens — OpenAI: still open.** Two research attempts
-    (automated fetch, one user page-check) could not reliably source OpenAI's input-image-
-    token formula, and no equivalent pre-flight `countTokens`-style endpoint was found for
-    GPT Image models. This means the pre-click estimate can undershoot for edit-heavy
-    `gpt-image-*` generations with many/large reference images — **not a financial-integrity
-    problem**, since settlement (§4) always corrects the ledger to the real actual cost
-    afterward regardless of what the estimate said; it only means the number shown before
-    clicking Generate is occasionally optimistic for that specific case. Worth a follow-up
-    once a trusted source turns up, not a blocker for this stage.
+  - **Reference/edit image input tokens — OpenAI: also closable.** OpenAI has a real
+    token-counting endpoint, `POST /v1/responses/input_tokens`
+    (`client.responses.input_tokens.count()`), that explicitly handles image inputs ("no
+    guesswork") — source: `developers.openai.com/api/docs/guides/token-counting`, pasted
+    directly by the user, with a worked image example using `image_url` (this app's
+    reference images are already public Supabase URLs — same shape, no base64 conversion
+    needed). One inference, not a direct 1:1 confirmation: this endpoint counts tokens for a
+    **Responses API** request, while GPT Image models go through the separate **Images API**
+    (`images.generate`/`images.edit`). The bridge is that the earlier "Calculating costs"
+    guide (§5 above) explicitly pointed to this same vision-token-counting machinery
+    (`images-vision?api-mode=responses#calculating-costs`) as *the* source for GPT Image's
+    input costs — strongly suggesting it's the same underlying tokenizer reused across both
+    surfaces, not a coincidence, but this hasn't been directly confirmed as "this is exactly
+    what the edits endpoint bills." Reasonable to build against; worth a quick real-world
+    sanity check (compare its count against `usage.input_tokens_details.image_tokens` on an
+    actual `images.edit()` response) once implemented, same spirit as the settlement-based
+    self-correction everywhere else in this design.
 
 - **Prompt/text — approximate, explicitly labeled "~estimated".** No vendor can predict an
   LLM's output length before it generates (confirmed — OpenAI's "Predicted Outputs" feature

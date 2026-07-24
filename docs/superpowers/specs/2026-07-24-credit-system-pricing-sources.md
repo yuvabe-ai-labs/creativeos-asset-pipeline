@@ -127,13 +127,18 @@ text tokens + input image tokens (edits) + output tokens.
   formula (images ≤384px = 258 tokens; larger images tile into 768×768 sections, 258 tokens
   each) — usable as a local computation from `imageWidth`/`imageHeight` (already tracked in
   `image-generate/route.ts`) instead of a live API call, if preferred at implementation time.
-- **Reference/edit image input tokens (OpenAI):** 🔴 still open. Two research attempts
-  (automated fetch, one user page-check) could not reliably source OpenAI's input-image-token
-  formula, and no `countTokens`-equivalent pre-flight endpoint was found for GPT Image
-  models. **Not a financial-integrity issue** — settlement (§4 of the design spec) always
-  corrects to the real actual cost regardless of what the estimate said; this only means the
-  number shown before clicking Generate can undershoot for edit-heavy `gpt-image-*`
-  generations with many/large reference images.
+- **Reference/edit image input tokens (OpenAI):** 🟢 closable, one inference away from fully
+  confirmed. `client.responses.input_tokens.count()` (`POST /v1/responses/input_tokens`) is
+  a real, official token-counting endpoint that explicitly handles images ("no guesswork").
+  Source: `developers.openai.com/api/docs/guides/token-counting`, pasted directly by the
+  user, worked image example uses `image_url` (this app's reference images are already
+  public Supabase URLs — same shape). **The one open inference:** this endpoint counts
+  tokens for a **Responses API** request; GPT Image models go through the separate **Images
+  API** (`images.generate`/`images.edit`). The earlier "Calculating costs" guide explicitly
+  pointed to this same vision-token machinery for GPT Image's input costs, strongly
+  suggesting shared tokenization — not directly confirmed as "this is exactly what
+  `images.edit()` bills." Worth a real-world sanity check against
+  `usage.input_tokens_details.image_tokens` on an actual response once implemented.
 
 ---
 
