@@ -45,11 +45,11 @@ Two separate stored facts, not one value with a live formula:
 | `veo:veo-3.1-fast` | $0.10/s (720p) | 🟢 | same |
 | `veo:veo-3.1` (Quality) | $0.40/s (720p) | 🟢 | same — **corrected this session**, was $0.2667/s (a stale "base rate" a 1.5× audio multiplier never actually applied, since Veo has no audio toggle in this app) |
 | `openai:sora-2` | $0.10/s (720p) | 🟡 | `platform.openai.com/docs/pricing`, comment dated "verified June 2026" — not re-checked this session |
-| `kling:kling-3-0-turbo` | $0.112/s (720p, native audio only) / $0.14/s (1080p) | 🟡 | `kling.ai/document-api/pricing/base/video`, fetched 2026-07-23 by the D90 rewrite (not this session) |
-| `kling:kling-2-6` | $0.042/s (720p, off) / $0.07–$0.14/s (1080p) | 🟡 | same |
-| `kling:kling-2-5-turbo` | $0.042/s (720p) / $0.07/s (1080p) | 🟡 | same |
-| `kling:kling-3-0` | $0.084–$0.112/s (720p) / $0.112–$0.14/s (1080p) / $0.42/s (4k) | 🟡 | same |
-| `kling:kling-o1` | $0.084–$0.112/s (720p) / $0.112–$0.14/s (1080p) | 🔴 | same page, but **audio-on delta is an explicit `ASSUMPTION`** (reused from `kling-3-0`'s delta) — Kling's page doesn't split it out for o1 |
+| `kling:kling-3-0-turbo` | $0.112/s (720p, native audio only) / $0.14/s (1080p) | 🟢 | `kling.ai/document-api/pricing/base/video`, full table pasted directly by the user 2026-07-24 |
+| `kling:kling-2-6` | $0.042/s (720p, off) / $0.07–$0.14/s (1080p) | 🟢 | same |
+| `kling:kling-2-5-turbo` | $0.042/s (720p) / $0.07/s (1080p) | 🟢 | same |
+| `kling:kling-3-0` | $0.084–$0.126/s (720p) / $0.112–$0.168/s (1080p) / $0.42/s (4k) | 🟢 | same — **corrected this session**: the with-audio rate was $0.112/$0.14, a flat +$0.028/s guess; the real table's delta is +$0.042 (720p) / +$0.056 (1080p), a consistent +50%, not a flat step |
+| `kling:kling-o1` | $0.084/s (720p) / $0.112/s (1080p), flat regardless of audio | 🟢 | same — **corrected this session, structurally**: the old $0.112/$0.14 "with audio" tier was wrong on two counts — it reused kling-3-0's now-also-corrected flawed delta, and more fundamentally the real table splits O1's price by *video input* (a reference video clip), not audio — a dimension this app never sends (image-to-video via start frame only, same as every other Kling model here). Audio doesn't move O1's price at all; every O1 generation with audio enabled had been silently overcharged |
 
 **Why Veo has no resolution tiers above 720p:** this app doesn't expose a resolution param
 for Veo at all (`params/veo.ts` has none) — 720p is the only reachable tier regardless of
@@ -163,9 +163,10 @@ real usage accumulates). Labeled "~estimated" in the UI, unlike video/image.
   automated fetches proved unreliable for this specific table.
 - `developers.openai.com/api/docs/pricing` — checked, confirmed to have **no** static image
   pricing table (defers to the guide above); ruled out as a source, not used.
-- `kling.ai/document-api/pricing/base/video` — Kling's 5 current models (§3). Fetched
-  2026-07-23 as part of the D90 Kling rewrite (a separate branch, merged into this one) —
-  not independently re-verified in this session.
+- `kling.ai/document-api/pricing/base/video` — Kling's 5 current models (§3). Originally
+  fetched 2026-07-23 as part of the D90 Kling rewrite; **the full table was re-pasted
+  directly by the user 2026-07-24**, which is what caught and corrected the `kling-3-0` /
+  `kling-o1` audio-pricing bugs — the 2026-07-23 fetch had gotten those two wrong.
 - `platform.openai.com/docs/pricing` — Sora (§3), `gpt-image-2`/`gpt-image-1-mini` actual-cost
   rates (§4). Pre-existing citations in the code, dated "verified June 2026" — not
   re-checked this session.

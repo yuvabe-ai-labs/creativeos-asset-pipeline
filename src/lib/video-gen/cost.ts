@@ -27,10 +27,14 @@ const VIDEO_MODEL_PRICING: Record<
 };
 
 // Kling price varies by resolution AND audio (not just audio) — resolution-keyed table.
-// Source: kling.ai/document-api/pricing/base/video (fetched 2026-07-23), restricted to
-// the "no video-input / no voice-control / no motion-control" tiers this integration
-// actually reaches. `on` = native/original audio; `off` = no audio. Missing keys mean
-// that combination has no priced tier (e.g. 2.6 has no "native audio at 720p" row).
+// Source: kling.ai/document-api/pricing/base/video, full table pasted directly by the user
+// 2026-07-24 (verified against the real page, not the 2026-07-23 fetch the values below
+// replace). Restricted to the "no video-input / no voice-control / no motion-control"
+// tiers this integration actually reaches (this app never sends a reference video to
+// Kling — image-to-video via start/end frames only — so "With Video Input" tiers are
+// unreachable regardless of model). `on` = native/original audio; `off` = no audio.
+// Missing keys mean that combination has no priced tier (e.g. 2.6 has no "native audio at
+// 720p" row).
 type KlingResolutionRates = Record<string, { off?: number; on?: number }>;
 
 const KLING_RESOLUTION_PRICING: Record<string, KlingResolutionRates> = {
@@ -47,16 +51,25 @@ const KLING_RESOLUTION_PRICING: Record<string, KlingResolutionRates> = {
     "720p": { off: 0.042 },
     "1080p": { off: 0.07 },
   },
+  // CORRECTED 2026-07-24: "on" (with native audio, no voice control) was $0.112/$0.14 here
+  // — a flat +$0.028/s guess. The real table's audio delta is +$0.042 (720p) / +$0.056
+  // (1080p), i.e. +50% each time, not a flat step. 4k is unaffected either way (audio
+  // doesn't change 4k price per the real table). Not backfilled, going forward only.
   "kling:kling-3-0": {
-    "720p": { off: 0.084, on: 0.112 },
-    "1080p": { off: 0.112, on: 0.14 },
+    "720p": { off: 0.084, on: 0.126 },
+    "1080p": { off: 0.112, on: 0.168 },
     "4k": { off: 0.42, on: 0.42 },
   },
-  // ASSUMPTION: o1 audio delta not split out on the pricing page (only splits by
-  // video-input); reused the same $0.028/s step seen on 3.0. Revisit if wrong.
+  // CORRECTED 2026-07-24: this was structurally wrong, not just imprecise. The real table
+  // splits Kling O1's price by "video input" (this app never sends one — image-to-video
+  // via start frame only, same as every other Kling model here) — audio does NOT change
+  // O1's price at all. The old "on" tier ($0.112/$0.14, the same flawed +$0.028/s guess
+  // used for 3.0 above, per this line's own prior comment) was overcharging every O1
+  // generation with audio enabled. Flat rate now, matching the real "No Video Input" row
+  // exactly — off and on both true, since audio doesn't move the price for this model.
   "kling:kling-o1": {
-    "720p": { off: 0.084, on: 0.112 },
-    "1080p": { off: 0.112, on: 0.14 },
+    "720p": { off: 0.084, on: 0.084 },
+    "1080p": { off: 0.112, on: 0.112 },
   },
 };
 

@@ -23,16 +23,20 @@ describe("computeVideoCost — Kling (resolution-keyed)", () => {
     expect(computeVideoCost("kling:kling-2-5-turbo", 10, false, "1080p")?.usd).toBeCloseTo(0.7);
   });
 
-  it("3.0: off/native across 720p/1080p/4k", () => {
+  it("3.0: off/native across 720p/1080p/4k — audio delta is +50%, not a flat $0.028/s step", () => {
     expect(computeVideoCost("kling:kling-3-0", 10, false, "720p")?.usd).toBeCloseTo(0.84);
-    expect(computeVideoCost("kling:kling-3-0", 10, true, "720p")?.usd).toBeCloseTo(1.12);
+    expect(computeVideoCost("kling:kling-3-0", 10, true, "720p")?.usd).toBeCloseTo(1.26);
+    expect(computeVideoCost("kling:kling-3-0", 10, false, "1080p")?.usd).toBeCloseTo(1.12);
+    expect(computeVideoCost("kling:kling-3-0", 10, true, "1080p")?.usd).toBeCloseTo(1.68);
     expect(computeVideoCost("kling:kling-3-0", 10, false, "4k")?.usd).toBeCloseTo(4.2);
     expect(computeVideoCost("kling:kling-3-0", 10, true, "4k")?.usd).toBeCloseTo(4.2);
   });
 
-  it("o1: off/original across 720p/1080p, no 4k tier", () => {
+  it("o1: audio never changes price (real table splits by video-input, unreachable here, not audio), no 4k tier", () => {
     expect(computeVideoCost("kling:kling-o1", 10, false, "720p")?.usd).toBeCloseTo(0.84);
-    expect(computeVideoCost("kling:kling-o1", 10, true, "1080p")?.usd).toBeCloseTo(1.4);
+    expect(computeVideoCost("kling:kling-o1", 10, true, "720p")?.usd).toBeCloseTo(0.84);
+    expect(computeVideoCost("kling:kling-o1", 10, false, "1080p")?.usd).toBeCloseTo(1.12);
+    expect(computeVideoCost("kling:kling-o1", 10, true, "1080p")?.usd).toBeCloseTo(1.12);
     expect(computeVideoCost("kling:kling-o1", 10, false, "4k")).toBeNull();
   });
 
