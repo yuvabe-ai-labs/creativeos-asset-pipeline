@@ -119,6 +119,32 @@ async function generateWithOpenAI(
   };
 }
 
+/**
+ * Live pre-flight input-token count via OpenAI's official token-counting endpoint
+ * (`responses.inputTokens.count`) — handles text-only and text+reference-image requests in
+ * one call. Used by the pre-generation estimate (design spec §5). One inference, not a
+ * directly confirmed 1:1 mapping to the Images API's own billing (see the design spec) —
+ * worth a real-world sanity check once implemented, same as noted there. Always a fresh
+ * live call, never cached.
+ */
+export async function countOpenAIInputTokens(
+  prompt: string,
+  referenceUrls: string[],
+): Promise<number> {
+  const openai = createOpenAI();
+  const content: Array<
+    | { type: "input_text"; text: string }
+    | { type: "input_image"; detail: "auto"; image_url: string }
+  > = [{ type: "input_text", text: prompt }];
+  for (const url of referenceUrls) {
+    content.push({ type: "input_image", detail: "auto", image_url: url });
+  }
+  const response = await openai.responses.inputTokens.count({
+    input: [{ role: "user", content }],
+  });
+  return response.input_tokens ?? 0;
+}
+
 // ── Model configs ─────────────────────────────────────────────────────────────
 
 export const openaiModels: MediaGenModelSpec[] = [
