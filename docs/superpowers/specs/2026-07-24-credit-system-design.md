@@ -262,6 +262,13 @@ fabricated low estimate to slip past the cap.
   as trusted.) The app's aspect-ratio system (`ASPECT_RATIO_TO_OPENAI_SIZE`) only ever
   produces the three OpenAI sizes in this table, so every real request maps cleanly.
 
+  **`quality: "auto"` gap, found via this same params-vs-pricing audit method:**
+  `gpt-image-2`/`gpt-image-1` (not `-mini`) expose `"auto"` as a real quality option
+  (`params/openai.ts`) — OpenAI resolves the actual rendered tier server-side, so no vendor
+  source publishes a price for "auto" itself. Estimated at the `high` row (the worst case)
+  so the reservation can never fall short of whatever OpenAI actually renders and bills for;
+  settlement (real token-based `computeImageCost`) is unaffected either way.
+
   **One stated assumption for the Gemini rows, not an explicit vendor statement:** Gemini's
   pricing table prices strictly by named size tier (512px/1K/2K/4K), never broken out by
   aspect ratio, even though this app's `params/gemini.ts` exposes 5–8 aspect ratios per
@@ -299,7 +306,9 @@ fabricated low estimate to slip past the cap.
     ship with the accurate, already-necessary live call first, decide on optimizing away from
     it only once there's real experience to judge that tradeoff against.
   - **OpenAI — one call for both:** also closable. `POST /v1/responses/input_tokens`
-    (`client.responses.input_tokens.count()`) handles both — its first documented example is
+    (`client.responses.inputTokens.count()` — confirmed against the installed SDK's own
+    `.d.ts`, since the pasted docs page used snake_case notation but the actual JS/TS SDK
+    property is camelCase) handles both — its first documented example is
     plain text input, and it explicitly handles image inputs too ("no guesswork") — source:
     `developers.openai.com/api/docs/guides/token-counting`, pasted directly by the user, with
     a worked image example using `image_url` (this app's reference images are already public

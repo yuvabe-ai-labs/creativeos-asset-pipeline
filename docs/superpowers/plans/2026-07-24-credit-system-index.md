@@ -31,7 +31,11 @@ full task-level detail.
   Prompt/text estimate formula (`fixed_base + per_attached_node_multiplier × attachment
   count`, starting placeholder 10/5 credits). Video needs no new code — `computeVideoCost`
   already covers it. Pure functions, no ledger dependency — can build and unit-test
-  independently of 3A's schema. **Status: not started.**
+  independently of 3A's schema. Also resolved during 3B's write-up: `quality: "auto"` on
+  `gpt-image-2`/`gpt-image-1` has no published price (found via the same params-vs-pricing
+  audit method as the kling-2-6/sora-2 bugs) — estimated at `"high"` (worst case).
+  → `2026-07-24-credit-system-3b-estimate-functions.md`. **Status: plan written, not yet
+  executed.**
 
 - **3C — Reservation, settlement, refund** (design spec §4)
   `reserveCredits(orgId, generationId, estimatedAmount)` (row-locked, UTC-month-scoped),
