@@ -68,7 +68,9 @@ full task-level detail.
   sweep needs to catch this case too, not just rows stuck in `running` — i.e. also find
   terminal (`failed`/`succeeded`) rows with an outstanding, unrefunded `reservation` ledger
   row (a `reservation` with no matching `refund`/`consumption` row for that
-  `generation_id`), not only `status = 'running'` past the timeout. **Status: not started.**
+  `generation_id`), not only `status = 'running'` past the timeout.
+  → `2026-07-24-credit-system-3d-reconciliation-sweep.md`. **Status: plan written, not yet
+  executed.**
 
 - **3E — Pre-generation estimate UI** (design spec §5)
   Wire the 3B estimate functions into the three focus views
