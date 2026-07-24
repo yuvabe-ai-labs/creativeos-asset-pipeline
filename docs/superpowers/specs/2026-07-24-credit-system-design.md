@@ -29,8 +29,13 @@ credits, a $500/month cap = 500,000 credits).
 
 USD remains the tracked source of truth exactly as today (`computeVideoCost`/
 `computeImageCost`/`computeCost` all still return `.usd`; `generations.credits_consumed`
-keeps storing that raw USD number, unchanged). Credits are a display/ledger-unit conversion
-applied on top (`credits = usd * 1000`), not a replacement for USD tracking.
+keeps storing that raw USD number, unchanged). The credit rate is a named constant,
+`USD_TO_CREDITS` (starts at 1000 — same pattern as `USD_TO_INR` in `pricing.ts`: a plain
+exported number, bumped by hand when it needs to change, e.g. for margin, not a live/dynamic
+lookup). Each `credit_transactions` row's `amount` is computed **once**, at write time,
+using whatever `USD_TO_CREDITS` is current at that moment, and stored as a plain credit
+number from then on — nothing re-reads `credits_consumed` and re-multiplies it later, so a
+future rate change only affects new rows, never past ones.
 
 `organizations.monthly_credit_limit` is reinterpreted as a **credit** count, not a raw USD
 number. Every value currently on staging was entered under the old (undefined) assumption —

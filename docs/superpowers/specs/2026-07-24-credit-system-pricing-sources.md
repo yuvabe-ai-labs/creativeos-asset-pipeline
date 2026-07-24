@@ -10,9 +10,18 @@ confident each figure is. Read this before touching `video-gen/cost.ts` or
 
 ## 1. The unit
 
-**1 credit = $0.001 USD.** USD stays the tracked source of truth
-(`generations.credits_consumed`); credits are `usd * 1000`, a display/ledger conversion on
-top, not a replacement.
+**1 credit = $0.001 USD** (today's rate — a named constant, `USD_TO_CREDITS`, meant to be
+bumped by hand later for margin, same pattern as `USD_TO_INR` in `pricing.ts`; see the
+design spec's "credit definition" discussion for why).
+
+Two separate stored facts, not one value with a live formula:
+- `generations.credits_consumed` — pre-existing column, stores the **raw USD** actual cost.
+  Despite the name, it's dollars, unchanged by this work.
+- `credit_transactions.amount` (the new ledger) — stores **credits**, computed **once**, at
+  the moment each row is written, using whatever `USD_TO_CREDITS` is *at that moment*. Once
+  written, it's a plain stored number — nothing re-reads `credits_consumed` and re-multiplies
+  it later. A future rate change only affects new rows; past ones keep the credit amount they
+  were given when they were written.
 
 ---
 
