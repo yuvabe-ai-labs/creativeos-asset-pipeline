@@ -69,8 +69,9 @@ full task-level detail.
   terminal (`failed`/`succeeded`) rows with an outstanding, unrefunded `reservation` ledger
   row (a `reservation` with no matching `refund`/`consumption` row for that
   `generation_id`), not only `status = 'running'` past the timeout.
-  → `2026-07-24-credit-system-3d-reconciliation-sweep.md`. **Status: plan written, not yet
-  executed.**
+  → `2026-07-24-credit-system-3d-reconciliation-sweep.md`. **Status: complete** (both tasks
+  implemented and reviewed; one doc-accuracy fix along the way, no functional issues;
+  `npx tsc --noEmit` clean).
 
 - **3E — Pre-generation estimate UI** (design spec §5)
   Wire the 3B estimate functions into the three focus views
