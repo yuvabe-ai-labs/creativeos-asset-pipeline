@@ -60,6 +60,57 @@ gets cleaned up directly rather than carried forward:
 
 ---
 
+## 2a. Margin and rounding
+
+Added after the rest of this design was reviewed as complete, in response to a real
+requirement surfaced late: on top of `USD_TO_CREDITS`, credits get two more knobs applied
+before they're ever shown, reserved, or charged — both new, both hand-tunable constants,
+same philosophy as `USD_TO_CREDITS` itself:
+
+- **`MARGIN_PERCENT`** (starts at `0` — no markup yet; a lever to dial in once there's real
+  usage data, not a launch-day decision) — a percentage markup applied on top of the raw
+  USD→credits conversion.
+- **`CREDIT_ROUND_STEP`** (starts at `5`) and **`CREDIT_ROUND_DIRECTION`** (starts at
+  `"up"`) — after margin, the result rounds to the nearest multiple of `CREDIT_ROUND_STEP`,
+  in the given direction. Rounding up guarantees the charge never falls short of true cost —
+  the whole point of the margin. A flat 50 or 100 step was considered and rejected as the
+  *starting* value: this app's cheapest charges (a 5-credit prompt estimate, a 5-credit
+  gpt-image-2 low-quality image) would round up 10x or more under a 50/100 step; `5` keeps
+  distortion on cheap generations to at most 4 credits while still rounding bigger
+  image/video charges to a clean number. Bump the step to 50/100 later if real pricing data
+  shows headroom for it — the direction and step are both plain constants, not derived.
+
+One function, used everywhere a USD cost becomes a credit number — the pre-generation
+estimate (§5) and the actual settlement charge (§4) both call it, so the number shown before
+generating always matches what's actually deducted:
+
+```ts
+// src/lib/credits/units.ts
+export const USD_TO_CREDITS = 1000;
+export const MARGIN_PERCENT = 0;
+export const CREDIT_ROUND_STEP = 5;
+export const CREDIT_ROUND_DIRECTION: "up" | "down" | "nearest" = "up";
+
+export function usdToFinalCredits(costUsd: number): number {
+  const raw = costUsd * USD_TO_CREDITS * (1 + MARGIN_PERCENT / 100);
+  switch (CREDIT_ROUND_DIRECTION) {
+    case "up":
+      return Math.ceil(raw / CREDIT_ROUND_STEP) * CREDIT_ROUND_STEP;
+    case "down":
+      return Math.floor(raw / CREDIT_ROUND_STEP) * CREDIT_ROUND_STEP;
+    case "nearest":
+      return Math.round(raw / CREDIT_ROUND_STEP) * CREDIT_ROUND_STEP;
+  }
+}
+```
+
+Genuinely pure and easily unit-tested (§8) — lands in sub-plan 3B alongside the other
+estimate functions, since it's the last step both the estimate and settlement paths share.
+Every place this spec previously said "`× 1000`" or "the credit conversion" means a call to
+`usdToFinalCredits`, not a raw multiply — see the updated wording in §4 and §5 below.
+
+---
+
 ## 3. Data model
 
 New table, `credit_transactions` (org_id + RLS, per D78's standing rule for new tables):
@@ -103,11 +154,13 @@ the reservation.** This is the rule that keeps a plain sum of all ledger rows co
 reservation is always temporary, never left standing:
 
 - **Settlement (success):** insert a `refund` row for `-estimatedAmount` (cancels the
-  reservation) **and** a `consumption` row for the *actual* cost (from the existing
-  real-usage-based `computeVideoCost`/`computeImageCost`/`computeCost` calls, unchanged) —
-  net effect on the sum is exactly the actual cost, not the estimate. `succeedGeneration`'s
-  call sites in all 3 routes plus `completeGeneration()` (video's webhook path) each gain
-  these two ledger writes, right where `creditsConsumed` is already computed today.
+  reservation) **and** a `consumption` row for `usdToFinalCredits(actualCostUsd)` (§2a) —
+  `actualCostUsd` from the existing real-usage-based `computeVideoCost`/`computeImageCost`/
+  `computeCost` calls, unchanged — net effect on the sum is exactly the actual (margin'd,
+  rounded) cost, not the estimate. The same `usdToFinalCredits(actualCostUsd)` value is what
+  gets written to `generations.credits_charged` (§2). `succeedGeneration`'s call sites in all
+  3 routes plus `completeGeneration()` (video's webhook path) each gain these two ledger
+  writes, right where `costUsd` is already computed today.
 - **Refund (failure/cancel):** insert a `refund` row for `-estimatedAmount` only — net effect
   is zero. At every existing `failGeneration()` call site (image/prompt's synchronous catch
   blocks, `completeGeneration()`'s failure branch, and the webhook's org-mismatch drop-path,
@@ -149,12 +202,16 @@ image-gen-focus-view.tsx, prompt-focus-view.tsx — same integration point in al
 recomputed reactively as the user changes model/params, before they click Generate).
 
 All three estimate functions below return a **USD** number (matching the existing cost
-functions' return shape) — the `× 1000` conversion to credits happens once, at the call site,
-right before it's passed as `reserveCredits`' `estimatedAmount`. The client-displayed number
-is never trusted as the reservation input: the route handler recomputes the estimate
-server-side from the same request params (`modelId`, `quality`/`size`, or `duration`/`audio`)
-it already has, the same way it already independently computes actual cost at settlement — a
-client could otherwise submit a fabricated low estimate to slip past the cap.
+functions' return shape) — the `usdToFinalCredits` conversion (§2a: `USD_TO_CREDITS`,
+margin, rounding) happens once, at the call site, right before the result is passed as
+`reserveCredits`' `estimatedAmount`. This is also what's shown to the user as the
+pre-generation estimate — the displayed number, the reserved amount, and (at settlement) the
+charged amount all come from the same function, just fed a slightly different USD input
+(estimated vs. actual). The client-displayed number is never trusted as the reservation
+input: the route handler recomputes the estimate server-side from the same request params
+(`modelId`, `quality`/`size`, or `duration`/`audio`) it already has, the same way it already
+independently computes actual cost at settlement — a client could otherwise submit a
+fabricated low estimate to slip past the cap.
 
 - **Video — exact.** `computeVideoCost(modelId, durationSeconds, audioEnabled, resolution?)` —
   already sourced, already exists (signature updated post-merge: Kling's 5 current models
@@ -330,3 +387,7 @@ bar):
       `cost_usd`/new `credits_charged` fields, not the old single `credits_consumed` column
 - [ ] A generation stuck in `running` for >15 minutes gets picked up by the reconciliation
       sweep, marked failed, and its reservation refunded
+- [ ] `usdToFinalCredits` (§2a) applies margin then rounds up to `CREDIT_ROUND_STEP`,
+      verified against fixed inputs/outputs (unit test, not staging) — and the displayed
+      estimate, the reserved amount, and the settled `credits_charged` for the same
+      generation are always numerically identical
