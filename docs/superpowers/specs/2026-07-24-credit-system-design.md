@@ -211,12 +211,15 @@ client could otherwise submit a fabricated low estimate to slip past the cap.
     version of the docs — matches what this app actually calls, not the newer Interactions
     API), pasted directly by the user. **Decided: use the local formula, not a live call.**
     Google also documents the underlying image-token rule (≤384px = 258 tokens; larger
-    images tile into 768×768 sections, 258 tokens each) — this app computes it directly from
-    `imageWidth`/`imageHeight` (already tracked on upstream nodes in
-    `image-generate/route.ts`), both client-side (for the reactive pre-click display — a live
-    network call there would add visible lag on every param change, unlike video/image-output
-    estimates which are instant local math) and server-side (for reservation, kept consistent
-    with the client rather than introducing a second code path). This is Google's own
+    images tile into 768×768 sections, 258 tokens each). New function,
+    `estimateGeminiImageInputTokens(width, height)`, lives in `src/lib/image-gen/cost.ts` —
+    same file as `computeImageCost`/`IMAGE_ESTIMATE_TABLE`, chosen specifically because that
+    file has no `"server-only"` import, so it's already callable from both sides: client-side
+    for the reactive pre-click display in `image-gen-focus-view.tsx` (a live network call
+    there would add visible lag on every param change, unlike video/image-output estimates
+    which are instant local math) and server-side for the reservation check in
+    `image-generate/route.ts` — one function, not two copies. Input dimensions come from
+    `imageWidth`/`imageHeight`, already tracked on upstream nodes. This is Google's own
     published rule, not a guess, so there's no accuracy tradeoff in skipping the live call —
     `countTokens()` stays available as a fallback if the local formula is ever found to drift
     from reality, but isn't the default.
