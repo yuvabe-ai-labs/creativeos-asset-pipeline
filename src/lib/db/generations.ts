@@ -41,6 +41,7 @@ export async function succeedGeneration(input: {
   generationId: string;
   versionId: string;
   costUsd?: number;
+  creditsCharged?: number;
   outputSnapshot?: string;
   meta?: Record<string, unknown>;
 }): Promise<void> {
@@ -49,6 +50,7 @@ export async function succeedGeneration(input: {
     status: "succeeded",
     version_id: input.versionId,
     cost_usd: input.costUsd ?? null,
+    credits_charged: input.creditsCharged ?? null,
     updated_at: new Date().toISOString(),
   };
   if (input.outputSnapshot !== undefined) update.output_snapshot = input.outputSnapshot;
