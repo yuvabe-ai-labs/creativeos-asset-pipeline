@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeImageCost, estimateImageOutputCost } from "../cost";
+import { computeImageCost, estimateImageOutputCost, estimateImageInputCost } from "../cost";
 
 describe("computeImageCost", () => {
   it("returns null for unknown model", () => {
@@ -72,5 +72,31 @@ describe("estimateImageOutputCost", () => {
     expect(estimateImageOutputCost("gemini:gemini-3-pro-image", undefined, "1K")).toBeCloseTo(0.134, 4);
     expect(estimateImageOutputCost("gemini:gemini-3-pro-image", undefined, "2K")).toBeCloseTo(0.134, 4);
     expect(estimateImageOutputCost("gemini:gemini-3-pro-image", undefined, "4K")).toBeCloseTo(0.24, 4);
+  });
+});
+
+describe("estimateImageInputCost", () => {
+  it("returns null for an unknown model", () => {
+    expect(estimateImageInputCost("unknown:model", 1000, false)).toBeNull();
+  });
+
+  it("prices a pure-text count (no reference images) at the exact textIn rate", () => {
+    // gpt-image-2: textIn = $5.00/1M
+    expect(estimateImageInputCost("openai:gpt-image-2", 1_000_000, false)).toBeCloseTo(5.0, 4);
+  });
+
+  it("prices a mixed count (any reference images) at the worst-case imgIn rate", () => {
+    // gpt-image-2: imgIn = $8.00/1M — the whole count, not just the image portion
+    expect(estimateImageInputCost("openai:gpt-image-2", 1_000_000, true)).toBeCloseTo(8.0, 4);
+  });
+
+  it("has no ambiguity for Gemini (textIn == imgIn already)", () => {
+    // gemini-3.1-flash-image: textIn = imgIn = $0.50/1M
+    expect(estimateImageInputCost("gemini:gemini-3.1-flash-image", 1_000_000, false)).toBeCloseTo(0.5, 4);
+    expect(estimateImageInputCost("gemini:gemini-3.1-flash-image", 1_000_000, true)).toBeCloseTo(0.5, 4);
+  });
+
+  it("scales linearly with token count", () => {
+    expect(estimateImageInputCost("openai:gpt-image-1-mini", 500_000, false)).toBeCloseTo(1.0, 4);
   });
 });

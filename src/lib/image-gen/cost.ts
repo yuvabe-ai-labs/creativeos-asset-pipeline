@@ -96,3 +96,23 @@ export function estimateImageOutputCost(
   }
   return null;
 }
+
+/**
+ * Pre-generation INPUT cost estimate. Neither provider's live token count
+ * (countGeminiInputTokens/countOpenAIInputTokens, sub-plan 3B) splits text vs. image
+ * tokens — one combined number. Gemini has no ambiguity (textIn == imgIn already, per the
+ * combined-rate fix in IMAGE_MODEL_PRICING above). OpenAI genuinely splits the two — with
+ * zero reference images the count is provably 100% text (exact); with one or more, the
+ * WHOLE count is priced at the higher imgIn rate, a worst-case that never under-reserves
+ * (design spec §5).
+ */
+export function estimateImageInputCost(
+  modelId: string,
+  inputTokens: number,
+  hasReferenceImages: boolean,
+): number | null {
+  const p = IMAGE_MODEL_PRICING[modelId];
+  if (!p) return null;
+  const rate = hasReferenceImages ? (p.imgIn ?? p.textIn ?? 0) : (p.textIn ?? 0);
+  return (inputTokens / 1_000_000) * rate;
+}
