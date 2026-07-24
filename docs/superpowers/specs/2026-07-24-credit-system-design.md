@@ -72,8 +72,9 @@ New table, `credit_transactions` (org_id + RLS, per D78's standing rule for new 
 | `type` | text | `reservation` \| `consumption` \| `refund` \| `adjustment` |
 | `created_at` | timestamptz | |
 
-A new `org_credit_usage` DB view sums this-UTC-month `reservation + consumption` rows per
-org, read by the admin Overview tab (§6) and by `reserveCredits` itself (§4).
+A new `org_credit_usage` DB view sums **all** this-UTC-month rows per org (not just
+reservation+consumption — see §4's terminal-state rule for why a plain sum is correct),
+read by the admin Overview tab (§6) and by `reserveCredits` itself (§4).
 
 ---
 
@@ -96,19 +97,33 @@ task) → if accepted, proceed exactly as today (call the provider / fire the ta
 `generation.id` must exist before reserving, since `credit_transactions.generation_id` is
 not-null — this is why reservation happens after `insertGeneration`, not before.
 
-**Settlement (success):** insert a `consumption` row for the *actual* cost (from the existing
-real-usage-based `computeVideoCost`/`computeImageCost`/`computeCost` calls, unchanged) —
-`succeedGeneration`'s call sites in all 3 routes plus `completeGeneration()` (video's webhook
-path) each gain this one extra ledger write, right where `creditsConsumed` is already
-computed today.
+**Every generation reaches a terminal state exactly once, and every terminal state refunds
+the reservation.** This is the rule that keeps a plain sum of all ledger rows correct — a
+reservation is always temporary, never left standing:
 
-**Refund (failure/cancel):** insert a `refund` row for `-estimatedAmount`, zeroing the
-reservation out — at every existing `failGeneration()` call site (image/prompt's synchronous
-catch blocks, `completeGeneration()`'s failure branch, and the webhook's org-mismatch
-drop-path, which already exists per D79).
+- **Settlement (success):** insert a `refund` row for `-estimatedAmount` (cancels the
+  reservation) **and** a `consumption` row for the *actual* cost (from the existing
+  real-usage-based `computeVideoCost`/`computeImageCost`/`computeCost` calls, unchanged) —
+  net effect on the sum is exactly the actual cost, not the estimate. `succeedGeneration`'s
+  call sites in all 3 routes plus `completeGeneration()` (video's webhook path) each gain
+  these two ledger writes, right where `creditsConsumed` is already computed today.
+- **Refund (failure/cancel):** insert a `refund` row for `-estimatedAmount` only — net effect
+  is zero. At every existing `failGeneration()` call site (image/prompt's synchronous catch
+  blocks, `completeGeneration()`'s failure branch, and the webhook's org-mismatch drop-path,
+  which already exists per D79).
+
+(An earlier draft of this section only refunded on failure, leaving the reservation standing
+on success — that double-counted every successful generation's spend, once as its estimate
+and again as its actual cost. Caught during final review, fixed before any implementation.)
 
 This mirrors the async-worker-revalidation pattern D79 already established for org
 mismatches — same shape, applied to credits.
+
+**Known limitation, out of scope for this stage:** a generation whose job hangs forever
+(Trigger.dev task never calls back success or failure) leaves its reservation stuck,
+permanently consuming that budget. No reconciliation sweep is planned — the original Stage 3
+scope didn't call for one, and this app has no observed case of a truly stuck job today.
+Worth revisiting if it ever becomes a real problem, not a reason to hold up this stage.
 
 ---
 
@@ -258,6 +273,8 @@ bar):
 - [ ] Viewing/editing/approving remain unaffected when an org is at its cap
 - [ ] Yuvabe org (`null` limit) always proceeds and still logs a reservation row
 - [ ] A failed/cancelled job's reservation is refunded, not left dangling
+- [ ] A successful generation's net ledger contribution equals its actual cost, not its
+      estimate + actual cost combined (the double-counting bug caught in this section)
 - [ ] Month boundary confirmed pinned to UTC, not server-local time
 - [ ] Admin org list / Overview tab shows live `used / limit` matching the ledger
 - [ ] Pre-generation estimate shown in all three focus views, updates when params change
