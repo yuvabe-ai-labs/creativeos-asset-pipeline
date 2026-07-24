@@ -33,16 +33,29 @@ const VIDEO_MODEL_PRICING: Record<
 // tiers this integration actually reaches (this app never sends a reference video to
 // Kling — image-to-video via start/end frames only — so "With Video Input" tiers are
 // unreachable regardless of model). `on` = native/original audio; `off` = no audio.
-// Missing keys mean that combination has no priced tier (e.g. 2.6 has no "native audio at
-// 720p" row).
+//
+// Every reachable (resolution, audio) combination this app's own params can actually
+// produce must have an explicit entry — no cross-key fallback. Where a model's params
+// don't expose a real audio choice (turbo) or audio doesn't move the price (o1), `off`
+// and `on` are both populated with the same value, same pattern both ways — never
+// inferred by falling back to whichever key happens to exist. A combination that's
+// genuinely unpriced (2.6 has no "native audio at 720p" tier — confirmed against the
+// real table, not a documentation gap) is left absent on purpose: computeVideoCost
+// returns null for it rather than silently charging the wrong tier.
 type KlingResolutionRates = Record<string, { off?: number; on?: number }>;
 
 const KLING_RESOLUTION_PRICING: Record<string, KlingResolutionRates> = {
-  // Only a single "native audio" tier exists for turbo — no off/on toggle to make.
+  // No audio param exists for turbo (params/kling.ts) — this app only ever requests the
+  // "off" key in practice, but the real price already includes native audio regardless
+  // (Kling publishes only one tier for turbo), so both keys carry the same value —
+  // same pattern as kling-o1 below, for the same reason.
   "kling:kling-3-0-turbo": {
-    "720p": { on: 0.112 },
-    "1080p": { on: 0.14 },
+    "720p": { off: 0.112, on: 0.112 },
+    "1080p": { off: 0.14, on: 0.14 },
   },
+  // 720p + native audio is intentionally absent — not a documentation gap. The real
+  // table shows "-" for that cell; Kling doesn't offer native audio at 720p for this
+  // model. computeVideoCost returns null if this combination is ever requested.
   "kling:kling-2-6": {
     "720p": { off: 0.042 },
     "1080p": { off: 0.07, on: 0.14 },
@@ -98,9 +111,10 @@ export function computeVideoCost(
   if (resolutionPricing) {
     const rates = resolutionPricing[resolution ?? "720p"];
     if (!rates) return null;
-    // Fall back to whichever tier exists when the requested one doesn't (e.g. turbo
-    // only has "on", 2.6 only has "off" at 720p).
-    const perSecond = (audioEnabled ? rates.on : rates.off) ?? rates.off ?? rates.on;
+    // Strict lookup, no cross-key fallback: a missing key means this specific
+    // (resolution, audio) combination genuinely isn't priced (e.g. kling-2-6 at 720p
+    // with native audio) — return null rather than silently substituting the wrong tier.
+    const perSecond = audioEnabled ? rates.on : rates.off;
     if (perSecond === undefined) return null;
     const usd = durationSeconds * perSecond;
     return { usd, inr: usd * USD_TO_INR };

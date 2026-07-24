@@ -18,6 +18,10 @@ describe("computeVideoCost — Kling (resolution-keyed)", () => {
     expect(computeVideoCost("kling:kling-2-6", 10, true, "1080p")?.usd).toBeCloseTo(1.4);
   });
 
+  it("2.6: native audio at 720p is genuinely unpriced (not a fallback case) — returns null, never silently substitutes the off rate", () => {
+    expect(computeVideoCost("kling:kling-2-6", 10, true, "720p")).toBeNull();
+  });
+
   it("2.5-turbo: 720p/1080p, no audio tier", () => {
     expect(computeVideoCost("kling:kling-2-5-turbo", 10, false, "720p")?.usd).toBeCloseTo(0.42);
     expect(computeVideoCost("kling:kling-2-5-turbo", 10, false, "1080p")?.usd).toBeCloseTo(0.7);

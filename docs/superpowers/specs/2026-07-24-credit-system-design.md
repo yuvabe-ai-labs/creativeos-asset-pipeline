@@ -172,6 +172,18 @@ client could otherwise submit a fabricated low estimate to slip past the cap.
   - `kling-o1`'s audio-on pricing is marked `ASSUMPTION` in the code (reused from
     `kling-3-0`'s delta, since Kling's pricing page doesn't split it out for o1) — inherited
     uncertainty, not introduced by this stage.
+  - **A full audit of every model's actual exposed params against what's priced** (done
+    during this spec's review, not deferred to implementation) found one real gap:
+    `kling-2-6` at 720p with native audio has no priced tier at all — the real pricing table
+    shows "-" for that cell, meaning Kling doesn't offer that combination for this model, not
+    a documentation gap. `computeVideoCost` previously fell back across a generic
+    `?? rates.off ?? rates.on` chain, which would have silently charged the *no-audio* rate
+    for that combination instead of erroring. Fixed: the fallback chain is gone entirely —
+    every model's table now has an explicit entry for every combination its own params can
+    actually request (including duplicate off/on values where audio genuinely doesn't change
+    price, e.g. `kling-3-0-turbo` and `kling-o1`), and a missing entry means the function
+    returns `null` rather than guessing. Every other model, and every other combination, was
+    confirmed complete against this same audit.
 - **Image — exact.** New lookup table, `IMAGE_ESTIMATE_TABLE` in `src/lib/image-gen/cost.ts`,
   keyed by model + quality + size, giving the exact USD cost — sourced today directly from
   OpenAI's and Google's own docs (not derived from the token-based `IMAGE_MODEL_PRICING` used
@@ -192,6 +204,14 @@ client could otherwise submit a fabricated low estimate to slip past the cap.
   Medium/1024×1024: 1056 tokens × $40/1M = $0.0422 ≈ the table's $0.042 — before being treated
   as trusted.) The app's aspect-ratio system (`ASPECT_RATIO_TO_OPENAI_SIZE`) only ever
   produces the three OpenAI sizes in this table, so every real request maps cleanly.
+
+  **One stated assumption for the Gemini rows, not an explicit vendor statement:** Gemini's
+  pricing table prices strictly by named size tier (512px/1K/2K/4K), never broken out by
+  aspect ratio, even though this app's `params/gemini.ts` exposes 5–8 aspect ratios per
+  model independently of size. Treating aspect ratio as price-irrelevant within a tier is a
+  reasonable inference from how the vendor's own table is structured (one column per size,
+  no aspect-ratio axis at all) — not something Google states outright. If wrong, every
+  request maps to at most a small per-tier error, self-corrected by settlement regardless.
 
   **Input tokens — covered for both providers now, same mechanism on both sides.** OpenAI's
   own docs are explicit that "the final cost is the sum of: input text tokens, input image
