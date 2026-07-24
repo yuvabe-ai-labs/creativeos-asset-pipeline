@@ -34,8 +34,8 @@ full task-level detail.
   independently of 3A's schema. Also resolved during 3B's write-up: `quality: "auto"` on
   `gpt-image-2`/`gpt-image-1` has no published price (found via the same params-vs-pricing
   audit method as the kling-2-6/sora-2 bugs) — estimated at `"high"` (worst case).
-  → `2026-07-24-credit-system-3b-estimate-functions.md`. **Status: plan written, not yet
-  executed.**
+  → `2026-07-24-credit-system-3b-estimate-functions.md`. **Status: complete** (all 5 tasks
+  implemented and reviewed clean; 87/87 test files, 611/611 tests passing).
 
 - **3C — Reservation, settlement, refund** (design spec §4)
   `reserveCredits(orgId, generationId, estimatedAmount)` (row-locked, UTC-month-scoped),
