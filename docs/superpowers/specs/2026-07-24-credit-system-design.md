@@ -28,8 +28,9 @@ readable low-hundreds range: a $0.0025 generation ≈ 2.5 credits, a $2.13 video
 credits, a $500/month cap = 500,000 credits).
 
 USD remains the tracked source of truth exactly as today (`computeVideoCost`/
-`computeImageCost`/`computeCost` all still return `.usd`; `generations.credits_consumed`
-keeps storing that raw USD number, unchanged). The credit rate is a named constant,
+`computeImageCost`/`computeCost` all still return `.usd`; the raw USD number they produce
+keeps being stored, just under a renamed column — see below). The credit rate is a named
+constant,
 `USD_TO_CREDITS` (starts at 1000 — same pattern as `USD_TO_INR` in `pricing.ts`: a plain
 exported number, bumped by hand when it needs to change, e.g. for margin, not a live/dynamic
 lookup). Each `credit_transactions` row's `amount` is computed **once**, at write time,
@@ -82,9 +83,9 @@ read by the admin Overview tab (§6) and by `reserveCredits` itself (§4).
 
 `reserveCredits(orgId, generationId, estimatedAmount)`:
 1. Row-locks the org (`SELECT ... FOR UPDATE` on `organizations`).
-2. Sums this-**UTC**-month `reservation + consumption` rows for the org from
-   `credit_transactions` (month boundary pinned to UTC, not server-local time — this was an
-   explicit checklist item in the original Stage 3 scope).
+2. Sums this-**UTC**-month `credit_transactions` rows for the org (all types — see §3 for
+   why a plain sum, not a filtered one, is correct; month boundary pinned to UTC, not
+   server-local time — this was an explicit checklist item in the original Stage 3 scope).
 3. If `sum + estimatedAmount > monthly_credit_limit` (and limit is not `null` — Yuvabe's own
    org and any `null`-limit org always proceeds), reject.
 4. Else insert a `reservation` row for `estimatedAmount`, return success.
@@ -192,13 +193,15 @@ client could otherwise submit a fabricated low estimate to slip past the cap.
   as trusted.) The app's aspect-ratio system (`ASPECT_RATIO_TO_OPENAI_SIZE`) only ever
   produces the three OpenAI sizes in this table, so every real request maps cleanly.
 
-  **Input tokens — covered for both providers now, one official call each.** OpenAI's own
-  docs are explicit that "the final cost is the sum of: input text tokens, input image
-  tokens if using the edits endpoint, image output tokens" — the table above is output-only.
-  For both providers, one official token-counting endpoint handles text-only *and*
-  text+reference-image requests alike — no separate local-tokenizer library needed for the
-  text-only case, since each official endpoint's simplest documented example is already
-  plain text.
+  **Input tokens — covered for both providers now.** OpenAI's own docs are explicit that
+  "the final cost is the sum of: input text tokens, input image tokens if using the edits
+  endpoint, image output tokens" — the table above is output-only. Both providers have an
+  official token-counting endpoint that handles text-only *and* text+reference-image
+  requests alike in one call — no separate local-tokenizer library needed for the text-only
+  case, since each endpoint's simplest documented example is already plain text. The two
+  providers land on different mechanisms for the *image* side specifically, for a concrete
+  reason: Google publishes the exact tiling formula (so a local computation is both accurate
+  and free), OpenAI doesn't (so its live endpoint is the only accurate option, not a choice).
   - **Gemini — one call for both:** closed. `ai.models.countTokens()` (`@google/genai`,
     already a dependency, already used by `generateWithGemini()`) accepts the exact same
     `contents` shape the real generation call sends — a text-only array for prompt-only
@@ -206,11 +209,17 @@ client could otherwise submit a fabricated low estimate to slip past the cap.
     generating, for an exact pre-flight count either way. Confirmed against
     `ai.google.dev/gemini-api/docs/generate-content/tokens` (the `generateContent`-API
     version of the docs — matches what this app actually calls, not the newer Interactions
-    API), pasted directly by the user. Google also documents the underlying image-token
-    formula (≤384px = 258 tokens; larger images tile into 768×768 sections, 258 tokens each),
-    which this app could alternatively compute locally from `imageWidth`/`imageHeight`
-    (already tracked on upstream nodes in `image-generate/route.ts`) without an extra network
-    call — either approach works; implementation picks one at plan time.
+    API), pasted directly by the user. **Decided: use the local formula, not a live call.**
+    Google also documents the underlying image-token rule (≤384px = 258 tokens; larger
+    images tile into 768×768 sections, 258 tokens each) — this app computes it directly from
+    `imageWidth`/`imageHeight` (already tracked on upstream nodes in
+    `image-generate/route.ts`), both client-side (for the reactive pre-click display — a live
+    network call there would add visible lag on every param change, unlike video/image-output
+    estimates which are instant local math) and server-side (for reservation, kept consistent
+    with the client rather than introducing a second code path). This is Google's own
+    published rule, not a guess, so there's no accuracy tradeoff in skipping the live call —
+    `countTokens()` stays available as a fallback if the local formula is ever found to drift
+    from reality, but isn't the default.
   - **OpenAI — one call for both:** also closable. `POST /v1/responses/input_tokens`
     (`client.responses.input_tokens.count()`) handles both — its first documented example is
     plain text input, and it explicitly handles image inputs too ("no guesswork") — source:
