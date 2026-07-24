@@ -24,6 +24,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { GuidedNextButton } from "@/components/canvas/guided-next-button";
 import { SliceToggles } from "./slice-toggles";
 import { DEFAULT_INSTRUCTION } from "@/lib/nodes/prompt";
+import { estimatePromptCredits } from "@/lib/credits/prompt-estimate";
 import type { KBSliceKey } from "@/lib/kb/parse-context";
 import { ShotControlsRow } from "./shot-controls-row";
 import {
@@ -81,6 +82,7 @@ export function PromptFocusView({
   onSaveOutput,
 }: PromptFocusViewProps) {
   const params = useParams<{ id: string }>();
+  const estimatedCredits = estimatePromptCredits(upstream.length);
   const [draft, setDraft] = useState(output ?? "");
   // Local mirror of the instruction prop. The textarea is controlled by THIS, not
   // by the prop directly: the prop round-trips through zustand + React Flow's
@@ -523,6 +525,9 @@ export function PromptFocusView({
                       controls={controls ?? DEFAULT_SHOT_CONTROLS}
                       onChange={(next) => onPatch({ controls: next })}
                     />
+                    <p className="text-xs text-muted-foreground">
+                      Est. {estimatedCredits} credit{estimatedCredits === 1 ? "" : "s"}
+                    </p>
                     <Button
                       className="w-full"
                       size="default"
