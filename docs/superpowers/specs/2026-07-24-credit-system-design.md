@@ -163,20 +163,33 @@ client could otherwise submit a fabricated low estimate to slip past the cap.
   as trusted.) The app's aspect-ratio system (`ASPECT_RATIO_TO_OPENAI_SIZE`) only ever
   produces the three OpenAI sizes in this table, so every real request maps cleanly.
 
-  **Input tokens — partially covered, on purpose.** OpenAI's own docs are explicit that "the
-  final cost is the sum of: input text tokens, input image tokens if using the edits
-  endpoint, image output tokens" — the table above is output-only. This estimate adds
-  **prompt text tokens** (exact — a standard tokenizer count on the already-known prompt
-  string × the model's existing `textIn` rate, no research needed). It **excludes reference/
-  edit image input tokens** (this app allows up to 16 reference images per generation):
-  repeated research attempts (automated fetch and a manual page check) could not reliably
-  source OpenAI's input-image-token formula, unlike the output table above which was
-  cross-checked and confirmed. This means the pre-click estimate can undershoot for
-  edit-heavy generations with many/large reference images — **not a financial-integrity
-  problem**, since settlement (§4) always corrects the ledger to the real actual cost
-  afterward regardless of what the estimate said; it only means the number shown before
-  clicking Generate is occasionally optimistic for that specific case. Worth a follow-up once
-  a trusted source for that formula turns up, not a blocker for this stage.
+  **Input tokens — covered for Gemini, still open for OpenAI.** OpenAI's own docs are
+  explicit that "the final cost is the sum of: input text tokens, input image tokens if
+  using the edits endpoint, image output tokens" — the table above is output-only.
+  - **Text tokens (all providers):** exact — OpenAI via `js-tiktoken` (a real, named library;
+    matches OpenAI's own encoding), Gemini via `countTokens()` (below) on a text-only
+    `contents` array.
+  - **Reference/edit image input tokens — Gemini: closed.** `ai.models.countTokens()`
+    (`@google/genai`, already a dependency, already used by `generateWithGemini()`) accepts
+    the exact same multimodal `contents` shape (text + `inlineData` image parts) the real
+    generation call sends — call it first, before generating, to get an exact pre-flight
+    token count including reference images. Confirmed against `ai.google.dev/gemini-api/docs/
+    generate-content/tokens` (the `generateContent`-API version of the docs — matches what
+    this app actually calls, not the newer Interactions API), pasted directly by the user.
+    Google also documents the underlying formula (images ≤384px = 258 tokens; larger images
+    tile into 768×768 sections, 258 tokens each), which this app could alternatively compute
+    locally from `imageWidth`/`imageHeight` (already tracked on upstream nodes in
+    `image-generate/route.ts`) without an extra network call — either approach works;
+    implementation picks one at plan time.
+  - **Reference/edit image input tokens — OpenAI: still open.** Two research attempts
+    (automated fetch, one user page-check) could not reliably source OpenAI's input-image-
+    token formula, and no equivalent pre-flight `countTokens`-style endpoint was found for
+    GPT Image models. This means the pre-click estimate can undershoot for edit-heavy
+    `gpt-image-*` generations with many/large reference images — **not a financial-integrity
+    problem**, since settlement (§4) always corrects the ledger to the real actual cost
+    afterward regardless of what the estimate said; it only means the number shown before
+    clicking Generate is occasionally optimistic for that specific case. Worth a follow-up
+    once a trusted source turns up, not a blocker for this stage.
 
 - **Prompt/text — approximate, explicitly labeled "~estimated".** No vendor can predict an
   LLM's output length before it generates (confirmed — OpenAI's "Predicted Outputs" feature

@@ -108,24 +108,32 @@ exist) — **do not trust an automated fetch for this table again; get it pasted
 
 Source: same Gemini pricing page as §3/§4.
 
-### Known gap: reference/edit image input tokens
+### Input tokens: tooling found for text (both providers) and Gemini's reference images
 
-The estimate above is **output-only**. OpenAI's own docs state final cost sums input text
-tokens + input image tokens (edits) + output tokens. This app allows up to 16 reference
-images per generation — that input-side cost is **excluded** from the pre-gen estimate:
-- Prompt **text** tokens: coverable exactly (tokenizer count on the known prompt string) —
-  planned, not yet built.
-- Reference/edit **image** tokens: excluded. Two research attempts (automated fetch, one
-  user page-check) could not reliably source OpenAI's input-image-token formula, unlike the
-  output table above.
-- **Not a financial-integrity issue** — settlement (§4) always corrects to the real actual
-  cost regardless of what the estimate said. Only the number shown *before* clicking
-  Generate can undershoot, and only for edit-heavy generations with many/large reference
-  images.
-- Gemini's case is milder: its provider code (`gemini.ts`) reports combined text+image input
-  as one `promptTokenCount`, only known after the call — there's no local-tokenizer path for
-  it at all (unlike OpenAI's `tiktoken`), so the same exclusion applies there for the same
-  reason, not a separate gap.
+The output table above is **output-only**. OpenAI's own docs state final cost sums input
+text tokens + input image tokens (edits) + output tokens.
+
+- **Prompt text tokens (OpenAI):** 🟢 exact — `js-tiktoken` (npm), matches OpenAI's own
+  encoding. A real, named library, not just "a tokenizer exists somewhere."
+- **Prompt text tokens (Gemini):** 🟢 exact — `ai.models.countTokens()` (`@google/genai`,
+  already a dependency) on a text-only `contents` array.
+- **Reference/edit image input tokens (Gemini):** 🟢 **closed.** `countTokens()` accepts the
+  same multimodal `contents` shape (text + `inlineData` image parts) `generateWithGemini()`
+  already builds — call it before generating for an exact pre-flight count including
+  reference images. Source: `ai.google.dev/gemini-api/docs/generate-content/tokens` — this
+  is the `generateContent`-API version of the docs, matching what `gemini.ts` actually
+  calls (not the newer Interactions API) — pasted directly by the user, with a worked
+  multimodal example matching this app's request shape. Google also publishes the underlying
+  formula (images ≤384px = 258 tokens; larger images tile into 768×768 sections, 258 tokens
+  each) — usable as a local computation from `imageWidth`/`imageHeight` (already tracked in
+  `image-generate/route.ts`) instead of a live API call, if preferred at implementation time.
+- **Reference/edit image input tokens (OpenAI):** 🔴 still open. Two research attempts
+  (automated fetch, one user page-check) could not reliably source OpenAI's input-image-token
+  formula, and no `countTokens`-equivalent pre-flight endpoint was found for GPT Image
+  models. **Not a financial-integrity issue** — settlement (§4 of the design spec) always
+  corrects to the real actual cost regardless of what the estimate said; this only means the
+  number shown before clicking Generate can undershoot for edit-heavy `gpt-image-*`
+  generations with many/large reference images.
 
 ---
 
