@@ -1,7 +1,10 @@
 import { z } from "zod";
 import { tasks } from "@trigger.dev/sdk/v3";
 import { getUpstreamOutputs } from "@/lib/db/nodes";
-import { insertGeneration } from "@/lib/db/generations";
+import { insertGeneration, failGeneration } from "@/lib/db/generations";
+import { computeVideoCost, isVideoAudioEnabled, asResolutionString } from "@/lib/video-gen/cost";
+import { usdToFinalCredits } from "@/lib/credits/units";
+import { reserveCredits, refundReservation, CreditLimitError } from "@/lib/db/credit-transactions";
 import { videoGenRegistry, DEFAULT_VIDEO_MODEL_ID } from "@/lib/video-gen/registry";
 import { apiError, apiOk, withNode } from "@/lib/api/route-helpers";
 
@@ -113,18 +116,39 @@ export async function POST(
       },
     });
 
-    // Fire Trigger.dev task (no await — the task runs in the background)
-    await tasks.trigger("video-generate", {
-      generationId: generation.id,
-      modelId,
-      prompt,
-      startFrameUrl,
-      endFrameUrl,
-      referenceUrls,
-      params: resolvedParams,
-      mockMode,
-    });
+    try {
+      const durationSeconds = Number(resolvedParams.seconds ?? resolvedParams.duration ?? 0);
+      const audioEnabled = isVideoAudioEnabled(resolvedParams.audio);
+      const resolution = asResolutionString(resolvedParams.resolution);
+      const estimate = computeVideoCost(modelId, durationSeconds, audioEnabled, resolution);
+      if (estimate === null) {
+        throw new Error(`No cost estimate available for ${modelId} at these params.`);
+      }
+      const estimatedCredits = usdToFinalCredits(estimate.usd);
+      const reservation = await reserveCredits(caller.orgId, generation.id, estimatedCredits);
+      if (!reservation.ok) {
+        throw new CreditLimitError("Monthly credit limit reached");
+      }
 
-    return apiOk({ generationId: generation.id }, 202);
+      // Fire Trigger.dev task (no await — the task runs in the background)
+      await tasks.trigger("video-generate", {
+        generationId: generation.id,
+        modelId,
+        prompt,
+        startFrameUrl,
+        endFrameUrl,
+        referenceUrls,
+        params: resolvedParams,
+        mockMode,
+      });
+
+      return apiOk({ generationId: generation.id }, 202);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Video generation failed";
+      await failGeneration({ generationId: generation.id, error: message }).catch(() => null);
+      await refundReservation({ orgId: caller.orgId, generationId: generation.id }).catch(() => null);
+      const status = e instanceof CreditLimitError ? 402 : 500;
+      return apiError(message, status);
+    }
   });
 }
