@@ -40,6 +40,23 @@ async function getReservedAmount(generationId: string): Promise<number> {
   return (data as { amount: number } | null)?.amount ?? 0;
 }
 
+// Whether this generation already reached a terminal ledger state (a refund or consumption
+// row already exists). Used as a guard so settleGeneration/refundReservation are idempotent
+// when a route's catch-block cleanup runs after settlement already succeeded — without this,
+// a transient error on the line right after settleGeneration (e.g. succeedGeneration) would
+// trigger a second refund for the same reservation, double-crediting the org.
+async function alreadySettled(generationId: string): Promise<boolean> {
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("credit_transactions")
+    .select("id")
+    .eq("generation_id", generationId)
+    .in("type", ["refund", "consumption"])
+    .limit(1);
+  if (error) throw error;
+  return (data?.length ?? 0) > 0;
+}
+
 // Success terminal state (design spec §4): refund the reservation AND record the actual
 // cost in one insert — net ledger effect is exactly actualAmount, not the estimate. Call
 // this and succeedGeneration's creditsCharged with the SAME actualAmount value.
@@ -48,6 +65,7 @@ export async function settleGeneration(input: {
   generationId: string;
   actualAmount: number;
 }): Promise<void> {
+  if (await alreadySettled(input.generationId)) return;
   const reserved = await getReservedAmount(input.generationId);
   const supabase = createServerSupabase();
   const { error } = await supabase.from("credit_transactions").insert([
@@ -63,6 +81,7 @@ export async function refundReservation(input: {
   orgId: string;
   generationId: string;
 }): Promise<void> {
+  if (await alreadySettled(input.generationId)) return;
   const reserved = await getReservedAmount(input.generationId);
   const supabase = createServerSupabase();
   const { error } = await supabase.from("credit_transactions").insert({
