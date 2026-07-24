@@ -1,10 +1,10 @@
 import "server-only";
 import { createGemini } from "@/lib/gemini/server";
 import { buildZodFromParams } from "../schema-builder";
-import { geminiFlashParams, geminiProParams } from "../params/gemini";
+import { geminiFlashParams, gemini25FlashParams, geminiProParams } from "../params/gemini";
 import type { ImageGenInput, ImageGenResult, MediaGenModelSpec } from "../types";
 
-export { geminiFlashParams, geminiProParams };
+export { geminiFlashParams, gemini25FlashParams, geminiProParams };
 
 // Params ref: https://ai.google.dev/gemini-api/docs/image-generation
 // Only imageConfig.aspectRatio and imageConfig.imageSize are supported via the
@@ -86,8 +86,8 @@ export const geminiModels: MediaGenModelSpec[] = [
     label: "Nano Banana", providerLabel: "Gemini",
     maxReferenceImages: 14, maxReferenceSizeBytes: 0,
     maxTotalReferenceSizeBytes: 100 * 1024 * 1024,
-    params: geminiFlashParams,
-    schema: buildZodFromParams(geminiFlashParams),
+    params: gemini25FlashParams,
+    schema: buildZodFromParams(gemini25FlashParams),
     generate: (input) => generateWithGemini("gemini-2.5-flash-image", input),
   },
   {

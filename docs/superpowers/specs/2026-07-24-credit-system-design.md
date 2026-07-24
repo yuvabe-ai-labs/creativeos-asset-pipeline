@@ -133,7 +133,7 @@ client could otherwise submit a fabricated low estimate to slip past the cap.
   | `gpt-image-2` | $0.006 / $0.005 / $0.005 | $0.053 / $0.041 / $0.041 | $0.211 / $0.165 / $0.165 |
   | `gpt-image-1` | $0.011 / $0.016 / $0.016 | $0.042 / $0.063 / $0.063 | $0.167 / $0.25 / $0.25 |
   | `gpt-image-1-mini` | $0.005 / $0.006 / $0.006 | $0.011 / $0.015 / $0.015 | $0.036 / $0.052 / $0.052 |
-  | `gemini-2.5-flash-image` | flat $0.039/image (no quality/size tiers) |
+  | `gemini-2.5-flash-image` | flat $0.039/image — genuinely fixed at 1K, not just a documentation gap (confirmed against Google's own model docs: this is the pre-"Gemini 3 image models" legacy model, and the multi-resolution capability was introduced with that later generation; `params/gemini.ts` was split so this model no longer shares a resolution selector with `gemini-3.1-flash-image`) |
   | `gemini-3.1-flash-image` | $0.045 (512px) / $0.067 (1024px) / $0.101 (2048px) / $0.151 (4096px) |
   | `gemini-3-pro-image` | $0.134 (1K/2K) / $0.24 (4K) |
 
