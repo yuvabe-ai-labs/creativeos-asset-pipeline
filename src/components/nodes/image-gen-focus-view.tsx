@@ -189,6 +189,8 @@ export function ImageGenFocusView({
     nodeId: string;
     text: string;
   } | null>(null);
+  const [estimatedCredits, setEstimatedCredits] = useState<number | null>(null);
+  const [estimating, setEstimating] = useState(false);
   const [loadingVersions, setLoadingVersions] = useState(false);
   const [loadingPreview, setLoadingPreview] = useState(false);
   // The selected rail item: "image" (the hero pane), "history", "details", or a
@@ -305,6 +307,51 @@ export function ImageGenFocusView({
     )
     .map((u) => u.fileUrl as string);
   const firstConnectedImageUrl = connectedImageUrls[0];
+  // Stable primitive for the effect's dep array — connectedImageUrls itself is a new array
+  // reference every render (derived, not stored in state).
+  const connectedImageUrlsKey = JSON.stringify(connectedImageUrls);
+
+  // Debounced pre-generation cost estimate — mirrors the 300ms debounce pattern this app's
+  // own prompt-focus-view.tsx already uses for its compile-preview fetch. Only meaningful on
+  // the Generate tab (Edit has its own action button, out of scope per this plan) and once
+  // there's a prompt to estimate from.
+  useEffect(() => {
+    if (!open || activeTab === "edit" || !fetchedPrompt?.text) {
+      setEstimatedCredits(null);
+      setEstimating(false);
+      return;
+    }
+    let cancelled = false;
+    setEstimating(true);
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/nodes/${nodeId}/image-generate/estimate`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            modelId: selectedModelId,
+            quality: paramValues.quality,
+            aspect_ratio: paramValues.aspect_ratio,
+            image_size: paramValues.image_size,
+            prompt: fetchedPrompt.text,
+            referenceUrls: connectedImageUrls,
+          }),
+        });
+        const json = (await res.json()) as { estimatedCredits: number | null };
+        if (!cancelled && res.ok) setEstimatedCredits(json.estimatedCredits);
+      } catch {
+        if (!cancelled) setEstimatedCredits(null);
+      } finally {
+        if (!cancelled) setEstimating(false);
+      }
+    }, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+    // connectedImageUrls omitted on purpose — connectedImageUrlsKey is the stable stand-in.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, activeTab, selectedModelId, paramValues, connectedImageUrlsKey, fetchedPrompt, nodeId]);
 
   // Connected image NODES (id + url), for the edit-mode reference tiles.
   const connectedImageNodes = upstream
@@ -765,6 +812,8 @@ export function ImageGenFocusView({
       editing={editing}
       hasPrompt={Boolean(promptUpstream)}
       hasImage={Boolean(imageUrl)}
+      estimatedCredits={estimatedCredits}
+      estimating={estimating}
     />
   );
 

@@ -34,6 +34,9 @@ type Props = {
   hasPrompt: boolean;
   /** An existing attempt turns "Generate" into "Re-generate". */
   hasImage: boolean;
+  /** Pre-generation credit estimate — null while unavailable/still computing. */
+  estimatedCredits: number | null;
+  estimating: boolean;
 };
 
 /**
@@ -55,6 +58,8 @@ export function ImageGenOutputSettingsBody({
   editing,
   hasPrompt,
   hasImage,
+  estimatedCredits,
+  estimating,
 }: Props) {
   const editable = useCanvasEditable(); // D33: false when this session is read-only
   const refOverLimit = referenceCount > model.maxReferenceImages;
@@ -123,6 +128,13 @@ export function ImageGenOutputSettingsBody({
             )}
           </Tooltip>
         </TooltipProvider>
+      )}
+      {showGenerate && (estimating || estimatedCredits !== null) && (
+        <p className="mt-2 text-xs text-muted-foreground">
+          {estimating
+            ? "Estimating cost…"
+            : `Est. ${estimatedCredits} credit${estimatedCredits === 1 ? "" : "s"}`}
+        </p>
       )}
     </>
   );
