@@ -1,149 +1,84 @@
 import type { ParamSpec } from "@/lib/image-gen/types";
 
-const KLING_MOTION_PARAMS: ParamSpec[] = [
-  {
-    name: "pan",
-    label: "Pan",
-    component: "slider",
-    group: "advanced",
-    order: 2,
-    visible: true,
-    defaultValue: 0,
-    constraints: { type: "slider", min: -10, max: 10, step: 1 },
-  },
-  {
-    name: "tilt",
-    label: "Tilt",
-    component: "slider",
-    group: "advanced",
-    order: 3,
-    visible: true,
-    defaultValue: 0,
-    constraints: { type: "slider", min: -10, max: 10, step: 1 },
-  },
-  {
-    name: "zoom",
-    label: "Zoom",
-    component: "slider",
-    group: "advanced",
-    order: 4,
-    visible: true,
-    defaultValue: 0,
-    constraints: { type: "slider", min: -10, max: 10, step: 1 },
-  },
-  {
-    name: "roll",
-    label: "Roll",
-    component: "slider",
-    group: "advanced",
-    order: 5,
-    visible: true,
-    defaultValue: 0,
-    constraints: { type: "slider", min: -10, max: 10, step: 1 },
-  },
-  {
-    name: "horizontal_movement",
-    label: "Horizontal",
-    component: "slider",
-    group: "advanced",
-    order: 6,
-    visible: true,
-    defaultValue: 0,
-    constraints: { type: "slider", min: -10, max: 10, step: 1 },
-  },
-  {
-    name: "vertical_movement",
-    label: "Vertical",
-    component: "slider",
-    group: "advanced",
-    order: 7,
-    visible: true,
-    defaultValue: 0,
-    constraints: { type: "slider", min: -10, max: 10, step: 1 },
-  },
-];
-
-const KLING_PRIMARY_BASE: ParamSpec[] = [
-  {
-    name: "mode",
-    label: "Mode",
+function resolutionParam(options: string[], defaultValue: string): ParamSpec {
+  return {
+    name: "resolution",
+    label: "Resolution",
     component: "select",
     group: "primary",
     order: 0,
     visible: true,
-    defaultValue: "pro",
-    constraints: { type: "select", options: ["std", "pro"] },
-  },
-  {
-    name: "aspect_ratio",
-    label: "Aspect Ratio",
+    defaultValue,
+    constraints: { type: "select", options },
+  };
+}
+
+function durationParam(options: string[], defaultValue: string): ParamSpec {
+  return {
+    name: "duration",
+    label: "Duration",
     component: "select",
     group: "primary",
-    order: 2,
-    visible: true,
-    defaultValue: "16:9",
-    constraints: { type: "select", options: ["16:9", "9:16", "1:1"] },
-  },
-];
-
-const KLING_ADVANCED_BASE: ParamSpec[] = [
-  {
-    name: "cfg_scale",
-    label: "CFG Scale",
-    component: "slider",
-    group: "advanced",
-    order: 0,
-    visible: true,
-    defaultValue: 0.5,
-    constraints: { type: "slider", min: 0, max: 1, step: 0.1 },
-  },
-  {
-    name: "negative_prompt",
-    label: "Negative Prompt",
-    component: "textarea",
-    group: "advanced",
     order: 1,
     visible: true,
-    defaultValue: "",
-    constraints: { type: "textarea", maxLength: 2500 },
-  },
-  ...KLING_MOTION_PARAMS,
+    defaultValue,
+    constraints: { type: "select", options },
+  };
+}
+
+function audioParam(options: string[], defaultValue: string): ParamSpec {
+  return {
+    name: "audio",
+    label: "Audio",
+    component: "select",
+    group: "advanced",
+    order: 0,
+    visible: true,
+    defaultValue,
+    constraints: { type: "select", options },
+  };
+}
+
+const multiShotParam: ParamSpec = {
+  name: "multi_shot",
+  label: "Multi-Shot",
+  component: "toggle",
+  group: "advanced",
+  order: 1,
+  visible: true,
+  defaultValue: true,
+  constraints: { type: "toggle" },
+};
+
+const DURATION_3_TO_15 = [
+  "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15",
 ];
 
-const KLING_DURATION_LEGACY: ParamSpec = {
-  name: "duration",
-  label: "Duration",
-  component: "select",
-  group: "primary",
-  order: 1,
-  visible: true,
-  defaultValue: "5",
-  constraints: { type: "select", options: ["5", "10"] },
-};
+export const kling30TurboParams: ParamSpec[] = [
+  resolutionParam(["720p", "1080p"], "720p"),
+  durationParam(DURATION_3_TO_15, "5"),
+];
 
-const KLING_DURATION_V3: ParamSpec = {
-  name: "duration",
-  label: "Duration",
-  component: "select",
-  group: "primary",
-  order: 1,
-  visible: true,
-  defaultValue: "5",
-  constraints: {
-    type: "select",
-    options: ["3","4","5","6","7","8","9","10","11","12","13","14","15"],
-  },
-};
+export const kling26Params: ParamSpec[] = [
+  resolutionParam(["720p", "1080p"], "720p"),
+  durationParam(["5", "10"], "5"),
+  audioParam(["native", "off"], "off"),
+];
 
-export const klingLegacyParams: ParamSpec[] = [
-  ...KLING_PRIMARY_BASE.filter((p) => p.name !== "duration"),
-  KLING_DURATION_LEGACY,
-  ...KLING_ADVANCED_BASE,
-].sort((a, b) => {
-  if (a.group !== b.group) return a.group === "primary" ? -1 : 1;
-  return a.order - b.order;
-});
+export const kling25TurboParams: ParamSpec[] = [
+  resolutionParam(["720p", "1080p"], "720p"),
+  durationParam(["5", "10"], "5"),
+];
 
-export const klingV3Params: ParamSpec[] = klingLegacyParams.map((p) =>
-  p.name === "duration" ? KLING_DURATION_V3 : p,
-);
+export const kling30Params: ParamSpec[] = [
+  resolutionParam(["720p", "1080p", "4k"], "720p"),
+  durationParam(DURATION_3_TO_15, "5"),
+  audioParam(["native", "off"], "off"),
+  multiShotParam,
+];
+
+export const klingO1Params: ParamSpec[] = [
+  resolutionParam(["720p", "1080p"], "720p"),
+  durationParam(["3", "4", "5", "6", "7", "8", "9", "10"], "5"),
+  audioParam(["original", "off"], "off"),
+];

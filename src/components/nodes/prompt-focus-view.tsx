@@ -52,7 +52,6 @@ import { PromptVersionChips } from "./prompt-version-chips";
 import { describeApprovalPill } from "@/lib/nodes/prompt-focus";
 import { LeftSection } from "./focus-left-section";
 import { RailItem } from "./focus-rail-item";
-import { PromptShotReference, PromptShotReferenceEmpty } from "./prompt-shot-reference";
 
 type PromptFocusViewProps = {
   open: boolean;
@@ -148,10 +147,6 @@ export function PromptFocusView({
   const selectedNode = isNodeSelected
     ? preview.connected.find((c) => c.nodeId === selected) ?? null
     : null;
-  // The connected Shot's text is PINNED in the compose layout's center column — it's what
-  // the operator reads to decide Lens/Composition/Lighting, so it never hides behind a rail
-  // click. Prompt nodes carry one shot in practice; show the first.
-  const shotPreview = preview.connected.find((c) => c.type === "shot") ?? null;
   // The compose layout owns both the "Prompt" rail item and any connected-input selection:
   // selecting a connected input swaps the CENTER column to its read-only detail; the right
   // column is ALWAYS the generated output.
@@ -488,15 +483,14 @@ export function PromptFocusView({
 
           {/* Detail pane */}
           <div className="min-h-0 flex-1 overflow-hidden">
-            {/* Prompt — three-column compose: the connected Shot text is pinned in the
-                center column (always readable while you pick Lens/Composition/Lighting),
-                with the instruction + controls beneath it; the generated prompt owns the
-                right column (or a selected connected input's detail takes it over). */}
+            {/* Prompt — two-column compose: the instruction + controls sit in the center
+                column (which swaps to a selected connected input's read-only detail), and
+                the generated prompt owns the right column. */}
             {showComposeLayout && (
               <div className="flex h-full min-h-0 w-full">
-                {/* Center column — pinned shot text (top) + instruction & controls (bottom);
-                    swaps to a connected input's read-only detail when one is selected in
-                    the rail. The right column stays the generated output either way. */}
+                {/* Center column — instruction & controls; swaps to a connected input's
+                    read-only detail when one is selected in the rail. The right column
+                    stays the generated output either way. */}
                 <div className="flex h-full w-full max-w-md min-h-0 flex-col overflow-hidden border-r border-border">
                   {isNodeSelected ? (
                     detailNode ? (
@@ -509,15 +503,7 @@ export function PromptFocusView({
                       </div>
                     )
                   ) : (
-                    <>
-                  {shotPreview ? (
-                    <PromptShotReference label={shotPreview.label} text={shotPreview.text} />
-                  ) : (
-                    <PromptShotReferenceEmpty />
-                  )}
-
-                  {/* Instruction + controls — bottom of the center column */}
-                  <div className="flex shrink-0 flex-col gap-3 border-t border-border px-6 py-5">
+                    <div className="flex shrink-0 flex-col gap-3 px-6 py-5">
                     <div className="flex items-center gap-1.5">
                       <PencilLine className="size-3.5 text-primary" />
                       <span className="text-eyebrow">Instruction</span>
@@ -547,7 +533,6 @@ export function PromptFocusView({
                       {generating ? "Generating…" : output ? "Re-generate" : "Generate prompt"}
                     </Button>
                   </div>
-                    </>
                   )}
                 </div>
 

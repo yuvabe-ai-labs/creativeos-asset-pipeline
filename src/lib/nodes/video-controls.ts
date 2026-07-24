@@ -27,6 +27,7 @@ export const VIDEO_CONTROLS: {
       { value: "push-in", label: "Push in", prose: "a slow push-in toward the subject" },
       { value: "pull-back", label: "Pull back", prose: "a smooth pull-back revealing the scene" },
       { value: "orbit", label: "Orbit", prose: "a gentle orbit around the subject" },
+      { value: "tracking", label: "Tracking", prose: "a smooth tracking shot alongside the subject" },
       { value: "pan", label: "Pan", prose: "a steady pan across the frame" },
       { value: "tilt", label: "Tilt", prose: "a deliberate vertical tilt" },
       { value: "handheld", label: "Handheld", prose: "subtle handheld movement" },

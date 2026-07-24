@@ -1,5 +1,6 @@
 "use client";
 
+import type { Ref } from "react";
 import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
@@ -7,9 +8,10 @@ type Props = {
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
+  inputRef?: Ref<HTMLInputElement>;
 };
 
-export function GallerySearch({ value, onChange, placeholder = "Search…" }: Props) {
+export function GallerySearch({ value, onChange, placeholder = "Search…", inputRef }: Props) {
   return (
     <div className="relative flex-1">
       <Search
@@ -17,6 +19,7 @@ export function GallerySearch({ value, onChange, placeholder = "Search…" }: Pr
         strokeWidth={1.5}
       />
       <Input
+        ref={inputRef}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}

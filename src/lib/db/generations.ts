@@ -112,31 +112,6 @@ export async function countGenerationsForOrg(orgId: string): Promise<number> {
   return count ?? 0;
 }
 
-export async function getGenerationByProviderJobId(
-  providerJobId: string,
-): Promise<GenerationRow | null> {
-  const supabase = createServerSupabase();
-  const { data, error } = await supabase
-    .from("generations")
-    .select("*")
-    .eq("provider_job_id", providerJobId)
-    .single();
-  if (error) return null;
-  return data as GenerationRow;
-}
-
-export async function setProviderJobId(
-  generationId: string,
-  providerJobId: string,
-): Promise<void> {
-  const supabase = createServerSupabase();
-  const { error } = await supabase
-    .from("generations")
-    .update({ provider_job_id: providerJobId })
-    .eq("id", generationId);
-  if (error) throw error;
-}
-
 export type GenerationForOrgList = GenerationRow & { client_name: string | null };
 
 export async function listGenerationsForOrg(

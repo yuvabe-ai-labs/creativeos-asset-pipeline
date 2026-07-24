@@ -1,5 +1,14 @@
 # Kling Image-to-Video Integration Design
 
+> **SUPERSEDED 2026-07-23** — this design was written with no working citation. It reached
+> for fields (`camera_control`/`cfg_scale`/`mode`) that do exist, but only on Kling's
+> legacy `/v1/videos/image2video` endpoint — called here at the wrong host
+> (`api.klingai.com` instead of `api-singapore.klingai.com`) with the wrong body shape, so
+> it never worked regardless. See `2026-07-23-kling-api-correction-design.md` for the
+> corrected design, which targets Kling's 5 current dedicated per-model endpoints instead
+> (verified against official docs). Kept here for history only — do not implement from
+> this file.
+
 **Date:** 2026-07-11
 **Linear:** YUV-168
 **Status:** Approved

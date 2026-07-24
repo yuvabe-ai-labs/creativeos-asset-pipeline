@@ -73,6 +73,7 @@ export function GalleryList({
               selected={selectedIds.has(image.id)}
               onToggle={() => onToggle(image.id)}
               onPreview={() => onPreview(image.id)}
+              size="lg"
             />
           </div>
         ))}

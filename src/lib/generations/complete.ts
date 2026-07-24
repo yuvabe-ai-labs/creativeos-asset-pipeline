@@ -1,7 +1,7 @@
 import "server-only";
 import { insertVersion, setActiveVersion } from "@/lib/db/versions";
 import { getGeneration, succeedGeneration, failGeneration } from "@/lib/db/generations";
-import { computeVideoCost } from "@/lib/video-gen/cost";
+import { computeVideoCost, isVideoAudioEnabled, asResolutionString } from "@/lib/video-gen/cost";
 import { uploadVideoGen } from "@/lib/storage";
 import { createServerSupabase } from "@/lib/supabase/server";
 
@@ -117,8 +117,11 @@ export async function completeGeneration(
   await setActiveVersion(generation.node_id, version.id);
 
   // 4. Compute cost and mark succeeded
+  const audioEnabled = isVideoAudioEnabled(generation.params_snapshot?.audio);
+  const resolution = asResolutionString(generation.params_snapshot?.resolution);
+
   const cost = generation.model_used
-    ? computeVideoCost(generation.model_used, input.durationSeconds, false)
+    ? computeVideoCost(generation.model_used, input.durationSeconds, audioEnabled, resolution)
     : null;
 
   await succeedGeneration({

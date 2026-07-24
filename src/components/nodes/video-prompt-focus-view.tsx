@@ -25,7 +25,8 @@ import { GuidedNextButton } from "@/components/canvas/guided-next-button";
 import { SliceToggles } from "./slice-toggles";
 import { DEFAULT_MOTION_INSTRUCTION } from "@/lib/nodes/video-prompt";
 import type { KBSliceKey } from "@/lib/kb/parse-context";
-import { VideoControlsRow } from "./video-controls-row";
+import { CameraSelect } from "./camera-select";
+import { SpeedSelect } from "./speed-select";
 import { DEFAULT_VIDEO_CONTROLS, type VideoControls } from "@/lib/nodes/video-controls";
 import {
   ConnectedDetailView,
@@ -453,31 +454,58 @@ export function VideoPromptFocusView({
 
           {/* Detail pane */}
           <div className="min-h-0 flex-1 overflow-hidden">
-            {/* Prompt — the compose editor (instruction on top, output below) */}
+            {/* Prompt — the compose editor: compose (left) + generated output (right) */}
             {selected === "prompt" && (
-              <div className="flex h-full w-full max-w-3xl min-h-0 flex-col overflow-y-auto">
-                {/* Frame (left) + instruction & controls (right) — on top */}
-                <div className="flex shrink-0 gap-5 border-b border-border px-6 py-5">
-                  <div className="flex w-40 shrink-0 flex-col gap-2">
-                    <div className="flex items-center gap-1.5">
-                      <ImageIcon className="size-3.5 text-primary" />
-                      <span className="text-eyebrow">Frame</span>
+              <div className="flex h-full w-full min-h-0 overflow-hidden">
+                {/* Left column — compose: Frame beside Camera/Speed, Instruction below */}
+                <div className="flex w-[58%] shrink-0 min-h-0 flex-col gap-5 overflow-y-auto border-r border-border px-6 py-5">
+                  {/* Top row: Frame beside the Camera grid — heights matched (no dead gap) */}
+                  <div className="flex items-stretch gap-5">
+                    <div className="flex w-48 shrink-0 flex-col gap-2">
+                      <div className="flex items-center gap-1.5">
+                        <ImageIcon className="size-3.5 text-primary" />
+                        <span className="text-eyebrow">Frame</span>
+                      </div>
+                      {visionFrame?.fileUrl ? (
+                        <div className="relative min-h-0 flex-1 overflow-hidden rounded-lg border border-border bg-muted/30">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={visionFrame.fileUrl}
+                            alt="Approved still the motion prompt is grounded on"
+                            className="absolute inset-0 h-full w-full object-contain"
+                          />
+                        </div>
+                      ) : (
+                        <div className="flex min-h-40 flex-1 items-center justify-center rounded-lg border border-dashed border-border px-3 py-6 text-center text-xs text-muted-foreground">
+                          Connect an approved image to ground the motion.
+                        </div>
+                      )}
                     </div>
-                    {visionFrame?.fileUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={visionFrame.fileUrl}
-                        alt="Approved still the motion prompt is grounded on"
-                        className="max-h-48 w-auto max-w-full self-start rounded-lg border border-border object-contain"
+
+                    <div className="min-w-0 flex-1">
+                      <CameraSelect
+                        value={(controls ?? DEFAULT_VIDEO_CONTROLS).camera}
+                        onChange={(v) =>
+                          onPatch({
+                            controls: { ...(controls ?? DEFAULT_VIDEO_CONTROLS), camera: v },
+                          })
+                        }
                       />
-                    ) : (
-                      <p className="rounded-lg border border-dashed border-border px-3 py-4 text-center text-xs text-muted-foreground">
-                        Connect an approved image to ground the motion.
-                      </p>
-                    )}
+                    </div>
                   </div>
 
-                  <div className="flex min-w-0 flex-1 flex-col gap-3">
+                  {/* Speed — full column width, one equal 4-up row */}
+                  <SpeedSelect
+                    value={(controls ?? DEFAULT_VIDEO_CONTROLS).speed}
+                    onChange={(v) =>
+                      onPatch({
+                        controls: { ...(controls ?? DEFAULT_VIDEO_CONTROLS), speed: v },
+                      })
+                    }
+                  />
+
+                  {/* Instruction + Generate — full column width, below */}
+                  <div className="flex flex-col gap-3">
                     <div className="flex items-center gap-1.5">
                       <PencilLine className="size-3.5 text-primary" />
                       <span className="text-eyebrow">Instruction</span>
@@ -493,10 +521,6 @@ export function VideoPromptFocusView({
                       disabled={!editable}
                       className="min-h-20"
                     />
-                    <VideoControlsRow
-                      controls={controls ?? DEFAULT_VIDEO_CONTROLS}
-                      onChange={(next) => onPatch({ controls: next })}
-                    />
                     <Button
                       className="w-full"
                       size="default"
@@ -509,8 +533,8 @@ export function VideoPromptFocusView({
                   </div>
                 </div>
 
-                {/* Output zone — the main focus, below the instruction */}
-                <div className="flex shrink-0 flex-col gap-3 px-6 py-5">
+                {/* Right column — generated motion prompt output */}
+                <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-6 py-5">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1.5">
                       <Clapperboard className="size-3.5 text-primary" />
@@ -537,7 +561,7 @@ export function VideoPromptFocusView({
                   )}
 
                   {mode === "empty" && (
-                    <div className="flex h-64 items-center justify-center rounded-xl border border-dashed border-border">
+                    <div className="flex flex-1 items-center justify-center rounded-xl border border-dashed border-border">
                       <div className="text-center px-8">
                         <Clapperboard className="size-8 mx-auto text-muted-foreground/40 mb-3" />
                         <p className="text-sm font-medium text-muted-foreground">
@@ -555,7 +579,7 @@ export function VideoPromptFocusView({
                       <Textarea
                         value={draft}
                         onChange={(e) => setDraft(e.target.value)}
-                        className="h-64 resize-none rounded-xl p-4 text-base leading-relaxed [field-sizing:fixed]"
+                        className="min-h-[16rem] flex-1 resize-none rounded-xl p-4 text-base leading-relaxed"
                       />
                       <div className="flex items-center gap-2 self-start">
                         <Button onClick={handleSave} disabled={!dirty}>

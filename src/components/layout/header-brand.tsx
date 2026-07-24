@@ -13,16 +13,19 @@ export function HeaderBrand() {
   const showOrgName = pathname !== "/login" && hydrated && orgName;
 
   return (
-    <Link href="/" className="flex items-center gap-3">
-      <span className="font-display text-xl font-semibold tracking-tight">
-        Creative<span className="text-primary">OS</span>
-      </span>
+    <div className="flex items-center gap-3">
+      <Link href="/" className="flex items-center gap-3">
+        <span className="font-display text-xl font-semibold tracking-tight">
+          Creative<span className="text-primary">OS</span>
+        </span>
+      </Link>
+      <span className="text-eyebrow hidden sm:block">Yuvabe Studios</span>
       {showOrgName && (
         <>
           <span className="h-4 w-px bg-border" aria-hidden="true" />
           <span className="text-sm font-medium text-muted-foreground">{orgName}</span>
         </>
       )}
-    </Link>
+    </div>
   );
 }

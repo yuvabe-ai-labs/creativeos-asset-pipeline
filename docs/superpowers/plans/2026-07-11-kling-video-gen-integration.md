@@ -1,5 +1,12 @@
 # Kling Image-to-Video Integration Implementation Plan
 
+> **SUPERSEDED 2026-07-23** — this plan calls Kling at the wrong host with the wrong
+> request body (see the superseded-notice on the linked design doc for the full story —
+> the fields weren't pure fabrication, but the endpoint/host/shape combo never worked).
+> It was merged to `main` and is live/broken in production. Do not use this plan for
+> further work — see `docs/superpowers/specs/2026-07-23-kling-api-correction-design.md`
+> and its forthcoming implementation plan instead.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add all 6 Kling image-to-video models to the Video Gen node, wired through the existing async generation pipeline via Kling's webhook callback.

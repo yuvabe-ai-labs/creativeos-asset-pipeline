@@ -23,7 +23,17 @@ export function GalleryDrawerIntegration({
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key !== "g" && e.key !== "G") return;
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+      // Ctrl/Cmd+G opens the gallery from anywhere — even while typing.
+      if (e.ctrlKey || e.metaKey) {
+        if (e.altKey || e.shiftKey) return;
+        e.preventDefault();
+        drawer.openDrawer();
+        return;
+      }
+
+      // Bare "g" toggles, but not while Alt is held or a field is focused.
+      if (e.altKey) return;
       const active = document.activeElement as HTMLElement | null;
       if (
         active &&

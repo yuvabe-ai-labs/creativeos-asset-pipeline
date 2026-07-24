@@ -11,7 +11,7 @@ type Props = {
 
 export function GalleryHeader({ onRefresh, onClose, refreshing }: Props) {
   return (
-    <div className="flex h-12 shrink-0 items-center justify-between border-b border-border px-5">
+    <div className="flex h-16 shrink-0 items-center justify-between border-b border-border px-5">
       <p className="font-display text-base font-semibold">Gallery</p>
       <div className="flex items-center gap-1">
         <Button
