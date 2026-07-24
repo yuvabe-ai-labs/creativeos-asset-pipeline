@@ -100,9 +100,9 @@ export function GenerationsTable({
                     {g.client_name ?? "—"}
                   </span>
                   <span className="flex-1 text-sm text-muted-foreground">
-                    {g.credits_consumed === null
+                    {g.cost_usd === null
                       ? "—"
-                      : `₹${(g.credits_consumed * USD_TO_INR).toFixed(2)}`}
+                      : `₹${(g.cost_usd * USD_TO_INR).toFixed(2)}`}
                   </span>
                   <span className="flex-1 text-right text-sm text-muted-foreground">
                     {formatRelativeTime(g.created_at)}

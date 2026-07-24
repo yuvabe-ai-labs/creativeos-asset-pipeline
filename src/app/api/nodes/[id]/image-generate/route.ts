@@ -304,7 +304,7 @@ export async function POST(
       await succeedGeneration({
         generationId: generation.id,
         versionId: version.id,
-        creditsConsumed: cost?.usd,
+        costUsd: cost?.usd,
         outputSnapshot: imageUrl,
       });
 

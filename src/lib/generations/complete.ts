@@ -127,7 +127,7 @@ export async function completeGeneration(
   await succeedGeneration({
     generationId: input.generationId,
     versionId: version.id,
-    creditsConsumed: cost?.usd,
+    costUsd: cost?.usd,
     outputSnapshot: storedVideoUrl,
     meta: input.meta,
   });

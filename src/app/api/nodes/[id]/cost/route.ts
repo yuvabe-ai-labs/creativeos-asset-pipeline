@@ -17,14 +17,14 @@ export async function GET(
     const supabase = createServerSupabase();
     const { data, error } = await supabase
       .from("generations")
-      .select("credits_consumed")
+      .select("cost_usd")
       .in("node_id", allNodeIds)
       .eq("status", "succeeded");
 
     if (error) return apiError(error.message, 500);
 
     const totalUsd = (data ?? []).reduce(
-      (sum, row) => sum + (row.credits_consumed ?? 0),
+      (sum, row) => sum + (row.cost_usd ?? 0),
       0,
     );
 
