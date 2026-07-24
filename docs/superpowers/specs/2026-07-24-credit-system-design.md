@@ -42,6 +42,21 @@ number. Every value currently on staging was entered under the old (undefined) a
 these need a one-time `× 1000` migration alongside the schema change, so an admin who typed
 "500" meaning "$500/month" ends up with a limit that still means the same thing.
 
+**`generations.credits_consumed` is misleadingly named — it's always held raw USD, never
+credits.** Since this is pre-launch (no production data, no backward-compat concerns), this
+gets cleaned up directly rather than carried forward:
+- **Renamed** to `generations.cost_usd` — same column, same values, honestly named.
+- **New column**, `generations.credits_charged` — the actual credits deducted at settlement,
+  computed once (via `USD_TO_CREDITS`, same write-time-frozen rule as the ledger, §4) and
+  stored directly on the generation row. This is an intentional denormalized copy of that
+  generation's `consumption` row in `credit_transactions` (§3) — both get written in the
+  same settlement step, so they always agree; the copy exists so the admin generations table
+  (§6) doesn't need to join the ledger just to show a number it already has.
+- `succeedGeneration()` (`src/lib/db/generations.ts`) gains a `creditsCharged` field
+  alongside the renamed `costUsd`; all 4 call sites (`generate`, `image-generate`,
+  `video-generate` routes, plus `completeGeneration()` for the video webhook path) pass both,
+  computed at the same place they already compute the USD cost today.
+
 ---
 
 ## 3. Data model
@@ -181,6 +196,13 @@ The Overview tab's existing "Monthly credit limit" stat tile (built in AX-C) gai
 "Used this month" tile, reading `org_credit_usage`. No new pages — this fills in the number
 that tile's "Edit in Settings" note already implicitly promised.
 
+The Generations tab's table (AX-D, `generations-table.tsx`) currently has one "Credits"
+column showing `credits_consumed` (really USD) converted to ₹ for display. That column
+splits into two, reading the renamed/new fields directly — an **Amount** column (`$` from
+`cost_usd`) and a **Credits** column (from `credits_charged`) — so an admin can see both the
+real dollar cost and what was actually charged against the org's monthly credits, without a
+lossy INR round-trip standing in for either one.
+
 ---
 
 ## 7. Corrections already applied (not blocked on this stage)
@@ -218,3 +240,5 @@ bar):
 - [ ] Admin org list / Overview tab shows live `used / limit` matching the ledger
 - [ ] Pre-generation estimate shown in all three focus views, updates when params change
 - [ ] `monthly_credit_limit` values already on staging correctly ×1000-migrated
+- [ ] Generations table shows both Amount ($) and Credits columns, sourced from the renamed
+      `cost_usd`/new `credits_charged` fields, not the old single `credits_consumed` column
