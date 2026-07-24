@@ -40,6 +40,8 @@ import {
   evaluateConstraints,
 } from "@/lib/video-gen/constraints";
 import { videoGenApi } from "@/lib/video-gen/api";
+import { computeVideoCost, isVideoAudioEnabled, asResolutionString } from "@/lib/video-gen/cost";
+import { usdToFinalCredits } from "@/lib/credits/units";
 import { createBrowserSupabase } from "@/lib/supabase/client";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
@@ -721,6 +723,12 @@ export function VideoGenFocusView({
     maxReferenceImages: 0,
   };
 
+  const durationSeconds = Number(params.seconds ?? params.duration ?? 0);
+  const audioEnabled = isVideoAudioEnabled(params.audio);
+  const resolution = asResolutionString(params.resolution);
+  const videoCostEstimate = computeVideoCost(modelId, durationSeconds, audioEnabled, resolution);
+  const estimatedCredits = videoCostEstimate ? usdToFinalCredits(videoCostEstimate.usd) : null;
+
   // Filter out roles that are invalid for the current model — handles the timing gap
   // between setModelId (local, immediate) and imageRolesProp update (from parent, async).
   const effectiveImageRoles = Object.fromEntries(
@@ -872,6 +880,11 @@ export function VideoGenFocusView({
                     ) : null}
                   </Tooltip>
                 </div>
+                {estimatedCredits !== null && (
+                  <p className="text-xs text-muted-foreground">
+                    Est. {estimatedCredits} credit{estimatedCredits === 1 ? "" : "s"}
+                  </p>
+                )}
                 {lastError && !isGenerating && (
                   <p className="text-xs text-destructive">
                     Last attempt failed: {lastError}
