@@ -193,15 +193,16 @@ client could otherwise submit a fabricated low estimate to slip past the cap.
   as trusted.) The app's aspect-ratio system (`ASPECT_RATIO_TO_OPENAI_SIZE`) only ever
   produces the three OpenAI sizes in this table, so every real request maps cleanly.
 
-  **Input tokens — covered for both providers now.** OpenAI's own docs are explicit that
-  "the final cost is the sum of: input text tokens, input image tokens if using the edits
-  endpoint, image output tokens" — the table above is output-only. Both providers have an
-  official token-counting endpoint that handles text-only *and* text+reference-image
-  requests alike in one call — no separate local-tokenizer library needed for the text-only
-  case, since each endpoint's simplest documented example is already plain text. The two
-  providers land on different mechanisms for the *image* side specifically, for a concrete
-  reason: Google publishes the exact tiling formula (so a local computation is both accurate
-  and free), OpenAI doesn't (so its live endpoint is the only accurate option, not a choice).
+  **Input tokens — covered for both providers now, same mechanism on both sides.** OpenAI's
+  own docs are explicit that "the final cost is the sum of: input text tokens, input image
+  tokens if using the edits endpoint, image output tokens" — the table above is output-only.
+  Both providers have an official token-counting endpoint that handles text-only *and*
+  text+reference-image requests alike in one call — no separate local-tokenizer library
+  needed for the text-only case, since each endpoint's simplest documented example is
+  already plain text. Both are used the same way here too: the live call, client- and
+  server-side, for both providers — see the Gemini note below for why (Google separately
+  publishes a local formula as a possible future optimization; OpenAI has no equivalent, so
+  its live call was never optional to begin with).
   - **Gemini — one call for both:** closed. `ai.models.countTokens()` (`@google/genai`,
     already a dependency, already used by `generateWithGemini()`) accepts the exact same
     `contents` shape the real generation call sends — a text-only array for prompt-only
@@ -209,20 +210,17 @@ client could otherwise submit a fabricated low estimate to slip past the cap.
     generating, for an exact pre-flight count either way. Confirmed against
     `ai.google.dev/gemini-api/docs/generate-content/tokens` (the `generateContent`-API
     version of the docs — matches what this app actually calls, not the newer Interactions
-    API), pasted directly by the user. **Decided: use the local formula, not a live call.**
-    Google also documents the underlying image-token rule (≤384px = 258 tokens; larger
-    images tile into 768×768 sections, 258 tokens each). New function,
-    `estimateGeminiImageInputTokens(width, height)`, lives in `src/lib/image-gen/cost.ts` —
-    same file as `computeImageCost`/`IMAGE_ESTIMATE_TABLE`, chosen specifically because that
-    file has no `"server-only"` import, so it's already callable from both sides: client-side
-    for the reactive pre-click display in `image-gen-focus-view.tsx` (a live network call
-    there would add visible lag on every param change, unlike video/image-output estimates
-    which are instant local math) and server-side for the reservation check in
-    `image-generate/route.ts` — one function, not two copies. Input dimensions come from
-    `imageWidth`/`imageHeight`, already tracked on upstream nodes. This is Google's own
-    published rule, not a guess, so there's no accuracy tradeoff in skipping the live call —
-    `countTokens()` stays available as a fallback if the local formula is ever found to drift
-    from reality, but isn't the default.
+    API), pasted directly by the user. **Decided: start with the live call, both client- and
+    server-side**, same as OpenAI below — one consistent pattern across both providers
+    (`countTokens()` was already going to be needed server-side anyway, and the client-side
+    reactive display can reuse the identical call rather than maintaining a second,
+    formula-based code path). Google does separately publish the underlying image-token
+    formula (≤384px = 258 tokens; larger images tile into 768×768 sections, 258 tokens each)
+    from `imageWidth`/`imageHeight` (already tracked on upstream nodes) — a real, documented
+    option to switch the *client-side display only* to later if the live call's latency on
+    every param change turns out to matter in practice, but not the starting implementation:
+    ship with the accurate, already-necessary live call first, decide on optimizing away from
+    it only once there's real experience to judge that tradeoff against.
   - **OpenAI — one call for both:** also closable. `POST /v1/responses/input_tokens`
     (`client.responses.input_tokens.count()`) handles both — its first documented example is
     plain text input, and it explicitly handles image inputs too ("no guesswork") — source:
