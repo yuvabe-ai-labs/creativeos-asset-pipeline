@@ -149,6 +149,16 @@ task) → if accepted, proceed exactly as today (call the provider / fire the ta
 `generation.id` must exist before reserving, since `credit_transactions.generation_id` is
 not-null — this is why reservation happens after `insertGeneration`, not before.
 
+**A generation whose cost can't be estimated at all fails closed.** If `estimateImageOutputCost`
+(§5) ever returns `null` at request time — a model/quality/size combination genuinely missing
+from the table, which the full-combinations audit should have already ruled out but a future
+bug could reintroduce — the route fails the generation and returns an error without ever
+calling the provider or reserving anything. An unpriceable request never bypasses the monthly
+cap, even under a bug; the alternative (proceeding with no reservation) would let real spend
+through completely ungated. Video and prompt estimates can't hit this case: `computeVideoCost`
+returning `null` already means "genuinely unpriced combination" and is handled the same way by
+the existing code; the prompt formula (§5) always returns a number by construction.
+
 **Every generation reaches a terminal state exactly once, and every terminal state refunds
 the reservation.** This is the rule that keeps a plain sum of all ledger rows correct — a
 reservation is always temporary, never left standing:
@@ -163,8 +173,16 @@ reservation is always temporary, never left standing:
   writes, right where `costUsd` is already computed today.
 - **Refund (failure/cancel):** insert a `refund` row for `-estimatedAmount` only — net effect
   is zero. At every existing `failGeneration()` call site (image/prompt's synchronous catch
-  blocks, `completeGeneration()`'s failure branch, and the webhook's org-mismatch drop-path,
-  which already exists per D79).
+  blocks, `completeGeneration()`'s failure branch).
+
+  **Correction found while writing sub-plan 3C:** this section originally claimed the
+  webhook's org-mismatch drop-path (D79) "already" calls `failGeneration()` — it doesn't; it
+  only logs and returns, leaving the generation stuck in `running` indefinitely (previously
+  relied on nothing to ever clean it up — a real gap, not a documentation nit). Fixed in 3C:
+  the drop-path now also calls `failGeneration()` + a refund, immediately rather than waiting
+  for 3D's reconciliation sweep — turning the row terminal right away means the sweep (which
+  only ever matches `status = 'running'`) will never see this generation, so there is no
+  double-refund risk between the two paths.
 
 (An earlier draft of this section only refunded on failure, leaving the reservation standing
 on success — that double-counted every successful generation's spend, once as its estimate
@@ -305,6 +323,16 @@ fabricated low estimate to slip past the cap.
     every param change turns out to matter in practice, but not the starting implementation:
     ship with the accurate, already-necessary live call first, decide on optimizing away from
     it only once there's real experience to judge that tradeoff against.
+  - **Pricing a combined input-token count.** Neither provider's live count splits text vs.
+    image tokens — one number back, not a breakdown. Gemini has no ambiguity converting it to
+    USD (`textIn == imgIn` already, per §7's fix). OpenAI's `IMAGE_MODEL_PRICING` genuinely
+    splits the two (e.g. `gpt-image-2`: $5/1M text vs. $8/1M image), so the estimate can't be
+    exact when both are mixed in one count. Resolved (worked out while writing sub-plan 3C,
+    not in the original brainstorm): **zero reference images → the count is provably 100%
+    text, so `textIn` is exact, not a guess; one or more reference images → price the *entire*
+    count at the higher `imgIn` rate**, a worst-case that never under-reserves — consistent
+    with every other "round up / never undercharge" decision in this design (margin rounding,
+    §2a; `quality: "auto"` → `"high"`, above).
   - **OpenAI — one call for both:** also closable. `POST /v1/responses/input_tokens`
     (`client.responses.inputTokens.count()` — confirmed against the installed SDK's own
     `.d.ts`, since the pasted docs page used snake_case notation but the actual JS/TS SDK

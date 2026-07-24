@@ -38,13 +38,22 @@ full task-level detail.
   implemented and reviewed clean; 87/87 test files, 611/611 tests passing).
 
 - **3C — Reservation, settlement, refund** (design spec §4)
-  `reserveCredits(orgId, generationId, estimatedAmount)` (row-locked, UTC-month-scoped),
-  where `estimatedAmount`/settlement's `credits_charged` are both always produced via 3B's
+  `reserveCredits(orgId, generationId, estimatedAmount)` (row-locked via a new
+  `reserve_credits` RPC, same shape as `acquire_canvas_lock`; UTC-month-scoped), where
+  `estimatedAmount`/settlement's `credits_charged` are both always produced via 3B's
   `usdToFinalCredits`, never a raw USD number. Wired into all 3 creation routes (`generate`,
   `image-generate`, `video-generate`) before the provider call, and into every terminal-state
   path (success: refund + consumption; failure: refund only — the corrected
-  double-counting-safe rule). Depends on 3A's schema and 3B's estimate functions +
-  `usdToFinalCredits`. **Status: not started.**
+  double-counting-safe rule) across all 4 files that settle/fail a generation, including a
+  real bug found while writing this plan: the video webhook's org-mismatch drop-path never
+  called `failGeneration` at all, leaving the row stuck `running` forever — fixed to fail +
+  refund immediately. Also resolved: images fail closed (never reserve/generate) when
+  `estimateImageOutputCost` returns `null`; OpenAI's split text/image input-token rates are
+  priced worst-case (the higher rate, for the whole count) whenever the live token count
+  can't be split by the provider. Depends on 3A's schema and 3B's estimate functions +
+  `usdToFinalCredits`.
+  → `2026-07-24-credit-system-3c-reservation-settlement.md`. **Status: plan written, not yet
+  executed.**
 
 - **3D — Reconciliation sweep** (design spec §4)
   New scheduled Trigger.dev task, `trigger/reconcile-stuck-generations.ts`, closing out
