@@ -5,8 +5,6 @@ import {
   Crop,
   Gauge,
   LayoutGrid,
-  Maximize2,
-  Move,
   Settings2,
   Timer,
   type LucideIcon,
@@ -21,18 +19,11 @@ import {
   videoGenClientModelMap,
   videoGenClientModelGroups,
 } from "@/lib/video-gen/client-models";
-import { KLING_AXIS_PARAM_NAMES } from "@/lib/video-gen/params/kling";
 import { ImageGenParamRow } from "./image-gen-param-row";
 import { ParamControl } from "./param-controls";
 import { ParamChipGroup } from "./param-chip-group";
 import { FieldLabel } from "./field-label";
-import { KlingCameraSelect } from "./kling-camera-select";
 import type { ParamSpec } from "@/lib/image-gen/types";
-
-// D77: the Kling camera params are rendered by KlingCameraSelect (the move grid) and the separate
-// "Fine-tune" section (the axes), so they are excluded from the "main" section's normal rows.
-const KLING_CAMERA_PARAM_NAMES = new Set<string>(["camera_move", ...KLING_AXIS_PARAM_NAMES]);
-const AXIS_NAME_SET = new Set<string>(KLING_AXIS_PARAM_NAMES);
 
 const PARAM_ICONS: Record<string, LucideIcon> = {
   aspect_ratio:        Crop,
@@ -42,12 +33,6 @@ const PARAM_ICONS: Record<string, LucideIcon> = {
   mode:                Gauge,
   cfg_scale:           Settings2,
   negative_prompt:     Settings2,
-  pan:                 Move,
-  tilt:                Move,
-  zoom:                Maximize2,
-  roll:                Move,
-  horizontal_movement: Move,
-  vertical_movement:   Move,
 };
 
 // Which section of the settings this instance renders — each is its own top-level group.
@@ -80,10 +65,8 @@ export function VideoGenParamsPanel({
   const primaryParams = visibleParams.filter((p: ParamSpec) => p.group === "primary");
   const advancedParams = visibleParams.filter((p: ParamSpec) => p.group === "advanced");
 
-  const isKling = model?.provider === "kling";
-  const axisSpecs = visibleParams.filter((p: ParamSpec) => AXIS_NAME_SET.has(p.name));
-  const primaryRows = primaryParams.filter((p) => !(isKling && KLING_CAMERA_PARAM_NAMES.has(p.name)));
-  const advancedRows = advancedParams.filter((p) => !(isKling && KLING_CAMERA_PARAM_NAMES.has(p.name)));
+  const primaryRows = primaryParams;
+  const advancedRows = advancedParams;
 
   function renderParamRow(spec: ParamSpec) {
     const isLocked = spec.name in lockedParams;
@@ -136,16 +119,6 @@ export function VideoGenParamsPanel({
     );
   }
 
-  // ── Fine-tune section: the manual Kling camera axes (its own top-level group) ──
-  if (section === "fine-tune") {
-    if (axisSpecs.length === 0) return null;
-    return (
-      <TooltipProvider>
-        <div className="grid grid-cols-2 gap-x-4 gap-y-4">{axisSpecs.map(renderParamRow)}</div>
-      </TooltipProvider>
-    );
-  }
-
   // ── Advanced section: cfg / negative prompt etc. (its own top-level group) ──
   if (section === "advanced") {
     if (advancedRows.length === 0) return null;
@@ -156,7 +129,7 @@ export function VideoGenParamsPanel({
     );
   }
 
-  // ── Main section: model + primary params + the Kling camera move grid ──
+  // ── Main section: model + primary params ──
   return (
     <TooltipProvider>
       <div className="space-y-4">
@@ -198,8 +171,6 @@ export function VideoGenParamsPanel({
           })()}
         </div>
 
-        {/* Kling camera move grid (the axes live in the separate Fine-tune group). */}
-        {isKling && <KlingCameraSelect params={params} onParamChange={onParamChange} />}
       </div>
     </TooltipProvider>
   );

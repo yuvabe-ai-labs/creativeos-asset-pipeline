@@ -37,7 +37,6 @@ import {
   videoGenClientModelMap,
 } from "@/lib/video-gen/client-models";
 import { smartMergeVideoParams } from "@/lib/video-gen/params/merge";
-import { KLING_AXIS_PARAM_NAMES } from "@/lib/video-gen/params/kling";
 import {
   buildConstraintState,
   evaluateConstraints,
@@ -741,12 +740,7 @@ export function VideoGenFocusView({
   const hasFrames = upstreamImages.length > 0;
   // Which flat groups exist for this model (each renders as its own top-level collapsible group).
   const modelParamList = currentModel?.params ?? [];
-  const axisNameList = KLING_AXIS_PARAM_NAMES as readonly string[];
-  const hasFineTune =
-    currentModel?.provider === "kling" && modelParamList.some((p) => axisNameList.includes(p.name));
-  const hasAdvanced = modelParamList.some(
-    (p) => p.group === "advanced" && p.visible && !axisNameList.includes(p.name),
-  );
+  const hasAdvanced = modelParamList.some((p) => p.group === "advanced" && p.visible);
   const isNodeSelected = !["video", "history", "details"].includes(selected);
   const selectedDetailItem = isNodeSelected
     ? connectedItems.find((c) => c.id === selected) ?? null
@@ -1009,14 +1003,6 @@ export function VideoGenFocusView({
                       label: "Output settings",
                       body: <VideoGenParamsPanel section="main" {...paramsPanelProps} />,
                     });
-                    if (hasFineTune) {
-                      groups.push({
-                        id: "fine-tune",
-                        icon: SlidersHorizontal,
-                        label: "Fine-tune",
-                        body: <VideoGenParamsPanel section="fine-tune" {...paramsPanelProps} />,
-                      });
-                    }
                     if (hasAdvanced) {
                       groups.push({
                         id: "advanced",

@@ -1,7 +1,6 @@
 import "server-only";
-import type { VideoGenInput, VideoGenResult, VideoGenModelSpec } from "../types";
-import { klingLegacyParams, klingV3Params } from "../params/kling";
-import { klingCameraControl } from "../kling-camera";
+import type { VideoGenInput, VideoGenResult, VideoGenModelSpec, ParamSpec } from "../types";
+import { klingV3Params } from "../params/kling";
 
 const KLING_API_BASE = "https://api.klingai.com/v1";
 
@@ -34,27 +33,6 @@ type KlingRequestBodyInput = {
 
 export function buildKlingRequestBody(input: KlingRequestBodyInput): Record<string, unknown> {
   const { modelName, imageBase64, prompt, params, callbackUrl } = input;
-
-  const pan = Number(params.pan ?? 0);
-  const tilt = Number(params.tilt ?? 0);
-  const zoom = Number(params.zoom ?? 0);
-  const roll = Number(params.roll ?? 0);
-  const horizontal = Number(params.horizontal_movement ?? 0);
-  const vertical = Number(params.vertical_movement ?? 0);
-
-  // D77: mapped moves come from the visual grid (camera_move). "custom" — and legacy params with
-  // no camera_move — fall back to the proven axis-based path.
-  const move = params.camera_move as string | undefined;
-  let cameraControl: Record<string, unknown> | undefined;
-  if (move && move !== "custom") {
-    cameraControl = klingCameraControl(move);
-  } else {
-    const hasMotion = [pan, tilt, zoom, roll, horizontal, vertical].some((v) => v !== 0);
-    cameraControl = hasMotion
-      ? { type: "customize", config: { pan, tilt, zoom, roll, horizontal, vertical } }
-      : undefined;
-  }
-
   const negativePrompt = String(params.negative_prompt ?? "").trim();
 
   return {
@@ -63,10 +41,8 @@ export function buildKlingRequestBody(input: KlingRequestBodyInput): Record<stri
     prompt,
     mode: String(params.mode ?? "pro"),
     duration: Number(params.duration ?? 5),
-    aspect_ratio: String(params.aspect_ratio ?? "16:9"),
     cfg_scale: Number(params.cfg_scale ?? 0.5),
     ...(negativePrompt ? { negative_prompt: negativePrompt } : {}),
-    ...(cameraControl ? { camera_control: cameraControl } : {}),
     callback_url: callbackUrl,
   };
 }
@@ -143,7 +119,7 @@ function makeKlingModel(
   label: string,
   modelName: string,
   maxDurationSeconds: number,
-  params: typeof klingLegacyParams,
+  params: ParamSpec[],
 ): VideoGenModelSpec {
   return {
     id,
@@ -157,9 +133,4 @@ function makeKlingModel(
   };
 }
 
-export const klingV15 = makeKlingModel("kling:kling-v1-5", "Kling 1.5", "kling-v1-5", 10, klingLegacyParams);
-export const klingV16 = makeKlingModel("kling:kling-v1-6", "Kling 1.6", "kling-v1-6", 10, klingLegacyParams);
-export const klingV21 = makeKlingModel("kling:kling-v2-1", "Kling 2.1", "kling-v2-1", 10, klingLegacyParams);
-export const klingV21Master = makeKlingModel("kling:kling-v2-1-master", "Kling 2.1 Master", "kling-v2-1-master", 10, klingLegacyParams);
-export const klingV26 = makeKlingModel("kling:kling-v2-6", "Kling 2.6", "kling-v2-6", 10, klingLegacyParams);
 export const klingV3 = makeKlingModel("kling:kling-v3", "Kling 3.0", "kling-v3", 15, klingV3Params);
