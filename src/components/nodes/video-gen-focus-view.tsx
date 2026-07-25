@@ -232,7 +232,7 @@ function VideoGenDetailPanel({
   }
 
   return (
-    <div className="flex w-full max-w-5xl min-h-0 flex-col gap-4 overflow-hidden px-6 py-6">
+    <div className="flex w-full max-w-5xl flex-col gap-4 px-6 py-6">
       <button
         type="button"
         onClick={onBack}
@@ -260,12 +260,13 @@ function VideoGenDetailPanel({
       )}
 
       {item.type === "image" && image && (
-        <div className="flex min-h-0 flex-1 flex-col gap-4">
-          <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-xl border border-border bg-muted/10">
+        <div className="flex flex-col gap-4">
+          {/* Cap the image height so the role buttons stay visible without scrolling. */}
+          <div className="flex items-center justify-center overflow-hidden rounded-xl border border-border bg-muted/10">
             <img
               src={image.imageUrl}
               alt="Connected image"
-              className="max-h-full max-w-full object-contain"
+              className="max-h-[52vh] w-auto max-w-full object-contain"
             />
           </div>
           <TooltipProvider>
