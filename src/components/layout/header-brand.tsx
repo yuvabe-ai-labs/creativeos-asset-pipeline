@@ -3,10 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useIdentity } from "@/hooks/use-identity";
+import { HeaderCredits } from "./header-credits";
 
 // The wordmark always shows. The agency name is appended once identity resolves — never on
 // /login (no session to reflect there, same reasoning as HeaderActions), and never before
-// hydration (avoids a flash of a previous/wrong agency name on first paint).
+// hydration (avoids a flash of a previous/wrong agency name on first paint). Credits used
+// this month (HeaderCredits) sits right after it, same visibility gate.
 export function HeaderBrand() {
   const pathname = usePathname();
   const { hydrated, orgName } = useIdentity();
@@ -24,6 +26,8 @@ export function HeaderBrand() {
         <>
           <span className="h-4 w-px bg-border" aria-hidden="true" />
           <span className="text-sm font-medium text-muted-foreground">{orgName}</span>
+          <span className="h-4 w-px bg-border" aria-hidden="true" />
+          <HeaderCredits />
         </>
       )}
     </div>
