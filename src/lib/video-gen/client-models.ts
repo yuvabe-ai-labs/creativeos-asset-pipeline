@@ -157,3 +157,9 @@ export function defaultsForVideoModel(modelId: string): Record<string, unknown> 
       .map((p) => [p.name, p.defaultValue]),
   );
 }
+
+// Back-compat: a node may reference a model we've since removed (Sora, legacy Kling).
+// Resolve unknown IDs to the default so the node still renders instead of blanking out.
+export function resolveVideoModelId(modelId: string): string {
+  return modelId in videoGenClientModelMap ? modelId : DEFAULT_VIDEO_CLIENT_MODEL_ID;
+}

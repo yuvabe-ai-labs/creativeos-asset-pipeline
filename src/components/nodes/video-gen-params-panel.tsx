@@ -18,6 +18,7 @@ import {
 import {
   videoGenClientModelMap,
   videoGenClientModelGroups,
+  resolveVideoModelId,
 } from "@/lib/video-gen/client-models";
 import { ImageGenParamRow } from "./image-gen-param-row";
 import { ParamControl } from "./param-controls";
@@ -57,7 +58,7 @@ export function VideoGenParamsPanel({
   lockedParamReasons = {},
   section = "main",
 }: Props) {
-  const model = videoGenClientModelMap[modelId];
+  const model = videoGenClientModelMap[resolveVideoModelId(modelId)];
   const visibleParams = (model?.params ?? [])
     .filter((p: ParamSpec) => p.visible)
     .sort((a: ParamSpec, b: ParamSpec) => a.order - b.order);
