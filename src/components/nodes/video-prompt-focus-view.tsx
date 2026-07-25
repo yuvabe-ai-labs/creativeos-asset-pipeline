@@ -13,7 +13,6 @@ import {
   FileInput,
   ImageIcon,
   ExternalLink,
-  Video,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -163,7 +162,7 @@ export function VideoPromptFocusView({
   );
   const locked = downstreamProviders.length >= 1;
   const mixed = downstreamProviders.length > 1;
-  const selectorValue: VideoProvider = targetProvider ?? "veo";
+  const selectorValue: VideoProvider = targetProvider === "kling" ? "kling" : "veo";
   const effectiveProvider: VideoProvider = mixed
     ? "veo"
     : locked
@@ -525,27 +524,14 @@ export function VideoPromptFocusView({
                     </div>
 
                     <div className="min-w-0 flex-1">
-                      {effectiveProvider === "kling" ? (
-                        <div className="flex h-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border px-4 text-center">
-                          <Video className="size-6 text-muted-foreground/50" strokeWidth={1.5} />
-                          <p className="text-sm font-medium text-muted-foreground">
-                            Camera is on the video node
-                          </p>
-                          <p className="text-xs text-muted-foreground/70">
-                            You&apos;ve selected Kling as the video model, so the camera controls
-                            are on the connected video node.
-                          </p>
-                        </div>
-                      ) : (
-                        <CameraSelect
-                          value={(controls ?? DEFAULT_VIDEO_CONTROLS).camera}
-                          onChange={(v) =>
-                            onPatch({
-                              controls: { ...(controls ?? DEFAULT_VIDEO_CONTROLS), camera: v },
-                            })
-                          }
-                        />
-                      )}
+                      <CameraSelect
+                        value={(controls ?? DEFAULT_VIDEO_CONTROLS).camera}
+                        onChange={(v) =>
+                          onPatch({
+                            controls: { ...(controls ?? DEFAULT_VIDEO_CONTROLS), camera: v },
+                          })
+                        }
+                      />
                     </div>
                   </div>
 
