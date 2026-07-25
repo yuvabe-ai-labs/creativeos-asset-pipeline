@@ -97,6 +97,19 @@ full task-level detail.
   real `credits_charged` values (before 3C, this column is always `null`). **Status: not
   started.**
 
+- **3G — Canvas credit visibility** (new scope, requested live after 3E shipped — not in the
+  original design spec, which only put usage visibility in the admin org-detail page)
+  Credit count folded into each Generate button's own label (image's also disables while its
+  estimate is in flight); a live "used this month" figure in the header next to the agency
+  name, hydrated from `/api/me` (new `creditsUsed`/`monthlyCreditLimit` sibling fields on
+  `useIdentity()`) and kept current via a Supabase Realtime subscription on
+  `credit_transactions` INSERTs (RLS-scoped, no explicit filter needed); a graceful,
+  actionable toast message wherever a 402 (monthly limit reached) reaches the UI, replacing
+  the raw server string, across all 3 creation flows. Explicitly confirmed with the user:
+  no new button color/gradient — folds into the existing shadcn `Button`/design system as-is.
+  → `2026-07-24-credit-system-3g-canvas-credit-visibility.md`. **Status: plan written, not
+  yet executed.**
+
 ## Testing convention note (applies to every sub-plan)
 
 Same as the admin-ux and prior auth-rollout plans: this repo's vitest config runs in plain
