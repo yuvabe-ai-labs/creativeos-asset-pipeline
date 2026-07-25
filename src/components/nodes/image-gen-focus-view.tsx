@@ -329,7 +329,7 @@ export function ImageGenFocusView({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            modelId: selectedModelId,
+            modelId: model.id,
             quality: paramValues.quality,
             aspect_ratio: paramValues.aspect_ratio,
             image_size: paramValues.image_size,
@@ -338,7 +338,12 @@ export function ImageGenFocusView({
           }),
         });
         const json = (await res.json()) as { estimatedCredits: number | null };
-        if (!cancelled && res.ok) setEstimatedCredits(json.estimatedCredits);
+        if (cancelled) return;
+        if (res.ok) {
+          setEstimatedCredits(json.estimatedCredits);
+        } else {
+          setEstimatedCredits(null);
+        }
       } catch {
         if (!cancelled) setEstimatedCredits(null);
       } finally {
