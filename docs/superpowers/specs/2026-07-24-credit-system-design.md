@@ -353,6 +353,18 @@ fabricated low estimate to slip past the cap.
     actual `images.edit()` response) once implemented, same spirit as the settlement-based
     self-correction everywhere else in this design.
 
+    **Found live on staging, not caught in design review:** the endpoint requires a `model`
+    param (`400 missing_required_parameter`) despite the SDK typing it optional — and since
+    image generation never goes through the Responses API, there's no "real" model for this
+    request to match, unlike every other documented use of this endpoint. Confirmed via direct
+    research (the official docs plus a targeted search of the OpenAI developer community) that
+    no source addresses this specific cross-API case. Resolved pragmatically, with explicit
+    user sign-off after reviewing that research: `TOKEN_COUNTING_MODEL = "gpt-5.4-mini"`
+    (`providers/openai.ts`) — this app's existing default OpenAI text model elsewhere
+    (`prompts/prompt-generate.ts`), confirmed to not error via a live diagnostic probe. Not
+    confirmed correct for vision-token accuracy by any source — worth revisiting if OpenAI
+    ever publishes real guidance for this case.
+
 - **Prompt/text — approximate, explicitly labeled "~estimated".** No vendor can predict an
   LLM's output length before it generates (confirmed — OpenAI's "Predicted Outputs" feature
   requires *you* to already know the output; it doesn't forecast an unknown one). Formula:
