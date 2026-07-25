@@ -1,6 +1,6 @@
 "use client";
 
-import { Video } from "lucide-react";
+import { SlidersHorizontal, Video } from "lucide-react";
 import {
   Accordion,
   AccordionContent,
@@ -65,8 +65,11 @@ export function KlingCameraSelect({
       />
       <Accordion multiple={false} className="pt-0">
         <AccordionItem value="fine" className="border-none">
-          <AccordionTrigger className="py-1 text-[0.7rem] uppercase tracking-wide text-muted-foreground hover:text-foreground hover:no-underline">
-            Fine-tune
+          <AccordionTrigger className="py-1 hover:no-underline">
+            <span className="flex items-center gap-1.5">
+              <SlidersHorizontal className="size-3.5 text-primary" strokeWidth={1.5} />
+              <span className="text-eyebrow">Fine-tune</span>
+            </span>
           </AccordionTrigger>
           <AccordionContent className="pt-2">
             <div className="flex flex-col gap-4">
