@@ -354,9 +354,21 @@ export function ImageGenFocusView({
       cancelled = true;
       clearTimeout(t);
     };
-    // connectedImageUrls omitted on purpose — connectedImageUrlsKey is the stable stand-in.
+    // connectedImageUrls/paramValues/fetchedPrompt omitted on purpose — each is a new object
+    // reference on renders that don't actually change its contents (e.g. a sibling state
+    // update, or the [open, upstream] prompt-fetch effect re-running and producing a new-but-
+    // equal fetchedPrompt object), which was re-firing this effect (and re-fetching the
+    // estimate) with no real input change. Stable JSON-stringified/primitive stand-ins fix it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, activeTab, selectedModelId, paramValues, connectedImageUrlsKey, fetchedPrompt, nodeId]);
+  }, [
+    open,
+    activeTab,
+    selectedModelId,
+    JSON.stringify(paramValues),
+    connectedImageUrlsKey,
+    fetchedPrompt?.text,
+    nodeId,
+  ]);
 
   // Connected image NODES (id + url), for the edit-mode reference tiles.
   const connectedImageNodes = upstream
