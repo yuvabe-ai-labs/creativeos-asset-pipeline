@@ -5,32 +5,36 @@ import {
   videoPromptGeneratePromptFor,
 } from "../video-prompt-generate";
 
-describe("videoPromptGeneratePrompt", () => {
+describe("videoPromptGeneratePrompt (Veo)", () => {
   it("is a versioned, evaluable record", () => {
     expect(videoPromptGeneratePrompt.id).toBe("video-prompt-generate");
     expect(videoPromptGeneratePrompt.version).toBeGreaterThanOrEqual(1);
-    expect(typeof videoPromptGeneratePrompt.model).toBe("string");
     expect(videoPromptGeneratePrompt.system.length).toBeGreaterThan(100);
   });
 
-  it("instructs no scene re-description (image-to-video grounding)", () => {
+  it("instructs no scene re-description and keeps hype-word hygiene", () => {
     expect(videoPromptGeneratePrompt.system.toLowerCase()).toContain("do not re-describe");
+    expect(videoPromptGeneratePrompt.system).toContain("cinematic masterpiece");
   });
 });
 
 describe("videoPromptGeneratePromptFor", () => {
-  it("returns the text-camera record for veo and sora(openai)", () => {
+  it("returns the Veo record for veo", () => {
     expect(videoPromptGeneratePromptFor("veo").id).toBe("video-prompt-generate");
-    expect(videoPromptGeneratePromptFor("openai").id).toBe("video-prompt-generate");
   });
-
-  it("returns the external-camera record for kling", () => {
+  it("returns the Kling record for kling", () => {
     expect(videoPromptGeneratePromptFor("kling").id).toBe("video-prompt-generate-kling");
   });
+});
 
-  it("kling variant is camera-silent and keeps hype-word hygiene", () => {
+describe("videoPromptGenerateKlingPrompt", () => {
+  it("keeps camera IN the text (not camera-silent) and shares the i2v grounding", () => {
     const sys = videoPromptGenerateKlingPrompt.system;
-    expect(sys).toMatch(/do\s+NOT describe any camera/i);
-    expect(sys).toContain("cinematic masterpiece");
+    expect(sys.toLowerCase()).toContain("camera movement");
+    expect(sys).not.toMatch(/do\s+NOT describe any camera/i);
+    expect(sys.toLowerCase()).toContain("do not re-describe");
+  });
+  it("permits a trailing cinematic quality tag", () => {
+    expect(videoPromptGenerateKlingPrompt.system.toLowerCase()).toContain("quality tag");
   });
 });

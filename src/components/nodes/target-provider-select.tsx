@@ -8,7 +8,6 @@ import type { VideoProvider } from "@/prompts/video-prompt-generate";
 const OPTIONS: { value: VideoProvider; label: string }[] = [
   { value: "veo", label: "Veo" },
   { value: "kling", label: "Kling" },
-  { value: "openai", label: "Sora" },
 ];
 
 // D77: which video model family this motion prompt is written for. Locks to a connected
