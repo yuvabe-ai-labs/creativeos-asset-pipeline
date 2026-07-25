@@ -52,6 +52,7 @@ import {
 } from "./video-gen-version-history";
 import { VideoGenUsagePopover } from "./video-gen-usage-popover";
 import { VideoGenParamsPanel } from "./video-gen-params-panel";
+import { VideoGenConnectedSection } from "./video-gen-connected-section";
 import { RailItem } from "./focus-rail-item";
 import { AddConnection } from "./add-connection";
 import type { UpstreamImage, UpstreamPromptNode } from "@/lib/video-gen/api";
@@ -594,6 +595,9 @@ export function VideoGenFocusView({
     }
   }
 
+  function handleReset() {
+    onPatch({ imageRoles: {} });
+  }
 
   async function handleGenerate() {
     // C0 (Kling): start frame required — button should be disabled, but guard anyway
@@ -874,21 +878,38 @@ export function VideoGenFocusView({
             ) : connectedCount === 0 ? (
               <p className="px-2.5 text-xs text-muted-foreground">No inputs connected.</p>
             ) : (
-              connectedItems.map((c) => (
-                <RailItem
-                  key={c.id}
-                  icon={
-                    c.type === "prompt" ? (
-                      <PencilLine className="size-4 text-primary" strokeWidth={1.5} />
-                    ) : (
-                      <ImageIcon className="size-4 text-primary" strokeWidth={1.5} />
-                    )
-                  }
-                  label={c.label}
-                  active={selected === c.id}
-                  onClick={() => setSelected(c.id)}
-                />
-              ))
+              connectedItems.map((c) => {
+                const role = c.type === "image" ? effectiveImageRoles[c.id] : undefined;
+                return (
+                  <RailItem
+                    key={c.id}
+                    icon={
+                      c.type === "prompt" ? (
+                        <PencilLine className="size-4 text-primary" strokeWidth={1.5} />
+                      ) : (
+                        <ImageIcon className="size-4 text-primary" strokeWidth={1.5} />
+                      )
+                    }
+                    label={c.label}
+                    active={selected === c.id}
+                    onClick={() => setSelected(c.id)}
+                    badge={
+                      role ? (
+                        <span
+                          className={cn(
+                            "shrink-0 rounded-full px-1.5 py-0.5 text-[0.6rem] font-semibold",
+                            role === "start_frame"
+                              ? "bg-primary/10 text-primary"
+                              : "bg-muted text-muted-foreground",
+                          )}
+                        >
+                          {role === "start_frame" ? "Start" : role === "end_frame" ? "End" : "Ref"}
+                        </span>
+                      ) : undefined
+                    }
+                  />
+                );
+              })
             )}
 
             <div className="mx-2.5 my-2 h-px bg-border" />
@@ -916,9 +937,40 @@ export function VideoGenFocusView({
           <div className="flex min-h-0 flex-1 overflow-hidden">
             {/* Middle column */}
             <div className="min-h-0 w-[54%] shrink-0 overflow-y-auto border-r border-border">
-              {/* Video — output settings (model + params + Kling camera) */}
+              {/* Video — frames (role assignment) + output settings (model + params + camera) */}
               {selected === "video" && (
-                <div className="px-6 py-5">
+                <div className="flex flex-col gap-6 px-6 py-5">
+                  {upstreamImages.length > 0 && (
+                    <LeftSection icon={ImageIcon} label="Frames">
+                      <VideoGenConnectedSection
+                        promptNode={null}
+                        images={upstreamImages}
+                        imageRoles={effectiveImageRoles}
+                        imageInputs={imageInputs}
+                        onRoleChange={handleRoleChange}
+                        onConflictingRoleRequest={(imageId, role) => {
+                          const isFrameRole = role === "start_frame" || role === "end_frame";
+                          if (isFrameRole) {
+                            setPendingDialog({ type: "role-conflict", imageId, role, conflictingRole: "reference" });
+                          } else {
+                            const hasStart = Object.values(effectiveImageRoles).includes("start_frame");
+                            setPendingDialog({
+                              type: "role-conflict",
+                              imageId,
+                              role,
+                              conflictingRole: hasStart ? "start_frame" : "end_frame",
+                            });
+                          }
+                        }}
+                        onOpenDetail={(id) => setSelected(id)}
+                        disableFrameInputs={constraints.disableFrameInputs}
+                        disableFrameInputsReason={constraints.disableFrameInputsReason}
+                        disableRefs={constraints.disableRefs}
+                        disableRefsReason={constraints.disableRefsReason}
+                        onReset={handleReset}
+                      />
+                    </LeftSection>
+                  )}
                   <LeftSection icon={Settings2} label="Output settings">
                     <VideoGenParamsPanel
                       modelId={modelId}
