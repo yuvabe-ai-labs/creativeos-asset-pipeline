@@ -1,5 +1,10 @@
 import type { ParamSpec } from "@/lib/image-gen/types";
 
+// The six manual camera axes (the "Fine-tune" group). Shared so the panel and focus view agree.
+export const KLING_AXIS_PARAM_NAMES = [
+  "pan", "tilt", "zoom", "roll", "horizontal_movement", "vertical_movement",
+] as const;
+
 const KLING_MOTION_PARAMS: ParamSpec[] = [
   {
     name: "pan",

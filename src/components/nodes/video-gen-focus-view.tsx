@@ -37,6 +37,7 @@ import {
   videoGenClientModelMap,
 } from "@/lib/video-gen/client-models";
 import { smartMergeVideoParams } from "@/lib/video-gen/params/merge";
+import { KLING_AXIS_PARAM_NAMES } from "@/lib/video-gen/params/kling";
 import {
   buildConstraintState,
   evaluateConstraints,
@@ -349,9 +350,9 @@ export function VideoGenFocusView({
   // The selected rail item: "video" (settings + preview), "history", "details", or a connected
   // node's id (middle column shows that node's role/detail view). Mirrors image-gen-focus-view.
   const [selected, setSelected] = useState<string>("video");
-  // Collapsible sections in the "Video" panel — Frames open first, Output settings collapsed.
-  const [framesOpen, setFramesOpen] = useState(true);
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  // Open/closed state for the flat collapsible groups in the "Video" panel (Frames, Output,
+  // Fine-tune, Advanced). Unset for a group → the first group defaults open, the rest closed.
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
   const [pendingDialog, setPendingDialog] = useState<DialogState>(null);
   const hasExplicitlySkippedEndFrameRef = useRef(false);
 
@@ -363,13 +364,17 @@ export function VideoGenFocusView({
   if (openNodeSeed.open !== open || openNodeSeed.nodeId !== nodeId) {
     setOpenNodeSeed({ open, nodeId });
     setPendingDialog(null);
-    hasExplicitlySkippedEndFrameRef.current = false;
     if (open) {
       setSelected("video");
       setLoadingVersions(true);
       setLoadingConnected(true);
     }
   }
+
+  // Reset the "skipped end frame" guard when the sheet opens or switches nodes.
+  useEffect(() => {
+    hasExplicitlySkippedEndFrameRef.current = false;
+  }, [open, nodeId]);
 
   const { isGenerating, lastError, setGenerating, setLastError } =
     useVideoGenStatus(nodeId);
@@ -734,8 +739,14 @@ export function VideoGenFocusView({
   ];
   const connectedCount = connectedItems.length;
   const hasFrames = upstreamImages.length > 0;
-  // When there are no frames, Output settings is the first (and only) section → keep it open.
-  const settingsEffectiveOpen = settingsOpen || !hasFrames;
+  // Which flat groups exist for this model (each renders as its own top-level collapsible group).
+  const modelParamList = currentModel?.params ?? [];
+  const axisNameList = KLING_AXIS_PARAM_NAMES as readonly string[];
+  const hasFineTune =
+    currentModel?.provider === "kling" && modelParamList.some((p) => axisNameList.includes(p.name));
+  const hasAdvanced = modelParamList.some(
+    (p) => p.group === "advanced" && p.visible && !axisNameList.includes(p.name),
+  );
   const isNodeSelected = !["video", "history", "details"].includes(selected);
   const selectedDetailItem = isNodeSelected
     ? connectedItems.find((c) => c.id === selected) ?? null
@@ -943,64 +954,92 @@ export function VideoGenFocusView({
           <div className="flex min-h-0 flex-1 overflow-hidden">
             {/* Middle column */}
             <div className="min-h-0 w-[54%] shrink-0 overflow-y-auto border-r border-border">
-              {/* Video — frames (role assignment) + output settings (model + params + camera) */}
+              {/* Video — flat, independently-collapsible peer groups (Frames / Output / Fine-tune / Advanced) */}
               {selected === "video" && (
                 <div className="flex flex-col gap-6 px-6 py-5">
-                  {hasFrames && (
-                    <LeftSection
-                      icon={ImageIcon}
-                      label="Frames"
-                      open={framesOpen}
-                      onToggle={() => setFramesOpen((p) => !p)}
-                    >
-                      {framesOpen && (
-                        <VideoGenConnectedSection
-                          promptNode={null}
-                          images={upstreamImages}
-                          imageRoles={effectiveImageRoles}
-                          imageInputs={imageInputs}
-                          onRoleChange={handleRoleChange}
-                          onConflictingRoleRequest={(imageId, role) => {
-                            const isFrameRole = role === "start_frame" || role === "end_frame";
-                            if (isFrameRole) {
-                              setPendingDialog({ type: "role-conflict", imageId, role, conflictingRole: "reference" });
-                            } else {
-                              const hasStart = Object.values(effectiveImageRoles).includes("start_frame");
-                              setPendingDialog({
-                                type: "role-conflict",
-                                imageId,
-                                role,
-                                conflictingRole: hasStart ? "start_frame" : "end_frame",
-                              });
-                            }
-                          }}
-                          onOpenDetail={(id) => setSelected(id)}
-                          disableFrameInputs={constraints.disableFrameInputs}
-                          disableFrameInputsReason={constraints.disableFrameInputsReason}
-                          disableRefs={constraints.disableRefs}
-                          disableRefsReason={constraints.disableRefsReason}
-                          onReset={handleReset}
-                        />
-                      )}
-                    </LeftSection>
-                  )}
-                  <LeftSection
-                    icon={Settings2}
-                    label="Output settings"
-                    open={settingsEffectiveOpen}
-                    onToggle={() => setSettingsOpen((p) => !p)}
-                  >
-                    {settingsEffectiveOpen && (
-                      <VideoGenParamsPanel
-                        modelId={modelId}
-                        params={params}
-                        onModelChange={handleModelChange}
-                        onParamChange={handleParamChange}
-                        lockedParams={constraints.lockedParams}
-                        lockedParamReasons={constraints.lockedParamReasons}
-                      />
-                    )}
-                  </LeftSection>
+                  {(() => {
+                    const paramsPanelProps = {
+                      modelId,
+                      params,
+                      onModelChange: handleModelChange,
+                      onParamChange: handleParamChange,
+                      lockedParams: constraints.lockedParams,
+                      lockedParamReasons: constraints.lockedParamReasons,
+                    };
+                    const groups: { id: string; icon: LucideIcon; label: string; body: ReactNode }[] = [];
+                    if (hasFrames) {
+                      groups.push({
+                        id: "frames",
+                        icon: ImageIcon,
+                        label: "Frames",
+                        body: (
+                          <VideoGenConnectedSection
+                            promptNode={null}
+                            images={upstreamImages}
+                            imageRoles={effectiveImageRoles}
+                            imageInputs={imageInputs}
+                            onRoleChange={handleRoleChange}
+                            onConflictingRoleRequest={(imageId, role) => {
+                              const isFrameRole = role === "start_frame" || role === "end_frame";
+                              if (isFrameRole) {
+                                setPendingDialog({ type: "role-conflict", imageId, role, conflictingRole: "reference" });
+                              } else {
+                                const hasStart = Object.values(effectiveImageRoles).includes("start_frame");
+                                setPendingDialog({
+                                  type: "role-conflict",
+                                  imageId,
+                                  role,
+                                  conflictingRole: hasStart ? "start_frame" : "end_frame",
+                                });
+                              }
+                            }}
+                            onOpenDetail={(id) => setSelected(id)}
+                            disableFrameInputs={constraints.disableFrameInputs}
+                            disableFrameInputsReason={constraints.disableFrameInputsReason}
+                            disableRefs={constraints.disableRefs}
+                            disableRefsReason={constraints.disableRefsReason}
+                            onReset={handleReset}
+                          />
+                        ),
+                      });
+                    }
+                    groups.push({
+                      id: "output",
+                      icon: Settings2,
+                      label: "Output settings",
+                      body: <VideoGenParamsPanel section="main" {...paramsPanelProps} />,
+                    });
+                    if (hasFineTune) {
+                      groups.push({
+                        id: "fine-tune",
+                        icon: SlidersHorizontal,
+                        label: "Fine-tune",
+                        body: <VideoGenParamsPanel section="fine-tune" {...paramsPanelProps} />,
+                      });
+                    }
+                    if (hasAdvanced) {
+                      groups.push({
+                        id: "advanced",
+                        icon: Settings2,
+                        label: "Advanced",
+                        body: <VideoGenParamsPanel section="advanced" {...paramsPanelProps} />,
+                      });
+                    }
+                    return groups.map((g, i) => {
+                      const open = openSections[g.id] ?? i === 0;
+                      return (
+                        <LeftSection
+                          key={g.id}
+                          icon={g.icon}
+                          label={g.label}
+                          open={open}
+                          onToggle={() => setOpenSections((s) => ({ ...s, [g.id]: !open }))}
+                        >
+                          {open && g.body}
+                        </LeftSection>
+                      );
+                    });
+                  })()}
                 </div>
               )}
 
