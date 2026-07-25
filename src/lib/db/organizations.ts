@@ -40,6 +40,21 @@ export async function getOrgById(id: string): Promise<OrgRow | null> {
   return (data as OrgRow) ?? null;
 }
 
+// "Used this month" for the header's live credits display (and, later, any other
+// org-scoped usage UI) — reads the same org_credit_usage view (migration 0019) the admin
+// Overview tile will use. 0 (not null) when the org has no transactions yet this month —
+// the view simply has no row to return in that case.
+export async function getOrgCreditUsage(orgId: string): Promise<number> {
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("org_credit_usage")
+    .select("credits_used")
+    .eq("org_id", orgId)
+    .maybeSingle();
+  if (error) throw error;
+  return (data as { credits_used: number } | null)?.credits_used ?? 0;
+}
+
 // org_memberships and profiles both reference auth.users, but neither has a direct FK
 // to the other — PostgREST can't auto-embed across that, so this is two queries + a
 // JS join, not `profiles(display_name)`. Same pattern as resolveCallerContext (dal.ts).
