@@ -1,7 +1,6 @@
 import type { VideoGenClientModelSpec, ConstraintRule } from "./types";
 import { veoParams, veoLiteParams } from "./params/veo";
-import { soraParams } from "./params/sora";
-import { klingLegacyParams, klingV3Params } from "./params/kling";
+import { klingV3Params } from "./params/kling";
 
 // ── Shared image input capability shapes ──────────────────────────────────────
 
@@ -82,15 +81,6 @@ const VEO_REFS_RULES: ConstraintRule[] = [
   },
 ];
 
-const SORA_RULES: ConstraintRule[] = [
-  {
-    id: "sora-start-frame-locks-size",
-    when: { field: "hasStartFrame", op: "eq", value: true },
-    effect: { lockParams: [{ name: "size", value: "1280x720" }] },
-    reason: "Start frame selected → output size locked to match your image",
-  },
-];
-
 const KLING_IMAGE_INPUTS = {
   startFrame: true,
   endFrame: false,
@@ -129,66 +119,6 @@ export const videoGenClientModelMap: Record<string, VideoGenClientModelSpec> = {
     imageInputs: VEO_REFS_IMAGE_INPUTS,
     params: veoParams,
     rules: VEO_REFS_RULES,
-  },
-  "openai:sora-2": {
-    id: "openai:sora-2",
-    provider: "openai",
-    label: "Sora 2",
-    providerLabel: "OpenAI",
-    maxDurationSeconds: 12,
-    imageInputs: { startFrame: true, endFrame: false, maxReferenceImages: 0 },
-    params: soraParams,
-    rules: SORA_RULES,
-  },
-  "kling:kling-v1-5": {
-    id: "kling:kling-v1-5",
-    provider: "kling",
-    label: "Kling 1.5",
-    providerLabel: "Kling",
-    maxDurationSeconds: 10,
-    imageInputs: KLING_IMAGE_INPUTS,
-    params: klingLegacyParams,
-    rules: [],
-  },
-  "kling:kling-v1-6": {
-    id: "kling:kling-v1-6",
-    provider: "kling",
-    label: "Kling 1.6",
-    providerLabel: "Kling",
-    maxDurationSeconds: 10,
-    imageInputs: KLING_IMAGE_INPUTS,
-    params: klingLegacyParams,
-    rules: [],
-  },
-  "kling:kling-v2-1": {
-    id: "kling:kling-v2-1",
-    provider: "kling",
-    label: "Kling 2.1",
-    providerLabel: "Kling",
-    maxDurationSeconds: 10,
-    imageInputs: KLING_IMAGE_INPUTS,
-    params: klingLegacyParams,
-    rules: [],
-  },
-  "kling:kling-v2-1-master": {
-    id: "kling:kling-v2-1-master",
-    provider: "kling",
-    label: "Kling 2.1 Master",
-    providerLabel: "Kling",
-    maxDurationSeconds: 10,
-    imageInputs: KLING_IMAGE_INPUTS,
-    params: klingLegacyParams,
-    rules: [],
-  },
-  "kling:kling-v2-6": {
-    id: "kling:kling-v2-6",
-    provider: "kling",
-    label: "Kling 2.6",
-    providerLabel: "Kling",
-    maxDurationSeconds: 10,
-    imageInputs: KLING_IMAGE_INPUTS,
-    params: klingLegacyParams,
-    rules: [],
   },
   "kling:kling-v3": {
     id: "kling:kling-v3",

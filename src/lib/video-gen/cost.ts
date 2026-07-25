@@ -12,22 +12,8 @@ const VIDEO_MODEL_PRICING: Record<
   "veo:veo-3.1-lite":  { perSecond: 0.05,   audioMultiplier: 1.0 },
   "veo:veo-3.1-fast":  { perSecond: 0.10,   audioMultiplier: 1.5 },
   "veo:veo-3.1":       { perSecond: 0.2667, audioMultiplier: 1.5 },
-  // Source: platform.openai.com/docs/pricing (verified June 2026)
-  // $0.10/s at 720p; no audio output, no premium multiplier
-  "openai:sora-2":     { perSecond: 0.10,   audioMultiplier: 1.0 },
-  // Source: klingai.com pricing (verified July 2026)
-  // v1.5: ~2 credits/sec at $0.015/credit ≈ $0.030/s
-  // v1.6: ~3 credits/sec ≈ $0.040/s
-  // v2.1: ~4 credits/sec ≈ $0.060/s
-  // v2.1-master: ~5 credits/sec ≈ $0.080/s
-  // v2.6: ~7 credits/sec ≈ $0.100/s
-  // v3 pro: ~8 credits/sec ≈ $0.120/s (using pro rate as default, D-kling-1)
-  "kling:kling-v1-5":        { perSecond: 0.030, audioMultiplier: 1.0 },
-  "kling:kling-v1-6":        { perSecond: 0.040, audioMultiplier: 1.0 },
-  "kling:kling-v2-1":        { perSecond: 0.060, audioMultiplier: 1.0 },
-  "kling:kling-v2-1-master": { perSecond: 0.080, audioMultiplier: 1.0 },
-  "kling:kling-v2-6":        { perSecond: 0.100, audioMultiplier: 1.0 },
-  "kling:kling-v3":          { perSecond: 0.120, audioMultiplier: 1.0 },
+  // Source: klingai.com pricing (verified July 2026) — v3 pro rate as default (D-kling-1)
+  "kling:kling-v3":    { perSecond: 0.120, audioMultiplier: 1.0 },
 };
 
 export function computeVideoCost(
