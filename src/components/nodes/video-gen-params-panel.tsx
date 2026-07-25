@@ -190,9 +190,9 @@ export function VideoGenParamsPanel({
           <Accordion multiple={false} className="pt-1">
             <AccordionItem value="advanced" className="border-none">
               <AccordionTrigger className="py-1 hover:no-underline">
-                <span className="flex items-center gap-1.5">
-                  <Settings2 className="size-3.5 text-primary" strokeWidth={1.5} />
-                  <span className="text-eyebrow">Advanced</span>
+                <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                  <Settings2 className="size-3.5 shrink-0" strokeWidth={1.5} />
+                  Advanced
                 </span>
               </AccordionTrigger>
               <AccordionContent className="pt-2">

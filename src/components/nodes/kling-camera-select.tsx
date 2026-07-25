@@ -66,9 +66,9 @@ export function KlingCameraSelect({
       <Accordion multiple={false} className="pt-0">
         <AccordionItem value="fine" className="border-none">
           <AccordionTrigger className="py-1 hover:no-underline">
-            <span className="flex items-center gap-1.5">
-              <SlidersHorizontal className="size-3.5 text-primary" strokeWidth={1.5} />
-              <span className="text-eyebrow">Fine-tune</span>
+            <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+              <SlidersHorizontal className="size-3.5 shrink-0" strokeWidth={1.5} />
+              Fine-tune
             </span>
           </AccordionTrigger>
           <AccordionContent className="pt-2">
