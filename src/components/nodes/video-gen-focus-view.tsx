@@ -738,9 +738,6 @@ export function VideoGenFocusView({
   ];
   const connectedCount = connectedItems.length;
   const hasFrames = upstreamImages.length > 0;
-  // Which flat groups exist for this model (each renders as its own top-level collapsible group).
-  const modelParamList = currentModel?.params ?? [];
-  const hasAdvanced = modelParamList.some((p) => p.group === "advanced" && p.visible);
   const isNodeSelected = !["video", "history", "details"].includes(selected);
   const selectedDetailItem = isNodeSelected
     ? connectedItems.find((c) => c.id === selected) ?? null
@@ -1001,16 +998,8 @@ export function VideoGenFocusView({
                       id: "output",
                       icon: Settings2,
                       label: "Output settings",
-                      body: <VideoGenParamsPanel section="main" {...paramsPanelProps} />,
+                      body: <VideoGenParamsPanel {...paramsPanelProps} />,
                     });
-                    if (hasAdvanced) {
-                      groups.push({
-                        id: "advanced",
-                        icon: Settings2,
-                        label: "Advanced",
-                        body: <VideoGenParamsPanel section="advanced" {...paramsPanelProps} />,
-                      });
-                    }
                     return groups.map((g, i) => {
                       const open = openSections[g.id] ?? i === 0;
                       return (

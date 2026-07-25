@@ -20,7 +20,6 @@ import {
   videoGenClientModelGroups,
   resolveVideoModelId,
 } from "@/lib/video-gen/client-models";
-import { ImageGenParamRow } from "./image-gen-param-row";
 import { ParamControl } from "./param-controls";
 import { ParamChipGroup } from "./param-chip-group";
 import { FieldLabel } from "./field-label";
@@ -36,9 +35,6 @@ const PARAM_ICONS: Record<string, LucideIcon> = {
   negative_prompt:     Settings2,
 };
 
-// Which section of the settings this instance renders — each is its own top-level group.
-export type VideoGenParamsSection = "main" | "fine-tune" | "advanced";
-
 type Props = {
   modelId: string;
   params: Record<string, unknown>;
@@ -46,7 +42,6 @@ type Props = {
   onParamChange: (name: string, value: unknown) => void;
   lockedParams?: Record<string, unknown>;
   lockedParamReasons?: Record<string, string>;
-  section?: VideoGenParamsSection;
 };
 
 export function VideoGenParamsPanel({
@@ -56,81 +51,52 @@ export function VideoGenParamsPanel({
   onParamChange,
   lockedParams = {},
   lockedParamReasons = {},
-  section = "main",
 }: Props) {
   const model = videoGenClientModelMap[resolveVideoModelId(modelId)];
   const visibleParams = (model?.params ?? [])
     .filter((p: ParamSpec) => p.visible)
     .sort((a: ParamSpec, b: ParamSpec) => a.order - b.order);
 
-  const primaryParams = visibleParams.filter((p: ParamSpec) => p.group === "primary");
-  const advancedParams = visibleParams.filter((p: ParamSpec) => p.group === "advanced");
-
-  const primaryRows = primaryParams;
-  const advancedRows = advancedParams;
-
   function renderParamRow(spec: ParamSpec) {
     const isLocked = spec.name in lockedParams;
     const reason = lockedParamReasons[spec.name];
 
-    // Select params → horizontal chip group. Locked params are shown disabled with
-    // the locked value active and a tooltip explaining why.
-    if (spec.constraints.type === "select") {
-      const options = spec.constraints.options.map((o) => ({ value: o, label: o }));
-      const value = String(
-        (isLocked ? lockedParams[spec.name] : params[spec.name]) ?? spec.defaultValue ?? "",
-      );
-      const chips = (
+    const control =
+      spec.constraints.type === "select" ? (
         <ParamChipGroup
-          options={options}
-          value={value}
+          options={spec.constraints.options.map((o) => ({ value: o, label: o }))}
+          value={String(
+            (isLocked ? lockedParams[spec.name] : params[spec.name]) ?? spec.defaultValue ?? "",
+          )}
           onValueChange={(v) => onParamChange(spec.name, v)}
           disabled={isLocked}
         />
-      );
-      return (
-        <div key={spec.name} className="space-y-2">
-          <FieldLabel icon={PARAM_ICONS[spec.name] ?? Settings2} label={spec.label} />
-          {isLocked && reason ? (
-            <Tooltip>
-              <TooltipTrigger render={<div className="w-fit" />}>{chips}</TooltipTrigger>
-              <TooltipContent side="top">{reason}</TooltipContent>
-            </Tooltip>
-          ) : (
-            chips
-          )}
-        </div>
-      );
-    }
-
-    // Non-select params (slider / number / toggle / textarea) keep the compact
-    // label-above-control cell.
-    return (
-      <ImageGenParamRow
-        key={spec.name}
-        icon={PARAM_ICONS[spec.name] ?? Settings2}
-        label={spec.label}
-      >
+      ) : (
         <ParamControl
           spec={spec}
           value={params[spec.name] ?? spec.defaultValue}
           onChange={(v) => onParamChange(spec.name, v)}
         />
-      </ImageGenParamRow>
-    );
-  }
+      );
 
-  // ── Advanced section: cfg / negative prompt etc. (its own top-level group) ──
-  if (section === "advanced") {
-    if (advancedRows.length === 0) return null;
+    // Uniform cell: a FieldLabel (icon + name) above the control, so selects and sliders
+    // share the same label weight/size (e.g. Mode and CFG Scale sit on one row, matched).
     return (
-      <TooltipProvider>
-        <div className="flex flex-col gap-4">{advancedRows.map(renderParamRow)}</div>
-      </TooltipProvider>
+      <div key={spec.name} className="space-y-2">
+        <FieldLabel icon={PARAM_ICONS[spec.name] ?? Settings2} label={spec.label} />
+        {isLocked && reason ? (
+          <Tooltip>
+            <TooltipTrigger render={<div className="w-fit" />}>{control}</TooltipTrigger>
+            <TooltipContent side="top">{reason}</TooltipContent>
+          </Tooltip>
+        ) : (
+          control
+        )}
+      </div>
     );
   }
 
-  // ── Main section: model + primary params ──
+  // ── Model + params (one flat section — no separate Advanced group) ──
   return (
     <TooltipProvider>
       <div className="space-y-4">
@@ -154,19 +120,20 @@ export function VideoGenParamsPanel({
           </div>
         </div>
 
-        {/* Primary params — selects pair up 2-across; sliders/textarea span full width. */}
+        {/* Params — compact controls (selects + sliders) pair 2-across with matching labels;
+            a textarea (negative prompt) spans full width below. */}
         <div className="space-y-4">
           {(() => {
-            const selectRows = primaryRows.filter((p) => p.constraints.type === "select");
-            const otherRows = primaryRows.filter((p) => p.constraints.type !== "select");
+            const inlineRows = visibleParams.filter((p) => p.constraints.type !== "textarea");
+            const blockRows = visibleParams.filter((p) => p.constraints.type === "textarea");
             return (
               <>
-                {selectRows.length > 0 && (
+                {inlineRows.length > 0 && (
                   <div className="grid grid-cols-2 gap-x-4 gap-y-4">
-                    {selectRows.map(renderParamRow)}
+                    {inlineRows.map(renderParamRow)}
                   </div>
                 )}
-                {otherRows.map(renderParamRow)}
+                {blockRows.map(renderParamRow)}
               </>
             );
           })()}
