@@ -8,6 +8,17 @@ export { gptImage2Params, gptImage1Params, gptImage1MiniParams };
 
 // Params ref: https://platform.openai.com/docs/api-reference/images/create
 
+// Model used ONLY for the input-token-counting call in countOpenAIInputTokens below — NOT an
+// image generation model (gpt-image-2/gpt-image-1/-mini aren't valid Responses-API models,
+// and responses.inputTokens.count() requires a Responses-API model). OpenAI's docs confirm
+// `model` is required but give no guidance for this specific case: image generation never
+// goes through the Responses API, so there is no "real" model to match, unlike every other
+// documented use of this endpoint. Reuses this app's existing default OpenAI text model
+// (src/prompts/prompt-generate.ts) as a pragmatic choice, confirmed to work (no error) via a
+// live diagnostic probe on 2026-07-25 — not confirmed correct for vision-token accuracy by
+// any source. Revisit if OpenAI ever publishes clearer guidance for this case.
+const TOKEN_COUNTING_MODEL = "gpt-5.4-mini";
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 async function urlToFile(url: string): Promise<File> {
@@ -124,8 +135,10 @@ async function generateWithOpenAI(
  * (`responses.inputTokens.count`) — handles text-only and text+reference-image requests in
  * one call. Used by the pre-generation estimate (design spec §5). One inference, not a
  * directly confirmed 1:1 mapping to the Images API's own billing (see the design spec) —
- * worth a real-world sanity check once implemented, same as noted there. Always a fresh
- * live call, never cached.
+ * worth a real-world sanity check once implemented, same as noted there. Passes
+ * TOKEN_COUNTING_MODEL (see its own comment above) — the endpoint requires a model but this
+ * request is never actually sent to it, so the choice is a pragmatic default, not a
+ * documented answer. Always a fresh live call, never cached.
  */
 export async function countOpenAIInputTokens(
   prompt: string,
@@ -140,6 +153,7 @@ export async function countOpenAIInputTokens(
     content.push({ type: "input_image", detail: "auto", image_url: url });
   }
   const response = await openai.responses.inputTokens.count({
+    model: TOKEN_COUNTING_MODEL,
     input: [{ role: "user", content }],
   });
   return response.input_tokens ?? 0;
