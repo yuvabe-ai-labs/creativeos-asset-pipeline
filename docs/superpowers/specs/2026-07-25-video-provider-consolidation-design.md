@@ -1,9 +1,9 @@
 # Video Provider Consolidation — Veo + Kling 3.0, Uniform Text-Camera
 
 **Date:** 2026-07-25
-**Status:** Approved (design). Implementation pending (test-first).
+**Status:** Implemented 2026-07-25 (branch `worktree-video-provider-consolidation`).
 **Type:** Architecture + frontend. Prunes the video roster to **Veo ×3 + Kling 3.0**, makes camera a **uniform text-in-prompt** control across both providers, and **removes the Kling `camera_control` path**.
-**ADR:** New decision **superseding D77**. Assign the D-number from the roadmap §7 ADR log at plan time (numbering may collide — confirm the next free number rather than assuming).
+**ADR:** **D78** (supersedes D77) — see roadmap §7.
 
 ---
 

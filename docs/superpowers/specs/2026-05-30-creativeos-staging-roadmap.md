@@ -1358,7 +1358,7 @@ name-matching; per-org Drive OAuth (too heavy for the pilot).
 
 **Originated →** `2026-07-14-copilot-selection-context-design.md` (§6).
 
-### D77 — Video Prompt → Video Gen is provider-aware; Kling camera via `camera_control` *(recorded 2026-07-23; refines D24)*
+### D77 — Video Prompt → Video Gen is provider-aware; Kling camera via `camera_control` *(recorded 2026-07-23; refines D24; **SUPERSEDED by D78** — Kling 3.0 has no `camera_control`, 2026-07-25)*
 
 **Decision.** The motion prompt is shaped for its target provider (`text-camera` for Veo/Sora,
 `external-camera` for Kling), selected by a Target selector on the Video Prompt node that locks to a
@@ -1374,6 +1374,26 @@ different prompt shape and a native camera API. Deterministic Kling camera + a p
 `negative_prompt` unused; optimizes for the smallest diff over the better Kling result.
 
 **Refines** D24. **Originated →** `2026-07-23-provider-aware-video-prompt-design.md`.
+
+### D78 — Uniform text-camera; Veo ×3 + Kling 3.0 only *(recorded 2026-07-25; supersedes D77; refines D24)*
+
+**Decision.** The video roster is Veo 3.1 Lite/Fast/Quality + Kling 3.0 (Sora and the five legacy
+Kling models dropped). Camera is a uniform text-in-prompt control authored on the Video Prompt node
+(the `CameraSelect` grid) for every provider. Kling's `camera_control` path — gen-node grid, axis
+sliders, `kling-camera.ts`, and the request emission — is removed. The Target selector is retained
+(2-way Veo/Kling) and switches only the prompt variant (shared spine + minimal Veo/Kling deltas).
+
+**Why.** D77 assumed Kling drives camera via `camera_control`; the official Kling capability map
+shows `camera_control` is Kling-1.5-only — Kling 3.0 uses a separate, un-integrated Motion Control
+feature. Both vendors' prompt guides recommend camera-in-text. Uniform text-camera is less code and
+a more consistent UX.
+
+**Rejected — finish D77 as built.** Would ship a camera control no kept model honors and diverge the
+Prompt-node UX by provider for no capability gain.
+
+**Refines** D24. **Reverses** D77's camera-signal model. **Originated →**
+`2026-07-25-video-provider-consolidation-design.md` (research:
+`../../architecture/2026-07-25-video-provider-capability-research.md`).
 
 ### Parked / out-of-scope (with revisit triggers)
 | Item | Status | Revisit when |
