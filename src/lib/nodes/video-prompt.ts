@@ -72,12 +72,10 @@ export function compileVideoPrompt(input: CompileVideoPromptInput): {
     }
   }
 
-  const targetProvider: VideoProvider = input.targetProvider ?? "veo";
-  const includeCamera = targetProvider !== "kling";
+  // Coerce any stored value (incl. stale "openai") to a supported provider. Camera is always text.
+  const targetProvider: VideoProvider = input.targetProvider === "kling" ? "kling" : "veo";
 
-  const controlsBlock = input.controls
-    ? renderVideoControls(input.controls, { includeCamera })
-    : "";
+  const controlsBlock = input.controls ? renderVideoControls(input.controls) : "";
   if (controlsBlock) blocks.push(controlsBlock);
 
   const rawInstruction = input.instruction.trim() || DEFAULT_MOTION_INSTRUCTION;

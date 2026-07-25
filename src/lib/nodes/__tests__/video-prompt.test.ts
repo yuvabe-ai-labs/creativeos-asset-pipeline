@@ -51,10 +51,10 @@ describe("compileVideoPrompt provider awareness", () => {
     expect(user).toContain("Camera:");
   });
 
-  it("uses the Kling system and drops the camera control line for kling", () => {
+  it("uses the Kling system but STILL includes camera prose (text-camera for all)", () => {
     const { system, user } = compileVideoPrompt({ ...base, targetProvider: "kling" });
     expect(system).toContain("image-to-video prompts for Kling");
-    expect(user).not.toContain("Camera:");
+    expect(user).toContain("Camera:");
     expect(user).toContain("Speed:");
   });
 });

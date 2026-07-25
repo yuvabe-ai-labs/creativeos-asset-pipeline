@@ -51,19 +51,12 @@ export const DEFAULT_VIDEO_CONTROLS: VideoControls = {
   speed: "auto",
 };
 
-// The motion-control block injected into the compiled prompt. "" when nothing to inject.
-// Camera prose is emitted only for text-camera providers (opts.includeCamera, default true) —
-// Kling owns the camera via camera_control (D77), so its prompt is camera-silent. Speed is always
-// emitted. Camera is emitted first as its own clause — text models parse camera direction best
-// when it is separated from the subject action.
-export function renderVideoControls(
-  controls: VideoControls,
-  opts: { includeCamera?: boolean } = {},
-): string {
-  const includeCamera = opts.includeCamera ?? true;
+// The motion-control block injected into the compiled prompt. "" when nothing to inject. Camera is
+// always emitted (text-camera for every provider — Veo has no camera param, Kling 3.0 has no
+// camera_control). Camera leads as its own clause; text models parse it best separated from action.
+export function renderVideoControls(controls: VideoControls): string {
   const lines: string[] = [];
   for (const group of VIDEO_CONTROLS) {
-    if (group.key === "camera" && !includeCamera) continue;
     const opt = group.options.find((o) => o.value === controls[group.key]);
     if (opt && opt.value !== "auto" && opt.prose) lines.push(`- ${group.label}: ${opt.prose}`);
   }
