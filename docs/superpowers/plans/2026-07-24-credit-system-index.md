@@ -83,7 +83,12 @@ full task-level detail.
   (`estimateImageGenerationCostUsd`) so both call sites can never drift apart. Scoped to each
   view's primary Generate button only — the image view's separate Edit-mode button is
   explicitly out of scope (stated in the plan, not silently dropped). Depends on 3B.
-  → `2026-07-24-credit-system-3e-estimate-ui.md`. **Status: plan written, not yet executed.**
+  → `2026-07-24-credit-system-3e-estimate-ui.md`. **Status: complete** (all 5 tasks
+  implemented and reviewed; two real live bugs caught and fixed post-review: a stale-estimate
+  display bug + wrong modelId on a failed fetch, and a double-fetch from unstable effect deps.
+  Also fixed the same day: OpenAI's token-counting endpoint needed a `model` param not
+  present in the original 3B/3C code — this was blocking real OpenAI-model image generation
+  entirely, not just the estimate preview. `npx tsc --noEmit` clean, 616/616 tests passing.
 
 - **3F — Admin UI wiring** (design spec §6)
   Overview tab gains a "Used this month" tile (`org_credit_usage`). Generations table splits
