@@ -41,12 +41,10 @@ describe("klingLegacyParams", () => {
 });
 
 describe("klingV3Params", () => {
-  it("duration options are 3 through 15", () => {
+  it("v3 duration is a 3–15s slider", () => {
     const duration = klingV3Params.find((p) => p.name === "duration")!;
-    expect(duration.constraints).toEqual({
-      type: "select",
-      options: ["3","4","5","6","7","8","9","10","11","12","13","14","15"],
-    });
+    expect(duration.component).toBe("slider");
+    expect(duration.constraints).toEqual({ type: "slider", min: 3, max: 15, step: 1 });
   });
 
   it("shares all other params with legacy", () => {

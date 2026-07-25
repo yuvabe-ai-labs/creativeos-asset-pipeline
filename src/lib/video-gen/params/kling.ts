@@ -138,18 +138,16 @@ const KLING_DURATION_LEGACY: ParamSpec = {
   constraints: { type: "select", options: ["5", "10"] },
 };
 
+// v3 supports 3–15s — a slider is far more compact than 13 chips (D77 space reduction).
 const KLING_DURATION_V3: ParamSpec = {
   name: "duration",
-  label: "Duration",
-  component: "select",
+  label: "Duration (s)",
+  component: "slider",
   group: "primary",
   order: 1,
   visible: true,
-  defaultValue: "5",
-  constraints: {
-    type: "select",
-    options: ["3","4","5","6","7","8","9","10","11","12","13","14","15"],
-  },
+  defaultValue: 5,
+  constraints: { type: "slider", min: 3, max: 15, step: 1 },
 };
 
 export const klingLegacyParams: ParamSpec[] = [

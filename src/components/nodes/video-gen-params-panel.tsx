@@ -141,17 +141,18 @@ export function VideoGenParamsPanel({
 
   return (
     <TooltipProvider>
-      <div className="space-y-5">
-        {/* Model — grouped chips inside a card, one chip row per provider. */}
+      <div className="space-y-4">
+        {/* Model — grouped chips in a 3-column grid, one block per provider. */}
         <div className="space-y-2">
           <FieldLabel icon={Cpu} label="Model" />
-          <div className="space-y-3 rounded-xl border border-border p-3">
+          <div className="space-y-2 rounded-xl border border-border p-2.5">
             {videoGenClientModelGroups.map((group) => (
-              <div key={group.label} className="space-y-1.5">
+              <div key={group.label} className="space-y-1">
                 <span className="text-[0.7rem] font-medium text-muted-foreground">
                   {group.label}
                 </span>
                 <ParamChipGroup
+                  columns={3}
                   options={group.models.map((m) => ({ value: m.id, label: m.label }))}
                   value={modelId}
                   onValueChange={onModelChange}
@@ -161,8 +162,23 @@ export function VideoGenParamsPanel({
           </div>
         </div>
 
-        {/* Primary params — stacked chip groups */}
-        <div className="flex flex-col gap-5">{primaryRows.map(renderParamRow)}</div>
+        {/* Primary params — selects pair up 2-across; sliders/textarea span full width. */}
+        <div className="space-y-4">
+          {(() => {
+            const selectRows = primaryRows.filter((p) => p.constraints.type === "select");
+            const otherRows = primaryRows.filter((p) => p.constraints.type !== "select");
+            return (
+              <>
+                {selectRows.length > 0 && (
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-4">
+                    {selectRows.map(renderParamRow)}
+                  </div>
+                )}
+                {otherRows.map(renderParamRow)}
+              </>
+            );
+          })()}
+        </div>
 
         {/* D77: Kling camera grid (drives camera_move) + Fine-tune axes */}
         {isKling && (
