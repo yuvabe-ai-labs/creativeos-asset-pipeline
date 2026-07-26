@@ -54,6 +54,7 @@ import { PromptVersionChips } from "./prompt-version-chips";
 import { describeApprovalPill } from "@/lib/nodes/prompt-focus";
 import { LeftSection } from "./focus-left-section";
 import { RailItem } from "./focus-rail-item";
+import { PromptShotReference, PromptShotReferenceEmpty } from "./prompt-shot-reference";
 
 type PromptFocusViewProps = {
   open: boolean;
@@ -150,6 +151,9 @@ export function PromptFocusView({
   const selectedNode = isNodeSelected
     ? preview.connected.find((c) => c.nodeId === selected) ?? null
     : null;
+  // Pinned shot preview beside the compose column — Prompt nodes carry one shot in
+  // practice; show the first.
+  const shotPreview = preview.connected.find((c) => c.type === "shot") ?? null;
   // The compose layout owns both the "Prompt" rail item and any connected-input selection:
   // selecting a connected input swaps the CENTER column to its read-only detail; the right
   // column is ALWAYS the generated output.
@@ -394,11 +398,6 @@ export function PromptFocusView({
         showCloseButton={false}
         className="gap-0 overflow-hidden rounded-t-2xl bg-background data-[side=bottom]:h-[92vh]"
       >
-        {/* Drag handle */}
-        <div className="flex shrink-0 justify-center pt-3">
-          <div className="h-1.5 w-12 rounded-full bg-border" />
-        </div>
-
         {/* Header */}
         <div className="shrink-0 border-b">
           <div className="mx-auto w-full max-w-6xl px-6 pb-5 pt-3">
@@ -508,37 +507,55 @@ export function PromptFocusView({
                       </div>
                     )
                   ) : (
-                    <div className="flex shrink-0 flex-col gap-3 px-6 py-5">
-                    <div className="flex items-center gap-1.5">
-                      <PencilLine className="size-3.5 text-primary" />
-                      <span className="text-eyebrow">Instruction</span>
+                    <>
+                  {/* Whole column scrolls — shot reference + instruction + controls + the
+                      Generate button all flow together; when content extends you reach the
+                      button via the scrollbar rather than pinning it to the bottom. */}
+                  <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+                    {shotPreview ? (
+                      <PromptShotReference label={shotPreview.label} text={shotPreview.text} />
+                    ) : (
+                      <PromptShotReferenceEmpty />
+                    )}
+
+                    {/* Instruction + controls */}
+                    <div className="flex flex-col gap-3 border-t border-border px-6 py-5">
+                      <div className="flex items-center gap-1.5">
+                        <PencilLine className="size-3.5 text-primary" />
+                        <span className="text-eyebrow">Instruction</span>
+                      </div>
+                      <MentionInstructionEditor
+                        value={instructionDraft}
+                        onChange={(v) => {
+                          setInstructionDraft(v);
+                          onPatch({ instruction: v });
+                        }}
+                        placeholder={instructionPlaceholder}
+                        upstream={upstream}
+                        disabled={!editable}
+                        className="min-h-20"
+                      />
+                      <ShotControlsRow
+                        controls={controls ?? DEFAULT_SHOT_CONTROLS}
+                        onChange={(next) => onPatch({ controls: next })}
+                      />
                     </div>
-                    <MentionInstructionEditor
-                      value={instructionDraft}
-                      onChange={(v) => {
-                        setInstructionDraft(v);
-                        onPatch({ instruction: v });
-                      }}
-                      placeholder={instructionPlaceholder}
-                      upstream={upstream}
-                      disabled={!editable}
-                      className="min-h-20"
-                    />
-                    <ShotControlsRow
-                      controls={controls ?? DEFAULT_SHOT_CONTROLS}
-                      onChange={(next) => onPatch({ controls: next })}
-                    />
-                    <Button
-                      className="w-full"
-                      size="default"
-                      onClick={runGenerate}
-                      disabled={generating || !editable}
-                    >
-                      <Sparkles className="size-4" />
-                      {generating ? "Generating…" : output ? "Re-generate" : "Generate prompt"}
-                      {!generating && ` · ${estimatedCredits}`}
-                    </Button>
+
+                    {/* Generate — flows after the controls, reached via the scrollbar */}
+                    <div className="border-t border-border px-6 py-4">
+                      <Button
+                        className="w-full"
+                        size="default"
+                        onClick={runGenerate}
+                        disabled={generating || !editable}
+                      >
+                        <Sparkles className="size-4" />
+                        {generating ? "Generating…" : output ? "Re-generate" : "Generate prompt"}
+                        {!generating && ` · ${estimatedCredits}`}
+                      </Button>
+                    </div>
                   </div>
+                    </>
                   )}
                 </div>
 
