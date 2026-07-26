@@ -1,7 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireSuperAdmin } from "@/lib/auth/require-super-admin";
-import { getOrgById, listOrgMembers } from "@/lib/db/organizations";
+import {
+  getOrgById,
+  listOrgMembers,
+  getOrgCreditUsage,
+  getOrgMonthlyCreditHistory,
+  getOrgCreditBreakdownByType,
+  getOrgCreditBreakdownByModel,
+} from "@/lib/db/organizations";
 import { countGenerationsForOrg, listGenerationsForOrg } from "@/lib/db/generations";
 import { OrgDetailTabs } from "./org-detail-tabs";
 import {
@@ -24,10 +31,27 @@ export default async function OrgDetailPage({
   const { id } = await params;
   const org = await getOrgById(id);
   if (!org) notFound();
-  const [members, generationCount, generations] = await Promise.all([
+
+  const now = new Date();
+  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
+  const monthEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)).toISOString();
+
+  const [
+    members,
+    generationCount,
+    generations,
+    creditsUsedThisMonth,
+    monthlyHistory,
+    breakdownByType,
+    breakdownByModel,
+  ] = await Promise.all([
     listOrgMembers(id),
     countGenerationsForOrg(id),
     listGenerationsForOrg(id),
+    getOrgCreditUsage(id),
+    getOrgMonthlyCreditHistory(id),
+    getOrgCreditBreakdownByType(id, monthStart, monthEnd),
+    getOrgCreditBreakdownByModel(id, monthStart, monthEnd),
   ]);
 
   return (
@@ -51,6 +75,10 @@ export default async function OrgDetailPage({
         members={members}
         generationCount={generationCount}
         generations={generations}
+        creditsUsedThisMonth={creditsUsedThisMonth}
+        monthlyHistory={monthlyHistory}
+        breakdownByType={breakdownByType}
+        breakdownByModel={breakdownByModel}
       />
     </main>
   );
