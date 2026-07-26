@@ -220,6 +220,13 @@ export const videoGenClientModelGroups: Array<{
 
 export const DEFAULT_VIDEO_CLIENT_MODEL_ID = "veo:veo-3.1-lite";
 
+// Back-compat: map a removed/unknown model id (e.g. a persisted node still referencing a pruned
+// model) to the default rather than crashing. Ported from the consolidation work during the
+// 2026-07-26 integration; resolves against the union roster (Veo x3 + Sora 2 + Kling's 5 models).
+export function resolveVideoModelId(modelId: string): string {
+  return modelId in videoGenClientModelMap ? modelId : DEFAULT_VIDEO_CLIENT_MODEL_ID;
+}
+
 export function defaultsForVideoModel(modelId: string): Record<string, unknown> {
   const spec = videoGenClientModelMap[modelId];
   if (!spec) return {};
