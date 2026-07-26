@@ -1,5 +1,12 @@
 ﻿# Credit System (Stage 3) — Plan Index
 
+**STAGE 3 COMPLETE as of 2026-07-26.** All 7 sub-plans (3A-3G) implemented, reviewed clean,
+and shipped to staging. 3G (canvas credit visibility) and 3F (admin agency usage UX) were
+both new scope, added mid-stream after the original design spec — not in the initial
+brainstorm. `docs/auth-production-migration.md` still needs one pass to add migrations
+`0019`-`0023` before promoting any of this to production (deferred by explicit user decision,
+see `[[auth-staging-rollout]]` memory).
+
 **Spec:** `docs/superpowers/specs/2026-07-24-credit-system-design.md` (approved), with
 `2026-07-24-credit-system-pricing-sources.md` and `2026-07-24-credit-system-full-combinations.md`
 as data references.
@@ -103,8 +110,8 @@ full task-level detail.
   property to a rolling window and to type/model breakdowns. Scoped to the agency level only
   — no per-client drill-down (a real mid-conversation misunderstanding, corrected) and no
   month-selector yet (deferred, not requested).
-  → `2026-07-24-credit-system-3f-admin-usage-ux.md`. **Status: plan written, not yet
-  executed.**
+  → `2026-07-24-credit-system-3f-admin-usage-ux.md`. **Status: complete** (all 4 tasks
+  implemented and reviewed clean; 87/87 test files, 616/616 tests passing, `npx tsc --noEmit` clean).
 
 - **3G — Canvas credit visibility** (new scope, requested live after 3E shipped — not in the
   original design spec, which only put usage visibility in the admin org-detail page)
