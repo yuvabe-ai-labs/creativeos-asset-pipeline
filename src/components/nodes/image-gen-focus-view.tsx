@@ -191,7 +191,12 @@ export function ImageGenFocusView({
     text: string;
   } | null>(null);
   const [estimatedCredits, setEstimatedCredits] = useState<number | null>(null);
-  const [estimating, setEstimating] = useState(false);
+  // Starts true (not false): the debounced estimate effect only flips this on the first
+  // effect pass after mount, one paint after the initial render — starting at false let the
+  // Generate button render briefly enabled/uncosted before that first effect ran. Starting
+  // true means the button is disabled from the very first paint; the effect corrects it to
+  // false quickly if no estimate is actually needed (e.g. no prompt connected yet).
+  const [estimating, setEstimating] = useState(true);
   const [loadingVersions, setLoadingVersions] = useState(false);
   const [loadingPreview, setLoadingPreview] = useState(false);
   // The selected rail item: "image" (the hero pane), "history", "details", or a

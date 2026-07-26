@@ -20,6 +20,7 @@ export async function GET() {
     name: (data?.display_name as string) ?? "User",
     role: orgRoleToIdentityRole(caller.orgRole),
     platformRole: caller.platformRole,
+    orgId: caller.orgId,
     orgName: org?.name ?? null,
     creditsUsed,
     monthlyCreditLimit: org?.monthly_credit_limit ?? null,

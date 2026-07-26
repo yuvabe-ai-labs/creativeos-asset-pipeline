@@ -6,13 +6,17 @@ import { useIdentity } from "@/hooks/use-identity";
 import { HeaderCredits } from "./header-credits";
 
 // The wordmark always shows. The agency name is appended once identity resolves — never on
-// /login (no session to reflect there, same reasoning as HeaderActions), and never before
-// hydration (avoids a flash of a previous/wrong agency name on first paint). Credits used
-// this month (HeaderCredits) sits right after it, same visibility gate.
+// /login (no session to reflect there, same reasoning as HeaderActions), never before
+// hydration (avoids a flash of a previous/wrong agency name on first paint), and never when
+// it's literally "Yuvabe Studios" — that's already the static brand eyebrow just to its
+// left, so showing the org name too would visibly duplicate it (only happens for Yuvabe's
+// own org, which is both the platform operator and a tenant on its own platform). Credits
+// used this month (HeaderCredits) sits right after it, same visibility gate.
 export function HeaderBrand() {
   const pathname = usePathname();
   const { hydrated, orgName } = useIdentity();
-  const showOrgName = pathname !== "/login" && hydrated && orgName;
+  const showOrgName =
+    pathname !== "/login" && hydrated && orgName && orgName !== "Yuvabe Studios";
 
   return (
     <div className="flex items-center gap-3">

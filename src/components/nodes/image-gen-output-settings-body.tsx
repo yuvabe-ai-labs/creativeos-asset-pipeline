@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Sparkles } from "lucide-react";
+import { AlertTriangle, Loader2, Sparkles } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -66,7 +66,9 @@ export function ImageGenOutputSettingsBody({
 
   // One derived reason drives both the Generate button's disabled state and its
   // tooltip — the button is never disabled without an explanation, and the two
-  // can't drift apart.
+  // can't drift apart. `estimating` disables the button too (below), but deliberately has
+  // no entry here — the spinning Loader2 icon on the button is the indicator for that case,
+  // not a tooltip message.
   const generateDisabledReason: string | null = generating
     ? "A generation is already running."
     : editing
@@ -79,9 +81,7 @@ export function ImageGenOutputSettingsBody({
             ? refValidation.violations.length === 1
               ? "A reference image doesn't meet this model's requirements. Try resizing it or switching to a different model."
               : `${refValidation.violations.length} reference images don't meet this model's requirements. Try resizing them or switching to a different model.`
-            : estimating
-              ? "Calculating cost…"
-              : null;
+            : null;
 
   return (
     <>
@@ -111,9 +111,13 @@ export function ImageGenOutputSettingsBody({
                 className="px-14 py-4 text-sm"
                 size="default"
                 onClick={onGenerate}
-                disabled={Boolean(generateDisabledReason)}
+                disabled={Boolean(generateDisabledReason) || estimating}
               >
-                <Sparkles className="size-4" strokeWidth={1.5} />
+                {estimating ? (
+                  <Loader2 className="size-4 animate-spin" strokeWidth={1.5} />
+                ) : (
+                  <Sparkles className="size-4" strokeWidth={1.5} />
+                )}
                 {generating
                   ? "Generating…"
                   : editing
@@ -121,7 +125,7 @@ export function ImageGenOutputSettingsBody({
                   : hasImage
                   ? "Re-generate"
                   : "Generate"}
-                {!generateDisabledReason && estimatedCredits !== null && ` · ${estimatedCredits}`}
+                {!generateDisabledReason && !estimating && estimatedCredits !== null && ` · ${estimatedCredits}`}
               </Button>
             </TooltipTrigger>
             {generateDisabledReason && (
