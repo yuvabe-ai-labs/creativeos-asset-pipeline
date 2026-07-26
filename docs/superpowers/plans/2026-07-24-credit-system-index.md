@@ -107,8 +107,9 @@ full task-level detail.
   actionable toast message wherever a 402 (monthly limit reached) reaches the UI, replacing
   the raw server string, across all 3 creation flows. Explicitly confirmed with the user:
   no new button color/gradient — folds into the existing shadcn `Button`/design system as-is.
-  → `2026-07-24-credit-system-3g-canvas-credit-visibility.md`. **Status: plan written, not
-  yet executed.**
+  → `2026-07-24-credit-system-3g-canvas-credit-visibility.md`. **Status: complete** (all 6
+  tasks implemented and reviewed clean; 87/87 test files, 616/616 tests passing,
+  `npx tsc --noEmit` clean).
 
 ## Testing convention note (applies to every sub-plan)
 
