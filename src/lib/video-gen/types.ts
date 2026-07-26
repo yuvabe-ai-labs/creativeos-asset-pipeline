@@ -19,7 +19,6 @@ export type VideoGenInput = {
 export type VideoGenResult = {
   videoUrl: string;
   durationSeconds: number;
-  providerJobId?: string;
 };
 
 // ── Constraint rule system (JSON-serializable, DB-ready) ──────────────────────

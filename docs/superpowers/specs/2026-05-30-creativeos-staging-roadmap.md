@@ -1358,40 +1358,83 @@ name-matching; per-org Drive OAuth (too heavy for the pilot).
 
 **Originated →** `2026-07-14-copilot-selection-context-design.md` (§6).
 
-### D77 — Video Prompt → Video Gen is provider-aware; Kling camera via `camera_control` *(recorded 2026-07-23; refines D24; **SUPERSEDED by D78** — Kling 3.0 has no `camera_control`, 2026-07-25)*
+### D77 — Kling integration rebuilt against verified docs; polling replaces webhook *(recorded 2026-07-23)*
+
+**Decision.** The 6 live Kling models (`v1-5`/`v1-6`/`v2-1`/`v2-1-master`/`v2-6`/`v3`) were
+built with no working citation and no working host — every Kling generation on `main` is
+broken. Turns out Kling runs two real API generations side by side: a legacy unified
+`/v1/videos/image2video` endpoint (`model_name` field selects version; this is where
+`cfg_scale`/`camera_control`/`mode` genuinely live) and 5 dedicated per-model endpoints
+(`contents[]`/`settings`/`options` shape, no `cfg_scale`/`camera_control`/`mode` at all).
+The old code reached for generation-1 fields but called the wrong host with the wrong
+body shape, so it never worked either way. Rebuilt against exactly the 5
+latest-generation models, verified from official docs the user fetched directly from
+`kling.ai/document-api/`: `kling-3.0-turbo`, `kling-2.6`, `kling-2.5-turbo`, `kling-3.0`,
+`kling-o1`. The legacy-endpoint models (`v1`/`v1-5`/`v1-6`/`v2-master`/`v2-1`/
+`v2-1-master`) are confirmed real but deliberately out of scope for this pass, not
+re-added. Completion moves from webhook (`callback_url` + `provider_job_id` DB lookup) to
+polling `GET /tasks` inside the Trigger.dev task, matching the existing Veo pattern —
+chosen specifically for log visibility into in-flight/failed jobs, which the pure-webhook
+design couldn't provide (webhook route had no logging, and a lost callback left a
+generation stuck with no trace).
+
+**Why.** Unverified third-party API surfaces are exactly where a plausible-looking
+contract silently fails end-to-end; the fix is citing every field against a real, fetched
+doc, not re-deriving from memory or assuming "looks familiar" means "verified." Polling
+was chosen over webhook+reconciliation because it's the simpler mechanism already proven
+by `veo.ts`, and per-iteration logging directly answers "is this job alive and what's it
+doing" without a second scheduled job.
+
+**Rejected.** Re-adding the legacy-endpoint models in this pass (real, but needs the
+linked Capability Map page first to know which fields apply per model — not implementing
+without that source, same mistake otherwise). Webhook + structured logging only (still
+has a delivery-failure blind spot). Webhook + scheduled reconciliation sweep (adds a
+second job/code path for marginal benefit over polling, which already logs and can't
+lose a callback since there is none).
+
+**Originated →** `2026-07-23-kling-api-correction-design.md`, supersedes
+`2026-07-11-kling-video-gen-integration-design.md`.
+
+### D78 — Video Prompt → Video Gen is provider-aware (Target selector + text-camera variants) *(recorded 2026-07-23; refines D24; the Kling `camera_control` path is SUPERSEDED by D79)*
 
 **Decision.** The motion prompt is shaped for its target provider (`text-camera` for Veo/Sora,
 `external-camera` for Kling), selected by a Target selector on the Video Prompt node that locks to a
-connected Video Gen node's provider when present. For Kling, camera is driven by the native
-`camera_control` param via a curated visual grid on the Video Gen node, and the prompt is written
-camera-silent — one camera signal, never two. A default `negative_prompt` is prefilled for Kling.
+connected Video Gen node's provider when present. For Kling, camera was originally driven by a native
+`camera_control` param via a curated visual grid on the Video Gen node, and the prompt written
+camera-silent. A default `negative_prompt` is prefilled for Kling.
 
-**Why.** D24 shipped a Veo-only motion prompt; the registry has since grown six Kling models with a
-different prompt shape and a native camera API. Deterministic Kling camera + a proper
-`negative_prompt` are quality levers the Veo-shaped path can't reach.
+**Why.** D24 shipped a Veo-only motion prompt; the registry has since grown Kling models with a
+different prompt shape. The Target selector + provider-shaped prompt variants are the durable part of
+this decision; the `camera_control` channel is not (see D79).
 
 **Rejected — text-primary (A).** Simpler/single-node but leaves Kling's camera to prose and the
-`negative_prompt` unused; optimizes for the smallest diff over the better Kling result.
+`negative_prompt` unused.
 
 **Refines** D24. **Originated →** `2026-07-23-provider-aware-video-prompt-design.md`.
 
-### D78 — Uniform text-camera; Veo ×3 + Kling 3.0 only *(recorded 2026-07-25; supersedes D77; refines D24)*
+### D79 — Uniform text-camera across all providers *(recorded 2026-07-25; refines D24; reverses D78's Kling `camera_control` signal)*
 
-**Decision.** The video roster is Veo 3.1 Lite/Fast/Quality + Kling 3.0 (Sora and the five legacy
-Kling models dropped). Camera is a uniform text-in-prompt control authored on the Video Prompt node
-(the `CameraSelect` grid) for every provider. Kling's `camera_control` path — gen-node grid, axis
-sliders, `kling-camera.ts`, and the request emission — is removed. The Target selector is retained
-(2-way Veo/Kling) and switches only the prompt variant (shared spine + minimal Veo/Kling deltas).
+**Decision.** Camera is a uniform text-in-prompt control authored on the Video Prompt node (the
+`CameraSelect` grid) for every provider. Kling's `camera_control` path — gen-node grid, axis sliders,
+`kling-camera.ts`, and the request emission — is removed. The Target selector is retained and switches
+only the prompt variant (shared spine + minimal per-provider deltas).
 
-**Why.** D77 assumed Kling drives camera via `camera_control`; the official Kling capability map
-shows `camera_control` is Kling-1.5-only — Kling 3.0 uses a separate, un-integrated Motion Control
-feature. Both vendors' prompt guides recommend camera-in-text. Uniform text-camera is less code and
-a more consistent UX.
+**Roster (integrated `main`).** Veo 3.1 Lite/Fast/Quality + Sora 2 + Kling's five verified models
+(D77). NOTE: the consolidation design as originally written paired uniform text-camera with a *pruned*
+roster (Kling 3.0 only, Sora + legacy Kling dropped); that pruning is **not** adopted — the integrated
+`main` keeps D77's full verified Kling roster and Sora 2. Only the uniform-text-camera design is taken
+from the consolidation work. *(ADR numbering reconciled during the 2026-07-26 three-branch integration;
+these were recorded as clashing D77/D78 entries on parallel branches — final numbering to confirm on review.)*
 
-**Rejected — finish D77 as built.** Would ship a camera control no kept model honors and diverge the
+**Why.** D78 assumed Kling drives camera via `camera_control`; the official Kling capability map shows
+`camera_control` is Kling-1.5-only — Kling 3.0+ use a separate, un-integrated Motion Control feature.
+Both vendors' prompt guides recommend camera-in-text. Uniform text-camera is less code and a more
+consistent UX.
+
+**Rejected — finish D78 as built.** Would ship a camera control no kept model honors and diverge the
 Prompt-node UX by provider for no capability gain.
 
-**Refines** D24. **Reverses** D77's camera-signal model. **Originated →**
+**Refines** D24. **Reverses** D78's camera-signal model. **Originated →**
 `2026-07-25-video-provider-consolidation-design.md` (research:
 `../../architecture/2026-07-25-video-provider-capability-research.md`).
 
