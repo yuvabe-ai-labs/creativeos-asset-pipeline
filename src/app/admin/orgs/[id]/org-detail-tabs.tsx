@@ -19,7 +19,7 @@ import type { GenerationsPage } from "@/lib/db/generations";
 const triggerClass =
   "flex-none px-0 py-0 font-display text-xl font-semibold tracking-tight text-foreground/40 data-active:text-foreground";
 
-type Member = { user_id: string; display_name: string; org_role: string };
+type Member = { user_id: string; display_name: string; org_role: string; email: string };
 
 function StatTile({
   label,
@@ -99,7 +99,10 @@ export function OrgDetailTabs({
                 key={m.user_id}
                 className="flex items-center justify-between border-b py-2 text-sm last:border-b-0"
               >
-                <span className="font-medium">{m.display_name}</span>
+                <div className="flex flex-col">
+                  <span className="font-medium">{m.display_name}</span>
+                  <span className="text-xs text-muted-foreground/70">{m.email}</span>
+                </div>
                 <div className="flex items-center gap-3">
                   <span className="text-muted-foreground">{m.org_role}</span>
                   <ResetPasswordDialog

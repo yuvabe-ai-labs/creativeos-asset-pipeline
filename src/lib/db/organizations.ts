@@ -157,9 +157,12 @@ export async function getOrgCreditBreakdownByModel(
 // org_memberships and profiles both reference auth.users, but neither has a direct FK
 // to the other — PostgREST can't auto-embed across that, so this is two queries + a
 // JS join, not `profiles(display_name)`. Same pattern as resolveCallerContext (dal.ts).
+// Email lives only in auth.users (profiles has no email column), so it's fetched per
+// user via the admin API rather than a third table query — fine at this scale (an org's
+// member count is small; multi-seat is still pilot-stage per D80's one-org-per-user index).
 export async function listOrgMembers(
   orgId: string,
-): Promise<{ user_id: string; display_name: string; org_role: string }[]> {
+): Promise<{ user_id: string; display_name: string; org_role: string; email: string }[]> {
   const supabase = createServerSupabase();
   const { data: memberships, error: memErr } = await supabase
     .from("org_memberships")
@@ -182,10 +185,21 @@ export async function listOrgMembers(
     ]),
   );
 
+  const users = await Promise.all(
+    userIds.map((id) => supabase.auth.admin.getUserById(id)),
+  );
+  const emailByUserId = new Map(
+    users.map(({ data, error }, i) => {
+      if (error) throw error;
+      return [userIds[i], data.user?.email ?? "Unknown"];
+    }),
+  );
+
   return rows.map((r) => ({
     user_id: r.user_id,
     org_role: r.org_role,
     display_name: nameByUserId.get(r.user_id) ?? "Unknown",
+    email: emailByUserId.get(r.user_id) ?? "Unknown",
   }));
 }
 
