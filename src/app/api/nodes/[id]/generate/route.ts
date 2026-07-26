@@ -136,6 +136,7 @@ export async function POST(
         versionId: version.id,
         costUsd: cost?.usd,
         creditsCharged: actualCredits,
+        tokensUsed: usage ? { ...usage } : null,
         outputSnapshot: output,
       });
 

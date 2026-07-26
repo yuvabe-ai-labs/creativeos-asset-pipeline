@@ -13,7 +13,7 @@ import type {
   MonthlyCreditPoint,
   CreditBreakdownRow,
 } from "@/lib/db/organizations";
-import type { GenerationForOrgList } from "@/lib/db/generations";
+import type { GenerationsPage } from "@/lib/db/generations";
 
 const triggerClass =
   "flex-none px-0 py-0 font-display text-xl font-semibold tracking-tight text-foreground/40 data-active:text-foreground";
@@ -44,7 +44,7 @@ export function OrgDetailTabs({
   org,
   members,
   generationCount,
-  generations,
+  generationsPage,
   creditsUsedThisMonth,
   monthlyHistory,
   breakdownByType,
@@ -53,7 +53,7 @@ export function OrgDetailTabs({
   org: OrgRow;
   members: Member[];
   generationCount: number;
-  generations: GenerationForOrgList[];
+  generationsPage: GenerationsPage;
   creditsUsedThisMonth: number;
   monthlyHistory: MonthlyCreditPoint[];
   breakdownByType: CreditBreakdownRow[];
@@ -124,7 +124,7 @@ export function OrgDetailTabs({
           </Card>
         </div>
 
-        <GenerationsTable generations={generations} />
+        <GenerationsTable orgId={org.id} initial={generationsPage} />
       </TabsContent>
     </Tabs>
   );

@@ -340,6 +340,7 @@ export async function POST(
         versionId: version.id,
         costUsd: cost?.usd,
         creditsCharged: actualCredits,
+        tokensUsed: { ...result.tokensUsed },
         outputSnapshot: imageUrl,
       });
 

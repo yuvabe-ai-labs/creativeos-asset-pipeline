@@ -75,6 +75,27 @@ export async function settleGeneration(input: {
   if (error) throw error;
 }
 
+// Bulk reservation lookup for admin display (e.g. estimated-vs-consumed in the generations
+// table) — one query for a whole page of rows instead of one per row.
+export async function getReservationAmounts(
+  generationIds: string[],
+): Promise<Map<string, number>> {
+  if (generationIds.length === 0) return new Map();
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("credit_transactions")
+    .select("generation_id, amount")
+    .in("generation_id", generationIds)
+    .eq("type", "reservation");
+  if (error) throw error;
+  return new Map(
+    ((data ?? []) as { generation_id: string; amount: number }[]).map((r) => [
+      r.generation_id,
+      r.amount,
+    ]),
+  );
+}
+
 // Failure/cancel terminal state (design spec §4): refund the reservation only — net ledger
 // effect is zero.
 export async function refundReservation(input: {

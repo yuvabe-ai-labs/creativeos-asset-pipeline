@@ -9,7 +9,7 @@ import {
   getOrgCreditBreakdownByType,
   getOrgCreditBreakdownByModel,
 } from "@/lib/db/organizations";
-import { countGenerationsForOrg, listGenerationsForOrg } from "@/lib/db/generations";
+import { countGenerationsForOrg, listGenerationsForOrgPage } from "@/lib/db/generations";
 import { OrgDetailTabs } from "./org-detail-tabs";
 import {
   Breadcrumb,
@@ -39,7 +39,7 @@ export default async function OrgDetailPage({
   const [
     members,
     generationCount,
-    generations,
+    generationsPage,
     creditsUsedThisMonth,
     monthlyHistory,
     breakdownByType,
@@ -47,7 +47,7 @@ export default async function OrgDetailPage({
   ] = await Promise.all([
     listOrgMembers(id),
     countGenerationsForOrg(id),
-    listGenerationsForOrg(id),
+    listGenerationsForOrgPage(id, { page: 1, pageSize: 20 }),
     getOrgCreditUsage(id),
     getOrgMonthlyCreditHistory(id),
     getOrgCreditBreakdownByType(id, monthStart, monthEnd),
@@ -74,7 +74,7 @@ export default async function OrgDetailPage({
         org={org}
         members={members}
         generationCount={generationCount}
-        generations={generations}
+        generationsPage={generationsPage}
         creditsUsedThisMonth={creditsUsedThisMonth}
         monthlyHistory={monthlyHistory}
         breakdownByType={breakdownByType}

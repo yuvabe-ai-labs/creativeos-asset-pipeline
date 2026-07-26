@@ -13,6 +13,7 @@ import { HeaderCredits } from "./header-credits";
 // Yuvabe's own org, which is both the platform operator and a tenant on its own platform).
 // Credits must NOT be nested inside showOrgName's block — that previously hid the whole
 // credits display for Yuvabe's own org along with the (correctly) hidden duplicate name.
+// No divider before HeaderCredits — its own bordered pill shape already separates it.
 export function HeaderBrand() {
   const pathname = usePathname();
   const { hydrated, orgName } = useIdentity();
@@ -33,12 +34,7 @@ export function HeaderBrand() {
           <span className="text-sm font-medium text-muted-foreground">{orgName}</span>
         </>
       )}
-      {showIdentity && (
-        <>
-          <span className="h-4 w-px bg-border" aria-hidden="true" />
-          <HeaderCredits />
-        </>
-      )}
+      {showIdentity && <HeaderCredits />}
     </div>
   );
 }

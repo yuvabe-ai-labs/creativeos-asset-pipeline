@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Zap } from "lucide-react";
 import { useIdentity } from "@/hooks/use-identity";
 import { createBrowserSupabase } from "@/lib/supabase/client";
+import { cn } from "@/lib/utils";
 import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 
 type CreditTransactionRow = { amount: number };
@@ -50,12 +52,50 @@ export function HeaderCredits() {
 
   if (!hydrated || creditsUsed === null) return null;
   const used = creditsUsed + liveDelta;
+  const over = monthlyCreditLimit !== null && used > monthlyCreditLimit;
+  const fillPct =
+    monthlyCreditLimit !== null && monthlyCreditLimit > 0
+      ? Math.min(used / monthlyCreditLimit, 1) * 100
+      : null;
 
   return (
-    <span className="text-sm text-muted-foreground">
-      {monthlyCreditLimit === null
-        ? `${used.toLocaleString()} credits used`
-        : `${used.toLocaleString()} of ${monthlyCreditLimit.toLocaleString()} credits used`}
-    </span>
+    <div className="flex w-[200px] items-center gap-2.5 rounded-2xl border border-border bg-card py-2 pl-2.5 pr-3 ">
+      <span
+        className={cn(
+          "flex size-7 shrink-0 items-center justify-center rounded-full",
+          over ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" : "bg-primary/10 text-primary",
+        )}
+      >
+        <Zap className="size-3.5" strokeWidth={1.5} />
+      </span>
+      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+        <div className="flex items-baseline gap-1">
+          <span
+            className={cn(
+              "font-display text-lg leading-none font-semibold tracking-tight",
+              over ? "text-amber-600 dark:text-amber-400" : "text-foreground",
+            )}
+          >
+            {used.toLocaleString()}
+          </span>
+          {monthlyCreditLimit !== null && (
+            <span className="text-xs leading-none text-muted-foreground">
+              / {monthlyCreditLimit.toLocaleString()}
+            </span>
+          )}
+        </div>
+        {fillPct !== null && (
+          <div className="h-1 w-full overflow-hidden rounded-full bg-muted">
+            <div
+              className={cn(
+                "h-full rounded-full transition-[width] duration-500",
+                over ? "bg-amber-500" : "bg-primary",
+              )}
+              style={{ width: `${over ? 100 : fillPct}%` }}
+            />
+          </div>
+        )}
+      </div>
+    </div>
   );
 }

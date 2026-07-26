@@ -1,6 +1,7 @@
 import "server-only";
 import { createServerSupabase } from "@/lib/supabase/server";
 import type { GenerationRow } from "./types";
+import { getReservationAmounts } from "./credit-transactions";
 
 export async function insertGeneration(input: {
   nodeId: string;
@@ -42,6 +43,7 @@ export async function succeedGeneration(input: {
   versionId: string;
   costUsd?: number;
   creditsCharged?: number;
+  tokensUsed?: Record<string, unknown> | null;
   outputSnapshot?: string;
   meta?: Record<string, unknown>;
 }): Promise<void> {
@@ -53,6 +55,11 @@ export async function succeedGeneration(input: {
     credits_charged: input.creditsCharged ?? null,
     updated_at: new Date().toISOString(),
   };
+  // Real settlement-time token usage — the actual figure charged against, not the
+  // pre-generation estimate. Previously this was written only onto node_versions.params_used
+  // (a join away); mirroring it here too means the admin generations list can read it
+  // straight off generations without a join.
+  if (input.tokensUsed !== undefined) update.tokens_used = input.tokensUsed;
   if (input.outputSnapshot !== undefined) update.output_snapshot = input.outputSnapshot;
   // Only touch meta when explicitly given a new value — insertGeneration already set it
   // (e.g. the creator's email) and an unconditional overwrite here would silently wipe
@@ -114,21 +121,62 @@ export async function countGenerationsForOrg(orgId: string): Promise<number> {
   return count ?? 0;
 }
 
-export type GenerationForOrgList = GenerationRow & { client_name: string | null };
+export type GenerationForOrgList = GenerationRow & {
+  // The pre-generation reservation amount, read back from credit_transactions — the source
+  // of truth, never duplicated onto the generations row itself. null when no reservation
+  // was ever made for this generation.
+  estimated_credits: number | null;
+};
 
-export async function listGenerationsForOrg(
+export type GenerationsPage = { rows: GenerationForOrgList[]; total: number };
+
+const GENERATIONS_PAGE_SIZES = [10, 20, 30, 40, 50] as const;
+export type GenerationsPageSize = (typeof GENERATIONS_PAGE_SIZES)[number];
+
+export function isGenerationsPageSize(v: number): v is GenerationsPageSize {
+  return (GENERATIONS_PAGE_SIZES as readonly number[]).includes(v);
+}
+
+// On-demand server-side pagination — the admin generations list previously fetched a flat
+// `.limit(100)` and paginated client-side; this instead fetches exactly one page at a time
+// via `.range()`, with an exact count for the pager. `query` filters on
+// model_used (case-insensitive substring); `sort` matches src/lib/list/filter-sort.ts's
+// SortKey so the same toolbar semantics apply, just executed by Postgres instead of JS.
+export async function listGenerationsForOrgPage(
   orgId: string,
-  limit = 100,
-): Promise<GenerationForOrgList[]> {
+  options: {
+    page: number;
+    pageSize: GenerationsPageSize;
+    query?: string;
+    sort?: "recent" | "name";
+  },
+): Promise<GenerationsPage> {
   const supabase = createServerSupabase();
-  const { data, error } = await supabase
+  const { page, pageSize, query, sort = "recent" } = options;
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+
+  let q = supabase
     .from("generations")
-    .select("*, clients(name)")
-    .eq("org_id", orgId)
-    .order("created_at", { ascending: false })
-    .limit(limit);
+    .select("*", { count: "exact" })
+    .eq("org_id", orgId);
+  if (query?.trim()) q = q.ilike("model_used", `%${query.trim()}%`);
+  q =
+    sort === "name"
+      ? q.order("model_used", { ascending: true })
+      : q.order("created_at", { ascending: false });
+
+  const { data, count, error } = await q.range(from, to);
   if (error) throw error;
-  return ((data ?? []) as (GenerationRow & { clients: { name: string } | null })[]).map(
-    ({ clients, ...g }) => ({ ...g, client_name: clients?.name ?? null }),
-  );
+
+  const rows = (data ?? []) as GenerationRow[];
+  const reservations = await getReservationAmounts(rows.map((r) => r.id));
+
+  return {
+    rows: rows.map((g) => ({
+      ...g,
+      estimated_credits: reservations.get(g.id) ?? null,
+    })),
+    total: count ?? 0,
+  };
 }
