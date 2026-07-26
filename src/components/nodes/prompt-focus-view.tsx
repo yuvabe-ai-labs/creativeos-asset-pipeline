@@ -525,9 +525,6 @@ export function PromptFocusView({
                       controls={controls ?? DEFAULT_SHOT_CONTROLS}
                       onChange={(next) => onPatch({ controls: next })}
                     />
-                    <p className="text-xs text-muted-foreground">
-                      Est. {estimatedCredits} credit{estimatedCredits === 1 ? "" : "s"}
-                    </p>
                     <Button
                       className="w-full"
                       size="default"
@@ -536,6 +533,7 @@ export function PromptFocusView({
                     >
                       <Sparkles className="size-4" />
                       {generating ? "Generating…" : output ? "Re-generate" : "Generate prompt"}
+                      {!generating && ` · ${estimatedCredits}`}
                     </Button>
                   </div>
                   )}

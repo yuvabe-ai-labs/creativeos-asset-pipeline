@@ -866,6 +866,7 @@ export function VideoGenFocusView({
                           : videoUrl
                             ? "Re-generate"
                             : "Generate"}
+                        {!isGenerating && estimatedCredits !== null && ` · ${estimatedCredits}`}
                       </Button>
                     </TooltipTrigger>
                     {(constraints.disableGenerate && constraints.disableGenerateReason) ? (
@@ -880,11 +881,6 @@ export function VideoGenFocusView({
                     ) : null}
                   </Tooltip>
                 </div>
-                {estimatedCredits !== null && (
-                  <p className="text-xs text-muted-foreground">
-                    Est. {estimatedCredits} credit{estimatedCredits === 1 ? "" : "s"}
-                  </p>
-                )}
                 {lastError && !isGenerating && (
                   <p className="text-xs text-destructive">
                     Last attempt failed: {lastError}
