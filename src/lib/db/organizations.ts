@@ -55,6 +55,67 @@ export async function getOrgCreditUsage(orgId: string): Promise<number> {
   return (data as { credits_used: number } | null)?.credits_used ?? 0;
 }
 
+export type MonthlyCreditPoint = { month: string; creditsUsed: number };
+
+// Last N months' totals (default 6), oldest first — for the Generations tab's trend chart.
+export async function getOrgMonthlyCreditHistory(
+  orgId: string,
+  months = 6,
+): Promise<MonthlyCreditPoint[]> {
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase.rpc("org_monthly_credit_history", {
+    p_org_id: orgId,
+    p_months: months,
+  });
+  if (error) throw error;
+  return ((data ?? []) as { month: string; credits_used: number }[]).map((row) => ({
+    month: row.month,
+    creditsUsed: row.credits_used,
+  }));
+}
+
+export type CreditBreakdownRow = { key: string; credits: number };
+
+// Credits used by generation type (image/video/prompt) for one month window.
+export async function getOrgCreditBreakdownByType(
+  orgId: string,
+  monthStart: string,
+  monthEnd: string,
+): Promise<CreditBreakdownRow[]> {
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase.rpc("org_credit_breakdown_by_type", {
+    p_org_id: orgId,
+    p_month_start: monthStart,
+    p_month_end: monthEnd,
+  });
+  if (error) throw error;
+  return ((data ?? []) as { type: string; credits: number }[]).map((row) => ({
+    key: row.type,
+    credits: row.credits,
+  }));
+}
+
+// Credits used by model for one month window. model_used can be null on an old/pre-model
+// row — labeled "Unknown" rather than dropped, so the breakdown's total still reconciles
+// with the month's real total.
+export async function getOrgCreditBreakdownByModel(
+  orgId: string,
+  monthStart: string,
+  monthEnd: string,
+): Promise<CreditBreakdownRow[]> {
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase.rpc("org_credit_breakdown_by_model", {
+    p_org_id: orgId,
+    p_month_start: monthStart,
+    p_month_end: monthEnd,
+  });
+  if (error) throw error;
+  return ((data ?? []) as { model: string | null; credits: number }[]).map((row) => ({
+    key: row.model ?? "Unknown",
+    credits: row.credits,
+  }));
+}
+
 // org_memberships and profiles both reference auth.users, but neither has a direct FK
 // to the other — PostgREST can't auto-embed across that, so this is two queries + a
 // JS join, not `profiles(display_name)`. Same pattern as resolveCallerContext (dal.ts).
