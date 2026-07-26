@@ -2,8 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { requireSuperAdmin } from "@/lib/auth/require-super-admin";
-import { createOrgWithOwner, updateOrgCreditLimit } from "@/lib/db/organizations";
-import { CreateOrgSchema, parseCreditLimit } from "@/lib/orgs/org-schema";
+import {
+  createOrgWithOwner,
+  updateOrgCreditLimit,
+  resetMemberPassword,
+  generateTempPassword,
+} from "@/lib/db/organizations";
+import { CreateOrgSchema, parseCreditLimit, parseResetPassword } from "@/lib/orgs/org-schema";
 
 export type CreateOrgState =
   | { error?: string; result?: { email: string; tempPassword: string; orgId: string } }
@@ -64,5 +69,32 @@ export async function updateOrgCreditLimitAction(
     return {};
   } catch {
     return { error: "Failed to update credit limit." };
+  }
+}
+
+export type ResetPasswordState =
+  | { error?: string; result?: { tempPassword: string } }
+  | undefined;
+
+export async function resetMemberPasswordAction(
+  orgId: string,
+  userId: string,
+  rawPassword: string,
+): Promise<ResetPasswordState> {
+  await requireSuperAdmin();
+
+  let password: string;
+  try {
+    password = parseResetPassword(rawPassword) ?? generateTempPassword();
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Invalid password." };
+  }
+
+  try {
+    await resetMemberPassword(orgId, userId, password);
+    revalidatePath(`/admin/orgs/${orgId}`);
+    return { result: { tempPassword: password } };
+  } catch {
+    return { error: "Failed to reset password." };
   }
 }
