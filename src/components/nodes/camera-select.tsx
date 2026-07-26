@@ -35,6 +35,7 @@ export function CameraSelect({
       caption={cameraCaption}
       mediaSrc={cameraImage}
       columns={3}
+      compact
     />
   );
 }

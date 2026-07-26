@@ -12,8 +12,15 @@ describe("videoPromptGeneratePrompt (Veo)", () => {
     expect(videoPromptGeneratePrompt.system.length).toBeGreaterThan(100);
   });
 
-  it("instructs no scene re-description and keeps hype-word hygiene", () => {
-    expect(videoPromptGeneratePrompt.system.toLowerCase()).toContain("do not re-describe");
+  it("is preservation-first (restates fixed identity, no word cap)", () => {
+    const sys = videoPromptGeneratePrompt.system.toLowerCase();
+    expect(sys).toContain("restate the fixed");
+    expect(sys).toContain("held exactly");
+    expect(videoPromptGeneratePrompt.system).not.toMatch(/40[–-]90 words/);
+  });
+
+  it("is version 4 and keeps hype-word hygiene", () => {
+    expect(videoPromptGeneratePrompt.version).toBe(4);
     expect(videoPromptGeneratePrompt.system).toContain("cinematic masterpiece");
   });
 });

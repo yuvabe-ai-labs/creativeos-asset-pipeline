@@ -1438,6 +1438,29 @@ Prompt-node UX by provider for no capability gain.
 `2026-07-25-video-provider-consolidation-design.md` (research:
 `../../architecture/2026-07-25-video-provider-capability-research.md`).
 
+### D80 — Preservation-first motion prompt + Veo `negativePrompt` *(recorded 2026-07-26; refines D24; builds on D79)*
+
+**Decision.** The shared motion-prompt spine (D79) is made **preservation-first**: it drops the hard
+word cap and restates the fixed subject identity (product shape, label, logo, lettering, colours,
+props, lighting) so branded products hold — uniformly, for every provider, not just Veo. The camera
+catalog uses precise, invariant-naming vocabulary ("constant distance, height, focal length"). Veo
+visual-defect suppression is driven by its native `negativePrompt` param with a product-tuned default
+(no bare `text`/`logo`, so a product's real label survives); bare "No X, no Y" negations stay out of
+the positive prompt. Veo's built-in prompt rewriter (`enhancePrompt`) is left enabled.
+
+**Why.** D24/D79 shipped a terse author. Google's Veo 3.1 guidance — "more detail, more control", a
+dedicated negative-prompt field, and specific camera vocabulary — are quality levers the terse path
+can't reach, and they matter most for branded-product preservation. Folding preservation into the
+shared spine keeps it uniform across providers (D79).
+
+**Rejected.** Negatives-only (positive prompt stays lean → identity never stated); an intent-driven
+preservation *mode* toggle; `enhancePrompt: false` now (rewriter kept on — the first lever if QA shows
+preservation slipping).
+
+**Refines** D24; builds on D79 (folds preservation into the shared spine). **Originated →**
+`2026-07-26-veo-preservation-first-prompt-design.md`. *(Originally drafted as a clashing D78 on the Veo
+branch; renumbered during the 2026-07-26 three-branch integration — final numbering to confirm on review.)*
+
 ### Parked / out-of-scope (with revisit triggers)
 | Item | Status | Revisit when |
 |---|---|---|

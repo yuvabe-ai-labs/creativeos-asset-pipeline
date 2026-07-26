@@ -28,6 +28,7 @@ type ShotTileStripProps = {
   mediaStyle?: (value: string) => CSSProperties | undefined; // e.g. Lens' focal-length zoom
   columns?: number; // set → CSS-grid layout with N columns; unset → single flex row
   placeholderIcon?: LucideIcon; // shown when a tile's mediaSrc is "" (default: the strip's `icon`)
+  compact?: boolean; // shorter (16:10) tile media instead of square — denser grids that would scroll
 };
 
 // Shared "show-don't-tell" strip for a shot control: an image tile per option cropped/framed to
@@ -49,6 +50,7 @@ export function ShotTileStrip({
   mediaStyle,
   columns,
   placeholderIcon,
+  compact,
 }: ShotTileStripProps) {
   const autoActive = value === autoOption.value;
   const PlaceholderIcon = placeholderIcon ?? icon;
@@ -105,7 +107,12 @@ export function ShotTileStrip({
                           "z-10 scale-105 border-primary bg-primary/5 shadow-lg ring-2 ring-primary",
                       )}
                     >
-                      <span className="relative block aspect-square w-full overflow-hidden rounded-[6px]">
+                      <span
+                        className={cn(
+                          "relative block w-full overflow-hidden rounded-[6px]",
+                          compact ? "aspect-[16/10]" : "aspect-square",
+                        )}
+                      >
                         {src ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img

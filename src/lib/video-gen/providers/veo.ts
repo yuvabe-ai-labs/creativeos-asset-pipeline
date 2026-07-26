@@ -32,16 +32,36 @@ async function fetchAsBase64(
   return { imageBytes, mimeType };
 }
 
+// Pure config builder (D78) — scalar Veo GenerateVideosConfig fields, unit-testable.
+// Image fields (image / lastFrame / referenceImages) are added by generateWithVeo after fetch.
+// enhancePrompt is deliberately NOT set — Veo's built-in prompt rewriter stays at its default.
+export function buildVeoConfig(params: Record<string, unknown>): {
+  aspectRatio: string;
+  durationSeconds: number;
+  numberOfVideos: number;
+  negativePrompt?: string;
+} {
+  const VALID_DURATIONS = [4, 6, 8];
+  const parsed = Number(params.duration);
+  const durationSeconds = VALID_DURATIONS.includes(parsed) ? parsed : 6;
+  const aspectRatio = String(params.aspect_ratio ?? "16:9");
+  const negativePrompt = String(params.negative_prompt ?? "").trim();
+  return {
+    aspectRatio,
+    durationSeconds,
+    numberOfVideos: 1,
+    ...(negativePrompt ? { negativePrompt } : {}),
+  };
+}
+
 async function generateWithVeo(
   modelName: string,
   input: VideoGenInput,
   maxRefImages = 3,
 ): Promise<VideoGenResult> {
   const ai = createVeoClient();
-  const VALID_DURATIONS = [4, 6, 8];
-  const parsed = Number(input.params.duration);
-  const durationSeconds = VALID_DURATIONS.includes(parsed) ? parsed : 6;
-  const aspectRatio = String(input.params.aspect_ratio ?? "16:9");
+  const baseConfig = buildVeoConfig(input.params);
+  const durationSeconds = baseConfig.durationSeconds;
 
   // Fetch start + end frames in parallel
   const [startImage, endImage] = await Promise.all([
@@ -62,9 +82,7 @@ async function generateWithVeo(
     refUrls.length > 0 ? await Promise.all(refUrls.map(fetchAsBase64)) : [];
 
   const config = {
-    aspectRatio,
-    durationSeconds,
-    numberOfVideos: 1,
+    ...baseConfig,
     ...(endImage ? { lastFrame: endImage } : {}),
     ...(refImages.length > 0
       ? {

@@ -14,7 +14,7 @@ describe("compileVideoPrompt", () => {
       clientContext: "", upstream: [], instruction: "let steam rise",
       controls: { camera: "push-in", speed: "auto" },
     });
-    expect(user).toContain("a slow push-in toward the subject");
+    expect(user).toContain("push-in toward the subject at a constant focal length");
     expect(user).toContain("let steam rise");
   });
 
