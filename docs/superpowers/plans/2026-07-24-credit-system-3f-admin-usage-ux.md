@@ -333,7 +333,7 @@ export function UsageTrendChart({ data }: { data: MonthlyCreditPoint[] }) {
               border: "1px solid var(--border)",
               fontSize: 12,
             }}
-            formatter={(value: number) => [`${value.toLocaleString()} credits`, "Used"]}
+            formatter={(value) => [`${Number(value).toLocaleString()} credits`, "Used"]}
           />
           <Bar dataKey="credits" radius={[4, 4, 0, 0]}>
             {chartData.map((point) => (
