@@ -79,7 +79,9 @@ export function ImageGenOutputSettingsBody({
             ? refValidation.violations.length === 1
               ? "A reference image doesn't meet this model's requirements. Try resizing it or switching to a different model."
               : `${refValidation.violations.length} reference images don't meet this model's requirements. Try resizing them or switching to a different model.`
-            : null;
+            : estimating
+              ? "Calculating cost…"
+              : null;
 
   return (
     <>
@@ -119,6 +121,7 @@ export function ImageGenOutputSettingsBody({
                   : hasImage
                   ? "Re-generate"
                   : "Generate"}
+                {!generateDisabledReason && estimatedCredits !== null && ` · ${estimatedCredits}`}
               </Button>
             </TooltipTrigger>
             {generateDisabledReason && (
@@ -128,13 +131,6 @@ export function ImageGenOutputSettingsBody({
             )}
           </Tooltip>
         </TooltipProvider>
-      )}
-      {showGenerate && (estimating || estimatedCredits !== null) && (
-        <p className="mt-2 text-xs text-muted-foreground">
-          {estimating
-            ? "Estimating cost…"
-            : `Est. ${estimatedCredits} credit${estimatedCredits === 1 ? "" : "s"}`}
-        </p>
       )}
     </>
   );
