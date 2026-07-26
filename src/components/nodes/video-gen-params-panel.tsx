@@ -35,6 +35,14 @@ const PARAM_ICONS: Record<string, LucideIcon> = {
   negative_prompt:     Settings2,
 };
 
+type ParamGroup = ParamSpec["group"];
+
+/** Whether a model has any visible params in a group — drives showing the Advanced section. */
+export function hasParamsInGroup(modelId: string, group: ParamGroup): boolean {
+  const model = videoGenClientModelMap[resolveVideoModelId(modelId)];
+  return (model?.params ?? []).some((p: ParamSpec) => p.visible && p.group === group);
+}
+
 type Props = {
   modelId: string;
   params: Record<string, unknown>;
@@ -42,6 +50,8 @@ type Props = {
   onParamChange: (name: string, value: unknown) => void;
   lockedParams?: Record<string, unknown>;
   lockedParamReasons?: Record<string, string>;
+  /** Which param group to render. The model picker only appears with "primary". */
+  group?: ParamGroup;
 };
 
 export function VideoGenParamsPanel({
@@ -51,10 +61,11 @@ export function VideoGenParamsPanel({
   onParamChange,
   lockedParams = {},
   lockedParamReasons = {},
+  group = "primary",
 }: Props) {
   const model = videoGenClientModelMap[resolveVideoModelId(modelId)];
   const visibleParams = (model?.params ?? [])
-    .filter((p: ParamSpec) => p.visible)
+    .filter((p: ParamSpec) => p.visible && p.group === group)
     .sort((a: ParamSpec, b: ParamSpec) => a.order - b.order);
 
   function renderParamRow(spec: ParamSpec) {
@@ -97,36 +108,38 @@ export function VideoGenParamsPanel({
     );
   }
 
-  // ── Model + params (one flat section — no separate Advanced group) ──
+  // ── Model picker (primary only) + this group's params ──
   return (
     <TooltipProvider>
       <div className="space-y-4">
         {/* Model — grouped chips in a 3-column grid, one block per provider. */}
-        <div className="space-y-2">
-          <FieldLabel icon={Cpu} label="Model" />
-          <div className="space-y-2 rounded-xl border border-border p-2.5">
-            {videoGenClientModelGroups.map((group) => (
-              <div key={group.label} className="space-y-1">
-                <span className="text-[0.7rem] font-medium text-muted-foreground">
-                  {group.label}
-                </span>
-                <ParamChipGroup
-                  columns={3}
-                  options={group.models.map((m) => ({
-                    value: m.id,
-                    label: m.pickerLabel ?? m.label,
-                  }))}
-                  value={modelId}
-                  onValueChange={onModelChange}
-                />
-              </div>
-            ))}
+        {group === "primary" && (
+          <div className="space-y-2">
+            <FieldLabel icon={Cpu} label="Model" />
+            <div className="space-y-2 rounded-xl border border-border p-2.5">
+              {videoGenClientModelGroups.map((providerGroup) => (
+                <div key={providerGroup.label} className="space-y-1">
+                  <span className="text-[0.7rem] font-medium text-muted-foreground">
+                    {providerGroup.label}
+                  </span>
+                  <ParamChipGroup
+                    columns={3}
+                    options={providerGroup.models.map((m) => ({
+                      value: m.id,
+                      label: m.pickerLabel ?? m.label,
+                    }))}
+                    value={modelId}
+                    onValueChange={onModelChange}
+                  />
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
-        {/* Params — the first two compact controls share the top row (Mode + Duration, or
-            Aspect Ratio + Duration for Veo); any remaining controls (CFG Scale, then the
-            full-width Negative Prompt) stack one below the other underneath. */}
+        {/* Params — the first two compact controls share the top row (Resolution + Duration,
+            or Aspect Ratio + Duration for Veo); any remaining controls stack below, with a
+            textarea (Negative Prompt) always spanning full width. */}
         {(() => {
           const canPair =
             visibleParams.length >= 2 &&

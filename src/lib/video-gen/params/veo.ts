@@ -30,11 +30,14 @@ export const veoParams: ParamSpec[] = [
   },
   {
     // D78: prefilled visual-defect list, editable; drives Veo's GenerateVideosConfig.negativePrompt.
+    // Stays PRIMARY (not advanced) — it is tuned per shot often enough to belong on the
+    // always-visible surface, not behind the Advanced accordion. Orders last so the textarea
+    // renders full-width below the paired Aspect Ratio + Duration row.
     name: "negative_prompt",
     label: "Negative Prompt",
     component: "textarea",
-    group: "advanced",
-    order: 0,
+    group: "primary",
+    order: 2,
     visible: true,
     defaultValue: VEO_NEGATIVE_DEFAULT,
     constraints: { type: "textarea", maxLength: 2500 },

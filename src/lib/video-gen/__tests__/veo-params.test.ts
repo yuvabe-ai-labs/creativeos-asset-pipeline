@@ -2,14 +2,22 @@ import { describe, it, expect } from "vitest";
 import { veoParams, veoLiteParams, VEO_NEGATIVE_DEFAULT } from "../params/veo";
 
 describe("veoParams", () => {
-  it("keeps aspect_ratio and duration as primary", () => {
+  it("keeps aspect_ratio, duration and negative_prompt as primary", () => {
     const primary = veoParams.filter((p) => p.group === "primary");
-    expect(primary.map((p) => p.name)).toEqual(["aspect_ratio", "duration"]);
+    expect(primary.map((p) => p.name)).toEqual([
+      "aspect_ratio",
+      "duration",
+      "negative_prompt",
+    ]);
   });
 
-  it("adds negative_prompt as an advanced textarea (same shape as Kling)", () => {
+  it("has no advanced params, so Veo shows no Advanced accordion", () => {
+    expect(veoParams.filter((p) => p.visible && p.group === "advanced")).toEqual([]);
+  });
+
+  it("adds negative_prompt as a primary textarea (same shape as Kling)", () => {
     const neg = veoParams.find((p) => p.name === "negative_prompt");
-    expect(neg?.group).toBe("advanced");
+    expect(neg?.group).toBe("primary");
     expect(neg?.component).toBe("textarea");
     expect(neg?.visible).toBe(true);
     expect(neg?.constraints).toEqual({ type: "textarea", maxLength: 2500 });

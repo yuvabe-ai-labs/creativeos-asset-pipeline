@@ -1,13 +1,6 @@
 import type { VideoGenClientModelSpec, ConstraintRule } from "./types";
 import { veoParams, veoLiteParams } from "./params/veo";
-import { soraParams } from "./params/sora";
-import {
-  kling30TurboParams,
-  kling26Params,
-  kling25TurboParams,
-  kling30Params,
-  klingO1Params,
-} from "./params/kling";
+import { kling30Params, klingO1Params } from "./params/kling";
 
 // ── Shared image input capability shapes ──────────────────────────────────────
 
@@ -88,21 +81,6 @@ const VEO_REFS_RULES: ConstraintRule[] = [
   },
 ];
 
-const SORA_RULES: ConstraintRule[] = [
-  {
-    id: "sora-start-frame-locks-size",
-    when: { field: "hasStartFrame", op: "eq", value: true },
-    effect: { lockParams: [{ name: "size", value: "1280x720" }] },
-    reason: "Start frame selected → output size locked to match your image",
-  },
-];
-
-const KLING_IMAGE_INPUTS_NO_END = {
-  startFrame: true,
-  endFrame: false,
-  maxReferenceImages: 0,
-} as const;
-
 const KLING_IMAGE_INPUTS_WITH_END = {
   startFrame: true,
   endFrame: true,
@@ -116,7 +94,7 @@ export const videoGenClientModelMap: Record<string, VideoGenClientModelSpec> = {
     id: "veo:veo-3.1-lite",
     provider: "veo",
     label: "Veo 3.1 Lite",
-    providerLabel: "Google",
+    providerLabel: "Veo",
     maxDurationSeconds: 8,
     imageInputs: VEO_LITE_IMAGE_INPUTS,
     params: veoLiteParams,
@@ -126,7 +104,7 @@ export const videoGenClientModelMap: Record<string, VideoGenClientModelSpec> = {
     id: "veo:veo-3.1-fast",
     provider: "veo",
     label: "Veo 3.1 Fast",
-    providerLabel: "Google",
+    providerLabel: "Veo",
     maxDurationSeconds: 8,
     imageInputs: VEO_REFS_IMAGE_INPUTS,
     params: veoParams,
@@ -136,51 +114,11 @@ export const videoGenClientModelMap: Record<string, VideoGenClientModelSpec> = {
     id: "veo:veo-3.1",
     provider: "veo",
     label: "Veo 3.1 Quality",
-    providerLabel: "Google",
+    providerLabel: "Veo",
     maxDurationSeconds: 8,
     imageInputs: VEO_REFS_IMAGE_INPUTS,
     params: veoParams,
     rules: VEO_REFS_RULES,
-  },
-  "openai:sora-2": {
-    id: "openai:sora-2",
-    provider: "openai",
-    label: "Sora 2",
-    providerLabel: "OpenAI",
-    maxDurationSeconds: 12,
-    imageInputs: { startFrame: true, endFrame: false, maxReferenceImages: 0 },
-    params: soraParams,
-    rules: SORA_RULES,
-  },
-  "kling:kling-3-0-turbo": {
-    id: "kling:kling-3-0-turbo",
-    provider: "kling",
-    label: "Kling 3.0 Turbo",
-    providerLabel: "Kling",
-    maxDurationSeconds: 15,
-    imageInputs: KLING_IMAGE_INPUTS_NO_END,
-    params: kling30TurboParams,
-    rules: [],
-  },
-  "kling:kling-2-6": {
-    id: "kling:kling-2-6",
-    provider: "kling",
-    label: "Kling 2.6",
-    providerLabel: "Kling",
-    maxDurationSeconds: 10,
-    imageInputs: KLING_IMAGE_INPUTS_WITH_END,
-    params: kling26Params,
-    rules: [],
-  },
-  "kling:kling-2-5-turbo": {
-    id: "kling:kling-2-5-turbo",
-    provider: "kling",
-    label: "Kling 2.5 Turbo",
-    providerLabel: "Kling",
-    maxDurationSeconds: 10,
-    imageInputs: KLING_IMAGE_INPUTS_WITH_END,
-    params: kling25TurboParams,
-    rules: [],
   },
   "kling:kling-3-0": {
     id: "kling:kling-3-0",

@@ -51,7 +51,7 @@ import {
   type VideoGenVersionSummary,
 } from "./video-gen-version-history";
 import { VideoGenUsagePopover } from "./video-gen-usage-popover";
-import { VideoGenParamsPanel } from "./video-gen-params-panel";
+import { VideoGenParamsPanel, hasParamsInGroup } from "./video-gen-params-panel";
 import { VideoGenConnectedSection } from "./video-gen-connected-section";
 import { RailItem } from "./focus-rail-item";
 import { AddConnection } from "./add-connection";
@@ -345,8 +345,9 @@ export function VideoGenFocusView({
   // The selected rail item: "video" (settings + preview), "history", "details", or a connected
   // node's id (middle column shows that node's role/detail view). Mirrors image-gen-focus-view.
   const [selected, setSelected] = useState<string>("video");
-  // Open/closed state for the flat collapsible groups in the "Video" panel (Frames, Output,
-  // Fine-tune, Advanced). Unset for a group → the first group defaults open, the rest closed.
+  // Only the Advanced group collapses (Audio / Multi-Shot / Negative Prompt); Frames and
+  // Output settings are always expanded. Defaults closed so the panel opens uncluttered.
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [pendingDialog, setPendingDialog] = useState<DialogState>(null);
   const hasExplicitlySkippedEndFrameRef = useRef(false);
 
@@ -961,14 +962,31 @@ export function VideoGenFocusView({
                       id: "output",
                       icon: Settings2,
                       label: "Output settings",
-                      body: <VideoGenParamsPanel {...paramsPanelProps} />,
+                      body: <VideoGenParamsPanel {...paramsPanelProps} group="primary" />,
                     });
-                    // Sections are always expanded (no accordion) — render each header + body.
-                    return groups.map((g) => (
-                      <LeftSection key={g.id} icon={g.icon} label={g.label}>
-                        {g.body}
-                      </LeftSection>
-                    ));
+                    // Frames and Output settings stay expanded; Advanced is the one collapsible
+                    // group, so the secondary controls don't crowd the panel by default.
+                    return (
+                      <>
+                        {groups.map((g) => (
+                          <LeftSection key={g.id} icon={g.icon} label={g.label}>
+                            {g.body}
+                          </LeftSection>
+                        ))}
+                        {hasParamsInGroup(modelId, "advanced") && (
+                          <LeftSection
+                            icon={SlidersHorizontal}
+                            label="Advanced"
+                            open={advancedOpen}
+                            onToggle={() => setAdvancedOpen((o) => !o)}
+                          >
+                            {advancedOpen && (
+                              <VideoGenParamsPanel {...paramsPanelProps} group="advanced" />
+                            )}
+                          </LeftSection>
+                        )}
+                      </>
+                    );
                   })()}
                 </div>
               )}

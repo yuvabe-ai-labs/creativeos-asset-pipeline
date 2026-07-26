@@ -41,29 +41,6 @@ describe("buildKlingContents", () => {
 });
 
 describe("per-model settings builders", () => {
-  it("build3_0TurboSettings reads resolution and duration only", async () => {
-    const { build3_0TurboSettings } = await import("../providers/kling");
-    expect(build3_0TurboSettings({ resolution: "1080p", duration: "10" })).toEqual({
-      resolution: "1080p",
-      duration: 10,
-    });
-  });
-
-  it("build2_6Settings includes audio", async () => {
-    const { build2_6Settings } = await import("../providers/kling");
-    expect(
-      build2_6Settings({ resolution: "1080p", duration: "5", audio: "native" }),
-    ).toEqual({ audio: "native", resolution: "1080p", duration: 5 });
-  });
-
-  it("build2_5TurboSettings reads resolution and duration only", async () => {
-    const { build2_5TurboSettings } = await import("../providers/kling");
-    expect(build2_5TurboSettings({ resolution: "720p", duration: "5" })).toEqual({
-      resolution: "720p",
-      duration: 5,
-    });
-  });
-
   it("build3_0Settings includes multi_shot and audio", async () => {
     const { build3_0Settings } = await import("../providers/kling");
     expect(
@@ -82,9 +59,29 @@ describe("per-model settings builders", () => {
       buildO1Settings({ resolution: "1080p", duration: "10", audio: "original" }),
     ).toEqual({ audio: "original", resolution: "1080p", duration: 10 });
   });
+
+  // The param is snake_case for Kling (Veo's SDK takes camelCase `negativePrompt`), and is
+  // omitted entirely when blank so an emptied box sends no negative at all.
+  it("threads negative_prompt into both surviving models' settings", async () => {
+    const { build3_0Settings, buildO1Settings } = await import("../providers/kling");
+    expect(build3_0Settings({ negative_prompt: "blurry, warped label" })).toMatchObject({
+      negative_prompt: "blurry, warped label",
+    });
+    expect(buildO1Settings({ negative_prompt: "blurry, warped label" })).toMatchObject({
+      negative_prompt: "blurry, warped label",
+    });
+  });
+
+  it("omits negative_prompt when absent, empty, or whitespace", async () => {
+    const { build3_0Settings, buildO1Settings } = await import("../providers/kling");
+    for (const params of [{}, { negative_prompt: "" }, { negative_prompt: "   " }]) {
+      expect(build3_0Settings(params)).not.toHaveProperty("negative_prompt");
+      expect(buildO1Settings(params)).not.toHaveProperty("negative_prompt");
+    }
+  });
 });
 
-describe("kling30Turbo.generate — poll flow", () => {
+describe("kling30.generate — poll flow", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     vi.useFakeTimers();
@@ -128,8 +125,8 @@ describe("kling30Turbo.generate — poll flow", () => {
         }),
       });
 
-    const { kling30Turbo } = await import("../providers/kling");
-    const resultPromise = kling30Turbo.generate({
+    const { kling30 } = await import("../providers/kling");
+    const resultPromise = kling30.generate({
       prompt: "a cat walking",
       startFrameUrl: "https://x.test/start.png",
       referenceUrls: [],
@@ -146,9 +143,7 @@ describe("kling30Turbo.generate — poll flow", () => {
 
     expect(mockFetch).toHaveBeenCalledTimes(3);
     const createCall = mockFetch.mock.calls[0];
-    expect(createCall[0]).toBe(
-      "https://api-singapore.klingai.com/image-to-video/kling-3.0-turbo",
-    );
+    expect(createCall[0]).toBe("https://api-singapore.klingai.com/image-to-video/kling-3.0");
     const pollCall = mockFetch.mock.calls[1];
     expect(pollCall[0]).toBe("https://api-singapore.klingai.com/tasks?task_ids=task123");
   });
@@ -172,8 +167,8 @@ describe("kling30Turbo.generate — poll flow", () => {
         }),
       });
 
-    const { kling30Turbo } = await import("../providers/kling");
-    const resultPromise = kling30Turbo.generate({
+    const { kling30 } = await import("../providers/kling");
+    const resultPromise = kling30.generate({
       prompt: "a cat walking",
       startFrameUrl: "https://x.test/start.png",
       referenceUrls: [],
@@ -186,9 +181,9 @@ describe("kling30Turbo.generate — poll flow", () => {
   });
 
   it("throws immediately when no start frame is provided", async () => {
-    const { kling30Turbo } = await import("../providers/kling");
+    const { kling30 } = await import("../providers/kling");
     await expect(
-      kling30Turbo.generate({ prompt: "a cat walking", referenceUrls: [], params: {} }),
+      kling30.generate({ prompt: "a cat walking", referenceUrls: [], params: {} }),
     ).rejects.toThrow("requires a start frame");
   });
 });
