@@ -1,4 +1,4 @@
-# Credit System (Stage 3) — Plan Index
+﻿# Credit System (Stage 3) — Plan Index
 
 **Spec:** `docs/superpowers/specs/2026-07-24-credit-system-design.md` (approved), with
 `2026-07-24-credit-system-pricing-sources.md` and `2026-07-24-credit-system-full-combinations.md`
@@ -90,12 +90,21 @@ full task-level detail.
   present in the original 3B/3C code — this was blocking real OpenAI-model image generation
   entirely, not just the estimate preview. `npx tsc --noEmit` clean, 616/616 tests passing.
 
-- **3F — Admin UI wiring** (design spec §6)
-  Overview tab gains a "Used this month" tile (`org_credit_usage`). Generations table splits
-  its one "Credits" (really USD) column into real Amount ($, `cost_usd`) and Credits
-  (`credits_charged`) columns. Depends on 3A's renamed/new fields and 3C actually writing
-  real `credits_charged` values (before 3C, this column is always `null`). **Status: not
-  started.**
+- **3F — Admin agency usage UX redesign** (scope substantially expanded past the original
+  design spec §6 through live discussion — real research + several rounds of back-and-forth,
+  see `docs/superpowers/specs/2026-07-26-admin-usage-dashboard-research.md`)
+  The org-detail page (`/admin/orgs/[id]`) goes from 4 thin tabs to 2 proportioned ones:
+  **Overview** (agency identity + credit-limit editor + members — consolidated, since none
+  alone justified a tab) and **Generations** (a real usage picture — 6-month trend chart via
+  a new `recharts` dependency, breakdown by generation type and by model for the current
+  month, then the existing generation log). New parameterized Postgres functions
+  (`org_monthly_credit_history`, `org_credit_breakdown_by_type`,
+  `org_credit_breakdown_by_model`) extend `org_credit_usage`'s (3A) "plain sum is correct"
+  property to a rolling window and to type/model breakdowns. Scoped to the agency level only
+  — no per-client drill-down (a real mid-conversation misunderstanding, corrected) and no
+  month-selector yet (deferred, not requested).
+  → `2026-07-24-credit-system-3f-admin-usage-ux.md`. **Status: plan written, not yet
+  executed.**
 
 - **3G — Canvas credit visibility** (new scope, requested live after 3E shipped — not in the
   original design spec, which only put usage visibility in the admin org-detail page)
