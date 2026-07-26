@@ -290,10 +290,11 @@ git commit -m "feat(video-gen): extract buildVeoConfig and thread negativePrompt
 - Modify: `src/lib/nodes/video-controls.ts` (the `VIDEO_CONTROLS` camera options)
 - Test: `src/lib/nodes/__tests__/video-controls.test.ts` (update breaking assertions)
 - Test: `src/lib/nodes/__tests__/video-prompt.test.ts` (update breaking assertion — compile pulls this prose)
+- Test: `src/lib/nodes/camera-preview.test.ts` (update breaking assertions — `camera-preview.ts` derives tooltips/captions from `VIDEO_CONTROLS` prose, the single source of truth)
 
 **Interfaces:**
 - Consumes: nothing new. Same `VideoControlOption.prose` field.
-- Produces: new camera `prose` strings. `renderVideoControls` / `compileVideoPrompt` signatures unchanged.
+- Produces: new camera `prose` strings. `renderVideoControls` / `compileVideoPrompt` signatures unchanged. **Blast radius:** `VIDEO_CONTROLS` prose feeds both the compiled prompt (`renderVideoControls`) and the visual selector's tooltips/captions (`camera-preview.ts` → `cameraTooltip`/`cameraCaption`), so both consumers' exact-match tests must track the new prose.
 
 - [ ] **Step 1: Update the tests to expect the new prose (they will fail against old code)**
 
@@ -330,10 +331,29 @@ In `src/lib/nodes/__tests__/video-prompt.test.ts`, update the two push-in assert
 
 (The `describe("compileVideoPrompt provider awareness")` block asserts only `"Camera:"`/`"Speed:"` presence, not specific prose — leave it unchanged.)
 
+In `src/lib/nodes/camera-preview.test.ts`, update the two exact-match prose assertions (`camera-preview.ts` derives these from `VIDEO_CONTROLS`):
+
+```ts
+  it("capitalizes the prose for a move", () => {
+    expect(cameraCaption("push-in")).toBe("A slow, steady push-in toward the subject at a constant focal length");
+  });
+```
+
+```ts
+  it("uses the prose for each tile", () => {
+    expect(cameraTooltip("orbit")).toBe("a slow, small-angle orbit around the subject, holding constant distance, height, and focal length");
+    for (const t of CAMERA_TILES) {
+      expect(cameraTooltip(t.value).length).toBeGreaterThan(0);
+    }
+  });
+```
+
+(Leave `cameraImage`, `cameraLabel`, `CAMERA_TILES` order, and the auto-hint assertions unchanged.)
+
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `npx vitest run src/lib/nodes/__tests__/video-controls.test.ts src/lib/nodes/__tests__/video-prompt.test.ts`
-Expected: FAIL — old prose ("a slow push-in toward the subject", "a gentle orbit around the subject") no longer present… (the new substrings are what we're about to add).
+Run: `npx vitest run src/lib/nodes/__tests__/video-controls.test.ts src/lib/nodes/__tests__/video-prompt.test.ts src/lib/nodes/camera-preview.test.ts`
+Expected: FAIL — old prose ("a slow push-in toward the subject", "a gentle orbit around the subject") no longer present… (the new strings are what we're about to add).
 
 - [ ] **Step 3: Rewrite the camera option prose**
 
@@ -358,13 +378,13 @@ Leave the `speed` group and everything else in the file unchanged.
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `npx vitest run src/lib/nodes/__tests__/video-controls.test.ts src/lib/nodes/__tests__/video-prompt.test.ts`
+Run: `npx vitest run src/lib/nodes/__tests__/video-controls.test.ts src/lib/nodes/__tests__/video-prompt.test.ts src/lib/nodes/camera-preview.test.ts`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/lib/nodes/video-controls.ts src/lib/nodes/__tests__/video-controls.test.ts src/lib/nodes/__tests__/video-prompt.test.ts
+git add src/lib/nodes/video-controls.ts src/lib/nodes/__tests__/video-controls.test.ts src/lib/nodes/__tests__/video-prompt.test.ts src/lib/nodes/camera-preview.test.ts
 git commit -m "feat(video-gen): precise, invariant-naming camera vocabulary for Veo (D78)"
 ```
 
