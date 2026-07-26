@@ -7,6 +7,7 @@ import { CreditLimitEditor } from "./credit-limit-editor";
 import { GenerationsTable } from "@/components/admin/generations-table";
 import { UsageTrendChart } from "@/components/admin/usage-trend-chart";
 import { CreditBreakdownList } from "@/components/admin/credit-breakdown-list";
+import { ResetPasswordDialog } from "./reset-password-dialog";
 import { formatRelativeTime } from "@/lib/format/relative-time";
 import type {
   OrgRow,
@@ -99,7 +100,14 @@ export function OrgDetailTabs({
                 className="flex items-center justify-between border-b py-2 text-sm last:border-b-0"
               >
                 <span className="font-medium">{m.display_name}</span>
-                <span className="text-muted-foreground">{m.org_role}</span>
+                <div className="flex items-center gap-3">
+                  <span className="text-muted-foreground">{m.org_role}</span>
+                  <ResetPasswordDialog
+                    orgId={org.id}
+                    userId={m.user_id}
+                    displayName={m.display_name}
+                  />
+                </div>
               </li>
             ))}
           </ul>
