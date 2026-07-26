@@ -10,7 +10,7 @@ import { CreditBreakdownList } from "@/components/admin/credit-breakdown-list";
 import { formatRelativeTime } from "@/lib/format/relative-time";
 import type {
   OrgRow,
-  MonthlyCreditPoint,
+  CreditHistoryPoint,
   CreditBreakdownRow,
 } from "@/lib/db/organizations";
 import type { GenerationsPage } from "@/lib/db/generations";
@@ -46,7 +46,9 @@ export function OrgDetailTabs({
   generationCount,
   generationsPage,
   creditsUsedThisMonth,
+  dailyHistory,
   monthlyHistory,
+  yearlyHistory,
   breakdownByType,
   breakdownByModel,
 }: {
@@ -55,7 +57,9 @@ export function OrgDetailTabs({
   generationCount: number;
   generationsPage: GenerationsPage;
   creditsUsedThisMonth: number;
-  monthlyHistory: MonthlyCreditPoint[];
+  dailyHistory: CreditHistoryPoint[];
+  monthlyHistory: CreditHistoryPoint[];
+  yearlyHistory: CreditHistoryPoint[];
   breakdownByType: CreditBreakdownRow[];
   breakdownByModel: CreditBreakdownRow[];
 }) {
@@ -112,7 +116,7 @@ export function OrgDetailTabs({
               {creditsUsedThisMonth.toLocaleString()} credits
             </span>
           </div>
-          <UsageTrendChart data={monthlyHistory} />
+          <UsageTrendChart daily={dailyHistory} monthly={monthlyHistory} yearly={yearlyHistory} />
         </Card>
 
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">

@@ -55,13 +55,34 @@ export async function getOrgCreditUsage(orgId: string): Promise<number> {
   return (data as { credits_used: number } | null)?.credits_used ?? 0;
 }
 
-export type MonthlyCreditPoint = { month: string; creditsUsed: number };
+// One point on the Generations tab's trend chart, at whatever granularity fetched it —
+// `period` is an ISO timestamp at the start of that day/month/year (UTC). Shared shape
+// across all three granularities so the chart component doesn't need to know which one
+// produced the data it's rendering.
+export type CreditHistoryPoint = { period: string; creditsUsed: number };
 
-// Last N months' totals (default 6), oldest first — for the Generations tab's trend chart.
+// Last N days' totals (default 30), oldest first.
+export async function getOrgDailyCreditHistory(
+  orgId: string,
+  days = 30,
+): Promise<CreditHistoryPoint[]> {
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase.rpc("org_daily_credit_history", {
+    p_org_id: orgId,
+    p_days: days,
+  });
+  if (error) throw error;
+  return ((data ?? []) as { day: string; credits_used: number }[]).map((row) => ({
+    period: row.day,
+    creditsUsed: row.credits_used,
+  }));
+}
+
+// Last N months' totals (default 6), oldest first.
 export async function getOrgMonthlyCreditHistory(
   orgId: string,
   months = 6,
-): Promise<MonthlyCreditPoint[]> {
+): Promise<CreditHistoryPoint[]> {
   const supabase = createServerSupabase();
   const { data, error } = await supabase.rpc("org_monthly_credit_history", {
     p_org_id: orgId,
@@ -69,7 +90,24 @@ export async function getOrgMonthlyCreditHistory(
   });
   if (error) throw error;
   return ((data ?? []) as { month: string; credits_used: number }[]).map((row) => ({
-    month: row.month,
+    period: row.month,
+    creditsUsed: row.credits_used,
+  }));
+}
+
+// Last N years' totals (default 5), oldest first.
+export async function getOrgYearlyCreditHistory(
+  orgId: string,
+  years = 5,
+): Promise<CreditHistoryPoint[]> {
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase.rpc("org_yearly_credit_history", {
+    p_org_id: orgId,
+    p_years: years,
+  });
+  if (error) throw error;
+  return ((data ?? []) as { year: string; credits_used: number }[]).map((row) => ({
+    period: row.year,
     creditsUsed: row.credits_used,
   }));
 }

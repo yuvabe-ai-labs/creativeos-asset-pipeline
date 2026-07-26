@@ -5,7 +5,9 @@ import {
   getOrgById,
   listOrgMembers,
   getOrgCreditUsage,
+  getOrgDailyCreditHistory,
   getOrgMonthlyCreditHistory,
+  getOrgYearlyCreditHistory,
   getOrgCreditBreakdownByType,
   getOrgCreditBreakdownByModel,
 } from "@/lib/db/organizations";
@@ -41,7 +43,9 @@ export default async function OrgDetailPage({
     generationCount,
     generationsPage,
     creditsUsedThisMonth,
+    dailyHistory,
     monthlyHistory,
+    yearlyHistory,
     breakdownByType,
     breakdownByModel,
   ] = await Promise.all([
@@ -49,7 +53,9 @@ export default async function OrgDetailPage({
     countGenerationsForOrg(id),
     listGenerationsForOrgPage(id, { page: 1, pageSize: 20 }),
     getOrgCreditUsage(id),
+    getOrgDailyCreditHistory(id),
     getOrgMonthlyCreditHistory(id),
+    getOrgYearlyCreditHistory(id),
     getOrgCreditBreakdownByType(id, monthStart, monthEnd),
     getOrgCreditBreakdownByModel(id, monthStart, monthEnd),
   ]);
@@ -76,7 +82,9 @@ export default async function OrgDetailPage({
         generationCount={generationCount}
         generationsPage={generationsPage}
         creditsUsedThisMonth={creditsUsedThisMonth}
+        dailyHistory={dailyHistory}
         monthlyHistory={monthlyHistory}
+        yearlyHistory={yearlyHistory}
         breakdownByType={breakdownByType}
         breakdownByModel={breakdownByModel}
       />
