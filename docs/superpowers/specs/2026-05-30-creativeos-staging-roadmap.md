@@ -1375,6 +1375,26 @@ different prompt shape and a native camera API. Deterministic Kling camera + a p
 
 **Refines** D24. **Originated →** `2026-07-23-provider-aware-video-prompt-design.md`.
 
+### D78 — Veo motion prompt is preservation-first *(recorded 2026-07-26; refines D24 + D77)*
+
+**Decision.** The Veo motion-prompt path restates the fixed subject identity (product shape, label,
+logo, lettering, colours, props, lighting) with no word cap; the camera catalog uses precise,
+invariant-naming vocabulary ("constant distance, height, focal length"); visual-defect suppression is
+driven by Veo's native `negativePrompt` param with a product-tuned default (no bare `text`/`logo`, so a
+product's real label survives); bare "No X, no Y" negations stay out of the positive prompt. Veo's
+built-in prompt rewriter (`enhancePrompt`) is left enabled.
+
+**Why.** D24 shipped a terse, Veo-only author. Google's Veo 3.1 guidance — "more detail, more
+control", a dedicated negative-prompt field, and specific camera vocabulary — are quality levers the
+terse path can't reach, and they matter most for branded-product preservation.
+
+**Rejected.** Negatives-only (positive prompt stays lean → identity never stated); an intent-driven
+preservation *mode* toggle (machinery for a distinction the author makes implicitly); `enhancePrompt:
+false` now (user kept Veo's rewriter on — recorded as the first lever if QA shows preservation slipping).
+
+**Refines** D24 + D77. **Originated →** `2026-07-26-veo-preservation-first-prompt-design.md`.
+*(Number provisional — a parallel `video-provider-consolidation` branch also drafts a D78; reconcile at merge.)*
+
 ### Parked / out-of-scope (with revisit triggers)
 | Item | Status | Revisit when |
 |---|---|---|
