@@ -13,8 +13,16 @@ describe("videoPromptGeneratePrompt", () => {
     expect(videoPromptGeneratePrompt.system.length).toBeGreaterThan(100);
   });
 
-  it("instructs no scene re-description (image-to-video grounding)", () => {
-    expect(videoPromptGeneratePrompt.system.toLowerCase()).toContain("do not re-describe");
+  it("is preservation-first: restates the fixed identity, with no word cap", () => {
+    const sys = videoPromptGeneratePrompt.system.toLowerCase();
+    expect(sys).toContain("restate the fixed");
+    expect(sys).toContain("held exactly");
+    expect(videoPromptGeneratePrompt.system).not.toMatch(/40[–-]90 words/);
+  });
+
+  it("is version 3 and keeps hype-word hygiene", () => {
+    expect(videoPromptGeneratePrompt.version).toBe(3);
+    expect(videoPromptGeneratePrompt.system).toContain("cinematic masterpiece");
   });
 });
 
