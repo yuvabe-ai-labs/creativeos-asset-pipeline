@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { useDeleteNode } from "@/hooks/use-delete-node";
 import { NodeContextMenu } from "./node-context-menu";
-import { NodeHandle } from "./node-handle";
+import { NodeCardHeader } from "./node-card-header";
 
 // Text (Note) node — free-text context that feeds downstream Prompt nodes. No AI,
 // no version log: its content IS its output, read straight from node.data (D19).
@@ -27,11 +27,7 @@ export function TextNode({ id, data, selected }: NodeProps) {
         selected && "ring-2 ring-primary ring-offset-1 ring-offset-background",
       )}
     >
-      <div className="flex items-center gap-1.5 border-b border-border px-3 py-2">
-        <StickyNote className="size-3.5 text-primary" />
-        <span className="text-eyebrow !text-[0.65rem]">Note</span>
-        <NodeHandle nodeId={id} nodeType="text" />
-      </div>
+      <NodeCardHeader icon={StickyNote} nodeId={id} nodeType="text" title="Note" />
       <div className="p-2">
         <textarea
           value={d.text ?? ""}

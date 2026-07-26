@@ -13,8 +13,7 @@ import { PromptFocusView } from "./prompt-focus-view";
 import { DEFAULT_IMAGE_PROMPT_SLICES, type KBSliceKey } from "@/lib/kb/parse-context";
 import type { ShotControls } from "@/lib/nodes/shot-controls";
 import { NodeContextMenu } from "./node-context-menu";
-import { NodeTitle } from "./node-title";
-import { NodeHandle } from "./node-handle";
+import { NodeCardHeader } from "./node-card-header";
 import { ApprovalBadge } from "./approval-badge";
 import type { ApprovalStatus } from "@/lib/approval";
 import { useNodeCost } from "@/hooks/use-node-cost";
@@ -122,17 +121,20 @@ export function PromptNode({ id, data, selected, positionAbsoluteX, positionAbso
         kbJustReady && "ring-2 ring-purple-400 ring-offset-1 transition-shadow duration-500",
       )}
     >
-      <div className="flex items-center justify-between border-b border-border px-3 py-2">
-        <div className="flex items-center gap-1.5">
-          <Sparkles className="size-3.5 text-primary" />
-          <span className="text-eyebrow !text-[0.65rem]">Prompt</span>
-          <NodeHandle nodeId={id} nodeType="prompt" />
-        </div>
-        <span
-          className={cn("size-1.5 rounded-full", output ? "bg-primary" : "bg-muted-foreground/40")}
-          title={output ? "Generated" : "Not generated"}
-        />
-      </div>
+      <NodeCardHeader
+        icon={Sparkles}
+        nodeId={id}
+        nodeType="prompt"
+        title={title}
+        placeholder="Image prompt"
+        onCommitTitle={(t) => updateNodeData(id, { title: t })}
+        status={
+          <span
+            className={cn("size-1.5 rounded-full", output ? "bg-primary" : "bg-muted-foreground/40")}
+            title={output ? "Generated" : "Not generated"}
+          />
+        }
+      />
 
       <div className="px-3 py-3">
         {output && approvalStatus && (
@@ -140,14 +142,9 @@ export function PromptNode({ id, data, selected, positionAbsoluteX, positionAbso
             <ApprovalBadge status={approvalStatus} />
           </div>
         )}
-        <NodeTitle
-          value={title}
-          placeholder="Image prompt"
-          onCommit={(t) => updateNodeData(id, { title: t })}
-        />
         <button
           onClick={() => setFocusOpen(true)}
-          className="nodrag -mx-1.5 mt-3 inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10"
+          className="nodrag -mx-1.5 inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10"
         >
           Open ↗
         </button>

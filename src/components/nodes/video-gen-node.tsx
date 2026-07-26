@@ -9,7 +9,7 @@ import { useDeleteNode } from "@/hooks/use-delete-node";
 import { useGalleryDrawer } from "@/components/canvas/gallery-drawer-context";
 import { useGalleryNodeDrop } from "@/hooks/use-gallery-node-drop";
 import { NodeContextMenu } from "./node-context-menu";
-import { NodeHandle } from "./node-handle";
+import { NodeCardHeader } from "./node-card-header";
 import type { VideoGenNodeData } from "@/lib/canvas-nodes";
 import { VideoGenFocusView } from "./video-gen-focus-view";
 import { useVideoGenStatus } from "@/hooks/use-video-gen-status";
@@ -73,24 +73,27 @@ export function VideoGenNode({ id, data, selected, positionAbsoluteX, positionAb
         )}
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-border px-3 py-2">
-          <div className="flex items-center gap-1.5">
-            <Clapperboard className="size-3.5 shrink-0 stroke-[1.5] text-primary" />
-            <span className="text-eyebrow !text-[0.65rem] whitespace-nowrap">Video Gen</span>
-            <NodeHandle nodeId={id} nodeType="video-gen" />
-          </div>
-          {isGenerating ? (
-            <ProcessingPill processing />
-          ) : (
-            <span
-              className={cn(
-                "size-1.5 rounded-full",
-                videoUrl ? "bg-primary" : "bg-muted-foreground/40",
-              )}
-              title={videoUrl ? "Video generated" : "Not generated"}
-            />
-          )}
-        </div>
+        <NodeCardHeader
+          icon={Clapperboard}
+          nodeId={id}
+          nodeType="video-gen"
+          title={title}
+          placeholder="Video Gen"
+          onCommitTitle={(t) => updateNodeData(id, { title: t })}
+          status={
+            isGenerating ? (
+              <ProcessingPill processing />
+            ) : (
+              <span
+                className={cn(
+                  "size-1.5 rounded-full",
+                  videoUrl ? "bg-primary" : "bg-muted-foreground/40",
+                )}
+                title={videoUrl ? "Video generated" : "Not generated"}
+              />
+            )
+          }
+        />
 
         {/* Body */}
         <div className="px-3 py-3">

@@ -342,16 +342,11 @@ export function VideoGenFocusView({
   const [versions, setVersions] = useState<VideoGenVersionSummary[]>([]);
   const [activeVersionId, setActiveVersionId] = useState<string | null>(null);
   const [restoring, setRestoring] = useState(false);
-  const [useMock, setUseMock] = useState(() => {
-    if (typeof window === "undefined") return true;
-    return localStorage.getItem("video-gen-mock") !== "false";
-  });
   // The selected rail item: "video" (settings + preview), "history", "details", or a connected
   // node's id (middle column shows that node's role/detail view). Mirrors image-gen-focus-view.
   const [selected, setSelected] = useState<string>("video");
   // Open/closed state for the flat collapsible groups in the "Video" panel (Frames, Output,
   // Fine-tune, Advanced). Unset for a group → the first group defaults open, the rest closed.
-  const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
   const [pendingDialog, setPendingDialog] = useState<DialogState>(null);
   const hasExplicitlySkippedEndFrameRef = useRef(false);
 
@@ -457,14 +452,6 @@ export function VideoGenFocusView({
   }, [isGenerating, open, fetchVersions]);
 
   // ── Handlers ───────────────────────────────────────────────────────────────
-
-  function toggleMock() {
-    setUseMock((prev) => {
-      const next = !prev;
-      localStorage.setItem("video-gen-mock", next ? "true" : "false");
-      return next;
-    });
-  }
 
   function handleModelChange(nextModelId: string) {
     setModelId(nextModelId);
@@ -645,7 +632,6 @@ export function VideoGenFocusView({
         modelId,
         params,
         imageRoles: effectiveImageRoles,
-        mock: useMock,
       });
       // 202 Accepted — hook's Realtime subscription clears isGenerating on completion
     } catch (e) {
@@ -780,29 +766,6 @@ export function VideoGenFocusView({
               </div>
               <div className="flex shrink-0 flex-col items-end gap-2">
                 <div className="flex items-center gap-2">
-                  {/* Mock mode switch */}
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={useMock}
-                    onClick={toggleMock}
-                    className="flex items-center gap-2 text-xs text-muted-foreground transition-colors hover:text-foreground"
-                  >
-                    <span>Mock</span>
-                    <div
-                      className={cn(
-                        "relative inline-flex h-4 w-7 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200",
-                        useMock ? "bg-amber-400" : "bg-muted-foreground/25",
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          "block h-3 w-3 rounded-full bg-white shadow-sm transition-transform duration-200",
-                          useMock ? "translate-x-3" : "translate-x-0",
-                        )}
-                      />
-                    </div>
-                  </button>
                   {versions.length > 0 && (
                     <VideoGenUsagePopover
                       versions={versions}
@@ -947,7 +910,7 @@ export function VideoGenFocusView({
             <div className="min-h-0 w-[54%] shrink-0 overflow-y-auto border-r border-border">
               {/* Video — flat, independently-collapsible peer groups (Frames / Output / Fine-tune / Advanced) */}
               {selected === "video" && (
-                <div className="flex flex-col gap-6 px-6 py-5">
+                <div className="flex flex-col gap-10 px-6 py-5">
                   {(() => {
                     const paramsPanelProps = {
                       modelId,
@@ -1000,20 +963,12 @@ export function VideoGenFocusView({
                       label: "Output settings",
                       body: <VideoGenParamsPanel {...paramsPanelProps} />,
                     });
-                    return groups.map((g, i) => {
-                      const open = openSections[g.id] ?? i === 0;
-                      return (
-                        <LeftSection
-                          key={g.id}
-                          icon={g.icon}
-                          label={g.label}
-                          open={open}
-                          onToggle={() => setOpenSections((s) => ({ ...s, [g.id]: !open }))}
-                        >
-                          {open && g.body}
-                        </LeftSection>
-                      );
-                    });
+                    // Sections are always expanded (no accordion) — render each header + body.
+                    return groups.map((g) => (
+                      <LeftSection key={g.id} icon={g.icon} label={g.label}>
+                        {g.body}
+                      </LeftSection>
+                    ));
                   })()}
                 </div>
               )}

@@ -14,7 +14,7 @@ export const veoParams: ParamSpec[] = [
   },
   {
     name: "duration",
-    label: "Duration",
+    label: "Duration (s)",
     component: "select",
     group: "primary",
     order: 1,

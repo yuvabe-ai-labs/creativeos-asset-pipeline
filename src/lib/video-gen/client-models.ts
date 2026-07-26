@@ -94,7 +94,8 @@ export const videoGenClientModelMap: Record<string, VideoGenClientModelSpec> = {
     id: "veo:veo-3.1-lite",
     provider: "veo",
     label: "Veo 3.1 Lite",
-    providerLabel: "Google",
+    pickerLabel: "Lite",
+    providerLabel: "Veo",
     maxDurationSeconds: 8,
     imageInputs: VEO_LITE_IMAGE_INPUTS,
     params: veoLiteParams,
@@ -104,7 +105,8 @@ export const videoGenClientModelMap: Record<string, VideoGenClientModelSpec> = {
     id: "veo:veo-3.1-fast",
     provider: "veo",
     label: "Veo 3.1 Fast",
-    providerLabel: "Google",
+    pickerLabel: "Fast",
+    providerLabel: "Veo",
     maxDurationSeconds: 8,
     imageInputs: VEO_REFS_IMAGE_INPUTS,
     params: veoParams,
@@ -114,7 +116,8 @@ export const videoGenClientModelMap: Record<string, VideoGenClientModelSpec> = {
     id: "veo:veo-3.1",
     provider: "veo",
     label: "Veo 3.1 Quality",
-    providerLabel: "Google",
+    pickerLabel: "Quality",
+    providerLabel: "Veo",
     maxDurationSeconds: 8,
     imageInputs: VEO_REFS_IMAGE_INPUTS,
     params: veoParams,
@@ -146,7 +149,7 @@ export const videoGenClientModelGroups: Array<{
   }));
 })();
 
-export const DEFAULT_VIDEO_CLIENT_MODEL_ID = "veo:veo-3.1-lite";
+export const DEFAULT_VIDEO_CLIENT_MODEL_ID = "kling:kling-v3";
 
 export function defaultsForVideoModel(modelId: string): Record<string, unknown> {
   const spec = videoGenClientModelMap[modelId];

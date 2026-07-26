@@ -2,20 +2,20 @@ import { describe, it, expect } from "vitest";
 import { klingV3Params } from "../params/kling";
 
 describe("klingV3Params (Kling 3.0)", () => {
-  it("is one flat primary group ordered mode, cfg_scale, duration, negative_prompt", () => {
+  it("is one flat primary group ordered mode, duration, cfg_scale, negative_prompt", () => {
     expect(klingV3Params.map((p) => p.name)).toEqual([
       "mode",
-      "cfg_scale",
       "duration",
+      "cfg_scale",
       "negative_prompt",
     ]);
     expect(klingV3Params.every((p) => p.group === "primary")).toBe(true);
   });
 
-  it("duration is a 3–15s slider", () => {
+  it("duration is a 4/6/8s select", () => {
     const duration = klingV3Params.find((p) => p.name === "duration")!;
-    expect(duration.component).toBe("slider");
-    expect(duration.constraints).toEqual({ type: "slider", min: 3, max: 15, step: 1 });
+    expect(duration.component).toBe("select");
+    expect(duration.constraints).toEqual({ type: "select", options: ["4", "6", "8"] });
   });
 
   it("has no camera or axis params at all", () => {
