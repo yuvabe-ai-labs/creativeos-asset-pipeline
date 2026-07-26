@@ -189,6 +189,32 @@ export async function listOrgMembers(
   }));
 }
 
+// Verifies the member actually belongs to this org before touching auth state — defense
+// in depth against a tampered orgId/userId pair from the client, even though super_admin
+// already has broad admin access. No must_change_password (D84): the member logs in with
+// newPassword directly, same as a freshly onboarded owner.
+export async function resetMemberPassword(
+  orgId: string,
+  userId: string,
+  newPassword: string,
+): Promise<void> {
+  const supabase = createServerSupabase();
+
+  const { data: membership, error: memErr } = await supabase
+    .from("org_memberships")
+    .select("user_id")
+    .eq("org_id", orgId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (memErr) throw memErr;
+  if (!membership) throw new Error("Member not found in this agency.");
+
+  const { error } = await supabase.auth.admin.updateUserById(userId, {
+    password: newPassword,
+  });
+  if (error) throw error;
+}
+
 export async function updateOrgCreditLimit(
   orgId: string,
   limit: number | null,
@@ -260,7 +286,7 @@ export async function createOrgWithOwner(input: {
   return { orgId, userId, tempPassword };
 }
 
-function generateTempPassword(): string {
+export function generateTempPassword(): string {
   // 12 chars, guaranteed a letter + a number — a reasonable default even with no
   // forced-change flow to enforce strength at first login (D84).
   const chars = "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
