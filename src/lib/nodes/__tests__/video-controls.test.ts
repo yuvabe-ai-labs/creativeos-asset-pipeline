@@ -17,13 +17,14 @@ describe("video-controls", () => {
   it("renders the camera move as a standalone clause", () => {
     const out = renderVideoControls({ camera: "push-in", speed: "auto" });
     expect(out).toContain("Camera:");
-    expect(out).toContain("a slow push-in toward the subject");
+    expect(out).toContain("push-in toward the subject at a constant focal length");
     expect(out).not.toContain("Speed:"); // speed is auto → omitted
   });
 
-  it("renders multiple non-auto controls", () => {
+  it("renders multiple non-auto controls with named invariants", () => {
     const out = renderVideoControls({ camera: "orbit", speed: "dynamic" });
-    expect(out).toContain("a gentle orbit around the subject");
+    expect(out).toContain("small-angle orbit around the subject");
+    expect(out).toContain("constant distance, height, and focal length");
     expect(out).toContain("Speed:");
   });
 
