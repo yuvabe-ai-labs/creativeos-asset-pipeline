@@ -76,6 +76,7 @@ import {
 } from "@/lib/image-gen/validate";
 import { cn } from "@/lib/utils";
 import { describeApprovalPill } from "@/lib/nodes/prompt-focus";
+import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
 import { LeftSection } from "./focus-left-section";
 import { RailItem } from "./focus-rail-item";
 
@@ -568,13 +569,13 @@ export function ImageGenFocusView({
         error?: string;
       };
       if (!res.ok || !json.imageUrl)
-        throw new Error(json.error ?? "Generation failed");
+        throw new Error(res.status === 402 ? CREDIT_LIMIT_TOAST_MESSAGE : json.error ?? "Generation failed");
       onPatch({ parsed: json.imageUrl });
       setActiveVersionId(json.versionId ?? null);
       await fetchVersions();
       toast.success("Image generated");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Generation failed");
+      toast.error(e instanceof Error ? e.message : "Generation failed", { duration: 6000 });
       await fetchVersions();
     } finally {
       setGenerating(false);
@@ -660,14 +661,14 @@ export function ImageGenFocusView({
         error?: string;
       };
       if (!res.ok || !json.imageUrl)
-        throw new Error(json.error ?? "Edit failed");
+        throw new Error(res.status === 402 ? CREDIT_LIMIT_TOAST_MESSAGE : json.error ?? "Edit failed");
       onPatch({ parsed: json.imageUrl });
       setActiveVersionId(json.versionId ?? null);
       annotationRef.current?.clear();
       await fetchVersions();
       toast.success("Image edited");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Edit failed");
+      toast.error(e instanceof Error ? e.message : "Edit failed", { duration: 6000 });
       await fetchVersions();
     } finally {
       setEditing(false);

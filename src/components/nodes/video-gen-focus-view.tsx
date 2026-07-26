@@ -40,6 +40,8 @@ import {
   evaluateConstraints,
 } from "@/lib/video-gen/constraints";
 import { videoGenApi } from "@/lib/video-gen/api";
+import { VideoGenApiError } from "@/lib/video-gen/api";
+import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
 import { computeVideoCost, isVideoAudioEnabled, asResolutionString } from "@/lib/video-gen/cost";
 import { usdToFinalCredits } from "@/lib/credits/units";
 import { createBrowserSupabase } from "@/lib/supabase/client";
@@ -694,9 +696,14 @@ export function VideoGenFocusView({
       // 202 Accepted — hook's Realtime subscription clears isGenerating on completion
     } catch (e) {
       setGenerating(false);
-      const msg = e instanceof Error ? e.message : "Generation failed";
+      const msg =
+        e instanceof VideoGenApiError && e.status === 402
+          ? CREDIT_LIMIT_TOAST_MESSAGE
+          : e instanceof Error
+            ? e.message
+            : "Generation failed";
       setLastError(msg);
-      toast.error(msg);
+      toast.error(msg, { duration: 6000 });
     }
   }
 

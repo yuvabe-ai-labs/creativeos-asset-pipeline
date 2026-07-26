@@ -25,6 +25,7 @@ import { GuidedNextButton } from "@/components/canvas/guided-next-button";
 import { SliceToggles } from "./slice-toggles";
 import { DEFAULT_INSTRUCTION } from "@/lib/nodes/prompt";
 import { estimatePromptCredits } from "@/lib/credits/prompt-estimate";
+import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
 import type { KBSliceKey } from "@/lib/kb/parse-context";
 import { ShotControlsRow } from "./shot-controls-row";
 import {
@@ -310,13 +311,15 @@ export function PromptFocusView({
         body: JSON.stringify({ instruction: instructionDraft, slices, controls: controls ?? DEFAULT_SHOT_CONTROLS }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Generation failed");
+      if (!res.ok) {
+        throw new Error(res.status === 402 ? CREDIT_LIMIT_TOAST_MESSAGE : json.error ?? "Generation failed");
+      }
       onPatch({ parsed: json.output });
       setActiveVersionId(json.versionId ?? null);
       await fetchVersions();
       toast.success("Prompt generated");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Generation failed");
+      toast.error(e instanceof Error ? e.message : "Generation failed", { duration: 6000 });
       await fetchVersions();
     } finally {
       setGenerating(false);

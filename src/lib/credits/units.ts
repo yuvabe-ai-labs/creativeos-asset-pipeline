@@ -26,3 +26,9 @@ export function usdToFinalCredits(costUsd: number): number {
       return Math.round(raw / CREDIT_ROUND_STEP) * CREDIT_ROUND_STEP;
   }
 }
+
+// Shown wherever a 402 (CreditLimitError, src/lib/db/credit-transactions.ts) reaches the
+// UI — every creation route's catch handler swaps in this message instead of the raw
+// "Monthly credit limit reached" server string, so the user gets something actionable.
+export const CREDIT_LIMIT_TOAST_MESSAGE =
+  "Monthly credit limit reached. Contact your admin to increase it, or wait until next month.";
