@@ -12,8 +12,10 @@ import {
   ChevronDown,
   Clapperboard,
   History,
-  Link2,
+  ImageIcon,
+  PencilLine,
   Settings2,
+  SlidersHorizontal,
   Sparkles,
   type LucideIcon,
 } from "lucide-react";
@@ -25,7 +27,6 @@ import {
 } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { isDebugMode } from "@/lib/debug";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { EditableField } from "./editable-field";
 import { normalizeTitle } from "@/lib/nodes/title";
@@ -54,8 +55,10 @@ import {
   type VideoGenVersionSummary,
 } from "./video-gen-version-history";
 import { VideoGenUsagePopover } from "./video-gen-usage-popover";
-import { VideoGenParamsPanel } from "./video-gen-params-panel";
+import { VideoGenParamsPanel, hasParamsInGroup } from "./video-gen-params-panel";
 import { VideoGenConnectedSection } from "./video-gen-connected-section";
+import { RailItem } from "./focus-rail-item";
+import { AddConnection } from "./add-connection";
 import type { UpstreamImage, UpstreamPromptNode } from "@/lib/video-gen/api";
 import {
   AlertDialog,
@@ -187,56 +190,6 @@ function LeftSection({
   );
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function relativeTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.floor(hours / 24)}d ago`;
-}
-
-function ActiveVersionRow({
-  versions,
-  activeVersionId,
-}: {
-  versions: VideoGenVersionSummary[];
-  activeVersionId: string | null;
-}) {
-  const row = activeVersionId
-    ? (versions.find((v) => v.id === activeVersionId) ?? versions[0])
-    : versions[0];
-  if (!row) return null;
-
-  return (
-    <div className="flex items-center gap-2 rounded-lg border border-border p-2">
-      {row.output && (
-        <video
-          src={row.output}
-          className="size-7 shrink-0 rounded object-cover"
-          muted
-        />
-      )}
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-xs text-foreground">
-          {row.modelUsed ?? "Unknown model"}
-        </p>
-        <p className="text-[0.65rem] text-muted-foreground">
-          {relativeTime(row.createdAt)}
-        </p>
-      </div>
-      {row.id === activeVersionId && (
-        <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[0.65rem] font-semibold text-primary">
-          Active
-        </span>
-      )}
-    </div>
-  );
-}
-
 // ── Connected item detail view ────────────────────────────────────────────────
 
 function VideoGenDetailPanel({
@@ -284,7 +237,7 @@ function VideoGenDetailPanel({
   }
 
   return (
-    <div className="flex w-full max-w-5xl min-h-0 flex-col gap-4 overflow-hidden px-6 py-6">
+    <div className="flex w-full max-w-5xl flex-col gap-4 px-6 py-6">
       <button
         type="button"
         onClick={onBack}
@@ -312,12 +265,13 @@ function VideoGenDetailPanel({
       )}
 
       {item.type === "image" && image && (
-        <div className="flex min-h-0 flex-1 flex-col gap-4">
-          <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-xl border border-border bg-muted/10">
+        <div className="flex flex-col gap-4">
+          {/* Cap the image height so the role buttons stay visible without scrolling. */}
+          <div className="flex items-center justify-center overflow-hidden rounded-xl border border-border bg-muted/10">
             <img
               src={image.imageUrl}
               alt="Connected image"
-              className="max-h-full max-w-full object-contain"
+              className="max-h-[52vh] w-auto max-w-full object-contain"
             />
           </div>
           <TooltipProvider>
@@ -392,13 +346,12 @@ export function VideoGenFocusView({
   const [versions, setVersions] = useState<VideoGenVersionSummary[]>([]);
   const [activeVersionId, setActiveVersionId] = useState<string | null>(null);
   const [restoring, setRestoring] = useState(false);
-  const [historyOpen, setHistoryOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(true);
-  const [connectedOpen, setConnectedOpen] = useState(true);
-  const [detailItem, setDetailItem] = useState<{
-    id: string;
-    type: "prompt" | "image";
-  } | null>(null);
+  // The selected rail item: "video" (settings + preview), "history", "details", or a connected
+  // node's id (middle column shows that node's role/detail view). Mirrors image-gen-focus-view.
+  const [selected, setSelected] = useState<string>("video");
+  // Only the Advanced group collapses (Audio / Multi-Shot / Negative Prompt); Frames and
+  // Output settings are always expanded. Defaults closed so the panel opens uncluttered.
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [pendingDialog, setPendingDialog] = useState<DialogState>(null);
   const hasExplicitlySkippedEndFrameRef = useRef(false);
 
@@ -410,13 +363,17 @@ export function VideoGenFocusView({
   if (openNodeSeed.open !== open || openNodeSeed.nodeId !== nodeId) {
     setOpenNodeSeed({ open, nodeId });
     setPendingDialog(null);
-    hasExplicitlySkippedEndFrameRef.current = false;
     if (open) {
-      setDetailItem(null);
+      setSelected("video");
       setLoadingVersions(true);
       setLoadingConnected(true);
     }
   }
+
+  // Reset the "skipped end frame" guard when the sheet opens or switches nodes.
+  useEffect(() => {
+    hasExplicitlySkippedEndFrameRef.current = false;
+  }, [open, nodeId]);
 
   const { isGenerating, lastError, setGenerating, setLastError } =
     useVideoGenStatus(nodeId);
@@ -681,7 +638,6 @@ export function VideoGenFocusView({
         modelId,
         params,
         imageRoles: effectiveImageRoles,
-        mock: isDebugMode(),
       });
       // 202 Accepted — hook's Realtime subscription clears isGenerating on completion
     } catch (e) {
@@ -774,6 +730,22 @@ export function VideoGenFocusView({
       ? "result"
       : "empty";
 
+  // ── Rail: connected items + selection (mirrors image-gen-focus-view) ─────────
+  const connectedItems: { id: string; type: "prompt" | "image"; label: string }[] = [
+    ...(promptNode ? [{ id: promptNode.id, type: "prompt" as const, label: "Video prompt" }] : []),
+    ...upstreamImages.map((img) => ({
+      id: img.id,
+      type: "image" as const,
+      label: img.filename || "Image",
+    })),
+  ];
+  const connectedCount = connectedItems.length;
+  const hasFrames = upstreamImages.length > 0;
+  const isNodeSelected = !["video", "history", "details"].includes(selected);
+  const selectedDetailItem = isNodeSelected
+    ? connectedItems.find((c) => c.id === selected) ?? null
+    : null;
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
@@ -785,7 +757,7 @@ export function VideoGenFocusView({
       >
         {/* Header */}
         <div className="shrink-0 border-b">
-          <div className="mx-auto w-full max-w-5xl px-6 pb-5 pt-3">
+          <div className="mx-auto w-full max-w-7xl px-6 pb-5 pt-3">
             <button
               type="button"
               onClick={() => onOpenChange(false)}
@@ -860,165 +832,273 @@ export function VideoGenFocusView({
           </div>
         </div>
 
-        {/* Body */}
-        <div className="min-h-0 flex-1 flex justify-center overflow-hidden">
-          {detailItem && (
-            <VideoGenDetailPanel
-              item={detailItem}
-              promptNode={promptNode}
-              images={upstreamImages}
-              imageRoles={effectiveImageRoles}
-              imageInputs={imageInputs}
-              onRoleChange={handleRoleChange}
-              onBack={() => setDetailItem(null)}
+        {/* Body: rail + detail pane (nav | options | output) — mirrors image-gen-focus-view */}
+        <div className="mx-auto flex w-full max-w-7xl min-h-0 flex-1 overflow-hidden">
+          {/* Rail */}
+          <nav className="flex w-56 shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-border px-3 py-4">
+            <RailItem
+              icon={<Clapperboard className="size-4 text-primary" />}
+              label="Video"
+              active={selected === "video"}
+              onClick={() => setSelected("video")}
             />
-          )}
-          {!detailItem && (
-            <div className="w-full max-w-5xl flex min-h-0 overflow-hidden">
-              {/* Left panel */}
-              <div className="w-[40%] border-r border-border overflow-y-auto px-6 py-6 flex flex-col gap-6">
-                {loadingVersions ? (
-                  <div className="space-y-2">
-                    <div className="h-3 w-24 animate-pulse rounded bg-muted-foreground/20" />
-                    <div className="space-y-1.5 pt-1">
-                      {Array.from({ length: 3 }).map((_, i) => (
-                        <div key={i} className="flex items-center gap-2">
-                          <div className="size-2 shrink-0 animate-pulse rounded-full bg-muted-foreground/20" />
-                          <div className="h-3 animate-pulse rounded bg-muted-foreground/20" style={{ width: `${55 + i * 12}%` }} />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : versions.length > 0 ? (
-                  <LeftSection
-                    icon={History}
-                    label="History"
-                    badge={`${versions.length} version${versions.length === 1 ? "" : "s"}`}
-                    open={historyOpen}
-                    onToggle={() => setHistoryOpen((p) => !p)}
-                  >
-                    {historyOpen ? (
-                      <VideoGenVersionHistory
-                        versions={versions}
-                        activeVersionId={activeVersionId}
-                        onRestore={handleRestoreVersion}
-                        restoring={restoring}
-                        hideHeader
-                      />
-                    ) : (
-                      <ActiveVersionRow
-                        versions={versions}
-                        activeVersionId={activeVersionId}
-                      />
-                    )}
-                  </LeftSection>
-                ) : null}
 
-                <LeftSection
-                  icon={Settings2}
-                  label="Output settings"
-                  open={settingsOpen}
-                  onToggle={() => setSettingsOpen((p) => !p)}
-                >
-                  {settingsOpen && (
-                    <VideoGenParamsPanel
-                      modelId={modelId}
-                      params={params}
-                      onModelChange={handleModelChange}
-                      onParamChange={handleParamChange}
-                      lockedParams={constraints.lockedParams}
-                      lockedParamReasons={constraints.lockedParamReasons}
-                    />
-                  )}
-                </LeftSection>
-
-                <LeftSection
-                  icon={Link2}
-                  label="Connected"
-                  badge={loadingConnected ? undefined : `${(promptNode ? 1 : 0) + upstreamImages.length} input${(promptNode ? 1 : 0) + upstreamImages.length === 1 ? "" : "s"}`}
-                  open={connectedOpen}
-                  onToggle={() => setConnectedOpen((p) => !p)}
-                >
-                  {loadingConnected ? (
-                    <div className="space-y-2">
-                      {Array.from({ length: 2 }).map((_, i) => (
-                        <div key={i} className="space-y-1.5 rounded-lg border border-border p-3">
-                          <div className="h-3 w-1/3 animate-pulse rounded bg-muted-foreground/20" />
-                          <div className="h-3 w-full animate-pulse rounded bg-muted-foreground/20" />
-                        </div>
-                      ))}
-                    </div>
-                  ) : connectedOpen && (
-                    <VideoGenConnectedSection
-                      promptNode={promptNode}
-                      images={upstreamImages}
-                      imageRoles={effectiveImageRoles}
-                      imageInputs={imageInputs}
-                      onRoleChange={handleRoleChange}
-                      onConflictingRoleRequest={(imageId, role) => {
-                        const isFrameRole = role === "start_frame" || role === "end_frame";
-                        if (isFrameRole) {
-                          setPendingDialog({ type: "role-conflict", imageId, role, conflictingRole: "reference" });
-                        } else {
-                          const hasStart = Object.values(effectiveImageRoles).includes("start_frame");
-                          setPendingDialog({
-                            type: "role-conflict",
-                            imageId,
-                            role,
-                            conflictingRole: hasStart ? "start_frame" : "end_frame",
-                          });
-                        }
-                      }}
-                      onOpenDetail={(id, type) => setDetailItem({ id, type })}
-                      disableFrameInputs={constraints.disableFrameInputs}
-                      disableFrameInputsReason={
-                        constraints.disableFrameInputsReason
-                      }
-                      disableRefs={constraints.disableRefs}
-                      disableRefsReason={constraints.disableRefsReason}
-                      onReset={handleReset}
-                    />
-                  )}
-                </LeftSection>
-
-                <ActiveRulesCard constraints={constraints} />
+            <div className="flex items-center justify-between px-2.5 pb-1 pt-3">
+              <span className="text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                Connected · {connectedCount}
+              </span>
+              <AddConnection
+                targetId={nodeId}
+                targetType="video-gen"
+                connectedIds={connectedItems.map((c) => c.id)}
+              />
+            </div>
+            {loadingConnected ? (
+              <div className="space-y-1.5 px-1 pt-1">
+                {Array.from({ length: 2 }).map((_, i) => (
+                  <div key={i} className="h-7 animate-pulse rounded-md bg-muted-foreground/15" />
+                ))}
               </div>
+            ) : connectedCount === 0 ? (
+              <p className="px-2.5 text-xs text-muted-foreground">No inputs connected.</p>
+            ) : (
+              connectedItems.map((c) => {
+                const role = c.type === "image" ? effectiveImageRoles[c.id] : undefined;
+                return (
+                  <RailItem
+                    key={c.id}
+                    icon={
+                      c.type === "prompt" ? (
+                        <PencilLine className="size-4 text-primary" strokeWidth={1.5} />
+                      ) : (
+                        <ImageIcon className="size-4 text-primary" strokeWidth={1.5} />
+                      )
+                    }
+                    label={c.label}
+                    active={selected === c.id}
+                    onClick={() => setSelected(c.id)}
+                    badge={
+                      role ? (
+                        <span
+                          className={cn(
+                            "shrink-0 rounded-full px-1.5 py-0.5 text-[0.6rem] font-semibold",
+                            role === "start_frame"
+                              ? "bg-primary/10 text-primary"
+                              : "bg-muted text-muted-foreground",
+                          )}
+                        >
+                          {role === "start_frame" ? "Start" : role === "end_frame" ? "End" : "Ref"}
+                        </span>
+                      ) : undefined
+                    }
+                  />
+                );
+              })
+            )}
 
-              {/* Right panel */}
-              <div className="flex-1 min-h-0 flex flex-col px-6 py-6">
-                <div className="flex-1 min-h-0">
-                  {mode === "skeleton" && (
-                    <div className="size-full animate-pulse rounded-xl bg-muted-foreground/15" />
-                  )}
-                  {mode === "empty" && (
-                    <div className="flex size-full items-center justify-center rounded-xl border border-dashed border-border">
-                      <div className="text-center px-8">
-                        <Clapperboard
-                          className="mx-auto size-8 text-muted-foreground/40"
-                          strokeWidth={1.5}
-                        />
-                        <p className="mt-3 text-sm font-medium text-muted-foreground">
-                          Not generated yet
-                        </p>
-                        <p className="mt-1 text-xs text-muted-foreground/70">
-                          Tune your params and click Generate.
-                        </p>
+            <div className="mx-2.5 my-2 h-px bg-border" />
+            <RailItem
+              icon={<History className="size-4 text-primary" />}
+              label="History"
+              active={selected === "history"}
+              onClick={() => setSelected("history")}
+              badge={
+                versions.length > 0 ? (
+                  <span className="shrink-0 text-xs text-muted-foreground">{versions.length}</span>
+                ) : undefined
+              }
+            />
+            <RailItem
+              icon={<SlidersHorizontal className="size-4 text-primary" />}
+              label="Details"
+              active={selected === "details"}
+              onClick={() => setSelected("details")}
+            />
+          </nav>
+
+          {/* Detail pane: the middle column swaps with the rail selection; the output column on
+              the right is ALWAYS visible so the operator can tune while watching the result. */}
+          <div className="flex min-h-0 flex-1 overflow-hidden">
+            {/* Middle column */}
+            <div className="min-h-0 w-[54%] shrink-0 overflow-y-auto border-r border-border">
+              {/* Video — flat, independently-collapsible peer groups (Frames / Output / Fine-tune / Advanced) */}
+              {selected === "video" && (
+                <div className="flex flex-col gap-10 px-6 py-5">
+                  {(() => {
+                    const paramsPanelProps = {
+                      modelId,
+                      params,
+                      onModelChange: handleModelChange,
+                      onParamChange: handleParamChange,
+                      lockedParams: constraints.lockedParams,
+                      lockedParamReasons: constraints.lockedParamReasons,
+                    };
+                    const groups: { id: string; icon: LucideIcon; label: string; body: ReactNode }[] = [];
+                    if (hasFrames) {
+                      groups.push({
+                        id: "frames",
+                        icon: ImageIcon,
+                        label: "Frames",
+                        body: (
+                          <VideoGenConnectedSection
+                            promptNode={null}
+                            images={upstreamImages}
+                            imageRoles={effectiveImageRoles}
+                            imageInputs={imageInputs}
+                            onRoleChange={handleRoleChange}
+                            onConflictingRoleRequest={(imageId, role) => {
+                              const isFrameRole = role === "start_frame" || role === "end_frame";
+                              if (isFrameRole) {
+                                setPendingDialog({ type: "role-conflict", imageId, role, conflictingRole: "reference" });
+                              } else {
+                                const hasStart = Object.values(effectiveImageRoles).includes("start_frame");
+                                setPendingDialog({
+                                  type: "role-conflict",
+                                  imageId,
+                                  role,
+                                  conflictingRole: hasStart ? "start_frame" : "end_frame",
+                                });
+                              }
+                            }}
+                            onOpenDetail={(id) => setSelected(id)}
+                            disableFrameInputs={constraints.disableFrameInputs}
+                            disableFrameInputsReason={constraints.disableFrameInputsReason}
+                            disableRefs={constraints.disableRefs}
+                            disableRefsReason={constraints.disableRefsReason}
+                            onReset={handleReset}
+                          />
+                        ),
+                      });
+                    }
+                    groups.push({
+                      id: "output",
+                      icon: Settings2,
+                      label: "Output settings",
+                      body: <VideoGenParamsPanel {...paramsPanelProps} group="primary" />,
+                    });
+                    // Frames and Output settings stay expanded; Advanced is the one collapsible
+                    // group, so the secondary controls don't crowd the panel by default.
+                    return (
+                      <>
+                        {groups.map((g) => (
+                          <LeftSection key={g.id} icon={g.icon} label={g.label}>
+                            {g.body}
+                          </LeftSection>
+                        ))}
+                        {hasParamsInGroup(modelId, "advanced") && (
+                          <LeftSection
+                            icon={SlidersHorizontal}
+                            label="Advanced"
+                            open={advancedOpen}
+                            onToggle={() => setAdvancedOpen((o) => !o)}
+                          >
+                            {advancedOpen && (
+                              <VideoGenParamsPanel {...paramsPanelProps} group="advanced" />
+                            )}
+                          </LeftSection>
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
+
+              {/* Connected node — role assignment / read-only detail */}
+              {isNodeSelected &&
+                (selectedDetailItem ? (
+                  <VideoGenDetailPanel
+                    item={selectedDetailItem}
+                    promptNode={promptNode}
+                    images={upstreamImages}
+                    imageRoles={effectiveImageRoles}
+                    imageInputs={imageInputs}
+                    onRoleChange={handleRoleChange}
+                    onBack={() => setSelected("video")}
+                  />
+                ) : (
+                  <div className="flex h-full items-center justify-center px-6 py-6">
+                    <p className="text-sm text-muted-foreground">
+                      {loadingConnected ? "Loading…" : "This input has no preview yet."}
+                    </p>
+                  </div>
+                ))}
+
+              {/* History — every generation */}
+              {selected === "history" && (
+                <div className="px-6 py-5">
+                  {loadingVersions ? (
+                    <div className="space-y-2">
+                      <div className="h-3 w-24 animate-pulse rounded bg-muted-foreground/20" />
+                      <div className="space-y-1.5 pt-1">
+                        {Array.from({ length: 3 }).map((_, i) => (
+                          <div key={i} className="flex items-center gap-2">
+                            <div className="size-2 shrink-0 animate-pulse rounded-full bg-muted-foreground/20" />
+                            <div className="h-3 animate-pulse rounded bg-muted-foreground/20" style={{ width: `${55 + i * 12}%` }} />
+                          </div>
+                        ))}
                       </div>
                     </div>
-                  )}
-                  {mode === "result" && videoUrl && (
-                    <div className="flex size-full items-center justify-center">
-                      <video
-                        src={videoUrl}
-                        controls
-                        className="w-full max-h-full rounded-xl border border-border shadow-card"
-                      />
-                    </div>
+                  ) : versions.length > 0 ? (
+                    <VideoGenVersionHistory
+                      versions={versions}
+                      activeVersionId={activeVersionId}
+                      onRestore={handleRestoreVersion}
+                      restoring={restoring}
+                    />
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      No generations yet — every attempt will show up here.
+                    </p>
                   )}
                 </div>
+              )}
+
+              {/* Details — active constraint rules */}
+              {selected === "details" && (
+                <div className="px-6 py-5">
+                  <ActiveRulesCard constraints={constraints} />
+                </div>
+              )}
+            </div>
+
+            {/* Right column — the video, always visible */}
+            <div className="flex min-h-0 flex-1 flex-col gap-3 px-6 py-5">
+              <div className="flex items-center gap-1.5">
+                <Clapperboard className="size-3.5 text-primary" strokeWidth={1.5} />
+                <span className="text-eyebrow">Video</span>
+              </div>
+              <div className="min-h-0 flex-1">
+                {mode === "skeleton" && (
+                  <div className="size-full animate-pulse rounded-xl bg-muted-foreground/15" />
+                )}
+                {mode === "empty" && (
+                  <div className="flex size-full items-center justify-center rounded-xl border border-dashed border-border">
+                    <div className="text-center px-8">
+                      <Clapperboard
+                        className="mx-auto size-8 text-muted-foreground/40"
+                        strokeWidth={1.5}
+                      />
+                      <p className="mt-3 text-sm font-medium text-muted-foreground">
+                        Not generated yet
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground/70">
+                        Tune your params and click Generate.
+                      </p>
+                    </div>
+                  </div>
+                )}
+                {mode === "result" && videoUrl && (
+                  <div className="flex size-full items-center justify-center">
+                    <video
+                      src={videoUrl}
+                      controls
+                      className="w-full max-h-full rounded-xl border border-border shadow-card"
+                    />
+                  </div>
+                )}
               </div>
             </div>
-          )}
+          </div>
         </div>
 
         {/* ── Dialog hub — all dialogs driven by pendingDialog state ── */}

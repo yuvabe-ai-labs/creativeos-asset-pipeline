@@ -16,8 +16,8 @@ import {
 import type { KBNodeData } from "@/lib/canvas-nodes";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { useNodeConnectionState } from "./use-node-connection-state";
-import { NodeHandle } from "./node-handle";
 import { useFocusViewRegistration } from "@/hooks/use-focus-view-open";
+import { NodeCardHeader } from "./node-card-header";
 import { formatDate } from "@/lib/kb/utils";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -290,18 +290,19 @@ export function KBNode({ id, data, selected }: NodeProps) {
       )}
       onMouseEnter={prefetch}
     >
-      <div className="flex items-center justify-between border-b border-border px-2 py-1.5">
-        <div className="flex items-center gap-1.5">
-          <BookOpenIcon className="size-3 text-primary" />
-          <span className="text-eyebrow text-[0.6rem]!">Brand KB</span>
-          <NodeHandle nodeId={id} nodeType="kb" />
-        </div>
-        {fillPct != null && (
-          <span className="rounded-full bg-primary/10 px-1.5 py-px text-[0.55rem] font-semibold text-primary">
-            {fillPct}%
-          </span>
-        )}
-      </div>
+      <NodeCardHeader
+        icon={BookOpenIcon}
+        nodeId={id}
+        nodeType="kb"
+        title="Brand KB"
+        status={
+          fillPct != null ? (
+            <span className="rounded-full bg-primary/10 px-1.5 py-px text-[0.55rem] font-semibold text-primary">
+              {fillPct}%
+            </span>
+          ) : undefined
+        }
+      />
 
       <div className="px-2 py-2">
         <p className="truncate font-display text-xs font-medium">

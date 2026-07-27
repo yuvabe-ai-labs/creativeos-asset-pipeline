@@ -10,7 +10,7 @@ import { useFocusViewRegistration } from "@/hooks/use-focus-view-open";
 import { useGalleryDrawer } from "@/components/canvas/gallery-drawer-context";
 import { useGalleryNodeDrop } from "@/hooks/use-gallery-node-drop";
 import { NodeContextMenu } from "./node-context-menu";
-import { NodeHandle } from "./node-handle";
+import { NodeCardHeader } from "./node-card-header";
 import type { ImageGenNodeData } from "@/lib/canvas-nodes";
 import { ImageGenFocusView } from "./image-gen-focus-view";
 import { ProcessingPill } from "./processing-pill";
@@ -113,24 +113,28 @@ export function ImageGenNode({ id, data, selected, positionAbsoluteX, positionAb
         )}
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-border px-3 py-2">
-          <div className="flex items-center gap-1.5">
-            <ImageIcon className="size-3.5 shrink-0 stroke-[1.5] text-primary" />
-            <span className="text-eyebrow !text-[0.65rem] whitespace-nowrap">Image Gen</span>
-            <NodeHandle nodeId={id} nodeType="image-gen" />
-          </div>
-          {/* While processing, the header carries no indicator — the Processing pill
-              sits on the card's bottom row instead. */}
-          {!isProcessing && (
-            <span
-              className={cn(
-                "size-1.5 rounded-full",
-                imageUrl ? "bg-primary" : "bg-muted-foreground/40",
-              )}
-              title={imageUrl ? "Image generated" : "Not generated"}
-            />
-          )}
-        </div>
+        <NodeCardHeader
+          icon={ImageIcon}
+          nodeId={id}
+          nodeType="image-gen"
+          title={title}
+          placeholder="Image Gen"
+          onCommitTitle={(t) => updateNodeData(id, { title: t })}
+          status={
+            // While processing, the header carries no indicator — the Processing pill
+            // sits on the card's bottom row instead, which also frees the full header
+            // width for the title.
+            isProcessing ? undefined : (
+              <span
+                className={cn(
+                  "size-1.5 rounded-full",
+                  imageUrl ? "bg-primary" : "bg-muted-foreground/40",
+                )}
+                title={imageUrl ? "Image generated" : "Not generated"}
+              />
+            )
+          }
+        />
 
         {/* Body */}
         <div className="px-3 py-3">

@@ -11,8 +11,7 @@ import { useFocusViewRegistration } from "@/hooks/use-focus-view-open";
 import { saveScriptOutputAction } from "@/lib/actions/nodes";
 import { ScriptFocusView } from "./script-focus-view";
 import { NodeContextMenu } from "./node-context-menu";
-import { NodeTitle } from "./node-title";
-import { NodeHandle } from "./node-handle";
+import { NodeCardHeader } from "./node-card-header";
 import { ProcessingPill } from "./processing-pill";
 import type { ReelScript } from "@/lib/nodes/reel-script";
 import { DEFAULT_PARSE_SLICES, type KBSliceKey } from "@/lib/kb/parse-context";
@@ -66,24 +65,27 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
         connState === "invalid" && "opacity-60 pointer-events-none",
       )}
     >
-      <div className="flex items-center justify-between border-b border-border px-3 py-2">
-        <div className="flex items-center gap-1.5">
-          <FileText className="size-3.5 text-primary" />
-          <span className="text-eyebrow !text-[0.65rem]">Script</span>
-          <NodeHandle nodeId={id} nodeType="script" />
-        </div>
-        {isParsing ? (
-          <ProcessingPill processing />
-        ) : (
-          <span
-            className={cn(
-              "size-1.5 rounded-full transition-colors",
-              parsed ? "bg-primary" : "bg-muted-foreground/40",
-            )}
-            title={parsed ? "Extracted" : "Not extracted"}
-          />
-        )}
-      </div>
+      <NodeCardHeader
+        icon={FileText}
+        nodeId={id}
+        nodeType="script"
+        title={title}
+        placeholder="Untitled script"
+        onCommitTitle={(t) => updateNodeData(id, { title: t })}
+        status={
+          isParsing ? (
+            <ProcessingPill processing />
+          ) : (
+            <span
+              className={cn(
+                "size-1.5 rounded-full transition-colors",
+                parsed ? "bg-primary" : "bg-muted-foreground/40",
+              )}
+              title={parsed ? "Extracted" : "Not extracted"}
+            />
+          )
+        }
+      />
 
       {isParsing ? (
         <div className="space-y-2 px-3 py-3">
@@ -96,14 +98,9 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
         </div>
       ) : (
         <div className="px-3 py-3">
-          <NodeTitle
-            value={title}
-            placeholder="Untitled script"
-            onCommit={(t) => updateNodeData(id, { title: t })}
-          />
           <button
             onClick={() => setFocusOpen(true)}
-            className="nodrag -mx-1.5 mt-3 inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10"
+            className="nodrag -mx-1.5 inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10"
           >
             Open ↗
           </button>

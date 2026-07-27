@@ -5,6 +5,7 @@ import type { NodeRow } from "@/lib/db/types";
 import type { KBSliceKey } from "@/lib/kb/parse-context";
 import type { ReelScript } from "@/lib/nodes/reel-script";
 import type { VideoControls } from "@/lib/nodes/video-controls";
+import type { VideoProvider } from "@/prompts/video-prompt-generate";
 import type { EditIntent } from "@/lib/image-gen/edit-prompt";
 
 export type ScriptNodeData = {
@@ -83,6 +84,7 @@ export type VideoPromptNodeData = {
   instruction?: string;         // operator steer ("emphasize the pour; let steam rise")
   controls?: VideoControls;     // camera move + motion speed (D24)
   kbSlices?: KBSliceKey[];      // ambient brand tone, like the Prompt node
+  targetProvider?: VideoProvider; // D77: text-camera (veo/sora) vs external-camera (kling)
   parsed?: unknown;             // D19: active version output (motion prompt text) — display only
 };
 

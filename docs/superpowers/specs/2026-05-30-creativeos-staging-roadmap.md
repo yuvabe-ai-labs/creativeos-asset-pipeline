@@ -1640,6 +1640,72 @@ lose a callback since there is none).
 **Originated →** `2026-07-23-kling-api-correction-design.md`, supersedes
 `2026-07-11-kling-video-gen-integration-design.md`.
 
+### D78 — Video Prompt → Video Gen is provider-aware (Target selector + text-camera variants) *(recorded 2026-07-23; refines D24; the Kling `camera_control` path is SUPERSEDED by D79)*
+
+**Decision.** The motion prompt is shaped for its target provider (`text-camera` for Veo/Sora,
+`external-camera` for Kling), selected by a Target selector on the Video Prompt node that locks to a
+connected Video Gen node's provider when present. For Kling, camera was originally driven by a native
+`camera_control` param via a curated visual grid on the Video Gen node, and the prompt written
+camera-silent. A default `negative_prompt` is prefilled for Kling.
+
+**Why.** D24 shipped a Veo-only motion prompt; the registry has since grown Kling models with a
+different prompt shape. The Target selector + provider-shaped prompt variants are the durable part of
+this decision; the `camera_control` channel is not (see D79).
+
+**Rejected — text-primary (A).** Simpler/single-node but leaves Kling's camera to prose and the
+`negative_prompt` unused.
+
+**Refines** D24. **Originated →** `2026-07-23-provider-aware-video-prompt-design.md`.
+
+### D79 — Uniform text-camera across all providers *(recorded 2026-07-25; refines D24; reverses D78's Kling `camera_control` signal)*
+
+**Decision.** Camera is a uniform text-in-prompt control authored on the Video Prompt node (the
+`CameraSelect` grid) for every provider. Kling's `camera_control` path — gen-node grid, axis sliders,
+`kling-camera.ts`, and the request emission — is removed. The Target selector is retained and switches
+only the prompt variant (shared spine + minimal per-provider deltas).
+
+**Roster (integrated `main`).** Veo 3.1 Lite/Fast/Quality + Sora 2 + Kling's five verified models
+(D77). NOTE: the consolidation design as originally written paired uniform text-camera with a *pruned*
+roster (Kling 3.0 only, Sora + legacy Kling dropped); that pruning is **not** adopted — the integrated
+`main` keeps D77's full verified Kling roster and Sora 2. Only the uniform-text-camera design is taken
+from the consolidation work. *(ADR numbering reconciled during the 2026-07-26 three-branch integration;
+these were recorded as clashing D77/D78 entries on parallel branches — final numbering to confirm on review.)*
+
+**Why.** D78 assumed Kling drives camera via `camera_control`; the official Kling capability map shows
+`camera_control` is Kling-1.5-only — Kling 3.0+ use a separate, un-integrated Motion Control feature.
+Both vendors' prompt guides recommend camera-in-text. Uniform text-camera is less code and a more
+consistent UX.
+
+**Rejected — finish D78 as built.** Would ship a camera control no kept model honors and diverge the
+Prompt-node UX by provider for no capability gain.
+
+**Refines** D24. **Reverses** D78's camera-signal model. **Originated →**
+`2026-07-25-video-provider-consolidation-design.md` (research:
+`../../architecture/2026-07-25-video-provider-capability-research.md`).
+
+### D80 — Preservation-first motion prompt + Veo `negativePrompt` *(recorded 2026-07-26; refines D24; builds on D79)*
+
+**Decision.** The shared motion-prompt spine (D79) is made **preservation-first**: it drops the hard
+word cap and restates the fixed subject identity (product shape, label, logo, lettering, colours,
+props, lighting) so branded products hold — uniformly, for every provider, not just Veo. The camera
+catalog uses precise, invariant-naming vocabulary ("constant distance, height, focal length"). Veo
+visual-defect suppression is driven by its native `negativePrompt` param with a product-tuned default
+(no bare `text`/`logo`, so a product's real label survives); bare "No X, no Y" negations stay out of
+the positive prompt. Veo's built-in prompt rewriter (`enhancePrompt`) is left enabled.
+
+**Why.** D24/D79 shipped a terse author. Google's Veo 3.1 guidance — "more detail, more control", a
+dedicated negative-prompt field, and specific camera vocabulary — are quality levers the terse path
+can't reach, and they matter most for branded-product preservation. Folding preservation into the
+shared spine keeps it uniform across providers (D79).
+
+**Rejected.** Negatives-only (positive prompt stays lean → identity never stated); an intent-driven
+preservation *mode* toggle; `enhancePrompt: false` now (rewriter kept on — the first lever if QA shows
+preservation slipping).
+
+**Refines** D24; builds on D79 (folds preservation into the shared spine). **Originated →**
+`2026-07-26-veo-preservation-first-prompt-design.md`. *(Originally drafted as a clashing D78 on the Veo
+branch; renumbered during the 2026-07-26 three-branch integration — final numbering to confirm on review.)*
+
 ### Parked / out-of-scope (with revisit triggers)
 | Item | Status | Revisit when |
 |---|---|---|

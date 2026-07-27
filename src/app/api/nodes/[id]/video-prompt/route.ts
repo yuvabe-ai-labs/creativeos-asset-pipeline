@@ -2,7 +2,7 @@ import { createOpenAI } from "@/lib/openai/server";
 import { resolveVideoPromptInputs } from "@/lib/nodes/resolve-inputs";
 import { compileVideoPrompt } from "@/lib/nodes/video-prompt";
 import { buildUserContent } from "@/lib/nodes/compose-message";
-import { videoPromptGeneratePrompt } from "@/prompts/video-prompt-generate";
+import { videoPromptGeneratePromptFor, type VideoProvider } from "@/prompts/video-prompt-generate";
 import { DEFAULT_VIDEO_CONTROLS, type VideoControls } from "@/lib/nodes/video-controls";
 import { insertVersion, setActiveVersion } from "@/lib/db/versions";
 import { describeModelRequest } from "@/lib/nodes/model-request";
@@ -23,12 +23,21 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  // MERGE: staging's withNode wrapper (auth/tenant scoping) + main's D78 provider-aware
+  // prompt selection. Both are required — withNode supplies nodeId, so the manual
+  // `await params` destructure from main is dropped.
   return withNode(params, async (nodeId) => {
     const body = (await req.json().catch(() => null)) as
-      | { instruction?: unknown; slices?: unknown; controls?: unknown }
+      | { instruction?: unknown; slices?: unknown; controls?: unknown; targetProvider?: unknown }
       | null;
     const instruction = typeof body?.instruction === "string" ? body.instruction : "";
     const controls = normalizeControls(body?.controls);
+
+    const VALID_PROVIDERS: VideoProvider[] = ["veo", "kling"];
+    const targetProvider: VideoProvider = VALID_PROVIDERS.includes(body?.targetProvider as VideoProvider)
+      ? (body?.targetProvider as VideoProvider)
+      : "veo";
+    const promptSpec = videoPromptGeneratePromptFor(targetProvider);
 
     const resolved = await resolveVideoPromptInputs(nodeId, body?.slices);
     if (!resolved) return apiError("Node not found.", 404);
@@ -38,6 +47,7 @@ export async function POST(
       upstream: resolved.upstream,
       instruction,
       controls,
+      targetProvider,
     });
 
     const userContent = buildUserContent(user, resolved.upstream);
@@ -52,7 +62,7 @@ export async function POST(
     try {
       const openai = createOpenAI();
       const completion = await openai.chat.completions.create({
-        model: videoPromptGeneratePrompt.model,
+        model: promptSpec.model,
         messages: [
           { role: "system", content: system },
           { role: "user", content: userContent },
@@ -71,11 +81,12 @@ export async function POST(
         paramsUsed: {
           instruction,
           controls,
-          promptId: videoPromptGeneratePrompt.id,
-          promptVersion: videoPromptGeneratePrompt.version,
+          targetProvider,
+          promptId: promptSpec.id,
+          promptVersion: promptSpec.version,
           tokensUsed: completion.usage ?? null,
         },
-        modelUsed: `openai:${videoPromptGeneratePrompt.model}`,
+        modelUsed: `openai:${promptSpec.model}`,
         output,
       });
       await setActiveVersion(nodeId, version.id);
@@ -89,10 +100,11 @@ export async function POST(
         inputsUsed: { request },
         paramsUsed: {
           instruction,
-          promptId: videoPromptGeneratePrompt.id,
-          promptVersion: videoPromptGeneratePrompt.version,
+          targetProvider,
+          promptId: promptSpec.id,
+          promptVersion: promptSpec.version,
         },
-        modelUsed: `openai:${videoPromptGeneratePrompt.model}`,
+        modelUsed: `openai:${promptSpec.model}`,
         error: message,
       });
       return apiError(message, 500);

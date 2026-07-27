@@ -12,6 +12,7 @@ type Props = {
   onValueChange: (value: string) => void;
   disabled?: boolean;
   className?: string;
+  columns?: number; // set → equal-width CSS grid with N columns; unset → flex-wrap
 };
 
 // A single-select segmented control rendered as chips. Built on the shadcn
@@ -24,9 +25,13 @@ export function ParamChipGroup({
   onValueChange,
   disabled,
   className,
+  columns,
 }: Props) {
   return (
-    <div className={cn("flex flex-wrap gap-1.5", className)}>
+    <div
+      className={cn(columns ? "grid gap-1.5" : "flex flex-wrap gap-1.5", className)}
+      style={columns ? { gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` } : undefined}
+    >
       {options.map((opt) => {
         const active = opt.value === value;
         return (
@@ -39,11 +44,12 @@ export function ParamChipGroup({
             onClick={() => onValueChange(opt.value)}
             className={cn(
               "nodrag",
+              columns && "w-full justify-center px-2",
               active &&
                 "border-primary/50 bg-primary/5 text-primary hover:bg-primary/10 hover:text-primary",
             )}
           >
-            {active && <Check className="size-3.5" strokeWidth={2} />}
+            {active && <Check className="size-3.5 shrink-0" strokeWidth={2} />}
             {opt.label}
           </Button>
         );
