@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import type { Identity } from "@/lib/identity";
 import type { PlatformRole } from "@/lib/dal-logic";
 
@@ -91,8 +92,16 @@ export function useIdentity(): {
     cachedMonthlyCreditLimit,
   );
   const [hydrated, setHydrated] = useState(cachedHydrated);
+  const pathname = usePathname();
 
   useEffect(() => {
+    // HeaderBrand renders (and calls this hook) on /login too — there's no session to
+    // check there. Fetching anyway would cache a false "logged out" result at module
+    // scope; login's redirect("/") is a soft navigation (no full page reload), so that
+    // stale cache would survive it and every consumer would show "no identity" until a
+    // hard refresh cleared the module. Skipping the fetch here means the first real
+    // fetch happens once pathname actually changes away from /login, post-login.
+    if (pathname === "/login") return;
     if (cachedHydrated) {
       // Already resolved by an earlier mount — sync immediately, no new fetch.
       setIdentity(cachedIdentity);
@@ -126,7 +135,10 @@ export function useIdentity(): {
     return () => {
       cancelled = true;
     };
-  }, []);
+    // pathname is a real dependency (not just exhaustive-deps box-ticking): it's what
+    // re-fires this effect the moment the post-login redirect leaves /login, triggering
+    // the first real fetch instead of leaving the hook permanently un-hydrated.
+  }, [pathname]);
 
   return { identity, hydrated, platformRole, orgId, orgName, creditsUsed, monthlyCreditLimit };
 }

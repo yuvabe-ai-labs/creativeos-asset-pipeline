@@ -1,10 +1,10 @@
 import "server-only";
 import { createGemini } from "@/lib/gemini/server";
 import { buildZodFromParams } from "../schema-builder";
-import { geminiFlashParams, gemini25FlashParams, geminiFlash2Params, geminiProParams } from "../params/gemini";
+import { gemini25FlashParams, geminiFlash2Params, geminiProParams } from "../params/gemini";
 import type { ImageGenInput, ImageGenResult, MediaGenModelSpec } from "../types";
 
-export { geminiFlashParams, gemini25FlashParams, geminiFlash2Params, geminiProParams };
+export { gemini25FlashParams, geminiFlash2Params, geminiProParams };
 
 // Params ref: https://ai.google.dev/gemini-api/docs/image-generation
 // Only imageConfig.aspectRatio and imageConfig.imageSize are supported via the

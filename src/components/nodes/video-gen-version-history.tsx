@@ -10,6 +10,8 @@ export type VideoGenVersionSummary = {
   modelUsed?: string | null;
   paramsUsed: Record<string, unknown>;
   createdAt: string;
+  // Real settled credits — null for legacy versions predating the credit system.
+  creditsCharged?: number | null;
 };
 
 type Props = {

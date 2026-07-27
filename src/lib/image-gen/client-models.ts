@@ -2,7 +2,7 @@
 // Params are imported from providers (single source of truth, no Zod duplication).
 
 import { gptImage2Params, gptImage1Params, gptImage1MiniParams } from "./params/openai";
-import { geminiFlashParams, geminiFlash2Params, geminiProParams } from "./params/gemini";
+import { gemini25FlashParams, geminiFlash2Params, geminiProParams } from "./params/gemini";
 import { buildZodFromParams } from "./schema-builder";
 import type { ClientModelSpec, ParamSpec } from "./types";
 
@@ -55,8 +55,8 @@ export const imageGenClientModels: ClientModelSpec[] = [
     label: "Nano Banana", providerLabel: "Gemini",
     maxReferenceImages: 14, maxReferenceSizeBytes: 0,
     maxTotalReferenceSizeBytes: 100 * 1024 * 1024,
-    params: geminiFlashParams,
-    schema: buildZodFromParams(geminiFlashParams),
+    params: gemini25FlashParams,
+    schema: buildZodFromParams(gemini25FlashParams),
   },
   {
     id: "gemini:gemini-3.1-flash-image",

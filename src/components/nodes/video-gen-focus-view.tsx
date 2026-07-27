@@ -632,7 +632,6 @@ export function VideoGenFocusView({
   async function doGenerate() {
     setGenerating(true);
     setLastError(null);
-    // Mock generation is enabled only in debug mode (?debug-mode=true).
     try {
       await videoGenApi.startGeneration(nodeId, {
         modelId,
