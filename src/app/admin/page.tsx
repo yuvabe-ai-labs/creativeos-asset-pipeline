@@ -1,8 +1,7 @@
-import Link from "next/link";
 import { requireSuperAdmin } from "@/lib/auth/require-super-admin";
 import { listOrgsWithClientCount } from "@/lib/db/organizations";
-import { Button } from "@/components/ui/button";
 import { OrgsTable } from "@/components/admin/orgs-table";
+import { NewOrgDialog } from "@/components/admin/new-org-dialog";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Agencies — Admin" };
@@ -17,10 +16,7 @@ export default async function AdminOrgsPage() {
         <h1 className="font-display text-2xl font-semibold tracking-tight">
           Agencies
         </h1>
-        <Button
-          nativeButton={false}
-          render={<Link href="/admin/orgs/new">+ New agency</Link>}
-        />
+        <NewOrgDialog />
       </div>
       <OrgsTable orgs={orgs} />
     </main>
