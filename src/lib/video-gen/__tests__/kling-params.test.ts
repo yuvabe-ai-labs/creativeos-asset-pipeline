@@ -18,11 +18,11 @@ describe("kling30Params", () => {
     expect(p.constraints).toEqual({ type: "select", options: ["720p", "1080p", "4k"] });
   });
 
-  it("multi_shot is a toggle defaulting true", () => {
+  it("multi_shot is a toggle defaulting OFF", () => {
     const p = kling30Params.find((p) => p.name === "multi_shot")!;
     expect(p.component).toBe("toggle");
     expect(p.constraints).toEqual({ type: "toggle" });
-    expect(p.defaultValue).toBe(true);
+    expect(p.defaultValue).toBe(false);
   });
 
   it("duration is a 3–15s slider, not a 13-option select", () => {

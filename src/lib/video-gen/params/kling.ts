@@ -49,7 +49,9 @@ const multiShotParam: ParamSpec = {
   group: "advanced",
   order: 1,
   visible: true,
-  defaultValue: true,
+  // Off by default: multi-shot lets Kling cut between shots, which fights the single
+  // continuous moment a product clip wants. Opt in, don't opt out.
+  defaultValue: false,
   constraints: { type: "toggle" },
 };
 
