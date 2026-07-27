@@ -6,6 +6,7 @@ import { Clapperboard } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { useDeleteNode } from "@/hooks/use-delete-node";
+import { useFocusViewRegistration } from "@/hooks/use-focus-view-open";
 import { useGalleryDrawer } from "@/components/canvas/gallery-drawer-context";
 import { useGalleryNodeDrop } from "@/hooks/use-gallery-node-drop";
 import { NodeContextMenu } from "./node-context-menu";
@@ -45,6 +46,7 @@ export function VideoGenNode({ id, data, selected, positionAbsoluteX, positionAb
     setFocusOpen(next);
     if (!next && focusedNodeId === id) setFocusedNodeId(null); // consume the tray signal
   };
+  useFocusViewRegistration(id, focusViewOpen);
 
   const handlePatch = useCallback(
     (patch: Record<string, unknown>) => updateNodeData(id, patch),
@@ -52,6 +54,7 @@ export function VideoGenNode({ id, data, selected, positionAbsoluteX, positionAb
   );
 
   return (
+    <>
     <NodeContextMenu
       onDuplicate={() => duplicateNode(id)}
       onDelete={() => deleteNode(id)}
@@ -124,18 +127,6 @@ export function VideoGenNode({ id, data, selected, positionAbsoluteX, positionAb
         </div>
 
 
-        <VideoGenFocusView
-          open={focusViewOpen}
-          onOpenChange={handleFocusOpenChange}
-          nodeId={id}
-          title={title}
-          videoUrl={videoUrl}
-          modelId={d.modelId}
-          params={d.params}
-          imageRoles={d.imageRoles ?? {}}
-          onPatch={handlePatch}
-        />
-
         {/* Leaf node — only a target handle, no source */}
         <Handle
           type="target"
@@ -144,5 +135,20 @@ export function VideoGenNode({ id, data, selected, positionAbsoluteX, positionAb
         />
       </div>
     </NodeContextMenu>
+
+    {/* Outside NodeContextMenu: the portaled sheet still sits in the node's React tree,
+        so as a child its contextmenu/dblclick/drop events bubbled into the node card. */}
+    <VideoGenFocusView
+      open={focusViewOpen}
+      onOpenChange={handleFocusOpenChange}
+      nodeId={id}
+      title={title}
+      videoUrl={videoUrl}
+      modelId={d.modelId}
+      params={d.params}
+      imageRoles={d.imageRoles ?? {}}
+      onPatch={handlePatch}
+    />
+    </>
   );
 }

@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { useDeleteNode } from "@/hooks/use-delete-node";
+import { useFocusViewRegistration } from "@/hooks/use-focus-view-open";
 import { saveScriptOutputAction } from "@/lib/actions/nodes";
 import { ScriptFocusView } from "./script-focus-view";
 import { NodeContextMenu } from "./node-context-menu";
@@ -44,8 +45,10 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
     setFocusOpen(next);
     if (!next && focusedNodeId === id) setFocusedNodeId(null); // consume the signal
   };
+  useFocusViewRegistration(id, focusViewOpen);
 
   return (
+    <>
     <NodeContextMenu
       onDuplicate={() => duplicateNode(id)}
       onDelete={() => deleteNode(id)}
@@ -104,25 +107,6 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
         </div>
       )}
 
-      <ScriptFocusView
-        open={focusViewOpen}
-        onOpenChange={handleFocusOpenChange}
-        nodeId={id}
-        title={title}
-        source={source}
-        parsed={parsed}
-        slices={slices}
-        onPatch={(patch) => updateNodeData(id, patch)}
-        onParsingChange={setIsParsing}
-        onSaveOutput={(output) => saveScriptOutputAction(id, output)}
-        onFanOut={() => {
-          const n = parsed?.visual_script?.shots?.length ?? 0;
-          fanOutShots(id);
-          handleFocusOpenChange(false);
-          toast.success(`Fanned out ${n} shot${n === 1 ? "" : "s"}`);
-        }}
-      />
-
       <Handle
         type="target"
         position={Position.Left}
@@ -135,5 +119,27 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
       />
     </div>
     </NodeContextMenu>
+
+    {/* Outside NodeContextMenu: the portaled sheet still sits in the node's React tree,
+        so as a child its contextmenu/dblclick/drop events bubbled into the node card. */}
+    <ScriptFocusView
+      open={focusViewOpen}
+      onOpenChange={handleFocusOpenChange}
+      nodeId={id}
+      title={title}
+      source={source}
+      parsed={parsed}
+      slices={slices}
+      onPatch={(patch) => updateNodeData(id, patch)}
+      onParsingChange={setIsParsing}
+      onSaveOutput={(output) => saveScriptOutputAction(id, output)}
+      onFanOut={() => {
+        const n = parsed?.visual_script?.shots?.length ?? 0;
+        fanOutShots(id);
+        handleFocusOpenChange(false);
+        toast.success(`Fanned out ${n} shot${n === 1 ? "" : "s"}`);
+      }}
+    />
+    </>
   );
 }

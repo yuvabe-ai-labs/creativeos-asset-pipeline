@@ -56,6 +56,13 @@ export type CanvasState = {
   // Programmatic focus-view open signal — set by the tray to open a node's focus view.
   focusedNodeId: string | null;
   setFocusedNodeId: (id: string | null) => void;
+  // Which nodes currently have a focus view on screen. The canvas reads this to go
+  // inert: a focus view is a modal surface, so the pane's keyboard shortcuts (Delete,
+  // ⌘D, the bare mnemonics, "g") must not fire behind it. Keyed by node id rather than
+  // a boolean because an async writer (copilot open_node, playbook runner) can open a
+  // second view while one is already open — closing the first must not re-arm the canvas.
+  openFocusViewIds: string[];
+  setFocusViewOpen: (id: string, open: boolean) => void;
   // Copilot playbook run (runner spec §2.3) — ONE run at a time, session-scoped.
   // Lives here (not in the chat hook) so the run card, canvas, and future surfaces
   // all read the same checkpoint and the run survives the panel closing.
@@ -418,6 +425,18 @@ export function createCanvasStore(
 
     focusedNodeId: null,
     setFocusedNodeId: (id) => set({ focusedNodeId: id }),
+
+    openFocusViewIds: [],
+    setFocusViewOpen: (id, open) =>
+      set((s) => {
+        const has = s.openFocusViewIds.includes(id);
+        if (open === has) return {}; // no-op — keeps the array reference stable
+        return {
+          openFocusViewIds: open
+            ? [...s.openFocusViewIds, id]
+            : s.openFocusViewIds.filter((n) => n !== id),
+        };
+      }),
 
     playbookRun: null,
     setPlaybookRun: (run) => set({ playbookRun: run }),

@@ -6,6 +6,7 @@ import { ImageIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { useDeleteNode } from "@/hooks/use-delete-node";
+import { useFocusViewRegistration } from "@/hooks/use-focus-view-open";
 import { useGalleryDrawer } from "@/components/canvas/gallery-drawer-context";
 import { useGalleryNodeDrop } from "@/hooks/use-gallery-node-drop";
 import { NodeContextMenu } from "./node-context-menu";
@@ -87,8 +88,10 @@ export function ImageGenNode({ id, data, selected, positionAbsoluteX, positionAb
     setFocusOpen(next);
     if (!next && focusedNodeId === id) setFocusedNodeId(null); // consume the tray signal
   };
+  useFocusViewRegistration(id, focusViewOpen);
 
   return (
+    <>
     <NodeContextMenu
       onDuplicate={() => duplicateNode(id)}
       onDelete={() => deleteNode(id)}
@@ -154,25 +157,6 @@ export function ImageGenNode({ id, data, selected, positionAbsoluteX, positionAb
         </div>
 
 
-        <ImageGenFocusView
-          open={focusViewOpen}
-          onOpenChange={handleFocusOpenChange}
-          nodeId={id}
-          title={title}
-          canvasName={canvasName}
-          scriptTitle={scriptTitle}
-          imageUrl={imageUrl}
-          modelId={d.modelId}
-          params={d.params}
-          editInstruction={d.editInstruction}
-          editIntent={d.editIntent}
-          editReferenceNodeIds={d.editReferenceNodeIds}
-          baseReferenceNodeId={d.baseReferenceNodeId}
-          upstream={upstream}
-          onPatch={(patch) => updateNodeData(id, patch)}
-          onProcessingChange={setIsProcessing}
-        />
-
         <Handle
           type="target"
           position={Position.Left}
@@ -185,5 +169,28 @@ export function ImageGenNode({ id, data, selected, positionAbsoluteX, positionAb
         />
       </div>
     </NodeContextMenu>
+
+    {/* Rendered OUTSIDE NodeContextMenu on purpose. The sheet is portaled to <body>,
+        but a portal keeps its place in the React tree — so as a child of the trigger
+        its contextmenu/dblclick/drop events bubbled back into the node card. */}
+    <ImageGenFocusView
+      open={focusViewOpen}
+      onOpenChange={handleFocusOpenChange}
+      nodeId={id}
+      title={title}
+      canvasName={canvasName}
+      scriptTitle={scriptTitle}
+      imageUrl={imageUrl}
+      modelId={d.modelId}
+      params={d.params}
+      editInstruction={d.editInstruction}
+      editIntent={d.editIntent}
+      editReferenceNodeIds={d.editReferenceNodeIds}
+      baseReferenceNodeId={d.baseReferenceNodeId}
+      upstream={upstream}
+      onPatch={(patch) => updateNodeData(id, patch)}
+      onProcessingChange={setIsProcessing}
+    />
+    </>
   );
 }

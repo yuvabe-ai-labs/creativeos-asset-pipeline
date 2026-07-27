@@ -32,6 +32,7 @@ import { ImageGenNode } from "@/components/nodes/image-gen-node";
 import { VideoPromptNode } from "@/components/nodes/video-prompt-node";
 import { VideoGenNode } from "@/components/nodes/video-gen-node";
 import { useCanvasStore, useCanvasStoreApi } from "./canvas-store-provider";
+import { useAnyFocusViewOpen } from "@/hooks/use-focus-view-open";
 import { CanvasAutosave } from "./canvas-autosave";
 import { ConnectionBadge } from "./connection-badge";
 import { QuickAddMenu } from "./quick-add-menu";
@@ -108,6 +109,11 @@ export function Canvas({
   );
 
   const storeApi = useCanvasStoreApi();
+
+  // A node focus view is a modal surface over the canvas. Its sheet is portaled to
+  // <body>, so the canvas's document-level shortcuts (React Flow's Delete/Backspace
+  // included) keep firing behind it unless we explicitly stand down.
+  const anyFocusViewOpen = useAnyFocusViewOpen();
 
   const { canEdit, heldByName, canTakeOver, sessionId, takeOver, reportLockLost } =
     useCanvasLock(canvasId);
@@ -230,6 +236,9 @@ export function Canvas({
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (!canEditRef.current) return; // read-only: no keyboard mutations
+      // A focus view owns the keyboard while it's open — read the store here rather than
+      // closing over it, so the listener never re-subscribes and never goes stale.
+      if (storeApi.getState().openFocusViewIds.length > 0) return;
       // Duplicate (existing behavior) — modified key, fires regardless of focus.
       if ((e.ctrlKey || e.metaKey) && e.key === "d") {
         e.preventDefault();
@@ -265,7 +274,7 @@ export function Canvas({
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [duplicateNode, duplicateNodes, canvasId, openQuickAddAt, handleAddNode, pointerOrCenter]);
+  }, [duplicateNode, duplicateNodes, canvasId, openQuickAddAt, handleAddNode, pointerOrCenter, storeApi]);
 
   const isValidConnection = useCallback(
     (connection: Connection | Edge) => {
@@ -390,7 +399,9 @@ export function Canvas({
         nodesDraggable={canEdit}
         nodesConnectable={canEdit}
         onBeforeDelete={onBeforeDelete}
-        deleteKeyCode={canEdit ? ["Backspace", "Delete"] : null}
+        // null tears React Flow's document keydown listener down entirely (useKeyPress
+        // no-ops on a null keyCode) rather than us swallowing the event after the fact.
+        deleteKeyCode={canEdit && !anyFocusViewOpen ? ["Backspace", "Delete"] : null}
         selectionOnDrag
         selectionMode={SelectionMode.Partial}
         selectionKeyCode={null}
