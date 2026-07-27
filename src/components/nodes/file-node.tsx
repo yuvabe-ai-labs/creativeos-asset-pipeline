@@ -6,6 +6,7 @@ import { AlertTriangle, Loader2, Paperclip, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { useDeleteNode } from "@/hooks/use-delete-node";
+import { useFocusViewRegistration } from "@/hooks/use-focus-view-open";
 import type { FileNodeData } from "@/lib/canvas-nodes";
 import { FileFocusView } from "./file-focus-view";
 import { useNodeConnectionState } from "./use-node-connection-state";
@@ -48,8 +49,10 @@ export function FileNode({ id, data, selected }: NodeProps) {
     setFocusOpen(next);
     if (!next && focusedNodeId === id) setFocusedNodeId(null); // consume the signal
   };
+  useFocusViewRegistration(id, focusViewOpen);
 
   return (
+    <>
     <NodeContextMenu
       onDuplicate={() => duplicateNode(id)}
       onDelete={() => deleteNode(id)}
@@ -161,23 +164,6 @@ export function FileNode({ id, data, selected }: NodeProps) {
         </button>
       </div>
 
-      <FileFocusView
-        open={focusViewOpen}
-        onOpenChange={handleFocusOpenChange}
-        nodeId={id}
-        title={d.title ?? ""}
-        filename={d.filename}
-        fileExt={d.fileExt}
-        fileKind={d.fileKind}
-        fileUrl={d.fileUrl}
-        rawText={d.rawText}
-        useLlm={d.useLlm}
-        llmPrompt={d.llmPrompt}
-        processedOutput={d.processedOutput}
-        onPatch={(patch) => updateNodeData(id, patch)}
-        onUploadingChange={setIsUploading}
-      />
-
       <Handle
         type="source"
         position={Position.Right}
@@ -185,5 +171,25 @@ export function FileNode({ id, data, selected }: NodeProps) {
       />
     </div>
     </NodeContextMenu>
+
+    {/* Outside NodeContextMenu: the portaled sheet still sits in the node's React tree,
+        so as a child its contextmenu/dblclick/drop events bubbled into the node card. */}
+    <FileFocusView
+      open={focusViewOpen}
+      onOpenChange={handleFocusOpenChange}
+      nodeId={id}
+      title={d.title ?? ""}
+      filename={d.filename}
+      fileExt={d.fileExt}
+      fileKind={d.fileKind}
+      fileUrl={d.fileUrl}
+      rawText={d.rawText}
+      useLlm={d.useLlm}
+      llmPrompt={d.llmPrompt}
+      processedOutput={d.processedOutput}
+      onPatch={(patch) => updateNodeData(id, patch)}
+      onUploadingChange={setIsUploading}
+    />
+    </>
   );
 }

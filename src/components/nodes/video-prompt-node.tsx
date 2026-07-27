@@ -6,6 +6,7 @@ import { Clapperboard } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { useDeleteNode } from "@/hooks/use-delete-node";
+import { useFocusViewRegistration } from "@/hooks/use-focus-view-open";
 import { useGalleryDrawer } from "@/components/canvas/gallery-drawer-context";
 import { useGalleryNodeDrop } from "@/hooks/use-gallery-node-drop";
 import { savePromptOutputAction } from "@/lib/actions/nodes";
@@ -89,8 +90,10 @@ export function VideoPromptNode({ id, data, selected, positionAbsoluteX, positio
     setFocusOpen(next);
     if (!next && focusedNodeId === id) setFocusedNodeId(null);
   };
+  useFocusViewRegistration(id, focusViewOpen);
 
   return (
+    <>
     <NodeContextMenu
       onDuplicate={() => duplicateNode(id)}
       onDelete={() => deleteNode(id)}
@@ -145,20 +148,6 @@ export function VideoPromptNode({ id, data, selected, positionAbsoluteX, positio
           </button>
         </div>
 
-        <VideoPromptFocusView
-          open={focusViewOpen}
-          onOpenChange={handleFocusOpenChange}
-          nodeId={id}
-          title={title}
-          instruction={instruction}
-          output={output}
-          slices={slices}
-          controls={controls}
-          upstream={upstream}
-          onPatch={(patch) => updateNodeData(id, patch)}
-          onSaveOutput={(o) => savePromptOutputAction(id, o)}
-        />
-
         <Handle
           type="target"
           position={Position.Left}
@@ -171,5 +160,22 @@ export function VideoPromptNode({ id, data, selected, positionAbsoluteX, positio
         />
       </div>
     </NodeContextMenu>
+
+    {/* Outside NodeContextMenu: the portaled sheet still sits in the node's React tree,
+        so as a child its contextmenu/dblclick/drop events bubbled into the node card. */}
+    <VideoPromptFocusView
+      open={focusViewOpen}
+      onOpenChange={handleFocusOpenChange}
+      nodeId={id}
+      title={title}
+      instruction={instruction}
+      output={output}
+      slices={slices}
+      controls={controls}
+      upstream={upstream}
+      onPatch={(patch) => updateNodeData(id, patch)}
+      onSaveOutput={(o) => savePromptOutputAction(id, o)}
+    />
+    </>
   );
 }

@@ -6,6 +6,7 @@ import { Clapperboard, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { useDeleteNode } from "@/hooks/use-delete-node";
+import { useFocusViewRegistration } from "@/hooks/use-focus-view-open";
 import { useGalleryDrawer } from "@/components/canvas/gallery-drawer-context";
 import { useGalleryNodeDrop } from "@/hooks/use-gallery-node-drop";
 import { NodeContextMenu } from "./node-context-menu";
@@ -56,8 +57,10 @@ export function ShotNode({ id, data, selected, positionAbsoluteX, positionAbsolu
     setComposeOpen(next);
     if (!next && focusedNodeId === id) setFocusedNodeId(null); // consume the signal
   };
+  useFocusViewRegistration(id, composeViewOpen);
 
   return (
+    <>
     <NodeContextMenu
       onDuplicate={() => duplicateNode(id)}
       onDelete={() => deleteNode(id)}
@@ -133,8 +136,12 @@ export function ShotNode({ id, data, selected, positionAbsoluteX, positionAbsolu
           position={Position.Right}
           className="size-4! border-2! border-card! bg-primary!"
         />
-        <ShotComposeSheet nodeId={id} open={composeViewOpen} onOpenChange={handleComposeOpenChange} />
       </div>
     </NodeContextMenu>
+
+    {/* Outside NodeContextMenu: the portaled sheet still sits in the node's React tree,
+        so as a child its contextmenu/dblclick/drop events bubbled into the node card. */}
+    <ShotComposeSheet nodeId={id} open={composeViewOpen} onOpenChange={handleComposeOpenChange} />
+    </>
   );
 }

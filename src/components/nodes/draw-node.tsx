@@ -6,6 +6,7 @@ import { Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { useDeleteNode } from "@/hooks/use-delete-node";
+import { useFocusViewRegistration } from "@/hooks/use-focus-view-open";
 import type { DrawNodeData } from "@/lib/canvas-nodes";
 import { DrawFocusView } from "./draw-focus-view";
 import { useNodeConnectionState } from "./use-node-connection-state";
@@ -32,8 +33,10 @@ export function DrawNode({ id, data, selected }: NodeProps) {
     setFocusOpen(next);
     if (!next && focusedNodeId === id) setFocusedNodeId(null); // consume the signal
   };
+  useFocusViewRegistration(id, focusViewOpen);
 
   return (
+    <>
     <NodeContextMenu
       onDuplicate={() => duplicateNode(id)}
       onDelete={() => deleteNode(id)}
@@ -90,16 +93,6 @@ export function DrawNode({ id, data, selected }: NodeProps) {
           </button>
         </div>
 
-        <DrawFocusView
-          open={focusViewOpen}
-          onOpenChange={handleFocusOpenChange}
-          nodeId={id}
-          title={d.title ?? ""}
-          instructions={d.instructions}
-          existingImageUrl={d.fileUrl}
-          onPatch={(patch) => updateNodeData(id, patch)}
-        />
-
         <Handle
           type="source"
           position={Position.Right}
@@ -107,5 +100,18 @@ export function DrawNode({ id, data, selected }: NodeProps) {
         />
       </div>
     </NodeContextMenu>
+
+    {/* Outside NodeContextMenu: the portaled sheet still sits in the node's React tree,
+        so as a child its contextmenu/dblclick/drop events bubbled into the node card. */}
+    <DrawFocusView
+      open={focusViewOpen}
+      onOpenChange={handleFocusOpenChange}
+      nodeId={id}
+      title={d.title ?? ""}
+      instructions={d.instructions}
+      existingImageUrl={d.fileUrl}
+      onPatch={(patch) => updateNodeData(id, patch)}
+    />
+    </>
   );
 }
