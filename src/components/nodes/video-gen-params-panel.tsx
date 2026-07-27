@@ -5,8 +5,6 @@ import {
   Crop,
   Gauge,
   LayoutGrid,
-  Maximize2,
-  Move,
   Settings2,
   Timer,
   type LucideIcon,
@@ -18,16 +16,10 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
-import {
   videoGenClientModelMap,
   videoGenClientModelGroups,
+  resolveVideoModelId,
 } from "@/lib/video-gen/client-models";
-import { ImageGenParamRow } from "./image-gen-param-row";
 import { ParamControl } from "./param-controls";
 import { ParamChipGroup } from "./param-chip-group";
 import { FieldLabel } from "./field-label";
@@ -41,13 +33,15 @@ const PARAM_ICONS: Record<string, LucideIcon> = {
   mode:                Gauge,
   cfg_scale:           Settings2,
   negative_prompt:     Settings2,
-  pan:                 Move,
-  tilt:                Move,
-  zoom:                Maximize2,
-  roll:                Move,
-  horizontal_movement: Move,
-  vertical_movement:   Move,
 };
+
+type ParamGroup = ParamSpec["group"];
+
+/** Whether a model has any visible params in a group — drives showing the Advanced section. */
+export function hasParamsInGroup(modelId: string, group: ParamGroup): boolean {
+  const model = videoGenClientModelMap[resolveVideoModelId(modelId)];
+  return (model?.params ?? []).some((p: ParamSpec) => p.visible && p.group === group);
+}
 
 type Props = {
   modelId: string;
@@ -56,6 +50,8 @@ type Props = {
   onParamChange: (name: string, value: unknown) => void;
   lockedParams?: Record<string, unknown>;
   lockedParamReasons?: Record<string, string>;
+  /** Which param group to render. The model picker only appears with "primary". */
+  group?: ParamGroup;
 };
 
 export function VideoGenParamsPanel({
@@ -65,106 +61,106 @@ export function VideoGenParamsPanel({
   onParamChange,
   lockedParams = {},
   lockedParamReasons = {},
+  group = "primary",
 }: Props) {
-  const model = videoGenClientModelMap[modelId];
+  const model = videoGenClientModelMap[resolveVideoModelId(modelId)];
   const visibleParams = (model?.params ?? [])
-    .filter((p: ParamSpec) => p.visible)
+    .filter((p: ParamSpec) => p.visible && p.group === group)
     .sort((a: ParamSpec, b: ParamSpec) => a.order - b.order);
-
-  const primaryParams = visibleParams.filter((p: ParamSpec) => p.group === "primary");
-  const advancedParams = visibleParams.filter((p: ParamSpec) => p.group === "advanced");
 
   function renderParamRow(spec: ParamSpec) {
     const isLocked = spec.name in lockedParams;
     const reason = lockedParamReasons[spec.name];
 
-    // Select params → horizontal chip group. Locked params are shown disabled with
-    // the locked value active and a tooltip explaining why.
-    if (spec.constraints.type === "select") {
-      const options = spec.constraints.options.map((o) => ({ value: o, label: o }));
-      const value = String(
-        (isLocked ? lockedParams[spec.name] : params[spec.name]) ?? spec.defaultValue ?? "",
-      );
-      const chips = (
+    const control =
+      spec.constraints.type === "select" ? (
         <ParamChipGroup
-          options={options}
-          value={value}
+          options={spec.constraints.options.map((o) => ({ value: o, label: o }))}
+          value={String(
+            (isLocked ? lockedParams[spec.name] : params[spec.name]) ?? spec.defaultValue ?? "",
+          )}
           onValueChange={(v) => onParamChange(spec.name, v)}
           disabled={isLocked}
         />
-      );
-      return (
-        <div key={spec.name} className="space-y-2">
-          <FieldLabel icon={PARAM_ICONS[spec.name] ?? Settings2} label={spec.label} />
-          {isLocked && reason ? (
-            <Tooltip>
-              <TooltipTrigger render={<div className="w-fit" />}>{chips}</TooltipTrigger>
-              <TooltipContent side="top">{reason}</TooltipContent>
-            </Tooltip>
-          ) : (
-            chips
-          )}
-        </div>
-      );
-    }
-
-    // Non-select params (slider / number / toggle / textarea) keep the compact
-    // label-above-control cell.
-    return (
-      <ImageGenParamRow
-        key={spec.name}
-        icon={PARAM_ICONS[spec.name] ?? Settings2}
-        label={spec.label}
-      >
+      ) : (
         <ParamControl
           spec={spec}
-          value={params[spec.name] ?? spec.defaultValue}
+          value={(isLocked ? lockedParams[spec.name] : params[spec.name]) ?? spec.defaultValue}
           onChange={(v) => onParamChange(spec.name, v)}
+          disabled={isLocked}
         />
-      </ImageGenParamRow>
+      );
+
+    // Uniform cell: a FieldLabel (icon + name) above the control, so every stacked param row —
+    // chip select, slider, or textarea — shares the same label weight and spacing.
+    return (
+      <div key={spec.name} className="space-y-2">
+        <FieldLabel icon={PARAM_ICONS[spec.name] ?? Settings2} label={spec.label} />
+        {isLocked && reason ? (
+          <Tooltip>
+            <TooltipTrigger render={<div className="w-full" />}>{control}</TooltipTrigger>
+            <TooltipContent side="top">{reason}</TooltipContent>
+          </Tooltip>
+        ) : (
+          control
+        )}
+      </div>
     );
   }
 
+  // ── Model picker (primary only) + this group's params ──
   return (
     <TooltipProvider>
-      <div className="space-y-5">
-        {/* Model — grouped chips inside a card, one chip row per provider. */}
-        <div className="space-y-2">
-          <FieldLabel icon={Cpu} label="Model" />
-          <div className="space-y-3 rounded-xl border border-border p-3">
-            {videoGenClientModelGroups.map((group) => (
-              <div key={group.label} className="space-y-1.5">
-                <span className="text-[0.7rem] font-medium text-muted-foreground">
-                  {group.label}
-                </span>
-                <ParamChipGroup
-                  options={group.models.map((m) => ({ value: m.id, label: m.label }))}
-                  value={modelId}
-                  onValueChange={onModelChange}
-                />
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Primary params — stacked chip groups */}
-        <div className="flex flex-col gap-5">{primaryParams.map(renderParamRow)}</div>
-
-        {/* Advanced params — collapsed accordion */}
-        {advancedParams.length > 0 && (
-          <Accordion multiple={false} className="pt-1">
-            <AccordionItem value="advanced" className="border-none">
-              <AccordionTrigger className="py-1 text-[0.7rem] tracking-wide uppercase text-muted-foreground hover:text-foreground hover:no-underline">
-                Advanced
-              </AccordionTrigger>
-              <AccordionContent className="pt-2">
-                <div className="flex flex-col gap-5">
-                  {advancedParams.map(renderParamRow)}
+      <div className="space-y-4">
+        {/* Model — grouped chips in a 3-column grid, one block per provider. */}
+        {group === "primary" && (
+          <div className="space-y-2">
+            <FieldLabel icon={Cpu} label="Model" />
+            <div className="space-y-2 rounded-xl border border-border p-2.5">
+              {videoGenClientModelGroups.map((providerGroup) => (
+                <div key={providerGroup.label} className="space-y-1">
+                  <span className="text-[0.7rem] font-medium text-muted-foreground">
+                    {providerGroup.label}
+                  </span>
+                  <ParamChipGroup
+                    columns={3}
+                    options={providerGroup.models.map((m) => ({
+                      value: m.id,
+                      label: m.pickerLabel ?? m.label,
+                    }))}
+                    value={modelId}
+                    onValueChange={onModelChange}
+                  />
                 </div>
-              </AccordionContent>
-            </AccordionItem>
-          </Accordion>
+              ))}
+            </div>
+          </div>
         )}
+
+        {/* Params — the first two compact controls share the top row (Resolution + Duration,
+            or Aspect Ratio + Duration for Veo); any remaining controls stack below, with a
+            textarea (Negative Prompt) always spanning full width. */}
+        {(() => {
+          const canPair =
+            visibleParams.length >= 2 &&
+            visibleParams[0].constraints.type !== "textarea" &&
+            visibleParams[1].constraints.type !== "textarea";
+          const rowParams = canPair ? visibleParams.slice(0, 2) : [];
+          const stackParams = canPair ? visibleParams.slice(2) : visibleParams;
+          return (
+            <div className="space-y-4">
+              {rowParams.length > 0 && (
+                // Compact control (Mode / Aspect Ratio) sizes to its content; the slider
+                // beside it (Duration) fills the rest of the row — no dead half-column gap.
+                <div className="grid grid-cols-[auto_1fr] items-start gap-x-6 gap-y-4">
+                  {rowParams.map(renderParamRow)}
+                </div>
+              )}
+              {stackParams.map(renderParamRow)}
+            </div>
+          );
+        })()}
+
       </div>
     </TooltipProvider>
   );

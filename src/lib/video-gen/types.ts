@@ -77,6 +77,8 @@ export type VideoGenModelSpec = {
   id: string;
   provider: "veo" | "openai" | "kling";
   label: string;
+  /** Short label for the compact model-picker chip; falls back to `label` when unset. */
+  pickerLabel?: string;
   providerLabel: string;
   maxDurationSeconds: number;
   imageInputs: ImageInputCapabilities;

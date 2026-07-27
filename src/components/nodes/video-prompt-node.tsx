@@ -12,9 +12,9 @@ import { savePromptOutputAction } from "@/lib/actions/nodes";
 import { VideoPromptFocusView } from "./video-prompt-focus-view";
 import { DEFAULT_IMAGE_PROMPT_SLICES, type KBSliceKey } from "@/lib/kb/parse-context";
 import type { VideoControls } from "@/lib/nodes/video-controls";
+import type { VideoProvider } from "@/prompts/video-prompt-generate";
 import { NodeContextMenu } from "./node-context-menu";
-import { NodeTitle } from "./node-title";
-import { NodeHandle } from "./node-handle";
+import { NodeCardHeader } from "./node-card-header";
 import { ApprovalBadge } from "./approval-badge";
 import type { ApprovalStatus } from "@/lib/approval";
 
@@ -74,6 +74,7 @@ export function VideoPromptNode({ id, data, selected, positionAbsoluteX, positio
     parsed?: unknown;
     kbSlices?: KBSliceKey[];
     controls?: VideoControls;
+    targetProvider?: VideoProvider;
   };
   const title = d.title ?? "";
   const instruction = d.instruction ?? "";
@@ -114,17 +115,20 @@ export function VideoPromptNode({ id, data, selected, positionAbsoluteX, positio
           selected && "ring-2 ring-primary ring-offset-1 ring-offset-background",
         )}
       >
-        <div className="flex items-center justify-between border-b border-border px-3 py-2">
-          <div className="flex items-center gap-1.5">
-            <Clapperboard className="size-3.5 text-primary" strokeWidth={1.5} />
-            <span className="text-eyebrow !text-[0.65rem]">Video Prompt</span>
-            <NodeHandle nodeId={id} nodeType="video-prompt" />
-          </div>
-          <span
-            className={cn("size-1.5 rounded-full", output ? "bg-primary" : "bg-muted-foreground/40")}
-            title={output ? "Generated" : "Not generated"}
-          />
-        </div>
+        <NodeCardHeader
+          icon={Clapperboard}
+          nodeId={id}
+          nodeType="video-prompt"
+          title={title}
+          placeholder="Motion prompt"
+          onCommitTitle={(t) => updateNodeData(id, { title: t })}
+          status={
+            <span
+              className={cn("size-1.5 rounded-full", output ? "bg-primary" : "bg-muted-foreground/40")}
+              title={output ? "Generated" : "Not generated"}
+            />
+          }
+        />
 
         <div className="px-3 py-3">
           {output && approvalStatus && (
@@ -132,14 +136,9 @@ export function VideoPromptNode({ id, data, selected, positionAbsoluteX, positio
               <ApprovalBadge status={approvalStatus} />
             </div>
           )}
-          <NodeTitle
-            value={title}
-            placeholder="Motion prompt"
-            onCommit={(t) => updateNodeData(id, { title: t })}
-          />
           <button
             onClick={() => setFocusOpen(true)}
-            className="nodrag -mx-1.5 mt-3 inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10"
+            className="nodrag -mx-1.5 inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10"
           >
             Open ↗
           </button>
@@ -154,6 +153,7 @@ export function VideoPromptNode({ id, data, selected, positionAbsoluteX, positio
           output={output}
           slices={slices}
           controls={controls}
+          targetProvider={d.targetProvider ?? null}
           upstream={upstream}
           onPatch={(patch) => updateNodeData(id, patch)}
           onSaveOutput={(o) => savePromptOutputAction(id, o)}

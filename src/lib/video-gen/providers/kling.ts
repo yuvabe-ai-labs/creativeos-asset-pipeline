@@ -1,13 +1,7 @@
 import "server-only";
 import { logger } from "@trigger.dev/sdk/v3";
 import type { VideoGenInput, VideoGenResult, VideoGenModelSpec } from "../types";
-import {
-  kling30TurboParams,
-  kling26Params,
-  kling25TurboParams,
-  kling30Params,
-  klingO1Params,
-} from "../params/kling";
+import { kling30Params, klingO1Params } from "../params/kling";
 
 const KLING_API_BASE = "https://api-singapore.klingai.com";
 const POLL_INTERVAL_MS = 5_000;
@@ -41,32 +35,11 @@ export function buildKlingContents(
 
 const KLING_OPTIONS = { watermark_info: { enabled: false } };
 
-export function build3_0TurboSettings(
-  params: Record<string, unknown>,
-): Record<string, unknown> {
-  return {
-    resolution: String(params.resolution ?? "720p"),
-    duration: Number(params.duration ?? 5),
-  };
-}
-
-export function build2_6Settings(
-  params: Record<string, unknown>,
-): Record<string, unknown> {
-  return {
-    audio: String(params.audio ?? "off"),
-    resolution: String(params.resolution ?? "720p"),
-    duration: Number(params.duration ?? 5),
-  };
-}
-
-export function build2_5TurboSettings(
-  params: Record<string, unknown>,
-): Record<string, unknown> {
-  return {
-    resolution: String(params.resolution ?? "720p"),
-    duration: Number(params.duration ?? 5),
-  };
+// Kling's field is snake_case `negative_prompt` (Veo's SDK uses camelCase `negativePrompt`).
+// Omitted entirely when blank so an emptied box sends no negative at all.
+function negativePromptSetting(params: Record<string, unknown>): Record<string, unknown> {
+  const negativePrompt = String(params.negative_prompt ?? "").trim();
+  return negativePrompt ? { negative_prompt: negativePrompt } : {};
 }
 
 export function build3_0Settings(
@@ -77,6 +50,7 @@ export function build3_0Settings(
     audio: String(params.audio ?? "off"),
     resolution: String(params.resolution ?? "720p"),
     duration: Number(params.duration ?? 5),
+    ...negativePromptSetting(params),
   };
 }
 
@@ -87,6 +61,7 @@ export function buildO1Settings(
     audio: String(params.audio ?? "off"),
     resolution: String(params.resolution ?? "720p"),
     duration: Number(params.duration ?? 5),
+    ...negativePromptSetting(params),
   };
 }
 
@@ -170,53 +145,11 @@ async function generateWithKling(
   return pollKlingTask(taskId);
 }
 
-const KLING_IMAGE_INPUTS_NO_END = {
-  startFrame: true,
-  endFrame: false,
-  maxReferenceImages: 0,
-} as const;
-
 const KLING_IMAGE_INPUTS_WITH_END = {
   startFrame: true,
   endFrame: true,
   maxReferenceImages: 0,
 } as const;
-
-export const kling30Turbo: VideoGenModelSpec = {
-  id: "kling:kling-3-0-turbo",
-  provider: "kling",
-  label: "Kling 3.0 Turbo",
-  providerLabel: "Kling",
-  maxDurationSeconds: 15,
-  imageInputs: KLING_IMAGE_INPUTS_NO_END,
-  params: kling30TurboParams,
-  generate: (input) =>
-    generateWithKling("/image-to-video/kling-3.0-turbo", build3_0TurboSettings, input),
-};
-
-export const kling26: VideoGenModelSpec = {
-  id: "kling:kling-2-6",
-  provider: "kling",
-  label: "Kling 2.6",
-  providerLabel: "Kling",
-  maxDurationSeconds: 10,
-  imageInputs: KLING_IMAGE_INPUTS_WITH_END,
-  params: kling26Params,
-  generate: (input) =>
-    generateWithKling("/image-to-video/kling-2.6", build2_6Settings, input),
-};
-
-export const kling25Turbo: VideoGenModelSpec = {
-  id: "kling:kling-2-5-turbo",
-  provider: "kling",
-  label: "Kling 2.5 Turbo",
-  providerLabel: "Kling",
-  maxDurationSeconds: 10,
-  imageInputs: KLING_IMAGE_INPUTS_WITH_END,
-  params: kling25TurboParams,
-  generate: (input) =>
-    generateWithKling("/image-to-video/kling-2.5-turbo", build2_5TurboSettings, input),
-};
 
 export const kling30: VideoGenModelSpec = {
   id: "kling:kling-3-0",

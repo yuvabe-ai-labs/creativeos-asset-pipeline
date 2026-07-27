@@ -1,65 +1,10 @@
 import { describe, it, expect } from "vitest";
-import {
-  kling30TurboParams,
-  kling26Params,
-  kling25TurboParams,
-  kling30Params,
-  klingO1Params,
-} from "../params/kling";
+import { kling30Params, klingO1Params, KLING_NEGATIVE_DEFAULT } from "../params/kling";
+import type { ParamSpec } from "@/lib/image-gen/types";
 
-function names(params: typeof kling30TurboParams) {
+function names(params: ParamSpec[]) {
   return params.map((p) => p.name);
 }
-
-describe("kling30TurboParams", () => {
-  it("has resolution and duration only, no audio or multi_shot", () => {
-    expect(names(kling30TurboParams)).toEqual(["resolution", "duration"]);
-  });
-
-  it("resolution options are 720p/1080p", () => {
-    const p = kling30TurboParams.find((p) => p.name === "resolution")!;
-    expect(p.constraints).toEqual({ type: "select", options: ["720p", "1080p"] });
-  });
-
-  it("duration options are 3 through 15", () => {
-    const p = kling30TurboParams.find((p) => p.name === "duration")!;
-    expect(p.constraints).toEqual({
-      type: "select",
-      options: ["3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"],
-    });
-  });
-});
-
-describe("kling26Params", () => {
-  it("has resolution, duration, and audio", () => {
-    expect(names(kling26Params)).toEqual(
-      expect.arrayContaining(["resolution", "duration", "audio"]),
-    );
-    expect(names(kling26Params)).not.toContain("multi_shot");
-  });
-
-  it("duration options are 5 and 10 only", () => {
-    const p = kling26Params.find((p) => p.name === "duration")!;
-    expect(p.constraints).toEqual({ type: "select", options: ["5", "10"] });
-  });
-
-  it("audio options are native/off, default off", () => {
-    const p = kling26Params.find((p) => p.name === "audio")!;
-    expect(p.constraints).toEqual({ type: "select", options: ["native", "off"] });
-    expect(p.defaultValue).toBe("off");
-  });
-});
-
-describe("kling25TurboParams", () => {
-  it("has resolution and duration only", () => {
-    expect(names(kling25TurboParams)).toEqual(["resolution", "duration"]);
-  });
-
-  it("duration options are 5 and 10 only", () => {
-    const p = kling25TurboParams.find((p) => p.name === "duration")!;
-    expect(p.constraints).toEqual({ type: "select", options: ["5", "10"] });
-  });
-});
 
 describe("kling30Params", () => {
   it("has resolution, duration, audio, and multi_shot", () => {
@@ -79,6 +24,12 @@ describe("kling30Params", () => {
     expect(p.constraints).toEqual({ type: "toggle" });
     expect(p.defaultValue).toBe(true);
   });
+
+  it("duration is a 3–15s slider, not a 13-option select", () => {
+    const p = kling30Params.find((p) => p.name === "duration")!;
+    expect(p.component).toBe("slider");
+    expect(p.constraints).toEqual({ type: "slider", min: 3, max: 15, step: 1 });
+  });
 });
 
 describe("klingO1Params", () => {
@@ -89,29 +40,82 @@ describe("klingO1Params", () => {
     expect(names(klingO1Params)).not.toContain("multi_shot");
   });
 
-  it("audio options are original/off, distinct from 2.6/3.0's native/off", () => {
+  it("audio options are original/off, distinct from 3.0's native/off", () => {
     const p = klingO1Params.find((p) => p.name === "audio")!;
     expect(p.constraints).toEqual({ type: "select", options: ["original", "off"] });
   });
 
-  it("duration options are 3 through 10", () => {
+  it("duration is a 3–10s slider (O1 caps lower than 3.0)", () => {
     const p = klingO1Params.find((p) => p.name === "duration")!;
-    expect(p.constraints).toEqual({
-      type: "select",
-      options: ["3", "4", "5", "6", "7", "8", "9", "10"],
-    });
+    expect(p.component).toBe("slider");
+    expect(p.constraints).toEqual({ type: "slider", min: 3, max: 10, step: 1 });
+  });
+});
+
+// The slider stores a number where the select stored a string. Both must survive the round
+// trip to the provider, or a node saved before this change generates at the wrong length.
+describe("duration value handling", () => {
+  it("defaults to a number so SliderControl renders it directly", () => {
+    for (const params of [kling30Params, klingO1Params]) {
+      const p = params.find((p) => p.name === "duration")!;
+      expect(typeof p.defaultValue).toBe("number");
+      expect(p.defaultValue).toBe(5);
+    }
+  });
+});
+
+// Regression guard: the union-roster merge silently dropped negative_prompt from every Kling
+// param set (the guard test was replaced alongside the param file). Both surviving models must
+// carry it, prefilled — see the D78 consolidation design §7.
+describe("negative_prompt", () => {
+  it.each([
+    ["kling30Params", kling30Params],
+    ["klingO1Params", klingO1Params],
+  ])("%s has a prefilled negative_prompt textarea", (_label, params) => {
+    const p = params.find((p) => p.name === "negative_prompt");
+    expect(p).toBeDefined();
+    expect(p!.component).toBe("textarea");
+    expect(p!.visible).toBe(true);
+    expect(p!.defaultValue).toBe(KLING_NEGATIVE_DEFAULT);
+    expect(p!.constraints).toEqual({ type: "textarea", maxLength: 2500 });
+  });
+
+  it("preserves label text/logo rather than negating them (product-shot tuning)", () => {
+    const items = KLING_NEGATIVE_DEFAULT.split(",").map((s) => s.trim());
+    expect(items).not.toContain("text");
+    expect(items).not.toContain("logo");
+    expect(items).toContain("warped label");
+  });
+
+  // Stays out of the Advanced accordion: it is tuned per shot, so it must be visible without
+  // expanding anything. Audio / Multi-Shot are the only params behind Advanced.
+  it("is a primary param, not hidden behind Advanced", () => {
+    for (const params of [kling30Params, klingO1Params]) {
+      expect(params.find((p) => p.name === "negative_prompt")!.group).toBe("primary");
+    }
+    expect(
+      kling30Params.filter((p) => p.group === "advanced").map((p) => p.name).sort(),
+    ).toEqual(["audio", "multi_shot"]);
+    expect(klingO1Params.filter((p) => p.group === "advanced").map((p) => p.name)).toEqual([
+      "audio",
+    ]);
+  });
+
+  it("sorts last within primary so the textarea renders below the paired controls", () => {
+    for (const params of [kling30Params, klingO1Params]) {
+      const primary = params.filter((p) => p.group === "primary");
+      const maxOther = Math.max(
+        ...primary.filter((p) => p.name !== "negative_prompt").map((p) => p.order),
+      );
+      const neg = primary.find((p) => p.name === "negative_prompt")!;
+      expect(neg.order).toBeGreaterThan(maxOther);
+    }
   });
 });
 
 describe("all model param sets", () => {
   it("are all visible", () => {
-    for (const params of [
-      kling30TurboParams,
-      kling26Params,
-      kling25TurboParams,
-      kling30Params,
-      klingO1Params,
-    ]) {
+    for (const params of [kling30Params, klingO1Params]) {
       expect(params.every((p) => p.visible)).toBe(true);
     }
   });

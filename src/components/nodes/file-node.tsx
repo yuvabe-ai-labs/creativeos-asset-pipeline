@@ -10,8 +10,7 @@ import type { FileNodeData } from "@/lib/canvas-nodes";
 import { FileFocusView } from "./file-focus-view";
 import { useNodeConnectionState } from "./use-node-connection-state";
 import { NodeContextMenu } from "./node-context-menu";
-import { NodeTitle } from "./node-title";
-import { NodeHandle } from "./node-handle";
+import { NodeCardHeader } from "./node-card-header";
 
 const KIND_LABELS = { text: "TXT", image: "IMG", document: "DOC" } as const;
 
@@ -66,33 +65,36 @@ export function FileNode({ id, data, selected }: NodeProps) {
         connState === "invalid" && "opacity-60 pointer-events-none",
       )}
     >
-      <div className="flex items-center justify-between border-b border-border px-3 py-2">
-        <div className="flex items-center gap-1.5">
-          <Paperclip className="size-3.5 text-primary" />
-          <span className="text-eyebrow text-[0.65rem]!">File</span>
-          <NodeHandle nodeId={id} nodeType="file" />
-        </div>
-        <div className="flex items-center gap-1">
-          {showUploading ? (
-            <Loader2 className="size-3 animate-spin text-primary" />
-          ) : uploadError ? (
-            <AlertTriangle
-              className="size-3 text-destructive"
-              strokeWidth={2}
-              aria-label={uploadError}
-            />
-          ) : (
-            <span
-              className={cn(
-                "size-1.5 rounded-full",
-                hasFile ? "bg-primary" : "bg-muted-foreground/40",
-              )}
-              title={hasFile ? "File attached" : "No file"}
-            />
-          )}
-          {d.useLlm && <Sparkles className="size-2.5 text-primary" />}
-        </div>
-      </div>
+      <NodeCardHeader
+        icon={Paperclip}
+        nodeId={id}
+        nodeType="file"
+        title={d.title ?? ""}
+        placeholder="Untitled file"
+        onCommitTitle={(t) => updateNodeData(id, { title: t })}
+        status={
+          <div className="flex items-center gap-1">
+            {showUploading ? (
+              <Loader2 className="size-3 animate-spin text-primary" />
+            ) : uploadError ? (
+              <AlertTriangle
+                className="size-3 text-destructive"
+                strokeWidth={2}
+                aria-label={uploadError}
+              />
+            ) : (
+              <span
+                className={cn(
+                  "size-1.5 rounded-full",
+                  hasFile ? "bg-primary" : "bg-muted-foreground/40",
+                )}
+                title={hasFile ? "File attached" : "No file"}
+              />
+            )}
+            {d.useLlm && <Sparkles className="size-2.5 text-primary" />}
+          </div>
+        }
+      />
 
       {/* image thumbnail slot: loader while uploading, error if failed, image if ready */}
       {(d.fileKind === "image" || showUploading) && (
@@ -130,23 +132,17 @@ export function FileNode({ id, data, selected }: NodeProps) {
       )}
 
       <div className="px-3 py-3">
-        <div className="flex items-center gap-1.5">
-          <NodeTitle
-            value={d.title ?? ""}
-            placeholder="Untitled file"
-            onCommit={(t) => updateNodeData(id, { title: t })}
-            className="flex-1"
-          />
-          {hasFile && d.fileKind && (
-            <span className="shrink-0 rounded px-1 py-0.5 text-[0.6rem] font-medium leading-none bg-muted text-muted-foreground">
-              {KIND_LABELS[d.fileKind]}
-            </span>
-          )}
-        </div>
         {hasFile && d.filename && (
-          <p className="mt-0.5 truncate text-xs text-muted-foreground">
-            {d.filename}
-          </p>
+          <div className="flex items-center gap-1.5">
+            <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+              {d.filename}
+            </p>
+            {d.fileKind && (
+              <span className="shrink-0 rounded bg-muted px-1 py-0.5 text-[0.6rem] font-medium leading-none text-muted-foreground">
+                {KIND_LABELS[d.fileKind]}
+              </span>
+            )}
+          </div>
         )}
         {sizeLabel && (
           <p className="mt-0.5 text-[0.65rem] tabular-nums text-muted-foreground/70">

@@ -55,7 +55,7 @@ describe("cameraLabel", () => {
 
 describe("cameraCaption", () => {
   it("capitalizes the prose for a move", () => {
-    expect(cameraCaption("push-in")).toBe("A slow push-in toward the subject");
+    expect(cameraCaption("push-in")).toBe("A slow, steady push-in toward the subject at a constant focal length");
   });
   it("names the model for auto", () => {
     expect(cameraCaption("auto")).toBe("Camera move chosen by the model");
@@ -64,7 +64,7 @@ describe("cameraCaption", () => {
 
 describe("cameraTooltip", () => {
   it("uses the prose for each tile", () => {
-    expect(cameraTooltip("orbit")).toBe("a gentle orbit around the subject");
+    expect(cameraTooltip("orbit")).toBe("a slow, small-angle orbit around the subject, holding constant distance, height, and focal length");
     for (const t of CAMERA_TILES) {
       expect(cameraTooltip(t.value).length).toBeGreaterThan(0);
     }

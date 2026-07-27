@@ -9,7 +9,7 @@ import { useDeleteNode } from "@/hooks/use-delete-node";
 import { useGalleryDrawer } from "@/components/canvas/gallery-drawer-context";
 import { useGalleryNodeDrop } from "@/hooks/use-gallery-node-drop";
 import { NodeContextMenu } from "./node-context-menu";
-import { NodeHandle } from "./node-handle";
+import { NodeCardHeader } from "./node-card-header";
 import { ShotComposeSheet } from "./shot-compose-sheet";
 import { GuidedNextButton } from "@/components/canvas/guided-next-button";
 import type { ReelScript } from "@/lib/nodes/reel-script";
@@ -81,16 +81,17 @@ export function ShotNode({ id, data, selected, positionAbsoluteX, positionAbsolu
           selected && "ring-2 ring-primary ring-offset-1 ring-offset-background",
         )}
       >
-        <div className="flex items-center justify-between border-b border-border px-3 py-2">
-          <div className="flex items-center gap-1.5">
-            <Clapperboard className="size-3.5 text-primary" />
-            <span className="text-eyebrow text-[0.65rem]!">Shot{d.order ? ` ${d.order}` : ""}</span>
-            <NodeHandle nodeId={id} nodeType="shot" />
-          </div>
-          {shot?.duration && (
-            <span className="text-[0.6rem] text-muted-foreground">{shot.duration}</span>
-          )}
-        </div>
+        <NodeCardHeader
+          icon={Clapperboard}
+          nodeId={id}
+          nodeType="shot"
+          title={`Shot${d.order ? ` ${d.order}` : ""}`}
+          status={
+            shot?.duration ? (
+              <span className="text-[0.6rem] text-muted-foreground">{shot.duration}</span>
+            ) : undefined
+          }
+        />
         <div className="p-2">
           <textarea
             value={description}

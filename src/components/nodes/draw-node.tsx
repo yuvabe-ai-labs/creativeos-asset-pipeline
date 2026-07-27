@@ -10,8 +10,7 @@ import type { DrawNodeData } from "@/lib/canvas-nodes";
 import { DrawFocusView } from "./draw-focus-view";
 import { useNodeConnectionState } from "./use-node-connection-state";
 import { NodeContextMenu } from "./node-context-menu";
-import { NodeTitle } from "./node-title";
-import { NodeHandle } from "./node-handle";
+import { NodeCardHeader } from "./node-card-header";
 
 export function DrawNode({ id, data, selected }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
@@ -50,20 +49,23 @@ export function DrawNode({ id, data, selected }: NodeProps) {
           connState === "invalid" && "opacity-60 pointer-events-none",
         )}
       >
-        <div className="flex items-center justify-between border-b border-border px-3 py-2">
-          <div className="flex items-center gap-1.5">
-            <Pencil className="size-3.5 text-primary" strokeWidth={1.5} />
-            <span className="text-eyebrow text-[0.65rem]!">Draw</span>
-            <NodeHandle nodeId={id} nodeType="draw" />
-          </div>
-          <span
-            className={cn(
-              "size-1.5 rounded-full",
-              hasSketch ? "bg-primary" : "bg-muted-foreground/40",
-            )}
-            title={hasSketch ? "Sketch saved" : "Empty"}
-          />
-        </div>
+        <NodeCardHeader
+          icon={Pencil}
+          nodeId={id}
+          nodeType="draw"
+          title={d.title ?? ""}
+          placeholder="Untitled sketch"
+          onCommitTitle={(t) => updateNodeData(id, { title: t })}
+          status={
+            <span
+              className={cn(
+                "size-1.5 rounded-full",
+                hasSketch ? "bg-primary" : "bg-muted-foreground/40",
+              )}
+              title={hasSketch ? "Sketch saved" : "Empty"}
+            />
+          }
+        />
 
         {hasSketch && (
           <div className="overflow-hidden border-b border-border">
@@ -77,14 +79,9 @@ export function DrawNode({ id, data, selected }: NodeProps) {
         )}
 
         <div className="px-3 py-3">
-          <NodeTitle
-            value={d.title ?? ""}
-            placeholder="Untitled sketch"
-            onCommit={(t) => updateNodeData(id, { title: t })}
-          />
           <button
             onClick={() => setFocusOpen(true)}
-            className="nodrag -mx-1.5 mt-3 inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10"
+            className="nodrag -mx-1.5 inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10"
           >
             Open ↗
           </button>
