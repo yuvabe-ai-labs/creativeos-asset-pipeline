@@ -1,4 +1,5 @@
 import { listVersions } from "@/lib/db/versions";
+import { getCreditsChargedByVersionIds } from "@/lib/db/generations";
 import type { ModelRequestRecord } from "@/lib/nodes/model-request";
 import { apiOk, withNode } from "@/lib/api/route-helpers";
 
@@ -10,6 +11,7 @@ export async function GET(
 ) {
   return withNode(params, async (nodeId, node) => {
     const rows = await listVersions(nodeId);
+    const creditsByVersion = await getCreditsChargedByVersionIds(rows.map((v) => v.id));
 
     return apiOk({
       activeVersionId: node.active_version_id,
@@ -38,6 +40,9 @@ export async function GET(
           intent?: string;
           request?: ModelRequestRecord;
         },
+        // Real settled credits (src/lib/db/credit-transactions.ts's ledger) — null for
+        // versions that predate the credit system, not backfilled.
+        creditsCharged: creditsByVersion.get(v.id) ?? null,
       })),
     });
   });

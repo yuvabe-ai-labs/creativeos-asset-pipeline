@@ -322,9 +322,18 @@ export function ImageGenFocusView({
   // the Generate tab (Edit has its own action button, out of scope per this plan) and once
   // there's a prompt to estimate from.
   useEffect(() => {
-    if (!open || activeTab === "edit" || !fetchedPrompt?.text) {
+    if (!open || activeTab === "edit" || !promptUpstream) {
       setEstimatedCredits(null);
       setEstimating(false);
+      return;
+    }
+    if (!fetchedPrompt?.text) {
+      // A prompt node IS connected, but its output hasn't loaded yet (the separate
+      // fetchedPrompt effect above is still in flight) — this is not the same as "no
+      // prompt connected," so keep the button in its disabled/loading state rather than
+      // flashing it enabled with no cost for the second or two before the fetch resolves.
+      // That fetch's completion updates fetchedPrompt.text, which re-runs this effect.
+      setEstimating(true);
       return;
     }
     let cancelled = false;
@@ -369,6 +378,7 @@ export function ImageGenFocusView({
   }, [
     open,
     activeTab,
+    Boolean(promptUpstream),
     selectedModelId,
     JSON.stringify(paramValues),
     connectedImageUrlsKey,

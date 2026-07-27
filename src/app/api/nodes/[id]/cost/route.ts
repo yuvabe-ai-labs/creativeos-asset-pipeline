@@ -1,7 +1,9 @@
 import { createServerSupabase } from "@/lib/supabase/server";
 import { apiError, apiOk, withNode } from "@/lib/api/route-helpers";
-import { USD_TO_INR } from "@/lib/pricing";
 
+// Real settled credits (generations.credits_charged), not a client-recomputed estimate.
+// Legacy generations that predate the credit system have credits_charged = null and simply
+// don't contribute — not backfilled.
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -17,17 +19,17 @@ export async function GET(
     const supabase = createServerSupabase();
     const { data, error } = await supabase
       .from("generations")
-      .select("cost_usd")
+      .select("credits_charged")
       .in("node_id", allNodeIds)
       .eq("status", "succeeded");
 
     if (error) return apiError(error.message, 500);
 
-    const totalUsd = (data ?? []).reduce(
-      (sum, row) => sum + (row.cost_usd ?? 0),
+    const totalCredits = (data ?? []).reduce(
+      (sum, row) => sum + (row.credits_charged ?? 0),
       0,
     );
 
-    return apiOk({ totalUsd, totalInr: totalUsd * USD_TO_INR });
+    return apiOk({ totalCredits });
   });
 }

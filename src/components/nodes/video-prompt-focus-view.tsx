@@ -24,6 +24,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { GuidedNextButton } from "@/components/canvas/guided-next-button";
 import { SliceToggles } from "./slice-toggles";
 import { DEFAULT_MOTION_INSTRUCTION } from "@/lib/nodes/video-prompt";
+import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
+import { estimatePromptCredits } from "@/lib/credits/prompt-estimate";
 import type { KBSliceKey } from "@/lib/kb/parse-context";
 import { CameraSelect } from "./camera-select";
 import { SpeedSelect } from "./speed-select";
@@ -148,6 +150,10 @@ export function VideoPromptFocusView({
 
   // The Image Gen still the motion prompt is grounded on (vision frame).
   const visionFrame = upstream.find((u) => u.type === "image-gen" && !!u.fileUrl) ?? null;
+
+  // Mirrors the image Prompt node's Generate button (prompt-focus-view.tsx) — same
+  // estimatePromptCredits heuristic, folded into the button label below.
+  const estimatedCredits = estimatePromptCredits(upstream.length);
 
   // D77: connected downstream Video Gen nodes are the single source of truth for the target
   // provider. None connected → the node's own selector value governs; multiple with differing
@@ -314,7 +320,9 @@ export function VideoPromptFocusView({
         }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Generation failed");
+      if (!res.ok) {
+        throw new Error(res.status === 402 ? CREDIT_LIMIT_TOAST_MESSAGE : json.error ?? "Generation failed");
+      }
       onPatch({ parsed: json.output });
       setActiveVersionId(json.versionId ?? null);
       await fetchVersions();
@@ -565,6 +573,7 @@ export function VideoPromptFocusView({
                     >
                       <Clapperboard className="size-4" />
                       {generating ? "Generating…" : output ? "Re-generate" : "Generate motion prompt"}
+                      {!generating && ` · ${estimatedCredits}`}
                     </Button>
                   </div>
                 </div>

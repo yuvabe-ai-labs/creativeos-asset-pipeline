@@ -5,6 +5,16 @@ import { buildUserContent } from "@/lib/nodes/compose-message";
 import { videoPromptGeneratePromptFor, type VideoProvider } from "@/prompts/video-prompt-generate";
 import { DEFAULT_VIDEO_CONTROLS, type VideoControls } from "@/lib/nodes/video-controls";
 import { insertVersion, setActiveVersion } from "@/lib/db/versions";
+import { insertGeneration, succeedGeneration, failGeneration } from "@/lib/db/generations";
+import { computeCost } from "@/lib/pricing";
+import { estimatePromptCredits } from "@/lib/credits/prompt-estimate";
+import { usdToFinalCredits } from "@/lib/credits/units";
+import {
+  reserveCredits,
+  settleGeneration,
+  refundReservation,
+  CreditLimitError,
+} from "@/lib/db/credit-transactions";
 import { describeModelRequest } from "@/lib/nodes/model-request";
 import { apiError, apiOk, withNode } from "@/lib/api/route-helpers";
 
@@ -18,12 +28,14 @@ function normalizeControls(input: unknown): VideoControls {
 
 // POST /api/nodes/:id/video-prompt — the Video Prompt node's runAction: resolve inputs
 // (KB + upstream, with the Image Gen still as a vision part), compile, call the text LLM
-// synchronously, append a version, move the active pointer. Mirrors the Prompt generate route.
+// synchronously, append a version, move the active pointer. Mirrors the Prompt generate route,
+// including its credit reservation/settlement flow (src/app/api/nodes/[id]/generate/route.ts) —
+// this route previously logged a version but never joined the credit ledger at all.
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withNode(params, async (nodeId) => {
+  return withNode(params, async (nodeId, _node, caller, clientId) => {
     const body = (await req.json().catch(() => null)) as
       | { instruction?: unknown; slices?: unknown; controls?: unknown; targetProvider?: unknown }
       | null;
@@ -56,7 +68,28 @@ export async function POST(
       upstream: resolved.upstream,
     });
 
+    const model = `openai:${promptSpec.model}`;
+    let generation: Awaited<ReturnType<typeof insertGeneration>> | null = null;
+
     try {
+      generation = await insertGeneration({
+        nodeId,
+        orgId: caller.orgId,
+        clientId,
+        userId: caller.userId,
+        userEmail: caller.email,
+        type: "prompt",
+        modelUsed: model,
+        paramsSnapshot: { model: promptSpec.model, targetProvider },
+        inputsSnapshot: { instruction: effectiveInstruction },
+      });
+
+      const estimatedCredits = estimatePromptCredits(resolved.upstream.length);
+      const reservation = await reserveCredits(caller.orgId, generation.id, estimatedCredits);
+      if (!reservation.ok) {
+        throw new CreditLimitError("Monthly credit limit reached");
+      }
+
       const openai = createOpenAI();
       const completion = await openai.chat.completions.create({
         model: promptSpec.model,
@@ -83,10 +116,36 @@ export async function POST(
           promptVersion: promptSpec.version,
           tokensUsed: completion.usage ?? null,
         },
-        modelUsed: `openai:${promptSpec.model}`,
+        modelUsed: model,
         output,
       });
       await setActiveVersion(nodeId, version.id);
+
+      const usage = completion.usage;
+      const cost = usage
+        ? computeCost(model, {
+            prompt_tokens: usage.prompt_tokens,
+            completion_tokens: usage.completion_tokens,
+            total_tokens: usage.total_tokens,
+          })
+        : null;
+      // cost is only ever null when the provider returned no usage data — an actual cost
+      // of 0 credits in that case, not a reason to skip settlement (every terminal state
+      // still refunds its reservation exactly once).
+      const actualCredits = cost ? usdToFinalCredits(cost.usd) : 0;
+      await settleGeneration({
+        orgId: caller.orgId,
+        generationId: generation.id,
+        actualAmount: actualCredits,
+      });
+      await succeedGeneration({
+        generationId: generation.id,
+        versionId: version.id,
+        costUsd: cost?.usd,
+        creditsCharged: actualCredits,
+        tokensUsed: usage ? { ...usage } : null,
+        outputSnapshot: output,
+      });
 
       return apiOk({ output, versionId: version.id, compiled: user });
     } catch (e) {
@@ -101,10 +160,15 @@ export async function POST(
           promptId: promptSpec.id,
           promptVersion: promptSpec.version,
         },
-        modelUsed: `openai:${promptSpec.model}`,
+        modelUsed: model,
         error: message,
       });
-      return apiError(message, 500);
+      if (generation?.id) {
+        await failGeneration({ generationId: generation.id, error: message }).catch(() => null);
+        await refundReservation({ orgId: caller.orgId, generationId: generation.id }).catch(() => null);
+      }
+      const status = e instanceof CreditLimitError ? 402 : 500;
+      return apiError(message, status);
     }
   });
 }

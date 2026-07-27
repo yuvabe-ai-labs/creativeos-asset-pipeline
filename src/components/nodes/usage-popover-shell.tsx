@@ -6,14 +6,12 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 export type UsageRow = {
   label: string;   // e.g. "v1", "v2"
   meta?: string;   // e.g. "1,234 tokens" or "1,234 in · 567 out"
-  /** USD portion, e.g. "$0.0024". Pass "—" if unknown. */
-  costUsd: string;
-  /** INR portion shown in muted color, e.g. "₹0.20". Omit when costUsd is "—". */
-  costInr?: string;
+  /** Formatted credits, e.g. "40". Pass "—" for a legacy version with no settled credits. */
+  credits: string;
   time?: string;   // relative time string
 };
 
-/** Optional summary rows shown in the "Overall" section above the total cost. */
+/** Optional summary rows shown in the "Overall" section above the total. */
 export type OverallRow = {
   label: string;
   value: string;
@@ -22,19 +20,16 @@ export type OverallRow = {
 export function UsagePopoverShell({
   rows,
   overallRows,
-  totalCostUsd,
-  totalCostInr,
-  pipelineTotalInr,
+  totalCredits,
+  pipelineTotalCredits,
 }: {
   rows: UsageRow[];
   /** Extra key/value rows shown in the Overall section (e.g. token counts). */
   overallRows?: OverallRow[];
-  /** Formatted USD total, e.g. "$0.0024" */
-  totalCostUsd: string;
-  /** Formatted INR total shown in muted color, e.g. "₹0.20" */
-  totalCostInr?: string;
-  /** Full upstream pipeline cost in INR (this node + all connected upstream nodes). */
-  pipelineTotalInr?: string;
+  /** Formatted total credits for this node, e.g. "120 credits" */
+  totalCredits: string;
+  /** Full upstream pipeline total (this node + all connected upstream nodes), in credits. */
+  pipelineTotalCredits?: string;
 }) {
   return (
     <Popover>
@@ -68,18 +63,12 @@ export function UsagePopoverShell({
                 </div>
               )}
               <div className="pt-0.5">
+                {/* pipelineTotalCredits (this node + upstream) is always >= totalCredits
+                    (this node alone) when both are known — show only the larger, more
+                    complete figure instead of two near-identical numbers stacked. */}
                 <p className="text-sm font-semibold text-foreground">
-                  {totalCostUsd}{" "}
-                  {totalCostInr && (
-                    <span className="font-normal text-muted-foreground">({totalCostInr})</span>
-                  )}
+                  {pipelineTotalCredits ?? totalCredits}
                 </p>
-                {pipelineTotalInr && (
-                  <p className="mt-1 text-[0.65rem] text-muted-foreground">
-                    Pipeline total:{" "}
-                    <span className="font-medium tabular-nums text-foreground">{pipelineTotalInr}</span>
-                  </p>
-                )}
               </div>
             </div>
 
@@ -104,15 +93,10 @@ export function UsagePopoverShell({
                         <span />
                       )}
                       <span className="text-[0.65rem] font-medium tabular-nums text-foreground">
-                        {row.costUsd === "—" ? (
+                        {row.credits === "—" ? (
                           <span className="font-normal text-muted-foreground">—</span>
                         ) : (
-                          <>
-                            {row.costUsd}{" "}
-                            {row.costInr && (
-                              <span className="font-normal text-muted-foreground">({row.costInr})</span>
-                            )}
-                          </>
+                          row.credits
                         )}
                       </span>
                     </div>

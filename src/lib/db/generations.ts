@@ -3,6 +3,32 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import type { GenerationRow } from "./types";
 import { getReservationAmounts } from "./credit-transactions";
 
+// Real settled credits per version, keyed by version_id — for the node focus views' usage
+// popovers, which used to recompute an estimate client-side from paramsUsed.tokensUsed. That
+// recompute could drift from what was actually charged (the credit ledger is the source of
+// truth); this reads the real settlement instead. null/absent for legacy versions that predate
+// the credit system (no matching succeeded generation) — callers show "—" for those, not 0.
+export async function getCreditsChargedByVersionIds(
+  versionIds: string[],
+): Promise<Map<string, number>> {
+  if (versionIds.length === 0) return new Map();
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("generations")
+    .select("version_id, credits_charged")
+    .in("version_id", versionIds)
+    .not("credits_charged", "is", null);
+  if (error) throw error;
+  return new Map(
+    (data as { version_id: string | null; credits_charged: number | null }[])
+      .filter(
+        (r): r is { version_id: string; credits_charged: number } =>
+          r.version_id !== null && r.credits_charged !== null,
+      )
+      .map((r) => [r.version_id, r.credits_charged]),
+  );
+}
+
 export async function insertGeneration(input: {
   nodeId: string;
   orgId: string;
