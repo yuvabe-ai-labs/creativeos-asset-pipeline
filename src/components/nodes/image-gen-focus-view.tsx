@@ -76,6 +76,7 @@ import {
 } from "@/lib/image-gen/validate";
 import { cn } from "@/lib/utils";
 import { describeApprovalPill } from "@/lib/nodes/prompt-focus";
+import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
 import { LeftSection } from "./focus-left-section";
 import { RailItem } from "./focus-rail-item";
 
@@ -189,6 +190,13 @@ export function ImageGenFocusView({
     nodeId: string;
     text: string;
   } | null>(null);
+  const [estimatedCredits, setEstimatedCredits] = useState<number | null>(null);
+  // Starts true (not false): the debounced estimate effect only flips this on the first
+  // effect pass after mount, one paint after the initial render — starting at false let the
+  // Generate button render briefly enabled/uncosted before that first effect ran. Starting
+  // true means the button is disabled from the very first paint; the effect corrects it to
+  // false quickly if no estimate is actually needed (e.g. no prompt connected yet).
+  const [estimating, setEstimating] = useState(true);
   const [loadingVersions, setLoadingVersions] = useState(false);
   const [loadingPreview, setLoadingPreview] = useState(false);
   // The selected rail item: "image" (the hero pane), "history", "details", or a
@@ -305,6 +313,68 @@ export function ImageGenFocusView({
     )
     .map((u) => u.fileUrl as string);
   const firstConnectedImageUrl = connectedImageUrls[0];
+  // Stable primitive for the effect's dep array — connectedImageUrls itself is a new array
+  // reference every render (derived, not stored in state).
+  const connectedImageUrlsKey = JSON.stringify(connectedImageUrls);
+
+  // Debounced pre-generation cost estimate — mirrors the 300ms debounce pattern this app's
+  // own prompt-focus-view.tsx already uses for its compile-preview fetch. Only meaningful on
+  // the Generate tab (Edit has its own action button, out of scope per this plan) and once
+  // there's a prompt to estimate from.
+  useEffect(() => {
+    if (!open || activeTab === "edit" || !fetchedPrompt?.text) {
+      setEstimatedCredits(null);
+      setEstimating(false);
+      return;
+    }
+    let cancelled = false;
+    setEstimating(true);
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/nodes/${nodeId}/image-generate/estimate`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            modelId: model.id,
+            quality: paramValues.quality,
+            aspect_ratio: paramValues.aspect_ratio,
+            image_size: paramValues.image_size,
+            prompt: fetchedPrompt.text,
+            referenceUrls: connectedImageUrls,
+          }),
+        });
+        const json = (await res.json()) as { estimatedCredits: number | null };
+        if (cancelled) return;
+        if (res.ok) {
+          setEstimatedCredits(json.estimatedCredits);
+        } else {
+          setEstimatedCredits(null);
+        }
+      } catch {
+        if (!cancelled) setEstimatedCredits(null);
+      } finally {
+        if (!cancelled) setEstimating(false);
+      }
+    }, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+    // connectedImageUrls/paramValues/fetchedPrompt omitted on purpose — each is a new object
+    // reference on renders that don't actually change its contents (e.g. a sibling state
+    // update, or the [open, upstream] prompt-fetch effect re-running and producing a new-but-
+    // equal fetchedPrompt object), which was re-firing this effect (and re-fetching the
+    // estimate) with no real input change. Stable JSON-stringified/primitive stand-ins fix it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    open,
+    activeTab,
+    selectedModelId,
+    JSON.stringify(paramValues),
+    connectedImageUrlsKey,
+    fetchedPrompt?.text,
+    nodeId,
+  ]);
 
   // Connected image NODES (id + url), for the edit-mode reference tiles.
   const connectedImageNodes = upstream
@@ -504,13 +574,13 @@ export function ImageGenFocusView({
         error?: string;
       };
       if (!res.ok || !json.imageUrl)
-        throw new Error(json.error ?? "Generation failed");
+        throw new Error(res.status === 402 ? CREDIT_LIMIT_TOAST_MESSAGE : json.error ?? "Generation failed");
       onPatch({ parsed: json.imageUrl });
       setActiveVersionId(json.versionId ?? null);
       await fetchVersions();
       toast.success("Image generated");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Generation failed");
+      toast.error(e instanceof Error ? e.message : "Generation failed", { duration: 6000 });
       await fetchVersions();
     } finally {
       setGenerating(false);
@@ -596,14 +666,14 @@ export function ImageGenFocusView({
         error?: string;
       };
       if (!res.ok || !json.imageUrl)
-        throw new Error(json.error ?? "Edit failed");
+        throw new Error(res.status === 402 ? CREDIT_LIMIT_TOAST_MESSAGE : json.error ?? "Edit failed");
       onPatch({ parsed: json.imageUrl });
       setActiveVersionId(json.versionId ?? null);
       annotationRef.current?.clear();
       await fetchVersions();
       toast.success("Image edited");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Edit failed");
+      toast.error(e instanceof Error ? e.message : "Edit failed", { duration: 6000 });
       await fetchVersions();
     } finally {
       setEditing(false);
@@ -765,6 +835,8 @@ export function ImageGenFocusView({
       editing={editing}
       hasPrompt={Boolean(promptUpstream)}
       hasImage={Boolean(imageUrl)}
+      estimatedCredits={estimatedCredits}
+      estimating={estimating}
     />
   );
 

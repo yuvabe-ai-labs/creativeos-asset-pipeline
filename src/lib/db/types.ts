@@ -107,7 +107,8 @@ export type GenerationRow = {
   inputs_snapshot: Record<string, unknown> | null;
   output_snapshot: string | null; // forward-looking, added in 0016
   tokens_used: Record<string, unknown> | null;
-  credits_consumed: number | null;
+  cost_usd: number | null;
+  credits_charged: number | null;
   version_id: string | null;
   user_id: string | null;
   error: string | null;

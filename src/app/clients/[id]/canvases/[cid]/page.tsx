@@ -13,6 +13,8 @@ import {
 } from "@/components/ui/breadcrumb";
 import { CanvasStoreProvider } from "@/components/canvas/canvas-store-provider";
 import { Canvas } from "@/components/canvas/canvas";
+import { GalleryDrawerProvider } from "@/components/canvas/gallery-drawer-context";
+import { GalleryDrawerTrigger } from "@/components/canvas/gallery-drawer-trigger";
 import { CanvasCostChip } from "@/components/canvas/canvas-cost-chip";
 import { listNodes } from "@/lib/db/nodes";
 import { listEdges } from "@/lib/db/edges";
@@ -73,6 +75,7 @@ export default async function CanvasPage({
   }
 
   return (
+    <GalleryDrawerProvider>
     <main className="flex flex-1 flex-col">
       <header className="flex items-center justify-between border-b border-border/70 bg-background/60 px-6 py-3 backdrop-blur">
         <Breadcrumb>
@@ -98,7 +101,10 @@ export default async function CanvasPage({
         </Breadcrumb>
         {/* IdentityChip now lives in the root layout header (shown on every page) —
             not duplicated here. */}
-        <CanvasCostChip canvasId={canvas.id} />
+        <div className="flex items-center gap-3">
+          <GalleryDrawerTrigger />
+          <CanvasCostChip canvasId={canvas.id} />
+        </div>
       </header>
 
       <div className="relative flex-1">
@@ -114,5 +120,6 @@ export default async function CanvasPage({
         </CanvasStoreProvider>
       </div>
     </main>
+    </GalleryDrawerProvider>
   );
 }

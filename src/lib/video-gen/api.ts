@@ -24,9 +24,19 @@ export type StartGenerationPayload = {
   mock?: boolean;
 };
 
+// Carries the response status alongside the message so callers can special-case a 402
+// (monthly credit limit reached) with a clearer message than the raw server string.
+export class VideoGenApiError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
+  }
+}
+
 async function parseError(res: Response, fallback: string): Promise<never> {
   const body = await res.json().catch(() => null);
-  throw new Error((body as { error?: string } | null)?.error ?? fallback);
+  throw new VideoGenApiError((body as { error?: string } | null)?.error ?? fallback, res.status);
 }
 
 export const videoGenApi = {

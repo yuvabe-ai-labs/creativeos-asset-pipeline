@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseCreditLimit } from "./org-schema";
+import { parseCreditLimit, parseResetPassword } from "./org-schema";
 
 describe("parseCreditLimit", () => {
   it("returns null for empty / whitespace (unlimited)", () => {
@@ -18,5 +18,21 @@ describe("parseCreditLimit", () => {
   });
   it("throws on a non-numeric value", () => {
     expect(() => parseCreditLimit("abc")).toThrow();
+  });
+});
+
+describe("parseResetPassword", () => {
+  it("returns null for empty / whitespace (auto-generate)", () => {
+    expect(parseResetPassword("")).toBeNull();
+    expect(parseResetPassword("   ")).toBeNull();
+  });
+  it("returns the trimmed password when 8+ chars", () => {
+    expect(parseResetPassword("  goodpass123  ")).toBe("goodpass123");
+  });
+  it("throws when shorter than 8 chars", () => {
+    expect(() => parseResetPassword("short1")).toThrow();
+  });
+  it("throws when the trimmed value is shorter than 8 chars", () => {
+    expect(() => parseResetPassword("  ab  ")).toThrow();
   });
 });

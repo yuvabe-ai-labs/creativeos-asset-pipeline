@@ -1,8 +1,17 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireSuperAdmin } from "@/lib/auth/require-super-admin";
-import { getOrgById, listOrgMembers } from "@/lib/db/organizations";
-import { countGenerationsForOrg, listGenerationsForOrg } from "@/lib/db/generations";
+import {
+  getOrgById,
+  listOrgMembers,
+  getOrgCreditUsage,
+  getOrgDailyCreditHistory,
+  getOrgMonthlyCreditHistory,
+  getOrgYearlyCreditHistory,
+  getOrgCreditBreakdownByType,
+  getOrgCreditBreakdownByModel,
+} from "@/lib/db/organizations";
+import { countGenerationsForOrg, listGenerationsForOrgPage } from "@/lib/db/generations";
 import { OrgDetailTabs } from "./org-detail-tabs";
 import {
   Breadcrumb,
@@ -24,10 +33,31 @@ export default async function OrgDetailPage({
   const { id } = await params;
   const org = await getOrgById(id);
   if (!org) notFound();
-  const [members, generationCount, generations] = await Promise.all([
+
+  const now = new Date();
+  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
+  const monthEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)).toISOString();
+
+  const [
+    members,
+    generationCount,
+    generationsPage,
+    creditsUsedThisMonth,
+    dailyHistory,
+    monthlyHistory,
+    yearlyHistory,
+    breakdownByType,
+    breakdownByModel,
+  ] = await Promise.all([
     listOrgMembers(id),
     countGenerationsForOrg(id),
-    listGenerationsForOrg(id),
+    listGenerationsForOrgPage(id, { page: 1, pageSize: 20 }),
+    getOrgCreditUsage(id),
+    getOrgDailyCreditHistory(id),
+    getOrgMonthlyCreditHistory(id),
+    getOrgYearlyCreditHistory(id),
+    getOrgCreditBreakdownByType(id, monthStart, monthEnd),
+    getOrgCreditBreakdownByModel(id, monthStart, monthEnd),
   ]);
 
   return (
@@ -50,7 +80,13 @@ export default async function OrgDetailPage({
         org={org}
         members={members}
         generationCount={generationCount}
-        generations={generations}
+        generationsPage={generationsPage}
+        creditsUsedThisMonth={creditsUsedThisMonth}
+        dailyHistory={dailyHistory}
+        monthlyHistory={monthlyHistory}
+        yearlyHistory={yearlyHistory}
+        breakdownByType={breakdownByType}
+        breakdownByModel={breakdownByModel}
       />
     </main>
   );

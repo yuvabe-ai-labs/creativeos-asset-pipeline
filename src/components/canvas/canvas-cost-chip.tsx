@@ -25,7 +25,7 @@ export function CanvasCostChip({ canvasId }: { canvasId: string }) {
   if (canvasCostInr === null || canvasCostInr <= 0) return null;
 
   return (
-    <div className="flex items-center gap-1 rounded-md border border-border bg-card px-2.5 py-1.5 text-xs text-muted-foreground shadow-card">
+    <div className="flex items-center gap-1 text-xs text-muted-foreground">
       <span className="font-medium tabular-nums text-foreground">₹{canvasCostInr.toFixed(2)}</span>
       <span>total</span>
     </div>

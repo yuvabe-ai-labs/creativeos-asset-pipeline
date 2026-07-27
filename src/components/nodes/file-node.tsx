@@ -24,11 +24,22 @@ export function FileNode({ id, data, selected }: NodeProps) {
   const d = data as FileNodeData;
   const [focusOpen, setFocusOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  // Measured from the loaded thumbnail so dimensions show for EVERY image source
+  // (upload, paste, Drive, gallery, and pre-existing nodes) — not just ones whose
+  // width/height were captured server-side.
+  const [measuredDims, setMeasuredDims] = useState<{ w: number; h: number } | null>(null);
   const connState = useNodeConnectionState(id, "file");
 
   const hasFile = !!d.filename;
   const showUploading = isUploading || d.uploading === true;
   const uploadError = d.uploadError;
+
+  // Pixel dimensions for image files: the loaded thumbnail is the source of truth
+  // (works for any origin); stored width/height are a same-frame fallback.
+  const dims =
+    measuredDims ??
+    (d.imageWidth && d.imageHeight ? { w: d.imageWidth, h: d.imageHeight } : null);
+  const sizeLabel = d.fileKind === "image" && dims ? `${dims.w} × ${dims.h}` : "";
 
   // Open locally (double-click / "Open ↗") OR when a shared signal points here — the
   // Generation Tray, guided flow, or the copilot's open_node (setFocusedNodeId).
@@ -107,6 +118,12 @@ export function FileNode({ id, data, selected }: NodeProps) {
               src={d.fileUrl}
               alt={d.filename ?? "image"}
               className="h-16 w-full object-cover"
+              onLoad={(e) =>
+                setMeasuredDims({
+                  w: e.currentTarget.naturalWidth,
+                  h: e.currentTarget.naturalHeight,
+                })
+              }
             />
           ) : null}
         </div>
@@ -129,6 +146,11 @@ export function FileNode({ id, data, selected }: NodeProps) {
         {hasFile && d.filename && (
           <p className="mt-0.5 truncate text-xs text-muted-foreground">
             {d.filename}
+          </p>
+        )}
+        {sizeLabel && (
+          <p className="mt-0.5 text-[0.65rem] tabular-nums text-muted-foreground/70">
+            {sizeLabel}
           </p>
         )}
         <button

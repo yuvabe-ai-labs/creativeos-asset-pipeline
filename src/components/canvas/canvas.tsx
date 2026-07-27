@@ -47,7 +47,6 @@ import { LockBanner } from "./lock-banner";
 import { DeleteConfirmDialog } from "./delete-confirm-dialog";
 import { useDeleteConfirmation } from "@/hooks/use-delete-confirmation";
 import { CanvasKBStatus, CanvasKBBadge } from "./canvas-kb-status";
-import { GalleryDrawerProvider } from "./gallery-drawer-context";
 import { GalleryDrawerTrigger } from "./gallery-drawer-trigger";
 import { GalleryDrawerIntegration } from "./gallery-drawer-integration";
 import type { ClientKBJobRow } from "@/lib/db/types";
@@ -326,7 +325,6 @@ export function Canvas({
     <CanvasIdProvider value={canvasId}>
     <CanvasEditableProvider value={canEdit}>
     <AutosaveFlushProvider>
-    <GalleryDrawerProvider>
     <div className="absolute inset-0 bg-[var(--neutral-50)]">
       <CanvasAutosave
         canvasId={canvasId}
@@ -435,7 +433,6 @@ export function Canvas({
       <GenerationTray canvasId={canvasId} />
       <CopilotPanel canvasId={canvasId} />
     </div>
-    </GalleryDrawerProvider>
     </AutosaveFlushProvider>
     </CanvasEditableProvider>
     </CanvasIdProvider>

@@ -1,0 +1,442 @@
+# CreativeOS — Credit System (Stage 3)
+
+**Date:** 2026-07-24
+**Status:** Approved
+**Builds on:** `2026-07-21-auth-staging-rollout-plan.md` Stage 3 (ADR D77) — this doc supersedes
+that section's sketch with a fully worked-out design; the append-only-ledger /
+row-locked-reservation shape D77 chose stands, this fills in the unit, the estimate
+mechanism, and the UI surface it didn't specify.
+**ADR:** D77 (refined)
+
+---
+
+## 1. Why
+
+Stage 1/2 shipped org isolation and an admin view of *what* generations happened, but nothing
+stops an org from generating past whatever budget was agreed with them, and nothing shows a
+user what a generation will cost *before* they commit to it — every other AI image/video SaaS
+does the latter, and its absence is a real gap. This stage adds both: a real credit ledger
+that enforces a monthly cap, and a pre-generation cost estimate surfaced in the UI.
+
+---
+
+## 2. What a credit is
+
+**1 credit = $0.001 USD** (confirmed after review — chosen over 1:1 or 1:$0.01 because it
+keeps the app's actual cost range, roughly $0.0025–$2.13 per generation today, in a
+readable low-hundreds range: a $0.0025 generation ≈ 2.5 credits, a $2.13 video ≈ 2,130
+credits, a $500/month cap = 500,000 credits).
+
+USD remains the tracked source of truth exactly as today (`computeVideoCost`/
+`computeImageCost`/`computeCost` all still return `.usd`; the raw USD number they produce
+keeps being stored, just under a renamed column — see below). The credit rate is a named
+constant,
+`USD_TO_CREDITS` (starts at 1000 — same pattern as `USD_TO_INR` in `pricing.ts`: a plain
+exported number, bumped by hand when it needs to change, e.g. for margin, not a live/dynamic
+lookup). Each `credit_transactions` row's `amount` is computed **once**, at write time,
+using whatever `USD_TO_CREDITS` is current at that moment, and stored as a plain credit
+number from then on — nothing re-reads `credits_consumed` and re-multiplies it later, so a
+future rate change only affects new rows, never past ones.
+
+`organizations.monthly_credit_limit` is reinterpreted as a **credit** count, not a raw USD
+number. Every value currently on staging was entered under the old (undefined) assumption —
+these need a one-time `× 1000` migration alongside the schema change, so an admin who typed
+"500" meaning "$500/month" ends up with a limit that still means the same thing.
+
+**`generations.credits_consumed` is misleadingly named — it's always held raw USD, never
+credits.** Since this is pre-launch (no production data, no backward-compat concerns), this
+gets cleaned up directly rather than carried forward:
+- **Renamed** to `generations.cost_usd` — same column, same values, honestly named.
+- **New column**, `generations.credits_charged` — the actual credits deducted at settlement,
+  computed once (via `USD_TO_CREDITS`, same write-time-frozen rule as the ledger, §4) and
+  stored directly on the generation row. This is an intentional denormalized copy of that
+  generation's `consumption` row in `credit_transactions` (§3) — both get written in the
+  same settlement step, so they always agree; the copy exists so the admin generations table
+  (§6) doesn't need to join the ledger just to show a number it already has.
+- `succeedGeneration()` (`src/lib/db/generations.ts`) gains a `creditsCharged` field
+  alongside the renamed `costUsd`; all 4 call sites (`generate`, `image-generate`,
+  `video-generate` routes, plus `completeGeneration()` for the video webhook path) pass both,
+  computed at the same place they already compute the USD cost today.
+
+---
+
+## 2a. Margin and rounding
+
+Added after the rest of this design was reviewed as complete, in response to a real
+requirement surfaced late: on top of `USD_TO_CREDITS`, credits get two more knobs applied
+before they're ever shown, reserved, or charged — both new, both hand-tunable constants,
+same philosophy as `USD_TO_CREDITS` itself:
+
+- **`MARGIN_PERCENT`** (starts at `0` — no markup yet; a lever to dial in once there's real
+  usage data, not a launch-day decision) — a percentage markup applied on top of the raw
+  USD→credits conversion.
+- **`CREDIT_ROUND_STEP`** (starts at `5`) and **`CREDIT_ROUND_DIRECTION`** (starts at
+  `"up"`) — after margin, the result rounds to the nearest multiple of `CREDIT_ROUND_STEP`,
+  in the given direction. Rounding up guarantees the charge never falls short of true cost —
+  the whole point of the margin. A flat 50 or 100 step was considered and rejected as the
+  *starting* value: this app's cheapest charges (a 5-credit prompt estimate, a 5-credit
+  gpt-image-2 low-quality image) would round up 10x or more under a 50/100 step; `5` keeps
+  distortion on cheap generations to at most 4 credits while still rounding bigger
+  image/video charges to a clean number. Bump the step to 50/100 later if real pricing data
+  shows headroom for it — the direction and step are both plain constants, not derived.
+
+One function, used everywhere a USD cost becomes a credit number — the pre-generation
+estimate (§5) and the actual settlement charge (§4) both call it, so the number shown before
+generating always matches what's actually deducted:
+
+```ts
+// src/lib/credits/units.ts
+export const USD_TO_CREDITS = 1000;
+export const MARGIN_PERCENT = 0;
+export const CREDIT_ROUND_STEP = 5;
+export const CREDIT_ROUND_DIRECTION: "up" | "down" | "nearest" = "up";
+
+export function usdToFinalCredits(costUsd: number): number {
+  const raw = costUsd * USD_TO_CREDITS * (1 + MARGIN_PERCENT / 100);
+  switch (CREDIT_ROUND_DIRECTION) {
+    case "up":
+      return Math.ceil(raw / CREDIT_ROUND_STEP) * CREDIT_ROUND_STEP;
+    case "down":
+      return Math.floor(raw / CREDIT_ROUND_STEP) * CREDIT_ROUND_STEP;
+    case "nearest":
+      return Math.round(raw / CREDIT_ROUND_STEP) * CREDIT_ROUND_STEP;
+  }
+}
+```
+
+Genuinely pure and easily unit-tested (§8) — lands in sub-plan 3B alongside the other
+estimate functions, since it's the last step both the estimate and settlement paths share.
+Every place this spec previously said "`× 1000`" or "the credit conversion" means a call to
+`usdToFinalCredits`, not a raw multiply — see the updated wording in §4 and §5 below.
+
+---
+
+## 3. Data model
+
+New table, `credit_transactions` (org_id + RLS, per D78's standing rule for new tables):
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | uuid, PK | |
+| `org_id` | uuid, not null | RLS scope |
+| `generation_id` | uuid, not null | FK to `generations` |
+| `amount` | numeric | credits (positive for reservation/consumption/adjustment-up, negative for refund) |
+| `type` | text | `reservation` \| `consumption` \| `refund` \| `adjustment` |
+| `created_at` | timestamptz | |
+
+A new `org_credit_usage` DB view sums **all** this-UTC-month rows per org (not just
+reservation+consumption — see §4's terminal-state rule for why a plain sum is correct),
+read by the admin Overview tab (§6) and by `reserveCredits` itself (§4).
+
+---
+
+## 4. Reservation, settlement, refund
+
+`reserveCredits(orgId, generationId, estimatedAmount)`:
+1. Row-locks the org (`SELECT ... FOR UPDATE` on `organizations`).
+2. Sums this-**UTC**-month `credit_transactions` rows for the org (all types — see §3 for
+   why a plain sum, not a filtered one, is correct; month boundary pinned to UTC, not
+   server-local time — this was an explicit checklist item in the original Stage 3 scope).
+3. If `sum + estimatedAmount > monthly_credit_limit` (and limit is not `null` — Yuvabe's own
+   org and any `null`-limit org always proceeds), reject.
+4. Else insert a `reservation` row for `estimatedAmount`, return success.
+
+**Call order in all 3 creation routes** (`generate`, `image-generate`, `video-generate`):
+`insertGeneration()` (as today, status `running`) → `reserveCredits(orgId, generation.id,
+estimate)` → if rejected, `failGeneration()` with a clear "monthly credit limit reached"
+message and return an error response (image/prompt: 402; video: never fires the Trigger.dev
+task) → if accepted, proceed exactly as today (call the provider / fire the task).
+`generation.id` must exist before reserving, since `credit_transactions.generation_id` is
+not-null — this is why reservation happens after `insertGeneration`, not before.
+
+**A generation whose cost can't be estimated at all fails closed.** If `estimateImageOutputCost`
+(§5) ever returns `null` at request time — a model/quality/size combination genuinely missing
+from the table, which the full-combinations audit should have already ruled out but a future
+bug could reintroduce — the route fails the generation and returns an error without ever
+calling the provider or reserving anything. An unpriceable request never bypasses the monthly
+cap, even under a bug; the alternative (proceeding with no reservation) would let real spend
+through completely ungated. Video and prompt estimates can't hit this case: `computeVideoCost`
+returning `null` already means "genuinely unpriced combination" and is handled the same way by
+the existing code; the prompt formula (§5) always returns a number by construction.
+
+**Every generation reaches a terminal state exactly once, and every terminal state refunds
+the reservation.** This is the rule that keeps a plain sum of all ledger rows correct — a
+reservation is always temporary, never left standing:
+
+- **Settlement (success):** insert a `refund` row for `-estimatedAmount` (cancels the
+  reservation) **and** a `consumption` row for `usdToFinalCredits(actualCostUsd)` (§2a) —
+  `actualCostUsd` from the existing real-usage-based `computeVideoCost`/`computeImageCost`/
+  `computeCost` calls, unchanged — net effect on the sum is exactly the actual (margin'd,
+  rounded) cost, not the estimate. The same `usdToFinalCredits(actualCostUsd)` value is what
+  gets written to `generations.credits_charged` (§2). `succeedGeneration`'s call sites in all
+  3 routes plus `completeGeneration()` (video's webhook path) each gain these two ledger
+  writes, right where `costUsd` is already computed today.
+- **Refund (failure/cancel):** insert a `refund` row for `-estimatedAmount` only — net effect
+  is zero. At every existing `failGeneration()` call site (image/prompt's synchronous catch
+  blocks, `completeGeneration()`'s failure branch).
+
+  **Correction found while writing sub-plan 3C:** this section originally claimed the
+  webhook's org-mismatch drop-path (D79) "already" calls `failGeneration()` — it doesn't; it
+  only logs and returns, leaving the generation stuck in `running` indefinitely (previously
+  relied on nothing to ever clean it up — a real gap, not a documentation nit). Fixed in 3C:
+  the drop-path now also calls `failGeneration()` + a refund, immediately rather than waiting
+  for 3D's reconciliation sweep — turning the row terminal right away means the sweep (which
+  only ever matches `status = 'running'`) will never see this generation, so there is no
+  double-refund risk between the two paths.
+
+(An earlier draft of this section only refunded on failure, leaving the reservation standing
+on success — that double-counted every successful generation's spend, once as its estimate
+and again as its actual cost. Caught during final review, fixed before any implementation.)
+
+This mirrors the async-worker-revalidation pattern D79 already established for org
+mismatches — same shape, applied to credits.
+
+**Reconciliation for stuck generations.** `video-generate.ts`'s `try/catch` already posts a
+"failed" webhook on any JS-catchable error (provider errors, network failures) — that part's
+covered. The real gap is `maxDuration: 600` (10 minutes), a hard Trigger.dev-enforced kill
+switch: if a run gets forcibly terminated for exceeding it, or the worker crashes/restarts
+mid-task, the `catch` block never runs, no webhook ever fires, and the reservation is stuck
+permanently consuming budget. This is reachable, not hypothetical — it's exactly what
+`maxDuration` exists to enforce.
+
+Fix: a new scheduled Trigger.dev task (`trigger/reconcile-stuck-generations.ts`, using
+`schedules.task` — this app already depends on Trigger.dev for exactly this kind of
+background work), running every 15 minutes. It finds every `generations` row with `status =
+'running'` and `created_at` older than 15 minutes (a 5-minute buffer above the video task's
+600-second hard cap; image/prompt generations are synchronous HTTP requests that should
+never legitimately still be `running` this long — if one is, the server process itself must
+have died mid-request, and this same sweep catches that case too, not just video's). For
+each: `failGeneration({ generationId, error: "Generation timed out — no response from
+provider" })` plus the same `refund` ledger row every other failure path already writes —
+no new refund logic, just a timer-triggered entry into the terminal-state path §4 already
+defines.
+
+---
+
+## 5. Pre-generation estimate
+
+Shown in the UI next to each focus view's Generate button (video-gen-focus-view.tsx:844,
+image-gen-focus-view.tsx, prompt-focus-view.tsx — same integration point in all three:
+recomputed reactively as the user changes model/params, before they click Generate).
+
+All three estimate functions below return a **USD** number (matching the existing cost
+functions' return shape) — the `usdToFinalCredits` conversion (§2a: `USD_TO_CREDITS`,
+margin, rounding) happens once, at the call site, right before the result is passed as
+`reserveCredits`' `estimatedAmount`. This is also what's shown to the user as the
+pre-generation estimate — the displayed number, the reserved amount, and (at settlement) the
+charged amount all come from the same function, just fed a slightly different USD input
+(estimated vs. actual). The client-displayed number is never trusted as the reservation
+input: the route handler recomputes the estimate server-side from the same request params
+(`modelId`, `quality`/`size`, or `duration`/`audio`) it already has, the same way it already
+independently computes actual cost at settlement — a client could otherwise submit a
+fabricated low estimate to slip past the cap.
+
+- **Video — exact.** `computeVideoCost(modelId, durationSeconds, audioEnabled, resolution?)` —
+  already sourced, already exists (signature updated post-merge: Kling's 5 current models
+  were rewritten against verified pricing docs — D90 — and now price by resolution as well
+  as audio, via a separate `KLING_RESOLUTION_PRICING` table; Veo/Sora keep the simpler
+  duration×rate shape, unaffected). Duration, audio, and (for Kling) resolution are all known
+  request params before firing the task, so this stays exact. Two caveats, both already
+  fixed or flagged inline in `video-gen/cost.ts`, not open questions for this stage:
+  - Veo 3.1's rates were corrected during this spec's review: Google publishes one flat
+    "with audio (default)" price per resolution, no separate cheaper no-audio tier — this
+    app never toggles Veo's audio either way (no such param exists), so the old
+    base-rate-×-1.5-multiplier model was wrong for `veo:veo-3.1` specifically (under-priced
+    by 33%, corrected going forward only, not backfilled — same policy as the
+    gemini-3-pro-image fix in §7).
+  - `kling-o1`'s audio-on pricing is marked `ASSUMPTION` in the code (reused from
+    `kling-3-0`'s delta, since Kling's pricing page doesn't split it out for o1) — inherited
+    uncertainty, not introduced by this stage.
+  - **A full audit of every model's actual exposed params against what's priced** (done
+    during this spec's review, not deferred to implementation) found one real gap:
+    `kling-2-6` at 720p with native audio has no priced tier at all — the real pricing table
+    shows "-" for that cell, meaning Kling doesn't offer that combination for this model, not
+    a documentation gap. `computeVideoCost` previously fell back across a generic
+    `?? rates.off ?? rates.on` chain, which would have silently charged the *no-audio* rate
+    for that combination instead of erroring. Fixed: the fallback chain is gone entirely —
+    every model's table now has an explicit entry for every combination its own params can
+    actually request (including duplicate off/on values where audio genuinely doesn't change
+    price, e.g. `kling-3-0-turbo` and `kling-o1`), and a missing entry means the function
+    returns `null` rather than guessing. Every other model, and every other combination, was
+    confirmed complete against this same audit.
+- **Image — exact.** New lookup table, `IMAGE_ESTIMATE_TABLE` in `src/lib/image-gen/cost.ts`,
+  keyed by model + quality + size, giving the exact USD cost — sourced today directly from
+  OpenAI's and Google's own docs (not derived from the token-based `IMAGE_MODEL_PRICING` used
+  for actual-cost settlement, since gpt-image-2 has no public token table, only published
+  dollar figures per quality/size):
+
+  | Model | Low (1024×1024 / ×1536 / 1536×) | Medium | High |
+  |---|---|---|---|
+  | `gpt-image-2` | $0.006 / $0.005 / $0.005 | $0.053 / $0.041 / $0.041 | $0.211 / $0.165 / $0.165 |
+  | `gpt-image-1` | $0.011 / $0.016 / $0.016 | $0.042 / $0.063 / $0.063 | $0.167 / $0.25 / $0.25 |
+  | `gpt-image-1-mini` | $0.005 / $0.006 / $0.006 | $0.011 / $0.015 / $0.015 | $0.036 / $0.052 / $0.052 |
+  | `gemini-2.5-flash-image` | flat $0.039/image — genuinely fixed at 1K, not just a documentation gap (confirmed against Google's own model docs: this is the pre-"Gemini 3 image models" legacy model, and the multi-resolution capability was introduced with that later generation; `params/gemini.ts` was split so this model no longer shares a resolution selector with `gemini-3.1-flash-image`) |
+  | `gemini-3.1-flash-image` | $0.045 (512px) / $0.067 (1024px) / $0.101 (2048px) / $0.151 (4096px) |
+  | `gemini-3-pro-image` | $0.134 (1K/2K) / $0.24 (4K) |
+
+  (These figures were fully cross-checked against this app's existing per-token
+  `IMAGE_MODEL_PRICING` rates where a token count was independently known — e.g. `gpt-image-1`
+  Medium/1024×1024: 1056 tokens × $40/1M = $0.0422 ≈ the table's $0.042 — before being treated
+  as trusted.) The app's aspect-ratio system (`ASPECT_RATIO_TO_OPENAI_SIZE`) only ever
+  produces the three OpenAI sizes in this table, so every real request maps cleanly.
+
+  **`quality: "auto"` gap, found via this same params-vs-pricing audit method:**
+  `gpt-image-2`/`gpt-image-1` (not `-mini`) expose `"auto"` as a real quality option
+  (`params/openai.ts`) — OpenAI resolves the actual rendered tier server-side, so no vendor
+  source publishes a price for "auto" itself. Estimated at the `high` row (the worst case)
+  so the reservation can never fall short of whatever OpenAI actually renders and bills for;
+  settlement (real token-based `computeImageCost`) is unaffected either way.
+
+  **One stated assumption for the Gemini rows, not an explicit vendor statement:** Gemini's
+  pricing table prices strictly by named size tier (512px/1K/2K/4K), never broken out by
+  aspect ratio, even though this app's `params/gemini.ts` exposes 5–8 aspect ratios per
+  model independently of size. Treating aspect ratio as price-irrelevant within a tier is a
+  reasonable inference from how the vendor's own table is structured (one column per size,
+  no aspect-ratio axis at all) — not something Google states outright. If wrong, every
+  request maps to at most a small per-tier error, self-corrected by settlement regardless.
+
+  **Input tokens — covered for both providers now, same mechanism on both sides.** OpenAI's
+  own docs are explicit that "the final cost is the sum of: input text tokens, input image
+  tokens if using the edits endpoint, image output tokens" — the table above is output-only.
+  Both providers have an official token-counting endpoint that handles text-only *and*
+  text+reference-image requests alike in one call — no separate local-tokenizer library
+  needed for the text-only case, since each endpoint's simplest documented example is
+  already plain text. Both are used the same way here too: the live call, client- and
+  server-side, for both providers — see the Gemini note below for why (Google separately
+  publishes a local formula as a possible future optimization; OpenAI has no equivalent, so
+  its live call was never optional to begin with).
+  - **Gemini — one call for both:** closed. `ai.models.countTokens()` (`@google/genai`,
+    already a dependency, already used by `generateWithGemini()`) accepts the exact same
+    `contents` shape the real generation call sends — a text-only array for prompt-only
+    requests, or text + `inlineData` image parts for edits — call it first, before
+    generating, for an exact pre-flight count either way. Confirmed against
+    `ai.google.dev/gemini-api/docs/generate-content/tokens` (the `generateContent`-API
+    version of the docs — matches what this app actually calls, not the newer Interactions
+    API), pasted directly by the user. **Decided: start with the live call, both client- and
+    server-side**, same as OpenAI below — one consistent pattern across both providers
+    (`countTokens()` was already going to be needed server-side anyway, and the client-side
+    reactive display can reuse the identical call rather than maintaining a second,
+    formula-based code path). Google does separately publish the underlying image-token
+    formula (≤384px = 258 tokens; larger images tile into 768×768 sections, 258 tokens each)
+    from `imageWidth`/`imageHeight` (already tracked on upstream nodes) — a real, documented
+    option to switch the *client-side display only* to later if the live call's latency on
+    every param change turns out to matter in practice, but not the starting implementation:
+    ship with the accurate, already-necessary live call first, decide on optimizing away from
+    it only once there's real experience to judge that tradeoff against.
+  - **Pricing a combined input-token count.** Neither provider's live count splits text vs.
+    image tokens — one number back, not a breakdown. Gemini has no ambiguity converting it to
+    USD (`textIn == imgIn` already, per §7's fix). OpenAI's `IMAGE_MODEL_PRICING` genuinely
+    splits the two (e.g. `gpt-image-2`: $5/1M text vs. $8/1M image), so the estimate can't be
+    exact when both are mixed in one count. Resolved (worked out while writing sub-plan 3C,
+    not in the original brainstorm): **zero reference images → the count is provably 100%
+    text, so `textIn` is exact, not a guess; one or more reference images → price the *entire*
+    count at the higher `imgIn` rate**, a worst-case that never under-reserves — consistent
+    with every other "round up / never undercharge" decision in this design (margin rounding,
+    §2a; `quality: "auto"` → `"high"`, above).
+  - **OpenAI — one call for both:** also closable. `POST /v1/responses/input_tokens`
+    (`client.responses.inputTokens.count()` — confirmed against the installed SDK's own
+    `.d.ts`, since the pasted docs page used snake_case notation but the actual JS/TS SDK
+    property is camelCase) handles both — its first documented example is
+    plain text input, and it explicitly handles image inputs too ("no guesswork") — source:
+    `developers.openai.com/api/docs/guides/token-counting`, pasted directly by the user, with
+    a worked image example using `image_url` (this app's reference images are already public
+    Supabase URLs — same shape, no base64 conversion needed). One inference, not a direct
+    1:1 confirmation: this endpoint counts tokens for a
+    **Responses API** request, while GPT Image models go through the separate **Images API**
+    (`images.generate`/`images.edit`). The bridge is that the earlier "Calculating costs"
+    guide (§5 above) explicitly pointed to this same vision-token-counting machinery
+    (`images-vision?api-mode=responses#calculating-costs`) as *the* source for GPT Image's
+    input costs — strongly suggesting it's the same underlying tokenizer reused across both
+    surfaces, not a coincidence, but this hasn't been directly confirmed as "this is exactly
+    what the edits endpoint bills." Reasonable to build against; worth a quick real-world
+    sanity check (compare its count against `usage.input_tokens_details.image_tokens` on an
+    actual `images.edit()` response) once implemented, same spirit as the settlement-based
+    self-correction everywhere else in this design.
+
+    **Found live on staging, not caught in design review:** the endpoint requires a `model`
+    param (`400 missing_required_parameter`) despite the SDK typing it optional — and since
+    image generation never goes through the Responses API, there's no "real" model for this
+    request to match, unlike every other documented use of this endpoint. Confirmed via direct
+    research (the official docs plus a targeted search of the OpenAI developer community) that
+    no source addresses this specific cross-API case. Resolved pragmatically, with explicit
+    user sign-off after reviewing that research: `TOKEN_COUNTING_MODEL = "gpt-5.4-mini"`
+    (`providers/openai.ts`) — this app's existing default OpenAI text model elsewhere
+    (`prompts/prompt-generate.ts`), confirmed to not error via a live diagnostic probe. Not
+    confirmed correct for vision-token accuracy by any source — worth revisiting if OpenAI
+    ever publishes real guidance for this case.
+
+- **Prompt/text — approximate, explicitly labeled "~estimated".** No vendor can predict an
+  LLM's output length before it generates (confirmed — OpenAI's "Predicted Outputs" feature
+  requires *you* to already know the output; it doesn't forecast an unknown one). Formula:
+  `fixed_base + (per_attached_node_multiplier × count of upstream nodes connected to the
+  prompt node)`. `fixed_base` and the multiplier are derived from this app's own historical
+  `credits_charged` data (regression: average cost at 0 attachments ≈ base, average
+  incremental cost per attachment ≈ multiplier), recomputed periodically as more real usage
+  accumulates. **Starting placeholder (no real data to fit from yet): `fixed_base = 10`
+  credits, `per_attached_node_multiplier = 5` credits.** Explicitly a rounder, softer number
+  than everything else in this spec — those figures came from primary vendor docs, this one
+  is a starting guess with no usage data to check it against. Fine by design: it self-corrects
+  within days of real prompt-type generations recording actual cost.
+
+---
+
+## 6. Admin pages
+
+The Overview tab's existing "Monthly credit limit" stat tile (built in AX-C) gains a sibling
+"Used this month" tile, reading `org_credit_usage`. No new pages — this fills in the number
+that tile's "Edit in Settings" note already implicitly promised.
+
+The Generations tab's table (AX-D, `generations-table.tsx`) currently has one "Credits"
+column showing `credits_consumed` (really USD) converted to ₹ for display. That column
+splits into two, reading the renamed/new fields directly — an **Amount** column (`$` from
+`cost_usd`) and a **Credits** column (from `credits_charged`) — so an admin can see both the
+real dollar cost and what was actually charged against the org's monthly credits, without a
+lossy INR round-trip standing in for either one.
+
+---
+
+## 7. Corrections already applied (not blocked on this stage)
+
+Found while sourcing the image estimate table, already fixed and committed independently of
+this plan (commits `1d66232`):
+- `gemini-3-pro-image`'s actual-cost `imgOut` rate was `80.00` (marked "estimated — update
+  when Google publishes"); Google has published it — corrected to the real `120.00`. Every
+  past generation with this model under-recorded cost by 33%; **not backfilled**, going
+  forward only, per explicit decision.
+- `gemini-3.1-flash-image` / `gemini-3-pro-image` had split `textIn`/`imgIn` rates; Google
+  prices combined text+image input as one rate — both fields set equal to that single
+  published rate so the existing formula still sums correctly.
+
+---
+
+## 8. Testing / error handling
+
+No dedicated component/route tests per this repo's established convention (pure-logic only —
+see the admin-ux-index doc's testing-convention note, which applies here too). New pure
+functions get real unit tests: the credit-unit conversion (`usd → credits`), the image
+estimate lookup, and the prompt estimate formula (given fixed inputs, deterministic output)
+are all genuinely pure and testable. `reserveCredits`' row-locking and the settlement/refund
+wiring are Supabase-query-driven like every other `src/lib/db/*.ts` function in this codebase
+— verified via `npm run build` + manual staging checks, not new tests.
+
+Shippable checklist (carried from the original Stage 3 scope, still the right acceptance
+bar):
+- [ ] Two concurrent generation requests near an org's cap: exactly one is admitted, the
+      other is rejected with a clear "monthly credit limit reached" message
+- [ ] Viewing/editing/approving remain unaffected when an org is at its cap
+- [ ] Yuvabe org (`null` limit) always proceeds and still logs a reservation row
+- [ ] A failed/cancelled job's reservation is refunded, not left dangling
+- [ ] A successful generation's net ledger contribution equals its actual cost, not its
+      estimate + actual cost combined (the double-counting bug caught in this section)
+- [ ] Month boundary confirmed pinned to UTC, not server-local time
+- [ ] Admin org list / Overview tab shows live `used / limit` matching the ledger
+- [ ] Pre-generation estimate shown in all three focus views, updates when params change
+- [ ] `monthly_credit_limit` values already on staging correctly ×1000-migrated
+- [ ] Generations table shows both Amount ($) and Credits columns, sourced from the renamed
+      `cost_usd`/new `credits_charged` fields, not the old single `credits_consumed` column
+- [ ] A generation stuck in `running` for >15 minutes gets picked up by the reconciliation
+      sweep, marked failed, and its reservation refunded
+- [ ] `usdToFinalCredits` (§2a) applies margin then rounds up to `CREDIT_ROUND_STEP`,
+      verified against fixed inputs/outputs (unit test, not staging) — and the displayed
+      estimate, the reserved amount, and the settled `credits_charged` for the same
+      generation are always numerically identical

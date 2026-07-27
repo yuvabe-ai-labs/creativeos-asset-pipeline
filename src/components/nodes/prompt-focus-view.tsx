@@ -24,6 +24,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { GuidedNextButton } from "@/components/canvas/guided-next-button";
 import { SliceToggles } from "./slice-toggles";
 import { DEFAULT_INSTRUCTION } from "@/lib/nodes/prompt";
+import { estimatePromptCredits } from "@/lib/credits/prompt-estimate";
+import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
 import type { KBSliceKey } from "@/lib/kb/parse-context";
 import { ShotControlsRow } from "./shot-controls-row";
 import {
@@ -82,6 +84,7 @@ export function PromptFocusView({
   onSaveOutput,
 }: PromptFocusViewProps) {
   const params = useParams<{ id: string }>();
+  const estimatedCredits = estimatePromptCredits(upstream.length);
   const [draft, setDraft] = useState(output ?? "");
   // Local mirror of the instruction prop. The textarea is controlled by THIS, not
   // by the prop directly: the prop round-trips through zustand + React Flow's
@@ -148,9 +151,8 @@ export function PromptFocusView({
   const selectedNode = isNodeSelected
     ? preview.connected.find((c) => c.nodeId === selected) ?? null
     : null;
-  // The connected Shot's text is PINNED in the compose layout's center column — it's what
-  // the operator reads to decide Lens/Composition/Lighting, so it never hides behind a rail
-  // click. Prompt nodes carry one shot in practice; show the first.
+  // Pinned shot preview beside the compose column — Prompt nodes carry one shot in
+  // practice; show the first.
   const shotPreview = preview.connected.find((c) => c.type === "shot") ?? null;
   // The compose layout owns both the "Prompt" rail item and any connected-input selection:
   // selecting a connected input swaps the CENTER column to its read-only detail; the right
@@ -313,13 +315,15 @@ export function PromptFocusView({
         body: JSON.stringify({ instruction: instructionDraft, slices, controls: controls ?? DEFAULT_SHOT_CONTROLS }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Generation failed");
+      if (!res.ok) {
+        throw new Error(res.status === 402 ? CREDIT_LIMIT_TOAST_MESSAGE : json.error ?? "Generation failed");
+      }
       onPatch({ parsed: json.output });
       setActiveVersionId(json.versionId ?? null);
       await fetchVersions();
       toast.success("Prompt generated");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Generation failed");
+      toast.error(e instanceof Error ? e.message : "Generation failed", { duration: 6000 });
       await fetchVersions();
     } finally {
       setGenerating(false);
@@ -483,15 +487,14 @@ export function PromptFocusView({
 
           {/* Detail pane */}
           <div className="min-h-0 flex-1 overflow-hidden">
-            {/* Prompt — three-column compose: the connected Shot text is pinned in the
-                center column (always readable while you pick Lens/Composition/Lighting),
-                with the instruction + controls beneath it; the generated prompt owns the
-                right column (or a selected connected input's detail takes it over). */}
+            {/* Prompt — two-column compose: the instruction + controls sit in the center
+                column (which swaps to a selected connected input's read-only detail), and
+                the generated prompt owns the right column. */}
             {showComposeLayout && (
               <div className="flex h-full min-h-0 w-full">
-                {/* Center column — pinned shot text (top) + instruction & controls (bottom);
-                    swaps to a connected input's read-only detail when one is selected in
-                    the rail. The right column stays the generated output either way. */}
+                {/* Center column — instruction & controls; swaps to a connected input's
+                    read-only detail when one is selected in the rail. The right column
+                    stays the generated output either way. */}
                 <div className="flex h-full w-full max-w-md min-h-0 flex-col overflow-hidden border-r border-border">
                   {isNodeSelected ? (
                     detailNode ? (
@@ -548,6 +551,7 @@ export function PromptFocusView({
                       >
                         <Sparkles className="size-4" />
                         {generating ? "Generating…" : output ? "Re-generate" : "Generate prompt"}
+                        {!generating && ` · ${estimatedCredits}`}
                       </Button>
                     </div>
                   </div>

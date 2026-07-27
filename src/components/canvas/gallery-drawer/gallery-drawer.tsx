@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { FolderOpen, Settings2 } from "lucide-react";
 import { useReactFlow } from "@xyflow/react";
@@ -111,13 +111,15 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
   const reactFlow = useReactFlow();
 
   const [tab, setTab] = useState<GalleryTab>("references");
-  const [viewMode, setViewMode] = useState<ViewMode>("grid");
+  const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [imageMap, setImageMap] = useState<Map<string, GalleryImage>>(new Map());
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [folderPopoverOpen, setFolderPopoverOpen] = useState(false);
   const [rootFolder, setRootFolder] = useState(initialDriveRootFolder);
+
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   const browser = useDriveBrowser(rootFolder);
   const generations = useCanvasGenerations(canvasId);
@@ -298,6 +300,7 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
           side="right"
           showCloseButton={false}
           noOverlay
+          initialFocus={searchInputRef}
           className="flex w-full flex-col gap-0 p-0 shadow-lg data-[side=right]:sm:max-w-xl"
         >
           <SheetTitle className="sr-only">Gallery</SheetTitle>
@@ -313,6 +316,7 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
               searchQuery={browser.search}
               onSearchChange={browser.setSearch}
               searchPlaceholder={searchPlaceholder}
+              searchInputRef={searchInputRef}
               viewMode={viewMode}
               onViewModeChange={setViewMode}
               folderActions={

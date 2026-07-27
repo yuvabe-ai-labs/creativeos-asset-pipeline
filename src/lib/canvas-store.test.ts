@@ -182,9 +182,9 @@ describe("canvas store — tombstones", () => {
 
 const genRow = (over: Partial<GenerationRow>): GenerationRow =>
   ({
-    id: "j", node_id: "g", type: "image", status: "running",
+    id: "j", node_id: "g", org_id: "org-1", client_id: null, type: "image", status: "running",
     provider_job_id: null, model_used: null, params_snapshot: null,
-    inputs_snapshot: null, tokens_used: null, credits_consumed: null,
+    inputs_snapshot: null, output_snapshot: null, tokens_used: null, cost_usd: null, credits_charged: null,
     version_id: null, user_id: null, error: null, meta: null,
     created_at: "2026-07-05T00:00:00.000Z", updated_at: "2026-07-05T00:00:00.000Z",
     ...over,

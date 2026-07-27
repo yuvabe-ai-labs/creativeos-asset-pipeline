@@ -13,12 +13,18 @@ import type { PlatformRole } from "@/lib/dal-logic";
 type FetchResult = {
   identity: Identity | null;
   platformRole: PlatformRole | null;
+  orgId: string | null;
   orgName: string | null;
+  creditsUsed: number | null;
+  monthlyCreditLimit: number | null;
 };
 
 let cachedIdentity: Identity | null = null;
 let cachedPlatformRole: PlatformRole | null = null;
+let cachedOrgId: string | null = null;
 let cachedOrgName: string | null = null;
+let cachedCreditsUsed: number | null = null;
+let cachedMonthlyCreditLimit: number | null = null;
 let cachedHydrated = false;
 let inFlightFetch: Promise<FetchResult> | null = null;
 
@@ -31,30 +37,59 @@ function fetchIdentity(): Promise<FetchResult> {
           ? {
               identity: { name: data.name, role: data.role } as Identity,
               platformRole: (data.platformRole as PlatformRole | undefined) ?? null,
+              orgId: (data.orgId as string | undefined) ?? null,
               orgName: (data.orgName as string | undefined) ?? null,
+              creditsUsed: (data.creditsUsed as number | undefined) ?? null,
+              monthlyCreditLimit: (data.monthlyCreditLimit as number | undefined) ?? null,
             }
-          : { identity: null, platformRole: null, orgName: null },
+          : {
+              identity: null,
+              platformRole: null,
+              orgId: null,
+              orgName: null,
+              creditsUsed: null,
+              monthlyCreditLimit: null,
+            },
       )
-      .catch((): FetchResult => ({ identity: null, platformRole: null, orgName: null }));
+      .catch(
+        (): FetchResult => ({
+          identity: null,
+          platformRole: null,
+          orgId: null,
+          orgName: null,
+          creditsUsed: null,
+          monthlyCreditLimit: null,
+        }),
+      );
   }
   return inFlightFetch;
 }
 
 // Reads the logged-in user's identity from the session (via /api/me). `identity`/
 // `hydrated` are the frozen public API (D53) — `setIdentity` is gone, login owns identity
-// now. `platformRole`/`orgName` are additive sibling fields (gate the admin nav link / show
-// the agency name in the header) — Identity itself never changes shape. `hydrated` flips
-// true once the fetch resolves; until then identity/platformRole/orgName === null means
-// "not checked yet", so consumers must wait for `hydrated` before acting on null.
+// now. `platformRole`/`orgId`/`orgName`/`creditsUsed`/`monthlyCreditLimit` are additive
+// sibling fields (gate the admin nav link / scope Realtime subscriptions / show the agency
+// name and monthly usage in the header) — Identity itself never changes shape. `hydrated`
+// flips true once the fetch resolves; until then identity/platformRole/orgId/orgName/
+// creditsUsed/monthlyCreditLimit === null means "not checked yet", so consumers must wait
+// for `hydrated` before acting on null.
 export function useIdentity(): {
   identity: Identity | null;
   hydrated: boolean;
   platformRole: PlatformRole | null;
+  orgId: string | null;
   orgName: string | null;
+  creditsUsed: number | null;
+  monthlyCreditLimit: number | null;
 } {
   const [identity, setIdentity] = useState<Identity | null>(cachedIdentity);
   const [platformRole, setPlatformRole] = useState<PlatformRole | null>(cachedPlatformRole);
+  const [orgId, setOrgId] = useState<string | null>(cachedOrgId);
   const [orgName, setOrgName] = useState<string | null>(cachedOrgName);
+  const [creditsUsed, setCreditsUsed] = useState<number | null>(cachedCreditsUsed);
+  const [monthlyCreditLimit, setMonthlyCreditLimit] = useState<number | null>(
+    cachedMonthlyCreditLimit,
+  );
   const [hydrated, setHydrated] = useState(cachedHydrated);
 
   useEffect(() => {
@@ -62,7 +97,10 @@ export function useIdentity(): {
       // Already resolved by an earlier mount — sync immediately, no new fetch.
       setIdentity(cachedIdentity);
       setPlatformRole(cachedPlatformRole);
+      setOrgId(cachedOrgId);
       setOrgName(cachedOrgName);
+      setCreditsUsed(cachedCreditsUsed);
+      setMonthlyCreditLimit(cachedMonthlyCreditLimit);
       setHydrated(true);
       return;
     }
@@ -70,12 +108,18 @@ export function useIdentity(): {
     fetchIdentity().then((result) => {
       cachedIdentity = result.identity;
       cachedPlatformRole = result.platformRole;
+      cachedOrgId = result.orgId;
       cachedOrgName = result.orgName;
+      cachedCreditsUsed = result.creditsUsed;
+      cachedMonthlyCreditLimit = result.monthlyCreditLimit;
       cachedHydrated = true;
       if (!cancelled) {
         setIdentity(result.identity);
         setPlatformRole(result.platformRole);
+        setOrgId(result.orgId);
         setOrgName(result.orgName);
+        setCreditsUsed(result.creditsUsed);
+        setMonthlyCreditLimit(result.monthlyCreditLimit);
         setHydrated(true);
       }
     });
@@ -84,5 +128,5 @@ export function useIdentity(): {
     };
   }, []);
 
-  return { identity, hydrated, platformRole, orgName };
+  return { identity, hydrated, platformRole, orgId, orgName, creditsUsed, monthlyCreditLimit };
 }
