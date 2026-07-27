@@ -132,7 +132,15 @@ provider-specific logic local to their own file.
 | 2.6 | 720p / 1080p | 5 / 10 | `native` / `off` (default `off`) | — |
 | 2.5-turbo | 720p / 1080p | 5 / 10 | — | — |
 | 3.0 | 720p / 1080p / 4k | 3–15 (default 5) | `native` / `off` (default `off`) | bool (default `true`) |
-| o1 | 720p / 1080p | 3–10 (default 5) | `original` / `off` (default `off`) | — |
+| o1 | 720p / 1080p | ~~3–10~~ **5 / 10 only** (default 5) | ~~`original`~~ **`native`** / `off` (default `off`) | ~~—~~ **bool (default `false`)** |
+
+> ⚠️ **The o1 row above was wrong — corrected 2026-07-27, see D81.** It was read off the
+> `/omni-video/kling-3.0-omni` doc page, which documents a *different path* than the
+> `/omni-video/kling-o1` we call. The live endpoint rejects any duration but 5/10 without a
+> `refer_image` (`400` code `1201`), `original` audio only retains a reference video's soundtrack
+> (we never send one, so it yielded silence), and omitting `multi_shot` lets Kling's server-side
+> `true` default apply. The other four models' rows were re-verified and stand — Kling 3.0's 3–15
+> range in particular is confirmed against `/image-to-video/kling-3.0`.
 
 Known interlocking constraints from the docs that this pass does **not** enforce
 client-side (left for the API to reject; revisit if users hit them often):

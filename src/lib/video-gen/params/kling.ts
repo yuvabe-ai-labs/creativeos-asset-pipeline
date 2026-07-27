@@ -13,7 +13,7 @@ function resolutionParam(options: string[], defaultValue: string): ParamSpec {
   };
 }
 
-// Kling's duration is a continuous 1s-step range, so it reads as a slider rather than the
+// Kling 3.0's duration is a continuous 1s-step range, so it reads as a slider rather than the
 // 13 chips a select produced at 3–15s. Value is a NUMBER (the select stored strings) —
 // SliderControl coerces legacy string values so saved nodes keep their duration.
 function durationParam(min: number, max: number, defaultValue: number): ParamSpec {
@@ -26,6 +26,25 @@ function durationParam(min: number, max: number, defaultValue: number): ParamSpe
     visible: true,
     defaultValue,
     constraints: { type: "slider", min, max, step: 1 },
+  };
+}
+
+// O1 (the /omni-video endpoint) is NOT a continuous range like 3.0. Kling only accepts an
+// arbitrary duration when the request carries a `refer_image`; with a plain first frame — which
+// is all `buildKlingContents` ever sends — it rejects anything but 5 or 10:
+//   400 {"code":1201,"message":"Duration only supports 5 or 10 seconds when no refer_image is provided"}
+// Two non-contiguous stops can't be expressed as a slider, so O1 gets a chip select instead.
+// Restoring the full 3–10 range means implementing refer_image, not widening this list.
+function durationSelectParam(options: string[], defaultValue: string): ParamSpec {
+  return {
+    name: "duration",
+    label: "Duration",
+    component: "select",
+    group: "primary",
+    order: 1,
+    visible: true,
+    defaultValue,
+    constraints: { type: "select", options },
   };
 }
 
@@ -84,9 +103,15 @@ export const kling30Params: ParamSpec[] = [
   negativePromptParam,
 ];
 
+// audio is native/off, NOT original/off. The omni endpoint's enum is native | original | off,
+// but `original` means "retain the original sound of the reference video" — it only applies to a
+// base_video / feature_video request, and buildKlingContents never sends one. Offering it gave
+// O1 users a choice between silence and silence; `native` (audio matching the visuals) is the
+// only way to actually get sound out of this model in our flow.
 export const klingO1Params: ParamSpec[] = [
   resolutionParam(["720p", "1080p"], "720p"),
-  durationParam(3, 10, 5),
-  audioParam(["original", "off"], "off"),
+  durationSelectParam(["5", "10"], "5"),
+  audioParam(["native", "off"], "off"),
+  multiShotParam,
   negativePromptParam,
 ];

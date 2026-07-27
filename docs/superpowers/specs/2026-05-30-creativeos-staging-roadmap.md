@@ -1706,6 +1706,47 @@ preservation slipping).
 `2026-07-26-veo-preservation-first-prompt-design.md`. *(Originally drafted as a clashing D78 on the Veo
 branch; renumbered during the 2026-07-26 three-branch integration — final numbering to confirm on review.)*
 
+### D81 — Kling O1 params follow the live endpoint, not the 3.0-omni doc table *(recorded 2026-07-27; corrects the O1 row of `2026-07-23-kling-api-correction-design.md` §Per-model settings fields)*
+
+**Decision.** `kling:kling-o1`'s params are pinned to what `POST /omni-video/kling-o1` actually
+accepts, which is **not** what the published omni docs describe:
+- **duration** — a `5` / `10` **select**, not a 3–10 slider. Kling returns
+  `400 {"code":1201,"message":"Duration only supports 5 or 10 seconds when no refer_image is provided"}`,
+  and `buildKlingContents` only ever emits `first_frame`/`last_frame`, so the unrestricted branch is
+  unreachable by construction. Two non-contiguous stops cannot be a range control, so the control
+  *type* changes for O1 — 3.0 keeps its slider.
+- **audio** — `native` / `off`, not `original` / `off`. `original` retains a *reference video's*
+  soundtrack; we never send `base_video`/`feature_video`, so it produced silence. O1 previously had
+  no reachable audio-on value at all. A stored `original` migrates to `native` (same billing tier).
+- **multi_shot** — now always sent, defaulting `false`, and exposed as a toggle like 3.0. Omitting
+  it was not neutral: Kling's server-side default is `true`, so every O1 clip was silently opting
+  into shot cuts, against the product intent recorded for 3.0.
+
+Both duration and audio are additionally normalised in `buildO1Settings`, because nothing
+re-validates persisted node params on load.
+
+**Why.** The O1 row was read off the `/omni-video/kling-3.0-omni` doc page, which enumerates
+duration 3–15 with no `refer_image` caveat — but that page documents a **different path** than the
+one we call. The live endpoint's own validator is the only authority we have for `kling-o1`; there is
+no O1-specific doc page. Kling 3.0's 3–15 range **was** re-verified against
+`/image-to-video/kling-3.0` and is correct — the two models genuinely differ.
+
+**Rejected.** Widening duration to 3–15 on the strength of the omni doc page (wrong endpoint);
+implementing `refer_image` as part of this fix (that is the real feature — Ref chip → up to 7 images,
+`@image_n` prompt refs, arbitrary duration — and needs its own design); clamping 3.0's duration too
+(doc-confirmed correct); dropping stale `original` audio to `off` (loses the user's intent to have
+sound).
+
+**Known-unfixed, surfaced by the same doc pass:** `settings.negative_prompt` appears in **neither**
+endpoint's schema — we send it on both Kling models with a long prefilled default and Kling silently
+ignores it, so that textarea is currently decorative. `build3_0Settings` also falls back to
+`multi_shot ?? true`, contradicting `multiShotParam`'s declared `false` default, so pre-toggle 3.0
+nodes still generate multi-shot. Neither is changed here.
+
+**Corrects** the O1 row of `2026-07-23-kling-api-correction-design.md` (which remains authoritative
+for the other four Kling models). **Originated →** live-API debugging, 2026-07-27; official Kling
+docs pasted in by the user (kling.ai returns HTTP 446 to automated fetches).
+
 ### Parked / out-of-scope (with revisit triggers)
 | Item | Status | Revisit when |
 |---|---|---|
