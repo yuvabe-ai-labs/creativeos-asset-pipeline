@@ -84,9 +84,10 @@ export function VideoGenNode({ id, data, selected, positionAbsoluteX, positionAb
           placeholder="Video Gen"
           onCommitTitle={(t) => updateNodeData(id, { title: t })}
           status={
-            isGenerating ? (
-              <ProcessingPill processing />
-            ) : (
+            // While generating, the header carries no indicator — the Processing pill
+            // sits on the card's bottom row instead, which also frees the full header
+            // width for the title.
+            isGenerating ? undefined : (
               <span
                 className={cn(
                   "size-1.5 rounded-full",
@@ -118,12 +119,16 @@ export function VideoGenNode({ id, data, selected, positionAbsoluteX, positionAb
               />
             </div>
           )}
-          <button
-            onClick={() => setFocusOpen(true)}
-            className="nodrag -mx-1.5 inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10"
-          >
-            Open ↗
-          </button>
+          {/* Open ↗ left, generation status right — ProcessingPill renders null when idle. */}
+          <div className="flex items-center justify-between gap-2">
+            <button
+              onClick={() => setFocusOpen(true)}
+              className="nodrag -mx-1.5 inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10"
+            >
+              Open ↗
+            </button>
+            <ProcessingPill processing={isGenerating} />
+          </div>
         </div>
 
 
