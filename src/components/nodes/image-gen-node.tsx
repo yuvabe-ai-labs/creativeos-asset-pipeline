@@ -119,9 +119,9 @@ export function ImageGenNode({ id, data, selected, positionAbsoluteX, positionAb
             <span className="text-eyebrow !text-[0.65rem] whitespace-nowrap">Image Gen</span>
             <NodeHandle nodeId={id} nodeType="image-gen" />
           </div>
-          {isProcessing ? (
-            <ProcessingPill processing />
-          ) : (
+          {/* While processing, the header carries no indicator — the Processing pill
+              sits on the card's bottom row instead. */}
+          {!isProcessing && (
             <span
               className={cn(
                 "size-1.5 rounded-full",
@@ -145,12 +145,16 @@ export function ImageGenNode({ id, data, selected, positionAbsoluteX, positionAb
               <img src={imageUrl} alt="Generated" className="aspect-video w-full object-cover" />
             </div>
           )}
-          <button
-            onClick={() => setFocusOpen(true)}
-            className="nodrag -mx-1.5 inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10"
-          >
-            Open ↗
-          </button>
+          {/* Open ↗ left, generation status right — ProcessingPill renders null when idle. */}
+          <div className="flex items-center justify-between gap-2">
+            <button
+              onClick={() => setFocusOpen(true)}
+              className="nodrag -mx-1.5 inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10"
+            >
+              Open ↗
+            </button>
+            <ProcessingPill processing={isProcessing} />
+          </div>
         </div>
 
 

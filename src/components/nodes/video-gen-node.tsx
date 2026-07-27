@@ -82,9 +82,9 @@ export function VideoGenNode({ id, data, selected, positionAbsoluteX, positionAb
             <span className="text-eyebrow !text-[0.65rem] whitespace-nowrap">Video Gen</span>
             <NodeHandle nodeId={id} nodeType="video-gen" />
           </div>
-          {isGenerating ? (
-            <ProcessingPill processing />
-          ) : (
+          {/* While generating, the header carries no indicator — the Processing pill
+              sits on the card's bottom row instead. */}
+          {!isGenerating && (
             <span
               className={cn(
                 "size-1.5 rounded-full",
@@ -115,12 +115,16 @@ export function VideoGenNode({ id, data, selected, positionAbsoluteX, positionAb
               />
             </div>
           )}
-          <button
-            onClick={() => setFocusOpen(true)}
-            className="nodrag -mx-1.5 inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10"
-          >
-            Open ↗
-          </button>
+          {/* Open ↗ left, generation status right — ProcessingPill renders null when idle. */}
+          <div className="flex items-center justify-between gap-2">
+            <button
+              onClick={() => setFocusOpen(true)}
+              className="nodrag -mx-1.5 inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10"
+            >
+              Open ↗
+            </button>
+            <ProcessingPill processing={isGenerating} />
+          </div>
         </div>
 
 
