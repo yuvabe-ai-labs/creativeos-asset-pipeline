@@ -46,8 +46,10 @@ export function EditableField({
     return (
       <span
         className={cn(
-          "whitespace-pre-wrap",
-          singleLine && "block truncate",
+          // Either/or, never both: `truncate` sets white-space:nowrap, so emitting
+          // whitespace-pre-wrap alongside it leaves the winner up to stylesheet order
+          // — and pre-wrap won, so single-line titles wrapped instead of ellipsing.
+          singleLine ? "block truncate" : "whitespace-pre-wrap",
           isEmpty && "text-muted-foreground",
           className,
         )}
@@ -67,8 +69,8 @@ export function EditableField({
         }}
         title="Click to edit"
         className={cn(
-          "nodrag w-full cursor-pointer whitespace-pre-wrap rounded-md px-1.5 py-1 text-left underline decoration-transparent decoration-dotted decoration-2 underline-offset-4 transition-colors hover:bg-primary/5 hover:decoration-primary/50",
-          singleLine && "block truncate",
+          "nodrag w-full cursor-pointer rounded-md px-1.5 py-1 text-left underline decoration-transparent decoration-dotted decoration-2 underline-offset-4 transition-colors hover:bg-primary/5 hover:decoration-primary/50",
+          singleLine ? "block truncate" : "whitespace-pre-wrap",
           isEmpty && "text-muted-foreground",
           className,
         )}

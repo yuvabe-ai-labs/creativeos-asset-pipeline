@@ -218,6 +218,44 @@ describe("canvas store — focusedNodeId", () => {
   });
 });
 
+describe("canvas store — openFocusViewIds", () => {
+  it("starts empty", () => {
+    expect(createCanvasStore().getState().openFocusViewIds).toEqual([]);
+  });
+
+  it("registers and unregisters a node's focus view", () => {
+    const store = createCanvasStore();
+    store.getState().setFocusViewOpen("node-1", true);
+    expect(store.getState().openFocusViewIds).toEqual(["node-1"]);
+    store.getState().setFocusViewOpen("node-1", false);
+    expect(store.getState().openFocusViewIds).toEqual([]);
+  });
+
+  it("is idempotent — re-registering the same id does not duplicate it", () => {
+    const store = createCanvasStore();
+    store.getState().setFocusViewOpen("node-1", true);
+    store.getState().setFocusViewOpen("node-1", true);
+    expect(store.getState().openFocusViewIds).toEqual(["node-1"]);
+  });
+
+  it("keeps the gate closed while another view is still open", () => {
+    // The async path: the copilot points focusedNodeId at node-2 while node-1 is
+    // already open locally, then node-1 closes. A boolean flag would clear here and
+    // let the canvas go live under node-2's still-open sheet.
+    const store = createCanvasStore();
+    store.getState().setFocusViewOpen("node-1", true);
+    store.getState().setFocusViewOpen("node-2", true);
+    store.getState().setFocusViewOpen("node-1", false);
+    expect(store.getState().openFocusViewIds).toEqual(["node-2"]);
+  });
+
+  it("ignores a close for an id that was never open", () => {
+    const store = createCanvasStore();
+    store.getState().setFocusViewOpen("ghost", false);
+    expect(store.getState().openFocusViewIds).toEqual([]);
+  });
+});
+
 describe("guidedCreateNext", () => {
   it("creates the next node wired from the source and returns its id", () => {
     const shot: AppNode = { id: "s", type: "shot", position: { x: 0, y: 0 }, data: {} } as AppNode;

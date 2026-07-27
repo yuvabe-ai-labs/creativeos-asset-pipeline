@@ -6,6 +6,7 @@ import { Clapperboard } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { useDeleteNode } from "@/hooks/use-delete-node";
+import { useFocusViewRegistration } from "@/hooks/use-focus-view-open";
 import { useGalleryDrawer } from "@/components/canvas/gallery-drawer-context";
 import { useGalleryNodeDrop } from "@/hooks/use-gallery-node-drop";
 import { NodeContextMenu } from "./node-context-menu";
@@ -45,6 +46,7 @@ export function VideoGenNode({ id, data, selected, positionAbsoluteX, positionAb
     setFocusOpen(next);
     if (!next && focusedNodeId === id) setFocusedNodeId(null); // consume the tray signal
   };
+  useFocusViewRegistration(id, focusViewOpen);
 
   const handlePatch = useCallback(
     (patch: Record<string, unknown>) => updateNodeData(id, patch),
@@ -52,6 +54,7 @@ export function VideoGenNode({ id, data, selected, positionAbsoluteX, positionAb
   );
 
   return (
+    <>
     <NodeContextMenu
       onDuplicate={() => duplicateNode(id)}
       onDelete={() => deleteNode(id)}
@@ -81,9 +84,10 @@ export function VideoGenNode({ id, data, selected, positionAbsoluteX, positionAb
           placeholder="Video Gen"
           onCommitTitle={(t) => updateNodeData(id, { title: t })}
           status={
-            isGenerating ? (
-              <ProcessingPill processing />
-            ) : (
+            // While generating, the header carries no indicator — the Processing pill
+            // sits on the card's bottom row instead, which also frees the full header
+            // width for the title.
+            isGenerating ? undefined : (
               <span
                 className={cn(
                   "size-1.5 rounded-full",
@@ -115,26 +119,18 @@ export function VideoGenNode({ id, data, selected, positionAbsoluteX, positionAb
               />
             </div>
           )}
-          <button
-            onClick={() => setFocusOpen(true)}
-            className="nodrag -mx-1.5 inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10"
-          >
-            Open ↗
-          </button>
+          {/* Open ↗ left, generation status right — ProcessingPill renders null when idle. */}
+          <div className="flex items-center justify-between gap-2">
+            <button
+              onClick={() => setFocusOpen(true)}
+              className="nodrag -mx-1.5 inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10"
+            >
+              Open ↗
+            </button>
+            <ProcessingPill processing={isGenerating} />
+          </div>
         </div>
 
-
-        <VideoGenFocusView
-          open={focusViewOpen}
-          onOpenChange={handleFocusOpenChange}
-          nodeId={id}
-          title={title}
-          videoUrl={videoUrl}
-          modelId={d.modelId}
-          params={d.params}
-          imageRoles={d.imageRoles ?? {}}
-          onPatch={handlePatch}
-        />
 
         {/* Leaf node — only a target handle, no source */}
         <Handle
@@ -144,5 +140,20 @@ export function VideoGenNode({ id, data, selected, positionAbsoluteX, positionAb
         />
       </div>
     </NodeContextMenu>
+
+    {/* Outside NodeContextMenu: the portaled sheet still sits in the node's React tree,
+        so as a child its contextmenu/dblclick/drop events bubbled into the node card. */}
+    <VideoGenFocusView
+      open={focusViewOpen}
+      onOpenChange={handleFocusOpenChange}
+      nodeId={id}
+      title={title}
+      videoUrl={videoUrl}
+      modelId={d.modelId}
+      params={d.params}
+      imageRoles={d.imageRoles ?? {}}
+      onPatch={handlePatch}
+    />
+    </>
   );
 }

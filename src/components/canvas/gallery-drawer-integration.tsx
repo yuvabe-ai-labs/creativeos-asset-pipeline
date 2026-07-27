@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useReactFlow } from "@xyflow/react";
+import { useCanvasStoreApi } from "./canvas-store-provider";
 import { useGalleryDrawer as useDrawerCtx } from "./gallery-drawer-context";
 import { useGalleryDrawer as useGalleryCommit } from "@/hooks/use-gallery-drawer";
 import { GalleryDrawer, GALLERY_DRAG_MIME } from "./gallery-drawer/gallery-drawer";
@@ -19,10 +20,13 @@ export function GalleryDrawerIntegration({
   const drawer = useDrawerCtx();
   const { handleAdd } = useGalleryCommit();
   const reactFlow = useReactFlow();
+  const storeApi = useCanvasStoreApi();
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key !== "g" && e.key !== "G") return;
+      // Stand down while a node focus view is open — it owns the keyboard.
+      if (storeApi.getState().openFocusViewIds.length > 0) return;
 
       // Ctrl/Cmd+G opens the gallery from anywhere — even while typing.
       if (e.ctrlKey || e.metaKey) {
@@ -48,7 +52,7 @@ export function GalleryDrawerIntegration({
     }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [drawer]);
+  }, [drawer, storeApi]);
 
   useEffect(() => {
     const paneEl = document.querySelector<HTMLDivElement>(".react-flow");

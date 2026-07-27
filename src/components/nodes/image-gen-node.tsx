@@ -6,6 +6,7 @@ import { ImageIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { useDeleteNode } from "@/hooks/use-delete-node";
+import { useFocusViewRegistration } from "@/hooks/use-focus-view-open";
 import { useGalleryDrawer } from "@/components/canvas/gallery-drawer-context";
 import { useGalleryNodeDrop } from "@/hooks/use-gallery-node-drop";
 import { NodeContextMenu } from "./node-context-menu";
@@ -87,8 +88,10 @@ export function ImageGenNode({ id, data, selected, positionAbsoluteX, positionAb
     setFocusOpen(next);
     if (!next && focusedNodeId === id) setFocusedNodeId(null); // consume the tray signal
   };
+  useFocusViewRegistration(id, focusViewOpen);
 
   return (
+    <>
     <NodeContextMenu
       onDuplicate={() => duplicateNode(id)}
       onDelete={() => deleteNode(id)}
@@ -118,9 +121,10 @@ export function ImageGenNode({ id, data, selected, positionAbsoluteX, positionAb
           placeholder="Image Gen"
           onCommitTitle={(t) => updateNodeData(id, { title: t })}
           status={
-            isProcessing ? (
-              <ProcessingPill processing />
-            ) : (
+            // While processing, the header carries no indicator — the Processing pill
+            // sits on the card's bottom row instead, which also frees the full header
+            // width for the title.
+            isProcessing ? undefined : (
               <span
                 className={cn(
                   "size-1.5 rounded-full",
@@ -145,33 +149,18 @@ export function ImageGenNode({ id, data, selected, positionAbsoluteX, positionAb
               <img src={imageUrl} alt="Generated" className="aspect-video w-full object-cover" />
             </div>
           )}
-          <button
-            onClick={() => setFocusOpen(true)}
-            className="nodrag -mx-1.5 inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10"
-          >
-            Open ↗
-          </button>
+          {/* Open ↗ left, generation status right — ProcessingPill renders null when idle. */}
+          <div className="flex items-center justify-between gap-2">
+            <button
+              onClick={() => setFocusOpen(true)}
+              className="nodrag -mx-1.5 inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10"
+            >
+              Open ↗
+            </button>
+            <ProcessingPill processing={isProcessing} />
+          </div>
         </div>
 
-
-        <ImageGenFocusView
-          open={focusViewOpen}
-          onOpenChange={handleFocusOpenChange}
-          nodeId={id}
-          title={title}
-          canvasName={canvasName}
-          scriptTitle={scriptTitle}
-          imageUrl={imageUrl}
-          modelId={d.modelId}
-          params={d.params}
-          editInstruction={d.editInstruction}
-          editIntent={d.editIntent}
-          editReferenceNodeIds={d.editReferenceNodeIds}
-          baseReferenceNodeId={d.baseReferenceNodeId}
-          upstream={upstream}
-          onPatch={(patch) => updateNodeData(id, patch)}
-          onProcessingChange={setIsProcessing}
-        />
 
         <Handle
           type="target"
@@ -185,5 +174,28 @@ export function ImageGenNode({ id, data, selected, positionAbsoluteX, positionAb
         />
       </div>
     </NodeContextMenu>
+
+    {/* Rendered OUTSIDE NodeContextMenu on purpose. The sheet is portaled to <body>,
+        but a portal keeps its place in the React tree — so as a child of the trigger
+        its contextmenu/dblclick/drop events bubbled back into the node card. */}
+    <ImageGenFocusView
+      open={focusViewOpen}
+      onOpenChange={handleFocusOpenChange}
+      nodeId={id}
+      title={title}
+      canvasName={canvasName}
+      scriptTitle={scriptTitle}
+      imageUrl={imageUrl}
+      modelId={d.modelId}
+      params={d.params}
+      editInstruction={d.editInstruction}
+      editIntent={d.editIntent}
+      editReferenceNodeIds={d.editReferenceNodeIds}
+      baseReferenceNodeId={d.baseReferenceNodeId}
+      upstream={upstream}
+      onPatch={(patch) => updateNodeData(id, patch)}
+      onProcessingChange={setIsProcessing}
+    />
+    </>
   );
 }

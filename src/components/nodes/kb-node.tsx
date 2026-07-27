@@ -16,6 +16,7 @@ import {
 import type { KBNodeData } from "@/lib/canvas-nodes";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { useNodeConnectionState } from "./use-node-connection-state";
+import { useFocusViewRegistration } from "@/hooks/use-focus-view-open";
 import { NodeCardHeader } from "./node-card-header";
 import { formatDate } from "@/lib/kb/utils";
 
@@ -238,6 +239,9 @@ export function KBNode({ id, data, selected }: NodeProps) {
     setOpen(next);
     if (!next && focusedNodeId === id) setFocusedNodeId(null); // consume the signal
   };
+  // KB has no context menu (it's excluded from selection/delete), but its sheet still
+  // has to silence the canvas's document-level shortcuts while it's open.
+  useFocusViewRegistration(id, sheetOpen);
   const connState = useNodeConnectionState(id, "kb");
   const [fetchState, setFetchState] = useState<FetchState>({
     loading: true,
