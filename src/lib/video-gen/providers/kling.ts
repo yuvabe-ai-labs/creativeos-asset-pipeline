@@ -16,6 +16,7 @@ type KlingContentInput = {
   prompt: string;
   startFrameUrl?: string;
   endFrameUrl?: string;
+  referenceUrls?: string[];
 };
 
 export function buildKlingContents(
@@ -30,6 +31,12 @@ export function buildKlingContents(
   if (input.endFrameUrl) {
     contents.push({ type: "last_frame", url: input.endFrameUrl });
   }
+  // `id` is how the prompt addresses an image (@image_1). Only the omni endpoint accepts
+  // refer_image — generateWithKling gates this per model, so callers can pass references
+  // freely and the wrong endpoint simply never sees them.
+  (input.referenceUrls ?? []).forEach((url, i) => {
+    contents.push({ type: "refer_image", url, id: `image_${i + 1}` });
+  });
   return contents;
 }
 
@@ -133,17 +140,32 @@ async function pollKlingTask(taskId: string): Promise<VideoGenResult> {
   }
 }
 
+type KlingEndpointConfig = {
+  endpointPath: string;
+  /**
+   * Only the omni endpoint accepts `refer_image`. Kling 3.0's content enum is
+   * prompt / first_frame / last_frame / element, so references are dropped there rather than
+   * sent as an unsupported type.
+   */
+  supportsReferences: boolean;
+};
+
 async function generateWithKling(
-  endpointPath: string,
+  config: KlingEndpointConfig,
   buildSettings: (params: Record<string, unknown>) => Record<string, unknown>,
   input: VideoGenInput,
 ): Promise<VideoGenResult> {
   if (!input.startFrameUrl) {
     throw new Error("Kling image-to-video requires a start frame image");
   }
-  const contents = buildKlingContents(input);
+  const contents = buildKlingContents({
+    prompt: input.prompt,
+    startFrameUrl: input.startFrameUrl,
+    endFrameUrl: input.endFrameUrl,
+    referenceUrls: config.supportsReferences ? input.referenceUrls : [],
+  });
   const settings = buildSettings(input.params);
-  const taskId = await createKlingTask(endpointPath, contents, settings);
+  const taskId = await createKlingTask(config.endpointPath, contents, settings);
   return pollKlingTask(taskId);
 }
 
@@ -170,7 +192,12 @@ export const kling30: VideoGenModelSpec = {
   maxDurationSeconds: 15,
   imageInputs: KLING_30_IMAGE_INPUTS,
   params: kling30Params,
-  generate: (input) => generateWithKling("/image-to-video/kling-3.0", build3_0Settings, input),
+  generate: (input) =>
+    generateWithKling(
+      { endpointPath: "/image-to-video/kling-3.0", supportsReferences: false },
+      build3_0Settings,
+      input,
+    ),
 };
 
 export const klingO1: VideoGenModelSpec = {
@@ -181,5 +208,10 @@ export const klingO1: VideoGenModelSpec = {
   maxDurationSeconds: 10,
   imageInputs: KLING_O1_IMAGE_INPUTS,
   params: klingO1Params,
-  generate: (input) => generateWithKling("/omni-video/kling-o1", buildO1Settings, input),
+  generate: (input) =>
+    generateWithKling(
+      { endpointPath: "/omni-video/kling-o1", supportsReferences: true },
+      buildO1Settings,
+      input,
+    ),
 };
