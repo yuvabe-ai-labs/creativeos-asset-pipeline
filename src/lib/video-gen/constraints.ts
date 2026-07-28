@@ -100,3 +100,32 @@ export function reconcileLockedParams(
   if (!entries.some(([name, value]) => params[name] !== value)) return null;
   return { ...params, ...lockedParams };
 }
+
+/**
+ * D85 — the server rejects, it never corrects.
+ *
+ * Returns the reason a request violates the model's rules, or null when it is legal.
+ * Auto-correcting would silently change both what the caller asked for and what they are
+ * billed, so a violation is a 400 rather than a fixup. The UI evaluates these same rules and
+ * should never let an illegal combination through; this is the backstop for callers that
+ * bypass it.
+ */
+export function validateAgainstRules(
+  rules: ConstraintRule[] | undefined,
+  state: ConstraintState,
+): string | null {
+  const evaluated = evaluateConstraints(rules, state);
+
+  if (evaluated.disableGenerate) {
+    return evaluated.disableGenerateReason ?? "This combination is not supported";
+  }
+  for (const [name, value] of Object.entries(evaluated.lockedParams)) {
+    if (state.params[name] !== value) {
+      return (
+        evaluated.lockedParamReasons[name] ??
+        `${name} must be ${String(value)} for this combination`
+      );
+    }
+  }
+  return null;
+}
