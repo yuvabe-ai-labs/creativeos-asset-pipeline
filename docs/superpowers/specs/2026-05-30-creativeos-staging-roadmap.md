@@ -1493,10 +1493,23 @@ later — more work at both ends, and vector search needs small *embeddings*, no
 archive (re-host on use instead); (d) inline board-creation from the extension (Slice B v1 picks
 existing boards only).
 
-**Revises** the **reference-clipper** design (`2026-07-14-reference-clipper-*`, never given a D-number
-and never built): the capture target moves from "push to the active canvas tab as File nodes" to "add
-to a chosen client moodboard (staging); moodboard → canvas is a separate, re-hosting drag." *(The
-moodboard design spec cites this as "D36" — that citation is wrong; D36 is the guided next-node flow.)*
+**Revises** the **reference clipper** (`2026-07-05-reference-clipper-design.md`) — which is **shipped**
+(`clipper-extension/`, `POST /api/ingest-image`, `src/lib/reference-clipper/`), not a paper design. Its
+capture target was "push to the **active canvas tab** as File nodes, then reload the tab"; D81 moves the
+target to "add to a chosen **client moodboard** (staging), with moodboard → canvas as a separate,
+re-hosting drag." The two models differ in *when* an image becomes a canvas node: the clipper pushes
+straight onto a canvas at capture time, the moodboard stages it against a client for later reuse.
+
+*(Numbering note: the clipper design claimed **D36** for itself but was never appended to this log, and
+D36 was subsequently taken by the guided next-node flow. The moodboard spec inherits that bad citation.
+The clipper therefore still has **no D-number**; assign one if it is kept.)*
+
+> **Open follow-up — two capture extensions now coexist.** `clipper-extension/` (D-number pending) and
+> `moodboard-extension/` (D81) both add a right-click "send this image to CreativeOS" and both re-host
+> to GCS; they differ only in destination. Keeping both is defensible (push-now vs. stage-for-later),
+> but it is an unmade decision, not a design: consolidating them behind one extension with a
+> destination picker, or retiring the clipper, should be decided explicitly rather than by drift.
+
 **Originated →** `2026-07-22-client-moodboards-design.md`.
 
 ### Parked / out-of-scope (with revisit triggers)
