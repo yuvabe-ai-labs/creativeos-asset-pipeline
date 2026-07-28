@@ -72,4 +72,24 @@ describe("normalizeReferenceImageForOpenAI", () => {
     expect(meta.width).toBe(16);
     expect(meta.height).toBe(16);
   });
+
+  it("auto-orients using EXIF orientation before measuring/cropping dimensions", async () => {
+    // 2000x1000 physical pixels tagged with EXIF orientation 6 (rotate 90° CW on display) —
+    // logically a 1000-wide x 2000-tall portrait image once EXIF-rotated.
+    const input = await sharp({
+      create: { width: 2000, height: 1000, channels: 3, background: { r: 10, g: 20, b: 30 } },
+    })
+      .withMetadata({ orientation: 6 })
+      .jpeg()
+      .toBuffer();
+    const output = await normalizeReferenceImageForOpenAI(input);
+    const meta = await sharp(output).metadata();
+    // Post-rotation the image is 1000x2000 (portrait). Neither dimension needs cropping
+    // (1000/2000 ratio is well within 3:1) or downscaling (max edge 2000 < 3840), so only
+    // multiple-of-16 rounding applies: short side 1000 -> floors to 992; long side 2000 is
+    // already a multiple of 16 and 992*3=2976 >= 2000 so it's untouched.
+    expect(meta.width).toBe(992);
+    expect(meta.height).toBe(2000);
+    expect(meta.orientation).toBeUndefined();
+  });
 });
