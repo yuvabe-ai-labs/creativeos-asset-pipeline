@@ -1706,6 +1706,30 @@ preservation slipping).
 `2026-07-26-veo-preservation-first-prompt-design.md`. *(Originally drafted as a clashing D78 on the Veo
 branch; renumbered during the 2026-07-26 three-branch integration — final numbering to confirm on review.)*
 
+### D91 — OpenAI reference images are normalized server-side, never blocked on dimensions *(recorded 2026-07-28)*
+
+**Decision.** For OpenAI image-gen models, aspect-ratio (>3:1), max-edge (3840px), and
+multiple-of-16 constraints are enforced by **auto-correcting the image server-side**
+(center-crop, downscale, round-down) immediately before the `images.edit`/`images.generate`
+call, instead of gating on them in `validateReferenceImages`. Per-image size (50MB) and Gemini's
+aggregate size cap remain hard blocks — no resize fixes an outright-too-large file.
+`background: "transparent"` + `output_format: "jpeg"` (invalid combo — JPEG has no alpha) is
+silently corrected to `output_format: "png"`, same philosophy.
+
+**Why.** Root-caused 27 of 35 staging+prod OpenAI image-gen failures
+(`generations.status='failed'`) to a leaky validation gate: `validate.ts` skips its
+dimension checks whenever image metadata wasn't backfilled, which happens routinely on
+multi-reference edits (up to 16 images via `assembleEditReferences`) — so bad-dimension images
+reached OpenAI and failed there with an unactionable error instead of being caught upfront.
+Normalizing unconditionally, right before the provider call, can't be bypassed the way a
+pre-flight metadata-dependent gate can.
+
+**Rejected.** Fixing the validation backfill instead (still leaves a block-the-user UX for a
+problem that's trivially auto-fixable); padding instead of cropping for the aspect-ratio fix
+(adds visible blank space to what OpenAI sees as reference content).
+
+**Originated →** `2026-07-28-openai-image-gen-error-remediation-design.md`.
+
 ### Parked / out-of-scope (with revisit triggers)
 | Item | Status | Revisit when |
 |---|---|---|
