@@ -32,7 +32,7 @@ export function GenerationErrorBadge({ error }: GenerationErrorBadgeProps) {
       />
       <PopoverContent align="end" className="w-80">
         <div className="flex items-start justify-between gap-2">
-          <p className="whitespace-pre-wrap break-words text-xs text-foreground">
+          <p className="max-h-64 overflow-y-auto whitespace-pre-wrap break-words text-xs text-foreground">
             {error}
           </p>
           <Button
