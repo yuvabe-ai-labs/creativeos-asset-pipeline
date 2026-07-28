@@ -1089,7 +1089,7 @@ Replace with:
                 />
               </div>
             </header>
-            {!generating && (
+            {lastError && !generating && (
               <div className="mt-2">
                 <GenerationErrorBadge error={lastError} />
               </div>
@@ -1263,7 +1263,7 @@ with:
 
 ```tsx
             </header>
-            {!generating && (
+            {lastError && !generating && (
               <div className="mt-2">
                 <GenerationErrorBadge error={lastError} />
               </div>
