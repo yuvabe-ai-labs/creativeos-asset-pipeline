@@ -178,10 +178,13 @@ const KLING_30_IMAGE_INPUTS = {
   maxReferenceImages: 0,
 } as const;
 
+// D88: 7-image omni budget less both frames, conservatively — the docs do not say whether
+// first_frame/last_frame count toward the 7. Must match the client copy in client-models.ts,
+// since the API route caps referenceUrls against this value.
 const KLING_O1_IMAGE_INPUTS = {
   startFrame: true,
   endFrame: true,
-  maxReferenceImages: 0,
+  maxReferenceImages: 5,
 } as const;
 
 export const kling30: VideoGenModelSpec = {

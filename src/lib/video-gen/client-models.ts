@@ -89,11 +89,45 @@ const KLING_30_IMAGE_INPUTS = {
   maxReferenceImages: 0,
 } as const;
 
+// D88: the omni endpoint caps total images at 7 (references plus multi-image elements, with no
+// reference video). Whether first_frame/last_frame count toward that 7 is not documented, so 5
+// is the conservative figure that stays in budget with both frames in use. Being wrong this way
+// costs two slots; being wrong the other way causes 400s.
 const KLING_O1_IMAGE_INPUTS = {
   startFrame: true,
   endFrame: true,
-  maxReferenceImages: 0,
+  maxReferenceImages: 5,
 } as const;
+
+// ── Kling constraint rules ────────────────────────────────────────────────────
+
+// Both Kling endpoints require a first_frame. Previously this surfaced only as a throw inside
+// the Trigger task — i.e. a generation that failed minutes after the click. As a rule it
+// disables Generate up front instead.
+//
+// Lifting this for omni text-to-video needs an `aspect_ratio` param, which the omni docs make
+// mandatory when no first frame and no reference video are present — deferred.
+const KLING_REQUIRES_START_FRAME: ConstraintRule = {
+  id: "kling-requires-start-frame",
+  when: { field: "hasStartFrame", op: "eq", value: false },
+  effect: { disableGenerate: true },
+  reason: "Kling needs a start frame before you can generate",
+};
+
+const KLING_30_RULES: ConstraintRule[] = [
+  KLING_REQUIRES_START_FRAME,
+  {
+    // Multi-shot cuts between shots; an end frame asks for one continuous interpolated path.
+    // The two are contradictory, and Kling's API defaults multi_shot to true.
+    id: "end-frame-disables-multi-shot",
+    when: { field: "hasEndFrame", op: "eq", value: true },
+    effect: { lockParams: [{ name: "multi_shot", value: false }] },
+    reason: "End frame selected → multi-shot off (cuts break a single continuous shot)",
+  },
+];
+
+// O1 exposes no multi_shot param, so it carries only the start-frame rule.
+const KLING_O1_RULES: ConstraintRule[] = [KLING_REQUIRES_START_FRAME];
 
 // ── Model map ─────────────────────────────────────────────────────────────────
 
@@ -136,7 +170,7 @@ export const videoGenClientModelMap: Record<string, VideoGenClientModelSpec> = {
     maxDurationSeconds: 15,
     imageInputs: KLING_30_IMAGE_INPUTS,
     params: kling30Params,
-    rules: [],
+    rules: KLING_30_RULES,
   },
   "kling:kling-o1": {
     id: "kling:kling-o1",
@@ -146,7 +180,7 @@ export const videoGenClientModelMap: Record<string, VideoGenClientModelSpec> = {
     maxDurationSeconds: 10,
     imageInputs: KLING_O1_IMAGE_INPUTS,
     params: klingO1Params,
-    rules: [],
+    rules: KLING_O1_RULES,
   },
 };
 
