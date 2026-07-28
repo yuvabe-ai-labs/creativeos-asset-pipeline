@@ -46,6 +46,7 @@ import { VideoGenApiError } from "@/lib/video-gen/api";
 import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
 import { computeVideoCost, isVideoAudioEnabled, asResolutionString } from "@/lib/video-gen/cost";
 import { usdToFinalCredits } from "@/lib/credits/units";
+import { EstimatedCreditsLabel } from "./estimated-credits-label";
 import { createBrowserSupabase } from "@/lib/supabase/client";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
@@ -55,6 +56,7 @@ import {
   type VideoGenVersionSummary,
 } from "./video-gen-version-history";
 import { VideoGenUsagePopover } from "./video-gen-usage-popover";
+import { Skeleton } from "@/components/ui/skeleton";
 import { VideoGenParamsPanel, hasParamsInGroup } from "./video-gen-params-panel";
 import { VideoGenConnectedSection } from "./video-gen-connected-section";
 import { RailItem } from "./focus-rail-item";
@@ -777,15 +779,22 @@ export function VideoGenFocusView({
               </div>
               <div className="flex shrink-0 flex-col items-end gap-2">
                 <div className="flex items-center gap-2">
-                  {versions.length > 0 && (
-                    <VideoGenUsagePopover
-                      versions={versions}
-                      nodeId={nodeId}
-                      upstreamNodeIds={[
-                        ...(promptNode ? [promptNode.id] : []),
-                        ...upstreamImages.map((u) => u.id),
-                      ]}
-                    />
+                  {/* Usage popover needs versions, which are still loading right after the
+                      sheet opens — reserve its space with a skeleton instead of popping it
+                      in once the fetch resolves. */}
+                  {loadingVersions ? (
+                    <Skeleton className="h-8 w-20 rounded-md" />
+                  ) : (
+                    versions.length > 0 && (
+                      <VideoGenUsagePopover
+                        versions={versions}
+                        nodeId={nodeId}
+                        upstreamNodeIds={[
+                          ...(promptNode ? [promptNode.id] : []),
+                          ...upstreamImages.map((u) => u.id),
+                        ]}
+                      />
+                    )
                   )}
                   <Tooltip>
                     <TooltipTrigger render={<span />}>
@@ -806,7 +815,9 @@ export function VideoGenFocusView({
                           : videoUrl
                             ? "Re-generate"
                             : "Generate"}
-                        {!isGenerating && estimatedCredits !== null && ` · ${estimatedCredits}`}
+                        {!isGenerating && estimatedCredits !== null && (
+                          <EstimatedCreditsLabel credits={estimatedCredits} />
+                        )}
                       </Button>
                     </TooltipTrigger>
                     {(constraints.disableGenerate && constraints.disableGenerateReason) ? (

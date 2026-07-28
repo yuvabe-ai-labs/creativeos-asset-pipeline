@@ -13,6 +13,7 @@ import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { ImageGenOutputSettings } from "./image-gen-output-settings";
 import type { ClientModelSpec } from "@/lib/image-gen/client-models";
 import type { ValidationResult } from "@/lib/image-gen/validate";
+import { EstimatedCreditsLabel } from "./estimated-credits-label";
 
 type ParamFormValues = Record<string, unknown>;
 
@@ -125,7 +126,9 @@ export function ImageGenOutputSettingsBody({
                   : hasImage
                   ? "Re-generate"
                   : "Generate"}
-                {!generateDisabledReason && !estimating && estimatedCredits !== null && ` · ${estimatedCredits}`}
+                {!generateDisabledReason && !estimating && estimatedCredits !== null && (
+                  <EstimatedCreditsLabel credits={estimatedCredits} />
+                )}
               </Button>
             </TooltipTrigger>
             {generateDisabledReason && (
