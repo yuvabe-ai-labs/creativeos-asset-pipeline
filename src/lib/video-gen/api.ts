@@ -55,6 +55,7 @@ export const videoGenApi = {
         modelUsed: string | null;
         paramsUsed: Record<string, unknown>;
         createdAt: string;
+        creditsCharged?: number | null;
       }>;
     };
     return {
@@ -66,6 +67,7 @@ export const videoGenApi = {
         modelUsed: v.modelUsed ?? null,
         paramsUsed: v.paramsUsed ?? {},
         createdAt: v.createdAt,
+        creditsCharged: v.creditsCharged ?? null,
       })),
     };
   },

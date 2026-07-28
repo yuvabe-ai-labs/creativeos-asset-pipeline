@@ -8,7 +8,6 @@ import { insertVersion, setActiveVersion } from "@/lib/db/versions";
 import { insertGeneration, succeedGeneration, failGeneration } from "@/lib/db/generations";
 import { computeCost } from "@/lib/pricing";
 import { estimatePromptCredits } from "@/lib/credits/prompt-estimate";
-import { usdToFinalCredits } from "@/lib/credits/units";
 import {
   reserveCredits,
   settleGeneration,
@@ -129,20 +128,23 @@ export async function POST(
             total_tokens: usage.total_tokens,
           })
         : null;
-      // cost is only ever null when the provider returned no usage data — an actual cost
-      // of 0 credits in that case, not a reason to skip settlement (every terminal state
-      // still refunds its reservation exactly once).
-      const actualCredits = cost ? usdToFinalCredits(cost.usd) : 0;
+      // Prompt-type generations settle on the same flat estimate used for the reservation
+      // (5 base + 2.5/attachment), not real OpenAI token cost — unlike image/video, whose
+      // real vendor $ cost IS the charge. Real cost is still recorded via costUsd below for
+      // admin visibility; it no longer drives credits_charged. Settling on real cost here
+      // silently dropped the attachment premium: a short completion's real cost never clears
+      // usdToFinalCredits' 5-credit rounding step, so every prompt generation — regardless
+      // of attachment count — settled at the same 5-credit floor.
       await settleGeneration({
         orgId: caller.orgId,
         generationId: generation.id,
-        actualAmount: actualCredits,
+        actualAmount: estimatedCredits,
       });
       await succeedGeneration({
         generationId: generation.id,
         versionId: version.id,
         costUsd: cost?.usd,
-        creditsCharged: actualCredits,
+        creditsCharged: estimatedCredits,
         tokensUsed: usage ? { ...usage } : null,
         outputSnapshot: output,
       });
