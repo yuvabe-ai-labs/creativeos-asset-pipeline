@@ -23,6 +23,7 @@ import {
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { FullScreenImageZoom } from "@/components/shared/full-screen-image-zoom";
 import { EditableField } from "./editable-field";
+import { GenerationErrorBadge } from "./generation-error-badge";
 import { normalizeTitle } from "@/lib/nodes/title";
 import { Button } from "@/components/ui/button";
 import { GuidedNextButton } from "@/components/canvas/guided-next-button";
@@ -155,6 +156,7 @@ export function ImageGenFocusView({
 
   const [generating, setGenerating] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [lastError, setLastError] = useState<string | null>(null);
 
   // Mirror in-flight state up to the node card (survives focus-view close).
   useEffect(() => {
@@ -569,6 +571,7 @@ export function ImageGenFocusView({
       return;
     }
     setGenerating(true);
+    setLastError(null);
     setEvalDecision(null);
     setEvalNote("");
     try {
@@ -590,7 +593,9 @@ export function ImageGenFocusView({
       await fetchVersions();
       toast.success("Image generated");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Generation failed", { duration: 6000 });
+      const message = e instanceof Error ? e.message : "Generation failed";
+      setLastError(message);
+      toast.error(message, { duration: 6000 });
       await fetchVersions();
     } finally {
       setGenerating(false);
@@ -644,6 +649,7 @@ export function ImageGenFocusView({
       return;
     }
     setEditing(true);
+    setLastError(null);
     try {
       // Region mask (paint models only): convert the painted overlay into an alpha PNG and send
       // it alongside the CLEAN base. Type-only models send no mask.
@@ -683,7 +689,9 @@ export function ImageGenFocusView({
       await fetchVersions();
       toast.success("Image edited");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Edit failed", { duration: 6000 });
+      const message = e instanceof Error ? e.message : "Edit failed";
+      setLastError(message);
+      toast.error(message, { duration: 6000 });
       await fetchVersions();
     } finally {
       setEditing(false);
@@ -908,6 +916,11 @@ export function ImageGenFocusView({
                 />
               </div>
             </header>
+            {!generating && !editing && (
+              <div className="mt-2">
+                <GenerationErrorBadge error={lastError} />
+              </div>
+            )}
           </div>
         </div>
 
