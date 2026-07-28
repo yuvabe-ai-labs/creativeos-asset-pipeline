@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import type { Identity } from "@/lib/identity";
 import type { PlatformRole } from "@/lib/dal-logic";
+import { ensureFreshSession } from "@/lib/supabase/session-ready";
 
 // Module-level cache + in-flight dedup: multiple components call this hook (the identity
 // chip, admin nav link, header brand, plus prompt/image-gen/video-prompt focus views), and
@@ -59,7 +60,12 @@ function fetchIdentity(): Promise<FetchResult> {
     // gets cached and silently reused across every later auth-state change (login, sign
     // out + sign back in as someone else, this feature's forced password change) until a
     // hard refresh — the exact "stale identity until I refresh" bug this fixes.
-    inFlightFetch = fetch("/api/me", { cache: "no-store" })
+    //
+    // ensureFreshSession() first: if the tab was backgrounded long enough for the access
+    // token to expire, this is what refreshes it — through the browser client's own lock,
+    // so it can't race any other hook's fetch doing the same thing. See session-ready.ts.
+    inFlightFetch = ensureFreshSession()
+      .then(() => fetch("/api/me", { cache: "no-store" }))
       .then((r) => (r.ok ? r.json() : null))
       .then((data): FetchResult =>
         data && typeof data.name === "string"
