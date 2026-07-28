@@ -23,9 +23,6 @@ type ModelLimits = Pick<
   | "label"
   | "maxReferenceSizeBytes"
   | "maxTotalReferenceSizeBytes"
-  | "maxImageEdgePx"
-  | "maxAspectRatio"
-  | "minDimensionMultiple"
 >;
 
 function mb(bytes: number): string {
@@ -65,59 +62,6 @@ export function validateReferenceImages(
         violations.push({
           url: images[0].url,
           message: `${images.length} reference image${images.length > 1 ? "s" : ""} total ${mb(total)} — ${model.label} allows ${mb(model.maxTotalReferenceSizeBytes)} combined. Remove one or use smaller images.`,
-        });
-      }
-    }
-  }
-
-  // Rules 3–5: per-image dimension checks — at most one violation per image
-  for (const img of images) {
-    if (img.imageWidth === undefined || img.imageHeight === undefined) continue;
-
-    // Rule 3: max edge
-    if (model.maxImageEdgePx !== undefined) {
-      const maxEdge = Math.max(img.imageWidth, img.imageHeight);
-      if (maxEdge > model.maxImageEdgePx) {
-        violations.push({
-          url: img.url,
-          filename: img.filename,
-          message: `${label(img)} is ${img.imageWidth} × ${img.imageHeight} px — max edge is ${model.maxImageEdgePx} px for ${model.label}.`,
-        });
-        continue;
-      }
-    }
-
-    // Rule 4: aspect ratio
-    if (model.maxAspectRatio !== undefined) {
-      const long = Math.max(img.imageWidth, img.imageHeight);
-      const short = Math.min(img.imageWidth, img.imageHeight);
-      if (short > 0) {
-        const ratio = long / short;
-        if (ratio > model.maxAspectRatio) {
-          violations.push({
-            url: img.url,
-            filename: img.filename,
-            message: `${label(img)} is ${ratio.toFixed(2)}:1 — ${model.label} requires a max ${model.maxAspectRatio}:1 ratio between sides.`,
-          });
-          continue;
-        }
-      }
-    }
-
-    // Rule 5: dimension multiple
-    if (model.minDimensionMultiple !== undefined) {
-      const m = model.minDimensionMultiple;
-      if (img.imageWidth % m !== 0) {
-        violations.push({
-          url: img.url,
-          filename: img.filename,
-          message: `${label(img)} width ${img.imageWidth} px is not a multiple of ${m} — resize to ${Math.round(img.imageWidth / m) * m} px.`,
-        });
-      } else if (img.imageHeight % m !== 0) {
-        violations.push({
-          url: img.url,
-          filename: img.filename,
-          message: `${label(img)} height ${img.imageHeight} px is not a multiple of ${m} — resize to ${Math.round(img.imageHeight / m) * m} px.`,
         });
       }
     }
