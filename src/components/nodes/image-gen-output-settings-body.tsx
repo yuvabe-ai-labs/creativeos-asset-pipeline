@@ -105,7 +105,7 @@ export function ImageGenOutputSettingsBody({
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger
-              render={<span className="mt-5 flex w-full justify-start" />}
+              render={<span className="mt-5 inline-flex w-fit" />}
             >
               <Button
                 className="px-14 py-4 text-sm"

@@ -5,7 +5,7 @@ import { Zap } from "lucide-react";
 import { useIdentity } from "@/hooks/use-identity";
 import { createBrowserSupabase } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
-import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
+import type { RealtimeChannel, RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 
 type CreditTransactionRow = { amount: number };
 
@@ -28,25 +28,41 @@ export function HeaderCredits() {
 
   useEffect(() => {
     if (!hydrated || !orgId) return;
+    let cancelled = false;
+    let channel: RealtimeChannel | null = null;
     const supabase = createBrowserSupabase();
-    const channel = supabase
-      .channel(`header-credits:${orgId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "credit_transactions",
-          filter: `org_id=eq.${orgId}`,
-        },
-        (payload: RealtimePostgresChangesPayload<CreditTransactionRow>) => {
-          const row = payload.new as CreditTransactionRow;
-          setLiveDelta((d) => d + row.amount);
-        },
-      )
-      .subscribe();
+
+    // @supabase/ssr's browser client doesn't proactively load the session on init — it's
+    // lazy until something calls getSession()/getUser(). Subscribing to Realtime before
+    // that resolves opens the websocket with NO JWT attached, so credit_transactions' RLS
+    // policy (org_id = ...auth.uid()...) evaluates auth.uid() as null and silently drops
+    // every row — the subscription looks "connected" but never delivers anything. This is
+    // the real fix for the symptom the filter-only workaround above was papering over;
+    // awaiting the session first guarantees the websocket carries a valid JWT before it
+    // ever subscribes.
+    void supabase.auth.getSession().then(() => {
+      if (cancelled) return;
+      channel = supabase
+        .channel(`header-credits:${orgId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "credit_transactions",
+            filter: `org_id=eq.${orgId}`,
+          },
+          (payload: RealtimePostgresChangesPayload<CreditTransactionRow>) => {
+            const row = payload.new as CreditTransactionRow;
+            setLiveDelta((d) => d + row.amount);
+          },
+        )
+        .subscribe();
+    });
+
     return () => {
-      void supabase.removeChannel(channel);
+      cancelled = true;
+      if (channel) void supabase.removeChannel(channel);
     };
   }, [hydrated, orgId]);
 

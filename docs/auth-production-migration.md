@@ -1,9 +1,9 @@
 # Auth — Production Migration & Data Backfill
 
 **Status:** Reference for later — production has not been touched yet. Everything in this
-doc has already been done successfully on **staging** (Stage 1A, 1D, and 2B); this is the
-same procedure, replayed against the **production** Supabase project, whenever you're ready
-to promote the auth work.
+doc has already been done successfully on **staging** (Stage 1, Stage 2, and Stage 3 — see
+their own sections below); this is the same procedure, replayed against the **production**
+Supabase project, whenever you're ready to promote the work.
 
 **Do this once**, before (or in the same window as) deploying the auth app code to
 production — see the ordering note near the bottom, it matters, and it bit staging once
@@ -35,7 +35,7 @@ this migration sequence.
 
 ---
 
-## What needs to move to production
+## Stage 1 & 2 — auth foundation + RLS backstop
 
 Seven migrations, applied **in order** (each depends on the previous one's schema):
 
@@ -268,6 +268,109 @@ delete from organizations where slug = 'throwaway-check';
 
 ---
 
+## Stage 3 — Credit System (migrations 0019–0025)
+
+Shipped to staging 2026-07-24 through 2026-07-26 (sub-plans 3A–3G, all complete — see
+`docs/superpowers/plans/2026-07-24-credit-system-index.md`). Unlike Stage 1/2, none of these
+lock an existing column to `not null`, so there's no mutual-breakage window — but the
+**ordering is still one-directional**: apply these migrations before deploying app code that
+calls `reserve_credits` or reads the new tables/views/functions, since that code will 500 on
+a missing table/function otherwise. Old (pre-credit-system) app code is unaffected either way
+— it never references these objects.
+
+| # | File | What it does |
+|---|---|---|
+| 8 | `0019_credit_transactions.sql` | Renames `generations.credits_consumed` → `cost_usd` (was always raw USD, mislabeled); adds `generations.credits_charged` (nullable); creates the `credit_transactions` ledger table + RLS + `org_credit_usage` view; one-time ×1000 conversion of any existing `organizations.monthly_credit_limit` (USD → credits) |
+| 9 | `0020_reserve_credits.sql` | `reserve_credits(p_org_id, p_generation_id, p_amount)` RPC — row-locked check-and-insert against the org's monthly cap |
+| 10 | `0021_stuck_reservations.sql` | `stuck_reservations` view — anti-join for the reconciliation sweep (generations stuck `running`, or `failed` with a refund that itself failed) |
+| 11 | `0022_credit_transactions_realtime.sql` | Adds `credit_transactions` to the `supabase_realtime` publication — powers the header's live "used this month" figure |
+| 12 | `0023_org_credit_breakdowns.sql` | `org_monthly_credit_history`, `org_credit_breakdown_by_type`, `org_credit_breakdown_by_model` — parameterized functions for the admin usage trend chart |
+| 13 | `0024_fix_monthly_history_zero_fill.sql` | Replaces `org_monthly_credit_history` — the 0023 version only returned months with at least one transaction; this zero-fills the full N-month series via `generate_series` + `LEFT JOIN` |
+| 14 | `0025_credit_history_day_year.sql` | Adds `org_daily_credit_history` (trailing 30 days) and `org_yearly_credit_history` (trailing 5 years) — same zero-fill pattern as the fixed monthly one, for the admin chart's Day/Month/Year granularity switcher |
+
+### Step 9 — Migration 0019 (ledger table + rename + one-time conversion)
+
+Record the pre-flight state first:
+```sql
+select count(*) as generations_before from generations;
+select slug, monthly_credit_limit from organizations order by slug;
+-- write down monthly_credit_limit for every org — 0019 multiplies each non-null value by
+-- 1000 in place (USD-typed values become credit-typed), and this is your only pre-flight
+-- record of the old numbers
+```
+
+Paste `supabase/migrations/0019_credit_transactions.sql` and run.
+
+Verify:
+```sql
+select column_name from information_schema.columns
+  where table_name = 'generations' and column_name in ('cost_usd', 'credits_charged');
+-- expect 2 rows (cost_usd is the renamed column, credits_charged is new)
+
+select table_name from information_schema.tables
+  where table_schema = 'public' and table_name = 'credit_transactions';
+-- expect 1 row
+
+select tablename, rowsecurity from pg_tables where tablename = 'credit_transactions';
+-- expect rowsecurity = true
+
+select policyname, roles, qual from pg_policies where tablename = 'credit_transactions';
+-- expect exactly one row: "org isolation"
+
+select slug, monthly_credit_limit from organizations order by slug;
+-- compare against the pre-flight numbers — every non-null value should now be exactly 1000x
+```
+
+### Step 10 — Migrations 0020–0023 (RPC + views + realtime + breakdowns)
+
+These are all additive (new functions/views, a publication membership change) — no
+backfill, no lock, nothing to break. Paste and run each in order:
+`0020_reserve_credits.sql`, `0021_stuck_reservations.sql`,
+`0022_credit_transactions_realtime.sql`, `0023_org_credit_breakdowns.sql`.
+
+Verify:
+```sql
+select routine_name from information_schema.routines
+  where routine_schema = 'public'
+    and routine_name in ('reserve_credits', 'org_monthly_credit_history',
+                          'org_credit_breakdown_by_type', 'org_credit_breakdown_by_model');
+-- expect 4 rows
+
+select table_name from information_schema.views
+  where table_schema = 'public' and table_name = 'stuck_reservations';
+-- expect 1 row
+
+select tablename from pg_publication_tables
+  where pubname = 'supabase_realtime' and tablename = 'credit_transactions';
+-- expect 1 row
+```
+
+### Step 11 — Migrations 0024 + 0025 (chart zero-fill + day/year granularity)
+
+Paste and run in order: `0024_fix_monthly_history_zero_fill.sql`,
+`0025_credit_history_day_year.sql`. Both just `create or replace` a function each — no data
+to verify beyond confirming they exist:
+```sql
+select routine_name from information_schema.routines
+  where routine_schema = 'public'
+    and routine_name in ('org_monthly_credit_history', 'org_daily_credit_history',
+                          'org_yearly_credit_history');
+-- expect 3 rows
+```
+
+Then, from the actual application, confirm the admin org-detail page's usage trend chart
+renders with the Day/Month/Year dropdown and the header shows a live credits-used figure —
+same "SQL checks alone won't catch a UI regression" caveat as Step 6.
+
+### Also required, same window as Stage 3's app code
+
+`reconcile-stuck-generations.ts` (the 15-minute Trigger.dev scheduled task reading
+`stuck_reservations`) needs to actually be registered/deployed on Trigger.dev's platform —
+pushing the code to git does not by itself activate a scheduled task there. Verify it's live
+in the Trigger.dev dashboard for the production project, not just present in the repo.
+
+---
+
 ## Deployment ordering — read before doing this for real
 
 **Apply Steps 1–6 and deploy the matching app code in the same maintenance window, not far
@@ -287,11 +390,14 @@ repo yet) is a separate step this doc doesn't own.
 
 ## Not covered here (by design)
 
-- Onboarding real agencies into production — that happens through `/admin/orgs/new` once the
-  app is live in production and you can log in as the bootstrapped super_admin, not via SQL.
+- Onboarding real agencies into production — that happens through the "New agency" dialog on
+  `/admin` once the app is live in production and you can log in as the bootstrapped
+  super_admin, not via SQL.
 - Migration CI automation — still parked (`2026-07-21-migration-ci-automation.md`). Until
   that's built, this doc's manual dashboard steps are the only way to apply migrations to
   production, same as staging.
-- Stage 2C (async worker tenant check) and Stage 3/4 — not yet built as of this doc's last
-  update; check `docs/superpowers/plans/2026-07-21-auth-stage-2-index.md` for current status
-  before treating this list of 7 migrations as final.
+- Stage 4 (impersonation) — not yet built as of this doc's last update (2026-07-27). Stage 1,
+  Stage 2 (including 2C, the async worker tenant check), and Stage 3 (credit system) are all
+  fully shipped to staging and covered above — check
+  `docs/superpowers/plans/2026-07-24-credit-system-index.md` for Stage 3's per-sub-plan status
+  before treating this doc's migration list as final, since a new stage adds more.
