@@ -7,6 +7,7 @@ export type CallerContext = {
   platformRole: PlatformRole;
   orgId: string;
   orgRole: OrgRole;
+  mustChangePassword: boolean;
 };
 
 // Reads the platform role from a JWT's app_metadata. Anything that is not the exact
@@ -20,6 +21,18 @@ export function mapAppMetadataToPlatformRole(appMetadata: unknown): PlatformRole
     return "super_admin";
   }
   return "member";
+}
+
+// Reads the forced-password-change flag from a JWT's app_metadata. Anything that isn't the
+// literal boolean `true` is treated as "no change owed" — fail open here (unlike
+// mapAppMetadataToPlatformRole's fail-closed default), since the cost of getting this wrong
+// the OTHER way is locking every ordinary login out of the app on a malformed/missing flag.
+export function mapAppMetadataToMustChangePassword(appMetadata: unknown): boolean {
+  return (
+    appMetadata !== null &&
+    typeof appMetadata === "object" &&
+    (appMetadata as Record<string, unknown>).must_change_password === true
+  );
 }
 
 // The frozen Identity.role only distinguishes "can approve" (senior) from "cannot"

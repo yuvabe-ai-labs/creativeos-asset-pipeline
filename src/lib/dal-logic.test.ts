@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { mapAppMetadataToPlatformRole, orgRoleToIdentityRole } from "./dal-logic";
+import { mapAppMetadataToPlatformRole, orgRoleToIdentityRole, mapAppMetadataToMustChangePassword } from "./dal-logic";
 
 describe("mapAppMetadataToPlatformRole", () => {
   it("reads super_admin from app_metadata", () => {
@@ -24,5 +24,19 @@ describe("orgRoleToIdentityRole", () => {
   });
   it("maps designer to designer", () => {
     expect(orgRoleToIdentityRole("designer")).toBe("designer");
+  });
+});
+
+describe("mapAppMetadataToMustChangePassword", () => {
+  it("reads true from app_metadata", () => {
+    expect(mapAppMetadataToMustChangePassword({ must_change_password: true })).toBe(true);
+  });
+  it("defaults to false for anything else (fail open — most logins don't owe a change)", () => {
+    expect(mapAppMetadataToMustChangePassword({ must_change_password: false })).toBe(false);
+    expect(mapAppMetadataToMustChangePassword({})).toBe(false);
+    expect(mapAppMetadataToMustChangePassword(null)).toBe(false);
+    expect(mapAppMetadataToMustChangePassword(undefined)).toBe(false);
+    expect(mapAppMetadataToMustChangePassword({ must_change_password: "true" })).toBe(false); // wrong type
+    expect(mapAppMetadataToMustChangePassword(true)).toBe(false); // wrong shape entirely
   });
 });

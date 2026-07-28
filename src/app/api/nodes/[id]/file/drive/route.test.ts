@@ -23,6 +23,7 @@ vi.mock("@/lib/dal", () => ({
     platformRole: "member",
     orgId: "org-1",
     orgRole: "owner",
+    mustChangePassword: false,
   })),
 }));
 

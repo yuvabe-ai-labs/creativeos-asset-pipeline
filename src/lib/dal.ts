@@ -5,6 +5,7 @@ import { createSSRServerClient } from "@/lib/supabase/ssr-server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import {
   mapAppMetadataToPlatformRole,
+  mapAppMetadataToMustChangePassword,
   type CallerContext,
   type OrgRole,
 } from "./dal-logic";
@@ -24,6 +25,7 @@ export const resolveCallerContext = cache(async (): Promise<CallerContext> => {
   if (!user) redirect("/login");
 
   const platformRole = mapAppMetadataToPlatformRole(user.app_metadata);
+  const mustChangePassword = mapAppMetadataToMustChangePassword(user.app_metadata);
 
   // Membership read uses the service-role client. org_memberships has no RLS by design
   // in Stage 1 (app-layer enforces) — see the Stage 1 plan's Global Constraints.
@@ -45,6 +47,7 @@ export const resolveCallerContext = cache(async (): Promise<CallerContext> => {
     platformRole,
     orgId: membership.org_id as string,
     orgRole: membership.org_role as OrgRole,
+    mustChangePassword,
   };
 });
 
