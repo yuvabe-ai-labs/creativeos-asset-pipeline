@@ -30,6 +30,7 @@ export function useGalleryDrawer() {
       const offset = opts.applyOffset !== false ? OFFSET_X : 0;
       const base = { x: opts.position.x + offset, y: opts.position.y };
       const drivePicks: { nodeId: string; image: GalleryImage }[] = [];
+      const urlPicks: { nodeId: string; image: GalleryImage }[] = [];
 
       images.forEach((image, i) => {
         const col = i % COLS;
@@ -52,6 +53,14 @@ export function useGalleryDrawer() {
             uploading: true,
           });
           drivePicks.push({ nodeId, image });
+        } else if (image.source === "moodboard") {
+          updateNodeData(nodeId, {
+            title,
+            fileKind: "image",
+            filename: image.filename,
+            uploading: true,
+          });
+          urlPicks.push({ nodeId, image });
         } else {
           updateNodeData(nodeId, {
             title,
@@ -80,6 +89,19 @@ export function useGalleryDrawer() {
               image: pick.image,
               updateNodeData,
             });
+          }
+        })();
+      }
+
+      if (urlPicks.length > 0) {
+        void (async () => {
+          try {
+            await flushAutosave();
+          } catch (err) {
+            console.error("[gallery] autosave flush failed:", err);
+          }
+          for (const pick of urlPicks) {
+            void importUrlFile({ nodeId: pick.nodeId, image: pick.image, updateNodeData });
           }
         })();
       }
@@ -135,5 +157,35 @@ async function importDriveFile({
   } catch (err) {
     const message = err instanceof Error ? err.message : "Import failed";
     updateNodeData(nodeId, { uploading: false, uploadError: message });
+  }
+}
+
+async function importUrlFile({
+  nodeId,
+  image,
+  updateNodeData,
+}: {
+  nodeId: string;
+  image: GalleryImage;
+  updateNodeData: (id: string, patch: Record<string, unknown>) => void;
+}) {
+  try {
+    const result = await fileNodeService.pickFromUrl(nodeId, {
+      imageUrl: image.imageUrl,
+      sourceUrl: image.sourceUrl,
+      filename: image.filename,
+    });
+    updateNodeData(nodeId, {
+      fileUrl: result.fileUrl,
+      filename: result.filename,
+      fileExt: result.fileExt,
+      fileKind: "image",
+      uploading: false,
+    });
+  } catch (err) {
+    updateNodeData(nodeId, {
+      uploading: false,
+      uploadError: err instanceof Error ? err.message : "Import failed",
+    });
   }
 }

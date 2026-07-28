@@ -14,6 +14,7 @@ import {
 import { FullScreenImageZoom } from "@/components/shared/full-screen-image-zoom";
 import { useDriveBrowser } from "@/hooks/use-drive-browser";
 import { useCanvasGenerations } from "@/hooks/use-canvas-generations";
+import { useMoodboards } from "@/hooks/use-moodboards";
 import { useGalleryDrawer as useGalleryCommit } from "@/hooks/use-gallery-drawer";
 import { useGalleryDrawer as useDrawerCtx } from "../gallery-drawer-context";
 import { GalleryHeader } from "./gallery-header";
@@ -24,6 +25,8 @@ import { GalleryFooter } from "./gallery-footer";
 import { GalleryBreadcrumb } from "./gallery-breadcrumb";
 import { GalleryFolderTile } from "./gallery-folder-tile";
 import { DriveFolderPicker } from "./drive-folder-picker";
+import { GalleryAddUrl } from "./gallery-add-url";
+import { filenameFromUrl } from "@/lib/moodboards/filename";
 import type { GalleryImage, GalleryTab, ViewMode } from "./types";
 import type { DriveBrowseItem } from "@/hooks/use-drive-browser";
 
@@ -123,6 +126,7 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
 
   const browser = useDriveBrowser(rootFolder);
   const generations = useCanvasGenerations(canvasId);
+  const moodboards = useMoodboards(clientId);
 
   // Reset transient state on drawer close.
   const [wasOpen, setWasOpen] = useState(false);
@@ -190,10 +194,25 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
     return assets.filter((img) => img.filename.toLowerCase().includes(q));
   }, [assets, browser.search]);
 
-  const activeImages = tab === "references" ? references : filteredAssets;
+  const moodboardImages: GalleryImage[] = useMemo(
+    () =>
+      moodboards.items.map((it) => ({
+        id: it.id,
+        imageUrl: it.image_url,
+        previewUrl: it.image_url,
+        filename: filenameFromUrl(it.image_url),
+        subtitle: new Date(it.added_at).toLocaleDateString(),
+        source: "moodboard" as const,
+        sourceUrl: it.source_url ?? undefined,
+      })),
+    [moodboards.items],
+  );
+
+  const activeImages =
+    tab === "references" ? references : tab === "assets" ? filteredAssets : moodboardImages;
 
   function toggleSelect(id: string) {
-    const allImages = [...references, ...assets];
+    const allImages = [...references, ...assets, ...moodboardImages];
     const image = allImages.find((i) => i.id === id);
     if (!image) return;
     setSelectedIds((prev) => {
@@ -229,6 +248,7 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
 
   function handleRefresh() {
     if (tab === "references") browser.refresh();
+    else if (tab === "moodboard") moodboards.refresh();
     else void generations.refresh();
   }
 
@@ -274,7 +294,7 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
   }
 
   const previewImage = previewId
-    ? [...references, ...assets].find((i) => i.id === previewId)
+    ? [...references, ...assets, ...moodboardImages].find((i) => i.id === previewId)
     : null;
 
   const folderItems = browser.items.filter(
@@ -311,7 +331,7 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
           />
           <GalleryTabs value={tab} onChange={setTab} />
 
-          {!noFolderLinked && (
+          {!noFolderLinked && tab !== "moodboard" && (
             <GalleryToolbar
               searchQuery={browser.search}
               onSearchChange={browser.setSearch}
@@ -369,7 +389,66 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
           )}
 
           <div className="flex-1 overflow-y-auto px-4 py-3">
-            {noFolderLinked ? (
+            {tab === "moodboard" && !moodboards.selectedBoardId && (
+              <div className="flex flex-col gap-1">
+                {moodboards.boards.map((b) => (
+                  <GalleryFolderTile
+                    key={b.id}
+                    folder={{ id: b.id, name: b.name }}
+                    onClick={() => moodboards.selectBoard(b.id)}
+                  />
+                ))}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="mt-1 w-full justify-start border border-dashed border-primary/40 text-primary hover:bg-primary/5"
+                  onClick={() => {
+                    const name = window.prompt("New moodboard name");
+                    if (name?.trim()) void moodboards.createBoard(name.trim());
+                  }}
+                >
+                  + New moodboard
+                </Button>
+              </div>
+            )}
+
+            {tab === "moodboard" && moodboards.selectedBoardId ? (
+              <>
+                <GalleryBreadcrumb
+                  stack={[
+                    { id: "__root__", name: "Moodboards" },
+                    {
+                      id: moodboards.selectedBoardId,
+                      name:
+                        moodboards.boards.find((b) => b.id === moodboards.selectedBoardId)?.name ??
+                        "Board",
+                    },
+                  ]}
+                  onNavigateTo={(i) => {
+                    if (i === 0) moodboards.selectBoard(null);
+                  }}
+                />
+                <GalleryAddUrl onAdd={(url) => void moodboards.addItemUrl(url)} />
+                <GalleryContent
+                  loading={moodboards.loading}
+                  loadError={null}
+                  onRetry={moodboards.refresh}
+                  images={activeImages}
+                  emptyMessage="No references yet — paste an image URL to add one."
+                  viewMode={viewMode}
+                  selectedIds={selectedIds}
+                  onToggle={toggleSelect}
+                  onPreview={setPreviewId}
+                  onDragStartImage={handleDragStartImage}
+                  onSentinelInView={() => {}}
+                  hasMore={false}
+                  loadingMore={false}
+                />
+              </>
+            ) : null}
+
+            {tab !== "moodboard" &&
+              (noFolderLinked ? (
               <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
                 <FolderOpen className="size-10 text-muted-foreground/40" strokeWidth={1.5} />
                 <div className="space-y-1">
@@ -417,7 +496,7 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
                   loadingMore={tab === "references" ? browser.loadingMore : false}
                 />
               </>
-            )}
+              ))}
           </div>
 
           <GalleryFooter
