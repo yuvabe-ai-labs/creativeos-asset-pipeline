@@ -46,6 +46,7 @@ export function VideoGenUsagePopover({ versions, nodeId, upstreamNodeIds }: Prop
     return { totalCredits, perGen: perGen.reverse() };
   }, [versions]);
 
+  const hasUpstream = Boolean(upstreamNodeIds && upstreamNodeIds.length > 0);
   const pipelineTotalCredits = useNodeCost(nodeId, upstreamNodeIds);
 
   const rows: UsageRow[] = perGen.map((g) => ({
@@ -60,10 +61,11 @@ export function VideoGenUsagePopover({ versions, nodeId, upstreamNodeIds }: Prop
       rows={rows}
       totalCredits={`${totalCredits.toLocaleString()} credits`}
       pipelineTotalCredits={
-        pipelineTotalCredits !== null && upstreamNodeIds && upstreamNodeIds.length > 0
+        pipelineTotalCredits !== null && hasUpstream
           ? `${pipelineTotalCredits.toLocaleString()} credits`
           : undefined
       }
+      pipelineLoading={hasUpstream && pipelineTotalCredits === null}
     />
   );
 }

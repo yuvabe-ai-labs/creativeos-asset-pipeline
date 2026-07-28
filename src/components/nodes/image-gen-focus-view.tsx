@@ -79,6 +79,7 @@ import { describeApprovalPill } from "@/lib/nodes/prompt-focus";
 import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
 import { LeftSection } from "./focus-left-section";
 import { RailItem } from "./focus-rail-item";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export type ImageGenFocusViewProps = {
   open: boolean;
@@ -880,26 +881,36 @@ export function ImageGenFocusView({
                 </SheetTitle>
               </div>
               <div className="flex shrink-0 items-center gap-2">
-                {canEditBase && (
-                  <Tabs
-                    value={activeTab}
-                    onValueChange={(v) => {
-                      setActiveTab(v as "generate" | "edit");
-                      setSelected("image"); // the tab's UI lives in the hero pane
-                    }}
-                  >
-                    <TabsList>
-                      <TabsTrigger value="generate">Generate</TabsTrigger>
-                      <TabsTrigger value="edit">Edit</TabsTrigger>
-                    </TabsList>
-                  </Tabs>
-                )}
-                {versions.length > 0 && (
-                  <ImageGenUsagePopover
-                    versions={versions}
-                    nodeId={nodeId}
-                    upstreamNodeIds={upstream.map((u) => u.id)}
-                  />
+                {/* The Generate/Edit tabs (needs canEditBase) and Usage popover (needs
+                    versions) both depend on the versions fetch that starts when the sheet
+                    opens — reserve their space with a skeleton instead of rendering nothing
+                    until it resolves, which read as the header controls suddenly popping in. */}
+                {loadingVersions ? (
+                  <Skeleton className="h-8 w-44 rounded-lg" />
+                ) : (
+                  <>
+                    {canEditBase && (
+                      <Tabs
+                        value={activeTab}
+                        onValueChange={(v) => {
+                          setActiveTab(v as "generate" | "edit");
+                          setSelected("image"); // the tab's UI lives in the hero pane
+                        }}
+                      >
+                        <TabsList>
+                          <TabsTrigger value="generate">Generate</TabsTrigger>
+                          <TabsTrigger value="edit">Edit</TabsTrigger>
+                        </TabsList>
+                      </Tabs>
+                    )}
+                    {versions.length > 0 && (
+                      <ImageGenUsagePopover
+                        versions={versions}
+                        nodeId={nodeId}
+                        upstreamNodeIds={upstream.map((u) => u.id)}
+                      />
+                    )}
+                  </>
                 )}
                 <GuidedNextButton
                   sourceId={nodeId}

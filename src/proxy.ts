@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { mapAppMetadataToMustChangePassword } from "@/lib/dal-logic";
+import { getUserWithRetry } from "@/lib/supabase/get-user-with-retry";
 
 // Next.js 16 proxy (renamed from middleware). OPTIMISTIC session check only — no DB
 // queries, no org resolution (that is the DAL's job, per D51). Also refreshes the
@@ -29,9 +30,7 @@ export async function proxy(request: NextRequest) {
     },
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getUserWithRetry(supabase);
 
   const path = request.nextUrl.pathname;
   const isApi = path.startsWith("/api");

@@ -3,6 +3,7 @@ import { cache } from "react";
 import { redirect } from "next/navigation";
 import { createSSRServerClient } from "@/lib/supabase/ssr-server";
 import { createServerSupabase } from "@/lib/supabase/server";
+import { getUserWithRetry } from "@/lib/supabase/get-user-with-retry";
 import {
   mapAppMetadataToPlatformRole,
   mapAppMetadataToMustChangePassword,
@@ -19,9 +20,7 @@ export type { CallerContext } from "./dal-logic";
 // this unauthenticated in 1B correctly redirects toward a page that 404s for now.
 export const resolveCallerContext = cache(async (): Promise<CallerContext> => {
   const supabase = await createSSRServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getUserWithRetry(supabase);
   if (!user) redirect("/login");
 
   const platformRole = mapAppMetadataToPlatformRole(user.app_metadata);
