@@ -30,8 +30,12 @@ export async function loginAction(
   redirect("/");
 }
 
+// No redirect() here on purpose — the caller (identity-chip.tsx) does a hard
+// window.location navigation after this resolves, specifically to force a full page
+// reload. A Server Action's own redirect() is a soft, client-side transition that leaves
+// every module-level client cache (useIdentity's included) intact across sign-out, which
+// was the root cause of a stale-identity-from-the-previous-account bug.
 export async function logoutAction(): Promise<void> {
   const supabase = await createSSRServerClient();
   await supabase.auth.signOut();
-  redirect("/login");
 }
