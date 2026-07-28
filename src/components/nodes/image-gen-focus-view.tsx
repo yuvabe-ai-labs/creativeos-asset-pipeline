@@ -916,7 +916,7 @@ export function ImageGenFocusView({
                 />
               </div>
             </header>
-            {!generating && !editing && (
+            {lastError && !generating && !editing && (
               <div className="mt-2">
                 <GenerationErrorBadge error={lastError} />
               </div>
