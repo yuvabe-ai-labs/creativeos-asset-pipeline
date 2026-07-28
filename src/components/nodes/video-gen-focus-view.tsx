@@ -822,7 +822,7 @@ export function VideoGenFocusView({
                     ) : null}
                   </Tooltip>
                 </div>
-                {!isGenerating && (
+                {lastError && !isGenerating && (
                   <div className="mt-1">
                     <GenerationErrorBadge error={lastError} />
                   </div>
