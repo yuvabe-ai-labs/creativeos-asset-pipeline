@@ -32,7 +32,7 @@ async function urlToFile(url: string): Promise<File> {
   const meta = await sharp(normalized).metadata();
   const ext = meta.format === "jpeg" ? "jpg" : meta.format === "webp" ? "webp" : "png";
   const contentType = ext === "jpg" ? "image/jpeg" : ext === "webp" ? "image/webp" : "image/png";
-  return new File([normalized], `reference.${ext}`, { type: contentType });
+  return new File([new Uint8Array(normalized)], `reference.${ext}`, { type: contentType });
 }
 
 // Mirrors the maxAspectRatio/maxImageEdgePx/minDimensionMultiple values declared on all three
