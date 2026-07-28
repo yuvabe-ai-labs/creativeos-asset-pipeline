@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { AddConnection } from "./add-connection";
 import { EditableField } from "./editable-field";
+import { GenerationErrorBadge } from "./generation-error-badge";
 import { MentionInstructionEditor } from "./mention-instruction-editor";
 import { normalizeTitle } from "@/lib/nodes/title";
 import { Button } from "@/components/ui/button";
@@ -93,6 +94,7 @@ export function PromptFocusView({
   // on every keystroke. Local state updates synchronously, so the caret is kept.
   const [instructionDraft, setInstructionDraft] = useState(instruction);
   const [generating, setGenerating] = useState(false);
+  const [lastError, setLastError] = useState<string | null>(null);
   const [preview, setPreview] = useState<{
     ambient: string;
     connected: ConnectedPreview[];
@@ -306,6 +308,7 @@ export function PromptFocusView({
 
   async function runGenerate() {
     setGenerating(true);
+    setLastError(null);
     setEvalDecision(null);
     setEvalNote("");
     try {
@@ -323,7 +326,9 @@ export function PromptFocusView({
       await fetchVersions();
       toast.success("Prompt generated");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Generation failed", { duration: 6000 });
+      const message = e instanceof Error ? e.message : "Generation failed";
+      setLastError(message);
+      toast.error(message, { duration: 6000 });
       await fetchVersions();
     } finally {
       setGenerating(false);
@@ -431,6 +436,11 @@ export function PromptFocusView({
                 />
               </div>
             </header>
+            {lastError && !generating && (
+              <div className="mt-2">
+                <GenerationErrorBadge error={lastError} />
+              </div>
+            )}
           </div>
         </div>
 
