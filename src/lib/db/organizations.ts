@@ -203,10 +203,25 @@ export async function listOrgMembers(
   }));
 }
 
+// Safely sets/clears the forced-password-change flag on an EXISTING user's app_metadata.
+// Never pass a bare `{ must_change_password: value }` object literal to
+// auth.admin.updateUserById — it would silently wipe any other app_metadata that user
+// already has (e.g. platform_role), the same trap docs/auth-bootstrap.md's own bootstrap
+// step avoids by merging via Postgres's `||` operator instead of the admin API directly.
+export async function setMustChangePassword(userId: string, value: boolean): Promise<void> {
+  const supabase = createServerSupabase();
+  const { data: existing, error: getErr } = await supabase.auth.admin.getUserById(userId);
+  if (getErr) throw getErr;
+  const { error } = await supabase.auth.admin.updateUserById(userId, {
+    app_metadata: { ...existing.user.app_metadata, must_change_password: value },
+  });
+  if (error) throw error;
+}
+
 // Verifies the member actually belongs to this org before touching auth state — defense
 // in depth against a tampered orgId/userId pair from the client, even though super_admin
-// already has broad admin access. No must_change_password (D84): the member logs in with
-// newPassword directly, same as a freshly onboarded owner.
+// already has broad admin access. Sets must_change_password so the member is forced to
+// pick their own password on next login, same as a freshly onboarded owner.
 export async function resetMemberPassword(
   orgId: string,
   userId: string,
@@ -227,6 +242,8 @@ export async function resetMemberPassword(
     password: newPassword,
   });
   if (error) throw error;
+
+  await setMustChangePassword(userId, true);
 }
 
 export async function updateOrgCreditLimit(
@@ -242,8 +259,9 @@ export async function updateOrgCreditLimit(
 }
 
 // Creates org + auth user + profile + owner membership in one call. Returns the temp
-// password so the operator can share it out-of-band. No must_change_password (D84) —
-// the agency owner just logs in with it. Best-effort cleanup if any step fails partway.
+// password so the operator can share it out-of-band. Sets must_change_password so the
+// agency owner is forced to pick their own password on first login. Best-effort cleanup
+// if any step fails partway.
 export async function createOrgWithOwner(input: {
   name: string;
   email: string;
@@ -271,7 +289,7 @@ export async function createOrgWithOwner(input: {
     email: input.email,
     password: tempPassword,
     email_confirm: true,
-    app_metadata: { platform_role: "member" },
+    app_metadata: { platform_role: "member", must_change_password: true },
   });
   if (userErr || !created.user) {
     await supabase.from("organizations").delete().eq("id", orgId);
