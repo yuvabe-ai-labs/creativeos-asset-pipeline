@@ -56,6 +56,15 @@ describe("normalizeReferenceImageForOpenAI", () => {
     expect(meta.height! % 16).toBe(0);
   });
 
+  it("keeps the final ratio within 3:1 even when independent 16px rounding would push it over", async () => {
+    const input = await makeImage(3000, 1000); // exactly 3:1 pre-rounding — no crop triggers
+    const output = await normalizeReferenceImageForOpenAI(input);
+    const meta = await sharp(output).metadata();
+    expect(meta.width! / meta.height!).toBeLessThanOrEqual(3.0);
+    expect(meta.width! % 16).toBe(0);
+    expect(meta.height! % 16).toBe(0);
+  });
+
   it("floors tiny dimensions at 16px instead of rounding to 0", async () => {
     const input = await makeImage(10, 10);
     const output = await normalizeReferenceImageForOpenAI(input);

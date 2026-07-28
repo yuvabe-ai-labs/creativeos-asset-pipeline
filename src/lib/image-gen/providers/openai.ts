@@ -75,8 +75,20 @@ export async function normalizeReferenceImageForOpenAI(buffer: Buffer): Promise<
   const scaledWidth = Math.round(width * scale);
   const scaledHeight = Math.round(height * scale);
 
-  const finalWidth = floorToMultiple(scaledWidth, DIMENSION_MULTIPLE);
-  const finalHeight = floorToMultiple(scaledHeight, DIMENSION_MULTIPLE);
+  // Floor the short side first, then cap the long side at shortFinal * MAX_ASPECT_RATIO —
+  // flooring both sides independently can push the ratio above MAX_ASPECT_RATIO even when the
+  // pre-rounding ratio was exactly at the limit (a 16px loss is a much bigger relative change
+  // on the short side than the long side).
+  const isWidthLong = scaledWidth >= scaledHeight;
+  const scaledLong = isWidthLong ? scaledWidth : scaledHeight;
+  const scaledShort = isWidthLong ? scaledHeight : scaledWidth;
+
+  const shortFinal = floorToMultiple(scaledShort, DIMENSION_MULTIPLE);
+  const maxLongAllowed = shortFinal * MAX_ASPECT_RATIO;
+  const longFinal = Math.min(floorToMultiple(scaledLong, DIMENSION_MULTIPLE), maxLongAllowed);
+
+  const finalWidth = isWidthLong ? longFinal : shortFinal;
+  const finalHeight = isWidthLong ? shortFinal : longFinal;
 
   if (finalWidth !== width || finalHeight !== height) {
     pipeline = pipeline.resize({ width: finalWidth, height: finalHeight, fit: "fill" });
