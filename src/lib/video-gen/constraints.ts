@@ -80,3 +80,23 @@ export function evaluateConstraints(
 
   return result;
 }
+
+/**
+ * D86 — locked parameter values are the source of truth, not a display substitution.
+ *
+ * The params panel used to render `lockedParams[name]` while `params[name]` kept the stale
+ * value, and the control was `disabled` so `onParamChange` could never reconcile them. Since
+ * `params` is what gets posted, the UI showed a locked 8 and sent 6.
+ *
+ * Returns `params` merged with `lockedParams`, or `null` when no change is needed — the null
+ * return lets callers early-out of an effect instead of setting state on every render.
+ */
+export function reconcileLockedParams(
+  params: Record<string, unknown>,
+  lockedParams: Record<string, unknown>,
+): Record<string, unknown> | null {
+  const entries = Object.entries(lockedParams);
+  if (entries.length === 0) return null;
+  if (!entries.some(([name, value]) => params[name] !== value)) return null;
+  return { ...params, ...lockedParams };
+}

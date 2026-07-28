@@ -40,6 +40,7 @@ import { smartMergeVideoParams } from "@/lib/video-gen/params/merge";
 import {
   buildConstraintState,
   evaluateConstraints,
+  reconcileLockedParams,
 } from "@/lib/video-gen/constraints";
 import { videoGenApi } from "@/lib/video-gen/api";
 import { createBrowserSupabase } from "@/lib/supabase/client";
@@ -631,7 +632,8 @@ export function VideoGenFocusView({
     try {
       await videoGenApi.startGeneration(nodeId, {
         modelId,
-        params,
+        // D86: post the reconciled values, never the possibly-stale `params` state.
+        params: effectiveParams,
         imageRoles: effectiveImageRoles,
       });
       // 202 Accepted — hook's Realtime subscription clears isGenerating on completion
@@ -707,6 +709,12 @@ export function VideoGenFocusView({
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lockedParamsKey]);
+
+  // D86: locked values are authoritative, not a display substitution. Derived at render rather
+  // than synchronised through an effect — there is no divergence to sync if every read goes
+  // through the same merge. Previously the panel displayed a locked 8 while `params` kept 6 and
+  // doGenerate posted the 6, which caused 11 observed generation failures.
+  const effectiveParams = reconcileLockedParams(params, constraints.lockedParams) ?? params;
 
   const mode: "skeleton" | "result" | "empty" = isGenerating
     ? "skeleton"
@@ -915,7 +923,8 @@ export function VideoGenFocusView({
                   {(() => {
                     const paramsPanelProps = {
                       modelId,
-                      params,
+                      // D86: what the panel shows is what doGenerate posts.
+                      params: effectiveParams,
                       onModelChange: handleModelChange,
                       onParamChange: handleParamChange,
                       lockedParams: constraints.lockedParams,
