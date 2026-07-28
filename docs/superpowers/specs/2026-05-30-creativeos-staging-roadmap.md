@@ -1461,6 +1461,44 @@ preservation slipping).
 `2026-07-26-veo-preservation-first-prompt-design.md`. *(Originally drafted as a clashing D78 on the Veo
 branch; renumbered during the 2026-07-26 three-branch integration — final numbering to confirm on review.)*
 
+### D81 — Client Moodboards are URL-first; bytes are re-hosted only on use *(recorded 2026-07-28; builds on D13, D14; revises the reference-clipper target model)*
+
+**Decision.** A **client-level Moodboard** — a named, reusable collection of reference images ("Face
+cream", "Mother's Day") owned by a client, like the Brand KB and Drive references (PRD §6). Boards are
+filled by a small **MV3 capture extension** (right-click any image on the web → "Add to moodboard",
+sticky target board) and by in-app **add-by-URL**, and are browsed as a **Moodboards tab** in the
+existing Gallery drawer (board list → board contents, mirroring the Drive folder drill-down). Storage
+is **URL-first**: an item is a row holding the image URL + the provenance page URL — nothing is fetched
+or stored at add time, and boards render by hotlinking. **Full-res bytes are re-hosted to GCS only when
+an item is dragged onto the canvas** and becomes an ordinary File node (`POST /api/nodes/[id]/file/from-url`,
+a near-clone of the existing Drive re-host route). Two tables (`moodboards`, `moodboard_items`); the
+extension-facing routes are open, per D14.
+
+**Why.** Pinterest cannot be embedded (it sends `x-frame-options: SAMEORIGIN` + CSP `frame-ancestors
+'self'`, verified 2026-07-22) and its API exposes only a user's own boards — so browsing stays in the
+real browser, and the fixable part is the path from "found a reference" to "usable in the canvas."
+URL-first is the least code and zero storage to validate that loop, and re-host-on-use puts durable
+storage exactly where durability starts to matter: the image now feeds generation and lands in the
+archive bundle (PRD §16). The v1 schema is a strict **subset** of the durable/semantic model, so
+thumbnails (link-rot insurance) and CLIP embeddings for shot→reference search (PRD F6) are additive
+`ALTER TABLE … ADD COLUMN` later — nothing is stored that must be migrated or thrown away.
+
+**Accepted caveat.** A CDN URL can rotate, so a long-idle board can show a broken tile and a
+drag-to-use can fail; the File node surfaces the existing `uploadError` state. Mitigation (add-time
+thumbnail cache) is the first deferred increment, not v1.
+
+**Rejected.** (a) Embed/iframe Pinterest — browser-blocked; (b) store full bytes at add time and purge
+later — more work at both ends, and vector search needs small *embeddings*, not hoarded images;
+(c) URL-only File **nodes** on the canvas — link rot on a live reference that feeds generation and the
+archive (re-host on use instead); (d) inline board-creation from the extension (Slice B v1 picks
+existing boards only).
+
+**Revises** the **reference-clipper** design (`2026-07-14-reference-clipper-*`, never given a D-number
+and never built): the capture target moves from "push to the active canvas tab as File nodes" to "add
+to a chosen client moodboard (staging); moodboard → canvas is a separate, re-hosting drag." *(The
+moodboard design spec cites this as "D36" — that citation is wrong; D36 is the guided next-node flow.)*
+**Originated →** `2026-07-22-client-moodboards-design.md`.
+
 ### Parked / out-of-scope (with revisit triggers)
 | Item | Status | Revisit when |
 |---|---|---|
