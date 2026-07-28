@@ -17,6 +17,7 @@ import {
 import { toast } from "sonner";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { EditableField } from "./editable-field";
+import { GenerationErrorBadge } from "./generation-error-badge";
 import { MentionInstructionEditor } from "./mention-instruction-editor";
 import { normalizeTitle } from "@/lib/nodes/title";
 import { Button } from "@/components/ui/button";
@@ -96,6 +97,7 @@ export function VideoPromptFocusView({
   // on every keystroke. Local state updates synchronously, so the caret is kept.
   const [instructionDraft, setInstructionDraft] = useState(instruction);
   const [generating, setGenerating] = useState(false);
+  const [lastError, setLastError] = useState<string | null>(null);
   const [preview, setPreview] = useState<{ ambient: string; connected: ConnectedPreview[] }>({
     ambient: "",
     connected: [],
@@ -306,6 +308,7 @@ export function VideoPromptFocusView({
 
   async function runGenerate() {
     setGenerating(true);
+    setLastError(null);
     setEvalDecision(null);
     setEvalNote("");
     try {
@@ -328,7 +331,9 @@ export function VideoPromptFocusView({
       await fetchVersions();
       toast.success("Motion prompt generated");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Generation failed");
+      const message = e instanceof Error ? e.message : "Generation failed";
+      setLastError(message);
+      toast.error(message);
       await fetchVersions();
     } finally {
       setGenerating(false);
@@ -434,6 +439,11 @@ export function VideoPromptFocusView({
                 />
               </div>
             </header>
+            {lastError && !generating && (
+              <div className="mt-2">
+                <GenerationErrorBadge error={lastError} />
+              </div>
+            )}
           </div>
         </div>
 
