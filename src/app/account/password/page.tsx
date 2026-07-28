@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createSSRServerClient } from "@/lib/supabase/ssr-server";
+import { getUserWithRetry } from "@/lib/supabase/get-user-with-retry";
 import { mapAppMetadataToMustChangePassword } from "@/lib/dal-logic";
 import { ChangePasswordForm } from "./change-password-form";
 import { Card } from "@/components/ui/card";
@@ -8,9 +9,7 @@ export const metadata = { title: "Set a new password — CreativeOS" };
 
 export default async function ChangePasswordPage() {
   const supabase = await createSSRServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getUserWithRetry(supabase);
   if (!user) redirect("/login");
   if (!mapAppMetadataToMustChangePassword(user.app_metadata)) redirect("/");
 
