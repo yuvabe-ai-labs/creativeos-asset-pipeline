@@ -1504,13 +1504,43 @@ straight onto a canvas at capture time, the moodboard stages it against a client
 D36 was subsequently taken by the guided next-node flow. The moodboard spec inherits that bad citation.
 The clipper therefore still has **no D-number**; assign one if it is kept.)*
 
-> **Open follow-up — two capture extensions now coexist.** `clipper-extension/` (D-number pending) and
-> `moodboard-extension/` (D81) both add a right-click "send this image to CreativeOS" and both re-host
-> to GCS; they differ only in destination. Keeping both is defensible (push-now vs. stage-for-later),
-> but it is an unmade decision, not a design: consolidating them behind one extension with a
-> destination picker, or retiring the clipper, should be decided explicitly rather than by drift.
+> **Resolved by D82** — the two capture extensions did *not* coexist for long: the clipper was
+> retired the same week and removed from the codebase. See below.
 
 **Originated →** `2026-07-22-client-moodboards-design.md`.
+
+### D82 — The reference clipper is retired; moodboards are the single capture path *(recorded 2026-07-28; supersedes the reference clipper, which never received a D-number; resolves the D81 follow-up)*
+
+**Decision.** The **reference clipper is removed from the codebase** — `clipper-extension/`,
+`POST /api/ingest-image`, and `src/lib/reference-clipper/` (with its 8 unit tests) are deleted.
+**`moodboard-extension/` (D81) is the one browser capture path** into CreativeOS. The clipper's design
+spec and plan are kept as historical records with retirement banners, not deleted.
+
+**Why.** Both extensions offered the same gesture — right-click an image on the web, send it to
+CreativeOS, re-host to GCS — differing only in destination. Shipping two is a maintenance and
+teaching cost (two manifests, two configured origins, two ingest routes to secure) for one user
+intent. The moodboard target is the better of the two: it **stages against a client** so a reference
+is reusable across every canvas for that client, where the clipper pushed onto whichever canvas
+happened to be in the active tab and had to **reload the tab** to render. The clipper's push-now
+convenience is recoverable later as a moodboard feature (add-and-immediately-drop) if it is missed —
+the reverse (rebuilding client-level staging inside the clipper) is the larger job.
+
+**What is lost.** The one-step "web image → node on the canvas I'm looking at" path. Under D81 the
+same image takes two steps: capture to a board, then drag it onto the canvas. Accepted — the drag is
+where re-hosting happens (D81), and the extra step buys client-level reuse.
+
+**Also removes** the slug-based open ingest route, which shrinks the deferred-auth surface: the
+multi-tenancy pilot's plan to put `/api/ingest-image` behind a session + org check (**D48**) is now
+moot — there is no such route. `moodboard-extension/`'s open endpoints inherit that hardening job
+instead.
+
+**Rejected.** (a) Keep both behind a destination picker in one extension — more code than either
+alone, for an intent the moodboard already covers; (b) keep the clipper unmaintained — an open,
+unauthenticated write path into the canvas is not something to leave lying around untended;
+(c) delete the clipper's spec/plan docs — the *why* is worth keeping even when the code is not.
+
+**Supersedes** the reference clipper (`2026-07-05-reference-clipper-design.md`). **Resolves** the D81
+follow-up.
 
 ### Parked / out-of-scope (with revisit triggers)
 | Item | Status | Revisit when |
