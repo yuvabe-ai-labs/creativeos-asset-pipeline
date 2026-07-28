@@ -52,4 +52,12 @@ describe("generateWithOpenAI — transparent background + jpeg output", () => {
     );
     expect(imagesGenerate.mock.calls[0][0].output_format).toBe("png");
   });
+
+  it("returns mimeType matching the corrected output_format, not the original", async () => {
+    const result = await generateWithOpenAI(
+      "gpt-image-2",
+      baseInput({ background: "transparent", output_format: "jpeg", aspect_ratio: "1:1", quality: "medium" }),
+    );
+    expect(result.mimeType).toBe("image/png");
+  });
 });

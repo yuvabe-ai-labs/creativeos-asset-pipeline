@@ -198,8 +198,8 @@ export async function generateWithOpenAI(
   return {
     imageBase64: b64,
     mimeType:
-      p.output_format === "jpeg" ? "image/jpeg"
-      : p.output_format === "webp" ? "image/webp"
+      sharedParams.output_format === "jpeg" ? "image/jpeg"
+      : sharedParams.output_format === "webp" ? "image/webp"
       : "image/png",
     tokensUsed: {
       text_input_tokens:   usage?.input_tokens_details?.text_tokens  ?? usage?.input_tokens  ?? 0,
