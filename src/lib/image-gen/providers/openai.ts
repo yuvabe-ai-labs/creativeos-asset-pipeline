@@ -132,7 +132,7 @@ export function maskFileFromInput(
 
 // ── Generate function ─────────────────────────────────────────────────────────
 
-async function generateWithOpenAI(
+export async function generateWithOpenAI(
   apiModelId: string,
   input: ImageGenInput,
 ): Promise<ImageGenResult> {
@@ -163,6 +163,13 @@ async function generateWithOpenAI(
   };
   if (p.background)    sharedParams.background    = p.background;
   if (p.output_format) sharedParams.output_format = p.output_format;
+
+  // Transparent backgrounds require an alpha-capable output format — JPEG has none. OpenAI
+  // rejects this combination outright (observed in prod, see ADR D91); auto-correct rather
+  // than block the user.
+  if (sharedParams.background === "transparent" && sharedParams.output_format === "jpeg") {
+    sharedParams.output_format = "png";
+  }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let response: any;
