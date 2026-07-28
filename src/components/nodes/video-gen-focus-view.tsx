@@ -44,8 +44,9 @@ import {
 } from "@/lib/video-gen/constraints";
 import { videoGenApi } from "@/lib/video-gen/api";
 import { createBrowserSupabase } from "@/lib/supabase/client";
-import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
+import { useCanvasStore, useCanvasStoreApi } from "@/components/canvas/canvas-store-provider";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
+import { useDeriveEndFrame } from "@/hooks/use-derive-end-frame";
 import { useVideoGenStatus } from "@/hooks/use-video-gen-status";
 import {
   VideoGenVersionHistory,
@@ -375,6 +376,9 @@ export function VideoGenFocusView({
   const setVideoGenGenerating = useCanvasStore((s) => s.setVideoGenGenerating);
   const setVideoGenError = useCanvasStore((s) => s.setVideoGenError);
   const editable = useCanvasEditable(); // D33: false when this session is read-only
+  const storeApi = useCanvasStoreApi();
+  const { deriveEndFrame } = useDeriveEndFrame();
+  const [creatingEndFrame, setCreatingEndFrame] = useState(false);
 
   // Stable ref for onPatch — breaks the useCallback → useEffect dep cycle
   const onPatchRef = useRef(onPatch);
@@ -707,6 +711,30 @@ export function VideoGenFocusView({
         ? `${durationSpec.constraints.min}–${durationSpec.constraints.max}s`
         : "—";
 
+  // D84: spawn an image-gen node seeded with the start frame, wired straight back as the end
+  // frame. An edit rather than a fresh generation — the two frames must be near neighbours or
+  // interpolation morphs between them.
+  function handleCreateEndFrame() {
+    const startFrameNodeId = Object.entries(effectiveImageRoles).find(
+      ([, role]) => role === "start_frame",
+    )?.[0];
+    if (!startFrameNodeId) return;
+
+    setCreatingEndFrame(true);
+    try {
+      const videoNode = storeApi.getState().nodes.find((n) => n.id === nodeId);
+      const newNodeId = deriveEndFrame({
+        videoNodeId: nodeId,
+        startFrameNodeId,
+        videoNodePosition: videoNode?.position ?? { x: 0, y: 0 },
+      });
+      onPatch({ imageRoles: { ...imageRolesProp, [newNodeId]: "end_frame" } });
+      toast.success("End frame node created — edit the start frame to set the ending");
+    } finally {
+      setCreatingEndFrame(false);
+    }
+  }
+
   const spineModel = describeShotSpine({
     imageInputs,
     hasStartFrame: Object.values(effectiveImageRoles).includes("start_frame"),
@@ -921,7 +949,11 @@ export function VideoGenFocusView({
                 <div className="flex flex-col gap-10 px-6 py-5">
                   {/* D83: the spine sits above everything else — the shape of the shot is the
                       first thing you see, and the empty end slot is visible at rest. */}
-                  <VideoGenShotSpine model={spineModel} />
+                  <VideoGenShotSpine
+                    model={spineModel}
+                    onCreateEndFrame={editable ? handleCreateEndFrame : undefined}
+                    creatingEndFrame={creatingEndFrame}
+                  />
                   {(() => {
                     const paramsPanelProps = {
                       modelId,
