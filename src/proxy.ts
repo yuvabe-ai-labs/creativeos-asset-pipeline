@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { mapAppMetadataToMustChangePassword } from "@/lib/dal-logic";
 
 // Next.js 16 proxy (renamed from middleware). OPTIMISTIC session check only — no DB
 // queries, no org resolution (that is the DAL's job, per D51). Also refreshes the
@@ -41,6 +42,14 @@ export async function proxy(request: NextRequest) {
     }
     const loginUrl = new URL("/login", request.url);
     return NextResponse.redirect(loginUrl);
+  }
+
+  if (mapAppMetadataToMustChangePassword(user.app_metadata) && !path.startsWith("/account/password")) {
+    if (isApi) {
+      return NextResponse.json({ error: "Password change required" }, { status: 403 });
+    }
+    const changePasswordUrl = new URL("/account/password", request.url);
+    return NextResponse.redirect(changePasswordUrl);
   }
 
   return response;
