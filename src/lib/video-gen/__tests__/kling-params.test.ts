@@ -40,27 +40,45 @@ describe("klingO1Params", () => {
     expect(names(klingO1Params)).not.toContain("multi_shot");
   });
 
-  it("audio options are original/off, distinct from 3.0's native/off", () => {
+  // The omni endpoint documents native/original/off. The previous original/off pair came from
+  // fal.ai's O1 wrapper, not from Kling.
+  it("audio options are native/original/off", () => {
     const p = klingO1Params.find((p) => p.name === "audio")!;
-    expect(p.constraints).toEqual({ type: "select", options: ["original", "off"] });
+    expect(p.constraints).toEqual({
+      type: "select",
+      options: ["native", "original", "off"],
+    });
   });
 
-  it("duration is a 3–10s slider (O1 caps lower than 3.0)", () => {
+  it("resolution includes 4k", () => {
+    const p = klingO1Params.find((p) => p.name === "resolution")!;
+    expect(p.constraints).toEqual({ type: "select", options: ["720p", "1080p", "4k"] });
+  });
+
+  // Rule OM12, from a live 400: "Duration only supports 5 or 10 seconds when no refer_image
+  // is provided" (code 1201, 2026-07-27). A discrete select, not the 3.0 slider.
+  it("duration is a 5/10 select, not a slider", () => {
     const p = klingO1Params.find((p) => p.name === "duration")!;
-    expect(p.component).toBe("slider");
-    expect(p.constraints).toEqual({ type: "slider", min: 3, max: 10, step: 1 });
+    expect(p.component).toBe("select");
+    expect(p.constraints).toEqual({ type: "select", options: ["5", "10"] });
+    expect(p.defaultValue).toBe("5");
   });
 });
 
-// The slider stores a number where the select stored a string. Both must survive the round
-// trip to the provider, or a node saved before this change generates at the wrong length.
+// Kling 3.0's slider stores a number where the old select stored a string; SliderControl
+// coerces legacy string values so saved nodes keep their duration.
 describe("duration value handling", () => {
-  it("defaults to a number so SliderControl renders it directly", () => {
-    for (const params of [kling30Params, klingO1Params]) {
-      const p = params.find((p) => p.name === "duration")!;
-      expect(typeof p.defaultValue).toBe("number");
-      expect(p.defaultValue).toBe(5);
-    }
+  it("kling 3.0 defaults to a number so SliderControl renders it directly", () => {
+    const p = kling30Params.find((p) => p.name === "duration")!;
+    expect(typeof p.defaultValue).toBe("number");
+    expect(p.defaultValue).toBe(5);
+  });
+
+  // O1's select stores strings; both builders coerce with Number(), so either survives the
+  // round trip to the provider.
+  it("O1 defaults to a string, matching its select options", () => {
+    const p = klingO1Params.find((p) => p.name === "duration")!;
+    expect(typeof p.defaultValue).toBe("string");
   });
 });
 

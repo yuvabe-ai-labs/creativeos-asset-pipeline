@@ -44,10 +44,12 @@ const KLING_RESOLUTION_PRICING: Record<string, KlingResolutionRates> = {
     "4k": { off: 0.42, on: 0.42 },
   },
   // ASSUMPTION: o1 audio delta not split out on the pricing page (only splits by
-  // video-input); reused the same $0.028/s step seen on 3.0. Revisit if wrong.
+  // video-input); reused the same $0.028/s step seen on 3.0. The 4k tier mirrors 3.0's flat
+  // $0.42/s — also an assumption. Revisit if wrong.
   "kling:kling-o1": {
     "720p": { off: 0.084, on: 0.112 },
     "1080p": { off: 0.112, on: 0.14 },
+    "4k": { off: 0.42, on: 0.42 },
   },
 };
 

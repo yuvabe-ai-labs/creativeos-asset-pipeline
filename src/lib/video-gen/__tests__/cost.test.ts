@@ -30,10 +30,12 @@ describe("computeVideoCost — Kling (resolution-keyed)", () => {
     expect(computeVideoCost("kling:kling-3-0", 10, true, "4k")?.usd).toBeCloseTo(4.2);
   });
 
-  it("o1: off/original across 720p/1080p, no 4k tier", () => {
+  // The omni endpoint documents 720p/1080p/4k; the missing 4k tier came from a wrapper's
+  // narrower limits, not from Kling.
+  it("o1: off/original across 720p/1080p/4k", () => {
     expect(computeVideoCost("kling:kling-o1", 10, false, "720p")?.usd).toBeCloseTo(0.84);
     expect(computeVideoCost("kling:kling-o1", 10, true, "1080p")?.usd).toBeCloseTo(1.4);
-    expect(computeVideoCost("kling:kling-o1", 10, false, "4k")).toBeNull();
+    expect(computeVideoCost("kling:kling-o1", 10, false, "4k")?.usd).toBeCloseTo(4.2);
   });
 
   it("defaults resolution to 720p when omitted", () => {

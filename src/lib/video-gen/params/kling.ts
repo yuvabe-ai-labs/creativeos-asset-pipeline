@@ -29,6 +29,25 @@ function durationParam(min: number, max: number, defaultValue: number): ParamSpe
   };
 }
 
+// Kling O1 rejects arbitrary durations: "Duration only supports 5 or 10 seconds when no
+// refer_image is provided" (code 1201, observed 2026-07-27) — a live constraint that appears
+// nowhere in Kling's docs, which publish a 3–15 enum. Hence a discrete select rather than 3.0's
+// slider. Whether references widen the range is UNVERIFIED; confirm before relaxing (D88).
+// Stores a STRING where the 3.0 slider stores a number; both settings builders coerce with
+// Number(), so either survives the round trip.
+function durationSelectParam(options: string[], defaultValue: string): ParamSpec {
+  return {
+    name: "duration",
+    label: "Duration",
+    component: "select",
+    group: "primary",
+    order: 1,
+    visible: true,
+    defaultValue,
+    constraints: { type: "select", options },
+  };
+}
+
 function audioParam(options: string[], defaultValue: string): ParamSpec {
   return {
     name: "audio",
@@ -84,9 +103,11 @@ export const kling30Params: ParamSpec[] = [
   negativePromptParam,
 ];
 
+// Corrected against Kling's official omni docs. The previous values (720p/1080p only, 3–10s,
+// original/off) came from fal.ai's O1 wrapper, whose limits are narrower than Kling's own.
 export const klingO1Params: ParamSpec[] = [
-  resolutionParam(["720p", "1080p"], "720p"),
-  durationParam(3, 10, 5),
-  audioParam(["original", "off"], "off"),
+  resolutionParam(["720p", "1080p", "4k"], "720p"),
+  durationSelectParam(["5", "10"], "5"),
+  audioParam(["native", "original", "off"], "off"),
   negativePromptParam,
 ];

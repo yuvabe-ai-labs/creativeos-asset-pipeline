@@ -81,7 +81,15 @@ const VEO_REFS_RULES: ConstraintRule[] = [
   },
 ];
 
-const KLING_IMAGE_INPUTS_WITH_END = {
+// D87: per-model, not shared — see providers/kling.ts for why. Client copies; this file cannot
+// import the `server-only` provider module.
+const KLING_30_IMAGE_INPUTS = {
+  startFrame: true,
+  endFrame: true,
+  maxReferenceImages: 0,
+} as const;
+
+const KLING_O1_IMAGE_INPUTS = {
   startFrame: true,
   endFrame: true,
   maxReferenceImages: 0,
@@ -126,7 +134,7 @@ export const videoGenClientModelMap: Record<string, VideoGenClientModelSpec> = {
     label: "Kling 3.0",
     providerLabel: "Kling",
     maxDurationSeconds: 15,
-    imageInputs: KLING_IMAGE_INPUTS_WITH_END,
+    imageInputs: KLING_30_IMAGE_INPUTS,
     params: kling30Params,
     rules: [],
   },
@@ -136,7 +144,7 @@ export const videoGenClientModelMap: Record<string, VideoGenClientModelSpec> = {
     label: "Kling O1",
     providerLabel: "Kling",
     maxDurationSeconds: 10,
-    imageInputs: KLING_IMAGE_INPUTS_WITH_END,
+    imageInputs: KLING_O1_IMAGE_INPUTS,
     params: klingO1Params,
     rules: [],
   },

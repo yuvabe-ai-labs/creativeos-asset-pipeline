@@ -46,7 +46,9 @@ export function build3_0Settings(
   params: Record<string, unknown>,
 ): Record<string, unknown> {
   return {
-    multi_shot: Boolean(params.multi_shot ?? true),
+    // Off by default, matching the param spec (4cee50d). The previous `?? true` fallback
+    // contradicted that spec on any path where the param was absent.
+    multi_shot: Boolean(params.multi_shot ?? false),
     audio: String(params.audio ?? "off"),
     resolution: String(params.resolution ?? "720p"),
     duration: Number(params.duration ?? 5),
@@ -145,7 +147,16 @@ async function generateWithKling(
   return pollKlingTask(taskId);
 }
 
-const KLING_IMAGE_INPUTS_WITH_END = {
+// D87: 3.0 and O1 cannot share one descriptor. Their reference mechanisms differ in kind —
+// 3.0's `element` is a pre-registered library resource addressed by `element_id`, while O1's
+// `refer_image` is a plain inline URL. One shared shape forced both to the lower bound.
+const KLING_30_IMAGE_INPUTS = {
+  startFrame: true,
+  endFrame: true,
+  maxReferenceImages: 0,
+} as const;
+
+const KLING_O1_IMAGE_INPUTS = {
   startFrame: true,
   endFrame: true,
   maxReferenceImages: 0,
@@ -157,7 +168,7 @@ export const kling30: VideoGenModelSpec = {
   label: "Kling 3.0",
   providerLabel: "Kling",
   maxDurationSeconds: 15,
-  imageInputs: KLING_IMAGE_INPUTS_WITH_END,
+  imageInputs: KLING_30_IMAGE_INPUTS,
   params: kling30Params,
   generate: (input) => generateWithKling("/image-to-video/kling-3.0", build3_0Settings, input),
 };
@@ -168,7 +179,7 @@ export const klingO1: VideoGenModelSpec = {
   label: "Kling O1",
   providerLabel: "Kling",
   maxDurationSeconds: 10,
-  imageInputs: KLING_IMAGE_INPUTS_WITH_END,
+  imageInputs: KLING_O1_IMAGE_INPUTS,
   params: klingO1Params,
   generate: (input) => generateWithKling("/omni-video/kling-o1", buildO1Settings, input),
 };
