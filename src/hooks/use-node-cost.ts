@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ensureFreshSession } from "@/lib/supabase/session-ready";
 
 export function useNodeCost(nodeId: string, upstreamNodeIds?: string[]) {
   const [totalCredits, setTotalCredits] = useState<number | null>(null);
@@ -13,6 +14,10 @@ export function useNodeCost(nodeId: string, upstreamNodeIds?: string[]) {
 
     async function fetchCost() {
       try {
+        // Every node on a canvas calls this hook — the biggest source of the request
+        // burst that used to race a stale tab's expired refresh token (see
+        // session-ready.ts). ensureFreshSession() is deduped, so N nodes share one check.
+        await ensureFreshSession();
         const url = upstreamKey
           ? `/api/nodes/${nodeId}/cost?also=${encodeURIComponent(upstreamKey)}`
           : `/api/nodes/${nodeId}/cost`;
@@ -27,7 +32,6 @@ export function useNodeCost(nodeId: string, upstreamNodeIds?: string[]) {
 
     void fetchCost();
     return () => { cancelled = true; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nodeId, upstreamKey]);
 
   return totalCredits;
