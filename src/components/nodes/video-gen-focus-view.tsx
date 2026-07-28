@@ -68,6 +68,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { ActiveRulesCard } from "./video-gen-active-rules-card";
+import { VideoGenShotSpine } from "./video-gen-shot-spine";
+import { describeShotSpine } from "@/lib/video-gen/shot-spine";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -78,7 +80,6 @@ type ImageInputs = { startFrame: boolean; endFrame: boolean; maxReferenceImages:
 type DialogState =
   | null
   | { type: "no-roles" }
-  | { type: "missing-end-frame" }
   | { type: "role-conflict"; imageId: string; role: ImageRole; conflictingRole: "start_frame" | "end_frame" | "reference" }
   | { type: "replace-singleton"; imageId: string; role: "start_frame" | "end_frame"; incumbentId: string; incumbentName: string };
 
@@ -350,7 +351,6 @@ export function VideoGenFocusView({
   // Output settings are always expanded. Defaults closed so the panel opens uncluttered.
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [pendingDialog, setPendingDialog] = useState<DialogState>(null);
-  const hasExplicitlySkippedEndFrameRef = useRef(false);
 
   const [loadingVersions, setLoadingVersions] = useState(false);
   const [loadingConnected, setLoadingConnected] = useState(false);
@@ -366,11 +366,6 @@ export function VideoGenFocusView({
       setLoadingConnected(true);
     }
   }
-
-  // Reset the "skipped end frame" guard when the sheet opens or switches nodes.
-  useEffect(() => {
-    hasExplicitlySkippedEndFrameRef.current = false;
-  }, [open, nodeId]);
 
   const { isGenerating, lastError, setGenerating, setLastError } =
     useVideoGenStatus(nodeId);
@@ -437,7 +432,6 @@ export function VideoGenFocusView({
       .then(({ images, promptNode: pn }) => {
         setUpstreamImages(images);
         setPromptNode(pn);
-        hasExplicitlySkippedEndFrameRef.current = false;
       })
       .catch(() => {})
       .finally(() => setLoadingConnected(false));
@@ -608,21 +602,8 @@ export function VideoGenFocusView({
       return;
     }
 
-    // C3: end frame slot available, start frame assigned, unassigned images exist, no end frame
-    const hasStartFrame = Object.values(effectiveImageRoles).includes("start_frame");
-    const hasEndFrame = Object.values(effectiveImageRoles).includes("end_frame");
-    const hasUnassigned = upstreamImages.some((img) => !(img.id in effectiveImageRoles));
-    if (
-      imageInputs.endFrame &&
-      hasStartFrame &&
-      !hasEndFrame &&
-      hasUnassigned &&
-      !hasExplicitlySkippedEndFrameRef.current
-    ) {
-      setPendingDialog({ type: "missing-end-frame" });
-      return;
-    }
-
+    // D83: a missing end frame no longer interrupts. The preference for a start+end pair is
+    // expressed by the shot spine's empty slot at rest, not by a confirm dialog on the way out.
     await doGenerate();
   }
 
@@ -715,6 +696,24 @@ export function VideoGenFocusView({
   // through the same merge. Previously the panel displayed a locked 8 while `params` kept 6 and
   // doGenerate posted the 6, which caused 11 observed generation failures.
   const effectiveParams = reconcileLockedParams(params, constraints.lockedParams) ?? params;
+
+  // D83: the duration label the current combination actually yields, read off the model's own
+  // param spec so it stays correct when a spec changes (e.g. O1's 5/10 select).
+  const durationSpec = currentModel?.params.find((p) => p.name === "duration");
+  const durationLabel =
+    durationSpec?.constraints.type === "select"
+      ? `${durationSpec.constraints.options.join(" or ")}s`
+      : durationSpec?.constraints.type === "slider"
+        ? `${durationSpec.constraints.min}–${durationSpec.constraints.max}s`
+        : "—";
+
+  const spineModel = describeShotSpine({
+    imageInputs,
+    hasStartFrame: Object.values(effectiveImageRoles).includes("start_frame"),
+    hasEndFrame: Object.values(effectiveImageRoles).includes("end_frame"),
+    referenceCount: Object.values(effectiveImageRoles).filter((r) => r === "reference").length,
+    durationLabel,
+  });
 
   const mode: "skeleton" | "result" | "empty" = isGenerating
     ? "skeleton"
@@ -920,6 +919,9 @@ export function VideoGenFocusView({
               {/* Video — flat, independently-collapsible peer groups (Frames / Output / Fine-tune / Advanced) */}
               {selected === "video" && (
                 <div className="flex flex-col gap-10 px-6 py-5">
+                  {/* D83: the spine sits above everything else — the shape of the shot is the
+                      first thing you see, and the empty end slot is visible at rest. */}
+                  <VideoGenShotSpine model={spineModel} />
                   {(() => {
                     const paramsPanelProps = {
                       modelId,
@@ -1116,29 +1118,6 @@ export function VideoGenFocusView({
                 <AlertDialogFooter>
                   <AlertDialogCancel>Cancel</AlertDialogCancel>
                   <AlertDialogAction onClick={() => void doGenerate()}>
-                    Generate anyway
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </>
-            )}
-
-            {pendingDialog?.type === "missing-end-frame" && (
-              <>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>End frame not assigned</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    You have a connected image without a role, and this model supports an end
-                    frame. Generate with just the start frame?
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={() => {
-                      hasExplicitlySkippedEndFrameRef.current = true;
-                      void doGenerate();
-                    }}
-                  >
                     Generate anyway
                   </AlertDialogAction>
                 </AlertDialogFooter>
