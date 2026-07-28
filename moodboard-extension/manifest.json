@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "description": "Right-click any image to add it to a CreativeOS client moodboard.",
   "permissions": ["contextMenus", "storage", "sidePanel"],
-  "host_permissions": ["http://localhost:3000/*"],
+  "host_permissions": ["https://creativeos-yuvabe.vercel.app/*"],
   "background": { "service_worker": "background.js" },
   "side_panel": { "default_path": "sidepanel.html" },
   "action": { "default_title": "CreativeOS Moodboard" }

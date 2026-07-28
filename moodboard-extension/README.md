@@ -3,7 +3,12 @@
 Adds any right-clicked image to a CreativeOS **client moodboard**.
 
 ## Configure
-- Set `APP_BASE_URL` in `config.js` to where CreativeOS runs (default `http://localhost:3000`).
+- `APP_BASE_URL` in `config.js` points at **production** (`https://creativeos-yuvabe.vercel.app`)
+  and normally needs no change — including while you develop locally. A moodboard item is just a
+  row of URLs (D81), so a capture written through production shows up immediately in a localhost
+  app reading the same Supabase project. If you ever do repoint it, change **both** `config.js`
+  and the `host_permissions` entry in `manifest.json` — that entry is what grants the CORS
+  exemption — then reload the extension at `chrome://extensions`.
 - If you change it, add the same origin to `manifest.json` → `host_permissions` (e.g. `"https://your-app.example.com/*"`).
 
 ## Load
