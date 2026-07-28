@@ -18,6 +18,8 @@ import { NodeContextMenu } from "./node-context-menu";
 import { NodeCardHeader } from "./node-card-header";
 import { ApprovalBadge } from "./approval-badge";
 import type { ApprovalStatus } from "@/lib/approval";
+import { useNodeCost } from "@/hooks/use-node-cost";
+import { NodeCreditsFooter } from "./node-credits-footer";
 
 const TYPE_LABEL: Record<string, string> = {
   script: "Script", text: "Note", prompt: "Prompt", kb: "Brand KB",
@@ -84,6 +86,7 @@ export function VideoPromptNode({ id, data, selected, positionAbsoluteX, positio
   const approvalStatus = (d as { approvalStatus?: ApprovalStatus }).approvalStatus;
   const slices = d.kbSlices ?? DEFAULT_IMAGE_PROMPT_SLICES;
   const controls = d.controls ?? null;
+  const totalCredits = useNodeCost(id);
   const [focusOpen, setFocusOpen] = useState(false);
   // Open locally (double-click / "Open ↗") OR when the guided flow points here (D35/D36).
   const focusViewOpen = focusOpen || focusedNodeId === id;
@@ -146,6 +149,8 @@ export function VideoPromptNode({ id, data, selected, positionAbsoluteX, positio
             Open ↗
           </button>
         </div>
+
+        <NodeCreditsFooter totalCredits={totalCredits} hasOutput={Boolean(output)} />
 
         <Handle
           type="target"

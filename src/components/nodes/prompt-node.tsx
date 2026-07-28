@@ -18,6 +18,7 @@ import { NodeCardHeader } from "./node-card-header";
 import { ApprovalBadge } from "./approval-badge";
 import type { ApprovalStatus } from "@/lib/approval";
 import { useNodeCost } from "@/hooks/use-node-cost";
+import { NodeCreditsFooter } from "./node-credits-footer";
 
 const TYPE_LABEL: Record<string, string> = { script: "Script", text: "Note", prompt: "Prompt", kb: "Brand KB", file: "File", shot: "Shot", draw: "Sketch", "image-gen": "Image" };
 
@@ -153,13 +154,7 @@ export function PromptNode({ id, data, selected, positionAbsoluteX, positionAbso
         </button>
       </div>
 
-      {totalCredits !== null && totalCredits > 0 && (
-        <div className="border-t border-border px-3 py-1.5">
-          <p className="text-[0.6rem] tabular-nums text-muted-foreground">
-            {totalCredits.toLocaleString()} credits spent
-          </p>
-        </div>
-      )}
+      <NodeCreditsFooter totalCredits={totalCredits} hasOutput={Boolean(output)} />
 
       <Handle
         type="target"
