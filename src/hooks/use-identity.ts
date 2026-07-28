@@ -8,9 +8,16 @@ import type { PlatformRole } from "@/lib/dal-logic";
 // Module-level cache + in-flight dedup: multiple components call this hook (the identity
 // chip, admin nav link, header brand, plus prompt/image-gen/video-prompt focus views), and
 // any of them can mount/remount independently. Without this, each mount fires its own
-// /api/me request — observed firing dozens of times per canvas session. Sign-out does a
-// full page navigation (redirect()), which tears down this module's state naturally, so no
-// manual invalidation is needed.
+// /api/me request — observed firing dozens of times per canvas session.
+//
+// IMPORTANT: logoutAction()'s redirect("/") is a Server Action redirect — Next's App Router
+// performs that as a soft, client-side transition, NOT a full browser page reload. This
+// module's state survives it completely intact. (An earlier version of this comment assumed
+// otherwise — that was wrong, and was the root cause of a real bug: sign out of org A, sign
+// in as org B in the same tab, and the header kept showing org A's name/credits until a
+// manual refresh, because cachedHydrated was still true and the hook just re-synced from the
+// stale cache instead of fetching.) resetIdentityCache() below is what actually invalidates
+// this on sign-out — call it explicitly, do not rely on navigation to do it for you.
 type FetchResult = {
   identity: Identity | null;
   platformRole: PlatformRole | null;
@@ -28,6 +35,21 @@ let cachedCreditsUsed: number | null = null;
 let cachedMonthlyCreditLimit: number | null = null;
 let cachedHydrated = false;
 let inFlightFetch: Promise<FetchResult> | null = null;
+
+// Call this at the moment sign-out happens (see identity-chip.tsx), client-side, before/as
+// the redirect fires. Without it, a subsequent sign-in as a different account in the same
+// tab sees cachedHydrated still true and silently reuses the previous account's identity —
+// see the module comment above.
+export function resetIdentityCache(): void {
+  cachedIdentity = null;
+  cachedPlatformRole = null;
+  cachedOrgId = null;
+  cachedOrgName = null;
+  cachedCreditsUsed = null;
+  cachedMonthlyCreditLimit = null;
+  cachedHydrated = false;
+  inFlightFetch = null;
+}
 
 function fetchIdentity(): Promise<FetchResult> {
   if (!inFlightFetch) {
