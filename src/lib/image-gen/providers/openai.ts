@@ -1,4 +1,5 @@
 import "server-only";
+import sharp from "sharp";
 import { createOpenAI } from "@/lib/openai/server";
 import { buildZodFromParams } from "../schema-builder";
 import { gptImage2Params, gptImage1Params, gptImage1MiniParams } from "../params/openai";
@@ -24,10 +25,70 @@ const TOKEN_COUNTING_MODEL = "gpt-5.4-mini";
 async function urlToFile(url: string): Promise<File> {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Failed to fetch reference image (${res.status}): ${url}`);
-  const buffer = await res.arrayBuffer();
-  const contentType = res.headers.get("content-type") ?? "image/png";
-  const ext = contentType.includes("jpeg") ? "jpg" : contentType.includes("webp") ? "webp" : "png";
-  return new File([buffer], `reference.${ext}`, { type: contentType });
+  const buffer = Buffer.from(await res.arrayBuffer());
+  const normalized = await normalizeReferenceImageForOpenAI(buffer);
+  // Detect format from the re-encoded bytes, not the (sometimes wrong/generic) response
+  // content-type header — normalizeReferenceImageForOpenAI always re-encodes to png/jpeg/webp.
+  const meta = await sharp(normalized).metadata();
+  const ext = meta.format === "jpeg" ? "jpg" : meta.format === "webp" ? "webp" : "png";
+  const contentType = ext === "jpg" ? "image/jpeg" : ext === "webp" ? "image/webp" : "image/png";
+  return new File([normalized], `reference.${ext}`, { type: contentType });
+}
+
+// Mirrors the maxAspectRatio/maxImageEdgePx/minDimensionMultiple values declared on all three
+// OpenAI model configs below — kept as separate constants because this runs before a specific
+// model is known to urlToFile's caller chain, not because the values are expected to diverge.
+const MAX_ASPECT_RATIO = 3.0;
+const MAX_EDGE_PX = 3840;
+const DIMENSION_MULTIPLE = 16;
+
+function floorToMultiple(value: number, multiple: number): number {
+  return Math.max(multiple, Math.floor(value / multiple) * multiple);
+}
+
+// Guarantees every reference image sent to OpenAI satisfies its aspect-ratio, max-edge, and
+// multiple-of-16 dimension requirements — unconditionally, so it can't be bypassed the way
+// pre-flight validation can be when dimension metadata isn't known (see ADR D91).
+export async function normalizeReferenceImageForOpenAI(buffer: Buffer): Promise<Buffer> {
+  const meta = await sharp(buffer).metadata();
+  let width = meta.width ?? 0;
+  let height = meta.height ?? 0;
+  if (width === 0 || height === 0) return buffer;
+
+  let pipeline = sharp(buffer);
+
+  const long = Math.max(width, height);
+  const short = Math.min(width, height);
+  if (long / short > MAX_ASPECT_RATIO) {
+    const newLong = Math.round(short * MAX_ASPECT_RATIO);
+    if (width >= height) {
+      pipeline = pipeline.extract({ left: Math.floor((width - newLong) / 2), top: 0, width: newLong, height });
+      width = newLong;
+    } else {
+      pipeline = pipeline.extract({ left: 0, top: Math.floor((height - newLong) / 2), width, height: newLong });
+      height = newLong;
+    }
+  }
+
+  const maxEdge = Math.max(width, height);
+  const scale = maxEdge > MAX_EDGE_PX ? MAX_EDGE_PX / maxEdge : 1;
+  const scaledWidth = Math.round(width * scale);
+  const scaledHeight = Math.round(height * scale);
+
+  const finalWidth = floorToMultiple(scaledWidth, DIMENSION_MULTIPLE);
+  const finalHeight = floorToMultiple(scaledHeight, DIMENSION_MULTIPLE);
+
+  if (finalWidth !== width || finalHeight !== height) {
+    pipeline = pipeline.resize({ width: finalWidth, height: finalHeight, fit: "fill" });
+  }
+
+  pipeline =
+    meta.hasAlpha ? pipeline.png()
+    : meta.format === "webp" ? pipeline.webp()
+    : meta.format === "jpeg" ? pipeline.jpeg()
+    : pipeline.png();
+
+  return pipeline.toBuffer();
 }
 
 // ── Aspect ratio → pixel size mapping ────────────────────────────────────────
