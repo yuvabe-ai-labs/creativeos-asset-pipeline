@@ -129,12 +129,12 @@ The `OM` prefix means *omni endpoint*, to avoid colliding with the model name "K
 
 | # | Decision |
 |---|---|
-| **D81** | Start + end frame is the default shape of a video generation. The preference is expressed by layout only — generation is **never blocked** for a missing end frame. |
-| **D82** | The end frame is produced by **editing the start frame**, not by generating a fresh image. Interpolation morphs in proportion to how far apart the two frames are, so the end frame must be a near-neighbour. |
-| **D83** | Constraint rules are **handled in the UI**. The API route **rejects** violations with 400 and **never auto-corrects** — the server never silently changes what was asked for, and never spends money on a request the user did not make. |
-| **D84** | Locked parameter values are **written into params state**, not merely displayed. One source of truth: what is shown is what is sent. |
-| **D85** | Kling 3.0 and Kling O1 get **separate capability descriptors**. Their reference mechanisms differ in kind (`element` registry vs inline `refer_image`) and cannot share one shape. |
-| **D86** | Kling O1 gains **inline `refer_image` support, up to 7 images total** (conservatively counting start and end frames toward the budget). |
+| **D83** | Start + end frame is the default shape of a video generation. The preference is expressed by layout only — generation is **never blocked** for a missing end frame. |
+| **D84** | The end frame is produced by **editing the start frame**, not by generating a fresh image. Interpolation morphs in proportion to how far apart the two frames are, so the end frame must be a near-neighbour. |
+| **D85** | Constraint rules are **handled in the UI**. The API route **rejects** violations with 400 and **never auto-corrects** — the server never silently changes what was asked for, and never spends money on a request the user did not make. |
+| **D86** | Locked parameter values are **written into params state**, not merely displayed. One source of truth: what is shown is what is sent. |
+| **D87** | Kling 3.0 and Kling O1 get **separate capability descriptors**. Their reference mechanisms differ in kind (`element` registry vs inline `refer_image`) and cannot share one shape. |
+| **D88** | Kling O1 gains **inline `refer_image` support, up to 7 images total** (conservatively counting start and end frames toward the budget). |
 
 ---
 
@@ -152,7 +152,7 @@ order, with the resulting duration beneath:
  │IMG │ ▶  │  + │    │  + │
  └────┘    └ ─ ─┘    └ ─ ─┘
   start     end       reference
-                      ↑ unlocks 3–15s
+                      2 of 5
 
  Duration · 5 or 10s
 ```
@@ -160,8 +160,10 @@ order, with the resulting duration beneath:
 - Empty slots render as **dashed-border primary chips** (`border-dashed border-primary/40`,
   `hover:bg-primary/5`) per the house add-action pattern in `AGENTS.md`.
 - Slot labels use `.text-eyebrow`.
-- An empty slot that would **widen** the available options carries a short hint naming the payoff.
-  This is the only place the role↔duration coupling is stated proactively rather than reactively.
+- A filled reference slot shows its count against the cap (`2 of 5`). A hint on the *empty*
+  reference slot naming the payoff ("unlocks 3–15s") is **deferred** — that claim rests on the
+  wording of a single error message and is unverified (§9). Do not ship a promise we have not
+  confirmed; add it once the manual verification settles it.
 - Slots unavailable for the current model are rendered inert with the existing
   "Not supported by this model" treatment, not hidden — absence should be legible.
 - The duration readout reflects evaluated constraints, so it changes live as roles are assigned.
@@ -214,7 +216,7 @@ whose limits are narrower than Kling's own:
 | Resolution | `720p`, `1080p` | add **`4k`** (+ cost tier — [`cost.ts:48`](../../../src/lib/video-gen/cost.ts#L48) returns `null` for 4k today) |
 | Audio | `original`, `off` | add **`native`** |
 | `multi_shot` fallback | `?? true` at [`kling.ts:49`](../../../src/lib/video-gen/providers/kling.ts#L49) | `?? false`, matching the spec default from `4cee50d` |
-| Capability descriptor | shared `KLING_IMAGE_INPUTS_WITH_END` | per-model (D85) |
+| Capability descriptor | shared `KLING_IMAGE_INPUTS_WITH_END` | per-model (D87) |
 
 Kling 3.0's 3–15s range is **left untouched** — the 5/10 restriction is evidenced only on the omni
 endpoint and will not be narrowed on inference.
@@ -267,7 +269,7 @@ param; `personGeneration`; node-card treatment of the spine strip; the D36 guide
 
 - Unit tests (vitest, existing `src/lib/video-gen/__tests__/` pattern) for `buildKlingContents`
   with references, the corrected settings builders, and each new constraint rule.
-- A regression test for D84: evaluated `lockedParams` must appear in the params that would be sent,
+- A regression test for D86: evaluated `lockedParams` must appear in the params that would be sent,
   not merely in what is rendered.
 - `npm run build`, lint, and the full test suite.
 
