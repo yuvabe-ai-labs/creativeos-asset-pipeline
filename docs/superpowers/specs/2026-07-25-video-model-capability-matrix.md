@@ -65,8 +65,8 @@ App model IDs: `veo:veo-3.1-lite`, `veo:veo-3.1-fast`, `veo:veo-3.1`. Vendor IDs
 |---|---|---|---|
 | End frame requires a start frame | ✅ documented — `lastFrame` "must be used in combination with `image`" | ✅ `end-frame-requires-start-frame` → `disableGenerate` | ✅ **correct** |
 | Reference images → duration = 8s | ✅ documented — `durationSeconds` "must be 8 when using reference images (or 1080p/4K)" | ✅ `refs-lock-duration-disable-frames` locks 8s | ✅ **correct** |
-| **End frame → duration = 8s** | ❌ **not documented** — the 8s lock is tied to *reference images* and *1080p/4K*, **not** to last-frame interpolation. fal.ai's first-last-frame endpoint allows 4/6/8s. | 🐛 forces `duration = 8` on any end frame (`lite-end-frame-duration`, `end-frame-lock-duration`) | 🐛 **likely over-restriction** — we lock 8s for a case the vendor doesn't. Verify, then relax to allow 4/6/8 with an end frame (unless 1080p/4K is also selected). |
-| Reference images ⟷ start/end frame are mutually exclusive | ⚠ **not documented as an API rule** — only *implied* by wrapper APIs (fal.ai/Replicate) exposing them as separate endpoints | ✅ `frames-disable-refs` + `disableFrameInputs` enforce a hard mutex | 🔒 plausible product choice, but **unverified**. Keep if it matches our UX intent; don't cite it as a Google constraint. |
+| **End frame → duration = 8s** (rule **V7**) | ⚠ **undocumented but REAL** — confirmed from our own telemetry, not from docs: node `faab1d1d`, `veo-3.1-lite`, start+end at `duration 6` returned `400 "Your use case is currently not supported"`; the identical call at `duration 8` succeeded two minutes later. | ✅ forces `duration = 8` on any end frame (`lite-end-frame-duration`, `end-frame-lock-duration`) | ✅ **correct — do NOT relax.** An earlier revision of this doc marked this a probable over-restriction and ranked relaxing it as action item 2; doing so would have caused a regression. |
+| Reference images ⟷ start/end frame are mutually exclusive | ✅ **documented** — `@google/genai` `GenerateVideosConfig.referenceImages`: *"If this field is provided, the text prompt field must also be provided. The image, video, or last_frame field are not supported."* Broader than we assumed: it excludes `video` too. | ✅ `frames-disable-refs` + `disableFrameInputs` enforce a hard mutex | ✅ **correct**, and it *is* a Google constraint — the SDK type definitions state it verbatim. |
 | Resolution → duration coupling (720p allows 4/6/8; 1080p & 4K force 8s) | ✅ documented | — app doesn't model `resolution` at all | (gap: we don't expose resolution, so N/A today) |
 
 **Extra vendor facts we don't currently use:** native audio (all three); 4K + video-extension are
@@ -77,6 +77,14 @@ restricted to `allow_adult`.
 ---
 
 ## 2. Kling — Kling AI developer API
+
+> ⚠ **SUPERSEDED as of the 2026-07-26 provider consolidation.** The `/v1/videos/image2video`
+> endpoint, models 1.5 / 1.6 / 2.1 / 2.1-Master / 2.6, and the `camera_control`, `cfg_scale` and
+> `mode` params are **no longer in the registry**. The roster is Veo ×3 + Kling 3.0 + Kling O1, on
+> the unified `contents` / `settings` API (`/image-to-video/kling-3.0` and
+> `/omni-video/kling-o1`). For the current matrix see
+> [2026-07-28-video-start-end-spine-design.md](2026-07-28-video-start-end-spine-design.md) §3.
+> Everything in §2a–2d below is retained only as a record of the pre-consolidation integration.
 
 **Endpoint matters.** Kling splits image inputs across two endpoints — a capability's availability
 depends on *which endpoint* it lives on:
@@ -151,8 +159,17 @@ and the D77 `camera_move` grid → `camera_control`.
 ### 2d. Newer Kling models we haven't integrated
 
 The capability map also lists **Kling O1**, **3.0 Omni**, **3.0 Turbo**, **2.5 Turbo**, **2.0 Master**,
-**1.0** — none are in our registry. Notable: **O1 / 3.0 Omni** add Video Reference + Multi-image;
-**2.5 Turbo** is "max creativity, exceptional value." Out of scope here, flagged for later triage.
+**1.0**. Notable: **O1 / 3.0 Omni** add Video Reference + Multi-image;
+**2.5 Turbo** is "max creativity, exceptional value."
+
+> **Update (2026-07-28):** **Kling O1 is now integrated** as `kling:kling-o1`, calling
+> `/omni-video/kling-o1`. It is the only model in the roster that accepts a start frame, an end
+> frame and reference images simultaneously. Two constraints govern it that appear in **no**
+> vendor documentation and were found only in stored API error text:
+> - **OM12** — without a `refer_image`, duration is **5 or 10 only** (`code 1201`, 2026-07-27),
+>   despite Kling publishing a 3–15 enum.
+> - The same error proves `/omni-video/kling-o1` is a live endpoint: the response is Kling's
+>   semantic validator, not a 404.
 
 ---
 
@@ -173,8 +190,10 @@ Included only to show the shared rule engine spans all three providers.
    grid is shown for all six and `camera_control` is sent regardless. Hide the grid for everything
    except 1.5; for 2.6/3.0 the real path is the separate **Motion Control** feature (own follow-up).
    **On the current branch — highest priority.**
-2. 🐛 **Verify & relax the Veo "end frame → 8s" lock.** Vendor ties 8s to *refs* and *1080p/4K*, not
-   to end frames. If confirmed, allow 4/6/8s with an end frame. *(2-line change to the Veo rules.)*
+2. ~~🐛 **Verify & relax the Veo "end frame → 8s" lock.**~~ **STRUCK 2026-07-28 — doing this would
+   have caused a regression.** Telemetry shows start+end at `duration 6` returning 400 and the
+   same call at `duration 8` succeeding. The lock is correct; it is simply undocumented. See
+   §1b rule V7.
 3. 🔒 **Kling End frame (`image_tail`).** Enable for 1.5/1.6/2.1/2.6/3.0; keep **off for 2.1-Master**.
    Needs: per-model `endFrame` capability (not one shared const), `image_tail` in
    `buildKlingRequestBody`, and the resolution/audio locks the map documents (**1080P** on
@@ -184,8 +203,10 @@ Included only to show the shared rule engine spans all three providers.
    Verify against the API, then make the param spec per-model instead of one shared `klingLegacyParams`.
 5. 🔒 **Kling Ref — two separate integrations.** **1.6** via Multi-image→Video (separate endpoint);
    **3.0** via Element Control (elements on I2V). Different request shapes; scope each on its own.
-6. ✂ **Decide the refs↔frames mutex story for Veo.** Defensible product choice but *not* a
-   Google-documented API rule — keep it if intentional, but don't present it as a vendor constraint.
+6. ~~✂ **Decide the refs↔frames mutex story for Veo.**~~ **VOID 2026-07-28 — the premise was
+   wrong.** It *is* a Google-documented API rule, stated verbatim in the installed
+   `@google/genai` types, and it excludes `video` as well as `image`/`last_frame`. Keep it and
+   cite it as a vendor constraint.
 7. ⚠ **Confirm `kling-v3` = non-Turbo "Kling 3.0"** on the API before relying on its end-frame support
    (Turbo has First/Last Frame = Not Supported).
 
@@ -225,6 +246,19 @@ Included only to show the shared rule engine spans all three providers.
 confirmed**; references split **1.6 = Multi-image endpoint / 3.0 = Element Control**; First/Last Frame
 **1080P locks** documented per model.
 
+**Sourcing hazard (recorded 2026-07-28).** Kling's documentation returns **HTTP 446** to
+automated fetching. The 2026-07-23 D77 pass — titled *"rebuilt against verified docs"* — fell back
+to third-party wrapper mirrors for the omni model, and those carry *their own*, narrower limits.
+That is exactly how Kling O1 acquired a 3–10s duration, no `native` audio and no `4k`, when the
+real endpoint allows 3–15s, three audio modes and 4k. **A wrapper is never an acceptable source
+for a vendor limit.** Read Kling pages with a browser User-Agent, via the `llms.txt` view, or by
+pasting them in.
+
+Note the failure runs both ways: vendor docs can also *omit* real constraints. Rules V7 (Veo
+start+end forces 8s) and OM12 (Kling O1 duration 5-or-10 without a `refer_image`) appear in no
+documentation at all and were recovered only from stored API error text in the `generations`
+table. Telemetry is a first-class source.
+
 **Still open / lower-confidence:**
 - **`cfg_scale` rejected by 2.x** and **`mode` tiers** (2.1-Master master-only; 2.6 `std`) are
   **wrapper-sourced** — the capability map doesn't cover request params. Verify against the live API
@@ -235,6 +269,12 @@ confirmed**; references split **1.6 = Multi-image endpoint / 3.0 = Element Contr
   derived-from-image. Our app still exposes the select for all Kling.
 - **Kling durations** — capability map gives ranges (2.6 = **3–10s**, wider than our 5/10); confirm the
   exact allowed set per mode.
-- **Veo:** "refs ⟷ frames" mutex is **implied, not documented**; "end frame → 8s" lock is **likely
-  false** per docs. Dec-2025 forum reports of `lastFrame`/`referenceImages` returning "not supported"
-  on live preview endpoints — current runtime behavior not confirmed via changelog.
+- ~~**Veo:** "refs ⟷ frames" mutex is implied, not documented; "end frame → 8s" lock is likely
+  false per docs.~~ **RESOLVED 2026-07-28 — both were wrong.** The mutex is documented in the SDK
+  types; the 8s lock is real, confirmed by telemetry. The Dec-2025 forum reports of
+  `lastFrame`/`referenceImages` returning "not supported" were most likely this exact pair of
+  constraints being hit.
+- **Kling `negative_prompt`** — sent by our provider to **both** endpoints, but documented on
+  neither (`settings` is `multi_shot` / `audio` / `resolution` / `duration` only). Generations
+  succeed, so it is most likely silently ignored — meaning `KLING_NEGATIVE_DEFAULT` and its
+  always-visible textarea may do nothing on Kling. Needs one A/B generation to settle.
