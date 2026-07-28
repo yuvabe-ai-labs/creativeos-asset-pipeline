@@ -31,7 +31,13 @@ let inFlightFetch: Promise<FetchResult> | null = null;
 
 function fetchIdentity(): Promise<FetchResult> {
   if (!inFlightFetch) {
-    inFlightFetch = fetch("/api/me")
+    // cache: "no-store" is load-bearing, not defensive boilerplate — a plain fetch() here
+    // is subject to the browser's normal HTTP cache, and /api/me's route handler sends no
+    // explicit no-cache response headers. Without this, the FIRST /api/me call in a tab
+    // gets cached and silently reused across every later auth-state change (login, sign
+    // out + sign back in as someone else, this feature's forced password change) until a
+    // hard refresh — the exact "stale identity until I refresh" bug this fixes.
+    inFlightFetch = fetch("/api/me", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
       .then((data): FetchResult =>
         data && typeof data.name === "string"
@@ -95,13 +101,17 @@ export function useIdentity(): {
   const pathname = usePathname();
 
   useEffect(() => {
-    // HeaderBrand renders (and calls this hook) on /login too — there's no session to
-    // check there. Fetching anyway would cache a false "logged out" result at module
-    // scope; login's redirect("/") is a soft navigation (no full page reload), so that
-    // stale cache would survive it and every consumer would show "no identity" until a
-    // hard refresh cleared the module. Skipping the fetch here means the first real
-    // fetch happens once pathname actually changes away from /login, post-login.
-    if (pathname === "/login") return;
+    // HeaderBrand renders (and calls this hook) on /login AND /account/password too.
+    // /login: there's no session to check yet. /account/password: proxy.ts actively
+    // 403s /api/me for a user who still owes a password change (it's an /api path, not
+    // under /account/password's own exclusion) — so fetching here wouldn't just be
+    // premature, it would DETERMINISTICALLY get blocked and cache a false "logged out"
+    // result at module scope. Either way, changePasswordAction's/loginAction's
+    // redirect("/") is a soft navigation (no full page reload), so that stale cache
+    // would survive it and every consumer would show "no identity" until a hard refresh
+    // cleared the module. Skipping the fetch on both pages means the first real fetch
+    // happens once pathname actually changes away from them.
+    if (pathname === "/login" || pathname === "/account/password") return;
     if (cachedHydrated) {
       // Already resolved by an earlier mount — sync immediately, no new fetch.
       setIdentity(cachedIdentity);
@@ -136,8 +146,8 @@ export function useIdentity(): {
       cancelled = true;
     };
     // pathname is a real dependency (not just exhaustive-deps box-ticking): it's what
-    // re-fires this effect the moment the post-login redirect leaves /login, triggering
-    // the first real fetch instead of leaving the hook permanently un-hydrated.
+    // re-fires this effect the moment a redirect leaves /login or /account/password,
+    // triggering the first real fetch instead of leaving the hook permanently un-hydrated.
   }, [pathname]);
 
   return { identity, hydrated, platformRole, orgId, orgName, creditsUsed, monthlyCreditLimit };
