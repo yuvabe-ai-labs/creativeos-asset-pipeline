@@ -1706,29 +1706,6 @@ preservation slipping).
 `2026-07-26-veo-preservation-first-prompt-design.md`. *(Originally drafted as a clashing D78 on the Veo
 branch; renumbered during the 2026-07-26 three-branch integration — final numbering to confirm on review.)*
 
-### D91 — OpenAI reference images are normalized server-side, never blocked on dimensions *(recorded 2026-07-28)*
-
-**Decision.** For OpenAI image-gen models, aspect-ratio (>3:1), max-edge (3840px), and
-multiple-of-16 constraints are enforced by **auto-correcting the image server-side**
-(center-crop, downscale, round-down) immediately before the `images.edit`/`images.generate`
-call, instead of gating on them in `validateReferenceImages`. Per-image size (50MB) and Gemini's
-aggregate size cap remain hard blocks — no resize fixes an outright-too-large file.
-`background: "transparent"` + `output_format: "jpeg"` (invalid combo — JPEG has no alpha) is
-silently corrected to `output_format: "png"`, same philosophy.
-
-**Why.** Root-caused 27 of 35 staging+prod OpenAI image-gen failures
-(`generations.status='failed'`) to a leaky validation gate: `validate.ts` skips its
-dimension checks whenever image metadata wasn't backfilled, which happens routinely on
-multi-reference edits (up to 16 images via `assembleEditReferences`) — so bad-dimension images
-reached OpenAI and failed there with an unactionable error instead of being caught upfront.
-Normalizing unconditionally, right before the provider call, can't be bypassed the way a
-pre-flight metadata-dependent gate can.
-
-**Rejected.** Fixing the validation backfill instead (still leaves a block-the-user UX for a
-problem that's trivially auto-fixable); padding instead of cropping for the aspect-ratio fix
-(adds visible blank space to what OpenAI sees as reference content).
-
-**Originated →** `2026-07-28-openai-image-gen-error-remediation-design.md`.
 ### D81 — Kling O1 params follow the live endpoint, not the 3.0-omni doc table *(recorded 2026-07-27; corrects the O1 row of `2026-07-23-kling-api-correction-design.md` §Per-model settings fields)*
 
 **Decision.** `kling:kling-o1`'s params are pinned to what `POST /omni-video/kling-o1` actually
@@ -1769,6 +1746,30 @@ nodes still generate multi-shot. Neither is changed here.
 **Corrects** the O1 row of `2026-07-23-kling-api-correction-design.md` (which remains authoritative
 for the other four Kling models). **Originated →** live-API debugging, 2026-07-27; official Kling
 docs pasted in by the user (kling.ai returns HTTP 446 to automated fetches).
+
+### D91 — OpenAI reference images are normalized server-side, never blocked on dimensions *(recorded 2026-07-28)*
+
+**Decision.** For OpenAI image-gen models, aspect-ratio (>3:1), max-edge (3840px), and
+multiple-of-16 constraints are enforced by **auto-correcting the image server-side**
+(center-crop, downscale, round-down) immediately before the `images.edit`/`images.generate`
+call, instead of gating on them in `validateReferenceImages`. Per-image size (50MB) and Gemini's
+aggregate size cap remain hard blocks — no resize fixes an outright-too-large file.
+`background: "transparent"` + `output_format: "jpeg"` (invalid combo — JPEG has no alpha) is
+silently corrected to `output_format: "png"`, same philosophy.
+
+**Why.** Root-caused 27 of 35 staging+prod OpenAI image-gen failures
+(`generations.status='failed'`) to a leaky validation gate: `validate.ts` skips its
+dimension checks whenever image metadata wasn't backfilled, which happens routinely on
+multi-reference edits (up to 16 images via `assembleEditReferences`) — so bad-dimension images
+reached OpenAI and failed there with an unactionable error instead of being caught upfront.
+Normalizing unconditionally, right before the provider call, can't be bypassed the way a
+pre-flight metadata-dependent gate can.
+
+**Rejected.** Fixing the validation backfill instead (still leaves a block-the-user UX for a
+problem that's trivially auto-fixable); padding instead of cropping for the aspect-ratio fix
+(adds visible blank space to what OpenAI sees as reference content).
+
+**Originated →** `2026-07-28-openai-image-gen-error-remediation-design.md`.
 
 ### Parked / out-of-scope (with revisit triggers)
 | Item | Status | Revisit when |

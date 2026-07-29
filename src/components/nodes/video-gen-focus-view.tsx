@@ -29,6 +29,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { EditableField } from "./editable-field";
+import { GenerationErrorBadge } from "./generation-error-badge";
 import { normalizeTitle } from "@/lib/nodes/title";
 import { Button } from "@/components/ui/button";
 import {
@@ -833,9 +834,9 @@ export function VideoGenFocusView({
                   </Tooltip>
                 </div>
                 {lastError && !isGenerating && (
-                  <p className="text-xs text-destructive">
-                    Last attempt failed: {lastError}
-                  </p>
+                  <div className="mt-1">
+                    <GenerationErrorBadge error={lastError} />
+                  </div>
                 )}
               </div>
             </header>

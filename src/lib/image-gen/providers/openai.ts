@@ -1,4 +1,5 @@
 import "server-only";
+import sharp from "sharp";
 import { createOpenAI } from "@/lib/openai/server";
 import { buildZodFromParams } from "../schema-builder";
 import { gptImage2Params, gptImage1Params, gptImage1MiniParams } from "../params/openai";
@@ -21,13 +22,95 @@ const TOKEN_COUNTING_MODEL = "gpt-5.4-mini";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-async function urlToFile(url: string): Promise<File> {
+async function urlToFile(url: string): Promise<{ file: File; width: number; height: number }> {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Failed to fetch reference image (${res.status}): ${url}`);
-  const buffer = await res.arrayBuffer();
-  const contentType = res.headers.get("content-type") ?? "image/png";
-  const ext = contentType.includes("jpeg") ? "jpg" : contentType.includes("webp") ? "webp" : "png";
-  return new File([buffer], `reference.${ext}`, { type: contentType });
+  const buffer = Buffer.from(await res.arrayBuffer());
+  const normalized = await normalizeReferenceImageForOpenAI(buffer);
+  // Detect format from the re-encoded bytes, not the (sometimes wrong/generic) response
+  // content-type header — normalizeReferenceImageForOpenAI always re-encodes to png/jpeg/webp.
+  const meta = await sharp(normalized).metadata();
+  const ext = meta.format === "jpeg" ? "jpg" : meta.format === "webp" ? "webp" : "png";
+  const contentType = ext === "jpg" ? "image/jpeg" : ext === "webp" ? "image/webp" : "image/png";
+  return {
+    file: new File([new Uint8Array(normalized)], `reference.${ext}`, { type: contentType }),
+    width: meta.width ?? 0,
+    height: meta.height ?? 0,
+  };
+}
+
+// Mirrors the maxAspectRatio/maxImageEdgePx/minDimensionMultiple values declared on all three
+// OpenAI model configs below — kept as separate constants because this runs before a specific
+// model is known to urlToFile's caller chain, not because the values are expected to diverge.
+const MAX_ASPECT_RATIO = 3.0;
+const MAX_EDGE_PX = 3840;
+const DIMENSION_MULTIPLE = 16;
+
+function floorToMultiple(value: number, multiple: number): number {
+  return Math.max(multiple, Math.floor(value / multiple) * multiple);
+}
+
+// Guarantees every reference image sent to OpenAI satisfies its aspect-ratio, max-edge, and
+// multiple-of-16 dimension requirements — unconditionally, so it can't be bypassed the way
+// pre-flight validation can be when dimension metadata isn't known (see ADR D91).
+export async function normalizeReferenceImageForOpenAI(buffer: Buffer): Promise<Buffer> {
+  const meta = await sharp(buffer).metadata();
+  // EXIF orientation 5-8 means a 90°/270° rotation is applied on display — the image's LOGICAL
+  // width/height (what our crop/downscale/round math must reason about) are swapped relative to
+  // the physical pixel dimensions sharp reports by default.
+  const swapsDimensions = meta.orientation !== undefined && meta.orientation >= 5;
+  let width = (swapsDimensions ? meta.height : meta.width) ?? 0;
+  let height = (swapsDimensions ? meta.width : meta.height) ?? 0;
+  if (width === 0 || height === 0) return buffer;
+
+  // .rotate() with no args auto-orients from the EXIF tag and bakes the rotation into the
+  // pixels, then strips the tag — so the output is correctly oriented with no dangling metadata.
+  let pipeline = sharp(buffer).rotate();
+
+  const long = Math.max(width, height);
+  const short = Math.min(width, height);
+  if (long / short > MAX_ASPECT_RATIO) {
+    const newLong = Math.round(short * MAX_ASPECT_RATIO);
+    if (width >= height) {
+      pipeline = pipeline.extract({ left: Math.floor((width - newLong) / 2), top: 0, width: newLong, height });
+      width = newLong;
+    } else {
+      pipeline = pipeline.extract({ left: 0, top: Math.floor((height - newLong) / 2), width, height: newLong });
+      height = newLong;
+    }
+  }
+
+  const maxEdge = Math.max(width, height);
+  const scale = maxEdge > MAX_EDGE_PX ? MAX_EDGE_PX / maxEdge : 1;
+  const scaledWidth = Math.round(width * scale);
+  const scaledHeight = Math.round(height * scale);
+
+  // Floor the short side first, then cap the long side at shortFinal * MAX_ASPECT_RATIO —
+  // flooring both sides independently can push the ratio above MAX_ASPECT_RATIO even when the
+  // pre-rounding ratio was exactly at the limit (a 16px loss is a much bigger relative change
+  // on the short side than the long side).
+  const isWidthLong = scaledWidth >= scaledHeight;
+  const scaledLong = isWidthLong ? scaledWidth : scaledHeight;
+  const scaledShort = isWidthLong ? scaledHeight : scaledWidth;
+
+  const shortFinal = floorToMultiple(scaledShort, DIMENSION_MULTIPLE);
+  const maxLongAllowed = shortFinal * MAX_ASPECT_RATIO;
+  const longFinal = Math.min(floorToMultiple(scaledLong, DIMENSION_MULTIPLE), maxLongAllowed);
+
+  const finalWidth = isWidthLong ? longFinal : shortFinal;
+  const finalHeight = isWidthLong ? shortFinal : longFinal;
+
+  if (finalWidth !== width || finalHeight !== height) {
+    pipeline = pipeline.resize({ width: finalWidth, height: finalHeight, fit: "fill" });
+  }
+
+  pipeline =
+    meta.hasAlpha ? pipeline.png()
+    : meta.format === "webp" ? pipeline.webp()
+    : meta.format === "jpeg" ? pipeline.jpeg()
+    : pipeline.png();
+
+  return pipeline.toBuffer();
 }
 
 // ── Aspect ratio → pixel size mapping ────────────────────────────────────────
@@ -47,14 +130,27 @@ export function aspectRatioToOpenAISize(ratio: string): string {
   return ASPECT_RATIO_TO_OPENAI_SIZE[ratio] ?? "1024x1024";
 }
 
-// Build the OpenAI edit `mask` File from the base64 the client painted. Returns undefined when
-// no mask was sent (whole-image edit). The mask's transparent pixels mark the editable region.
-export function maskFileFromInput(
+// Build the OpenAI edit `mask` File from the base64 the client painted, resized (if needed) to
+// match the base image's final dimensions — OpenAI requires the mask and the first image to be
+// the same size, and normalizeReferenceImageForOpenAI can change the base image's dimensions
+// (see ADR D91). Returns undefined when no mask was sent (whole-image edit).
+export async function maskFileFromInput(
   input: Pick<ImageGenInput, "maskBase64" | "maskMime">,
-): File | undefined {
+  targetDimensions?: { width: number; height: number },
+): Promise<File | undefined> {
   if (!input.maskBase64) return undefined;
   const mime = input.maskMime ?? "image/png";
-  return new File([Buffer.from(input.maskBase64, "base64")], "mask.png", { type: mime });
+  let bytes = Buffer.from(input.maskBase64, "base64");
+  if (targetDimensions) {
+    const meta = await sharp(bytes).metadata();
+    if (meta.width !== targetDimensions.width || meta.height !== targetDimensions.height) {
+      bytes = await sharp(bytes)
+        .resize({ width: targetDimensions.width, height: targetDimensions.height, fit: "fill" })
+        .png()
+        .toBuffer();
+    }
+  }
+  return new File([new Uint8Array(bytes)], "mask.png", { type: mime });
 }
 
 // ── Generate function ─────────────────────────────────────────────────────────
@@ -102,8 +198,12 @@ export async function generateWithOpenAI(
   let response: any;
 
   if (input.referenceUrls.length > 0) {
-    const imageFiles = await Promise.all(input.referenceUrls.map(urlToFile));
-    const mask = maskFileFromInput(input);
+    const referenceFiles = await Promise.all(input.referenceUrls.map(urlToFile));
+    const imageFiles = referenceFiles.map((r) => r.file);
+    // The mask is painted client-side at the base image's original size, before this
+    // normalization pass can change it — resize the mask to match so it still satisfies
+    // OpenAI's "mask must match the first image's dimensions" requirement (see ADR D91).
+    const mask = await maskFileFromInput(input, referenceFiles[0]);
     response = await openai.images.edit({
       ...sharedParams,
       prompt: input.prompt,
@@ -125,8 +225,8 @@ export async function generateWithOpenAI(
   return {
     imageBase64: b64,
     mimeType:
-      p.output_format === "jpeg" ? "image/jpeg"
-      : p.output_format === "webp" ? "image/webp"
+      sharedParams.output_format === "jpeg" ? "image/jpeg"
+      : sharedParams.output_format === "webp" ? "image/webp"
       : "image/png",
     tokensUsed: {
       text_input_tokens:   usage?.input_tokens_details?.text_tokens  ?? usage?.input_tokens  ?? 0,
