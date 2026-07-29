@@ -16,6 +16,8 @@ import { ImageGenFocusView } from "./image-gen-focus-view";
 import { ProcessingPill } from "./processing-pill";
 import { ApprovalBadge } from "./approval-badge";
 import type { ApprovalStatus } from "@/lib/approval";
+import { useNodeCost } from "@/hooks/use-node-cost";
+import { NodeCreditsFooter } from "./node-credits-footer";
 
 export function ImageGenNode({ id, data, selected, positionAbsoluteX, positionAbsoluteY }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
@@ -77,6 +79,7 @@ export function ImageGenNode({ id, data, selected, positionAbsoluteX, positionAb
   const imageUrl = (d.parsed ?? null) as string | null;
   // D29: active version's approval status (present once a version exists).
   const approvalStatus = (d as { approvalStatus?: ApprovalStatus }).approvalStatus;
+  const totalCredits = useNodeCost(id);
   const [focusOpen, setFocusOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -161,6 +164,7 @@ export function ImageGenNode({ id, data, selected, positionAbsoluteX, positionAb
           </div>
         </div>
 
+        <NodeCreditsFooter totalCredits={totalCredits} hasOutput={Boolean(imageUrl)} />
 
         <Handle
           type="target"

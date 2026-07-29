@@ -26,6 +26,7 @@ import { GuidedNextButton } from "@/components/canvas/guided-next-button";
 import { SliceToggles } from "./slice-toggles";
 import { DEFAULT_MOTION_INSTRUCTION } from "@/lib/nodes/video-prompt";
 import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
+import { EstimatedCreditsLabel } from "./estimated-credits-label";
 import { estimatePromptCredits } from "@/lib/credits/prompt-estimate";
 import type { KBSliceKey } from "@/lib/kb/parse-context";
 import { CameraSelect } from "./camera-select";
@@ -45,6 +46,7 @@ import {
 import { AddConnection } from "./add-connection";
 import type { VersionSummary } from "./prompt-version-history";
 import { UsagePopover } from "./prompt-usage-popover";
+import { Skeleton } from "@/components/ui/skeleton";
 import { InlineEvalBar } from "./inline-eval-bar";
 import { InlineApprovalBar } from "./inline-approval-bar";
 import { ModelRequestPanel } from "./model-request-panel";
@@ -111,6 +113,7 @@ export function VideoPromptFocusView({
   const [activeVersionId, setActiveVersionId] = useState<string | null>(null);
   const [restoring, setRestoring] = useState(false);
   const [loadingPreview, setLoadingPreview] = useState(false);
+  const [loadingVersions, setLoadingVersions] = useState(false);
   // The selected rail item: "prompt" (the compose editor), "details", "request", or a
   // connected node's id (right pane shows that node's read-only detail).
   const [selected, setSelected] = useState<string>("prompt");
@@ -141,6 +144,7 @@ export function VideoPromptFocusView({
     // regenerate/restore/save would strand them `true` forever.
     if (opening) {
       setLoadingPreview(true);
+      setLoadingVersions(true);
     }
   }
 
@@ -229,6 +233,8 @@ export function VideoPromptFocusView({
         }
       } catch {
         /* best-effort */
+      } finally {
+        if (!cancelled) setLoadingVersions(false);
       }
     })();
 
@@ -431,7 +437,14 @@ export function VideoPromptFocusView({
               </div>
 
               <div className="flex shrink-0 items-center gap-2">
-                {versions.length > 0 && <UsagePopover versions={versions} />}
+                {/* Usage popover needs versions, which are still loading right after the
+                    sheet opens — reserve its space with a skeleton instead of popping it
+                    in once the fetch resolves. */}
+                {loadingVersions ? (
+                  <Skeleton className="h-8 w-20 rounded-md" />
+                ) : (
+                  versions.length > 0 && <UsagePopover versions={versions} />
+                )}
                 <GuidedNextButton
                   sourceId={nodeId}
                   variant="button"
@@ -583,7 +596,7 @@ export function VideoPromptFocusView({
                     >
                       <Clapperboard className="size-4" />
                       {generating ? "Generating…" : output ? "Re-generate" : "Generate motion prompt"}
-                      {!generating && ` · ${estimatedCredits}`}
+                      {!generating && <EstimatedCreditsLabel credits={estimatedCredits} />}
                     </Button>
                   </div>
                 </div>

@@ -2,6 +2,7 @@
 
 import { ReceiptText } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export type UsageRow = {
   label: string;   // e.g. "v1", "v2"
@@ -22,6 +23,7 @@ export function UsagePopoverShell({
   overallRows,
   totalCredits,
   pipelineTotalCredits,
+  pipelineLoading,
 }: {
   rows: UsageRow[];
   /** Extra key/value rows shown in the Overall section (e.g. token counts). */
@@ -30,6 +32,9 @@ export function UsagePopoverShell({
   totalCredits: string;
   /** Full upstream pipeline total (this node + all connected upstream nodes), in credits. */
   pipelineTotalCredits?: string;
+  /** True while a pipeline total is expected but hasn't loaded yet — shows a skeleton
+   * instead of flashing this node's own (smaller, wrong) total first. */
+  pipelineLoading?: boolean;
 }) {
   return (
     <Popover>
@@ -65,10 +70,17 @@ export function UsagePopoverShell({
               <div className="pt-0.5">
                 {/* pipelineTotalCredits (this node + upstream) is always >= totalCredits
                     (this node alone) when both are known — show only the larger, more
-                    complete figure instead of two near-identical numbers stacked. */}
-                <p className="text-sm font-semibold text-foreground">
-                  {pipelineTotalCredits ?? totalCredits}
-                </p>
+                    complete figure instead of two near-identical numbers stacked. While a
+                    pipeline total is expected but still loading, show a skeleton instead of
+                    totalCredits — falling back to it flashed the wrong (smaller) number
+                    before the real total arrived a moment later. */}
+                {pipelineLoading ? (
+                  <Skeleton className="h-5 w-24" />
+                ) : (
+                  <p className="text-sm font-semibold text-foreground">
+                    {pipelineTotalCredits ?? totalCredits}
+                  </p>
+                )}
               </div>
             </div>
 

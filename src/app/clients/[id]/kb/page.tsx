@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getClientBySlug } from "@/lib/db/clients";
+import { resolveCallerContext } from "@/lib/dal";
 import {
   listKBDocuments,
   listBrandImages,
@@ -28,8 +29,11 @@ export default async function KBPage({
 }) {
   const { id } = await params;
   const client = await getClientBySlug(id);
+  const caller = await resolveCallerContext();
 
-  if (!client) {
+  // Org isolation: a client outside the caller's org redirects the same as a
+  // nonexistent one — see the note in ../page.tsx.
+  if (!client || client.org_id !== caller.orgId) {
     redirect("/");
   }
 
