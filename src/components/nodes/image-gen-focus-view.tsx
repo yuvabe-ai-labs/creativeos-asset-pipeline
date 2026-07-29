@@ -200,6 +200,13 @@ export function ImageGenFocusView({
   // true means the button is disabled from the very first paint; the effect corrects it to
   // false quickly if no estimate is actually needed (e.g. no prompt connected yet).
   const [estimating, setEstimating] = useState(true);
+  // Edit tab's own estimate — separate state from estimatedCredits/estimating above so the
+  // two tabs' debounced effects never race each other's setState calls. Starts true for the
+  // same reason as the Generate estimate above: the Edit button's disabled state is wired to
+  // "estimating" too, so starting false would let it render briefly enabled/uncosted before
+  // the first debounced effect pass corrects it.
+  const [editEstimatedCredits, setEditEstimatedCredits] = useState<number | null>(null);
+  const [editEstimating, setEditEstimating] = useState(true);
   const [loadingVersions, setLoadingVersions] = useState(false);
   const [loadingPreview, setLoadingPreview] = useState(false);
   // The selected rail item: "image" (the hero pane), "history", "details", or a
@@ -483,6 +490,73 @@ export function ImageGenFocusView({
   const referenceWarning =
     (intent === "replace" || intent === "add") && !hasExtraReference;
   const suggestGemini = model.provider !== "gemini";
+
+  const editReferenceUrlsKey = JSON.stringify([editBaseUrl, ...selectedExtraUrls]);
+
+  // Debounced pre-generation cost estimate for the Edit tab — same 300ms-debounce shape as
+  // the Generate tab's estimate above, but keyed off the edit flow's own inputs (the same
+  // prompt/references handleEdit() itself sends), since editing reserves and charges credits
+  // the same way generating does. Reference-URL approximation matches the Generate estimate's
+  // own precedent: this passes the raw base+extras list, not assembleEditReferences()'s
+  // post-max-count/dedup list the real route actually reserves against — an existing,
+  // accepted gap between estimate and reservation, kept consistent rather than special-cased.
+  useEffect(() => {
+    if (!open || activeTab !== "edit" || !canEditBase || !finalPrompt.trim()) {
+      setEditEstimatedCredits(null);
+      setEditEstimating(false);
+      return;
+    }
+    let cancelled = false;
+    setEditEstimating(true);
+    const referenceUrls = [editBaseUrl, ...selectedExtraUrls].filter(
+      (u): u is string => Boolean(u),
+    );
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/nodes/${nodeId}/image-generate/estimate`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            modelId: model.id,
+            quality: paramValues.quality,
+            aspect_ratio: paramValues.aspect_ratio,
+            image_size: paramValues.image_size,
+            prompt: finalPrompt,
+            referenceUrls,
+          }),
+        });
+        const json = (await res.json()) as { estimatedCredits: number | null };
+        if (cancelled) return;
+        if (res.ok) {
+          setEditEstimatedCredits(json.estimatedCredits);
+        } else {
+          setEditEstimatedCredits(null);
+        }
+      } catch {
+        if (!cancelled) setEditEstimatedCredits(null);
+      } finally {
+        if (!cancelled) setEditEstimating(false);
+      }
+    }, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+    // paramValues (an object) goes in via JSON.stringify, same reason as the Generate
+    // estimate effect above — a stable primitive stand-in avoids re-firing on renders that
+    // don't actually change its contents. finalPrompt is already a string primitive, so it's
+    // used directly with no stand-in needed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    open,
+    activeTab,
+    canEditBase,
+    selectedModelId,
+    JSON.stringify(paramValues),
+    finalPrompt,
+    editReferenceUrlsKey,
+    nodeId,
+  ]);
 
   const upstreamForCard: UpstreamNode[] = useMemo(
     () =>
@@ -1056,6 +1130,8 @@ export function ImageGenFocusView({
                         onInstructionBlur={handleInstructionBlur}
                         onFinalPromptChange={setPromptOverride}
                         onEdit={handleEdit}
+                        estimatedCredits={editEstimatedCredits}
+                        estimating={editEstimating}
                       />
                     </>
                   )}
