@@ -17,6 +17,7 @@ import {
 import { toast } from "sonner";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { EditableField } from "./editable-field";
+import { GenerationErrorBadge } from "./generation-error-badge";
 import { MentionInstructionEditor } from "./mention-instruction-editor";
 import { normalizeTitle } from "@/lib/nodes/title";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { GuidedNextButton } from "@/components/canvas/guided-next-button";
 import { SliceToggles } from "./slice-toggles";
 import { DEFAULT_MOTION_INSTRUCTION } from "@/lib/nodes/video-prompt";
+import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
+import { EstimatedCreditsLabel } from "./estimated-credits-label";
+import { estimatePromptCredits } from "@/lib/credits/prompt-estimate";
+import { isVisionAttachment } from "@/lib/nodes/compose-message";
 import type { KBSliceKey } from "@/lib/kb/parse-context";
 import { CameraSelect } from "./camera-select";
 import { SpeedSelect } from "./speed-select";
@@ -94,6 +99,7 @@ export function VideoPromptFocusView({
   // on every keystroke. Local state updates synchronously, so the caret is kept.
   const [instructionDraft, setInstructionDraft] = useState(instruction);
   const [generating, setGenerating] = useState(false);
+  const [lastError, setLastError] = useState<string | null>(null);
   const [preview, setPreview] = useState<{ ambient: string; connected: ConnectedPreview[] }>({
     ambient: "",
     connected: [],
@@ -131,10 +137,10 @@ export function VideoPromptFocusView({
     // on the echo of our own per-keystroke write-through (that would re-introduce the
     // caret jump this buffer exists to prevent).
     if (opening || nodeChanged) setInstructionDraft(instruction);
-    // Re-arm the left-panel skeletons ONLY on the open transition. The effect
+    // Re-arm the left-panel skeleton ONLY on the open transition. The effect
     // below (keyed on [open, nodeId, slices]) is the sole thing that clears
-    // them, and it does not re-run on output change — so re-arming here on a
-    // regenerate/restore/save would strand them `true` forever.
+    // it, and it does not re-run on output change — so re-arming here on a
+    // regenerate/restore/save would strand it `true` forever.
     if (opening) {
       setLoadingPreview(true);
     }
@@ -148,6 +154,10 @@ export function VideoPromptFocusView({
 
   // The Image Gen still the motion prompt is grounded on (vision frame).
   const visionFrame = upstream.find((u) => u.type === "image-gen" && !!u.fileUrl) ?? null;
+
+  // Mirrors the image Prompt node's Generate button (prompt-focus-view.tsx) — same
+  // estimatePromptCredits heuristic, folded into the button label below.
+  const estimatedCredits = estimatePromptCredits(upstream.filter(isVisionAttachment).length);
 
   // D77: connected downstream Video Gen nodes are the single source of truth for the target
   // provider. None connected → the node's own selector value governs; multiple with differing
@@ -300,6 +310,7 @@ export function VideoPromptFocusView({
 
   async function runGenerate() {
     setGenerating(true);
+    setLastError(null);
     setEvalDecision(null);
     setEvalNote("");
     try {
@@ -314,13 +325,17 @@ export function VideoPromptFocusView({
         }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Generation failed");
+      if (!res.ok) {
+        throw new Error(res.status === 402 ? CREDIT_LIMIT_TOAST_MESSAGE : json.error ?? "Generation failed");
+      }
       onPatch({ parsed: json.output });
       setActiveVersionId(json.versionId ?? null);
       await fetchVersions();
       toast.success("Motion prompt generated");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Generation failed");
+      const message = e instanceof Error ? e.message : "Generation failed";
+      setLastError(message);
+      toast.error(message);
       await fetchVersions();
     } finally {
       setGenerating(false);
@@ -393,11 +408,6 @@ export function VideoPromptFocusView({
         showCloseButton={false}
         className="gap-0 overflow-hidden rounded-t-2xl bg-background data-[side=bottom]:h-[92vh]"
       >
-        {/* Drag handle */}
-        <div className="flex shrink-0 justify-center pt-3">
-          <div className="h-1.5 w-12 rounded-full bg-border" />
-        </div>
-
         {/* Header */}
         <div className="shrink-0 border-b">
           <div className="mx-auto w-full max-w-6xl px-6 pb-5 pt-3">
@@ -431,6 +441,11 @@ export function VideoPromptFocusView({
                 />
               </div>
             </header>
+            {lastError && !generating && (
+              <div className="mt-2">
+                <GenerationErrorBadge error={lastError} />
+              </div>
+            )}
           </div>
         </div>
 
@@ -570,6 +585,7 @@ export function VideoPromptFocusView({
                     >
                       <Clapperboard className="size-4" />
                       {generating ? "Generating…" : output ? "Re-generate" : "Generate motion prompt"}
+                      {!generating && <EstimatedCreditsLabel credits={estimatedCredits} />}
                     </Button>
                   </div>
                 </div>

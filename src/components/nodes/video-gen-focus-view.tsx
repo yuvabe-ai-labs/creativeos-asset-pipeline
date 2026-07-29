@@ -29,6 +29,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { EditableField } from "./editable-field";
+import { GenerationErrorBadge } from "./generation-error-badge";
 import { normalizeTitle } from "@/lib/nodes/title";
 import { Button } from "@/components/ui/button";
 import {
@@ -42,6 +43,11 @@ import {
   evaluateConstraints,
 } from "@/lib/video-gen/constraints";
 import { videoGenApi } from "@/lib/video-gen/api";
+import { VideoGenApiError } from "@/lib/video-gen/api";
+import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
+import { computeVideoCost, isVideoAudioEnabled, asResolutionString } from "@/lib/video-gen/cost";
+import { usdToFinalCredits } from "@/lib/credits/units";
+import { EstimatedCreditsLabel } from "./estimated-credits-label";
 import { createBrowserSupabase } from "@/lib/supabase/client";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
@@ -51,6 +57,7 @@ import {
   type VideoGenVersionSummary,
 } from "./video-gen-version-history";
 import { VideoGenUsagePopover } from "./video-gen-usage-popover";
+import { Skeleton } from "@/components/ui/skeleton";
 import { VideoGenParamsPanel, hasParamsInGroup } from "./video-gen-params-panel";
 import { VideoGenConnectedSection } from "./video-gen-connected-section";
 import { RailItem } from "./focus-rail-item";
@@ -410,7 +417,7 @@ export function VideoGenFocusView({
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle()
-      .then(({ data }) => {
+      .then(({ data }: { data: unknown }) => {
         const row = data as { status: string; error: string | null } | null;
         if (!row) return;
         if (row.status === "succeeded" || row.status === "failed") {
@@ -637,9 +644,14 @@ export function VideoGenFocusView({
       // 202 Accepted — hook's Realtime subscription clears isGenerating on completion
     } catch (e) {
       setGenerating(false);
-      const msg = e instanceof Error ? e.message : "Generation failed";
+      const msg =
+        e instanceof VideoGenApiError && e.status === 402
+          ? CREDIT_LIMIT_TOAST_MESSAGE
+          : e instanceof Error
+            ? e.message
+            : "Generation failed";
       setLastError(msg);
-      toast.error(msg);
+      toast.error(msg, { duration: 6000 });
     }
   }
 
@@ -665,6 +677,12 @@ export function VideoGenFocusView({
     endFrame: false,
     maxReferenceImages: 0,
   };
+
+  const durationSeconds = Number(params.seconds ?? params.duration ?? 0);
+  const audioEnabled = isVideoAudioEnabled(params.audio);
+  const resolution = asResolutionString(params.resolution);
+  const videoCostEstimate = computeVideoCost(modelId, durationSeconds, audioEnabled, resolution);
+  const estimatedCredits = videoCostEstimate ? usdToFinalCredits(videoCostEstimate.usd) : null;
 
   // Filter out roles that are invalid for the current model — handles the timing gap
   // between setModelId (local, immediate) and imageRolesProp update (from parent, async).
@@ -739,11 +757,6 @@ export function VideoGenFocusView({
         showCloseButton={false}
         className="gap-0 overflow-hidden rounded-t-2xl bg-background data-[side=bottom]:h-[92vh]"
       >
-        {/* Drag handle */}
-        <div className="flex shrink-0 justify-center pt-3">
-          <div className="h-1.5 w-12 rounded-full bg-border" />
-        </div>
-
         {/* Header */}
         <div className="shrink-0 border-b">
           <div className="mx-auto w-full max-w-7xl px-6 pb-5 pt-3">
@@ -767,15 +780,22 @@ export function VideoGenFocusView({
               </div>
               <div className="flex shrink-0 flex-col items-end gap-2">
                 <div className="flex items-center gap-2">
-                  {versions.length > 0 && (
-                    <VideoGenUsagePopover
-                      versions={versions}
-                      nodeId={nodeId}
-                      upstreamNodeIds={[
-                        ...(promptNode ? [promptNode.id] : []),
-                        ...upstreamImages.map((u) => u.id),
-                      ]}
-                    />
+                  {/* Usage popover needs versions, which are still loading right after the
+                      sheet opens — reserve its space with a skeleton instead of popping it
+                      in once the fetch resolves. */}
+                  {loadingVersions ? (
+                    <Skeleton className="h-8 w-20 rounded-md" />
+                  ) : (
+                    versions.length > 0 && (
+                      <VideoGenUsagePopover
+                        versions={versions}
+                        nodeId={nodeId}
+                        upstreamNodeIds={[
+                          ...(promptNode ? [promptNode.id] : []),
+                          ...upstreamImages.map((u) => u.id),
+                        ]}
+                      />
+                    )
                   )}
                   <Tooltip>
                     <TooltipTrigger render={<span />}>
@@ -796,6 +816,9 @@ export function VideoGenFocusView({
                           : videoUrl
                             ? "Re-generate"
                             : "Generate"}
+                        {!isGenerating && estimatedCredits !== null && (
+                          <EstimatedCreditsLabel credits={estimatedCredits} />
+                        )}
                       </Button>
                     </TooltipTrigger>
                     {(constraints.disableGenerate && constraints.disableGenerateReason) ? (
@@ -811,9 +834,9 @@ export function VideoGenFocusView({
                   </Tooltip>
                 </div>
                 {lastError && !isGenerating && (
-                  <p className="text-xs text-destructive">
-                    Last attempt failed: {lastError}
-                  </p>
+                  <div className="mt-1">
+                    <GenerationErrorBadge error={lastError} />
+                  </div>
                 )}
               </div>
             </header>

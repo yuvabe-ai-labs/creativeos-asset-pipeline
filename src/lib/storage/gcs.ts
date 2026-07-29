@@ -51,6 +51,27 @@ export async function _put(
   });
 }
 
+// V4 signed URL authorizing a single direct browser → GCS upload (HTTP PUT).
+// The browser sends the bytes straight to GCS, bypassing the Vercel Function's
+// 4.5 MB request-body limit. The signature pins the exact path and Content-Type,
+// so a client cannot upload elsewhere or with a different type; it expires fast.
+export async function _signPutUrl(
+  path: string,
+  contentType: string,
+  expiresMs = 5 * 60 * 1000,
+): Promise<string> {
+  const [url] = await getStorage()
+    .bucket(getBucketName())
+    .file(path)
+    .getSignedUrl({
+      version: "v4",
+      action: "write",
+      expires: Date.now() + expiresMs,
+      contentType,
+    });
+  return url;
+}
+
 export async function _remove(path: string): Promise<void> {
   await getStorage()
     .bucket(getBucketName())

@@ -1,8 +1,6 @@
 "use client";
 
 import { useMemo } from "react";
-import { computeVideoCost, isVideoAudioEnabled, asResolutionString } from "@/lib/video-gen/cost";
-import { USD_TO_INR } from "@/lib/pricing";
 import type { VideoGenVersionSummary } from "./video-gen-version-history";
 import { UsagePopoverShell, type UsageRow } from "./usage-popover-shell";
 import { formatRelativeTime } from "@/lib/format/relative-time";
@@ -18,15 +16,13 @@ type GenStat = {
   vNum: number;
   createdAt: string;
   durationSeconds: number;
-  costUsd: number;
-  costInr: number;
+  creditsCharged: number | null;
   modelLabel: string;
 };
 
 export function VideoGenUsagePopover({ versions, nodeId, upstreamNodeIds }: Props) {
-  const { totals, perGen } = useMemo(() => {
-    let totalUsd = 0;
-    let counted = 0;
+  const { totalCredits, perGen } = useMemo(() => {
+    let totalCredits = 0;
     const perGen: GenStat[] = [];
 
     const ordered = [...versions].reverse();
@@ -35,48 +31,41 @@ export function VideoGenUsagePopover({ versions, nodeId, upstreamNodeIds }: Prop
       const duration = Number(
         v.paramsUsed?.durationSeconds ?? v.paramsUsed?.duration ?? v.paramsUsed?.seconds ?? 5,
       );
-      const audio = isVideoAudioEnabled(v.paramsUsed?.audio);
-      const resolution = asResolutionString(v.paramsUsed?.resolution);
-      const cost = computeVideoCost(v.modelUsed, duration, audio, resolution);
-      if (!cost) return;
-      totalUsd += cost.usd;
-      counted++;
+      if (v.creditsCharged !== null && v.creditsCharged !== undefined) {
+        totalCredits += v.creditsCharged;
+      }
       perGen.push({
         vNum: i + 1,
         createdAt: v.createdAt,
         durationSeconds: duration,
-        costUsd: cost.usd,
-        costInr: cost.inr,
+        creditsCharged: v.creditsCharged ?? null,
         modelLabel: v.modelUsed.split(":")[1] ?? v.modelUsed,
       });
     });
 
-    return {
-      totals: { totalUsd, totalInr: totalUsd * USD_TO_INR, counted },
-      perGen: perGen.reverse(),
-    };
+    return { totalCredits, perGen: perGen.reverse() };
   }, [versions]);
 
-  const pipelineInr = useNodeCost(nodeId, upstreamNodeIds);
+  const hasUpstream = Boolean(upstreamNodeIds && upstreamNodeIds.length > 0);
+  const pipelineTotalCredits = useNodeCost(nodeId, upstreamNodeIds);
 
   const rows: UsageRow[] = perGen.map((g) => ({
     label: `v${g.vNum}`,
     time: formatRelativeTime(g.createdAt),
     meta: `${g.durationSeconds}s · ${g.modelLabel}`,
-    costUsd: `$${g.costUsd.toFixed(4)}`,
-    costInr: `₹${g.costInr.toFixed(2)}`,
+    credits: g.creditsCharged !== null ? g.creditsCharged.toLocaleString() : "—",
   }));
 
   return (
     <UsagePopoverShell
       rows={rows}
-      totalCostUsd={`$${totals.totalUsd.toFixed(4)}`}
-      totalCostInr={`₹${totals.totalInr.toFixed(2)}`}
-      pipelineTotalInr={
-        pipelineInr !== null && upstreamNodeIds && upstreamNodeIds.length > 0
-          ? `₹${pipelineInr.toFixed(2)}`
+      totalCredits={`${totalCredits.toLocaleString()} credits`}
+      pipelineTotalCredits={
+        pipelineTotalCredits !== null && hasUpstream
+          ? `${pipelineTotalCredits.toLocaleString()} credits`
           : undefined
       }
+      pipelineLoading={hasUpstream && pipelineTotalCredits === null}
     />
   );
 }

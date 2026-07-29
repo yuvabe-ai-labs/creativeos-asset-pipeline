@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ImageIcon } from "lucide-react";
 import { createClientAction } from "@/lib/actions/clients";
+import { uploadViaSignedUrl } from "@/lib/uploads/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -54,11 +55,9 @@ export function NewClientDialog() {
         const client = await createClientAction({ name: name.trim() });
         // Upload logo in background — do not block closing the dialog
         if (logo) {
-          const formData = new FormData();
-          formData.append("file", logo.file);
-          fetch(`/api/clients/${client.id}/logo`, {
-            method: "POST",
-            body: formData,
+          void uploadViaSignedUrl(logo.file, {
+            signEndpoint: `/api/clients/${client.id}/logo/sign`,
+            finalizeEndpoint: `/api/clients/${client.id}/logo/finalize`,
           }).catch(() => {
             // Non-critical: logo upload failure shows a separate toast if desired
           });

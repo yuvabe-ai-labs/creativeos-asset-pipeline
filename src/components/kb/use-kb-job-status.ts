@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createBrowserSupabase } from "@/lib/supabase/client";
 import type { ClientKBJobRow } from "@/lib/db/types";
+import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 
 export function useKBJobStatus(
   clientId: string,
@@ -22,7 +23,7 @@ export function useKBJobStatus(
           table: "client_kb_jobs",
           filter: `client_id=eq.${clientId}`,
         },
-        (payload) => {
+        (payload: RealtimePostgresChangesPayload<ClientKBJobRow>) => {
           const next = payload.new as ClientKBJobRow | undefined;
           if (next) setJob(next);
         },

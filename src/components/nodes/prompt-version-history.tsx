@@ -22,6 +22,8 @@ export type VersionSummary = {
   approvedAt?: string | null;
   // The exact request this version sent to the model (frozen provenance).
   inputsUsed?: { request?: ModelRequestRecord };
+  // Real settled credits — null for legacy versions predating the credit system.
+  creditsCharged?: number | null;
 };
 
 type PromptVersionHistoryProps = {

@@ -3,6 +3,7 @@ import { mapClientWithCount, type RawClientWithCanvases } from "./client-with-co
 
 const base: RawClientWithCanvases = {
   id: "cl1",
+  org_id: "org-1",
   slug: "acme",
   name: "Acme",
   logo_url: null,

@@ -1,8 +1,17 @@
 # Auth & Multi-Tenancy Design
 **Date:** 2026-07-15
-**Status:** Approved
+**Status:** Approved — **partially superseded, see note below**
 **Supersedes:** D14 (no-auth posture), D29 (localStorage identity)
 **ADR decisions:** D42–D48 (PRD), **D49–D53** (this doc — renumbered 2026-07-16; this spec's original D48–D52 collided with the log's D48, the Drive-gallery hardening from the PRD)
+
+> **2026-07-21 update:** the staged rollout plan (`2026-07-21-auth-staging-rollout-plan.md`,
+> D77–D83) supersedes or refines several sections below: §6 Layer 5 RLS scope (now 5 tables,
+> not 2 — D78), §6 Layer 6 credit cap (now an append-only ledger, not a derived `SUM` — D77),
+> §7 Impersonation (now audited with a read-only default — D81), §10 Seed Script (dropped —
+> D82), and §3's `org_memberships` shape (adds a unique-membership + last-owner-trigger
+> guarantee — D80). The actor model, core data model, DAL shape, and enforcement layers 1–4
+> below are unchanged and still the reference. Treat the rollout plan as authoritative
+> wherever the two disagree.
 
 ---
 

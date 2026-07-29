@@ -1,12 +1,13 @@
 "use client";
 
-import { Sparkles, AlertTriangle } from "lucide-react";
+import { Sparkles, AlertTriangle, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { EditIntent } from "@/lib/image-gen/edit-prompt";
 import { MentionInstructionEditor } from "./mention-instruction-editor";
 import type { UpstreamNode } from "./connected-inputs-card";
+import { EstimatedCreditsLabel } from "./estimated-credits-label";
 
 // Quick-action chips. The instruction is the bare target; the chip's template supplies the
 // verb (remove / replace / add). "modify" shares the change-only template but is a labeled
@@ -40,6 +41,8 @@ export type ImageGenEditPanelProps = {
   onInstructionBlur: () => void;
   onFinalPromptChange: (v: string) => void;
   onEdit: () => void;
+  estimatedCredits: number | null;
+  estimating: boolean;
 };
 
 export function ImageGenEditPanel({
@@ -56,6 +59,8 @@ export function ImageGenEditPanel({
   onInstructionBlur,
   onFinalPromptChange,
   onEdit,
+  estimatedCredits,
+  estimating,
 }: ImageGenEditPanelProps) {
   return (
     <div className="space-y-3 rounded-xl border border-border bg-card p-4 shadow-card">
@@ -115,11 +120,18 @@ export function ImageGenEditPanel({
       </div>
       <Button
         onClick={onEdit}
-        disabled={editing || !canEdit || !finalPrompt.trim()}
+        disabled={editing || !canEdit || !finalPrompt.trim() || estimating}
         className="flex px-14 py-4 text-sm"
       >
-        <Sparkles className="size-4" strokeWidth={1.5} />
+        {estimating ? (
+          <Loader2 className="size-4 animate-spin" strokeWidth={1.5} />
+        ) : (
+          <Sparkles className="size-4" strokeWidth={1.5} />
+        )}
         {editing ? "Editing…" : "Edit image"}
+        {!editing && !estimating && estimatedCredits !== null && (
+          <EstimatedCreditsLabel credits={estimatedCredits} />
+        )}
       </Button>
       {!canEdit && (
         <p className="text-xs text-muted-foreground">

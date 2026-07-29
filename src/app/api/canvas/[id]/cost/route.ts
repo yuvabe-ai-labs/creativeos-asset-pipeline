@@ -1,37 +1,39 @@
 import { createServerSupabase } from "@/lib/supabase/server";
-import { apiError, apiOk } from "@/lib/api/route-helpers";
-import { USD_TO_INR } from "@/lib/pricing";
+import { apiError, apiOk, withCanvas } from "@/lib/api/route-helpers";
 
+// Real settled credits (generations.credits_charged), not a client-recomputed estimate.
+// Legacy generations that predate the credit system have credits_charged = null and simply
+// don't contribute — not backfilled.
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const { id: canvasId } = await params;
+  return withCanvas(params, async (canvasId) => {
+    const supabase = createServerSupabase();
 
-  const supabase = createServerSupabase();
+    const { data: nodes, error: nodesErr } = await supabase
+      .from("nodes")
+      .select("id")
+      .eq("canvas_id", canvasId);
 
-  const { data: nodes, error: nodesErr } = await supabase
-    .from("nodes")
-    .select("id")
-    .eq("canvas_id", canvasId);
+    if (nodesErr) return apiError(nodesErr.message, 500);
+    if (!nodes || nodes.length === 0) return apiOk({ totalCredits: 0 });
 
-  if (nodesErr) return apiError(nodesErr.message, 500);
-  if (!nodes || nodes.length === 0) return apiOk({ totalUsd: 0, totalInr: 0 });
+    const nodeIds = nodes.map((n) => n.id);
 
-  const nodeIds = nodes.map((n) => n.id);
+    const { data, error } = await supabase
+      .from("generations")
+      .select("credits_charged")
+      .in("node_id", nodeIds)
+      .eq("status", "succeeded");
 
-  const { data, error } = await supabase
-    .from("generations")
-    .select("credits_consumed")
-    .in("node_id", nodeIds)
-    .eq("status", "succeeded");
+    if (error) return apiError(error.message, 500);
 
-  if (error) return apiError(error.message, 500);
+    const totalCredits = (data ?? []).reduce(
+      (sum, row) => sum + (row.credits_charged ?? 0),
+      0,
+    );
 
-  const totalUsd = (data ?? []).reduce(
-    (sum, row) => sum + (row.credits_consumed ?? 0),
-    0,
-  );
-
-  return apiOk({ totalUsd, totalInr: totalUsd * USD_TO_INR });
+    return apiOk({ totalCredits });
+  });
 }

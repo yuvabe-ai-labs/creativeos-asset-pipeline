@@ -17,6 +17,8 @@ import { useVideoGenStatus } from "@/hooks/use-video-gen-status";
 import { ProcessingPill } from "./processing-pill";
 import { ApprovalBadge } from "./approval-badge";
 import type { ApprovalStatus } from "@/lib/approval";
+import { useNodeCost } from "@/hooks/use-node-cost";
+import { NodeCreditsFooter } from "./node-credits-footer";
 
 export function VideoGenNode({ id, data, selected, positionAbsoluteX, positionAbsoluteY }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
@@ -35,6 +37,7 @@ export function VideoGenNode({ id, data, selected, positionAbsoluteX, positionAb
   const videoUrl = (d.parsed ?? null) as string | null;
   // D29: active version's approval status (present once a version exists).
   const approvalStatus = (d as { approvalStatus?: ApprovalStatus }).approvalStatus;
+  const totalCredits = useNodeCost(id);
 
   const [focusOpen, setFocusOpen] = useState(false);
   const { isGenerating } = useVideoGenStatus(id);
@@ -131,6 +134,7 @@ export function VideoGenNode({ id, data, selected, positionAbsoluteX, positionAb
           </div>
         </div>
 
+        <NodeCreditsFooter totalCredits={totalCredits} hasOutput={Boolean(videoUrl)} />
 
         {/* Leaf node — only a target handle, no source */}
         <Handle

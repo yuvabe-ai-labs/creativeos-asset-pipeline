@@ -7,6 +7,7 @@ import {
   useCanvasStoreApi,
 } from "@/components/canvas/canvas-store-provider";
 import type { GenerationRow } from "@/lib/db/types";
+import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 
 /**
  * Canvas-level Generation Tray data source. One Realtime channel per canvas on the
@@ -30,7 +31,7 @@ export function useGenerationTray(canvasId: string): void {
       .select("*")
       .in("node_id", nodeIds)
       .order("created_at", { ascending: false })
-      .then(({ data, error }) => {
+      .then(({ data, error }: { data: unknown; error: unknown }) => {
         if (cancelled || error || !data) return;
         setTrayJobs(data as GenerationRow[]);
       });
@@ -47,7 +48,7 @@ export function useGenerationTray(canvasId: string): void {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "generations" },
-        (payload) => {
+        (payload: RealtimePostgresChangesPayload<GenerationRow>) => {
           const row = payload.new as GenerationRow;
           if (!row?.id) return;
           const ids = new Set(storeApi.getState().nodes.map((n) => n.id));

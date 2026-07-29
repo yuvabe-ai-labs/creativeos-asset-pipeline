@@ -20,6 +20,11 @@ type ScriptEmptyStateProps = {
 
 // The focus view's EMPTY state. Upload-first: a dropzone is the main action
 // (uploading fires extraction). Title + brand-context are supporting controls.
+// Script input is plain text only — .pdf/.docx are binary and would be read
+// as garbage, so reject them outright rather than feeding noise to extraction.
+const ACCEPTED_EXT = /\.(md|txt)$/i;
+const ACCEPTED_MIME = new Set(["text/plain", "text/markdown"]);
+
 export function ScriptEmptyState({
   title,
   slices,
@@ -29,9 +34,16 @@ export function ScriptEmptyState({
 }: ScriptEmptyStateProps) {
   const [dragOver, setDragOver] = useState(false);
   const [pasted, setPasted] = useState("");
+  const [error, setError] = useState("");
 
   function readFile(file: File | undefined) {
     if (!file) return;
+    // Client-side guard — script input is limited to plain text/markdown.
+    if (!ACCEPTED_MIME.has(file.type) && !ACCEPTED_EXT.test(file.name)) {
+      setError("Only .md and .txt files are supported — paste the text instead.");
+      return;
+    }
+    setError("");
     const reader = new FileReader();
     reader.onload = () => {
       const text = typeof reader.result === "string" ? reader.result : "";
@@ -42,6 +54,8 @@ export function ScriptEmptyState({
 
   function handleInput(e: ChangeEvent<HTMLInputElement>) {
     readFile(e.target.files?.[0]);
+    // reset so the same file can be re-selected after a rejection
+    e.target.value = "";
   }
 
   function handleDrop(e: DragEvent<HTMLLabelElement>) {
@@ -85,6 +99,8 @@ export function ScriptEmptyState({
           onChange={handleInput}
         />
       </label>
+
+      {error && <p className="-mt-6 text-sm text-destructive">{error}</p>}
 
       <div className="grid gap-3">
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
