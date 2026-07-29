@@ -2,8 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { ensureFreshSession } from "@/lib/supabase/session-ready";
+import { useIdentity } from "@/hooks/use-identity";
+import { subscribeToOrgGenerationUpdates } from "@/lib/realtime/org-generation-updates";
 
 export function useNodeCost(nodeId: string, upstreamNodeIds?: string[]) {
+  const { orgId } = useIdentity();
   const [totalCredits, setTotalCredits] = useState<number | null>(null);
 
   // Stable cache key so effect only re-runs when the set of IDs actually changes.
@@ -31,8 +34,26 @@ export function useNodeCost(nodeId: string, upstreamNodeIds?: string[]) {
     }
 
     void fetchCost();
-    return () => { cancelled = true; };
-  }, [nodeId, upstreamKey]);
+
+    // Re-fetch once a relevant generation (this node, or an upstream node feeding this
+    // node's pipeline total) settles — otherwise this figure is stuck at its
+    // pre-generation value until the component remounts (YUV-250).
+    let unsubscribe: (() => void) | null = null;
+    if (orgId) {
+      const relevantIds = new Set([nodeId, ...(upstreamNodeIds ?? [])]);
+      unsubscribe = subscribeToOrgGenerationUpdates(orgId, (row) => {
+        if (row.status === "succeeded" && relevantIds.has(row.node_id)) void fetchCost();
+      });
+    }
+
+    return () => {
+      cancelled = true;
+      unsubscribe?.();
+    };
+    // upstreamNodeIds' identity is covered by the stable upstreamKey dep above; adding the
+    // array itself would re-run this effect on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nodeId, upstreamKey, orgId]);
 
   return totalCredits;
 }

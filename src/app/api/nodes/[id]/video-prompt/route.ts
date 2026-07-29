@@ -1,7 +1,7 @@
 import { createOpenAI } from "@/lib/openai/server";
 import { resolveVideoPromptInputs } from "@/lib/nodes/resolve-inputs";
 import { compileVideoPrompt } from "@/lib/nodes/video-prompt";
-import { buildUserContent } from "@/lib/nodes/compose-message";
+import { buildUserContent, isVisionAttachment } from "@/lib/nodes/compose-message";
 import { videoPromptGeneratePromptFor, type VideoProvider } from "@/prompts/video-prompt-generate";
 import { DEFAULT_VIDEO_CONTROLS, type VideoControls } from "@/lib/nodes/video-controls";
 import { insertVersion, setActiveVersion } from "@/lib/db/versions";
@@ -83,7 +83,7 @@ export async function POST(
         inputsSnapshot: { instruction: effectiveInstruction },
       });
 
-      const estimatedCredits = estimatePromptCredits(resolved.upstream.length);
+      const estimatedCredits = estimatePromptCredits(resolved.upstream.filter(isVisionAttachment).length);
       const reservation = await reserveCredits(caller.orgId, generation.id, estimatedCredits);
       if (!reservation.ok) {
         throw new CreditLimitError("Monthly credit limit reached");

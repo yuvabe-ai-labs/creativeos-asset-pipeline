@@ -50,7 +50,9 @@ export function UsagePopoverShell({
         }
       />
       <PopoverContent align="end" className="w-64 p-4">
-        {rows.length === 0 ? (
+        {pipelineLoading ? (
+          <UsagePopoverSkeleton rowCount={rows.length || 3} />
+        ) : rows.length === 0 ? (
           <p className="text-xs text-muted-foreground">No usage data yet.</p>
         ) : (
           <div className="space-y-4">
@@ -68,19 +70,9 @@ export function UsagePopoverShell({
                 </div>
               )}
               <div className="pt-0.5">
-                {/* pipelineTotalCredits (this node + upstream) is always >= totalCredits
-                    (this node alone) when both are known — show only the larger, more
-                    complete figure instead of two near-identical numbers stacked. While a
-                    pipeline total is expected but still loading, show a skeleton instead of
-                    totalCredits — falling back to it flashed the wrong (smaller) number
-                    before the real total arrived a moment later. */}
-                {pipelineLoading ? (
-                  <Skeleton className="h-5 w-24" />
-                ) : (
-                  <p className="text-sm font-semibold text-foreground">
-                    {pipelineTotalCredits ?? totalCredits}
-                  </p>
-                )}
+                <p className="text-sm font-semibold text-foreground">
+                  {pipelineTotalCredits ?? totalCredits}
+                </p>
               </div>
             </div>
 
@@ -120,5 +112,38 @@ export function UsagePopoverShell({
         )}
       </PopoverContent>
     </Popover>
+  );
+}
+
+// Mirrors the real content's shape (Overall section + per-generation list) so nothing
+// reflows when the real data swaps in — shown for the whole popover, not just the total
+// row, so the content never shows a mix of real and placeholder data at once.
+function UsagePopoverSkeleton({ rowCount }: { rowCount: number }) {
+  return (
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <p className="text-eyebrow">Overall</p>
+        <div className="pt-0.5">
+          <Skeleton className="h-5 w-24" />
+        </div>
+      </div>
+      <div className="space-y-2 border-t border-border pt-3">
+        <p className="text-eyebrow">Per generation</p>
+        <ul className="max-h-48 space-y-2 overflow-y-auto">
+          {Array.from({ length: rowCount }).map((_, i) => (
+            <li key={i} className="rounded-md bg-muted/50 px-2.5 py-2">
+              <div className="flex items-center justify-between">
+                <Skeleton className="h-3 w-8" />
+                <Skeleton className="h-3 w-12" />
+              </div>
+              <div className="mt-1 flex items-center justify-between">
+                <Skeleton className="h-3 w-14" />
+                <Skeleton className="h-3 w-6" />
+              </div>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
   );
 }

@@ -26,12 +26,20 @@ async function urlToFile(url: string): Promise<{ file: File; width: number; heig
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Failed to fetch reference image (${res.status}): ${url}`);
   const buffer = Buffer.from(await res.arrayBuffer());
+  console.log("[urlToFile] fetched reference image", { url, bytes: buffer.length });
   const normalized = await normalizeReferenceImageForOpenAI(buffer);
   // Detect format from the re-encoded bytes, not the (sometimes wrong/generic) response
   // content-type header — normalizeReferenceImageForOpenAI always re-encodes to png/jpeg/webp.
   const meta = await sharp(normalized).metadata();
   const ext = meta.format === "jpeg" ? "jpg" : meta.format === "webp" ? "webp" : "png";
   const contentType = ext === "jpg" ? "image/jpeg" : ext === "webp" ? "image/webp" : "image/png";
+  console.log("[urlToFile] normalized reference image", {
+    url,
+    width: meta.width,
+    height: meta.height,
+    format: meta.format,
+    bytes: normalized.length,
+  });
   return {
     file: new File([new Uint8Array(normalized)], `reference.${ext}`, { type: contentType }),
     width: meta.width ?? 0,
@@ -61,7 +69,20 @@ export async function normalizeReferenceImageForOpenAI(buffer: Buffer): Promise<
   const swapsDimensions = meta.orientation !== undefined && meta.orientation >= 5;
   let width = (swapsDimensions ? meta.height : meta.width) ?? 0;
   let height = (swapsDimensions ? meta.width : meta.height) ?? 0;
-  if (width === 0 || height === 0) return buffer;
+  console.log("[normalizeReferenceImageForOpenAI] input", {
+    rawWidth: meta.width,
+    rawHeight: meta.height,
+    orientation: meta.orientation,
+    swapsDimensions,
+    logicalWidth: width,
+    logicalHeight: height,
+    format: meta.format,
+    hasAlpha: meta.hasAlpha,
+  });
+  if (width === 0 || height === 0) {
+    console.log("[normalizeReferenceImageForOpenAI] missing dimensions — skipping normalization");
+    return buffer;
+  }
 
   // .rotate() with no args auto-orients from the EXIF tag and bakes the rotation into the
   // pixels, then strips the tag — so the output is correctly oriented with no dangling metadata.
@@ -71,6 +92,11 @@ export async function normalizeReferenceImageForOpenAI(buffer: Buffer): Promise<
   const short = Math.min(width, height);
   if (long / short > MAX_ASPECT_RATIO) {
     const newLong = Math.round(short * MAX_ASPECT_RATIO);
+    console.log("[normalizeReferenceImageForOpenAI] aspect ratio exceeds max — cropping", {
+      ratio: long / short,
+      maxAspectRatio: MAX_ASPECT_RATIO,
+      before: { width, height },
+    });
     if (width >= height) {
       pipeline = pipeline.extract({ left: Math.floor((width - newLong) / 2), top: 0, width: newLong, height });
       width = newLong;
@@ -78,12 +104,22 @@ export async function normalizeReferenceImageForOpenAI(buffer: Buffer): Promise<
       pipeline = pipeline.extract({ left: 0, top: Math.floor((height - newLong) / 2), width, height: newLong });
       height = newLong;
     }
+    console.log("[normalizeReferenceImageForOpenAI] cropped", { after: { width, height } });
   }
 
   const maxEdge = Math.max(width, height);
   const scale = maxEdge > MAX_EDGE_PX ? MAX_EDGE_PX / maxEdge : 1;
   const scaledWidth = Math.round(width * scale);
   const scaledHeight = Math.round(height * scale);
+  if (scale !== 1) {
+    console.log("[normalizeReferenceImageForOpenAI] max edge exceeded — downscaling", {
+      maxEdge,
+      maxEdgePx: MAX_EDGE_PX,
+      scale,
+      before: { width, height },
+      after: { scaledWidth, scaledHeight },
+    });
+  }
 
   // Floor the short side first, then cap the long side at shortFinal * MAX_ASPECT_RATIO —
   // flooring both sides independently can push the ratio above MAX_ASPECT_RATIO even when the
@@ -100,17 +136,36 @@ export async function normalizeReferenceImageForOpenAI(buffer: Buffer): Promise<
   const finalWidth = isWidthLong ? longFinal : shortFinal;
   const finalHeight = isWidthLong ? shortFinal : longFinal;
 
+  console.log("[normalizeReferenceImageForOpenAI] final dimension check", {
+    before: { width, height },
+    finalWidth,
+    finalHeight,
+    dimensionMultiple: DIMENSION_MULTIPLE,
+    willResize: finalWidth !== width || finalHeight !== height,
+  });
+
   if (finalWidth !== width || finalHeight !== height) {
     pipeline = pipeline.resize({ width: finalWidth, height: finalHeight, fit: "fill" });
   }
 
+  const outFormat =
+    meta.hasAlpha ? "png"
+    : meta.format === "webp" ? "webp"
+    : meta.format === "jpeg" ? "jpeg"
+    : "png";
   pipeline =
-    meta.hasAlpha ? pipeline.png()
-    : meta.format === "webp" ? pipeline.webp()
-    : meta.format === "jpeg" ? pipeline.jpeg()
-    : pipeline.png();
+    outFormat === "png" ? pipeline.png()
+    : outFormat === "webp" ? pipeline.webp()
+    : pipeline.jpeg();
 
-  return pipeline.toBuffer();
+  const out = await pipeline.toBuffer();
+  console.log("[normalizeReferenceImageForOpenAI] output", {
+    outputFormat: outFormat,
+    outputBytes: out.length,
+    finalWidth,
+    finalHeight,
+  });
+  return out;
 }
 
 // ── Aspect ratio → pixel size mapping ────────────────────────────────────────
@@ -140,14 +195,22 @@ export async function maskFileFromInput(
 ): Promise<File | undefined> {
   if (!input.maskBase64) return undefined;
   const mime = input.maskMime ?? "image/png";
-  let bytes = Buffer.from(input.maskBase64, "base64");
+  let bytes: Buffer = Buffer.from(input.maskBase64, "base64");
   if (targetDimensions) {
     const meta = await sharp(bytes).metadata();
-    if (meta.width !== targetDimensions.width || meta.height !== targetDimensions.height) {
+    const needsResize = meta.width !== targetDimensions.width || meta.height !== targetDimensions.height;
+    console.log("[maskFileFromInput] mask dimension check", {
+      maskWidth: meta.width,
+      maskHeight: meta.height,
+      targetDimensions,
+      needsResize,
+    });
+    if (needsResize) {
       bytes = await sharp(bytes)
         .resize({ width: targetDimensions.width, height: targetDimensions.height, fit: "fill" })
         .png()
         .toBuffer();
+      console.log("[maskFileFromInput] resized mask to match target dimensions", targetDimensions);
     }
   }
   return new File([new Uint8Array(bytes)], "mask.png", { type: mime });

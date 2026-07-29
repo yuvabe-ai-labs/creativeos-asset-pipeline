@@ -26,6 +26,7 @@ import { GuidedNextButton } from "@/components/canvas/guided-next-button";
 import { SliceToggles } from "./slice-toggles";
 import { DEFAULT_INSTRUCTION } from "@/lib/nodes/prompt";
 import { estimatePromptCredits } from "@/lib/credits/prompt-estimate";
+import { isVisionAttachment } from "@/lib/nodes/compose-message";
 import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
 import { EstimatedCreditsLabel } from "./estimated-credits-label";
 import type { KBSliceKey } from "@/lib/kb/parse-context";
@@ -43,7 +44,6 @@ import {
 } from "./connected-inputs-card";
 import type { VersionSummary } from "./prompt-version-history";
 import { UsagePopover } from "./prompt-usage-popover";
-import { Skeleton } from "@/components/ui/skeleton";
 import { InlineEvalBar } from "./inline-eval-bar";
 import { InlineApprovalBar } from "./inline-approval-bar";
 import { ModelRequestPanel } from "./model-request-panel";
@@ -87,7 +87,7 @@ export function PromptFocusView({
   onSaveOutput,
 }: PromptFocusViewProps) {
   const params = useParams<{ id: string }>();
-  const estimatedCredits = estimatePromptCredits(upstream.length);
+  const estimatedCredits = estimatePromptCredits(upstream.filter(isVisionAttachment).length);
   const [draft, setDraft] = useState(output ?? "");
   // Local mirror of the instruction prop. The textarea is controlled by THIS, not
   // by the prop directly: the prop round-trips through zustand + React Flow's
@@ -117,7 +117,6 @@ export function PromptFocusView({
   const [activeVersionId, setActiveVersionId] = useState<string | null>(null);
   const [restoring, setRestoring] = useState(false);
   const [loadingPreview, setLoadingPreview] = useState(false);
-  const [loadingVersions, setLoadingVersions] = useState(false);
   // The selected rail item: "prompt" (the compose editor), "kb", "review", or a
   // connected node's id (right pane shows that node's read-only detail).
   const [selected, setSelected] = useState<string>("prompt");
@@ -142,13 +141,12 @@ export function PromptFocusView({
     // on the echo of our own per-keystroke write-through (that would re-introduce the
     // caret jump this buffer exists to prevent).
     if (opening || nodeChanged) setInstructionDraft(instruction);
-    // Re-arm the left-panel skeletons ONLY on the open transition. The effect
+    // Re-arm the left-panel skeleton ONLY on the open transition. The effect
     // below (keyed on [open, nodeId, slices]) is the sole thing that clears
-    // them, and it does not re-run on output change — so re-arming here on a
-    // regenerate/restore/save would strand them `true` forever.
+    // it, and it does not re-run on output change — so re-arming here on a
+    // regenerate/restore/save would strand it `true` forever.
     if (opening) {
       setLoadingPreview(true);
-      setLoadingVersions(true);
     }
   }
 
@@ -225,8 +223,6 @@ export function PromptFocusView({
         }
       } catch {
         /* best-effort */
-      } finally {
-        if (!cancelled) setLoadingVersions(false);
       }
     })();
 
@@ -434,14 +430,7 @@ export function PromptFocusView({
               </div>
 
               <div className="flex shrink-0 items-center gap-2">
-                {/* Usage popover needs versions, which are still loading right after the
-                    sheet opens — reserve its space with a skeleton instead of popping it
-                    in once the fetch resolves. */}
-                {loadingVersions ? (
-                  <Skeleton className="h-8 w-20 rounded-md" />
-                ) : (
-                  versions.length > 0 && <UsagePopover versions={versions} />
-                )}
+                {versions.length > 0 && <UsagePopover versions={versions} />}
                 <GuidedNextButton
                   sourceId={nodeId}
                   variant="button"

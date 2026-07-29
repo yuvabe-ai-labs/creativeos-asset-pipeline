@@ -1,8 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createBrowserSupabase } from "@/lib/supabase/client";
+import { useIdentity } from "@/hooks/use-identity";
+import { subscribeToOrgGenerationUpdates } from "@/lib/realtime/org-generation-updates";
 
 export function CanvasCostChip({ canvasId }: { canvasId: string }) {
+  const { orgId } = useIdentity();
   const [canvasCostCredits, setCanvasCostCredits] = useState<number | null>(null);
 
   useEffect(() => {
@@ -19,8 +23,33 @@ export function CanvasCostChip({ canvasId }: { canvasId: string }) {
       }
     }
     void fetchCost();
-    return () => { cancelled = true; };
-  }, [canvasId]);
+
+    // Re-fetch once any generation on one of this canvas's nodes settles — otherwise
+    // this total is stuck at its pre-generation value until a full page reload (YUV-250,
+    // the canvas-level counterpart of the per-node cost figure's same bug). Node membership
+    // is snapshotted once here, not kept in sync with nodes added mid-session — an accepted
+    // simplification, same spirit as header-credits.tsx's UTC-rollover note.
+    let unsubscribe: (() => void) | null = null;
+    if (orgId) {
+      const supabase = createBrowserSupabase();
+      void supabase
+        .from("nodes")
+        .select("id")
+        .eq("canvas_id", canvasId)
+        .then(({ data }: { data: { id: string }[] | null }) => {
+          if (cancelled) return;
+          const nodeIds = new Set((data ?? []).map((n) => n.id));
+          unsubscribe = subscribeToOrgGenerationUpdates(orgId, (row) => {
+            if (row.status === "succeeded" && nodeIds.has(row.node_id)) void fetchCost();
+          });
+        });
+    }
+
+    return () => {
+      cancelled = true;
+      unsubscribe?.();
+    };
+  }, [canvasId, orgId]);
 
   if (canvasCostCredits === null || canvasCostCredits <= 0) return null;
 
