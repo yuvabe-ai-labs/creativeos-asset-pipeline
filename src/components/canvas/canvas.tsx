@@ -50,6 +50,7 @@ import { useDeleteConfirmation } from "@/hooks/use-delete-confirmation";
 import { CanvasKBStatus, CanvasKBBadge } from "./canvas-kb-status";
 import { GalleryDrawerTrigger } from "./gallery-drawer-trigger";
 import { GalleryDrawerIntegration } from "./gallery-drawer-integration";
+import type { GalleryPaneDropHandlers } from "@/hooks/use-gallery-pane-drop";
 import type { ClientKBJobRow } from "@/lib/db/types";
 
 // Register custom node types once (stable reference — never inline this object).
@@ -143,6 +144,15 @@ export function Canvas({
   const rfRef = useRef<{
     screenToFlowPosition: (pos: { x: number; y: number }) => XYPosition;
   } | null>(null);
+  // Populated by GalleryDrawerIntegration (which sits inside ReactFlowProvider
+  // and can call useReactFlow); wired onto <ReactFlow>'s onDragOver/onDrop below
+  // so pane-level gallery drops go through React's synthetic event system, same
+  // as node-level drops — required for stopPropagation to actually prevent both
+  // from firing on one drop.
+  const galleryPaneDropRef = useRef<GalleryPaneDropHandlers>({
+    onDragOver: () => {},
+    onDrop: () => {},
+  });
   const [quickAdd, setQuickAdd] = useState<{
     screenX: number;
     screenY: number;
@@ -358,6 +368,7 @@ export function Canvas({
         canvasId={canvasId}
         clientId={clientId}
         initialDriveRootFolder={initialDriveRootFolder}
+        paneDropRef={galleryPaneDropRef}
       />
 
       {!canEdit && (
@@ -406,6 +417,8 @@ export function Canvas({
         onPointerMove={(e) => {
           lastPointer.current = { x: e.clientX, y: e.clientY };
         }}
+        onDragOver={(e) => galleryPaneDropRef.current.onDragOver(e)}
+        onDrop={(e) => galleryPaneDropRef.current.onDrop(e)}
         onPaneContextMenu={(e) => {
           e.preventDefault();
           openQuickAddAt(e.clientX, e.clientY);
