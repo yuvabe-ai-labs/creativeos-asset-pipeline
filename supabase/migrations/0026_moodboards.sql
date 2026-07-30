@@ -5,6 +5,22 @@
 -- branch cut when main topped out at 0011, and 0012 was taken by 0012_auth_multi_tenancy
 -- in the meantime. Two differently-named 0012_*.sql files merge cleanly in git and only
 -- break at apply time, so the collision had to be caught by hand.
+--
+-- ⚠️ DESTRUCTIVE — DROP AND RECREATE. This is a reset, not an additive migration.
+-- Written this way because an earlier draft of this file was already hand-applied (as
+-- 0012_moodboards.sql) WITHOUT the RLS lines below, so the tables exist but are
+-- unprotected. Dropping is the simplest way to land the corrected shape; the only cost
+-- is the collected references, which are cheap to re-collect by design (an item is a
+-- row of URLs, D92 — no bytes are lost, nothing in GCS is touched).
+--
+-- Pre-flight count recorded before applying (project udxnhxferhiqjvnztyhm, 2026-07-30):
+-- 1 moodboard, 9 moodboard_items. Both are discarded by this migration.
+--
+-- Note the ordering: moodboard_items is dropped first because it FKs to moodboards.
+-- Re-running this file on any database is safe and always yields the same end state.
+
+drop table if exists moodboard_items;
+drop table if exists moodboards;
 
 create table moodboards (
   id         uuid primary key default gen_random_uuid(),
