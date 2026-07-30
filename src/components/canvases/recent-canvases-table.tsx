@@ -6,17 +6,8 @@ import { ChevronRight, Microscope } from "lucide-react";
 import { ListToolbar } from "@/components/ui/list-toolbar";
 import { filterAndSort, type SortKey } from "@/lib/list/filter-sort";
 import { formatRelativeTime } from "@/lib/format/relative-time";
+import { initials } from "@/lib/format/initials";
 import type { RecentCanvas } from "@/lib/db/recent-canvas";
-
-function initials(name: string) {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0])
-    .join("")
-    .toUpperCase();
-}
 
 export function RecentCanvasesTable({
   canvases,

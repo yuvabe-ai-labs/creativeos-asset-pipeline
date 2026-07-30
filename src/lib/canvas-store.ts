@@ -13,15 +13,22 @@ import {
 } from "@xyflow/react";
 import { toast } from "sonner";
 import { wouldCreateCycle } from "@/lib/canvas/graph";
+import { DEFAULT_CLIENT_MODEL_ID } from "@/lib/image-gen/client-models";
+import { planGuidedNext } from "@/lib/guided-flow";
+import { DEFAULT_VIDEO_CLIENT_MODEL_ID } from "@/lib/video-gen/client-models";
 import type { AppNode } from "./canvas-nodes";
 import type { ReelScript } from "@/lib/nodes/reel-script";
 import type { ShotComposeIdea } from "@/lib/nodes/shot-compose";
+import { deriveShotType } from "@/lib/nodes/shot-types";
+import type { GenerationRow } from "@/lib/db/types";
+import type { PlaybookRun } from "@/lib/copilot/runner";
 
 // 1C/1D: the canvas store. Nodes/edges live here; custom node components read
 // and write it directly (React Flow only hands a node `{ id, data }`).
 // Seeded on creation with nodes loaded from the DB (1D-5).
 
 export type CanvasState = {
+  canvasName: string;
   nodes: AppNode[];
   edges: Edge[];
   onNodesChange: OnNodesChange<AppNode>;
@@ -34,13 +41,43 @@ export type CanvasState = {
   updateNodeData: (id: string, data: Record<string, unknown>) => void;
   connectNodes: (sourceId: string, targetId: string) => void;
   deleteNode: (id: string) => void;
-  duplicateNode: (id: string) => void;
+  duplicateNode: (id: string) => Promise<void>;
+  duplicateNodes: (ids: string[], canvasId: string) => Promise<void>;
   fanOutShots: (scriptNodeId: string) => void;
   promoteIdeasToShots: (shotNodeId: string, ideas: ShotComposeIdea[]) => void;
   // Per-node video generation status — shared between VideoGenNode and VideoGenFocusView
   videoGenStatus: Record<string, { isGenerating: boolean; lastError: string | null }>;
   setVideoGenGenerating: (nodeId: string, v: boolean) => void;
   setVideoGenError: (nodeId: string, err: string | null) => void;
+  // Generation Tray — live job rows for this canvas (fed by the tray's Realtime hook),
+  // keyed by generation id. The tray derives its list from these + the node graph (D9).
+  trayJobs: Record<string, GenerationRow>;
+  setTrayJobs: (jobs: GenerationRow[]) => void;
+  upsertTrayJob: (job: GenerationRow) => void;
+  // Programmatic focus-view open signal — set by the tray to open a node's focus view.
+  focusedNodeId: string | null;
+  setFocusedNodeId: (id: string | null) => void;
+  // Which nodes currently have a focus view on screen. The canvas reads this to go
+  // inert: a focus view is a modal surface, so the pane's keyboard shortcuts (Delete,
+  // ⌘D, the bare mnemonics, "g") must not fire behind it. Keyed by node id rather than
+  // a boolean because an async writer (copilot open_node, playbook runner) can open a
+  // second view while one is already open — closing the first must not re-arm the canvas.
+  openFocusViewIds: string[];
+  setFocusViewOpen: (id: string, open: boolean) => void;
+  // Copilot playbook run (runner spec §2.3) — ONE run at a time, session-scoped.
+  // Lives here (not in the chat hook) so the run card, canvas, and future surfaces
+  // all read the same checkpoint and the run survives the panel closing.
+  playbookRun: PlaybookRun | null;
+  setPlaybookRun: (run: PlaybookRun | null) => void;
+  patchPlaybookRun: (patch: Partial<PlaybookRun>) => void;
+  // Guided next-node flow (D36): create/connect/place the next pipeline node, or return
+  // an existing next node's id to navigate to. Never runs a model.
+  guidedCreateNext: (sourceId: string) => string | null;
+  // KB build status — drives toolbar badge and node warnings
+  kbStatus: 'none' | 'building' | 'ready';
+  setKbStatus: (status: 'none' | 'building' | 'ready') => void;
+  kbJustReady: boolean;
+  setKbJustReady: (v: boolean) => void;
 };
 
 function defaultData(type: string): AppNode["data"] {
@@ -56,9 +93,9 @@ function defaultData(type: string): AppNode["data"] {
     case "draw":
       return { title: "" };
     case "image-gen":
-      return { title: "", modelId: "openai:gpt-image-2" };
+      return { title: "", modelId: DEFAULT_CLIENT_MODEL_ID };
     case "video-gen":
-      return { title: "", modelId: "veo:veo-3.1-fast" };
+      return { title: "", modelId: DEFAULT_VIDEO_CLIENT_MODEL_ID };
     case "script":
     default:
       return { title: "" };
@@ -69,8 +106,10 @@ function defaultData(type: string): AppNode["data"] {
 export function createCanvasStore(
   initialNodes: AppNode[] = [],
   initialEdges: Edge[] = [],
+  initialCanvasName: string = "",
 ) {
   return createStore<CanvasState>((set, get) => ({
+    canvasName: initialCanvasName,
     nodes: initialNodes,
     edges: initialEdges,
     removedNodeIds: [],
@@ -154,20 +193,120 @@ export function createCanvasStore(
         removedEdgeIds: [...get().removedEdgeIds, ...cascadedEdges.map((e) => e.id)],
       });
     },
-    duplicateNode: (id) => {
+    duplicateNode: async (id) => {
       const node = get().nodes.find((n) => n.id === id);
       if (!node || node.type === "kb") return;
-      set({
-        nodes: [
-          ...get().nodes,
-          {
-            ...node,
+
+      try {
+        const res = await fetch(`/api/nodes/${id}/duplicate`, { method: "POST" });
+        if (!res.ok) {
+          console.error("Duplicate node failed:", await res.text());
+          return;
+        }
+        const { node: newNode } = await res.json() as { node: { id: string; position: { x: number; y: number }; type: string; data: Record<string, unknown>; active_version_id: string | null } };
+
+        const data = { ...(node.data as Record<string, unknown>), ...(newNode.data as Record<string, unknown>) };
+
+        // Copy only the INCOMING connections (parent → node) so the copy inherits
+        // the same inputs/context. Outgoing edges (node → child) are intentionally
+        // NOT copied: the point of duplicating is to rewire the output differently,
+        // so the operator connects the copy's output themselves. Fresh edge ids;
+        // autosave persists them like any other edge.
+        const clonedEdges = get()
+          .edges.filter((e) => e.target === id)
+          .map((e) => ({
+            ...e,
             id: crypto.randomUUID(),
-            position: { x: node.position.x + 32, y: node.position.y + 32 },
-            selected: false,
-          } as AppNode,
-        ],
+            target: newNode.id,
+          }));
+
+        // Select the duplicate (and deselect everything else) so it becomes the
+        // active node AND renders on top — React Flow elevates the selected node,
+        // so leaving the original selected would keep the copy visually behind it.
+        set({
+          nodes: [
+            ...get().nodes.map((n) => (n.selected ? { ...n, selected: false } : n)),
+            {
+              ...node,
+              id: newNode.id,
+              position: newNode.position,
+              data,
+              selected: true,
+            } as AppNode,
+          ],
+          edges: [...get().edges, ...clonedEdges],
+        });
+      } catch (err) {
+        console.error("Duplicate node error:", err);
+      }
+    },
+    duplicateNodes: async (ids, canvasId) => {
+      // Filter KB nodes client-side (server also guards, but fail fast here)
+      const eligible = ids.filter((id) => {
+        const n = get().nodes.find((n) => n.id === id);
+        return n && n.type !== "kb";
       });
+
+      // Single-node fast path — preserves existing tested behaviour unchanged
+      if (eligible.length === 1) {
+        return get().duplicateNode(eligible[0]);
+      }
+      if (eligible.length === 0) return;
+
+      // Resolve internal edges: both source and target must be in the selection
+      const eligibleSet = new Set(eligible);
+      const internalEdges = get()
+        .edges.filter((e) => eligibleSet.has(e.source) && eligibleSet.has(e.target))
+        .map((e) => ({ source: e.source, target: e.target }));
+
+      try {
+        const res = await fetch("/api/nodes/duplicate-batch", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ canvasId, nodeIds: eligible, internalEdges }),
+        });
+
+        if (!res.ok) {
+          console.error("Batch duplicate failed:", await res.text());
+          toast.error("Couldn't duplicate nodes");
+          return;
+        }
+
+        const { nodes: newNodes, edges: newEdges } = (await res.json()) as {
+          nodes: { id: string; position: { x: number; y: number }; type: string; data: Record<string, unknown>; active_version_id: string | null }[];
+          edges: { id: string; source: string; target: string }[];
+        };
+
+        // Zip new nodes with source nodes by index (server preserves insertion order)
+        const sourceById = new Map(get().nodes.map((n) => [n.id, n]));
+        const newAppNodes = newNodes.map((newNode, i) => {
+          const sourceId = eligible[i];
+          const source = sourceById.get(sourceId);
+          const data = { ...(source?.data as Record<string, unknown> ?? {}), ...(newNode.data as Record<string, unknown>) };
+          return {
+            ...(source as Partial<AppNode> ?? {}),
+            id: newNode.id,
+            position: newNode.position,
+            data,
+            selected: true,
+          } as AppNode;
+        });
+
+        // Deselect originals, add all new nodes + remapped edges in one set()
+        set({
+          nodes: [
+            ...get().nodes.map((n) => ({ ...n, selected: false })),
+            ...newAppNodes,
+          ],
+          edges: [
+            ...get().edges,
+            ...newEdges.map((e) => ({ ...e })) as Edge[],
+          ],
+        });
+      } catch (err) {
+        console.error("Batch duplicate error:", err);
+        toast.error("Couldn't duplicate nodes");
+      }
     },
     // Materialize each shot of a parsed Script into its own Shot node (seed-and-fork,
     // D21). Each Shot carries the FULL parent script narrowed to its single shot
@@ -195,6 +334,7 @@ export function createCanvasStore(
             visual_script: { ...parsed?.visual_script, shots: [shot] },
           },
           order: i + 1,
+          shot_type: deriveShotType(shot.description ?? ""),
           seededFrom: { scriptNodeId, shotIndex: i, scriptTitle },
         },
       })) as AppNode[];
@@ -277,6 +417,59 @@ export function createCanvasStore(
           },
         },
       })),
+
+    trayJobs: {},
+    setTrayJobs: (jobs) =>
+      set({ trayJobs: Object.fromEntries(jobs.map((j) => [j.id, j])) }),
+    upsertTrayJob: (job) =>
+      set((s) => ({ trayJobs: { ...s.trayJobs, [job.id]: job } })),
+
+    focusedNodeId: null,
+    setFocusedNodeId: (id) => set({ focusedNodeId: id }),
+
+    openFocusViewIds: [],
+    setFocusViewOpen: (id, open) =>
+      set((s) => {
+        const has = s.openFocusViewIds.includes(id);
+        if (open === has) return {}; // no-op — keeps the array reference stable
+        return {
+          openFocusViewIds: open
+            ? [...s.openFocusViewIds, id]
+            : s.openFocusViewIds.filter((n) => n !== id),
+        };
+      }),
+
+    playbookRun: null,
+    setPlaybookRun: (run) => set({ playbookRun: run }),
+    patchPlaybookRun: (patch) =>
+      set((s) => (s.playbookRun ? { playbookRun: { ...s.playbookRun, ...patch } } : {})),
+
+    guidedCreateNext: (sourceId) => {
+      const state = get();
+      const source = state.nodes.find((n) => n.id === sourceId);
+      if (!source) return null;
+      const plan = planGuidedNext(source, state.nodes, state.edges);
+      if (!plan || !plan.gate.enabled) return null;
+      if (plan.existingId) return plan.existingId; // navigate, no mutation
+
+      const newId = crypto.randomUUID();
+      const newNode = {
+        id: newId,
+        type: plan.nextType,
+        position: plan.position,
+        data: defaultData(plan.nextType),
+      } as AppNode;
+      const newEdges = plan.parentIds
+        .filter((pid) => !wouldCreateCycle(state.edges, pid, newId))
+        .map((pid) => ({ id: crypto.randomUUID(), source: pid, target: newId }));
+      set({ nodes: [...state.nodes, newNode], edges: [...state.edges, ...newEdges] });
+      return newId;
+    },
+
+    kbStatus: 'none',
+    setKbStatus: (status) => set({ kbStatus: status }),
+    kbJustReady: false,
+    setKbJustReady: (v) => set({ kbJustReady: v }),
   }));
 }
 

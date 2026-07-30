@@ -44,6 +44,7 @@ import {
   deleteBrandImageAction,
 } from "@/lib/actions/kb";
 import type { ClientKBDocumentRow, ClientBrandImageRow } from "@/lib/db/types";
+import { uploadViaSignedUrl } from "@/lib/uploads/client";
 import type { ModuleKey, FieldPath, StagedChanges } from "@/lib/kb/types";
 import { MODULES, FIELD_LABELS, DOC_EXTENSIONS, IMG_EXTENSIONS } from "@/lib/kb/constants";
 import { getModuleFields, getFieldPath, buildChangeSummary } from "@/lib/kb/utils";
@@ -58,6 +59,7 @@ type Props = {
   isEditMode: boolean;
   initialDocuments?: ClientKBDocumentRow[];
   initialImages?: ClientBrandImageRow[];
+  initialWebsiteUrl?: string | null;
   docIdsAtExtraction?: string[];
 };
 
@@ -71,6 +73,7 @@ export function KBOnboardingReviewStep({
   isEditMode,
   initialDocuments = [],
   initialImages = [],
+  initialWebsiteUrl = null,
   docIdsAtExtraction = [],
 }: Props) {
   const router = useRouter();
@@ -322,20 +325,21 @@ export function KBOnboardingReviewStep({
     for (const file of files) {
       const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
       if (!allowedExts.has(ext)) { toast.error(`Unsupported type: .${ext}`); continue; }
-      const formData = new FormData();
-      formData.append("file", file);
       try {
-        const res = await fetch(endpoint, { method: "POST", body: formData });
-        const json = await res.json();
-        if (!res.ok) {
-          toast.error(json.error ?? "Upload failed");
-        } else {
-          const item = json.document ?? json.image;
+        const json = await uploadViaSignedUrl<{
+          document?: ClientKBDocumentRow;
+          image?: ClientBrandImageRow;
+        }>(file, {
+          signEndpoint: `${endpoint}/sign`,
+          finalizeEndpoint: `${endpoint}/finalize`,
+        });
+        const item = json.document ?? json.image;
+        if (item) {
           onAdded(item);
           trackNewId(item.id);
         }
-      } catch {
-        toast.error(`Failed to upload ${file.name}`);
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : `Failed to upload ${file.name}`);
       }
     }
     setUploading(false);
@@ -430,11 +434,13 @@ export function KBOnboardingReviewStep({
             </SheetDescription>
           </SheetHeader>
           <KBSourcePanel
+            clientId={clientId}
             documents={documents}
             images={images}
             staged={staged}
             uploadingDocs={uploadingDocs}
             uploadingImgs={uploadingImgs}
+            initialWebsiteUrl={initialWebsiteUrl}
             onMarkDocForRemoval={markDocForRemoval}
             onUndoDocRemoval={undoDocRemoval}
             onMarkImageForRemoval={markImageForRemoval}

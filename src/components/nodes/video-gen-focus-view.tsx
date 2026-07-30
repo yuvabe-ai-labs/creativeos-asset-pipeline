@@ -12,8 +12,10 @@ import {
   ChevronDown,
   Clapperboard,
   History,
-  Link2,
+  ImageIcon,
+  PencilLine,
   Settings2,
+  SlidersHorizontal,
   Sparkles,
   type LucideIcon,
 } from "lucide-react";
@@ -27,6 +29,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { EditableField } from "./editable-field";
+import { GenerationErrorBadge } from "./generation-error-badge";
 import { normalizeTitle } from "@/lib/nodes/title";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,11 +37,17 @@ import {
   defaultsForVideoModel,
   videoGenClientModelMap,
 } from "@/lib/video-gen/client-models";
+import { smartMergeVideoParams } from "@/lib/video-gen/params/merge";
 import {
   buildConstraintState,
   evaluateConstraints,
 } from "@/lib/video-gen/constraints";
 import { videoGenApi } from "@/lib/video-gen/api";
+import { VideoGenApiError } from "@/lib/video-gen/api";
+import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
+import { computeVideoCost, isVideoAudioEnabled, asResolutionString } from "@/lib/video-gen/cost";
+import { usdToFinalCredits } from "@/lib/credits/units";
+import { EstimatedCreditsLabel } from "./estimated-credits-label";
 import { createBrowserSupabase } from "@/lib/supabase/client";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
@@ -48,15 +57,36 @@ import {
   type VideoGenVersionSummary,
 } from "./video-gen-version-history";
 import { VideoGenUsagePopover } from "./video-gen-usage-popover";
-import { VideoGenParamsPanel } from "./video-gen-params-panel";
+import { Skeleton } from "@/components/ui/skeleton";
+import { VideoGenParamsPanel, hasParamsInGroup } from "./video-gen-params-panel";
 import { VideoGenConnectedSection } from "./video-gen-connected-section";
+import { RailItem } from "./focus-rail-item";
+import { AddConnection } from "./add-connection";
 import type { UpstreamImage, UpstreamPromptNode } from "@/lib/video-gen/api";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { ActiveRulesCard } from "./video-gen-active-rules-card";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type ImageRole = "start_frame" | "end_frame" | "reference";
 
 type ImageInputs = { startFrame: boolean; endFrame: boolean; maxReferenceImages: number };
+
+type DialogState =
+  | null
+  | { type: "no-roles" }
+  | { type: "missing-end-frame" }
+  | { type: "role-conflict"; imageId: string; role: ImageRole; conflictingRole: "start_frame" | "end_frame" | "reference" }
+  | { type: "replace-singleton"; imageId: string; role: "start_frame" | "end_frame"; incumbentId: string; incumbentName: string };
 
 // Fill in default roles for any unassigned images:
 // - refs available → all images get "reference" (up to the cap)
@@ -163,56 +193,6 @@ function LeftSection({
   );
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function relativeTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.floor(hours / 24)}d ago`;
-}
-
-function ActiveVersionRow({
-  versions,
-  activeVersionId,
-}: {
-  versions: VideoGenVersionSummary[];
-  activeVersionId: string | null;
-}) {
-  const row = activeVersionId
-    ? (versions.find((v) => v.id === activeVersionId) ?? versions[0])
-    : versions[0];
-  if (!row) return null;
-
-  return (
-    <div className="flex items-center gap-2 rounded-lg border border-border p-2">
-      {row.output && (
-        <video
-          src={row.output}
-          className="size-7 shrink-0 rounded object-cover"
-          muted
-        />
-      )}
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-xs text-foreground">
-          {row.modelUsed ?? "Unknown model"}
-        </p>
-        <p className="text-[0.65rem] text-muted-foreground">
-          {relativeTime(row.createdAt)}
-        </p>
-      </div>
-      {row.id === activeVersionId && (
-        <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[0.65rem] font-semibold text-primary">
-          Active
-        </span>
-      )}
-    </div>
-  );
-}
-
 // ── Connected item detail view ────────────────────────────────────────────────
 
 function VideoGenDetailPanel({
@@ -260,7 +240,7 @@ function VideoGenDetailPanel({
   }
 
   return (
-    <div className="flex w-full max-w-5xl min-h-0 flex-col gap-4 overflow-hidden px-6 py-6">
+    <div className="flex w-full max-w-5xl flex-col gap-4 px-6 py-6">
       <button
         type="button"
         onClick={onBack}
@@ -288,12 +268,13 @@ function VideoGenDetailPanel({
       )}
 
       {item.type === "image" && image && (
-        <div className="flex min-h-0 flex-1 flex-col gap-4">
-          <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-xl border border-border bg-muted/10">
+        <div className="flex flex-col gap-4">
+          {/* Cap the image height so the role buttons stay visible without scrolling. */}
+          <div className="flex items-center justify-center overflow-hidden rounded-xl border border-border bg-muted/10">
             <img
               src={image.imageUrl}
               alt="Connected image"
-              className="max-h-full max-w-full object-contain"
+              className="max-h-[52vh] w-auto max-w-full object-contain"
             />
           </div>
           <TooltipProvider>
@@ -368,24 +349,34 @@ export function VideoGenFocusView({
   const [versions, setVersions] = useState<VideoGenVersionSummary[]>([]);
   const [activeVersionId, setActiveVersionId] = useState<string | null>(null);
   const [restoring, setRestoring] = useState(false);
-  const [useMock, setUseMock] = useState(() => {
-    if (typeof window === "undefined") return true;
-    return localStorage.getItem("video-gen-mock") !== "false";
-  });
-  const [historyOpen, setHistoryOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(true);
-  const [connectedOpen, setConnectedOpen] = useState(true);
-  const [detailItem, setDetailItem] = useState<{
-    id: string;
-    type: "prompt" | "image";
-  } | null>(null);
+  // The selected rail item: "video" (settings + preview), "history", "details", or a connected
+  // node's id (middle column shows that node's role/detail view). Mirrors image-gen-focus-view.
+  const [selected, setSelected] = useState<string>("video");
+  // Only the Advanced group collapses (Audio / Multi-Shot / Negative Prompt); Frames and
+  // Output settings are always expanded. Defaults closed so the panel opens uncluttered.
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [pendingDialog, setPendingDialog] = useState<DialogState>(null);
+  const hasExplicitlySkippedEndFrameRef = useRef(false);
 
-  // Reset detail view when the sheet opens or switches to a different node
+  const [loadingVersions, setLoadingVersions] = useState(false);
+  const [loadingConnected, setLoadingConnected] = useState(false);
+
+  // Reset detail view when the sheet opens or switches to a different node; re-arm skeletons.
   const [openNodeSeed, setOpenNodeSeed] = useState({ open, nodeId });
   if (openNodeSeed.open !== open || openNodeSeed.nodeId !== nodeId) {
     setOpenNodeSeed({ open, nodeId });
-    if (open) setDetailItem(null);
+    setPendingDialog(null);
+    if (open) {
+      setSelected("video");
+      setLoadingVersions(true);
+      setLoadingConnected(true);
+    }
   }
+
+  // Reset the "skipped end frame" guard when the sheet opens or switches nodes.
+  useEffect(() => {
+    hasExplicitlySkippedEndFrameRef.current = false;
+  }, [open, nodeId]);
 
   const { isGenerating, lastError, setGenerating, setLastError } =
     useVideoGenStatus(nodeId);
@@ -426,7 +417,7 @@ export function VideoGenFocusView({
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle()
-      .then(({ data }) => {
+      .then(({ data }: { data: unknown }) => {
         const row = data as { status: string; error: string | null } | null;
         if (!row) return;
         if (row.status === "succeeded" || row.status === "failed") {
@@ -445,22 +436,17 @@ export function VideoGenFocusView({
         const active = data.versions.find((v) => v.id === data.activeVersionId);
         if (active?.output) onPatchRef.current({ parsed: active.output });
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setLoadingVersions(false));
     videoGenApi
       .fetchUpstreamImages(nodeId)
       .then(({ images, promptNode: pn }) => {
         setUpstreamImages(images);
         setPromptNode(pn);
-        // Auto-assign default roles for any unassigned images
-        const inputs = videoGenClientModelMap[modelId]?.imageInputs;
-        if (inputs && images.length > 0) {
-          const withDefaults = applyDefaultImageRoles(images, inputs, imageRolesProp);
-          if (images.some((img) => img.id in withDefaults && !(img.id in imageRolesProp))) {
-            onPatchRef.current({ imageRoles: withDefaults });
-          }
-        }
+        hasExplicitlySkippedEndFrameRef.current = false;
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setLoadingConnected(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, nodeId, setVideoGenGenerating, setVideoGenError]);
 
@@ -475,17 +461,12 @@ export function VideoGenFocusView({
 
   // ── Handlers ───────────────────────────────────────────────────────────────
 
-  function toggleMock() {
-    setUseMock((prev) => {
-      const next = !prev;
-      localStorage.setItem("video-gen-mock", next ? "true" : "false");
-      return next;
-    });
-  }
-
   function handleModelChange(nextModelId: string) {
     setModelId(nextModelId);
-    const defaults = defaultsForVideoModel(nextModelId);
+    const nextModel = videoGenClientModelMap[nextModelId];
+    const defaults = nextModel
+      ? smartMergeVideoParams(params, nextModel)
+      : defaultsForVideoModel(nextModelId);
 
     // Migrate image roles — remove roles the new model doesn't support
     const nextInputs = videoGenClientModelMap[nextModelId]?.imageInputs;
@@ -515,6 +496,23 @@ export function VideoGenFocusView({
       ? applyDefaultImageRoles(upstreamImages, nextInputs, currentRoles)
       : currentRoles;
 
+    // Toast for dropped role assignments (§E)
+    const droppedImages = upstreamImages.filter(
+      (img) => img.id in currentRoles && !(img.id in finalRoles),
+    );
+    const toastMessages = droppedImages.map((img) => {
+      const oldRole = (currentRoles[img.id] as string).replace(/_/g, " ");
+      return `"${img.filename || "Image"}" removed from ${oldRole} — not supported by ${nextModel?.label ?? nextModelId}`;
+    });
+    if (toastMessages.length > 0) {
+      if (toastMessages.length <= 3) {
+        toastMessages.forEach((msg) => toast.info(msg, { duration: 3500 }));
+      } else {
+        toastMessages.slice(0, 3).forEach((msg) => toast.info(msg, { duration: 3500 }));
+        toast.info(`…and ${toastMessages.length - 3} more role${toastMessages.length - 3 === 1 ? "" : "s"} removed`, { duration: 3500 });
+      }
+    }
+
     // Commit any constraint-locked values into params so they persist after the lock clears.
     const nextConstraints = evaluateConstraints(
       videoGenClientModelMap[nextModelId]?.rules,
@@ -534,18 +532,56 @@ export function VideoGenFocusView({
 
   function handleRoleChange(imageId: string, newRole: ImageRole) {
     const updated = { ...effectiveImageRoles };
+
+    // Toggle: clicking the role already assigned to this image clears it
     if (updated[imageId] === newRole) {
       delete updated[imageId];
-    } else {
-      if (newRole === "start_frame" || newRole === "end_frame") {
-        for (const [id, role] of Object.entries(updated)) {
-          if (id !== imageId && role === newRole) updated[id] = "reference";
-        }
-      }
-      updated[imageId] = newRole;
+      onPatch({ imageRoles: updated });
+      return;
     }
 
-    // Commit any constraint-locked values into params so they persist after the lock clears.
+    // Conflict check (§D): role is blocked by an active constraint
+    const isFrameRole = newRole === "start_frame" || newRole === "end_frame";
+    const isRefRole = newRole === "reference";
+    if (isFrameRole && constraints.disableFrameInputs) {
+      // Frames are blocked because refs are active
+      const conflictingRole: ImageRole = "reference";
+      setPendingDialog({ type: "role-conflict", imageId, role: newRole, conflictingRole });
+      return;
+    }
+    if (isRefRole && constraints.disableRefs) {
+      // Refs are blocked because frames are active
+      const hasStart = Object.values(updated).includes("start_frame");
+      const conflictingRole: ImageRole = hasStart ? "start_frame" : "end_frame";
+      setPendingDialog({ type: "role-conflict", imageId, role: newRole, conflictingRole });
+      return;
+    }
+
+    // Singleton replacement check (§G): start_frame or end_frame already held by another image
+    if (newRole === "start_frame" || newRole === "end_frame") {
+      const incumbentId = Object.entries(updated).find(
+        ([id, r]) => id !== imageId && r === newRole,
+      )?.[0];
+      if (incumbentId) {
+        const incumbentImage = upstreamImages.find((img) => img.id === incumbentId);
+        const incumbentName = incumbentImage?.filename ?? "";
+        setPendingDialog({
+          type: "replace-singleton",
+          imageId,
+          role: newRole,
+          incumbentId,
+          incumbentName,
+        });
+        return;
+      }
+    }
+
+    // No conflict, no replacement needed — apply directly
+    updated[imageId] = newRole;
+    commitRoleChange(updated);
+  }
+
+  function commitRoleChange(updated: Record<string, ImageRole>) {
     const nextConstraints = evaluateConstraints(
       currentModel?.rules,
       buildConstraintState(updated, params),
@@ -566,6 +602,37 @@ export function VideoGenFocusView({
   }
 
   async function handleGenerate() {
+    // C0 (Kling): start frame required — button should be disabled, but guard anyway
+    if (currentModel?.provider === "kling") {
+      const hasStartFrame = Object.values(effectiveImageRoles).includes("start_frame");
+      if (!hasStartFrame) return;
+    }
+
+    // C2: images connected but none assigned (non-Kling providers)
+    if (upstreamImages.length > 0 && Object.keys(effectiveImageRoles).length === 0) {
+      setPendingDialog({ type: "no-roles" });
+      return;
+    }
+
+    // C3: end frame slot available, start frame assigned, unassigned images exist, no end frame
+    const hasStartFrame = Object.values(effectiveImageRoles).includes("start_frame");
+    const hasEndFrame = Object.values(effectiveImageRoles).includes("end_frame");
+    const hasUnassigned = upstreamImages.some((img) => !(img.id in effectiveImageRoles));
+    if (
+      imageInputs.endFrame &&
+      hasStartFrame &&
+      !hasEndFrame &&
+      hasUnassigned &&
+      !hasExplicitlySkippedEndFrameRef.current
+    ) {
+      setPendingDialog({ type: "missing-end-frame" });
+      return;
+    }
+
+    await doGenerate();
+  }
+
+  async function doGenerate() {
     setGenerating(true);
     setLastError(null);
     try {
@@ -573,14 +640,18 @@ export function VideoGenFocusView({
         modelId,
         params,
         imageRoles: effectiveImageRoles,
-        mock: useMock,
       });
       // 202 Accepted — hook's Realtime subscription clears isGenerating on completion
     } catch (e) {
       setGenerating(false);
-      const msg = e instanceof Error ? e.message : "Generation failed";
+      const msg =
+        e instanceof VideoGenApiError && e.status === 402
+          ? CREDIT_LIMIT_TOAST_MESSAGE
+          : e instanceof Error
+            ? e.message
+            : "Generation failed";
       setLastError(msg);
-      toast.error(msg);
+      toast.error(msg, { duration: 6000 });
     }
   }
 
@@ -606,6 +677,12 @@ export function VideoGenFocusView({
     endFrame: false,
     maxReferenceImages: 0,
   };
+
+  const durationSeconds = Number(params.seconds ?? params.duration ?? 0);
+  const audioEnabled = isVideoAudioEnabled(params.audio);
+  const resolution = asResolutionString(params.resolution);
+  const videoCostEstimate = computeVideoCost(modelId, durationSeconds, audioEnabled, resolution);
+  const estimatedCredits = videoCostEstimate ? usdToFinalCredits(videoCostEstimate.usd) : null;
 
   // Filter out roles that are invalid for the current model — handles the timing gap
   // between setModelId (local, immediate) and imageRolesProp update (from parent, async).
@@ -655,6 +732,22 @@ export function VideoGenFocusView({
       ? "result"
       : "empty";
 
+  // ── Rail: connected items + selection (mirrors image-gen-focus-view) ─────────
+  const connectedItems: { id: string; type: "prompt" | "image"; label: string }[] = [
+    ...(promptNode ? [{ id: promptNode.id, type: "prompt" as const, label: "Video prompt" }] : []),
+    ...upstreamImages.map((img) => ({
+      id: img.id,
+      type: "image" as const,
+      label: img.filename || "Image",
+    })),
+  ];
+  const connectedCount = connectedItems.length;
+  const hasFrames = upstreamImages.length > 0;
+  const isNodeSelected = !["video", "history", "details"].includes(selected);
+  const selectedDetailItem = isNodeSelected
+    ? connectedItems.find((c) => c.id === selected) ?? null
+    : null;
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
@@ -664,14 +757,9 @@ export function VideoGenFocusView({
         showCloseButton={false}
         className="gap-0 overflow-hidden rounded-t-2xl bg-background data-[side=bottom]:h-[92vh]"
       >
-        {/* Drag handle */}
-        <div className="flex shrink-0 justify-center pt-3">
-          <div className="h-1.5 w-12 rounded-full bg-border" />
-        </div>
-
         {/* Header */}
         <div className="shrink-0 border-b">
-          <div className="mx-auto w-full max-w-5xl px-6 pb-5 pt-3">
+          <div className="mx-auto w-full max-w-7xl px-6 pb-5 pt-3">
             <button
               type="button"
               onClick={() => onOpenChange(false)}
@@ -689,44 +777,38 @@ export function VideoGenFocusView({
                     className="font-display text-3xl font-semibold tracking-tight"
                   />
                 </SheetTitle>
-                <p className="mt-1.5 text-sm text-muted-foreground">
-                  Choose a model, set params, and generate a video.
-                </p>
               </div>
               <div className="flex shrink-0 flex-col items-end gap-2">
                 <div className="flex items-center gap-2">
-                  {/* Mock mode switch */}
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={useMock}
-                    onClick={toggleMock}
-                    className="flex items-center gap-2 text-xs text-muted-foreground transition-colors hover:text-foreground"
-                  >
-                    <span>Mock</span>
-                    <div
-                      className={cn(
-                        "relative inline-flex h-4 w-7 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200",
-                        useMock ? "bg-amber-400" : "bg-muted-foreground/25",
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          "block h-3 w-3 rounded-full bg-white shadow-sm transition-transform duration-200",
-                          useMock ? "translate-x-3" : "translate-x-0",
-                        )}
+                  {/* Usage popover needs versions, which are still loading right after the
+                      sheet opens — reserve its space with a skeleton instead of popping it
+                      in once the fetch resolves. */}
+                  {loadingVersions ? (
+                    <Skeleton className="h-8 w-20 rounded-md" />
+                  ) : (
+                    versions.length > 0 && (
+                      <VideoGenUsagePopover
+                        versions={versions}
+                        nodeId={nodeId}
+                        upstreamNodeIds={[
+                          ...(promptNode ? [promptNode.id] : []),
+                          ...upstreamImages.map((u) => u.id),
+                        ]}
                       />
-                    </div>
-                  </button>
-                  {versions.length > 0 && (
-                    <VideoGenUsagePopover versions={versions} />
+                    )
                   )}
                   <Tooltip>
                     <TooltipTrigger render={<span />}>
                       <Button
                         size="lg"
                         onClick={handleGenerate}
-                        disabled={isGenerating || constraints.disableGenerate || !editable}
+                        disabled={
+                          isGenerating ||
+                          constraints.disableGenerate ||
+                          !editable ||
+                          (currentModel?.provider === "kling" &&
+                            !Object.values(effectiveImageRoles).includes("start_frame"))
+                        }
                       >
                         <Sparkles className="size-4" strokeWidth={1.5} />
                         {isGenerating
@@ -734,148 +816,424 @@ export function VideoGenFocusView({
                           : videoUrl
                             ? "Re-generate"
                             : "Generate"}
+                        {!isGenerating && estimatedCredits !== null && (
+                          <EstimatedCreditsLabel credits={estimatedCredits} />
+                        )}
                       </Button>
                     </TooltipTrigger>
-                    {constraints.disableGenerate && constraints.disableGenerateReason && (
+                    {(constraints.disableGenerate && constraints.disableGenerateReason) ? (
                       <TooltipContent side="bottom">
                         {constraints.disableGenerateReason}
                       </TooltipContent>
-                    )}
+                    ) : currentModel?.provider === "kling" &&
+                      !Object.values(effectiveImageRoles).includes("start_frame") ? (
+                      <TooltipContent side="bottom">
+                        Kling requires a start frame — connect an image and assign it as Start Frame
+                      </TooltipContent>
+                    ) : null}
                   </Tooltip>
                 </div>
                 {lastError && !isGenerating && (
-                  <p className="text-xs text-destructive">
-                    Last attempt failed: {lastError}
-                  </p>
+                  <div className="mt-1">
+                    <GenerationErrorBadge error={lastError} />
+                  </div>
                 )}
               </div>
             </header>
           </div>
         </div>
 
-        {/* Body */}
-        <div className="min-h-0 flex-1 flex justify-center overflow-hidden">
-          {detailItem && (
-            <VideoGenDetailPanel
-              item={detailItem}
-              promptNode={promptNode}
-              images={upstreamImages}
-              imageRoles={effectiveImageRoles}
-              imageInputs={imageInputs}
-              onRoleChange={handleRoleChange}
-              onBack={() => setDetailItem(null)}
+        {/* Body: rail + detail pane (nav | options | output) — mirrors image-gen-focus-view */}
+        <div className="mx-auto flex w-full max-w-7xl min-h-0 flex-1 overflow-hidden">
+          {/* Rail */}
+          <nav className="flex w-56 shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-border px-3 py-4">
+            <RailItem
+              icon={<Clapperboard className="size-4 text-primary" />}
+              label="Video"
+              active={selected === "video"}
+              onClick={() => setSelected("video")}
             />
-          )}
-          {!detailItem && (
-            <div className="w-full max-w-5xl flex min-h-0 overflow-hidden">
-              {/* Left panel */}
-              <div className="w-[40%] border-r border-border overflow-y-auto px-6 py-6 flex flex-col gap-6">
-                {versions.length > 0 && (
-                  <LeftSection
-                    icon={History}
-                    label="History"
-                    badge={`${versions.length} version${versions.length === 1 ? "" : "s"}`}
-                    open={historyOpen}
-                    onToggle={() => setHistoryOpen((p) => !p)}
-                  >
-                    {historyOpen ? (
-                      <VideoGenVersionHistory
-                        versions={versions}
-                        activeVersionId={activeVersionId}
-                        onRestore={handleRestoreVersion}
-                        restoring={restoring}
-                        hideHeader
-                      />
-                    ) : (
-                      <ActiveVersionRow
-                        versions={versions}
-                        activeVersionId={activeVersionId}
-                      />
-                    )}
-                  </LeftSection>
-                )}
 
-                <LeftSection
-                  icon={Settings2}
-                  label="Output settings"
-                  open={settingsOpen}
-                  onToggle={() => setSettingsOpen((p) => !p)}
-                >
-                  {settingsOpen && (
-                    <VideoGenParamsPanel
-                      modelId={modelId}
-                      params={params}
-                      onModelChange={handleModelChange}
-                      onParamChange={handleParamChange}
-                      lockedParams={constraints.lockedParams}
-                      lockedParamReasons={constraints.lockedParamReasons}
-                    />
-                  )}
-                </LeftSection>
-
-                <LeftSection
-                  icon={Link2}
-                  label="Connected"
-                  badge={`${(promptNode ? 1 : 0) + upstreamImages.length} input${(promptNode ? 1 : 0) + upstreamImages.length === 1 ? "" : "s"}`}
-                  open={connectedOpen}
-                  onToggle={() => setConnectedOpen((p) => !p)}
-                >
-                  {connectedOpen && (
-                    <VideoGenConnectedSection
-                      promptNode={promptNode}
-                      images={upstreamImages}
-                      imageRoles={effectiveImageRoles}
-                      imageInputs={imageInputs}
-                      onRoleChange={handleRoleChange}
-                      onOpenDetail={(id, type) => setDetailItem({ id, type })}
-                      disableFrameInputs={constraints.disableFrameInputs}
-                      disableFrameInputsReason={
-                        constraints.disableFrameInputsReason
-                      }
-                      disableRefs={constraints.disableRefs}
-                      disableRefsReason={constraints.disableRefsReason}
-                      onReset={handleReset}
-                    />
-                  )}
-                </LeftSection>
+            <div className="flex items-center justify-between px-2.5 pb-1 pt-3">
+              <span className="text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                Connected · {connectedCount}
+              </span>
+              <AddConnection
+                targetId={nodeId}
+                targetType="video-gen"
+                connectedIds={connectedItems.map((c) => c.id)}
+              />
+            </div>
+            {loadingConnected ? (
+              <div className="space-y-1.5 px-1 pt-1">
+                {Array.from({ length: 2 }).map((_, i) => (
+                  <div key={i} className="h-7 animate-pulse rounded-md bg-muted-foreground/15" />
+                ))}
               </div>
+            ) : connectedCount === 0 ? (
+              <p className="px-2.5 text-xs text-muted-foreground">No inputs connected.</p>
+            ) : (
+              connectedItems.map((c) => {
+                const role = c.type === "image" ? effectiveImageRoles[c.id] : undefined;
+                return (
+                  <RailItem
+                    key={c.id}
+                    icon={
+                      c.type === "prompt" ? (
+                        <PencilLine className="size-4 text-primary" strokeWidth={1.5} />
+                      ) : (
+                        <ImageIcon className="size-4 text-primary" strokeWidth={1.5} />
+                      )
+                    }
+                    label={c.label}
+                    active={selected === c.id}
+                    onClick={() => setSelected(c.id)}
+                    badge={
+                      role ? (
+                        <span
+                          className={cn(
+                            "shrink-0 rounded-full px-1.5 py-0.5 text-[0.6rem] font-semibold",
+                            role === "start_frame"
+                              ? "bg-primary/10 text-primary"
+                              : "bg-muted text-muted-foreground",
+                          )}
+                        >
+                          {role === "start_frame" ? "Start" : role === "end_frame" ? "End" : "Ref"}
+                        </span>
+                      ) : undefined
+                    }
+                  />
+                );
+              })
+            )}
 
-              {/* Right panel */}
-              <div className="flex-1 min-h-0 flex flex-col px-6 py-6">
-                <div className="flex-1 min-h-0">
-                  {mode === "skeleton" && (
-                    <div className="size-full animate-pulse rounded-xl bg-muted-foreground/15" />
-                  )}
-                  {mode === "empty" && (
-                    <div className="flex size-full items-center justify-center rounded-xl border border-dashed border-border">
-                      <div className="text-center px-8">
-                        <Clapperboard
-                          className="mx-auto size-8 text-muted-foreground/40"
-                          strokeWidth={1.5}
-                        />
-                        <p className="mt-3 text-sm font-medium text-muted-foreground">
-                          Not generated yet
-                        </p>
-                        <p className="mt-1 text-xs text-muted-foreground/70">
-                          Tune your params and click Generate.
-                        </p>
+            <div className="mx-2.5 my-2 h-px bg-border" />
+            <RailItem
+              icon={<History className="size-4 text-primary" />}
+              label="History"
+              active={selected === "history"}
+              onClick={() => setSelected("history")}
+              badge={
+                versions.length > 0 ? (
+                  <span className="shrink-0 text-xs text-muted-foreground">{versions.length}</span>
+                ) : undefined
+              }
+            />
+            <RailItem
+              icon={<SlidersHorizontal className="size-4 text-primary" />}
+              label="Details"
+              active={selected === "details"}
+              onClick={() => setSelected("details")}
+            />
+          </nav>
+
+          {/* Detail pane: the middle column swaps with the rail selection; the output column on
+              the right is ALWAYS visible so the operator can tune while watching the result. */}
+          <div className="flex min-h-0 flex-1 overflow-hidden">
+            {/* Middle column */}
+            <div className="min-h-0 w-[54%] shrink-0 overflow-y-auto border-r border-border">
+              {/* Video — flat, independently-collapsible peer groups (Frames / Output / Fine-tune / Advanced) */}
+              {selected === "video" && (
+                <div className="flex flex-col gap-10 px-6 py-5">
+                  {(() => {
+                    const paramsPanelProps = {
+                      modelId,
+                      params,
+                      onModelChange: handleModelChange,
+                      onParamChange: handleParamChange,
+                      lockedParams: constraints.lockedParams,
+                      lockedParamReasons: constraints.lockedParamReasons,
+                    };
+                    const groups: { id: string; icon: LucideIcon; label: string; body: ReactNode }[] = [];
+                    if (hasFrames) {
+                      groups.push({
+                        id: "frames",
+                        icon: ImageIcon,
+                        label: "Frames",
+                        body: (
+                          <VideoGenConnectedSection
+                            promptNode={null}
+                            images={upstreamImages}
+                            imageRoles={effectiveImageRoles}
+                            imageInputs={imageInputs}
+                            onRoleChange={handleRoleChange}
+                            onConflictingRoleRequest={(imageId, role) => {
+                              const isFrameRole = role === "start_frame" || role === "end_frame";
+                              if (isFrameRole) {
+                                setPendingDialog({ type: "role-conflict", imageId, role, conflictingRole: "reference" });
+                              } else {
+                                const hasStart = Object.values(effectiveImageRoles).includes("start_frame");
+                                setPendingDialog({
+                                  type: "role-conflict",
+                                  imageId,
+                                  role,
+                                  conflictingRole: hasStart ? "start_frame" : "end_frame",
+                                });
+                              }
+                            }}
+                            onOpenDetail={(id) => setSelected(id)}
+                            disableFrameInputs={constraints.disableFrameInputs}
+                            disableFrameInputsReason={constraints.disableFrameInputsReason}
+                            disableRefs={constraints.disableRefs}
+                            disableRefsReason={constraints.disableRefsReason}
+                            onReset={handleReset}
+                          />
+                        ),
+                      });
+                    }
+                    groups.push({
+                      id: "output",
+                      icon: Settings2,
+                      label: "Output settings",
+                      body: <VideoGenParamsPanel {...paramsPanelProps} group="primary" />,
+                    });
+                    // Frames and Output settings stay expanded; Advanced is the one collapsible
+                    // group, so the secondary controls don't crowd the panel by default.
+                    return (
+                      <>
+                        {groups.map((g) => (
+                          <LeftSection key={g.id} icon={g.icon} label={g.label}>
+                            {g.body}
+                          </LeftSection>
+                        ))}
+                        {hasParamsInGroup(modelId, "advanced") && (
+                          <LeftSection
+                            icon={SlidersHorizontal}
+                            label="Advanced"
+                            open={advancedOpen}
+                            onToggle={() => setAdvancedOpen((o) => !o)}
+                          >
+                            {advancedOpen && (
+                              <VideoGenParamsPanel {...paramsPanelProps} group="advanced" />
+                            )}
+                          </LeftSection>
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
+
+              {/* Connected node — role assignment / read-only detail */}
+              {isNodeSelected &&
+                (selectedDetailItem ? (
+                  <VideoGenDetailPanel
+                    item={selectedDetailItem}
+                    promptNode={promptNode}
+                    images={upstreamImages}
+                    imageRoles={effectiveImageRoles}
+                    imageInputs={imageInputs}
+                    onRoleChange={handleRoleChange}
+                    onBack={() => setSelected("video")}
+                  />
+                ) : (
+                  <div className="flex h-full items-center justify-center px-6 py-6">
+                    <p className="text-sm text-muted-foreground">
+                      {loadingConnected ? "Loading…" : "This input has no preview yet."}
+                    </p>
+                  </div>
+                ))}
+
+              {/* History — every generation */}
+              {selected === "history" && (
+                <div className="px-6 py-5">
+                  {loadingVersions ? (
+                    <div className="space-y-2">
+                      <div className="h-3 w-24 animate-pulse rounded bg-muted-foreground/20" />
+                      <div className="space-y-1.5 pt-1">
+                        {Array.from({ length: 3 }).map((_, i) => (
+                          <div key={i} className="flex items-center gap-2">
+                            <div className="size-2 shrink-0 animate-pulse rounded-full bg-muted-foreground/20" />
+                            <div className="h-3 animate-pulse rounded bg-muted-foreground/20" style={{ width: `${55 + i * 12}%` }} />
+                          </div>
+                        ))}
                       </div>
                     </div>
-                  )}
-                  {mode === "result" && videoUrl && (
-                    <div className="flex size-full items-center justify-center">
-                      <video
-                        src={videoUrl}
-                        controls
-                        className="w-full max-h-full rounded-xl border border-border shadow-card"
-                      />
-                    </div>
+                  ) : versions.length > 0 ? (
+                    <VideoGenVersionHistory
+                      versions={versions}
+                      activeVersionId={activeVersionId}
+                      onRestore={handleRestoreVersion}
+                      restoring={restoring}
+                    />
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      No generations yet — every attempt will show up here.
+                    </p>
                   )}
                 </div>
+              )}
+
+              {/* Details — active constraint rules */}
+              {selected === "details" && (
+                <div className="px-6 py-5">
+                  <ActiveRulesCard constraints={constraints} />
+                </div>
+              )}
+            </div>
+
+            {/* Right column — the video, always visible */}
+            <div className="flex min-h-0 flex-1 flex-col gap-3 px-6 py-5">
+              <div className="flex items-center gap-1.5">
+                <Clapperboard className="size-3.5 text-primary" strokeWidth={1.5} />
+                <span className="text-eyebrow">Video</span>
+              </div>
+              <div className="min-h-0 flex-1">
+                {mode === "skeleton" && (
+                  <div className="size-full animate-pulse rounded-xl bg-muted-foreground/15" />
+                )}
+                {mode === "empty" && (
+                  <div className="flex size-full items-center justify-center rounded-xl border border-dashed border-border">
+                    <div className="text-center px-8">
+                      <Clapperboard
+                        className="mx-auto size-8 text-muted-foreground/40"
+                        strokeWidth={1.5}
+                      />
+                      <p className="mt-3 text-sm font-medium text-muted-foreground">
+                        Not generated yet
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground/70">
+                        Tune your params and click Generate.
+                      </p>
+                    </div>
+                  </div>
+                )}
+                {mode === "result" && videoUrl && (
+                  <div className="flex size-full items-center justify-center">
+                    <video
+                      src={videoUrl}
+                      controls
+                      className="w-full max-h-full rounded-xl border border-border shadow-card"
+                    />
+                  </div>
+                )}
               </div>
             </div>
-          )}
+          </div>
         </div>
+
+        {/* ── Dialog hub — all dialogs driven by pendingDialog state ── */}
+        <AlertDialog
+          open={pendingDialog !== null}
+          onOpenChange={(open) => { if (!open) setPendingDialog(null); }}
+        >
+          <AlertDialogContent>
+            {pendingDialog?.type === "no-roles" && (
+              <>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>No frame selected</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    You have connected images but haven&apos;t assigned any role (start frame, end
+                    frame, or reference). Generate anyway using only the text prompt?
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => void doGenerate()}>
+                    Generate anyway
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </>
+            )}
+
+            {pendingDialog?.type === "missing-end-frame" && (
+              <>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>End frame not assigned</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    You have a connected image without a role, and this model supports an end
+                    frame. Generate with just the start frame?
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => {
+                      hasExplicitlySkippedEndFrameRef.current = true;
+                      void doGenerate();
+                    }}
+                  >
+                    Generate anyway
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </>
+            )}
+
+            {pendingDialog?.type === "role-conflict" && (() => {
+              const d = pendingDialog;
+              const isAddingRef = d.role === "reference";
+              const modelLabel = currentModel?.label ?? "This model";
+              const removeWhat = isAddingRef ? "start/end frame assignments" : "reference image assignments";
+              const switchingTo = isAddingRef ? "reference images" : "start/end frames";
+              return (
+                <>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Can&apos;t combine these roles</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      {modelLabel} doesn&apos;t support reference images together with start/end
+                      frames. Switching to {switchingTo} will remove your {removeWhat}.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => {
+                        const updated = { ...effectiveImageRoles };
+                        for (const [id, r] of Object.entries(updated)) {
+                          if (isAddingRef && (r === "start_frame" || r === "end_frame")) {
+                            delete updated[id];
+                          } else if (!isAddingRef && r === "reference") {
+                            delete updated[id];
+                          }
+                        }
+                        updated[d.imageId] = d.role;
+                        commitRoleChange(updated);
+                      }}
+                    >
+                      Switch to {switchingTo}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </>
+              );
+            })()}
+
+            {pendingDialog?.type === "replace-singleton" && (() => {
+              const d = pendingDialog;
+              const roleLabel = d.role === "start_frame" ? "start frame" : "end frame";
+              const incumbentLabel = d.incumbentName
+                ? `"${d.incumbentName}"`
+                : `the current ${roleLabel}`;
+              return (
+                <>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Replace {roleLabel}?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      {incumbentLabel} is currently set as the {roleLabel}. Replace it with this
+                      image?
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => {
+                        const updated = { ...effectiveImageRoles };
+                        if (imageInputs.maxReferenceImages > 0) {
+                          updated[d.incumbentId] = "reference";
+                        } else {
+                          delete updated[d.incumbentId];
+                        }
+                        updated[d.imageId] = d.role;
+                        commitRoleChange(updated);
+                      }}
+                    >
+                      Replace
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </>
+              );
+            })()}
+          </AlertDialogContent>
+        </AlertDialog>
       </SheetContent>
     </Sheet>
   );

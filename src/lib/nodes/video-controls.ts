@@ -23,14 +23,15 @@ export const VIDEO_CONTROLS: {
     label: "Camera",
     options: [
       { value: "auto", label: "Auto", prose: "" },
-      { value: "static", label: "Static", prose: "a locked-off static frame" },
-      { value: "push-in", label: "Push in", prose: "a slow push-in toward the subject" },
-      { value: "pull-back", label: "Pull back", prose: "a smooth pull-back revealing the scene" },
-      { value: "orbit", label: "Orbit", prose: "a gentle orbit around the subject" },
-      { value: "pan", label: "Pan", prose: "a steady pan across the frame" },
-      { value: "tilt", label: "Tilt", prose: "a deliberate vertical tilt" },
-      { value: "handheld", label: "Handheld", prose: "subtle handheld movement" },
-      { value: "crane", label: "Crane", prose: "a rising crane move" },
+      { value: "static", label: "Static", prose: "a locked-off static frame with no camera movement" },
+      { value: "push-in", label: "Push in", prose: "a slow, steady push-in toward the subject at a constant focal length" },
+      { value: "pull-back", label: "Pull back", prose: "a smooth pull-back revealing the surrounding scene at a constant focal length" },
+      { value: "orbit", label: "Orbit", prose: "a slow, small-angle orbit around the subject, holding constant distance, height, and focal length" },
+      { value: "tracking", label: "Tracking", prose: "a smooth lateral tracking move alongside the subject at constant distance and focal length" },
+      { value: "pan", label: "Pan", prose: "a steady horizontal pan across the frame from a fixed camera position" },
+      { value: "tilt", label: "Tilt", prose: "a deliberate vertical tilt from a fixed camera position" },
+      { value: "handheld", label: "Handheld", prose: "subtle handheld texture while otherwise holding the framing" },
+      { value: "crane", label: "Crane", prose: "a slow rising crane move, keeping the subject centered" },
     ],
   },
   {
@@ -50,9 +51,9 @@ export const DEFAULT_VIDEO_CONTROLS: VideoControls = {
   speed: "auto",
 };
 
-// The motion-control block injected into the compiled prompt. "" when every control is Auto.
-// Camera is emitted first as its own clause — Veo parses camera direction best when it is
-// separated from the subject action.
+// The motion-control block injected into the compiled prompt. "" when nothing to inject. Camera is
+// always emitted (text-camera for every provider — Veo has no camera param, Kling 3.0 has no
+// camera_control). Camera leads as its own clause; text models parse it best separated from action.
 export function renderVideoControls(controls: VideoControls): string {
   const lines: string[] = [];
   for (const group of VIDEO_CONTROLS) {

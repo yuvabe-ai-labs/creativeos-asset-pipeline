@@ -8,7 +8,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 # Architecture & decisions (ADR log)
 
 Before making — or silently re-deciding — any architectural choice, consult the **ADR log**:
-**[docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md](docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md) §7** (decisions **D1–D27**).
+**[docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md](docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md) §7** (decisions **D1–D76** and growing).
 It records *what* was chosen, *why*, and *what was rejected*, so decisions aren't quietly
 re-litigated. Per-feature design specs live alongside it under
 [docs/superpowers/specs/](docs/superpowers/specs/); the data-model "spine" is in
@@ -86,3 +86,27 @@ Tailwind v4 note: the docs say import React Flow's stylesheet **after** `@import
 "tailwindcss"` in the global CSS (not inside a component), so Tailwind's base doesn't
 override it.
 <!-- END:react-flow -->
+
+<!-- BEGIN:reusability -->
+# Reusability — don't re-declare what already exists
+
+Before writing any constant, utility function, or helper, **search the module first.**
+
+## Canonical sources — import from these, never redefine locally
+
+| What | Canonical location |
+|---|---|
+| Status sets, size limits, extension sets | `src/lib/<feature>/constants.ts` |
+| Pure utilities (`formatBytes`, `formatDate`, `buildChangeSummary`, …) | `src/lib/<feature>/utils.ts` |
+| Type factory helpers (`emptyKBField`, `defaultEmptyImageAnalysis`, …) | `src/lib/<feature>/schema.ts` |
+| Shared system prompt text | The canonical provider file (e.g. `src/prompts/kb-extract.ts`), exported |
+| API helpers (`apiError`, `apiOk`, `withClient`, …) | `src/lib/api/route-helpers.ts` |
+
+## Rules
+
+- **Import, don't redefine.** If a value or function already exists in the module, import it. Declaring a local copy is a bug waiting to diverge.
+- **Check before creating.** Before adding to `constants.ts` or `utils.ts`, grep the file — it may already be there.
+- **Provider pairs share prompts.** When two providers (e.g. OpenAI + Gemini) use the same system prompt, export the text from the canonical file and import in the variant. If they differ by one sentence, extract the shared body and compose.
+- **Two call sites = extract. One = leave inline.** Don't abstract speculatively; wait for a real second consumer.
+- **Narrower sets are intentional.** A subset (e.g. binary-only extensions) that is intentionally smaller than the canonical set is not a duplicate — leave it separate and name it clearly.
+<!-- END:reusability -->

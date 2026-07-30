@@ -1,19 +1,23 @@
 "use client";
 
-import { FileTextIcon, ImageIcon, UploadIcon, XIcon, Undo2Icon } from "lucide-react";
+import { useState, useEffect } from "react";
+import { FileTextIcon, ImageIcon, LinkIcon, UploadIcon, XIcon, Undo2Icon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import type { ClientKBDocumentRow, ClientBrandImageRow } from "@/lib/db/types";
 import type { StagedChanges } from "@/lib/kb/types";
 import { formatBytes } from "@/lib/kb/utils";
 
 type Props = {
+  clientId: string;
   documents: ClientKBDocumentRow[];
   images: ClientBrandImageRow[];
   staged: StagedChanges;
   uploadingDocs: boolean;
   uploadingImgs: boolean;
+  initialWebsiteUrl?: string | null;
   onMarkDocForRemoval: (id: string) => void;
   onUndoDocRemoval: (id: string) => void;
   onMarkImageForRemoval: (id: string) => void;
@@ -29,11 +33,13 @@ type Props = {
 // The source-files manager, rendered as the body of a side drawer. Documents and
 // images are split into two tabs; a pending-changes footer pins to the bottom.
 export function KBSourcePanel({
+  clientId,
   documents,
   images,
   staged,
   uploadingDocs,
   uploadingImgs,
+  initialWebsiteUrl = null,
   onMarkDocForRemoval,
   onUndoDocRemoval,
   onMarkImageForRemoval,
@@ -45,7 +51,20 @@ export function KBSourcePanel({
   cancelingChanges,
   savingChanges,
 }: Props) {
+  const [websiteUrl, setWebsiteUrl] = useState(initialWebsiteUrl ?? "");
   const { pendingDocRemovals, pendingImageRemovals, newlyAddedDocIds, newlyAddedImageIds } = staged;
+
+  useEffect(() => {
+    if (websiteUrl === (initialWebsiteUrl ?? "")) return;
+    const handle = setTimeout(() => {
+      void fetch(`/api/clients/${clientId}/website-url`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ websiteUrl: websiteUrl || null }),
+      });
+    }, 800);
+    return () => clearTimeout(handle);
+  }, [websiteUrl, clientId, initialWebsiteUrl]);
 
   const hasPendingChanges =
     pendingDocRemovals.size > 0 ||
@@ -84,6 +103,20 @@ export function KBSourcePanel({
 
         {/* Documents tab */}
         <TabsContent value="documents" className="min-h-0 flex-1 space-y-3 overflow-y-auto p-5">
+          {/* Website URL */}
+          <div className="space-y-1.5">
+            <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <LinkIcon className="size-3" />
+              Website URL
+            </p>
+            <Input
+              type="url"
+              placeholder="https://example.com"
+              value={websiteUrl}
+              onChange={(e) => setWebsiteUrl(e.target.value)}
+              className="h-8 text-sm"
+            />
+          </div>
           <p className="text-xs text-muted-foreground">PDF · DOCX · PPTX · MD · TXT</p>
           <label className="flex cursor-pointer items-center gap-2 rounded-md border border-dashed border-primary/40 px-3 py-2.5 text-sm font-medium text-primary transition-colors hover:bg-primary/5 hover:border-primary/60">
             {uploadingDocs ? (

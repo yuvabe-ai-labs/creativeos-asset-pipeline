@@ -1,10 +1,10 @@
 import "server-only";
 import { createGemini } from "@/lib/gemini/server";
 import { buildZodFromParams } from "../schema-builder";
-import { geminiFlashParams, geminiProParams } from "../params/gemini";
+import { gemini25FlashParams, geminiFlash2Params, geminiProParams } from "../params/gemini";
 import type { ImageGenInput, ImageGenResult, MediaGenModelSpec } from "../types";
 
-export { geminiFlashParams, geminiProParams };
+export { gemini25FlashParams, geminiFlash2Params, geminiProParams };
 
 // Params ref: https://ai.google.dev/gemini-api/docs/image-generation
 // Only imageConfig.aspectRatio and imageConfig.imageSize are supported via the
@@ -26,6 +26,8 @@ async function generateWithGemini(
   apiModelId: string,
   input: ImageGenInput,
 ): Promise<ImageGenResult> {
+  // masks are OpenAI-only; Gemini does region targeting via prompt text (D38). input.maskBase64
+  // is intentionally ignored here.
   const ai = createGemini();
   const p = input.params;
 
@@ -58,16 +60,46 @@ async function generateWithGemini(
   }
 
   const usage = response?.usageMetadata;
+  // promptTokenCount covers all input (text + reference images combined).
+  // Gemini doesn't break out text vs image input separately, so map the
+  // full prompt count to text_input_tokens and leave image_input_tokens at 0.
+  const promptTokens = usage?.promptTokenCount ?? 0;
+  const outputTokens = usage?.candidatesTokenCount ?? 0;
   return {
     imageBase64: imagePart.inlineData.data,
     mimeType: imagePart.inlineData.mimeType ?? "image/png",
     tokensUsed: {
-      text_input_tokens:   0,
+      text_input_tokens:   promptTokens,
       image_input_tokens:  0,
-      image_output_tokens: usage?.candidatesTokenCount ?? 0,
-      total_tokens:        usage?.totalTokenCount      ?? 0,
+      image_output_tokens: outputTokens,
+      total_tokens:        usage?.totalTokenCount ?? (promptTokens + outputTokens),
     },
   };
+}
+
+/**
+ * Live pre-flight input-token count via Gemini's official countTokens endpoint — sends the
+ * exact same `contents` shape generateWithGemini uses, so the count matches what a real
+ * generation call would actually bill for input. Used by the pre-generation estimate
+ * (design spec §5). Always a fresh live call, never cached.
+ */
+export async function countGeminiInputTokens(
+  apiModelId: string,
+  prompt: string,
+  referenceUrls: string[],
+): Promise<number> {
+  const ai = createGemini();
+  const refParts = await Promise.all(
+    referenceUrls.map(async (url) => {
+      const { mimeType, data } = await urlToInlineData(url);
+      return { inlineData: { mimeType, data } };
+    }),
+  );
+  const response = await ai.models.countTokens({
+    model: apiModelId,
+    contents: [{ role: "user", parts: [...refParts, { text: prompt }] }],
+  });
+  return response.totalTokens ?? 0;
 }
 
 // ── Model configs ─────────────────────────────────────────────────────────────
@@ -77,25 +109,28 @@ export const geminiModels: MediaGenModelSpec[] = [
     id: "gemini:gemini-2.5-flash-image",
     provider: "gemini", mediaType: "image",
     label: "Nano Banana", providerLabel: "Gemini",
-    maxReferenceImages: 5, maxReferenceSizeBytes: 20 * 1024 * 1024,
-    params: geminiFlashParams,
-    schema: buildZodFromParams(geminiFlashParams),
+    maxReferenceImages: 14, maxReferenceSizeBytes: 0,
+    maxTotalReferenceSizeBytes: 100 * 1024 * 1024,
+    params: gemini25FlashParams,
+    schema: buildZodFromParams(gemini25FlashParams),
     generate: (input) => generateWithGemini("gemini-2.5-flash-image", input),
   },
   {
     id: "gemini:gemini-3.1-flash-image",
     provider: "gemini", mediaType: "image",
     label: "Nano Banana 2", providerLabel: "Gemini",
-    maxReferenceImages: 5, maxReferenceSizeBytes: 20 * 1024 * 1024,
-    params: geminiFlashParams,
-    schema: buildZodFromParams(geminiFlashParams),
+    maxReferenceImages: 14, maxReferenceSizeBytes: 0,
+    maxTotalReferenceSizeBytes: 100 * 1024 * 1024,
+    params: geminiFlash2Params,
+    schema: buildZodFromParams(geminiFlash2Params),
     generate: (input) => generateWithGemini("gemini-3.1-flash-image", input),
   },
   {
     id: "gemini:gemini-3-pro-image",
     provider: "gemini", mediaType: "image",
     label: "Nano Banana Pro", providerLabel: "Gemini",
-    maxReferenceImages: 5, maxReferenceSizeBytes: 20 * 1024 * 1024,
+    maxReferenceImages: 14, maxReferenceSizeBytes: 0,
+    maxTotalReferenceSizeBytes: 100 * 1024 * 1024,
     params: geminiProParams,
     schema: buildZodFromParams(geminiProParams),
     generate: (input) => generateWithGemini("gemini-3-pro-image", input),

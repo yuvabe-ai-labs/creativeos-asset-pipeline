@@ -285,7 +285,7 @@ the path. Durable job state in the DB is the one async piece we cannot skip.
 applies to an internal MVP. Start with a `status` column + Realtime; graduate to real queue
 infra only when a named pressure forces it.
 
-### D14 — Stage 1 auth: none yet
+### D14 — Stage 1 auth: none yet *(**SUPERSEDED by D43** — pilot auth, 2026-07-15)*
 **Decision.** Ship Stage 1 as an open app (private/internal URL); add Supabase Auth in a
 later stage.
 **Why.** PRD §18 puts multi-tenant auth out of scope; speed to a usable increment.
@@ -780,7 +780,1079 @@ schedules). **Deferred.** Cross-canvas inbox, submit lifecycle, notifications, b
 badges, shot-based grouping (needs shot lineage downstream nodes don't store), campaign entity.
 **Originated.** `2026-07-02-production-review-mode-design.md`.
 
-### D35 — Eval viewer generalizes to a per-node, all-action-types, version-aware error-analysis surface *(recorded 2026-07-02; builds on D4/D18/D22; extends the built eval viewer; consumes the model-request capture; separate axis from D29/D34)*
+### D35 — Generation Tray: canvas-scoped, navigation-only job shelf derived from the `generations` substrate; image gen joins the substrate *(recorded 2026-07-05; builds on D26, D12/D25, D9, D33, D18/D5; preserves D11)*
+**Decision.** A **flat, canvas-scoped shelf** floating over the canvas (right-edge overlay, hidden when
+empty) listing one item **per generation node** (`image-gen | video-gen`) whose latest `generations`
+job row is `running | succeeded | failed`, rendered **Running / Ready / Failed** with shot label +
+asset type. **Clicking an item does one thing: fly the canvas to that node (`setCenter`) and open its
+focus view.** No tray-level actions. Item **leaves** on approval of the active version (retention =
+"until approved"), a newer generation, or node deletion. Everything is **derived on read** (D9) — a
+pure `deriveTrayItems(nodes, edges, latestJobs, approvals, now)` + `resolveShotLabel` (upstream
+edge-walk to the nearest `shot`, fallback to node title); **no tray table, no new column, no
+migration.** Live via **one canvas-level Supabase Realtime channel** on `generations`
+(`node_id`-filtered client-side; coexists with the untouched per-node `use-video-gen-status`). **Image
+gen joins the substrate** — the (still synchronous) image route now writes `insertGeneration` →
+`succeedGeneration`/`failGeneration` (the primitives video already uses), which is what D26 always
+assumed but the route never did; a `running` **image** row past a ~60s threshold is **derived stale →
+Failed** (D9), covering a client that disconnects mid-request. Requires two small reusable plumbing
+additions: wrap the canvas in `<ReactFlowProvider>` (viewport API reachable from a sibling) and lift
+`focusedNodeId` to the canvas store (open a focus view programmatically). **Why.** Video was already
+non-blocking but had no consolidated cross-reel view of "what's generating / just finished"; image
+blocked its drawer and left **no** record at all. The tray removes waiting confusion and gives one
+click back to the finished node. **Rejected.** A stored `tray` table (duplicates derivable state —
+violates D9); denormalizing `canvas_id` onto `generations` (a migration for no gain — filter
+client-side); promoting image gen to trigger.dev async (contradicts D26's sync fast path; the row is
+memory, not a completion guarantee); tray-level approve/retry/edit (belongs in the focus view — concept
+note §8.4); prompt/compose/parse jobs in the tray (only long-running generation). **Preserves D11** (the
+tray never auto-advances or triggers a step — click = navigate). **Deferred.** The **guided next-node
+flow** (auto-create/connect/place the next node + "Save and create…" CTAs) — the *other half* of the
+origin note, a separate spec built on this one; live approval reconciliation across sessions (currently
+next-load); a cross-canvas/global tray. **Originated.** `2026-07-05-generation-tray-design.md`.
+
+### D36 — Guided next-node flow: declarative chain of "Create next" CTAs; never auto-generates *(recorded 2026-07-05; builds on D35, D21, D24, D8; preserves D11; the deferred second half of the D35 origin note)*
+**Decision.** A contextual **"Create next"** action on each pipeline node that **saves → creates →
+connects → places → opens** the next node, and **never runs a model** (the designer sets controls,
+verifies inputs, clicks Generate — preserves D11). The chain: `Shot →(image prompt) prompt →(image
+generation) image-gen →(video prompt) video-prompt →(video generation) video-gen` (video-gen is
+terminal). The whole progression is **one declarative config** `GUIDED_CHAIN` + a pure
+`planGuidedNext(source, nodes, edges)` (mirrors `deriveTrayItems`/`planReconcile`): returns the
+`nextType`, an `existingId` (**idempotent** — if the next node already exists it **navigates**, never
+duplicates), a `position` (`placeNextTo` = +360 x, nudge y on overlap), and `edgesToCreate`. Two steps
+wire **two** parents (D24): image-gen→video-prompt also wires **shot** (action context); video-prompt→
+video-gen also wires **image-gen** (start frame) — resolved by promoting the tray's `findShotAncestor`
+to a shared `findAncestorOfType` in `canvas/graph.ts` (findShotAncestor becomes a one-line delegate).
+A store action `guidedCreateNext(sourceId)` applies the plan (or returns the existing id) and flushes
+autosave; a shared `<GuidedNextButton>` renders as a **dashed-primary chip** on the Shot card (no focus
+view) or a **primary button** in the prompt/image-gen/video-prompt focus-view footers, and on click
+navigates via **`focusedNodeId`** (the D35 seam, now extended to `prompt`/`video-prompt` nodes). The
+image-gen CTA is **enabled once a still exists**, with a **"Not approved yet" nudge** when unapproved —
+approval **guides, never gates** (D29). **Why.** Four node-creates + six edges per shot was most of the
+setup clicks on a fanned-out reel; the tray removed *waiting* friction, this removes *setup* friction —
+and the tray already built the two seams it needs (`focusedNodeId`, the ancestor walk). **Rejected.**
+Auto-generating any step, even cheap prompt text (contradicts D11; the designer must set controls +
+verify inputs); a dedicated linear "Runner" surface (stays in-canvas); auto-selecting reference images
+(speculative/error-prone — the designer wires refs); creating a duplicate on repeat click (navigate
+instead); inferring "next" from `VALID_CONNECTIONS` (it allows multiple targets — a curated chain is
+needed). **Preserves D11** (never schedules a generation). **Deferred.** The dedicated Runner surface;
+batch "fan all shots' chains"; reference auto-selection. **Originated.**
+`2026-07-05-guided-next-node-flow-design.md`.
+
+### D37 — Image Edit mode: a tabbed composer (annotation + connected-ref selection) over the D27 edit pipeline
+
+**Decision.** Add a `Generate | Edit` tab to the Image Gen focus view. Edit mode adds (a) a
+separate-layer annotation overlay on the base image, (b) toggle tiles to mark which *connected*
+nodes are the edit's references, and (c) a "Modify" intent chip. It sends an annotated
+composite + a chosen `extraReferenceUrls` to the **existing** D27 edit route; the base image is
+shown even with no prior attempt, so a connected/clipped reference is editable immediately.
+
+**Why.** Designers need to *point* at edit regions and to *choose* which reference feeds an
+edit, and editing a connected/clipped reference must be visible without a prior generation —
+all without a new pipeline or storage mechanism.
+
+**Rejected.** Ad-hoc uploaded references in the composer (would add a storage path — instead
+mark connected nodes); pixel masks (prose-level visual hint only); a separate Edit node /
+second route (violates D27 §4.1).
+
+**Refines.** D27 (adds the composer UI + two additive route fields; the edit pipeline is
+unchanged).
+
+**Originated.** `2026-07-05-image-edit-mode-design.md`.
+
+### D38 — Model-aware image-edit region control (mask vs text); retire the burned-in composite
+
+**Decision.** The Edit region is carried in the *selected model's* native channel — OpenAI via a
+real alpha **mask** (`images.edit` mask; the user **paints the region**; the base image is sent
+**clean**), Gemini via **text only** (no drawing). A `supportsMask` capability flag on the model
+spec drives both the UI (paint vs type) and the payload. The D37 burned-in annotation composite
+is **retired**.
+
+**Why.** Compositing the drawn marks into the base image reproduces them into the output (a black
+scribble rendered onto the edited photo); native channels (mask / text) don't. Mask polarity is
+locked by empirical verification.
+
+**Rejected.** Keeping the composite (it is the bug); passing an annotated image as a Gemini
+reference (reintroduces marks-in-pixels, off-pattern for Gemini multi-image, undocumented);
+auto-interpreting freehand marks / drawing on Gemini (deferred, not this cut).
+
+**Refines.** D37 (partially reverses its "pixel masks are a non-goal" stance) / D27.
+
+**Originated.** `2026-07-06-image-edit-model-aware-masking-design.md`.
+
+### D39 — Explicit "Set as base" for connected reference images
+
+**Decision.** The edit base is an **explicit, persisted choice** (`baseReferenceNodeId` on
+`ImageGenNodeData`), surfaced as a hover **pin** on each non-base reference tile. Resolution
+(pure `resolveBaseNodeId`): a generated attempt always wins (base = the attempt); otherwise the
+pinned node wins **when still connected**, else fall back to the first-connected image (the prior
+implicit rule) — never a dangling base. The pin is hidden while an attempt is the base
+(`canSetBase = !baseIsAttempt`). The chosen base drives both the annotated preview and the
+`baseImageUrl` sent to the edit route; the previous base rejoins the selectable extras.
+
+**Why.** The base was silently `connectedImageNodes[0]` — the earliest node in the canvas node
+list (≈ creation order), *not* connection order — so it reassigned invisibly as the operator
+connected/disconnected references and could never be chosen. An explicit pin makes the base
+operator-controlled and stable across reconnection.
+
+**Rejected.** Re-basing onto a reference *after* a generation exists (bigger behavioral change to
+the generate→iterate loop; YAGNI for this cut — attempt still wins); a full base-picker in
+`ConnectedInputsCard`; inferring base from edge-creation order (still invisible/unstable).
+
+**Refines.** D37 / D27 (fills the base-selection gap both specs flagged as unbuilt).
+
+### D40 — Prompt focus view becomes a left-rail master–detail
+
+**Decision.** The Prompt focus view (`prompt-focus-view.tsx`) is reorganized into a **left rail +
+detail pane** (master–detail). Rail items, top to bottom: **Prompt** (default) → a **Connected · N**
+group listing each upstream node → **Details** → **Sent to model**. The right pane renders the
+selected item:
+- **Prompt** — the compose editor: **Instruction** (textarea + one-row shot controls + Generate) on
+  top, **Generated prompt** below (eyebrow + a `v1 v2…` **version-chip strip**: hover = version
+  details, click = switch via the existing restore; output at 16px, capped height).
+- **A connected node** — that node's read-only detail (reuses `ConnectedDetailView`; no back button
+  needed — the rail returns).
+- **Details** — Brand KB slices, then an `hr`, then Review (eval + approval). Carries the approval
+  status badge on its rail item.
+- **Sent to model** — the frozen request as `line`-variant tabs (System prompt / Compiled input /
+  Attachments), heading supplied by the rail item.
+Usage/cost stays in the header. **All controls are shadcn primitives** (`Button`, `Textarea`, `Tabs`)
+— no native controls (this rule was codified in `CLAUDE.md`). New pieces: `prompt-version-chips.tsx`,
+pure helpers `describeApprovalPill` / `buildVersionChips` (`lib/nodes/prompt-focus.ts`), and
+`NodeIcon` exported from `connected-inputs-card.tsx`. Folds in **YUV-165** (the "Generated prompt"
+eyebrow + output prominence); YUV-165's Video Prompt view is a tracked fast follow.
+
+**Why.** The view showed everything at once, so the primary path (write → generate → read) competed
+with metadata/approval/eval/model-request, and the generated output sat *last*, unlabelled (YUV-165).
+A master–detail rail makes Prompt the primary surface and turns each secondary concern (each connected
+input, the Brand KB + review, the model request) into a plain "select → render" item — simpler and a
+better fit than peer tabs for "one editor + a list of inspectable things."
+
+**Rejected.** Segmented **Compose/Details tabs** (first built; the Base UI `Tabs` controlled-value
+switching fought the bottom-sheet flex layout and didn't switch reliably — replaced by the rail);
+a right-side drawer; collapsible icon rails; a fully-minimal editor with no review-state signal (kept
+the approval badge on the Details rail item instead).
+
+**Refines.** Supersedes YUV-165's "keep bars but de-emphasize" with "move off the primary surface into
+rail items." Preserves D29 (approval flag), D33 (read-only sessions), D35/D36 (`GuidedNextButton` in
+the header). **Originated →** `2026-07-12-yuv187-prompt-focus-simplify-design.md` (that spec's tab
+design was superseded during implementation by this rail; see its top note).
+
+### D41 — Reference gallery is a right drawer, not a modal *(recorded 2026-07-14)*
+
+**Decision.** The reference-image picker becomes a **right-side drawer** (`Sheet` primitive) that
+stays open across canvas interactions. Two tabs — **References** (Drive) and **Assets** (canvas
+generations) — feed a masonry / list content area with `react-intersection-observer` infinite
+scroll. Selection persists across tabs; commit is either the Add button or **drag-and-drop** onto
+the canvas pane or an eligible node (auto-connects on node drop). Drive images are queried
+**flat by recency** across My Drive + Shared with me + shared drives in a single call — no folder
+tree; folder + "shared only" filters live in a popover and are applied client-side over the
+loaded pages. Full-res is only fetched when the operator commits (click-Add or drop), then
+streamed to GCS via the existing `/api/nodes/[id]/file/drive` endpoint. Session-cached
+(module-level singletons); an explicit refresh button re-fetches.
+
+**Why.** The old dialog blocked the canvas — the operator couldn't drag a picked image onto a
+specific node. Folder-tree navigation was slow when the actual mental model is "recent images
+across everything." A drawer that stays open + recency-sorted flat listing + drag-drop turns the
+picker into a working surface.
+
+**Rejected.** Modal dialog (blocks canvas, no drag-onto-node); left sidebar (cramps the canvas
+surface); floating palette (fights the generation tray); server-side Drive search (deferred —
+client-side substring over loaded pages is enough for v1); persistent selection across
+drawer close (deliberate reset on close to avoid stale-selection surprises); infinite scroll
+via `scroll` event handler (`react-intersection-observer` is cleaner).
+
+**Refines.** Supersedes the D8-era modal picker. Preserves D33 (autosave flush is called before
+Drive uploads, so the newly-added node rows exist by the time `/api/nodes/[id]/file/drive`
+runs — falls back to a bounded retry on "not found"). Preserves D14 (Drive thumbnail/file
+proxies remain unauthenticated but obscurity-gated). Preserves D29/D34 (adding via the drawer
+doesn't touch approval state; it just spawns new file nodes).
+
+**Originated →** `2026-07-14-gallery-drawer-design.md`.
+
+### D42 — Organizations: the tenant layer above `clients` *(recorded 2026-07-15; extends the D1/D10 single ownership tree; promotes the tenancy half of F1)*
+
+**Decision.** A new `organizations` table is the tenant and isolation boundary. `clients`
+gains an `org_id` FK; because every table already FKs up to `clients`, every row inherits
+its org through the tree — no other table changes. Users live in `profiles`
+(`user_id` → `auth.users`, `org_id`, `display_name`, `role`), membership-shaped so
+multi-seat later is additive rows, not a schema change. The pilot runs **one user per org**.
+
+**Why.** First external agency. Agencies never share client brands, so org = agency is the
+smallest model with hard isolation; user-as-tenant breaks the moment an agency wants a
+second seat.
+
+**Rejected.** User-as-tenant (no org layer); per-agency separate deployments (operational
+dead end — every fix ships N times, no product-level org concept).
+
+**Originated →** `docs/CreativeOS Multi-Tenancy Pilot PRD.md` (§4, §6.1).
+
+### D43 — Supabase Auth (email+password, invite-only) fills the D29 identity seam *(recorded 2026-07-15; supersedes D14; fulfills the seam D29 reserved)*
+
+**Decision.** Supabase Auth with email+password, **invite-only** (seed script creates each
+org + user; no self-serve signup). Next.js middleware guards every page and API route
+(no session → `/login`); webhook/cron routes keep shared-secret auth. `useIdentity()`
+swaps its *source* from localStorage to the session + `profiles` row — call sites
+unchanged, exactly as D29 planned. `node_versions.operator` / `approved_by` stay text,
+now stamped from the profile's display name; promotion to `user_id` FKs remains backlog.
+Role stays cosmetic (D29). The D33 lock is unchanged (per-tab, composes with login).
+
+**Why.** Real isolation needs a real caller identity; Supabase Auth is already in the
+stack and password reset comes free.
+
+**Rejected.** SSO / Google login (pilot); self-serve signup; enforced RBAC (needs
+multi-seat to matter).
+
+**Originated →** `docs/CreativeOS Multi-Tenancy Pilot PRD.md` (§5).
+
+### D44 — App-layer org enforcement at the chokepoints; RLS only where the browser reads *(recorded 2026-07-15; builds on D42/D43; preserves the D14-era service-role server path)*
+
+**Decision.** The service-role server client stays. Org isolation is enforced in app code
+at the existing chokepoints: `withClient` verifies `client.org_id` = caller's org
+(**404** on mismatch — never confirm foreign resources exist); deeper routes (nodes,
+canvas, eval, server actions) walk their ownership chain (node → canvas → client) and
+apply the same check; list queries filter by `org_id`; `/api/ingest-image` loses its
+deliberate D14 openness. RLS is enabled on exactly the two browser-read tables
+(`generations`, `client_kb_jobs`) so authenticated realtime only delivers the caller's
+org's rows.
+
+**Why.** Same isolation for a fraction of the risk: an RLS-everywhere rewrite touches all
+34 service-role call sites and 10+ tables; the chokepoints already exist.
+
+**Rejected.** RLS-everywhere (deferred to hardening as defense-in-depth, not undone by
+this path); per-agency deploys (see D41).
+
+**Originated →** `docs/CreativeOS Multi-Tenancy Pilot PRD.md` (§6.2–6.3).
+
+### D45 — Learning scopes: platform / segment / client; knowledge flows downward only *(recorded 2026-07-15; extends D6/D17's ambient-context model across the tenant boundary)*
+
+**Decision.** Three scopes: **platform** (common system prompts/playbooks — code, ships to
+all orgs), **segment** (e.g. DTC — future, a tag on clients + platform-curated artifacts),
+**client** (Brand KB / instruction set — that org only). Shared pools are
+**hand-curated by Yuvabe only** — never pipeline-fed from tenant data. Tenant data never
+flows up or sideways; "do you learn from our data?" → no. No segment schema in the pilot.
+
+**Why.** Composition downward is safe; automatic upward distillation would move one
+agency's client insights into another agency's outputs — a data leak in IP form.
+
+**Originated →** `docs/CreativeOS Multi-Tenancy Pilot PRD.md` (§8).
+
+### D46 — Pilot accepts public GCS capability URLs; signed access is hardening *(recorded 2026-07-15; extends D30; risk accepted in writing)*
+
+**Decision.** Generated/uploaded files stay public GCS URLs in the pilot. Paths embed
+UUIDs (unguessable capability links, server-derived per D30), but a leaked URL is
+world-readable indefinitely. Accepted because signed URLs / an authenticated media proxy
+touch every image/video render path — too much surface for the pilot. Step-2 fix: signed
+URLs or a media proxy.
+
+**Originated →** `docs/CreativeOS Multi-Tenancy Pilot PRD.md` (§10).
+
+### D47 — Org credits: derived-on-read metering, monthly hard cap, off-platform invoicing *(recorded 2026-07-15; extends D9 and the D26 generation substrate)*
+
+**Decision.** 1 credit = 1 USD of provider cost (the existing
+`generations.credits_consumed` unit). `organizations.monthly_credit_limit` (`null` =
+unlimited); month-to-date usage is **derived on read** — `SUM(credits_consumed)` over the
+org's tree for the calendar month; no ledger table, no cron. A single
+`assertOrgWithinBudget` check at the generate chokepoint hard-stops new model runs at the
+limit (viewing/editing/approving unaffected; in-flight overshoot accepted). Monitoring:
+org-facing `used / limit` readout; Yuvabe-facing `org_credit_usage` DB view. Payments,
+invoices, plans stay off-platform.
+
+**Why.** The pilot needs to *monitor* consumption per org (and cap runaways) — not to be
+a billing product. Metering already existed; only the org dimension was missing.
+
+**Originated →** `docs/CreativeOS Multi-Tenancy Pilot PRD.md` (§9).
+
+### D48 — Multi-tenancy hardening of the Drive gallery: subtree containment; folder picker is platform-org-only *(recorded 2026-07-15; builds on D41 and `clients.drive_root_folder_id`; closes the cross-tenant gaps the PRD's artifact inventory surfaced)*
+
+**Decision.** The per-client Drive root that already ships
+(**`clients.drive_root_folder_id`**, set via the client-settings folder picker) becomes
+the Drive **tenancy boundary**: `/api/drive/browse` and the file/thumbnail proxies are
+session-guarded and **server-constrained to the client's configured root subtree**
+(retiring D41's "unauthenticated but obscurity-gated" proxies note). The **folder picker**
+(`/api/drive/folders`) necessarily browses the whole platform Drive, so it is restricted
+to **Yuvabe's org**; agency clients get their root set by Yuvabe — an agency-shared
+folder can be wired the same way, no per-org OAuth. A `null` root (the default) means no
+Drive gallery for that client. Scoping is by folder **ID**, never name-matching.
+`ingest-image` likewise loses its D14 openness and joins the org-checked chokepoints.
+
+**Why.** The Drive token is Yuvabe's account: without containment, an external agency
+could browse Yuvabe's Drive (other clients' references) — and the picker exposes exactly
+that by design. Name-matching was rejected because renames break it and a name collision
+(an agency naming its client after a Yuvabe folder) would cross orgs.
+
+**Rejected.** Org-level on/off gate (coarser than the shipped per-client root);
+name-matching; per-org Drive OAuth (too heavy for the pilot).
+
+**Originated →** `docs/CreativeOS Multi-Tenancy Pilot PRD.md` (§7).
+
+### D49 — Org membership is a join table from day one *(recorded 2026-07-16 from the auth design spec of 2026-07-15; design-stage, not yet built. Note: the spec originally numbered its decisions D48–D52, colliding with D48 above — renumbered here to D49–D53; the spec was corrected to match)*
+
+**Decision.** User↔org membership lives in an **`org_memberships` join table** from day one — not a `profiles.org_id` column.
+
+**Why.** Multi-seat orgs become row inserts, never a schema migration.
+
+**Rejected.** A single `org_id` column on profiles.
+
+**Originated →** `2026-07-15-auth-multi-tenancy-design.md` (§13).
+
+### D50 — Two role axes: `platform_role` in the JWT, `org_role` on the membership *(recorded 2026-07-16; design-stage)*
+
+**Decision.** `platform_role` lives in `auth.users.app_metadata` (a server-set JWT claim); `org_role` lives on `org_memberships` (mutable, per-membership).
+
+**Why.** Platform powers and org seats are independent axes — two homes, no collision.
+
+**Rejected.** One merged role field.
+
+**Originated →** `2026-07-15-auth-multi-tenancy-design.md` (§13).
+
+### D51 — `proxy.ts` is optimistic-only; the DAL owns identity *(recorded 2026-07-16; design-stage)*
+
+**Decision.** Next.js 16 `proxy.ts` performs only an optimistic session check; full identity/org context resolution lives in the DAL (`src/lib/dal.ts`) wrapped in React `cache()`.
+
+**Why.** Authorization must live at the data-access layer, resolved once per request — the edge proxy can only be a fast first filter.
+
+**Rejected.** Resolving full auth context in middleware.
+
+**Originated →** `2026-07-15-auth-multi-tenancy-design.md` (§13).
+
+### D52 — Impersonation via HttpOnly cookie override *(recorded 2026-07-16; design-stage)*
+
+**Decision.** Super-admin impersonation is an HttpOnly cookie (`orgId` override read in the DAL) — no session swap — with a persistent banner.
+
+**Why.** No credential switching, trivially reversible, always visible.
+
+**Rejected.** Swapping the Supabase session.
+
+**Originated →** `2026-07-15-auth-multi-tenancy-design.md` (§13).
+
+### D53 — `useIdentity()` API frozen; internals swapped *(recorded 2026-07-16; design-stage)*
+
+**Decision.** The `useIdentity()` public API is frozen; its internals move from localStorage to Supabase session + profiles.
+
+**Why.** Every call site survives the auth migration unchanged.
+
+**Rejected.** A new identity hook plus a call-site rewrite.
+
+**Originated →** `2026-07-15-auth-multi-tenancy-design.md` (§13).
+
+### D54 — Copilot architecture: server thinks, client acts, human gates *(recorded 2026-07-16; the copilot build — D54–D71 — merged to main this date. Specs: `2026-07-14-creativeos-copilot-design.md` (part 1), `../../copilot/copilot-design-part-2.md`, `2026-07-13-copilot-playbook-runner-design.md`; principles P1–P8 in `../../copilot/copilot-primitives-and-patterns.md`)*
+
+**Decision.** The copilot's model only ever returns decisions, proposals, and references; **all graph mutation is client-side** through the canvas store's recipes.
+
+**Why.** Keeps the security/undo boundary in the client — a confused model can propose, never mutate.
+
+**Rejected.** Server-applied mutations; one mega-call streaming prose+refs+actions (forces partial-JSON parsing).
+
+**Originated →** `2026-07-14-creativeos-copilot-design.md` (§4, §7).
+
+### D55 — Three stateless calls per copilot turn *(recorded 2026-07-16)*
+
+**Decision.** Prose (stream), references (`json_schema`), and actions (`tools`) are three separate stateless calls orchestrated by the client.
+
+**Why.** Zero partial-JSON parsing; each call has one job.
+
+**Rejected.** Unified AI-SDK streaming with interleaved tool calls.
+
+**Originated →** `2026-07-14-creativeos-copilot-design.md` (§4, §7).
+
+### D56 — Node ref handle: uuid-derived `TYPE-XXXX` *(recorded 2026-07-16)*
+
+**Decision.** Every node has a stable, human-visible handle (`nodeHandle` = type abbrev + first 4 uuid chars, a pure function). Chat, tools, @-mentions, and elicitation all speak handles.
+
+**Why.** Referenceable identity with zero storage that can never re-point; agent-created nodes are usually untitled.
+
+**Rejected.** Positional numbering (rots on add/delete); a persisted counter (storage + concurrency).
+
+**Originated →** `2026-07-14-creativeos-copilot-design.md` (§3, §7).
+
+### D57 — @-mention is human-directed grounding *(recorded 2026-07-16)*
+
+**Decision.** The human names the nodes that matter (`@HANDLE`, `@selected`); resolution is client-side (`resolveMentions`, zero model calls); the copilot never volunteers candidate pickers.
+
+**Why.** Removes LLM guessing/enumeration; the human owns relevance.
+
+**Rejected.** A model-asks-clarifying-questions candidate-picker flow.
+
+**Originated →** `2026-07-14-creativeos-copilot-design.md` (§7, §10.1).
+
+### D58 — CreativeOS is a workflow with one agentic cell *(recorded 2026-07-16)*
+
+**Decision.** The script→shots→image run is a deterministic workflow; genuine agency (an observe-decide loop) is reserved for the per-shot "is this image good enough?" repair cell — added later, budget-capped, plugged into one playbook step's `run`.
+
+**Why.** The flow's steps are enumerable in advance, so an agent adds latency/cost without benefit; a loop earns its cost only where outcomes are unpredictable. Test: *in a workflow you can number the steps before running; in an agent you can only number the iterations.*
+
+**Rejected.** An autonomous agent that plans the whole run.
+
+**Originated →** `2026-07-14-creativeos-copilot-design.md` (§8.1–8.3, §8.7, §10.4).
+
+### D59 — One single-shot lane first; parallelize after it works *(recorded 2026-07-16)*
+
+**Decision.** Build one shot's lane end-to-end (script → shot → prompt → image) before any multi-shot orchestration.
+
+**Why.** The parallel run is the same lane repeated per row — proving one lane de-risks everything and wastes nothing.
+
+**Rejected.** Building the multi-shot orchestrator up front.
+
+**Originated →** `2026-07-14-creativeos-copilot-design.md` (§8.4, §8.7).
+
+### D60 — The copilot is the run's command bar + driver + narrator *(recorded 2026-07-16; refines D54's docked-panel interaction model)*
+
+**Decision.** Language drives the existing nodes; the canvas holds the work. The copilot is not a container you work inside.
+
+**Why.** Work stays visible and editable in the graph the rest of the product understands.
+
+**Originated →** `2026-07-14-creativeos-copilot-design.md` (§8.7).
+
+### D61 — Speed comes from workflow techniques, not agency *(recorded 2026-07-16)*
+
+**Decision.** The speed levers are parallelism, a language entry point, and model-filled control defaults — all workflow techniques.
+
+**Why.** Names the real levers so agency isn't mistaken for a speed tool.
+
+**Originated →** `2026-07-14-creativeos-copilot-design.md` (§8.3, §8.7).
+
+### D62 — Parallel runs visualize on the canvas matrix *(recorded 2026-07-16; agreed direction, DEFERRED — not built)*
+
+**Decision.** When runs parallelize: rows = shots, columns = stages; the run moves a spotlight across columns; completed stages collapse to compact launchers.
+
+**Why.** The canvas already IS the parallel view (fan-out lays N rows); anything else duplicates it.
+
+**Rejected.** Per-shot tabs (parallel in name only); a floating run-board panel (a second canvas to keep in sync).
+
+**Originated →** `2026-07-14-creativeos-copilot-design.md` (§8.5, §8.7).
+
+### D63 — Copilot writes gate by blast radius *(recorded 2026-07-16)*
+
+**Decision.** Cheap / reversible / structural ops (`create_script_node`, `parse_script`, `add_node`, `open_node`, `connect_nodes`) execute instantly via client recipes; only real-cost, irreversible ops (generation) pause for the human.
+
+**Why.** Friction only where it earns its keep.
+
+**Rejected.** Gating every mutation (the original read-only proposal card, since removed).
+
+**Originated →** `2026-07-14-creativeos-copilot-design.md` (§9.1, §9.5).
+
+### D64 — `open_node` is one general verb, not per-type openers *(recorded 2026-07-16)*
+
+**Decision.** One opener drives the shared `focusedNodeId` store signal; each node type owns which surface opens (Composer for a Shot, focus view otherwise). All 10 node types are wired to the signal.
+
+**Why.** Keeps the `create → open → act` grammar general; the tray and guided flow already drove the same signal.
+
+**Rejected.** `open_shot_composer` and friends — one opener per node type.
+
+**Originated →** `2026-07-14-creativeos-copilot-design.md` (§9.1, §9.5, §10.3 prep).
+
+### D65 — `parse_script` auto-fans-out *(recorded 2026-07-16)*
+
+**Decision.** Parsing a script drops its Shot nodes onto the canvas directly (the same `fanOutShots` engine as the manual button).
+
+**Why.** Fan-out is the next lane step and the engine already existed.
+
+**Rejected.** Leaving fan-out a separate manual click.
+
+**Originated →** `2026-07-14-creativeos-copilot-design.md` (§9.2, §9.5).
+
+### D66 — The ref handle shows on every node, in the header *(recorded 2026-07-16; refines D56)*
+
+**Decision.** All 10 node types render the handle in the card header next to the type label — what you SEE is byte-identical to what you TYPE (`@SHOT-1A2B`).
+
+**Why.** Uniform, discoverable, and identical to what the copilot and @-mentions resolve.
+
+**Rejected.** Handle on only title-bearing types; above-the-title placement.
+
+**Originated →** `2026-07-14-creativeos-copilot-design.md` (§9.3, §9.5).
+
+### D67 — Complex copilot commands are routed playbooks, not agent plans *(recorded 2026-07-16; the playbook runner shipped in the same merge)*
+
+**Decision.** The model routes a sentence to a **hardcoded playbook** (`run_playbook(name, slots)`) and extracts slot values at predefined decision points; code owns all step sequencing. Playbooks are data — new ones are registry additions, not architecture.
+
+**Why.** Every target flow's steps are enumerable in advance (routing is a workflow pattern, per Anthropic); debuggability and cost.
+
+**Rejected.** Model-authored step lists; an autonomous planning agent.
+
+**Originated →** `2026-07-13-copilot-playbook-runner-design.md` (§2.1–2.2, §10).
+
+### D68 — Slot-filling is frame-based with authored elicitation *(recorded 2026-07-16)*
+
+**Decision.** Playbook slots are required/optional fields with **authored per-slot questions**; completeness is checked by CODE. Replies resolve client-first (`@`-mentions / "none" — zero model calls) with a model fallback; inferable slots are never asked (one shot on canvas → it's the shot).
+
+**Why.** The task-oriented-dialogue pattern: deterministic, testable asks; Ask-when-Needed.
+
+**Rejected.** Letting the model decide when and what to ask.
+
+**Originated →** `2026-07-13-copilot-playbook-runner-design.md` (§2.2, §8, §10).
+
+### D69 — Human actions are first-class playbook steps with store-predicate completion *(recorded 2026-07-16)*
+
+**Decision.** A run pauses on a human step and resumes when a **pure predicate over the canvas store** goes true — level-triggered: one subscription is the wake-up, the predicate over current state is the decision. The advance is **published to the store before any recipe fires** (idempotent advance — a re-entrant subscription call must no-op; violating this duplicated 931 image nodes in testing).
+
+**Why.** LangGraph's HITL shape with zero framework — the client-side brain already shares state with the UI; level-triggering survives pre-completed steps, and missed or duplicate wake-ups are harmless.
+
+**Rejected.** LangGraph/AG-UI infrastructure; polling the model to ask "is the user done?"; edge-triggered event listeners (the lost-signal problem).
+
+**Originated →** `2026-07-13-copilot-playbook-runner-design.md` (§2.3, §10); principles P5–P6.
+
+### D70 — Generation steps always pause: the L6 HITL gate *(recorded 2026-07-16; refines D63)*
+
+**Decision.** In a playbook run, generation steps are HUMAN steps — the run never auto-fires a generation. The long-owed HITL gate lands as a *pause in the run*, not an approve-button card.
+
+**Why.** Blast-radius rule: real cost + irreversibility pause; structural steps stay instant.
+
+**Originated →** `2026-07-13-copilot-playbook-runner-design.md` (§2.5, §10).
+
+### D71 — One run at a time, session-scoped; cancel keeps created nodes *(recorded 2026-07-16)*
+
+**Decision.** A new complex command mid-run asks finish-or-cancel; cancelled runs keep the nodes they created; run state lives in the canvas store with no page-reload durability.
+
+**Why.** v1 simplicity; created nodes are real work (delete is one click); Trigger.dev is this repo's durability answer *if ever needed*.
+
+**Rejected.** Concurrent runs; cross-session checkpoint persistence.
+
+**Originated →** `2026-07-13-copilot-playbook-runner-design.md` (§2.3, §6, §10).
+
+### D72 — One connect semantics: `canConnect(src, tgt)` backs every connection entry point *(recorded 2026-07-16)*
+
+**Decision.** One ordered helper in `canvas-nodes.ts` validates all four connection call sites — manual drag, drag affordance, the copilot's `connect_nodes`, and the focus-view `+ Add`. Chat and canvas are two entry points into the same semantics; connect itself is instant (cheap/reversible, per D63).
+
+**Why.** The rule was inlined twice and two more consumers arrived; one helper prevents divergence. Ordered on purpose — direction is load-bearing.
+
+**Rejected.** Per-surface ad-hoc wiring; a symmetric `areConnectable`; a proposal gate for connect.
+
+**Originated →** `2026-07-12-copilot-connect-and-selection-design.md` (§9).
+
+### D73 — `@selected` is insert-time expansion to visible handle tokens *(recorded 2026-07-16)*
+
+**Decision.** Picking `@selected` expands the current canvas selection into literal `@HANDLE name` tokens in the composer at insert time; the resolver is unchanged.
+
+**Why.** Transparent and editable; can't drift between typing and send; reuses `resolveMentions`.
+
+**Rejected.** A live `@selected` keyword resolved at send time (selection drift; resolver special-case).
+
+**Originated →** `2026-07-12-copilot-connect-and-selection-design.md` (§9).
+
+### D74 — Implicit selection context travels side-channel, dismissible per turn *(recorded 2026-07-16)*
+
+**Decision.** The canvas selection rides along as ids merged into `mentionedIds` at send — the typed message is never rewritten — shown as a dismissible chip whose dismissal is keyed to the selection signature.
+
+**Why.** Grounding without polluting the visible history; dismissal must reset when the selection actually changes.
+
+**Rejected.** Prepending expanded `@HANDLE` tokens (pollutes history); always-attached context (forces deselection to ask unrelated questions).
+
+**Originated →** `2026-07-14-copilot-selection-context-design.md` (§6).
+
+### D75 — Agent-created nodes place at the viewport center *(recorded 2026-07-16)*
+
+**Decision.** `add_node` / `create_script_node` place the new node at the visible canvas center (`screenToFlowPosition`), offset half a node so its center sits there.
+
+**Why.** "Appears where I'm looking" beats off-screen-right on a populated canvas.
+
+**Rejected.** Cursor position (undefined for chat-driven actions); the rightmost-plus-offset `placeNewNode` heuristic for copilot creates.
+
+**Originated →** `2026-07-12-copilot-connect-and-selection-design.md` (§9).
+
+### D76 — Ref badges flip size at a zoom threshold, never counter-scale *(recorded 2026-07-16)*
+
+**Decision.** Node ref badges switch between two sizes at a zoom threshold via a boolean store selector — no continuous `scale(1/zoom)` counter-scaling.
+
+**Why.** Constant-size labels overflow and collide at far zoom; continuous interpolation re-renders on every zoom tick.
+
+**Rejected.** `scale(1/zoom)`; continuous font interpolation.
+
+**Originated →** `2026-07-14-copilot-selection-context-design.md` (§6).
+
+### D77 — Credit accounting becomes an append-only ledger with atomic row-locked reservation; supersedes D47 *(recorded 2026-07-21; from the auth staging rollout plan, Stage 3)*
+
+**Decision.** `credit_transactions` (`org_id`, `generation_id`, `amount`, `type` ∈
+{reservation, consumption, refund, adjustment}, `created_at`) replaces the derived-on-read
+`SUM(credits_consumed)`. `reserveCredits()` locks the org's row, sums this-month
+reservation+consumption rows, rejects if the estimate would exceed the limit, else inserts a
+`reservation` row before the job dispatches. Job success settles the reservation to actual
+cost via a `consumption` row; failure/cancel zeroes it via a `refund` row. Month boundary
+pinned to UTC.
+
+**Why.** Derived-on-read summing can't stop two concurrent requests near the cap from both
+passing — nothing is reserved until after the job runs. A row lock at reservation time closes
+that race, and an append-only ledger gives reconciliation and future billing a real audit
+trail instead of one mutable number.
+
+**Rejected.** Keeping `SUM(credits_consumed)` derived-on-read (D47's original shape) —
+right-sized for the initial design, revisited once the race condition and audit-trail gap
+were named explicit requirements for the rollout.
+
+**Originated →** `2026-07-21-auth-staging-rollout-plan.md` (Stage 3).
+
+### D78 — RLS backstop expands to every independently-read org_id table; standing rule going forward; refines D44 *(recorded 2026-07-21; Stage 2)*
+
+**Decision.** RLS moves from "the two Realtime tables" (D44) to every table that carries
+`org_id` directly and is read by something other than a `withClient()`-guarded route —
+`generations`, `node_files`, `client_kb_jobs`, `canvases`, `credit_transactions`. Standing
+rule: any future migration adding an `org_id` column adds its RLS policy in the same
+migration. Each policy also matches the JWT's `platform_role` claim directly, so a
+super_admin's own Realtime subscription or impersonation session isn't blocked. `clients`
+itself stays app-layer-only (D44) — it's never read outside a `withClient()`-guarded path.
+
+**Why.** Workers, webhooks, and Realtime subscriptions read these tables independently of
+`clients` — D44's chokepoint-only model didn't reach them once `org_id` was pushed down
+directly onto each one.
+
+**Rejected.** RLS on every table regardless of read path (D44's original reasoning still
+holds for `clients`, `nodes`, `node_versions` — no independent read path exists for them yet).
+
+**Originated →** `2026-07-21-auth-staging-rollout-plan.md` (Stage 2).
+
+### D79 — Async workers revalidate a job's org_id against the resource's current org_id before processing *(recorded 2026-07-21; Stage 2)*
+
+**Decision.** Generation workers run under the service-role key (RLS-bypassing by design, no
+session to check against). Each job row carries its `client_id`/`org_id` immutably from
+creation; before processing, the worker re-fetches the target resource and confirms its
+current `org_id` still matches the job's. A mismatch is dropped and logged, never processed.
+
+**Why.** D44's app-layer chokepoints and D78's RLS both assume a session; workers have
+neither. The job row is the only trustworthy source of tenant identity available to them.
+
+**Originated →** `2026-07-21-auth-staging-rollout-plan.md` (Stage 2).
+
+### D80 — org_memberships: one active org per user enforced by a unique index; last owner of an org can't be removed or demoted; refines D49 *(recorded 2026-07-21; Stage 1)*
+
+**Decision.** `UNIQUE(user_id)` on `org_memberships` makes "one org per user" a database
+guarantee in the pilot, not just convention. A trigger blocks removing or demoting the last
+`owner` row of an org.
+
+**Why.** D49 designed the join table for future multi-seat but left both invariants implicit;
+an org silently left without an owner, or a user in two orgs at once during the single-seat
+pilot, are bugs worth making structurally impossible now rather than debugging later.
+
+**Originated →** `2026-07-21-auth-staging-rollout-plan.md` (Stage 1).
+
+### D81 — Impersonation adds an audit log and a read-only default; writes require explicit elevated-mode entry; refines D52 *(recorded 2026-07-21; Stage 4)*
+
+**Decision.** Impersonation sessions are read-only by default. Making a write as an
+impersonated org requires a separate, explicit "enter elevated support mode" action.
+`impersonation_audit_log` records operator, target org, start/end time, mode, and actions for
+every session and every elevated-mode entry. The impersonation cookie is also re-checked
+against the operator's *live* super_admin status on every request, not just when the cookie
+was set.
+
+**Why.** D52 established the no-session-swap cookie mechanism but didn't distinguish looking
+from acting, or log either — for a feature whose whole purpose is one operator quietly
+seeing/touching another org's data, both are the difference between "support tool" and
+"unaudited backdoor."
+
+**Originated →** `2026-07-21-auth-staging-rollout-plan.md` (Stage 4).
+
+### D82 — No CLI onboarding script; org/user creation ships as the admin UI in Stage 1 *(recorded 2026-07-21; Stage 1)*
+
+**Decision.** `scripts/seed-org.ts` is dropped from the plan. `/admin/orgs/new` (org + user +
+membership in one submission) is the only onboarding path, built as part of Stage 1 rather
+than deferred behind a script-first MVP. Bootstrapping the very first Yuvabe super_admin
+account (before any UI can exist to create it) is a one-time manual step via the Supabase
+dashboard/admin API, documented as a setup note — not app code, not a maintained script.
+
+**Why.** A CLI script and a UI form for the same six steps is duplicated logic with two things
+to keep in sync; building the UI first (not the script-then-UI dual path the 2026-07-15 spec
+described) means there's exactly one onboarding path to test and maintain, and it's the one
+non-technical Yuvabe staff can actually use.
+
+**Rejected.** Script-first with the UI as a later nice-to-have (the 2026-07-15 spec's original
+§10/§11 shape); building both in parallel.
+
+**Originated →** `2026-07-21-auth-staging-rollout-plan.md` (Stage 1).
+
+### D83 — Auth ships to staging as four independently-deployable stages *(recorded 2026-07-21)*
+
+**Decision.** The auth build lands on staging as four ordered stages, each a mergeable,
+demoable increment: **(1)** foundation — schema, Supabase Auth, DAL, `withClient()` org check,
+and the admin onboarding UI; **(2)** RLS backstop + async worker tenant check (D78/D79); **(3)**
+credit ledger (D77); **(4)** impersonation (D81). (1) is a hard prerequisite for the rest. (2)
+ships next because it's the cheapest, most isolated hardening with no new user-visible
+surface — no reason to hold it behind feature work. (3) and (4) each depend only on (1) and
+can build in parallel with (2); (4) is sequenced last because it's the highest-blast-radius
+feature (an operator viewing/acting inside another org's data), and benefits from (1)–(3)
+having already proven out on staging first.
+
+**Why.** Each stage is independently testable and reversible on staging; a defect isolated to
+one stage (say a ledger bug in Stage 3) doesn't block onboarding new agencies via Stage 1 or
+require re-testing impersonation to isolate.
+
+**Originated →** `2026-07-21-auth-staging-rollout-plan.md` (all sections).
+
+### D84 — Forced password change on first login is deferred, not built in the pilot *(recorded 2026-07-21; Stage 1C)*
+
+**Decision.** No forced password-change flow ships in this pass. `loginAction` redirects
+straight to `/` on a successful sign-in — no `must_change_password` app_metadata flag, no
+`/account/password` page. Applies to every login, operator or future agency owner alike: they
+sign in with whatever password they were given and that's it.
+
+**Why.** Cut to reduce complexity in the pilot's first login pass — an explicit scope
+reduction, not an oversight. Nothing about the rest of the design depends on it; the temp
+password shown once at org-creation time (D82) remains the only credential-handoff step.
+
+**Rejected.** Building it now as originally sketched in the 2026-07-15 spec's User Lifecycle
+(§ "Prompted to change password on first login").
+
+**Note for 1D:** the future `createOrgWithOwner` (Stage 1D, admin onboarding UI) must not set
+`must_change_password` either — this decision applies there too, not just to the Stage 1C
+login path.
+
+**Originated →** `2026-07-21-auth-stage-1c-login-enforcement.md`.
+
+### D85 — super_admin's normal app view is scoped to their own org; cross-org visibility lives only in /admin and (later) impersonation *(recorded 2026-07-21; Stage 1D; resolves a tension between D42's spec §6 and §7)*
+
+**Decision.** `withClient()` and the client/canvas list queries (`listClients`,
+`listArchivedClients`, `listRecentCanvases`) no longer bypass the org check for
+`super_admin`. On the normal app — client list, canvases, everything outside `/admin` —
+`developer@yuvabe.com` sees only Yuvabe's own clients, exactly like any other org's owner.
+Cross-org visibility is confined to `/admin`'s own queries (`listOrgsWithClientCount`,
+`getOrgById`, `listOrgMembers`), which operate on `organizations`, not `clients`, and are
+already `requireSuperAdmin()`-gated. Broader cross-org access (viewing another org's actual
+canvas workspace) is deferred to Stage 4 impersonation — until it ships, not even
+super_admin can browse an agency's data outside `/admin`'s summary view.
+
+**Why.** The original 2026-07-15 spec (D42) was internally inconsistent: §6 said list
+queries have "no filter for super_admin" (unfiltered, always); §7's impersonation flow
+implied the opposite — `resolveOrgId()` returns the caller's own org from the membership
+table by default, only switching on an explicit impersonation cookie. Built to §6 first
+(1C/1D initial pass), then caught during 1D's manual isolation testing: with §6's behavior,
+the Yuvabe operator's own workspace showed every onboarded agency's clients mixed in with
+Yuvabe's — doesn't scale past a couple of agencies, and makes the whole point of an audited
+impersonation feature moot (why build "enter as org," logged, if you can already see
+everything all the time regardless). §7's model is more secure, matches the design's own
+stated impersonation semantics, and keeps blast radius proportional to intent: "administering
+the platform" (`/admin`) is a different action from "acting as an org" (the normal app).
+
+**Rejected.** Keeping the blanket bypass (§6 as literally written) — simpler, no rework, but
+doesn't scale and undercuts D52's impersonation design.
+
+**Originated →** `2026-07-21-auth-stage-1d-admin-onboarding-ui.md`.
+
+### D86 — Dropped a pre-existing `anon_read_generations` RLS policy that silently defeated the new org-isolation policy *(recorded 2026-07-23; Stage 2B)*
+
+**Decision.** `generations` carried a pre-existing `anon_read_generations` policy
+(`qual: true`, `roles: {public}`) predating this rollout — not recorded in any migration,
+likely a leftover from the pre-auth era (D14, "whole app open," never cleaned up when login
+was added). Postgres OR's permissive RLS policies together, so this unconditional policy
+granted public read access to every row — including to unauthenticated `anon` requests
+hitting Supabase's REST API directly, bypassing the Next.js app entirely — regardless of
+0014's new org-scoped `org isolation` policy on the same table. Dropped in migration `0015`.
+
+**Why.** Found only by inspecting `pg_policies` directly after applying 0014; the migration's
+own `rowsecurity`/row-count checks reported success without revealing a second policy quietly
+overriding the first. Left in place, the RLS backstop just built for `generations` would have
+been cosmetic — present in the catalog, provably inert in practice.
+
+**Originated →** `2026-07-21-auth-stage-2b-rls-backstop.md`.
+
+### D88 — Default-deny RLS enabled on every remaining table; supersedes the "app-layer only, no RLS" half of D44 *(recorded 2026-07-23; Stage 2B follow-on)*
+
+**Decision.** All 10 tables that still had RLS disabled after 2B (`clients`, `nodes`,
+`node_versions`, `edges`, `organizations`, `profiles`, `org_memberships`,
+`client_brand_images`, `client_kb_documents`, `client_kb_versions`) now have RLS enabled
+with **zero policies** — default-deny for `anon`/`authenticated`. `org_memberships`
+additionally got one narrow policy (`user_id = auth.uid()`, self-read only), because the
+`org isolation` policies on `canvases`/`client_kb_jobs`/`generations` (D78) subquery it to
+find the caller's org, and RLS applies across that subquery too.
+
+**Why.** Confirmed via `information_schema.role_table_grants` on staging: `anon` — fully
+unauthenticated, no login required — held `SELECT`/`INSERT`/`UPDATE`/`DELETE`/`TRUNCATE` on
+all 10 tables, reachable directly through Supabase's REST API using the public anon key
+(embedded in every page the site serves), completely bypassing `proxy.ts`, the DAL, and
+every `withClient`/`withCanvas`/`withNode` check built across Stage 1 and 2A. D44's
+"app-layer only, RLS deferred as backstop" reasoning assumed these tables were merely
+*unreached* by direct browser access — it did not verify the underlying grants, which
+(per Supabase's default project setup) make "RLS disabled" equivalent to "world-readable
+and world-writable" for any table the default grants still cover. This was a live,
+currently-exploitable gap on staging, not a theoretical one.
+
+**Fix was cheap, unlike what D44 avoided.** D44 rejected "RLS-everywhere" because writing
+and maintaining correct per-org *policies* across ~34 service-role call sites and 10+
+tables was too large a lift for the pilot. This decision does not do that — it enables RLS
+with **no policies**, which is a single `alter table ... enable row level security`
+per table and nothing else, since the app's real data access always goes through the
+service-role client (`createServerSupabase()`), which bypasses RLS regardless of policy
+count. Nothing in the app's behavior changes. Only the unintended direct-REST-API path
+closes.
+
+**Rejected.** Leaving these tables as app-layer-only (D44 as originally scoped) — correct
+in spirit, but never actually verified against the real grant state, and wrong in practice
+once checked.
+
+**Originated →** `2026-07-21-auth-stage-2-index.md` (post-2B finding).
+
+### D89 — Authenticate the generation completion webhook with a shared secret *(recorded 2026-07-23; Stage 2C)*
+
+**Decision.** `/api/webhooks/generation` had no authentication at all — unlike
+`/api/webhooks/kb-build`, which already checked `Authorization: Bearer
+TRIGGER_WEBHOOK_SECRET` before processing anything. Fixed with the same secret, in two
+forms: the internal Trigger.dev path (`video-generate.ts` calling this app's own webhook)
+sends the identical `Authorization` header; the Kling path (an external provider calling
+back a URL, not guaranteed to forward custom headers) carries the secret as a `token`
+query parameter on the callback URL instead. Both checks share one extracted helper,
+`isAuthorizedWebhook()`, now used by both webhooks.
+
+**Why.** Found while scoping Stage 2C's originally-planned D79 tenant check — a distinct,
+larger gap than D79 itself. Without this, anyone who knew or guessed a `generationId` (or
+a Kling `provider_job_id`) could POST a fake "succeeded" result with an
+attacker-controlled `videoUrl`, which the server fetches and uploads to GCS as if it were
+the real output — a data-integrity issue and a mild SSRF-adjacent risk, not just a
+missing-check formality.
+
+**Superseded in part by D90.** The Kling path described above (URL-token auth, since an
+external provider calling back isn't guaranteed to forward headers) no longer exists — D90's
+Kling rewrite moved completion to internal polling, so Kling never calls this webhook at all
+anymore. `isAuthorizedWebhook()`'s header-based check (the internal Trigger.dev path) still
+stands unchanged; only the now-dead Kling branch and its `?provider=kling&token=...` URL
+shape were removed from `route.ts` when merging D90's rewrite in.
+
+**Originated →** `2026-07-21-auth-stage-2c-worker-tenant-check.md`.
+
+### D90 — Kling integration rebuilt against verified docs; polling replaces webhook *(recorded 2026-07-23; renumbered from a D77 collision at merge — this branch had already assigned D77 to the credit-ledger decision above)*
+
+**Decision.** The 6 live Kling models (`v1-5`/`v1-6`/`v2-1`/`v2-1-master`/`v2-6`/`v3`) were
+built with no working citation and no working host — every Kling generation on `main` is
+broken. Turns out Kling runs two real API generations side by side: a legacy unified
+`/v1/videos/image2video` endpoint (`model_name` field selects version; this is where
+`cfg_scale`/`camera_control`/`mode` genuinely live) and 5 dedicated per-model endpoints
+(`contents[]`/`settings`/`options` shape, no `cfg_scale`/`camera_control`/`mode` at all).
+The old code reached for generation-1 fields but called the wrong host with the wrong
+body shape, so it never worked either way. Rebuilt against exactly the 5
+latest-generation models, verified from official docs the user fetched directly from
+`kling.ai/document-api/`: `kling-3.0-turbo`, `kling-2.6`, `kling-2.5-turbo`, `kling-3.0`,
+`kling-o1`. The legacy-endpoint models (`v1`/`v1-5`/`v1-6`/`v2-master`/`v2-1`/
+`v2-1-master`) are confirmed real but deliberately out of scope for this pass, not
+re-added. Completion moves from webhook (`callback_url` + `provider_job_id` DB lookup) to
+polling `GET /tasks` inside the Trigger.dev task, matching the existing Veo pattern —
+chosen specifically for log visibility into in-flight/failed jobs, which the pure-webhook
+design couldn't provide (webhook route had no logging, and a lost callback left a
+generation stuck with no trace).
+
+**Why.** Unverified third-party API surfaces are exactly where a plausible-looking
+contract silently fails end-to-end; the fix is citing every field against a real, fetched
+doc, not re-deriving from memory or assuming "looks familiar" means "verified." Polling
+was chosen over webhook+reconciliation because it's the simpler mechanism already proven
+by `veo.ts`, and per-iteration logging directly answers "is this job alive and what's it
+doing" without a second scheduled job.
+
+**Rejected.** Re-adding the legacy-endpoint models in this pass (real, but needs the
+linked Capability Map page first to know which fields apply per model — not implementing
+without that source, same mistake otherwise). Webhook + structured logging only (still
+has a delivery-failure blind spot). Webhook + scheduled reconciliation sweep (adds a
+second job/code path for marginal benefit over polling, which already logs and can't
+lose a callback since there is none).
+
+**Originated →** `2026-07-23-kling-api-correction-design.md`, supersedes
+`2026-07-11-kling-video-gen-integration-design.md`.
+
+### D78 — Video Prompt → Video Gen is provider-aware (Target selector + text-camera variants) *(recorded 2026-07-23; refines D24; the Kling `camera_control` path is SUPERSEDED by D79)*
+
+**Decision.** The motion prompt is shaped for its target provider (`text-camera` for Veo/Sora,
+`external-camera` for Kling), selected by a Target selector on the Video Prompt node that locks to a
+connected Video Gen node's provider when present. For Kling, camera was originally driven by a native
+`camera_control` param via a curated visual grid on the Video Gen node, and the prompt written
+camera-silent. A default `negative_prompt` is prefilled for Kling.
+
+**Why.** D24 shipped a Veo-only motion prompt; the registry has since grown Kling models with a
+different prompt shape. The Target selector + provider-shaped prompt variants are the durable part of
+this decision; the `camera_control` channel is not (see D79).
+
+**Rejected — text-primary (A).** Simpler/single-node but leaves Kling's camera to prose and the
+`negative_prompt` unused.
+
+**Refines** D24. **Originated →** `2026-07-23-provider-aware-video-prompt-design.md`.
+
+### D79 — Uniform text-camera across all providers *(recorded 2026-07-25; refines D24; reverses D78's Kling `camera_control` signal)*
+
+**Decision.** Camera is a uniform text-in-prompt control authored on the Video Prompt node (the
+`CameraSelect` grid) for every provider. Kling's `camera_control` path — gen-node grid, axis sliders,
+`kling-camera.ts`, and the request emission — is removed. The Target selector is retained and switches
+only the prompt variant (shared spine + minimal per-provider deltas).
+
+**Roster (integrated `main`).** Veo 3.1 Lite/Fast/Quality + Sora 2 + Kling's five verified models
+(D77). NOTE: the consolidation design as originally written paired uniform text-camera with a *pruned*
+roster (Kling 3.0 only, Sora + legacy Kling dropped); that pruning is **not** adopted — the integrated
+`main` keeps D77's full verified Kling roster and Sora 2. Only the uniform-text-camera design is taken
+from the consolidation work. *(ADR numbering reconciled during the 2026-07-26 three-branch integration;
+these were recorded as clashing D77/D78 entries on parallel branches — final numbering to confirm on review.)*
+
+**Why.** D78 assumed Kling drives camera via `camera_control`; the official Kling capability map shows
+`camera_control` is Kling-1.5-only — Kling 3.0+ use a separate, un-integrated Motion Control feature.
+Both vendors' prompt guides recommend camera-in-text. Uniform text-camera is less code and a more
+consistent UX.
+
+**Rejected — finish D78 as built.** Would ship a camera control no kept model honors and diverge the
+Prompt-node UX by provider for no capability gain.
+
+**Refines** D24. **Reverses** D78's camera-signal model. **Originated →**
+`2026-07-25-video-provider-consolidation-design.md` (research:
+`../../architecture/2026-07-25-video-provider-capability-research.md`).
+
+### D80 — Preservation-first motion prompt + Veo `negativePrompt` *(recorded 2026-07-26; refines D24; builds on D79)*
+
+**Decision.** The shared motion-prompt spine (D79) is made **preservation-first**: it drops the hard
+word cap and restates the fixed subject identity (product shape, label, logo, lettering, colours,
+props, lighting) so branded products hold — uniformly, for every provider, not just Veo. The camera
+catalog uses precise, invariant-naming vocabulary ("constant distance, height, focal length"). Veo
+visual-defect suppression is driven by its native `negativePrompt` param with a product-tuned default
+(no bare `text`/`logo`, so a product's real label survives); bare "No X, no Y" negations stay out of
+the positive prompt. Veo's built-in prompt rewriter (`enhancePrompt`) is left enabled.
+
+**Why.** D24/D79 shipped a terse author. Google's Veo 3.1 guidance — "more detail, more control", a
+dedicated negative-prompt field, and specific camera vocabulary — are quality levers the terse path
+can't reach, and they matter most for branded-product preservation. Folding preservation into the
+shared spine keeps it uniform across providers (D79).
+
+**Rejected.** Negatives-only (positive prompt stays lean → identity never stated); an intent-driven
+preservation *mode* toggle; `enhancePrompt: false` now (rewriter kept on — the first lever if QA shows
+preservation slipping).
+
+**Refines** D24; builds on D79 (folds preservation into the shared spine). **Originated →**
+`2026-07-26-veo-preservation-first-prompt-design.md`. *(Originally drafted as a clashing D78 on the Veo
+branch; renumbered during the 2026-07-26 three-branch integration — final numbering to confirm on review.)*
+
+### D81 — Kling O1 params follow the live endpoint, not the 3.0-omni doc table *(recorded 2026-07-27; corrects the O1 row of `2026-07-23-kling-api-correction-design.md` §Per-model settings fields)*
+
+**Decision.** `kling:kling-o1`'s params are pinned to what `POST /omni-video/kling-o1` actually
+accepts, which is **not** what the published omni docs describe:
+- **duration** — a `5` / `10` **select**, not a 3–10 slider. Kling returns
+  `400 {"code":1201,"message":"Duration only supports 5 or 10 seconds when no refer_image is provided"}`,
+  and `buildKlingContents` only ever emits `first_frame`/`last_frame`, so the unrestricted branch is
+  unreachable by construction. Two non-contiguous stops cannot be a range control, so the control
+  *type* changes for O1 — 3.0 keeps its slider.
+- **audio** — `native` / `off`, not `original` / `off`. `original` retains a *reference video's*
+  soundtrack; we never send `base_video`/`feature_video`, so it produced silence. O1 previously had
+  no reachable audio-on value at all. A stored `original` migrates to `native` (same billing tier).
+- **multi_shot** — now always sent, defaulting `false`, and exposed as a toggle like 3.0. Omitting
+  it was not neutral: Kling's server-side default is `true`, so every O1 clip was silently opting
+  into shot cuts, against the product intent recorded for 3.0.
+
+Both duration and audio are additionally normalised in `buildO1Settings`, because nothing
+re-validates persisted node params on load.
+
+**Why.** The O1 row was read off the `/omni-video/kling-3.0-omni` doc page, which enumerates
+duration 3–15 with no `refer_image` caveat — but that page documents a **different path** than the
+one we call. The live endpoint's own validator is the only authority we have for `kling-o1`; there is
+no O1-specific doc page. Kling 3.0's 3–15 range **was** re-verified against
+`/image-to-video/kling-3.0` and is correct — the two models genuinely differ.
+
+**Rejected.** Widening duration to 3–15 on the strength of the omni doc page (wrong endpoint);
+implementing `refer_image` as part of this fix (that is the real feature — Ref chip → up to 7 images,
+`@image_n` prompt refs, arbitrary duration — and needs its own design); clamping 3.0's duration too
+(doc-confirmed correct); dropping stale `original` audio to `off` (loses the user's intent to have
+sound).
+
+**Known-unfixed, surfaced by the same doc pass:** `settings.negative_prompt` appears in **neither**
+endpoint's schema — we send it on both Kling models with a long prefilled default and Kling silently
+ignores it, so that textarea is currently decorative. `build3_0Settings` also falls back to
+`multi_shot ?? true`, contradicting `multiShotParam`'s declared `false` default, so pre-toggle 3.0
+nodes still generate multi-shot. Neither is changed here.
+
+**Corrects** the O1 row of `2026-07-23-kling-api-correction-design.md` (which remains authoritative
+for the other four Kling models). **Originated →** live-API debugging, 2026-07-27; official Kling
+docs pasted in by the user (kling.ai returns HTTP 446 to automated fetches).
+
+### D91 — OpenAI reference images are normalized server-side, never blocked on dimensions *(recorded 2026-07-28)*
+
+**Decision.** For OpenAI image-gen models, aspect-ratio (>3:1), max-edge (3840px), and
+multiple-of-16 constraints are enforced by **auto-correcting the image server-side**
+(center-crop, downscale, round-down) immediately before the `images.edit`/`images.generate`
+call, instead of gating on them in `validateReferenceImages`. Per-image size (50MB) and Gemini's
+aggregate size cap remain hard blocks — no resize fixes an outright-too-large file.
+`background: "transparent"` + `output_format: "jpeg"` (invalid combo — JPEG has no alpha) is
+silently corrected to `output_format: "png"`, same philosophy.
+
+**Why.** Root-caused 27 of 35 staging+prod OpenAI image-gen failures
+(`generations.status='failed'`) to a leaky validation gate: `validate.ts` skips its
+dimension checks whenever image metadata wasn't backfilled, which happens routinely on
+multi-reference edits (up to 16 images via `assembleEditReferences`) — so bad-dimension images
+reached OpenAI and failed there with an unactionable error instead of being caught upfront.
+Normalizing unconditionally, right before the provider call, can't be bypassed the way a
+pre-flight metadata-dependent gate can.
+
+**Rejected.** Fixing the validation backfill instead (still leaves a block-the-user UX for a
+problem that's trivially auto-fixable); padding instead of cropping for the aspect-ratio fix
+(adds visible blank space to what OpenAI sees as reference content).
+
+**Originated →** `2026-07-28-openai-image-gen-error-remediation-design.md`.
+
+### D92 — Client Moodboards are URL-first; bytes are re-hosted only on use *(recorded 2026-07-28; builds on D13, D14; revises the reference-clipper target model)*
+
+**Decision.** A **client-level Moodboard** — a named, reusable collection of reference images ("Face
+cream", "Mother's Day") owned by a client, like the Brand KB and Drive references (PRD §6). Boards are
+filled by a small **MV3 capture extension** (right-click any image on the web → "Add to moodboard",
+sticky target board) and by in-app **add-by-URL**, and are browsed as a **Moodboards tab** in the
+existing Gallery drawer (board list → board contents, mirroring the Drive folder drill-down). Storage
+is **URL-first**: an item is a row holding the image URL + the provenance page URL — nothing is fetched
+or stored at add time, and boards render by hotlinking. **Full-res bytes are re-hosted to GCS only when
+an item is dragged onto the canvas** and becomes an ordinary File node (`POST /api/nodes/[id]/file/from-url`,
+a near-clone of the existing Drive re-host route). Two tables (`moodboards`, `moodboard_items`); the
+extension-facing routes are open, per D14.
+
+**Why.** Pinterest cannot be embedded (it sends `x-frame-options: SAMEORIGIN` + CSP `frame-ancestors
+'self'`, verified 2026-07-22) and its API exposes only a user's own boards — so browsing stays in the
+real browser, and the fixable part is the path from "found a reference" to "usable in the canvas."
+URL-first is the least code and zero storage to validate that loop, and re-host-on-use puts durable
+storage exactly where durability starts to matter: the image now feeds generation and lands in the
+archive bundle (PRD §16). The v1 schema is a strict **subset** of the durable/semantic model, so
+thumbnails (link-rot insurance) and CLIP embeddings for shot→reference search (PRD F6) are additive
+`ALTER TABLE … ADD COLUMN` later — nothing is stored that must be migrated or thrown away.
+
+**Accepted caveat.** A CDN URL can rotate, so a long-idle board can show a broken tile and a
+drag-to-use can fail; the File node surfaces the existing `uploadError` state. Mitigation (add-time
+thumbnail cache) is the first deferred increment, not v1.
+
+**Rejected.** (a) Embed/iframe Pinterest — browser-blocked; (b) store full bytes at add time and purge
+later — more work at both ends, and vector search needs small *embeddings*, not hoarded images;
+(c) URL-only File **nodes** on the canvas — link rot on a live reference that feeds generation and the
+archive (re-host on use instead); (d) inline board-creation from the extension (Slice B v1 picks
+existing boards only).
+
+**Revises** the **reference clipper** (`2026-07-05-reference-clipper-design.md`) — which is **shipped**
+(`clipper-extension/`, `POST /api/ingest-image`, `src/lib/reference-clipper/`), not a paper design. Its
+capture target was "push to the **active canvas tab** as File nodes, then reload the tab"; D92 moves the
+target to "add to a chosen **client moodboard** (staging), with moodboard → canvas as a separate,
+re-hosting drag." The two models differ in *when* an image becomes a canvas node: the clipper pushes
+straight onto a canvas at capture time, the moodboard stages it against a client for later reuse.
+
+*(Numbering note: the clipper design claimed **D36** for itself but was never appended to this log, and
+D36 was subsequently taken by the guided next-node flow. The moodboard spec inherits that bad citation.
+The clipper therefore still has **no D-number**; assign one if it is kept.)*
+
+> **Resolved by D93** — the two capture extensions did *not* coexist for long: the clipper was
+> retired the same week and removed from the codebase. See below.
+
+**Originated →** `2026-07-22-client-moodboards-design.md`.
+
+### D93 — The reference clipper is retired; moodboards are the single capture path *(recorded 2026-07-28; supersedes the reference clipper, which never received a D-number; resolves the D92 follow-up)*
+
+**Decision.** The **reference clipper is removed from the codebase** — `clipper-extension/`,
+`POST /api/ingest-image`, and `src/lib/reference-clipper/` (with its 8 unit tests) are deleted.
+**`moodboard-extension/` (D92) is the one browser capture path** into CreativeOS. The clipper's design
+spec and plan are kept as historical records with retirement banners, not deleted.
+
+**Why.** Both extensions offered the same gesture — right-click an image on the web, send it to
+CreativeOS, re-host to GCS — differing only in destination. Shipping two is a maintenance and
+teaching cost (two manifests, two configured origins, two ingest routes to secure) for one user
+intent. The moodboard target is the better of the two: it **stages against a client** so a reference
+is reusable across every canvas for that client, where the clipper pushed onto whichever canvas
+happened to be in the active tab and had to **reload the tab** to render. The clipper's push-now
+convenience is recoverable later as a moodboard feature (add-and-immediately-drop) if it is missed —
+the reverse (rebuilding client-level staging inside the clipper) is the larger job.
+
+**What is lost.** The one-step "web image → node on the canvas I'm looking at" path. Under D92 the
+same image takes two steps: capture to a board, then drag it onto the canvas. Accepted — the drag is
+where re-hosting happens (D92), and the extra step buys client-level reuse.
+
+**Also removes** the slug-based open ingest route, which shrinks the deferred-auth surface: the
+multi-tenancy pilot's plan to put `/api/ingest-image` behind a session + org check (**D48**) is now
+moot — there is no such route. `moodboard-extension/`'s open endpoints inherit that hardening job
+instead.
+
+**Rejected.** (a) Keep both behind a destination picker in one extension — more code than either
+alone, for an intent the moodboard already covers; (b) keep the clipper unmaintained — an open,
+unauthenticated write path into the canvas is not something to leave lying around untended;
+(c) delete the clipper's spec/plan docs — the *why* is worth keeping even when the code is not.
+
+**Supersedes** the reference clipper (`2026-07-05-reference-clipper-design.md`). **Resolves** the D92
+follow-up.
+
+### D94 — Eval viewer generalizes to a per-node, all-action-types, version-aware error-analysis surface *(recorded 2026-07-02; **renumbered from D35** when the branch was integrated on 2026-07-30 — main had meanwhile assigned D35 to the Generation Tray above, and D36 builds on that; builds on D4/D18/D22; extends the built eval viewer; consumes the model-request capture; separate axis from D29/D34)*
 **Decision.** The eval viewer becomes a per-canvas surface that lists **all generated nodes grouped by
 action** (a `listNodeTraces` query + pure `mapNodeTraces`), whose detail focuses on **input → output**
 (polymorphic renderers), shows the **exact request sent** (the actual `inputs_used.request` content —
@@ -799,6 +1871,14 @@ first); a blob text-diff as the *primary* Δ (loses the ability to name the chan
 (unnecessary, non-deterministic). **No migration** — a query + mapping generalization over the existing
 envelope. **Deferred.** Tags/axial, cross-client rollup, LLM-judge scorers, production upstream-input
 resolution for panel A, structured (script) rich rendering.
+
+**Integration notes (2026-07-30).** The `/eval/[canvasId]` route **keeps the org-isolation guard** the
+auth rollout added to it — a canvas outside the caller's org renders as not-found, never confirming a
+foreign org's canvas exists — so the workbench swap did not reopen that path. `ModelRequestPanel` kept
+main's tabbed shell (it renders inside the "Sent to model" rail pane, which supplies the heading) and
+gained this branch's `splitBlocks` sectioning for the compiled-input tab; the branch's separate drawer
+was dropped as redundant with the rail. `listEvalTraces` + `ReviewScreen` are left in place but are now
+**unreferenced** — the sequential reviewer this decision replaces.
 **Originated.** `2026-07-02-eval-viewer-error-analysis-design.md`; plan `2026-07-02-eval-viewer.md`.
 
 ### Parked / out-of-scope (with revisit triggers)
@@ -807,7 +1887,7 @@ resolution for panel A, structured (script) rich rendering.
 | **Brief node** (upstream-brief parsing) | Defined MVP node type; **retained, not built** — Script node shipped instead (D16) | A project needs to start from a brief, not a finished script |
 | Context "% slider" / relevance ranking | Parked (D7) | Client KB outgrows the context window → add RAG |
 | Full client KB (structured + files + selection) | ✅ Pulled forward into Stage 1 (D17) | — |
-| Multi-tenant auth | Out of scope (PRD §18) | Post-MVP external access |
+| Multi-tenant auth | 🟡 In staged rollout (Stage 1 of 4 — see `2026-07-21-auth-staging-rollout-plan.md`) | — |
 | Automated branching / auto-rewiring | Out of scope (PRD §15) — **except** human-triggered Shot fan-out, which creates nodes (not edges) on explicit click (D21) | Not planned (beyond D21's bounded, manual fan-out) |
 | Edge `pinned_version_id` (freeze a connection) | Optional extension (D8) | If "don't auto-follow active" is ever needed |
 | Real queue infra (Redis/SQS/BullMQ + workers) | Parked (D12/D13) | Own GPU compute, high concurrency, or complex retries |

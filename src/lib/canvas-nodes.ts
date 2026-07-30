@@ -5,6 +5,7 @@ import type { NodeRow } from "@/lib/db/types";
 import type { KBSliceKey } from "@/lib/kb/parse-context";
 import type { ReelScript } from "@/lib/nodes/reel-script";
 import type { VideoControls } from "@/lib/nodes/video-controls";
+import type { VideoProvider } from "@/prompts/video-prompt-generate";
 import type { EditIntent } from "@/lib/image-gen/edit-prompt";
 
 export type ScriptNodeData = {
@@ -33,6 +34,16 @@ export type FileNodeData = {
   useLlm?: boolean;
   llmPrompt?: string;
   processedOutput?: string;
+  fileSizeBytes?: number;
+  imageWidth?: number;
+  imageHeight?: number;
+  // Drive provenance — set when file originated from Google Drive
+  driveFileId?: string;
+  driveFileName?: string;
+  driveMimeType?: string;
+  // Transient upload state — true while a Drive import is streaming to GCS.
+  uploading?: boolean;
+  uploadError?: string;
 };
 
 export type TextNodeData = {
@@ -45,6 +56,9 @@ export type DrawNodeData = {
   fileKind?: "image"; // always "image" when present
   filename?: string; // e.g. "sketch-1718539200000.png"
   instructions?: string; // composition instructions — the text handed downstream (D19, like Text)
+  fileSizeBytes?: number;
+  imageWidth?: number;
+  imageHeight?: number;
 };
 
 export type PromptNodeData = {
@@ -60,7 +74,9 @@ export type ImageGenNodeData = {
   params?: Record<string, unknown>;   // last-used param values for selected model
   parsed?: unknown;                   // D19: active version output (image URL, display only — never persisted)
   editInstruction?: string;           // current edit instruction (the delta), persisted; snapshotted per attempt
-  editIntent?: EditIntent;            // selected edit action (remove/replace/add/freeform)
+  editIntent?: EditIntent;            // selected edit action (remove/replace/add/modify/freeform)
+  editReferenceNodeIds?: string[];    // D37: connected node ids marked as references for the edit
+  baseReferenceNodeId?: string;       // D39: connected image node pinned as the edit base (else first-connected)
 };
 
 export type VideoPromptNodeData = {
@@ -68,6 +84,7 @@ export type VideoPromptNodeData = {
   instruction?: string;         // operator steer ("emphasize the pour; let steam rise")
   controls?: VideoControls;     // camera move + motion speed (D24)
   kbSlices?: KBSliceKey[];      // ambient brand tone, like the Prompt node
+  targetProvider?: VideoProvider; // D77: text-camera (veo/sora) vs external-camera (kling)
   parsed?: unknown;             // D19: active version output (motion prompt text) — display only
 };
 
@@ -86,6 +103,7 @@ export type ShotNodeData = {
   // Editable; this node's output (D19/D20) — rendered via renderScriptAsText.
   script?: ReelScript;
   order?: number; // 1-based position in the script (display + Stage 5 assembly)
+  shot_type?: string; // e.g. "Wide Shot", "Close-Up" — user-selected or keyword-derived
   seededFrom?: {
     scriptNodeId: string;
     shotIndex: number; // 0-based index in visual_script.shots at fork time
@@ -121,6 +139,13 @@ export const VALID_CONNECTIONS: Record<string, readonly string[]> = {
   "video-prompt": ["video-gen"],
   "video-gen":    [],
 } as const;
+
+// The single ordered connection check: may a `sourceType` node feed a `targetType` node?
+// One helper, several call sites (manual drag, drag affordance, copilot connect, focus-view +).
+// Ordered on purpose — connection direction is meaningful; there is no symmetric variant.
+export function canConnect(sourceType: string, targetType: string): boolean {
+  return (VALID_CONNECTIONS[sourceType] ?? []).includes(targetType);
+}
 
 // A node row joined with its active version's output (canvas-load shape).
 // `active` is the to-one embed of node_versions via nodes.active_version_id.

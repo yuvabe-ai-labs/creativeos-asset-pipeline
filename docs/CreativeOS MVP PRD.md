@@ -33,6 +33,9 @@
 | 14 | **Quick-add node palette + keyboard shortcuts.** Adding a node is now keyboard-first: `/` (or right-click) opens a type-to-filter command palette **at the cursor**; single-letter mnemonics (S/F/N/P/D/I/V/G) create a node instantly at the cursor without opening the palette. The palette is the single "add node" surface (`/` and right-click open the same thing), replacing the plain right-click context menu, and still offers **Paste image** when the clipboard holds one. Shortcuts are suppressed while editing a node's text. | §6 | spec: `docs/superpowers/specs/2026-06-28-quick-add-node-palette-design.md` |
 | 15 | **Soft identity + maker-checker approval.** A "who are you?" gate captures a spoofable **name + role** (senior / designer) at app start (stamped as the *maker* on generations). Each LLM attempt carries an **approval flag** (`pending → approved / changes_requested`) set by a senior in the node focus view and shown as an on-canvas badge — distinct from the pass/fail eval signal. **Flag only** (no gating/RBAC). Promotes parts of backlog F1/F4 into the build. | §5, §11.6, §13, §22 | D29 |
 | 16 | **Single-writer canvas lock (multi-user safety).** A canvas is edited by **one session at a time** — a second opener is **strict read-only** with a "{name} is editing" banner and a **take-over-when-stale** button. Per-tab session key + heartbeat/TTL; **server-enforced** so concurrent tabs can't corrupt the canvas. Replaces an earlier optimistic-merge autosave that let two sessions fight. | §5, §22 | D33 (supersedes D32) |
+| 17 | **Generation Tray added.** A flat, canvas-scoped shelf floating over the canvas lists long-running **image + video** generation jobs (**Running / Ready / Failed**); clicking an item flies the canvas to that generation node and opens its focus view — **navigation only**, no tray-level actions. **Derived on read** from the `generations` job table (no new table); **image gen now also writes a `generations` row** so it appears alongside video (completing D26 — image stays synchronous). A Ready item persists **until approved**. The **guided next-node flow** (auto-create/connect the next node) is split into a separate later spec. | §11.6–11.7, §14, §17 | D35 |
+| 18 | **Guided next-node flow added.** A contextual **"Create next"** action on each pipeline node **saves → creates → connects → places → opens** the next node down the chain (Shot → image prompt → Image Gen → video prompt → Video Gen), wiring the extra parents each step needs (shot + still → Video Prompt; motion prompt + still → Video Gen). It **never runs a model** — the designer sets controls, verifies inputs, and clicks Generate (D11). **Idempotent** (navigates to an existing next node, never duplicates); the Image Gen → video CTA is enabled once a still exists, with a *"not approved yet"* nudge (approval guides, never gates — D29). Reuses the D35 seams (`focusedNodeId`, ancestor edge-walk). | §14, §17 | D36 |
+| 19 | **Client Moodboards added.** A **client-level** collection of reference images ("Face cream", "Mother's Day"), reusable across every canvas for that client — filled by a small **browser capture extension** (right-click any image on the web → "Add to moodboard") and by in-app **add-by-URL**, browsed as a **Moodboards tab** in the Gallery drawer. Stored **URL-first**: an item is a row holding the image URL + the page it came from; **nothing is fetched at add time**, and full bytes are re-hosted to storage **only when the item is dragged onto a canvas** and becomes an ordinary **File node** — the moment durability starts to matter (generation + archive). | §6, §9, §11.4, §17, §18, §21 F6 | D92 |
 
 Everything below the changelog is the full PRD with these changes applied. Sections
 not touched by the Script-node revision (problem, principles, downstream Prompt/Image/
@@ -223,6 +226,7 @@ auth. Details in **§22**.
 Client
 ├── KB (Brand KB — versioned)
 ├── Files
+├── Moodboards          (named reference-image collections — D92)
 └── Canvases
     └── Canvas
         └── Nodes
@@ -241,10 +245,45 @@ It contains:
   pointer, and a readiness gate (`pending → in_review → ready`).
 * Client files
 * Client references
+* **Client Moodboards** (D92)
 * Canvases
 
 Client-level context is reusable across canvases. A canvas (and its Script node) is only
 reachable once the client's KB is **ready**.
+
+#### Moodboards *(D92)*
+
+A **moodboard** is a named, reusable collection of **reference images** owned by a client —
+"Face cream", "Ayurvedic hair oil", "Mother's Day". Like the Brand KB, one board is reused
+across every reel for that client rather than rebuilt per canvas.
+
+* **Collect.** A small browser **capture extension** adds a right-click **"Add to moodboard"**
+  on any image anywhere on the web (Pinterest and elsewhere), posting it to a remembered target
+  board. In-app, an **add-by-URL** field does the same thing without the extension.
+* **Browse.** Boards appear as a **Moodboards** tab in the Gallery drawer — a two-level
+  drill-down (board list → board contents) mirroring how the References tab drills into Drive
+  folders.
+* **Use.** Dragging an item onto the canvas turns it into an ordinary **File node** reference,
+  wired like any other gallery add (§11.4) — and from there it feeds Prompt / Shot / Image Gen
+  inputs exactly like an uploaded image (§10).
+
+**Storage is URL-first.** A moodboard item is a row holding the **image URL + the page it came
+from** (provenance); nothing is fetched or stored when it is collected, and boards render by
+hotlinking. **Full-res bytes are re-hosted to storage only when an item is actually used** —
+dragged onto a canvas — which is the moment durability starts to matter, because the image now
+feeds generation and lands in the archive bundle (§16). The accepted trade-off is **link rot**:
+a source URL can rotate, so a long-idle board can show a broken tile and a drag-to-use can fail
+(the File node surfaces its normal upload-error state and the item can be re-added). Boards are
+a **staging shelf**, not durable storage — the canvas is where an image becomes durable.
+
+> **Why not store the bytes at collect time?** It is more work at both ends (fetch + purge) and
+> buys nothing for the eventual semantic search, which needs small **embeddings**, not hoarded
+> images (§21 F6). The v1 schema is a strict *subset* of the durable model, so thumbnail caching
+> and embeddings are additive columns later — nothing collected now has to be migrated or thrown
+> away. Pinterest itself **cannot be embedded** in-app (it refuses framing via
+> `x-frame-options` / CSP) and its API exposes only a user's own boards, so browsing stays in the
+> real browser by necessity; what the moodboard fixes is the path from *found a reference* to
+> *usable in the canvas*.
 
 Examples of client context:
 
@@ -443,6 +482,12 @@ For MVP, inline files are limited to:
 * Image files
 
 Inline files are local to that Prompt node. They are not automatically added to the client KB or canvas.
+
+> **A moodboard is not a fourth input level (D92).** Client moodboards (§6) are a *staging shelf*,
+> not a context channel: nothing on a board reaches a node ambiently the way Brand-KB slices do
+> (§9.1). An image only enters the graph when the designer **drags it onto the canvas**, at which
+> point it is re-hosted and becomes an ordinary **File node** — i.e. a plain §9.2 canvas input from
+> then on, indistinguishable from an uploaded reference.
 
 ---
 
@@ -720,6 +765,8 @@ No uploaded video references in MVP.
 * Image **pasted from the clipboard** (quick-add palette — `/` or right-click → **Paste image**)
 * `.txt` selected from client files
 * Image selected from client files
+* Image **dragged in from a client Moodboard** (D92) — the source URL is re-hosted to storage
+  server-side on drop, so the resulting node is an ordinary stored-image File node
 
 #### Actions
 
@@ -762,6 +809,13 @@ File node
 
 The **Script node** is the special File node for reel scripts (built-in schema + focus
 view); a generic File node is for arbitrary `.txt`/image references.
+
+A **moodboard drop is just another way to create an image File node** (D92) — the difference is
+only *where the bytes come from*. Because a board stores a URL rather than an image (§6), the
+drop triggers a **server-side fetch of the source URL → storage**, then fills in the node's file
+url, filename, and pixel dimensions; the node shows its normal uploading state while that runs
+and its normal upload-error state if the source URL has died. Downstream, nothing distinguishes
+it from an uploaded image.
 
 A File node only needs versioning when LLM processing is used. Each Process version stores
 the same envelope as a parse version (file used, raw text, schema/prompt, Use-LLM setting,
@@ -1178,6 +1232,7 @@ The MVP includes:
 
 * Client workspace
 * Client **Brand KB** (versioned; documents + brand-image analysis; readiness gate)
+* **Client Moodboards** — named, reusable reference-image collections per client, filled by a **browser capture extension** (right-click → "Add to moodboard") and by in-app add-by-URL, browsed in a **Moodboards tab** of the Gallery drawer, and **dragged onto the canvas as File nodes** (re-hosted to storage on use). Stored **URL-first** (D92)
 * Canvas/project workspace
 * **Script node** for parsing finished reel scripts (`.md`/`.txt`/paste)
 * **Brief node** for parsing upstream briefs *(planned — defined node type, retained for later; not built in Stage 1)*
@@ -1187,6 +1242,8 @@ The MVP includes:
 * Prompt node
 * Image Gen node (incl. **image editing** — targeted remove / replace / add on a generated or reference image, as a new attempt — D27)
 * Video Gen node
+* **Generation Tray** — a flat, canvas-scoped, **navigation-only** shelf of long-running image/video generation jobs (**Running / Ready / Failed**); clicking an item flies the canvas to the generation node and opens its focus view. Derived on read from the `generations` job table; image gen joins the substrate (D35)
+* **Guided next-node flow** — a contextual **"Create next"** CTA on each pipeline node that creates + connects + places + opens the next node (Shot → image prompt → Image Gen → video prompt → Video Gen); never auto-generates, idempotent (navigates to an existing next) (D36)
 * Shared master controls for image and video generation
 * Selected control values inside Generate nodes
 * Final compiled prompt visible inside Generate nodes
@@ -1220,6 +1277,9 @@ The MVP does not include:
 * `.docx` / `.pdf` script extraction (deferred — D15) *(PDF image extraction → §21 F3)*
 * Multi-model picker
 * Vector DB/RAG (the context "% slider" is parked until a KB outgrows the window)
+* Moodboard **thumbnail caching, add-time re-hosting, dedup, and shot→reference vector search** — deferred, each a clean additive column + write-path later (D92) *(→ §21 F6)*
+* Moodboard **board sharing across clients**, curation/reordering beyond add/remove, and auto/shot-aware reference suggestions (D92)
+* **Auth on the moodboard endpoints** — the extension-facing routes are open, consistent with the app's deferred-auth posture *(→ §21 F1)*
 * Automated taxonomy mining
 * Client-facing access *(→ §21 F1)*
 * Multi-tenant auth *(→ §21 F1)*
@@ -1329,20 +1389,33 @@ it up. These are *additive* to the MVP — none block the Stage 1–5 pipeline.
 
 * **Now:** **maker-checker approval shipped as a flag (D29, §22.2)** — every attempt carries
   `pending → approved | changes_requested`, set by a senior in the focus view, shown as an
-  on-canvas badge, with maker/checker attribution. What's **not** built: it's a *flag only* —
-  no request-for-review lifecycle that gates downstream wiring, no notifications, and **no
-  commenting anywhere** on the canvas.
+  on-canvas badge, with maker/checker attribution. **A canvas-level, read-only Review surface is
+  now an approved design (D34; implementation pending)** — spec
+  `docs/superpowers/specs/2026-07-02-production-review-mode-design.md`. It promotes the *fast
+  review-workflow* half of this feature: a per-canvas **list→detail queue** at
+  `…/canvases/[cid]/review` where a senior moves through a reel's prompts and generated outputs
+  (Image Prompt · Video Prompt · Image Gen · Video Gen), **approving / requesting changes inline**
+  (reusing the D29 action) **without opening the editor** — decoupled from the D33 lock, and
+  *mark-don't-block* (approval never triggers the next step; preserves D11). Still **not** built
+  anywhere: gating, notifications, and **commenting**.
 * **Backlog (still):**
   * **Review lifecycle that gates** — extend the D29 flag from "records sign-off" to a
     workflow (`submitted for review → …`) that can **block or flag** downstream wiring (lean
     *mark, don't block*, per D9/D21). The distinct reviewer role + badges already exist (D29).
+    **D34 deliberately does not gate** (preserves D11); this is the deferred escalation.
+  * **Cross-canvas / client-level review inbox** — D34 is per-canvas; a client-wide inbox that
+    aggregates every reel is a later data-source swap on the *same* surface (`listReviewQueue(clientId)`).
+  * **Submit-for-review lifecycle** — a `submitted_for_review` state + a junior "Submit" action so
+    the queue shows only pushed items (D34 instead derives the queue from the existing D29 states).
   * **Per-node commenting** — a comment thread anchored to a node (and ideally to a specific
     attempt/version), with author, timestamp, resolve/unresolve, and `@mention`. The "where a
     designer changed the model output" diff (§4.4) and the comment thread together become the
     review record.
   * Notifications (in-app, later email/Slack) when review is requested or a comment mentions you.
-* **Depends on:** **F1** (real user identities) — a reviewer role, comment authorship, and
-  `@mention` all require login + per-user identity. Build F1 first or in lockstep.
+* **Depends on:** the **review surface (D34) rides on soft identity (D29)** — no F1 needed to ship it.
+  **F1** (real user identities) is still required for comment authorship, `@mention`, and *enforced*
+  reviewer roles (D34's senior-only control is a cosmetic hint, spoofable). Build F1 first or in
+  lockstep for those.
 * **To decide when picked up:** comment granularity (node vs. attempt/version), whether
   "changes requested" blocks downstream wiring or only flags it (lean **mark, don't block** —
   consistent with D9/D21), and notification channels.
@@ -1373,7 +1446,9 @@ it up. These are *additive* to the MVP — none block the Stage 1–5 pipeline.
 * **Now:** files and generated outputs are scoped to where they were made — client files,
   inline Prompt-node files (§9.3), and generated attempts living **inside** their Image/Video
   Gen node. Object storage holds the bytes, the DB holds the path (D13), but there is no
-  cross-canvas, cross-client way to **find** a past asset.
+  cross-canvas, cross-client way to **find** a past asset. **Client Moodboards (D92, §6) are the
+  first partial answer** for *inbound references*: a client's collected images are now findable in
+  one place and reusable across canvases — but by **human browsing of a named board**, not search.
 * **Backlog:**
   * A **library** surface that indexes every stored asset — uploaded references, parsed
     scripts, generated images, generated videos — across canvases and clients.
@@ -1384,9 +1459,22 @@ it up. These are *additive* to the MVP — none block the Stage 1–5 pipeline.
   * **Reuse** — drag a found asset back onto a canvas as a File node / reference; "find the
     approved still I made for client X" without reopening the canvas.
   * Later: semantic / vision search over images (text-to-image-match), and prompt-text search.
+  * **Shot → reference search over moodboards** (D92). The natural first target: **CLIP** is a
+    *joint text–image space*, so a shot's visual description (text encoder) can retrieve moodboard
+    images (image encoder) by cosine similarity — literally "find references for this shot."
+    Readiness is already designed: nullable `embedding vector(D)` (`pgvector`, native to Supabase)
+    with `embedding_model` + `embedded_at` so a model swap is a *versioned re-embed*, plus an HNSW
+    index. The durable artifact is the **vector (~1–3 KB), not the bytes** — which is precisely why
+    URL-first storage costs nothing here.
 * **Depends on:** consistent metadata on every attempt (already required by §13) and durable
   object-storage paths (D13). Keyword/metadata search is the cheap first cut; vector/semantic
   search is a later layer (note the §18 RAG deferral still applies).
+* **⚠ One time-sensitive caveat (D92).** A moodboard item can only be embedded **while its source
+  URL is still live**. Items collected during the URL-only window whose URLs later rot are **not
+  back-embeddable** — when F6 lands it can only embed going forward. The zero-loss mitigation is to
+  switch on **add-time thumbnail capture** *before* the URL-only backlog grows large, so every item
+  has a durable local copy to embed from later. This is the one deferral in D92 with a cost that
+  grows with time rather than staying flat.
 * **Revisit when:** the studio has enough accumulated assets that re-finding past work (or
   reusing an approved asset across projects) becomes a real friction — this is the payoff of
   the "learn from every attempt" capture (§4.4).
@@ -1451,5 +1539,7 @@ concurrency at the source is simpler and correct for an internal tool. **Live co
 (real-time presence, CRDT same-field merge) is deliberately future work.
 
 > Full designs: `docs/superpowers/specs/2026-06-29-approval-flag-design.md` (D29),
-> `docs/superpowers/specs/2026-07-01-canvas-pessimistic-lock-design.md` (D33). Decision log:
-> staging-roadmap §7, **D29 / D33** (D33 supersedes the optimistic **D32**).
+> `docs/superpowers/specs/2026-07-01-canvas-pessimistic-lock-design.md` (D33),
+> `docs/superpowers/specs/2026-07-02-production-review-mode-design.md` (**D34** — canvas-level
+> read-only review surface; *approved design, implementation pending*). Decision log:
+> staging-roadmap §7, **D29 / D33 / D34** (D33 supersedes the optimistic **D32**).

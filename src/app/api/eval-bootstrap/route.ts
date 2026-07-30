@@ -105,11 +105,12 @@ export async function POST(req: Request) {
   // 1. Resolve client + active KB
   const { data: client } = await supabase
     .from("clients")
-    .select("id, active_kb_version_id")
+    .select("id, org_id, active_kb_version_id")
     .eq("slug", CLIENT_SLUG)
     .maybeSingle();
   if (!client) return apiError(`Client '${CLIENT_SLUG}' not found.`, 404);
   const clientId = (client as { id: string }).id;
+  const orgId = (client as { org_id: string }).org_id;
 
   const kbVersion = await getActiveKBVersion(clientId);
   if (!kbVersion) return apiError("Client has no active KB version.", 400);
@@ -127,7 +128,7 @@ export async function POST(req: Request) {
   if (!canvas) {
     const ins = await supabase
       .from("canvases")
-      .insert({ client_id: clientId, name: "Eval Harness", slug: "eval-harness", viewport: { x: 0, y: 0, zoom: 1 } })
+      .insert({ client_id: clientId, org_id: orgId, name: "Eval Harness", slug: "eval-harness", viewport: { x: 0, y: 0, zoom: 1 } })
       .select("id")
       .single();
     if (ins.error) return apiError(`Canvas create failed: ${ins.error.message}`, 500);

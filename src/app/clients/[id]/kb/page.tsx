@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getClientBySlug } from "@/lib/db/clients";
+import { resolveCallerContext } from "@/lib/dal";
 import {
   listKBDocuments,
   listBrandImages,
   getActiveKBVersion,
 } from "@/lib/db/kb";
+import { getLatestKBJob } from "@/lib/db/kb-jobs";
 import { KBOnboardingUploadStep } from "@/components/kb/kb-onboarding-upload-step";
 import { KBOnboardingReviewStep } from "@/components/kb/kb-onboarding-review-step";
 import {
@@ -27,15 +29,19 @@ export default async function KBPage({
 }) {
   const { id } = await params;
   const client = await getClientBySlug(id);
+  const caller = await resolveCallerContext();
 
-  if (!client) {
+  // Org isolation: a client outside the caller's org redirects the same as a
+  // nonexistent one — see the note in ../page.tsx.
+  if (!client || client.org_id !== caller.orgId) {
     redirect("/");
   }
 
-  const [documents, images, activeKBVersion] = await Promise.all([
+  const [documents, images, activeKBVersion, latestJob] = await Promise.all([
     listKBDocuments(client.id),
     listBrandImages(client.id),
     getActiveKBVersion(client.id),
+    getLatestKBJob(client.id),
   ]);
 
   const isReviewOrEdit =
@@ -82,6 +88,7 @@ export default async function KBPage({
           isEditMode={isEditMode}
           initialDocuments={documents}
           initialImages={images}
+          initialWebsiteUrl={client.website_url ?? null}
           docIdsAtExtraction={(activeKBVersion!.doc_ids_used as string[]) ?? []}
         />
       ) : (
@@ -99,6 +106,8 @@ export default async function KBPage({
             clientSlug={client.slug}
             initialDocuments={documents}
             initialImages={images}
+            initialWebsiteUrl={client.website_url ?? null}
+            initialJob={latestJob}
           />
         </>
       )}

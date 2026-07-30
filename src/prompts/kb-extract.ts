@@ -110,6 +110,8 @@ For null values (field not found):
     "status": "needs_review"
   }`;
 
+export const KB_EXTRACT_SYSTEM_PROMPT = SYSTEM_PROMPT;
+
 export const kbExtractPrompt = {
   id: "kb-extract",
   version: "3.0.0",

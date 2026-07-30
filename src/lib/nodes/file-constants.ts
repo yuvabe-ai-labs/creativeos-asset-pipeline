@@ -14,3 +14,13 @@ export const FILE_NODE_MAX_SIZE = 10 * 1024 * 1024;
 export const FILE_NODE_IMAGE_SIZE_LIMIT = FILE_NODE_MAX_SIZE;
 export const FILE_NODE_TEXT_SIZE_LIMIT = 100 * 1024;             // 100 KB per text file
 export const FILE_NODE_DOCUMENT_SIZE_LIMIT = FILE_NODE_MAX_SIZE;
+
+export type FileNodeKind = "image" | "document" | "text";
+
+// Classify a lowercase extension into the node's file kind, or null if unsupported.
+export function fileKindForExt(ext: string): FileNodeKind | null {
+  if (FILE_NODE_IMAGE_EXTENSIONS.has(ext)) return "image";
+  if (FILE_NODE_DOCUMENT_EXTENSIONS.has(ext)) return "document";
+  if (FILE_NODE_TEXT_EXTENSIONS.has(ext)) return "text";
+  return null;
+}

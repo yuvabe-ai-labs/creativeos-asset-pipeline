@@ -3,6 +3,7 @@ import { createCanvasStore } from "./canvas-store";
 import type { AppNode } from "./canvas-nodes";
 import type { Edge } from "@xyflow/react";
 import type { ShotComposeIdea } from "./nodes/shot-compose";
+import type { GenerationRow } from "./db/types";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -177,4 +178,137 @@ describe("canvas store — tombstones", () => {
     expect(store.getState().removedNodeIds).toEqual(["b"]);
   });
 
+});
+
+const genRow = (over: Partial<GenerationRow>): GenerationRow =>
+  ({
+    id: "j", node_id: "g", org_id: "org-1", client_id: null, type: "image", status: "running",
+    provider_job_id: null, model_used: null, params_snapshot: null,
+    inputs_snapshot: null, output_snapshot: null, tokens_used: null, cost_usd: null, credits_charged: null,
+    version_id: null, user_id: null, error: null, meta: null,
+    created_at: "2026-07-05T00:00:00.000Z", updated_at: "2026-07-05T00:00:00.000Z",
+    ...over,
+  });
+
+describe("canvas store — tray slice", () => {
+  it("starts empty and seeds via setTrayJobs", () => {
+    const store = createCanvasStore();
+    expect(store.getState().trayJobs).toEqual({});
+    store.getState().setTrayJobs([genRow({ id: "a" }), genRow({ id: "b" })]);
+    expect(Object.keys(store.getState().trayJobs).sort()).toEqual(["a", "b"]);
+  });
+
+  it("upsertTrayJob replaces a row by id", () => {
+    const store = createCanvasStore();
+    store.getState().upsertTrayJob(genRow({ id: "a", status: "running" }));
+    store.getState().upsertTrayJob(genRow({ id: "a", status: "succeeded" }));
+    expect(Object.keys(store.getState().trayJobs)).toEqual(["a"]);
+    expect(store.getState().trayJobs.a.status).toBe("succeeded");
+  });
+});
+
+describe("canvas store — focusedNodeId", () => {
+  it("starts null and can be set/cleared", () => {
+    const store = createCanvasStore();
+    expect(store.getState().focusedNodeId).toBeNull();
+    store.getState().setFocusedNodeId("node-1");
+    expect(store.getState().focusedNodeId).toBe("node-1");
+    store.getState().setFocusedNodeId(null);
+    expect(store.getState().focusedNodeId).toBeNull();
+  });
+});
+
+describe("canvas store — openFocusViewIds", () => {
+  it("starts empty", () => {
+    expect(createCanvasStore().getState().openFocusViewIds).toEqual([]);
+  });
+
+  it("registers and unregisters a node's focus view", () => {
+    const store = createCanvasStore();
+    store.getState().setFocusViewOpen("node-1", true);
+    expect(store.getState().openFocusViewIds).toEqual(["node-1"]);
+    store.getState().setFocusViewOpen("node-1", false);
+    expect(store.getState().openFocusViewIds).toEqual([]);
+  });
+
+  it("is idempotent — re-registering the same id does not duplicate it", () => {
+    const store = createCanvasStore();
+    store.getState().setFocusViewOpen("node-1", true);
+    store.getState().setFocusViewOpen("node-1", true);
+    expect(store.getState().openFocusViewIds).toEqual(["node-1"]);
+  });
+
+  it("keeps the gate closed while another view is still open", () => {
+    // The async path: the copilot points focusedNodeId at node-2 while node-1 is
+    // already open locally, then node-1 closes. A boolean flag would clear here and
+    // let the canvas go live under node-2's still-open sheet.
+    const store = createCanvasStore();
+    store.getState().setFocusViewOpen("node-1", true);
+    store.getState().setFocusViewOpen("node-2", true);
+    store.getState().setFocusViewOpen("node-1", false);
+    expect(store.getState().openFocusViewIds).toEqual(["node-2"]);
+  });
+
+  it("ignores a close for an id that was never open", () => {
+    const store = createCanvasStore();
+    store.getState().setFocusViewOpen("ghost", false);
+    expect(store.getState().openFocusViewIds).toEqual([]);
+  });
+});
+
+describe("guidedCreateNext", () => {
+  it("creates the next node wired from the source and returns its id", () => {
+    const shot: AppNode = { id: "s", type: "shot", position: { x: 0, y: 0 }, data: {} } as AppNode;
+    const store = createCanvasStore([shot], []);
+    const newId = store.getState().guidedCreateNext("s");
+    expect(newId).not.toBeNull();
+    const created = store.getState().nodes.find((n) => n.id === newId);
+    expect(created?.type).toBe("prompt");
+    expect(store.getState().edges.some((e) => e.source === "s" && e.target === newId)).toBe(true);
+  });
+
+  it("returns the existing next id without creating a duplicate", () => {
+    const shot: AppNode = { id: "s", type: "shot", position: { x: 0, y: 0 }, data: {} } as AppNode;
+    const prompt: AppNode = { id: "p", type: "prompt", position: { x: 360, y: 0 }, data: {} } as AppNode;
+    const store = createCanvasStore([shot, prompt], [{ id: "s-p", source: "s", target: "p" }]);
+    const before = store.getState().nodes.length;
+    expect(store.getState().guidedCreateNext("s")).toBe("p");
+    expect(store.getState().nodes.length).toBe(before); // no new node
+  });
+
+  it("returns null for a gated source (image-gen with no image)", () => {
+    const ig: AppNode = { id: "g", type: "image-gen", position: { x: 0, y: 0 }, data: {} } as AppNode;
+    const store = createCanvasStore([ig], []);
+    expect(store.getState().guidedCreateNext("g")).toBeNull();
+  });
+});
+
+import type { PlaybookRun } from "./copilot/runner";
+
+describe("playbookRun slice", () => {
+  const run: PlaybookRun = {
+    playbook: "image-for-shot",
+    title: "Image for SHOT-1A2B",
+    slots: { shot: "SHOT-1A2B", refs: [] },
+    created: {},
+    stepIndex: 0,
+    status: "running",
+    log: [],
+  };
+
+  it("starts null; set/patch/clear round-trips", () => {
+    const store = createCanvasStore([], []);
+    expect(store.getState().playbookRun).toBeNull();
+    store.getState().setPlaybookRun(run);
+    store.getState().patchPlaybookRun({ status: "waiting-human", stepIndex: 3 });
+    expect(store.getState().playbookRun).toMatchObject({ status: "waiting-human", stepIndex: 3 });
+    store.getState().setPlaybookRun(null);
+    expect(store.getState().playbookRun).toBeNull();
+  });
+
+  it("patch is a no-op when there is no run", () => {
+    const store = createCanvasStore([], []);
+    store.getState().patchPlaybookRun({ status: "cancelled" });
+    expect(store.getState().playbookRun).toBeNull();
+  });
 });

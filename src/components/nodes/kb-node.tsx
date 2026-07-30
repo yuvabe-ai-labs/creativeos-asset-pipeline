@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { BookOpenIcon, ArrowUpRightIcon } from "lucide-react";
@@ -14,7 +14,10 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import type { KBNodeData } from "@/lib/canvas-nodes";
+import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { useNodeConnectionState } from "./use-node-connection-state";
+import { useFocusViewRegistration } from "@/hooks/use-focus-view-open";
+import { NodeCardHeader } from "./node-card-header";
 import { formatDate } from "@/lib/kb/utils";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -81,7 +84,8 @@ function SheetSkeleton() {
 
 // ── Format helpers ────────────────────────────────────────────────────────────
 
-function formatBytes(bytes: number | null): string {
+// Wraps the shared formatBytes to handle null gracefully in display context.
+function formatBytesOrEmpty(bytes: number | null): string {
   if (!bytes) return "";
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
@@ -99,14 +103,12 @@ const EXT_ICON: Record<string, string> = {
 // ── Sheet content (purely presentational) ────────────────────────────────────
 
 function KBSheetContent({
-  clientId,
   clientSlug,
   loading,
   version,
   documents,
   images,
 }: {
-  clientId: string;
   clientSlug: string;
   loading: boolean;
   version: VersionMeta | null;
@@ -171,7 +173,7 @@ function KBSheetContent({
                         </p>
                         <p className="text-xs text-muted-foreground">
                           {[
-                            formatBytes(doc.sizeBytes),
+                            formatBytesOrEmpty(doc.sizeBytes),
                             formatDate(doc.createdAt),
                           ]
                             .filter(Boolean)
@@ -229,6 +231,17 @@ function KBSheetContent({
 export function KBNode({ id, data, selected }: NodeProps) {
   const d = data as KBNodeData;
   const [open, setOpen] = useState(false);
+  const focusedNodeId = useCanvasStore((s) => s.focusedNodeId);
+  const setFocusedNodeId = useCanvasStore((s) => s.setFocusedNodeId);
+  // Open locally OR when the shared focus signal points here (copilot open_node).
+  const sheetOpen = open || focusedNodeId === id;
+  const handleOpenChange = (next: boolean) => {
+    setOpen(next);
+    if (!next && focusedNodeId === id) setFocusedNodeId(null); // consume the signal
+  };
+  // KB has no context menu (it's excluded from selection/delete), but its sheet still
+  // has to silence the canvas's document-level shortcuts while it's open.
+  useFocusViewRegistration(id, sheetOpen);
   const connState = useNodeConnectionState(id, "kb");
   const [fetchState, setFetchState] = useState<FetchState>({
     loading: true,
@@ -255,6 +268,11 @@ export function KBNode({ id, data, selected }: NodeProps) {
       .catch(() => setFetchState((s) => ({ ...s, loading: false })));
   }
 
+  // A signal-driven open skips hover/double-click, so prime the fetch here.
+  useEffect(() => {
+    if (sheetOpen) prefetch();
+  });
+
   const fillPct = d.fillRate != null ? Math.round(d.fillRate * 100) : null;
 
   return (
@@ -272,17 +290,19 @@ export function KBNode({ id, data, selected }: NodeProps) {
       )}
       onMouseEnter={prefetch}
     >
-      <div className="flex items-center justify-between border-b border-border px-2 py-1.5">
-        <div className="flex items-center gap-1.5">
-          <BookOpenIcon className="size-3 text-primary" />
-          <span className="text-eyebrow text-[0.6rem]!">Brand KB</span>
-        </div>
-        {fillPct != null && (
-          <span className="rounded-full bg-primary/10 px-1.5 py-px text-[0.55rem] font-semibold text-primary">
-            {fillPct}%
-          </span>
-        )}
-      </div>
+      <NodeCardHeader
+        icon={BookOpenIcon}
+        nodeId={id}
+        nodeType="kb"
+        title="Brand KB"
+        status={
+          fillPct != null ? (
+            <span className="rounded-full bg-primary/10 px-1.5 py-px text-[0.55rem] font-semibold text-primary">
+              {fillPct}%
+            </span>
+          ) : undefined
+        }
+      />
 
       <div className="px-2 py-2">
         <p className="truncate font-display text-xs font-medium">
@@ -296,7 +316,7 @@ export function KBNode({ id, data, selected }: NodeProps) {
           </p>
         )}
 
-        <Sheet open={open} onOpenChange={setOpen}>
+        <Sheet open={sheetOpen} onOpenChange={handleOpenChange}>
           <SheetTrigger
             render={
               <button className="nodrag mt-1.5 text-[0.65rem] font-medium text-primary hover:underline">
@@ -304,9 +324,8 @@ export function KBNode({ id, data, selected }: NodeProps) {
               </button>
             }
           />
-          {open && (
+          {sheetOpen && (
             <KBSheetContent
-              clientId={d.clientId}
               clientSlug={d.clientSlug}
               loading={fetchState.loading}
               version={fetchState.version}

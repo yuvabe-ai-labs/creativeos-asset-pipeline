@@ -11,3 +11,13 @@ export function planReconcile(
   const deleteIds = [...new Set(removedIds)].filter((id) => !present.has(id));
   return { deleteIds };
 }
+
+// PostgREST encodes `.in("id", …)` in the URL query string, so a mass delete
+// (hundreds of ids) blows the gateway's URL length limit and the WHOLE save
+// throws — the deletion silently never lands. Batch ids so each request stays
+// well under the limit. 100 uuids ≈ 4KB of URL.
+export function chunkIds(ids: string[], size = 100): string[][] {
+  const chunks: string[][] = [];
+  for (let i = 0; i < ids.length; i += size) chunks.push(ids.slice(i, i + size));
+  return chunks;
+}

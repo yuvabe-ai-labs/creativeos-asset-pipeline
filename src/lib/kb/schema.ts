@@ -207,3 +207,21 @@ export const TraceableBrandKBSchema = z.object({
 });
 
 export type TraceableBrandKB = z.infer<typeof TraceableBrandKBSchema>;
+
+// ── KB field factory helpers ──────────────────────────────────────────────────
+
+export function emptyKBField<T>(value: T | null = null): KBField<T> {
+  return { value, confidence: "low", evidence_type: "inferred", status: "needs_review" };
+}
+
+export function defaultEmptyImageAnalysis(): TraceableBrandKB["image_analysis"] {
+  return {
+    dominant_colors: emptyKBField<string[]>(null),
+    visual_mood: emptyKBField<string>(null),
+    aesthetic: emptyKBField<string>(null),
+    subjects: emptyKBField<string>(null),
+    composition_style: emptyKBField<string>(null),
+    lighting_character: emptyKBField<string>(null),
+    brand_consistency_notes: emptyKBField<string>(null),
+  };
+}

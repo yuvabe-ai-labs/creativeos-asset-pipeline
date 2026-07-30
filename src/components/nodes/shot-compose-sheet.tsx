@@ -19,6 +19,7 @@ import type { ShotComposeIdea } from "@/lib/nodes/shot-compose";
 import type { ReelScript } from "@/lib/nodes/reel-script";
 import { DEFAULT_PARSE_SLICES, type KBSliceKey } from "@/lib/kb/parse-context";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { EditableField } from "./editable-field";
 import {
   Select,
   SelectContent,
@@ -123,7 +124,10 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
         if (json.ideas?.length) {
           setIdeas(json.ideas);
           setVersionId(json.versionId ?? null);
-          if (json.role) setRole(json.role);
+          if (json.role) {
+            setRole(json.role);
+            updateNodeData(nodeId, { role: json.role });
+          }
         }
       } catch {
         /* best-effort — leave the empty state if it fails */
@@ -151,6 +155,7 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
       if (!res.ok) throw new Error(json.error ?? "Compose failed");
       setIdeas(json.ideas ?? []);
       setVersionId(json.versionId ?? null);
+      updateNodeData(nodeId, { role });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Compose failed");
     } finally {
@@ -158,14 +163,20 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
     }
   }
 
-  // Write the chosen idea into this Shot's description (edit-at-source) + capture the pick.
-  function applyIdea(idea: ShotComposeIdea, index: number) {
+  // Write a description into this Shot's script (edit-at-source), preserving
+  // every other script field. Shared by "Use this shot" and the inline editor.
+  function setShotDescription(description: string) {
     const base = (currentScript ?? {}) as ReelScript;
     const vs = base.visual_script ?? {};
     const first = vs.shots?.[0] ?? {};
     updateNodeData(nodeId, {
-      script: { ...base, visual_script: { ...vs, shots: [{ ...first, description: idea.description }] } },
+      script: { ...base, visual_script: { ...vs, shots: [{ ...first, description }] } },
     });
+  }
+
+  // Write the chosen idea into this Shot's description (edit-at-source) + capture the pick.
+  function applyIdea(idea: ShotComposeIdea, index: number) {
+    setShotDescription(idea.description);
     // best-effort capture of the selection (eval flywheel) — don't block the UI on it
     if (versionId) {
       void fetch(`/api/nodes/${nodeId}/compose/select`, {
@@ -201,11 +212,6 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
         showCloseButton={false}
         className="gap-0 overflow-hidden rounded-t-2xl bg-background data-[side=bottom]:h-[92vh]"
       >
-        {/* drag handle — matches the other focus views */}
-        <div className="flex shrink-0 justify-center pt-3">
-          <div className="h-1.5 w-12 rounded-full bg-border" />
-        </div>
-
         {/* header */}
         <div className="shrink-0 border-b">
           <div className="mx-auto w-full max-w-5xl px-6 pb-5 pt-3">
@@ -269,9 +275,13 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
 
               <div>
                 <SectionLabel icon={Clapperboard} className="mb-2">Current shot</SectionLabel>
-                <p className="rounded-md border border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
-                  {seedDescription || "(no shot text yet)"}
-                </p>
+                <EditableField
+                  value={seedDescription}
+                  onCommit={setShotDescription}
+                  multiline
+                  placeholder="Describe this shot…"
+                  className="text-sm leading-relaxed text-foreground/80"
+                />
               </div>
 
               {referenceImages.length > 0 && (

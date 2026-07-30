@@ -5,7 +5,7 @@ import {
   getKBTotalBytes,
   KB_DOC_SIZE_LIMIT_BYTES,
 } from "@/lib/db/kb";
-import { DOC_EXTENSIONS } from "@/lib/kb/constants";
+import { DOC_EXTENSIONS, KB_DOC_PER_FILE_LIMIT_BYTES } from "@/lib/kb/constants";
 import {
   apiError,
   apiOk,
@@ -30,6 +30,13 @@ export async function POST(
     const extResult = validateFileExtension(file, DOC_EXTENSIONS);
     if (isApiError(extResult)) return extResult;
     const { ext } = extResult;
+
+    if (file.size > KB_DOC_PER_FILE_LIMIT_BYTES) {
+      return apiError(
+        "Document is too large for AI analysis (max 1 MB per file). Please split or compress it.",
+        400,
+      );
+    }
 
     const existingBytes = await getKBTotalBytes(clientId);
     const sizeError = validateFileSize(file.size, existingBytes, KB_DOC_SIZE_LIMIT_BYTES, "20 MB");

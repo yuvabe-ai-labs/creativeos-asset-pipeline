@@ -1,10 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createCanvas } from "@/lib/db/canvases";
+import { createCanvas, renameCanvas, deleteCanvas } from "@/lib/db/canvases";
 import { getActiveKBVersion } from "@/lib/db/kb";
 import { saveCanvasNodes } from "@/lib/db/nodes";
 import { saveCanvasEdges } from "@/lib/db/edges";
+import { resolveCallerContext } from "@/lib/dal";
 import type { TraceableBrandKB } from "@/lib/kb/schema";
 
 export async function createCanvasAction(input: {
@@ -15,7 +16,8 @@ export async function createCanvasAction(input: {
   const name = input.name?.trim();
   if (!name) throw new Error("Canvas needs a name");
 
-  const canvas = await createCanvas({ clientId: input.clientId, name });
+  const caller = await resolveCallerContext();
+  const canvas = await createCanvas({ clientId: input.clientId, orgId: caller.orgId, name });
 
   // If the client has an active KB, seed a KB node + a connected Brief node.
   const activeKB = await getActiveKBVersion(input.clientId);
@@ -57,4 +59,24 @@ export async function createCanvasAction(input: {
 
   revalidatePath(`/clients/${input.clientSlug}`);
   return canvas;
+}
+
+export async function renameCanvasAction(input: {
+  canvasId: string;
+  clientSlug: string;
+  name: string;
+}): Promise<void> {
+  const name = input.name?.trim();
+  if (!name) throw new Error("Canvas needs a name");
+  if (name.length > 100) throw new Error("Canvas name is too long (max 100 characters)");
+  await renameCanvas(input.canvasId, name);
+  revalidatePath(`/clients/${input.clientSlug}`);
+}
+
+export async function deleteCanvasAction(input: {
+  canvasId: string;
+  clientSlug: string;
+}): Promise<void> {
+  await deleteCanvas(input.canvasId);
+  revalidatePath(`/clients/${input.clientSlug}`);
 }

@@ -11,26 +11,13 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
-import {
   imageGenClientModelGroups,
   type ClientModelSpec,
 } from "@/lib/image-gen/client-models";
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { ParamControl } from "./param-controls";
 import { ImageGenParamRow } from "./image-gen-param-row";
+import { ParamChipGroup } from "./param-chip-group";
+import { FieldLabel } from "./field-label";
 import type { ParamSpec } from "@/lib/image-gen/types";
 
 type ParamFormValues = Record<string, unknown>;
@@ -55,9 +42,10 @@ const PARAM_ICONS: Record<string, LucideIcon> = {
   resolution:         Settings2,
 };
 
-const MODEL_ITEMS: Record<string, string> = Object.fromEntries(
-  imageGenClientModelGroups.flatMap((g) => g.models.map((m) => [m.id, m.label])),
-);
+// Title-case a select option for display: "low" → "Low", "1:1" / "4K" unchanged.
+function formatOption(value: string): string {
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
 
 export function ImageGenOutputSettings({
   model,
@@ -76,81 +64,63 @@ export function ImageGenOutputSettings({
     .filter((p: ParamSpec) => p.group === "primary" && p.visible)
     .sort((a: ParamSpec, b: ParamSpec) => a.order - b.order);
 
-  const advancedParams = model.params
-    .filter((p: ParamSpec) => p.group === "advanced" && p.visible)
-    .sort((a: ParamSpec, b: ParamSpec) => a.order - b.order);
-
   return (
-    <div className="space-y-2">
-      {/* Model selector */}
-      <ImageGenParamRow icon={Cpu} label="Model">
-        <Select
-          items={MODEL_ITEMS}
-          value={model.id}
-          onValueChange={(v) => {
-            if (v != null) onModelChange(v as string);
-          }}
-        >
-          <SelectTrigger size="sm" className="min-w-0 flex-1 text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {imageGenClientModelGroups.map((g) => (
-              <SelectGroup key={g.provider}>
-                <SelectLabel>{g.label}</SelectLabel>
-                {g.models.map((m) => (
-                  <SelectItem key={m.id} value={m.id} className="text-xs">
-                    {m.label}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            ))}
-          </SelectContent>
-        </Select>
-      </ImageGenParamRow>
+    <div className="space-y-5">
+      {/* Model — grouped chips inside a card, one row of chips per provider. */}
+      <div className="space-y-2">
+        <FieldLabel icon={Cpu} label="Model" />
+        <div className="space-y-3 rounded-xl border border-border p-3">
+          {imageGenClientModelGroups.map((group) => (
+            <div key={group.provider} className="space-y-1.5">
+              <span className="text-[0.7rem] font-medium text-muted-foreground">
+                {group.label}
+              </span>
+              <ParamChipGroup
+                options={group.models.map((m) => ({ value: m.id, label: m.label }))}
+                value={model.id}
+                onValueChange={onModelChange}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
 
-      {/* Primary params */}
-      {primaryParams.map((param: ParamSpec) => (
-        <ImageGenParamRow
-          key={param.name}
-          icon={PARAM_ICONS[param.name] ?? Settings2}
-          label={param.label}
-        >
-          <ParamControl
-            spec={param}
-            value={values[param.name] ?? param.defaultValue}
-            onChange={(v) => patch({ [param.name]: v })}
-          />
-        </ImageGenParamRow>
-      ))}
-
-      {/* Advanced params — collapsible accordion */}
-      {advancedParams.length > 0 && (
-        <Accordion multiple={false} className="pt-1">
-          <AccordionItem value="advanced" className="border-none">
-            <AccordionTrigger className="py-1 text-[0.7rem] tracking-wide uppercase text-muted-foreground hover:text-foreground hover:no-underline">
-              Advanced
-            </AccordionTrigger>
-            <AccordionContent className="pt-2">
-              <div className="space-y-2">
-                {advancedParams.map((param: ParamSpec) => (
-                  <ImageGenParamRow
-                    key={param.name}
-                    icon={PARAM_ICONS[param.name] ?? Settings2}
-                    label={param.label}
-                  >
-                    <ParamControl
-                      spec={param}
-                      value={values[param.name] ?? param.defaultValue}
-                      onChange={(v) => patch({ [param.name]: v })}
-                    />
-                  </ImageGenParamRow>
-                ))}
-              </div>
-            </AccordionContent>
-          </AccordionItem>
-        </Accordion>
-      )}
+      {/* Primary params — each rendered as a chip group, stacked vertically so
+          Quality/Resolution always sits below Aspect Ratio. */}
+      <div className="flex flex-col gap-5">
+        {primaryParams.map((param: ParamSpec) =>
+          param.constraints.type === "select" ? (
+            <div key={param.name} className="space-y-2">
+              <FieldLabel
+                icon={PARAM_ICONS[param.name] ?? Settings2}
+                label={param.label}
+              />
+              <ParamChipGroup
+                options={param.constraints.options.map((o) => ({
+                  value: o,
+                  label: formatOption(o),
+                }))}
+                value={String(values[param.name] ?? param.defaultValue ?? "")}
+                onValueChange={(v) => patch({ [param.name]: v })}
+              />
+            </div>
+          ) : (
+            // Non-select primary params (slider/number/toggle) keep the compact
+            // label-above-control cell.
+            <ImageGenParamRow
+              key={param.name}
+              icon={PARAM_ICONS[param.name] ?? Settings2}
+              label={param.label}
+            >
+              <ParamControl
+                spec={param}
+                value={values[param.name] ?? param.defaultValue}
+                onChange={(v) => patch({ [param.name]: v })}
+              />
+            </ImageGenParamRow>
+          ),
+        )}
+      </div>
     </div>
   );
 }

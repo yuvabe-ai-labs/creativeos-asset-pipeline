@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { ArrowLeft, Eye, EyeOff, RefreshCw, FileUp, Clapperboard } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, RefreshCw, FileUp, Clapperboard, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { EditableField } from "./editable-field";
@@ -23,7 +23,6 @@ import { setScriptValue, addItem, removeItem } from "@/lib/nodes/script-edit";
 import type { KBSliceKey } from "@/lib/kb/parse-context";
 import { ScriptDocument } from "./script-document";
 import { ScriptEmptyState } from "./script-empty-state";
-import { ScriptSkeleton } from "./script-skeleton";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 
 type Path = (string | number)[];
@@ -41,12 +40,6 @@ type ScriptFocusViewProps = {
   onFanOut: () => void;
   onParsingChange?: (parsing: boolean) => void;
 };
-
-const SUBTITLES = {
-  empty: "Upload a reel brief to extract its structured script.",
-  skeleton: "Extracting the script…",
-  parsed: "Review and edit the extracted reel script.",
-} as const;
 
 // The Script node's surface — a full-width bottom sheet. A three-state machine:
 // EMPTY (upload + toggles) → SKELETON (parsing) → PARSED (editable doc).
@@ -175,10 +168,6 @@ export function ScriptFocusView({
         showCloseButton={false}
         className="gap-0 overflow-hidden rounded-t-2xl bg-background data-[side=bottom]:h-[92vh]"
       >
-        <div className="flex shrink-0 justify-center pt-3">
-          <div className="h-1.5 w-12 rounded-full bg-border" />
-        </div>
-
         <div className="shrink-0 border-b">
           <div className="mx-auto w-full max-w-5xl px-6 pb-5 pt-3">
             <button
@@ -199,7 +188,6 @@ export function ScriptFocusView({
                     className="font-display text-3xl font-semibold tracking-tight"
                   />
                 </SheetTitle>
-                <p className="mt-1.5 text-sm text-muted-foreground">{SUBTITLES[mode]}</p>
               </div>
 
               {mode === "parsed" && (
@@ -270,7 +258,12 @@ export function ScriptFocusView({
 
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className="mx-auto w-full max-w-5xl px-6 py-8">
-            {mode === "skeleton" && <ScriptSkeleton />}
+            {mode === "skeleton" && (
+              <div className="flex flex-col items-center justify-center gap-3 py-24 text-muted-foreground">
+                <Loader2 className="size-8 animate-spin text-primary" />
+                <p className="text-sm">Extracting the script…</p>
+              </div>
+            )}
 
             {mode === "empty" && (
               <ScriptEmptyState

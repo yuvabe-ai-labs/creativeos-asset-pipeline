@@ -1,27 +1,14 @@
 "use client";
 
-import { Aperture, Crop, Sun, type LucideIcon } from "lucide-react";
-import {
-  SHOT_CONTROLS,
-  type ShotControls,
-  type ShotControlKey,
-} from "@/lib/nodes/shot-controls";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { type ShotControls } from "@/lib/nodes/shot-controls";
+import { LensSelect } from "./lens-select";
+import { CompositionSelect } from "./composition-select";
+import { LightingSelect } from "./lighting-select";
 
-const ICONS: Record<ShotControlKey, LucideIcon> = {
-  lens: Aperture,
-  composition: Crop,
-  lighting: Sun,
-};
-
-// Per-shot descriptive controls (lens / composition / lighting). Set values are injected into
-// the compiled prompt as constraints the model must honor (PRD §12). "Auto" = no constraint.
+// Per-shot descriptive controls (lens / composition / lighting). Set values are injected into the
+// compiled prompt as constraints the model must honor (PRD §12); "Auto" = no constraint. Each is a
+// visual "show-don't-tell" tile strip (image per option) rather than text pills — renderer-only, so
+// the compiled prompt is unchanged.
 export function ShotControlsRow({
   controls,
   onChange,
@@ -30,33 +17,19 @@ export function ShotControlsRow({
   onChange: (next: ShotControls) => void;
 }) {
   return (
-    <div className="space-y-2">
-      {SHOT_CONTROLS.map((group) => {
-        const Icon = ICONS[group.key];
-        return (
-          <div key={group.key} className="flex items-center gap-2">
-            <Icon className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.5} />
-            <span className="w-24 shrink-0 text-xs text-muted-foreground">{group.label}</span>
-            <Select
-              value={controls[group.key]}
-              onValueChange={(value) =>
-                onChange({ ...controls, [group.key]: value as string })
-              }
-            >
-              <SelectTrigger size="sm" className="min-w-0 flex-1 text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {group.options.map((o) => (
-                  <SelectItem key={o.value} value={o.value} className="text-xs">
-                    {o.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        );
-      })}
+    <div className="flex flex-col gap-4">
+      <LensSelect
+        value={controls.lens}
+        onChange={(v) => onChange({ ...controls, lens: v })}
+      />
+      <CompositionSelect
+        value={controls.composition}
+        onChange={(v) => onChange({ ...controls, composition: v })}
+      />
+      <LightingSelect
+        value={controls.lighting}
+        onChange={(v) => onChange({ ...controls, lighting: v })}
+      />
     </div>
   );
 }

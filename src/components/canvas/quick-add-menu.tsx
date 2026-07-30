@@ -10,6 +10,7 @@ import {
   ImageIcon,
   Clapperboard,
   ClipboardPaste,
+  Images,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -25,6 +26,7 @@ import {
   ADD_NODE_OPTIONS,
   type AddNodeType,
 } from "@/lib/canvas-node-options";
+import { useGalleryDrawer } from "./gallery-drawer-context";
 
 // Icon per type. Record<AddNodeType, …> forces TS to flag any type missing an
 // icon, so this can never silently drift from ADD_NODE_OPTIONS.
@@ -47,6 +49,7 @@ const MENU_H = 420;
 interface QuickAddMenuProps {
   screenX: number;
   screenY: number;
+  flowPos: { x: number; y: number };
   onSelect: (type: AddNodeType) => void;
   onClose: () => void;
   canPasteImage?: boolean;
@@ -56,11 +59,13 @@ interface QuickAddMenuProps {
 export function QuickAddMenu({
   screenX,
   screenY,
+  flowPos,
   onSelect,
   onClose,
   canPasteImage,
   onPasteImage,
 }: QuickAddMenuProps) {
+  const gallery = useGalleryDrawer();
   const ref = useRef<HTMLDivElement>(null);
 
   // Flip left/up when the panel would overflow the viewport.
@@ -101,8 +106,8 @@ export function QuickAddMenu({
             without the list scrolling; still caps height on short viewports. */}
         <CommandList className="max-h-[420px]">
           <CommandEmpty>No node type found.</CommandEmpty>
-          {canPasteImage && onPasteImage && (
-            <CommandGroup>
+          <CommandGroup>
+            {canPasteImage && onPasteImage && (
               <CommandItem
                 value="paste image"
                 onSelect={() => {
@@ -114,8 +119,19 @@ export function QuickAddMenu({
                 <ClipboardPaste className="size-4 shrink-0" strokeWidth={1.5} />
                 Paste image
               </CommandItem>
-            </CommandGroup>
-          )}
+            )}
+            <CommandItem
+              value="add reference image"
+              onSelect={() => {
+                gallery.openDrawer({ position: flowPos });
+                onClose();
+              }}
+              className="text-primary"
+            >
+              <Images className="size-4 shrink-0" strokeWidth={1.5} />
+              Add reference image
+            </CommandItem>
+          </CommandGroup>
           <CommandGroup heading="Add node">
             {ADD_NODE_OPTIONS.map(({ type, label, mnemonic }) => {
               const Icon = ICONS[type];

@@ -1,13 +1,27 @@
 import { getUpstreamOutputs } from "@/lib/db/nodes";
 import { insertVersion, setActiveVersion, getVersionById } from "@/lib/db/versions";
+import { insertGeneration, succeedGeneration, failGeneration } from "@/lib/db/generations";
 import { imageGenRegistry, DEFAULT_MODEL_ID } from "@/lib/image-gen/registry";
 import {
   buildEditPrompt,
   assembleEditReferences,
   type EditIntent,
 } from "@/lib/image-gen/edit-prompt";
-import { apiError, apiOk } from "@/lib/api/route-helpers";
+import type { MentionUpstream } from "@/lib/nodes/resolve-mention-tokens";
+import { computeImageCost } from "@/lib/image-gen/cost";
+import { estimateImageGenerationCostUsd } from "@/lib/image-gen/estimate";
+import { usdToFinalCredits } from "@/lib/credits/units";
+import {
+  reserveCredits,
+  settleGeneration,
+  refundReservation,
+  CreditLimitError,
+} from "@/lib/db/credit-transactions";
+import { apiError, apiOk, withNode } from "@/lib/api/route-helpers";
 import { uploadImageGen } from "@/lib/storage";
+import sharp from "sharp";
+import { validateReferenceImages, type RefImageMeta } from "@/lib/image-gen/validate";
+import { createServerSupabase } from "@/lib/supabase/server";
 
 function mimeToExt(mimeType: string): string {
   if (mimeType === "image/jpeg") return "jpg";
@@ -15,7 +29,7 @@ function mimeToExt(mimeType: string): string {
   return "png";
 }
 
-const EDIT_INTENTS: readonly EditIntent[] = ["remove", "replace", "add", "freeform"];
+const EDIT_INTENTS: readonly EditIntent[] = ["remove", "replace", "add", "modify", "freeform"];
 function asIntent(v: unknown): EditIntent | undefined {
   return typeof v === "string" && (EDIT_INTENTS as readonly string[]).includes(v)
     ? (v as EditIntent)
@@ -26,149 +40,329 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const { id: nodeId } = await params;
+  return withNode(params, async (nodeId, _node, caller, clientId) => {
+    const body = (await req.json().catch(() => null)) as
+      | {
+          modelId?: unknown;
+          params?: unknown;
+          instruction?: unknown;
+          intent?: unknown;
+          prompt?: unknown;
+          baseVersionId?: unknown;
+          baseImageUrl?: unknown;
+          extraReferenceUrls?: unknown;
+          masked?: unknown;
+          maskBase64?: unknown;
+          maskMime?: unknown;
+        }
+      | null;
 
-  const body = (await req.json().catch(() => null)) as
-    | {
-        modelId?: unknown;
-        params?: unknown;
-        instruction?: unknown;
-        intent?: unknown;
-        prompt?: unknown;
-        baseVersionId?: unknown;
-        baseImageUrl?: unknown;
+    const modelId = typeof body?.modelId === "string" ? body.modelId : DEFAULT_MODEL_ID;
+    const config = imageGenRegistry[modelId];
+    if (!config) return apiError(`Unknown modelId: ${modelId}`, 400);
+
+    // Validate params with the model's Zod schema
+    const parseResult = config.schema.safeParse(body?.params ?? {});
+    if (!parseResult.success) {
+      return apiError(`Invalid params: ${parseResult.error.message}`, 400);
+    }
+    const validatedParams = parseResult.data as Record<string, unknown>;
+
+    // Resolve upstream nodes
+    const upstream = await getUpstreamOutputs(nodeId);
+
+    // All connected image URLs (File images, Draw sketches, other Image Gen outputs).
+    const connectedImageUrls = upstream
+      .filter((u) => {
+        if (u.type === "image-gen") return typeof u.activeOutput === "string";
+        if (u.type === "file") {
+          const d = u.data as Record<string, unknown>;
+          return d.fileKind === "image" && typeof d.fileUrl === "string";
+        }
+        if (u.type === "draw") {
+          const d = u.data as Record<string, unknown>;
+          return typeof d.fileUrl === "string";
+        }
+        return false;
+      })
+      .map((u) =>
+        u.type === "image-gen"
+          ? (u.activeOutput as string)
+          : ((u.data as Record<string, unknown>).fileUrl as string),
+      );
+
+    const promptNode = upstream.find((u) => u.type === "prompt");
+    const instruction =
+      typeof body?.instruction === "string" ? body.instruction.trim() : "";
+    const isEdit = instruction.length > 0;
+
+    const mentionUpstream: MentionUpstream[] = upstream.map((u) => ({
+      nodeId: u.nodeId,
+      type: u.type,
+      text: typeof u.activeOutput === "string" ? u.activeOutput : "",
+      fileUrl:
+        u.type === "image-gen"
+          ? (typeof u.activeOutput === "string" ? u.activeOutput : undefined)
+          : (u.data.fileUrl as string | undefined),
+      fileKind:
+        u.type === "image-gen"
+          ? "image"
+          : (u.data.fileKind as string | undefined),
+      useLlm: u.type === "file" ? (u.data.useLlm as boolean | undefined) : undefined,
+    }));
+
+    let prompt: string;
+    let referenceUrls: string[];
+    let inputsUsed: Record<string, unknown>;
+    let maskBase64: string | undefined;
+    let maskMime: string | undefined;
+
+    if (isEdit) {
+      // Base image = the node's current image: a prior attempt or a connected reference.
+      const baseVersionId =
+        typeof body?.baseVersionId === "string" ? body.baseVersionId : undefined;
+      let resolvedBaseUrl: string | undefined;
+      let carriedPromptVersionId: string | null = null;
+
+      if (baseVersionId) {
+        const baseVersion = await getVersionById(baseVersionId);
+        if (typeof baseVersion?.output === "string") resolvedBaseUrl = baseVersion.output;
+        const prevInputs = (baseVersion?.inputs_used ?? {}) as { promptVersionId?: string };
+        carriedPromptVersionId = prevInputs.promptVersionId ?? null;
+      } else if (typeof body?.baseImageUrl === "string") {
+        resolvedBaseUrl = body.baseImageUrl;
+        carriedPromptVersionId = promptNode?.versionId ?? null;
       }
-    | null;
+      if (!resolvedBaseUrl) return apiError("No base image to edit.", 400);
 
-  const modelId = typeof body?.modelId === "string" ? body.modelId : DEFAULT_MODEL_ID;
-  const config = imageGenRegistry[modelId];
-  if (!config) return apiError(`Unknown modelId: ${modelId}`, 400);
+      // Region mask (OpenAI): the client painted a region and sent it as a base64 alpha PNG. The
+      // base image stays CLEAN (never composited) — the mask travels separately to the provider.
+      const masked =
+        body?.masked === true && typeof body?.maskBase64 === "string";
+      maskBase64 = masked ? (body!.maskBase64 as string) : undefined;
+      maskMime =
+        masked && typeof body?.maskMime === "string" ? (body.maskMime as string) : "image/png";
+      const modelBaseUrl = resolvedBaseUrl; // clean base — no composite
 
-  // Validate params with the model's Zod schema
-  const parseResult = config.schema.safeParse(body?.params ?? {});
-  if (!parseResult.success) {
-    return apiError(`Invalid params: ${parseResult.error.message}`, 400);
-  }
-  const validatedParams = parseResult.data as Record<string, unknown>;
+      // Extra references: the client's chosen connected-node URLs when provided; otherwise the
+      // D27 default (all other connected images). Dedup the real base out either way.
+      const bodyExtras = Array.isArray(body?.extraReferenceUrls)
+        ? (body.extraReferenceUrls as unknown[]).filter(
+            (u): u is string => typeof u === "string",
+          )
+        : undefined;
+      const extraReferenceUrls = (bodyExtras ?? connectedImageUrls).filter(
+        (u) => u !== resolvedBaseUrl,
+      );
 
-  // Resolve upstream nodes
-  const upstream = await getUpstreamOutputs(nodeId);
-
-  // All connected image URLs (File images, Draw sketches, other Image Gen outputs).
-  const connectedImageUrls = upstream
-    .filter((u) => {
-      if (u.type === "image-gen") return typeof u.activeOutput === "string";
-      if (u.type === "file") {
-        const d = u.data as Record<string, unknown>;
-        return d.fileKind === "image" && typeof d.fileUrl === "string";
+      referenceUrls = assembleEditReferences({
+        baseImageUrl: modelBaseUrl,
+        extraUrls: extraReferenceUrls,
+        max: config.maxReferenceImages,
+      });
+      const intent = asIntent(body?.intent) ?? "freeform";
+      // Use the operator's (possibly hand-edited) final prompt when provided; otherwise compose
+      // it from the per-intent template. The literal prompt sent is recorded for traceability.
+      const editedPrompt = typeof body?.prompt === "string" ? body.prompt.trim() : "";
+      prompt =
+        editedPrompt ||
+        buildEditPrompt({
+          instruction,
+          intent,
+          hasExtraReference: extraReferenceUrls.length > 0,
+          masked,
+          upstream: mentionUpstream,
+        });
+      inputsUsed = {
+        promptVersionId: carriedPromptVersionId,
+        baseVersionId: baseVersionId ?? null,
+        intent,
+        instruction,
+        editPrompt: prompt,
+        extraReferenceUrls,
+        masked,
+      };
+    } else {
+      // Fresh generation (unchanged): requires a connected Prompt node with output.
+      if (!promptNode?.activeOutput) {
+        return apiError("No connected Prompt node with output found.", 400);
       }
-      if (u.type === "draw") {
-        const d = u.data as Record<string, unknown>;
-        return typeof d.fileUrl === "string";
-      }
-      return false;
-    })
-    .map((u) =>
-      u.type === "image-gen"
-        ? (u.activeOutput as string)
-        : ((u.data as Record<string, unknown>).fileUrl as string),
+      prompt = String(promptNode.activeOutput);
+      referenceUrls = connectedImageUrls.slice(0, config.maxReferenceImages);
+      inputsUsed = {
+        promptNodeId: promptNode.nodeId,
+        promptVersionId: promptNode.versionId,
+        referenceImageUrls: referenceUrls,
+      };
+    }
+
+    // Build RefImageMeta[] from upstream node data; lazy-backfill missing metadata
+    const refMetas: RefImageMeta[] = await Promise.all(
+      referenceUrls.map(async (url) => {
+        const ownerNode = upstream.find((u) => {
+          if (u.type === "image-gen") return u.activeOutput === url;
+          const d = u.data as Record<string, unknown>;
+          return d.fileUrl === url;
+        });
+
+        const data = ownerNode?.data as Record<string, unknown> | undefined;
+        let fileSizeBytes = data?.fileSizeBytes as number | undefined;
+        let imageWidth = data?.imageWidth as number | undefined;
+        let imageHeight = data?.imageHeight as number | undefined;
+
+        if (fileSizeBytes === undefined && ownerNode) {
+          try {
+            const res = await fetch(url);
+            if (res.ok) {
+              const buf = Buffer.from(await res.arrayBuffer());
+              fileSizeBytes = buf.length;
+              const meta = await sharp(buf).metadata();
+              imageWidth = meta.width;
+              imageHeight = meta.height;
+              const supabase = createServerSupabase();
+              await supabase
+                .from("nodes")
+                .update({
+                  data: {
+                    ...(ownerNode.data as Record<string, unknown>),
+                    fileSizeBytes,
+                    imageWidth,
+                    imageHeight,
+                  },
+                })
+                .eq("id", ownerNode.nodeId);
+            }
+          } catch {
+            // best-effort
+          }
+        }
+
+        const filename = data?.filename as string | undefined;
+        return { url, filename, fileSizeBytes, imageWidth, imageHeight };
+      }),
     );
 
-  const promptNode = upstream.find((u) => u.type === "prompt");
-  const instruction =
-    typeof body?.instruction === "string" ? body.instruction.trim() : "";
-  const isEdit = instruction.length > 0;
-
-  let prompt: string;
-  let referenceUrls: string[];
-  let inputsUsed: Record<string, unknown>;
-
-  if (isEdit) {
-    // Base image = the node's current image: a prior attempt or a connected reference.
-    const baseVersionId =
-      typeof body?.baseVersionId === "string" ? body.baseVersionId : undefined;
-    let baseImageUrl: string | undefined;
-    let carriedPromptVersionId: string | null = null;
-
-    if (baseVersionId) {
-      const baseVersion = await getVersionById(baseVersionId);
-      if (typeof baseVersion?.output === "string") baseImageUrl = baseVersion.output;
-      const prevInputs = (baseVersion?.inputs_used ?? {}) as { promptVersionId?: string };
-      carriedPromptVersionId = prevInputs.promptVersionId ?? null;
-    } else if (typeof body?.baseImageUrl === "string") {
-      baseImageUrl = body.baseImageUrl;
-      carriedPromptVersionId = promptNode?.versionId ?? null;
+    const validationResult = validateReferenceImages(refMetas, config);
+    if (!validationResult.ok) {
+      const count = validationResult.violations.length;
+      const message =
+        count === 1
+          ? `One of your reference images can't be used: ${validationResult.violations[0].message}`
+          : `${count} reference images can't be used — resize them before generating.`;
+      return apiError(message, 422);
     }
-    if (!baseImageUrl) return apiError("No base image to edit.", 400);
 
-    const extraReferenceUrls = connectedImageUrls.filter((u) => u !== baseImageUrl);
-    referenceUrls = assembleEditReferences({
-      baseImageUrl,
-      extraUrls: extraReferenceUrls,
-      max: config.maxReferenceImages,
+    // Join the shared generations substrate (D26) — image is the synchronous fast path.
+    const generation = await insertGeneration({
+      nodeId,
+      orgId: caller.orgId,
+      clientId,
+      userId: caller.userId,
+      userEmail: caller.email,
+      type: "image",
+      modelUsed: modelId,
+      paramsSnapshot: validatedParams,
+      inputsSnapshot: inputsUsed,
     });
-    const intent = asIntent(body?.intent) ?? "freeform";
-    // Use the operator's (possibly hand-edited) final prompt when provided; otherwise compose
-    // it from the per-intent template. The literal prompt sent is recorded for traceability.
-    const editedPrompt = typeof body?.prompt === "string" ? body.prompt.trim() : "";
-    prompt =
-      editedPrompt ||
-      buildEditPrompt({
-        instruction,
-        intent,
-        hasExtraReference: extraReferenceUrls.length > 0,
+
+    try {
+      const costUsd = await estimateImageGenerationCostUsd({
+        modelId,
+        quality: validatedParams.quality as string | undefined,
+        aspectRatio: validatedParams.aspect_ratio as string | undefined,
+        imageSize: validatedParams.image_size as string | undefined,
+        prompt,
+        referenceUrls,
       });
-    inputsUsed = {
-      promptVersionId: carriedPromptVersionId,
-      baseVersionId: baseVersionId ?? null,
-      intent,
-      instruction,
-      editPrompt: prompt,
-      extraReferenceUrls,
-    };
-  } else {
-    // Fresh generation (unchanged): requires a connected Prompt node with output.
-    if (!promptNode?.activeOutput) {
-      return apiError("No connected Prompt node with output found.", 400);
+      if (costUsd === null) {
+        throw new Error(`No cost estimate available for ${modelId} at this quality/size.`);
+      }
+
+      const estimatedCredits = usdToFinalCredits(costUsd);
+      const reservation = await reserveCredits(caller.orgId, generation.id, estimatedCredits);
+      if (!reservation.ok) {
+        throw new CreditLimitError("Monthly credit limit reached");
+      }
+
+      const result = await config.generate({
+        prompt,
+        referenceUrls,
+        params: validatedParams,
+        ...(maskBase64 ? { maskBase64, maskMime } : {}),
+      });
+
+      const genBuffer = Buffer.from(result.imageBase64, "base64");
+      const { url: imageUrl } = await uploadImageGen({
+        nodeId,
+        ext: mimeToExt(result.mimeType),
+        body: genBuffer,
+        contentType: result.mimeType,
+      });
+
+      let genWidth: number | undefined;
+      let genHeight: number | undefined;
+      try {
+        const meta = await sharp(genBuffer).metadata();
+        genWidth = meta.width;
+        genHeight = meta.height;
+      } catch {
+        // best-effort
+      }
+
+      // Record the version
+      const version = await insertVersion({
+        nodeId,
+        inputsUsed,
+        paramsUsed: {
+          modelId,
+          ...validatedParams,
+          tokensUsed: result.tokensUsed,
+          imageWidth: genWidth,
+          imageHeight: genHeight,
+          fileSizeBytes: genBuffer.length,
+        },
+        modelUsed: modelId,
+        output: imageUrl,
+      });
+      await setActiveVersion(nodeId, version.id);
+
+      const cost = result.tokensUsed ? computeImageCost(modelId, result.tokensUsed) : null;
+      // cost is only ever null when the provider returned no token usage — an actual cost
+      // of 0 credits in that case, not a reason to skip settlement.
+      const actualCredits = cost ? usdToFinalCredits(cost.usd) : 0;
+      await settleGeneration({
+        orgId: caller.orgId,
+        generationId: generation.id,
+        actualAmount: actualCredits,
+      });
+      await succeedGeneration({
+        generationId: generation.id,
+        versionId: version.id,
+        costUsd: cost?.usd,
+        creditsCharged: actualCredits,
+        tokensUsed: { ...result.tokensUsed },
+        outputSnapshot: imageUrl,
+      });
+
+      return apiOk({
+        imageUrl,
+        versionId: version.id,
+        fileSizeBytes: genBuffer.length,
+        imageWidth: genWidth,
+        imageHeight: genHeight,
+      });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Image generation failed";
+      await insertVersion({
+        nodeId,
+        paramsUsed: { modelId, ...validatedParams },
+        modelUsed: modelId,
+        error: message,
+      }).catch(() => null);
+      await failGeneration({ generationId: generation.id, error: message }).catch(() => null);
+      await refundReservation({ orgId: caller.orgId, generationId: generation.id }).catch(() => null);
+      const status = e instanceof CreditLimitError ? 402 : 500;
+      return apiError(message, status);
     }
-    prompt = String(promptNode.activeOutput);
-    referenceUrls = connectedImageUrls.slice(0, config.maxReferenceImages);
-    inputsUsed = {
-      promptNodeId: promptNode.nodeId,
-      promptVersionId: promptNode.versionId,
-      referenceImageUrls: referenceUrls,
-    };
-  }
-
-  try {
-    const result = await config.generate({ prompt, referenceUrls, params: validatedParams });
-
-    const { url: imageUrl } = await uploadImageGen({
-      nodeId,
-      ext: mimeToExt(result.mimeType),
-      body: Buffer.from(result.imageBase64, "base64"),
-      contentType: result.mimeType,
-    });
-
-    // Record the version
-    const version = await insertVersion({
-      nodeId,
-      inputsUsed,
-      paramsUsed: { modelId, ...validatedParams, tokensUsed: result.tokensUsed },
-      modelUsed: modelId,
-      output: imageUrl,
-    });
-    await setActiveVersion(nodeId, version.id);
-
-    return apiOk({ imageUrl, versionId: version.id });
-  } catch (e) {
-    const message = e instanceof Error ? e.message : "Image generation failed";
-    await insertVersion({
-      nodeId,
-      paramsUsed: { modelId, ...validatedParams },
-      modelUsed: modelId,
-      error: message,
-    }).catch(() => null);
-    return apiError(message, 500);
-  }
+  });
 }

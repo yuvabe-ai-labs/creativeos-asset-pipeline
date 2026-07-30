@@ -25,6 +25,8 @@ export type ImageGenVersionSummary = {
     instruction?: string;
     intent?: string;
   };
+  // Real settled credits — null for legacy versions predating the credit system.
+  creditsCharged?: number | null;
 };
 
 type Props = {

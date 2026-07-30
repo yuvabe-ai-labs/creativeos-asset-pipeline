@@ -3,14 +3,17 @@ import { mapClientWithCount, type RawClientWithCanvases } from "./client-with-co
 
 const base: RawClientWithCanvases = {
   id: "cl1",
+  org_id: "org-1",
   slug: "acme",
   name: "Acme",
   logo_url: null,
+  website_url: null,
   kb_status: "pending",
   active_kb_version_id: null,
   created_at: "2026-06-01T00:00:00Z",
   updated_at: "2026-06-01T00:00:00Z",
   archived_at: null,
+  drive_root_folder_id: null,
   canvases: [
     { updated_at: "2026-06-10T00:00:00Z" },
     { updated_at: "2026-06-14T00:00:00Z" },

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  canConnect,
   nodeRowToFlow,
   flowToPersisted,
   VALID_CONNECTIONS,
@@ -111,5 +112,46 @@ describe("flowToPersisted (image-gen edit fields)", () => {
     expect((persisted.data as { editInstruction?: string }).editInstruction).toBe("remove the cup");
     expect((persisted.data as { editIntent?: string }).editIntent).toBe("remove");
     expect((persisted.data as { parsed?: unknown }).parsed).toBeUndefined();
+  });
+
+  it("persists editReferenceNodeIds and the modify intent, drops parsed", () => {
+    const data: ImageGenNodeData = {
+      title: "Hero",
+      editIntent: "modify",
+      editReferenceNodeIds: ["file-1", "file-2"],
+      parsed: "https://example.com/x.png",
+    };
+    const node = {
+      id: "img1",
+      type: "image-gen",
+      position: { x: 0, y: 0 },
+      data,
+    } as AppNode;
+
+    const persisted = flowToPersisted(node);
+    const d = persisted.data as {
+      editReferenceNodeIds?: string[];
+      editIntent?: string;
+      parsed?: unknown;
+    };
+    expect(d.editReferenceNodeIds).toEqual(["file-1", "file-2"]);
+    expect(d.editIntent).toBe("modify");
+    expect(d.parsed).toBeUndefined();
+  });
+});
+
+describe("canConnect", () => {
+  it("allows a documented pair (draw → prompt)", () => {
+    expect(canConnect("draw", "prompt")).toBe(true);
+  });
+  it("rejects an undocumented pair (draw → script)", () => {
+    expect(canConnect("draw", "script")).toBe(false);
+  });
+  it("rejects an unknown source type", () => {
+    expect(canConnect("nonsense", "prompt")).toBe(false);
+  });
+  it("is directional (video-prompt → video-gen only, not reverse)", () => {
+    expect(canConnect("video-prompt", "video-gen")).toBe(true);
+    expect(canConnect("video-gen", "video-prompt")).toBe(false);
   });
 });

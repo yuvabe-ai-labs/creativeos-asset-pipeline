@@ -1,7 +1,7 @@
 import "server-only";
 import { createServerSupabase } from "@/lib/supabase/server";
 import type { Edge } from "@xyflow/react";
-import { planReconcile } from "./reconcile";
+import { chunkIds, planReconcile } from "./reconcile";
 
 type EdgeRow = {
   id: string;
@@ -60,12 +60,14 @@ export async function saveCanvasEdges(
     edges.map((e) => e.id),
     removedEdgeIds,
   );
-  if (deleteIds.length > 0) {
+  // Chunked: one giant .in() list overflows the gateway's URL limit and the
+  // delete silently fails (see saveCanvasNodes).
+  for (const chunk of chunkIds(deleteIds)) {
     const { error: delErr } = await supabase
       .from("edges")
       .delete()
       .eq("canvas_id", canvasId)
-      .in("id", deleteIds);
+      .in("id", chunk);
     if (delErr) throw delErr;
   }
 }

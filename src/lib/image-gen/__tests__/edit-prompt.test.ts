@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { buildEditPrompt, assembleEditReferences } from "../edit-prompt";
+import {
+  buildEditPrompt,
+  assembleEditReferences,
+  selectEditReferenceUrls,
+  resolveBaseNodeId,
+} from "../edit-prompt";
 
 describe("buildEditPrompt", () => {
   it("remove → a remove instruction, no reference language", () => {
@@ -45,6 +50,34 @@ describe("buildEditPrompt", () => {
   });
 });
 
+describe("buildEditPrompt — modify intent", () => {
+  it("modify uses the change-only template", () => {
+    const p = buildEditPrompt({ instruction: "recolor the label to matte black", intent: "modify" });
+    expect(p).toContain("change only recolor the label to matte black");
+    expect(p).toContain("Keep everything else exactly the same");
+  });
+});
+
+describe("buildEditPrompt — mask clause", () => {
+  it("appends the mask region clause when masked is true", () => {
+    const p = buildEditPrompt({ instruction: "the cup", intent: "remove", masked: true });
+    expect(p).toContain("remove the cup"); // template still applies
+    expect(p).toContain("within the selected (masked) region");
+    expect(p).not.toContain("drawn marks"); // old annotation clause is gone
+  });
+
+  it("adds no mask clause when masked is false/absent", () => {
+    const p = buildEditPrompt({ instruction: "the cup", intent: "remove" });
+    expect(p).not.toContain("masked");
+  });
+
+  it("applies the mask clause to the reference (add) template too", () => {
+    const p = buildEditPrompt({ instruction: "the product", intent: "add", hasExtraReference: true, masked: true });
+    expect(p).toContain("base scene");
+    expect(p).toContain("within the selected (masked) region");
+  });
+});
+
 describe("assembleEditReferences", () => {
   it("puts the base image first", () => {
     expect(assembleEditReferences({ baseImageUrl: "base", extraUrls: ["a", "b"], max: 5 }))
@@ -61,5 +94,72 @@ describe("assembleEditReferences", () => {
       .toEqual(["base", "a"]);
     expect(assembleEditReferences({ baseImageUrl: "base", extraUrls: ["a"], max: 0 }))
       .toEqual(["base"]);
+  });
+});
+
+describe("selectEditReferenceUrls", () => {
+  const connected = [
+    { id: "a", url: "urlA" },
+    { id: "b", url: "urlB" },
+    { id: "c", url: "urlC" },
+  ];
+
+  it("returns only the selected nodes' urls", () => {
+    expect(selectEditReferenceUrls({ connected, selectedIds: ["a", "c"] })).toEqual(["urlA", "urlC"]);
+  });
+
+  it("excludes the base url even if selected", () => {
+    expect(
+      selectEditReferenceUrls({ connected, selectedIds: ["a", "b"], baseUrl: "urlA" }),
+    ).toEqual(["urlB"]);
+  });
+
+  it("empty selection falls back to all non-base urls (D27 default)", () => {
+    expect(selectEditReferenceUrls({ connected, selectedIds: [], baseUrl: "urlA" })).toEqual([
+      "urlB",
+      "urlC",
+    ]);
+  });
+
+  it("dedups repeated urls", () => {
+    const dup = [
+      { id: "a", url: "same" },
+      { id: "b", url: "same" },
+    ];
+    expect(selectEditReferenceUrls({ connected: dup, selectedIds: ["a", "b"] })).toEqual(["same"]);
+  });
+});
+
+describe("resolveBaseNodeId", () => {
+  const connected = [{ id: "a" }, { id: "b" }, { id: "c" }];
+
+  it("returns null when an attempt exists (the generated attempt is the base)", () => {
+    expect(
+      resolveBaseNodeId({ connected, baseReferenceNodeId: "b", hasAttempt: true }),
+    ).toBeNull();
+  });
+
+  it("honors the explicit pick when that node is still connected", () => {
+    expect(
+      resolveBaseNodeId({ connected, baseReferenceNodeId: "b", hasAttempt: false }),
+    ).toBe("b");
+  });
+
+  it("falls back to the first connected node when no explicit pick", () => {
+    expect(
+      resolveBaseNodeId({ connected, baseReferenceNodeId: undefined, hasAttempt: false }),
+    ).toBe("a");
+  });
+
+  it("falls back to first connected when the pinned node is no longer connected", () => {
+    expect(
+      resolveBaseNodeId({ connected, baseReferenceNodeId: "gone", hasAttempt: false }),
+    ).toBe("a");
+  });
+
+  it("returns null when nothing is connected", () => {
+    expect(
+      resolveBaseNodeId({ connected: [], baseReferenceNodeId: "a", hasAttempt: false }),
+    ).toBeNull();
   });
 });

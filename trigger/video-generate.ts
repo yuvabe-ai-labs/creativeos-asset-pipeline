@@ -20,22 +20,36 @@ export const videoGenerateTask = task({
     const MOCK_MODE = payload.mockMode === true;
     const appUrl = process.env.APP_URL;
     if (!appUrl) throw new Error("APP_URL env var not set");
+    const secret = process.env.TRIGGER_WEBHOOK_SECRET;
+    if (!secret) throw new Error("TRIGGER_WEBHOOK_SECRET env var not set");
 
     const webhookUrl = `${appUrl}/api/webhooks/generation`;
+
+    const postWebhook = async (body: object) => {
+      const res = await fetch(webhookUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${secret}`,
+        },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const text = await res.text().catch(() => "(unreadable)");
+        logger.error("Generation webhook call failed", { status: res.status, body: text });
+      }
+      return res;
+    };
 
     if (MOCK_MODE) {
       logger.info("MOCK MODE: simulating video generation", { generationId, modelId });
       await wait.for({ seconds: 30 });
       logger.info("MOCK MODE: returning hardcoded video", { generationId });
-      await fetch(webhookUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          generationId,
-          status: "succeeded",
-          videoUrl: MOCK_VIDEO_URL,
-          durationSeconds: MOCK_DURATION_SECONDS,
-        }),
+      await postWebhook({
+        generationId,
+        status: "succeeded",
+        videoUrl: MOCK_VIDEO_URL,
+        durationSeconds: MOCK_DURATION_SECONDS,
       });
       return;
     }
@@ -48,9 +62,11 @@ export const videoGenerateTask = task({
       logger.info("Starting video generation", {
         generationId,
         modelId,
+        prompt: payload.prompt.slice(0, 120),
+        hasStartFrame: !!payload.startFrameUrl,
+        hasEndFrame: !!payload.endFrameUrl,
+        referenceCount: payload.referenceUrls?.length ?? 0,
         params: payload.params,
-        durationRaw: payload.params.duration,
-        durationParsed: Number(payload.params.duration),
       });
 
       const result = await config.generate({
@@ -61,27 +77,25 @@ export const videoGenerateTask = task({
         params: payload.params,
       });
 
-      logger.info("Video generation succeeded", { generationId });
+      logger.info("Video generation call succeeded", {
+        generationId,
+        modelId,
+        videoUrl: result.videoUrl,
+        durationSeconds: result.durationSeconds,
+      });
 
-      await fetch(webhookUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          generationId,
-          status: "succeeded",
-          videoUrl: result.videoUrl,
-          durationSeconds: result.durationSeconds,
-        }),
+      await postWebhook({
+        generationId,
+        status: "succeeded",
+        videoUrl: result.videoUrl,
+        durationSeconds: result.durationSeconds,
       });
     } catch (e) {
       const error = e instanceof Error ? e.message : "Video generation failed";
-      logger.error("Video generation failed", { generationId, error });
+      const stack = e instanceof Error ? e.stack : undefined;
+      logger.error("Video generation failed", { generationId, modelId, error, stack });
 
-      await fetch(webhookUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ generationId, status: "failed", error }),
-      });
+      await postWebhook({ generationId, status: "failed", error });
     }
   },
 });

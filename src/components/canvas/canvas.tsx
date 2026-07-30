@@ -1,13 +1,14 @@
 "use client";
 
 import "@xyflow/react/dist/style.css";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import {
   Background,
   BackgroundVariant,
   Controls,
   ReactFlow,
+  ReactFlowProvider,
   SelectionMode,
   type Connection,
   type Edge,
@@ -17,9 +18,10 @@ import {
 } from "@xyflow/react";
 import { useShallow } from "zustand/react/shallow";
 import { toast } from "sonner";
-import { VALID_CONNECTIONS, flowToPersisted, type AppNode } from "@/lib/canvas-nodes";
+import { canConnect, flowToPersisted, type AppNode } from "@/lib/canvas-nodes";
 import { saveCanvasNodesAction } from "@/lib/actions/nodes";
 import { readClipboardImage, clipboardHasImage } from "@/lib/nodes/clipboard-image";
+import { fileNodeService } from "@/services/file-node.service";
 import { ScriptNode } from "@/components/nodes/script-node";
 import { KBNode } from "@/components/nodes/kb-node";
 import { FileNode } from "@/components/nodes/file-node";
@@ -31,14 +33,24 @@ import { ImageGenNode } from "@/components/nodes/image-gen-node";
 import { VideoPromptNode } from "@/components/nodes/video-prompt-node";
 import { VideoGenNode } from "@/components/nodes/video-gen-node";
 import { useCanvasStore, useCanvasStoreApi } from "./canvas-store-provider";
+import { useAnyFocusViewOpen } from "@/hooks/use-focus-view-open";
 import { CanvasAutosave } from "./canvas-autosave";
+import { ConnectionBadge } from "./connection-badge";
 import { QuickAddMenu } from "./quick-add-menu";
 import { mnemonicToType, isEditableTarget } from "@/lib/canvas-node-options";
 import { useCanvasLock } from "@/hooks/use-canvas-lock";
 import { CanvasEditableProvider } from "./canvas-editable-context";
+import { AutosaveFlushProvider } from "./autosave-flush-context";
+import { CanvasIdProvider } from "./canvas-id-context";
+import { GenerationTray } from "./generation-tray";
+import { CopilotPanel } from "./copilot-panel";
 import { LockBanner } from "./lock-banner";
 import { DeleteConfirmDialog } from "./delete-confirm-dialog";
 import { useDeleteConfirmation } from "@/hooks/use-delete-confirmation";
+import { CanvasKBStatus, CanvasKBBadge } from "./canvas-kb-status";
+import { GalleryDrawerTrigger } from "./gallery-drawer-trigger";
+import { GalleryDrawerIntegration } from "./gallery-drawer-integration";
+import type { ClientKBJobRow } from "@/lib/db/types";
 
 // Register custom node types once (stable reference — never inline this object).
 const nodeTypes: NodeTypes = {
@@ -54,7 +66,19 @@ const nodeTypes: NodeTypes = {
   "video-gen": VideoGenNode,
 };
 
-export function Canvas({ canvasId }: { canvasId: string }) {
+export function Canvas({
+  canvasId,
+  clientId,
+  initialKBJob,
+  hasActiveKB,
+  initialDriveRootFolder,
+}: {
+  canvasId: string;
+  clientId: string;
+  initialKBJob: ClientKBJobRow | null;
+  hasActiveKB: boolean;
+  initialDriveRootFolder: { id: string; name: string } | null;
+}) {
   // One subscription, shallow-compared, so the component only re-renders when
   // these slices actually change.
   const {
@@ -66,6 +90,7 @@ export function Canvas({ canvasId }: { canvasId: string }) {
     addNode,
     connectNodes,
     duplicateNode,
+    duplicateNodes,
     updateNodeData,
     deleteNode,
   } = useCanvasStore(
@@ -78,6 +103,7 @@ export function Canvas({ canvasId }: { canvasId: string }) {
       addNode: s.addNode,
       connectNodes: s.connectNodes,
       duplicateNode: s.duplicateNode,
+      duplicateNodes: s.duplicateNodes,
       updateNodeData: s.updateNodeData,
       deleteNode: s.deleteNode,
     })),
@@ -85,11 +111,18 @@ export function Canvas({ canvasId }: { canvasId: string }) {
 
   const storeApi = useCanvasStoreApi();
 
+  // A node focus view is a modal surface over the canvas. Its sheet is portaled to
+  // <body>, so the canvas's document-level shortcuts (React Flow's Delete/Backspace
+  // included) keep firing behind it unless we explicitly stand down.
+  const anyFocusViewOpen = useAnyFocusViewOpen();
+
   const { canEdit, heldByName, canTakeOver, sessionId, takeOver, reportLockLost } =
     useCanvasLock(canvasId);
   // Read the latest canEdit from event handlers/closures without re-subscribing them.
   const canEditRef = useRef(canEdit);
-  canEditRef.current = canEdit;
+  useLayoutEffect(() => {
+    canEditRef.current = canEdit;
+  });
 
   // Confirm every node deletion (context menu + keyboard) through one dialog.
   const { onBeforeDelete: confirmDelete, dialogProps: deleteDialog } =
@@ -153,22 +186,17 @@ export function Canvas({ canvasId }: { canvasId: string }) {
           canvasId,
           storeApi.getState().nodes.map(flowToPersisted),
         );
-        const form = new FormData();
-        form.append("file", new File([img.blob], img.filename, { type: img.blob.type }));
-        const res = await fetch(`/api/nodes/${newNodeId}/file`, { method: "POST", body: form });
-        const json = (await res.json()) as {
-          filename?: string;
-          fileExt?: string;
-          fileKind?: string;
-          fileUrl?: string;
-          error?: string;
-        };
-        if (!res.ok || !json.fileUrl) throw new Error(json.error ?? "Upload failed");
+        const file = new File([img.blob], img.filename, { type: img.blob.type });
+        const result = await fileNodeService.upload(newNodeId, file);
+        if (!result.fileUrl) throw new Error("Upload failed");
         updateNodeData(newNodeId, {
-          filename: json.filename,
-          fileExt: json.fileExt,
-          fileKind: json.fileKind,
-          fileUrl: json.fileUrl,
+          filename: result.filename,
+          fileExt: result.fileExt,
+          fileKind: result.fileKind,
+          fileUrl: result.fileUrl,
+          fileSizeBytes: result.fileSizeBytes,
+          imageWidth: result.imageWidth,
+          imageHeight: result.imageHeight,
         });
         toast.success("Image pasted");
       } catch (e) {
@@ -198,12 +226,16 @@ export function Canvas({ canvasId }: { canvasId: string }) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (!canEditRef.current) return; // read-only: no keyboard mutations
+      // A focus view owns the keyboard while it's open — read the store here rather than
+      // closing over it, so the listener never re-subscribes and never goes stale.
+      if (storeApi.getState().openFocusViewIds.length > 0) return;
       // Duplicate (existing behavior) — modified key, fires regardless of focus.
       if ((e.ctrlKey || e.metaKey) && e.key === "d") {
         e.preventDefault();
-        nodesRef.current
+        const selectedIds = nodesRef.current
           .filter((n) => n.selected && n.type !== "kb")
-          .forEach((n) => duplicateNode(n.id));
+          .map((n) => n.id);
+        void duplicateNodes(selectedIds, canvasId);
         return;
       }
 
@@ -232,19 +264,14 @@ export function Canvas({ canvasId }: { canvasId: string }) {
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [duplicateNode, openQuickAddAt, handleAddNode, pointerOrCenter]);
+  }, [duplicateNode, duplicateNodes, canvasId, openQuickAddAt, handleAddNode, pointerOrCenter, storeApi]);
 
   const isValidConnection = useCallback(
     (connection: Connection | Edge) => {
       const source = nodes.find((n) => n.id === connection.source);
       const target = nodes.find((n) => n.id === connection.target);
       if (!source || !target) return false;
-      if (
-        !(VALID_CONNECTIONS[source.type ?? ""] ?? []).includes(
-          target.type ?? "",
-        )
-      )
-        return false;
+      if (!canConnect(source.type ?? "", target.type ?? "")) return false;
       // script → prompt: one script can only wire to a single prompt
       if (source.type === "script" && target.type === "prompt") {
         const alreadyConnected = edges.some(
@@ -303,13 +330,34 @@ export function Canvas({ canvasId }: { canvasId: string }) {
   );
 
   return (
+    <ReactFlowProvider>
+    <CanvasIdProvider value={canvasId}>
     <CanvasEditableProvider value={canEdit}>
+    <AutosaveFlushProvider>
     <div className="absolute inset-0 bg-[var(--neutral-50)]">
       <CanvasAutosave
         canvasId={canvasId}
         sessionId={sessionId}
         canEdit={canEdit}
         onLockLost={reportLockLost}
+      />
+
+      <ConnectionBadge />
+
+      {/* Headless KB status subscriber — drives kbStatus in the canvas store */}
+      <CanvasKBStatus clientId={clientId} initialJob={initialKBJob} hasActiveKB={hasActiveKB} />
+
+      {/* Top-right overlay: gallery trigger + KB badge */}
+      <div className="absolute right-4 top-4 z-10 flex items-center gap-2">
+        <GalleryDrawerTrigger />
+        <CanvasKBBadge />
+      </div>
+
+      {/* Gallery drawer + its canvas integrations (G shortcut, pane drop). */}
+      <GalleryDrawerIntegration
+        canvasId={canvasId}
+        clientId={clientId}
+        initialDriveRootFolder={initialDriveRootFolder}
       />
 
       {!canEdit && (
@@ -322,6 +370,7 @@ export function Canvas({ canvasId }: { canvasId: string }) {
         <QuickAddMenu
           screenX={quickAdd.screenX}
           screenY={quickAdd.screenY}
+          flowPos={quickAdd.flowPos}
           onSelect={(type) => handleAddNode(type, quickAdd.flowPos)}
           onClose={() => { setQuickAdd(null); setCanPaste(false); }}
           canPasteImage={canPaste}
@@ -340,7 +389,9 @@ export function Canvas({ canvasId }: { canvasId: string }) {
         nodesDraggable={canEdit}
         nodesConnectable={canEdit}
         onBeforeDelete={onBeforeDelete}
-        deleteKeyCode={canEdit ? ["Backspace", "Delete"] : null}
+        // null tears React Flow's document keydown listener down entirely (useKeyPress
+        // no-ops on a null keyCode) rather than us swallowing the event after the fact.
+        deleteKeyCode={canEdit && !anyFocusViewOpen ? ["Backspace", "Delete"] : null}
         selectionOnDrag
         selectionMode={SelectionMode.Partial}
         selectionKeyCode={null}
@@ -359,6 +410,26 @@ export function Canvas({ canvasId }: { canvasId: string }) {
           e.preventDefault();
           openQuickAddAt(e.clientX, e.clientY);
         }}
+        onSelectionContextMenu={(e) => {
+          // The NodesSelection overlay sits above nodes and intercepts contextmenu
+          // events after drag-select. Temporarily hide it so elementFromPoint finds
+          // the node underneath, then re-dispatch so ContextMenuTrigger fires.
+          e.preventDefault();
+          const overlay = e.target as HTMLElement;
+          overlay.style.pointerEvents = "none";
+          const underneath = document.elementFromPoint(e.clientX, e.clientY);
+          overlay.style.pointerEvents = "";
+          underneath?.dispatchEvent(
+            new MouseEvent("contextmenu", {
+              bubbles: true,
+              cancelable: true,
+              clientX: e.clientX,
+              clientY: e.clientY,
+              screenX: e.screenX,
+              screenY: e.screenY,
+            }),
+          );
+        }}
         onPaneClick={() => { setQuickAdd(null); setCanPaste(false); }}
       >
         <Background
@@ -369,7 +440,13 @@ export function Canvas({ canvasId }: { canvasId: string }) {
         />
         <Controls showInteractive={false} />
       </ReactFlow>
+
+      <GenerationTray canvasId={canvasId} />
+      <CopilotPanel canvasId={canvasId} />
     </div>
+    </AutosaveFlushProvider>
     </CanvasEditableProvider>
+    </CanvasIdProvider>
+    </ReactFlowProvider>
   );
 }

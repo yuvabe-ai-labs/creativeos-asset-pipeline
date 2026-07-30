@@ -6,23 +6,36 @@ import { Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { useDeleteNode } from "@/hooks/use-delete-node";
+import { useFocusViewRegistration } from "@/hooks/use-focus-view-open";
 import type { DrawNodeData } from "@/lib/canvas-nodes";
 import { DrawFocusView } from "./draw-focus-view";
 import { useNodeConnectionState } from "./use-node-connection-state";
 import { NodeContextMenu } from "./node-context-menu";
-import { NodeTitle } from "./node-title";
+import { NodeCardHeader } from "./node-card-header";
 
 export function DrawNode({ id, data, selected }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const deleteNode = useDeleteNode();
   const duplicateNode = useCanvasStore((s) => s.duplicateNode);
+  const focusedNodeId = useCanvasStore((s) => s.focusedNodeId);
+  const setFocusedNodeId = useCanvasStore((s) => s.setFocusedNodeId);
   const d = data as DrawNodeData;
   const [focusOpen, setFocusOpen] = useState(false);
   const connState = useNodeConnectionState(id, "draw");
 
   const hasSketch = !!d.fileUrl;
 
+  // Open locally (double-click / "Open ↗") OR when a shared signal points here — the
+  // Generation Tray, guided flow, or the copilot's open_node (setFocusedNodeId).
+  const focusViewOpen = focusOpen || focusedNodeId === id;
+  const handleFocusOpenChange = (next: boolean) => {
+    setFocusOpen(next);
+    if (!next && focusedNodeId === id) setFocusedNodeId(null); // consume the signal
+  };
+  useFocusViewRegistration(id, focusViewOpen);
+
   return (
+    <>
     <NodeContextMenu
       onDuplicate={() => duplicateNode(id)}
       onDelete={() => deleteNode(id)}
@@ -39,19 +52,23 @@ export function DrawNode({ id, data, selected }: NodeProps) {
           connState === "invalid" && "opacity-60 pointer-events-none",
         )}
       >
-        <div className="flex items-center justify-between border-b border-border px-3 py-2">
-          <div className="flex items-center gap-1.5">
-            <Pencil className="size-3.5 text-primary" strokeWidth={1.5} />
-            <span className="text-eyebrow text-[0.65rem]!">Draw</span>
-          </div>
-          <span
-            className={cn(
-              "size-1.5 rounded-full",
-              hasSketch ? "bg-primary" : "bg-muted-foreground/40",
-            )}
-            title={hasSketch ? "Sketch saved" : "Empty"}
-          />
-        </div>
+        <NodeCardHeader
+          icon={Pencil}
+          nodeId={id}
+          nodeType="draw"
+          title={d.title ?? ""}
+          placeholder="Untitled sketch"
+          onCommitTitle={(t) => updateNodeData(id, { title: t })}
+          status={
+            <span
+              className={cn(
+                "size-1.5 rounded-full",
+                hasSketch ? "bg-primary" : "bg-muted-foreground/40",
+              )}
+              title={hasSketch ? "Sketch saved" : "Empty"}
+            />
+          }
+        />
 
         {hasSketch && (
           <div className="overflow-hidden border-b border-border">
@@ -65,28 +82,13 @@ export function DrawNode({ id, data, selected }: NodeProps) {
         )}
 
         <div className="px-3 py-3">
-          <NodeTitle
-            value={d.title ?? ""}
-            placeholder="Untitled sketch"
-            onCommit={(t) => updateNodeData(id, { title: t })}
-          />
           <button
             onClick={() => setFocusOpen(true)}
-            className="nodrag -mx-1.5 mt-3 inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10"
+            className="nodrag -mx-1.5 inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10"
           >
             Open ↗
           </button>
         </div>
-
-        <DrawFocusView
-          open={focusOpen}
-          onOpenChange={setFocusOpen}
-          nodeId={id}
-          title={d.title ?? ""}
-          instructions={d.instructions}
-          existingImageUrl={d.fileUrl}
-          onPatch={(patch) => updateNodeData(id, patch)}
-        />
 
         <Handle
           type="source"
@@ -95,5 +97,18 @@ export function DrawNode({ id, data, selected }: NodeProps) {
         />
       </div>
     </NodeContextMenu>
+
+    {/* Outside NodeContextMenu: the portaled sheet still sits in the node's React tree,
+        so as a child its contextmenu/dblclick/drop events bubbled into the node card. */}
+    <DrawFocusView
+      open={focusViewOpen}
+      onOpenChange={handleFocusOpenChange}
+      nodeId={id}
+      title={d.title ?? ""}
+      instructions={d.instructions}
+      existingImageUrl={d.fileUrl}
+      onPatch={(patch) => updateNodeData(id, patch)}
+    />
+    </>
   );
 }
