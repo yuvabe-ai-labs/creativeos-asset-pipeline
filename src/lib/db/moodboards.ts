@@ -83,11 +83,15 @@ export type ClientWithBoards = {
 };
 
 // For the capture extension's picker: active clients + their boards, one round-trip.
-export async function listClientsWithMoodboards(): Promise<ClientWithBoards[]> {
+// Scoped to ONE org — this previously returned every active client on the platform to
+// an unauthenticated caller, which was a cross-org leak once orgs existed. orgId is a
+// required argument, not an optional filter, so a caller cannot forget to pass it.
+export async function listClientsWithMoodboards(orgId: string): Promise<ClientWithBoards[]> {
   const supabase = createServerSupabase();
   const { data, error } = await supabase
     .from("clients")
     .select("slug, name, moodboards(id, name)")
+    .eq("org_id", orgId)
     .is("archived_at", null)
     .order("name", { ascending: true });
   if (error) throw error;
