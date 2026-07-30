@@ -12,11 +12,18 @@ chrome.runtime.onInstalled.addListener(() => {
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId !== "add-to-moodboard" || !info.srcUrl) return;
 
+  // Open the panel FIRST, synchronously, before any `await`. sidePanel.open() may
+  // only be called while the click's user gesture is still live, and the first
+  // await spends it — so awaiting storage before this call makes it silently fail.
+  // Not awaited here for the same reason; Chrome's own sample does it this way.
+  if (tab && tab.windowId != null) {
+    chrome.sidePanel
+      .open({ windowId: tab.windowId })
+      .catch((e) => console.error("[moodboard] side panel open failed:", e));
+  }
+
   const { target } = await chrome.storage.local.get("target");
   if (!target || !target.boardId) {
-    if (tab && tab.windowId != null) {
-      chrome.sidePanel.open({ windowId: tab.windowId }).catch(() => {});
-    }
     flashBadge("!", "#b91c1c");
     return;
   }
