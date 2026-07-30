@@ -1,0 +1,39 @@
+-- Client-level moodboards: named reference collections (URL-first — rows hold
+-- image URLs, never bytes; full-res is re-hosted to GCS only on use). D13/D92.
+--
+-- Renumbered from 0012 during the 2026-07-30 integration: this feature was built on a
+-- branch cut when main topped out at 0011, and 0012 was taken by 0012_auth_multi_tenancy
+-- in the meantime. Two differently-named 0012_*.sql files merge cleanly in git and only
+-- break at apply time, so the collision had to be caught by hand.
+
+create table moodboards (
+  id         uuid primary key default gen_random_uuid(),
+  client_id  uuid not null references clients(id) on delete cascade,
+  name       text not null,
+  created_at timestamptz not null default now()
+);
+
+create table moodboard_items (
+  id           uuid primary key default gen_random_uuid(),
+  moodboard_id uuid not null references moodboards(id) on delete cascade,
+  image_url    text not null,          -- original image src (e.g. i.pinimg.com/…)
+  source_url   text,                   -- provenance page the image was found on
+  position     int  not null default 0,
+  added_at     timestamptz not null default now()
+);
+
+create index moodboards_client_id_idx     on moodboards(client_id);
+create index moodboard_items_board_id_idx on moodboard_items(moodboard_id);
+
+-- Default-deny RLS, matching 0017_default_deny_rls.sql. That migration enabled RLS on
+-- every table then in existence, to close a live exposure: with RLS off, Supabase's
+-- default anon/authenticated grants let anyone holding the public anon key (shipped in
+-- every page) read and write rows straight through the REST API, bypassing the DAL and
+-- withClient entirely. These two tables are created AFTER 0017 ran, so they are not
+-- covered by it and would reopen exactly that hole.
+--
+-- Zero policies is deliberate, not an omission: the app's own access goes through the
+-- service-role client (createServerSupabase()), which bypasses RLS regardless. This only
+-- removes the direct-REST path nothing was ever meant to use.
+alter table moodboards      enable row level security;
+alter table moodboard_items enable row level security;

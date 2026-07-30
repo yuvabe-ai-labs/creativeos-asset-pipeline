@@ -7,17 +7,8 @@ import { KBStatusBadge } from "@/components/clients/kb-status-badge";
 import { ClientRowActions } from "@/components/clients/client-row-actions";
 import { filterAndSort, type SortKey } from "@/lib/list/filter-sort";
 import { formatRelativeTime } from "@/lib/format/relative-time";
+import { initials } from "@/lib/format/initials";
 import type { ClientWithCount } from "@/lib/db/clients";
-
-function initials(name: string) {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0])
-    .join("")
-    .toUpperCase();
-}
 
 export function ClientsTable({
   clients,

@@ -4,6 +4,7 @@ import { mapRecentCanvas, type RawRecentCanvasRow } from "./recent-canvas";
 const base: RawRecentCanvasRow = {
   id: "cv1",
   client_id: "cl1",
+  org_id: "org-1",
   slug: "hero-reel",
   name: "Hero reel",
   viewport: { x: 0, y: 0, zoom: 1 },

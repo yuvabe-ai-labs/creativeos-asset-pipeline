@@ -23,6 +23,7 @@ import {
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { FullScreenImageZoom } from "@/components/shared/full-screen-image-zoom";
 import { EditableField } from "./editable-field";
+import { GenerationErrorBadge } from "./generation-error-badge";
 import { normalizeTitle } from "@/lib/nodes/title";
 import { Button } from "@/components/ui/button";
 import { GuidedNextButton } from "@/components/canvas/guided-next-button";
@@ -76,8 +77,10 @@ import {
 } from "@/lib/image-gen/validate";
 import { cn } from "@/lib/utils";
 import { describeApprovalPill } from "@/lib/nodes/prompt-focus";
+import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
 import { LeftSection } from "./focus-left-section";
 import { RailItem } from "./focus-rail-item";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export type ImageGenFocusViewProps = {
   open: boolean;
@@ -154,6 +157,7 @@ export function ImageGenFocusView({
 
   const [generating, setGenerating] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [lastError, setLastError] = useState<string | null>(null);
 
   // Mirror in-flight state up to the node card (survives focus-view close).
   useEffect(() => {
@@ -189,6 +193,20 @@ export function ImageGenFocusView({
     nodeId: string;
     text: string;
   } | null>(null);
+  const [estimatedCredits, setEstimatedCredits] = useState<number | null>(null);
+  // Starts true (not false): the debounced estimate effect only flips this on the first
+  // effect pass after mount, one paint after the initial render — starting at false let the
+  // Generate button render briefly enabled/uncosted before that first effect ran. Starting
+  // true means the button is disabled from the very first paint; the effect corrects it to
+  // false quickly if no estimate is actually needed (e.g. no prompt connected yet).
+  const [estimating, setEstimating] = useState(true);
+  // Edit tab's own estimate — separate state from estimatedCredits/estimating above so the
+  // two tabs' debounced effects never race each other's setState calls. Starts true for the
+  // same reason as the Generate estimate above: the Edit button's disabled state is wired to
+  // "estimating" too, so starting false would let it render briefly enabled/uncosted before
+  // the first debounced effect pass corrects it.
+  const [editEstimatedCredits, setEditEstimatedCredits] = useState<number | null>(null);
+  const [editEstimating, setEditEstimating] = useState(true);
   const [loadingVersions, setLoadingVersions] = useState(false);
   const [loadingPreview, setLoadingPreview] = useState(false);
   // The selected rail item: "image" (the hero pane), "history", "details", or a
@@ -305,6 +323,78 @@ export function ImageGenFocusView({
     )
     .map((u) => u.fileUrl as string);
   const firstConnectedImageUrl = connectedImageUrls[0];
+  // Stable primitive for the effect's dep array — connectedImageUrls itself is a new array
+  // reference every render (derived, not stored in state).
+  const connectedImageUrlsKey = JSON.stringify(connectedImageUrls);
+
+  // Debounced pre-generation cost estimate — mirrors the 300ms debounce pattern this app's
+  // own prompt-focus-view.tsx already uses for its compile-preview fetch. Only meaningful on
+  // the Generate tab (Edit has its own action button, out of scope per this plan) and once
+  // there's a prompt to estimate from.
+  useEffect(() => {
+    if (!open || activeTab === "edit" || !promptUpstream) {
+      setEstimatedCredits(null);
+      setEstimating(false);
+      return;
+    }
+    if (!fetchedPrompt?.text) {
+      // A prompt node IS connected, but its output hasn't loaded yet (the separate
+      // fetchedPrompt effect above is still in flight) — this is not the same as "no
+      // prompt connected," so keep the button in its disabled/loading state rather than
+      // flashing it enabled with no cost for the second or two before the fetch resolves.
+      // That fetch's completion updates fetchedPrompt.text, which re-runs this effect.
+      setEstimating(true);
+      return;
+    }
+    let cancelled = false;
+    setEstimating(true);
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/nodes/${nodeId}/image-generate/estimate`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            modelId: model.id,
+            quality: paramValues.quality,
+            aspect_ratio: paramValues.aspect_ratio,
+            image_size: paramValues.image_size,
+            prompt: fetchedPrompt.text,
+            referenceUrls: connectedImageUrls,
+          }),
+        });
+        const json = (await res.json()) as { estimatedCredits: number | null };
+        if (cancelled) return;
+        if (res.ok) {
+          setEstimatedCredits(json.estimatedCredits);
+        } else {
+          setEstimatedCredits(null);
+        }
+      } catch {
+        if (!cancelled) setEstimatedCredits(null);
+      } finally {
+        if (!cancelled) setEstimating(false);
+      }
+    }, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+    // connectedImageUrls/paramValues/fetchedPrompt omitted on purpose — each is a new object
+    // reference on renders that don't actually change its contents (e.g. a sibling state
+    // update, or the [open, upstream] prompt-fetch effect re-running and producing a new-but-
+    // equal fetchedPrompt object), which was re-firing this effect (and re-fetching the
+    // estimate) with no real input change. Stable JSON-stringified/primitive stand-ins fix it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    open,
+    activeTab,
+    Boolean(promptUpstream),
+    selectedModelId,
+    JSON.stringify(paramValues),
+    connectedImageUrlsKey,
+    fetchedPrompt?.text,
+    nodeId,
+  ]);
 
   // Connected image NODES (id + url), for the edit-mode reference tiles.
   const connectedImageNodes = upstream
@@ -401,6 +491,73 @@ export function ImageGenFocusView({
     (intent === "replace" || intent === "add") && !hasExtraReference;
   const suggestGemini = model.provider !== "gemini";
 
+  const editReferenceUrlsKey = JSON.stringify([editBaseUrl, ...selectedExtraUrls]);
+
+  // Debounced pre-generation cost estimate for the Edit tab — same 300ms-debounce shape as
+  // the Generate tab's estimate above, but keyed off the edit flow's own inputs (the same
+  // prompt/references handleEdit() itself sends), since editing reserves and charges credits
+  // the same way generating does. Reference-URL approximation matches the Generate estimate's
+  // own precedent: this passes the raw base+extras list, not assembleEditReferences()'s
+  // post-max-count/dedup list the real route actually reserves against — an existing,
+  // accepted gap between estimate and reservation, kept consistent rather than special-cased.
+  useEffect(() => {
+    if (!open || activeTab !== "edit" || !canEditBase || !finalPrompt.trim()) {
+      setEditEstimatedCredits(null);
+      setEditEstimating(false);
+      return;
+    }
+    let cancelled = false;
+    setEditEstimating(true);
+    const referenceUrls = [editBaseUrl, ...selectedExtraUrls].filter(
+      (u): u is string => Boolean(u),
+    );
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/nodes/${nodeId}/image-generate/estimate`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            modelId: model.id,
+            quality: paramValues.quality,
+            aspect_ratio: paramValues.aspect_ratio,
+            image_size: paramValues.image_size,
+            prompt: finalPrompt,
+            referenceUrls,
+          }),
+        });
+        const json = (await res.json()) as { estimatedCredits: number | null };
+        if (cancelled) return;
+        if (res.ok) {
+          setEditEstimatedCredits(json.estimatedCredits);
+        } else {
+          setEditEstimatedCredits(null);
+        }
+      } catch {
+        if (!cancelled) setEditEstimatedCredits(null);
+      } finally {
+        if (!cancelled) setEditEstimating(false);
+      }
+    }, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+    // paramValues (an object) goes in via JSON.stringify, same reason as the Generate
+    // estimate effect above — a stable primitive stand-in avoids re-firing on renders that
+    // don't actually change its contents. finalPrompt is already a string primitive, so it's
+    // used directly with no stand-in needed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    open,
+    activeTab,
+    canEditBase,
+    selectedModelId,
+    JSON.stringify(paramValues),
+    finalPrompt,
+    editReferenceUrlsKey,
+    nodeId,
+  ]);
+
   const upstreamForCard: UpstreamNode[] = useMemo(
     () =>
       upstream.map((u) => {
@@ -489,6 +646,7 @@ export function ImageGenFocusView({
       return;
     }
     setGenerating(true);
+    setLastError(null);
     setEvalDecision(null);
     setEvalNote("");
     try {
@@ -504,13 +662,15 @@ export function ImageGenFocusView({
         error?: string;
       };
       if (!res.ok || !json.imageUrl)
-        throw new Error(json.error ?? "Generation failed");
+        throw new Error(res.status === 402 ? CREDIT_LIMIT_TOAST_MESSAGE : json.error ?? "Generation failed");
       onPatch({ parsed: json.imageUrl });
       setActiveVersionId(json.versionId ?? null);
       await fetchVersions();
       toast.success("Image generated");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Generation failed");
+      const message = e instanceof Error ? e.message : "Generation failed";
+      setLastError(message);
+      toast.error(message, { duration: 6000 });
       await fetchVersions();
     } finally {
       setGenerating(false);
@@ -564,6 +724,7 @@ export function ImageGenFocusView({
       return;
     }
     setEditing(true);
+    setLastError(null);
     try {
       // Region mask (paint models only): convert the painted overlay into an alpha PNG and send
       // it alongside the CLEAN base. Type-only models send no mask.
@@ -596,14 +757,16 @@ export function ImageGenFocusView({
         error?: string;
       };
       if (!res.ok || !json.imageUrl)
-        throw new Error(json.error ?? "Edit failed");
+        throw new Error(res.status === 402 ? CREDIT_LIMIT_TOAST_MESSAGE : json.error ?? "Edit failed");
       onPatch({ parsed: json.imageUrl });
       setActiveVersionId(json.versionId ?? null);
       annotationRef.current?.clear();
       await fetchVersions();
       toast.success("Image edited");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Edit failed");
+      const message = e instanceof Error ? e.message : "Edit failed";
+      setLastError(message);
+      toast.error(message, { duration: 6000 });
       await fetchVersions();
     } finally {
       setEditing(false);
@@ -765,6 +928,8 @@ export function ImageGenFocusView({
       editing={editing}
       hasPrompt={Boolean(promptUpstream)}
       hasImage={Boolean(imageUrl)}
+      estimatedCredits={estimatedCredits}
+      estimating={estimating}
     />
   );
 
@@ -775,10 +940,6 @@ export function ImageGenFocusView({
         showCloseButton={false}
         className="gap-0 overflow-hidden rounded-t-2xl bg-background data-[side=bottom]:h-[92vh]"
       >
-        <div className="flex shrink-0 justify-center pt-3">
-          <div className="h-1.5 w-12 rounded-full bg-border" />
-        </div>
-
         {/* Header */}
         <div className="shrink-0 border-b">
           <div className="mx-auto w-full max-w-7xl px-6 pb-5 pt-3">
@@ -802,26 +963,36 @@ export function ImageGenFocusView({
                 </SheetTitle>
               </div>
               <div className="flex shrink-0 items-center gap-2">
-                {canEditBase && (
-                  <Tabs
-                    value={activeTab}
-                    onValueChange={(v) => {
-                      setActiveTab(v as "generate" | "edit");
-                      setSelected("image"); // the tab's UI lives in the hero pane
-                    }}
-                  >
-                    <TabsList>
-                      <TabsTrigger value="generate">Generate</TabsTrigger>
-                      <TabsTrigger value="edit">Edit</TabsTrigger>
-                    </TabsList>
-                  </Tabs>
-                )}
-                {versions.length > 0 && (
-                  <ImageGenUsagePopover
-                    versions={versions}
-                    nodeId={nodeId}
-                    upstreamNodeIds={upstream.map((u) => u.id)}
-                  />
+                {/* The Generate/Edit tabs (needs canEditBase) and Usage popover (needs
+                    versions) both depend on the versions fetch that starts when the sheet
+                    opens — reserve their space with a skeleton instead of rendering nothing
+                    until it resolves, which read as the header controls suddenly popping in. */}
+                {loadingVersions ? (
+                  <Skeleton className="h-8 w-44 rounded-lg" />
+                ) : (
+                  <>
+                    {canEditBase && (
+                      <Tabs
+                        value={activeTab}
+                        onValueChange={(v) => {
+                          setActiveTab(v as "generate" | "edit");
+                          setSelected("image"); // the tab's UI lives in the hero pane
+                        }}
+                      >
+                        <TabsList>
+                          <TabsTrigger value="generate">Generate</TabsTrigger>
+                          <TabsTrigger value="edit">Edit</TabsTrigger>
+                        </TabsList>
+                      </Tabs>
+                    )}
+                    {versions.length > 0 && (
+                      <ImageGenUsagePopover
+                        versions={versions}
+                        nodeId={nodeId}
+                        upstreamNodeIds={upstream.map((u) => u.id)}
+                      />
+                    )}
+                  </>
                 )}
                 <GuidedNextButton
                   sourceId={nodeId}
@@ -830,6 +1001,11 @@ export function ImageGenFocusView({
                 />
               </div>
             </header>
+            {lastError && !generating && !editing && (
+              <div className="mt-2">
+                <GenerationErrorBadge error={lastError} />
+              </div>
+            )}
           </div>
         </div>
 
@@ -954,6 +1130,8 @@ export function ImageGenFocusView({
                         onInstructionBlur={handleInstructionBlur}
                         onFinalPromptChange={setPromptOverride}
                         onEdit={handleEdit}
+                        estimatedCredits={editEstimatedCredits}
+                        estimating={editEstimating}
                       />
                     </>
                   )}

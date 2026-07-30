@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { ClipboardCheck } from "lucide-react";
 import { getClientBySlug } from "@/lib/db/clients";
 import { listCanvases } from "@/lib/db/canvases";
+import { resolveCallerContext } from "@/lib/dal";
 import { NewCanvasDialog } from "@/components/canvases/new-canvas-dialog";
 import { CanvasesTable } from "@/components/canvases/canvases-table";
 import { Button } from "@/components/ui/button";
@@ -35,12 +36,16 @@ export default async function ClientPage({
 }) {
   const { id } = await params; // `id` is the client slug
   const client = await getClientBySlug(id);
+  const caller = await resolveCallerContext();
 
-  if (!client) {
+  // Org isolation: a client outside the caller's org renders as not-found, never
+  // confirming a foreign org's client exists — same rule as withClient() in
+  // route-helpers.ts, applied here since this page bypasses that helper.
+  if (!client || client.org_id !== caller.orgId) {
     return (
-      <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-12">
-        <Card className="flex flex-col items-center gap-2 border-dashed p-12 text-center">
-          <p className="font-display text-lg font-medium">Client not found</p>
+      <main className="mx-auto flex w-full max-w-4xl flex-1 items-center justify-center px-6 py-12">
+        <Card className="flex min-w-[26rem] flex-col items-center gap-3 border-dashed p-16 text-center">
+          <p className="font-display text-2xl font-medium">Client not found</p>
           <Button
             variant="outline"
             className="mt-2"

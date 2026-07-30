@@ -20,11 +20,16 @@ export type UserContent = string | ContentPart[];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+// Narrowed to just the fields isVisionAttachment reads, so callers outside the resolve-inputs
+// pipeline (e.g. the client-side UpstreamNode used for the credit estimate shown before
+// generating) can pass their own upstream shape without an UpstreamPreview cast.
+type VisionAttachmentCandidate = Pick<UpstreamPreview, "type" | "fileKind" | "fileUrl" | "useLlm">;
+
 // An image upstream that should be sent via the vision API rather than as text.
 // Conditions: file or draw node, image kind, public URL present, useLlm off (operator
 // is not in extraction-only mode — the image itself is the intended input). A draw node's
 // saved sketch qualifies the same way as an uploaded File image.
-export function isVisionAttachment(u: UpstreamPreview): boolean {
+export function isVisionAttachment(u: VisionAttachmentCandidate): boolean {
   const hasImageUrl = typeof u.fileUrl === "string" && u.fileUrl.length > 0;
   // File / Draw image uploads (not in extraction-only mode).
   if ((u.type === "file" || u.type === "draw") && u.fileKind === "image" && hasImageUrl && !u.useLlm) {

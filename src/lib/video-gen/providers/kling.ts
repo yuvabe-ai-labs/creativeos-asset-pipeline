@@ -54,13 +54,44 @@ export function build3_0Settings(
   };
 }
 
+// O1 rejects every duration but 5 or 10 unless the request carries a `refer_image` — which
+// buildKlingContents never emits, since it only sends first_frame / last_frame:
+//   400 {"code":1201,"message":"Duration only supports 5 or 10 seconds when no refer_image is provided"}
+//
+// NOTE: the published /omni-video/kling-3.0-omni docs enumerate duration 3–15 with no such
+// caveat. That page documents a DIFFERENT path than the one we call (/omni-video/kling-o1), and
+// the live endpoint's own validator is what produced the message above — so runtime behaviour
+// wins over the doc table here. Do not widen this list on the strength of that page alone;
+// widening it needs either an O1-specific doc or a real request that succeeds.
+//
+// klingO1Params no longer offers other values, but a node saved before that change still holds
+// one and nothing re-validates persisted params on load, so clamp here too rather than ship a
+// guaranteed 400. Same shape as VALID_DURATIONS in veo.ts.
+const O1_VALID_DURATIONS = [5, 10];
+
+// `original` retains a reference video's own soundtrack, and we never send a video — so a node
+// saved while it was still the only audio-on option asked for sound and would now get silence.
+// Carry that intent over to `native` (the enum value that actually produces audio here) rather
+// than dropping it to "off". Both bill identically for O1, so this cannot change a price.
+function o1Audio(value: unknown): string {
+  const audio = String(value ?? "off");
+  if (audio === "original") return "native";
+  return audio === "native" ? "native" : "off";
+}
+
 export function buildO1Settings(
   params: Record<string, unknown>,
 ): Record<string, unknown> {
+  const duration = Number(params.duration ?? 5);
   return {
-    audio: String(params.audio ?? "off"),
+    // Absent → false, matching multiShotParam's declared default. Kling's own server-side
+    // default is TRUE, so omitting this field entirely (as this builder used to) silently
+    // opted every O1 clip into multi-shot cuts — the exact thing params/kling.ts calls out as
+    // fighting the single continuous moment a product clip wants.
+    multi_shot: Boolean(params.multi_shot ?? false),
+    audio: o1Audio(params.audio),
     resolution: String(params.resolution ?? "720p"),
-    duration: Number(params.duration ?? 5),
+    duration: O1_VALID_DURATIONS.includes(duration) ? duration : 5,
     ...negativePromptSetting(params),
   };
 }

@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { AddConnection } from "./add-connection";
 import { EditableField } from "./editable-field";
+import { GenerationErrorBadge } from "./generation-error-badge";
 import { MentionInstructionEditor } from "./mention-instruction-editor";
 import { normalizeTitle } from "@/lib/nodes/title";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { GuidedNextButton } from "@/components/canvas/guided-next-button";
 import { SliceToggles } from "./slice-toggles";
 import { DEFAULT_INSTRUCTION } from "@/lib/nodes/prompt";
+import { estimatePromptCredits } from "@/lib/credits/prompt-estimate";
+import { isVisionAttachment } from "@/lib/nodes/compose-message";
+import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
+import { EstimatedCreditsLabel } from "./estimated-credits-label";
 import type { KBSliceKey } from "@/lib/kb/parse-context";
 import { ShotControlsRow } from "./shot-controls-row";
 import {
@@ -52,6 +57,7 @@ import { PromptVersionChips } from "./prompt-version-chips";
 import { describeApprovalPill } from "@/lib/nodes/prompt-focus";
 import { LeftSection } from "./focus-left-section";
 import { RailItem } from "./focus-rail-item";
+import { PromptShotReference, PromptShotReferenceEmpty } from "./prompt-shot-reference";
 
 type PromptFocusViewProps = {
   open: boolean;
@@ -81,6 +87,7 @@ export function PromptFocusView({
   onSaveOutput,
 }: PromptFocusViewProps) {
   const params = useParams<{ id: string }>();
+  const estimatedCredits = estimatePromptCredits(upstream.filter(isVisionAttachment).length);
   const [draft, setDraft] = useState(output ?? "");
   // Local mirror of the instruction prop. The textarea is controlled by THIS, not
   // by the prop directly: the prop round-trips through zustand + React Flow's
@@ -89,6 +96,7 @@ export function PromptFocusView({
   // on every keystroke. Local state updates synchronously, so the caret is kept.
   const [instructionDraft, setInstructionDraft] = useState(instruction);
   const [generating, setGenerating] = useState(false);
+  const [lastError, setLastError] = useState<string | null>(null);
   const [preview, setPreview] = useState<{
     ambient: string;
     connected: ConnectedPreview[];
@@ -133,10 +141,10 @@ export function PromptFocusView({
     // on the echo of our own per-keystroke write-through (that would re-introduce the
     // caret jump this buffer exists to prevent).
     if (opening || nodeChanged) setInstructionDraft(instruction);
-    // Re-arm the left-panel skeletons ONLY on the open transition. The effect
+    // Re-arm the left-panel skeleton ONLY on the open transition. The effect
     // below (keyed on [open, nodeId, slices]) is the sole thing that clears
-    // them, and it does not re-run on output change — so re-arming here on a
-    // regenerate/restore/save would strand them `true` forever.
+    // it, and it does not re-run on output change — so re-arming here on a
+    // regenerate/restore/save would strand it `true` forever.
     if (opening) {
       setLoadingPreview(true);
     }
@@ -147,6 +155,9 @@ export function PromptFocusView({
   const selectedNode = isNodeSelected
     ? preview.connected.find((c) => c.nodeId === selected) ?? null
     : null;
+  // Pinned shot preview beside the compose column — Prompt nodes carry one shot in
+  // practice; show the first.
+  const shotPreview = preview.connected.find((c) => c.type === "shot") ?? null;
   // The compose layout owns both the "Prompt" rail item and any connected-input selection:
   // selecting a connected input swaps the CENTER column to its read-only detail; the right
   // column is ALWAYS the generated output.
@@ -299,6 +310,7 @@ export function PromptFocusView({
 
   async function runGenerate() {
     setGenerating(true);
+    setLastError(null);
     setEvalDecision(null);
     setEvalNote("");
     try {
@@ -308,13 +320,17 @@ export function PromptFocusView({
         body: JSON.stringify({ instruction: instructionDraft, slices, controls: controls ?? DEFAULT_SHOT_CONTROLS }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Generation failed");
+      if (!res.ok) {
+        throw new Error(res.status === 402 ? CREDIT_LIMIT_TOAST_MESSAGE : json.error ?? "Generation failed");
+      }
       onPatch({ parsed: json.output });
       setActiveVersionId(json.versionId ?? null);
       await fetchVersions();
       toast.success("Prompt generated");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Generation failed");
+      const message = e instanceof Error ? e.message : "Generation failed";
+      setLastError(message);
+      toast.error(message, { duration: 6000 });
       await fetchVersions();
     } finally {
       setGenerating(false);
@@ -389,11 +405,6 @@ export function PromptFocusView({
         showCloseButton={false}
         className="gap-0 overflow-hidden rounded-t-2xl bg-background data-[side=bottom]:h-[92vh]"
       >
-        {/* Drag handle */}
-        <div className="flex shrink-0 justify-center pt-3">
-          <div className="h-1.5 w-12 rounded-full bg-border" />
-        </div>
-
         {/* Header */}
         <div className="shrink-0 border-b">
           <div className="mx-auto w-full max-w-6xl px-6 pb-5 pt-3">
@@ -427,6 +438,11 @@ export function PromptFocusView({
                 />
               </div>
             </header>
+            {lastError && !generating && (
+              <div className="mt-2">
+                <GenerationErrorBadge error={lastError} />
+              </div>
+            )}
           </div>
         </div>
 
@@ -503,36 +519,55 @@ export function PromptFocusView({
                       </div>
                     )
                   ) : (
-                    <div className="flex shrink-0 flex-col gap-3 px-6 py-5">
-                    <div className="flex items-center gap-1.5">
-                      <PencilLine className="size-3.5 text-primary" />
-                      <span className="text-eyebrow">Instruction</span>
+                    <>
+                  {/* Whole column scrolls — shot reference + instruction + controls + the
+                      Generate button all flow together; when content extends you reach the
+                      button via the scrollbar rather than pinning it to the bottom. */}
+                  <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+                    {shotPreview ? (
+                      <PromptShotReference label={shotPreview.label} text={shotPreview.text} />
+                    ) : (
+                      <PromptShotReferenceEmpty />
+                    )}
+
+                    {/* Instruction + controls */}
+                    <div className="flex flex-col gap-3 border-t border-border px-6 py-5">
+                      <div className="flex items-center gap-1.5">
+                        <PencilLine className="size-3.5 text-primary" />
+                        <span className="text-eyebrow">Instruction</span>
+                      </div>
+                      <MentionInstructionEditor
+                        value={instructionDraft}
+                        onChange={(v) => {
+                          setInstructionDraft(v);
+                          onPatch({ instruction: v });
+                        }}
+                        placeholder={instructionPlaceholder}
+                        upstream={upstream}
+                        disabled={!editable}
+                        className="min-h-20"
+                      />
+                      <ShotControlsRow
+                        controls={controls ?? DEFAULT_SHOT_CONTROLS}
+                        onChange={(next) => onPatch({ controls: next })}
+                      />
                     </div>
-                    <MentionInstructionEditor
-                      value={instructionDraft}
-                      onChange={(v) => {
-                        setInstructionDraft(v);
-                        onPatch({ instruction: v });
-                      }}
-                      placeholder={instructionPlaceholder}
-                      upstream={upstream}
-                      disabled={!editable}
-                      className="min-h-20"
-                    />
-                    <ShotControlsRow
-                      controls={controls ?? DEFAULT_SHOT_CONTROLS}
-                      onChange={(next) => onPatch({ controls: next })}
-                    />
-                    <Button
-                      className="w-full"
-                      size="default"
-                      onClick={runGenerate}
-                      disabled={generating || !editable}
-                    >
-                      <Sparkles className="size-4" />
-                      {generating ? "Generating…" : output ? "Re-generate" : "Generate prompt"}
-                    </Button>
+
+                    {/* Generate — flows after the controls, reached via the scrollbar */}
+                    <div className="border-t border-border px-6 py-4">
+                      <Button
+                        className="w-full"
+                        size="default"
+                        onClick={runGenerate}
+                        disabled={generating || !editable}
+                      >
+                        <Sparkles className="size-4" />
+                        {generating ? "Generating…" : output ? "Re-generate" : "Generate prompt"}
+                        {!generating && <EstimatedCreditsLabel credits={estimatedCredits} />}
+                      </Button>
+                    </div>
                   </div>
+                    </>
                   )}
                 </div>
 

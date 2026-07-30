@@ -1,9 +1,9 @@
 # Reference Clipper Implementation Plan
 
-> ## ⛔ RETIRED — 2026-07-28 (D82). Do not execute this plan.
+> ## ⛔ RETIRED — 2026-07-28 (D93). Do not execute this plan.
 >
 > This plan was executed and the feature shipped on 2026-07-05. It has since been **removed from
-> the codebase** and superseded by **Client Moodboards (D81)** — see
+> the codebase** and superseded by **Client Moodboards (D92)** — see
 > [`2026-07-22-client-moodboards-design.md`](../specs/2026-07-22-client-moodboards-design.md) and
 > the retirement banner on
 > [`2026-07-05-reference-clipper-design.md`](../specs/2026-07-05-reference-clipper-design.md).

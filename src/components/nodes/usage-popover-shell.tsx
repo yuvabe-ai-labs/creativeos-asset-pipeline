@@ -2,18 +2,17 @@
 
 import { ReceiptText } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export type UsageRow = {
   label: string;   // e.g. "v1", "v2"
   meta?: string;   // e.g. "1,234 tokens" or "1,234 in · 567 out"
-  /** USD portion, e.g. "$0.0024". Pass "—" if unknown. */
-  costUsd: string;
-  /** INR portion shown in muted color, e.g. "₹0.20". Omit when costUsd is "—". */
-  costInr?: string;
+  /** Formatted credits, e.g. "40". Pass "—" for a legacy version with no settled credits. */
+  credits: string;
   time?: string;   // relative time string
 };
 
-/** Optional summary rows shown in the "Overall" section above the total cost. */
+/** Optional summary rows shown in the "Overall" section above the total. */
 export type OverallRow = {
   label: string;
   value: string;
@@ -22,19 +21,20 @@ export type OverallRow = {
 export function UsagePopoverShell({
   rows,
   overallRows,
-  totalCostUsd,
-  totalCostInr,
-  pipelineTotalInr,
+  totalCredits,
+  pipelineTotalCredits,
+  pipelineLoading,
 }: {
   rows: UsageRow[];
   /** Extra key/value rows shown in the Overall section (e.g. token counts). */
   overallRows?: OverallRow[];
-  /** Formatted USD total, e.g. "$0.0024" */
-  totalCostUsd: string;
-  /** Formatted INR total shown in muted color, e.g. "₹0.20" */
-  totalCostInr?: string;
-  /** Full upstream pipeline cost in INR (this node + all connected upstream nodes). */
-  pipelineTotalInr?: string;
+  /** Formatted total credits for this node, e.g. "120 credits" */
+  totalCredits: string;
+  /** Full upstream pipeline total (this node + all connected upstream nodes), in credits. */
+  pipelineTotalCredits?: string;
+  /** True while a pipeline total is expected but hasn't loaded yet — shows a skeleton
+   * instead of flashing this node's own (smaller, wrong) total first. */
+  pipelineLoading?: boolean;
 }) {
   return (
     <Popover>
@@ -50,7 +50,9 @@ export function UsagePopoverShell({
         }
       />
       <PopoverContent align="end" className="w-64 p-4">
-        {rows.length === 0 ? (
+        {pipelineLoading ? (
+          <UsagePopoverSkeleton rowCount={rows.length || 3} />
+        ) : rows.length === 0 ? (
           <p className="text-xs text-muted-foreground">No usage data yet.</p>
         ) : (
           <div className="space-y-4">
@@ -69,17 +71,8 @@ export function UsagePopoverShell({
               )}
               <div className="pt-0.5">
                 <p className="text-sm font-semibold text-foreground">
-                  {totalCostUsd}{" "}
-                  {totalCostInr && (
-                    <span className="font-normal text-muted-foreground">({totalCostInr})</span>
-                  )}
+                  {pipelineTotalCredits ?? totalCredits}
                 </p>
-                {pipelineTotalInr && (
-                  <p className="mt-1 text-[0.65rem] text-muted-foreground">
-                    Pipeline total:{" "}
-                    <span className="font-medium tabular-nums text-foreground">{pipelineTotalInr}</span>
-                  </p>
-                )}
               </div>
             </div>
 
@@ -104,15 +97,10 @@ export function UsagePopoverShell({
                         <span />
                       )}
                       <span className="text-[0.65rem] font-medium tabular-nums text-foreground">
-                        {row.costUsd === "—" ? (
+                        {row.credits === "—" ? (
                           <span className="font-normal text-muted-foreground">—</span>
                         ) : (
-                          <>
-                            {row.costUsd}{" "}
-                            {row.costInr && (
-                              <span className="font-normal text-muted-foreground">({row.costInr})</span>
-                            )}
-                          </>
+                          row.credits
                         )}
                       </span>
                     </div>
@@ -124,5 +112,38 @@ export function UsagePopoverShell({
         )}
       </PopoverContent>
     </Popover>
+  );
+}
+
+// Mirrors the real content's shape (Overall section + per-generation list) so nothing
+// reflows when the real data swaps in — shown for the whole popover, not just the total
+// row, so the content never shows a mix of real and placeholder data at once.
+function UsagePopoverSkeleton({ rowCount }: { rowCount: number }) {
+  return (
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <p className="text-eyebrow">Overall</p>
+        <div className="pt-0.5">
+          <Skeleton className="h-5 w-24" />
+        </div>
+      </div>
+      <div className="space-y-2 border-t border-border pt-3">
+        <p className="text-eyebrow">Per generation</p>
+        <ul className="max-h-48 space-y-2 overflow-y-auto">
+          {Array.from({ length: rowCount }).map((_, i) => (
+            <li key={i} className="rounded-md bg-muted/50 px-2.5 py-2">
+              <div className="flex items-center justify-between">
+                <Skeleton className="h-3 w-8" />
+                <Skeleton className="h-3 w-12" />
+              </div>
+              <div className="mt-1 flex items-center justify-between">
+                <Skeleton className="h-3 w-14" />
+                <Skeleton className="h-3 w-6" />
+              </div>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
   );
 }

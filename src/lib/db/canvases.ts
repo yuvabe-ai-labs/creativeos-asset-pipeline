@@ -21,6 +21,17 @@ export async function listCanvases(clientId: string): Promise<CanvasRow[]> {
   return (data ?? []) as CanvasRow[];
 }
 
+export async function getCanvasById(id: string): Promise<CanvasRow | null> {
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("canvases")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw error;
+  return (data as CanvasRow) ?? null;
+}
+
 export async function getCanvasBySlug(
   clientId: string,
   slug: string,
@@ -38,6 +49,7 @@ export async function getCanvasBySlug(
 
 export async function createCanvas(input: {
   clientId: string;
+  orgId: string;
   name: string;
 }): Promise<CanvasRow> {
   const supabase = createServerSupabase();
@@ -53,20 +65,25 @@ export async function createCanvas(input: {
 
   const { data, error } = await supabase
     .from("canvases")
-    .insert({ client_id: input.clientId, slug, name: input.name })
+    .insert({ client_id: input.clientId, org_id: input.orgId, slug, name: input.name })
     .select()
     .single();
   if (error) throw error;
   return data as CanvasRow;
 }
 
-// Global, recency-sorted canvases across every client (for the Clients-home
-// "Recent canvases" tab). Capped so the list stays bounded as canvas count grows.
-export async function listRecentCanvases(limit = 30): Promise<RecentCanvas[]> {
+// Recency-sorted canvases within the caller's org (for the Clients-home "Recent
+// canvases" tab). Capped so the list stays bounded as canvas count grows. Org-scoped
+// for everyone, including super_admin — see the note on listClients.
+export async function listRecentCanvases(
+  orgId: string,
+  limit = 30,
+): Promise<RecentCanvas[]> {
   const supabase = createServerSupabase();
   const { data, error } = await supabase
     .from("canvases")
-    .select("*, clients(slug, name, logo_url)")
+    .select("*, clients!inner(slug, name, logo_url, org_id)")
+    .eq("clients.org_id", orgId)
     .order("updated_at", { ascending: false })
     .limit(limit);
   if (error) throw error;

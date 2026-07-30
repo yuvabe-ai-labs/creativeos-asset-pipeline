@@ -2,8 +2,23 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 
 vi.mock("server-only", () => ({}));
+
+// withClient() now enforces org isolation: it resolves the caller's org via
+// resolveCallerContext and 404s when client.org_id doesn't match. Mock the DAL
+// directly rather than its internal Supabase calls, so the test needs no real env
+// vars or session — same approach as the drive route test.
+vi.mock("@/lib/dal", () => ({
+  resolveCallerContext: vi.fn(async () => ({
+    userId: "user-1",
+    platformRole: "member",
+    orgId: "org-1",
+    orgRole: "owner",
+    mustChangePassword: false,
+  })),
+}));
+
 vi.mock("@/lib/db/clients", () => ({
-  getClientById: vi.fn(async () => ({ id: "client-1", name: "Acme" })),
+  getClientById: vi.fn(async () => ({ id: "client-1", name: "Acme", org_id: "org-1" })),
 }));
 vi.mock("@/lib/db/moodboards", () => ({
   listMoodboards: vi.fn(),
@@ -19,7 +34,7 @@ describe("/api/clients/[id]/moodboards", () => {
   beforeEach(() => vi.resetAllMocks());
 
   it("GET lists the client's boards", async () => {
-    vi.mocked(getClientById).mockResolvedValue({ id: "client-1", name: "Acme" } as never);
+    vi.mocked(getClientById).mockResolvedValue({ id: "client-1", name: "Acme", org_id: "org-1" } as never);
     vi.mocked(listMoodboards).mockResolvedValue([
       { id: "b1", client_id: "client-1", name: "Face cream", created_at: "t" },
     ]);
@@ -32,7 +47,7 @@ describe("/api/clients/[id]/moodboards", () => {
   });
 
   it("POST creates a board and returns 201", async () => {
-    vi.mocked(getClientById).mockResolvedValue({ id: "client-1", name: "Acme" } as never);
+    vi.mocked(getClientById).mockResolvedValue({ id: "client-1", name: "Acme", org_id: "org-1" } as never);
     vi.mocked(createMoodboard).mockResolvedValue({ id: "b2", client_id: "client-1", name: "Hair oil", created_at: "t" });
     const { POST } = await import("./route");
     const req = new NextRequest("http://localhost/api/clients/client-1/moodboards", {
@@ -46,7 +61,7 @@ describe("/api/clients/[id]/moodboards", () => {
   });
 
   it("POST returns 400 when name is missing", async () => {
-    vi.mocked(getClientById).mockResolvedValue({ id: "client-1", name: "Acme" } as never);
+    vi.mocked(getClientById).mockResolvedValue({ id: "client-1", name: "Acme", org_id: "org-1" } as never);
     const { POST } = await import("./route");
     const req = new NextRequest("http://localhost/api/clients/client-1/moodboards", {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}),

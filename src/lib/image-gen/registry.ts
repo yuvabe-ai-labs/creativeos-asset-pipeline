@@ -17,4 +17,4 @@ export const imageGenModelGroups: Array<{
   { provider: "gemini", label: "Gemini", models: geminiModels },
 ];
 
-export const DEFAULT_MODEL_ID = "openai:gpt-image-2";
+export const DEFAULT_MODEL_ID = "gemini:gemini-3-pro-image";

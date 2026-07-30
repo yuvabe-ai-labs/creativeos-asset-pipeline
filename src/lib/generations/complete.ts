@@ -2,7 +2,21 @@ import "server-only";
 import { insertVersion, setActiveVersion } from "@/lib/db/versions";
 import { getGeneration, succeedGeneration, failGeneration } from "@/lib/db/generations";
 import { computeVideoCost, isVideoAudioEnabled, asResolutionString } from "@/lib/video-gen/cost";
+import { settleGeneration, refundReservation } from "@/lib/db/credit-transactions";
+import { usdToFinalCredits } from "@/lib/credits/units";
 import { uploadVideoGen } from "@/lib/storage";
+import { createServerSupabase } from "@/lib/supabase/server";
+
+// Every failure path in this file needs the same two calls in the same order — a small
+// local helper keeps that from drifting out of sync across the 3 sites that need it.
+async function failAndRefund(
+  generationId: string,
+  orgId: string,
+  error: string,
+): Promise<void> {
+  await failGeneration({ generationId, error });
+  await refundReservation({ orgId, generationId });
+}
 
 function buildVideoDownloadHeaders(modelUsed: string | null): HeadersInit {
   const base = { "User-Agent": "Mozilla/5.0 (compatible; CreativeOS/1.0)" };
@@ -39,8 +53,46 @@ export async function completeGeneration(
   // Idempotency: skip if already resolved (duplicate webhook delivery)
   if (generation.status !== "running") return;
 
+  // D79: the org recorded on the job at creation must still match the current org of
+  // the node it targets. Should be impossible in practice (nothing in this app moves a
+  // client between orgs) — this is a backstop against exactly the class of bug this
+  // rollout already found three times, not a response to a real observed drift.
+  const { data: currentChain, error: chainError } = await createServerSupabase()
+    .from("nodes")
+    .select("canvases!inner(clients!inner(org_id))")
+    .eq("id", generation.node_id)
+    .maybeSingle();
+  if (chainError) throw chainError;
+  const canvas = currentChain
+    ? Array.isArray(currentChain.canvases) ? currentChain.canvases[0] : currentChain.canvases
+    : null;
+  const client = canvas
+    ? Array.isArray(canvas.clients) ? canvas.clients[0] : canvas.clients
+    : null;
+  if (!client || client.org_id !== generation.org_id) {
+    console.error("[completeGeneration] org mismatch — dropping", {
+      generationId: input.generationId,
+      recordedOrgId: generation.org_id,
+      currentOrgId: client?.org_id ?? null,
+    });
+    // D79: this path is a defensive backstop for a case framed as "should be impossible in
+    // practice" — its non-throwing, best-effort shape is intentional, so failures here are
+    // swallowed rather than propagated. Failing (not just logging) also matters now: it
+    // makes this generation terminal immediately, so 3D's future reconciliation sweep
+    // (which only ever matches status = 'running') will never also try to refund it —
+    // exactly once, from exactly one path.
+    await failAndRefund(
+      input.generationId,
+      generation.org_id,
+      "Dropped: org no longer matches the node's current client",
+    ).catch((e) => {
+      console.error("[completeGeneration] failAndRefund failed on org-mismatch path", { error: e });
+    });
+    return;
+  }
+
   if (input.status === "failed") {
-    await failGeneration({ generationId: input.generationId, error: input.error });
+    await failAndRefund(input.generationId, generation.org_id, input.error);
     return;
   }
 
@@ -49,10 +101,11 @@ export async function completeGeneration(
     headers: buildVideoDownloadHeaders(generation.model_used),
   });
   if (!videoResponse.ok) {
-    await failGeneration({
-      generationId: input.generationId,
-      error: `Failed to download video from provider: ${videoResponse.status}`,
-    });
+    await failAndRefund(
+      input.generationId,
+      generation.org_id,
+      `Failed to download video from provider: ${videoResponse.status}`,
+    );
     return;
   }
   const videoBuffer = Buffer.from(await videoResponse.arrayBuffer());
@@ -68,10 +121,11 @@ export async function completeGeneration(
     });
     storedVideoUrl = result.url;
   } catch (e) {
-    await failGeneration({
-      generationId: input.generationId,
-      error: `Storage upload failed: ${e instanceof Error ? e.message : "unknown"}`,
-    });
+    await failAndRefund(
+      input.generationId,
+      generation.org_id,
+      `Storage upload failed: ${e instanceof Error ? e.message : "unknown"}`,
+    );
     return;
   }
 
@@ -97,11 +151,22 @@ export async function completeGeneration(
   const cost = generation.model_used
     ? computeVideoCost(generation.model_used, input.durationSeconds, audioEnabled, resolution)
     : null;
+  // cost is only ever null when model_used is unset (shouldn't happen — every video
+  // generation records a model at insertGeneration) — an actual cost of 0 credits in that
+  // case, not a reason to skip settlement.
+  const actualCredits = cost ? usdToFinalCredits(cost.usd) : 0;
 
+  await settleGeneration({
+    orgId: generation.org_id,
+    generationId: input.generationId,
+    actualAmount: actualCredits,
+  });
   await succeedGeneration({
     generationId: input.generationId,
     versionId: version.id,
-    creditsConsumed: cost?.usd,
+    costUsd: cost?.usd,
+    creditsCharged: actualCredits,
+    outputSnapshot: storedVideoUrl,
     meta: input.meta,
   });
 }
