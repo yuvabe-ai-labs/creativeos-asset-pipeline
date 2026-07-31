@@ -29,6 +29,7 @@ import {
   SheetTitle,
   SheetDescription,
 } from "@/components/ui/sheet";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { getModuleStatus } from "@/components/kb/kb-module-card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { KBFieldRow } from "@/components/kb/kb-field-row";
@@ -145,6 +146,32 @@ export function KBOnboardingReviewStep({
   const allImageAnalysisNull =
     selectedModule === "image_analysis" &&
     Object.values(currentFields).every((f) => f.value === null);
+
+  // Single footer action — Save while there are unsaved edits, otherwise Mark KB Ready (or
+  // its edit-mode/in-flight variants). Referencing handleSave/handleMarkReady here is safe
+  // even though they're declared later in this component: both are `function` declarations,
+  // which are hoisted within the component's function body.
+  type FooterAction = {
+    label: string;
+    disabled: boolean;
+    onClick?: () => void;
+    tooltip?: string;
+  };
+  const footerAction: FooterAction = dirty
+    ? { label: saving ? "Saving…" : "Save changes", disabled: saving, onClick: handleSave }
+    : isEditMode
+      ? { label: "KB is Ready", disabled: true }
+      : !isReady
+        ? {
+            label: "Mark KB Ready",
+            disabled: true,
+            tooltip: "Approve or reject every field first",
+          }
+        : {
+            label: markingReady ? "Saving…" : "Mark KB Ready",
+            disabled: markingReady,
+            onClick: handleMarkReady,
+          };
 
   // ── Field helpers ─────────────────────────────────────────────────────────
 
@@ -475,47 +502,25 @@ export function KBOnboardingReviewStep({
 
       {/* Fixed header — global actions + module tabs */}
       <div className="shrink-0">
-        <div className="mb-2 flex items-center justify-between gap-3">
-          {/* Left: global edit state + Save (secondary) */}
-          <div className="flex items-center gap-2">
-            {dirty && (
-              <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[0.65rem] font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-400">
-                Unsaved changes
-              </span>
-            )}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleSave}
-              disabled={!dirty || saving}
-            >
-              {saving ? "Saving…" : "Save"}
+        <div className="mb-2 flex items-center justify-end gap-3">
+          {/* Single dynamic action: "Save changes" while dirty, otherwise Mark KB Ready
+             (or its edit-mode/in-flight variants) — see the footerAction derivation above. */}
+          {footerAction.tooltip ? (
+            <Tooltip>
+              <TooltipTrigger render={<span className="inline-block" />}>
+                <Button size="sm" disabled={footerAction.disabled}>
+                  <CheckCircle2Icon className="size-4" />
+                  {footerAction.label}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top">{footerAction.tooltip}</TooltipContent>
+            </Tooltip>
+          ) : (
+            <Button size="sm" onClick={footerAction.onClick} disabled={footerAction.disabled}>
+              <CheckCircle2Icon className="size-4" />
+              {footerAction.label}
             </Button>
-          </div>
-          {/* Right: Mark KB Ready (primary) — the global finalize action */}
-          <Button
-            size="sm"
-            onClick={handleMarkReady}
-            disabled={!isReady || markingReady || isEditMode || dirty}
-            title={
-              isEditMode
-                ? undefined
-                : dirty
-                  ? "Save your changes before marking the KB ready"
-                  : !isReady
-                    ? "Approve or reject every field first"
-                    : undefined
-            }
-          >
-            <CheckCircle2Icon className="size-4" />
-            {markingReady
-              ? "Saving…"
-              : isEditMode
-                ? "KB is Ready"
-                : isReady
-                  ? "Mark KB Ready"
-                  : "Review all fields first"}
-          </Button>
+          )}
         </div>
         <Tabs
           value={selectedModule}
