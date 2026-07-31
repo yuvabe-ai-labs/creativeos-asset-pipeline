@@ -47,7 +47,12 @@ import type { ClientKBDocumentRow, ClientBrandImageRow } from "@/lib/db/types";
 import { uploadViaSignedUrl } from "@/lib/uploads/client";
 import type { ModuleKey, FieldPath, StagedChanges } from "@/lib/kb/types";
 import { MODULES, FIELD_LABELS, DOC_EXTENSIONS, IMG_EXTENSIONS } from "@/lib/kb/constants";
-import { getModuleFields, getFieldPath, buildChangeSummary } from "@/lib/kb/utils";
+import {
+  getModuleFields,
+  getFieldPath,
+  buildChangeSummary,
+  findNextModuleNeedingReview,
+} from "@/lib/kb/utils";
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -189,6 +194,19 @@ export function KBOnboardingReviewStep({
       }
     });
     if (count > 0) toast.success(`${count} field${count === 1 ? "" : "s"} approved`);
+
+    // The module we just bulk-approved is now ready by definition (every needs_review field
+    // was just flipped to approved) — reading it back from `kb` here would race the pending
+    // setState above, so treat it as ready directly instead. Every other module's readiness
+    // is unaffected by this action, so it's safe to read straight from the current `kb`.
+    const readyByModule = Object.fromEntries(
+      MODULES.map(({ key }) => [
+        key,
+        key === module ? true : getModuleStatus(getModuleFields(kb, key)) === "ready",
+      ]),
+    ) as Record<ModuleKey, boolean>;
+    const next = findNextModuleNeedingReview(module, readyByModule);
+    if (next) setSelectedModule(next);
   }
 
   async function handleReanalyzeField(module: ModuleKey, fieldKey: string, comment: string) {
