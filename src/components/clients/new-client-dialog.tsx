@@ -70,7 +70,9 @@ export function NewClientDialog() {
         toast.success(`Created "${client.name}"`);
         reset();
         setOpen(false);
-        router.refresh();
+        // Take the operator straight to KB setup — that's what "create a client" is for,
+        // and staying on the list just makes them find-and-click the client themselves.
+        router.push(`/clients/${client.id}/kb`);
       } catch {
         toast.error("Failed to create client");
       }
