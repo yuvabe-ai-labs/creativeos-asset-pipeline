@@ -20,13 +20,13 @@
 ### Task 1: Auto-redirect to KB setup after creating a client
 
 **Files:**
-- Modify: `src/components/clients/new-client-dialog.tsx:53-72` (the `handleCreate` function body)
+- Modify: `src/components/clients/new-client-dialog.tsx:48-78` (the `handleCreate` function body)
 
 **Interfaces:**
 - Consumes: `createClientAction({ name })` (existing, returns `{ id: string; name: string; ... }`), `useRouter()` from `next/navigation` (already imported at the top of this file).
 - Produces: nothing consumed by later tasks — this task is self-contained.
 
-- [ ] **Step 1: Replace `router.refresh()` with a redirect to the new client's KB page**
+- [ ] **Step 1: Replace the final `router.refresh()` with a redirect to the new client's KB page**
 
 In `src/components/clients/new-client-dialog.tsx`, find:
 
@@ -39,14 +39,19 @@ In `src/components/clients/new-client-dialog.tsx`, find:
     startTransition(async () => {
       try {
         const client = await createClientAction({ name: name.trim() });
-        // Upload logo in background — do not block closing the dialog
+        // Upload logo in background — do not block closing the dialog. Refresh
+        // again once it finalizes so the row picks up the logo without a
+        // manual reload (the refresh below fires before the upload's DB
+        // write lands).
         if (logo) {
           void uploadViaSignedUrl(logo.file, {
             signEndpoint: `/api/clients/${client.id}/logo/sign`,
             finalizeEndpoint: `/api/clients/${client.id}/logo/finalize`,
-          }).catch(() => {
-            // Non-critical: logo upload failure shows a separate toast if desired
-          });
+          })
+            .then(() => router.refresh())
+            .catch(() => {
+              // Non-critical: logo upload failure shows a separate toast if desired
+            });
         }
         toast.success(`Created "${client.name}"`);
         reset();
@@ -59,7 +64,11 @@ In `src/components/clients/new-client-dialog.tsx`, find:
   }
 ```
 
-Replace the `router.refresh();` line with `router.push(\`/clients/${client.id}/kb\`);`:
+Replace only the **final** `router.refresh();` (after `setOpen(false)`) with
+`router.push(\`/clients/${client.id}/kb\`);` — leave the `.then(() => router.refresh())` inside
+the logo-upload branch untouched; it's an unrelated, already-shipped fix that refreshes
+whatever page happens to be active once the background logo upload finalizes (harmless no-op
+once the operator has already navigated to the KB page):
 
 ```tsx
   function handleCreate() {
@@ -70,14 +79,19 @@ Replace the `router.refresh();` line with `router.push(\`/clients/${client.id}/k
     startTransition(async () => {
       try {
         const client = await createClientAction({ name: name.trim() });
-        // Upload logo in background — do not block closing the dialog
+        // Upload logo in background — do not block closing the dialog. Refresh
+        // again once it finalizes so the row picks up the logo without a
+        // manual reload (the refresh below fires before the upload's DB
+        // write lands).
         if (logo) {
           void uploadViaSignedUrl(logo.file, {
             signEndpoint: `/api/clients/${client.id}/logo/sign`,
             finalizeEndpoint: `/api/clients/${client.id}/logo/finalize`,
-          }).catch(() => {
-            // Non-critical: logo upload failure shows a separate toast if desired
-          });
+          })
+            .then(() => router.refresh())
+            .catch(() => {
+              // Non-critical: logo upload failure shows a separate toast if desired
+            });
         }
         toast.success(`Created "${client.name}"`);
         reset();
