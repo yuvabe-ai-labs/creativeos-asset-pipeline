@@ -600,7 +600,7 @@ export function KBOnboardingReviewStep({
               <ImageIcon className="size-8 text-muted-foreground/40" />
               <div>
                 <p className="text-sm font-medium text-muted-foreground">
-                  No brand images were analyzed
+                  No images were uploaded
                 </p>
                 <p className="mt-0.5 text-xs text-muted-foreground">
                   Upload images in the Source Documents &amp; Images drawer.
