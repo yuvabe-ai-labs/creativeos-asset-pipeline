@@ -45,7 +45,7 @@ page). In `handleCreate()`, after `createClientAction` resolves successfully:
 
 - Keep the existing `toast.success(...)`, `reset()`, `setOpen(false)`, and the background logo
   upload (unchanged).
-- Replace `router.refresh()` with `router.push(\`/clients/${client.id}/kb\`)`.
+- Replace `router.refresh()` with `router.push(\`/clients/${client.slug}/kb\`)`.
 
 The dialog no longer needs to refresh the list in place — navigating away makes that moot.
 

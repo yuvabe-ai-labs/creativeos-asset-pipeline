@@ -29,7 +29,12 @@ import {
   SheetTitle,
   SheetDescription,
 } from "@/components/ui/sheet";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { getModuleStatus } from "@/components/kb/kb-module-card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { KBFieldRow } from "@/components/kb/kb-field-row";
@@ -506,15 +511,17 @@ export function KBOnboardingReviewStep({
           {/* Single dynamic action: "Save changes" while dirty, otherwise Mark KB Ready
              (or its edit-mode/in-flight variants) — see the footerAction derivation above. */}
           {footerAction.tooltip ? (
-            <Tooltip>
-              <TooltipTrigger render={<span className="inline-block" />}>
-                <Button size="sm" disabled={footerAction.disabled}>
-                  <CheckCircle2Icon className="size-4" />
-                  {footerAction.label}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="top">{footerAction.tooltip}</TooltipContent>
-            </Tooltip>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger render={<span className="inline-block" />}>
+                  <Button size="sm" disabled={footerAction.disabled}>
+                    <CheckCircle2Icon className="size-4" />
+                    {footerAction.label}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top">{footerAction.tooltip}</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           ) : (
             <Button size="sm" onClick={footerAction.onClick} disabled={footerAction.disabled}>
               <CheckCircle2Icon className="size-4" />

@@ -65,7 +65,7 @@ In `src/components/clients/new-client-dialog.tsx`, find:
 ```
 
 Replace only the **final** `router.refresh();` (after `setOpen(false)`) with
-`router.push(\`/clients/${client.id}/kb\`);` — leave the `.then(() => router.refresh())` inside
+`router.push(\`/clients/${client.slug}/kb\`);` — leave the `.then(() => router.refresh())` inside
 the logo-upload branch untouched; it's an unrelated, already-shipped fix that refreshes
 whatever page happens to be active once the background logo upload finalizes (harmless no-op
 once the operator has already navigated to the KB page):
@@ -98,7 +98,7 @@ once the operator has already navigated to the KB page):
         setOpen(false);
         // Take the operator straight to KB setup — that's what "create a client" is for,
         // and staying on the list just makes them find-and-click the client themselves.
-        router.push(`/clients/${client.id}/kb`);
+        router.push(`/clients/${client.slug}/kb`);
       } catch {
         toast.error("Failed to create client");
       }
