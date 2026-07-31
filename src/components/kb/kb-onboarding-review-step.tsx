@@ -543,11 +543,11 @@ export function KBOnboardingReviewStep({
                 <TabsTrigger
                   key={key}
                   value={key}
-                  className="h-auto flex-none rounded-none px-3 py-2.5 after:bg-primary group-data-horizontal/tabs:after:bottom-0"
+                  className="h-auto flex-none gap-1 rounded-none px-2 py-2.5 after:bg-primary group-data-horizontal/tabs:after:bottom-0"
                 >
                   {label}
                   {ready && (
-                    <CheckCircle2Icon className="size-3.5 text-emerald-500 dark:text-emerald-400" />
+                    <CheckCircle2Icon className="size-3 shrink-0 text-emerald-500 dark:text-emerald-400" />
                   )}
                 </TabsTrigger>
               );
