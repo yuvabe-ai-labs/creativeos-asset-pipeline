@@ -535,7 +535,7 @@ export function KBOnboardingReviewStep({
         >
           <TabsList
             variant="line"
-            className="h-auto w-full flex-wrap justify-start gap-1 border-b border-border bg-transparent p-0 group-data-horizontal/tabs:h-auto"
+            className="h-auto w-full flex-nowrap justify-start gap-1 overflow-x-auto border-b border-border bg-transparent p-0 group-data-horizontal/tabs:h-auto"
           >
             {MODULES.map(({ key, label }) => {
               const ready = getModuleStatus(getModuleFields(kb, key)) === "ready";
