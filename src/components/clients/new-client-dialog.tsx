@@ -53,14 +53,19 @@ export function NewClientDialog() {
     startTransition(async () => {
       try {
         const client = await createClientAction({ name: name.trim() });
-        // Upload logo in background — do not block closing the dialog
+        // Upload logo in background — do not block closing the dialog. Refresh
+        // again once it finalizes so the row picks up the logo without a
+        // manual reload (the refresh below fires before the upload's DB
+        // write lands).
         if (logo) {
           void uploadViaSignedUrl(logo.file, {
             signEndpoint: `/api/clients/${client.id}/logo/sign`,
             finalizeEndpoint: `/api/clients/${client.id}/logo/finalize`,
-          }).catch(() => {
-            // Non-critical: logo upload failure shows a separate toast if desired
-          });
+          })
+            .then(() => router.refresh())
+            .catch(() => {
+              // Non-critical: logo upload failure shows a separate toast if desired
+            });
         }
         toast.success(`Created "${client.name}"`);
         reset();
