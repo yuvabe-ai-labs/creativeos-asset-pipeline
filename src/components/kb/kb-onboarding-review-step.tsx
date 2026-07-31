@@ -548,23 +548,28 @@ export function KBOnboardingReviewStep({
             <h2 className="font-display text-lg font-semibold">
               {MODULES.find((m) => m.key === selectedModule)?.label}
             </h2>
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-muted-foreground">
-                {Object.values(currentFields).filter((f) => f.status !== "needs_review").length}
-                {" / "}
-                {Object.values(currentFields).length} reviewed
-              </span>
-              {hasNeedsReview && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleApproveAll(selectedModule)}
-                >
-                  <CheckIcon className="size-3.5" />
-                  Approve all ({needsReviewCount})
-                </Button>
-              )}
-            </div>
+            {/* The generic counter/approve-all only makes sense against visible fields —
+               when the module has no real content (allImageAnalysisNull), the empty state
+               below carries its own "mark reviewed" action instead. */}
+            {!allImageAnalysisNull && (
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-muted-foreground">
+                  {Object.values(currentFields).filter((f) => f.status !== "needs_review").length}
+                  {" / "}
+                  {Object.values(currentFields).length} reviewed
+                </span>
+                {hasNeedsReview && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleApproveAll(selectedModule)}
+                  >
+                    <CheckIcon className="size-3.5" />
+                    Approve all ({needsReviewCount})
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
 
           {allImageAnalysisNull ? (
@@ -578,6 +583,16 @@ export function KBOnboardingReviewStep({
                   Upload images in the Source Documents &amp; Images drawer.
                 </p>
               </div>
+              {hasNeedsReview && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleApproveAll(selectedModule)}
+                >
+                  <CheckIcon className="size-3.5" />
+                  Mark this section reviewed
+                </Button>
+              )}
             </div>
           ) : (
             <div className="grid gap-10">
