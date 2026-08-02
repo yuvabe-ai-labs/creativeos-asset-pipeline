@@ -115,7 +115,7 @@ export function areFramesAndRefsExclusive(rules: ConstraintRule[] | undefined): 
  * roles by CAPABILITY only (startFrame / endFrame / maxReferenceImages), then fills unassigned
  * images with defaults, so a node carrying start+end that lands on a refs-capable model gains
  * references as well. The result satisfies no rule evaluation, and the route rejects it at
- * generate time (D85 — the server rejects, it never corrects), which is a failure the operator
+ * generate time (D97 — the server rejects, it never corrects), which is a failure the operator
  * had no way to cause deliberately.
  *
  * Detection is driven by the rules, never hardcoded: only a MUTUAL block is a contradiction. If
@@ -123,7 +123,7 @@ export function areFramesAndRefsExclusive(rules: ConstraintRule[] | undefined): 
  * is the rule doing its job). Kling O1 declares no exclusion rule at all, so start + end +
  * references stays legal there and passes through untouched.
  *
- * Frames win the tie: D83 makes start+end the default shape of a shot, so references are what
+ * Frames win the tie: D95 makes start+end the default shape of a shot, so references are what
  * gets dropped.
  */
 export function reconcileRolesWithRules(
@@ -139,7 +139,7 @@ export function reconcileRolesWithRules(
 }
 
 /**
- * D86 — locked parameter values are the source of truth, not a display substitution.
+ * D98 — locked parameter values are the source of truth, not a display substitution.
  *
  * The params panel used to render `lockedParams[name]` while `params[name]` kept the stale
  * value, and the control was `disabled` so `onParamChange` could never reconcile them. Since
@@ -159,7 +159,7 @@ export function reconcileLockedParams(
 }
 
 /**
- * D85 — the server rejects, it never corrects.
+ * D97 — the server rejects, it never corrects.
  *
  * Returns the reason a request violates the model's rules, or null when it is legal.
  * Auto-correcting would silently change both what the caller asked for and what they are

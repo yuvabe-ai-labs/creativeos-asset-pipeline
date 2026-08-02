@@ -49,7 +49,7 @@ export type ShotSpineModel = {
 };
 
 /**
- * D83 — start + end is the default shape of a video generation, and the opinion is expressed by
+ * D95 — start + end is the default shape of a video generation, and the opinion is expressed by
  * LAYOUT rather than by friction.
  *
  * This model deliberately has no blocking state: a missing end frame is an inviting empty slot,

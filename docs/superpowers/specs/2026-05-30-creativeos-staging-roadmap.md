@@ -1907,3 +1907,63 @@ data in React Flow (create/validate with a cycle check, D8/D11), how `resolveInp
 edge graph plus the ambient client KB (D6), the pure `compile` step that produces the visible
 "final compiled prompt" (D3), the Prompt-generate Route Handler (holding the model key), and
 Stage 2 scope cuts. It will reference the architecture doc for the schema rather than restating it.
+
+### D95 — Start + end frame is the default shape of a video generation, expressed by layout and never by a gate *(recorded 2026-07-28; **renumbered from D83** when the branch was integrated on 2026-08-02 — main had meanwhile assigned D83–D88 to the auth/RLS decisions above; originated → `2026-07-28-video-start-end-spine-design.md`)*
+**Decision.** The video focus view leads with a **shot spine** — Start → End | Reference in narrative
+order — that reports which roles are filled and what duration the combination yields. A missing end
+frame is an **empty slot at rest**, never an error and never a block on Generate. Slots the model cannot
+use are shown as `unsupported` rather than omitted, so absence stays legible. The spine is **read-only**:
+roles are assigned from the connected thumbnails, so its slots are status pips, deliberately not the
+dashed-primary + plus treatment this codebase reserves for Add affordances.
+**Why.** An image costs ~$0.067 against $0.40–$4.20 for a video re-roll, so composing an end frame is
+6–63× cheaper than re-rolling until the motion is right — and it forces the operator to decide what the
+action actually *is*. Opinionated, but a preference the layout states rather than a rule that blocks.
+**Rejected.** Requiring an end frame; a confirm dialog on the way to Generate (both make an opinion feel
+like a defect). **Refines** D35's tray-first generation flow.
+
+### D96 — The end frame is derived by editing the start frame, not generated fresh *(recorded 2026-07-28; **renumbered from D84**; builds on D27 image-edit)*
+**Decision.** "Create end frame" spawns an **image-gen node seeded with the start frame as its edit
+base**, wired straight back into the video node. Seeding is done with a **graph edge**, not a data field:
+the image-gen focus view already derives its edit base from the connected upstream image, so connecting
+the start frame *is* how you seed the edit. **Why.** Interpolation morphs in proportion to how far apart
+the two frames are; a freshly generated "ending" is a different scene, and the model tweens between two
+strangers. An edit keeps scene, lighting and subject and moves only what should move.
+**Rejected.** A fresh text-to-image generation for the end frame. **Status:** the button was removed on
+2026-08-02 pending a fuller treatment; `use-derive-end-frame.ts` and `derive-end-frame.ts` remain.
+
+### D97 — The API route rejects rule violations; it never auto-corrects *(recorded 2026-07-28; **renumbered from D85**; refines D31's server-authority stance)*
+**Decision.** Constraint rules are evaluated in the UI, and `validateAgainstRules` runs again in
+`video-generate/route.ts` as a **backstop that returns 400** — never a fixup. The server's check is
+**stricter** than the client's: it counts references that actually resolved to URLs after upstream
+traversal and capping, not roles merely assigned, and it runs **before** `insertGeneration` and
+`reserveCredits` so a rejected request records no generation and leaves the credit balance untouched.
+**Why.** Auto-correcting silently changes both what the caller asked for and what they are billed. 13 Veo
+generations were spent on references at duration 4 or 6 before this existed.
+**Rejected.** Clamping params server-side to the nearest legal value.
+
+### D98 — Locked parameter values are written into params state, not merely displayed *(recorded 2026-07-28; **renumbered from D86**)*
+**Decision.** `reconcileLockedParams` merges rule-locked values into the params that get **posted**, and
+every read — panel, cost estimate, request — goes through the merged object. Derived at render rather
+than synchronised through an effect: there is no divergence to sync if there is only one source.
+**Why.** The panel rendered `lockedParams[name]` while `params[name]` kept the stale value, and the
+control was `disabled` so nothing could reconcile them. Since `params` is what gets sent, the UI showed a
+locked 8 and sent 6 — 11 observed generation failures. The same divergence would have mis-quoted the
+credit estimate, which is why it reads the reconciled values too.
+**Rejected.** Syncing through a `useEffect` (adds a render where the two disagree).
+
+### D99 — Kling 3.0 and Kling O1 carry separate capability descriptors *(recorded 2026-07-28; **renumbered from D87**; refines D90's Kling rebuild)*
+**Decision.** No shared `KLING_IMAGE_INPUTS_WITH_END`. Each Kling model declares its own
+`imageInputs` and its own rule list. **Why.** Their reference mechanisms differ in kind — 3.0 uses an
+`element` registry, O1 takes inline `refer_image` — and a single shape can only be wrong for one of them.
+3.0's 3–15s range is left untouched: the 5/10 restriction is evidenced only on the omni endpoint and is
+not narrowed on inference. **Rejected.** One descriptor with optional fields.
+
+### D100 — Kling O1 takes inline reference images, budgeted conservatively at 5 *(recorded 2026-07-28; **renumbered from D88**; builds on D99)*
+**Decision.** O1 emits `refer_image` contents inline, with `maxReferenceImages: 5` against the omni
+endpoint's documented cap of 7 total images. **Why.** Whether `first_frame`/`last_frame` count toward
+that 7 is undocumented; 5 stays in budget with both frames in use. Being wrong this way costs two slots,
+being wrong the other way causes 400s. **Open.** Whether references widen O1's 5/10 duration restriction
+is UNVERIFIED — confirm before relaxing. O1's 4k tier is likewise unsettled: the branch added one on
+inference, but the pricing table verified from kling.ai on 2026-07-24 has no O1 4k row, so the merge kept
+720p/1080p rather than expose a resolution that cannot be priced. **Rejected.** Sourcing O1's limits from
+fal.ai's wrapper, whose narrower values produced the wrong duration, audio and resolution sets.

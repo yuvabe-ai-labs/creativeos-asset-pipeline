@@ -5,7 +5,7 @@ import { useCanvasStoreApi } from "@/components/canvas/canvas-store-provider";
 import { endFrameNodePosition } from "@/lib/video-gen/derive-end-frame";
 
 /**
- * D84 — the end frame is an EDIT of the start frame, not a fresh generation. Interpolation
+ * D96 — the end frame is an EDIT of the start frame, not a fresh generation. Interpolation
  * morphs in proportion to how far apart the two frames are, so the end frame must be a near
  * neighbour: same scene, same lighting, subject moved.
  *

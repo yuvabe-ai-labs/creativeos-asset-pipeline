@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- **Spec:** `docs/superpowers/specs/2026-07-28-video-start-end-spine-design.md` (decisions D83–D88).
+- **Spec:** `docs/superpowers/specs/2026-07-28-video-start-end-spine-design.md` (decisions D83–D100).
 - **Controls:** every interactive control must be a shadcn primitive from `src/components/ui/*`. Never a raw `<button>`, `<input>`, `<select>`, `<textarea>`. Base UI composes via the `render` prop, **not** `asChild`. Non-interactive `span`/`div`/`p` are fine.
 - **Design system:** Yuvabe. Two fonts only (Clash Display via `font-display`, Gilroy as default `font-sans`). Purple `#5829c7` used sparingly — never a large background fill. Drive all colour through the shadcn CSS variables in `src/app/globals.css`; **never hardcode colours**. Use `.text-eyebrow` for tracked small-caps labels. Icons: Lucide only, `strokeWidth={1.5}`, no fills. Motion easing `cubic-bezier(0.22,1,0.36,1)` only.
 - **Add-actions** are dashed-border primary chips: `border border-dashed border-primary/40`, `hover:bg-primary/5`. Reference: `src/components/nodes/editable-field.tsx`.
@@ -44,7 +44,7 @@ Spec §5.5 says the start-frame requirement is relaxed for the omni endpoint. Sp
 
 ## Task 1: Correct the Kling O1 provider configuration
 
-The O1 config was built from third-party wrapper docs (fal.ai / WaveSpeed), whose limits are narrower than Kling's. This task fixes the settings and splits the shared capability descriptor (D87).
+The O1 config was built from third-party wrapper docs (fal.ai / WaveSpeed), whose limits are narrower than Kling's. This task fixes the settings and splits the shared capability descriptor (D99).
 
 **Files:**
 - Modify: `src/lib/video-gen/params/kling.ts`
@@ -152,7 +152,7 @@ In `src/lib/video-gen/providers/kling.ts`, replace the shared `KLING_IMAGE_INPUT
 (lines 148-152) with per-model constants, and correct the `multi_shot` default:
 
 ```ts
-// D87: 3.0 and O1 have different reference mechanisms (registered `element` vs inline
+// D99: 3.0 and O1 have different reference mechanisms (registered `element` vs inline
 // `refer_image`), so they cannot share one descriptor. O1's cap is set in Task 3.
 const KLING_30_IMAGE_INPUTS = {
   startFrame: true,
@@ -223,7 +223,7 @@ git commit -m "fix(video-gen): correct Kling O1 config against official omni doc
 
 Duration becomes a 5/10 select (Kling rejects other values without a
 refer_image), audio gains native, resolution gains 4k with its cost tier,
-and the shared capability descriptor splits per model (D87). Also fixes
+and the shared capability descriptor splits per model (D99). Also fixes
 the multi_shot provider fallback, which defaulted true against a spec
 default of false.
 
@@ -552,14 +552,14 @@ git commit -m "feat(video-gen): Kling constraint rules and O1 reference capabili
 Kling gains its first constraint rules: a missing start frame now disables
 Generate instead of failing minutes later inside the Trigger task, and an
 end frame locks multi_shot off on 3.0. O1 accepts up to 5 reference images
-— the 7-image omni budget less both frames (D88).
+— the 7-image omni budget less both frames (D100).
 
 Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ```
 
 ---
 
-## Task 4: Write locked params into state (D86)
+## Task 4: Write locked params into state (D98)
 
 The live bug behind 11 of the observed failures: `video-gen-params-panel.tsx` *displays*
 `lockedParams[name]` while `params[name]` keeps the stale value, and the control is `disabled` so
@@ -626,7 +626,7 @@ Append to `src/lib/video-gen/constraints.ts`:
 
 ```ts
 /**
- * D86 — locked parameter values are the source of truth, not just a display substitution.
+ * D98 — locked parameter values are the source of truth, not just a display substitution.
  *
  * Returns `params` merged with `lockedParams`, or `null` when no change is needed. The null
  * return lets callers early-return from an effect rather than setting state on every render.
@@ -656,7 +656,7 @@ import from `@/lib/video-gen/constraints`, then extend the effect that currently
 `lockedParamsKey`:
 
 ```ts
-  // D86: the panel displays locked values, but `params` is what doGenerate posts. Without this,
+  // D98: the panel displays locked values, but `params` is what doGenerate posts. Without this,
   // opening a node with references and a persisted duration of 6 shows a locked 8 and sends 6.
   useEffect(() => {
     const next = reconcileLockedParams(params, constraints.lockedParams);
@@ -682,17 +682,17 @@ git commit -m "fix(video-gen): write locked params into state, not just the disp
 The params panel rendered lockedParams while leaving params untouched, and
 the disabled control could never reconcile them — so a node with references
 and a persisted duration of 6 showed a locked 8 and posted 6. That accounts
-for 11 observed generation failures after constraint rules shipped (D86).
+for 11 observed generation failures after constraint rules shipped (D98).
 
 Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ```
 
 ---
 
-## Task 5: Reject rule violations server-side (D85)
+## Task 5: Reject rule violations server-side (D97)
 
 The route never evaluates rules, so any path that bypasses the focus view sends illegal
-combinations straight to the vendor. Per D85 the server **rejects** and never auto-corrects.
+combinations straight to the vendor. Per D97 the server **rejects** and never auto-corrects.
 
 **Files:**
 - Modify: `src/app/api/nodes/[id]/video-generate/route.ts:88-96`
@@ -781,7 +781,7 @@ Append to `src/lib/video-gen/constraints.ts`:
 
 ```ts
 /**
- * D85 — the server rejects, it never corrects. Returns the reason a request violates the
+ * D97 — the server rejects, it never corrects. Returns the reason a request violates the
  * model's rules, or null when it is legal. Auto-correcting would silently change what the
  * caller asked for (and what they are billed), so a violation is a 400, not a fixup.
  */
@@ -822,7 +822,7 @@ import { validateAgainstRules } from "@/lib/video-gen/constraints";
 Then insert immediately after the existing end-frame clear at line 93, before `mockMode`:
 
 ```ts
-  // D85: reject rather than correct. The UI evaluates the same rules and should never let an
+  // D97: reject rather than correct. The UI evaluates the same rules and should never let an
   // illegal combination reach here — this is the backstop for clients that bypass it.
   // Server-side state is stricter than the client's: it counts references that actually
   // resolved to URLs, not roles that were merely assigned.
@@ -850,7 +850,7 @@ git commit -m "feat(video-gen): reject rule violations at the API route
 The route resolved params and posted straight to the vendor without ever
 evaluating the model's constraint rules, so any client bypassing the focus
 view could send illegal combinations. It now returns 400 with the rule's
-reason and never mutates params (D85).
+reason and never mutates params (D97).
 
 Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ```
@@ -860,7 +860,7 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ## Task 6: The shot spine strip
 
 Replaces the blocking `missing-end-frame` confirm dialog with a persistent, non-blocking
-affordance (D83).
+affordance (D95).
 
 **Files:**
 - Create: `src/components/nodes/video-gen-shot-spine.tsx`
@@ -975,7 +975,7 @@ export type ShotSpineModel = {
 };
 
 /**
- * D83 — the opinion is expressed by layout. This model never carries a blocking state; a
+ * D95 — the opinion is expressed by layout. This model never carries a blocking state; a
  * missing end frame is rendered as an inviting empty slot, never as an error or a gate.
  */
 export function describeShotSpine(input: {
@@ -1180,7 +1180,7 @@ git commit -m "feat(video-gen): shot spine strip replaces the end-frame confirm 
 
 A persistent start -> end -> reference strip with the resulting duration
 makes the preferred shape visible at rest instead of interrupting on
-generate. The blocking missing-end-frame AlertDialog is removed: per D83
+generate. The blocking missing-end-frame AlertDialog is removed: per D95
 the opinion is expressed by layout and never gates generation.
 
 Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
@@ -1188,7 +1188,7 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 
 ---
 
-## Task 7: Derive the end frame from the start frame (D84)
+## Task 7: Derive the end frame from the start frame (D96)
 
 **Files:**
 - Create: `src/hooks/use-derive-end-frame.ts`
@@ -1273,7 +1273,7 @@ import { useCanvasStoreApi } from "@/components/canvas/canvas-store-provider";
 import { endFrameNodePosition } from "@/lib/video-gen/derive-end-frame";
 
 /**
- * D84 — the end frame is an EDIT of the start frame, not a fresh generation. Interpolation
+ * D96 — the end frame is an EDIT of the start frame, not a fresh generation. Interpolation
  * morphs in proportion to how far apart the two frames are, so the end frame must be a near
  * neighbour: same scene, same lighting, subject moved.
  */
@@ -1369,7 +1369,7 @@ git commit -m "feat(video-gen): derive the end frame from the start frame
 Create end frame spawns an image-gen node in edit mode seeded with the
 start frame and wires it back as the end frame. An edit rather than a
 fresh generation, because interpolation morphs in proportion to how far
-apart the two frames are (D84).
+apart the two frames are (D96).
 
 Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ```
@@ -1461,11 +1461,11 @@ Report results as observations, not as passing tests.
 |---|---|
 | §5.1 shot spine strip | 6 |
 | §5.2 derive end frame | 7 |
-| §5.3 UI reconciliation (D86) | 4 |
+| §5.3 UI reconciliation (D98) | 4 |
 | §5.3 new Kling rules | 3 |
-| §5.3 server rejects (D85) | 5 |
-| §5.4 Kling config corrections (D87) | 1 |
-| §5.5 Kling O1 references (D88) | 2, 3 |
+| §5.3 server rejects (D97) | 5 |
+| §5.4 Kling config corrections (D99) | 1 |
+| §5.5 Kling O1 references (D100) | 2, 3 |
 | §6 capability matrix corrections | 8 |
 | §8 verification approach | Manual verification section |
 

@@ -645,7 +645,7 @@ export function VideoGenFocusView({
       return;
     }
 
-    // D83: a missing end frame no longer interrupts. The preference for a start+end pair is
+    // D95: a missing end frame no longer interrupts. The preference for a start+end pair is
     // expressed by the shot spine's empty slot at rest, not by a confirm dialog on the way out.
     await doGenerate();
   }
@@ -656,7 +656,7 @@ export function VideoGenFocusView({
     try {
       await videoGenApi.startGeneration(nodeId, {
         modelId,
-        // D86: post the reconciled values, never the possibly-stale `params` state.
+        // D98: post the reconciled values, never the possibly-stale `params` state.
         params: effectiveParams,
         imageRoles: effectiveImageRoles,
       });
@@ -742,7 +742,7 @@ export function VideoGenFocusView({
   // renders locked controls as locked. A toast per change was duplicating a permanent display
   // with a transient one, which is noise rather than feedback.
 
-  // D86: locked values are authoritative, not a display substitution. Derived at render rather
+  // D98: locked values are authoritative, not a display substitution. Derived at render rather
   // than synchronised through an effect — there is no divergence to sync if every read goes
   // through the same merge. Previously the panel displayed a locked 8 while `params` kept 6 and
   // doGenerate posted the 6, which caused 11 observed generation failures.
@@ -757,7 +757,7 @@ export function VideoGenFocusView({
   const videoCostEstimate = computeVideoCost(modelId, durationSeconds, audioEnabled, resolution);
   const estimatedCredits = videoCostEstimate ? usdToFinalCredits(videoCostEstimate.usd) : null;
 
-  // D83: the duration label the current combination actually yields — read off the model's own
+  // D95: the duration label the current combination actually yields — read off the model's own
   // param spec so it stays correct when a spec changes (e.g. O1's 5/10 select), but a rule-locked
   // value overrides the menu. Veo pins 8s the moment a reference image is used, and the spine
   // advertising "4 or 6 or 8s" contradicted the greyed-out 4 and 6 in the panel below it.
@@ -1006,7 +1006,7 @@ export function VideoGenFocusView({
                   {(() => {
                     const paramsPanelProps = {
                       modelId,
-                      // D86: what the panel shows is what doGenerate posts.
+                      // D98: what the panel shows is what doGenerate posts.
                       params: effectiveParams,
                       onParamChange: handleParamChange,
                       lockedParams: constraints.lockedParams,
@@ -1015,7 +1015,7 @@ export function VideoGenFocusView({
                     return (
                       <>
                         {/* The spine heads the Frames section: it is the summary of exactly what
-                            the thumbnails below assign. Rendered unconditionally — D83 wants the
+                            the thumbnails below assign. Rendered unconditionally — D95 wants the
                             empty slots visible AT REST, and gating on connected images would hide
                             the shape of the shot precisely when nothing has been set up yet. */}
                         <LeftSection icon={ImageIcon} label="Frames">

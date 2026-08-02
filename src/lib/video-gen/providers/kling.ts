@@ -200,7 +200,7 @@ async function generateWithKling(
   return pollKlingTask(taskId);
 }
 
-// D87: 3.0 and O1 cannot share one descriptor. Their reference mechanisms differ in kind —
+// D99: 3.0 and O1 cannot share one descriptor. Their reference mechanisms differ in kind —
 // 3.0's `element` is a pre-registered library resource addressed by `element_id`, while O1's
 // `refer_image` is a plain inline URL. One shared shape forced both to the lower bound.
 const KLING_30_IMAGE_INPUTS = {
@@ -209,7 +209,7 @@ const KLING_30_IMAGE_INPUTS = {
   maxReferenceImages: 0,
 } as const;
 
-// D88: 7-image omni budget less both frames, conservatively — the docs do not say whether
+// D100: 7-image omni budget less both frames, conservatively — the docs do not say whether
 // first_frame/last_frame count toward the 7. Must match the client copy in client-models.ts,
 // since the API route caps referenceUrls against this value.
 const KLING_O1_IMAGE_INPUTS = {

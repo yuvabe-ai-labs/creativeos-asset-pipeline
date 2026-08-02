@@ -81,7 +81,7 @@ const VEO_REFS_RULES: ConstraintRule[] = [
   },
 ];
 
-// D87: per-model, not shared — see providers/kling.ts for why. Client copies; this file cannot
+// D99: per-model, not shared — see providers/kling.ts for why. Client copies; this file cannot
 // import the `server-only` provider module.
 const KLING_30_IMAGE_INPUTS = {
   startFrame: true,
@@ -89,7 +89,7 @@ const KLING_30_IMAGE_INPUTS = {
   maxReferenceImages: 0,
 } as const;
 
-// D88: the omni endpoint caps total images at 7 (references plus multi-image elements, with no
+// D100: the omni endpoint caps total images at 7 (references plus multi-image elements, with no
 // reference video). Whether first_frame/last_frame count toward that 7 is not documented, so 5
 // is the conservative figure that stays in budget with both frames in use. Being wrong this way
 // costs two slots; being wrong the other way causes 400s.

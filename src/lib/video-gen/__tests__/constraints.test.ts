@@ -117,7 +117,7 @@ describe("reconcileRolesWithRules", () => {
   });
 });
 
-// D86 — the params panel displayed lockedParams while leaving `params` untouched, and the
+// D98 — the params panel displayed lockedParams while leaving `params` untouched, and the
 // disabled control could never reconcile them. `params` is what gets posted, so the UI showed
 // a locked 8 and sent 6. This helper is the single source of truth for closing that gap.
 describe("reconcileLockedParams", () => {

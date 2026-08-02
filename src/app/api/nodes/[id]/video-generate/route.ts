@@ -99,7 +99,7 @@ export async function POST(
     // If model doesn't support end frame, clear it
     if (!config.imageInputs.endFrame) endFrameUrl = undefined;
 
-    // D85: reject rather than correct. The UI evaluates these same rules and should never let an
+    // D97: reject rather than correct. The UI evaluates these same rules and should never let an
     // illegal combination reach here — this is the backstop for callers that bypass it, which is
     // how 13 Veo generations were spent on references at duration 4 or 6.
     //

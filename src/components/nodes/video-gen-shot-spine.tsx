@@ -68,7 +68,7 @@ function Slot({ slot }: { slot: ShotSpineSlot }) {
 }
 
 /**
- * D83 — the shot spine. Start → End → Reference in narrative order, with the duration the
+ * D95 — the shot spine. Start → End → Reference in narrative order, with the duration the
  * current combination yields. Never gates generation; the preference for a start+end pair is
  * expressed entirely by showing the empty slot at rest.
  */

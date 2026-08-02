@@ -5,7 +5,7 @@ import { videoGenClientModelMap } from "../client-models";
 const veoRefs = videoGenClientModelMap["veo:veo-3.1-fast"].rules;
 const kling30 = videoGenClientModelMap["kling:kling-3-0"].rules;
 
-// D85 — the server rejects, it never corrects. Auto-correcting would silently change both what
+// D97 — the server rejects, it never corrects. Auto-correcting would silently change both what
 // the caller asked for and what they are billed.
 describe("validateAgainstRules", () => {
   // The exact shape of the 13 observed Veo failures: references with duration 4 or 6.

@@ -140,7 +140,7 @@ describe("describeShotSpine", () => {
     expect(model.durationLabel).toBe("5 or 10s");
   });
 
-  // D83: the opinion is expressed by layout. A missing end frame is an inviting empty slot,
+  // D95: the opinion is expressed by layout. A missing end frame is an inviting empty slot,
   // never an error and never a gate.
   it("never reports a blocking state", () => {
     const model = describeShotSpine({
