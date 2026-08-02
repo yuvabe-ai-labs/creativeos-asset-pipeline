@@ -25,11 +25,14 @@ export function ActiveRulesCard({ constraints }: Props) {
   if (reasons.size === 0) return null;
 
   return (
-    <div className="border border-amber-300 bg-amber-50 rounded-md px-3 py-2.5 flex flex-col gap-1.5">
+    // Warning tokens rather than raw amber-*: hardcoded palette values don't follow the theme
+    // and had no dark-mode answer. text-warning-text is the darkened step — the yellow-500 fill
+    // colour measures 1.53:1 on a light surface and would be illegible as body text.
+    <div className="flex flex-col gap-1.5 rounded-md border border-warning/40 bg-warning/10 px-3 py-2.5">
       {Array.from(reasons).map((reason) => (
         <div key={reason} className="flex items-start gap-1.5">
-          <Info className="size-3 shrink-0 mt-0.5 text-amber-600" strokeWidth={1.5} />
-          <span className="text-xs text-amber-800 leading-snug">{reason}</span>
+          <Info className="mt-0.5 size-3 shrink-0 text-warning-text" strokeWidth={1.5} />
+          <span className="text-xs leading-snug text-warning-text">{reason}</span>
         </div>
       ))}
     </div>

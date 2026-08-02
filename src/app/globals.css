@@ -28,6 +28,17 @@
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-destructive-text: var(--destructive-text);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-success-text: var(--success-text);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-warning-text: var(--warning-text);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-info-text: var(--info-text);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
@@ -76,6 +87,16 @@
   --green-500: #90c645;
   --red-orange-500: #f04e28;
 
+  /* Status 700s — the same hues darkened until they clear WCAG 4.5:1 on a white
+     card, because the 500s cannot serve as ink on light surfaces: green-500
+     measures 2.03:1 there, yellow-500 1.53, cyan-500 2.41 (the floor is 3.0 for
+     icons, 4.5 for text). Hue and saturation are preserved, only lightness moves,
+     so a 700 still reads as the same colour as its 500. */
+  --green-700: #577f1f; /* 4.71:1 on white */
+  --yellow-700: #957004; /* 4.57:1 */
+  --cyan-700: #15828e; /* 4.55:1 */
+  --red-orange-700: #e0330a; /* 4.52:1 */
+
   /* Neutrals */
   --neutral-0: #ffffff;
   --neutral-25: #fcfcfd;
@@ -114,6 +135,27 @@
   --accent: var(--neutral-100);
   --accent-foreground: var(--neutral-900);
   --destructive: var(--red-orange-500);
+
+  /* Status family. Three tokens per status, because one cannot cover both uses:
+       --x            the fill / solid surface
+       --x-foreground ink ON that fill  (always the dark neutral — white on
+                      green-500 is 2.03:1, on yellow-500 1.53:1)
+       --x-text       ink on a LIGHT surface (the 700 step)
+     Uses hues already in the Yuvabe palette, which until now only fed the chart
+     scale — no new colour is introduced, they are simply given a semantic job.
+     Purple stays the brand colour; these carry state, never decoration. */
+  --success: var(--green-500);
+  --success-foreground: var(--neutral-900); /* 8.74:1 */
+  --success-text: var(--green-700);
+  --warning: var(--yellow-500);
+  --warning-foreground: var(--neutral-900); /* 11.61:1 */
+  --warning-text: var(--yellow-700);
+  --info: var(--cyan-500);
+  --info-foreground: var(--neutral-900); /* 7.35:1 */
+  --info-text: var(--cyan-700);
+  --destructive-foreground: var(--neutral-0);
+  --destructive-text: var(--red-orange-700);
+
   --border: var(--neutral-200);
   --input: var(--neutral-200);
   --ring: var(--purple-500);
@@ -150,6 +192,22 @@
   --accent: #2c2058;
   --accent-foreground: #f8f8fa;
   --destructive: #f56b49;
+
+  /* On the dark card (#1c1540) the 500s are the LIGHT end, so -text collapses back
+     onto them: green 8.41:1, yellow 11.16, cyan 7.07, destructive 5.75. The 700s
+     exist only for light surfaces and would go muddy here. */
+  --success: #90c645;
+  --success-foreground: #160f2e;
+  --success-text: #90c645;
+  --warning: #ffca2d;
+  --warning-foreground: #160f2e;
+  --warning-text: #ffca2d;
+  --info: #2bb7c7;
+  --info-foreground: #160f2e;
+  --info-text: #2bb7c7;
+  --destructive-foreground: #160f2e;
+  --destructive-text: #f56b49;
+
   --border: rgba(255, 255, 255, 0.1);
   --input: rgba(255, 255, 255, 0.14);
   --ring: #9d86f5;
