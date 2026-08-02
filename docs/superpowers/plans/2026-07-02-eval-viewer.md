@@ -31,7 +31,7 @@
 - **Modify** `src/app/eval/[canvasId]/page.tsx` — swap to `listNodeTraces` + `<EvalWorkbench>`.
 - **Phase B — Create** `src/lib/eval/diff-versions.ts` + `.test.ts` — the Δ field-compare.
 - **Phase B — Modify** `src/components/eval/trace-detail.tsx` + `eval-workbench.tsx` — version stepper + Δ banner.
-- **Modify** `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` — append ADR **D35** to §7.
+- **Modify** `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` — append ADR **D94** to §7.
 
 The existing sequential components (`review-screen.tsx`, `trace-panels.tsx`) are left in place (dead after the page swap); removing them is out of scope for this plan.
 
@@ -655,18 +655,18 @@ git commit -m "feat(eval): list+detail workbench replaces the sequential reviewe
 
 ---
 
-## Task A7: Record ADR D35
+## Task A7: Record ADR D94
 
 **Files:**
 - Modify: `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md`
 
-- [ ] **Step 1: Append D35 to §7** (after the D34 entry), copying the D35 block from the spec's §10 (`2026-07-02-eval-viewer-error-analysis-design.md`).
+- [ ] **Step 1: Append D94 to §7** (after the D34 entry), copying the D94 block from the spec's §10 (`2026-07-02-eval-viewer-error-analysis-design.md`).
 
 - [ ] **Step 2: Commit**
 
 ```bash
 git add "docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md"
-git commit -m "docs(adr): record D35 — eval viewer error-analysis surface"
+git commit -m "docs(adr): record D94 — eval viewer error-analysis surface"
 ```
 
 **→ End of Phase A. The generalized viewer ships here (all node types, grouped, A/B/C/D on the active version, open coding). Phase B is additive.**
@@ -866,7 +866,7 @@ git commit -m "feat(eval): version stepper + Δ banner (input change → output 
 - §4.5 Δ structured field-compare, re-roll marker, no LLM → B1/B2. ✓
 - §5 no migration, generalize query+mapping, reuse ReviewScreen shell/label-bar → A1/A2/A4/A6. ✓ (We replace the *sequential* ReviewScreen with a list+detail workbench but reuse `label-bar` + `setVersionLabelAction` + `ModelRequestPanel`.)
 - §8 tests → A1, B1 full TDD; UI via tsc + manual. ✓
-- §10 ADR D35 → A7. ✓
+- §10 ADR D94 → A7. ✓
 
 **Placeholder scan:** none — every code step has complete code. (Two adapt-notes in A4/A6 are conditional wiring instructions with a concrete fallback, not placeholders.)
 

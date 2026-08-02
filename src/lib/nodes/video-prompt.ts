@@ -26,16 +26,7 @@ export type CompileVideoPromptInput = {
 
 function buildCompositionBlock(upstream: CompileVideoPromptUpstream[]): string | null {
   const visionNodes = upstream.filter((u) =>
-    isVisionAttachment({
-      nodeId: u.nodeId ?? "",
-      versionId: null,
-      label: u.label,
-      type: u.type ?? "",
-      text: u.text,
-      fileUrl: u.fileUrl,
-      fileKind: u.fileKind,
-      useLlm: u.useLlm,
-    }),
+    isVisionAttachment({ type: u.type ?? "", fileUrl: u.fileUrl, fileKind: u.fileKind, useLlm: u.useLlm }),
   );
   if (visionNodes.length < 2) return null;
 

@@ -28,6 +28,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { EditableField } from "./editable-field";
+import { GenerationErrorBadge } from "./generation-error-badge";
 import { normalizeTitle } from "@/lib/nodes/title";
 import { Button } from "@/components/ui/button";
 import {
@@ -44,6 +45,11 @@ import {
   reconcileRolesWithRules,
 } from "@/lib/video-gen/constraints";
 import { videoGenApi } from "@/lib/video-gen/api";
+import { VideoGenApiError } from "@/lib/video-gen/api";
+import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
+import { computeVideoCost, isVideoAudioEnabled, asResolutionString } from "@/lib/video-gen/cost";
+import { usdToFinalCredits } from "@/lib/credits/units";
+import { EstimatedCreditsLabel } from "./estimated-credits-label";
 import { createBrowserSupabase } from "@/lib/supabase/client";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
@@ -54,6 +60,7 @@ import {
   type VideoGenVersionSummary,
 } from "./video-gen-version-history";
 import { VideoGenUsagePopover } from "./video-gen-usage-popover";
+import { Skeleton } from "@/components/ui/skeleton";
 import { VideoGenParamsPanel, hasParamsInGroup } from "./video-gen-params-panel";
 import { VideoGenConnectedSection } from "./video-gen-connected-section";
 import { RailItem } from "./focus-rail-item";
@@ -458,7 +465,7 @@ export function VideoGenFocusView({
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle()
-      .then(({ data }) => {
+      .then(({ data }: { data: unknown }) => {
         const row = data as { status: string; error: string | null } | null;
         if (!row) return;
         if (row.status === "succeeded" || row.status === "failed") {
@@ -656,9 +663,14 @@ export function VideoGenFocusView({
       // 202 Accepted — hook's Realtime subscription clears isGenerating on completion
     } catch (e) {
       setGenerating(false);
-      const msg = e instanceof Error ? e.message : "Generation failed";
+      const msg =
+        e instanceof VideoGenApiError && e.status === 402
+          ? CREDIT_LIMIT_TOAST_MESSAGE
+          : e instanceof Error
+            ? e.message
+            : "Generation failed";
       setLastError(msg);
-      toast.error(msg);
+      toast.error(msg, { duration: 6000 });
     }
   }
 
@@ -736,6 +748,15 @@ export function VideoGenFocusView({
   // doGenerate posted the 6, which caused 11 observed generation failures.
   const effectiveParams = reconcileLockedParams(params, constraints.lockedParams) ?? params;
 
+  // Pre-generation credit estimate. Reads effectiveParams, NOT params — for the same reason
+  // doGenerate does. A rule can pin duration to 8s while `params.duration` still holds the 6 the
+  // operator last picked, and estimating off the stale 6 would quote one price and bill another.
+  const durationSeconds = Number(effectiveParams.seconds ?? effectiveParams.duration ?? 0);
+  const audioEnabled = isVideoAudioEnabled(effectiveParams.audio);
+  const resolution = asResolutionString(effectiveParams.resolution);
+  const videoCostEstimate = computeVideoCost(modelId, durationSeconds, audioEnabled, resolution);
+  const estimatedCredits = videoCostEstimate ? usdToFinalCredits(videoCostEstimate.usd) : null;
+
   // D83: the duration label the current combination actually yields — read off the model's own
   // param spec so it stays correct when a spec changes (e.g. O1's 5/10 select), but a rule-locked
   // value overrides the menu. Veo pins 8s the moment a reference image is used, and the spine
@@ -784,11 +805,6 @@ export function VideoGenFocusView({
         showCloseButton={false}
         className="gap-0 overflow-hidden rounded-t-2xl bg-background data-[side=bottom]:h-[92vh]"
       >
-        {/* Drag handle */}
-        <div className="flex shrink-0 justify-center pt-3">
-          <div className="h-1.5 w-12 rounded-full bg-border" />
-        </div>
-
         {/* Header */}
         <div className="shrink-0 border-b">
           <div className="mx-auto w-full max-w-7xl px-6 pb-5 pt-3">
@@ -812,15 +828,22 @@ export function VideoGenFocusView({
               </div>
               <div className="flex shrink-0 flex-col items-end gap-2">
                 <div className="flex items-center gap-2">
-                  {versions.length > 0 && (
-                    <VideoGenUsagePopover
-                      versions={versions}
-                      nodeId={nodeId}
-                      upstreamNodeIds={[
-                        ...(promptNode ? [promptNode.id] : []),
-                        ...upstreamImages.map((u) => u.id),
-                      ]}
-                    />
+                  {/* Usage popover needs versions, which are still loading right after the
+                      sheet opens — reserve its space with a skeleton instead of popping it
+                      in once the fetch resolves. */}
+                  {loadingVersions ? (
+                    <Skeleton className="h-8 w-20 rounded-md" />
+                  ) : (
+                    versions.length > 0 && (
+                      <VideoGenUsagePopover
+                        versions={versions}
+                        nodeId={nodeId}
+                        upstreamNodeIds={[
+                          ...(promptNode ? [promptNode.id] : []),
+                          ...upstreamImages.map((u) => u.id),
+                        ]}
+                      />
+                    )
                   )}
                   <Tooltip>
                     <TooltipTrigger render={<span />}>
@@ -841,6 +864,9 @@ export function VideoGenFocusView({
                           : videoUrl
                             ? "Re-generate"
                             : "Generate"}
+                        {!isGenerating && estimatedCredits !== null && (
+                          <EstimatedCreditsLabel credits={estimatedCredits} />
+                        )}
                       </Button>
                     </TooltipTrigger>
                     {(constraints.disableGenerate && constraints.disableGenerateReason) ? (
@@ -856,9 +882,9 @@ export function VideoGenFocusView({
                   </Tooltip>
                 </div>
                 {lastError && !isGenerating && (
-                  <p className="text-xs text-destructive">
-                    Last attempt failed: {lastError}
-                  </p>
+                  <div className="mt-1">
+                    <GenerationErrorBadge error={lastError} />
+                  </div>
                 )}
               </div>
             </header>

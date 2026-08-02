@@ -5,7 +5,11 @@ import { toast } from "sonner";
 import { createBrowserSupabase } from "@/lib/supabase/client";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import type { GenerationRow } from "@/lib/db/types";
-import type { RealtimeChannel } from "@supabase/supabase-js";
+import type {
+  RealtimeChannel,
+  RealtimePostgresChangesPayload,
+  REALTIME_SUBSCRIBE_STATES,
+} from "@supabase/supabase-js";
 
 export type VideoGenStatus = {
   isGenerating: boolean;
@@ -40,7 +44,7 @@ export function useVideoGenStatus(nodeId: string): VideoGenStatus {
       .eq("status", "running")
       .limit(1)
       .maybeSingle()
-      .then(({ data, error }) => {
+      .then(({ data, error }: { data: unknown; error: unknown }) => {
         if (cancelled) return;
         if (error) { console.error("[useVideoGenStatus] hydration failed", error); return; }
         if (data) setVideoGenGenerating(nodeId, true);
@@ -60,7 +64,7 @@ export function useVideoGenStatus(nodeId: string): VideoGenStatus {
         .on(
           "postgres_changes",
           { event: "INSERT", schema: "public", table: "generations", filter: `node_id=eq.${nodeId}` },
-          (payload) => {
+          (payload: RealtimePostgresChangesPayload<GenerationRow>) => {
             const gen = payload.new as GenerationRow;
             if (gen.status === "running") {
               setVideoGenGenerating(nodeId, true);
@@ -71,7 +75,7 @@ export function useVideoGenStatus(nodeId: string): VideoGenStatus {
         .on(
           "postgres_changes",
           { event: "UPDATE", schema: "public", table: "generations", filter: `node_id=eq.${nodeId}` },
-          (payload) => {
+          (payload: RealtimePostgresChangesPayload<GenerationRow>) => {
             const gen = payload.new as GenerationRow;
             if (gen.status === "succeeded") {
               setVideoGenGenerating(nodeId, false);
@@ -84,7 +88,7 @@ export function useVideoGenStatus(nodeId: string): VideoGenStatus {
             }
           },
         )
-        .subscribe(async (subscribeStatus) => {
+        .subscribe(async (subscribeStatus: REALTIME_SUBSCRIBE_STATES) => {
           if (subscribeStatus !== "SUBSCRIBED") return;
           // Close the race window: check if generation completed during subscription handshake.
           const { data } = await supabase

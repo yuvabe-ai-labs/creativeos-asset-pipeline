@@ -1,7 +1,21 @@
 # Reference Clipper — Chrome side-panel → canvas File nodes
 
+> ## ⛔ RETIRED — 2026-07-28 (D93). Superseded by Client Moodboards (D92).
+>
+> This feature **shipped** (2026-07-05) and has now been **removed from the codebase**:
+> `clipper-extension/`, `POST /api/ingest-image`, and `src/lib/reference-clipper/` are all deleted.
+> **Client Moodboards (D92)** replaced it — same right-click capture gesture, but images stage
+> against a **client moodboard** instead of being pushed straight onto the active canvas tab.
+> Its replacement is `moodboard-extension/` +
+> [`2026-07-22-client-moodboards-design.md`](2026-07-22-client-moodboards-design.md).
+>
+> **Kept as a historical record only** — the design rationale below is why the push-to-active-tab
+> model was chosen, and D93 in the roadmap records why it was dropped. Do not build from this doc.
+> The **D36** it claims below was never appended to the ADR log and was later taken by the guided
+> next-node flow; the clipper never received a D-number.
+
 **Date:** 2026-07-05
-**Status:** Draft design — pending user review.
+**Status:** ⛔ **RETIRED 2026-07-28 (D93)** — shipped 2026-07-05, removed 2026-07-28. Historical record.
 **Type:** Design spec (new feature; introduces **D36**; first *external* write path into the canvas).
 **Builds on:** **D13** (media in GCS, DB rows hold only URLs), **D14** (auth deferred — the ingest
 endpoint is open, like the rest of the app), **D33** (single-writer lock — untouched here; see §7),

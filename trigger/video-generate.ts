@@ -20,13 +20,18 @@ export const videoGenerateTask = task({
     const MOCK_MODE = payload.mockMode === true;
     const appUrl = process.env.APP_URL;
     if (!appUrl) throw new Error("APP_URL env var not set");
+    const secret = process.env.TRIGGER_WEBHOOK_SECRET;
+    if (!secret) throw new Error("TRIGGER_WEBHOOK_SECRET env var not set");
 
     const webhookUrl = `${appUrl}/api/webhooks/generation`;
 
     const postWebhook = async (body: object) => {
       const res = await fetch(webhookUrl, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${secret}`,
+        },
         body: JSON.stringify(body),
       });
       if (!res.ok) {

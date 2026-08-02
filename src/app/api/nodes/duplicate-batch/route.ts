@@ -1,5 +1,5 @@
 import { createServerSupabase } from "@/lib/supabase/server";
-import { apiError, apiOk, withTryCatch } from "@/lib/api/route-helpers";
+import { apiError, apiOk, withTryCatch, withCanvas } from "@/lib/api/route-helpers";
 
 type InternalEdge = { source: string; target: string };
 
@@ -10,14 +10,18 @@ type BatchDuplicateBody = {
 };
 
 export async function POST(req: Request) {
-  return withTryCatch("Batch duplicate failed", async () => {
-    const body = (await req.json()) as BatchDuplicateBody;
-    const { canvasId, nodeIds, internalEdges } = body;
+  const body = (await req.json().catch(() => null)) as BatchDuplicateBody | null;
+  const { canvasId, nodeIds, internalEdges } = body ?? {};
 
-    if (typeof canvasId !== "string" || !canvasId || !Array.isArray(nodeIds) || nodeIds.length === 0) {
-      return apiError("canvasId and nodeIds are required.", 400);
-    }
+  if (typeof canvasId !== "string" || !canvasId || !Array.isArray(nodeIds) || nodeIds.length === 0) {
+    return apiError("canvasId and nodeIds are required.", 400);
+  }
 
+  // canvasId comes from the request body, not a URL param — this route isn't rooted at
+  // /api/canvas/[id]/* or /api/nodes/[id]/*, so it never went through an isolation check
+  // at all until now. withCanvas takes the same { id } shape everywhere else uses.
+  return withCanvas(Promise.resolve({ id: canvasId }), async () => {
+    return withTryCatch("Batch duplicate failed", async () => {
     const supabase = createServerSupabase();
 
     // 1. Fetch all source nodes — validate they belong to this canvas
@@ -136,5 +140,6 @@ export async function POST(req: Request) {
     }
 
     return apiOk({ nodes: insertedNodes, edges: insertedEdges }, 201);
+    });
   });
 }

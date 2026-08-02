@@ -1358,7 +1358,252 @@ name-matching; per-org Drive OAuth (too heavy for the pilot).
 
 **Originated →** `2026-07-14-copilot-selection-context-design.md` (§6).
 
-### D77 — Kling integration rebuilt against verified docs; polling replaces webhook *(recorded 2026-07-23)*
+### D77 — Credit accounting becomes an append-only ledger with atomic row-locked reservation; supersedes D47 *(recorded 2026-07-21; from the auth staging rollout plan, Stage 3)*
+
+**Decision.** `credit_transactions` (`org_id`, `generation_id`, `amount`, `type` ∈
+{reservation, consumption, refund, adjustment}, `created_at`) replaces the derived-on-read
+`SUM(credits_consumed)`. `reserveCredits()` locks the org's row, sums this-month
+reservation+consumption rows, rejects if the estimate would exceed the limit, else inserts a
+`reservation` row before the job dispatches. Job success settles the reservation to actual
+cost via a `consumption` row; failure/cancel zeroes it via a `refund` row. Month boundary
+pinned to UTC.
+
+**Why.** Derived-on-read summing can't stop two concurrent requests near the cap from both
+passing — nothing is reserved until after the job runs. A row lock at reservation time closes
+that race, and an append-only ledger gives reconciliation and future billing a real audit
+trail instead of one mutable number.
+
+**Rejected.** Keeping `SUM(credits_consumed)` derived-on-read (D47's original shape) —
+right-sized for the initial design, revisited once the race condition and audit-trail gap
+were named explicit requirements for the rollout.
+
+**Originated →** `2026-07-21-auth-staging-rollout-plan.md` (Stage 3).
+
+### D78 — RLS backstop expands to every independently-read org_id table; standing rule going forward; refines D44 *(recorded 2026-07-21; Stage 2)*
+
+**Decision.** RLS moves from "the two Realtime tables" (D44) to every table that carries
+`org_id` directly and is read by something other than a `withClient()`-guarded route —
+`generations`, `node_files`, `client_kb_jobs`, `canvases`, `credit_transactions`. Standing
+rule: any future migration adding an `org_id` column adds its RLS policy in the same
+migration. Each policy also matches the JWT's `platform_role` claim directly, so a
+super_admin's own Realtime subscription or impersonation session isn't blocked. `clients`
+itself stays app-layer-only (D44) — it's never read outside a `withClient()`-guarded path.
+
+**Why.** Workers, webhooks, and Realtime subscriptions read these tables independently of
+`clients` — D44's chokepoint-only model didn't reach them once `org_id` was pushed down
+directly onto each one.
+
+**Rejected.** RLS on every table regardless of read path (D44's original reasoning still
+holds for `clients`, `nodes`, `node_versions` — no independent read path exists for them yet).
+
+**Originated →** `2026-07-21-auth-staging-rollout-plan.md` (Stage 2).
+
+### D79 — Async workers revalidate a job's org_id against the resource's current org_id before processing *(recorded 2026-07-21; Stage 2)*
+
+**Decision.** Generation workers run under the service-role key (RLS-bypassing by design, no
+session to check against). Each job row carries its `client_id`/`org_id` immutably from
+creation; before processing, the worker re-fetches the target resource and confirms its
+current `org_id` still matches the job's. A mismatch is dropped and logged, never processed.
+
+**Why.** D44's app-layer chokepoints and D78's RLS both assume a session; workers have
+neither. The job row is the only trustworthy source of tenant identity available to them.
+
+**Originated →** `2026-07-21-auth-staging-rollout-plan.md` (Stage 2).
+
+### D80 — org_memberships: one active org per user enforced by a unique index; last owner of an org can't be removed or demoted; refines D49 *(recorded 2026-07-21; Stage 1)*
+
+**Decision.** `UNIQUE(user_id)` on `org_memberships` makes "one org per user" a database
+guarantee in the pilot, not just convention. A trigger blocks removing or demoting the last
+`owner` row of an org.
+
+**Why.** D49 designed the join table for future multi-seat but left both invariants implicit;
+an org silently left without an owner, or a user in two orgs at once during the single-seat
+pilot, are bugs worth making structurally impossible now rather than debugging later.
+
+**Originated →** `2026-07-21-auth-staging-rollout-plan.md` (Stage 1).
+
+### D81 — Impersonation adds an audit log and a read-only default; writes require explicit elevated-mode entry; refines D52 *(recorded 2026-07-21; Stage 4)*
+
+**Decision.** Impersonation sessions are read-only by default. Making a write as an
+impersonated org requires a separate, explicit "enter elevated support mode" action.
+`impersonation_audit_log` records operator, target org, start/end time, mode, and actions for
+every session and every elevated-mode entry. The impersonation cookie is also re-checked
+against the operator's *live* super_admin status on every request, not just when the cookie
+was set.
+
+**Why.** D52 established the no-session-swap cookie mechanism but didn't distinguish looking
+from acting, or log either — for a feature whose whole purpose is one operator quietly
+seeing/touching another org's data, both are the difference between "support tool" and
+"unaudited backdoor."
+
+**Originated →** `2026-07-21-auth-staging-rollout-plan.md` (Stage 4).
+
+### D82 — No CLI onboarding script; org/user creation ships as the admin UI in Stage 1 *(recorded 2026-07-21; Stage 1)*
+
+**Decision.** `scripts/seed-org.ts` is dropped from the plan. `/admin/orgs/new` (org + user +
+membership in one submission) is the only onboarding path, built as part of Stage 1 rather
+than deferred behind a script-first MVP. Bootstrapping the very first Yuvabe super_admin
+account (before any UI can exist to create it) is a one-time manual step via the Supabase
+dashboard/admin API, documented as a setup note — not app code, not a maintained script.
+
+**Why.** A CLI script and a UI form for the same six steps is duplicated logic with two things
+to keep in sync; building the UI first (not the script-then-UI dual path the 2026-07-15 spec
+described) means there's exactly one onboarding path to test and maintain, and it's the one
+non-technical Yuvabe staff can actually use.
+
+**Rejected.** Script-first with the UI as a later nice-to-have (the 2026-07-15 spec's original
+§10/§11 shape); building both in parallel.
+
+**Originated →** `2026-07-21-auth-staging-rollout-plan.md` (Stage 1).
+
+### D83 — Auth ships to staging as four independently-deployable stages *(recorded 2026-07-21)*
+
+**Decision.** The auth build lands on staging as four ordered stages, each a mergeable,
+demoable increment: **(1)** foundation — schema, Supabase Auth, DAL, `withClient()` org check,
+and the admin onboarding UI; **(2)** RLS backstop + async worker tenant check (D78/D79); **(3)**
+credit ledger (D77); **(4)** impersonation (D81). (1) is a hard prerequisite for the rest. (2)
+ships next because it's the cheapest, most isolated hardening with no new user-visible
+surface — no reason to hold it behind feature work. (3) and (4) each depend only on (1) and
+can build in parallel with (2); (4) is sequenced last because it's the highest-blast-radius
+feature (an operator viewing/acting inside another org's data), and benefits from (1)–(3)
+having already proven out on staging first.
+
+**Why.** Each stage is independently testable and reversible on staging; a defect isolated to
+one stage (say a ledger bug in Stage 3) doesn't block onboarding new agencies via Stage 1 or
+require re-testing impersonation to isolate.
+
+**Originated →** `2026-07-21-auth-staging-rollout-plan.md` (all sections).
+
+### D84 — Forced password change on first login is deferred, not built in the pilot *(recorded 2026-07-21; Stage 1C)*
+
+**Decision.** No forced password-change flow ships in this pass. `loginAction` redirects
+straight to `/` on a successful sign-in — no `must_change_password` app_metadata flag, no
+`/account/password` page. Applies to every login, operator or future agency owner alike: they
+sign in with whatever password they were given and that's it.
+
+**Why.** Cut to reduce complexity in the pilot's first login pass — an explicit scope
+reduction, not an oversight. Nothing about the rest of the design depends on it; the temp
+password shown once at org-creation time (D82) remains the only credential-handoff step.
+
+**Rejected.** Building it now as originally sketched in the 2026-07-15 spec's User Lifecycle
+(§ "Prompted to change password on first login").
+
+**Note for 1D:** the future `createOrgWithOwner` (Stage 1D, admin onboarding UI) must not set
+`must_change_password` either — this decision applies there too, not just to the Stage 1C
+login path.
+
+**Originated →** `2026-07-21-auth-stage-1c-login-enforcement.md`.
+
+### D85 — super_admin's normal app view is scoped to their own org; cross-org visibility lives only in /admin and (later) impersonation *(recorded 2026-07-21; Stage 1D; resolves a tension between D42's spec §6 and §7)*
+
+**Decision.** `withClient()` and the client/canvas list queries (`listClients`,
+`listArchivedClients`, `listRecentCanvases`) no longer bypass the org check for
+`super_admin`. On the normal app — client list, canvases, everything outside `/admin` —
+`developer@yuvabe.com` sees only Yuvabe's own clients, exactly like any other org's owner.
+Cross-org visibility is confined to `/admin`'s own queries (`listOrgsWithClientCount`,
+`getOrgById`, `listOrgMembers`), which operate on `organizations`, not `clients`, and are
+already `requireSuperAdmin()`-gated. Broader cross-org access (viewing another org's actual
+canvas workspace) is deferred to Stage 4 impersonation — until it ships, not even
+super_admin can browse an agency's data outside `/admin`'s summary view.
+
+**Why.** The original 2026-07-15 spec (D42) was internally inconsistent: §6 said list
+queries have "no filter for super_admin" (unfiltered, always); §7's impersonation flow
+implied the opposite — `resolveOrgId()` returns the caller's own org from the membership
+table by default, only switching on an explicit impersonation cookie. Built to §6 first
+(1C/1D initial pass), then caught during 1D's manual isolation testing: with §6's behavior,
+the Yuvabe operator's own workspace showed every onboarded agency's clients mixed in with
+Yuvabe's — doesn't scale past a couple of agencies, and makes the whole point of an audited
+impersonation feature moot (why build "enter as org," logged, if you can already see
+everything all the time regardless). §7's model is more secure, matches the design's own
+stated impersonation semantics, and keeps blast radius proportional to intent: "administering
+the platform" (`/admin`) is a different action from "acting as an org" (the normal app).
+
+**Rejected.** Keeping the blanket bypass (§6 as literally written) — simpler, no rework, but
+doesn't scale and undercuts D52's impersonation design.
+
+**Originated →** `2026-07-21-auth-stage-1d-admin-onboarding-ui.md`.
+
+### D86 — Dropped a pre-existing `anon_read_generations` RLS policy that silently defeated the new org-isolation policy *(recorded 2026-07-23; Stage 2B)*
+
+**Decision.** `generations` carried a pre-existing `anon_read_generations` policy
+(`qual: true`, `roles: {public}`) predating this rollout — not recorded in any migration,
+likely a leftover from the pre-auth era (D14, "whole app open," never cleaned up when login
+was added). Postgres OR's permissive RLS policies together, so this unconditional policy
+granted public read access to every row — including to unauthenticated `anon` requests
+hitting Supabase's REST API directly, bypassing the Next.js app entirely — regardless of
+0014's new org-scoped `org isolation` policy on the same table. Dropped in migration `0015`.
+
+**Why.** Found only by inspecting `pg_policies` directly after applying 0014; the migration's
+own `rowsecurity`/row-count checks reported success without revealing a second policy quietly
+overriding the first. Left in place, the RLS backstop just built for `generations` would have
+been cosmetic — present in the catalog, provably inert in practice.
+
+**Originated →** `2026-07-21-auth-stage-2b-rls-backstop.md`.
+
+### D88 — Default-deny RLS enabled on every remaining table; supersedes the "app-layer only, no RLS" half of D44 *(recorded 2026-07-23; Stage 2B follow-on)*
+
+**Decision.** All 10 tables that still had RLS disabled after 2B (`clients`, `nodes`,
+`node_versions`, `edges`, `organizations`, `profiles`, `org_memberships`,
+`client_brand_images`, `client_kb_documents`, `client_kb_versions`) now have RLS enabled
+with **zero policies** — default-deny for `anon`/`authenticated`. `org_memberships`
+additionally got one narrow policy (`user_id = auth.uid()`, self-read only), because the
+`org isolation` policies on `canvases`/`client_kb_jobs`/`generations` (D78) subquery it to
+find the caller's org, and RLS applies across that subquery too.
+
+**Why.** Confirmed via `information_schema.role_table_grants` on staging: `anon` — fully
+unauthenticated, no login required — held `SELECT`/`INSERT`/`UPDATE`/`DELETE`/`TRUNCATE` on
+all 10 tables, reachable directly through Supabase's REST API using the public anon key
+(embedded in every page the site serves), completely bypassing `proxy.ts`, the DAL, and
+every `withClient`/`withCanvas`/`withNode` check built across Stage 1 and 2A. D44's
+"app-layer only, RLS deferred as backstop" reasoning assumed these tables were merely
+*unreached* by direct browser access — it did not verify the underlying grants, which
+(per Supabase's default project setup) make "RLS disabled" equivalent to "world-readable
+and world-writable" for any table the default grants still cover. This was a live,
+currently-exploitable gap on staging, not a theoretical one.
+
+**Fix was cheap, unlike what D44 avoided.** D44 rejected "RLS-everywhere" because writing
+and maintaining correct per-org *policies* across ~34 service-role call sites and 10+
+tables was too large a lift for the pilot. This decision does not do that — it enables RLS
+with **no policies**, which is a single `alter table ... enable row level security`
+per table and nothing else, since the app's real data access always goes through the
+service-role client (`createServerSupabase()`), which bypasses RLS regardless of policy
+count. Nothing in the app's behavior changes. Only the unintended direct-REST-API path
+closes.
+
+**Rejected.** Leaving these tables as app-layer-only (D44 as originally scoped) — correct
+in spirit, but never actually verified against the real grant state, and wrong in practice
+once checked.
+
+**Originated →** `2026-07-21-auth-stage-2-index.md` (post-2B finding).
+
+### D89 — Authenticate the generation completion webhook with a shared secret *(recorded 2026-07-23; Stage 2C)*
+
+**Decision.** `/api/webhooks/generation` had no authentication at all — unlike
+`/api/webhooks/kb-build`, which already checked `Authorization: Bearer
+TRIGGER_WEBHOOK_SECRET` before processing anything. Fixed with the same secret, in two
+forms: the internal Trigger.dev path (`video-generate.ts` calling this app's own webhook)
+sends the identical `Authorization` header; the Kling path (an external provider calling
+back a URL, not guaranteed to forward custom headers) carries the secret as a `token`
+query parameter on the callback URL instead. Both checks share one extracted helper,
+`isAuthorizedWebhook()`, now used by both webhooks.
+
+**Why.** Found while scoping Stage 2C's originally-planned D79 tenant check — a distinct,
+larger gap than D79 itself. Without this, anyone who knew or guessed a `generationId` (or
+a Kling `provider_job_id`) could POST a fake "succeeded" result with an
+attacker-controlled `videoUrl`, which the server fetches and uploads to GCS as if it were
+the real output — a data-integrity issue and a mild SSRF-adjacent risk, not just a
+missing-check formality.
+
+**Superseded in part by D90.** The Kling path described above (URL-token auth, since an
+external provider calling back isn't guaranteed to forward headers) no longer exists — D90's
+Kling rewrite moved completion to internal polling, so Kling never calls this webhook at all
+anymore. `isAuthorizedWebhook()`'s header-based check (the internal Trigger.dev path) still
+stands unchanged; only the now-dead Kling branch and its `?provider=kling&token=...` URL
+shape were removed from `route.ts` when merging D90's rewrite in.
+
+**Originated →** `2026-07-21-auth-stage-2c-worker-tenant-check.md`.
+
+### D90 — Kling integration rebuilt against verified docs; polling replaces webhook *(recorded 2026-07-23; renumbered from a D77 collision at merge — this branch had already assigned D77 to the credit-ledger decision above)*
 
 **Decision.** The 6 live Kling models (`v1-5`/`v1-6`/`v2-1`/`v2-1-master`/`v2-6`/`v3`) were
 built with no working citation and no working host — every Kling generation on `main` is
@@ -1461,13 +1706,188 @@ preservation slipping).
 `2026-07-26-veo-preservation-first-prompt-design.md`. *(Originally drafted as a clashing D78 on the Veo
 branch; renumbered during the 2026-07-26 three-branch integration — final numbering to confirm on review.)*
 
+### D81 — Kling O1 params follow the live endpoint, not the 3.0-omni doc table *(recorded 2026-07-27; corrects the O1 row of `2026-07-23-kling-api-correction-design.md` §Per-model settings fields)*
+
+**Decision.** `kling:kling-o1`'s params are pinned to what `POST /omni-video/kling-o1` actually
+accepts, which is **not** what the published omni docs describe:
+- **duration** — a `5` / `10` **select**, not a 3–10 slider. Kling returns
+  `400 {"code":1201,"message":"Duration only supports 5 or 10 seconds when no refer_image is provided"}`,
+  and `buildKlingContents` only ever emits `first_frame`/`last_frame`, so the unrestricted branch is
+  unreachable by construction. Two non-contiguous stops cannot be a range control, so the control
+  *type* changes for O1 — 3.0 keeps its slider.
+- **audio** — `native` / `off`, not `original` / `off`. `original` retains a *reference video's*
+  soundtrack; we never send `base_video`/`feature_video`, so it produced silence. O1 previously had
+  no reachable audio-on value at all. A stored `original` migrates to `native` (same billing tier).
+- **multi_shot** — now always sent, defaulting `false`, and exposed as a toggle like 3.0. Omitting
+  it was not neutral: Kling's server-side default is `true`, so every O1 clip was silently opting
+  into shot cuts, against the product intent recorded for 3.0.
+
+Both duration and audio are additionally normalised in `buildO1Settings`, because nothing
+re-validates persisted node params on load.
+
+**Why.** The O1 row was read off the `/omni-video/kling-3.0-omni` doc page, which enumerates
+duration 3–15 with no `refer_image` caveat — but that page documents a **different path** than the
+one we call. The live endpoint's own validator is the only authority we have for `kling-o1`; there is
+no O1-specific doc page. Kling 3.0's 3–15 range **was** re-verified against
+`/image-to-video/kling-3.0` and is correct — the two models genuinely differ.
+
+**Rejected.** Widening duration to 3–15 on the strength of the omni doc page (wrong endpoint);
+implementing `refer_image` as part of this fix (that is the real feature — Ref chip → up to 7 images,
+`@image_n` prompt refs, arbitrary duration — and needs its own design); clamping 3.0's duration too
+(doc-confirmed correct); dropping stale `original` audio to `off` (loses the user's intent to have
+sound).
+
+**Known-unfixed, surfaced by the same doc pass:** `settings.negative_prompt` appears in **neither**
+endpoint's schema — we send it on both Kling models with a long prefilled default and Kling silently
+ignores it, so that textarea is currently decorative. `build3_0Settings` also falls back to
+`multi_shot ?? true`, contradicting `multiShotParam`'s declared `false` default, so pre-toggle 3.0
+nodes still generate multi-shot. Neither is changed here.
+
+**Corrects** the O1 row of `2026-07-23-kling-api-correction-design.md` (which remains authoritative
+for the other four Kling models). **Originated →** live-API debugging, 2026-07-27; official Kling
+docs pasted in by the user (kling.ai returns HTTP 446 to automated fetches).
+
+### D91 — OpenAI reference images are normalized server-side, never blocked on dimensions *(recorded 2026-07-28)*
+
+**Decision.** For OpenAI image-gen models, aspect-ratio (>3:1), max-edge (3840px), and
+multiple-of-16 constraints are enforced by **auto-correcting the image server-side**
+(center-crop, downscale, round-down) immediately before the `images.edit`/`images.generate`
+call, instead of gating on them in `validateReferenceImages`. Per-image size (50MB) and Gemini's
+aggregate size cap remain hard blocks — no resize fixes an outright-too-large file.
+`background: "transparent"` + `output_format: "jpeg"` (invalid combo — JPEG has no alpha) is
+silently corrected to `output_format: "png"`, same philosophy.
+
+**Why.** Root-caused 27 of 35 staging+prod OpenAI image-gen failures
+(`generations.status='failed'`) to a leaky validation gate: `validate.ts` skips its
+dimension checks whenever image metadata wasn't backfilled, which happens routinely on
+multi-reference edits (up to 16 images via `assembleEditReferences`) — so bad-dimension images
+reached OpenAI and failed there with an unactionable error instead of being caught upfront.
+Normalizing unconditionally, right before the provider call, can't be bypassed the way a
+pre-flight metadata-dependent gate can.
+
+**Rejected.** Fixing the validation backfill instead (still leaves a block-the-user UX for a
+problem that's trivially auto-fixable); padding instead of cropping for the aspect-ratio fix
+(adds visible blank space to what OpenAI sees as reference content).
+
+**Originated →** `2026-07-28-openai-image-gen-error-remediation-design.md`.
+
+### D92 — Client Moodboards are URL-first; bytes are re-hosted only on use *(recorded 2026-07-28; builds on D13, D14; revises the reference-clipper target model)*
+
+**Decision.** A **client-level Moodboard** — a named, reusable collection of reference images ("Face
+cream", "Mother's Day") owned by a client, like the Brand KB and Drive references (PRD §6). Boards are
+filled by a small **MV3 capture extension** (right-click any image on the web → "Add to moodboard",
+sticky target board) and by in-app **add-by-URL**, and are browsed as a **Moodboards tab** in the
+existing Gallery drawer (board list → board contents, mirroring the Drive folder drill-down). Storage
+is **URL-first**: an item is a row holding the image URL + the provenance page URL — nothing is fetched
+or stored at add time, and boards render by hotlinking. **Full-res bytes are re-hosted to GCS only when
+an item is dragged onto the canvas** and becomes an ordinary File node (`POST /api/nodes/[id]/file/from-url`,
+a near-clone of the existing Drive re-host route). Two tables (`moodboards`, `moodboard_items`); the
+extension-facing routes are open, per D14.
+
+**Why.** Pinterest cannot be embedded (it sends `x-frame-options: SAMEORIGIN` + CSP `frame-ancestors
+'self'`, verified 2026-07-22) and its API exposes only a user's own boards — so browsing stays in the
+real browser, and the fixable part is the path from "found a reference" to "usable in the canvas."
+URL-first is the least code and zero storage to validate that loop, and re-host-on-use puts durable
+storage exactly where durability starts to matter: the image now feeds generation and lands in the
+archive bundle (PRD §16). The v1 schema is a strict **subset** of the durable/semantic model, so
+thumbnails (link-rot insurance) and CLIP embeddings for shot→reference search (PRD F6) are additive
+`ALTER TABLE … ADD COLUMN` later — nothing is stored that must be migrated or thrown away.
+
+**Accepted caveat.** A CDN URL can rotate, so a long-idle board can show a broken tile and a
+drag-to-use can fail; the File node surfaces the existing `uploadError` state. Mitigation (add-time
+thumbnail cache) is the first deferred increment, not v1.
+
+**Rejected.** (a) Embed/iframe Pinterest — browser-blocked; (b) store full bytes at add time and purge
+later — more work at both ends, and vector search needs small *embeddings*, not hoarded images;
+(c) URL-only File **nodes** on the canvas — link rot on a live reference that feeds generation and the
+archive (re-host on use instead); (d) inline board-creation from the extension (Slice B v1 picks
+existing boards only).
+
+**Revises** the **reference clipper** (`2026-07-05-reference-clipper-design.md`) — which is **shipped**
+(`clipper-extension/`, `POST /api/ingest-image`, `src/lib/reference-clipper/`), not a paper design. Its
+capture target was "push to the **active canvas tab** as File nodes, then reload the tab"; D92 moves the
+target to "add to a chosen **client moodboard** (staging), with moodboard → canvas as a separate,
+re-hosting drag." The two models differ in *when* an image becomes a canvas node: the clipper pushes
+straight onto a canvas at capture time, the moodboard stages it against a client for later reuse.
+
+*(Numbering note: the clipper design claimed **D36** for itself but was never appended to this log, and
+D36 was subsequently taken by the guided next-node flow. The moodboard spec inherits that bad citation.
+The clipper therefore still has **no D-number**; assign one if it is kept.)*
+
+> **Resolved by D93** — the two capture extensions did *not* coexist for long: the clipper was
+> retired the same week and removed from the codebase. See below.
+
+**Originated →** `2026-07-22-client-moodboards-design.md`.
+
+### D93 — The reference clipper is retired; moodboards are the single capture path *(recorded 2026-07-28; supersedes the reference clipper, which never received a D-number; resolves the D92 follow-up)*
+
+**Decision.** The **reference clipper is removed from the codebase** — `clipper-extension/`,
+`POST /api/ingest-image`, and `src/lib/reference-clipper/` (with its 8 unit tests) are deleted.
+**`moodboard-extension/` (D92) is the one browser capture path** into CreativeOS. The clipper's design
+spec and plan are kept as historical records with retirement banners, not deleted.
+
+**Why.** Both extensions offered the same gesture — right-click an image on the web, send it to
+CreativeOS, re-host to GCS — differing only in destination. Shipping two is a maintenance and
+teaching cost (two manifests, two configured origins, two ingest routes to secure) for one user
+intent. The moodboard target is the better of the two: it **stages against a client** so a reference
+is reusable across every canvas for that client, where the clipper pushed onto whichever canvas
+happened to be in the active tab and had to **reload the tab** to render. The clipper's push-now
+convenience is recoverable later as a moodboard feature (add-and-immediately-drop) if it is missed —
+the reverse (rebuilding client-level staging inside the clipper) is the larger job.
+
+**What is lost.** The one-step "web image → node on the canvas I'm looking at" path. Under D92 the
+same image takes two steps: capture to a board, then drag it onto the canvas. Accepted — the drag is
+where re-hosting happens (D92), and the extra step buys client-level reuse.
+
+**Also removes** the slug-based open ingest route, which shrinks the deferred-auth surface: the
+multi-tenancy pilot's plan to put `/api/ingest-image` behind a session + org check (**D48**) is now
+moot — there is no such route. `moodboard-extension/`'s open endpoints inherit that hardening job
+instead.
+
+**Rejected.** (a) Keep both behind a destination picker in one extension — more code than either
+alone, for an intent the moodboard already covers; (b) keep the clipper unmaintained — an open,
+unauthenticated write path into the canvas is not something to leave lying around untended;
+(c) delete the clipper's spec/plan docs — the *why* is worth keeping even when the code is not.
+
+**Supersedes** the reference clipper (`2026-07-05-reference-clipper-design.md`). **Resolves** the D92
+follow-up.
+
+### D94 — Eval viewer generalizes to a per-node, all-action-types, version-aware error-analysis surface *(recorded 2026-07-02; **renumbered from D35** when the branch was integrated on 2026-07-30 — main had meanwhile assigned D35 to the Generation Tray above, and D36 builds on that; builds on D4/D18/D22; extends the built eval viewer; consumes the model-request capture; separate axis from D29/D34)*
+**Decision.** The eval viewer becomes a per-canvas surface that lists **all generated nodes grouped by
+action** (a `listNodeTraces` query + pure `mapNodeTraces`), whose detail focuses on **input → output**
+(polymorphic renderers), shows the **exact request sent** (the actual `inputs_used.request` content —
+system / compiled user / attachments — via the reused `ModelRequestPanel`), supports **open coding only**
+(Good/Bad + note on the *viewed* version via `setVersionLabelAction`), and lets a reviewer **walk a node's
+versions** with a **Δ that names what the human changed** — computed by **structured field comparison**
+(pure `diffVersions`: `controls` / `instruction` / `kbSlices` / upstream `reference` / `promptVersion`),
+**no LLM**; media outputs compared side-by-side; a **re-roll** flagged when nothing structured changed
+(same request, output moved = model nondeterminism). A list+detail **`EvalWorkbench` replaces the
+sequential `ReviewScreen`** for this route. **The quality/learning axis (`decision`/`note`) stays distinct
+from the sign-off axis (`approval_status`, D29/D34).** **Why.** "See what we can learn to improve the
+prompt" — Hamel/Shankar error analysis (*look → open-code → cluster → fix*); the viewer is the microscope.
+Naming the Δ (not just diffing a blob) is possible because inputs are captured as *structured* fields.
+**Rejected.** Failure tags / axial clustering in this surface (deferred to a later analyse step, by-hand
+first); a blob text-diff as the *primary* Δ (loses the ability to name the changed knob); an LLM for the Δ
+(unnecessary, non-deterministic). **No migration** — a query + mapping generalization over the existing
+envelope. **Deferred.** Tags/axial, cross-client rollup, LLM-judge scorers, production upstream-input
+resolution for panel A, structured (script) rich rendering.
+
+**Integration notes (2026-07-30).** The `/eval/[canvasId]` route **keeps the org-isolation guard** the
+auth rollout added to it — a canvas outside the caller's org renders as not-found, never confirming a
+foreign org's canvas exists — so the workbench swap did not reopen that path. `ModelRequestPanel` kept
+main's tabbed shell (it renders inside the "Sent to model" rail pane, which supplies the heading) and
+gained this branch's `splitBlocks` sectioning for the compiled-input tab; the branch's separate drawer
+was dropped as redundant with the rail. `listEvalTraces` + `ReviewScreen` are left in place but are now
+**unreferenced** — the sequential reviewer this decision replaces.
+**Originated.** `2026-07-02-eval-viewer-error-analysis-design.md`; plan `2026-07-02-eval-viewer.md`.
+
 ### Parked / out-of-scope (with revisit triggers)
 | Item | Status | Revisit when |
 |---|---|---|
 | **Brief node** (upstream-brief parsing) | Defined MVP node type; **retained, not built** — Script node shipped instead (D16) | A project needs to start from a brief, not a finished script |
 | Context "% slider" / relevance ranking | Parked (D7) | Client KB outgrows the context window → add RAG |
 | Full client KB (structured + files + selection) | ✅ Pulled forward into Stage 1 (D17) | — |
-| Multi-tenant auth | Out of scope (PRD §18) | Post-MVP external access |
+| Multi-tenant auth | 🟡 In staged rollout (Stage 1 of 4 — see `2026-07-21-auth-staging-rollout-plan.md`) | — |
 | Automated branching / auto-rewiring | Out of scope (PRD §15) — **except** human-triggered Shot fan-out, which creates nodes (not edges) on explicit click (D21) | Not planned (beyond D21's bounded, manual fan-out) |
 | Edge `pinned_version_id` (freeze a connection) | Optional extension (D8) | If "don't auto-follow active" is ever needed |
 | Real queue infra (Redis/SQS/BullMQ + workers) | Parked (D12/D13) | Own GPU compute, high concurrency, or complex retries |

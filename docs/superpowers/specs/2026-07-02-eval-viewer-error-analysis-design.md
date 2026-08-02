@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-02
 **Status:** Approved design (brainstormed + visually composed via the companion, session `2072-1782968009`). Implementation pending (test-first).
-**Type:** Design spec — generalizes the **already-built** eval review viewer into a per-canvas, per-node, all-action-types, version-aware error-analysis surface. Adds ADR **D35** (append to `2026-05-30-creativeos-staging-roadmap.md` §7).
+**Type:** Design spec — generalizes the **already-built** eval review viewer into a per-canvas, per-node, all-action-types, version-aware error-analysis surface. Adds ADR **D94** (append to `2026-05-30-creativeos-staging-roadmap.md` §7).
 **Builds on (all built):** the eval-review viewer — `ReviewScreen`, `listEvalTraces`, `mapEvalTraces`, `setVersionLabelAction`, `/eval/[canvasId]` (spec `2026-06-14-eval-review-viewer-design.md`; arch `2026-06-16-eval-system-architecture.md`); the **model-request capture** (`node_versions.inputs_used.request` = `{systemPrompt, compiledUser, attachments, effectiveInstruction}`, `ModelRequestPanel`, plan `2026-07-02-model-request-capture.md`).
 **Grounded in:** **D4** (uniform envelope), **D18** (a version = one model attempt; manual edits fold in), **D22** (`generated_output` frozen; the correction signal), the eval flywheel rationale (Hamel/Shankar: *look → open-code → cluster → fix*).
 **Separate from:** **D29** approval flag and **D34** review surface — those are the *sign-off* axis; this is the *quality/learning* axis (`decision`/`note`). Intentionally distinct fields (D29 §4.2).
@@ -124,8 +124,8 @@ type NodeTrace = {
 
 Failure-mode tags / axial clustering, cross-client rollup, LLM-judge scorers, approval — all deferred (§3).
 
-## 10. ADR — D35 (append to §7)
+## 10. ADR — D94 (append to §7)
 
-**D35 — Eval viewer generalizes to a per-node, all-action-types, version-aware error-analysis surface** *(recorded 2026-07-02; builds on D4/D18/D22; extends the built eval viewer; consumes the model-request capture; separate axis from D29/D34)*.
+**D94 — Eval viewer generalizes to a per-node, all-action-types, version-aware error-analysis surface** *(recorded 2026-07-02; builds on D4/D18/D22; extends the built eval viewer; consumes the model-request capture; separate axis from D29/D34)*.
 **Decision.** The eval viewer becomes a per-canvas surface that lists **all generated nodes grouped by action**, and whose detail focuses on **input → output**, shows the **exact request sent** (actual `inputs_used.request` content, as parts), supports **open coding only** (Good/Bad + note on the viewed version), and lets a reviewer **walk a node's versions** with a **Δ that names what the human changed** — computed by **structured field comparison** (no LLM; optional text-diff for word-level highlight; media side-by-side). **Rejected:** tags/axial clustering in this surface (deferred to a later analyse step, by-hand-first); blob text-diff as the primary Δ (loses the ability to name the changed knob — structured capture avoids it); an LLM to compute the Δ (unnecessary and non-deterministic). **No migration** — a query + mapping generalization over the existing envelope. **Reuses** `ReviewScreen`, `setVersionLabelAction`, `ModelRequestPanel`.
 **Originated.** `2026-07-02-eval-viewer-error-analysis-design.md`.

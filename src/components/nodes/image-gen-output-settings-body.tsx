@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Sparkles } from "lucide-react";
+import { AlertTriangle, Loader2, Sparkles } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -13,6 +13,7 @@ import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { ImageGenOutputSettings } from "./image-gen-output-settings";
 import type { ClientModelSpec } from "@/lib/image-gen/client-models";
 import type { ValidationResult } from "@/lib/image-gen/validate";
+import { EstimatedCreditsLabel } from "./estimated-credits-label";
 
 type ParamFormValues = Record<string, unknown>;
 
@@ -34,6 +35,9 @@ type Props = {
   hasPrompt: boolean;
   /** An existing attempt turns "Generate" into "Re-generate". */
   hasImage: boolean;
+  /** Pre-generation credit estimate — null while unavailable/still computing. */
+  estimatedCredits: number | null;
+  estimating: boolean;
 };
 
 /**
@@ -55,13 +59,17 @@ export function ImageGenOutputSettingsBody({
   editing,
   hasPrompt,
   hasImage,
+  estimatedCredits,
+  estimating,
 }: Props) {
   const editable = useCanvasEditable(); // D33: false when this session is read-only
   const refOverLimit = referenceCount > model.maxReferenceImages;
 
   // One derived reason drives both the Generate button's disabled state and its
   // tooltip — the button is never disabled without an explanation, and the two
-  // can't drift apart.
+  // can't drift apart. `estimating` disables the button too (below), but deliberately has
+  // no entry here — the spinning Loader2 icon on the button is the indicator for that case,
+  // not a tooltip message.
   const generateDisabledReason: string | null = generating
     ? "A generation is already running."
     : editing
@@ -98,15 +106,19 @@ export function ImageGenOutputSettingsBody({
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger
-              render={<span className="mt-5 flex w-full justify-start" />}
+              render={<span className="mt-5 inline-flex w-fit" />}
             >
               <Button
                 className="px-14 py-4 text-sm"
                 size="default"
                 onClick={onGenerate}
-                disabled={Boolean(generateDisabledReason)}
+                disabled={Boolean(generateDisabledReason) || estimating}
               >
-                <Sparkles className="size-4" strokeWidth={1.5} />
+                {estimating ? (
+                  <Loader2 className="size-4 animate-spin" strokeWidth={1.5} />
+                ) : (
+                  <Sparkles className="size-4" strokeWidth={1.5} />
+                )}
                 {generating
                   ? "Generating…"
                   : editing
@@ -114,6 +126,9 @@ export function ImageGenOutputSettingsBody({
                   : hasImage
                   ? "Re-generate"
                   : "Generate"}
+                {!generateDisabledReason && !estimating && estimatedCredits !== null && (
+                  <EstimatedCreditsLabel credits={estimatedCredits} />
+                )}
               </Button>
             </TooltipTrigger>
             {generateDisabledReason && (

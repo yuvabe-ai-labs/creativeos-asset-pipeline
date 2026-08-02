@@ -32,8 +32,7 @@ export function ClientsHomeTabs({
   return (
     <Tabs value={tab} onValueChange={setTab}>
       <header className="animate-rise mb-10">
-        <p className="text-eyebrow">Increment 1D · persisted</p>
-        <div className="mt-2 flex items-end gap-4">
+        <div className="flex items-end gap-4">
           <TabsList variant="line" className="h-auto w-auto flex-1 gap-6 p-0">
             <TabsTrigger value="clients" className={triggerClass}>
               Clients
@@ -59,7 +58,7 @@ export function ClientsHomeTabs({
           <Card className="flex flex-col items-center justify-center gap-2 border-dashed p-14 text-center">
             <p className="font-display text-lg font-medium">No clients yet</p>
             <p className="max-w-sm text-sm text-muted-foreground">
-              Create one to get started — it now saves to the database and survives a refresh.
+              Create your first client to start building canvases.
             </p>
           </Card>
         ) : (

@@ -8,9 +8,7 @@ import {
   isApiError,
 } from "@/lib/api/route-helpers";
 import { uploadClientLogo } from "@/lib/storage";
-
-// svg and gif are allowed for logos beyond the standard IMG_EXTENSIONS set
-const LOGO_EXTENSIONS = new Set(["png", "svg", "jpg", "jpeg", "webp", "gif"]);
+import { LOGO_EXTENSIONS } from "@/lib/clients/constants";
 
 // POST /api/clients/:id/logo — upload client logo to GCS.
 export async function POST(

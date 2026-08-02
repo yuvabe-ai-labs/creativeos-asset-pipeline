@@ -83,11 +83,62 @@ describe("per-model settings builders", () => {
     ).toEqual({ multi_shot: false, audio: "native", resolution: "4k", duration: 15 });
   });
 
-  it("buildO1Settings uses the original/off audio enum", async () => {
+  // Kling: 400 code 1201 "Duration only supports 5 or 10 seconds when no refer_image is
+  // provided". We never send refer_image, so anything else must be clamped before it ships —
+  // a node saved while the param spec still offered 3–10 would otherwise fail every generate.
+  it.each([3, 4, 6, 7, 8, 9, 15, 0])(
+    "buildO1Settings clamps the illegal duration %i to 5",
+    async (duration) => {
+      const { buildO1Settings } = await import("../providers/kling");
+      expect(buildO1Settings({ duration }).duration).toBe(5);
+    },
+  );
+
+  it.each([5, 10, "5", "10"])(
+    "buildO1Settings passes the legal duration %s through unchanged",
+    async (duration) => {
+      const { buildO1Settings } = await import("../providers/kling");
+      expect(buildO1Settings({ duration }).duration).toBe(Number(duration));
+    },
+  );
+
+  // Verified against the official /image-to-video/kling-3.0 docs: settings.duration enumerates
+  // 3–15 with no refer_image caveat, unlike O1. The two models genuinely differ — do not
+  // "consolidate" this by applying O1's clamp here.
+  it("build3_0Settings does NOT clamp — 3.0 genuinely accepts 3–15", async () => {
+    const { build3_0Settings } = await import("../providers/kling");
+    expect(build3_0Settings({ duration: 7 }).duration).toBe(7);
+  });
+
+  // Kling defaults multi_shot to TRUE server-side, so leaving the field out of the body — as
+  // this builder originally did — silently opted every O1 clip into multi-shot cuts.
+  it("buildO1Settings always sends multi_shot, defaulting to false when unset", async () => {
+    const { buildO1Settings } = await import("../providers/kling");
+    expect(buildO1Settings({}).multi_shot).toBe(false);
+    expect(buildO1Settings({ multi_shot: true }).multi_shot).toBe(true);
+  });
+
+  // `original` retains a reference video's soundtrack and we never send a video, so a node
+  // saved while it was the only audio-on option must carry over to native, not fall to silence.
+  it("buildO1Settings maps the legacy original audio value to native", async () => {
+    const { buildO1Settings } = await import("../providers/kling");
+    expect(buildO1Settings({ audio: "original" }).audio).toBe("native");
+  });
+
+  it.each([
+    ["native", "native"],
+    ["off", "off"],
+    [undefined, "off"],
+  ])("buildO1Settings resolves audio %s to %s", async (input, expected) => {
+    const { buildO1Settings } = await import("../providers/kling");
+    expect(buildO1Settings({ audio: input }).audio).toBe(expected);
+  });
+
+  it("buildO1Settings builds a full body", async () => {
     const { buildO1Settings } = await import("../providers/kling");
     expect(
-      buildO1Settings({ resolution: "1080p", duration: "10", audio: "original" }),
-    ).toEqual({ audio: "original", resolution: "1080p", duration: 10 });
+      buildO1Settings({ resolution: "1080p", duration: "10", audio: "native" }),
+    ).toEqual({ multi_shot: false, audio: "native", resolution: "1080p", duration: 10 });
   });
 
   // The param is snake_case for Kling (Veo's SDK takes camelCase `negativePrompt`), and is

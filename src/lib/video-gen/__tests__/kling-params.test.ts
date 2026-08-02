@@ -33,52 +33,70 @@ describe("kling30Params", () => {
 });
 
 describe("klingO1Params", () => {
-  it("has resolution, duration, and audio (no multi_shot)", () => {
+  it("has resolution, duration, audio, and multi_shot", () => {
     expect(names(klingO1Params)).toEqual(
-      expect.arrayContaining(["resolution", "duration", "audio"]),
+      expect.arrayContaining(["resolution", "duration", "audio", "multi_shot"]),
     );
-    expect(names(klingO1Params)).not.toContain("multi_shot");
   });
 
-  // The omni endpoint documents native/original/off. The previous original/off pair came from
-  // fal.ai's O1 wrapper, not from Kling.
-  it("audio options are native/original/off", () => {
+  // The omni enum is native | original | off, but `original` only retains a reference video's
+  // own soundtrack and we never send a video — so it produced silence. `native` is the only
+  // value that yields audio in our flow; offering `original` made audio unreachable on O1.
+  it("audio offers native, not the reference-video-only original", () => {
     const p = klingO1Params.find((p) => p.name === "audio")!;
-    expect(p.constraints).toEqual({
-      type: "select",
-      options: ["native", "original", "off"],
-    });
+    expect(p.constraints).toEqual({ type: "select", options: ["native", "off"] });
   });
 
-  it("resolution includes 4k", () => {
-    const p = klingO1Params.find((p) => p.name === "resolution")!;
-    expect(p.constraints).toEqual({ type: "select", options: ["720p", "1080p", "4k"] });
+  // Kling defaults multi_shot to true server-side, so this must be present and default false —
+  // omitting it opted every O1 clip into multi-shot cuts.
+  it("multi_shot is exposed and defaults OFF, matching 3.0", () => {
+    const p = klingO1Params.find((p) => p.name === "multi_shot")!;
+    expect(p.component).toBe("toggle");
+    expect(p.defaultValue).toBe(false);
   });
 
-  // Rule OM12, from a live 400: "Duration only supports 5 or 10 seconds when no refer_image
-  // is provided" (code 1201, 2026-07-27). A discrete select, not the 3.0 slider.
-  it("duration is a 5/10 select, not a slider", () => {
+  // Not a slider like 3.0: Kling's /omni-video endpoint accepts an arbitrary duration only when
+  // a refer_image is supplied, and we only ever send first_frame — so 5 and 10 are the sole
+  // legal values, and two non-contiguous stops cannot be a range control.
+  it("duration is a 5/10 select, not a continuous slider", () => {
     const p = klingO1Params.find((p) => p.name === "duration")!;
     expect(p.component).toBe("select");
     expect(p.constraints).toEqual({ type: "select", options: ["5", "10"] });
-    expect(p.defaultValue).toBe("5");
+  });
+
+  it("offers no duration Kling would reject with code 1201", () => {
+    const p = klingO1Params.find((p) => p.name === "duration")!;
+    const options = p.constraints.type === "select" ? p.constraints.options : [];
+    expect(options).not.toContain("3");
+    expect(options).not.toContain("4");
+    expect(options).not.toContain("8");
   });
 });
 
-// Kling 3.0's slider stores a number where the old select stored a string; SliderControl
-// coerces legacy string values so saved nodes keep their duration.
+// The slider stores a number where the select stored a string. Both must survive the round
+// trip to the provider, or a node saved before this change generates at the wrong length.
 describe("duration value handling", () => {
-  it("kling 3.0 defaults to a number so SliderControl renders it directly", () => {
+  it("3.0 defaults to a number so SliderControl renders it directly", () => {
     const p = kling30Params.find((p) => p.name === "duration")!;
     expect(typeof p.defaultValue).toBe("number");
     expect(p.defaultValue).toBe(5);
   });
 
-  // O1's select stores strings; both builders coerce with Number(), so either survives the
-  // round trip to the provider.
-  it("O1 defaults to a string, matching its select options", () => {
+  // O1 is a chip select, and ParamChipGroup compares String(value) against the option list —
+  // so its default is a string, matching every other select param here.
+  it("O1 defaults to a string matching one of its options", () => {
     const p = klingO1Params.find((p) => p.name === "duration")!;
-    expect(typeof p.defaultValue).toBe("string");
+    expect(p.defaultValue).toBe("5");
+    const options = p.constraints.type === "select" ? p.constraints.options : [];
+    expect(options).toContain(p.defaultValue);
+  });
+
+  // Both models agree on 5s, so switching between them keeps the length the user chose.
+  it("both models default to 5 seconds regardless of value type", () => {
+    for (const params of [kling30Params, klingO1Params]) {
+      const p = params.find((p) => p.name === "duration")!;
+      expect(Number(p.defaultValue)).toBe(5);
+    }
   });
 });
 
@@ -114,9 +132,9 @@ describe("negative_prompt", () => {
     expect(
       kling30Params.filter((p) => p.group === "advanced").map((p) => p.name).sort(),
     ).toEqual(["audio", "multi_shot"]);
-    expect(klingO1Params.filter((p) => p.group === "advanced").map((p) => p.name)).toEqual([
-      "audio",
-    ]);
+    expect(
+      klingO1Params.filter((p) => p.group === "advanced").map((p) => p.name).sort(),
+    ).toEqual(["audio", "multi_shot"]);
   });
 
   it("sorts last within primary so the textarea renders below the paired controls", () => {
