@@ -1,13 +1,46 @@
 # Auth — Production Migration & Data Backfill
 
-**Status:** Reference for later — production has not been touched yet. Everything in this
-doc has already been done successfully on **staging** (Stage 1, Stage 2, and Stage 3 — see
-their own sections below); this is the same procedure, replayed against the **production**
-Supabase project, whenever you're ready to promote the work.
+**Status: DONE. Applied to production 2026-07-30.** All 25 migrations (`0012`-`0025`)
+were applied in order, `staging` was merged into `main` (PR #55) and deployed, the
+`credits_charged does not exist` gap (app code deployed before Stage 3 migrations landed —
+see note below) was caught and closed live, `developer@yuvabe.com` was bootstrapped as the
+first production `super_admin`, and Step 8's behavioral checks all fired as expected.
+Everything below is now a historical record of how it was done, kept for the next time this
+procedure needs replaying (a new environment, a rebuild, etc.) — not a pending TODO.
 
-**Do this once**, before (or in the same window as) deploying the auth app code to
-production — see the ordering note near the bottom, it matters, and it bit staging once
-already (see Step 3's warning).
+**Post-migration, same session:** the pre-existing production data (30 clients, 49 canvases,
+23 KB jobs, 576 generations) was moved out of the `yuvabe` seed org into a new org, **"Digital
+Marketing Team"** (slug `digital-marketing`, owner `design@yuvabe.com`) — the real org this
+data actually belongs to. `yuvabe` is now an empty org; `developer@yuvabe.com` remains its
+`super_admin`/owner with cross-org visibility via `/admin` (D85). This move updated `org_id`
+on all four tables that carry it (`clients`, `canvases`, `client_kb_jobs`, `generations`) via
+direct SQL, since **no UI/API for moving a client between orgs exists in the app** — org
+creation only happens via the dialog on `/admin` (`NewOrgDialog` → `createOrgAction` →
+`createOrgWithOwner`, `src/lib/db/organizations.ts:265-319`), which never touches `clients`.
+If this need recurs, that gap is worth closing with a real feature rather than repeating raw
+SQL. Historical `credit_transactions` rows were deliberately **not** moved (append-only
+ledger — moving them would rewrite financial history); the new org starts with a clean
+credit-usage history, `yuvabe`'s historical charts still cover the pre-move period correctly.
+
+**One real gotcha hit during the migration, worth remembering for next time:** merging all of
+`staging` into `main` in one shot deploys Stage 1 + 2 + 3 app code together, but this doc's
+migrations are applied in the same staged order they shipped to staging. Between finishing
+Step 6 (`0017`/`0018`) and starting Stage 3's migrations, the **already-deployed** app code
+(which includes Stage 3's credit-system UI/API) 500'd with `column generations.credits_charged
+does not exist` — because the DB was still only caught up to Stage 2. Fixed by immediately
+applying `0019`-`0025`. If replaying this doc against a fresh environment where staging's
+Stage 1/2/3 code all merges to main in one PR (as opposed to the original incremental
+staging rollout), apply **all** migrations through `0025` before/with the app deploy, not
+just Steps 1-6 — the app no longer has a version that only expects Stage 1/2's schema.
+
+Also hit: after creating new objects (e.g. `stuck_reservations`), PostgREST's schema cache
+didn't pick them up until an explicit `notify pgrst, 'reload schema';` (or dashboard Settings
+→ API → "Reload schema cache") — a `PGRST205 Could not find the table` error on a table/view
+that verifiably exists in `information_schema` means this, not a real migration failure.
+
+---
+
+**Original pre-migration reference material follows, unchanged, for historical context:**
 
 ---
 
