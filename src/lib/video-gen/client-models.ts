@@ -198,6 +198,20 @@ export const videoGenClientModelGroups: Array<{
   }));
 })();
 
+/**
+ * Label for the model picker, where the provider is ALREADY the group heading — "Veo 3.1 Fast"
+ * sitting under a "Veo" header says Veo twice. Strips the provider prefix so the chips read
+ * "3.1 Lite / 3.1 Fast / 3.1 Quality" and the eye compares only what differs.
+ *
+ * Derived from `label` rather than stored as a second field, so a renamed model cannot drift
+ * from its picker text. `pickerLabel` stays available as an explicit override.
+ */
+export function modelPickerLabel(model: VideoGenClientModelSpec): string {
+  if (model.pickerLabel) return model.pickerLabel;
+  const prefix = `${model.providerLabel} `;
+  return model.label.startsWith(prefix) ? model.label.slice(prefix.length) : model.label;
+}
+
 export const DEFAULT_VIDEO_CLIENT_MODEL_ID = "veo:veo-3.1-lite";
 
 // Back-compat: map a removed/unknown model id (e.g. a persisted node still referencing a pruned

@@ -25,12 +25,11 @@ type Props = {
   imageRoles: Record<string, ImageRole>;
   imageInputs: ImageInputs;
   onRoleChange: (imageId: string, role: ImageRole) => void;
-  onConflictingRoleRequest: (imageId: string, role: ImageRole) => void;
   onOpenDetail?: (id: string, type: "prompt" | "image") => void;
+  // The *reason* strings are not taken here — ActiveRulesCard states them persistently, and the
+  // dimmed role chip is this component's share of that signal.
   disableFrameInputs?: boolean;
-  disableFrameInputsReason?: string;
   disableRefs?: boolean;
-  disableRefsReason?: string;
   onReset?: () => void;
 };
 
@@ -40,12 +39,9 @@ export function VideoGenConnectedSection({
   imageRoles,
   imageInputs,
   onRoleChange,
-  onConflictingRoleRequest,
   onOpenDetail,
   disableFrameInputs = false,
-  disableFrameInputsReason,
   disableRefs = false,
-  disableRefsReason,
   onReset,
 }: Props) {
   const [promptOpen, setPromptOpen] = useState(false);
@@ -144,13 +140,16 @@ export function VideoGenConnectedSection({
 
       {images.length > 0 && (
         <TooltipProvider>
-          <div className="grid grid-cols-2 gap-2">
+          {/* One row, scrolling rather than wrapping. A wrapping grid re-flowed every time an
+              image was connected, moving thumbnails the operator had just been aiming at; a
+              fixed-width row keeps each frame where it was put at any number of inputs. */}
+          <div className="no-scrollbar flex gap-2 overflow-x-auto pb-1">
             {images.map((image) => {
               const activeRole = imageRoles[image.id];
               return (
                 <div
                   key={image.id}
-                  className="group relative overflow-hidden rounded-lg border border-border"
+                  className="group relative w-40 shrink-0 overflow-hidden rounded-lg border border-border"
                 >
                   <div className="aspect-video">
                     <img
@@ -184,12 +183,11 @@ export function VideoGenConnectedSection({
                         ((role === "start_frame" || role === "end_frame") && disableFrameInputs) ||
                         (role === "reference" && disableRefs);
 
+                      // Constraint-blocked roles are still clickable — picking one switches the
+                      // shot to that mode and clears the other side. The dimmed treatment is the
+                      // warning; there is no confirm step (see DialogState in the focus view).
                       function handleClick() {
                         if (structurallyDisabled) return;
-                        if (isConstraintBlocked) {
-                          onConflictingRoleRequest(image.id, role);
-                          return;
-                        }
                         onRoleChange(image.id, role);
                       }
 

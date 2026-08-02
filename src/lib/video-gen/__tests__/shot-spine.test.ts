@@ -1,5 +1,47 @@
 import { describe, it, expect } from "vitest";
-import { describeShotSpine } from "../shot-spine";
+import { describeShotSpine, describeDurationLabel } from "../shot-spine";
+import type { ParamSpec } from "@/lib/image-gen/types";
+
+const durationSelect = {
+  name: "duration",
+  label: "Duration (s)",
+  component: "select",
+  group: "primary",
+  order: 1,
+  visible: true,
+  defaultValue: "8",
+  constraints: { type: "select", options: ["4", "6", "8"] },
+} as ParamSpec;
+
+const durationSlider = {
+  ...durationSelect,
+  component: "slider",
+  constraints: { type: "slider", min: 3, max: 15 },
+} as ParamSpec;
+
+// The spine used to advertise the model's whole menu while a rule had already pinned the value,
+// so the card said "4 or 6 or 8s" with 4 and 6 greyed out in the control directly below it.
+describe("describeDurationLabel", () => {
+  it("reports the model's options when nothing is locked", () => {
+    expect(describeDurationLabel(durationSelect)).toBe("4 or 6 or 8s");
+  });
+
+  it("reports only the locked value when a rule has pinned duration", () => {
+    expect(describeDurationLabel(durationSelect, "8")).toBe("8s");
+  });
+
+  it("renders a slider spec as a range", () => {
+    expect(describeDurationLabel(durationSlider)).toBe("3–15s");
+  });
+
+  it("still prefers the locked value over a slider range", () => {
+    expect(describeDurationLabel(durationSlider, 10)).toBe("10s");
+  });
+
+  it("falls back to a dash when the model exposes no duration param", () => {
+    expect(describeDurationLabel(undefined)).toBe("—");
+  });
+});
 
 const kling30 = { startFrame: true, endFrame: true, maxReferenceImages: 0 };
 const klingO1 = { startFrame: true, endFrame: true, maxReferenceImages: 5 };

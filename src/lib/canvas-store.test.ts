@@ -38,6 +38,45 @@ describe("onConnect", () => {
   });
 });
 
+describe("disconnectNodes", () => {
+  const edge = (id: string, source: string, target: string): Edge => ({ id, source, target });
+
+  it("drops the edge AND records it in removedEdgeIds so autosave deletes the row", () => {
+    const store = createCanvasStore(nodes, [edge("e1", "a", "b")]);
+    store.getState().disconnectNodes("a", "b");
+
+    expect(store.getState().edges).toHaveLength(0);
+    // Without this the edge is only gone in memory and comes back on reload.
+    expect(store.getState().removedEdgeIds).toEqual(["e1"]);
+  });
+
+  it("leaves both nodes on the canvas — it unwires, it does not delete", () => {
+    const store = createCanvasStore(nodes, [edge("e1", "a", "b")]);
+    store.getState().disconnectNodes("a", "b");
+
+    expect(store.getState().nodes.map((n) => n.id)).toEqual(["a", "b"]);
+    expect(store.getState().removedNodeIds).toEqual([]);
+  });
+
+  it("only removes the matching direction, leaving other wires intact", () => {
+    const store = createCanvasStore(nodes, [
+      edge("e1", "a", "b"),
+      edge("e2", "b", "a"),
+    ]);
+    store.getState().disconnectNodes("a", "b");
+
+    expect(store.getState().edges.map((e) => e.id)).toEqual(["e2"]);
+  });
+
+  it("is a no-op when the pair is not wired", () => {
+    const store = createCanvasStore(nodes, [edge("e1", "a", "b")]);
+    store.getState().disconnectNodes("b", "a");
+
+    expect(store.getState().edges).toHaveLength(1);
+    expect(store.getState().removedEdgeIds).toEqual([]);
+  });
+});
+
 describe("fanOutShots", () => {
   const scriptNode: AppNode = {
     id: "script-1",

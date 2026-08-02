@@ -82,6 +82,63 @@ export function evaluateConstraints(
 }
 
 /**
+ * Whether this model's rules make frames and references an either/or choice.
+ *
+ * Asked of the RULES, not of a live assignment, so the UI can say so before anything is picked —
+ * the spine renders "or" between the two groups rather than leaving an operator to discover the
+ * exclusivity by being blocked. Probes each side in isolation: if references alone would shut
+ * frames off AND a frame alone would shut references off, the two can never coexist.
+ *
+ * False for Kling O1, which accepts both together, and false for any model with no such rule.
+ */
+export function areFramesAndRefsExclusive(rules: ConstraintRule[] | undefined): boolean {
+  const withRefsOnly = evaluateConstraints(rules, {
+    params: {},
+    hasStartFrame: false,
+    hasEndFrame: false,
+    referenceCount: 1,
+  });
+  const withFrameOnly = evaluateConstraints(rules, {
+    params: {},
+    hasStartFrame: true,
+    hasEndFrame: false,
+    referenceCount: 0,
+  });
+  return withRefsOnly.disableFrameInputs && withFrameOnly.disableRefs;
+}
+
+/**
+ * Force a role assignment to be one the model's rules can actually satisfy.
+ *
+ * Veo's rules make the two sets mutually exclusive — references disable frames, frames disable
+ * references — but nothing stopped both from being assigned at once. Switching models migrates
+ * roles by CAPABILITY only (startFrame / endFrame / maxReferenceImages), then fills unassigned
+ * images with defaults, so a node carrying start+end that lands on a refs-capable model gains
+ * references as well. The result satisfies no rule evaluation, and the route rejects it at
+ * generate time (D85 — the server rejects, it never corrects), which is a failure the operator
+ * had no way to cause deliberately.
+ *
+ * Detection is driven by the rules, never hardcoded: only a MUTUAL block is a contradiction. If
+ * just one side fires, the state is legal and intended (references alone disable frames — that
+ * is the rule doing its job). Kling O1 declares no exclusion rule at all, so start + end +
+ * references stays legal there and passes through untouched.
+ *
+ * Frames win the tie: D83 makes start+end the default shape of a shot, so references are what
+ * gets dropped.
+ */
+export function reconcileRolesWithRules(
+  rules: ConstraintRule[] | undefined,
+  imageRoles: Record<string, ImageRole>,
+  params: Record<string, unknown>,
+): Record<string, ImageRole> {
+  const evaluated = evaluateConstraints(rules, buildConstraintState(imageRoles, params));
+  if (!evaluated.disableFrameInputs || !evaluated.disableRefs) return imageRoles;
+  return Object.fromEntries(
+    Object.entries(imageRoles).filter(([, role]) => role !== "reference"),
+  );
+}
+
+/**
  * D86 — locked parameter values are the source of truth, not a display substitution.
  *
  * The params panel used to render `lockedParams[name]` while `params[name]` kept the stale

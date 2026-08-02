@@ -39,6 +39,7 @@ export type CanvasState = {
   addNode: (type: string, position: XYPosition, id?: string) => void;
   updateNodeData: (id: string, data: Record<string, unknown>) => void;
   connectNodes: (sourceId: string, targetId: string) => void;
+  disconnectNodes: (sourceId: string, targetId: string) => void;
   deleteNode: (id: string) => void;
   duplicateNode: (id: string) => Promise<void>;
   duplicateNodes: (ids: string[], canvasId: string) => Promise<void>;
@@ -181,6 +182,22 @@ export function createCanvasStore(
           get().edges,
         ),
       }),
+    // The counterpart to connectNodes: drop the wire, keep both nodes. Dropped edge ids MUST
+    // land in removedEdgeIds — autosave sends that list as the delete set, so an edge removed
+    // from `edges` alone is only gone in memory and resurrects on the next load. Same cascade
+    // bookkeeping deleteNode does. Removing an absent edge is a no-op, not an error.
+    disconnectNodes: (sourceId, targetId) => {
+      const removed = get().edges.filter(
+        (e) => e.source === sourceId && e.target === targetId,
+      );
+      if (removed.length === 0) return;
+      set({
+        edges: get().edges.filter(
+          (e) => !(e.source === sourceId && e.target === targetId),
+        ),
+        removedEdgeIds: [...get().removedEdgeIds, ...removed.map((e) => e.id)],
+      });
+    },
     deleteNode: (id) => {
       const cascadedEdges = get().edges.filter(
         (e) => e.source === id || e.target === id,

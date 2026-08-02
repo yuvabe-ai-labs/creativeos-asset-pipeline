@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  Cpu,
   Crop,
   Gauge,
   LayoutGrid,
@@ -17,7 +16,6 @@ import {
 } from "@/components/ui/tooltip";
 import {
   videoGenClientModelMap,
-  videoGenClientModelGroups,
   resolveVideoModelId,
 } from "@/lib/video-gen/client-models";
 import { ParamControl } from "./param-controls";
@@ -46,18 +44,16 @@ export function hasParamsInGroup(modelId: string, group: ParamGroup): boolean {
 type Props = {
   modelId: string;
   params: Record<string, unknown>;
-  onModelChange: (modelId: string) => void;
   onParamChange: (name: string, value: unknown) => void;
   lockedParams?: Record<string, unknown>;
   lockedParamReasons?: Record<string, string>;
-  /** Which param group to render. The model picker only appears with "primary". */
+  /** Which param group to render. */
   group?: ParamGroup;
 };
 
 export function VideoGenParamsPanel({
   modelId,
   params,
-  onModelChange,
   onParamChange,
   lockedParams = {},
   lockedParamReasons = {},
@@ -108,35 +104,12 @@ export function VideoGenParamsPanel({
     );
   }
 
-  // ── Model picker (primary only) + this group's params ──
+  // ── This group's params. The model picker no longer lives here: it governs every control
+  // below it, so it sits above the shot spine (see VideoGenModelPicker) rather than reading as
+  // one output setting among many. ──
   return (
     <TooltipProvider>
       <div className="space-y-4">
-        {/* Model — grouped chips in a 3-column grid, one block per provider. */}
-        {group === "primary" && (
-          <div className="space-y-2">
-            <FieldLabel icon={Cpu} label="Model" />
-            <div className="space-y-2 rounded-xl border border-border p-2.5">
-              {videoGenClientModelGroups.map((providerGroup) => (
-                <div key={providerGroup.label} className="space-y-1">
-                  <span className="text-[0.7rem] font-medium text-muted-foreground">
-                    {providerGroup.label}
-                  </span>
-                  <ParamChipGroup
-                    columns={3}
-                    options={providerGroup.models.map((m) => ({
-                      value: m.id,
-                      label: m.pickerLabel ?? m.label,
-                    }))}
-                    value={modelId}
-                    onValueChange={onModelChange}
-                  />
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
         {/* Params — the first two compact controls share the top row (Resolution + Duration,
             or Aspect Ratio + Duration for Veo); any remaining controls stack below, with a
             textarea (Negative Prompt) always spanning full width. */}

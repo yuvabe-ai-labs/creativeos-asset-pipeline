@@ -1,62 +1,68 @@
 "use client";
 
-import { ArrowRight, Image as ImageIcon, Layers, Plus, Sparkles, Timer } from "lucide-react";
+import { ArrowRight, Check, Sparkles, Timer } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type { ShotSpineModel, ShotSpineSlot } from "@/lib/video-gen/shot-spine";
 
-const FILLED_ICON = {
-  start_frame: ImageIcon,
-  end_frame: ImageIcon,
-  reference: Layers,
-} as const;
-
 /**
- * One slot in the spine. Non-interactive by design — roles are assigned from the connected-images
- * list, and the only action here is "Create end frame". An empty slot still carries the dashed
- * primary treatment so it reads as an invitation rather than as something broken.
+ * One slot in the spine. Non-interactive by design — roles are assigned from the thumbnails
+ * below, and the spine only reports.
+ *
+ * Laid out horizontally (pip beside label, not stacked above it) so all three slots and the
+ * duration fit on one row. The label carries the role, which frees the pip to carry only STATE.
+ *
+ * An empty slot is deliberately NOT the dashed-primary + plus treatment. That combination is this
+ * codebase's signature for an "Add" affordance (see AGENTS.md, editable-field.tsx), so wearing it
+ * here made a read-only summary look like a button. These are status pips: absence is reported,
+ * not offered.
  */
 function Slot({ slot }: { slot: ShotSpineSlot }) {
-  const Icon = slot.state === "empty" ? Plus : FILLED_ICON[slot.role];
+  const filled = slot.state === "filled";
+  const empty = slot.state === "empty";
 
   return (
-    <div className="flex min-w-16 flex-col items-center gap-1.5">
+    <div className="flex min-w-0 select-none items-center gap-2">
+      {/* A circle, not a rounded square: round pips read as status, squares read as buttons.
+          Empty carries no glyph — any mark inside an outline invites a click, and there is
+          nothing to click here. */}
       <div
         className={cn(
-          "flex size-14 items-center justify-center rounded-xl transition-colors duration-200",
-          slot.state === "filled" && "border border-border bg-muted",
-          slot.state === "empty" && "border border-dashed border-primary/40 bg-primary/[0.03]",
-          slot.state === "unsupported" && "border border-dashed border-border/50",
+          "flex size-6 shrink-0 items-center justify-center rounded-full transition-colors duration-200",
+          filled && "border border-success/40 bg-success/15",
+          empty && "border border-border bg-muted",
+          slot.state === "unsupported" && "border border-dashed border-border/50 bg-transparent",
         )}
       >
-        <Icon
-          className={cn(
-            "size-4",
-            slot.state === "filled" && "text-foreground",
-            slot.state === "empty" && "text-primary",
-            slot.state === "unsupported" && "text-muted-foreground/25",
-          )}
-          strokeWidth={1.5}
-        />
+        {/* text-success-text, not text-success: the raw 500 is 2.03:1 on this white card. */}
+        {filled && <Check className="size-3.5 text-success-text" strokeWidth={2.5} />}
       </div>
 
-      <span
-        className={cn(
-          "text-eyebrow",
-          slot.state === "unsupported" && "text-muted-foreground/40",
-        )}
-      >
-        {slot.label}
-      </span>
-
-      {slot.detail && (
-        <span className="text-[0.65rem] leading-none text-muted-foreground">{slot.detail}</span>
-      )}
-      {slot.state === "unsupported" && (
-        <span className="text-[0.65rem] leading-none text-muted-foreground/50">
-          Not on this model
+      <div className="flex min-w-0 items-baseline gap-1.5">
+        <span
+          className={cn(
+            "text-eyebrow whitespace-nowrap",
+            slot.state === "unsupported" && "text-muted-foreground/40",
+          )}
+        >
+          {slot.label}
         </span>
-      )}
+        {slot.detail && (
+          <span className="whitespace-nowrap text-[0.65rem] text-muted-foreground">
+            {slot.detail}
+          </span>
+        )}
+        {slot.state === "unsupported" && (
+          <span className="whitespace-nowrap text-[0.65rem] text-muted-foreground/50">
+            not on this model
+          </span>
+        )}
+      </div>
     </div>
   );
 }
@@ -66,51 +72,69 @@ function Slot({ slot }: { slot: ShotSpineSlot }) {
  * current combination yields. Never gates generation; the preference for a start+end pair is
  * expressed entirely by showing the empty slot at rest.
  */
-export function VideoGenShotSpine({
-  model,
-  onCreateEndFrame,
-  creatingEndFrame = false,
-}: {
-  model: ShotSpineModel;
-  onCreateEndFrame?: () => void;
-  creatingEndFrame?: boolean;
-}) {
+export function VideoGenShotSpine({ model }: { model: ShotSpineModel }) {
   const [start, end, reference] = model.slots;
-  const canDerive =
-    Boolean(onCreateEndFrame) && start.state === "filled" && end.state === "empty";
 
   return (
-    <div className="rounded-xl border border-border bg-card p-4 shadow-card">
-      <div className="mb-3 flex items-center gap-1.5">
-        <Sparkles className="size-3.5 text-primary" strokeWidth={1.5} />
-        <span className="text-eyebrow">The shot</span>
+    <TooltipProvider>
+      <div className="rounded-xl border border-border bg-card px-4 py-3 shadow-card">
+      {/* Duration rides in the header rather than on its own line below the slots — it is
+          metadata about the shot, and giving it a row of its own doubled the card's height. */}
+      <div className="mb-2.5 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-1.5">
+          <Sparkles className="size-3.5 text-primary" strokeWidth={1.5} />
+          <span className="text-eyebrow">The shot</span>
+        </div>
+        <span className="flex items-center gap-1.5 whitespace-nowrap text-xs text-muted-foreground">
+          <Timer className="size-3.5" strokeWidth={1.5} />
+          {model.durationLabel}
+          {/* A pinned duration looks identical to a freely-chosen one, so it gets a marker at
+              the value itself. The full rule text is a sentence — too long to sit in a header
+              beside a two-character value — so it lives in the tooltip. */}
+          {model.durationLockReason && (
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <span
+                    tabIndex={0}
+                    aria-label={model.durationLockReason}
+                    className="cursor-default rounded bg-info/12 px-1.5 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-info-text"
+                  />
+                }
+              >
+                Fixed
+              </TooltipTrigger>
+              <TooltipContent side="bottom">{model.durationLockReason}</TooltipContent>
+            </Tooltip>
+          )}
+        </span>
       </div>
 
-      <div className="flex items-start gap-3">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <Slot slot={start} />
-        <ArrowRight className="mt-5 size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.5} />
+        <ArrowRight className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.5} />
         <Slot slot={end} />
-        <div className="mx-1 mt-5 h-6 w-px shrink-0 bg-border" />
+
+        {/* A bare divider between the frames and the reference reads as "and also" — three slots
+            in a row look like three things you fill in. When the model forbids the combination
+            the separator has to carry the choice, so it says so. */}
+        {model.framesRefsExclusive ? (
+          <span className="mx-1 shrink-0 rounded bg-muted px-1.5 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-muted-foreground">
+            or
+          </span>
+        ) : (
+          <div className="mx-1 h-5 w-px shrink-0 bg-border" />
+        )}
+
         <Slot slot={reference} />
       </div>
 
-      {canDerive && (
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={creatingEndFrame}
-          onClick={onCreateEndFrame}
-          className="mt-4 w-full border-dashed border-primary/40 text-primary hover:bg-primary/5"
-        >
-          <Plus strokeWidth={1.5} />
-          {creatingEndFrame ? "Creating…" : "Create end frame"}
-        </Button>
+      {model.framesRefsExclusive && (
+        <p className="mt-2.5 text-[0.7rem] leading-snug text-muted-foreground">
+          Only start + end <span className="font-medium">or</span> ref can be selected, not both.
+        </p>
       )}
-
-      <p className="mt-4 flex items-center gap-1.5 text-xs text-muted-foreground">
-        <Timer className="size-3.5" strokeWidth={1.5} />
-        Duration · {model.durationLabel}
-      </p>
-    </div>
+      </div>
+    </TooltipProvider>
   );
 }
