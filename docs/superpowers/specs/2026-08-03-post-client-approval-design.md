@@ -4,6 +4,9 @@
 **Status:** Draft design — product decisions settled with the user 2026-08-03; pending spec review.
 **Type:** Design spec (new surface). Introduces decisions **D104–D106** — numbers provisional, see the
 numbering caution in the Post node spec.
+**▸ Read the PRD first:** **[`2026-08-03-post-prd.md`](2026-08-03-post-prd.md)**. **The PRD owns what
+and why; this spec owns how.** Where they disagree, the PRD is right and this file is stale.
+**Implements:** PRD **§6.8** approval (R8.1–R8.7) and the approval rows of **§6.10** permissions.
 **Paired specs:**
 [`2026-08-03-post-node-design.md`](2026-08-03-post-node-design.md) — produces the artifact being
 approved (D103).

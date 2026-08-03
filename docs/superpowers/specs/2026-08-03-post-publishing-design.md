@@ -4,6 +4,10 @@
 **Status:** Draft design — pending user review.
 **Type:** Design spec (new subsystem). Introduces decisions **D107–D109** — numbers provisional,
 see §10 and the numbering caution in the Post node spec.
+**▸ Read the PRD first:** **[`2026-08-03-post-prd.md`](2026-08-03-post-prd.md)**. **The PRD owns what
+and why; this spec owns how.** Where they disagree, the PRD is right and this file is stale.
+**Implements:** PRD **§6.9** publishing (R9.1–R9.7), the publish row of **§6.10** permissions, and
+the platform-approval constraint in **§8**.
 **Paired specs:**
 **[`2026-08-03-post-node-design.md`](2026-08-03-post-node-design.md)** — builds the artifact this one
 distributes; ships the Publish button present and disabled (D100), which this spec turns on.

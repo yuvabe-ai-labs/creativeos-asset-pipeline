@@ -4,6 +4,11 @@
 **Status:** Draft design — product decisions settled with the user 2026-08-03; pending spec review.
 **Type:** Design spec (new feature; new node type). Introduces decisions **D95–D103** — numbers
 provisional, see §14.
+**▸ Read the PRD first:** **[`2026-08-03-post-prd.md`](2026-08-03-post-prd.md)** — users, positioning,
+scope, V1/V2, numbered requirements, success criteria. **The PRD owns what and why; this spec owns
+how.** Where they disagree, the PRD is right and this file is stale.
+**Implements:** PRD **§6.1** composition · **§6.2** templates · **§6.3** brand · **§6.4** copy ·
+**§6.5** compliance · **§6.6** language · **§6.7** output · **§6.10** permissions.
 **Visual companion:** **[`2026-08-03-post-node-layouts.html`](2026-08-03-post-node-layouts.html)** —
 open in a browser. Approved editor shell, rejected alternatives, template compositions, layer anatomy.
 **Paired specs:**
@@ -26,67 +31,24 @@ plate with a headline, body copy, a CTA, a logo, and usually a colour band or pr
 Today that step happens in Canva or Photoshop, which breaks the chain — the brand palette is retyped
 by hand, the finished asset never returns to the canvas, and nothing downstream can see it.
 
-> **Positioning, in the user's words:**
-> **"They don't have to switch tools to generate on-brand images."**
+> **Positioning:** **"They don't have to switch tools to generate on-brand images."**
+> — the PRD's scope rule. Anything that only makes the *editor* better is out; anything that makes
+> the *pipeline* smarter is V1 or V2. This spec is bound by that rule and does not restate the case
+> for it.
 
-That sentence is the whole product thesis, and it is the test every scope request must pass. This
-editor does **not** compete with Canva on editing quality — that race is unwinnable and every hour
-spent on it is an hour Canva already spent better. It competes on *not making you leave*.
+**Users, jobs to be done, the V1/V2 split and success criteria live in the PRD** ([§3, §4, §5, §7](2026-08-03-post-prd.md)).
+They are deliberately *not* repeated here — two documents describing the same product decision drift
+apart, and the PRD is the one that wins.
 
-### 1.1 Who this is for
+**What this spec covers:** how the requirements in **PRD §6.1–6.7 and §6.10** are built. Requirement
+ids are cited inline as `R1.2`, `R5.2` and so on, so every design choice traces to something the
+product asked for.
 
-**Design agencies.** The primary user is an agency **designer** composing client work; `senior` and
-`owner` review and publish. The client's role is **approval and feedback only** — they never compose,
-which is why approval is a read-only shared surface rather than an editor seat.
+## 2. Scope & slices
 
-That single fact licenses a deliberately small editor. A skilled designer with a constrained toolset
-and no tool-switching is well served; a brand-side marketer handed the same thing would find it
-missing features. We are building for the first.
-
-### 1.2 Jobs to be done
-
-1. *When a plate is ready, lay the campaign copy over it without leaving CreativeOS.*
-2. *Apply the brand's colours, fonts and icons without looking anything up.*
-3. *Get a caption and hashtags written for me, in the brand's voice.*
-4. *Show the client exactly what will be published — artwork and caption together — and get a yes or
-   a comment back.*
-
-### 1.3 V1 and V2 — the roadmap thesis
-
-| | **V1 — no tool switching** | **V2 — intelligence** |
-|---|---|---|
-| Editor | Manual. Text, shapes, images, icons. Four templates. | Unchanged — it does not grow. |
-| Copy | Caption + hashtags generated one-shot; on-image text typed. | **All** text AI-generated, on the artwork. |
-| Image | Copy-zone hint you read and paste. | **Layout-aware round trip** — pick a template, the plate regenerates to fit its copy zone. |
-| Formats | One node, one format. | Campaign fan-out; one composition, re-fitted across formats. |
-| Other | — | Variants rendered on the real artifact; glyph-coverage checking. |
-
-**The rule this gives V1:** anything that only makes the *editor* better is out; anything that makes
-the *pipeline* smarter is V2. This is what stops the team rebuilding Canva badly the first time
-someone asks for a drop shadow.
-
-V1 leaves room for V2 deliberately: the copy zone is a normalized rect (§6) precisely so the round
-trip has something to build on.
-
-### 1.4 Success criteria
-
-| Signal | Why it matters |
-|---|---|
-| **Posts composed here rather than in Canva** | The thesis in one number. If designers keep leaving, nothing else matters. |
-| **Time to create a post** | The direct measure of "didn't have to switch tools". Tracked from node creation to first render. |
-| Round trips before client approval | Whether the approval loop is actually shorter. |
-| Time from approved plate to approved post | End-to-end pipeline speed. |
-| Compliance issues caught before publish | Whether the guardrail earns its place. |
-| Brand-kit completeness per active client | Leading indicator — an empty brand kit makes the whole value proposition invisible. |
-
-## 2. Scope
-
-**In V1:** the `post` node and its editor; four layer kinds; four templates; a Brand Kit sourced from
-the KB; new structured `brand_kit` KB fields; AI-generated caption + hashtags (one-shot);
-compliance **warnings**; English and Tamil; client-side export to PNG at any scale.
-
-**Not in V1:** everything in the V2 column above, plus QR codes, freeform paths, blend modes,
-text-on-curve, masks, effects, client font files, and stock/illustration libraries.
+Scope is the PRD's (§5, §6). One thing worth restating because it shapes the build order: V1 leaves
+room for V2 deliberately — the copy zone is a **normalized rect** (§6) precisely so R2.4's round trip
+has something to build on, and geometry is normalized (§4) so R1.7's fan-out does too.
 
 **Three build slices,** each independently testable:
 
@@ -265,7 +227,7 @@ the frame clear and uncluttered — no key subject matter, no busy detail; this 
 **In V1 it is display-and-copy.** The editor shows it as an **Image brief** line with a copy button;
 **nothing is written to another node**. Edges run `image-gen → post`, so auto-injection would be a
 downstream node writing upstream — a surprising data-flow direction for a one-sentence payload.
-**V2 closes the loop** (§1.3): pick a template, the plate regenerates to fit. The rect is already in
+**V2 closes the loop** (PRD R2.4): pick a template, the plate regenerates to fit. The rect is already in
 the data model for exactly that.
 
 **Ownership:** templates are code modules in V1, so only we add them. Making them org-authorable
@@ -539,18 +501,21 @@ guarantee behind D99. A second render path means preview/export drift is back.
 
 ## 16. Risks
 
+**Product and adoption risks live in [PRD §9](2026-08-03-post-prd.md).** These are the engineering
+ones — the ways the build itself can fail:
+
 | Risk | Mitigation |
 |---|---|
-| **Designers keep using Canva** — the product risk that outranks every technical one. | The wedge is not editing quality (§1). Measured directly by the first success criterion; if it misses, the answer is not more editor features. |
-| Rasterizer fidelity differs from the live preview. | Same DOM, same styles; manual export check per format is a release gate. |
-| A4 at 300 DPI exceeds the data-URI ceiling. | Test explicitly; fall back to 150 DPI with a visible note. |
-| Tamil renders as tofu and V1 doesn't catch it (D102). | Font pairing makes it unlikely; manual Tamil export is a release gate; checking lands in V2. |
-| Empty `brand_kit` on every existing KB. | Empty states with working links; colours work via the prose fallback; completeness is a tracked metric. |
-| Warn-only compliance lets a violation through (D101). | Accepted deliberately. The chip is visible at compose, render and publish; the client also sees the caption at approval. |
-| Scope creep toward Canva. | §1.3 is the test: editor-only improvements are out, pipeline intelligence is V2. |
+| Rasterizer fidelity differs from the live preview. | Same DOM, same styles, one renderer (§11). Manual export check per format is a release gate. This is why export is **Slice 2**, before anything is built on top of it. |
+| A4 at 300 DPI exceeds the data-URI ceiling. | Test explicitly; fall back to 150 DPI with a visible note rather than a silently broken file. |
+| Tamil renders as tofu and V1 doesn't catch it (D102, R6.3). | Font pairing makes it unlikely; manual Tamil export is a release gate; detection lands in V2. |
+| GCS canvas tainting breaks export. | Every GCS-sourced image renders through the existing `/api/image-proxy` (§11). A hard prerequisite — skip it and `toBlob` throws `SecurityError`. |
+| Empty `brand_kit` on every existing KB. | Empty states with working "Fix in KB" links; colours work via the prose fallback; completeness is a tracked metric (PRD §7). |
+| `post-focus-view.tsx` grows into another 54 KB file. | The component split in §15 is the guard; the shell holds no logic. |
 
 ## 17. Open questions
 
-1. **Which pilot client goes first**, and is their KB complete enough to show the brand-kit value on day one?
-2. **Does a post need more than one approval round recorded**, or is latest-wins enough? Assumed latest-wins in the approval spec.
-3. **Undo/redo** is unspecified. It wins nobody over, but its absence makes an editor feel cheap — which matters even when adoption is mandated. Recommend including it in Slice 1; not yet decided.
+Product-level open questions are in [PRD §10](2026-08-03-post-prd.md). Design-level ones:
+
+1. **Undo/redo granularity** (R1.8) — per property change, or coalesced per gesture? Coalescing is what feels right when dragging; naive per-change history makes a single drag take twenty undos to reverse.
+2. **Where the compliance check runs** — on every keystroke, or debounced? It must feel instant, but it re-scans every layer plus the caption on each pass.
