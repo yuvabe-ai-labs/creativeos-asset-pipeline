@@ -1771,6 +1771,31 @@ problem that's trivially auto-fixable); padding instead of cropping for the aspe
 
 **Originated →** `2026-07-28-openai-image-gen-error-remediation-design.md`.
 
+### D92 — Pre-generation input-token estimate becomes a static derived formula, not a live vendor call *(recorded 2026-08-03)*
+
+**Decision.** Replace `countOpenAIInputTokens`/`countGeminiInputTokens` (OpenAI's
+`responses.inputTokens.count`, Gemini's `countTokens` — both real network calls made on every
+debounced param change) with pure synchronous functions: `180 + refCount × 260` for Gemini
+(all 4 variants — the fit is model-independent), `190 + refCount × {330 | 1550}` for OpenAI
+(per-model per-reference constant; `gpt-image-2` tokenizes references at ~5× the rate of
+`gpt-image-1`/`-1-mini`). Constants derived from 659 real (non-test-client) historical image
+generations across staging + production, rounded up from p90 to preserve the existing
+never-under-reserve philosophy. Output-cost tables in `cost.ts` are untouched — they were
+already static and were never the latency source.
+
+**Why.** The "Est. N credits" label felt laggy because every param tweak triggered a real
+vendor round-trip purely to count input tokens, even though input cost is a small fraction of
+total cost for every priced model here (output pricing dominates) and this estimate never
+touches real billing — settlement always uses the actual provider `usage` from the real
+generation call, not this pre-flight number.
+
+**Rejected.** Caching live results by `(model, quality, size, refCount, promptHash)` (still
+pays live latency on first hit of any new combination); keeping the live call for accuracy
+(unnecessary — real settlement doesn't read this value, and input cost's share of the total
+is too small to matter).
+
+**Originated →** `2026-08-03-image-input-cost-static-estimate-design.md`.
+
 ### Parked / out-of-scope (with revisit triggers)
 | Item | Status | Revisit when |
 |---|---|---|
