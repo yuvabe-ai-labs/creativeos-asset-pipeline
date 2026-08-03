@@ -77,31 +77,6 @@ async function generateWithGemini(
   };
 }
 
-/**
- * Live pre-flight input-token count via Gemini's official countTokens endpoint — sends the
- * exact same `contents` shape generateWithGemini uses, so the count matches what a real
- * generation call would actually bill for input. Used by the pre-generation estimate
- * (design spec §5). Always a fresh live call, never cached.
- */
-export async function countGeminiInputTokens(
-  apiModelId: string,
-  prompt: string,
-  referenceUrls: string[],
-): Promise<number> {
-  const ai = createGemini();
-  const refParts = await Promise.all(
-    referenceUrls.map(async (url) => {
-      const { mimeType, data } = await urlToInlineData(url);
-      return { inlineData: { mimeType, data } };
-    }),
-  );
-  const response = await ai.models.countTokens({
-    model: apiModelId,
-    contents: [{ role: "user", parts: [...refParts, { text: prompt }] }],
-  });
-  return response.totalTokens ?? 0;
-}
-
 // ── Model configs ─────────────────────────────────────────────────────────────
 
 export const geminiModels: MediaGenModelSpec[] = [
