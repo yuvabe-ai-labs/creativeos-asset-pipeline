@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Post node — layout reference</title>
+<style>
+  :root {
+    --ink: #0b0f19; --ink-2: #52525b; --ink-3: #a1a1aa;
+    --line: #e4e4e7; --bg: #fafafa; --card: #ffffff;
+    --brand: #5829c7; --brand-tint: rgba(88,41,199,.08);
+    --shadow: 0 8px 20px rgba(11,15,25,.06);
+    --ease: cubic-bezier(0.22,1,0.36,1);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: "Gilroy", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 15px; line-height: 1.65; -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 56px 28px 96px; }
+  h1, h2, h3, h4 { font-family: "Clash Display", ui-sans-serif, system-ui, sans-serif; margin: 0; letter-spacing: -0.01em; }
+  h1 { font-size: 34px; font-weight: 600; }
+  h2 { font-size: 22px; font-weight: 600; margin: 56px 0 6px; }
+  h3 { font-size: 16px; font-weight: 600; }
+  p { margin: 8px 0; color: var(--ink-2); }
+  .lede { font-size: 16px; max-width: 68ch; }
+  .eyebrow { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); font-weight: 600; }
+  .rule { height: 1px; background: var(--line); margin: 10px 0 22px; }
+  code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: .88em; background: #f4f4f5; padding: 1px 5px; border-radius: 4px; }
+  a { color: var(--brand); }
+  .meta-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+  .tag { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; font-weight: 600;
+         color: var(--brand); background: var(--brand-tint); border-radius: 99px; padding: 4px 11px; }
+  .tag.grey { color: var(--ink-2); background: #f4f4f5; }
+
+  /* ── shared wireframe kit ───────────────────────────────────────────── */
+  .wf { background: #fff; color: var(--ink); border: 1px solid var(--line); border-radius: 12px;
+        overflow: hidden; font-size: 11px; line-height: 1.3; box-shadow: var(--shadow); }
+  .wf-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+  .wf-title { font-weight: 600; font-size: 12px; font-family: "Clash Display", sans-serif; }
+  .wf-back { font-size: 9px; color: var(--ink-3); display: block; margin-bottom: 2px; }
+  .wf-actions { display: flex; gap: 5px; }
+  .pill { border: 1px solid #d4d4d8; border-radius: 6px; padding: 3px 8px; font-size: 9px; color: var(--ink-2); white-space: nowrap; }
+  .pill.primary { border-color: var(--brand); color: var(--brand); }
+  .pill.off { opacity: .4; }
+  .wf-body { display: flex; }
+  .rail { width: 44px; flex-shrink: 0; border-right: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 0; }
+  .rail b { width: 30px; height: 30px; border-radius: 7px; background: #f4f4f5; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 400; }
+  .rail b.on { background: var(--brand-tint); box-shadow: inset 0 0 0 1px var(--brand); }
+  .rail em { font-size: 7px; font-style: normal; color: var(--ink-3); margin-top: -2px; }
+  .panel { flex-shrink: 0; border-right: 1px solid var(--line); padding: 10px; overflow: hidden; }
+  .panel.right { border-right: 0; border-left: 1px solid var(--line); }
+  .label-sm { font-size: 8px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 6px; font-weight: 600; }
+  .tabrow { display: flex; gap: 4px; margin-bottom: 9px; }
+  .tabrow span { font-size: 8px; padding: 3px 6px; border-radius: 4px; background: #f4f4f5; color: var(--ink-2); }
+  .tabrow span.on { background: var(--brand-tint); color: var(--brand); font-weight: 600; }
+  .layer { display: flex; align-items: center; gap: 6px; padding: 4px 5px; border-radius: 4px; margin-bottom: 3px; font-size: 8px; color: var(--ink-2); }
+  .layer.on { background: var(--brand-tint); box-shadow: inset 0 0 0 1px var(--brand); color: var(--brand); }
+  .layer i { width: 10px; height: 10px; border-radius: 3px; background: #d4d4d8; flex-shrink: 0; font-style: normal; }
+  .swatches { display: flex; gap: 5px; }
+  .swatches i { width: 15px; height: 15px; border-radius: 99px; display: block; border: 1px solid rgba(0,0,0,.08); }
+  .assets { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
+  .assets div { aspect-ratio: 1; background: #f4f4f5; border-radius: 4px; }
+  .field { height: 17px; border: 1px solid var(--line); border-radius: 4px; margin-bottom: 6px; }
+  .field.half { width: 47%; display: inline-block; margin-right: 4%; }
+  .field.half:last-of-type { margin-right: 0; }
+  .stage { flex: 1; display: flex; align-items: center; justify-content: center; background: #fafafa; position: relative; padding: 14px; }
+
+  /* ── the post canvas itself ─────────────────────────────────────────── */
+  .post { position: relative; border-radius: 6px; overflow: hidden; box-shadow: 0 6px 18px rgba(11,15,25,.12); }
+  .plate { position: absolute; background: linear-gradient(150deg,#d79a72,#b9764f 60%,#8f5638); }
+  .solid { position: absolute; }
+  .zone { position: absolute; border: 1.5px dashed var(--brand); background: rgba(88,41,199,.10); border-radius: 4px; }
+  .tx { position: absolute; background: #1e1e1e; border-radius: 2px; }
+  .tx.lite { background: #fff; }
+  .tx.mut { background: rgba(30,30,30,.42); }
+  .tx.mutl { background: rgba(255,255,255,.58); }
+  .cta { position: absolute; height: 7%; border-radius: 99px; background: #151515; }
+  .cta.lite { background: #fff; }
+  .mark { position: absolute; height: 3.5%; width: 26%; background: rgba(30,30,30,.72); border-radius: 2px; }
+  .mark.lite { background: rgba(255,255,255,.85); }
+  .scrim { position: absolute; left: 0; right: 0; bottom: 0; background: linear-gradient(to top, rgba(0,0,0,.72), rgba(0,0,0,0)); }
+  .sel { outline: 1.5px solid var(--brand); outline-offset: 3px; }
+  .handle { position: absolute; width: 6px; height: 6px; border-radius: 99px; background: #fff; border: 1.5px solid var(--brand); }
+
+  /* ── layout blocks ──────────────────────────────────────────────────── */
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  .grid2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+  .tpl { background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden;
+         box-shadow: var(--shadow); transition: transform .32s var(--ease); }
+  .tpl:hover { transform: translateY(-2px) scale(1.006); }
+  .tpl .frame { aspect-ratio: 4/5; position: relative; background: #efe7e0; }
+  .tpl .meta { padding: 13px 15px 16px; }
+  .tpl .meta h3 { margin-bottom: 4px; }
+  .tpl .meta p { font-size: 12.5px; margin: 0; }
+  .tpl.deferred { opacity: .55; }
+  .callout { background: #fff; border: 1px solid var(--line); border-left: 3px solid var(--brand);
+             border-radius: 10px; padding: 14px 18px; margin: 18px 0; box-shadow: var(--shadow); }
+  .callout p { margin: 0; font-size: 14px; }
+  .rejected { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 8px; }
+  .rej { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 13px 15px; }
+  .rej h4 { font-size: 13px; margin-bottom: 4px; }
+  .rej p { font-size: 12px; margin: 0; }
+  .rej .verdict { display: inline-block; font-size: 10px; letter-spacing: .06em; text-transform: uppercase;
+                  font-weight: 600; color: #b45309; background: #fef3c7; border-radius: 99px; padding: 2px 8px; margin-bottom: 7px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 13.5px; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); font-weight: 600; }
+  td:first-child { white-space: nowrap; font-weight: 500; color: var(--ink); }
+  @media (max-width: 900px) {
+    .grid3, .grid2, .rejected { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="eyebrow">CreativeOS · design reference</div>
+  <h1>Post node — layout reference</h1>
+  <p class="lede">
+    Visual companion to <code>2026-08-03-post-node-design.md</code>. Everything here was settled in
+    brainstorming on 2026-08-03; this page exists so developers and designers can see the intent rather
+    than reconstruct it from prose. Wireframes are structural — they fix arrangement and proportion,
+    not final visual design, which follows the Yuvabe system in <code>globals.css</code>.
+  </p>
+  <div class="meta-row">
+    <span class="tag">Approved</span>
+    <span class="tag grey">2026-08-03</span>
+    <span class="tag grey">Decisions D95–D103</span>
+    <span class="tag grey">V1 scope</span>
+  </div>
+
+  <div class="callout">
+    <p><strong>Positioning, in the user's words:</strong> <em>“They don't have to switch tools to generate
+    on-brand images.”</em> This editor does not compete with Canva on editing quality — it competes on not
+    making you leave. <strong>V1</strong> is a deliberately small manual editor; <strong>V2</strong> is the
+    intelligence around it (layout-aware regeneration, all copy AI-written, campaign fan-out). Any request
+    that only makes the <em>editor</em> better is out of scope by design.</p>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <h2>1 · Editor shell — approved</h2>
+  <div class="rule"></div>
+  <p class="lede">
+    The Post focus view keeps the house shell: a bottom <code>Sheet</code> at <code>h-[92vh]</code>,
+    “Back to canvas”, an <code>EditableField</code> title, actions top-right — the same frame as the
+    Draw and Prompt focus views. Four vertical bands inside it.
+  </p>
+
+  <div class="wf" style="margin-top:20px">
+    <div class="wf-head">
+      <div>
+        <span class="wf-back">← Back to canvas</span>
+        <span class="wf-title">Diwali Offer — IG Story</span>
+      </div>
+      <div class="wf-actions">
+        <span class="pill">Format 9:16</span>
+        <span class="pill">Preview</span>
+        <span class="pill off">Publish</span>
+        <span class="pill primary">Download</span>
+      </div>
+    </div>
+    <div class="wf-body" style="height:400px">
+      <div class="rail">
+        <b class="on">☰</b><em>Layers</em>
+        <b>◈</b><em>Brand</em>
+        <b>＋</b><em>Add</em>
+      </div>
+      <div class="panel" style="width:172px">
+        <div class="tabrow"><span class="on">Layers</span><span>Brand Kit</span></div>
+        <div class="layer"><i style="background:#c4b5fd"></i> CTA pill</div>
+        <div class="layer on"><i style="background:#1e1e1e"></i> Headline</div>
+        <div class="layer"><i style="background:#8a7268"></i> Body copy</div>
+        <div class="layer"><i style="background:#d79a72"></i> Plate — Image Gen</div>
+        <div class="layer"><i style="background:#e4e4e7"></i> Scrim (shape)</div>
+        <div class="layer" style="opacity:.55"><i style="background:#f4e2d4"></i> Background 🔒</div>
+        <div class="label-sm" style="margin-top:14px">Brand colours · from KB</div>
+        <div class="swatches">
+          <i style="background:#c8a000"></i><i style="background:#3d6b1a"></i>
+          <i style="background:#151515"></i><i style="background:#f4e2d4"></i>
+        </div>
+      </div>
+      <div class="stage">
+        <div class="post" style="aspect-ratio:9/16; height:100%; background:linear-gradient(160deg,#f7d9c4,#efc3ae)">
+          <div class="mark" style="left:8%; top:4%"></div>
+          <div class="plate" style="left:7%; right:7%; top:11%; height:40%; border-radius:4px"></div>
+          <div class="tx sel" style="left:8%; top:57%; width:60%; height:6%">
+            <span class="handle" style="right:-3px; bottom:-3px"></span>
+          </div>
+          <div class="tx mut" style="left:8%; top:66%; width:74%; height:2.6%"></div>
+          <div class="tx mut" style="left:8%; top:70%; width:66%; height:2.6%"></div>
+          <div class="cta" style="left:8%; bottom:8%; width:36%"></div>
+        </div>
+      </div>
+      <div class="panel right" style="width:158px">
+        <div class="label-sm">Text · properties</div>
+        <div class="field"></div>
+        <div class="field half"></div><div class="field half"></div>
+        <div class="field"></div>
+        <div class="field half"></div><div class="field half"></div>
+        <div class="label-sm" style="margin-top:12px">Position</div>
+        <div class="field half"></div><div class="field half"></div>
+      </div>
+    </div>
+  </div>
+
+  <table>
+    <tr><th>Band</th><th>Holds</th><th>Why it earns the space</th></tr>
+    <tr><td>Icon rail</td><td>Layers · Brand Kit · Add</td><td>Three destinations, always reachable, ~44px.</td></tr>
+    <tr><td>Left panel</td><td>Layer list, or the Brand Kit</td>
+        <td>The layer list is what makes overlapping text and shapes editable: reorder, lock the plate, reach a layer buried behind another.</td></tr>
+    <tr><td>Stage</td><td>The post canvas + selection handles</td><td>Scale-to-fit; the only element with a shadow, so it reads as the subject.</td></tr>
+    <tr><td>Inspector</td><td>Properties for the selected layer</td><td>Contextual — empty state prompts “select a layer”.</td></tr>
+  </table>
+
+  <div class="callout">
+    <p><strong>Templates are not a band.</strong> Picking a template is a once-per-post act, so it does not
+    hold a column. It appears as a first-run overlay when the post has no layers, and afterwards as
+    “Change template” in the header menu.</p>
+  </div>
+
+  <h3 style="margin-top:34px">Alternatives considered and rejected</h3>
+  <div class="rejected">
+    <div class="rej">
+      <span class="verdict">Rejected</span>
+      <h4>Templates in the left panel</h4>
+      <p>The original sketch. A permanent template browser is dead weight after the first click — the
+      panel is idle for the entire rest of the session.</p>
+    </div>
+    <div class="rej">
+      <span class="verdict">Rejected</span>
+      <h4>Horizontal properties toolbar</h4>
+      <p>Elegant for text, where font/size/weight/colour/align fit one row. Awkward for shapes and images,
+      which have few controls, and there is no room for gradient stops.</p>
+    </div>
+    <div class="rej">
+      <span class="verdict">Rejected</span>
+      <h4>Single right panel, floating insert bar</h4>
+      <p>Biggest canvas, fewest bands. But one panel doing Properties + Layers + Brand Kit fights itself
+      the moment you want to drag a logo in while a layer is selected.</p>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <h2>2 · First-run template picker</h2>
+  <div class="rule"></div>
+  <p class="lede">
+    Shown over the stage when <code>layers</code> is empty. Choosing a template seeds the layer array and
+    dismisses the overlay permanently. “Start blank” is always available.
+  </p>
+
+  <div class="wf" style="margin-top:18px">
+    <div class="wf-head">
+      <div><span class="wf-back">← Back to canvas</span><span class="wf-title">Untitled post</span></div>
+      <div class="wf-actions"><span class="pill">Format 4:5</span><span class="pill off">Preview</span><span class="pill off">Publish</span><span class="pill off">Download</span></div>
+    </div>
+    <div style="padding:26px 30px 30px; background:#fafafa">
+      <div class="label-sm" style="text-align:center">Start from a composition</div>
+      <div style="display:grid; grid-template-columns:repeat(5,1fr); gap:14px; margin-top:14px">
+        <div style="text-align:center">
+          <div class="post" style="aspect-ratio:4/5; background:#efe7e0">
+            <div class="plate" style="inset:0"></div><div class="scrim" style="height:46%"></div>
+            <div class="tx lite" style="left:9%; bottom:24%; width:60%; height:8%"></div>
+            <div class="cta lite" style="left:9%; bottom:9%; width:34%"></div>
+          </div>
+          <div style="font-size:10px; margin-top:6px; color:var(--ink-2)">Lower third</div>
+        </div>
+        <div style="text-align:center">
+          <div class="post" style="aspect-ratio:4/5; background:linear-gradient(160deg,#f7d9c4,#eec0a8)">
+            <div class="plate" style="left:8%; right:8%; top:13%; height:43%; border-radius:3px"></div>
+            <div class="tx" style="left:9%; top:63%; width:56%; height:8%"></div>
+            <div class="cta" style="right:9%; bottom:8%; width:34%"></div>
+          </div>
+          <div style="font-size:10px; margin-top:6px; color:var(--ink-2)">Inset card</div>
+        </div>
+        <div style="text-align:center">
+          <div class="post" style="aspect-ratio:4/5; background:#1b1b22">
+            <div class="plate" style="right:0; top:0; bottom:0; width:52%"></div>
+            <div class="tx lite" style="left:8%; top:26%; width:32%; height:7%"></div>
+            <div class="cta lite" style="left:8%; bottom:11%; width:32%"></div>
+          </div>
+          <div style="font-size:10px; margin-top:6px; color:var(--ink-2)">Side column</div>
+        </div>
+        <div style="text-align:center">
+          <div class="post" style="aspect-ratio:4/5; background:#efe7e0">
+            <div class="plate" style="left:0; right:0; top:0; height:50%"></div>
+            <div class="solid" style="left:0; right:0; top:50%; bottom:0; background:#c8a000"></div>
+            <div class="tx" style="left:8%; top:58%; width:44%; height:11%"></div>
+            <div class="cta" style="right:8%; bottom:8%; width:34%"></div>
+          </div>
+          <div style="font-size:10px; margin-top:6px; color:var(--ink-2)">Split half</div>
+        </div>
+        <div style="text-align:center">
+          <div class="post" style="aspect-ratio:4/5; background:#fff; box-shadow:none; border:1.5px dashed #d4d4d8; display:flex; align-items:center; justify-content:center; color:var(--ink-3); font-size:16px">＋</div>
+          <div style="font-size:10px; margin-top:6px; color:var(--ink-2)">Start blank</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <h2>3 · Template compositions</h2>
+  <div class="rule"></div>
+  <p class="lede">
+    Templates are indexed by <strong>composition</strong>, not by marketing purpose — because composition is
+    what decides whether a template fits the plate you have. Purpose is a tag on top. The
+    <span style="color:var(--brand); font-weight:600">purple dashed region is the copy zone</span>:
+    the area the template will cover, and therefore the area the Image Gen prompt must be told to keep clear.
+  </p>
+
+  <div class="grid2" style="margin-top:20px">
+
+    <div class="tpl">
+      <div class="frame">
+        <div class="plate" style="inset:0"></div>
+        <div class="scrim" style="height:48%"></div>
+        <div class="mark lite" style="left:8%; top:5%"></div>
+        <div class="zone" style="left:5%; right:5%; bottom:5%; height:36%"></div>
+        <div class="tx lite" style="left:9%; bottom:26%; width:62%; height:8%"></div>
+        <div class="tx mutl" style="left:9%; bottom:19%; width:74%; height:3.5%"></div>
+        <div class="cta lite" style="left:9%; bottom:8%; width:34%"></div>
+      </div>
+      <div class="meta">
+        <h3>Lower third</h3>
+        <p>Full-bleed image, copy stacked in the bottom 35% over a scrim. The safest template — the scrim
+        rescues almost any plate, so it works even when the image forgot to leave room.</p>
+        <div class="meta-row"><span class="tag">offer</span><span class="tag">promotion</span>
+          <span class="tag grey">copy zone: bottom 36%</span></div>
+      </div>
+    </div>
+
+    <div class="tpl">
+      <div class="frame" style="background:linear-gradient(160deg,#f7d9c4,#eec0a8)">
+        <div class="plate" style="left:8%; right:8%; top:13%; height:43%; border-radius:4px"></div>
+        <div class="mark" style="left:8%; top:5.5%"></div>
+        <div class="zone" style="left:5%; right:5%; top:59%; bottom:4%"></div>
+        <div class="tx" style="left:9%; top:63%; width:58%; height:8%"></div>
+        <div class="tx mut" style="left:9%; top:75%; width:76%; height:3.5%"></div>
+        <div class="cta" style="right:9%; bottom:7%; width:34%"></div>
+      </div>
+      <div class="meta">
+        <h3>Inset card</h3>
+        <p>Image floats inset on a brand-coloured field; copy sits on the solid, never on the photo — so
+        contrast is guaranteed and no scrim is needed. The most “designed” of the set.</p>
+        <div class="meta-row"><span class="tag">launch</span><span class="tag">announcement</span>
+          <span class="tag grey">plate: inset, top 43%</span></div>
+      </div>
+    </div>
+
+    <div class="tpl">
+      <div class="frame" style="background:#1b1b22">
+        <div class="plate" style="right:0; top:0; bottom:0; width:52%"></div>
+        <div class="mark lite" style="left:7%; top:6%"></div>
+        <div class="zone" style="left:4%; top:16%; width:42%; bottom:6%"></div>
+        <div class="tx lite" style="left:8%; top:24%; width:32%; height:7%"></div>
+        <div class="tx lite" style="left:8%; top:33%; width:26%; height:7%"></div>
+        <div class="tx mutl" style="left:8%; top:46%; width:36%; height:3.5%"></div>
+        <div class="cta lite" style="left:8%; bottom:10%; width:32%"></div>
+      </div>
+      <div class="meta">
+        <h3>Side column</h3>
+        <p>Vertical split — image one side, copy column the other. The only archetype with room for a real
+        paragraph, so it is the one that survives long offer text. Reads well in landscape too.</p>
+        <div class="meta-row"><span class="tag">offer</span><span class="tag">brochure</span>
+          <span class="tag grey">copy zone: left 46%</span></div>
+      </div>
+    </div>
+
+    <div class="tpl">
+      <div class="frame">
+        <div class="plate" style="left:0; right:0; top:0; height:50%"></div>
+        <div class="solid" style="left:0; right:0; top:50%; bottom:0; background:#c8a000"></div>
+        <div class="mark lite" style="left:8%; top:5%"></div>
+        <div class="zone" style="left:5%; top:53%; right:5%; bottom:4%"></div>
+        <div class="tx" style="left:8%; top:57%; width:44%; height:11%"></div>
+        <div class="tx mut" style="left:8%; top:71%; width:66%; height:3.5%"></div>
+        <div class="cta" style="right:8%; bottom:7%; width:34%"></div>
+      </div>
+      <div class="meta">
+        <h3>Split half</h3>
+        <p>Hard 50/50 between image and a brand colour block. The loudest option — built for a discount
+        number or a big price. Also the one that most needs the palette to be right.</p>
+        <div class="meta-row"><span class="tag">discount</span><span class="tag">sale</span>
+          <span class="tag grey">copy zone: bottom 50%</span></div>
+      </div>
+    </div>
+
+  </div>
+
+  <h3 style="margin-top:34px">Deferred — not in v1</h3>
+  <p style="margin-bottom:14px">Both are cheap to add once real posts show whether anyone reaches for them.</p>
+  <div class="grid3">
+    <div class="tpl deferred">
+      <div class="frame">
+        <div class="plate" style="inset:0"></div>
+        <div class="solid" style="left:0; right:0; top:0; height:34%; background:#f4e2d4"></div>
+        <div class="zone" style="left:5%; right:5%; top:3%; height:29%"></div>
+        <div class="tx" style="left:8%; top:13%; width:58%; height:8%"></div>
+        <div class="cta" style="right:8%; bottom:7%; width:34%"></div>
+      </div>
+      <div class="meta"><h3>Upper band</h3><p>The mirror of Lower third. For plates whose subject sits low.</p></div>
+    </div>
+    <div class="tpl deferred">
+      <div class="frame">
+        <div class="plate" style="inset:0"></div>
+        <div class="scrim" style="inset:0; background:rgba(0,0,0,.42)"></div>
+        <div class="zone" style="left:12%; right:12%; top:32%; height:38%"></div>
+        <div class="tx lite" style="left:19%; top:37%; width:62%; height:9%"></div>
+        <div class="cta lite" style="left:33%; top:60%; width:34%"></div>
+      </div>
+      <div class="meta"><h3>Centred hero</h3><p>Maximum drama, one line of copy. Needs a plate with a calm middle.</p></div>
+    </div>
+  </div>
+
+  <div class="callout">
+    <p><strong>The copy zone is a contract, not decoration.</strong> Each template declares its zone as a
+    normalized rect, which renders into an <em>Image brief</em> sentence shown under the template name with a
+    copy button — “leave the lower 35% of the frame clear and uncluttered”. That is what turns negative-space
+    composition from luck into something repeatable. <strong>Display and copy only:</strong> nothing is written
+    to another node, because edges run <code>image-gen → post</code> and auto-injection would be an upstream
+    write from a downstream node. The human pastes it, and still presses generate.</p>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <h2>4 · Layer anatomy</h2>
+  <div class="rule"></div>
+  <p class="lede">
+    Four layer kinds, no more. Every layer's geometry is normalized to 0–1 of the canvas, so one
+    composition renders at any output size — including A4 at 300 DPI (2480×3508).
+  </p>
+
+  <table>
+    <tr><th>Kind</th><th>Properties in the inspector</th><th>Notes</th></tr>
+    <tr><td>text</td>
+        <td>content · family · size · weight · colour · align · line-height · letter-spacing · opacity</td>
+        <td>Family comes from the curated webfont list; the client's default is pinned by <code>font_primary</code> in the KB. Every family declares a <strong>Tamil companion</strong> for fallback — a brand's Latin font has no Tamil glyphs.</td></tr>
+    <tr><td>shape</td>
+        <td>fill (solid <em>or gradient</em>) · opacity · corner radius</td>
+        <td>Rect only; a pill is a rect at radius 999. Covers CTA buttons, colour bands, price tags, dividers — <strong>and the scrim</strong>, which is just a gradient-filled shape. That fold is why there are four kinds, not five.</td></tr>
+    <tr><td>image</td>
+        <td>source · fit (cover/contain) · opacity · corner radius</td>
+        <td>Source is either a live binding to a connected node, or a URL from the Brand Kit / an upload.</td></tr>
+    <tr><td>icon</td>
+        <td>source · colour · opacity</td>
+        <td>Three sources: <strong>Lucide</strong> (installed, generic pictograms), <strong>Simple Icons</strong> (social/brand marks — Lucide 1.0 removed all brand icons under trademark pressure and points here instead), and the <strong>client's own</strong> from the KB brand kit.</td></tr>
+  </table>
+
+  <div class="callout">
+    <p><strong>The scrim isn't a layer kind — but it is not optional either.</strong> Light text over a busy
+    plate is unreadable without a gradient behind it. Folding it into <code>shape</code> removes a concept
+    without removing the capability; the Lower third template seeds one by default.</p>
+  </div>
+
+  <p style="margin-top:26px; font-size:13px; color:var(--ink-3)">
+    Wireframes are structural. Final visual design follows the Yuvabe system encoded in
+    <code>src/app/globals.css</code> — Clash Display + Gilroy, purple <code>#5829c7</code> used sparingly,
+    neutrals doing the work, <code>shadow-card</code> elevation, easing <code>cubic-bezier(0.22,1,0.36,1)</code>.
+  </p>
+
+</div>
+</body>
+</html>
