@@ -31,9 +31,9 @@ export function useGalleryNodeDrop(
       const raw = e.dataTransfer.getData(GALLERY_DRAG_MIME);
       if (!raw) return;
       e.preventDefault();
+      // Stops the synthetic event so the pane-level onDrop on <ReactFlow> doesn't
+      // also fire for this drop (both are React handlers now, so this works).
       e.stopPropagation();
-      // Mark the native event so the pane-level listener skips it.
-      (e.nativeEvent as DragEvent & { __galleryHandled?: boolean }).__galleryHandled = true;
       try {
         const parsed = JSON.parse(raw) as { images: GalleryImage[] };
         handleAdd(parsed.images, { position, connectToNodeId: nodeId, applyOffset: false });

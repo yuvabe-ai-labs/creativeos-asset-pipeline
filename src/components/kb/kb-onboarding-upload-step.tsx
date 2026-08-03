@@ -227,7 +227,7 @@ export function KBOnboardingUploadStep({
         <div className="flex items-center gap-2">
           <LinkIcon className="size-4 text-muted-foreground" />
           <Label htmlFor="website-url" className="text-sm font-medium">
-            Brand website <span className="text-muted-foreground font-normal">(optional)</span>
+            Brand website
           </Label>
         </div>
         <Input

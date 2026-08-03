@@ -50,6 +50,7 @@ import { useDeleteConfirmation } from "@/hooks/use-delete-confirmation";
 import { CanvasKBStatus, CanvasKBBadge } from "./canvas-kb-status";
 import { GalleryDrawerTrigger } from "./gallery-drawer-trigger";
 import { GalleryDrawerIntegration } from "./gallery-drawer-integration";
+import type { GalleryPaneDropHandlers } from "@/hooks/use-gallery-pane-drop";
 import type { ClientKBJobRow } from "@/lib/db/types";
 
 // Register custom node types once (stable reference — never inline this object).
@@ -143,6 +144,15 @@ export function Canvas({
   const rfRef = useRef<{
     screenToFlowPosition: (pos: { x: number; y: number }) => XYPosition;
   } | null>(null);
+  // Populated by GalleryDrawerIntegration (which sits inside ReactFlowProvider
+  // and can call useReactFlow); wired onto <ReactFlow>'s onDragOver/onDrop below
+  // so pane-level gallery drops go through React's synthetic event system, same
+  // as node-level drops — required for stopPropagation to actually prevent both
+  // from firing on one drop.
+  const galleryPaneDropRef = useRef<GalleryPaneDropHandlers>({
+    onDragOver: () => {},
+    onDrop: () => {},
+  });
   const [quickAdd, setQuickAdd] = useState<{
     screenX: number;
     screenY: number;
@@ -358,6 +368,7 @@ export function Canvas({
         canvasId={canvasId}
         clientId={clientId}
         initialDriveRootFolder={initialDriveRootFolder}
+        paneDropRef={galleryPaneDropRef}
       />
 
       {!canEdit && (
@@ -406,20 +417,41 @@ export function Canvas({
         onPointerMove={(e) => {
           lastPointer.current = { x: e.clientX, y: e.clientY };
         }}
+        onDragOver={(e) => galleryPaneDropRef.current.onDragOver(e)}
+        onDrop={(e) => galleryPaneDropRef.current.onDrop(e)}
         onPaneContextMenu={(e) => {
           e.preventDefault();
           openQuickAddAt(e.clientX, e.clientY);
         }}
-        onSelectionContextMenu={(e) => {
-          // The NodesSelection overlay sits above nodes and intercepts contextmenu
-          // events after drag-select. Temporarily hide it so elementFromPoint finds
-          // the node underneath, then re-dispatch so ContextMenuTrigger fires.
+        onSelectionContextMenu={(e, selectedNodes) => {
+          // The NodesSelection overlay sits above nodes (and above the bare pane)
+          // and intercepts contextmenu events after drag-select. Temporarily hide
+          // it so elementFromPoint finds what's underneath, then re-dispatch there
+          // so its ContextMenuTrigger fires — NodeContextMenu reads live selection
+          // state and shows batched Duplicate/Delete for the whole selection.
+          //
+          // dispatchEvent only bubbles UP from the given target, so when the click
+          // landed on a node we must re-dispatch on that exact deep element (not
+          // e.g. the outer .react-flow__node wrapper) so the bubble path still
+          // passes through ContextMenuTrigger's own listener div partway up.
+          //
+          // A right-click on empty space *inside* the selection box has no node
+          // underneath at all — elementFromPoint resolves to the bare pane, whose
+          // own onPaneContextMenu would open the quick-add palette instead. Fall
+          // back to dispatching directly on a selected node's trigger div.
           e.preventDefault();
           const overlay = e.target as HTMLElement;
           overlay.style.pointerEvents = "none";
           const underneath = document.elementFromPoint(e.clientX, e.clientY);
           overlay.style.pointerEvents = "";
-          underneath?.dispatchEvent(
+          const target = underneath?.closest(".react-flow__node")
+            ? underneath
+            : selectedNodes[0]
+              ? document.querySelector(
+                  `.react-flow__node[data-id="${selectedNodes[0].id}"] [data-slot="context-menu-trigger"]`,
+                )
+              : null;
+          target?.dispatchEvent(
             new MouseEvent("contextmenu", {
               bubbles: true,
               cancelable: true,

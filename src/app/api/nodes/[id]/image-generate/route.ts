@@ -266,12 +266,11 @@ export async function POST(
     });
 
     try {
-      const costUsd = await estimateImageGenerationCostUsd({
+      const costUsd = estimateImageGenerationCostUsd({
         modelId,
         quality: validatedParams.quality as string | undefined,
         aspectRatio: validatedParams.aspect_ratio as string | undefined,
         imageSize: validatedParams.image_size as string | undefined,
-        prompt,
         referenceUrls,
       });
       if (costUsd === null) {

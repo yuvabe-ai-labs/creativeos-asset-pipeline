@@ -34,13 +34,35 @@ export function computeImageCost(
   return { usd, inr: usd * USD_TO_INR };
 }
 
+// ── Aspect ratio → pixel size mapping ────────────────────────────────────────
+//
+// Lives here (not in providers/openai.ts, where it originally lived) because it must stay
+// importable from client components: estimateImageGenerationCostUsd (estimate.ts) is called
+// directly from image-gen-focus-view.tsx (D93) for an instant local cost preview, and
+// providers/openai.ts pulls in sharp + the OpenAI SDK — neither is safe to bundle client-side.
+// providers/openai.ts still uses this for real generation; it imports it from here.
+
+const ASPECT_RATIO_TO_OPENAI_SIZE: Record<string, string> = {
+  "1:1":  "1024x1024",
+  "16:9": "1536x1024",
+  "9:16": "1024x1536",
+  "4:3":  "1536x1024",
+  "3:4":  "1024x1536",
+  "21:9": "1536x1024",
+  "4:1":  "1536x1024",
+  "1:4":  "1024x1536",
+};
+
+export function aspectRatioToOpenAISize(ratio: string): string {
+  return ASPECT_RATIO_TO_OPENAI_SIZE[ratio] ?? "1024x1024";
+}
+
 // Exact per-image OUTPUT cost by quality x size, sourced directly from vendor $ price
 // tables — see docs/superpowers/specs/2026-07-24-credit-system-design.md §5 and
 // docs/superpowers/specs/2026-07-24-credit-system-full-combinations.md. Not derived from
 // the token-based IMAGE_MODEL_PRICING above (gpt-image-2 has no public token table). Input
-// tokens (prompt text + reference images) come from a separate live call — see
-// countGeminiInputTokens/countOpenAIInputTokens in providers/{gemini,openai}.ts — not
-// tabulated here.
+// tokens (prompt text + reference images) are a static derived estimate — see
+// estimateGeminiInputTokens/estimateOpenAIInputTokens below (D92) — not tabulated here.
 type ImageEstimateQualityRow = Record<string, number>; // size string -> USD
 
 const OPENAI_IMAGE_ESTIMATE_TABLE: Record<
@@ -98,8 +120,8 @@ export function estimateImageOutputCost(
 }
 
 /**
- * Pre-generation INPUT cost estimate. Neither provider's live token count
- * (countGeminiInputTokens/countOpenAIInputTokens, sub-plan 3B) splits text vs. image
+ * Pre-generation INPUT cost estimate. Neither provider's input-token estimate
+ * (estimateGeminiInputTokens/estimateOpenAIInputTokens below, D92) splits text vs. image
  * tokens — one combined number. Gemini has no ambiguity (textIn == imgIn already, per the
  * combined-rate fix in IMAGE_MODEL_PRICING above). OpenAI genuinely splits the two — with
  * zero reference images the count is provably 100% text (exact); with one or more, the
@@ -115,4 +137,53 @@ export function estimateImageInputCost(
   if (!p) return null;
   const rate = hasReferenceImages ? (p.imgIn ?? p.textIn ?? 0) : (p.textIn ?? 0);
   return (inputTokens / 1_000_000) * rate;
+}
+
+// ── Pre-generation INPUT token estimate — static, no live vendor API call ──────────────────
+//
+// D92 (docs/superpowers/specs/2026-08-03-image-input-cost-static-estimate-design.md):
+// analysis of 659 real (non-test-client) historical generations across staging + production
+// found input tokens predictable enough from reference-image count alone that a live
+// per-request token-counting call isn't needed. Gemini fits `180 + refs*260` cleanly across
+// all 4 model variants (independently matches Google's published 258-tokens/image-tile
+// formula). OpenAI fits `190 + refs*perModelConstant`, constant per MODEL (not per size) once
+// legacy pixel-size and aspect-ratio snapshot formats are normalized to one key. All
+// constants rounded UP from the historical p90 (not median), matching
+// estimateImageOutputCost's "auto"→"high" never-under-reserve philosophy above.
+
+const GEMINI_BASE_INPUT_TOKENS = 180;
+const GEMINI_PER_REFERENCE_INPUT_TOKENS = 260;
+
+/**
+ * Estimated Gemini input tokens for a given reference-image count — replaces the live
+ * countTokens() call. Model-independent: the fit held identically across all 4 Gemini image
+ * model variants in the historical data.
+ */
+export function estimateGeminiInputTokens(referenceCount: number): number {
+  return GEMINI_BASE_INPUT_TOKENS + referenceCount * GEMINI_PER_REFERENCE_INPUT_TOKENS;
+}
+
+const OPENAI_BASE_INPUT_TOKENS = 190;
+
+// Per-reference-image token cost, by model — NOT by size (size had no meaningful effect once
+// legacy pixel-size and aspect-ratio snapshot formats were normalized to one key; see the
+// design doc §3). gpt-image-2 tokenizes reference images at ~5x the rate of the other two
+// models — it's the flagship, higher-fidelity model.
+const OPENAI_PER_REFERENCE_INPUT_TOKENS: Record<string, number> = {
+  "openai:gpt-image-1": 330,
+  "openai:gpt-image-1-mini": 330,
+  "openai:gpt-image-2": 1550,
+};
+
+/**
+ * Estimated OpenAI input tokens for a given model + reference-image count — replaces the
+ * live responses.inputTokens.count() call. An unrecognized modelId falls back to the highest
+ * known per-reference constant (gpt-image-2's), never the lowest — never under-reserve.
+ */
+export function estimateOpenAIInputTokens(modelId: string, referenceCount: number): number {
+  if (referenceCount === 0) return OPENAI_BASE_INPUT_TOKENS;
+  const perReference =
+    OPENAI_PER_REFERENCE_INPUT_TOKENS[modelId] ??
+    Math.max(...Object.values(OPENAI_PER_REFERENCE_INPUT_TOKENS));
+  return OPENAI_BASE_INPUT_TOKENS + referenceCount * perReference;
 }

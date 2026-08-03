@@ -1,18 +1,26 @@
-import { resolvePromptInputs } from "@/lib/nodes/resolve-inputs";
+import { resolvePromptInputs, resolveVideoPromptInputs } from "@/lib/nodes/resolve-inputs";
 import { apiError, apiOk, withNode } from "@/lib/api/route-helpers";
 
 // POST /api/nodes/:id/compile-preview — resolve the node's inputs WITHOUT calling
-// the model, and return them as structured parts. Powers the Prompt focus view's
-// Ambient + Connected context cards (the Inline instruction is client-side state,
-// so it is not echoed back here).
+// the model, and return them as structured parts. Powers the Prompt and Video Prompt
+// focus views' Ambient + Connected context cards (the Inline instruction is
+// client-side state, so it is not echoed back here).
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withNode(params, async (nodeId) => {
+  return withNode(params, async (nodeId, node) => {
     const body = (await req.json().catch(() => null)) as { slices?: unknown } | null;
 
-    const resolved = await resolvePromptInputs(nodeId, body?.slices);
+    // Video Prompt has its own resolver: an image-gen upstream travels as a vision
+    // fileUrl there (mapUpstreamForVideo), never as text — unlike the image-Prompt
+    // path, where the same upstream type means something different (D6/D19 — see
+    // resolve-inputs.ts). Using the wrong resolver here silently drops fileUrl and
+    // leaks the raw image URL into the connected-node preview as plain text.
+    const resolved =
+      node.type === "video-prompt"
+        ? await resolveVideoPromptInputs(nodeId, body?.slices)
+        : await resolvePromptInputs(nodeId, body?.slices);
     if (!resolved) return apiError("Node not found.", 404);
 
     return apiOk({

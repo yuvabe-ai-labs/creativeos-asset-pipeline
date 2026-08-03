@@ -1,5 +1,6 @@
 import type { TraceableBrandKB, KBField } from "./schema";
 import type { ModuleKey, FieldPath, StagedChanges } from "./types";
+import { MODULES } from "./constants";
 
 // ── Nested object helpers ─────────────────────────────────────────────────────
 
@@ -68,6 +69,25 @@ export function getFieldPath(module: ModuleKey, fieldKey: string): FieldPath {
     case "video_direction":  return ["creative_direction", "video", fieldKey];
     case "compliance":       return ["compliance", fieldKey];
   }
+}
+
+// Finds the next module (in MODULES order, wrapping around past the end) that isn't fully
+// reviewed yet — used to auto-advance the review step off a module the operator just cleared
+// with "Approve all". readyByModule reflects each module's current
+// getModuleStatus(getModuleFields(kb, key)) === "ready" state; the caller computes it (see
+// handleApproveAll in kb-onboarding-review-step.tsx) since that already depends on the live kb
+// state and getModuleStatus, which this pure function has no reason to import.
+export function findNextModuleNeedingReview(
+  currentModule: ModuleKey,
+  readyByModule: Record<ModuleKey, boolean>,
+): ModuleKey | null {
+  const order = MODULES.map((m) => m.key);
+  const startIdx = order.indexOf(currentModule);
+  for (let i = 1; i <= order.length; i++) {
+    const candidate = order[(startIdx + i) % order.length];
+    if (!readyByModule[candidate]) return candidate;
+  }
+  return null;
 }
 
 export function formatBytes(bytes: number): string {
