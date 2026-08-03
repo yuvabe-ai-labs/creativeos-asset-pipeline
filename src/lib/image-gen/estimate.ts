@@ -1,23 +1,25 @@
-import "server-only";
 import {
   estimateImageOutputCost,
   estimateImageInputCost,
   estimateGeminiInputTokens,
   estimateOpenAIInputTokens,
+  aspectRatioToOpenAISize,
 } from "./cost";
-import { aspectRatioToOpenAISize } from "./providers/openai";
 
 /**
  * Exact-when-possible pre-generation cost estimate for an image model, in USD. Shared by the
- * real generation route (image-generate/route.ts, which reserves against it) and the
- * estimate-only preview route (image-generate/estimate/route.ts) — the same computation
- * either way, so what's shown to the user always matches what gets reserved. Returns null
- * when estimateImageOutputCost has no priced entry for this model/quality/size — the real
- * route fails closed on null (design spec §4); the preview route just shows "unavailable".
+ * real generation route (image-generate/route.ts, which reserves against it) and, directly,
+ * by the client-side focus view (image-gen-focus-view.tsx) for an instant preview — the same
+ * computation either way, so what's shown to the user always matches what gets reserved.
+ * Returns null when estimateImageOutputCost has no priced entry for this model/quality/size —
+ * the real route fails closed on null (design spec §4); the client preview just shows nothing.
  *
- * Synchronous — input-token cost is a static derived estimate (D92,
- * docs/superpowers/specs/2026-08-03-image-input-cost-static-estimate-design.md), not a live
- * per-request vendor API call.
+ * Synchronous, and deliberately has no "server-only" guard: input-token cost is a static
+ * derived estimate (D92) computed from pure functions in ./cost, not a live vendor API call,
+ * and the whole computation is now cheap enough to run directly in the browser (D93,
+ * docs/superpowers/specs/2026-08-03-image-input-cost-static-estimate-design.md) instead of
+ * behind a fetch to our own API route — that route paid a real DB+auth round trip (withNode)
+ * on every param change, which D92 alone didn't eliminate.
  */
 export function estimateImageGenerationCostUsd(input: {
   modelId: string;

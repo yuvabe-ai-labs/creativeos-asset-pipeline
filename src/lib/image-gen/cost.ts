@@ -34,13 +34,35 @@ export function computeImageCost(
   return { usd, inr: usd * USD_TO_INR };
 }
 
+// ── Aspect ratio → pixel size mapping ────────────────────────────────────────
+//
+// Lives here (not in providers/openai.ts, where it originally lived) because it must stay
+// importable from client components: estimateImageGenerationCostUsd (estimate.ts) is called
+// directly from image-gen-focus-view.tsx (D93) for an instant local cost preview, and
+// providers/openai.ts pulls in sharp + the OpenAI SDK — neither is safe to bundle client-side.
+// providers/openai.ts still uses this for real generation; it imports it from here.
+
+const ASPECT_RATIO_TO_OPENAI_SIZE: Record<string, string> = {
+  "1:1":  "1024x1024",
+  "16:9": "1536x1024",
+  "9:16": "1024x1536",
+  "4:3":  "1536x1024",
+  "3:4":  "1024x1536",
+  "21:9": "1536x1024",
+  "4:1":  "1536x1024",
+  "1:4":  "1024x1536",
+};
+
+export function aspectRatioToOpenAISize(ratio: string): string {
+  return ASPECT_RATIO_TO_OPENAI_SIZE[ratio] ?? "1024x1024";
+}
+
 // Exact per-image OUTPUT cost by quality x size, sourced directly from vendor $ price
 // tables — see docs/superpowers/specs/2026-07-24-credit-system-design.md §5 and
 // docs/superpowers/specs/2026-07-24-credit-system-full-combinations.md. Not derived from
 // the token-based IMAGE_MODEL_PRICING above (gpt-image-2 has no public token table). Input
-// tokens (prompt text + reference images) come from a separate live call — see
-// countGeminiInputTokens/countOpenAIInputTokens in providers/{gemini,openai}.ts — not
-// tabulated here.
+// tokens (prompt text + reference images) are a static derived estimate — see
+// estimateGeminiInputTokens/estimateOpenAIInputTokens below (D92) — not tabulated here.
 type ImageEstimateQualityRow = Record<string, number>; // size string -> USD
 
 const OPENAI_IMAGE_ESTIMATE_TABLE: Record<
@@ -98,8 +120,8 @@ export function estimateImageOutputCost(
 }
 
 /**
- * Pre-generation INPUT cost estimate. Neither provider's live token count
- * (countGeminiInputTokens/countOpenAIInputTokens, sub-plan 3B) splits text vs. image
+ * Pre-generation INPUT cost estimate. Neither provider's input-token estimate
+ * (estimateGeminiInputTokens/estimateOpenAIInputTokens below, D92) splits text vs. image
  * tokens — one combined number. Gemini has no ambiguity (textIn == imgIn already, per the
  * combined-rate fix in IMAGE_MODEL_PRICING above). OpenAI genuinely splits the two — with
  * zero reference images the count is provably 100% text (exact); with one or more, the

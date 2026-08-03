@@ -118,7 +118,10 @@ estimate call is now synchronous, so there's nothing left to debounce against.
 - Real settlement (`succeedGeneration`, `computeImageCost`) — always uses actual provider
   `usage`, never this estimate.
 - Output-cost tables in `cost.ts`.
-- The `/api/nodes/[id]/image-generate/estimate` route's request/response shape.
+
+*(The `/api/nodes/[id]/image-generate/estimate` route itself did NOT stay unchanged — see §6,
+D93. This section's original claim was wrong: it assumed the route's internals would change
+but its existence wouldn't. In implementation, the route turned out to be deletable entirely.)*
 
 **Recalibration:** the derivation script used for this analysis (staging + production,
 `node_versions.params_used.tokensUsed`, real clients only) should be kept (or its logic
@@ -136,3 +139,50 @@ spirit as §6 of the pricing-sources doc for prompt-generation estimates.
 - No live network call from any test — this was previously untestable without hitting real
   vendor APIs (worth checking whether existing tests around `estimate.ts` were skipping or
   mocking this; if mocked, those mocks can be deleted along with the live calls).
+
+---
+
+## 6. Follow-up correction: the estimate was still round-tripping our own server (D93)
+
+After D92 shipped (live vendor token-counting call replaced with the static formulas above),
+the "Est. N credits" label was still perceptibly slower than video-gen's equivalent — the
+user caught this directly by comparing the two side by side. Root cause: `estimate.ts` was
+rewired to be synchronous, but `image-gen-focus-view.tsx` still called it through a `fetch()`
+to `/api/nodes/[id]/image-generate/estimate`, and that route is wrapped in `withNode`
+(`src/lib/api/route-helpers.ts`), which does a real Supabase query (`nodes` joined to
+`canvases`/`clients`) plus `resolveCallerContext()` on **every single call** — a real DB +
+auth round trip, on every param change, regardless of how fast the estimate math itself is.
+
+**video-gen never had this problem** because `video-gen-focus-view.tsx` calls
+`computeVideoCost(...)` directly in the render body (`video-gen-focus-view.tsx:684`) — no
+fetch, no route, no DB lookup. D92 made image-gen's math as cheap as video-gen's, but didn't
+notice image-gen was paying a network+DB tax video-gen never paid at all.
+
+**Fix:** match video-gen's pattern exactly.
+- Moved `aspectRatioToOpenAISize` (and its `ASPECT_RATIO_TO_OPENAI_SIZE` map) from
+  `providers/openai.ts` to `cost.ts` — the only reason `estimate.ts` needed
+  `"server-only"` and couldn't be imported from a client component was this one function
+  living in a file that also imports `sharp` and the OpenAI SDK (real server-only
+  dependencies). `cost.ts` has never had a server-only dependency. `providers/openai.ts` now
+  imports the function back from `cost.ts` and re-exports it, so its own use in
+  `generateWithOpenAI` and the existing `aspect-ratio.test.ts` are both unaffected.
+- Removed `import "server-only"` from `estimate.ts` — with the above move, it has zero
+  remaining server-only dependencies.
+- `image-gen-focus-view.tsx` now imports `estimateImageGenerationCostUsd` directly and calls
+  it inside a `useMemo` (both the Generate-tab and Edit-tab estimates), exactly like
+  video-gen's `computeVideoCost` call — no `fetch`, no loading state for the estimate itself.
+  The Generate tab's `estimating` flag is repurposed to mean "the connected prompt node's
+  content hasn't loaded yet" (a real, separate async dependency, fetched by an unrelated
+  effect) rather than "waiting on the cost estimate." The Edit tab's `editEstimating` has no
+  async dependency left at all and is now just `false`.
+- Deleted `/api/nodes/[id]/image-generate/estimate/route.ts` entirely — with the client
+  computing locally, nothing calls it anymore (confirmed via grep before deletion). This also
+  means the real reservation route (`image-generate/route.ts`) is now the *only* server-side
+  consumer of `estimateImageGenerationCostUsd`, unchanged from before.
+- Build verified (`npm run build`) to confirm `sharp`/the OpenAI SDK do not end up in the
+  client bundle via this path — a real risk given `image-gen-focus-view.tsx` is a
+  `"use client"` component transitively reaching into `providers/openai.ts` territory before
+  this fix.
+
+**Corrected §4 claim:** the estimate route's "request/response shape is unchanged" statement
+above was wrong in retrospect — the route doesn't exist anymore. Superseded by this section.

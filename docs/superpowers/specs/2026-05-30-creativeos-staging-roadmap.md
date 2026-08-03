@@ -1796,6 +1796,35 @@ is too small to matter).
 
 **Originated →** `2026-08-03-image-input-cost-static-estimate-design.md`.
 
+### D93 — Image-gen's pre-generation estimate is computed client-side, no API route at all; refines D92 *(recorded 2026-08-03)*
+
+**Decision.** Delete `/api/nodes/[id]/image-generate/estimate/route.ts` entirely.
+`image-gen-focus-view.tsx` now imports `estimateImageGenerationCostUsd` (D92) directly and
+calls it inside `useMemo` — matching video-gen's `computeVideoCost`, which has always been
+called straight in the render body with no route at all. Required moving
+`aspectRatioToOpenAISize` from `providers/openai.ts` (which imports `sharp` + the OpenAI SDK,
+real server-only dependencies) into `cost.ts` (which has never had one), and dropping
+`estimate.ts`'s now-unnecessary `"server-only"` guard.
+
+**Why.** D92 made the estimate's own computation synchronous, but
+`image-gen-focus-view.tsx` still reached it through a `fetch()` to our own API route, and that
+route's `withNode` wrapper does a real Supabase query (`nodes` joined to `canvases`/`clients`)
+plus `resolveCallerContext()` on every single call — a genuine DB + auth round trip on every
+param change, independent of how fast the estimate math itself is. The user caught this
+directly by comparing image-gen's estimate against video-gen's (verifiably instant) and asking
+why they didn't match. D92 alone was an incomplete fix for the underlying complaint (perceived
+latency), even though it correctly eliminated the actual vendor API call it targeted.
+
+**Rejected.** Keeping the route but optimizing `withNode` (e.g. caching the node lookup) —
+solves the wrong layer; video-gen proves the lookup isn't needed for a preview estimate at
+all, since nothing about *cost* depends on node/canvas/client identity, only on
+model/quality/size/referenceCount, all already known client-side.
+
+**Refines →** D92 (same commit family, same design doc, extends its scope after
+implementation surfaced a latency source D92's own analysis didn't cover).
+
+**Originated →** `2026-08-03-image-input-cost-static-estimate-design.md` §6.
+
 ### Parked / out-of-scope (with revisit triggers)
 | Item | Status | Revisit when |
 |---|---|---|

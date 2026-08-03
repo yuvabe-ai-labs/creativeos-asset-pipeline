@@ -3,7 +3,13 @@ import sharp from "sharp";
 import { createOpenAI } from "@/lib/openai/server";
 import { buildZodFromParams } from "../schema-builder";
 import { gptImage2Params, gptImage1Params, gptImage1MiniParams } from "../params/openai";
+import { aspectRatioToOpenAISize } from "../cost";
 import type { ImageGenInput, ImageGenResult, MediaGenModelSpec } from "../types";
+
+// Re-exported for existing consumers (e.g. providers/__tests__/aspect-ratio.test.ts) — the
+// mapping itself now lives in cost.ts, not here, so it stays importable from client
+// components (see cost.ts's own comment for why).
+export { aspectRatioToOpenAISize };
 
 export { gptImage2Params, gptImage1Params, gptImage1MiniParams };
 
@@ -155,23 +161,6 @@ export async function normalizeReferenceImageForOpenAI(buffer: Buffer): Promise<
     finalHeight,
   });
   return out;
-}
-
-// ── Aspect ratio → pixel size mapping ────────────────────────────────────────
-
-const ASPECT_RATIO_TO_OPENAI_SIZE: Record<string, string> = {
-  "1:1":  "1024x1024",
-  "16:9": "1536x1024",
-  "9:16": "1024x1536",
-  "4:3":  "1536x1024",
-  "3:4":  "1024x1536",
-  "21:9": "1536x1024",
-  "4:1":  "1536x1024",
-  "1:4":  "1024x1536",
-};
-
-export function aspectRatioToOpenAISize(ratio: string): string {
-  return ASPECT_RATIO_TO_OPENAI_SIZE[ratio] ?? "1024x1024";
 }
 
 // Build the OpenAI edit `mask` File from the base64 the client painted, resized (if needed) to
