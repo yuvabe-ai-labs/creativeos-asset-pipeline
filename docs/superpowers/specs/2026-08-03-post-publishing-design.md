@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-03
 **Status:** Draft design — pending user review.
-**Type:** Design spec (new subsystem). Introduces decisions **D107–D109** — numbers provisional,
+**Type:** Design spec (new subsystem). Introduces decisions **D113–D115** — numbers provisional,
 see §10 and the numbering caution in the Post node spec.
 **▸ Read the PRD first:** **[`2026-08-03-post-prd.md`](2026-08-03-post-prd.md)**. **The PRD owns what
 and why; this spec owns how.** Where they disagree, the PRD is right and this file is stale.
@@ -10,9 +10,9 @@ and why; this spec owns how.** Where they disagree, the PRD is right and this fi
 the platform-approval constraint in **§8**.
 **Paired specs:**
 **[`2026-08-03-post-node-design.md`](2026-08-03-post-node-design.md)** — builds the artifact this one
-distributes; ships the Publish button present and disabled (D100), which this spec turns on.
+distributes; ships the Publish button present and disabled (D106), which this spec turns on.
 **[`2026-08-03-post-client-approval-design.md`](2026-08-03-post-client-approval-design.md)** — the
-**hard gate**: nothing publishes without the client having approved that exact rendered image (D103).
+**hard gate**: nothing publishes without the client having approved that exact rendered image (D109).
 Approval ships before publishing does.
 **Builds on:** **D42/D44** (org tenancy; app-layer enforcement at chokepoints), **D88** (default-deny
 RLS on every table), **D46** (public GCS capability URLs — load-bearing here, see §4), **D11** (the
@@ -177,7 +177,7 @@ connected / not connected / **needs reconnection** (expired or revoked token).
 └──────────────────────────────────────────────────────────┘
 ```
 
-**The caption is not composed here.** It lives on the post and was approved with the artwork (D103),
+**The caption is not composed here.** It lives on the post and was approved with the artwork (D109),
 so this dialog shows it **read-only**. Editing it would publish copy the client never saw — the exact
 failure the approval gate exists to prevent. Changing it means going back to the post, which
 invalidates the approval and requires another round. That friction is the feature.
@@ -189,7 +189,7 @@ approval**: a manual hand-off publishes just as really as an API call does.
 
 **Two gates, not one.** An earlier draft made the Publish button its own sufficient gate, reasoning
 that post nodes have no version envelope and therefore nowhere to hang an approval. That reasoned
-from the architecture instead of the requirement, and is **retracted** (D103/D105):
+from the architecture instead of the requirement, and is **retracted** (D109/D111):
 
 1. **Client approval** of the exact render — image, caption and hashtags — per
    `2026-08-03-post-client-approval-design.md`. Publish is disabled, with a stated reason, until the
@@ -238,20 +238,21 @@ This is most of the real work. Each of these is a user-visible state, not an exc
 
 ## 10. Decisions for the ADR log
 
-To be appended to §7 of `2026-05-30-creativeos-staging-roadmap.md`. Numbers provisional — the
-roadmap is at **D94**, the Post node spec claims **D95–D103**, the client-approval spec claims
-**D104–D106**, and the unmerged `worktree-video-start-end-spine` branch also claims this range.
+To be appended to §7 of `2026-05-30-creativeos-staging-roadmap.md`. Numbering resolved (2026-08-03
+spec review): the video-start-end-spine branch landed first and holds **D95–D100**; the Post node
+spec holds **D101–D109**; the client-approval spec holds **D110–D112**; this spec holds
+**D113–D115**.
 
 | # | Decision |
 |---|---|
-| **D107** | Publishing ships in three stages, gated by platform approval rather than by engineering; Stage A (assisted publish with a manual hand-off) is unblocked and ships first. *Why: Meta Advanced Access requires App Review plus Business Verification at 2–6 weeks; development mode admits only test users. Rejected: waiting for approval before building; shipping a Publish button that fails for real clients.* |
-| **D108** | A social connection is client-scoped and org-owned; tokens are encrypted at rest and never returned by any API route. *Rejected: org-level connections (a client's accounts are not the agency's); storing tokens in plaintext behind RLS alone.* |
-| **D109** | A publish is a server-side job with a `post_publications` record that snapshots the image URL and caption; it does not join the `generations` substrate. *Why: publishing is slow, retryable, and must survive a closed tab, but it is not a generation and must not pollute eval capture or credit metering. Rejected: publishing inline in the request; reusing `generations`.* |
+| **D113** | Publishing ships in three stages, gated by platform approval rather than by engineering; Stage A (assisted publish with a manual hand-off) is unblocked and ships first. *Why: Meta Advanced Access requires App Review plus Business Verification at 2–6 weeks; development mode admits only test users. Rejected: waiting for approval before building; shipping a Publish button that fails for real clients.* |
+| **D114** | A social connection is client-scoped and org-owned; tokens are encrypted at rest and never returned by any API route. *Rejected: org-level connections (a client's accounts are not the agency's); storing tokens in plaintext behind RLS alone.* |
+| **D115** | A publish is a server-side job with a `post_publications` record that snapshots the image URL and caption; it does not join the `generations` substrate. *Why: publishing is slow, retryable, and must survive a closed tab, but it is not a generation and must not pollute eval capture or credit metering. Rejected: publishing inline in the request; reusing `generations`.* |
 
 > **Retracted:** an earlier draft's *"the Publish button is itself the human gate; publication
 > introduces no second approval system"*. It reasoned from the architecture — post nodes have no
 > version envelope, so there was nowhere to hang an approval — rather than from the requirement.
-> Superseded by **D103** (client approval is required) and **D105** (approval binds to the render).
+> Superseded by **D109** (client approval is required) and **D111** (approval binds to the render).
 
 ## 11. Risks
 

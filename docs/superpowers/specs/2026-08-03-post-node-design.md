@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-03
 **Status:** Draft design — product decisions settled with the user 2026-08-03; pending spec review.
-**Type:** Design spec (new feature; new node type). Introduces decisions **D95–D103** — numbers
+**Type:** Design spec (new feature; new node type). Introduces decisions **D101–D109** — numbers
 provisional, see §14.
 **▸ Read the PRD first:** **[`2026-08-03-post-prd.md`](2026-08-03-post-prd.md)** — users, positioning,
 scope, V1/V2, numbered requirements, success criteria. **The PRD owns what and why; this spec owns
@@ -457,21 +457,23 @@ a Tamil headline and confirm shaping and export.
 
 To be appended to §7 of `2026-05-30-creativeos-staging-roadmap.md` at implementation time.
 
-> **Numbering caution.** The roadmap's last entry is **D94**. The unmerged
-> `worktree-video-start-end-spine` branch also claims this range and needs renumbering before
-> landing. Whichever lands second renumbers — as happened to D49–D53 and D90.
+> **Numbering resolved (2026-08-03 spec review).** The video-start-end-spine branch landed first
+> (2026-08-02) and claimed D95–D100 (itself renumbered from D83–88 — see that spec's own note).
+> This spec's decisions are renumbered here from the original draft's D95–D103 to **D101–D109**,
+> following the same convention. Client approval takes **D110–D112**; publishing takes
+> **D113–D115**.
 
 | # | Decision |
 |---|---|
-| **D95** | Post composition is a new `post` node, not a mode on Image Gen. *Rejected: transforming Image Gen; a Post tab beside Generate/Edit. Bounds D27 — an edit is the same model producing the same artifact; a post is neither.* |
-| **D96** | Post geometry is normalized to 0–1 of the canvas, and the plate is bound by edge rather than copied in. *Rejected: pixel coordinates (locks a post to one output size); snapshotting the plate URL (strands stale imagery).* |
-| **D97** | Templates are indexed by composition and each declares a copy-zone rect; in V1 the rect renders to a copyable hint, and V2 closes the loop by regenerating the plate to fit. *Rejected: indexing by marketing purpose; auto-injecting the hint upstream in V1.* |
-| **D98** | The KB grows a structured `brand_kit` section — colours, fonts, logos, icons, evergreen hashtags — and the Post editor is a read-only consumer with "Fix in KB" links. *Rejected: a parallel brand-asset store outside the KB; client font files in the pilot.* |
-| **D99** | Export rasterizes the same DOM the editor renders, client-side, at `pixelRatio`; GCS images route through the existing same-origin proxy. *Rejected: Satori/resvg — a second renderer whose own docs disclaim pixel-matching the browser, with no WOFF2 support and its own layout engine (which would break Tamil shaping).* |
-| **D100** | Publishing is a separate spec and stage; V1 ships Download with Publish present and disabled. *Rejected: bundling OAuth and per-network APIs into the editor build.* |
-| **D101** | Compliance is checked against the client's KB and **warns only** — nothing blocks export or publish, including banned words. *Why: a tool designers are told to use, which also refuses to let them export, gets routed around. Taken against the spec author's recommendation to block on `never_use_words`. Rejected: blocking on banned words; an LLM compliance pass (too slow to run as you type, non-deterministic on a legal question).* |
-| **D102** | V1 supports English and Tamil, every font declares a Tamil companion for fallback, and glyph-coverage checking is deferred to V2. *Why: a client's brand font has no Tamil glyphs, so pairing is structural, not cosmetic. Accepted risk: a missing glyph renders as empty boxes and V1 will not catch it. Rejected: Latin-only; blocking export on missing glyphs.* |
-| **D103** | The caption and hashtags live on the post, are AI-generated one-shot in V1, and are part of what the client approves; publishing requires client approval of that exact render and a `senior`/`owner` role. *Why: an offer's terms and claims live in the caption — approving artwork alone leaves the riskiest copy unreviewed. Makes the node a hybrid (layers in `data`, caption as generated output), following the Prompt node. Rejected: the caption in the publish dialog; the Publish button as its own gate; senior review as a gate on client contact.* |
+| **D101** | Post composition is a new `post` node, not a mode on Image Gen. *Rejected: transforming Image Gen; a Post tab beside Generate/Edit. Bounds D27 — an edit is the same model producing the same artifact; a post is neither.* |
+| **D102** | Post geometry is normalized to 0–1 of the canvas, and the plate is bound by edge rather than copied in. *Rejected: pixel coordinates (locks a post to one output size); snapshotting the plate URL (strands stale imagery).* |
+| **D103** | Templates are indexed by composition and each declares a copy-zone rect; in V1 the rect renders to a copyable hint, and V2 closes the loop by regenerating the plate to fit. *Rejected: indexing by marketing purpose; auto-injecting the hint upstream in V1.* |
+| **D104** | The KB grows a structured `brand_kit` section — colours, fonts, logos, icons, evergreen hashtags — and the Post editor is a read-only consumer with "Fix in KB" links. *Rejected: a parallel brand-asset store outside the KB; client font files in the pilot.* |
+| **D105** | Export rasterizes the same DOM the editor renders, client-side, at `pixelRatio`; GCS images route through the existing same-origin proxy. *Rejected: Satori/resvg — a second renderer whose own docs disclaim pixel-matching the browser, with no WOFF2 support and its own layout engine (which would break Tamil shaping).* |
+| **D106** | Publishing is a separate spec and stage; V1 ships Download with Publish present and disabled. *Rejected: bundling OAuth and per-network APIs into the editor build.* |
+| **D107** | Compliance is checked against the client's KB and **warns only** — nothing blocks export or publish, including banned words. *Why: a tool designers are told to use, which also refuses to let them export, gets routed around. Taken against the spec author's recommendation to block on `never_use_words`. Rejected: blocking on banned words; an LLM compliance pass (too slow to run as you type, non-deterministic on a legal question).* |
+| **D108** | V1 supports English and Tamil, every font declares a Tamil companion for fallback, and glyph-coverage checking is deferred to V2. *Why: a client's brand font has no Tamil glyphs, so pairing is structural, not cosmetic. Accepted risk: a missing glyph renders as empty boxes and V1 will not catch it. Rejected: Latin-only; blocking export on missing glyphs.* |
+| **D109** | The caption and hashtags live on the post, are AI-generated one-shot in V1, and are part of what the client approves; publishing requires client approval of that exact render and a `senior`/`owner` role. *Why: an offer's terms and claims live in the caption — approving artwork alone leaves the riskiest copy unreviewed. Makes the node a hybrid (layers in `data`, caption as generated output), following the Prompt node. Rejected: the caption in the publish dialog; the Publish button as its own gate; senior review as a gate on client contact.* |
 
 ## 15. Files
 
@@ -497,7 +499,7 @@ src/app/api/nodes/[id]/post/caption/route.ts
 ```
 
 `post-layer-render.tsx` being the single renderer shared by editor and exporter is the structural
-guarantee behind D99. A second render path means preview/export drift is back.
+guarantee behind D105. A second render path means preview/export drift is back.
 
 ## 16. Risks
 
@@ -508,7 +510,8 @@ ones — the ways the build itself can fail:
 |---|---|
 | Rasterizer fidelity differs from the live preview. | Same DOM, same styles, one renderer (§11). Manual export check per format is a release gate. This is why export is **Slice 2**, before anything is built on top of it. |
 | A4 at 300 DPI exceeds the data-URI ceiling. | Test explicitly; fall back to 150 DPI with a visible note rather than a silently broken file. |
-| Tamil renders as tofu and V1 doesn't catch it (D102, R6.3). | Font pairing makes it unlikely; manual Tamil export is a release gate; detection lands in V2. |
+| A4 at 300 DPI also risks the existing 10 MB upload cap (`FILE_NODE_MAX_SIZE`, checked in `/api/nodes/[id]/file/sign` — the same route `fileNodeService.upload` calls, §11) — a second, distinct failure mode from the data-URI ceiling above; a render can pass rasterization and still be rejected on upload. | Same release-gate test covers both: export A4 explicitly and confirm the upload succeeds, not just that `toBlob` returns. |
+| Tamil renders as tofu and V1 doesn't catch it (D108, R6.3). | Font pairing makes it unlikely; manual Tamil export is a release gate; detection lands in V2. |
 | GCS canvas tainting breaks export. | Every GCS-sourced image renders through the existing `/api/image-proxy` (§11). A hard prerequisite — skip it and `toBlob` throws `SecurityError`. |
 | Empty `brand_kit` on every existing KB. | Empty states with working "Fix in KB" links; colours work via the prose fallback; completeness is a tracked metric (PRD §7). |
 | `post-focus-view.tsx` grows into another 54 KB file. | The component split in §15 is the guard; the shell holds no logic. |
@@ -517,5 +520,8 @@ ones — the ways the build itself can fail:
 
 Product-level open questions are in [PRD §10](2026-08-03-post-prd.md). Design-level ones:
 
-1. **Undo/redo granularity** (R1.8) — per property change, or coalesced per gesture? Coalescing is what feels right when dragging; naive per-change history makes a single drag take twenty undos to reverse.
+1. ~~**Undo/redo granularity**~~ **Resolved (2026-08-03 spec review): coalesced per gesture.** A
+   history snapshot commits on pointerup/blur/drop — not on every intermediate move or keystroke —
+   so one undo reverses one drag, one resize, or one text edit. Naive per-change history would make
+   a single drag take twenty undos to reverse (R1.8).
 2. **Where the compliance check runs** — on every keystroke, or debounced? It must feel instant, but it re-scans every layer plus the caption on each pass.

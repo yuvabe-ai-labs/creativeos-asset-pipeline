@@ -2,14 +2,14 @@
 
 **Date:** 2026-08-03
 **Status:** Draft design — product decisions settled with the user 2026-08-03; pending spec review.
-**Type:** Design spec (new surface). Introduces decisions **D104–D106** — numbers provisional, see the
+**Type:** Design spec (new surface). Introduces decisions **D110–D112** — numbers provisional, see the
 numbering caution in the Post node spec.
 **▸ Read the PRD first:** **[`2026-08-03-post-prd.md`](2026-08-03-post-prd.md)**. **The PRD owns what
 and why; this spec owns how.** Where they disagree, the PRD is right and this file is stale.
 **Implements:** PRD **§6.8** approval (R8.1–R8.7) and the approval rows of **§6.10** permissions.
 **Paired specs:**
 [`2026-08-03-post-node-design.md`](2026-08-03-post-node-design.md) — produces the artifact being
-approved (D103).
+approved (D109).
 [`2026-08-03-post-publishing-design.md`](2026-08-03-post-publishing-design.md) — gated by this.
 **Build order:** post node → **approval** → publishing.
 **Builds on:** **D46** (public capability URLs accepted for the pilot — the security model here is the
@@ -79,7 +79,7 @@ One page, no chrome from the app, no navigation. The client's brand, not ours.
 └──────────────────────┴─────────────────────────────────────┘
 ```
 
-**Artwork and caption together**, because that is what D103 says the client is approving. An offer's
+**Artwork and caption together**, because that is what D109 says the client is approving. An offer's
 terms, price and claims live in the caption; approving artwork alone leaves the riskiest copy
 unreviewed. Hashtags are shown with it.
 
@@ -228,9 +228,9 @@ the gate depends on.
 
 | # | Decision |
 |---|---|
-| **D104** | Client approval happens through a per-post tokenized capability link with no account, with an explicitly-labelled recorded-offline fallback. *Why: no client-facing identity exists, and a link matches how approval already happens. The capability-URL posture is the one D46 already accepts for the pilot, with tighter controls. Rejected: a client portal with real logins (external identity, invites, resets — too much for the pilot); agency-asserted approval as the only mechanism.* |
-| **D105** | Approval binds to the exact render — image, caption and hashtags snapshotted — and any subsequent edit makes it stale and re-blocks publishing. Approvals are append-only. *Why: otherwise "approve → edit → publish" ships something the client never saw. Rejected: approval as a flag on the node; last-write-wins on a single row.* |
-| **D106** | The client's response is approve **or feedback**, and feedback is a comment thread on the post; anyone in the agency may send a post for approval, but only `senior`/`owner` may publish. *Why: "make the headline bigger" is the normal response, and a verdict-only system pushes that conversation back into WhatsApp, which is the thing being replaced. Rejected: approve/reject only; pin-anchored comments in V1 (a V2 addition); gating client contact behind internal senior review.* |
+| **D110** | Client approval happens through a per-post tokenized capability link with no account, with an explicitly-labelled recorded-offline fallback. *Why: no client-facing identity exists, and a link matches how approval already happens. The capability-URL posture is the one D46 already accepts for the pilot, with tighter controls. Rejected: a client portal with real logins (external identity, invites, resets — too much for the pilot); agency-asserted approval as the only mechanism.* |
+| **D111** | Approval binds to the exact render — image, caption and hashtags snapshotted — and any subsequent edit makes it stale and re-blocks publishing. Approvals are append-only. *Why: otherwise "approve → edit → publish" ships something the client never saw. Rejected: approval as a flag on the node; last-write-wins on a single row.* |
+| **D112** | The client's response is approve **or feedback**, and feedback is a comment thread on the post; anyone in the agency may send a post for approval, but only `senior`/`owner` may publish. *Why: "make the headline bigger" is the normal response, and a verdict-only system pushes that conversation back into WhatsApp, which is the thing being replaced. Rejected: approve/reject only; pin-anchored comments in V1 (a V2 addition); gating client contact behind internal senior review.* |
 
 ## 12. Risks
 
