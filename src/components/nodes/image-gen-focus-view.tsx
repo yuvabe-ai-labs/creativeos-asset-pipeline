@@ -327,10 +327,11 @@ export function ImageGenFocusView({
   // reference every render (derived, not stored in state).
   const connectedImageUrlsKey = JSON.stringify(connectedImageUrls);
 
-  // Debounced pre-generation cost estimate — mirrors the 300ms debounce pattern this app's
-  // own prompt-focus-view.tsx already uses for its compile-preview fetch. Only meaningful on
-  // the Generate tab (Edit has its own action button, out of scope per this plan) and once
-  // there's a prompt to estimate from.
+  // Pre-generation cost estimate. Only meaningful on the Generate tab (Edit has its own
+  // action button, out of scope per this plan) and once there's a prompt to estimate from.
+  // No debounce: the estimate route computes input-token cost from a static derived formula
+  // (D92) rather than a live vendor API call, so there's no per-keystroke cost to guard
+  // against — the fetch to our own /estimate route fires immediately on every param change.
   useEffect(() => {
     if (!open || activeTab === "edit" || !promptUpstream) {
       setEstimatedCredits(null);
@@ -348,7 +349,7 @@ export function ImageGenFocusView({
     }
     let cancelled = false;
     setEstimating(true);
-    const t = setTimeout(async () => {
+    void (async () => {
       try {
         const res = await fetch(`/api/nodes/${nodeId}/image-generate/estimate`, {
           method: "POST",
@@ -374,10 +375,9 @@ export function ImageGenFocusView({
       } finally {
         if (!cancelled) setEstimating(false);
       }
-    }, 300);
+    })();
     return () => {
       cancelled = true;
-      clearTimeout(t);
     };
     // connectedImageUrls/paramValues/fetchedPrompt omitted on purpose — each is a new object
     // reference on renders that don't actually change its contents (e.g. a sibling state
@@ -493,13 +493,13 @@ export function ImageGenFocusView({
 
   const editReferenceUrlsKey = JSON.stringify([editBaseUrl, ...selectedExtraUrls]);
 
-  // Debounced pre-generation cost estimate for the Edit tab — same 300ms-debounce shape as
-  // the Generate tab's estimate above, but keyed off the edit flow's own inputs (the same
-  // prompt/references handleEdit() itself sends), since editing reserves and charges credits
-  // the same way generating does. Reference-URL approximation matches the Generate estimate's
-  // own precedent: this passes the raw base+extras list, not assembleEditReferences()'s
-  // post-max-count/dedup list the real route actually reserves against — an existing,
-  // accepted gap between estimate and reservation, kept consistent rather than special-cased.
+  // Pre-generation cost estimate for the Edit tab, keyed off the edit flow's own inputs (the
+  // same prompt/references handleEdit() itself sends), since editing reserves and charges
+  // credits the same way generating does. No debounce — see the Generate-tab estimate effect
+  // above for why. Reference-URL approximation matches the Generate estimate's own precedent:
+  // this passes the raw base+extras list, not assembleEditReferences()'s post-max-count/dedup
+  // list the real route actually reserves against — an existing, accepted gap between
+  // estimate and reservation, kept consistent rather than special-cased.
   useEffect(() => {
     if (!open || activeTab !== "edit" || !canEditBase || !finalPrompt.trim()) {
       setEditEstimatedCredits(null);
@@ -511,7 +511,7 @@ export function ImageGenFocusView({
     const referenceUrls = [editBaseUrl, ...selectedExtraUrls].filter(
       (u): u is string => Boolean(u),
     );
-    const t = setTimeout(async () => {
+    void (async () => {
       try {
         const res = await fetch(`/api/nodes/${nodeId}/image-generate/estimate`, {
           method: "POST",
@@ -537,10 +537,9 @@ export function ImageGenFocusView({
       } finally {
         if (!cancelled) setEditEstimating(false);
       }
-    }, 300);
+    })();
     return () => {
       cancelled = true;
-      clearTimeout(t);
     };
     // paramValues (an object) goes in via JSON.stringify, same reason as the Generate
     // estimate effect above — a stable primitive stand-in avoids re-firing on renders that
