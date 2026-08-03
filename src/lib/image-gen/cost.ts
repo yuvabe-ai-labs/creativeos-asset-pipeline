@@ -182,6 +182,8 @@ const OPENAI_PER_REFERENCE_INPUT_TOKENS: Record<string, number> = {
  */
 export function estimateOpenAIInputTokens(modelId: string, referenceCount: number): number {
   if (referenceCount === 0) return OPENAI_BASE_INPUT_TOKENS;
-  const perReference = OPENAI_PER_REFERENCE_INPUT_TOKENS[modelId] ?? 1550;
+  const perReference =
+    OPENAI_PER_REFERENCE_INPUT_TOKENS[modelId] ??
+    Math.max(...Object.values(OPENAI_PER_REFERENCE_INPUT_TOKENS));
   return OPENAI_BASE_INPUT_TOKENS + referenceCount * perReference;
 }
