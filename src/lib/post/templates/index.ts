@@ -16,7 +16,15 @@ export type PostTemplate = {
   seedLayers: (format: PostFormat) => PostLayer[];
 };
 
-function toTemplate(mod: typeof lowerThird): PostTemplate {
+type TemplateModule = {
+  id: string;
+  name: string;
+  purposeTags: string[];
+  copyZone: CopyZone;
+  seedLayers: () => PostLayer[];
+};
+
+function toTemplate(mod: TemplateModule): PostTemplate {
   return {
     id: mod.id,
     name: mod.name,

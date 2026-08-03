@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import type { TextLayer } from "./types";
 import {
   createTextLayer,
   createShapeLayer,
@@ -65,8 +66,8 @@ describe("updateLayer", () => {
     const a = createTextLayer({ text: "A" });
     const b = createTextLayer({ text: "B" });
     const result = updateLayer([a, b], a.id, { text: "A2" });
-    expect(findLayer(result, a.id)?.text).toBe("A2");
-    expect(findLayer(result, b.id)?.text).toBe("B");
+    expect((findLayer(result, a.id) as TextLayer)?.text).toBe("A2");
+    expect((findLayer(result, b.id) as TextLayer)?.text).toBe("B");
   });
 
   it("does not mutate the input array", () => {
