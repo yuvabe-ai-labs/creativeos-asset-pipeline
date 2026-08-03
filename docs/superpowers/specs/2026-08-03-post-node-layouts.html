@@ -127,7 +127,16 @@
   <div class="meta-row">
     <span class="tag">Approved</span>
     <span class="tag grey">2026-08-03</span>
-    <span class="tag grey">Decisions D95–D100</span>
+    <span class="tag grey">Decisions D95–D103</span>
+    <span class="tag grey">V1 scope</span>
+  </div>
+
+  <div class="callout">
+    <p><strong>Positioning, in the user's words:</strong> <em>“They don't have to switch tools to generate
+    on-brand images.”</em> This editor does not compete with Canva on editing quality — it competes on not
+    making you leave. <strong>V1</strong> is a deliberately small manual editor; <strong>V2</strong> is the
+    intelligence around it (layout-aware regeneration, all copy AI-written, campaign fan-out). Any request
+    that only makes the <em>editor</em> better is out of scope by design.</p>
   </div>
 
   <!-- ═══════════════════════════════════════════════════════════════════ -->
@@ -164,7 +173,7 @@
         <div class="layer on"><i style="background:#1e1e1e"></i> Headline</div>
         <div class="layer"><i style="background:#8a7268"></i> Body copy</div>
         <div class="layer"><i style="background:#d79a72"></i> Plate — Image Gen</div>
-        <div class="layer"><i style="background:#e4e4e7"></i> Scrim</div>
+        <div class="layer"><i style="background:#e4e4e7"></i> Scrim (shape)</div>
         <div class="layer" style="opacity:.55"><i style="background:#f4e2d4"></i> Background 🔒</div>
         <div class="label-sm" style="margin-top:14px">Brand colours · from KB</div>
         <div class="swatches">
@@ -425,17 +434,23 @@
     <tr><th>Kind</th><th>Properties in the inspector</th><th>Notes</th></tr>
     <tr><td>text</td>
         <td>content · family · size · weight · colour · align · line-height · letter-spacing · opacity</td>
-        <td>Family comes from the curated webfont list; the client's default is pinned by <code>font_primary</code> in the KB.</td></tr>
+        <td>Family comes from the curated webfont list; the client's default is pinned by <code>font_primary</code> in the KB. Every family declares a <strong>Tamil companion</strong> for fallback — a brand's Latin font has no Tamil glyphs.</td></tr>
     <tr><td>shape</td>
-        <td>fill · opacity · corner radius</td>
-        <td>Rect only. A pill is a rect at radius 999. Covers CTA buttons, colour bands, price tags, dividers.</td></tr>
+        <td>fill (solid <em>or gradient</em>) · opacity · corner radius</td>
+        <td>Rect only; a pill is a rect at radius 999. Covers CTA buttons, colour bands, price tags, dividers — <strong>and the scrim</strong>, which is just a gradient-filled shape. That fold is why there are four kinds, not five.</td></tr>
     <tr><td>image</td>
         <td>source · fit (cover/contain) · opacity · corner radius</td>
         <td>Source is either a live binding to a connected node, or a URL from the Brand Kit / an upload.</td></tr>
-    <tr><td>scrim</td>
-        <td>from · to · angle</td>
-        <td>Linear gradient. Not decorative — it is what makes light text legible over a busy plate.</td></tr>
+    <tr><td>icon</td>
+        <td>source · colour · opacity</td>
+        <td>Three sources: <strong>Lucide</strong> (installed, generic pictograms), <strong>Simple Icons</strong> (social/brand marks — Lucide 1.0 removed all brand icons under trademark pressure and points here instead), and the <strong>client's own</strong> from the KB brand kit.</td></tr>
   </table>
+
+  <div class="callout">
+    <p><strong>The scrim isn't a layer kind — but it is not optional either.</strong> Light text over a busy
+    plate is unreadable without a gradient behind it. Folding it into <code>shape</code> removes a concept
+    without removing the capability; the Lower third template seeds one by default.</p>
+  </div>
 
   <p style="margin-top:26px; font-size:13px; color:var(--ink-3)">
     Wireframes are structural. Final visual design follows the Yuvabe system encoded in

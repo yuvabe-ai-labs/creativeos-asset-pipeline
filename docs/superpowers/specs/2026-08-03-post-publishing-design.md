@@ -2,11 +2,14 @@
 
 **Date:** 2026-08-03
 **Status:** Draft design — pending user review.
-**Type:** Design spec (new subsystem). Introduces decisions **D101–D104** — numbers provisional,
+**Type:** Design spec (new subsystem). Introduces decisions **D107–D109** — numbers provisional,
 see §10 and the numbering caution in the Post node spec.
-**Paired spec:** **[`2026-08-03-post-node-design.md`](2026-08-03-post-node-design.md)** — builds the
-artifact this one distributes. That spec ships the Publish button present and disabled (D100); this
-one turns it on.
+**Paired specs:**
+**[`2026-08-03-post-node-design.md`](2026-08-03-post-node-design.md)** — builds the artifact this one
+distributes; ships the Publish button present and disabled (D100), which this spec turns on.
+**[`2026-08-03-post-client-approval-design.md`](2026-08-03-post-client-approval-design.md)** — the
+**hard gate**: nothing publishes without the client having approved that exact rendered image (D103).
+Approval ships before publishing does.
 **Builds on:** **D42/D44** (org tenancy; app-layer enforcement at chokepoints), **D88** (default-deny
 RLS on every table), **D46** (public GCS capability URLs — load-bearing here, see §4), **D11** (the
 human is the scheduler), **D26** (the generation/job substrate, whose shape the publish job reuses).
@@ -43,7 +46,7 @@ are slow:
 
 | Stage | Contents | Blocked on approval? |
 |---|---|---|
-| **A — Assisted publish** | `social_connections` + `post_publications` tables, the publish composer (caption, per-network preview, character counts), and a **"Copy caption · Download image"** hand-off that records the publication as `manual`. | **No.** Ships immediately. |
+| **A — Assisted publish** | `social_connections` + `post_publications` tables, the publish dialog (account selection, the approved caption shown read-only, per-network length check), and a **"Copy caption · Download image"** hand-off that records the publication as `manual`. | **No.** Ships immediately. |
 | **B — LinkedIn** | OAuth connect, image upload, `/rest/posts`, publication records. | LinkedIn app verification. |
 | **C — Meta** | Instagram + Facebook Page OAuth, container-then-publish, quota checks. | Meta App Review + Business Verification. |
 
@@ -156,9 +159,12 @@ connected / not connected / **needs reconnection** (expired or revoked token).
 │  │ image  │   ☐ Facebook   —            not connected →   │
 │  └────────┘                                               │
 │                                                           │
-│  Caption                                    1,842 / 2,200 │
+│  ✓ Approved by Ravi Kumar · 3 Aug · this render           │
+│                                                           │
+│  Caption — as approved                        read-only   │
 │  ┌──────────────────────────────────────────────────────┐ │
-│  │                                                      │ │
+│  │ Celebrate this Diwali with…                          │ │
+│  │ #Primadonn #Chennai #DreamHomes                      │ │
 │  └──────────────────────────────────────────────────────┘ │
 │                                                           │
 │  ⓘ 4 of 100 Instagram posts used in the last 24h          │
@@ -167,14 +173,28 @@ connected / not connected / **needs reconnection** (expired or revoked token).
 └──────────────────────────────────────────────────────────┘
 ```
 
+**The caption is not composed here.** It lives on the post and was approved with the artwork (D103),
+so this dialog shows it **read-only**. Editing it would publish copy the client never saw — the exact
+failure the approval gate exists to prevent. Changing it means going back to the post, which
+invalidates the approval and requires another round. That friction is the feature.
+
 The **"Copy caption · Download"** action is Stage A's whole product, and it stays permanently — it is
 the fallback whenever a token has expired, a network is unsupported, or someone simply wants to post
-by hand. It records a `manual` publication so the history stays complete.
+by hand. It records a `manual` publication so the history stays complete. It is **also gated on
+approval**: a manual hand-off publishes just as really as an API call does.
 
-**The Publish button is the human gate.** Post nodes have no version envelope and therefore no D29
-approval flag, and this spec does not invent a second approval system for them. Publishing is a
-deliberate human action behind a confirm dialog naming the exact accounts — consistent with D11 (the
-human is the scheduler) and D70 (irreversible steps always pause).
+**Two gates, not one.** An earlier draft made the Publish button its own sufficient gate, reasoning
+that post nodes have no version envelope and therefore nowhere to hang an approval. That reasoned
+from the architecture instead of the requirement, and is **retracted** (D103/D105):
+
+1. **Client approval** of the exact render — image, caption and hashtags — per
+   `2026-08-03-post-client-approval-design.md`. Publish is disabled, with a stated reason, until the
+   post's current render matches an approval. Any edit after approval makes it stale.
+2. **Role** — only `senior` and `owner` may publish. A `designer` composes and shares the approval
+   link; sending to a client is not a privileged act, publishing to a live account is.
+
+On top of both, publishing stays a deliberate human action behind a confirm dialog naming the exact
+accounts — consistent with D11 (the human is the scheduler) and D70 (irreversible steps always pause).
 
 **Irreversibility must be visible.** Publishing is outward-facing and effectively permanent. The
 confirm dialog names every target account explicitly; there is no "publish to all" shortcut.
@@ -207,22 +227,27 @@ This is most of the real work. Each of these is a user-visible state, not an exc
 
 1. **Day 1 of Stage A:** submit Meta App Review + Business Verification, and LinkedIn app
    verification. The clock is the critical path; nothing else is.
-2. **Stage A** — tables, RLS, connection scaffolding, publish composer, manual hand-off.
+2. **Stage A** — tables, RLS, connection scaffolding, the publish dialog, manual hand-off. Requires
+   the client-approval spec to have landed, since every path out is gated on approval.
 3. **Stage B** — LinkedIn, when verification clears.
 4. **Stage C** — Instagram + Facebook, when App Review clears.
 
 ## 10. Decisions for the ADR log
 
 To be appended to §7 of `2026-05-30-creativeos-staging-roadmap.md`. Numbers provisional — the
-roadmap is at **D94**, the Post node spec claims **D95–D100**, and the unmerged
-`worktree-video-start-end-spine` branch also claims numbers in this range.
+roadmap is at **D94**, the Post node spec claims **D95–D103**, the client-approval spec claims
+**D104–D106**, and the unmerged `worktree-video-start-end-spine` branch also claims this range.
 
 | # | Decision |
 |---|---|
-| **D101** | Publishing ships in three stages, gated by platform approval rather than by engineering; Stage A (assisted publish with a manual hand-off) is unblocked and ships first. *Why: Meta Advanced Access requires App Review plus Business Verification at 2–6 weeks; development mode admits only test users. Rejected: waiting for approval before building; shipping a Publish button that fails for real clients.* |
-| **D102** | A social connection is client-scoped and org-owned; tokens are encrypted at rest and never returned by any API route. *Rejected: org-level connections (a client's accounts are not the agency's); storing tokens in plaintext behind RLS alone.* |
-| **D103** | A publish is a server-side job with a `post_publications` record that snapshots the image URL and caption; it does not join the `generations` substrate. *Why: publishing is slow, retryable, and must survive a closed tab, but it is not a generation and must not pollute eval capture or credit metering. Rejected: publishing inline in the request; reusing `generations`.* |
-| **D104** | The Publish button is itself the human gate; post publication introduces no second approval system. *Why: post nodes have no version envelope and therefore no D29 flag. Consistent with D11 and D70. Rejected: extending D29 approval to post nodes for the pilot.* |
+| **D107** | Publishing ships in three stages, gated by platform approval rather than by engineering; Stage A (assisted publish with a manual hand-off) is unblocked and ships first. *Why: Meta Advanced Access requires App Review plus Business Verification at 2–6 weeks; development mode admits only test users. Rejected: waiting for approval before building; shipping a Publish button that fails for real clients.* |
+| **D108** | A social connection is client-scoped and org-owned; tokens are encrypted at rest and never returned by any API route. *Rejected: org-level connections (a client's accounts are not the agency's); storing tokens in plaintext behind RLS alone.* |
+| **D109** | A publish is a server-side job with a `post_publications` record that snapshots the image URL and caption; it does not join the `generations` substrate. *Why: publishing is slow, retryable, and must survive a closed tab, but it is not a generation and must not pollute eval capture or credit metering. Rejected: publishing inline in the request; reusing `generations`.* |
+
+> **Retracted:** an earlier draft's *"the Publish button is itself the human gate; publication
+> introduces no second approval system"*. It reasoned from the architecture — post nodes have no
+> version envelope, so there was nowhere to hang an approval — rather than from the requirement.
+> Superseded by **D103** (client approval is required) and **D105** (approval binds to the render).
 
 ## 11. Risks
 

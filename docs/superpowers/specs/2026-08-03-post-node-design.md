@@ -1,166 +1,178 @@
-# Post node — manual composition of social & marketing posts over generated plates
+# Post node — compose social & marketing posts over generated plates
 
 **Date:** 2026-08-03
-**Status:** Draft design — pending user review.
-**Type:** Design spec (new feature; new node type). Introduces decisions **D95–D100** — numbers
-provisional, see §12.
+**Status:** Draft design — product decisions settled with the user 2026-08-03; pending spec review.
+**Type:** Design spec (new feature; new node type). Introduces decisions **D95–D103** — numbers
+provisional, see §14.
 **Visual companion:** **[`2026-08-03-post-node-layouts.html`](2026-08-03-post-node-layouts.html)** —
-open in a browser. Approved shell, rejected alternatives, template compositions, layer anatomy.
-**Paired spec:** `2026-08-03-post-publishing-design.md` (publishing to Instagram / LinkedIn /
-Facebook — built second, both needed for the pilot).
-**Builds on:** **D19** (node = own content + output), **D10** (type-specific data via JSONB),
-**D8** (edges point to nodes), **D30/D46** (media in GCS, rows hold URLs), **D39** (explicit
-"Set as base" for connected images), **D37 §8** (the same-origin image proxy), **D40** (focus view
-as rail + panel + detail), the **Draw node** lifecycle (`draw-focus-view.tsx` → `toBlob` →
-`fileNodeService.upload` → `onPatch`), and the **KB review surface** (`/clients/[id]/kb`,
-`PATCH /api/clients/[id]/kb/field`).
+open in a browser. Approved editor shell, rejected alternatives, template compositions, layer anatomy.
+**Paired specs:**
+[`2026-08-03-post-client-approval-design.md`](2026-08-03-post-client-approval-design.md) — the client
+approval + feedback gate.
+[`2026-08-03-post-publishing-design.md`](2026-08-03-post-publishing-design.md) — publishing to
+Instagram / Facebook / LinkedIn. Build order: **this spec → approval → publishing.**
+**Builds on:** **D19** (node = own content + output), **D18** (manual edits fold into the active
+version), **D10** (type-specific data via JSONB), **D8** (edges point to nodes), **D30/D46** (media in
+GCS; public capability URLs), **D39** ("Set as base" for connected images), **D37 §8** (the
+same-origin image proxy), **D40** (focus view as rail + panel + detail), **D77** (credit ledger), the
+**Draw node** lifecycle, and the **KB review surface** (`/clients/[id]/kb`).
 
 ---
 
-## 1. Problem & goal
+## 1. Problem, users & positioning
 
-Image Gen produces a *plate* — a photographic background. What actually ships to a client is a
-**post**: that plate with a headline, body copy, a CTA, a logo, and usually a colour band or price
-tag over it. Today that step happens outside CreativeOS, in Canva or Photoshop, which breaks the
-chain: the brand palette is retyped by hand, the finished asset never returns to the canvas, and
-nothing downstream (approval, archive, publishing) can see it.
+Image Gen produces a *plate* — a photographic background. What ships to a client is a **post**: that
+plate with a headline, body copy, a CTA, a logo, and usually a colour band or price tag over it.
+Today that step happens in Canva or Photoshop, which breaks the chain — the brand palette is retyped
+by hand, the finished asset never returns to the canvas, and nothing downstream can see it.
 
-**Goal.** A **Post node** that takes generated imagery as input and composes text, shapes, images,
-and scrims over it into a finished, exportable post — Instagram, LinkedIn, Facebook, or print —
-with the client's brand identity sourced from the KB rather than retyped.
+> **Positioning, in the user's words:**
+> **"They don't have to switch tools to generate on-brand images."**
 
-The plate is generated with deliberate **negative space** so the copy has somewhere to live. Making
-that reliable rather than lucky is an explicit goal, addressed in §6.
+That sentence is the whole product thesis, and it is the test every scope request must pass. This
+editor does **not** compete with Canva on editing quality — that race is unwinnable and every hour
+spent on it is an hour Canva already spent better. It competes on *not making you leave*.
+
+### 1.1 Who this is for
+
+**Design agencies.** The primary user is an agency **designer** composing client work; `senior` and
+`owner` review and publish. The client's role is **approval and feedback only** — they never compose,
+which is why approval is a read-only shared surface rather than an editor seat.
+
+That single fact licenses a deliberately small editor. A skilled designer with a constrained toolset
+and no tool-switching is well served; a brand-side marketer handed the same thing would find it
+missing features. We are building for the first.
+
+### 1.2 Jobs to be done
+
+1. *When a plate is ready, lay the campaign copy over it without leaving CreativeOS.*
+2. *Apply the brand's colours, fonts and icons without looking anything up.*
+3. *Get a caption and hashtags written for me, in the brand's voice.*
+4. *Show the client exactly what will be published — artwork and caption together — and get a yes or
+   a comment back.*
+
+### 1.3 V1 and V2 — the roadmap thesis
+
+| | **V1 — no tool switching** | **V2 — intelligence** |
+|---|---|---|
+| Editor | Manual. Text, shapes, images, icons. Four templates. | Unchanged — it does not grow. |
+| Copy | Caption + hashtags generated one-shot; on-image text typed. | **All** text AI-generated, on the artwork. |
+| Image | Copy-zone hint you read and paste. | **Layout-aware round trip** — pick a template, the plate regenerates to fit its copy zone. |
+| Formats | One node, one format. | Campaign fan-out; one composition, re-fitted across formats. |
+| Other | — | Variants rendered on the real artifact; glyph-coverage checking. |
+
+**The rule this gives V1:** anything that only makes the *editor* better is out; anything that makes
+the *pipeline* smarter is V2. This is what stops the team rebuilding Canva badly the first time
+someone asks for a drop shadow.
+
+V1 leaves room for V2 deliberately: the copy zone is a normalized rect (§6) precisely so the round
+trip has something to build on.
+
+### 1.4 Success criteria
+
+| Signal | Why it matters |
+|---|---|
+| **Posts composed here rather than in Canva** | The thesis in one number. If designers keep leaving, nothing else matters. |
+| **Time to create a post** | The direct measure of "didn't have to switch tools". Tracked from node creation to first render. |
+| Round trips before client approval | Whether the approval loop is actually shorter. |
+| Time from approved plate to approved post | End-to-end pipeline speed. |
+| Compliance issues caught before publish | Whether the guardrail earns its place. |
+| Brand-kit completeness per active client | Leading indicator — an empty brand kit makes the whole value proposition invisible. |
 
 ## 2. Scope
 
-**In scope (v1):**
+**In V1:** the `post` node and its editor; four layer kinds; four templates; a Brand Kit sourced from
+the KB; new structured `brand_kit` KB fields; AI-generated caption + hashtags (one-shot);
+compliance **warnings**; English and Tamil; client-side export to PNG at any scale.
 
-- A new `post` node type with a focus-view editor.
-- Four layer kinds: `text`, `shape`, `image`, `scrim`.
-- Four hand-built template compositions, seeded on first open.
-- A Brand Kit panel sourced from the client KB, with deep-links back to the KB to fix gaps.
-- New structured `brand_kit` fields on the KB schema.
-- Client-side export to PNG at arbitrary scale, uploaded to GCS as the node's output.
-- The template's copy zone appended to the connected Image Gen prompt as a one-way hint.
+**Not in V1:** everything in the V2 column above, plus QR codes, freeform paths, blend modes,
+text-on-curve, masks, effects, client font files, and stock/illustration libraries.
 
-**Out of scope (v1):**
+**Three build slices,** each independently testable:
 
-- **Publishing** — its own spec. The Publish button ships present and disabled (§11).
-- **AI-drafted layouts.** The editor is manual. Auto-layout is a later, additive feature; nothing
-  here forecloses it.
-- **Multi-format fan-out from one composition.** One Post node = one format. Four deliverables =
-  four Post nodes fed by the same Image Gen node. Normalized geometry (§4) leaves the door open.
-- **QR codes**, freeform paths, blend modes, text-on-curve, masks, effects, client font *files*.
-- **Version envelope, credits, generation rows.** A composition is authored content, not a model
-  attempt — see §3.
-
-**Three build slices**, each independently testable, in order:
-
-- **Slice 1 — the node and the stage.** Node type, `PostNodeData`, connections, the focus-view shell,
-  the four layer kinds rendering, direct manipulation, the layer list and inspector. Exercisable by
-  building a post entirely by hand with hardcoded colours. Ends with a composition you can see but
-  not export.
-- **Slice 2 — export.** `post-layer-render` shared by editor and exporter, the image proxy path,
-  render → upload → patch, Download, `getNodeOutput`. Ends with a PNG in GCS that downstream nodes
-  can see. **This is the slice that de-risks the whole feature** — if rasterization fidelity fails,
-  it fails here, before templates and Brand Kit are built on top of it.
-- **Slice 3 — templates and Brand Kit.** The four templates, the first-run picker, the copy-zone
-  hint, the KB `brand_kit` schema addition, and the Brand Kit panel with its "Fix in KB" links.
+- **Slice 1 — node and stage.** Node type, data model, connections, focus-view shell, four layer
+  kinds rendering, direct manipulation, layer list, inspector. Ends with a composition you can see.
+- **Slice 2 — export.** The shared renderer, the image proxy path, render → upload → patch, Download,
+  `getNodeOutput`. **The de-risking slice** — if rasterization fidelity fails, it fails here, before
+  anything is built on top of it.
+- **Slice 3 — brand, copy, compliance.** Templates, first-run picker, KB `brand_kit`, Brand Kit
+  panel, caption/hashtag generation, compliance warnings.
 
 ## 3. Why a new node type
 
-Three alternatives were considered: transform the Image Gen node into a Post node; add a "Post mode"
-tab to the Image Gen node; add a separate Post node. **The separate node wins**, and the reasoning
-matters enough to record:
+Three options were considered: transform Image Gen into a Post node; add a "Post mode" tab; add a
+separate node. **The separate node wins.**
 
-**It is a different lifecycle.** Image Gen is a *generation* node — pick a model, set params, spend
-credits, wait on an async job, append an attempt to the version envelope (D4/D19/D26). Compositing
-is **deterministic**: no model, no credits, no job, no attempt. Behind a tab, half of
-`ImageGenNodeData` (`modelId`, `params`) is meaningless while the tab is open, and the eval system
-that reads `generations` starts seeing rows that are not generations.
+**Different lifecycle.** Image Gen is a generation node — model, params, credits, async job, an
+attempt appended to the version envelope. A composition is authored content. Behind a tab, half of
+`ImageGenNodeData` is meaningless while the tab is open, and the eval system reading `generations`
+sees rows that aren't generations.
 
-**D27 is the counter-precedent and it does not apply.** "Image editing is a new *attempt* on the
-Image Gen node, not a new node" holds precisely *because* an edit is the same model producing the
-same artifact. A post is neither.
+**D27 is the counter-precedent and doesn't apply.** "Editing is a new *attempt*, not a new node"
+holds because an edit is the same model producing the same artifact. A post is neither.
 
-**Fan-out.** One plate realistically becomes four deliverables (IG square, IG story, LinkedIn, A4
-print). A mode gives you one image = one post. A node lets one Image Gen feed N Post nodes — the
-Shot fan-out pattern the app already has (D21).
+**Fan-out.** One plate becomes several deliverables. A mode gives one image = one post; a node lets
+one Image Gen feed N Post nodes — the D21 Shot pattern.
 
-**Only a node can eat text.** The Script node already produces `on_screen_text`, `caption`, and
-`cta` (`renderScriptAsText`). A Post node can accept copy inputs later; a mode cannot, because on
-Image Gen every incoming edge already means "reference image".
+**File size.** `image-gen-focus-view.tsx` is ~54 KB with a Generate/Edit tab pair already (D37). A
+third mode lands in the most overloaded file in the repo.
 
-**File size.** `image-gen-focus-view.tsx` is ~54 KB and already carries a Generate/Edit tab pair
-(D37). A third mode lands in the most overloaded file in the repo, against the ~200-line split rule
-in `docs/component-structure.md`.
-
-**Accepted costs:** more canvas clutter on a fan-out; one more focus view to maintain; a round-trip
-when the plate changes — mitigated by live edge binding (§4).
+**Accepted costs:** more canvas clutter on a fan-out; one more focus view; a round-trip when the
+plate changes — mitigated by live edge binding (§4).
 
 ## 4. Data model
-
-Everything lives in `data`, like Draw. No `node_versions` rows, no `generations` rows.
 
 ```ts
 // src/lib/canvas-nodes.ts
 export type PostNodeData = {
   title?: string;
-  format?: PostFormat;        // canvas aspect + baseline pixel size
-  templateId?: string;        // which template seeded this composition
+  format?: PostFormat;
+  templateId?: string;
   background?: PostBackground;
-  layers?: PostLayer[];       // ordered back → front
-  // the flattened PNG — this node's output; same field names as Draw/File
-  fileUrl?: string;
-  filename?: string;
-  imageWidth?: number;
-  imageHeight?: number;
-  fileSizeBytes?: number;
-  renderedAt?: string;        // ISO; drives the "unrendered changes" badge
+  layers?: PostLayer[];        // ordered back → front — authored content, no versions
+  caption?: string;            // social caption — generated, then editable (§10)
+  hashtags?: string[];         // generated alongside the caption
+  fileUrl?: string;            // flattened PNG — this node's output
+  filename?: string; imageWidth?: number; imageHeight?: number; fileSizeBytes?: number;
+  renderedAt?: string;         // drives the "unrendered changes" badge and approval binding
 };
 ```
 
 ```ts
 // src/lib/post/types.ts
-export type PostFormat =
-  | "ig-square"   // 1080 × 1080
-  | "ig-story"    // 1080 × 1920
-  | "linkedin"    // 1200 × 627
-  | "a4-print";   // 2480 × 3508 @ 300 DPI
+export type PostFormat = "ig-square" | "ig-story" | "linkedin" | "a4-print";
 
 export type LayerBase = {
-  id: string;
-  name?: string;              // shown in the layer list; defaults from kind + content
-  x: number; y: number;       // 0–1, fraction of canvas width / height
-  w: number; h: number;       // 0–1
-  rotation?: number;          // degrees
-  opacity?: number;           // 0–1, default 1
-  locked?: boolean;
-  hidden?: boolean;
+  id: string; name?: string;
+  x: number; y: number; w: number; h: number;   // 0–1, fraction of canvas
+  rotation?: number; opacity?: number; locked?: boolean; hidden?: boolean;
 };
 
-export type TextLayer = LayerBase & {
-  kind: "text";
-  text: string;
-  fontFamily: string;         // a key from the curated list (§8)
-  fontSize: number;           // 0–1, fraction of canvas HEIGHT
-  fontWeight: number;
-  color: string;              // hex
+export type TextLayer  = LayerBase & {
+  kind: "text"; text: string;
+  fontFamily: string; fontSize: number;          // fontSize: 0–1 of canvas HEIGHT
+  fontWeight: number; color: string;
   align: "left" | "center" | "right";
-  lineHeight: number;         // multiplier
-  letterSpacing?: number;     // em
+  lineHeight: number; letterSpacing?: number;
 };
+export type ShapeLayer = LayerBase & { kind: "shape"; fill: Fill; radius: number };
+export type ImageLayer = LayerBase & { kind: "image"; src: ImageSource; fit: "cover" | "contain"; radius?: number };
+export type IconLayer  = LayerBase & { kind: "icon";  src: IconSource;  color?: string };
 
-export type ShapeLayer  = LayerBase & { kind: "shape"; fill: string; radius: number };  // radius 0–1 of min(w,h)
-export type ImageLayer  = LayerBase & { kind: "image"; src: ImageSource; fit: "cover" | "contain"; radius?: number };
-export type ScrimLayer  = LayerBase & { kind: "scrim"; from: string; to: string; angle: number };
+export type PostLayer = TextLayer | ShapeLayer | ImageLayer | IconLayer;
 
-export type PostLayer = TextLayer | ShapeLayer | ImageLayer | ScrimLayer;
+export type Fill =
+  | { kind: "solid";    color: string }
+  | { kind: "gradient"; from: string; to: string; angle: number };
 
 export type ImageSource =
-  | { kind: "node"; nodeId: string }   // live — resolved from a connected node at render time
-  | { kind: "url"; url: string };      // static — Brand Kit asset or upload
+  | { kind: "node"; nodeId: string }    // live — resolved from a connected node at render time
+  | { kind: "url";  url: string };      // Brand Kit asset or upload
+
+export type IconSource =
+  | { kind: "lucide"; name: string }    // inbuilt pictograms
+  | { kind: "simple"; name: string }    // inbuilt brand marks (§7.2)
+  | { kind: "url";    url: string };    // the client's own, from the brand kit
 
 export type PostBackground =
   | { kind: "color"; color: string }
@@ -168,37 +180,27 @@ export type PostBackground =
   | { kind: "image"; src: ImageSource; fit: "cover" | "contain" };
 ```
 
-**Two non-obvious choices, and why:**
+**Four layer kinds, not five.** An earlier draft had a separate `scrim`. A scrim is a shape with a
+gradient fill and no border, so it folds into `shape` — one less concept, same capability, and the
+legibility fix survives. It matters: light text over a busy plate is unreadable without one.
 
-**Geometry is normalized, not pixels.** Every `x/y/w/h` is a 0–1 fraction of the canvas; `fontSize`
-is a fraction of canvas *height*. The inspector still shows "20" — a pure conversion against a
-1080px baseline, in `src/lib/post/units.ts`, unit-tested both directions. This is what makes print
-export work: A4 at 300 DPI is 2480×3508 and the same composition renders at any pixel size with no
-rescaling pass. Pixels would lock every post to one output size.
+**Geometry is normalized.** Every `x/y/w/h` is a 0–1 fraction of the canvas; `fontSize` is a fraction
+of canvas *height*. The inspector shows "20" via a pure conversion against a 1080px baseline
+(`src/lib/post/units.ts`, tested both directions). This is what makes print work — A4 at 300 DPI is
+2480×3508 and the same composition renders at any size — and what V2's fan-out will build on.
 
-**The plate is edge-bound, not copied.** An image layer's `src` may be `{ kind: "node", nodeId }`,
-resolved from the connected node's current output at render time. Regenerating the plate upstream
-updates the post instead of stranding a stale copy. When several images are connected, the Brand Kit
-/ inspector picker chooses which feeds which layer — the same shape as D39's "Set as base".
+**The plate is edge-bound, not copied.** `{ kind: "node", nodeId }` resolves from the connected
+node's current output at render time, so regenerating upstream updates the post rather than stranding
+a stale copy. When several images are connected, the picker chooses which feeds which layer — the
+D39 "Set as base" shape.
 
-**Connections** (`VALID_CONNECTIONS` in `src/lib/canvas-nodes.ts`):
-
-```
-"image-gen": [... , "post"],
-"file":      [... , "post"],
-"draw":      [... , "post"],
-"post":      [],
-```
-
-`post → video-gen` (animate a finished post) is a deliberate later one-line change, not a v1
-feature. Registered in `ADD_NODE_OPTIONS` as `{ type: "post", label: "Post", mnemonic: "O" }` —
-`P` is taken by Prompt.
+**Connections** (`VALID_CONNECTIONS`): `image-gen | file | draw → post`; `post → []`.
+Registered in `ADD_NODE_OPTIONS` as `{ type: "post", label: "Post", mnemonic: "O" }` — `P` is Prompt.
 
 ## 5. The editor
 
-Approved shell — the full-fidelity version is in the visual companion; this is the structural
-summary. It keeps the house focus-view frame: a bottom `Sheet` at `h-[92vh]`, "Back to canvas", an
-`EditableField` title, actions top-right.
+House focus-view frame: bottom `Sheet` at `h-[92vh]`, "Back to canvas", `EditableField` title,
+actions top-right. Four bands. Full-fidelity version in the visual companion.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────┐
@@ -211,7 +213,7 @@ summary. It keeps the house focus-view frame: a bottom `Sheet` at `h-[92vh]`, "B
 │    │ ▪ Headline ◀ │        │ ┌──────────┐ │          │  └─────────────────┘  │
 │    │ ▸ Body copy  │        │ │  plate   │ │          │  ┌──────┐ ┌────────┐  │
 │    │ ▸ Plate      │        │ └──────────┘ │          │  │ size │ │ weight │  │
-│    │ ▸ Scrim      │        │  ▬▬▬▬ ◀ sel  │          │  └──────┘ └────────┘  │
+│    │ ▸ Scrim shape│        │  ▬▬▬▬ ◀ sel  │          │  └──────┘ └────────┘  │
 │    │ ▸ Bg      🔒 │        │  ▬▬▬▬▬▬      │          │  ┌─────────────────┐  │
 │    │              │        │  ( CTA )     │          │  │ colour          │  │
 │    │ BRAND COLOURS│        └──────────────┘          │  └─────────────────┘  │
@@ -222,58 +224,55 @@ summary. It keeps the house focus-view frame: a bottom `Sheet` at `h-[92vh]`, "B
 
 | Band | Holds | Why it earns the space |
 |---|---|---|
-| Icon rail (~44px) | Layers · Brand Kit · Add | Two panel destinations plus **Add**, which is a popover menu (Text / Shape / Image / Scrim), *not* a third panel — adding a layer is one click, and a panel for four buttons would be waste. |
-| Left panel | Layer list, or the Brand Kit | The layer list is what makes overlapping text and shapes editable at all: reorder, lock the plate, reach a layer buried behind another. |
-| Stage | Post canvas + selection handles | Scale-to-fit. The only element with a shadow, so it reads as the subject. |
-| Inspector | Properties for the selected layer | Contextual; empty state prompts "select a layer". |
+| Icon rail | Layers · Brand Kit · **Add** | Add is a popover menu (Text / Shape / Image / Icon), not a third panel. |
+| Left panel | Layer list, or Brand Kit | The layer list is what makes overlapping layers editable: reorder, lock the plate, reach a layer buried behind another. |
+| Stage | Canvas + selection handles | Scale-to-fit; the only element with a shadow. |
+| Inspector | Properties for the selection | Contextual; empty state prompts "select a layer". |
 
-**Templates are not a band.** Picking one is a once-per-post act. It appears as a **first-run
-overlay** when `layers` is empty, and afterwards as "Change template" in the header menu. This was
-the correction that produced the approved shell — a permanent template browser is idle for the whole
-session after the first click.
+**Templates are not a band.** Picking one is a once-per-post act — a first-run overlay when `layers`
+is empty, then "Change template" in the header menu. A permanent template browser is idle for the
+whole session after the first click.
 
-**Rejected shells,** recorded so they are not silently re-litigated: templates in the left panel
-(dead weight after first click); a horizontal properties toolbar (elegant for text, awkward for
-shapes and images, no room for gradient stops); a single right panel with a floating insert bar
-(biggest canvas, but one panel doing Properties + Layers + Brand Kit fights itself the moment you
-drag a logo in while a layer is selected).
+**Rejected shells,** so they aren't silently re-litigated: templates in the left panel; a horizontal
+properties toolbar (fine for text, awkward for shapes and icons, no room for gradient stops); a
+single right panel with a floating insert bar (biggest canvas, but one panel doing Properties +
+Layers + Brand Kit fights itself the moment you drag a logo in while a layer is selected).
 
-**Direct manipulation on the stage:** click to select, drag to move, corner handle to resize,
-top handle to rotate, double-click a text layer to edit in place. Arrow keys nudge; shift-arrow
-nudges by 10×. Snapping to canvas centre lines and to the template's copy-zone edges.
+**Direct manipulation:** click to select, drag to move, corner handle to resize, top handle to
+rotate, double-click text to edit in place. Arrow keys nudge, shift-arrow ×10. Snapping to canvas
+centre lines and to the template's copy-zone edges.
 
-## 6. Templates and the copy-zone contract
+## 6. Templates and the copy zone
 
-Templates are indexed by **composition**, not marketing purpose — because composition is what
-decides whether a template fits the plate you have. Purpose rides along as a tag. Four ship in v1:
+Indexed by **composition**, not marketing purpose — composition is what decides whether a template
+fits the plate you have. Purpose rides along as a tag.
 
 | Template | Composition | Copy zone | Purpose tags |
 |---|---|---|---|
-| **Lower third** | Full-bleed image, copy in bottom 35% over a scrim | bottom 36% | offer, promotion |
+| **Lower third** | Full-bleed image, copy in bottom 35% over a gradient shape | bottom 36% | offer, promotion |
 | **Inset card** | Image inset on a brand-coloured field, copy on the solid | below the plate | launch, announcement |
 | **Side column** | Vertical split — image one side, copy column the other | left 46% | offer, brochure |
 | **Split half** | Hard 50/50 image and brand colour block | bottom 50% | discount, sale |
 
-*Deferred:* **Upper band** (the mirror of Lower third) and **Centred hero** (one line of copy over a
-darkened plate). Both are cheap to add once real posts show whether anyone reaches for them.
+*Deferred:* Upper band (the mirror of Lower third), Centred hero (one line over a darkened plate).
 
-A template is a pure data module in `src/lib/post/templates/` — an id, a name, purpose tags, a copy
-zone rect, and a function producing a seed `PostLayer[]` for a given format. No React, so it is
-unit-testable and the registry can be checked for completeness by a test.
+A template is a pure data module in `src/lib/post/templates/` — id, name, purpose tags, copy-zone
+rect, and a function producing seed layers for a format. No React, so it is unit-testable.
 
-**The copy zone is a contract.** Each template declares its zone as a normalized rect, and a pure
-function `copyZoneHint(zone) → string` renders it into a sentence: *"Leave the lower 35% of the frame
-clear and uncluttered — no key subject matter, no busy detail; this area will carry text."*
+**The copy zone is a contract.** `copyZoneHint(zone) → string` renders it as *"Leave the lower 35% of
+the frame clear and uncluttered — no key subject matter, no busy detail; this area will carry text."*
 
-**How it reaches the image prompt — explicitly:** the Post editor displays that sentence as an
-**"Image brief"** line under the template name, with a copy button. **Nothing is written to another
-node.** The human pastes it into the Image Gen prompt, or reads it and prompts in their own words.
+**In V1 it is display-and-copy.** The editor shows it as an **Image brief** line with a copy button;
+**nothing is written to another node**. Edges run `image-gen → post`, so auto-injection would be a
+downstream node writing upstream — a surprising data-flow direction for a one-sentence payload.
+**V2 closes the loop** (§1.3): pick a template, the plate regenerates to fit. The rect is already in
+the data model for exactly that.
 
-That restraint is deliberate. Edges run `image-gen → post`, so any automatic injection would be an
-*upstream* write from a downstream node — a new and surprising direction of data flow, for a
-one-sentence payload. Display-and-copy delivers the whole benefit at zero plumbing, and leaves a
-future "send to prompt" action possible without having designed around it now. There is no live
-regeneration loop; the human still presses generate (D11).
+**Ownership:** templates are code modules in V1, so only we add them. Making them org-authorable
+later is a move to data, not a config flag — a known cost, not a surprise.
+
+**Format switching** after composing re-fits normalized geometry to the new aspect and **warns** that
+a large ratio change (9:16 → 1200×627) will look wrong. No automatic re-layout; that's V2.
 
 ## 7. Brand Kit — sourced from the KB
 
@@ -281,186 +280,277 @@ The Brand Kit panel is a **read-only projection** of the client's KB and client 
 brand identity is stored on the Post node or in a parallel asset store. Where the KB is empty, the
 panel shows an empty state with a **"Fix in KB →"** deep-link to `/clients/[id]/kb`.
 
-The KB today is a prose document built for *prompting* — every leaf is a `KBField<string | string[]>`
-with confidence and review status. A Brand Kit needs *loadable assets and structured values*. Same
-word, two jobs. So the KB grows a section:
+The KB today is prose built for *prompting* — every leaf a `KBField<string | string[]>` with
+confidence and review status. A Brand Kit needs loadable assets and structured values. So the KB
+grows a section:
 
 ```ts
 // src/lib/kb/schema.ts — new section on TraceableBrandKBSchema
 export const TraceableBrandKitSchema = z.object({
-  colour_tokens: kbField(z.array(z.string())).describe(
-    "Brand colours as bare hex codes only, e.g. '#C8A000' — the machine-usable form of colour_palette_primary",
-  ),
-  font_primary: kbField(z.string()).describe(
-    "Display/heading font family name, e.g. 'Playfair Display'",
-  ),
-  font_secondary: kbField(z.string()).describe(
-    "Body font family name",
-  ),
-  logo_variants: kbField(z.array(z.string())).describe(
-    "Logo asset URLs, labelled by variant: 'primary <url>', 'mono-dark <url>', 'stacked <url>'",
-  ),
+  colour_tokens:  kbField(z.array(z.string())),  // bare hex only: '#C8A000'
+  font_primary:   kbField(z.string()),           // display/heading family name
+  font_secondary: kbField(z.string()),           // body family name
+  logo_variants:  kbField(z.array(z.string())),  // 'primary <url>', 'mono-dark <url>', …
+  icons:          kbField(z.array(z.string())),  // the client's own iconography (§7.2)
+  hashtags:       kbField(z.array(z.string())),  // evergreen brand tags (§10)
 });
 ```
 
 Ordinary `kbField(...)` entries, so they inherit the existing review UI, versioning, and
-confidence/status for free, and render in `kb-field-row.tsx` with no new component.
+confidence/status for free, rendering in `kb-field-row.tsx` with no new component.
 
-**Migration reality, stated plainly:** existing KBs come back with these fields empty until
-re-extracted or filled by hand. That is acceptable — the Brand Kit degrades to empty states with
-working "Fix in KB" links, and `clients.logo_url` (which already exists, with an upload path at
-`/api/clients/[id]/logo`) is used as the fallback single logo.
+**Migration reality:** existing KBs come back empty here until re-extracted or filled by hand. The
+Brand Kit degrades to empty states with working links, and `clients.logo_url` (already exists, with
+an upload path) is the fallback single logo.
 
-**Colours have a working fallback today.** `colour_palette_primary` already stores strings like
-`"turmeric gold #C8A000"`, and `kb-color-swatches.tsx` already parses the hex out. That `HEX` regex
-moves to `src/lib/kb/utils.ts` and is imported by both call sites — one definition, per the
-reusability rule. So the palette works before anyone re-extracts anything.
+**Colours work before anyone re-extracts.** `colour_palette_primary` already stores
+`"turmeric gold #C8A000"`, and `kb-color-swatches.tsx` already parses the hex. That `HEX` regex moves
+to `src/lib/kb/utils.ts` and is imported by both call sites — one definition, per the reusability rule.
 
-**Products / Backgrounds / Icons are not brand knowledge** and get no store. Imagery reaches a post
-the way it already reaches a canvas: a File node, the Drive gallery, or a moodboard.
+### 7.2 Icons — three sources
 
-## 8. Fonts
+| Source | What it covers | Cost |
+|---|---|---|
+| **Lucide** (`lucide-react@^1.17.0`, installed) | Generic pictograms: phone, map-pin, mail, check, arrow, star. | Zero. |
+| **Simple Icons** | Social and brand marks. | A new dependency. |
+| **Client's own** | Brand iconography, uploaded; lives in `brand_kit.icons`. | Upload path + picker. |
 
-A font picker needs a *loadable* webfont; the KB can only ever hold a family name. So:
+**Simple Icons is not optional.** Lucide 1.0 (June 2026) **removed every brand icon** under trademark
+pressure and states it will not accept them again — it officially points to Simple Icons instead. The
+installed version is post-1.0, so there is **no Instagram, WhatsApp or Facebook mark available today**,
+and a contact strip on a brochure needs them.
 
-- A **curated app-level list** of ~12 webfonts in `src/lib/post/fonts.ts` — a spread of display
-  serifs, geometric sans, and neutral text faces — self-hosted in `src/fonts/` and loaded with
-  `next/font/local`, matching how Clash Display and Gilroy are already vendored.
-- `font_primary` / `font_secondary` in the KB **pin which of those a client defaults to**, and the
-  picker surfaces them first. `typography_style` prose can order the rest as a nicety.
-- **Client font files are out of the pilot.** Licensing plus font loading inside an export renderer
-  is its own problem, and getting it wrong ships a client's licensed typeface as a base64 blob in a
-  PNG pipeline.
+**The house "Lucide only, 1.5 stroke, no fills" rule governs app chrome.** An icon a designer places
+inside a client's brochure is *content*, not UI — a filled WhatsApp mark is correct there and must
+not inherit the app's stroke convention.
 
-Self-hosting is not incidental: the exporter inlines fonts as data URLs (§9), which requires the
-bytes to be same-origin fetchable.
+## 8. Compliance — warnings, never blocking
 
-## 9. Rendering and export
+Post copy is the only human-written text in the pipeline. Every other text is model-generated under
+the KB's compliance constraints, which `parse-context.ts` already injects into prompts. A headline
+typed into a text layer bypasses that — and it is the text published at full size on the client's own
+account.
 
-**The editor renders real DOM, and export rasterizes that same tree.** One renderer, so preview and
-output cannot drift. Layers are absolutely-positioned elements inside a container sized to the
-format; normalized geometry × container size = CSS pixels.
+| KB field | Surfaced as |
+|---|---|
+| `never_use_words` | Match highlighted in the layer; listed in the compliance panel. |
+| `never_use_claims` | Phrase-level match, listed. |
+| `never_use_tone` | Advisory guidance. |
+| `disclaimers` | Checklist of required lines; each insertable as a text layer in one click. |
+| `preferred_phrases`, `preferred_verbs` | Suggestions in the Brand Kit panel. |
 
-**Library: `html-to-image`.** It clones the node, inlines computed styles, embeds webfonts and
-images as data URLs, wraps the result in an SVG `<foreignObject>`, and draws it to an off-screen
-canvas. It exposes `pixelRatio`, explicit `width`/`height`, `backgroundColor`, `filter` (to exclude
-selection handles from the output), and `fontEmbedCSS` (compute the font CSS once, reuse per
-export).
+**Nothing blocks.** Not export, not publish, not even a banned word. A compliance **chip** in the
+header shows *clear* or *n issues* and opens a panel listing each against the layer it came from.
 
-**Server-side rendering was evaluated and rejected.** Satori + resvg is deterministic and runs at
-the edge, but it would be a *second* renderer, and its own documentation says it *"does not guarantee
-that the SVG will 100% match the browser-rendered HTML output"*; `display` is only
-`flex`/`contents`/`none`; `calc()` is unsupported; and **WOFF2 is not supported**, which is the
-format nearly every webfont ships as. A preview that drifts from the export is the worst possible
-failure for this feature.
+That is a deliberate call, taken against my own recommendation to block on `never_use_words`. The
+reasoning that won: a tool designers are *told* to use, which also refuses to let them export, is a
+tool they route around. Warnings that are always right are worth more than a block that is
+occasionally wrong.
 
-**Canvas tainting is already solved in this repo.** GCS public objects send no CORS headers, so a
-`crossOrigin` image load fails and canvas readback throws. `src/app/api/image-proxy/route.ts` exists
-for exactly this (built for the D37 annotation canvas) — locked to `https://storage.googleapis.com/`
-against SSRF, and it sets `access-control-allow-origin: *`. **Every image layer whose source is a
-GCS URL renders through the proxy.** This is a hard prerequisite, not a nicety: skip it and export
-throws a `SecurityError` at `toBlob`.
+Pure function `checkCopy(layers, caption, kb.compliance) → ComplianceIssue[]`, unit-tested, no model
+call — string matching against a list the client already approved, instant as you type. It covers the
+caption and hashtags too, not just on-image text.
 
-**Export flow** — the Draw node's lifecycle, unchanged in shape:
+**Contrast** is handled the same way: each text layer's contrast against what's behind it raises an
+**advisory** flag with "add a scrim" as a one-click fix. Never a gate — designers overrule contrast
+deliberately and often correctly.
+
+When a client has no compliance data the chip reads "no compliance rules set" with a Fix-in-KB link
+— visibly absent rather than silently passing.
+
+## 9. Fonts, and Tamil
+
+- A **curated app-level list** of ~12 webfonts in `src/lib/post/fonts.ts`, self-hosted in
+  `src/fonts/` and loaded with `next/font/local` — matching how Clash Display and Gilroy are already
+  vendored. Self-hosting is required, not stylistic: the exporter inlines fonts as data URLs (§11),
+  which needs the bytes same-origin.
+- `font_primary` / `font_secondary` in the KB **pin the client's defaults**; the picker surfaces them
+  first.
+- **Client font files are out.** Licensing plus font loading inside an export renderer is its own
+  problem.
+
+**V1 supports English and Tamil.** Other Indian scripts come later; naming them here makes their
+absence a decision rather than an oversight.
+
+**Every font declares a Tamil companion.** A client's brand font almost certainly has none — `Playfair
+Display` has no Tamil glyphs at all — so each family in the list pairs with a Tamil face (Noto Serif
+Tamil with a serif, Noto Sans Tamil with a sans), and a Tamil text layer falls back to the companion.
+The designer sees which font is actually in use; it is not a silent substitution.
+
+**Glyph-coverage checking is V2.** V1 renders Tamil but does not police whether the chosen font can.
+Accepted risk, stated plainly: a missing glyph renders as empty boxes in the preview *and* the
+exported PNG, and V1 will not catch it.
+
+**Fonts are subset to the glyphs actually used before inlining**, or Tamil coverage pushes the export
+against the data-URI ceiling (§11).
+
+## 10. Caption and hashtags
+
+**The caption lives on the post, not in the publish dialog** — because the client approves the
+artwork and the caption **together**, as one thing. An offer's terms, price, and claims live in the
+caption; approving artwork alone would leave the riskiest copy unreviewed.
+
+**V1 generates both, one-shot.** A single model call produces a caption and hashtags; the designer
+edits them by hand afterwards. No history, no variants, no regenerate-and-compare — that is V2.
+
+What it generates from — all of it already exists:
+
+- KB `tone_of_voice` and `personality` — so it sounds like the brand.
+- KB `compliance` — so it doesn't write a banned claim in the first place, which beats flagging one
+  afterwards.
+- KB `brand_kit.hashtags` — the client's evergreen tags, so they aren't retyped per post.
+- The connected Script node's `caption` and `cta`, when one is connected.
+- **The rendered post image as a vision attachment**, so the caption describes the actual artwork.
+
+**Credits:** this is an ordinary metered text generation. `estimatePromptCredits(attachmentCount)` is
+already `5 + 2.5 × attachments` (`src/lib/credits/prompt-estimate.ts`), so a caption with the image
+attached is 7.5 credits under the existing model. No new pricing decision.
+
+**This makes the Post node a hybrid**, and that is more consistent with the architecture than the
+alternative: layers are authored content in `data` (no versions), while the caption is a generated
+output. The Prompt node is the precedent — instruction plus context, one model call, result editable
+in place (D18/D19).
+
+**Per-network hashtag differences are V2.** V1 has one caption and one tag list. Instagram's
+first-comment convention is a publishing concern, not an editor one, and belongs in that spec.
+
+## 11. Rendering and export
+
+**The editor renders real DOM, and export rasterizes that same tree** — one renderer, so preview and
+output cannot drift. Layers are absolutely-positioned elements in a container sized to the format;
+normalized geometry × container size = CSS pixels.
+
+**Library: `html-to-image`.** It clones the node, inlines computed styles, embeds webfonts and images
+as data URLs, wraps the result in an SVG `<foreignObject>`, and draws it to an off-screen canvas. It
+exposes `pixelRatio`, explicit `width`/`height`, `backgroundColor`, `filter` (to exclude selection
+handles) and `fontEmbedCSS`.
+
+**Server-side rendering was evaluated and rejected.** Satori + resvg is deterministic, but it would
+be a *second* renderer, and its own docs say it *"does not guarantee that the SVG will 100% match the
+browser-rendered HTML output"*; `display` is only `flex`/`contents`/`none`; `calc()` is unsupported;
+**WOFF2 is not supported**. It also uses its own layout engine — which would be exactly where Tamil
+shaping broke. `html-to-image` rasterizes through the browser's own text engine, so Tamil combining
+vowel signs and ligatures render correctly for free.
+
+**Canvas tainting is already solved here.** GCS public objects send no CORS headers, so a
+`crossOrigin` load fails and canvas readback throws. `src/app/api/image-proxy/route.ts` exists for
+exactly this (built for D37's annotation canvas), locked to the storage host against SSRF. **Every
+image layer sourced from GCS renders through the proxy** — a hard prerequisite, not a nicety.
+
+**Export flow**, the Draw node's lifecycle unchanged in shape:
 
 1. `toBlob(stageEl, { pixelRatio, filter })` at the format's native pixel size.
-2. Wrap as a `File`, upload via `fileNodeService.upload(nodeId, file)` — signed URL to GCS,
-   already handles the 4.5 MB Vercel function-body limit.
+2. Upload via `fileNodeService.upload(nodeId, file)` — signed URL to GCS, already handles Vercel's
+   4.5 MB function-body limit.
 3. `onPatch({ fileUrl, filename, imageWidth, imageHeight, fileSizeBytes, renderedAt })`.
-4. **Download** re-renders first if the composition changed since `renderedAt`, then saves the blob
-   locally. It never hands the user a stale file — an "unrendered changes" badge on the header makes
-   the state visible, and Download resolves it rather than ignoring it.
+4. **Download** re-renders first if the composition changed since `renderedAt`, then saves locally.
+   Never hands the user a stale file.
 
-`getNodeOutput` gains a `case "post"` returning `data.fileUrl` — so a post behaves like any other
-image-producing node downstream.
+`getNodeOutput` gains `case "post"` returning `data.fileUrl`.
 
-**Known limitation, accepted:** `html-to-image` fails on extremely large DOMs because of data-URI
-size limits. A post is a dozen layers, so DOM size is not the risk; the embedded base64 payload at
-A4/300 DPI is. Mitigation is to test the A4 path explicitly (§10) and, if it fails, render print at
-150 DPI with an explicit note rather than silently producing a broken file.
+**Accepted limitation:** `html-to-image` fails on very large DOMs because of data-URI size limits. A
+post is a dozen layers, so DOM size isn't the risk; the embedded base64 at A4/300 DPI is. Test the A4
+path explicitly; if it fails, render print at 150 DPI with a visible note rather than producing a
+broken file silently.
 
-## 10. Testing
+## 12. Permissions and approval
 
-Pure logic carries the weight, matching how the rest of `src/lib/nodes/` is tested:
+| Action | designer | senior | owner |
+|---|---|---|---|
+| Create / edit / render a post | ✅ | ✅ | ✅ |
+| Download the rendered PNG | ✅ | ✅ | ✅ |
+| Share the approval link with the client | ✅ | ✅ | ✅ |
+| **Publish to a live account** | ❌ | ✅ | ✅ |
 
-- **`units.test.ts`** — normalized ↔ display conversion, both directions, at every format; font size
-  as a fraction of height; round-trip stability.
-- **`templates.test.ts`** — every registered template produces layers within canvas bounds for every
-  format; every template declares a copy zone; ids are unique; the registry matches the picker list.
+**One gate: the client.** Anyone may send a post to the client for approval — that is ordinary client
+contact, not a privileged act. **Publishing** requires (a) the client having approved *this render*
+and (b) a `senior`/`owner` role. Internal senior review stays as it is today: D29 flag-only, gating
+nothing.
+
+**Approval binds to the render, not the node.** Otherwise "approve → nudge the headline → publish"
+ships something the client never saw. Editing after approval invalidates it and requires
+re-approval — a visible state on the node, never a silent reset. `renderedAt` is what it binds to.
+
+**Download is not gated on approval** — internal copies and client mock-ups are how approval happens
+in the first place.
+
+The Publish button ships **present and disabled** in this spec, with a tooltip pointing at the
+publishing spec, so the header layout doesn't change when publishing lands.
+
+## 13. Testing
+
+- **`units.test.ts`** — normalized ↔ display conversion both directions at every format; round-trip stability.
+- **`templates.test.ts`** — every template produces in-bounds layers for every format; every template declares a copy zone; ids unique; registry matches the picker.
 - **`copy-zone-hint.test.ts`** — each zone shape produces the expected sentence.
-- **`brand-kit.test.ts`** — hex extraction from KB prose (including entries with no hex, malformed
-  hex, 3-char hex); `logo_variants` label parsing; fallback to `clients.logo_url`.
-- **`layers.test.ts`** — reorder, add, delete, duplicate, lock/hide; z-order after each.
+- **`compliance.test.ts`** — banned-word matching across inflections; claim phrases; disclaimer checklist; caption and hashtags included; empty-KB behaviour.
+- **`brand-kit.test.ts`** — hex extraction from KB prose (no hex, malformed, 3-char); `logo_variants` label parsing; icon source resolution; fallback to `clients.logo_url`.
+- **`fonts.test.ts`** — every family declares a Tamil companion; the fallback resolves.
+- **`layers.test.ts`** — add, delete, reorder, duplicate, lock/hide; z-order after each.
 
-**Manual verification** (no rasterization test is worth its maintenance cost): export at each of the
-four formats and confirm the PNG matches the on-screen preview; export a post whose plate is a GCS
-image and confirm the proxy prevents tainting; export A4 at 300 DPI and check the file opens and is
-the right pixel size.
+**Manual, as a release gate:** export at each format and compare to the on-screen preview; export a
+post whose plate is a GCS image and confirm the proxy prevents tainting; export A4 at 300 DPI; render
+a Tamil headline and confirm shaping and export.
 
-## 11. The Publish button
-
-Ships **present and disabled**, with a tooltip pointing at the publishing spec. The header layout
-does not change when publishing lands, and it makes the intended shape of the feature visible to
-whoever picks it up. **Download** is how work leaves the system in v1.
-
-## 12. Decisions for the ADR log
+## 14. Decisions for the ADR log
 
 To be appended to §7 of `2026-05-30-creativeos-staging-roadmap.md` at implementation time.
 
 > **Numbering caution.** The roadmap's last entry is **D94**. The unmerged
-> `worktree-video-start-end-spine` branch also claims numbers in this range and needs renumbering to
-> D95+ before landing. Whichever lands second renumbers — the same correction applied to D49–D53 and
-> D90.
+> `worktree-video-start-end-spine` branch also claims this range and needs renumbering before
+> landing. Whichever lands second renumbers — as happened to D49–D53 and D90.
 
 | # | Decision |
 |---|---|
-| **D95** | Post composition is a new `post` node, not a mode on Image Gen. *Rejected: transforming the Image Gen node; a Post tab beside Generate/Edit. Refines D27 by bounding it — an edit is the same model producing the same artifact; a post is neither.* |
-| **D96** | Post geometry is normalized to 0–1 of the canvas, and the plate is bound by edge rather than copied into the composition. *Rejected: pixel coordinates (locks each post to one output size); snapshotting the plate URL (strands stale imagery).* |
-| **D97** | Templates are indexed by composition, and each declares a copy-zone rect that is rendered into a one-way hint appended to the Image Gen prompt. *Rejected: indexing by marketing purpose; a live regeneration loop between the two nodes.* |
-| **D98** | The KB grows a structured `brand_kit` section; the Post editor is a read-only consumer of it with "Fix in KB" deep-links, and fonts are a curated app-level list pinned by the KB. *Rejected: a parallel brand-asset store outside the KB; client-uploaded font files in the pilot.* |
-| **D99** | Export rasterizes the same DOM the editor renders, client-side, at `pixelRatio` for print; GCS images route through the existing same-origin proxy. *Rejected: Satori/resvg server rendering — a second renderer whose own docs disclaim pixel-matching the browser, with no WOFF2 support.* |
-| **D100** | Publishing is a separate spec and a separate stage; v1 ships Download with the Publish button present and disabled. *Rejected: bundling OAuth, token lifecycle, and per-network APIs into the editor build.* |
+| **D95** | Post composition is a new `post` node, not a mode on Image Gen. *Rejected: transforming Image Gen; a Post tab beside Generate/Edit. Bounds D27 — an edit is the same model producing the same artifact; a post is neither.* |
+| **D96** | Post geometry is normalized to 0–1 of the canvas, and the plate is bound by edge rather than copied in. *Rejected: pixel coordinates (locks a post to one output size); snapshotting the plate URL (strands stale imagery).* |
+| **D97** | Templates are indexed by composition and each declares a copy-zone rect; in V1 the rect renders to a copyable hint, and V2 closes the loop by regenerating the plate to fit. *Rejected: indexing by marketing purpose; auto-injecting the hint upstream in V1.* |
+| **D98** | The KB grows a structured `brand_kit` section — colours, fonts, logos, icons, evergreen hashtags — and the Post editor is a read-only consumer with "Fix in KB" links. *Rejected: a parallel brand-asset store outside the KB; client font files in the pilot.* |
+| **D99** | Export rasterizes the same DOM the editor renders, client-side, at `pixelRatio`; GCS images route through the existing same-origin proxy. *Rejected: Satori/resvg — a second renderer whose own docs disclaim pixel-matching the browser, with no WOFF2 support and its own layout engine (which would break Tamil shaping).* |
+| **D100** | Publishing is a separate spec and stage; V1 ships Download with Publish present and disabled. *Rejected: bundling OAuth and per-network APIs into the editor build.* |
+| **D101** | Compliance is checked against the client's KB and **warns only** — nothing blocks export or publish, including banned words. *Why: a tool designers are told to use, which also refuses to let them export, gets routed around. Taken against the spec author's recommendation to block on `never_use_words`. Rejected: blocking on banned words; an LLM compliance pass (too slow to run as you type, non-deterministic on a legal question).* |
+| **D102** | V1 supports English and Tamil, every font declares a Tamil companion for fallback, and glyph-coverage checking is deferred to V2. *Why: a client's brand font has no Tamil glyphs, so pairing is structural, not cosmetic. Accepted risk: a missing glyph renders as empty boxes and V1 will not catch it. Rejected: Latin-only; blocking export on missing glyphs.* |
+| **D103** | The caption and hashtags live on the post, are AI-generated one-shot in V1, and are part of what the client approves; publishing requires client approval of that exact render and a `senior`/`owner` role. *Why: an offer's terms and claims live in the caption — approving artwork alone leaves the riskiest copy unreviewed. Makes the node a hybrid (layers in `data`, caption as generated output), following the Prompt node. Rejected: the caption in the publish dialog; the Publish button as its own gate; senior review as a gate on client contact.* |
 
-## 13. Files
+## 15. Files
 
 ```
 src/lib/post/
-  types.ts              PostNodeData, layer types, ImageSource, PostFormat
-  formats.ts            format → pixel size + aspect
-  units.ts              normalized ↔ display px  (pure, tested)
-  layers.ts             add / delete / reorder / duplicate / lock  (pure, tested)
-  fonts.ts              curated webfont list
-  copy-zone-hint.ts     zone rect → prompt sentence  (pure, tested)
-  brand-kit.ts          KB + client row → BrandKit view model  (pure, tested)
+  types.ts  formats.ts  units.ts  layers.ts  fonts.ts
+  copy-zone-hint.ts   zone rect → prompt sentence      (pure, tested)
+  compliance.ts       copy + KB compliance → issues    (pure, tested)
+  brand-kit.ts        KB + client row → view model     (pure, tested)
+  icons.ts            lucide / simple / url resolution
   templates/
-    index.ts            registry
-    lower-third.ts  inset-card.ts  side-column.ts  split-half.ts
+    index.ts  lower-third.ts  inset-card.ts  side-column.ts  split-half.ts
 
 src/components/nodes/
-  post-node.tsx                 on-canvas node
-  post-focus-view.tsx           shell only — must stay well under the split rule
-  post-stage.tsx                canvas + selection + direct manipulation
-  post-layer-list.tsx           left panel, Layers tab
-  post-brand-kit-panel.tsx      left panel, Brand Kit tab
-  post-inspector.tsx            right panel; delegates per layer kind
-  post-inspector-text.tsx  post-inspector-shape.tsx
-  post-inspector-image.tsx post-inspector-scrim.tsx
-  post-add-menu.tsx             rail popover — Text / Shape / Image / Scrim
-  post-template-picker.tsx      first-run overlay
-  post-layer-render.tsx         the one renderer used by editor AND export
+  post-node.tsx  post-focus-view.tsx  post-stage.tsx
+  post-layer-list.tsx  post-brand-kit-panel.tsx  post-add-menu.tsx
+  post-inspector.tsx  post-inspector-{text,shape,image,icon}.tsx
+  post-template-picker.tsx  post-caption-panel.tsx  post-compliance-chip.tsx
+  post-layer-render.tsx     the ONE renderer used by editor AND export
 
-src/services/post-node.service.ts   render → upload → patch
+src/services/post-node.service.ts   render → upload → patch; caption generation
+src/app/api/nodes/[id]/post/caption/route.ts
 ```
 
-`post-layer-render.tsx` being the single renderer shared by the editor and the exporter is the
-structural guarantee behind D99. If a second render path ever appears, preview/export drift is back.
+`post-layer-render.tsx` being the single renderer shared by editor and exporter is the structural
+guarantee behind D99. A second render path means preview/export drift is back.
 
-## 14. Risks
+## 16. Risks
 
 | Risk | Mitigation |
 |---|---|
-| Rasterizer fidelity differs from the live preview (shadows, gradients, letter-spacing). | Same DOM, same styles; manual export check per format is a release gate. |
-| A4 at 300 DPI exceeds the data-URI ceiling. | Test explicitly; fall back to 150 DPI with a visible note rather than a silently broken file. |
-| Empty `brand_kit` on every existing KB. | Empty states with working "Fix in KB" links; colours already work via the prose fallback; `clients.logo_url` covers a single logo. |
-| Layer editing on a bottom sheet is cramped on small screens. | Format-aware scale-to-fit; the stage is the only band that flexes. Sub-1280px is not a supported editing width for the pilot. |
-| Scope creep toward Canva. | The four layer kinds and four templates are the contract. Anything else is a new spec. |
+| **Designers keep using Canva** — the product risk that outranks every technical one. | The wedge is not editing quality (§1). Measured directly by the first success criterion; if it misses, the answer is not more editor features. |
+| Rasterizer fidelity differs from the live preview. | Same DOM, same styles; manual export check per format is a release gate. |
+| A4 at 300 DPI exceeds the data-URI ceiling. | Test explicitly; fall back to 150 DPI with a visible note. |
+| Tamil renders as tofu and V1 doesn't catch it (D102). | Font pairing makes it unlikely; manual Tamil export is a release gate; checking lands in V2. |
+| Empty `brand_kit` on every existing KB. | Empty states with working links; colours work via the prose fallback; completeness is a tracked metric. |
+| Warn-only compliance lets a violation through (D101). | Accepted deliberately. The chip is visible at compose, render and publish; the client also sees the caption at approval. |
+| Scope creep toward Canva. | §1.3 is the test: editor-only improvements are out, pipeline intelligence is V2. |
+
+## 17. Open questions
+
+1. **Which pilot client goes first**, and is their KB complete enough to show the brand-kit value on day one?
+2. **Does a post need more than one approval round recorded**, or is latest-wins enough? Assumed latest-wins in the approval spec.
+3. **Undo/redo** is unspecified. It wins nobody over, but its absence makes an editor feel cheap — which matters even when adoption is mandated. Recommend including it in Slice 1; not yet decided.
