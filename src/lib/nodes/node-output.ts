@@ -17,6 +17,9 @@ export function getNodeOutput(node: NodeOutputInput): string {
       // Draw node carries composition instructions as its text output; the sketch image
       // travels separately via fileUrl → vision attachment. Mirrors the "text" case (D19).
       return String(node.data.instructions ?? "").trim();
+    case "post":
+      // Post nodes have no version system — the rendered output lives on node.data (D19-style).
+      return String(node.data.fileUrl ?? "").trim();
     case "shot":
       // A Shot carries the parent script narrowed to ONE shot (D21), but it feeds ONE
       // reference image — so by default render only the visually-actionable fields, not

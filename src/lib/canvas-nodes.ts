@@ -7,6 +7,7 @@ import type { ReelScript } from "@/lib/nodes/reel-script";
 import type { VideoControls } from "@/lib/nodes/video-controls";
 import type { VideoProvider } from "@/prompts/video-prompt-generate";
 import type { EditIntent } from "@/lib/image-gen/edit-prompt";
+import type { PostFormat, PostLayer } from "@/lib/post/types";
 
 export type ScriptNodeData = {
   title?: string;
@@ -111,6 +112,19 @@ export type ShotNodeData = {
   };
 };
 
+export type PostNodeData = {
+  title?: string;
+  format?: PostFormat;
+  templateId?: string;         // which starter template seeded this scene, for "Change template"
+  layers?: PostLayer[];        // ordered back -> front — authored content, no version log (D19-style)
+  fileUrl?: string;            // flattened PNG — this node's output
+  filename?: string;
+  imageWidth?: number;
+  imageHeight?: number;
+  fileSizeBytes?: number;
+  renderedAt?: string;         // drives the "unrendered changes" badge (Task 24 staleness check)
+};
+
 export type AppNode =
   | Node<ScriptNodeData, "script">
   | Node<KBNodeData, "kb">
@@ -121,7 +135,8 @@ export type AppNode =
   | Node<DrawNodeData, "draw">
   | Node<ImageGenNodeData, "image-gen">
   | Node<VideoPromptNodeData, "video-prompt">
-  | Node<VideoGenNodeData, "video-gen">;
+  | Node<VideoGenNodeData, "video-gen">
+  | Node<PostNodeData, "post">;
 
 // PRD §10 — which source node types may connect to which target node types.
 // The Video Prompt node (D24) sits between Image Gen and Video Gen: the still feeds it as a
@@ -131,13 +146,14 @@ export const VALID_CONNECTIONS: Record<string, readonly string[]> = {
   kb:             ["script"],
   script:         ["prompt"],
   shot:           ["prompt", "video-prompt"],
-  file:           ["prompt", "image-gen", "video-prompt", "video-gen", "shot"],
-  draw:           ["prompt", "image-gen", "video-prompt", "video-gen", "shot"],
+  file:           ["prompt", "image-gen", "video-prompt", "video-gen", "shot", "post"],
+  draw:           ["prompt", "image-gen", "video-prompt", "video-gen", "shot", "post"],
   text:           ["prompt", "video-prompt"],
   prompt:         ["prompt", "image-gen", "video-gen"],
-  "image-gen":    ["prompt", "video-gen", "video-prompt", "shot"],
+  "image-gen":    ["prompt", "video-gen", "video-prompt", "shot", "post"],
   "video-prompt": ["video-gen"],
   "video-gen":    [],
+  "post":         [],
 } as const;
 
 // The single ordered connection check: may a `sourceType` node feed a `targetType` node?

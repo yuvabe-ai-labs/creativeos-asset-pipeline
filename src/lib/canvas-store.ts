@@ -97,6 +97,8 @@ function defaultData(type: string): AppNode["data"] {
       return { title: "", modelId: DEFAULT_CLIENT_MODEL_ID };
     case "video-gen":
       return { title: "", modelId: DEFAULT_VIDEO_CLIENT_MODEL_ID };
+    case "post":
+      return { title: "", format: "ig-square" as const, layers: [] };
     case "script":
     default:
       return { title: "" };

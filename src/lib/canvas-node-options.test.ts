@@ -7,13 +7,14 @@ import {
 } from "./canvas-node-options";
 
 describe("ADD_NODE_OPTIONS", () => {
-  it("has the 8 user-addable node types (kb excluded)", () => {
+  it("has the 9 user-addable node types (kb excluded)", () => {
     const types = ADD_NODE_OPTIONS.map((o) => o.type).sort();
     expect(types).toEqual(
       [
         "draw",
         "file",
         "image-gen",
+        "post",
         "prompt",
         "script",
         "text",
@@ -47,6 +48,7 @@ describe("mnemonicToType", () => {
       i: "image-gen",
       v: "video-prompt",
       g: "video-gen",
+      o: "post",
     };
     for (const [key, type] of Object.entries(expected)) {
       expect(mnemonicToType(key)).toBe(type);
