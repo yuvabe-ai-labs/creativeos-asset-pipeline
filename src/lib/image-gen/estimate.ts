@@ -1,7 +1,11 @@
 import "server-only";
-import { estimateImageOutputCost, estimateImageInputCost } from "./cost";
-import { countGeminiInputTokens } from "./providers/gemini";
-import { countOpenAIInputTokens, aspectRatioToOpenAISize } from "./providers/openai";
+import {
+  estimateImageOutputCost,
+  estimateImageInputCost,
+  estimateGeminiInputTokens,
+  estimateOpenAIInputTokens,
+} from "./cost";
+import { aspectRatioToOpenAISize } from "./providers/openai";
 
 /**
  * Exact-when-possible pre-generation cost estimate for an image model, in USD. Shared by the
@@ -10,15 +14,18 @@ import { countOpenAIInputTokens, aspectRatioToOpenAISize } from "./providers/ope
  * either way, so what's shown to the user always matches what gets reserved. Returns null
  * when estimateImageOutputCost has no priced entry for this model/quality/size — the real
  * route fails closed on null (design spec §4); the preview route just shows "unavailable".
+ *
+ * Synchronous — input-token cost is a static derived estimate (D92,
+ * docs/superpowers/specs/2026-08-03-image-input-cost-static-estimate-design.md), not a live
+ * per-request vendor API call.
  */
-export async function estimateImageGenerationCostUsd(input: {
+export function estimateImageGenerationCostUsd(input: {
   modelId: string;
   quality: string | undefined;
   aspectRatio: string | undefined;
   imageSize: string | undefined;
-  prompt: string;
   referenceUrls: string[];
-}): Promise<number | null> {
+}): number | null {
   const isOpenAI = input.modelId.startsWith("openai:");
   const sizeKey = isOpenAI
     ? aspectRatioToOpenAISize(input.aspectRatio ?? "1:1")
@@ -27,10 +34,11 @@ export async function estimateImageGenerationCostUsd(input: {
   const outputCostUsd = estimateImageOutputCost(input.modelId, input.quality, sizeKey);
   if (outputCostUsd === null) return null;
 
-  const hasReferenceImages = input.referenceUrls.length > 0;
+  const referenceCount = input.referenceUrls.length;
+  const hasReferenceImages = referenceCount > 0;
   const inputTokens = isOpenAI
-    ? await countOpenAIInputTokens(input.prompt, input.referenceUrls)
-    : await countGeminiInputTokens(input.modelId.split(":")[1], input.prompt, input.referenceUrls);
+    ? estimateOpenAIInputTokens(input.modelId, referenceCount)
+    : estimateGeminiInputTokens(referenceCount);
   const inputCostUsd = estimateImageInputCost(input.modelId, inputTokens, hasReferenceImages) ?? 0;
 
   return outputCostUsd + inputCostUsd;

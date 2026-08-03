@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { CanvasGenerationItem } from "@/app/api/canvas/[id]/generations/route";
+import { createBrowserSupabase } from "@/lib/supabase/client";
+import { useIdentity } from "@/hooks/use-identity";
+import { subscribeToOrgGenerationUpdates } from "@/lib/realtime/org-generation-updates";
 
 type Entry = {
   items: CanvasGenerationItem[];
@@ -56,6 +59,7 @@ export const __canvasGenerationsInternals = {
 };
 
 export function useCanvasGenerations(canvasId: string) {
+  const { orgId } = useIdentity();
   const [, force] = useState(0);
   const rerender = useCallback(() => force((n) => n + 1), []);
 
@@ -76,6 +80,33 @@ export function useCanvasGenerations(canvasId: string) {
     setLoading(true);
     void doFetch(canvasId).finally(() => setLoading(false));
   }, [canvasId]);
+
+  // Re-fetch once a succeeded generation lands on one of this canvas's nodes — otherwise
+  // the Gallery Drawer's "Canvas Generations" tab only ever picks up new images via the
+  // manual refresh button. Checked live per event (a single indexed node lookup) rather
+  // than snapshotting this canvas's node ids once up front, so a node created after this
+  // hook mounts is still covered — no staleness window.
+  useEffect(() => {
+    if (!orgId) return;
+    let cancelled = false;
+    const supabase = createBrowserSupabase();
+    const unsubscribe = subscribeToOrgGenerationUpdates(orgId, (row) => {
+      if (row.status !== "succeeded") return;
+      void supabase
+        .from("nodes")
+        .select("id")
+        .eq("id", row.node_id)
+        .eq("canvas_id", canvasId)
+        .maybeSingle()
+        .then(({ data }: { data: { id: string } | null }) => {
+          if (!cancelled && data) void doFetch(canvasId);
+        });
+    });
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [canvasId, orgId]);
 
   const refresh = useCallback(async () => {
     cache.delete(canvasId);

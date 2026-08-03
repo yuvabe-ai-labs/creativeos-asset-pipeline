@@ -17,7 +17,6 @@ export async function POST(
           quality?: unknown;
           aspect_ratio?: unknown;
           image_size?: unknown;
-          prompt?: unknown;
           referenceUrls?: unknown;
         }
       | null;
@@ -26,17 +25,15 @@ export async function POST(
     if (!modelId || !imageGenRegistry[modelId]) {
       return apiError(`Unknown modelId: ${modelId}`, 400);
     }
-    const prompt = typeof body?.prompt === "string" ? body.prompt : "";
     const referenceUrls = Array.isArray(body?.referenceUrls)
       ? (body.referenceUrls as unknown[]).filter((u): u is string => typeof u === "string")
       : [];
 
-    const costUsd = await estimateImageGenerationCostUsd({
+    const costUsd = estimateImageGenerationCostUsd({
       modelId,
       quality: typeof body?.quality === "string" ? body.quality : undefined,
       aspectRatio: typeof body?.aspect_ratio === "string" ? body.aspect_ratio : undefined,
       imageSize: typeof body?.image_size === "string" ? body.image_size : undefined,
-      prompt,
       referenceUrls,
     });
 
