@@ -116,3 +116,50 @@ export function estimateImageInputCost(
   const rate = hasReferenceImages ? (p.imgIn ?? p.textIn ?? 0) : (p.textIn ?? 0);
   return (inputTokens / 1_000_000) * rate;
 }
+
+// ── Pre-generation INPUT token estimate — static, no live vendor API call ──────────────────
+//
+// D92 (docs/superpowers/specs/2026-08-03-image-input-cost-static-estimate-design.md):
+// analysis of 659 real (non-test-client) historical generations across staging + production
+// found input tokens predictable enough from reference-image count alone that a live
+// per-request token-counting call isn't needed. Gemini fits `180 + refs*260` cleanly across
+// all 4 model variants (independently matches Google's published 258-tokens/image-tile
+// formula). OpenAI fits `190 + refs*perModelConstant`, constant per MODEL (not per size) once
+// legacy pixel-size and aspect-ratio snapshot formats are normalized to one key. All
+// constants rounded UP from the historical p90 (not median), matching
+// estimateImageOutputCost's "auto"→"high" never-under-reserve philosophy above.
+
+const GEMINI_BASE_INPUT_TOKENS = 180;
+const GEMINI_PER_REFERENCE_INPUT_TOKENS = 260;
+
+/**
+ * Estimated Gemini input tokens for a given reference-image count — replaces the live
+ * countTokens() call. Model-independent: the fit held identically across all 4 Gemini image
+ * model variants in the historical data.
+ */
+export function estimateGeminiInputTokens(referenceCount: number): number {
+  return GEMINI_BASE_INPUT_TOKENS + referenceCount * GEMINI_PER_REFERENCE_INPUT_TOKENS;
+}
+
+const OPENAI_BASE_INPUT_TOKENS = 190;
+
+// Per-reference-image token cost, by model — NOT by size (size had no meaningful effect once
+// legacy pixel-size and aspect-ratio snapshot formats were normalized to one key; see the
+// design doc §3). gpt-image-2 tokenizes reference images at ~5x the rate of the other two
+// models — it's the flagship, higher-fidelity model.
+const OPENAI_PER_REFERENCE_INPUT_TOKENS: Record<string, number> = {
+  "openai:gpt-image-1": 330,
+  "openai:gpt-image-1-mini": 330,
+  "openai:gpt-image-2": 1550,
+};
+
+/**
+ * Estimated OpenAI input tokens for a given model + reference-image count — replaces the
+ * live responses.inputTokens.count() call. An unrecognized modelId falls back to the highest
+ * known per-reference constant (gpt-image-2's), never the lowest — never under-reserve.
+ */
+export function estimateOpenAIInputTokens(modelId: string, referenceCount: number): number {
+  if (referenceCount === 0) return OPENAI_BASE_INPUT_TOKENS;
+  const perReference = OPENAI_PER_REFERENCE_INPUT_TOKENS[modelId] ?? 1550;
+  return OPENAI_BASE_INPUT_TOKENS + referenceCount * perReference;
+}
