@@ -141,6 +141,39 @@ export async function withNode(
   return handler(nodeId, node as NodeRow, caller, canvas.client_id);
 }
 
+// ── Moodboard resolution ──────────────────────────────────────────────────────
+
+type MoodboardWithOrg = {
+  id: string;
+  clients: { org_id: string } | { org_id: string }[] | null;
+};
+
+// Same org-isolation shape as withClient()/withCanvas()/withNode(), for the routes
+// rooted at a moodboard id (/api/moodboards/[id]/*). Those shipped deliberately open
+// under D14 ("auth deferred, like the rest of the app") and were never revisited when
+// auth landed — so a board id from ANY org resolved and served, or deleted, its items.
+// Moodboard -> client -> org in one query, 404 (never 403) on mismatch.
+export async function withMoodboard(
+  moodboardId: string,
+  handler: (moodboardId: string, caller: CallerContext) => Promise<AnyResponse>,
+): Promise<AnyResponse> {
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("moodboards")
+    .select("id, clients!inner(org_id)")
+    .eq("id", moodboardId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return apiError("Moodboard not found.", 404);
+
+  const client = unwrapEmbed((data as unknown as MoodboardWithOrg).clients);
+  const caller = await resolveCallerContext();
+  if (!client || client.org_id !== caller.orgId) {
+    return apiError("Moodboard not found.", 404);
+  }
+  return handler(moodboardId, caller);
+}
+
 // ── Webhook auth ──────────────────────────────────────────────────────────────
 
 // Shared-secret check for server-to-server webhooks (Trigger.dev tasks calling back

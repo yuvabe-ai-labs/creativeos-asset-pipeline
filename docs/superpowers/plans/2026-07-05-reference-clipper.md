@@ -1,5 +1,14 @@
 # Reference Clipper Implementation Plan
 
+> ## ⛔ RETIRED — 2026-07-28 (D93). Do not execute this plan.
+>
+> This plan was executed and the feature shipped on 2026-07-05. It has since been **removed from
+> the codebase** and superseded by **Client Moodboards (D92)** — see
+> [`2026-07-22-client-moodboards-design.md`](../specs/2026-07-22-client-moodboards-design.md) and
+> the retirement banner on
+> [`2026-07-05-reference-clipper-design.md`](../specs/2026-07-05-reference-clipper-design.md).
+> Kept as a historical record only.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** A Chrome side-panel extension that collects image references while browsing and pushes them, on demand, as File nodes onto the CreativeOS canvas open in the active tab.

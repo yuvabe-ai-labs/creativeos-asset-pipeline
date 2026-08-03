@@ -121,9 +121,15 @@ access already funnels:
   surfaces (`/eval/[canvasId]`, `/api/eval-bootstrap`), and server actions) walk their
   existing ownership chain (node → canvas → client) — already implemented for storage
   paths (`resolveOwnership`) — and apply the same org check.
-* **`/api/ingest-image`** (reference-clipper ingest) loses its deliberate D14 openness:
-  session required, and its slug-resolved client gets the same org check. The browser
-  extension authenticates with the app session when it ships.
+* ~~**`/api/ingest-image`** (reference-clipper ingest) loses its deliberate D14 openness:
+  session required, and its slug-resolved client gets the same org check.~~
+  **No longer applicable (D93, 2026-07-28)** — the reference clipper was retired and
+  `/api/ingest-image` deleted. **The browser-extension write path is now
+  `moodboard-extension/` → the open `/api/moodboards/*` routes (D92)**, which inherit this
+  requirement: session required, and the board's client gets the same org check. Note the
+  moodboard surface is *larger* than the old single ingest route — `GET /api/moodboards`
+  (the picker index) currently enumerates **every client and board across the platform**, so
+  it needs org-scoping, not just a session gate.
 * **List queries** (clients home page) filter by `org_id`.
 
 ### 6.3 Closing the browser-side leaks
@@ -156,7 +162,7 @@ anything platform-shared must be deliberate and flow downward only (§8).**
 | Uploaded reference files (File node `.txt`/images), pasted clipboard images, Draw-node sketch PNGs, inline Prompt-node files | GCS `clients/{id}/canvases/{cid}/nodes/{nid}/files/…` | Path is **server-derived** via `resolveOwnership(nodeId)` — never client-supplied |
 | Generated images / videos / edit composites | GCS `…/nodes/{nid}/image-gen\|video-gen/…` | Same server-derived path |
 | Client logos | GCS `clients/{id}/logo/…` | Client-prefixed path |
-| Reference-clipper ingests (browser extension) | Same node-file path as uploads | Route goes behind session + org check (§6.2) |
+| Moodboard captures (browser extension) — *replaced reference-clipper ingests, D92/D93* | `moodboard_items` rows hold **URLs only** (no bytes) until an item is dragged onto a canvas, at which point it takes the same node-file path as uploads | Open `/api/moodboards/*` routes go behind session + org check (§6.2). **`GET /api/moodboards` needs org-scoping specifically** — it enumerates all clients + boards platform-wide today |
 | **Drive reference gallery** | **Google Drive, via one platform refresh token (= Yuvabe's account)** | The shipped per-client root (**`clients.drive_root_folder_id`**) becomes the tenancy boundary: `/api/drive/browse` + file/thumbnail proxies are session-guarded and **server-constrained to that root's subtree** (they are obscurity-gated today); the **folder picker** (`/api/drive/folders` — browses the whole platform Drive by design) is **restricted to Yuvabe's org**, so agency roots are set by Yuvabe. `null` root = no gallery. Folder **ID**, never name-matching |
 | `image-proxy` streams | No storage — streams GCS bytes for canvas readback | Requires session; only relays URLs the caller already holds (capability-URL risk class, §10) |
 | Platform prompts / master-control schemas | Code (`src/prompts/*` etc.) | Platform scope by design — ships to all orgs, downward only (§8) |
@@ -273,7 +279,7 @@ With two orgs seeded (Yuvabe + a test agency):
 
 | Step | Contents | Trigger |
 | :---- | :---- | :---- |
-| **1 — Pilot (this PRD)** | Login, orgs, `clients.org_id`, chokepoint enforcement (incl. eval + ingest-image), RLS on 2 realtime tables, Drive subtree containment + Yuvabe-only folder picker, org credit limit + usage readout + `org_credit_usage` view, migration + seed script | First external agency |
+| **1 — Pilot (this PRD)** | Login, orgs, `clients.org_id`, chokepoint enforcement (incl. eval + the open `/api/moodboards/*` routes — was `ingest-image`, deleted by D93), RLS on 2 realtime tables, Drive subtree containment + Yuvabe-only folder picker, org credit limit + usage readout + `org_credit_usage` view, migration + seed script | First external agency |
 | **2 — Hardening** | Signed URLs / media proxy; RLS defense-in-depth on remaining tables; usage alerts | Pilot feedback / sensitive-asset customer |
 | **3 — Multi-seat & billing** | Invites, >1 user per org, enforced roles, `operator` → `user_id` promotion; in-product billing (plans/top-ups) if pilots convert | An agency asks for a second seat / paid conversion |
 
@@ -297,4 +303,6 @@ With two orgs seeded (Yuvabe + a test agency):
   fetches server-constrained to its subtree; the folder picker is Yuvabe-org-only;
   `null` root hides the gallery; folder ID, never name-matching. `ingest-image` loses
   its D14 openness and joins the org-checked chokepoints. (Rejected: name-matching;
-  per-org Drive OAuth.)
+  per-org Drive OAuth.) *(Amended 2026-07-28 — **D93** deleted `/api/ingest-image`; the
+  open `/api/moodboards/*` routes (**D92**) inherit that chokepoint clause in its place.
+  Decision text left intact as the record of what was decided on 2026-07-15.)*

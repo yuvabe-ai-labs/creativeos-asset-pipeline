@@ -1,0 +1,74 @@
+import { describe, it, expect } from "vitest";
+import { mapNodeTraces, GENERATED_TYPES } from "@/lib/eval/node-traces";
+
+const promptNode = { id: "n1", type: "prompt", data: { evalKey: "s22-shot2" }, active_version_id: "v2" };
+const imageNode  = { id: "n2", type: "image-gen", data: { title: "s22 image" }, active_version_id: "iv1" };
+const textNode   = { id: "n3", type: "text", data: {}, active_version_id: "tv1" }; // excluded
+
+const v1 = { id: "v1", node_id: "n1", created_at: "2026-07-01T10:00:00Z",
+  inputs_used: { shotText: "wide shot", request: { systemPrompt: "SYS", compiledUser: "U1", attachments: [], effectiveInstruction: "go" } },
+  params_used: { instruction: "", controls: { lens: "auto" }, promptVersion: "2" },
+  generated_output: "85mm portrait", output: "85mm portrait", decision: "fail", note: "lens" };
+const v2 = { id: "v2", node_id: "n1", created_at: "2026-07-01T11:00:00Z",
+  inputs_used: { shotText: "wide shot", request: { systemPrompt: "SYS", compiledUser: "U2", attachments: [], effectiveInstruction: "wide" } },
+  params_used: { instruction: "wide", controls: { lens: "wide-24" }, promptVersion: "2" },
+  generated_output: "24mm wide", output: "24mm wide", decision: null, note: null };
+const iv1 = { id: "iv1", node_id: "n2", created_at: "2026-07-01T12:00:00Z",
+  inputs_used: { request: { systemPrompt: "S", compiledUser: "prompt text", attachments: ["https://cdn/ref.png"], effectiveInstruction: "" } },
+  params_used: {}, generated_output: "https://cdn/out.png", output: "https://cdn/out.png", decision: "pass", note: null };
+
+describe("mapNodeTraces", () => {
+  it("groups versions under their node, newest first, and excludes content nodes", () => {
+    const traces = mapNodeTraces([promptNode, imageNode, textNode], [v1, v2, iv1]);
+    expect(traces.map((t) => t.nodeId)).toEqual(["n1", "n2"]); // text node dropped
+    const prompt = traces[0];
+    expect(prompt.action).toBe("prompt");
+    expect(prompt.title).toBe("s22-shot2");
+    expect(prompt.activeVersionId).toBe("v2");
+    expect(prompt.versions.map((v) => v.versionId)).toEqual(["v2", "v1"]); // newest → oldest
+  });
+
+  it("builds a text output for prompt nodes and an image output (urls) for image-gen", () => {
+    const traces = mapNodeTraces([promptNode, imageNode], [v2, iv1]);
+    expect(traces[0].versions[0].output).toEqual({ kind: "text", text: "24mm wide" });
+    expect(traces[1].versions[0].output).toEqual({ kind: "image", urls: ["https://cdn/out.png"] });
+  });
+
+  it("carries the input (shot text + attachment images), the request, and the Δ fields", () => {
+    const [prompt, image] = mapNodeTraces([promptNode, imageNode], [v2, iv1]);
+    expect(prompt.versions[0].input).toEqual({ text: "wide shot", images: [] });
+    expect(image.versions[0].input.images).toEqual(["https://cdn/ref.png"]);
+    expect(prompt.versions[0].request?.compiledUser).toBe("U2");
+    expect(prompt.versions[0].controls).toEqual({ lens: "wide-24" });
+    expect(prompt.versions[0].instruction).toBe("wide");
+    expect(prompt.versions[0].decision).toBe(null);
+  });
+
+  it("derives input text from the frozen compiled request when shotText is absent (production nodes)", () => {
+    const prodNode = { id: "p1", type: "prompt", data: { title: "Lip Balm" }, active_version_id: "pv1" };
+    const pv1 = { id: "pv1", node_id: "p1", created_at: "2026-07-01T09:00:00Z",
+      inputs_used: { upstream: [{ nodeId: "s", versionId: "sv1" }], kbSlices: ["Tone"],
+        request: { systemPrompt: "SYS",
+          compiledUser: "Brand context:\nPositioning: earthy premium\n\nCreating an image prompt for this specific shot:\nA lip balm on marble, soft light.\n\nInstruction:\nWrite a prompt.",
+          attachments: [], effectiveInstruction: "Write a prompt." } },
+      params_used: { instruction: "" }, generated_output: "out", output: "out", decision: null, note: null };
+    const [t] = mapNodeTraces([prodNode], [pv1]);
+    expect(t.versions[0].input.text).toBe("A lip balm on marble, soft light.");
+  });
+
+  it("falls back to resolved upstream input when neither shotText nor request is present (old / media nodes)", () => {
+    const imgNode = { id: "im1", type: "image-gen", data: {}, active_version_id: "imv1" };
+    const imv1 = { id: "imv1", node_id: "im1", created_at: "2026-07-01T08:00:00Z",
+      inputs_used: {}, params_used: {}, generated_output: "https://cdn/out.png", output: "https://cdn/out.png", decision: null, note: null };
+    const up = new Map([["im1", { text: "a hero product prompt", images: ["https://cdn/ref.png"] }]]);
+    const [t] = mapNodeTraces([imgNode], [imv1], up);
+    expect(t.versions[0].input.text).toBe("a hero product prompt");
+    expect(t.versions[0].input.images).toEqual(["https://cdn/ref.png"]);
+    expect(t.versions[0].output).toEqual({ kind: "image", urls: ["https://cdn/out.png"] });
+  });
+
+  it("exposes the generated-type allowlist", () => {
+    expect(GENERATED_TYPES).toContain("prompt");
+    expect(GENERATED_TYPES).not.toContain("text");
+  });
+});

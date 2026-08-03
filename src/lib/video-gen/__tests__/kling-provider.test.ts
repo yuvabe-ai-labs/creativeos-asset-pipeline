@@ -38,6 +38,36 @@ describe("buildKlingContents", () => {
     });
     expect(contents.some((c) => c.type === "last_frame")).toBe(false);
   });
+
+  // `id` is how the prompt addresses an image (@image_1). Kling's omni docs ship a worked
+  // first_frame + refer_image example, so the two genuinely coexist.
+  it("emits refer_image items with 1-indexed ids after the frames", async () => {
+    const { buildKlingContents } = await import("../providers/kling");
+    const contents = buildKlingContents({
+      prompt: "a cat walking",
+      startFrameUrl: "https://x.test/start.png",
+      endFrameUrl: "https://x.test/end.png",
+      referenceUrls: ["https://x.test/r1.png", "https://x.test/r2.png"],
+    });
+    expect(contents).toEqual([
+      { type: "prompt", text: "a cat walking" },
+      { type: "first_frame", url: "https://x.test/start.png" },
+      { type: "last_frame", url: "https://x.test/end.png" },
+      { type: "refer_image", url: "https://x.test/r1.png", id: "image_1" },
+      { type: "refer_image", url: "https://x.test/r2.png", id: "image_2" },
+    ]);
+  });
+
+  it("emits no refer_image items when referenceUrls is empty or absent", async () => {
+    const { buildKlingContents } = await import("../providers/kling");
+    for (const input of [
+      { prompt: "p", startFrameUrl: "https://x.test/s.png" },
+      { prompt: "p", startFrameUrl: "https://x.test/s.png", referenceUrls: [] },
+    ]) {
+      const contents = buildKlingContents(input);
+      expect(contents.some((c) => c.type === "refer_image")).toBe(false);
+    }
+  });
 });
 
 describe("per-model settings builders", () => {
@@ -236,5 +266,71 @@ describe("kling30.generate — poll flow", () => {
     await expect(
       kling30.generate({ prompt: "a cat walking", referenceUrls: [], params: {} }),
     ).rejects.toThrow("requires a start frame");
+  });
+});
+
+// /image-to-video/kling-3.0 has no refer_image content type — its enum is prompt, first_frame,
+// last_frame, element. Sending one would be an unsupported type, so 3.0 drops references
+// rather than forwarding them.
+describe("reference images are omni-only", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    vi.useFakeTimers();
+    process.env.KLING_API_KEY = "test-key";
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /** Drives one generate() to a failed poll (so nothing hangs) and returns the create payload. */
+  async function capturePayload(
+    generate: (input: {
+      prompt: string;
+      startFrameUrl: string;
+      referenceUrls: string[];
+      params: Record<string, unknown>;
+    }) => Promise<unknown>,
+  ) {
+    mockFetch
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ code: 0, message: "", data: { id: "t1", status: "submitted" } }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          code: 0,
+          message: "",
+          data: [{ id: "t1", status: "failed", message: "halt" }],
+        }),
+      });
+
+    const pending = generate({
+      prompt: "a cat walking",
+      startFrameUrl: "https://x.test/start.png",
+      referenceUrls: ["https://x.test/r1.png", "https://x.test/r2.png"],
+      params: {},
+    });
+    const assertion = expect(pending).rejects.toThrow("halt");
+    await vi.advanceTimersByTimeAsync(5000);
+    await assertion;
+
+    const init = mockFetch.mock.calls[0][1] as { body: string };
+    return JSON.parse(init.body) as { contents: Array<{ type: string }> };
+  }
+
+  it("kling30 drops referenceUrls", async () => {
+    const { kling30 } = await import("../providers/kling");
+    const body = await capturePayload(kling30.generate);
+    expect(body.contents.some((c) => c.type === "refer_image")).toBe(false);
+    expect(body.contents.some((c) => c.type === "first_frame")).toBe(true);
+  });
+
+  it("klingO1 forwards referenceUrls as refer_image alongside the first frame", async () => {
+    const { klingO1 } = await import("../providers/kling");
+    const body = await capturePayload(klingO1.generate);
+    expect(body.contents.filter((c) => c.type === "refer_image")).toHaveLength(2);
+    expect(body.contents.some((c) => c.type === "first_frame")).toBe(true);
   });
 });

@@ -16,6 +16,7 @@ type KlingContentInput = {
   prompt: string;
   startFrameUrl?: string;
   endFrameUrl?: string;
+  referenceUrls?: string[];
 };
 
 export function buildKlingContents(
@@ -30,6 +31,12 @@ export function buildKlingContents(
   if (input.endFrameUrl) {
     contents.push({ type: "last_frame", url: input.endFrameUrl });
   }
+  // `id` is how the prompt addresses an image (@image_1). Only the omni endpoint accepts
+  // refer_image — generateWithKling gates this per model, so callers can pass references
+  // freely and the wrong endpoint simply never sees them.
+  (input.referenceUrls ?? []).forEach((url, i) => {
+    contents.push({ type: "refer_image", url, id: `image_${i + 1}` });
+  });
   return contents;
 }
 
@@ -46,7 +53,9 @@ export function build3_0Settings(
   params: Record<string, unknown>,
 ): Record<string, unknown> {
   return {
-    multi_shot: Boolean(params.multi_shot ?? true),
+    // Off by default, matching the param spec (4cee50d). The previous `?? true` fallback
+    // contradicted that spec on any path where the param was absent.
+    multi_shot: Boolean(params.multi_shot ?? false),
     audio: String(params.audio ?? "off"),
     resolution: String(params.resolution ?? "720p"),
     duration: Number(params.duration ?? 5),
@@ -162,24 +171,51 @@ async function pollKlingTask(taskId: string): Promise<VideoGenResult> {
   }
 }
 
+type KlingEndpointConfig = {
+  endpointPath: string;
+  /**
+   * Only the omni endpoint accepts `refer_image`. Kling 3.0's content enum is
+   * prompt / first_frame / last_frame / element, so references are dropped there rather than
+   * sent as an unsupported type.
+   */
+  supportsReferences: boolean;
+};
+
 async function generateWithKling(
-  endpointPath: string,
+  config: KlingEndpointConfig,
   buildSettings: (params: Record<string, unknown>) => Record<string, unknown>,
   input: VideoGenInput,
 ): Promise<VideoGenResult> {
   if (!input.startFrameUrl) {
     throw new Error("Kling image-to-video requires a start frame image");
   }
-  const contents = buildKlingContents(input);
+  const contents = buildKlingContents({
+    prompt: input.prompt,
+    startFrameUrl: input.startFrameUrl,
+    endFrameUrl: input.endFrameUrl,
+    referenceUrls: config.supportsReferences ? input.referenceUrls : [],
+  });
   const settings = buildSettings(input.params);
-  const taskId = await createKlingTask(endpointPath, contents, settings);
+  const taskId = await createKlingTask(config.endpointPath, contents, settings);
   return pollKlingTask(taskId);
 }
 
-const KLING_IMAGE_INPUTS_WITH_END = {
+// D99: 3.0 and O1 cannot share one descriptor. Their reference mechanisms differ in kind —
+// 3.0's `element` is a pre-registered library resource addressed by `element_id`, while O1's
+// `refer_image` is a plain inline URL. One shared shape forced both to the lower bound.
+const KLING_30_IMAGE_INPUTS = {
   startFrame: true,
   endFrame: true,
   maxReferenceImages: 0,
+} as const;
+
+// D100: 7-image omni budget less both frames, conservatively — the docs do not say whether
+// first_frame/last_frame count toward the 7. Must match the client copy in client-models.ts,
+// since the API route caps referenceUrls against this value.
+const KLING_O1_IMAGE_INPUTS = {
+  startFrame: true,
+  endFrame: true,
+  maxReferenceImages: 5,
 } as const;
 
 export const kling30: VideoGenModelSpec = {
@@ -188,9 +224,14 @@ export const kling30: VideoGenModelSpec = {
   label: "Kling 3.0",
   providerLabel: "Kling",
   maxDurationSeconds: 15,
-  imageInputs: KLING_IMAGE_INPUTS_WITH_END,
+  imageInputs: KLING_30_IMAGE_INPUTS,
   params: kling30Params,
-  generate: (input) => generateWithKling("/image-to-video/kling-3.0", build3_0Settings, input),
+  generate: (input) =>
+    generateWithKling(
+      { endpointPath: "/image-to-video/kling-3.0", supportsReferences: false },
+      build3_0Settings,
+      input,
+    ),
 };
 
 export const klingO1: VideoGenModelSpec = {
@@ -199,7 +240,12 @@ export const klingO1: VideoGenModelSpec = {
   label: "Kling O1",
   providerLabel: "Kling",
   maxDurationSeconds: 10,
-  imageInputs: KLING_IMAGE_INPUTS_WITH_END,
+  imageInputs: KLING_O1_IMAGE_INPUTS,
   params: klingO1Params,
-  generate: (input) => generateWithKling("/omni-video/kling-o1", buildO1Settings, input),
+  generate: (input) =>
+    generateWithKling(
+      { endpointPath: "/omni-video/kling-o1", supportsReferences: true },
+      buildO1Settings,
+      input,
+    ),
 };

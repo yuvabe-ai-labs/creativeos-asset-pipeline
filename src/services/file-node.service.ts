@@ -76,6 +76,20 @@ class FileNodeService {
     if (!res.ok) throw new Error((json as { error?: string }).error ?? "Failed to import file from Google Drive");
     return json as FileUploadResult;
   }
+
+  async pickFromUrl(
+    nodeId: string,
+    input: { imageUrl: string; sourceUrl?: string; filename?: string },
+  ): Promise<{ fileUrl: string; filename: string; fileExt: string; fileKind: "image"; sourceUrl: string | null }> {
+    const res = await fetch(`/api/nodes/${nodeId}/file/from-url`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    const json = await res.json();
+    if (!res.ok) throw new Error((json as { error?: string }).error ?? "Failed to import image from URL");
+    return json as { fileUrl: string; filename: string; fileExt: string; fileKind: "image"; sourceUrl: string | null };
+  }
 }
 
 export const fileNodeService = new FileNodeService();

@@ -12,6 +12,7 @@ type Props = {
 const TABS: { id: GalleryTab; label: string }[] = [
   { id: "references", label: "References" },
   { id: "assets", label: "Assets" },
+  { id: "moodboard", label: "Moodboards" },
 ];
 
 export function GalleryTabs({ value, onChange }: Props) {

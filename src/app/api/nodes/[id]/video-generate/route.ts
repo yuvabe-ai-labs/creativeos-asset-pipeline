@@ -6,6 +6,11 @@ import { computeVideoCost, isVideoAudioEnabled, asResolutionString } from "@/lib
 import { usdToFinalCredits } from "@/lib/credits/units";
 import { reserveCredits, refundReservation, CreditLimitError } from "@/lib/db/credit-transactions";
 import { videoGenRegistry, DEFAULT_VIDEO_MODEL_ID } from "@/lib/video-gen/registry";
+// Constraint rules live in client-models.ts, which is the single source of truth for them —
+// the server registry carries only what generation needs. Importing it here is safe: that
+// module has no `server-only` dependency, it is plain param specs and rule data.
+import { videoGenClientModelMap } from "@/lib/video-gen/client-models";
+import { validateAgainstRules } from "@/lib/video-gen/constraints";
 import { apiError, apiOk, withNode } from "@/lib/api/route-helpers";
 
 const ImageRoleSchema = z.enum(["start_frame", "end_frame", "reference"]);
@@ -93,6 +98,22 @@ export async function POST(
     if (referenceUrls.length > maxRefs) referenceUrls.splice(maxRefs);
     // If model doesn't support end frame, clear it
     if (!config.imageInputs.endFrame) endFrameUrl = undefined;
+
+    // D97: reject rather than correct. The UI evaluates these same rules and should never let an
+    // illegal combination reach here — this is the backstop for callers that bypass it, which is
+    // how 13 Veo generations were spent on references at duration 4 or 6.
+    //
+    // Placed after the capping above on purpose: the state here is stricter than the client's,
+    // counting references that actually resolved to URLs and survived the model's limit, not
+    // roles that were merely assigned. Placed before insertGeneration and reserveCredits so a
+    // rejected request neither records a generation nor touches the org's credit balance.
+    const violation = validateAgainstRules(videoGenClientModelMap[modelId]?.rules, {
+      params: resolvedParams,
+      hasStartFrame: Boolean(startFrameUrl),
+      hasEndFrame: Boolean(endFrameUrl),
+      referenceCount: referenceUrls.length,
+    });
+    if (violation) return apiError(violation, 400);
 
     const mockMode = body.mock === true;
 

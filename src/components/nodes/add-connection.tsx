@@ -23,14 +23,20 @@ function thumbUrl(node: AppNode): string | undefined {
 // The "+" on a focus view's Connected header: pick a canvas node that MAY feed this node
 // (canConnect(candidate → this)) and isn't already wired, then create the incoming edge.
 // Reuses the same connection rule as the copilot and the manual drag path.
+//
+// `onConnected` is for views whose Connected list is server-derived rather than read
+// straight off the store (video-gen fetches /api/nodes/[id]/upstream-images): the new
+// edge only lands in the client store here, so those views must flush + refetch.
 export function AddConnection({
   targetId,
   targetType,
   connectedIds,
+  onConnected,
 }: {
   targetId: string;
   targetType: string;
   connectedIds: string[];
+  onConnected?: (sourceId: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const nodes = useCanvasStore((s) => s.nodes);
@@ -77,6 +83,7 @@ export function AddConnection({
                     onSelect={() => {
                       connectNodes(n.id, targetId);
                       setOpen(false);
+                      onConnected?.(n.id);
                     }}
                     className="flex items-center gap-2"
                   >

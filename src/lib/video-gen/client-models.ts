@@ -81,11 +81,53 @@ const VEO_REFS_RULES: ConstraintRule[] = [
   },
 ];
 
-const KLING_IMAGE_INPUTS_WITH_END = {
+// D99: per-model, not shared — see providers/kling.ts for why. Client copies; this file cannot
+// import the `server-only` provider module.
+const KLING_30_IMAGE_INPUTS = {
   startFrame: true,
   endFrame: true,
   maxReferenceImages: 0,
 } as const;
+
+// D100: the omni endpoint caps total images at 7 (references plus multi-image elements, with no
+// reference video). Whether first_frame/last_frame count toward that 7 is not documented, so 5
+// is the conservative figure that stays in budget with both frames in use. Being wrong this way
+// costs two slots; being wrong the other way causes 400s.
+const KLING_O1_IMAGE_INPUTS = {
+  startFrame: true,
+  endFrame: true,
+  maxReferenceImages: 5,
+} as const;
+
+// ── Kling constraint rules ────────────────────────────────────────────────────
+
+// Both Kling endpoints require a first_frame. Previously this surfaced only as a throw inside
+// the Trigger task — i.e. a generation that failed minutes after the click. As a rule it
+// disables Generate up front instead.
+//
+// Lifting this for omni text-to-video needs an `aspect_ratio` param, which the omni docs make
+// mandatory when no first frame and no reference video are present — deferred.
+const KLING_REQUIRES_START_FRAME: ConstraintRule = {
+  id: "kling-requires-start-frame",
+  when: { field: "hasStartFrame", op: "eq", value: false },
+  effect: { disableGenerate: true },
+  reason: "Kling needs a start frame before you can generate",
+};
+
+const KLING_30_RULES: ConstraintRule[] = [
+  KLING_REQUIRES_START_FRAME,
+  {
+    // Multi-shot cuts between shots; an end frame asks for one continuous interpolated path.
+    // The two are contradictory, and Kling's API defaults multi_shot to true.
+    id: "end-frame-disables-multi-shot",
+    when: { field: "hasEndFrame", op: "eq", value: true },
+    effect: { lockParams: [{ name: "multi_shot", value: false }] },
+    reason: "End frame selected → multi-shot off (cuts break a single continuous shot)",
+  },
+];
+
+// O1 exposes no multi_shot param, so it carries only the start-frame rule.
+const KLING_O1_RULES: ConstraintRule[] = [KLING_REQUIRES_START_FRAME];
 
 // ── Model map ─────────────────────────────────────────────────────────────────
 
@@ -126,9 +168,9 @@ export const videoGenClientModelMap: Record<string, VideoGenClientModelSpec> = {
     label: "Kling 3.0",
     providerLabel: "Kling",
     maxDurationSeconds: 15,
-    imageInputs: KLING_IMAGE_INPUTS_WITH_END,
+    imageInputs: KLING_30_IMAGE_INPUTS,
     params: kling30Params,
-    rules: [],
+    rules: KLING_30_RULES,
   },
   "kling:kling-o1": {
     id: "kling:kling-o1",
@@ -136,9 +178,9 @@ export const videoGenClientModelMap: Record<string, VideoGenClientModelSpec> = {
     label: "Kling O1",
     providerLabel: "Kling",
     maxDurationSeconds: 10,
-    imageInputs: KLING_IMAGE_INPUTS_WITH_END,
+    imageInputs: KLING_O1_IMAGE_INPUTS,
     params: klingO1Params,
-    rules: [],
+    rules: KLING_O1_RULES,
   },
 };
 
@@ -155,6 +197,20 @@ export const videoGenClientModelGroups: Array<{
     models: models.filter((m) => m.providerLabel === label),
   }));
 })();
+
+/**
+ * Label for the model picker, where the provider is ALREADY the group heading — "Veo 3.1 Fast"
+ * sitting under a "Veo" header says Veo twice. Strips the provider prefix so the chips read
+ * "3.1 Lite / 3.1 Fast / 3.1 Quality" and the eye compares only what differs.
+ *
+ * Derived from `label` rather than stored as a second field, so a renamed model cannot drift
+ * from its picker text. `pickerLabel` stays available as an explicit override.
+ */
+export function modelPickerLabel(model: VideoGenClientModelSpec): string {
+  if (model.pickerLabel) return model.pickerLabel;
+  const prefix = `${model.providerLabel} `;
+  return model.label.startsWith(prefix) ? model.label.slice(prefix.length) : model.label;
+}
 
 export const DEFAULT_VIDEO_CLIENT_MODEL_ID = "veo:veo-3.1-lite";
 

@@ -1824,6 +1824,115 @@ model/quality/size/referenceCount, all already known client-side.
 implementation surfaced a latency source D92's own analysis didn't cover).
 
 **Originated →** `2026-08-03-image-input-cost-static-estimate-design.md` §6.
+### D92 — Client Moodboards are URL-first; bytes are re-hosted only on use *(recorded 2026-07-28; builds on D13, D14; revises the reference-clipper target model)*
+
+**Decision.** A **client-level Moodboard** — a named, reusable collection of reference images ("Face
+cream", "Mother's Day") owned by a client, like the Brand KB and Drive references (PRD §6). Boards are
+filled by a small **MV3 capture extension** (right-click any image on the web → "Add to moodboard",
+sticky target board) and by in-app **add-by-URL**, and are browsed as a **Moodboards tab** in the
+existing Gallery drawer (board list → board contents, mirroring the Drive folder drill-down). Storage
+is **URL-first**: an item is a row holding the image URL + the provenance page URL — nothing is fetched
+or stored at add time, and boards render by hotlinking. **Full-res bytes are re-hosted to GCS only when
+an item is dragged onto the canvas** and becomes an ordinary File node (`POST /api/nodes/[id]/file/from-url`,
+a near-clone of the existing Drive re-host route). Two tables (`moodboards`, `moodboard_items`); the
+extension-facing routes are open, per D14.
+
+**Why.** Pinterest cannot be embedded (it sends `x-frame-options: SAMEORIGIN` + CSP `frame-ancestors
+'self'`, verified 2026-07-22) and its API exposes only a user's own boards — so browsing stays in the
+real browser, and the fixable part is the path from "found a reference" to "usable in the canvas."
+URL-first is the least code and zero storage to validate that loop, and re-host-on-use puts durable
+storage exactly where durability starts to matter: the image now feeds generation and lands in the
+archive bundle (PRD §16). The v1 schema is a strict **subset** of the durable/semantic model, so
+thumbnails (link-rot insurance) and CLIP embeddings for shot→reference search (PRD F6) are additive
+`ALTER TABLE … ADD COLUMN` later — nothing is stored that must be migrated or thrown away.
+
+**Accepted caveat.** A CDN URL can rotate, so a long-idle board can show a broken tile and a
+drag-to-use can fail; the File node surfaces the existing `uploadError` state. Mitigation (add-time
+thumbnail cache) is the first deferred increment, not v1.
+
+**Rejected.** (a) Embed/iframe Pinterest — browser-blocked; (b) store full bytes at add time and purge
+later — more work at both ends, and vector search needs small *embeddings*, not hoarded images;
+(c) URL-only File **nodes** on the canvas — link rot on a live reference that feeds generation and the
+archive (re-host on use instead); (d) inline board-creation from the extension (Slice B v1 picks
+existing boards only).
+
+**Revises** the **reference clipper** (`2026-07-05-reference-clipper-design.md`) — which is **shipped**
+(`clipper-extension/`, `POST /api/ingest-image`, `src/lib/reference-clipper/`), not a paper design. Its
+capture target was "push to the **active canvas tab** as File nodes, then reload the tab"; D92 moves the
+target to "add to a chosen **client moodboard** (staging), with moodboard → canvas as a separate,
+re-hosting drag." The two models differ in *when* an image becomes a canvas node: the clipper pushes
+straight onto a canvas at capture time, the moodboard stages it against a client for later reuse.
+
+*(Numbering note: the clipper design claimed **D36** for itself but was never appended to this log, and
+D36 was subsequently taken by the guided next-node flow. The moodboard spec inherits that bad citation.
+The clipper therefore still has **no D-number**; assign one if it is kept.)*
+
+> **Resolved by D93** — the two capture extensions did *not* coexist for long: the clipper was
+> retired the same week and removed from the codebase. See below.
+
+**Originated →** `2026-07-22-client-moodboards-design.md`.
+
+### D93 — The reference clipper is retired; moodboards are the single capture path *(recorded 2026-07-28; supersedes the reference clipper, which never received a D-number; resolves the D92 follow-up)*
+
+**Decision.** The **reference clipper is removed from the codebase** — `clipper-extension/`,
+`POST /api/ingest-image`, and `src/lib/reference-clipper/` (with its 8 unit tests) are deleted.
+**`moodboard-extension/` (D92) is the one browser capture path** into CreativeOS. The clipper's design
+spec and plan are kept as historical records with retirement banners, not deleted.
+
+**Why.** Both extensions offered the same gesture — right-click an image on the web, send it to
+CreativeOS, re-host to GCS — differing only in destination. Shipping two is a maintenance and
+teaching cost (two manifests, two configured origins, two ingest routes to secure) for one user
+intent. The moodboard target is the better of the two: it **stages against a client** so a reference
+is reusable across every canvas for that client, where the clipper pushed onto whichever canvas
+happened to be in the active tab and had to **reload the tab** to render. The clipper's push-now
+convenience is recoverable later as a moodboard feature (add-and-immediately-drop) if it is missed —
+the reverse (rebuilding client-level staging inside the clipper) is the larger job.
+
+**What is lost.** The one-step "web image → node on the canvas I'm looking at" path. Under D92 the
+same image takes two steps: capture to a board, then drag it onto the canvas. Accepted — the drag is
+where re-hosting happens (D92), and the extra step buys client-level reuse.
+
+**Also removes** the slug-based open ingest route, which shrinks the deferred-auth surface: the
+multi-tenancy pilot's plan to put `/api/ingest-image` behind a session + org check (**D48**) is now
+moot — there is no such route. `moodboard-extension/`'s open endpoints inherit that hardening job
+instead.
+
+**Rejected.** (a) Keep both behind a destination picker in one extension — more code than either
+alone, for an intent the moodboard already covers; (b) keep the clipper unmaintained — an open,
+unauthenticated write path into the canvas is not something to leave lying around untended;
+(c) delete the clipper's spec/plan docs — the *why* is worth keeping even when the code is not.
+
+**Supersedes** the reference clipper (`2026-07-05-reference-clipper-design.md`). **Resolves** the D92
+follow-up.
+
+### D94 — Eval viewer generalizes to a per-node, all-action-types, version-aware error-analysis surface *(recorded 2026-07-02; **renumbered from D35** when the branch was integrated on 2026-07-30 — main had meanwhile assigned D35 to the Generation Tray above, and D36 builds on that; builds on D4/D18/D22; extends the built eval viewer; consumes the model-request capture; separate axis from D29/D34)*
+**Decision.** The eval viewer becomes a per-canvas surface that lists **all generated nodes grouped by
+action** (a `listNodeTraces` query + pure `mapNodeTraces`), whose detail focuses on **input → output**
+(polymorphic renderers), shows the **exact request sent** (the actual `inputs_used.request` content —
+system / compiled user / attachments — via the reused `ModelRequestPanel`), supports **open coding only**
+(Good/Bad + note on the *viewed* version via `setVersionLabelAction`), and lets a reviewer **walk a node's
+versions** with a **Δ that names what the human changed** — computed by **structured field comparison**
+(pure `diffVersions`: `controls` / `instruction` / `kbSlices` / upstream `reference` / `promptVersion`),
+**no LLM**; media outputs compared side-by-side; a **re-roll** flagged when nothing structured changed
+(same request, output moved = model nondeterminism). A list+detail **`EvalWorkbench` replaces the
+sequential `ReviewScreen`** for this route. **The quality/learning axis (`decision`/`note`) stays distinct
+from the sign-off axis (`approval_status`, D29/D34).** **Why.** "See what we can learn to improve the
+prompt" — Hamel/Shankar error analysis (*look → open-code → cluster → fix*); the viewer is the microscope.
+Naming the Δ (not just diffing a blob) is possible because inputs are captured as *structured* fields.
+**Rejected.** Failure tags / axial clustering in this surface (deferred to a later analyse step, by-hand
+first); a blob text-diff as the *primary* Δ (loses the ability to name the changed knob); an LLM for the Δ
+(unnecessary, non-deterministic). **No migration** — a query + mapping generalization over the existing
+envelope. **Deferred.** Tags/axial, cross-client rollup, LLM-judge scorers, production upstream-input
+resolution for panel A, structured (script) rich rendering.
+
+**Integration notes (2026-07-30).** The `/eval/[canvasId]` route **keeps the org-isolation guard** the
+auth rollout added to it — a canvas outside the caller's org renders as not-found, never confirming a
+foreign org's canvas exists — so the workbench swap did not reopen that path. `ModelRequestPanel` kept
+main's tabbed shell (it renders inside the "Sent to model" rail pane, which supplies the heading) and
+gained this branch's `splitBlocks` sectioning for the compiled-input tab; the branch's separate drawer
+was dropped as redundant with the rail. `listEvalTraces` + `ReviewScreen` are left in place but are now
+**unreferenced** — the sequential reviewer this decision replaces.
+**Originated.** `2026-07-02-eval-viewer-error-analysis-design.md`; plan `2026-07-02-eval-viewer.md`.
 
 ### Parked / out-of-scope (with revisit triggers)
 | Item | Status | Revisit when |
@@ -1851,3 +1960,63 @@ data in React Flow (create/validate with a cycle check, D8/D11), how `resolveInp
 edge graph plus the ambient client KB (D6), the pure `compile` step that produces the visible
 "final compiled prompt" (D3), the Prompt-generate Route Handler (holding the model key), and
 Stage 2 scope cuts. It will reference the architecture doc for the schema rather than restating it.
+
+### D95 — Start + end frame is the default shape of a video generation, expressed by layout and never by a gate *(recorded 2026-07-28; **renumbered from D83** when the branch was integrated on 2026-08-02 — main had meanwhile assigned D83–D88 to the auth/RLS decisions above; originated → `2026-07-28-video-start-end-spine-design.md`)*
+**Decision.** The video focus view leads with a **shot spine** — Start → End | Reference in narrative
+order — that reports which roles are filled and what duration the combination yields. A missing end
+frame is an **empty slot at rest**, never an error and never a block on Generate. Slots the model cannot
+use are shown as `unsupported` rather than omitted, so absence stays legible. The spine is **read-only**:
+roles are assigned from the connected thumbnails, so its slots are status pips, deliberately not the
+dashed-primary + plus treatment this codebase reserves for Add affordances.
+**Why.** An image costs ~$0.067 against $0.40–$4.20 for a video re-roll, so composing an end frame is
+6–63× cheaper than re-rolling until the motion is right — and it forces the operator to decide what the
+action actually *is*. Opinionated, but a preference the layout states rather than a rule that blocks.
+**Rejected.** Requiring an end frame; a confirm dialog on the way to Generate (both make an opinion feel
+like a defect). **Refines** D35's tray-first generation flow.
+
+### D96 — The end frame is derived by editing the start frame, not generated fresh *(recorded 2026-07-28; **renumbered from D84**; builds on D27 image-edit)*
+**Decision.** "Create end frame" spawns an **image-gen node seeded with the start frame as its edit
+base**, wired straight back into the video node. Seeding is done with a **graph edge**, not a data field:
+the image-gen focus view already derives its edit base from the connected upstream image, so connecting
+the start frame *is* how you seed the edit. **Why.** Interpolation morphs in proportion to how far apart
+the two frames are; a freshly generated "ending" is a different scene, and the model tweens between two
+strangers. An edit keeps scene, lighting and subject and moves only what should move.
+**Rejected.** A fresh text-to-image generation for the end frame. **Status:** the button was removed on
+2026-08-02 pending a fuller treatment; `use-derive-end-frame.ts` and `derive-end-frame.ts` remain.
+
+### D97 — The API route rejects rule violations; it never auto-corrects *(recorded 2026-07-28; **renumbered from D85**; refines D31's server-authority stance)*
+**Decision.** Constraint rules are evaluated in the UI, and `validateAgainstRules` runs again in
+`video-generate/route.ts` as a **backstop that returns 400** — never a fixup. The server's check is
+**stricter** than the client's: it counts references that actually resolved to URLs after upstream
+traversal and capping, not roles merely assigned, and it runs **before** `insertGeneration` and
+`reserveCredits` so a rejected request records no generation and leaves the credit balance untouched.
+**Why.** Auto-correcting silently changes both what the caller asked for and what they are billed. 13 Veo
+generations were spent on references at duration 4 or 6 before this existed.
+**Rejected.** Clamping params server-side to the nearest legal value.
+
+### D98 — Locked parameter values are written into params state, not merely displayed *(recorded 2026-07-28; **renumbered from D86**)*
+**Decision.** `reconcileLockedParams` merges rule-locked values into the params that get **posted**, and
+every read — panel, cost estimate, request — goes through the merged object. Derived at render rather
+than synchronised through an effect: there is no divergence to sync if there is only one source.
+**Why.** The panel rendered `lockedParams[name]` while `params[name]` kept the stale value, and the
+control was `disabled` so nothing could reconcile them. Since `params` is what gets sent, the UI showed a
+locked 8 and sent 6 — 11 observed generation failures. The same divergence would have mis-quoted the
+credit estimate, which is why it reads the reconciled values too.
+**Rejected.** Syncing through a `useEffect` (adds a render where the two disagree).
+
+### D99 — Kling 3.0 and Kling O1 carry separate capability descriptors *(recorded 2026-07-28; **renumbered from D87**; refines D90's Kling rebuild)*
+**Decision.** No shared `KLING_IMAGE_INPUTS_WITH_END`. Each Kling model declares its own
+`imageInputs` and its own rule list. **Why.** Their reference mechanisms differ in kind — 3.0 uses an
+`element` registry, O1 takes inline `refer_image` — and a single shape can only be wrong for one of them.
+3.0's 3–15s range is left untouched: the 5/10 restriction is evidenced only on the omni endpoint and is
+not narrowed on inference. **Rejected.** One descriptor with optional fields.
+
+### D100 — Kling O1 takes inline reference images, budgeted conservatively at 5 *(recorded 2026-07-28; **renumbered from D88**; builds on D99)*
+**Decision.** O1 emits `refer_image` contents inline, with `maxReferenceImages: 5` against the omni
+endpoint's documented cap of 7 total images. **Why.** Whether `first_frame`/`last_frame` count toward
+that 7 is undocumented; 5 stays in budget with both frames in use. Being wrong this way costs two slots,
+being wrong the other way causes 400s. **Open.** Whether references widen O1's 5/10 duration restriction
+is UNVERIFIED — confirm before relaxing. O1's 4k tier is likewise unsettled: the branch added one on
+inference, but the pricing table verified from kling.ai on 2026-07-24 has no O1 4k row, so the merge kept
+720p/1080p rather than expose a resolution that cannot be priced. **Rejected.** Sourcing O1's limits from
+fal.ai's wrapper, whose narrower values produced the wrong duration, audio and resolution sets.

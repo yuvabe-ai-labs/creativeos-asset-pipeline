@@ -4,6 +4,12 @@
 // the prompt, and Kling 3.0 has no camera_control param (capability map). The spine is also
 // preservation-first (D80): it drops the hard word cap and restates the fixed subject identity so
 // branded products hold their label/logo/shape, with camera clauses that name their invariants.
+// Camera clauses are additionally SUBJECT-SILENT: they state only what the camera does, never an
+// effect on the subject. A generated crane clause ("...lifts gently upward so the jar feels more
+// elevated") made Kling literally levitate the product off its plinth — an i2v model executes
+// subject-state language as subject motion, and a crane/boom is the one move that reads equally as
+// camera-rise or subject-rise. Preservation therefore also names ground contact explicitly; the
+// negative prompt already carried "floating objects" and lost to the positive clause.
 // Refs: https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/video/video-gen-prompt-guide
 //       https://cloud.google.com/blog/products/ai-machine-learning/ultimate-prompting-guide-for-veo-3-1
 //       https://kling.ai/blog/kling-ai-prompt-guide
@@ -23,14 +29,20 @@ STRUCTURE (image-to-video)
    named ("a slow push-in at a constant focal length"; "a locked-off static frame"; "a small-angle
    orbit at constant distance, height, and focal length"). Lead with it, separated from the subject
    action. State the move precisely; where a magnitude is implied, prefer a small, specific one
-   (e.g. a 10-15 degree orbit).
+   (e.g. a 10-15 degree orbit). Describe ONLY what the camera does — never what the subject appears
+   to become. Do not append a purpose clause about the subject's state ("so the jar feels more
+   elevated"; "making the bottle seem taller"): the video model executes that as subject motion
+   rather than as a framing effect. This matters most for a crane or boom, which is the one move
+   that reads equally as "the camera rose" or "the subject rose" — say the camera rises, and never
+   attribute the rise to the subject.
 2. Action — what physically moves (secondary motion: steam drifts, fabric sways, light shifts,
    liquid pours). Keep it grounded in what is already visible in the frame. Describe ONE focused
    moment — do not chain several distinct events ("A, then B, then C") in a single short clip.
 3. Preservation — restate the fixed, preservation-critical identity that must not change: the
    product's shape, its label text, logo, lettering, colours, the positions of props, and the
    lighting. Instruct that these be held exactly (no deformation, no drifting text, no changed
-   quantities).
+   quantities). Include the subject's grounding: it stays in physical contact with the surface it
+   rests on and does not rise, float, or lift off it.
 
 Do not invent new objects, people, settings, or styles that are not in the frame, and do not pad
 with generic scene description — but DO restate the preservation-critical identity above so the
@@ -46,7 +58,7 @@ If motion controls are provided, honor them exactly.`;
 
 export const videoPromptGeneratePrompt = {
   id: "video-prompt-generate",
-  version: 4,
+  version: 5,
   model: "gpt-5.4-mini",
   system: `You are a motion director writing image-to-video prompts for Veo 3.1.
 ${SPINE}
@@ -57,7 +69,7 @@ Do not use: "cinematic masterpiece", "ultra realistic", "8K", "stunning", "beaut
 
 export const videoPromptGenerateKlingPrompt = {
   id: "video-prompt-generate-kling",
-  version: 3,
+  version: 4,
   model: "gpt-5.4-mini",
   system: `You are a motion director writing image-to-video prompts for Kling.
 ${SPINE}

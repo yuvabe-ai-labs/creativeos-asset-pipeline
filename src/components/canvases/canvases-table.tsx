@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronRight, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { ChevronRight, Microscope, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { ListToolbar } from "@/components/ui/list-toolbar";
 import { filterAndSort, type SortKey } from "@/lib/list/filter-sort";
@@ -131,11 +131,18 @@ export function CanvasesTable({
           ) : (
             <ul>
               {rows.map((canvas) => (
-                <li key={canvas.id} className="group relative border-b last:border-b-0">
+                <li
+                  key={canvas.id}
+                  className="group relative border-b transition-colors last:border-b-0 hover:bg-muted/40"
+                >
+                  {/* Stretched link — the whole row opens the editor; the Evals action
+                      and the ⋯ menu re-enable pointer events and sit above it. */}
                   <Link
                     href={`/clients/${clientSlug}/canvases/${canvas.slug}`}
-                    className="flex items-center gap-4 px-5 py-3.5 pr-12 transition-colors hover:bg-muted/40"
-                  >
+                    aria-label={canvas.name}
+                    className="absolute inset-0"
+                  />
+                  <div className="pointer-events-none relative flex items-center gap-4 px-5 py-3.5 pr-12">
                     <span className="flex-3 font-medium">{canvas.name}</span>
                     <span className="flex-2 text-sm text-muted-foreground">
                       {formatRelativeTime(canvas.updated_at)}
@@ -145,12 +152,19 @@ export function CanvasesTable({
                         month: "short",
                         day: "numeric",
                       })}
+                      <Link
+                        href={`/eval/${canvas.id}`}
+                        title="Error analysis — inspect this canvas's generations"
+                        className="pointer-events-auto relative z-10 inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/5 hover:text-primary"
+                      >
+                        <Microscope className="size-3.5" strokeWidth={1.5} /> Evals
+                      </Link>
                       <ChevronRight
                         className="size-4 text-muted-foreground/40 transition-transform group-hover:translate-x-0.5"
                         strokeWidth={1.5}
                       />
                     </span>
-                  </Link>
+                  </div>
 
                   {/* ⋯ action menu — sits on top of the link */}
                   <div className="absolute right-3 top-1/2 -translate-y-1/2 opacity-0 transition-opacity group-hover:opacity-100">

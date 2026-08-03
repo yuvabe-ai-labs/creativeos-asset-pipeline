@@ -14,7 +14,6 @@ import {
   History,
   ImageIcon,
   PencilLine,
-  Settings2,
   SlidersHorizontal,
   Sparkles,
   type LucideIcon,
@@ -39,8 +38,11 @@ import {
 } from "@/lib/video-gen/client-models";
 import { smartMergeVideoParams } from "@/lib/video-gen/params/merge";
 import {
+  areFramesAndRefsExclusive,
   buildConstraintState,
   evaluateConstraints,
+  reconcileLockedParams,
+  reconcileRolesWithRules,
 } from "@/lib/video-gen/constraints";
 import { videoGenApi } from "@/lib/video-gen/api";
 import { VideoGenApiError } from "@/lib/video-gen/api";
@@ -51,6 +53,7 @@ import { EstimatedCreditsLabel } from "./estimated-credits-label";
 import { createBrowserSupabase } from "@/lib/supabase/client";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
+import { useFlushAutosave } from "@/components/canvas/autosave-flush-context";
 import { useVideoGenStatus } from "@/hooks/use-video-gen-status";
 import {
   VideoGenVersionHistory,
@@ -74,6 +77,9 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { ActiveRulesCard } from "./video-gen-active-rules-card";
+import { VideoGenShotSpine } from "./video-gen-shot-spine";
+import { VideoGenModelPicker } from "./video-gen-model-picker";
+import { describeShotSpine, describeDurationLabel } from "@/lib/video-gen/shot-spine";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -81,12 +87,10 @@ type ImageRole = "start_frame" | "end_frame" | "reference";
 
 type ImageInputs = { startFrame: boolean; endFrame: boolean; maxReferenceImages: number };
 
-type DialogState =
-  | null
-  | { type: "no-roles" }
-  | { type: "missing-end-frame" }
-  | { type: "role-conflict"; imageId: string; role: ImageRole; conflictingRole: "start_frame" | "end_frame" | "reference" }
-  | { type: "replace-singleton"; imageId: string; role: "start_frame" | "end_frame"; incumbentId: string; incumbentName: string };
+// Only the generate-time "no roles assigned" confirm remains. Role assignment itself never opens
+// a dialog: every such change is one click to make and one click to undo, and stacking a modal on
+// the focus view's own sheet to ask about it was a nested-modal antipattern.
+type DialogState = null | { type: "no-roles" };
 
 // Fill in default roles for any unassigned images:
 // - refs available → all images get "reference" (up to the cap)
@@ -356,7 +360,6 @@ export function VideoGenFocusView({
   // Output settings are always expanded. Defaults closed so the panel opens uncluttered.
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [pendingDialog, setPendingDialog] = useState<DialogState>(null);
-  const hasExplicitlySkippedEndFrameRef = useRef(false);
 
   const [loadingVersions, setLoadingVersions] = useState(false);
   const [loadingConnected, setLoadingConnected] = useState(false);
@@ -373,11 +376,6 @@ export function VideoGenFocusView({
     }
   }
 
-  // Reset the "skipped end frame" guard when the sheet opens or switches nodes.
-  useEffect(() => {
-    hasExplicitlySkippedEndFrameRef.current = false;
-  }, [open, nodeId]);
-
   const { isGenerating, lastError, setGenerating, setLastError } =
     useVideoGenStatus(nodeId);
 
@@ -385,7 +383,9 @@ export function VideoGenFocusView({
   // the per-render wrapper functions returned by useVideoGenStatus.
   const setVideoGenGenerating = useCanvasStore((s) => s.setVideoGenGenerating);
   const setVideoGenError = useCanvasStore((s) => s.setVideoGenError);
+  const disconnectNodes = useCanvasStore((s) => s.disconnectNodes);
   const editable = useCanvasEditable(); // D33: false when this session is read-only
+  const flushAutosave = useFlushAutosave();
 
   // Stable ref for onPatch — breaks the useCallback → useEffect dep cycle
   const onPatchRef = useRef(onPatch);
@@ -404,6 +404,54 @@ export function VideoGenFocusView({
       /* best-effort */
     }
   }, [nodeId]);
+
+  // Unlike image-gen/prompt, this view's connected inputs are NOT read off the store —
+  // the route walks persisted edges two levels up (node → video-prompt → video-gen),
+  // so anything that rewires the canvas has to refetch to be seen here.
+  // Promise-chain (not async/await) so the setState calls sit inside a .then callback —
+  // react-hooks/set-state-in-effect reads an awaited setState as a synchronous one.
+  const refreshUpstream = useCallback(
+    () =>
+      videoGenApi
+        .fetchUpstreamImages(nodeId)
+        .then(({ images, promptNode: pn }) => {
+          setUpstreamImages(images);
+          setPromptNode(pn);
+        })
+        .catch(() => {}),
+    [nodeId],
+  );
+
+  // Wiring only writes the edge into the client store. Autosave persists it on a 600ms debounce,
+  // so refetching straight away would race the save and read pre-change state — flush first,
+  // exactly as the gallery drawer and reference picker do after connectNodes.
+  const persistThenRefresh = useCallback(async () => {
+    try {
+      await flushAutosave();
+    } catch (err) {
+      console.error("[video-gen] autosave flush failed:", err);
+    }
+    await refreshUpstream();
+  }, [flushAutosave, refreshUpstream]);
+
+  // Unwire an input added by mistake. The role goes with the edge: read-time pruning already
+  // keeps the tally honest, but leaving the entry behind grows a tail of ids in the stored
+  // imageRoles that point at nothing.
+  const handleDisconnect = useCallback(
+    async (sourceId: string) => {
+      disconnectNodes(sourceId, nodeId);
+      const nextRoles = Object.fromEntries(
+        Object.entries(imageRolesProp).filter(([id]) => id !== sourceId),
+      );
+      // onPatch directly, not onPatchRef — that ref exists to break an effect dep cycle, and
+      // this only ever runs from a click, so reading it during render is both unnecessary
+      // and something the React compiler rejects.
+      onPatch({ imageRoles: nextRoles });
+      if (selected === sourceId) setSelected("video");
+      await persistThenRefresh();
+    },
+    [disconnectNodes, nodeId, imageRolesProp, onPatch, selected, persistThenRefresh],
+  );
 
   // Load data when focus view opens; also re-check generation status to clear
   // any stale isGenerating=true that may have been set while the sheet was closed.
@@ -438,17 +486,8 @@ export function VideoGenFocusView({
       })
       .catch(() => {})
       .finally(() => setLoadingVersions(false));
-    videoGenApi
-      .fetchUpstreamImages(nodeId)
-      .then(({ images, promptNode: pn }) => {
-        setUpstreamImages(images);
-        setPromptNode(pn);
-        hasExplicitlySkippedEndFrameRef.current = false;
-      })
-      .catch(() => {})
-      .finally(() => setLoadingConnected(false));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, nodeId, setVideoGenGenerating, setVideoGenError]);
+    void refreshUpstream().finally(() => setLoadingConnected(false));
+  }, [open, nodeId, setVideoGenGenerating, setVideoGenError, refreshUpstream]);
 
   // Refresh versions when a generation finishes (isGenerating transitions true → false)
   const wasGeneratingRef = useRef(false);
@@ -492,30 +531,22 @@ export function VideoGenFocusView({
       }
     }
 
-    const finalRoles = nextInputs
-      ? applyDefaultImageRoles(upstreamImages, nextInputs, currentRoles)
-      : currentRoles;
+    const nextRules = videoGenClientModelMap[nextModelId]?.rules;
 
-    // Toast for dropped role assignments (§E)
-    const droppedImages = upstreamImages.filter(
-      (img) => img.id in currentRoles && !(img.id in finalRoles),
+    // Capability migration above only knows startFrame/endFrame/maxReferenceImages, and the
+    // default fill happily adds references on top of existing frames — so reconcile against the
+    // new model's RULES before persisting, or the node is written in a state the API rejects.
+    const finalRoles = reconcileRolesWithRules(
+      nextRules,
+      nextInputs
+        ? applyDefaultImageRoles(upstreamImages, nextInputs, currentRoles)
+        : currentRoles,
+      defaults,
     );
-    const toastMessages = droppedImages.map((img) => {
-      const oldRole = (currentRoles[img.id] as string).replace(/_/g, " ");
-      return `"${img.filename || "Image"}" removed from ${oldRole} — not supported by ${nextModel?.label ?? nextModelId}`;
-    });
-    if (toastMessages.length > 0) {
-      if (toastMessages.length <= 3) {
-        toastMessages.forEach((msg) => toast.info(msg, { duration: 3500 }));
-      } else {
-        toastMessages.slice(0, 3).forEach((msg) => toast.info(msg, { duration: 3500 }));
-        toast.info(`…and ${toastMessages.length - 3} more role${toastMessages.length - 3 === 1 ? "" : "s"} removed`, { duration: 3500 });
-      }
-    }
 
     // Commit any constraint-locked values into params so they persist after the lock clears.
     const nextConstraints = evaluateConstraints(
-      videoGenClientModelMap[nextModelId]?.rules,
+      nextRules,
       buildConstraintState(finalRoles, defaults),
     );
     const finalParams = { ...defaults, ...nextConstraints.lockedParams };
@@ -540,48 +571,48 @@ export function VideoGenFocusView({
       return;
     }
 
-    // Conflict check (§D): role is blocked by an active constraint
+    // Crossing the frames/references divide on a model that forbids the combination. This used
+    // to open a confirm dialog — a modal stacked on the focus view's own sheet, asking about
+    // something the operator can simply see happen and click again to undo. The spine states the
+    // either/or up front instead, so the switch just happens: clear the other side, apply.
     const isFrameRole = newRole === "start_frame" || newRole === "end_frame";
-    const isRefRole = newRole === "reference";
     if (isFrameRole && constraints.disableFrameInputs) {
-      // Frames are blocked because refs are active
-      const conflictingRole: ImageRole = "reference";
-      setPendingDialog({ type: "role-conflict", imageId, role: newRole, conflictingRole });
-      return;
+      for (const [id, r] of Object.entries(updated)) {
+        if (r === "reference") delete updated[id];
+      }
     }
-    if (isRefRole && constraints.disableRefs) {
-      // Refs are blocked because frames are active
-      const hasStart = Object.values(updated).includes("start_frame");
-      const conflictingRole: ImageRole = hasStart ? "start_frame" : "end_frame";
-      setPendingDialog({ type: "role-conflict", imageId, role: newRole, conflictingRole });
-      return;
+    if (newRole === "reference" && constraints.disableRefs) {
+      for (const [id, r] of Object.entries(updated)) {
+        if (r === "start_frame" || r === "end_frame") delete updated[id];
+      }
     }
 
-    // Singleton replacement check (§G): start_frame or end_frame already held by another image
+    // Start and end are singletons, so assigning one displaces whoever held it. This used to ask
+    // first; it no longer does. Nothing is destroyed — the incumbent becomes a reference where
+    // the model has slots, otherwise it simply goes unassigned — and it is undone by clicking the
+    // role again. A confirm on a reversible, single-click action is friction, not safety.
     if (newRole === "start_frame" || newRole === "end_frame") {
       const incumbentId = Object.entries(updated).find(
         ([id, r]) => id !== imageId && r === newRole,
       )?.[0];
       if (incumbentId) {
-        const incumbentImage = upstreamImages.find((img) => img.id === incumbentId);
-        const incumbentName = incumbentImage?.filename ?? "";
-        setPendingDialog({
-          type: "replace-singleton",
-          imageId,
-          role: newRole,
-          incumbentId,
-          incumbentName,
-        });
-        return;
+        if (imageInputs.maxReferenceImages > 0) {
+          updated[incumbentId] = "reference";
+        } else {
+          delete updated[incumbentId];
+        }
       }
     }
 
-    // No conflict, no replacement needed — apply directly
     updated[imageId] = newRole;
     commitRoleChange(updated);
   }
 
-  function commitRoleChange(updated: Record<string, ImageRole>) {
+  function commitRoleChange(next: Record<string, ImageRole>) {
+    // Demoting a displaced frame to "reference" can itself create the frames+refs combination
+    // some models forbid, so reconcile before persisting rather than relying on the read-time
+    // pass to hide it.
+    const updated = reconcileRolesWithRules(currentModel?.rules, next, params);
     const nextConstraints = evaluateConstraints(
       currentModel?.rules,
       buildConstraintState(updated, params),
@@ -614,21 +645,8 @@ export function VideoGenFocusView({
       return;
     }
 
-    // C3: end frame slot available, start frame assigned, unassigned images exist, no end frame
-    const hasStartFrame = Object.values(effectiveImageRoles).includes("start_frame");
-    const hasEndFrame = Object.values(effectiveImageRoles).includes("end_frame");
-    const hasUnassigned = upstreamImages.some((img) => !(img.id in effectiveImageRoles));
-    if (
-      imageInputs.endFrame &&
-      hasStartFrame &&
-      !hasEndFrame &&
-      hasUnassigned &&
-      !hasExplicitlySkippedEndFrameRef.current
-    ) {
-      setPendingDialog({ type: "missing-end-frame" });
-      return;
-    }
-
+    // D95: a missing end frame no longer interrupts. The preference for a start+end pair is
+    // expressed by the shot spine's empty slot at rest, not by a confirm dialog on the way out.
     await doGenerate();
   }
 
@@ -638,7 +656,8 @@ export function VideoGenFocusView({
     try {
       await videoGenApi.startGeneration(nodeId, {
         modelId,
-        params,
+        // D98: post the reconciled values, never the possibly-stale `params` state.
+        params: effectiveParams,
         imageRoles: effectiveImageRoles,
       });
       // 202 Accepted — hook's Realtime subscription clears isGenerating on completion
@@ -678,16 +697,21 @@ export function VideoGenFocusView({
     maxReferenceImages: 0,
   };
 
-  const durationSeconds = Number(params.seconds ?? params.duration ?? 0);
-  const audioEnabled = isVideoAudioEnabled(params.audio);
-  const resolution = asResolutionString(params.resolution);
-  const videoCostEstimate = computeVideoCost(modelId, durationSeconds, audioEnabled, resolution);
-  const estimatedCredits = videoCostEstimate ? usdToFinalCredits(videoCostEstimate.usd) : null;
+  // Roles are keyed by upstream node id and persist on the video node, so an id outlives its
+  // edge: disconnect or delete the node and the entry stays behind. A ghost entry inflates the
+  // spine tally past the connected count and would be posted as an input that no longer exists,
+  // so the connected set — not the roles map — is the authority on what counts.
+  //
+  // Only while `loadingConnected` is false: an empty `upstreamImages` mid-fetch means "not known
+  // yet", not "nothing connected", and pruning against it would blank every role for a frame
+  // (and let a click in that window persist the blank).
+  const connectedImageIds = new Set(upstreamImages.map((img) => img.id));
 
-  // Filter out roles that are invalid for the current model — handles the timing gap
+  // Also filter out roles that are invalid for the current model — handles the timing gap
   // between setModelId (local, immediate) and imageRolesProp update (from parent, async).
-  const effectiveImageRoles = Object.fromEntries(
-    Object.entries(imageRolesProp).filter(([, role]) => {
+  const supportedImageRoles = Object.fromEntries(
+    Object.entries(imageRolesProp).filter(([id, role]) => {
+      if (!loadingConnected && !connectedImageIds.has(id)) return false;
       if (role === "reference" && imageInputs.maxReferenceImages === 0) return false;
       if (role === "end_frame" && !imageInputs.endFrame) return false;
       if (role === "start_frame" && !imageInputs.startFrame) return false;
@@ -696,35 +720,60 @@ export function VideoGenFocusView({
   ) as Record<string, ImageRole>;
 
   const currentModel = videoGenClientModelMap[modelId];
+
+  // Capability is not the same as legality: a model can accept frames AND references and still
+  // have a rule forbidding them together. Reconciling here (rather than only on model change)
+  // also heals nodes already persisted in the contradictory state, which would otherwise stay
+  // stuck failing at generate with no way for the operator to see why.
+  const effectiveImageRoles = reconcileRolesWithRules(
+    currentModel?.rules,
+    supportedImageRoles,
+    params,
+  );
   const constraintState = buildConstraintState(
     effectiveImageRoles,
     params,
   );
   const constraints = evaluateConstraints(currentModel?.rules, constraintState);
 
-  // Toast when locked params change — string key keeps dep array size constant
-  const lockedParamsKey = JSON.stringify(constraints.lockedParams);
-  const prevLockedRef = useRef<{ locked: Record<string, unknown>; reasons: Record<string, string> } | null>(null);
-  useEffect(() => {
-    const prev = prevLockedRef.current;
-    prevLockedRef.current = { locked: constraints.lockedParams, reasons: constraints.lockedParamReasons };
-    if (prev === null) return; // skip mount
+  // No toasts for locked params or dropped roles. Switching model could fire several at once
+  // (one per dropped role, one per newly-locked param) for state that is already on screen and
+  // stays there: ActiveRulesCard lists every active reason persistently, and the params panel
+  // renders locked controls as locked. A toast per change was duplicating a permanent display
+  // with a transient one, which is noise rather than feedback.
 
-    for (const [name, value] of Object.entries(constraints.lockedParams)) {
-      if (prev.locked[name] !== value) {
-        const reason = constraints.lockedParamReasons[name];
-        const label = name.split("_").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
-        toast.info(`${label} set to ${value}${reason ? ` · ${reason}` : ""}`, { duration: 3500 });
-      }
-    }
-    for (const name of Object.keys(prev.locked)) {
-      if (!(name in constraints.lockedParams)) {
-        const label = name.split("_").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
-        toast.info(`${label} unlocked`, { duration: 2500 });
-      }
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lockedParamsKey]);
+  // D98: locked values are authoritative, not a display substitution. Derived at render rather
+  // than synchronised through an effect — there is no divergence to sync if every read goes
+  // through the same merge. Previously the panel displayed a locked 8 while `params` kept 6 and
+  // doGenerate posted the 6, which caused 11 observed generation failures.
+  const effectiveParams = reconcileLockedParams(params, constraints.lockedParams) ?? params;
+
+  // Pre-generation credit estimate. Reads effectiveParams, NOT params — for the same reason
+  // doGenerate does. A rule can pin duration to 8s while `params.duration` still holds the 6 the
+  // operator last picked, and estimating off the stale 6 would quote one price and bill another.
+  const durationSeconds = Number(effectiveParams.seconds ?? effectiveParams.duration ?? 0);
+  const audioEnabled = isVideoAudioEnabled(effectiveParams.audio);
+  const resolution = asResolutionString(effectiveParams.resolution);
+  const videoCostEstimate = computeVideoCost(modelId, durationSeconds, audioEnabled, resolution);
+  const estimatedCredits = videoCostEstimate ? usdToFinalCredits(videoCostEstimate.usd) : null;
+
+  // D95: the duration label the current combination actually yields — read off the model's own
+  // param spec so it stays correct when a spec changes (e.g. O1's 5/10 select), but a rule-locked
+  // value overrides the menu. Veo pins 8s the moment a reference image is used, and the spine
+  // advertising "4 or 6 or 8s" contradicted the greyed-out 4 and 6 in the panel below it.
+  const durationSpec = currentModel?.params.find((p) => p.name === "duration");
+  const lockedDuration = constraints.lockedParams.duration;
+
+  const spineModel = describeShotSpine({
+    imageInputs,
+    hasStartFrame: Object.values(effectiveImageRoles).includes("start_frame"),
+    hasEndFrame: Object.values(effectiveImageRoles).includes("end_frame"),
+    referenceCount: Object.values(effectiveImageRoles).filter((r) => r === "reference").length,
+    durationLabel: describeDurationLabel(durationSpec, lockedDuration),
+    framesRefsExclusive: areFramesAndRefsExclusive(currentModel?.rules),
+    durationLockReason:
+      lockedDuration !== undefined ? constraints.lockedParamReasons.duration : undefined,
+  });
 
   const mode: "skeleton" | "result" | "empty" = isGenerating
     ? "skeleton"
@@ -742,7 +791,6 @@ export function VideoGenFocusView({
     })),
   ];
   const connectedCount = connectedItems.length;
-  const hasFrames = upstreamImages.length > 0;
   const isNodeSelected = !["video", "history", "details"].includes(selected);
   const selectedDetailItem = isNodeSelected
     ? connectedItems.find((c) => c.id === selected) ?? null
@@ -862,6 +910,7 @@ export function VideoGenFocusView({
                 targetId={nodeId}
                 targetType="video-gen"
                 connectedIds={connectedItems.map((c) => c.id)}
+                onConnected={() => void persistThenRefresh()}
               />
             </div>
             {loadingConnected ? (
@@ -902,6 +951,10 @@ export function VideoGenFocusView({
                         </span>
                       ) : undefined
                     }
+                    onRemove={
+                      editable ? () => void handleDisconnect(c.id) : undefined
+                    }
+                    removeLabel={`Disconnect ${c.label}`}
                   />
                 );
               })
@@ -935,67 +988,54 @@ export function VideoGenFocusView({
               {/* Video — flat, independently-collapsible peer groups (Frames / Output / Fine-tune / Advanced) */}
               {selected === "video" && (
                 <div className="flex flex-col gap-10 px-6 py-5">
+                  {/* Model first: it decides which roles exist, which params show, and which
+                      combinations are legal, so every choice below it is downstream of this one. */}
+                  {/* Output settings share the model's card: resolution and duration are
+                      properties OF the chosen model — its options, its locks — so a separate
+                      "Output settings" heading split one decision across two places. */}
+                  <VideoGenModelPicker modelId={modelId} onModelChange={handleModelChange}>
+                    <VideoGenParamsPanel
+                      modelId={modelId}
+                      params={effectiveParams}
+                      onParamChange={handleParamChange}
+                      lockedParams={constraints.lockedParams}
+                      lockedParamReasons={constraints.lockedParamReasons}
+                      group="primary"
+                    />
+                  </VideoGenModelPicker>
                   {(() => {
                     const paramsPanelProps = {
                       modelId,
-                      params,
-                      onModelChange: handleModelChange,
+                      // D98: what the panel shows is what doGenerate posts.
+                      params: effectiveParams,
                       onParamChange: handleParamChange,
                       lockedParams: constraints.lockedParams,
                       lockedParamReasons: constraints.lockedParamReasons,
                     };
-                    const groups: { id: string; icon: LucideIcon; label: string; body: ReactNode }[] = [];
-                    if (hasFrames) {
-                      groups.push({
-                        id: "frames",
-                        icon: ImageIcon,
-                        label: "Frames",
-                        body: (
-                          <VideoGenConnectedSection
-                            promptNode={null}
-                            images={upstreamImages}
-                            imageRoles={effectiveImageRoles}
-                            imageInputs={imageInputs}
-                            onRoleChange={handleRoleChange}
-                            onConflictingRoleRequest={(imageId, role) => {
-                              const isFrameRole = role === "start_frame" || role === "end_frame";
-                              if (isFrameRole) {
-                                setPendingDialog({ type: "role-conflict", imageId, role, conflictingRole: "reference" });
-                              } else {
-                                const hasStart = Object.values(effectiveImageRoles).includes("start_frame");
-                                setPendingDialog({
-                                  type: "role-conflict",
-                                  imageId,
-                                  role,
-                                  conflictingRole: hasStart ? "start_frame" : "end_frame",
-                                });
-                              }
-                            }}
-                            onOpenDetail={(id) => setSelected(id)}
-                            disableFrameInputs={constraints.disableFrameInputs}
-                            disableFrameInputsReason={constraints.disableFrameInputsReason}
-                            disableRefs={constraints.disableRefs}
-                            disableRefsReason={constraints.disableRefsReason}
-                            onReset={handleReset}
-                          />
-                        ),
-                      });
-                    }
-                    groups.push({
-                      id: "output",
-                      icon: Settings2,
-                      label: "Output settings",
-                      body: <VideoGenParamsPanel {...paramsPanelProps} group="primary" />,
-                    });
-                    // Frames and Output settings stay expanded; Advanced is the one collapsible
-                    // group, so the secondary controls don't crowd the panel by default.
                     return (
                       <>
-                        {groups.map((g) => (
-                          <LeftSection key={g.id} icon={g.icon} label={g.label}>
-                            {g.body}
-                          </LeftSection>
-                        ))}
+                        {/* The spine heads the Frames section: it is the summary of exactly what
+                            the thumbnails below assign. Rendered unconditionally — D95 wants the
+                            empty slots visible AT REST, and gating on connected images would hide
+                            the shape of the shot precisely when nothing has been set up yet. */}
+                        <LeftSection icon={ImageIcon} label="Frames">
+                          <div className="flex flex-col gap-4">
+                            <VideoGenShotSpine model={spineModel} />
+                            <VideoGenConnectedSection
+                              promptNode={null}
+                              images={upstreamImages}
+                              imageRoles={effectiveImageRoles}
+                              imageInputs={imageInputs}
+                              onRoleChange={handleRoleChange}
+                              onOpenDetail={(id) => setSelected(id)}
+                              disableFrameInputs={constraints.disableFrameInputs}
+                              disableRefs={constraints.disableRefs}
+                              onReset={handleReset}
+                            />
+                          </div>
+                        </LeftSection>
+                        {/* Advanced is the one collapsible group, so the secondary controls
+                            don't crowd the panel by default. */}
                         {hasParamsInGroup(modelId, "advanced") && (
                           <LeftSection
                             icon={SlidersHorizontal}
@@ -1136,102 +1176,6 @@ export function VideoGenFocusView({
               </>
             )}
 
-            {pendingDialog?.type === "missing-end-frame" && (
-              <>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>End frame not assigned</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    You have a connected image without a role, and this model supports an end
-                    frame. Generate with just the start frame?
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={() => {
-                      hasExplicitlySkippedEndFrameRef.current = true;
-                      void doGenerate();
-                    }}
-                  >
-                    Generate anyway
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </>
-            )}
-
-            {pendingDialog?.type === "role-conflict" && (() => {
-              const d = pendingDialog;
-              const isAddingRef = d.role === "reference";
-              const modelLabel = currentModel?.label ?? "This model";
-              const removeWhat = isAddingRef ? "start/end frame assignments" : "reference image assignments";
-              const switchingTo = isAddingRef ? "reference images" : "start/end frames";
-              return (
-                <>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Can&apos;t combine these roles</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      {modelLabel} doesn&apos;t support reference images together with start/end
-                      frames. Switching to {switchingTo} will remove your {removeWhat}.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={() => {
-                        const updated = { ...effectiveImageRoles };
-                        for (const [id, r] of Object.entries(updated)) {
-                          if (isAddingRef && (r === "start_frame" || r === "end_frame")) {
-                            delete updated[id];
-                          } else if (!isAddingRef && r === "reference") {
-                            delete updated[id];
-                          }
-                        }
-                        updated[d.imageId] = d.role;
-                        commitRoleChange(updated);
-                      }}
-                    >
-                      Switch to {switchingTo}
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </>
-              );
-            })()}
-
-            {pendingDialog?.type === "replace-singleton" && (() => {
-              const d = pendingDialog;
-              const roleLabel = d.role === "start_frame" ? "start frame" : "end frame";
-              const incumbentLabel = d.incumbentName
-                ? `"${d.incumbentName}"`
-                : `the current ${roleLabel}`;
-              return (
-                <>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Replace {roleLabel}?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      {incumbentLabel} is currently set as the {roleLabel}. Replace it with this
-                      image?
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={() => {
-                        const updated = { ...effectiveImageRoles };
-                        if (imageInputs.maxReferenceImages > 0) {
-                          updated[d.incumbentId] = "reference";
-                        } else {
-                          delete updated[d.incumbentId];
-                        }
-                        updated[d.imageId] = d.role;
-                        commitRoleChange(updated);
-                      }}
-                    >
-                      Replace
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </>
-              );
-            })()}
           </AlertDialogContent>
         </AlertDialog>
       </SheetContent>

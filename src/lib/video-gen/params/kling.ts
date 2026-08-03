@@ -35,6 +35,8 @@ function durationParam(min: number, max: number, defaultValue: number): ParamSpe
 //   400 {"code":1201,"message":"Duration only supports 5 or 10 seconds when no refer_image is provided"}
 // Two non-contiguous stops can't be expressed as a slider, so O1 gets a chip select instead.
 // Restoring the full 3–10 range means implementing refer_image, not widening this list.
+// Stores a STRING where 3.0's slider stores a number; both settings builders coerce with
+// Number(), so either survives the round trip.
 function durationSelectParam(options: string[], defaultValue: string): ParamSpec {
   return {
     name: "duration",
