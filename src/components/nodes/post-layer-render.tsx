@@ -8,11 +8,18 @@ import { PostTextLayer } from "./post-text-layer";
 import { PostShapeLayer } from "./post-shape-layer";
 import { PostImageLayer } from "./post-image-layer";
 import { PostIconLayer } from "./post-icon-layer";
+import { PostGroupLayer } from "./post-group-layer";
 
 type Props = {
   layer: PostLayer;
   containerW: number;
   containerH: number;
+  // Full top-level layer list — only actually needed to resolve a GroupLayer's children
+  // (post-group-layer.tsx), but threaded through every layer kind uniformly since this
+  // dispatcher recurses into itself for nested group children (a group's child can itself
+  // be a group). The only caller, post-stage.tsx, already has this list as its own `layers`
+  // prop (Task 8 wires it through).
+  allLayers: PostLayer[];
   isSelected: boolean;
   resolveNodeImageUrl: (nodeId: string) => string | undefined;
   nodeRef: (node: Konva.Node | null) => void;
@@ -25,7 +32,7 @@ type Props = {
 // and the export (the SAME Stage instance's toDataURL/toBlob) share it, so there is no
 // second render path to drift out of sync with the first.
 export function PostLayerRender({
-  layer, containerW, containerH, isSelected, resolveNodeImageUrl, nodeRef, onSelect,
+  layer, containerW, containerH, allLayers, isSelected, resolveNodeImageUrl, nodeRef, onSelect,
   onDragEnd, onDblClickText,
 }: Props) {
   const nodeProps: Konva.NodeConfig & KonvaNodeEvents = {
@@ -58,6 +65,14 @@ export function PostLayerRender({
       <PostImageLayer
         layer={layer} containerW={containerW} containerH={containerH} rawUrl={rawUrl}
         nodeRef={nodeRef as (n: Konva.Image | null) => void} nodeProps={nodeProps}
+      />
+    );
+  }
+  if (layer.kind === "group") {
+    return (
+      <PostGroupLayer
+        layer={layer} containerW={containerW} containerH={containerH} allLayers={allLayers}
+        resolveNodeImageUrl={resolveNodeImageUrl} nodeRef={nodeRef} nodeProps={nodeProps}
       />
     );
   }
