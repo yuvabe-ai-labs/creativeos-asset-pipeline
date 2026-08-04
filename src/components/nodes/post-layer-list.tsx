@@ -152,6 +152,13 @@ export function PostLayerList({
                   className="flex flex-1 items-center gap-1.5 min-w-0 text-left"
                   onClick={(e) => handleSelect(e, layer.id)}
                   onKeyDown={(e) => {
+                    // Only react when the keydown originates on this div itself (real DOM
+                    // focus on the row) — not when it bubbles up from the nested rename
+                    // <Input> (EditableField, autoFocused while renaming). Without this
+                    // guard, typing a space in the input gets swallowed by the
+                    // preventDefault below, and committing via Enter double-fires
+                    // handleSelect on top of EditableField's own commit handling.
+                    if (e.target !== e.currentTarget) return;
                     if (e.key === "Enter" || e.key === " ") {
                       if (e.key === " ") e.preventDefault();
                       handleSelect(e, layer.id);
