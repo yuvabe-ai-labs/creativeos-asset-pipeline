@@ -1704,15 +1704,25 @@ import { NextRequest } from "next/server";
 
 vi.mock("server-only", () => ({}));
 
-const cookieJar = new Map<string, { value: string }>();
-const cookieStore = {
-  get: vi.fn((name: string) => cookieJar.get(name)),
-  set: vi.fn((name: string, value: string) => cookieJar.set(name, { value })),
-  delete: vi.fn((name: string) => cookieJar.delete(name)),
-};
+// vi.hoisted() required for every value a vi.mock() factory below closes over — mock
+// factories are hoisted above plain top-level const/let declarations (same gotcha
+// documented in Tasks 4 and 6's test files).
+const { cookieJar, cookieStore, auditRows, liveRoleBox } = vi.hoisted(() => {
+  const jar = new Map<string, { value: string }>();
+  return {
+    cookieJar: jar,
+    cookieStore: {
+      get: vi.fn((name: string) => jar.get(name)),
+      set: vi.fn((name: string, value: string) => jar.set(name, { value })),
+      delete: vi.fn((name: string) => jar.delete(name)),
+    },
+    auditRows: [] as Record<string, unknown>[],
+    liveRoleBox: { current: "super_admin" as "super_admin" | "member" },
+  };
+});
+
 vi.mock("next/headers", () => ({ cookies: vi.fn(async () => cookieStore) }));
 
-let liveRole: "super_admin" | "member" = "super_admin";
 vi.mock("@/lib/dal", async () => {
   const actual = await vi.importActual<typeof import("@/lib/dal")>("@/lib/dal");
   return {
@@ -1720,7 +1730,7 @@ vi.mock("@/lib/dal", async () => {
     resolveCallerContext: vi.fn(async () => ({
       userId: "op-1",
       email: "operator@yuvabe.com",
-      platformRole: liveRole,
+      platformRole: liveRoleBox.current,
       orgId: "yuvabe-org",
       orgRole: "owner",
       mustChangePassword: false,
@@ -1728,7 +1738,6 @@ vi.mock("@/lib/dal", async () => {
   };
 });
 
-const auditRows: Record<string, unknown>[] = [];
 vi.mock("@/lib/supabase/server", () => ({
   createServerSupabase: vi.fn(() => ({
     from: (table: string) => ({
@@ -1759,7 +1768,7 @@ describe("Stage 4 impersonation — checklist scenarios", () => {
     vi.clearAllMocks();
     cookieJar.clear();
     auditRows.length = 0;
-    liveRole = "super_admin";
+    liveRoleBox.current = "super_admin";
   });
 
   it("entering impersonation resolves the target org's data", async () => {
@@ -1792,7 +1801,7 @@ describe("Stage 4 impersonation — checklist scenarios", () => {
     await startImpersonation("target-org");
     expect((await resolveImpersonationState()).isImpersonating).toBe(true);
 
-    liveRole = "member"; // operator demoted mid-session
+    liveRoleBox.current = "member"; // operator demoted mid-session
     expect((await resolveImpersonationState()).isImpersonating).toBe(false);
   });
 
