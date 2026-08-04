@@ -1338,16 +1338,22 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
-const redirectMock = vi.fn((path: string) => {
-  throw new Error(`REDIRECT:${path}`);
-});
+
+// vi.hoisted() required: vi.mock() factories are hoisted above plain top-level consts
+// (same gotcha documented in Tasks 4, 6, and 10's test files).
+const { redirectMock, startImpersonationMock, enterElevatedModeMock, endImpersonationMock } =
+  vi.hoisted(() => ({
+    redirectMock: vi.fn((path: string) => {
+      throw new Error(`REDIRECT:${path}`);
+    }),
+    startImpersonationMock: vi.fn(async () => undefined),
+    enterElevatedModeMock: vi.fn(async () => undefined),
+    endImpersonationMock: vi.fn(async () => undefined),
+  }));
 vi.mock("next/navigation", () => ({ redirect: redirectMock }));
 
 vi.mock("@/lib/auth/require-super-admin", () => ({ requireSuperAdmin: vi.fn(async () => undefined) }));
 
-const startImpersonationMock = vi.fn(async () => undefined);
-const enterElevatedModeMock = vi.fn(async () => undefined);
-const endImpersonationMock = vi.fn(async () => undefined);
 vi.mock("@/lib/auth/impersonation", () => ({
   startImpersonation: startImpersonationMock,
   enterElevatedMode: enterElevatedModeMock,
