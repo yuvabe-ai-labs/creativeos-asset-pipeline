@@ -420,16 +420,20 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-const cookieStore = {
-  get: vi.fn(),
-  set: vi.fn(),
-  delete: vi.fn(),
-};
+// vi.hoisted() is required here: vi.mock() factories are hoisted above every other
+// top-level statement (including plain `const`s), so a factory that closes over a
+// later-declared `const` would read it before initialization (TDZ ReferenceError).
+const { cookieStore, logMock } = vi.hoisted(() => ({
+  cookieStore: { get: vi.fn(), set: vi.fn(), delete: vi.fn() },
+  logMock: vi.fn(async () => undefined),
+}));
+
 vi.mock("next/headers", () => ({ cookies: vi.fn(async () => cookieStore) }));
 
 vi.mock("@/lib/dal", () => ({
   resolveCallerContext: vi.fn(async () => ({
     userId: "op-1",
+    email: "op-1@yuvabe.com",
     platformRole: "super_admin",
     orgId: "yuvabe-org",
     orgRole: "owner",
@@ -437,7 +441,6 @@ vi.mock("@/lib/dal", () => ({
   })),
 }));
 
-const logMock = vi.fn(async () => undefined);
 vi.mock("@/lib/db/impersonation-audit", () => ({ logImpersonationEvent: logMock }));
 
 import { resolveCallerContext } from "@/lib/dal";
@@ -495,6 +498,7 @@ describe("resolveImpersonationState", () => {
     cookieStore.get.mockReturnValue({ value: validCookieValue() });
     vi.mocked(resolveCallerContext).mockResolvedValueOnce({
       userId: "op-1",
+      email: "op-1@yuvabe.com",
       platformRole: "member",
       orgId: "yuvabe-org",
       orgRole: "owner",
@@ -702,22 +706,21 @@ export async function enterElevatedMode(): Promise<void> {
 export async function endImpersonation(): Promise<void> {
   const secret = getSecret();
   const payload = secret ? await readPayload() : null;
+  if (!payload) return; // no-op when there's no active session
   const store = await cookies();
   store.delete(COOKIE_NAME);
-  if (payload) {
-    await logImpersonationEvent({
-      operatorId: payload.operatorId,
-      targetOrgId: payload.targetOrgId,
-      eventType: "session_ended",
-    });
-  }
+  await logImpersonationEvent({
+    operatorId: payload.operatorId,
+    targetOrgId: payload.targetOrgId,
+    eventType: "session_ended",
+  });
 }
 ```
 
 - [ ] **Step 4: Run to verify it passes**
 
 Run: `npx vitest run src/lib/auth/impersonation.test.ts`
-Expected: PASS, 11 tests
+Expected: PASS, 10 tests
 
 - [ ] **Step 5: Add `IMPERSONATION_COOKIE_SECRET` to `.env.example`**
 
@@ -840,6 +843,7 @@ vi.mock("server-only", () => ({}));
 vi.mock("@/lib/dal", () => ({
   resolveCallerContext: vi.fn(async () => ({
     userId: "user-1",
+    email: "user-1@yuvabe.com",
     platformRole: "member",
     orgId: "org-1",
     orgRole: "owner",
