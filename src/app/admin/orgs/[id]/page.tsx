@@ -13,6 +13,7 @@ import {
 } from "@/lib/db/organizations";
 import { countGenerationsForOrg, listGenerationsForOrgPage } from "@/lib/db/generations";
 import { OrgDetailTabs } from "./org-detail-tabs";
+import { EnterImpersonationButton } from "./enter-impersonation-button";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -73,9 +74,12 @@ export default async function OrgDetailPage({
           </BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
-      <h1 className="mb-8 font-display text-2xl font-semibold tracking-tight">
-        {org.name}
-      </h1>
+      <div className="mb-8 flex items-center justify-between">
+        <h1 className="font-display text-2xl font-semibold tracking-tight">
+          {org.name}
+        </h1>
+        <EnterImpersonationButton orgId={org.id} />
+      </div>
       <OrgDetailTabs
         org={org}
         members={members}
