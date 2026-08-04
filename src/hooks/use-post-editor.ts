@@ -23,11 +23,17 @@ export function usePostEditor(initialLayers: PostLayer[], onChange: (layers: Pos
   const liveLayersRef = useRef<PostLayer[] | null>(null);
   const [, forceRender] = useState(0);
 
+  // Always holds the latest `onChange` — read (not captured) by every action method so
+  // a non-memoized `onChange` passed by the caller never goes stale inside a `useCallback`
+  // that only rebuilds when `history.present` changes.
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+
   const layers = liveLayersRef.current ?? history.present;
 
   function applyCommitted(next: PostLayer[]) {
     setHistory((h) => commitHistory(h, next));
-    onChange(next);
+    onChangeRef.current(next);
   }
 
   const selectLayer = useCallback((id: string | null) => setSelectedId(id), []);
@@ -96,20 +102,24 @@ export function usePostEditor(initialLayers: PostLayer[], onChange: (layers: Pos
   }, [history.present]);
 
   const undo = useCallback(() => {
+    let nextPresent: PostLayer[] | undefined;
     setHistory((h) => {
       const next = undoHistory(h);
-      onChange(next.present);
+      nextPresent = next.present;
       return next;
     });
-  }, [onChange]);
+    if (nextPresent !== undefined) onChangeRef.current(nextPresent);
+  }, []);
 
   const redo = useCallback(() => {
+    let nextPresent: PostLayer[] | undefined;
     setHistory((h) => {
       const next = redoHistory(h);
-      onChange(next.present);
+      nextPresent = next.present;
       return next;
     });
-  }, [onChange]);
+    if (nextPresent !== undefined) onChangeRef.current(nextPresent);
+  }, []);
 
   return {
     layers,
