@@ -68,6 +68,13 @@ export type GroupLayer = LayerBase & {
   kind: "group";
   childIds: string[];
   children?: PostLayer[];
+  // The group's own x/y/w/h/rotation at the moment it was created (rotation is always 0 then —
+  // groupLayers never creates a pre-rotated group). ungroupLayers diffs this against the group's
+  // CURRENT x/y/w/h/rotation to know how much the group has been moved/resized/rotated since
+  // creation, so it can carry that same transform to the children before reinserting them. Public
+  // (not file-local) because PostLayer flows through onPatch into persisted node data with no
+  // Zod/normalizer schema today to preserve unknown keys across save/reload by contract.
+  originBox?: { x: number; y: number; w: number; h: number; rotation: number };
 };
 
 export type PostLayer = TextLayer | ShapeLayer | ImageLayer | IconLayer | GroupLayer;

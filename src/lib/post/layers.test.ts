@@ -271,6 +271,46 @@ describe("copyLayers / pasteLayers", () => {
     expect(ungroupedBoth).toHaveLength(4);
   });
 
+  it("copy -> paste -> ungroup a NESTED group (group containing a group) does not collide ids at any depth", () => {
+    // Build inner = group(a, b), then outer = group(inner, c) — a group whose OWN child is
+    // itself a GroupLayer. groupLayers has no guard against this, so nesting is reachable today.
+    const a = createTextLayer({ name: "a" });
+    const b = createShapeLayer({ name: "b" });
+    const inner = groupLayers([a, b], [a.id, b.id]).find((l) => l.kind === "group") as GroupLayer;
+
+    const c = createTextLayer({ name: "c" });
+    const outerLayers = groupLayers([inner, c], [inner.id, c.id]);
+    const outer = outerLayers.find((l) => l.kind === "group") as GroupLayer;
+
+    const clipboard = copyLayers(outerLayers, [outer.id]);
+    const pasted = pasteLayers(outerLayers, clipboard);
+    const outerCopy = pasted.find((l) => l.kind === "group" && l.id !== outer.id) as GroupLayer;
+
+    // Sanity: the copy's nested inner group also got a fresh id/child ids, distinct from the
+    // original inner group's — a flat (non-recursive) refreshIds would fail this, since it only
+    // swaps the outer group's direct children's ids and leaves the inner group's own
+    // childIds/children pointing at the ORIGINAL a/b ids.
+    const innerCopyRef = (outerCopy.children ?? []).find((ch) => ch.kind === "group") as GroupLayer;
+    expect(innerCopyRef.id).not.toBe(inner.id);
+    expect(innerCopyRef.childIds).not.toEqual(inner.childIds);
+    expect(innerCopyRef.childIds).not.toContain(a.id);
+    expect(innerCopyRef.childIds).not.toContain(b.id);
+
+    // Ungroup both outer groups, then both (now top-level) inner groups — fully flattening to
+    // individual layers: a, b, c, and their three copies.
+    let flat = ungroupLayers(pasted, outer.id);
+    flat = ungroupLayers(flat, outerCopy.id);
+    const innerAfter = flat.filter((l) => l.kind === "group") as GroupLayer[];
+    expect(innerAfter).toHaveLength(2); // original inner group + its copy, both now top-level
+    for (const g of innerAfter) {
+      flat = ungroupLayers(flat, g.id);
+    }
+
+    const ids = flat.map((l) => l.id);
+    expect(new Set(ids).size).toBe(ids.length); // no collisions at any depth
+    expect(flat).toHaveLength(6); // a, b, c + copies of each
+  });
+
   it("duplicateLayer regenerates a GroupLayer's child ids too", () => {
     const a = createTextLayer({ name: "a" });
     const b = createShapeLayer({ name: "b" });
@@ -337,5 +377,64 @@ describe("ungroupLayers — carries a moved/resized group's transform to its chi
     expect(result.find((l) => l.name === "a")?.y).toBeCloseTo(0.2, 5);
     expect(result.find((l) => l.name === "b")?.x).toBeCloseTo(0.15, 5);
     expect(result.find((l) => l.name === "b")?.y).toBeCloseTo(0.3, 5);
+  });
+
+  it("applies the group's resize (scale) delta to each child's position AND size", () => {
+    // a: x=0.1,y=0.1,w=0.2,h=0.1  b: x=0.3,y=0.2,w=0.1,h=0.3
+    // group's origin box (bounding box of a,b): x=0.1, y=0.1, w=0.3, h=0.4
+    const a = createTextLayer({ name: "a", x: 0.1, y: 0.1, w: 0.2, h: 0.1 });
+    const b = createShapeLayer({ name: "b", x: 0.3, y: 0.2, w: 0.1, h: 0.3 });
+    const grouped = groupLayers([a, b], [a.id, b.id]);
+    const group = grouped.find((l) => l.kind === "group") as GroupLayer;
+    expect(group.originBox?.x).toBeCloseTo(0.1, 5);
+    expect(group.originBox?.y).toBeCloseTo(0.1, 5);
+    expect(group.originBox?.w).toBeCloseTo(0.3, 5);
+    expect(group.originBox?.h).toBeCloseTo(0.4, 5);
+    expect(group.originBox?.rotation).toBe(0);
+
+    // Resize the group as if the user dragged the bottom-right handle: top-left (x,y) stays put,
+    // w/h double (0.3 -> 0.6, 0.4 -> 0.8) => scaleX = scaleY = 2.
+    const resized = updateLayer(grouped, group.id, { w: 0.6, h: 0.8 });
+    const result = ungroupLayers(resized, group.id);
+
+    // Hand computation:
+    // a: offsetX = 0.1 - 0.1 = 0   -> newX = 0.1 + 0*2   = 0.1   ; newW = 0.2*2 = 0.4
+    //    offsetY = 0.1 - 0.1 = 0   -> newY = 0.1 + 0*2   = 0.1   ; newH = 0.1*2 = 0.2
+    // b: offsetX = 0.3 - 0.1 = 0.2 -> newX = 0.1 + 0.2*2 = 0.5   ; newW = 0.1*2 = 0.2
+    //    offsetY = 0.2 - 0.1 = 0.1 -> newY = 0.1 + 0.1*2 = 0.3   ; newH = 0.3*2 = 0.6
+    const outA = result.find((l) => l.name === "a")!;
+    const outB = result.find((l) => l.name === "b")!;
+    expect(outA.x).toBeCloseTo(0.1, 5);
+    expect(outA.y).toBeCloseTo(0.1, 5);
+    expect(outA.w).toBeCloseTo(0.4, 5);
+    expect(outA.h).toBeCloseTo(0.2, 5);
+    expect(outB.x).toBeCloseTo(0.5, 5);
+    expect(outB.y).toBeCloseTo(0.3, 5);
+    expect(outB.w).toBeCloseTo(0.2, 5);
+    expect(outB.h).toBeCloseTo(0.6, 5);
+  });
+
+  it("applies the group's rotation delta additively to each child's own rotation, without moving position", () => {
+    const a = createTextLayer({ name: "a", x: 0.1, y: 0.1, w: 0.2, h: 0.1 });
+    const b = createShapeLayer({ name: "b", x: 0.3, y: 0.2, w: 0.1, h: 0.3 });
+    const grouped = groupLayers([a, b], [a.id, b.id]);
+    const group = grouped.find((l) => l.kind === "group") as GroupLayer;
+    expect(group.rotation).toBe(0);
+
+    // Rotate the group only (x/y/w/h unchanged) from 0 -> 45deg. Since the group's box didn't
+    // move or resize, scaleX = scaleY = 1 and the translation delta is 0, so children's x/y/w/h
+    // are reproduced unchanged (offsetX/Y * 1 + group.x/y, which equals the original x/y since
+    // group.x/y == originBox.x/y here) — only `rotation` changes, additively (dRotation = 45).
+    const rotated = updateLayer(grouped, group.id, { rotation: 45 });
+    const result = ungroupLayers(rotated, group.id);
+
+    const outA = result.find((l) => l.name === "a")!;
+    const outB = result.find((l) => l.name === "b")!;
+    expect(outA.x).toBeCloseTo(0.1, 5);
+    expect(outA.y).toBeCloseTo(0.1, 5);
+    expect(outA.rotation).toBeCloseTo(45, 5); // was undefined/0 -> 0 + 45
+    expect(outB.x).toBeCloseTo(0.3, 5);
+    expect(outB.y).toBeCloseTo(0.2, 5);
+    expect(outB.rotation).toBeCloseTo(45, 5);
   });
 });

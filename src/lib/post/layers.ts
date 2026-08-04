@@ -108,7 +108,11 @@ export function updateLayer(
 function refreshIds(layer: PostLayer): PostLayer {
   const fresh = { ...layer, id: crypto.randomUUID() } as PostLayer;
   if (fresh.kind !== "group") return fresh;
-  const newChildren = (fresh.children ?? []).map((child) => ({ ...child, id: crypto.randomUUID() }) as PostLayer);
+  // Recurse rather than a flat id swap: a child can itself be a GroupLayer (groupLayers has no
+  // guard against grouping a selection that includes an existing group), and refreshIds already
+  // returns a group with consistent childIds/children when called on one — so mapping this same
+  // function over the children keeps every nesting depth's ids in sync, not just the first level.
+  const newChildren = (fresh.children ?? []).map(refreshIds);
   return { ...fresh, childIds: newChildren.map((child) => child.id), children: newChildren };
 }
 
@@ -167,14 +171,6 @@ function boundingBoxOf(layers: PostLayer[]): { x: number; y: number; w: number; 
   return { x, y, w: Math.max(...rights) - x, h: Math.max(...bottoms) - y };
 }
 
-// ungroupLayers needs to know the group's box AS IT WAS AT CREATION TIME, separately from its
-// current (possibly since-moved) box, so it can compute how far the group has been dragged/resized
-// since grouping and apply that same delta to the children before reinserting them (Fix 3) — see
-// ungroupLayers below. This creation-time origin is bookkeeping internal to this module (nothing
-// outside groupLayers/ungroupLayers needs it), so it stays a non-public field rather than growing
-// the shipped GroupLayer type further.
-type GroupLayerWithOrigin = GroupLayer & { __originX?: number; __originY?: number };
-
 // The "prefer a live top-level-array entry, fall back to the group's own stored `children`"
 // lookup used by ungroupLayers. Exported because a later rendering task (Konva Group rendering of
 // a GroupLayer) needs this exact same data from a different file.
@@ -189,7 +185,7 @@ export function groupLayers(layers: PostLayer[], ids: string[]): PostLayer[] {
   const targets = layers.filter((l) => ids.includes(l.id));
   if (targets.length < 2) return layers;
   const box = boundingBoxOf(targets);
-  const group: GroupLayerWithOrigin = {
+  const group: GroupLayer = {
     id: crypto.randomUUID(),
     kind: "group",
     childIds: targets.map((l) => l.id),
@@ -199,8 +195,7 @@ export function groupLayers(layers: PostLayer[], ids: string[]): PostLayer[] {
     opacity: 1,
     locked: false,
     hidden: false,
-    __originX: box.x,
-    __originY: box.y,
+    originBox: { ...box, rotation: 0 },
   };
   const targetIdSet = new Set(targets.map((l) => l.id));
   const withoutTargets = layers.filter((l) => !targetIdSet.has(l.id));
@@ -229,20 +224,32 @@ export function ungroupLayers(layers: PostLayer[], groupId: string): PostLayer[]
   // (this file) removes children from the top-level array, so that's normally the only place to
   // find them.
   const rawChildren = getGroupChildren(layers, group);
-  // The group may have been moved (and/or resized) via updateLayer since it was created — its
-  // x/y/rotation transform is meant to apply on top of the children's stored (creation-time)
+  // The group may have been moved/resized/rotated via updateLayer since it was created — its
+  // x/y/w/h/rotation transform is meant to apply on top of the children's stored (creation-time)
   // positions at render time (see the design comment on GroupLayer in types.ts), so the children
   // themselves are never rewritten while grouped. Reinserting them verbatim would snap them back
-  // to where they were BEFORE the move. Instead, compute how far the group's origin has moved
-  // since creation and carry the children along by that same delta. Rotation/resize deltas would
-  // need proportional repositioning (and, for rotation, repositioning around a pivot) — out of
-  // scope here; only the x/y translation case (by far the common case: dragging a group) is
-  // handled.
-  const originX = (group as GroupLayerWithOrigin).__originX ?? group.x;
-  const originY = (group as GroupLayerWithOrigin).__originY ?? group.y;
-  const dx = group.x - originX;
-  const dy = group.y - originY;
-  const children = rawChildren.map((l) => ({ ...l, x: l.x + dx, y: l.y + dy }) as PostLayer);
+  // to where they were BEFORE the move/resize/rotate. Instead, diff the group's current box
+  // against its creation-time originBox and carry the children along by that same transform:
+  // translate by the position delta, scale each child's offset-from-origin (and its own w/h) by
+  // how much the group's box has grown/shrunk, and additively apply the rotation delta to each
+  // child's own `rotation` (a deliberately simpler approximation — it does NOT rotate each
+  // child's position around the group's center; true pivot rotation is out of scope here).
+  const originBox = group.originBox ?? { x: group.x, y: group.y, w: group.w, h: group.h, rotation: group.rotation ?? 0 };
+  const scaleX = originBox.w === 0 ? 1 : group.w / originBox.w;
+  const scaleY = originBox.h === 0 ? 1 : group.h / originBox.h;
+  const dRotation = (group.rotation ?? 0) - originBox.rotation;
+  const children = rawChildren.map((l) => {
+    const childOffsetX = l.x - originBox.x;
+    const childOffsetY = l.y - originBox.y;
+    return {
+      ...l,
+      x: group.x + childOffsetX * scaleX,
+      y: group.y + childOffsetY * scaleY,
+      w: l.w * scaleX,
+      h: l.h * scaleY,
+      rotation: (l.rotation ?? 0) + dRotation,
+    } as PostLayer;
+  });
   return [...layers.slice(0, idx), ...children, ...layers.slice(idx + 1)];
 }
 
