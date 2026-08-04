@@ -1,7 +1,7 @@
 // src/components/nodes/post-stage.tsx
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { Stage, Layer, Transformer } from "react-konva";
 import type Konva from "konva";
 import type { PostLayer } from "@/lib/post/types";
@@ -33,7 +33,12 @@ export function PostStage({
   const [editingRect, setEditingRect] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
 
   // Attach the Transformer to the currently-selected node whenever selection changes.
-  useEffect(() => {
+  // useLayoutEffect, not useEffect, because export depends on it: use-post-export's
+  // flushSync(() => onDeselect()) only guarantees render + LAYOUT effects have run before
+  // it returns, so as a passive effect the selection handles could still be attached when
+  // stage.toBlob() captures pixels — and get baked into the PNG. Everything here is
+  // synchronous Konva work, so running it earlier is safe.
+  useLayoutEffect(() => {
     const transformer = transformerRef.current;
     if (!transformer) return;
     const node = selectedId ? nodeRefs.current.get(selectedId) : null;
