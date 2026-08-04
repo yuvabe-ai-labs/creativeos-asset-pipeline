@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { TEMPLATES, getTemplate } from "./index";
 import { POST_FORMATS } from "../formats";
-import type { PostFormat } from "../types";
+import type { PostFormat, GroupLayer } from "../types";
 
 describe("TEMPLATES registry", () => {
   it("has exactly the four V1 templates", () => {
@@ -54,5 +54,14 @@ describe("TEMPLATES registry", () => {
     const a = getTemplate("lower-third")!.seedLayers("ig-square");
     const b = getTemplate("lower-third")!.seedLayers("ig-square");
     expect(a[0].id).not.toBe(b[0].id);
+  });
+
+  it("every template seeds its CTA pill as a shape+text group", () => {
+    for (const t of TEMPLATES) {
+      const layers = t.seedLayers("ig-square");
+      const groups = layers.filter((l): l is GroupLayer => l.kind === "group");
+      expect(groups.length).toBe(1);
+      expect(groups[0].childIds.length).toBe(2);
+    }
   });
 });
