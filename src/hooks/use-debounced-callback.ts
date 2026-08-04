@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { createDebounced } from "@/lib/debounce";
 
 // Thin React wrapper over the pure createDebounced factory (Task 1) — always calls the LATEST
@@ -24,5 +24,5 @@ export function useDebouncedCallback<A extends unknown[]>(
     return () => debounced?.flush();
   }, []);
 
-  return (...args: A) => debouncedRef.current?.call(...args);
+  return useCallback((...args: A) => debouncedRef.current?.call(...args), []);
 }
