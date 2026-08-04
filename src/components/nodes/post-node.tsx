@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { LayoutTemplate } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { useDeleteNode } from "@/hooks/use-delete-node";
 import { useFocusViewRegistration } from "@/hooks/use-focus-view-open";
+import { getNodeOutput } from "@/lib/nodes/node-output";
 import type { PostNodeData } from "@/lib/canvas-nodes";
 import { PostFocusView } from "./post-focus-view";
 import { useNodeConnectionState } from "./use-node-connection-state";
@@ -19,9 +20,30 @@ export function PostNode({ id, data, selected }: NodeProps) {
   const duplicateNode = useCanvasStore((s) => s.duplicateNode);
   const focusedNodeId = useCanvasStore((s) => s.focusedNodeId);
   const setFocusedNodeId = useCanvasStore((s) => s.setFocusedNodeId);
+  const nodes = useCanvasStore((s) => s.nodes);
+  const edges = useCanvasStore((s) => s.edges);
   const d = data as PostNodeData;
   const [focusOpen, setFocusOpen] = useState(false);
   const connState = useNodeConnectionState(id, "post");
+
+  // Mirrors image-gen-node.tsx's `upstream` computation: resolve connected file/draw/
+  // image-gen nodes to their current image URL, so the Post editor can auto-place and
+  // reference them. Select raw store slices and derive with useMemo — returning a
+  // freshly-built array straight from the selector breaks useSyncExternalStore caching.
+  const connectedImageNodes = useMemo(() => {
+    const sourceIds = edges.filter((e) => e.target === id).map((e) => e.source);
+    return nodes
+      .filter((n) => sourceIds.includes(n.id) && ["file", "draw", "image-gen"].includes(n.type ?? ""))
+      .map((n) => ({
+        nodeId: n.id,
+        url: getNodeOutput({
+          type: n.type ?? "",
+          data: n.data as Record<string, unknown>,
+          activeOutput: (n.data as { parsed?: unknown }).parsed ?? null,
+        }),
+      }))
+      .filter((n) => n.url); // only nodes that actually have an image yet
+  }, [nodes, edges, id]);
 
   const hasRender = !!d.fileUrl;
   const hasLayers = (d.layers?.length ?? 0) > 0;
@@ -112,6 +134,10 @@ export function PostNode({ id, data, selected }: NodeProps) {
       onOpenChange={handleFocusOpenChange}
       nodeId={id}
       title={d.title ?? ""}
+      format={d.format}
+      templateId={d.templateId}
+      layers={d.layers}
+      connectedImageNodes={connectedImageNodes}
       onPatch={(patch) => updateNodeData(id, patch)}
     />
     </>
