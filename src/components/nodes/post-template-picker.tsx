@@ -32,7 +32,7 @@ export function PostTemplatePicker({ open, onPick, onStartBlank }: Props) {
             <Button
               variant="outline"
               onClick={() => onPick(t)}
-              className="aspect-[4/5] w-32 rounded-lg border border-border bg-muted/30 shadow-card transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:scale-[1.006]"
+              className="aspect-[4/5] w-32 rounded-lg border border-border bg-muted/30 shadow-card transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:scale-[1.006] h-auto p-0"
             >
               <span className="sr-only">{t.name}</span>
             </Button>
@@ -58,7 +58,7 @@ export function PostTemplatePicker({ open, onPick, onStartBlank }: Props) {
             variant="ghost"
             onClick={onStartBlank}
             className={cn(
-              "flex aspect-[4/5] w-32 items-center justify-center rounded-lg border border-dashed border-border text-2xl text-muted-foreground/60",
+              "flex aspect-[4/5] w-32 items-center justify-center rounded-lg border border-dashed border-border text-2xl text-muted-foreground/60 h-auto p-0",
               "transition-colors hover:border-primary/40 hover:text-primary",
             )}
           >
