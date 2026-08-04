@@ -50,6 +50,9 @@ next-env.d.ts
 # trigger.dev local dev artifacts
 .trigger/
 
+# git worktrees
+/.worktrees/
+
 # office temp lock files
 ~$*
 *.tmp
