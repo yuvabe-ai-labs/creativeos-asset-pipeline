@@ -8,6 +8,7 @@ import type {
   IconSource,
   GroupLayer,
 } from "./types";
+import { boundingBoxOf } from "./align";
 
 const DEFAULT_GEOMETRY = {
   x: 0.1,
@@ -159,16 +160,6 @@ export function toggleLock(layers: PostLayer[], id: string): PostLayer[] {
 export function toggleHidden(layers: PostLayer[], id: string): PostLayer[] {
   const layer = findLayer(layers, id);
   return updateLayer(layers, id, { hidden: !layer?.hidden });
-}
-
-function boundingBoxOf(layers: PostLayer[]): { x: number; y: number; w: number; h: number } {
-  const xs = layers.map((l) => l.x);
-  const ys = layers.map((l) => l.y);
-  const rights = layers.map((l) => l.x + l.w);
-  const bottoms = layers.map((l) => l.y + l.h);
-  const x = Math.min(...xs);
-  const y = Math.min(...ys);
-  return { x, y, w: Math.max(...rights) - x, h: Math.max(...bottoms) - y };
 }
 
 // The "prefer a live top-level-array entry, fall back to the group's own stored `children`"
