@@ -1789,7 +1789,7 @@ describe("Stage 4 impersonation — checklist scenarios", () => {
     expect(res.status).toBe(403);
   });
 
-  it("enter elevated -> write -> exit produces exactly 3 ordered audit rows", async () => {
+  it("enter elevated -> write -> exit produces exactly 4 ordered audit rows", async () => {
     await startImpersonation("target-org");
     await enterElevatedMode();
     await withClient(req("POST"), params, async () => new Response("ok"));
