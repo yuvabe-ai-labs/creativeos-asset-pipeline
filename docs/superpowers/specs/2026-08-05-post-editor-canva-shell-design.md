@@ -1,7 +1,8 @@
 # Post editor — Canva-style shell
 
 **Date:** 2026-08-05
-**Status:** Design approved by the user 2026-08-05; ready for implementation planning.
+**Status:** Design approved by the user 2026-08-05; revised same day after spec review
+(sizes panel, expanded formats, real template library, plain-English inspector).
 **Type:** Design spec (UX/layout rework of an already-shipped node type).
 **Builds on:** `2026-08-03-post-node-design.md` (original design, D101–D115) and
 `2026-08-04-post-editor-ux-v2-design.md` (the Canva-parity feature pass).
@@ -14,12 +15,14 @@ Plan 3 = "looks good" essentials (smart guides/snapping, zoom, image crop + filt
 
 The Post editor now has the *features* of a poster tool — multi-select, grouping, alignment,
 context menus, undo/redo — but not the *shape* of one. Its chrome is a bottom-left `+` popover, a
-template picker that hijacks the screen on open, and two fixed side panels. The user's verdict after
-hand-testing: *"instead of + at bottom I need canva like layout and ui."*
+template picker that hijacks the screen on open, two fixed side panels, a format dropdown showing
+raw keys like `ig-square`, four token templates, and an inspector that asks designers to type
+`rgba(0,0,0,0.72)` into a text box.
 
-This spec reworks the editor shell to match the mental model every designer already has from Canva:
-a left tool rail whose items open a flyout panel, a canvas that starts clean, and an explicit,
-non-destructive path to templates.
+This spec reworks the shell to match the mental model every designer already has from Canva: a left
+tool rail whose items open a flyout panel, a canvas that starts clean, an explicit non-destructive
+path to templates, a real size picker, a template library worth using, and property controls a
+non-technical person can operate.
 
 ## 2. Feature audit — Canva vs. this editor
 
@@ -43,39 +46,53 @@ with rename and drag-reorder, right-click context menu, four templates, four for
 | Flip horizontal/vertical, duotone | Common quick wins. | 3 |
 | Colour palette / eyedropper | Brand-consistent colour picking. | 3 |
 
-**Shell gaps (this plan):** no tool rail, no flyout panels, templates modal hijacks the screen on
-open and force-applies, no connected-nodes surface, right inspector restructures itself per layer
-kind.
+**Shell, content and language gaps — all addressed by *this* plan:**
+
+- No tool rail, no flyout panels; the `+` add-menu is the only way to add anything.
+- Templates modal hijacks the screen on open and force-applies.
+- No connected-nodes surface.
+- Right inspector restructures itself per layer kind.
+- **Only four formats**, and Instagram's best-performing feed size (4:5 portrait) is missing.
+- **Raw keys leak into the UI.** `POST_FORMATS` already carries friendly labels
+  ("Instagram square (1:1)"), but Base UI's `SelectValue` renders the raw *value* unless given a
+  render function — so the header trigger displays `ig-square`. The dropdown items show the friendly
+  label; the trigger does not. A real display bug, not merely a naming preference.
+- **Only four templates**, chosen to prove the mechanism rather than to be reached for.
+- **Technical property controls.** Gradient fill is two free-text boxes expecting CSS colour strings
+  (`rgba(0,0,0,0)`), and gradient *angle* has no control at all — it is hardcoded to `0` at creation
+  and can never be changed. Corner radius and border width are bare number inputs.
 
 ## 3. Layout
 
 ```
 ┌────────────────────────────────────────────────────────────────┐
-│ ← Back to canvas    Untitled post    [ig-square▾] ↶ ↷ [Download]│
+│ ← Back to canvas       Untitled post          ↶ ↷   [Download] │
 ├────┬─────────────┬──────────────────────────────┬──────────────┤
 │ ▣  │             │                              │  TEXT        │
 │Tmpl│   flyout    │                              │  ─────────   │
-│ ▣  │   panel     │          canvas              │  Font  ▾     │
-│Elem│   (w-64)    │                              │  Size  49    │
-│ ▣  │             │                              │  Colour ▓    │
-│Text│  scrollable │                              │  Align ≡     │
+│ ▣  │   panel     │                              │  Font  ▾     │
+│Size│   (w-64)    │          canvas              │  Size  ―●―   │
+│ ▣  │             │                              │  Colour ▓▓▓  │
+│Elem│  scrollable │                              │  Align ≡     │
 │ ▣  │             │                              │              │
-│Conn│             │                              │  (fixed w-56)│
+│Text│             │                              │  (fixed w-56)│
+│ ▣  │             │                              │              │
+│Conn│             │                              │              │
 │ ▣  │             │                              │              │
 │Layr│             │                              │              │
 └────┴─────────────┴──────────────────────────────┴──────────────┘
 ```
 
-- **Rail** — 56px, a vertical strip of icon buttons with micro-labels. Items, top to bottom:
-  **Templates, Elements, Text, Connected, Layers**. The Draw item joins in Plan 2; it is not
-  rendered as a disabled stub in this plan.
+- **Rail** — 56px, icon buttons with micro-labels: **Templates, Size, Elements, Text, Connected,
+  Layers**. The Draw item joins in Plan 2; it is not rendered as a disabled stub now.
 - **Flyout panel** — 256px (`w-64`), opens beside the rail. Clicking a rail item opens its panel;
-  clicking the *same* item again closes it. The panel does **not** auto-close when the user returns
-  to the canvas, so repeated placement (add three icons in a row) needs no re-opening.
-- **Canvas** — unchanged rendering; simply gets whatever horizontal space the open panels leave.
-- **Right inspector** — stays, at its current fixed `w-56`, with a normalised shell (§6).
+  clicking the *same* item closes it. The panel does **not** auto-close when the user returns to the
+  canvas, so repeated placement needs no re-opening.
+- **Header** — loses the format dropdown entirely (it moves to the Size panel), keeping back, title,
+  undo/redo, Publish (disabled) and Download.
+- **Right inspector** — stays at `w-56`, always rendered, with a normalised shell (§7).
 
-The existing bottom-left `+` add-menu (`post-add-menu.tsx`) is **removed**; the rail replaces it.
+The bottom-left `+` add-menu (`post-add-menu.tsx`) is **removed**; the rail replaces it.
 
 ## 4. Opening state — a clean canvas
 
@@ -87,52 +104,127 @@ white canvas containing only the auto-placed connected image (the existing auto-
 unchanged). The Templates panel is open in the rail by default, so the next step stays discoverable,
 but **no template is ever applied without an explicit click**.
 
-## 5. Templates panel and the override dialog
+## 5. Sizes
 
-The template grid moves from the modal into the flyout panel. Picking a template opens an
-`AlertDialog` (the shadcn primitive; `src/components/ui/alert-dialog.tsx`):
+### 5.1 The format set
 
-> **Apply "Lower third"?**
-> This replaces your current layout. Your connected image is kept.
-> `[Cancel]` `[Apply]`
+Ten formats, grouped by platform, each with a plain-English name. No key is ever shown to the user.
 
-On confirm, the template's seeded layers replace all existing layers **except** image layers whose
-`src.kind === "node"` — the same connected-image preservation `handlePickTemplate` already
-implements today, kept verbatim. Cancel is a no-op.
+| Key (internal only) | Label shown | Pixels | Ratio |
+|---|---|---|---|
+| `ig-portrait` | Instagram post — portrait | 1080×1350 | 4:5 |
+| `ig-square` | Instagram post — square | 1080×1080 | 1:1 |
+| `ig-story` | Instagram story & reel | 1080×1920 | 9:16 |
+| `facebook-post` | Facebook post | 1200×1500 | 4:5 |
+| `linkedin-post` | LinkedIn post | 1200×627 | 1.91:1 |
+| `linkedin-square` | LinkedIn post — square | 1080×1080 | 1:1 |
+| `x-post` | X post | 1600×900 | 16:9 |
+| `youtube-thumb` | YouTube thumbnail | 1280×720 | 16:9 |
+| `pinterest-pin` | Pinterest pin | 1000×1500 | 2:3 |
+| `a4-print` | A4 print (300 DPI) | 2480×3508 | ~1:1.41 |
 
-The dialog shows unconditionally, including on a pristine canvas. A "skip the warning when nothing
-would be lost" rule was considered and rejected: it needs a definition of "pristine" that survives
-undo/redo and auto-placement, and the dialog is cheap.
+`ig-portrait` is the notable addition: 4:5 is Instagram's best-performing feed size and was missing.
+`linkedin` is renamed `linkedin-post` for symmetry; since `PostFormat` values are persisted in node
+data, the rename needs a read-time fallback mapping old `"linkedin"` to `"linkedin-post"`.
 
-## 6. Right inspector — normalised, not relocated
+### 5.2 The Size panel
 
-A Canva-style contextual toolbar above the canvas was considered and rejected in favour of keeping
-the existing right panel, which stays at a fixed `w-56` and always renders (empty, single, and
-multi-select states alike — already true as of the UX v2 plan's Task 15).
+Replaces the header dropdown. Formats are grouped under platform headings, each row showing a small
+proportional ratio swatch, the friendly name, and the pixel dimensions as secondary text. The current
+format is checked. Selecting a different one re-fits all layers automatically — normalised geometry
+already handles this — and keeps the existing >0.3 aspect-delta warning toast.
 
-What changes is only its *internal* consistency: every layer kind renders the same shell — a
-`text-eyebrow` kind label, then uniformly-spaced labelled sections — so switching selection changes
-the panel's contents without restructuring its rhythm. This addresses the original complaint
-(*"when text is selected the edit layout is completely different"*) without moving the panel.
+### 5.3 Friendly language, enforced
 
-## 7. Connected-nodes panel
+No raw format key, layer `kind`, or other internal token is ever rendered. Concretely: the header
+dropdown's `SelectValue` bug disappears with the dropdown itself, and the Size panel renders
+`spec.label` directly rather than relying on a primitive's default value rendering.
 
-A new panel listing every directly-connected image-bearing node (Image Gen / File / Draw), as
+## 6. Templates
+
+### 6.1 Aspect-band awareness
+
+Templates currently take `format` and ignore it, rendering one normalised layout at every size. With
+ten formats spanning 9:16 to 16:9, that breaks down badly — and worse, `TextLayer.fontSize` is a
+fraction of canvas **height**, so a 0.045 headline is 49px on a 1080-tall square and 86px on a
+1920-tall story while the canvas stays 1080 wide. Text designed for one ratio is unusable at another.
+
+Two changes:
+
+1. **Font size is measured against the shorter edge.** `fontSizeToPx` switches from `containerH` to
+   `min(containerW, containerH)`. For every square format this is identical to today's behaviour
+   (`min == height`), so the change is a no-op for existing square posts — which is the default and
+   the overwhelming majority of saved data. Non-square posts re-render at a corrected size, which is
+   the point.
+2. **Templates branch on an aspect band.** A new pure helper classifies any format as
+   `portrait | square | landscape`; each template picks per-band values for a handful of numbers
+   (margins, headline size, scrim height, CTA width). Not a separate layout per band — the same
+   composition, tuned.
+
+### 6.2 The library — 14 templates
+
+The four existing templates stay (retuned per §6.1). Ten are added, chosen for what marketing teams
+actually post rather than to demonstrate the mechanism:
+
+| Template | What it's for |
+|---|---|
+| *Lower third* (existing) | Full-bleed photo, copy over a bottom scrim. The safe default. |
+| *Inset card* (existing) | Copy in a floating card over the photo. |
+| *Side column* (existing) | Photo one side, copy column the other. |
+| *Split half* (existing) | Hard 50/50 photo/colour split. |
+| **Bold quote** | Large centred pull-quote over a dimmed photo, with attribution. |
+| **Product hero** | Product centred, name + price + CTA. E-commerce staple. |
+| **Before / after** | Two labelled panels. Services: skincare, fitness, renovation. |
+| **Carousel cover** | Big title + "swipe" affordance; carousels are the top-engagement format. |
+| **Testimonial** | Quote, star row, name and role. |
+| **Announcement** | "NEW" badge, headline, date, CTA. |
+| **Numbered tips** | "5 ways to…" list layout — the most-saved content type. |
+| **Sale offer** | Large discount badge, product, urgency line, promo code. |
+| **Event** | Date block, title, time and place, CTA. |
+| **Minimal frame** | Inset photo in a generous white frame with a small caption. Editorial. |
+
+Every template seeds real placeholder copy (not "Headline"/"Body copy goes here" where something
+more specific is honest), uses only existing primitives, and returns its CTA as a shape+text group
+per the existing convention.
+
+## 7. Right inspector — normalised *and* de-jargonised
+
+A Canva-style contextual toolbar was considered and rejected; the panel stays where it is, at fixed
+`w-56`, always rendered. Two changes:
+
+**Structure.** Every layer kind renders the same shell — a `text-eyebrow` kind label, then
+uniformly-spaced labelled sections — so switching selection changes contents without restructuring
+rhythm. This addresses *"when text is selected the edit layout is completely different."*
+
+**Language and controls.** Every control a non-technical person would stall on is replaced:
+
+| Today | Becomes |
+|---|---|
+| Gradient = two free-text boxes taking `rgba(0,0,0,0.72)`; angle uncontrollable | A row of ready-made gradient swatches to click (dark-fade, warm, cool, brand…), plus a simple **Direction** control (↓ ↑ → ←) writing the angle. No colour strings typed. |
+| Solid colour = a bare OS colour input | A swatch grid — brand purple, neutrals, black/white, plus recent colours — with the OS picker behind a "Custom…" swatch for the rare case. |
+| "Corner radius", number box 0–999 | **Corners**, a `Slider` from Sharp → Rounded, with a Pill option at the top end. |
+| "Width", number box (border) | **Border thickness**, a `Slider`. |
+| "Size" free-number for text | A `Slider` plus a small numeric readout, so dragging is the primary gesture. |
+| Labels like "Fit", "Opacity" | Plain phrasing: "How the image fills its box", "Transparency". |
+
+`slider.tsx` already exists in `src/components/ui/`, so no new primitive is needed. Per CLAUDE.md,
+every control remains a shadcn primitive.
+
+## 8. Connected-nodes panel
+
+A new panel listing every directly-connected image-bearing node (Image Gen / File / Draw) as
 thumbnails with the source node's title beneath. `post-focus-view.tsx` already receives exactly this
-data as its `connectedImageNodes: { nodeId, url }[]` prop — the panel is a new view over existing
-data, requiring no new plumbing into the canvas store.
-
-Two ways to place an image, both landing on the existing `addImage({ kind: "node", nodeId }, …)`
-action:
+data as `connectedImageNodes: { nodeId, url }[]`, so the panel is a new view over existing data with
+no new plumbing into the canvas store.
 
 - **Click** — adds the image centred, at a default size.
-- **Drag and drop** — HTML5 drag from the thumbnail, dropped onto the Konva stage container. The drop
-  point (converted from client coordinates to the stage's normalised 0–1 space via the existing
-  `pxToNormalized` helper) becomes the new layer's centre.
+- **Drag and drop** — HTML5 drag from the thumbnail onto the Konva stage container; the drop point,
+  converted to normalised 0–1 space via the existing `pxToNormalized` helper, becomes the layer's
+  centre.
 
 Out of scope: past uploads, and images from unconnected nodes elsewhere on the canvas.
 
-## 8. File structure
+## 9. File structure
 
 `post-focus-view.tsx` is already ~450 lines and would roughly double. It splits into a shell plus one
 file per panel, following this codebase's one-component-per-file rule:
@@ -142,44 +234,60 @@ file per panel, following this codebase's one-component-per-file rule:
 | `post-tool-rail.tsx` (new) | The icon rail; renders items, reports the active one. |
 | `post-tool-panel.tsx` (new) | Flyout shell; switches on the active tool. |
 | `post-panel-templates.tsx` (new) | Template grid + override `AlertDialog`. |
+| `post-panel-sizes.tsx` (new) | Platform-grouped format list with ratio swatches. |
 | `post-panel-elements.tsx` (new) | Shapes + icon presets (absorbs most of `post-add-menu.tsx`). |
 | `post-panel-text.tsx` (new) | Text presets — heading / subheading / body. |
 | `post-panel-connected.tsx` (new) | Connected-node thumbnails; click + drag-drop. |
 | `post-panel-layers.tsx` (new) | Thin wrapper around the existing `PostLayerList`. |
-| `post-focus-view.tsx` (modified) | Shrinks to shell/orchestrator: header, rail+panel state, canvas, inspector. |
+| `post-colour-swatches.tsx` (new) | Shared swatch-grid control used by every colour field. |
+| `post-gradient-presets.tsx` (new) | Shared gradient-swatch + direction control. |
+| `src/lib/post/aspect-band.ts` (new) | Pure `aspectBand(format)` classifier. **Tested.** |
+| `src/lib/post/gradients.ts` (new) | Named gradient presets + direction→angle map. **Tested.** |
+| `src/lib/post/templates/*.ts` | Four retuned, ten new. **Tested.** |
+| `src/lib/post/formats.ts` (modified) | Ten formats + legacy-key fallback. **Tested.** |
+| `src/lib/post/units.ts` (modified) | `fontSizeToPx` measures the shorter edge. **Tested.** |
+| `post-focus-view.tsx` (modified) | Shrinks to shell/orchestrator. |
 | `post-add-menu.tsx` (deleted) | Content moves into the Elements and Text panels. |
 | `post-template-picker.tsx` (deleted) | Replaced by `post-panel-templates.tsx`. |
 
-## 9. Data model
+## 10. Data model and compatibility
 
-**Unchanged.** No new layer kinds, no new persisted fields, no migration. Per **D10**'s narrow-waist
-JSONB pattern, nothing here touches the database. The active rail tool is ephemeral local component
-state and is deliberately *not* persisted — reopening a Post node always starts from the same place.
+No new layer kinds and no database migration — per **D10**'s narrow-waist JSONB pattern, nothing here
+touches Postgres. Two compatibility notes, both deliberate:
 
-## 10. Testing
+- **`fontSizeToPx` basis change** re-renders text on *non-square* saved posts. Square formats are
+  unaffected (`min == height`), and square is both the default and the bulk of existing data, so
+  blast radius is small and the corrected behaviour is the goal.
+- **`"linkedin"` → `"linkedin-post"`** needs a read-time fallback so already-saved nodes keep
+  resolving. No write-time migration; unknown keys fall back to `ig-square` as today.
 
-Per this codebase's established convention (Vitest runs in `environment: "node"`; there is no jsdom,
-so no `.tsx` file in this repo is unit-tested):
+The active rail tool is ephemeral local state, deliberately not persisted.
+
+## 11. Testing
+
+Vitest runs in `environment: "node"` with no jsdom, so no `.tsx` file in this repo is unit-tested:
 
 - Every new component is verified by `npx tsc --noEmit` only.
-- Any genuinely pure helper extracted along the way (e.g. converting a drop's client coordinates into
-  normalised canvas space, if it lands in `src/lib/post/`) gets a `describe`/`it` Vitest test.
-- The existing 177-test suite must stay green; this plan changes no pure logic, so no existing test
-  should need editing. A test that *needs* changing is a signal that this plan has silently altered
-  behaviour it claimed not to.
+- Every new pure helper **is** tested: `aspectBand`, the gradient preset/direction map, the format
+  table (including the legacy-key fallback), and `fontSizeToPx`'s new basis.
+- Each new template extends the existing `templates.test.ts` in-bounds sweep, and the existing
+  "exactly one CTA group with two children" assertion.
+- The existing 177-test suite stays green except `units.test.ts`, whose `fontSizeToPx` expectations
+  change deliberately with §6.1 — the one file where an edited test is *expected* rather than a
+  warning sign.
 
-## 11. Explicitly out of scope
+## 12. Explicitly out of scope
 
 - Everything in Plans 2 and 3 (new primitives, draw tool, snapping, zoom, crop/filters, text effects).
 - Brand Kit (still a stub), AI captions, compliance checks, approval flow, publishing.
+- Custom user-entered canvas dimensions; per-format template *variants* (§6.1 tunes one composition).
 - Persisting panel state, resizable panels, collapsible rail.
-- OS-clipboard integration, and any change to export or the node-graph wiring.
+- OS-clipboard integration, and any change to export or node-graph wiring.
 
-## 12. Decisions
+## 13. Decisions
 
-This spec's decisions are recorded in the single ADR log —
-`2026-05-30-creativeos-staging-roadmap.md` §7 — as **D116–D121**, with full
-Decision / Why / Rejected / Originated entries. In brief:
+Recorded in the single ADR log — `2026-05-30-creativeos-staging-roadmap.md` §7 — as **D116–D125**,
+with full Decision / Why / Rejected / Originated entries. In brief:
 
 | | |
 |---|---|
@@ -189,3 +297,7 @@ Decision / Why / Rejected / Originated entries. In brief:
 | **D119** | Layer properties stay in the fixed right inspector, normalised per kind. |
 | **D120** | The layer list is a rail item in the shared flyout. |
 | **D121** | The connected-nodes panel is a view over the existing `connectedImageNodes` prop. |
+| **D122** | Format selection moves to a Size rail panel; ten platform-grouped formats, friendly labels only, no key ever surfaced. |
+| **D123** | Font size is measured against the canvas's shorter edge, not its height. |
+| **D124** | Templates tune one composition across three aspect bands, and the library grows to 14. |
+| **D125** | Inspector controls are visual (swatches, sliders, direction pickers); no CSS colour strings or raw numeric fields. |

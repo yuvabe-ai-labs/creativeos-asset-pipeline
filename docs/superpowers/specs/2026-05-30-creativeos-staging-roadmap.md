@@ -2001,6 +2001,61 @@ guarantee and grows unbounded); including past uploads (deferred, not needed to 
 image).
 **Originated.** `2026-08-05-post-editor-canva-shell-design.md`.
 
+### D122 — Format selection is a Size rail panel with friendly labels only
+**Decision.** The header format dropdown moves into a "Size" rail panel listing ten formats grouped
+by platform (Instagram portrait/square/story, Facebook, LinkedIn post/square, X, YouTube thumbnail,
+Pinterest pin, A4 print), each row a ratio swatch + plain-English name + pixel dimensions. No
+internal key (`ig-square`), layer `kind`, or other token is ever rendered to the user. `"linkedin"`
+becomes `"linkedin-post"` with a read-time fallback for saved nodes.
+**Why.** Ten platform-grouped options do not fit a header dropdown, and Instagram's best-performing
+feed size (4:5 portrait) was missing entirely. The old dropdown also *displayed* raw keys: Base UI's
+`SelectValue` renders the raw value unless given a render function, so the trigger read `ig-square`
+while the menu items read "Instagram square (1:1)" — a display bug the panel removes at the root.
+**Rejected.** Keeping the header dropdown and only fixing the label bug (does not scale past ~5
+options). Custom user-entered dimensions (needs validation UI, and can't be template-tuned per band).
+**Originated.** `2026-08-05-post-editor-canva-shell-design.md`.
+
+### D123 — Font size is measured against the canvas's shorter edge
+**Decision.** `fontSizeToPx` switches its basis from `containerH` to `min(containerW, containerH)`.
+**Why.** `TextLayer.fontSize` is a 0–1 fraction, so a height basis makes identical copy render 49px
+on a 1080-tall square and 86px on a 1920-tall story while both canvases stay 1080 wide — text tuned
+for one ratio is unusable at another, which blocks D122's expanded format set. The shorter edge is
+stable across ratios. For every square format `min == height`, so this is a no-op on square posts —
+the default, and the bulk of existing data — bounding the blast radius of the reinterpretation.
+**Rejected.** Keeping the height basis and compensating inside each template (leaves live format
+switching broken for user-authored text, not just template text). A write-time migration of saved
+`fontSize` values (D10's narrow waist means layers are schemaless JSONB; a rewrite is riskier than
+the bounded re-render).
+**Originated.** `2026-08-05-post-editor-canva-shell-design.md`.
+
+### D124 — Templates tune one composition across three aspect bands; library grows to 14
+**Decision.** A pure `aspectBand(format)` helper classifies formats as `portrait | square |
+landscape`; each template picks per-band values for a few numbers (margins, headline size, scrim
+height, CTA width). Ten templates are added to the existing four: bold quote, product hero,
+before/after, carousel cover, testimonial, announcement, numbered tips, sale offer, event, minimal
+frame.
+**Why.** Templates previously accepted `format` and ignored it. Banding fixes composition across
+ratios at roughly 1.5× authoring cost. The four original templates existed to prove the seeding
+mechanism; a library is only useful if someone reaches for it, which needs coverage of what teams
+actually post.
+**Rejected.** Separate template files per ratio (~42 files for 14 templates, 3× maintenance, every
+future edit made three times). Leaving templates format-agnostic (the status quo D122 breaks).
+**Originated.** `2026-08-05-post-editor-canva-shell-design.md`.
+
+### D125 — Inspector controls are visual, never raw values
+**Decision.** Gradient fill becomes a row of ready-made gradient swatches plus a four-way direction
+control; solid colour becomes a swatch grid (brand, neutrals, recents) with the OS picker behind a
+"Custom…" swatch; corner radius, border thickness and text size become `Slider`s with plain labels
+("Corners: Sharp → Rounded"). No field asks for a CSS colour string or a bare number.
+**Why.** The gradient control shipped as two free-text boxes expecting `rgba(0,0,0,0.72)`, and
+gradient angle had no control at all — hardcoded to `0` at creation and unreachable thereafter. The
+users are marketers, not CSS authors. `slider.tsx` already exists, so this needs no new primitive and
+stays inside CLAUDE.md's shadcn-only rule.
+**Rejected.** Keeping free-text colour entry with validation/preview (still asks for syntax nobody
+should need). A full colour-picker component with hue/alpha channels (heavier than the job, and the
+OS picker already covers the rare custom case).
+**Originated.** `2026-08-05-post-editor-canva-shell-design.md`.
+
 ### Parked / out-of-scope (with revisit triggers)
 | Item | Status | Revisit when |
 |---|---|---|
