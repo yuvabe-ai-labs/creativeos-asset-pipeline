@@ -51,12 +51,15 @@ function useIconDataUrl(layer: IconLayer): string {
   return dataUrl;
 }
 
+// Keeps the Konva node MOUNTED across an icon-source reload (image={undefined} rather
+// than returning null) — see post-image-layer.tsx for why: `use-image` resets `image` to
+// undefined synchronously the instant its url changes, and unmounting would fire `nodeRef`
+// with null, dropping this layer out of nodeRefs.current/the Transformer mid-reload.
 export function PostIconLayer({ layer, containerW, containerH, nodeRef, nodeProps }: Props) {
   const resolved = resolveIconSource(layer.src);
   const synthesizedUrl = useIconDataUrl(layer);
   const src = resolved.kind === "url" ? proxyImageSrc(resolved.value) : synthesizedUrl;
   const [image] = useImage(src, "anonymous");
   const geo = layerToKonvaProps(layer, containerW, containerH);
-  if (!image) return null;
   return <KonvaImage ref={nodeRef} image={image} {...geo} {...nodeProps} />;
 }

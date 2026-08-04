@@ -19,11 +19,22 @@ type Props = {
   nodeProps: Konva.NodeConfig;
 };
 
-// Renders nothing (an empty gap) while the image loads or when the source has no URL
-// yet (e.g. a `{kind:"node"}` source whose connected node hasn't generated an output).
+// Draws nothing (an empty gap) while the image loads or when the source has no URL yet
+// (e.g. a `{kind:"node"}` source whose connected node hasn't generated an output) — but
+// keeps the Konva node itself MOUNTED (image={undefined} rather than returning null), so
+// its ref never fires with null just because `use-image` resets to undefined mid-reload.
+// That keeps nodeRefs.current/the Transformer attached across a source-URL change; the
+// ref only goes null when this layer is actually removed upstream in post-layer-render.tsx.
 export function PostImageLayer({ layer, containerW, containerH, rawUrl, nodeRef, nodeProps }: Props) {
   const [image] = useImage(rawUrl ? proxyImageSrc(rawUrl) : "", "anonymous");
   const geo = layerToKonvaProps(layer, containerW, containerH);
-  if (!image) return null;
-  return <KonvaImage ref={nodeRef} image={image} {...geo} cornerRadius={layer.radius} {...nodeProps} />;
+  return (
+    <KonvaImage
+      ref={nodeRef}
+      image={image}
+      {...geo}
+      cornerRadius={layer.radius}
+      {...nodeProps}
+    />
+  );
 }
