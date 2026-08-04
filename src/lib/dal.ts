@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { createSSRServerClient } from "@/lib/supabase/ssr-server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { getUserWithRetry } from "@/lib/supabase/get-user-with-retry";
+import { resolveImpersonationState } from "@/lib/auth/impersonation";
 import {
   mapAppMetadataToPlatformRole,
   mapAppMetadataToMustChangePassword,
@@ -50,9 +51,13 @@ export const resolveCallerContext = cache(async (): Promise<CallerContext> => {
   };
 });
 
-// The org whose data the caller should see. In Stage 1C this is just their own org;
-// Stage 4 layers impersonation on top by reading a cookie here.
+// The org whose data the caller should see. Defaults to the caller's own org; when a
+// valid, live-re-checked impersonation session is active (Stage 4, D81), returns the
+// target org instead. See src/lib/auth/impersonation.ts for the cookie mechanics.
 export const resolveOrgId = cache(async (): Promise<string> => {
+  const impersonation = await resolveImpersonationState();
+  if (impersonation.isImpersonating) return impersonation.targetOrgId;
+
   const caller = await resolveCallerContext();
   return caller.orgId;
 });
