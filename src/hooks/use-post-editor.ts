@@ -7,20 +7,30 @@ import {
   createTextLayer, createShapeLayer, createImageLayer, createIconLayer,
   addLayer, removeLayer, updateLayer, duplicateLayer as duplicateLayerPure,
   reorderLayer, toggleLock as toggleLockPure, toggleHidden as toggleHiddenPure,
+  groupLayers, ungroupLayers, copyLayers, pasteLayers,
   type ReorderDirection,
 } from "@/lib/post/layers";
+import { alignLayers, type AlignMode } from "@/lib/post/align";
 import {
   createHistory, commit as commitHistory, undo as undoHistory, redo as redoHistory,
   canUndo as canUndoHistory, canRedo as canRedoHistory, type History,
 } from "@/lib/post/history";
+import { useDebouncedCallback } from "./use-debounced-callback";
 
-export function usePostEditor(initialLayers: PostLayer[], onChange: (layers: PostLayer[]) => void) {
+export function usePostEditor(
+  initialLayers: PostLayer[],
+  onChange: (layers: PostLayer[]) => void,
+  onChangeDelayMs = 2000,
+) {
   const [history, setHistory] = useState<History<PostLayer[]>>(() => createHistory(initialLayers));
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   // Live geometry during an in-progress gesture (drag/resize/rotate) — NOT yet committed
   // to history. null when no gesture is in flight, in which case `layers` reads straight
   // from history.present.
   const liveLayersRef = useRef<PostLayer[] | null>(null);
+  // No-OS-clipboard copy/paste buffer — a plain ref so it survives across renders without
+  // itself triggering one, and persists across separate copySelection()/pasteClipboard() calls.
+  const clipboardRef = useRef<PostLayer[]>([]);
   const [, forceRender] = useState(0);
 
   // Always holds the latest `onChange` — read (not captured) by every action method so
@@ -28,26 +38,40 @@ export function usePostEditor(initialLayers: PostLayer[], onChange: (layers: Pos
   // that only rebuilds when `history.present` changes.
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
+  // The outer persistence write (-> onPatch -> updateNodeData -> canvas store -> autosave) is the
+  // expensive part, not local editing (the stage renders off `layers` above, not off a round-trip
+  // through the parent) — debounce ONLY this outer notification, so rapid edits (typing, dragging a
+  // color picker) collapse into one write instead of one per keystroke.
+  const debouncedOnChange = useDebouncedCallback(
+    (next: PostLayer[]) => onChangeRef.current(next),
+    onChangeDelayMs,
+  );
 
   const layers = liveLayersRef.current ?? history.present;
 
   function applyCommitted(next: PostLayer[]) {
     setHistory((h) => commitHistory(h, next));
-    onChangeRef.current(next);
+    debouncedOnChange(next);
   }
 
-  const selectLayer = useCallback((id: string | null) => setSelectedId(id), []);
+  const selectLayer = useCallback((id: string | null) => setSelectedIds(id ? [id] : []), []);
+
+  const toggleLayerSelection = useCallback((id: string) => {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }, []);
+
+  const selectMany = useCallback((ids: string[]) => setSelectedIds(ids), []);
 
   const addText = useCallback(() => {
     const layer = createTextLayer();
     applyCommitted(addLayer(history.present, layer));
-    setSelectedId(layer.id);
+    setSelectedIds([layer.id]);
   }, [history.present]);
 
   const addShape = useCallback(() => {
     const layer = createShapeLayer();
     applyCommitted(addLayer(history.present, layer));
-    setSelectedId(layer.id);
+    setSelectedIds([layer.id]);
   }, [history.present]);
 
   // `overrides` lets a call site place the layer with its own geometry (the auto-placed
@@ -56,13 +80,13 @@ export function usePostEditor(initialLayers: PostLayer[], onChange: (layers: Pos
   const addImage = useCallback((src: ImageSource, overrides?: Partial<ImageLayer>) => {
     const layer = createImageLayer(src, overrides);
     applyCommitted(addLayer(history.present, layer));
-    setSelectedId(layer.id);
+    setSelectedIds([layer.id]);
   }, [history.present]);
 
   const addIcon = useCallback((src: IconSource) => {
     const layer = createIconLayer(src);
     applyCommitted(addLayer(history.present, layer));
-    setSelectedId(layer.id);
+    setSelectedIds([layer.id]);
   }, [history.present]);
 
   // Applies an in-progress gesture's intermediate state WITHOUT touching history — call
@@ -83,14 +107,26 @@ export function usePostEditor(initialLayers: PostLayer[], onChange: (layers: Pos
     applyCommitted(next);
   }, [history.present]);
 
-  const deleteLayer = useCallback((id: string) => {
-    applyCommitted(removeLayer(history.present, id));
-    setSelectedId((cur) => (cur === id ? null : cur));
-  }, [history.present]);
+  // Deleting the whole current selection (one action = one undo step, matching every other
+  // discrete action in this hook) — replaces the old single-id deleteLayer.
+  const deleteSelection = useCallback(() => {
+    const next = selectedIds.reduce((acc, id) => removeLayer(acc, id), history.present);
+    applyCommitted(next);
+    setSelectedIds([]);
+  }, [history.present, selectedIds]);
 
-  const duplicateLayer = useCallback((id: string) => {
-    applyCommitted(duplicateLayerPure(history.present, id));
-  }, [history.present]);
+  const duplicateSelection = useCallback(() => {
+    let next = history.present;
+    const newIds: string[] = [];
+    for (const id of selectedIds) {
+      const before = new Set(next.map((l) => l.id));
+      next = duplicateLayerPure(next, id);
+      const added = next.find((l) => !before.has(l.id));
+      if (added) newIds.push(added.id);
+    }
+    applyCommitted(next);
+    if (newIds.length) setSelectedIds(newIds);
+  }, [history.present, selectedIds]);
 
   const reorder = useCallback((id: string, direction: ReorderDirection) => {
     applyCommitted(reorderLayer(history.present, id, direction));
@@ -104,16 +140,46 @@ export function usePostEditor(initialLayers: PostLayer[], onChange: (layers: Pos
     applyCommitted(toggleHiddenPure(history.present, id));
   }, [history.present]);
 
-  // Swaps the WHOLE scene as one undo step — the template picker's "seed these layers"
-  // action. Must go through the hook (not a direct onPatch by the caller): the hook seeds
-  // its history once from `initialLayers`, so a caller that writes layers around it would
-  // be silently overwritten by the hook's stale present on the very next edit.
-  const replaceAllLayers = useCallback((next: PostLayer[]) => {
-    liveLayersRef.current = null;
+  // No-op below 2 selected layers — groupLayers itself also guards this, but bailing here
+  // avoids committing a no-op history entry and clobbering the current selection.
+  const group = useCallback(() => {
+    if (selectedIds.length < 2) return;
+    const before = new Set(history.present.map((l) => l.id));
+    const next = groupLayers(history.present, selectedIds);
+    const created = next.find((l) => !before.has(l.id));
     applyCommitted(next);
-    setSelectedId(null);
-    // No history.present dependency: this REPLACES the scene rather than deriving from it.
-  }, []);
+    if (created) setSelectedIds([created.id]);
+  }, [history.present, selectedIds]);
+
+  // Only fires when the selection is exactly one GroupLayer — ungrouping a mixed or
+  // multi-group selection isn't a defined action.
+  const ungroup = useCallback(() => {
+    if (selectedIds.length !== 1) return;
+    const target = history.present.find((l) => l.id === selectedIds[0]);
+    if (!target || target.kind !== "group") return;
+    const childIds = target.childIds;
+    applyCommitted(ungroupLayers(history.present, target.id));
+    setSelectedIds(childIds);
+  }, [history.present, selectedIds]);
+
+  // Stored in a ref (not state) — copy/paste is not itself an undoable/rendered concern, and a
+  // ref survives across the two separate calls without forcing a re-render on copy.
+  const copySelection = useCallback(() => {
+    clipboardRef.current = copyLayers(history.present, selectedIds);
+  }, [history.present, selectedIds]);
+
+  const pasteClipboard = useCallback(() => {
+    if (clipboardRef.current.length === 0) return;
+    const before = new Set(history.present.map((l) => l.id));
+    const next = pasteLayers(history.present, clipboardRef.current);
+    const pastedIds = next.filter((l) => !before.has(l.id)).map((l) => l.id);
+    applyCommitted(next);
+    setSelectedIds(pastedIds);
+  }, [history.present]);
+
+  const align = useCallback((mode: AlignMode) => {
+    applyCommitted(alignLayers(history.present, selectedIds, mode));
+  }, [history.present, selectedIds]);
 
   const undo = useCallback(() => {
     let nextPresent: PostLayer[] | undefined;
@@ -122,8 +188,8 @@ export function usePostEditor(initialLayers: PostLayer[], onChange: (layers: Pos
       nextPresent = next.present;
       return next;
     });
-    if (nextPresent !== undefined) onChangeRef.current(nextPresent);
-  }, []);
+    if (nextPresent !== undefined) debouncedOnChange(nextPresent);
+  }, [debouncedOnChange]);
 
   const redo = useCallback(() => {
     let nextPresent: PostLayer[] | undefined;
@@ -132,13 +198,27 @@ export function usePostEditor(initialLayers: PostLayer[], onChange: (layers: Pos
       nextPresent = next.present;
       return next;
     });
-    if (nextPresent !== undefined) onChangeRef.current(nextPresent);
+    if (nextPresent !== undefined) debouncedOnChange(nextPresent);
+  }, [debouncedOnChange]);
+
+  // Swaps the WHOLE scene as one undo step — the template picker's "seed these layers"
+  // action. Must go through the hook (not a direct onPatch by the caller): the hook seeds
+  // its history once from `initialLayers`, so a caller that writes layers around it would
+  // be silently overwritten by the hook's stale present on the very next edit. Also clears
+  // any in-progress live gesture so a stale liveLayersRef doesn't shadow the new scene.
+  const replaceAllLayers = useCallback((next: PostLayer[]) => {
+    liveLayersRef.current = null;
+    applyCommitted(next);
+    setSelectedIds([]);
+    // No history.present dependency: this REPLACES the scene rather than deriving from it.
   }, []);
 
   return {
     layers,
-    selectedId,
+    selectedIds,
     selectLayer,
+    toggleLayerSelection,
+    selectMany,
     addText,
     addShape,
     addImage,
@@ -146,11 +226,16 @@ export function usePostEditor(initialLayers: PostLayer[], onChange: (layers: Pos
     updateLayerLive,
     commitLayerChange,
     replaceAllLayers,
-    deleteLayer,
-    duplicateLayer,
+    deleteSelection,
+    duplicateSelection,
     reorder,
     toggleLock,
     toggleHidden,
+    group,
+    ungroup,
+    copySelection,
+    pasteClipboard,
+    align,
     undo,
     redo,
     canUndo: canUndoHistory(history),
