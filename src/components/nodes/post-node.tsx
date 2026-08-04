@@ -7,7 +7,6 @@ import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { useDeleteNode } from "@/hooks/use-delete-node";
 import { useFocusViewRegistration } from "@/hooks/use-focus-view-open";
-import { getNodeOutput } from "@/lib/nodes/node-output";
 import type { PostNodeData } from "@/lib/canvas-nodes";
 import { PostFocusView } from "./post-focus-view";
 import { useNodeConnectionState } from "./use-node-connection-state";
@@ -34,15 +33,19 @@ export function PostNode({ id, data, selected }: NodeProps) {
     const sourceIds = edges.filter((e) => e.target === id).map((e) => e.source);
     return nodes
       .filter((n) => sourceIds.includes(n.id) && ["file", "draw", "image-gen"].includes(n.type ?? ""))
-      .map((n) => ({
-        nodeId: n.id,
-        url: getNodeOutput({
-          type: n.type ?? "",
-          data: n.data as Record<string, unknown>,
-          activeOutput: (n.data as { parsed?: unknown }).parsed ?? null,
-        }),
-      }))
-      .filter((n) => n.url); // only nodes that actually have an image yet
+      .map((n) => {
+        const d = n.data as Record<string, unknown>;
+        return {
+          nodeId: n.id,
+          url:
+            n.type === "file" || n.type === "draw"
+              ? (d.fileUrl as string | undefined)
+              : n.type === "image-gen"
+                ? (d.parsed as string | undefined)
+                : undefined,
+        };
+      })
+      .filter((n): n is { nodeId: string; url: string } => Boolean(n.url)); // only nodes that actually have an image yet
   }, [nodes, edges, id]);
 
   const hasRender = !!d.fileUrl;
