@@ -23,7 +23,11 @@ type Props = {
   isSelected: boolean;
   resolveNodeImageUrl: (nodeId: string) => string | undefined;
   nodeRef: (node: Konva.Node | null) => void;
-  onSelect: () => void;
+  // Konva's onClick/onTap hand the underlying event through as their first argument at
+  // runtime regardless of this type — widened so callers (post-stage.tsx) can inspect
+  // evt.evt.shiftKey for shift-click multi-select. The dispatcher below still just forwards
+  // the whole handler (onClick: onSelect / onTap: onSelect), so this is a type-only change.
+  onSelect: (evt?: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => void;
   onDragEnd: (node: Konva.Node) => void;
   onDblClickText: () => void;
 };

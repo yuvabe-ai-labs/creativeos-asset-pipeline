@@ -2,7 +2,7 @@
 "use client";
 
 import { useLayoutEffect, useRef, useState } from "react";
-import { Stage, Layer, Transformer } from "react-konva";
+import { Stage, Layer, Transformer, Rect } from "react-konva";
 import type Konva from "konva";
 import type { PostLayer } from "@/lib/post/types";
 import { pxToNormalized } from "@/lib/post/units";
@@ -13,8 +13,10 @@ type Props = {
   layers: PostLayer[];
   containerW: number;
   containerH: number;
-  selectedId: string | null;
+  selectedIds: string[];
   onSelect: (id: string | null) => void;
+  onToggleSelect: (id: string) => void;
+  onSelectMany: (ids: string[]) => void;
   resolveNodeImageUrl: (nodeId: string) => string | undefined;
   updateLayerLive: (id: string, patch: Partial<PostLayer>) => void;
   commitLayerChange: () => void;
@@ -23,16 +25,19 @@ type Props = {
 };
 
 export function PostStage({
-  layers, containerW, containerH, selectedId, onSelect, resolveNodeImageUrl,
-  updateLayerLive, commitLayerChange, stageRef, onCommitText,
+  layers, containerW, containerH, selectedIds, onSelect, onToggleSelect, onSelectMany,
+  resolveNodeImageUrl, updateLayerLive, commitLayerChange, stageRef, onCommitText,
 }: Props) {
   const nodeRefs = useRef<Map<string, Konva.Node>>(new Map());
   const transformerRef = useRef<Konva.Transformer>(null);
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
   const [stageContainer, setStageContainer] = useState<HTMLDivElement | null>(null);
   const [editingRect, setEditingRect] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+  // Rubber-band drag-select rectangle, in stage px, while a drag is in progress; null otherwise.
+  const [selectionRect, setSelectionRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  const dragStartRef = useRef<{ x: number; y: number } | null>(null);
 
-  // Attach the Transformer to the currently-selected node whenever selection changes.
+  // Attach the Transformer to every currently-selected node whenever selection changes.
   // useLayoutEffect, not useEffect, because export depends on it: use-post-export's
   // flushSync(() => onDeselect()) only guarantees render + LAYOUT effects have run before
   // it returns, so as a passive effect the selection handles could still be attached when
@@ -41,10 +46,12 @@ export function PostStage({
   useLayoutEffect(() => {
     const transformer = transformerRef.current;
     if (!transformer) return;
-    const node = selectedId ? nodeRefs.current.get(selectedId) : null;
-    transformer.nodes(node ? [node] : []);
+    const nodes = selectedIds
+      .map((id) => nodeRefs.current.get(id))
+      .filter((n): n is Konva.Node => n !== undefined);
+    transformer.nodes(nodes);
     transformer.getLayer()?.batchDraw();
-  }, [selectedId, layers]);
+  }, [selectedIds, layers]);
 
   // Refs must not be read during render (react-hooks/refs) — resolve the editing node's
   // client rect here instead, and have the overlay below read the resulting state.
@@ -74,6 +81,55 @@ export function PostStage({
     commitLayerChange();
   }
 
+  // Rubber-band select: mousedown on empty stage space starts tracking a drag rect and
+  // clears the current selection (a plain click, with no drag, is just a mousedown+mouseup
+  // pair where the rect never grows past the `> 4`px guard below, so it correctly ends up
+  // doing nothing more than the deselect already fired here).
+  function handleStageMouseDown(e: Konva.KonvaEventObject<MouseEvent>) {
+    if (e.target !== e.target.getStage()) return; // clicked a layer, not empty space
+    const stage = e.target.getStage();
+    const pos = stage?.getPointerPosition();
+    if (!pos) return;
+    dragStartRef.current = pos;
+    setSelectionRect({ x: pos.x, y: pos.y, w: 0, h: 0 });
+    onSelect(null);
+  }
+
+  function handleStageMouseMove(e: Konva.KonvaEventObject<MouseEvent>) {
+    if (!dragStartRef.current) return;
+    const stage = e.target.getStage();
+    const pos = stage?.getPointerPosition();
+    if (!pos) return;
+    const start = dragStartRef.current;
+    setSelectionRect({
+      x: Math.min(start.x, pos.x), y: Math.min(start.y, pos.y),
+      w: Math.abs(pos.x - start.x), h: Math.abs(pos.y - start.y),
+    });
+  }
+
+  function handleStageMouseUp() {
+    if (!dragStartRef.current || !selectionRect) {
+      dragStartRef.current = null;
+      setSelectionRect(null);
+      return;
+    }
+    if (selectionRect.w > 4 || selectionRect.h > 4) { // ignore accidental tiny drags (= a click)
+      const hitIds = layers
+        .filter((l) => !l.hidden && !l.locked)
+        .filter((l) => {
+          const lx = l.x * containerW, ly = l.y * containerH, lw = l.w * containerW, lh = l.h * containerH;
+          return (
+            lx < selectionRect.x + selectionRect.w && lx + lw > selectionRect.x &&
+            ly < selectionRect.y + selectionRect.h && ly + lh > selectionRect.y
+          );
+        })
+        .map((l) => l.id);
+      if (hitIds.length) onSelectMany(hitIds);
+    }
+    dragStartRef.current = null;
+    setSelectionRect(null);
+  }
+
   return (
     <div className="relative">
       <Stage
@@ -84,7 +140,9 @@ export function PostStage({
         width={containerW}
         height={containerH}
         className="overflow-hidden rounded-lg border border-border bg-white shadow-card"
-        onClick={(e) => { if (e.target === e.target.getStage()) onSelect(null); }}
+        onMouseDown={handleStageMouseDown}
+        onMouseMove={handleStageMouseMove}
+        onMouseUp={handleStageMouseUp}
       >
         <Layer>
           {layers.filter((l) => !l.hidden).map((layer) => (
@@ -93,17 +151,28 @@ export function PostStage({
               layer={layer}
               containerW={containerW}
               containerH={containerH}
-              isSelected={selectedId === layer.id}
+              allLayers={layers}
+              isSelected={selectedIds.includes(layer.id)}
               resolveNodeImageUrl={resolveNodeImageUrl}
               nodeRef={(node) => {
                 if (node) nodeRefs.current.set(layer.id, node);
                 else nodeRefs.current.delete(layer.id);
               }}
-              onSelect={() => !layer.locked && onSelect(layer.id)}
+              onSelect={(evt) => {
+                if (layer.locked) return;
+                if (evt?.evt.shiftKey) onToggleSelect(layer.id);
+                else onSelect(layer.id);
+              }}
               onDragEnd={(node) => commitNodeGeometry(layer.id, node)}
               onDblClickText={() => layer.kind === "text" && !layer.locked && setEditingTextId(layer.id)}
             />
           ))}
+          {selectionRect && (
+            <Rect
+              x={selectionRect.x} y={selectionRect.y} width={selectionRect.w} height={selectionRect.h}
+              fill="rgba(88,41,199,0.08)" stroke="#5829c7" strokeWidth={1} dash={[4, 4]} listening={false}
+            />
+          )}
           <Transformer
             ref={transformerRef}
             anchorStroke="#5829c7"
@@ -113,6 +182,7 @@ export function PostStage({
             borderStroke="#5829c7"
             borderStrokeWidth={2}
             rotateAnchorOffset={24}
+            keepRatio={false}
             boundBoxFunc={(oldBox, newBox) =>
               newBox.width < 20 || newBox.height < 20 ? oldBox : newBox
             }
