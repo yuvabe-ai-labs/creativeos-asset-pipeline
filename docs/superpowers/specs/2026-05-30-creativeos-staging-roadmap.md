@@ -1934,6 +1934,73 @@ was dropped as redundant with the rail. `listEvalTraces` + `ReviewScreen` are le
 **unreferenced** — the sequential reviewer this decision replaces.
 **Originated.** `2026-07-02-eval-viewer-error-analysis-design.md`; plan `2026-07-02-eval-viewer.md`.
 
+### D116 — Post editor left chrome: one icon rail + one shared flyout panel
+**Decision.** The Post editor's left chrome is a 56px icon rail (Templates, Elements, Text,
+Connected, Layers) whose items open a single shared 256px flyout panel. Clicking the active item
+closes it; the panel stays open while the user works on the canvas. The bottom-left `+` add-menu
+(`post-add-menu.tsx`) is deleted.
+**Why.** One panel shell means one width, one scroll behaviour, one empty state — and it matches the
+mental model every designer already has from Canva. Keeping the panel open supports repeated
+placement (add three icons in a row) without re-opening it each time.
+**Rejected.** Per-item popovers (the `+` menu's existing pattern) — five independent popovers drift
+in width, position and scroll behaviour, which is how the current chrome got inconsistent.
+**Originated.** `2026-08-05-post-editor-canva-shell-design.md`.
+
+### D117 — A Post node opens on a clean canvas
+**Decision.** Delete the auto-opening template picker modal and its `pickerOpen` state. A Post node
+opens showing a white canvas containing only the auto-placed connected image; the Templates panel is
+open in the rail, but no template is ever applied without an explicit click.
+**Why.** The operator should see their own image first and choose whether they want a template at
+all. The old modal forced a template decision before anything was visible.
+**Rejected.** Keeping the auto-opening modal; auto-applying a default template.
+**Originated.** `2026-08-05-post-editor-canva-shell-design.md`.
+
+### D118 — Applying a template always confirms, and always preserves connected images
+**Decision.** Picking a template opens an `AlertDialog` ("This replaces your current layout. Your
+connected image is kept."). On confirm, seeded layers replace all layers **except** image layers
+whose `src.kind === "node"` — the connected-image preservation `handlePickTemplate` already
+implements. The dialog shows unconditionally, including on an untouched canvas.
+**Why.** Template application is the one destructive action in the editor and it is one click away.
+Preserving connected images matches the auto-place effect's own contract: it fires at most once per
+source node, so a discarded connected image can never be recovered automatically.
+**Rejected.** Skipping the dialog when the canvas is "pristine" — defining pristine across undo/redo
+and auto-placement costs more than the dialog does. Replacing connected images too — it makes trying
+a template a destructive experiment.
+**Originated.** `2026-08-05-post-editor-canva-shell-design.md`.
+
+### D119 — Layer properties stay in the fixed right inspector, normalised per kind
+**Decision.** Keep the existing fixed-width (`w-56`) right inspector rather than moving properties
+into a contextual toolbar. Every layer kind renders the same internal shell — a `text-eyebrow` kind
+label, then uniformly-spaced labelled sections — so changing selection changes contents without
+restructuring the panel's rhythm.
+**Why.** The reported problem was inconsistency between kinds ("when text is selected the edit
+layout is completely different"), not the panel's location. Normalising the shell fixes the actual
+complaint at a fraction of the cost.
+**Rejected.** Canva's contextual top toolbar — a substantially larger rework than the reported
+problem requires, and it would have to re-solve multi-select and empty states from scratch.
+**Originated.** `2026-08-05-post-editor-canva-shell-design.md`.
+
+### D120 — The layer list is a rail item in the shared flyout
+**Decision.** The layer list becomes one more rail item, rendered in the same flyout panel as every
+other tool.
+**Why.** One consistent panel system; the stack stays one click away and as discoverable as
+templates or elements.
+**Rejected.** Canva's floating "Position" popover (hides the stack behind an extra click, and the
+operator had specifically asked for layer editing in the left panel); an always-docked layers strip
+(permanently costs the canvas horizontal space).
+**Originated.** `2026-08-05-post-editor-canva-shell-design.md`.
+
+### D121 — The connected-nodes panel is a view over existing props, not a new query
+**Decision.** The connected-nodes panel renders thumbnails from the `connectedImageNodes:
+{ nodeId, url }[]` prop `post-focus-view.tsx` already receives. Click adds the image centred;
+drag-and-drop places it at the drop point. It lists only directly-connected image-bearing nodes.
+**Why.** The data is already plumbed in and already scoped to "what is wired to this node" — the
+panel is a new view, not new plumbing, and needs no canvas-store access.
+**Rejected.** Querying the canvas store for all project images (loses the wired-to-this-node
+guarantee and grows unbounded); including past uploads (deferred, not needed to place a connected
+image).
+**Originated.** `2026-08-05-post-editor-canva-shell-design.md`.
+
 ### Parked / out-of-scope (with revisit triggers)
 | Item | Status | Revisit when |
 |---|---|---|
