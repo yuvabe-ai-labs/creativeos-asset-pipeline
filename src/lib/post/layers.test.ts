@@ -10,6 +10,7 @@ import {
   updateLayer,
   duplicateLayer,
   reorderLayer,
+  reorderLayerToIndex,
   toggleLock,
   toggleHidden,
   findLayer,
@@ -122,6 +123,33 @@ describe("reorderLayer", () => {
     const [a, b] = [mk("a"), mk("b")];
     expect(reorderLayer([a, b], b.id, "forward").map((l) => l.name)).toEqual(["a", "b"]);
     expect(reorderLayer([a, b], a.id, "backward").map((l) => l.name)).toEqual(["a", "b"]);
+  });
+});
+
+describe("reorderLayerToIndex", () => {
+  const mk = (name: string) => createTextLayer({ name });
+  it("moving an earlier layer onto a later index lands it just after the (now-shifted) target", () => {
+    const [a, b, c, d] = [mk("a"), mk("b"), mk("c"), mk("d")];
+    // a (idx 0) -> targetIndex 2 (c's original index)
+    expect(reorderLayerToIndex([a, b, c, d], a.id, 2).map((l) => l.name)).toEqual(["b", "c", "a", "d"]);
+  });
+  it("moving a later layer onto an earlier index lands it just before the target", () => {
+    const [a, b, c, d] = [mk("a"), mk("b"), mk("c"), mk("d")];
+    // d (idx 3) -> targetIndex 1 (b's original index)
+    expect(reorderLayerToIndex([a, b, c, d], d.id, 1).map((l) => l.name)).toEqual(["a", "d", "b", "c"]);
+  });
+  it("is a no-op when the target index equals the current index", () => {
+    const [a, b, c] = [mk("a"), mk("b"), mk("c")];
+    expect(reorderLayerToIndex([a, b, c], b.id, 1).map((l) => l.name)).toEqual(["a", "b", "c"]);
+  });
+  it("clamps an out-of-range target index to the array's bounds", () => {
+    const [a, b, c] = [mk("a"), mk("b"), mk("c")];
+    expect(reorderLayerToIndex([a, b, c], a.id, 99).map((l) => l.name)).toEqual(["b", "c", "a"]);
+    expect(reorderLayerToIndex([a, b, c], c.id, -5).map((l) => l.name)).toEqual(["c", "a", "b"]);
+  });
+  it("is a no-op for an unknown id", () => {
+    const a = createTextLayer();
+    expect(reorderLayerToIndex([a], "missing", 0)).toEqual([a]);
   });
 });
 

@@ -152,6 +152,29 @@ export function reorderLayer(
   return next;
 }
 
+// Drag-and-drop reorder: moves the layer to arbitrary `targetIndex` (clamped to the array's
+// bounds), rather than one of reorderLayer's four fixed directions. `targetIndex` is measured
+// in the SAME back-to-front index space as `layers` itself (index 0 = furthest back) — i.e.
+// the raw array passed in, not the UI's reversed front-first display order; callers rendering
+// front-first must convert. Splices the layer out first, then into `targetIndex` of the
+// resulting (now one-shorter) array — same splice-after-removal approach as reorderLayer's
+// forward/backward, so e.g. moving an earlier layer onto a later one's index lands it just
+// AFTER that target (the target shifts left by one once the source is removed), while moving a
+// later layer onto an earlier one's index lands it just BEFORE the target.
+export function reorderLayerToIndex(
+  layers: PostLayer[],
+  id: string,
+  targetIndex: number,
+): PostLayer[] {
+  const idx = layers.findIndex((l) => l.id === id);
+  if (idx === -1) return layers;
+  const next = [...layers];
+  const [layer] = next.splice(idx, 1);
+  const clamped = Math.max(0, Math.min(targetIndex, next.length));
+  next.splice(clamped, 0, layer);
+  return next;
+}
+
 export function toggleLock(layers: PostLayer[], id: string): PostLayer[] {
   const layer = findLayer(layers, id);
   return updateLayer(layers, id, { locked: !layer?.locked });
