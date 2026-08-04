@@ -22,11 +22,15 @@ type Props = {
   commitLayerChange: () => void;
   stageRef: React.RefObject<Konva.Stage | null>;
   onCommitText: (id: string, text: string) => void;
+  // Forwarded straight through to PostLayerRender/PostImageLayer — this component holds
+  // no state for it. The actual natural-size map is held by a later integration task in
+  // post-focus-view.tsx.
+  onImageLoaded: (layerId: string, naturalW: number, naturalH: number) => void;
 };
 
 export function PostStage({
   layers, containerW, containerH, selectedIds, onSelect, onToggleSelect, onSelectMany,
-  resolveNodeImageUrl, updateLayerLive, commitLayerChange, stageRef, onCommitText,
+  resolveNodeImageUrl, updateLayerLive, commitLayerChange, stageRef, onCommitText, onImageLoaded,
 }: Props) {
   const nodeRefs = useRef<Map<string, Konva.Node>>(new Map());
   const transformerRef = useRef<Konva.Transformer>(null);
@@ -165,6 +169,7 @@ export function PostStage({
               }}
               onDragEnd={(node) => commitNodeGeometry(layer.id, node)}
               onDblClickText={() => layer.kind === "text" && !layer.locked && setEditingTextId(layer.id)}
+              onImageLoaded={onImageLoaded}
             />
           ))}
           {selectionRect && (

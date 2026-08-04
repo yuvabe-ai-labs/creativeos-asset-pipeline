@@ -66,6 +66,7 @@ export function PostGroupLayer({
             onSelect={() => {}} // clicks still bubble up to the outer Group's onClick (from nodeProps), selecting the group
             onDragEnd={() => {}}
             onDblClickText={() => {}}
+            onImageLoaded={() => {}} // grouped children's natural size isn't tracked individually (V2)
           />
         ))}
       </Group>
