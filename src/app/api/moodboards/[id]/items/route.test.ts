@@ -15,7 +15,12 @@ vi.mock("@/lib/dal", () => ({
     orgRole: "owner",
     mustChangePassword: false,
   })),
+  resolveOrgId: vi.fn(async () => "org-1"),
 }));
+vi.mock("@/lib/auth/impersonation", () => ({
+  resolveImpersonationState: vi.fn(async () => ({ isImpersonating: false })),
+}));
+vi.mock("@/lib/db/impersonation-audit", () => ({ logImpersonationEvent: vi.fn(async () => undefined) }));
 
 // Board org, per test. Default: same org as the caller.
 let boardOrgId: string | null = "org-1";
