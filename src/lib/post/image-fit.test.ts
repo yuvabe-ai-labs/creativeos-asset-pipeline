@@ -75,12 +75,13 @@ describe("computeNaturalRatioReset", () => {
     expect(result.h).toBeCloseTo(0.2, 5); // height recomputed: 0.4 * (500/1000)
   });
 
-  it("recomputes width from height when height is the larger/dominant dimension", () => {
-    // natural image is 1:2 (portrait, e.g. 500x1000); box is currently 0.4 x 0.4
+  it("recomputes height from width when box dimensions are equal (width wins tie)", () => {
+    // natural image is 1:2 (portrait, e.g. 500x1000); box is currently 0.4 x 0.4 (square)
+    // When box dimensions are equal, width wins the tie (box.w >= box.h), so keep width and recompute height
     const box = { x: 0.1, y: 0.1, w: 0.4, h: 0.4 };
     const result = computeNaturalRatioReset(box, 500, 1000);
-    expect(result.h).toBeCloseTo(0.4, 5);
-    expect(result.w).toBeCloseTo(0.2, 5);
+    expect(result.w).toBeCloseTo(0.4, 5); // width stays (the tie-breaking rule)
+    expect(result.h).toBeCloseTo(0.8, 5); // height recomputed: 0.4 / (500/1000) = 0.8
   });
 
   it("keeps the box's CENTER point fixed, not its top-left corner", () => {
@@ -99,5 +100,17 @@ describe("computeNaturalRatioReset", () => {
     expect(result.h).toBeCloseTo(0.2, 5);
     expect(result.x).toBeCloseTo(0.2, 5);
     expect(result.y).toBeCloseTo(0.2, 5);
+  });
+
+  it("preserves the wide box's width when resetting a portrait natural image", () => {
+    // Concrete failure case: wide box (3:1, w:0.6, h:0.2) vs portrait natural image (1:2, 500x1000)
+    // Should keep the box's WIDTH (0.6, the larger current dimension), not shrink based on image orientation
+    const box = { x: 0.2, y: 0.4, w: 0.6, h: 0.2 };
+    const result = computeNaturalRatioReset(box, 500, 1000);
+    expect(result.w).toBeCloseTo(0.6, 5); // width stays (the box's larger dimension)
+    expect(result.h).toBeCloseTo(1.2, 5); // height recomputed: 0.6 / (500/1000) = 1.2
+    // center should stay fixed
+    expect(result.x + result.w / 2).toBeCloseTo(box.x + box.w / 2, 5);
+    expect(result.y + result.h / 2).toBeCloseTo(box.y + box.h / 2, 5);
   });
 });

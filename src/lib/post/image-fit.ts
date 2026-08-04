@@ -55,12 +55,12 @@ export function computeNaturalRatioReset(
 
   let w: number;
   let h: number;
-  if (naturalW >= naturalH) {
-    // Landscape or square: width is the dominant dimension, keep it
+  if (box.w >= box.h) {
+    // Box is wider or square: width is the dominant dimension, keep it
     w = box.w;
     h = w / naturalRatio;
   } else {
-    // Portrait: height is the dominant dimension, keep it
+    // Box is taller: height is the dominant dimension, keep it
     h = box.h;
     w = h * naturalRatio;
   }
