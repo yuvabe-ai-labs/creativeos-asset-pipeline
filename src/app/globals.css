@@ -313,6 +313,25 @@
   }
 }
 
+/* Thin, on-brand scrollbar — replaces the raw native scrollbar (arrow buttons, gray
+   track) on overflowing panels (Post editor's layer list / inspector) with a subtle
+   neutral thumb on a transparent track. Deliberately low-contrast: it should read as
+   "barely there," not as a new visual element. */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--neutral-300) transparent;
+}
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: var(--neutral-300);
+  border-radius: 999px;
+}
+
 /* Marching-ant edges — flowing connection lines for the canvas loading state */
 @keyframes dash-flow {
   to {

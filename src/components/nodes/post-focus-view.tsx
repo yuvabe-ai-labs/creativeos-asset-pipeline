@@ -328,7 +328,7 @@ export function PostFocusView({
           </div>
 
           {/* Left panel */}
-          <div className="w-56 shrink-0 overflow-y-auto border-r border-border p-3">
+          <div className="scrollbar-thin w-56 shrink-0 overflow-y-auto border-r border-border p-3">
             {rail === "layers" ? (
               <PostLayerList
                 layers={layers}
@@ -392,7 +392,7 @@ export function PostFocusView({
 
           {/* Inspector — the shell (width/header) always renders regardless of selection
               state; only the content below the header changes across 0/1/2+ selected. */}
-          <div className="w-56 shrink-0 overflow-y-auto border-l border-border p-3">
+          <div className="scrollbar-thin w-56 shrink-0 overflow-y-auto border-l border-border p-3">
             <div className="text-eyebrow mb-2 !text-[0.6rem] text-muted-foreground">
               {selectedIds.length === 0
                 ? "Inspector"

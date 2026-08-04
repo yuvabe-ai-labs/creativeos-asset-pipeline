@@ -5,9 +5,11 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { Stage, Layer, Transformer, Rect } from "react-konva";
 import type Konva from "konva";
 import type { PostLayer } from "@/lib/post/types";
-import { pxToNormalized } from "@/lib/post/units";
+import { pxToNormalized, fontSizeToPx } from "@/lib/post/units";
+import { resolveFontKey, type FontKey } from "@/lib/post/fonts";
 import { Textarea } from "@/components/ui/textarea";
 import { PostLayerRender } from "./post-layer-render";
+import { FONT_CSS_FAMILY } from "./post-fonts";
 
 type Props = {
   layers: PostLayer[];
@@ -90,9 +92,14 @@ export function PostStage({
   // pair where the rect never grows past the `> 4`px guard below, so it correctly ends up
   // doing nothing more than the deselect already fired here).
   function handleStageMouseDown(e: Konva.KonvaEventObject<MouseEvent>) {
-    if (e.target !== e.target.getStage()) return; // clicked a layer, not empty space
     const stage = e.target.getStage();
-    const pos = stage?.getPointerPosition();
+    if (!stage) return;
+    // Only defer to Konva's own move-drag when the clicked node is the currently-selected,
+    // actually-draggable shape. An unselected shape (including a full-bleed background image)
+    // has draggable=false (post-layer-render.tsx), so a drag gesture starting on it does
+    // nothing in Konva itself — safe to treat as the start of a rubber-band instead.
+    if (e.target !== stage && e.target.draggable()) return;
+    const pos = stage.getPointerPosition();
     if (!pos) return;
     dragStartRef.current = pos;
     setSelectionRect({ x: pos.x, y: pos.y, w: 0, h: 0 });
@@ -206,6 +213,10 @@ export function PostStage({
         const rect = editingRect;
         const layer = layers.find((l) => l.id === editingTextId);
         if (layer?.kind !== "text") return null;
+        // Mirror the SAME font resolution post-text-layer.tsx uses for the resting Konva
+        // Text node (Tamil-companion fallback included) so the overlay's face matches the
+        // text it's covering, not just a generic system font.
+        const fontKey = resolveFontKey(layer.fontFamily as FontKey, layer.text);
         return (
           <Textarea
             autoFocus
@@ -213,9 +224,24 @@ export function PostStage({
             style={{
               position: "absolute",
               left: rect.x, top: rect.y, width: rect.width, height: rect.height,
-              fontSize: rect.height * 0.7, lineHeight: 1, resize: "none",
+              // Same conversion textLayerFontProps (layer-konva-props.ts) uses for the
+              // resting Konva Text node, so the overlay's type doesn't visibly jump in
+              // size relative to the text it's replacing.
+              fontSize: fontSizeToPx(layer.fontSize, containerH),
+              lineHeight: layer.lineHeight,
+              fontFamily: FONT_CSS_FAMILY[fontKey],
+              fontWeight: layer.fontWeight,
+              color: layer.color,
+              textAlign: layer.align,
+              letterSpacing: layer.letterSpacing ? `${layer.letterSpacing}px` : undefined,
+              opacity: layer.opacity ?? 1,
+              resize: "none",
+              // Cancels the shadcn Textarea's default `field-sizing-content` (auto-grows
+              // to fit typed content, overriding even an explicit height) — this overlay's
+              // box must stay exactly at the click-to-edit hit-rect computed above.
+              fieldSizing: "fixed",
             }}
-            className="nodrag absolute z-10 border-primary bg-white/90 p-0"
+            className="nodrag absolute z-10 min-h-0 resize-none border-0 bg-transparent p-0 shadow-none focus-visible:border-0 focus-visible:ring-0"
             onBlur={(e) => { onCommitText(editingTextId, e.target.value); setEditingTextId(null); }}
             onKeyDown={(e) => {
               if (e.key === "Escape") { setEditingTextId(null); }
