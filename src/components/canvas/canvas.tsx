@@ -32,6 +32,7 @@ import { DrawNode } from "@/components/nodes/draw-node";
 import { ImageGenNode } from "@/components/nodes/image-gen-node";
 import { VideoPromptNode } from "@/components/nodes/video-prompt-node";
 import { VideoGenNode } from "@/components/nodes/video-gen-node";
+import { PostNode } from "@/components/nodes/post-node";
 import { useCanvasStore, useCanvasStoreApi } from "./canvas-store-provider";
 import { useAnyFocusViewOpen } from "@/hooks/use-focus-view-open";
 import { CanvasAutosave } from "./canvas-autosave";
@@ -65,6 +66,7 @@ const nodeTypes: NodeTypes = {
   "image-gen": ImageGenNode,
   "video-prompt": VideoPromptNode,
   "video-gen": VideoGenNode,
+  post: PostNode,
 };
 
 export function Canvas({
