@@ -6,6 +6,7 @@ import type {
   IconLayer,
   ImageSource,
   IconSource,
+  GroupLayer,
 } from "./types";
 
 const DEFAULT_GEOMETRY = {
@@ -142,4 +143,84 @@ export function toggleLock(layers: PostLayer[], id: string): PostLayer[] {
 export function toggleHidden(layers: PostLayer[], id: string): PostLayer[] {
   const layer = findLayer(layers, id);
   return updateLayer(layers, id, { hidden: !layer?.hidden });
+}
+
+function boundingBoxOf(layers: PostLayer[]): { x: number; y: number; w: number; h: number } {
+  const xs = layers.map((l) => l.x);
+  const ys = layers.map((l) => l.y);
+  const rights = layers.map((l) => l.x + l.w);
+  const bottoms = layers.map((l) => l.y + l.h);
+  const x = Math.min(...xs);
+  const y = Math.min(...ys);
+  return { x, y, w: Math.max(...rights) - x, h: Math.max(...bottoms) - y };
+}
+
+// GroupLayer (Task 2) only carries `childIds: string[]` — no nested storage for the children's
+// own data. Since groupLayers removes children from the top-level array, ungroupLayers cannot
+// recover their full state (name, kind, text, style...) from `childIds` alone. We stash a
+// snapshot of the removed children as a non-public field on the group object (not part of the
+// public GroupLayer type, so nothing outside this file needs to know about it) purely so
+// ungroupLayers has a fallback. This keeps both functions pure (no module-level state) and
+// requires no change to the shipped GroupLayer type.
+type GroupLayerWithSnapshot = GroupLayer & { __childSnapshot?: PostLayer[] };
+
+export function groupLayers(layers: PostLayer[], ids: string[]): PostLayer[] {
+  const targets = layers.filter((l) => ids.includes(l.id));
+  if (targets.length < 2) return layers;
+  const box = boundingBoxOf(targets);
+  const group: GroupLayerWithSnapshot = {
+    id: crypto.randomUUID(),
+    kind: "group",
+    childIds: targets.map((l) => l.id),
+    ...box,
+    rotation: 0,
+    opacity: 1,
+    locked: false,
+    hidden: false,
+    __childSnapshot: targets,
+  };
+  const targetIdSet = new Set(targets.map((l) => l.id));
+  const withoutTargets = layers.filter((l) => !targetIdSet.has(l.id));
+  // Insert at the frontmost (highest-index) grouped layer's original position, remapped into
+  // the shorter `withoutTargets` index space: count how many KEPT (non-grouped) layers sat at
+  // or before that original index, and insert right after them. This preserves the group's
+  // stacking order relative to every layer that wasn't part of the group — e.g. a layer that
+  // was originally in front of the whole group stays in front of the group afterwards, and one
+  // that was behind stays behind — rather than just clamping the raw index into the new array.
+  const frontmostIdx = Math.max(...layers.map((l, i) => (targetIdSet.has(l.id) ? i : -1)));
+  const keptBeforeOrAtFrontmost = layers
+    .slice(0, frontmostIdx + 1)
+    .filter((l) => !targetIdSet.has(l.id)).length;
+  const insertAt = keptBeforeOrAtFrontmost;
+  return [...withoutTargets.slice(0, insertAt), group, ...withoutTargets.slice(insertAt)];
+}
+
+export function ungroupLayers(layers: PostLayer[], groupId: string): PostLayer[] {
+  const idx = layers.findIndex((l) => l.id === groupId);
+  if (idx === -1) return layers;
+  const group = layers[idx];
+  if (group.kind !== "group") return layers;
+  // Prefer looking children up BY ID in the current `layers` array — if some future flow keeps
+  // a grouped child independently addressable there, its live state (post updateLayer calls)
+  // wins. Fall back to the snapshot taken at group-creation time, since groupLayers (this file)
+  // removes children from the top-level array, so that's normally the only place to find them.
+  const snapshot = (group as GroupLayerWithSnapshot).__childSnapshot ?? [];
+  const snapshotById = new Map(snapshot.map((l) => [l.id, l] as const));
+  const children = group.childIds
+    .map((id) => layers.find((l) => l.id === id) ?? snapshotById.get(id))
+    .filter((l): l is PostLayer => l !== undefined);
+  return [...layers.slice(0, idx), ...children, ...layers.slice(idx + 1)];
+}
+
+export function copyLayers(layers: PostLayer[], ids: string[]): PostLayer[] {
+  return layers
+    .filter((l) => ids.includes(l.id))
+    .map((l) => ({ ...l, id: crypto.randomUUID() }) as PostLayer);
+}
+
+export function pasteLayers(layers: PostLayer[], clipboard: PostLayer[]): PostLayer[] {
+  const pasted = clipboard.map(
+    (l) => ({ ...l, id: crypto.randomUUID(), x: l.x + 0.02, y: l.y + 0.02 }) as PostLayer,
+  );
+  return [...layers, ...pasted];
 }

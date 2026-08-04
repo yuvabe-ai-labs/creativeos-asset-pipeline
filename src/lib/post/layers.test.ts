@@ -13,7 +13,12 @@ import {
   toggleLock,
   toggleHidden,
   findLayer,
+  groupLayers,
+  ungroupLayers,
+  copyLayers,
+  pasteLayers,
 } from "./layers";
+import type { GroupLayer } from "./types";
 
 describe("layer factories", () => {
   it("createTextLayer has sane defaults and a unique id", () => {
@@ -134,5 +139,94 @@ describe("toggleLock / toggleHidden", () => {
     const result = toggleHidden([a], a.id);
     expect(findLayer(result, a.id)?.hidden).toBe(true);
     expect(findLayer(result, a.id)?.locked).toBeFalsy();
+  });
+});
+
+describe("groupLayers", () => {
+  it("removes the grouped layers and inserts a GroupLayer at the frontmost original position", () => {
+    const a = createTextLayer({ name: "a", x: 0.1, y: 0.1, w: 0.2, h: 0.1 });
+    const b = createShapeLayer({ name: "b", x: 0.3, y: 0.2, w: 0.1, h: 0.3 });
+    const c = createTextLayer({ name: "c", x: 0.5, y: 0.5, w: 0.1, h: 0.1 }); // not grouped
+    const result = groupLayers([a, b, c], [a.id, b.id]);
+    expect(result).toHaveLength(2); // group + c
+    const group = result.find((l) => l.kind === "group") as GroupLayer;
+    expect(group).toBeDefined();
+    expect(group.childIds).toEqual([a.id, b.id]);
+    // group's own box is the bounding box of a and b: x in [0.1, 0.4], y in [0.1, 0.5]
+    expect(group.x).toBeCloseTo(0.1, 5);
+    expect(group.y).toBeCloseTo(0.1, 5);
+    expect(group.w).toBeCloseTo(0.3, 5); // 0.4 - 0.1
+    expect(group.h).toBeCloseTo(0.4, 5); // 0.5 - 0.1
+    // b (frontmost of the two grouped layers, original index 1) is grouped away; c (index 2,
+    // never grouped) was originally in front of the whole group, so it stays in front — the
+    // group lands at index 0, preserving stacking order relative to every non-grouped layer.
+    // (This is also required for ungroupLayers to round-trip back to the original [a, b, c]
+    // order below — see the "ungroupLayers" describe block.)
+    expect(result[0].kind).toBe("group");
+  });
+
+  it("is a no-op if fewer than 2 ids are given", () => {
+    const a = createTextLayer();
+    expect(groupLayers([a], [a.id])).toEqual([a]);
+    expect(groupLayers([a], [])).toEqual([a]);
+  });
+
+  it("ignores ids that don't match any layer", () => {
+    const a = createTextLayer();
+    const b = createShapeLayer();
+    const result = groupLayers([a, b], [a.id, b.id, "missing-id"]);
+    const group = result.find((l) => l.kind === "group") as GroupLayer;
+    expect(group.childIds).toEqual([a.id, b.id]);
+  });
+});
+
+describe("ungroupLayers", () => {
+  it("removes the group and reinserts its children in childIds order at the group's position", () => {
+    const a = createTextLayer({ name: "a" });
+    const b = createShapeLayer({ name: "b" });
+    const c = createTextLayer({ name: "c" });
+    const grouped = groupLayers([a, b, c], [a.id, b.id]);
+    const result = ungroupLayers(grouped, (grouped.find((l) => l.kind === "group") as GroupLayer).id);
+    expect(result.map((l) => l.name)).toEqual(["a", "b", "c"]);
+  });
+
+  it("is a no-op for an unknown group id", () => {
+    const a = createTextLayer();
+    expect(ungroupLayers([a], "missing")).toEqual([a]);
+  });
+
+  it("is a no-op if the id refers to a non-group layer", () => {
+    const a = createTextLayer();
+    expect(ungroupLayers([a], a.id)).toEqual([a]);
+  });
+});
+
+describe("copyLayers / pasteLayers", () => {
+  it("copyLayers returns deep copies with fresh ids, does not mutate the input", () => {
+    const a = createTextLayer({ text: "hello" });
+    const copies = copyLayers([a], [a.id]);
+    expect(copies).toHaveLength(1);
+    expect(copies[0].id).not.toBe(a.id);
+    expect((copies[0] as typeof a).text).toBe("hello");
+  });
+
+  it("pasteLayers appends nudged fresh-id copies from the clipboard onto the layer array", () => {
+    const a = createTextLayer({ x: 0.1, y: 0.1 });
+    const clipboard = copyLayers([a], [a.id]);
+    const result = pasteLayers([a], clipboard);
+    expect(result).toHaveLength(2);
+    expect(result[1].id).not.toBe(a.id);
+    expect(result[1].id).not.toBe(clipboard[0].id); // paste re-freshens ids again, not reusing clipboard's
+    expect(result[1].x).toBeCloseTo(0.12, 5);
+    expect(result[1].y).toBeCloseTo(0.12, 5);
+  });
+
+  it("pasting twice in a row does not collide ids", () => {
+    const a = createTextLayer();
+    const clipboard = copyLayers([a], [a.id]);
+    const once = pasteLayers([a], clipboard);
+    const twice = pasteLayers(once, clipboard);
+    const ids = twice.map((l) => l.id);
+    expect(new Set(ids).size).toBe(ids.length);
   });
 });
