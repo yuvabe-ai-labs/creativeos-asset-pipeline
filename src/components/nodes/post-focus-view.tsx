@@ -15,6 +15,7 @@ import type { PostLayer } from "@/lib/post/types";
 import { POST_FORMATS } from "@/lib/post/formats";
 import type { PostFormat } from "@/lib/post/types";
 import type { PostTemplate } from "@/lib/post/templates";
+import { nudge } from "@/lib/post/geometry";
 import { usePostEditor } from "@/hooks/use-post-editor";
 import { usePostExport } from "@/hooks/use-post-export";
 import { EditableField } from "./editable-field";
@@ -35,14 +36,24 @@ type Props = {
   format?: PostFormat;
   templateId?: string;
   layers?: PostLayer[];
+  autoPlacedNodeIds?: string[];
   connectedImageNodes: ConnectedImageNode[];
   onPatch: (patch: Partial<PostNodeData>) => void;
 };
 
 const STAGE_MAX_PX = 640; // the stage scales to fit within this box, never renders at full format px
 
+// KeyboardEvent.key -> the `nudge()` direction token.
+const ARROW_DIRECTIONS: Record<string, "up" | "down" | "left" | "right" | undefined> = {
+  ArrowUp: "up",
+  ArrowDown: "down",
+  ArrowLeft: "left",
+  ArrowRight: "right",
+};
+
 export function PostFocusView({
-  open, onOpenChange, nodeId, title, format, templateId, layers: persistedLayers, connectedImageNodes, onPatch,
+  open, onOpenChange, nodeId, title, format, templateId, layers: persistedLayers,
+  autoPlacedNodeIds, connectedImageNodes, onPatch,
 }: Props) {
   const formatSpec = POST_FORMATS[format ?? "ig-square"];
   const scale = Math.min(1, STAGE_MAX_PX / Math.max(formatSpec.width, formatSpec.height));
@@ -50,12 +61,15 @@ export function PostFocusView({
   const containerH = formatSpec.height * scale;
 
   const { layers, selectedId, selectLayer, addText, addShape, addImage, addIcon, updateLayerLive,
-    commitLayerChange, deleteLayer, duplicateLayer, reorder, toggleLock, toggleHidden, undo, redo,
-    canUndo, canRedo,
+    commitLayerChange, replaceAllLayers, deleteLayer, duplicateLayer, reorder, toggleLock,
+    toggleHidden, undo, redo, canUndo, canRedo,
   } = usePostEditor(persistedLayers ?? [], (next) => onPatch({ layers: next }));
 
   const [rail, setRail] = useState<"layers" | "brand">("layers");
-  const [changingTemplate, setChangingTemplate] = useState(false);
+  // Captured ONCE, lazily, from the TRUE initial scene — never re-derived from
+  // `layers.length`, so the auto-place effect adding the first layer can't close the
+  // picker out from under the operator, and "Start blank" has something real to turn off.
+  const [pickerOpen, setPickerOpen] = useState(() => (persistedLayers ?? []).length === 0);
   const stageRef = useRef<Konva.Stage>(null);
 
   const { downloadPng, isExporting } = usePostExport({
@@ -69,20 +83,30 @@ export function PostFocusView({
 
   // Auto-place the first connected image, per the product decision: a Post node starts
   // empty, and connecting an image node makes it show up immediately, without a manual
-  // drag step — matching how Image Gen already treats a connected base image. Only
-  // fires when NO image layer yet references ANY currently-connected node (so it never
-  // fights a swap the operator made deliberately).
+  // drag step — matching how Image Gen already treats a connected base image.
+  //
+  // Fires AT MOST ONCE per source node, recorded durably in `autoPlacedNodeIds` (not just
+  // "is there a layer bound to it right now?"): otherwise deleting the auto-placed layer
+  // would make the very next nodes/edges change re-add it, and the layer could never be
+  // removed. The current-layer check stays as a second guard for scenes authored before
+  // the field existed, and so a deliberate swap is never fought.
   useEffect(() => {
     if (connectedImageNodes.length === 0) return;
+    const placed = autoPlacedNodeIds ?? [];
+    const target = connectedImageNodes.find((c) => !placed.includes(c.nodeId));
+    if (!target) return;
     const alreadyBound = layers.some((l) => {
       if (l.kind !== "image" || l.src.kind !== "node") return false;
       const src = l.src;
       return connectedImageNodes.some((c) => c.nodeId === src.nodeId);
     });
     if (alreadyBound) return;
-    addImage({ kind: "node", nodeId: connectedImageNodes[0].nodeId });
+    // Full-bleed plate — createImageLayer's default geometry is the generic small text-
+    // layer box, which lands a connected photo as a tiny squashed strip.
+    addImage({ kind: "node", nodeId: target.nodeId }, { x: 0, y: 0, w: 1, h: 1 });
+    onPatch({ autoPlacedNodeIds: [...placed, target.nodeId] });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [connectedImageNodes]);
+  }, [connectedImageNodes, autoPlacedNodeIds]);
 
   function resolveNodeImageUrl(nodeId: string): string | undefined {
     return connectedImageNodes.find((c) => c.nodeId === nodeId)?.url;
@@ -90,11 +114,14 @@ export function PostFocusView({
 
   function handlePickTemplate(template: PostTemplate) {
     const seeded = template.seedLayers(format ?? "ig-square");
-    onPatch({ layers: seeded, templateId: template.id });
-    setChangingTemplate(false);
+    // Layers go through the editor's own history (which owns them); templateId is not
+    // part of that state, so it stays a plain patch.
+    replaceAllLayers(seeded);
+    onPatch({ templateId: template.id });
+    setPickerOpen(false);
   }
 
-  const showTemplatePicker = layers.length === 0 || changingTemplate;
+  const showTemplatePicker = pickerOpen;
   const selectedLayer = layers.find((l) => l.id === selectedId) ?? null;
 
   // Keyboard shortcuts — guarded against typing in a field (isEditableTarget), same
@@ -114,11 +141,21 @@ export function PostFocusView({
         reorder(selectedId, e.shiftKey ? "front" : "forward");
       } else if (e.key === "[" && selectedId) {
         reorder(selectedId, e.shiftKey ? "back" : "backward");
+      } else if (ARROW_DIRECTIONS[e.key] && selectedId && selectedLayer) {
+        // Arrow keys nudge 1px, shift-arrow 10px (§5). preventDefault stops the sheet
+        // scrolling underneath. A nudge is discrete, like a click — commit it as its own
+        // undo step immediately rather than coalescing a run of presses.
+        const direction = ARROW_DIRECTIONS[e.key]!;
+        e.preventDefault();
+        if (selectedLayer.locked) return;
+        updateLayerLive(selectedId, nudge(selectedLayer, direction, containerW, containerH, e.shiftKey));
+        commitLayerChange();
       }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open, selectedId, deleteLayer, duplicateLayer, undo, redo, reorder]);
+  }, [open, selectedId, selectedLayer, containerW, containerH, updateLayerLive,
+      commitLayerChange, deleteLayer, duplicateLayer, undo, redo, reorder]);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -169,7 +206,7 @@ export function PostFocusView({
                     ))}
                   </SelectContent>
                 </Select>
-                <Button variant="outline" size="sm" onClick={() => setChangingTemplate(true)}>
+                <Button variant="outline" size="sm" onClick={() => setPickerOpen(true)}>
                   Change template
                 </Button>
                 <Button variant="outline" size="sm" disabled title="Publishing is coming soon">
@@ -248,7 +285,7 @@ export function PostFocusView({
             <PostTemplatePicker
               open={showTemplatePicker}
               onPick={handlePickTemplate}
-              onStartBlank={() => setChangingTemplate(false)}
+              onStartBlank={() => setPickerOpen(false)}
             />
           </div>
 

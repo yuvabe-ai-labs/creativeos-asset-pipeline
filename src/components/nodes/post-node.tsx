@@ -140,6 +140,7 @@ export function PostNode({ id, data, selected }: NodeProps) {
       format={d.format}
       templateId={d.templateId}
       layers={d.layers}
+      autoPlacedNodeIds={d.autoPlacedNodeIds}
       connectedImageNodes={connectedImageNodes}
       onPatch={(patch) => updateNodeData(id, patch)}
     />

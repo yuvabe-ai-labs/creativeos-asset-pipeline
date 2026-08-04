@@ -117,6 +117,10 @@ export type PostNodeData = {
   format?: PostFormat;
   templateId?: string;         // which starter template seeded this scene, for "Change template"
   layers?: PostLayer[];        // ordered back -> front — authored content, no version log (D19-style)
+  // Durable record of every connected node whose image has EVER been auto-placed. The
+  // auto-place effect only fires for ids NOT in here, so deleting an auto-placed layer
+  // sticks — across re-renders, remounts and reloads — instead of being re-added.
+  autoPlacedNodeIds?: string[];
   fileUrl?: string;            // flattened PNG — this node's output
   filename?: string;
   imageWidth?: number;

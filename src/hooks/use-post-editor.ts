@@ -2,7 +2,7 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import type { PostLayer, ImageSource, IconSource } from "@/lib/post/types";
+import type { PostLayer, ImageLayer, ImageSource, IconSource } from "@/lib/post/types";
 import {
   createTextLayer, createShapeLayer, createImageLayer, createIconLayer,
   addLayer, removeLayer, updateLayer, duplicateLayer as duplicateLayerPure,
@@ -50,8 +50,11 @@ export function usePostEditor(initialLayers: PostLayer[], onChange: (layers: Pos
     setSelectedId(layer.id);
   }, [history.present]);
 
-  const addImage = useCallback((src: ImageSource) => {
-    const layer = createImageLayer(src);
+  // `overrides` lets a call site place the layer with its own geometry (the auto-placed
+  // connected image wants a full-bleed 0,0,1,1 plate, not createImageLayer's generic
+  // small default) without changing that default for the plain "Add > Image" case.
+  const addImage = useCallback((src: ImageSource, overrides?: Partial<ImageLayer>) => {
+    const layer = createImageLayer(src, overrides);
     applyCommitted(addLayer(history.present, layer));
     setSelectedId(layer.id);
   }, [history.present]);
@@ -101,6 +104,17 @@ export function usePostEditor(initialLayers: PostLayer[], onChange: (layers: Pos
     applyCommitted(toggleHiddenPure(history.present, id));
   }, [history.present]);
 
+  // Swaps the WHOLE scene as one undo step — the template picker's "seed these layers"
+  // action. Must go through the hook (not a direct onPatch by the caller): the hook seeds
+  // its history once from `initialLayers`, so a caller that writes layers around it would
+  // be silently overwritten by the hook's stale present on the very next edit.
+  const replaceAllLayers = useCallback((next: PostLayer[]) => {
+    liveLayersRef.current = null;
+    applyCommitted(next);
+    setSelectedId(null);
+    // No history.present dependency: this REPLACES the scene rather than deriving from it.
+  }, []);
+
   const undo = useCallback(() => {
     let nextPresent: PostLayer[] | undefined;
     setHistory((h) => {
@@ -131,6 +145,7 @@ export function usePostEditor(initialLayers: PostLayer[], onChange: (layers: Pos
     addIcon,
     updateLayerLive,
     commitLayerChange,
+    replaceAllLayers,
     deleteLayer,
     duplicateLayer,
     reorder,
