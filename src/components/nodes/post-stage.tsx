@@ -164,6 +164,7 @@ export function PostStage({
               containerH={containerH}
               allLayers={layers}
               isSelected={selectedIds.includes(layer.id)}
+              isBeingEdited={layer.id === editingTextId}
               resolveNodeImageUrl={resolveNodeImageUrl}
               nodeRef={(node) => {
                 if (node) nodeRefs.current.set(layer.id, node);

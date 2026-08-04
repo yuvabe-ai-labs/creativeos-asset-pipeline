@@ -21,6 +21,12 @@ type Props = {
   // prop (Task 8 wires it through).
   allLayers: PostLayer[];
   isSelected: boolean;
+  // True only for the single text layer currently open in the inline-edit Textarea overlay
+  // (post-stage.tsx) — hides the real Konva node (opacity 0, not visible: false, so
+  // getClientRect() used to position the overlay stays correct) so the overlay's live-typed
+  // content is the only visible representation of the text while editing. Defaults to false
+  // for every layer kind except the one being edited.
+  isBeingEdited?: boolean;
   resolveNodeImageUrl: (nodeId: string) => string | undefined;
   nodeRef: (node: Konva.Node | null) => void;
   // Konva's onClick/onTap hand the underlying event through as their first argument at
@@ -39,14 +45,20 @@ type Props = {
 // and the export (the SAME Stage instance's toDataURL/toBlob) share it, so there is no
 // second render path to drift out of sync with the first.
 export function PostLayerRender({
-  layer, containerW, containerH, allLayers, isSelected, resolveNodeImageUrl, nodeRef, onSelect,
-  onDragEnd, onDblClickText, onImageLoaded,
+  layer, containerW, containerH, allLayers, isSelected, isBeingEdited = false, resolveNodeImageUrl,
+  nodeRef, onSelect, onDragEnd, onDblClickText, onImageLoaded,
 }: Props) {
   const nodeProps: Konva.NodeConfig & KonvaNodeEvents = {
     draggable: isSelected && !layer.locked,
     onClick: onSelect,
     onTap: onSelect,
     onDragEnd: (e) => onDragEnd(e.target),
+    // Hide the resting Konva node while its inline-edit Textarea overlay is open, so the
+    // overlay's live content isn't ghosted by the last-committed text rendered underneath
+    // at the same position (opacity, not visible: false — Konva's getClientRect ignores
+    // opacity but some versions skip invisible nodes in bounding-box math, which
+    // post-stage.tsx's editingRect calc depends on).
+    ...(isBeingEdited ? { opacity: 0 } : {}),
   };
 
   if (layer.kind === "text") {
