@@ -30,6 +30,9 @@ type Props = {
   onSelect: (evt?: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => void;
   onDragEnd: (node: Konva.Node) => void;
   onDblClickText: () => void;
+  // Only the "image" branch below forwards this to PostImageLayer — every other layer
+  // kind receives it but ignores it, same as onDblClickText above.
+  onImageLoaded: (layerId: string, naturalW: number, naturalH: number) => void;
 };
 
 // THE dispatcher every layer kind renders through — both the editor stage (post-stage.tsx)
@@ -37,7 +40,7 @@ type Props = {
 // second render path to drift out of sync with the first.
 export function PostLayerRender({
   layer, containerW, containerH, allLayers, isSelected, resolveNodeImageUrl, nodeRef, onSelect,
-  onDragEnd, onDblClickText,
+  onDragEnd, onDblClickText, onImageLoaded,
 }: Props) {
   const nodeProps: Konva.NodeConfig & KonvaNodeEvents = {
     draggable: isSelected && !layer.locked,
@@ -69,6 +72,7 @@ export function PostLayerRender({
       <PostImageLayer
         layer={layer} containerW={containerW} containerH={containerH} rawUrl={rawUrl}
         nodeRef={nodeRef as (n: Konva.Image | null) => void} nodeProps={nodeProps}
+        onImageLoaded={onImageLoaded}
       />
     );
   }

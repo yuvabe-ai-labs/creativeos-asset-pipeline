@@ -1,6 +1,7 @@
 // src/components/nodes/post-image-layer.tsx
 "use client";
 
+import { useEffect } from "react";
 import { Image as KonvaImage } from "react-konva";
 import useImage from "use-image";
 import type Konva from "konva";
@@ -18,6 +19,11 @@ type Props = {
   rawUrl: string | undefined;
   nodeRef: (node: Konva.Image | null) => void;
   nodeProps: Konva.NodeConfig;
+  // Reports the bitmap's natural size once it finishes loading, so a SEPARATE component
+  // (the inspector, which has no direct access to this file's useImage result) can offer
+  // a "reset to natural proportions" action. Fired from a useEffect keyed on the loaded
+  // `image` object, so it runs once per successful load, not on every render.
+  onImageLoaded: (layerId: string, naturalW: number, naturalH: number) => void;
 };
 
 // Draws nothing (an empty gap) while the image loads or when the source has no URL yet
@@ -33,8 +39,18 @@ type Props = {
 // than the layer's declared box, and the first drag/resize commits that fitted rect back
 // as the layer's geometry. It converges after one gesture (box ratio then matches the
 // image) and never distorts; a Group-based version is the V2 fix.
-export function PostImageLayer({ layer, containerW, containerH, rawUrl, nodeRef, nodeProps }: Props) {
+export function PostImageLayer({
+  layer, containerW, containerH, rawUrl, nodeRef, nodeProps, onImageLoaded,
+}: Props) {
   const [image] = useImage(rawUrl ? proxyImageSrc(rawUrl) : "", "anonymous");
+
+  useEffect(() => {
+    if (!image) return;
+    const naturalW = image.naturalWidth || image.width;
+    const naturalH = image.naturalHeight || image.height;
+    if (naturalW > 0 && naturalH > 0) onImageLoaded(layer.id, naturalW, naturalH);
+  }, [image, layer.id, onImageLoaded]);
+
   const geo = layerToKonvaProps(layer, containerW, containerH);
   return (
     <KonvaImage
