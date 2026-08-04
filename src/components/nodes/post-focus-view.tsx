@@ -1,8 +1,8 @@
 // src/components/nodes/post-focus-view.tsx
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, Layers as LayersIcon, Palette } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ArrowLeft, Layers as LayersIcon, Palette, Redo2, Undo2 } from "lucide-react";
 import { toast } from "sonner";
 import type Konva from "konva";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -25,6 +25,7 @@ import { PostAddMenu } from "./post-add-menu";
 import { PostInspector } from "./post-inspector";
 import { PostBrandTabStub } from "./post-brand-tab-stub";
 import { PostTemplatePicker } from "./post-template-picker";
+import { PostLayerContextMenu } from "./post-layer-context-menu";
 
 type ConnectedImageNode = { nodeId: string; url: string };
 
@@ -51,6 +52,16 @@ const ARROW_DIRECTIONS: Record<string, "up" | "down" | "left" | "right" | undefi
   ArrowRight: "right",
 };
 
+function layerKindLabel(layer: PostLayer): string {
+  switch (layer.kind) {
+    case "text": return "Text";
+    case "shape": return "Shape";
+    case "image": return "Image";
+    case "icon": return "Icon";
+    case "group": return "Group";
+  }
+}
+
 export function PostFocusView({
   open, onOpenChange, nodeId, title, format, templateId, layers: persistedLayers,
   autoPlacedNodeIds, connectedImageNodes, onPatch,
@@ -60,9 +71,10 @@ export function PostFocusView({
   const containerW = formatSpec.width * scale;
   const containerH = formatSpec.height * scale;
 
-  const { layers, selectedId, selectLayer, addText, addShape, addImage, addIcon, updateLayerLive,
-    commitLayerChange, replaceAllLayers, deleteLayer, duplicateLayer, reorder, toggleLock,
-    toggleHidden, undo, redo, canUndo, canRedo,
+  const { layers, selectedIds, selectLayer, toggleLayerSelection, selectMany, addText, addShape,
+    addImage, addIcon, updateLayerLive, commitLayerChange, replaceAllLayers, deleteSelection,
+    duplicateSelection, reorder, reorderToIndex, toggleLock, toggleHidden, group, ungroup,
+    copySelection, pasteClipboard, align, undo, redo, canUndo, canRedo,
   } = usePostEditor(persistedLayers ?? [], (next) => onPatch({ layers: next }));
 
   const [rail, setRail] = useState<"layers" | "brand">("layers");
@@ -71,6 +83,24 @@ export function PostFocusView({
   // picker out from under the operator, and "Start blank" has something real to turn off.
   const [pickerOpen, setPickerOpen] = useState(() => (persistedLayers ?? []).length === 0);
   const stageRef = useRef<Konva.Stage>(null);
+
+  // Reported by post-image-layer.tsx (via PostStage's onImageLoaded) once each image
+  // bitmap finishes loading — threaded into PostInspectorImage's "reset to original
+  // proportions" action. Keyed by layer id since multiple image layers can be loaded at
+  // once. `handleImageLoaded` uses the functional setState form so it never needs the
+  // current map in its closure, keeping its useCallback deps empty and its identity
+  // permanently stable — required so PostImageLayer's `[image, layer.id, onImageLoaded]`
+  // effect doesn't re-fire on every unrelated PostFocusView re-render.
+  const [naturalSizes, setNaturalSizes] = useState<Record<string, { width: number; height: number }>>({});
+  const handleImageLoaded = useCallback((layerId: string, naturalW: number, naturalH: number) => {
+    setNaturalSizes((prev) => ({ ...prev, [layerId]: { width: naturalW, height: naturalH } }));
+  }, []);
+
+  // Whether anything has been copied/cut this session — the hook's clipboard is a plain
+  // ref (deliberately non-reactive, see use-post-editor.ts), so this local flag is what
+  // drives the context menu's "Paste" enabled state. Paste itself already no-ops safely
+  // when the clipboard is empty, so this only affects the menu item's disabled styling.
+  const [hasClipboard, setHasClipboard] = useState(false);
 
   const { downloadPng, isExporting } = usePostExport({
     nodeId,
@@ -127,8 +157,17 @@ export function PostFocusView({
     setPickerOpen(false);
   }
 
+  function handleRenameLayer(id: string, name: string) {
+    updateLayerLive(id, { name });
+    commitLayerChange();
+  }
+
   const showTemplatePicker = pickerOpen;
-  const selectedLayer = layers.find((l) => l.id === selectedId) ?? null;
+  // Only populated for exactly one selected layer — a 2+ selection intentionally has no
+  // single "the" layer (see PostInspector's own selectedCount-driven states below).
+  const selectedLayer = selectedIds.length === 1
+    ? layers.find((l) => l.id === selectedIds[0]) ?? null
+    : null;
 
   // Keyboard shortcuts — guarded against typing in a field (isEditableTarget), same
   // pattern the canvas itself already uses for its own shortcuts.
@@ -137,31 +176,57 @@ export function PostFocusView({
     function onKeyDown(e: KeyboardEvent) {
       if (isEditableTarget(e.target as HTMLElement)) return;
       if (e.key === "Delete" || e.key === "Backspace") {
-        if (selectedId) { e.preventDefault(); deleteLayer(selectedId); }
+        if (selectedIds.length > 0) { e.preventDefault(); deleteSelection(); }
       } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "d") {
-        if (selectedId) { e.preventDefault(); duplicateLayer(selectedId); }
+        if (selectedIds.length > 0) { e.preventDefault(); duplicateSelection(); }
       } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") {
         e.preventDefault();
         if (e.shiftKey) redo(); else undo();
-      } else if (e.key === "]" && selectedId) {
-        reorder(selectedId, e.shiftKey ? "front" : "forward");
-      } else if (e.key === "[" && selectedId) {
-        reorder(selectedId, e.shiftKey ? "back" : "backward");
-      } else if (ARROW_DIRECTIONS[e.key] && selectedId && selectedLayer) {
+      } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "g") {
+        e.preventDefault();
+        if (e.shiftKey) ungroup(); else group();
+      } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "c") {
+        e.preventDefault();
+        copySelection();
+        setHasClipboard(true);
+      } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "v") {
+        e.preventDefault();
+        pasteClipboard();
+      } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "x") {
+        e.preventDefault();
+        copySelection();
+        deleteSelection();
+        setHasClipboard(true);
+      } else if (e.key === "]" && selectedIds.length === 1) {
+        // Reordering (front/forward/backward/back) has no bulk primitive in
+        // lib/post/layers.ts — gated to a single selection, same as ungroup, rather than
+        // looping the hook's single-id action across a multi-select (which would land as
+        // several separate undo steps for one keypress).
+        reorder(selectedIds[0], e.shiftKey ? "front" : "forward");
+      } else if (e.key === "[" && selectedIds.length === 1) {
+        reorder(selectedIds[0], e.shiftKey ? "back" : "backward");
+      } else if (ARROW_DIRECTIONS[e.key] && selectedIds.length > 0) {
         // Arrow keys nudge 1px, shift-arrow 10px (§5). preventDefault stops the sheet
         // scrolling underneath. A nudge is discrete, like a click — commit it as its own
-        // undo step immediately rather than coalescing a run of presses.
+        // undo step immediately rather than coalescing a run of presses. Unlike reorder
+        // above, nudging composes cleanly across a multi-select: updateLayerLive can be
+        // called once per layer against the same in-progress live snapshot, then landed
+        // as ONE commitLayerChange() — so every selected (unlocked) layer moves together.
         const direction = ARROW_DIRECTIONS[e.key]!;
         e.preventDefault();
-        if (selectedLayer.locked) return;
-        updateLayerLive(selectedId, nudge(selectedLayer, direction, containerW, containerH, e.shiftKey));
+        const targets = layers.filter((l) => selectedIds.includes(l.id) && !l.locked);
+        if (targets.length === 0) return;
+        for (const layer of targets) {
+          updateLayerLive(layer.id, nudge(layer, direction, containerW, containerH, e.shiftKey));
+        }
         commitLayerChange();
       }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open, selectedId, selectedLayer, containerW, containerH, updateLayerLive,
-      commitLayerChange, deleteLayer, duplicateLayer, undo, redo, reorder]);
+  }, [open, selectedIds, layers, containerW, containerH, updateLayerLive, commitLayerChange,
+      deleteSelection, duplicateSelection, undo, redo, reorder, group, ungroup, copySelection,
+      pasteClipboard]);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -212,6 +277,12 @@ export function PostFocusView({
                     ))}
                   </SelectContent>
                 </Select>
+                <Button variant="outline" size="icon" disabled={!canUndo} onClick={undo} aria-label="Undo">
+                  <Undo2 className="size-4" />
+                </Button>
+                <Button variant="outline" size="icon" disabled={!canRedo} onClick={redo} aria-label="Redo">
+                  <Redo2 className="size-4" />
+                </Button>
                 <Button variant="outline" size="sm" onClick={() => setPickerOpen(true)}>
                   Change template
                 </Button>
@@ -261,13 +332,16 @@ export function PostFocusView({
             {rail === "layers" ? (
               <PostLayerList
                 layers={layers}
-                selectedId={selectedId}
+                selectedIds={selectedIds}
                 onSelect={selectLayer}
+                onToggleSelect={toggleLayerSelection}
+                onRename={handleRenameLayer}
                 onReorder={reorder}
+                onReorderToIndex={reorderToIndex}
                 onToggleLock={toggleLock}
                 onToggleHidden={toggleHidden}
-                onDuplicate={duplicateLayer}
-                onDelete={deleteLayer}
+                onDuplicate={(id) => duplicateSelection([id])}
+                onDelete={(id) => deleteSelection([id])}
               />
             ) : (
               <PostBrandTabStub />
@@ -276,18 +350,39 @@ export function PostFocusView({
 
           {/* Stage */}
           <div className="relative flex flex-1 items-center justify-center overflow-auto bg-muted/10 p-6">
-            <PostStage
-              layers={layers}
-              containerW={containerW}
-              containerH={containerH}
-              selectedId={selectedId}
-              onSelect={selectLayer}
-              resolveNodeImageUrl={resolveNodeImageUrl}
-              updateLayerLive={updateLayerLive}
-              commitLayerChange={commitLayerChange}
-              stageRef={stageRef}
-              onCommitText={(id, text) => { updateLayerLive(id, { text } as Partial<PostLayer>); commitLayerChange(); }}
-            />
+            <PostLayerContextMenu
+              hasSelection={selectedIds.length > 0}
+              canGroup={selectedIds.length >= 2}
+              canUngroup={selectedIds.length === 1 && selectedLayer?.kind === "group"}
+              canPaste={hasClipboard}
+              isLocked={selectedIds.length === 1 && (selectedLayer?.locked ?? false)}
+              onCut={() => { copySelection(); deleteSelection(); setHasClipboard(true); }}
+              onCopy={() => { copySelection(); setHasClipboard(true); }}
+              onPaste={pasteClipboard}
+              onDuplicate={() => duplicateSelection()}
+              onDelete={() => deleteSelection()}
+              onToggleLock={() => { if (selectedIds.length === 1) toggleLock(selectedIds[0]); }}
+              onReorder={(direction) => { if (selectedIds.length === 1) reorder(selectedIds[0], direction); }}
+              onGroup={group}
+              onUngroup={ungroup}
+              onAlign={align}
+            >
+              <PostStage
+                layers={layers}
+                containerW={containerW}
+                containerH={containerH}
+                selectedIds={selectedIds}
+                onSelect={selectLayer}
+                onToggleSelect={toggleLayerSelection}
+                onSelectMany={selectMany}
+                resolveNodeImageUrl={resolveNodeImageUrl}
+                updateLayerLive={updateLayerLive}
+                commitLayerChange={commitLayerChange}
+                stageRef={stageRef}
+                onCommitText={(id, text) => { updateLayerLive(id, { text } as Partial<PostLayer>); commitLayerChange(); }}
+                onImageLoaded={handleImageLoaded}
+              />
+            </PostLayerContextMenu>
             <PostTemplatePicker
               open={showTemplatePicker}
               onPick={handlePickTemplate}
@@ -295,11 +390,23 @@ export function PostFocusView({
             />
           </div>
 
-          {/* Inspector */}
+          {/* Inspector — the shell (width/header) always renders regardless of selection
+              state; only the content below the header changes across 0/1/2+ selected. */}
           <div className="w-56 shrink-0 overflow-y-auto border-l border-border p-3">
+            <div className="text-eyebrow mb-2 !text-[0.6rem] text-muted-foreground">
+              {selectedIds.length === 0
+                ? "Inspector"
+                : selectedIds.length > 1
+                  ? `${selectedIds.length} layers selected`
+                  : selectedLayer ? layerKindLabel(selectedLayer) : "Inspector"}
+            </div>
             <PostInspector
               layer={selectedLayer}
-              onChange={(patch) => { if (selectedId) { updateLayerLive(selectedId, patch); commitLayerChange(); } }}
+              selectedCount={selectedIds.length}
+              onChange={(patch) => {
+                if (selectedLayer) { updateLayerLive(selectedLayer.id, patch); commitLayerChange(); }
+              }}
+              naturalSize={selectedLayer ? naturalSizes[selectedLayer.id] : undefined}
             />
           </div>
         </div>

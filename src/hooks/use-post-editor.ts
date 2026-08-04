@@ -6,7 +6,7 @@ import type { PostLayer, ImageLayer, ImageSource, IconSource } from "@/lib/post/
 import {
   createTextLayer, createShapeLayer, createImageLayer, createIconLayer,
   addLayer, removeLayer, updateLayer, duplicateLayer as duplicateLayerPure,
-  reorderLayer, toggleLock as toggleLockPure, toggleHidden as toggleHiddenPure,
+  reorderLayer, reorderLayerToIndex, toggleLock as toggleLockPure, toggleHidden as toggleHiddenPure,
   groupLayers, ungroupLayers, copyLayers, pasteLayers,
   type ReorderDirection,
 } from "@/lib/post/layers";
@@ -109,16 +109,29 @@ export function usePostEditor(
 
   // Deleting the whole current selection (one action = one undo step, matching every other
   // discrete action in this hook) — replaces the old single-id deleteLayer.
-  const deleteSelection = useCallback(() => {
-    const next = selectedIds.reduce((acc, id) => removeLayer(acc, id), history.present);
+  //
+  // `overrideIds` lets a caller act on a SPECIFIC id regardless of what's currently in
+  // `selectedIds` state — needed by the layer list's per-row delete button, whose click
+  // handler runs synchronously against this render's closure and can't rely on a
+  // `selectLayer(id)` call scheduled for the next render landing in time. Falls back to
+  // `selectedIds` when omitted, so every existing no-arg call site (shortcuts, context
+  // menu, toolbar) is unaffected.
+  const deleteSelection = useCallback((overrideIds?: string[]) => {
+    const ids = overrideIds ?? selectedIds;
+    if (ids.length === 0) return;
+    const next = ids.reduce((acc, id) => removeLayer(acc, id), history.present);
     applyCommitted(next);
-    setSelectedIds([]);
+    setSelectedIds((prev) => prev.filter((id) => !ids.includes(id)));
   }, [history.present, selectedIds]);
 
-  const duplicateSelection = useCallback(() => {
+  // Same `overrideIds` escape hatch as deleteSelection, for the same reason (layer list's
+  // per-row duplicate button).
+  const duplicateSelection = useCallback((overrideIds?: string[]) => {
+    const ids = overrideIds ?? selectedIds;
+    if (ids.length === 0) return;
     let next = history.present;
     const newIds: string[] = [];
-    for (const id of selectedIds) {
+    for (const id of ids) {
       const before = new Set(next.map((l) => l.id));
       next = duplicateLayerPure(next, id);
       const added = next.find((l) => !before.has(l.id));
@@ -130,6 +143,13 @@ export function usePostEditor(
 
   const reorder = useCallback((id: string, direction: ReorderDirection) => {
     applyCommitted(reorderLayer(history.present, id, direction));
+  }, [history.present]);
+
+  // Drag-and-drop reorder (post-layer-list.tsx) — targetIndex is in the same back-to-front
+  // space as `layers`/`reorderLayerToIndex` itself; the list converts from its reversed
+  // front-first display order before calling this.
+  const reorderToIndex = useCallback((id: string, targetIndex: number) => {
+    applyCommitted(reorderLayerToIndex(history.present, id, targetIndex));
   }, [history.present]);
 
   const toggleLock = useCallback((id: string) => {
@@ -229,6 +249,7 @@ export function usePostEditor(
     deleteSelection,
     duplicateSelection,
     reorder,
+    reorderToIndex,
     toggleLock,
     toggleHidden,
     group,
