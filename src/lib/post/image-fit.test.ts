@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeCoverCrop, computeContainRect } from "./image-fit";
+import { computeCoverCrop, computeContainRect, computeNaturalRatioReset } from "./image-fit";
 
 describe("computeCoverCrop", () => {
   it("trims the top and bottom of a portrait image in a landscape box", () => {
@@ -63,5 +63,41 @@ describe("computeContainRect", () => {
 
   it("degrades safely on a not-yet-measured image", () => {
     expect(computeContainRect(0, 0, 400, 200)).toEqual({ x: 0, y: 0, width: 400, height: 200 });
+  });
+});
+
+describe("computeNaturalRatioReset", () => {
+  it("recomputes height from width when width is the larger/dominant dimension", () => {
+    // natural image is 2:1 (e.g. 1000x500); box is currently squashed to 0.4 wide, 0.4 tall (1:1)
+    const box = { x: 0.1, y: 0.1, w: 0.4, h: 0.4 };
+    const result = computeNaturalRatioReset(box, 1000, 500);
+    expect(result.w).toBeCloseTo(0.4, 5); // width (the larger current dimension) stays
+    expect(result.h).toBeCloseTo(0.2, 5); // height recomputed: 0.4 * (500/1000)
+  });
+
+  it("recomputes width from height when height is the larger/dominant dimension", () => {
+    // natural image is 1:2 (portrait, e.g. 500x1000); box is currently 0.4 x 0.4
+    const box = { x: 0.1, y: 0.1, w: 0.4, h: 0.4 };
+    const result = computeNaturalRatioReset(box, 500, 1000);
+    expect(result.h).toBeCloseTo(0.4, 5);
+    expect(result.w).toBeCloseTo(0.2, 5);
+  });
+
+  it("keeps the box's CENTER point fixed, not its top-left corner", () => {
+    const box = { x: 0.1, y: 0.1, w: 0.4, h: 0.4 };
+    const centerX = box.x + box.w / 2;
+    const centerY = box.y + box.h / 2;
+    const result = computeNaturalRatioReset(box, 1000, 500); // -> w:0.4, h:0.2
+    expect(result.x + result.w / 2).toBeCloseTo(centerX, 5);
+    expect(result.y + result.h / 2).toBeCloseTo(centerY, 5);
+  });
+
+  it("is a no-op (returns the same box) when the box already matches the natural ratio", () => {
+    const box = { x: 0.2, y: 0.2, w: 0.4, h: 0.2 }; // already 2:1
+    const result = computeNaturalRatioReset(box, 1000, 500);
+    expect(result.w).toBeCloseTo(0.4, 5);
+    expect(result.h).toBeCloseTo(0.2, 5);
+    expect(result.x).toBeCloseTo(0.2, 5);
+    expect(result.y).toBeCloseTo(0.2, 5);
   });
 });

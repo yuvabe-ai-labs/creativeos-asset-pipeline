@@ -40,3 +40,30 @@ export function computeContainRect(
   const height = imgH * scale;
   return { x: (boxW - width) / 2, y: (boxH - height) / 2, width, height };
 }
+
+// Recompute a box back to the image's natural aspect ratio, keeping the box's CENTER
+// point fixed and keeping the LARGER of the box's current w/h unchanged. This prevents
+// a squashed-wide image from also shrinking down to a tiny thumbnail when resetting.
+export function computeNaturalRatioReset(
+  box: { x: number; y: number; w: number; h: number },
+  naturalW: number,
+  naturalH: number,
+): { x: number; y: number; w: number; h: number } {
+  const naturalRatio = naturalW / naturalH; // width/height
+  const centerX = box.x + box.w / 2;
+  const centerY = box.y + box.h / 2;
+
+  let w: number;
+  let h: number;
+  if (naturalW >= naturalH) {
+    // Landscape or square: width is the dominant dimension, keep it
+    w = box.w;
+    h = w / naturalRatio;
+  } else {
+    // Portrait: height is the dominant dimension, keep it
+    h = box.h;
+    w = h * naturalRatio;
+  }
+
+  return { x: centerX - w / 2, y: centerY - h / 2, w, h };
+}
