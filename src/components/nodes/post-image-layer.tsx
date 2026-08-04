@@ -7,6 +7,7 @@ import type Konva from "konva";
 import type { ImageLayer } from "@/lib/post/types";
 import { layerToKonvaProps } from "@/lib/post/layer-konva-props";
 import { proxyImageSrc } from "@/lib/post/proxy-image-src";
+import { computeCoverCrop, computeContainRect } from "@/lib/post/image-fit";
 
 type Props = {
   layer: ImageLayer;
@@ -25,6 +26,13 @@ type Props = {
 // its ref never fires with null just because `use-image` resets to undefined mid-reload.
 // That keeps nodeRefs.current/the Transformer attached across a source-URL change; the
 // ref only goes null when this layer is actually removed upstream in post-layer-render.tsx.
+//
+// Known nuance for fit:"contain": the Konva node IS the letterboxed rect (no wrapping
+// Group — adding one would mean re-wiring the nodeRef/Transformer plumbing this file's
+// comment above exists to protect), so the Transformer hugs the visible image rather
+// than the layer's declared box, and the first drag/resize commits that fitted rect back
+// as the layer's geometry. It converges after one gesture (box ratio then matches the
+// image) and never distorts; a Group-based version is the V2 fix.
 export function PostImageLayer({ layer, containerW, containerH, rawUrl, nodeRef, nodeProps }: Props) {
   const [image] = useImage(rawUrl ? proxyImageSrc(rawUrl) : "", "anonymous");
   const geo = layerToKonvaProps(layer, containerW, containerH);
@@ -33,8 +41,39 @@ export function PostImageLayer({ layer, containerW, containerH, rawUrl, nodeRef,
       ref={nodeRef}
       image={image}
       {...geo}
+      {...imageFitProps(layer.fit, image, geo)}
       cornerRadius={layer.radius}
       {...nodeProps}
     />
   );
+}
+
+// Konva's <Image> stretches the bitmap to width/height, so `fit` has to be applied by
+// hand — as a source CROP for "cover" and as an adjusted destination rect for "contain".
+// Returns nothing until the bitmap has loaded (natural size unknown -> nothing to fit).
+function imageFitProps(
+  fit: ImageLayer["fit"],
+  image: HTMLImageElement | undefined,
+  geo: { x: number; y: number; width: number; height: number; rotation: number },
+): Konva.NodeConfig {
+  const imgW = image?.naturalWidth || image?.width || 0;
+  const imgH = image?.naturalHeight || image?.height || 0;
+  if (imgW <= 0 || imgH <= 0 || geo.width <= 0 || geo.height <= 0) return {};
+
+  if (fit === "contain") {
+    // The whole image, centred, letterboxed inside the box. The offsets are in the
+    // layer's own (unrotated) frame, so rotate them before adding to the stage-space
+    // x/y — Konva rotates a node about its own x/y position.
+    const rect = computeContainRect(imgW, imgH, geo.width, geo.height);
+    const rad = ((geo.rotation ?? 0) * Math.PI) / 180;
+    const cos = Math.cos(rad);
+    const sin = Math.sin(rad);
+    return {
+      x: geo.x + rect.x * cos - rect.y * sin,
+      y: geo.y + rect.x * sin + rect.y * cos,
+      width: rect.width,
+      height: rect.height,
+    };
+  }
+  return { crop: computeCoverCrop(imgW, imgH, geo.width, geo.height) };
 }
