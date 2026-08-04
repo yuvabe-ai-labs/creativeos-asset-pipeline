@@ -114,9 +114,12 @@ describe("selectEditReferenceUrls", () => {
     ).toEqual(["urlB"]);
   });
 
-  it("empty selection falls back to all non-base urls (D27 default)", () => {
-    expect(selectEditReferenceUrls({ connected, selectedIds: [], baseUrl: "urlA" })).toEqual([
-      "urlB",
+  it("empty selection sends no extras — only the base image is edited (D101)", () => {
+    expect(selectEditReferenceUrls({ connected, selectedIds: [], baseUrl: "urlA" })).toEqual([]);
+  });
+
+  it("deselecting down to one keeps only that one", () => {
+    expect(selectEditReferenceUrls({ connected, selectedIds: ["c"], baseUrl: "urlA" })).toEqual([
       "urlC",
     ]);
   });

@@ -2020,3 +2020,34 @@ is UNVERIFIED — confirm before relaxing. O1's 4k tier is likewise unsettled: t
 inference, but the pricing table verified from kling.ai on 2026-07-24 has no O1 4k row, so the merge kept
 720p/1080p rather than expose a resolution that cannot be priced. **Rejected.** Sourcing O1's limits from
 fal.ai's wrapper, whose narrower values produced the wrong duration, audio and resolution sets.
+
+### D101 — Edit references are explicit: an empty selection sends no extras *(recorded 2026-08-04; reverses D27's "empty = all connected" default; refines D37/D39)*
+**Decision.** In Image Gen **Edit** mode, only the connected image nodes the operator has
+**ticked** under "References for this edit" are sent as `extraReferenceUrls`. An empty
+selection sends **no extras** — the edit sees only the base image. This replaces the D27
+default, in which an empty selection expanded to *all* other connected images. Enforced at
+both boundaries: `selectEditReferenceUrls` no longer falls back to `nonBase`, and the edit
+route no longer falls back to `connectedImageUrls` when the field is absent. **The Generate
+tab is unchanged** — there, all connected images remain references.
+
+**Why.** The tiles rendered as *unselected* (dashed border, no check) while the selection
+logic read `[]` as "unspecified → use everything", so edits silently received reference
+images the operator never picked — observed as a product tin bleeding into an edit whose
+tile was visibly unticked. The empty state also made "send no references" unreachable:
+deselecting the last tile returned `[]`, which re-expanded to all. One value, `[]`, carried
+two contradictory meanings across the view/logic seam; making selection explicit collapses
+them to one.
+
+**Rejected.** Seeding the selection with every connected id on open and keeping the D27
+default (would have preserved existing behaviour and only made it *visible*, but leaves the
+operator opted-in by default — the opposite of "explicit"); using `undefined` vs `[]` as a
+never-chosen/cleared discriminator (same effect, extra state ambiguity to carry in
+`editReferenceNodeIds` forever).
+
+**Migration.** None. `editReferenceNodeIds` keeps its shape; nodes that never ticked a tile
+now send no extras, which changes edit output on canvases tuned under the old default — the
+accepted cost of the fix. The `replace`/`add` intent warning was reworded to say ticking is
+required, since "connected" is no longer sufficient.
+
+**Originated.** Bug report 2026-08-04 (Image Gen edit mode); regression test in
+`src/lib/image-gen/__tests__/edit-prompt.test.ts`.

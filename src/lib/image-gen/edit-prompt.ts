@@ -80,18 +80,17 @@ export function resolveBaseNodeId(input: {
 }
 
 // Resolve the connected nodes the user marked as references for this edit into URLs. Base is
-// excluded (it's the image being edited, not an extra). Empty selection = the D27 default (all
-// other connected images). Order-preserving, deduped (spec §7).
+// excluded (it's the image being edited, not an extra). Selection is EXPLICIT: an empty
+// selection sends no extras, so the edit sees only the base image (D101 — reverses D27's
+// "empty = all connected" default, which sent references the operator never ticked).
+// Order-preserving, deduped (spec §7).
 export function selectEditReferenceUrls(input: {
   connected: Array<{ id: string; url: string }>;
   selectedIds: string[];
   baseUrl?: string;
 }): string[] {
   const nonBase = input.connected.filter((c) => !!c.url && c.url !== input.baseUrl);
-  const chosen =
-    input.selectedIds.length > 0
-      ? nonBase.filter((c) => input.selectedIds.includes(c.id))
-      : nonBase;
+  const chosen = nonBase.filter((c) => input.selectedIds.includes(c.id));
   const seen = new Set<string>();
   const out: string[] = [];
   for (const c of chosen) {

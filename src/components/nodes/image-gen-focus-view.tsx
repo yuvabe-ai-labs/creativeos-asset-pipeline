@@ -419,8 +419,8 @@ export function ImageGenFocusView({
     violation: refViolationsByUrl.get(n.url),
   }));
 
-  // Extras = the connected image nodes the user marked (base excluded). Empty selection falls
-  // back to "all other connected images" (D27 default) via selectEditReferenceUrls.
+  // Extras = the connected image nodes the user ticked (base excluded). Selection is explicit
+  // (D101): tick nothing and the edit sees only the base image — no silent "all connected".
   const selectedExtraUrls = selectEditReferenceUrls({
     connected: connectedImageNodes,
     selectedIds: selectedRefIds,
