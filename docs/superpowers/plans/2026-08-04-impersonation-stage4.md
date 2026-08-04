@@ -852,12 +852,15 @@ vi.mock("@/lib/dal", () => ({
   resolveOrgId: vi.fn(async () => "org-1"),
 }));
 
-const resolveImpersonationStateMock = vi.fn(async () => ({ isImpersonating: false }) as const);
+// vi.hoisted() required: vi.mock() factories are hoisted above plain top-level consts
+// (same gotcha as Task 4's test file — see its comment for the full explanation).
+const { resolveImpersonationStateMock, logMock } = vi.hoisted(() => ({
+  resolveImpersonationStateMock: vi.fn(async () => ({ isImpersonating: false }) as const),
+  logMock: vi.fn(async () => undefined),
+}));
 vi.mock("@/lib/auth/impersonation", () => ({
   resolveImpersonationState: resolveImpersonationStateMock,
 }));
-
-const logMock = vi.fn(async () => undefined);
 vi.mock("@/lib/db/impersonation-audit", () => ({ logImpersonationEvent: logMock }));
 
 vi.mock("@/lib/db/clients", () => ({
