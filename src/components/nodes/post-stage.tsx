@@ -1,7 +1,7 @@
 // src/components/nodes/post-stage.tsx
 "use client";
 
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Stage, Layer, Transformer, Rect } from "react-konva";
 import type Konva from "konva";
 import type { PostLayer } from "@/lib/post/types";
@@ -140,6 +140,28 @@ export function PostStage({
     dragStartRef.current = null;
     setSelectionRect(null);
   }
+
+  // Native `mouseup` is only bound on the Konva Stage's own container element, so releasing
+  // the button anywhere else on the page (a side panel, the header, even outside the browser
+  // window) never reaches handleStageMouseUp — the rubber-band state is left stuck forever,
+  // and the dashed marquee keeps rendering until the next mousedown on the canvas happens to
+  // reset it. Fix: also finish the drag from a `window`-level listener, which sees `mouseup`
+  // regardless of what element the release lands on. A ref mirrors the latest
+  // handleStageMouseUp closure so the listener itself can be registered once on mount
+  // (avoids churn from re-subscribing on every selectionRect/layers change) while still
+  // reading current props/state when it fires. Calling handleStageMouseUp a second time for
+  // the same mouseup (once via Stage's own binding, once via this listener, since the native
+  // event bubbles to window regardless) is harmless: the first call already nulled out
+  // dragStartRef.current/selectionRect, so the second call hits the early-return branch.
+  const handleStageMouseUpRef = useRef(handleStageMouseUp);
+  handleStageMouseUpRef.current = handleStageMouseUp;
+  useEffect(() => {
+    function onWindowMouseUp() {
+      handleStageMouseUpRef.current();
+    }
+    window.addEventListener("mouseup", onWindowMouseUp);
+    return () => window.removeEventListener("mouseup", onWindowMouseUp);
+  }, []);
 
   return (
     <div className="relative">
