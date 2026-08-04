@@ -16,6 +16,7 @@ import { POST_FORMATS } from "@/lib/post/formats";
 import type { PostFormat } from "@/lib/post/types";
 import type { PostTemplate } from "@/lib/post/templates";
 import { usePostEditor } from "@/hooks/use-post-editor";
+import { usePostExport } from "@/hooks/use-post-export";
 import { EditableField } from "./editable-field";
 import { PostStage } from "./post-stage";
 import { PostLayerList } from "./post-layer-list";
@@ -56,6 +57,15 @@ export function PostFocusView({
   const [rail, setRail] = useState<"layers" | "brand">("layers");
   const [changingTemplate, setChangingTemplate] = useState(false);
   const stageRef = useRef<Konva.Stage>(null);
+
+  const { downloadPng, isExporting } = usePostExport({
+    nodeId,
+    stageRef,
+    format: format ?? "ig-square",
+    title,
+    onDeselect: () => selectLayer(null),
+    onPatch,
+  });
 
   // Auto-place the first connected image, per the product decision: a Post node starts
   // empty, and connecting an image node makes it show up immediately, without a manual
@@ -165,8 +175,9 @@ export function PostFocusView({
                 <Button variant="outline" size="sm" disabled title="Publishing is coming soon">
                   Publish
                 </Button>
-                {/* Download is wired in Task 23 — this button is inert until then. */}
-                <Button size="sm" disabled title="Coming in Task 23">Download</Button>
+                <Button size="sm" onClick={downloadPng} disabled={isExporting}>
+                  {isExporting ? "Exporting…" : "Download"}
+                </Button>
               </div>
             </header>
           </div>
