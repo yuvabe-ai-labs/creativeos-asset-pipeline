@@ -83,12 +83,18 @@ export type KonvaShapeFillProps = {
   fillLinearGradientEndPoint?: Point;
   fillLinearGradientColorStops?: (number | string)[];
   cornerRadius: number;
+  stroke?: string;
+  strokeWidth?: number;
 };
 
+// layer.stroke is optional (Task-prior addition to ShapeLayer) — when set, Konva's Rect
+// takes its own stroke/strokeWidth props alongside fill, so this passes both through
+// regardless of whether the fill itself is solid or gradient.
 export function shapeLayerFillProps(layer: ShapeLayer, widthPx: number, heightPx: number): KonvaShapeFillProps {
-  const { fill } = layer;
+  const { fill, stroke } = layer;
+  const strokeProps = stroke ? { stroke: stroke.color, strokeWidth: stroke.width } : {};
   if (fill.kind === "solid") {
-    return { fill: fill.color, cornerRadius: layer.radius };
+    return { fill: fill.color, cornerRadius: layer.radius, ...strokeProps };
   }
   const { start, end } = gradientPoints(fill.angle, widthPx, heightPx);
   return {
@@ -96,5 +102,6 @@ export function shapeLayerFillProps(layer: ShapeLayer, widthPx: number, heightPx
     fillLinearGradientEndPoint: end,
     fillLinearGradientColorStops: [0, fill.from, 1, fill.to],
     cornerRadius: layer.radius,
+    ...strokeProps,
   };
 }

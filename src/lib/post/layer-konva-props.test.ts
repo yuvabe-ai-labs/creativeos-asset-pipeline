@@ -85,4 +85,33 @@ describe("shapeLayerFillProps", () => {
     expect(props.fillLinearGradientColorStops).toEqual([0, "rgba(0,0,0,0)", 1, "rgba(0,0,0,0.72)"]);
     expect(props.cornerRadius).toBe(0);
   });
+
+  it("no stroke on the layer -> stroke/strokeWidth are omitted", () => {
+    const layer = createShapeLayer({ fill: { kind: "solid", color: "#5829c7" }, radius: 12 });
+    const props = shapeLayerFillProps(layer, 200, 100);
+    expect(props.stroke).toBeUndefined();
+    expect(props.strokeWidth).toBeUndefined();
+  });
+
+  it("a stroke on the layer maps to Konva's stroke/strokeWidth, alongside a solid fill", () => {
+    const layer = createShapeLayer({
+      fill: { kind: "solid", color: "#5829c7" },
+      radius: 12,
+      stroke: { color: "#1e1e1e", width: 3 },
+    });
+    expect(shapeLayerFillProps(layer, 200, 100)).toEqual({
+      fill: "#5829c7", cornerRadius: 12, stroke: "#1e1e1e", strokeWidth: 3,
+    });
+  });
+
+  it("a stroke on the layer maps through alongside a gradient fill too", () => {
+    const layer = createShapeLayer({
+      fill: { kind: "gradient", from: "rgba(0,0,0,0)", to: "rgba(0,0,0,0.72)", angle: 0 },
+      radius: 0,
+      stroke: { color: "#ffffff", width: 1 },
+    });
+    const props = shapeLayerFillProps(layer, 400, 200);
+    expect(props.stroke).toBe("#ffffff");
+    expect(props.strokeWidth).toBe(1);
+  });
 });

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { AlignCenter, AlignLeft, AlignRight } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -18,6 +19,9 @@ const ALIGN_OPTIONS = [
 ];
 
 export function PostInspectorText({ layer, onChange }: Props) {
+  const [sizeDraft, setSizeDraft] = useState(String(displayFontSize(layer.fontSize)));
+  useEffect(() => setSizeDraft(String(displayFontSize(layer.fontSize))), [layer.fontSize]);
+
   return (
     <div className="space-y-3">
       <div>
@@ -38,8 +42,9 @@ export function PostInspectorText({ layer, onChange }: Props) {
           <label className="text-eyebrow mb-1 block !text-[0.6rem]">Size</label>
           <Input
             type="number" min={8} max={400}
-            value={displayFontSize(layer.fontSize)}
-            onChange={(e) => onChange({ fontSize: fontSizeFromDisplay(Number(e.target.value)) })}
+            value={sizeDraft}
+            onChange={(e) => setSizeDraft(e.target.value)}
+            onBlur={() => onChange({ fontSize: fontSizeFromDisplay(Number(sizeDraft)) })}
             className="text-xs"
           />
         </div>
