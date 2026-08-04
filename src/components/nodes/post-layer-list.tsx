@@ -1,7 +1,7 @@
 // src/components/nodes/post-layer-list.tsx
 "use client";
 
-import { useState, type DragEvent, type MouseEvent } from "react";
+import { useState, type DragEvent } from "react";
 import { Copy, Eye, EyeOff, GripVertical, Lock, Trash2, Unlock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -51,7 +51,7 @@ export function PostLayerList({
     return <p className="text-sm text-muted-foreground">No layers yet — use Add to start.</p>;
   }
 
-  function handleSelect(e: MouseEvent, id: string) {
+  function handleSelect(e: { shiftKey: boolean; ctrlKey: boolean; metaKey: boolean }, id: string) {
     if (e.shiftKey || e.ctrlKey || e.metaKey) onToggleSelect(id);
     else onSelect(id);
   }
@@ -102,7 +102,7 @@ export function PostLayerList({
               />
             ) : (
               <span
-                className="flex-1 truncate"
+                className="flex-1 truncate cursor-pointer rounded-sm underline decoration-transparent decoration-dotted decoration-2 underline-offset-4 transition-colors hover:bg-primary/5 hover:decoration-primary/50"
                 onDoubleClick={(e) => {
                   e.stopPropagation();
                   setRenamingId(layer.id);
@@ -118,7 +118,7 @@ export function PostLayerList({
         return (
           <li
             key={layer.id}
-            draggable={!layer.locked}
+            draggable={!layer.locked && !isRenaming}
             onDragStart={(e) => handleDragStart(e, layer.id)}
             onDragOver={(e) => handleDragOver(e, layer.id)}
             onDragLeave={() => setDragOverId((cur) => (cur === layer.id ? null : cur))}
@@ -147,8 +147,16 @@ export function PostLayerList({
                 // Input/Textarea unmounts (commit or Escape), reverting this row back to the
                 // plain selectable button below.
                 <div
+                  role="button"
+                  tabIndex={0}
                   className="flex flex-1 items-center gap-1.5 min-w-0 text-left"
                   onClick={(e) => handleSelect(e, layer.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      if (e.key === " ") e.preventDefault();
+                      handleSelect(e, layer.id);
+                    }
+                  }}
                   onBlur={() => setRenamingId(null)}
                 >
                   {rowInner}
