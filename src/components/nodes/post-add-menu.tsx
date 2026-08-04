@@ -3,6 +3,11 @@
 import { useRef, useState } from "react";
 import {
   Plus, Type, Square, ImageIcon, Smile, Phone, MapPin, Mail, Check, ArrowRight, Star, Share2,
+  ShoppingCart, CreditCard, Tag, Truck, Gift, ShoppingBag, Package, Percent, Award, Target,
+  MessageCircle, Bell, Users, User,
+  ArrowUpRight, ArrowDown, ArrowLeft, Navigation,
+  Calendar, Clock, Globe, Wifi, Zap, TrendingUp, Home, Play, Pause, Volume2, Camera, Video,
+  Music, Heart, ThumbsUp,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -18,22 +23,84 @@ type Props = {
   onAddIcon: (src: IconSource) => void;
 };
 
+type LucideEntry = { name: string; label: string; Icon: typeof Phone };
+type LucideGroup = { group: string; items: LucideEntry[] };
+
 // Curated preset — generic Lucide pictograms plus the social marks a contact strip
 // needs (Simple Icons, since Lucide 1.0 removed all brand marks — §7.2). Not a full
-// searchable icon library: the PRD's scope rule rules that out for V1.
-const LUCIDE_PRESET: { name: string; label: string; Icon: typeof Phone }[] = [
-  { name: "phone", label: "Phone", Icon: Phone },
-  { name: "map-pin", label: "Location", Icon: MapPin },
-  { name: "mail", label: "Email", Icon: Mail },
-  { name: "check", label: "Check", Icon: Check },
-  { name: "arrow-right", label: "Arrow", Icon: ArrowRight },
-  { name: "star", label: "Star", Icon: Star },
+// searchable icon library: the PRD's scope rule rules that out for V1. Grouped so the
+// picker grid reads as sections instead of one undifferentiated wall of glyphs.
+const LUCIDE_PRESET: LucideGroup[] = [
+  {
+    group: "Communication",
+    items: [
+      { name: "phone", label: "Phone", Icon: Phone },
+      { name: "mail", label: "Email", Icon: Mail },
+      { name: "map-pin", label: "Location", Icon: MapPin },
+      { name: "message-circle", label: "Message", Icon: MessageCircle },
+      { name: "bell", label: "Notify", Icon: Bell },
+      { name: "share-2", label: "Share", Icon: Share2 },
+      { name: "users", label: "Team", Icon: Users },
+      { name: "user", label: "Person", Icon: User },
+    ],
+  },
+  {
+    group: "Commerce",
+    items: [
+      { name: "shopping-cart", label: "Cart", Icon: ShoppingCart },
+      { name: "shopping-bag", label: "Bag", Icon: ShoppingBag },
+      { name: "credit-card", label: "Payment", Icon: CreditCard },
+      { name: "tag", label: "Tag", Icon: Tag },
+      { name: "percent", label: "Discount", Icon: Percent },
+      { name: "truck", label: "Delivery", Icon: Truck },
+      { name: "package", label: "Package", Icon: Package },
+      { name: "gift", label: "Gift", Icon: Gift },
+      { name: "award", label: "Award", Icon: Award },
+      { name: "target", label: "Target", Icon: Target },
+    ],
+  },
+  {
+    group: "Arrows & UI",
+    items: [
+      { name: "check", label: "Check", Icon: Check },
+      { name: "arrow-right", label: "Arrow", Icon: ArrowRight },
+      { name: "arrow-up-right", label: "Arrow Up", Icon: ArrowUpRight },
+      { name: "arrow-down", label: "Arrow Down", Icon: ArrowDown },
+      { name: "arrow-left", label: "Arrow Left", Icon: ArrowLeft },
+      { name: "navigation", label: "Navigate", Icon: Navigation },
+      { name: "star", label: "Star", Icon: Star },
+    ],
+  },
+  {
+    group: "Misc",
+    items: [
+      { name: "calendar", label: "Calendar", Icon: Calendar },
+      { name: "clock", label: "Clock", Icon: Clock },
+      { name: "globe", label: "Globe", Icon: Globe },
+      { name: "wifi", label: "Wifi", Icon: Wifi },
+      { name: "zap", label: "Zap", Icon: Zap },
+      { name: "trending-up", label: "Trending", Icon: TrendingUp },
+      { name: "home", label: "Home", Icon: Home },
+      { name: "heart", label: "Heart", Icon: Heart },
+      { name: "thumbs-up", label: "Like", Icon: ThumbsUp },
+      { name: "play", label: "Play", Icon: Play },
+      { name: "pause", label: "Pause", Icon: Pause },
+      { name: "volume-2", label: "Volume", Icon: Volume2 },
+      { name: "camera", label: "Camera", Icon: Camera },
+      { name: "image", label: "Image", Icon: ImageIcon },
+      { name: "video", label: "Video", Icon: Video },
+      { name: "music", label: "Music", Icon: Music },
+    ],
+  },
 ];
 const SIMPLE_PRESET: { name: string; label: string }[] = [
   { name: "instagram", label: "Instagram" },
   { name: "facebook", label: "Facebook" },
   { name: "whatsapp", label: "WhatsApp" },
   { name: "linkedin", label: "LinkedIn" },
+  { name: "x", label: "X" },
+  { name: "youtube", label: "YouTube" },
+  { name: "tiktok", label: "TikTok" },
 ];
 
 export function PostAddMenu({ nodeId, onAddText, onAddShape, onAddImageUrl, onAddIcon }: Props) {
@@ -103,25 +170,37 @@ export function PostAddMenu({ nodeId, onAddText, onAddShape, onAddImageUrl, onAd
             />
           </div>
         ) : (
-          <div className="grid grid-cols-4 gap-1">
-            {LUCIDE_PRESET.map(({ name, label, Icon }) => (
-              <Button
-                key={name} variant="ghost" size="icon" title={label}
-                onClick={() => { onAddIcon({ kind: "lucide", name }); setOpen(false); }}
-              >
-                <Icon className="size-4" />
-              </Button>
+          <div className="max-h-80 overflow-y-auto pr-1">
+            {LUCIDE_PRESET.map(({ group, items }) => (
+              <div key={group} className="mb-2">
+                <p className="text-eyebrow px-1 pb-1 text-[0.6rem]!">{group}</p>
+                <div className="grid grid-cols-4 gap-1">
+                  {items.map(({ name, label, Icon }) => (
+                    <Button
+                      key={name} variant="ghost" size="icon" title={label}
+                      onClick={() => { onAddIcon({ kind: "lucide", name }); setOpen(false); }}
+                    >
+                      <Icon className="size-4" />
+                    </Button>
+                  ))}
+                </div>
+              </div>
             ))}
-            {SIMPLE_PRESET.map(({ name, label }) => (
-              <Button
-                key={name} variant="ghost" size="icon" title={label}
-                onClick={() => { onAddIcon({ kind: "simple", name }); setOpen(false); }}
-              >
-                {/* A generic placeholder glyph in the picker row — the actual brand mark
-                    renders correctly once placed, via PostIconLayer's Simple Icons path. */}
-                <Share2 className="size-4 opacity-40" />
-              </Button>
-            ))}
+            <div>
+              <p className="text-eyebrow px-1 pb-1 text-[0.6rem]!">Brands</p>
+              <div className="grid grid-cols-4 gap-1">
+                {SIMPLE_PRESET.map(({ name, label }) => (
+                  <Button
+                    key={name} variant="ghost" size="icon" title={label}
+                    onClick={() => { onAddIcon({ kind: "simple", name }); setOpen(false); }}
+                  >
+                    {/* A generic placeholder glyph in the picker row — the actual brand mark
+                        renders correctly once placed, via PostIconLayer's Simple Icons path. */}
+                    <Share2 className="size-4 opacity-40" />
+                  </Button>
+                ))}
+              </div>
+            </div>
           </div>
         )}
       </PopoverContent>
