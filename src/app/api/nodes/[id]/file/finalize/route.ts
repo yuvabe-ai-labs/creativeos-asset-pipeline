@@ -20,6 +20,11 @@ export async function POST(
     size?: number;
     imageWidth?: number;
     imageHeight?: number;
+    // Opt-in: keep the node's existing `data.fileUrl` object instead of deleting it.
+    // For nodes whose `fileUrl` is a RENDER OUTPUT rather than an upload slot (the Post
+    // node's flattened PNG), an asset upload under the same node must not destroy it.
+    // Defaults to false, so every existing caller keeps the replace-and-clean behaviour.
+    keepExisting?: boolean;
   } | null;
   if (!body?.path || !body.filename) {
     return apiError("path and filename are required.", 400);
@@ -55,7 +60,7 @@ export async function POST(
 
   const existingUrl = (nodeRow as { data: Record<string, unknown> }).data
     ?.fileUrl as string | undefined;
-  if (existingUrl) {
+  if (existingUrl && !body.keepExisting) {
     try {
       await removeObject(existingUrl);
     } catch {

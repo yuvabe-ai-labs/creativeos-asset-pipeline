@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import {
   Plus, Type, Square, ImageIcon, Smile, Phone, MapPin, Mail, Check, ArrowRight, Star, Share2,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { fileNodeService } from "@/services/file-node.service";
@@ -45,9 +46,15 @@ export function PostAddMenu({ nodeId, onAddText, onAddShape, onAddImageUrl, onAd
     if (!file) return;
     setUploading(true);
     try {
-      const result = await fileNodeService.upload(nodeId, file);
+      // keepExisting: this is a LAYER asset parked under the post node, not the post's
+      // own output. Without it, /file/finalize deletes `data.fileUrl` — which for a Post
+      // node is the flattened render written by exportRender — and the canvas thumbnail
+      // plus getNodeOutput are left pointing at a deleted object.
+      const result = await fileNodeService.upload(nodeId, file, { keepExisting: true });
       if (result.fileUrl) onAddImageUrl(result.fileUrl);
       setOpen(false);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Upload failed");
     } finally {
       setUploading(false);
       if (inputRef.current) inputRef.current.value = "";
