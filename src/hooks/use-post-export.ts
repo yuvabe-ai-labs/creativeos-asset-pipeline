@@ -30,8 +30,13 @@ export function usePostExport({ nodeId, stageRef, format, title, onDeselect, onP
       // Transformer and repaints) to finish before toBlob captures pixels — without it,
       // the capture can race ahead of the redraw and still show selection handles.
       flushSync(() => onDeselect());
-      const result = await postNodeService.exportRender(nodeId, stage, format, title);
+      // `downscaled` is a property of THIS run, not of the render — keep it out of the
+      // patch so it never lands in node data.
+      const { downscaled, ...result } = await postNodeService.exportRender(nodeId, stage, format, title);
       onPatch(result);
+      if (downscaled) {
+        toast.warning("A4 at 300 DPI was over the 10 MB upload limit — exported at 150 DPI instead.");
+      }
       const res = await fetch(result.fileUrl);
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
