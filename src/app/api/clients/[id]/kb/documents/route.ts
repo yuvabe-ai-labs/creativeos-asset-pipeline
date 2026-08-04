@@ -22,7 +22,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withClient(params, async (clientId) => {
+  return withClient(req, params, async (clientId) => {
     const fileResult = await parseFormFile(req);
     if (isApiError(fileResult)) return fileResult;
     const { file } = fileResult;
@@ -78,7 +78,7 @@ export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withClient(params, async (clientId) => {
+  return withClient(req, params, async (clientId) => {
     const docId = new URL(req.url).searchParams.get("docId");
     if (!docId) return apiError("docId query param required.", 400);
 

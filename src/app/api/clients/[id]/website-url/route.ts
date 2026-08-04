@@ -14,7 +14,7 @@ export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withClient(params, async (clientId) => {
+  return withClient(req, params, async (clientId) => {
     return withTryCatch("Failed to save website URL", async () => {
       let body: unknown;
       try {

@@ -2,9 +2,9 @@ import { NextRequest } from "next/server";
 import { apiError, apiOk, withMoodboard } from "@/lib/api/route-helpers";
 import { listItems, addItem } from "@/lib/db/moodboards";
 
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  return withMoodboard(id, async (moodboardId) => {
+  return withMoodboard(req, id, async (moodboardId) => {
     const items = await listItems(moodboardId);
     return apiOk({ items });
   });
@@ -12,7 +12,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  return withMoodboard(id, async (moodboardId) => {
+  return withMoodboard(req, id, async (moodboardId) => {
     let body: { imageUrl?: string; sourceUrl?: string };
     try {
       body = await req.json();

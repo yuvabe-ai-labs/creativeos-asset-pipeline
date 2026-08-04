@@ -5,10 +5,10 @@ import { apiError, apiOk, withCanvas } from "@/lib/api/route-helpers";
 // Legacy generations that predate the credit system have credits_charged = null and simply
 // don't contribute — not backfilled.
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withCanvas(params, async (canvasId) => {
+  return withCanvas(req, params, async (canvasId) => {
     const supabase = createServerSupabase();
 
     const { data: nodes, error: nodesErr } = await supabase

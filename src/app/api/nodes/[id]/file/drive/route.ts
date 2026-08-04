@@ -24,7 +24,7 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  return withNode(params, async (nodeId, node) => {
+  return withNode(req, params, async (nodeId, node) => {
     let body: { driveFileId?: string; driveFileName?: string; driveMimeType?: string };
     try {
       body = await req.json();

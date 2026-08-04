@@ -4,10 +4,10 @@ import { apiOk, withClient, withTryCatch } from "@/lib/api/route-helpers";
 // GET /api/clients/:id/kb/active — returns active KB version meta + documents + images.
 // Used by the KB node's sheet.
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withClient(params, async (clientId) => {
+  return withClient(req, params, async (clientId) => {
     return withTryCatch("Failed to fetch KB data", async () => {
       const [version, documents, images] = await Promise.all([
         getActiveKBVersion(clientId),

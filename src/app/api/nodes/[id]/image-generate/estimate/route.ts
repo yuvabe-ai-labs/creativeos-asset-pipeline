@@ -10,7 +10,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withNode(params, async () => {
+  return withNode(req, params, async () => {
     const body = (await req.json().catch(() => null)) as
       | {
           modelId?: unknown;

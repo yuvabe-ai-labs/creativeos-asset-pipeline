@@ -2,10 +2,10 @@ import { getUpstreamOutputs } from "@/lib/db/nodes";
 import { apiError, apiOk, withNode } from "@/lib/api/route-helpers";
 
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withNode(params, async (nodeId) => {
+  return withNode(req, params, async (nodeId) => {
     try {
       const direct = await getUpstreamOutputs(nodeId);
 

@@ -9,7 +9,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withNode(params, async (nodeId) => {
+  return withNode(req, params, async (nodeId) => {
     const body = (await req.json().catch(() => null)) as { slices?: unknown } | null;
 
     const resolved = await resolvePromptInputs(nodeId, body?.slices);

@@ -12,10 +12,10 @@ export type CanvasGenerationItem = {
 };
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  return withCanvas(params, async (canvasId) => {
+  return withCanvas(req, params, async (canvasId) => {
     const supabase = createServerSupabase();
 
     // Step 1: fetch all nodes in this canvas

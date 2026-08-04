@@ -11,10 +11,10 @@ import { apiError, apiOk, withNode } from "@/lib/api/route-helpers";
 // rehydrate on canvas reload (D28: capture-only; this READS the captured row, no panel).
 // Returns the frozen 4 ideas + the role that produced them + that row's id.
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withNode(params, async (nodeId) => {
+  return withNode(req, params, async (nodeId) => {
     const rows = await listVersions(nodeId); // newest first (created_at desc)
     const latest = rows.find(
       (v) => (v.params_used as { promptId?: string } | null)?.promptId === shotComposePrompt.id && !v.error,
@@ -40,7 +40,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withNode(params, async (nodeId) => {
+  return withNode(req, params, async (nodeId) => {
     const body = (await req.json().catch(() => null)) as
       | { role?: unknown; slices?: unknown }
       | null;
