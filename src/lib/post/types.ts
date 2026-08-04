@@ -29,7 +29,12 @@ export type Fill =
   | { kind: "solid"; color: string }
   | { kind: "gradient"; from: string; to: string; angle: number };
 
-export type ShapeLayer = LayerBase & { kind: "shape"; fill: Fill; radius: number };
+export type ShapeLayer = LayerBase & {
+  kind: "shape";
+  fill: Fill;
+  radius: number;
+  stroke?: { color: string; width: number };
+};
 
 export type ImageSource =
   | { kind: "node"; nodeId: string } // live — resolved from a connected node at render time
@@ -49,7 +54,14 @@ export type IconSource =
 
 export type IconLayer = LayerBase & { kind: "icon"; src: IconSource; color?: string };
 
-export type PostLayer = TextLayer | ShapeLayer | ImageLayer | IconLayer;
+// A group's own x/y/w/h is the bounding box of its children at creation time; children keep
+// their own x/y/w/h as absolute (not group-relative) normalized coordinates — post-group-layer.tsx
+// (Task 7) renders them via a Konva Group whose own x/y/rotation transform is applied on top, so
+// child coordinates stay in the SAME normalized-canvas space children already use everywhere else
+// in this codebase (no new relative-coordinate system to reason about).
+export type GroupLayer = LayerBase & { kind: "group"; childIds: string[] };
+
+export type PostLayer = TextLayer | ShapeLayer | ImageLayer | IconLayer | GroupLayer;
 
 export type PostBackground =
   | { kind: "color"; color: string }
