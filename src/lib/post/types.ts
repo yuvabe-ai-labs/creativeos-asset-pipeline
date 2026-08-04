@@ -59,7 +59,16 @@ export type IconLayer = LayerBase & { kind: "icon"; src: IconSource; color?: str
 // (Task 7) renders them via a Konva Group whose own x/y/rotation transform is applied on top, so
 // child coordinates stay in the SAME normalized-canvas space children already use everywhere else
 // in this codebase (no new relative-coordinate system to reason about).
-export type GroupLayer = LayerBase & { kind: "group"; childIds: string[] };
+// `children` is the actual storage for each child's full layer data (name, kind, text, style...):
+// grouping removes children from the top-level layers array, so this is the only place their data
+// lives afterwards. `childIds` mirrors `children`'s ids/order and exists so id-only lookups (and
+// callers that don't need full layer data) don't have to unpack `children`. It's optional only so
+// constructing a bare GroupLayer without it still type-checks; groupLayers always sets it.
+export type GroupLayer = LayerBase & {
+  kind: "group";
+  childIds: string[];
+  children?: PostLayer[];
+};
 
 export type PostLayer = TextLayer | ShapeLayer | ImageLayer | IconLayer | GroupLayer;
 

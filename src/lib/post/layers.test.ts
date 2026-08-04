@@ -229,4 +229,113 @@ describe("copyLayers / pasteLayers", () => {
     const ids = twice.map((l) => l.id);
     expect(new Set(ids).size).toBe(ids.length);
   });
+
+  it("copyLayers regenerates a GroupLayer's child ids too, keeping children/childIds consistent", () => {
+    const a = createTextLayer({ name: "a" });
+    const b = createShapeLayer({ name: "b" });
+    const grouped = groupLayers([a, b], [a.id, b.id]);
+    const group = grouped.find((l) => l.kind === "group") as GroupLayer;
+    const [copy] = copyLayers(grouped, [group.id]) as [GroupLayer];
+
+    expect(copy.id).not.toBe(group.id);
+    expect(copy.childIds).toHaveLength(2);
+    // fresh ids, none reused from the original group's children
+    expect(copy.childIds).not.toEqual(group.childIds);
+    for (const id of copy.childIds) {
+      expect(group.childIds).not.toContain(id);
+    }
+    // children stays in sync with childIds
+    expect(copy.children?.map((c) => c.id)).toEqual(copy.childIds);
+    // child payload (e.g. names) is preserved, only ids changed
+    expect(copy.children?.map((c) => c.name)).toEqual(["a", "b"]);
+  });
+
+  it("copy -> paste -> ungroup both copies of a group does not collide child ids", () => {
+    const a = createTextLayer({ name: "a" });
+    const b = createShapeLayer({ name: "b" });
+    const grouped = groupLayers([a, b], [a.id, b.id]);
+    const group = grouped.find((l) => l.kind === "group") as GroupLayer;
+
+    const clipboard = copyLayers(grouped, [group.id]);
+    const pasted = pasteLayers(grouped, clipboard);
+    const pastedGroup = pasted.find(
+      (l) => l.kind === "group" && l.id !== group.id,
+    ) as GroupLayer;
+
+    const ungroupedOriginal = ungroupLayers(pasted, group.id);
+    const ungroupedBoth = ungroupLayers(ungroupedOriginal, pastedGroup.id);
+
+    const ids = ungroupedBoth.map((l) => l.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    // both sets of children (4 total: a, b, and their copies) survive
+    expect(ungroupedBoth).toHaveLength(4);
+  });
+
+  it("duplicateLayer regenerates a GroupLayer's child ids too", () => {
+    const a = createTextLayer({ name: "a" });
+    const b = createShapeLayer({ name: "b" });
+    const grouped = groupLayers([a, b], [a.id, b.id]);
+    const group = grouped.find((l) => l.kind === "group") as GroupLayer;
+
+    const result = duplicateLayer(grouped, group.id);
+    const copy = result.find((l) => l.kind === "group" && l.id !== group.id) as GroupLayer;
+
+    expect(copy).toBeDefined();
+    expect(copy.childIds).not.toEqual(group.childIds);
+    for (const id of copy.childIds) {
+      expect(group.childIds).not.toContain(id);
+    }
+    expect(copy.children?.map((c) => c.id)).toEqual(copy.childIds);
+  });
+});
+
+describe("ungroupLayers — carries a moved/resized group's transform to its children (Fix 3)", () => {
+  it("applies the group's x/y delta since creation to each child before reinserting", () => {
+    const a = createTextLayer({ name: "a", x: 0.15, y: 0.2, w: 0.1, h: 0.1 });
+    const b = createShapeLayer({ name: "b", x: 0.3, y: 0.25, w: 0.1, h: 0.1 });
+    const grouped = groupLayers([a, b], [a.id, b.id]);
+    const group = grouped.find((l) => l.kind === "group") as GroupLayer;
+    expect(group.x).toBeCloseTo(0.15, 5); // creation-time box origin (min of a.x, b.x)
+
+    // Move the group as if the user dragged it: x 0.15 -> 0.35 (delta +0.2), y unchanged.
+    const moved = updateLayer(grouped, group.id, { x: 0.35 });
+    const result = ungroupLayers(moved, group.id);
+
+    const outA = result.find((l) => l.name === "a")!;
+    const outB = result.find((l) => l.name === "b")!;
+    // a was at x=0.15 -> 0.35; b was at x=0.3 -> 0.5. y untouched.
+    expect(outA.x).toBeCloseTo(0.35, 5);
+    expect(outA.y).toBeCloseTo(0.2, 5);
+    expect(outB.x).toBeCloseTo(0.5, 5);
+    expect(outB.y).toBeCloseTo(0.25, 5);
+  });
+
+  it("applies zero delta (reinserts children unchanged) when the group was never moved", () => {
+    const a = createTextLayer({ name: "a", x: 0.15, y: 0.2 });
+    const b = createShapeLayer({ name: "b", x: 0.3, y: 0.25 });
+    const grouped = groupLayers([a, b], [a.id, b.id]);
+    const group = grouped.find((l) => l.kind === "group") as GroupLayer;
+    const result = ungroupLayers(grouped, group.id);
+
+    expect(result.find((l) => l.name === "a")?.x).toBeCloseTo(0.15, 5);
+    expect(result.find((l) => l.name === "b")?.x).toBeCloseTo(0.3, 5);
+  });
+
+  it("applies both x and y deltas together", () => {
+    const a = createTextLayer({ name: "a", x: 0.1, y: 0.1 });
+    const b = createShapeLayer({ name: "b", x: 0.2, y: 0.2 });
+    const grouped = groupLayers([a, b], [a.id, b.id]);
+    const group = grouped.find((l) => l.kind === "group") as GroupLayer;
+
+    const moved = updateLayer(grouped, group.id, {
+      x: group.x - 0.05,
+      y: group.y + 0.1,
+    });
+    const result = ungroupLayers(moved, group.id);
+
+    expect(result.find((l) => l.name === "a")?.x).toBeCloseTo(0.05, 5);
+    expect(result.find((l) => l.name === "a")?.y).toBeCloseTo(0.2, 5);
+    expect(result.find((l) => l.name === "b")?.x).toBeCloseTo(0.15, 5);
+    expect(result.find((l) => l.name === "b")?.y).toBeCloseTo(0.3, 5);
+  });
 });
