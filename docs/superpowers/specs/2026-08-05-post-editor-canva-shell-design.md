@@ -224,7 +224,91 @@ no new plumbing into the canvas store.
 
 Out of scope: past uploads, and images from unconnected nodes elsewhere on the canvas.
 
-## 9. File structure
+## 9. The Post node card
+
+The card on the canvas — `post-node.tsx` — was audited alongside the editor. Its problems are
+*misrepresentation* rather than friction, which makes them more damaging than the inspector's jargon.
+
+### 9.1 The preview can show a design you never made
+
+The thumbnail is hardcoded `aspect-square … object-cover`. A story (9:16) or LinkedIn (1.91:1) post is
+centre-cropped into a square, so the card shows a composition that is not the one you designed. With
+ten formats (D122) this stops being imprecise and becomes wrong.
+
+**Fix:** the preview box takes its aspect ratio from the node's own format, and uses `object-contain`
+on a neutral field so the whole composition is visible rather than cropped.
+
+### 9.2 The preview goes stale silently — and the fix was already half-built
+
+The thumbnail renders `d.fileUrl`, the *last exported PNG*. Edit the design and the card keeps showing
+the old export forever, with nothing to indicate it is out of date.
+
+`PostNodeData.renderedAt` exists for exactly this. Its declaration in `canvas-nodes.ts` reads
+*"drives the 'unrendered changes' badge (Task 24 staleness check)"*, and `post-node.service.ts` writes
+it on every export — but **nothing reads it.** Task 24 never existed; the original plan ended at 22.
+
+**Fix:** add a companion `layersUpdatedAt` stamp, written whenever layers change, and compare the two.
+
+### 9.3 The status chip means the wrong thing
+
+`hasRender = !!d.fileUrl` drives a "Rendered" / "Pending" chip — but that is *"has this ever been
+exported?"*, not *"is this ready?"*. A finished design you haven't downloaded reads **Pending**, which
+implies something is still processing. An edited-since-export design reads **Rendered**, which is
+false.
+
+**Fix:** a three-state vocabulary that says what is actually true.
+
+| State | Condition | Chip |
+|---|---|---|
+| Never exported | no `fileUrl` | **Draft** |
+| Exported, unchanged since | `renderedAt >= layersUpdatedAt` | **Exported** |
+| Exported, edited since | `layersUpdatedAt > renderedAt` | **Edited since export** |
+
+### 9.4 Smaller card fixes
+
+- **"Empty — connect an image" is wrong advice.** It fires on `!hasLayers`, but a Post node needs no
+  connected image — text, shapes and icons all work standalone. Replaced with "Empty — open to start".
+- **Format and contents are invisible.** The card gains a quiet metadata line: the format's friendly
+  short name and a layer count ("Instagram portrait · 6 layers").
+- **Raw `<button>`** at `post-node.tsx:111` violates CLAUDE.md's shadcn-only rule; becomes `Button`.
+  (Noted, not fixed here: `image-gen-node.tsx:157` has the same pre-existing violation.)
+
+## 10. Editor defects fixed in this plan
+
+Found in the same audit. These are bugs, not missing features, so they are fixed here rather than
+deferred to Plans 2–3.
+
+- **Escape while editing text closes the whole editor.** The inline text overlay handles Escape to
+  cancel an edit but never calls `stopPropagation`, and the editor is a `Sheet` (a Base UI `Dialog`),
+  which closes on Escape. The instinctive cancel gesture ejects you from the editor and loses the
+  panel state. **Fix:** stop propagation for Escape (and Cmd/Ctrl+Enter) while a text edit is active.
+- **Every new element lands in the same spot.** `createTextLayer`/`createShapeLayer`/`createIconLayer`
+  all spread one fixed `DEFAULT_GEOMETRY`, so three added texts stack perfectly and only the top one
+  is reachable. **Fix:** cascade each newly added layer by a small offset, wrapping when it would
+  leave the canvas — the same idea as the existing `duplicateLayer` nudge.
+- **Undo silently doesn't cover everything.** Layer edits live in `usePostEditor`'s history; format and
+  template choice go through `onPatch` and do not. After changing format, ⌘Z doesn't revert it — it
+  reaches past and undoes an unrelated earlier *layer* edit, which is worse than doing nothing.
+  **Fix:** the history's state becomes `{ layers, format, templateId }` so every design-affecting
+  change is undoable as one coherent stack. Title stays outside history — it is metadata, like a
+  filename, and behaves as an inline field everywhere else in this app.
+- **The format-change warning is a transient toast** fired *after* the change applies. With undo now
+  covering format (above), the toast is downgraded to a plain informational note; the escape hatch is
+  ⌘Z rather than a warning nobody can act on.
+- **The auto-place effect re-runs on every board-wide node move.** `connectedImageNodes` is memoised
+  on `[nodes, edges, id]`, so dragging any unrelated node hands it a fresh array identity and re-fires
+  the effect. It is guarded against duplicating, so this is waste rather than breakage. **Fix:** key
+  the memo on the connected ids and urls rather than the whole `nodes`/`edges` arrays.
+
+**Not defects — verified during the audit:** export resolution is correct
+(`pixelRatio = spec.width / stage.width()` scales the 640px on-screen stage back to full format
+pixels, with an A4 downscale fallback for the 10 MB upload cap), and the keyboard-shortcut guard
+`isEditableTarget` does correctly cover `TEXTAREA`, so shortcuts don't fire while typing.
+
+**Kept deliberately:** the Brand rail item and the disabled Publish button both stay, with explicit
+"Coming soon" treatment, so the roadmap remains legible in-product.
+
+## 11. File structure
 
 `post-focus-view.tsx` is already ~450 lines and would roughly double. It splits into a shell plus one
 file per panel, following this codebase's one-component-per-file rule:
@@ -246,11 +330,17 @@ file per panel, following this codebase's one-component-per-file rule:
 | `src/lib/post/templates/*.ts` | Four retuned, ten new. **Tested.** |
 | `src/lib/post/formats.ts` (modified) | Ten formats + legacy-key fallback. **Tested.** |
 | `src/lib/post/units.ts` (modified) | `fontSizeToPx` measures the shorter edge. **Tested.** |
+| `src/lib/post/layers.ts` (modified) | Cascade offset for newly created layers (§10). **Tested.** |
+| `src/lib/post/history.ts` + `use-post-editor.ts` (modified) | History state widens to `{ layers, format, templateId }` (§10). **Tested.** |
+| `post-node.tsx` (modified) | Aspect-correct preview, three-state chip, metadata line, `Button` (§9). |
+| `src/lib/post/render-state.ts` (new) | Pure `renderState(renderedAt, layersUpdatedAt, fileUrl)` → `draft \| exported \| stale`. **Tested.** |
+| `src/lib/canvas-nodes.ts` (modified) | Adds `layersUpdatedAt` to `PostNodeData`. |
 | `post-focus-view.tsx` (modified) | Shrinks to shell/orchestrator. |
+| `post-stage.tsx` (modified) | Escape/⌘Enter stop propagation during a text edit (§10). |
 | `post-add-menu.tsx` (deleted) | Content moves into the Elements and Text panels. |
 | `post-template-picker.tsx` (deleted) | Replaced by `post-panel-templates.tsx`. |
 
-## 10. Data model and compatibility
+## 12. Data model and compatibility
 
 No new layer kinds and no database migration — per **D10**'s narrow-waist JSONB pattern, nothing here
 touches Postgres. Two compatibility notes, both deliberate:
@@ -260,10 +350,14 @@ touches Postgres. Two compatibility notes, both deliberate:
   blast radius is small and the corrected behaviour is the goal.
 - **`"linkedin"` → `"linkedin-post"`** needs a read-time fallback so already-saved nodes keep
   resolving. No write-time migration; unknown keys fall back to `ig-square` as today.
+- **`layersUpdatedAt` is new and absent on every existing node.** Treat a missing value as "unknown,
+  assume current": a post with a `fileUrl` but no `layersUpdatedAt` reads **Exported**, not
+  "Edited since export". Guessing stale for legacy data would flag every previously-exported post as
+  dirty on first load, which is exactly the false alarm this badge exists to avoid.
 
 The active rail tool is ephemeral local state, deliberately not persisted.
 
-## 11. Testing
+## 13. Testing
 
 Vitest runs in `environment: "node"` with no jsdom, so no `.tsx` file in this repo is unit-tested:
 
@@ -276,7 +370,7 @@ Vitest runs in `environment: "node"` with no jsdom, so no `.tsx` file in this re
   change deliberately with §6.1 — the one file where an edited test is *expected* rather than a
   warning sign.
 
-## 12. Explicitly out of scope
+## 14. Explicitly out of scope
 
 - Everything in Plans 2 and 3 (new primitives, draw tool, snapping, zoom, crop/filters, text effects).
 - Brand Kit (still a stub), AI captions, compliance checks, approval flow, publishing.
@@ -284,9 +378,9 @@ Vitest runs in `environment: "node"` with no jsdom, so no `.tsx` file in this re
 - Persisting panel state, resizable panels, collapsible rail.
 - OS-clipboard integration, and any change to export or node-graph wiring.
 
-## 13. Decisions
+## 15. Decisions
 
-Recorded in the single ADR log — `2026-05-30-creativeos-staging-roadmap.md` §7 — as **D116–D125**,
+Recorded in the single ADR log — `2026-05-30-creativeos-staging-roadmap.md` §7 — as **D116–D128**,
 with full Decision / Why / Rejected / Originated entries. In brief:
 
 | | |
@@ -301,3 +395,6 @@ with full Decision / Why / Rejected / Originated entries. In brief:
 | **D123** | Font size is measured against the canvas's shorter edge, not its height. |
 | **D124** | Templates tune one composition across three aspect bands, and the library grows to 14. |
 | **D125** | Inspector controls are visual (swatches, sliders, direction pickers); no CSS colour strings or raw numeric fields. |
+| **D126** | The node card previews at the post's real aspect ratio and reports Draft / Exported / Edited since export, backed by a new `layersUpdatedAt` compared against the already-written `renderedAt`. |
+| **D127** | The editor's undo history covers `{ layers, format, templateId }`, not layers alone. |
+| **D128** | Newly added layers cascade instead of stacking on one fixed default position. |

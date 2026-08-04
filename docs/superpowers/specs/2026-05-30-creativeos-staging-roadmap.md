@@ -2056,6 +2056,53 @@ should need). A full colour-picker component with hue/alpha channels (heavier th
 OS picker already covers the rare custom case).
 **Originated.** `2026-08-05-post-editor-canva-shell-design.md`.
 
+### D126 — The Post node card previews at true aspect ratio and reports real render state
+**Decision.** The card's preview box takes its aspect ratio from the node's own format (rather than a
+hardcoded `aspect-square … object-cover`) and uses `object-contain`. A new `layersUpdatedAt` stamp is
+written whenever layers change and compared against the already-written `renderedAt` to drive a
+three-state chip: **Draft** (never exported) / **Exported** (unchanged since) / **Edited since
+export**. Legacy nodes with no `layersUpdatedAt` read as Exported, not stale. The card also gains a
+metadata line (format short name + layer count) and an honest empty state.
+**Why.** The card was misrepresenting work on two axes at once. A 9:16 story was centre-cropped into
+a square, showing a composition the user never made — worse once D122 ships ten formats. And the
+thumbnail is the *last exported PNG*, so any edit after an export left the card silently showing an
+old design. The staleness mechanism was already designed and half-built: `PostNodeData.renderedAt`
+is declared with the comment "drives the 'unrendered changes' badge (Task 24 staleness check)" and
+is written on every export, but nothing ever read it — the original plan ended at Task 22. The old
+"Rendered"/"Pending" chip compounded this by meaning "has ever been exported", so a finished design
+read *Pending* and an edited one read *Rendered*.
+**Rejected.** Rendering a live mini-canvas per card instead of the exported PNG (N Konva stages on a
+busy board). Renaming the chip without detecting staleness (stops the lie, leaves the stale
+thumbnail). Assuming stale for legacy nodes (flags every previously-exported post as dirty on first
+load — the exact false alarm the badge exists to prevent).
+**Originated.** `2026-08-05-post-editor-canva-shell-design.md`.
+
+### D127 — Undo covers format and template, not layers alone
+**Decision.** `usePostEditor`'s history state widens from `PostLayer[]` to
+`{ layers, format, templateId }`. Title stays outside history.
+**Why.** Layer edits were undoable; format and template changes went through `onPatch` and were not.
+So after a format change ⌘Z did not revert it — it reached past and undid an unrelated earlier layer
+edit, which is worse than no-op because it silently damages something the user wasn't looking at.
+With D122 raising format changes from a rare 4-way choice to a routine 10-way one, the inconsistency
+stops being an edge case. Title is excluded deliberately: it is metadata, like a filename, and
+behaves as an inline field everywhere else in this app.
+**Rejected.** Leaving format outside history and blocking ⌘Z when the last action wasn't a layer edit
+(needs action-type tracking the history doesn't have, and still surprises). Putting title in too
+(inline-field edits aren't design state).
+**Originated.** `2026-08-05-post-editor-canva-shell-design.md`.
+
+### D128 — Newly added layers cascade instead of stacking
+**Decision.** `createTextLayer`/`createShapeLayer`/`createIconLayer` offset each new layer from the
+last rather than all spreading one fixed `DEFAULT_GEOMETRY`, wrapping when the cascade would leave
+the canvas.
+**Why.** Every added element landed at identical coordinates, so adding three text layers produced a
+perfect stack in which only the top one was selectable and nothing indicated the others existed. The
+codebase already uses this idea for `duplicateLayer`'s +0.02/+0.02 nudge; new layers simply never got
+it.
+**Rejected.** Placing new layers at the viewport centre (identical stacking problem); placing at the
+last click position (surprising when the panel, not the canvas, was the last thing touched).
+**Originated.** `2026-08-05-post-editor-canva-shell-design.md`.
+
 ### Parked / out-of-scope (with revisit triggers)
 | Item | Status | Revisit when |
 |---|---|---|
