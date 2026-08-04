@@ -1,12 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { Copy } from "lucide-react";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { TEMPLATES, type PostTemplate } from "@/lib/post/templates";
-import { copyZoneHint } from "@/lib/post/copy-zone-hint";
 
 type Props = {
   open: boolean;
@@ -15,7 +11,6 @@ type Props = {
 };
 
 export function PostTemplatePicker({ open, onPick, onStartBlank }: Props) {
-  const [hovered, setHovered] = useState<string | null>(null);
   if (!open) return null;
 
   return (
@@ -26,8 +21,6 @@ export function PostTemplatePicker({ open, onPick, onStartBlank }: Props) {
           <div
             key={t.id}
             className="flex flex-col items-center gap-2"
-            onMouseEnter={() => setHovered(t.id)}
-            onMouseLeave={() => setHovered((cur) => (cur === t.id ? null : cur))}
           >
             <Button
               variant="outline"
@@ -37,20 +30,6 @@ export function PostTemplatePicker({ open, onPick, onStartBlank }: Props) {
               <span className="sr-only">{t.name}</span>
             </Button>
             <span className="text-xs text-muted-foreground">{t.name}</span>
-            {hovered === t.id && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="gap-1 text-xs"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  navigator.clipboard.writeText(copyZoneHint(t.copyZone));
-                  toast.success("Image brief copied");
-                }}
-              >
-                <Copy className="size-3" /> Copy image brief
-              </Button>
-            )}
           </div>
         ))}
         <div className="flex flex-col items-center gap-2">
