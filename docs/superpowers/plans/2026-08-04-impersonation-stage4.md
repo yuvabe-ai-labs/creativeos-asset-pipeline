@@ -649,6 +649,19 @@ export const resolveImpersonationState = cache(async (): Promise<ImpersonationSt
   };
 });
 
+// Shared by startImpersonation and enterElevatedMode — same options object both times
+// (two call sites: extract, per this project's reuse rule).
+async function setImpersonationCookie(payload: ImpersonationPayload, secret: string): Promise<void> {
+  const store = await cookies();
+  store.set(COOKIE_NAME, encodeImpersonationCookie(payload, secret), {
+    httpOnly: true,
+    secure: true,
+    sameSite: "lax",
+    path: "/",
+    expires: new Date(payload.expiresAt),
+  });
+}
+
 // Called from the "Enter as this org" server action (Task 8). Caller must already be
 // verified super_admin (requireSuperAdmin()) — this function trusts its caller.
 export async function startImpersonation(targetOrgId: string): Promise<void> {
@@ -661,14 +674,7 @@ export async function startImpersonation(targetOrgId: string): Promise<void> {
     elevated: false,
     expiresAt: new Date(Date.now() + SESSION_TTL_MS).toISOString(),
   };
-  const store = await cookies();
-  store.set(COOKIE_NAME, encodeImpersonationCookie(payload, secret), {
-    httpOnly: true,
-    secure: true,
-    sameSite: "lax",
-    path: "/",
-    expires: new Date(payload.expiresAt),
-  });
+  await setImpersonationCookie(payload, secret);
   await logImpersonationEvent({
     operatorId: payload.operatorId,
     targetOrgId,
@@ -685,12 +691,7 @@ export async function enterElevatedMode(): Promise<void> {
   if (!secret) return;
   const payload = await readPayload();
   if (!payload) return;
-  const store = await cookies();
-  store.set(
-    COOKIE_NAME,
-    encodeImpersonationCookie({ ...payload, elevated: true }, secret),
-    { httpOnly: true, secure: true, sameSite: "lax", path: "/", expires: new Date(payload.expiresAt) },
-  );
+  await setImpersonationCookie({ ...payload, elevated: true }, secret);
   await logImpersonationEvent({
     operatorId: payload.operatorId,
     targetOrgId: payload.targetOrgId,
@@ -712,10 +713,6 @@ export async function endImpersonation(): Promise<void> {
   }
 }
 ```
-
-`startImpersonation` and `enterElevatedMode` inline their own `cookies().set(...)` calls
-rather than sharing a helper — their option objects differ slightly, and with only two call
-sites the project's "two call sites = extract" rule doesn't kick in yet.
 
 - [ ] **Step 4: Run to verify it passes**
 
