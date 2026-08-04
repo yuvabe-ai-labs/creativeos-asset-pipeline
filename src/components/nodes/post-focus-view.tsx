@@ -114,9 +114,15 @@ export function PostFocusView({
 
   function handlePickTemplate(template: PostTemplate) {
     const seeded = template.seedLayers(format ?? "ig-square");
+    // Preserve any connected-node-sourced image (auto-placed once per source, per
+    // autoPlacedNodeIds) — no template seeds its own image layer, so replacing wholesale
+    // would silently discard the plate with no way to bring it back (the auto-place
+    // effect never re-fires for a source it already recorded). Keep it at the back so
+    // the template's own shapes/text layer on top of it as intended.
+    const keptImages = layers.filter((l) => l.kind === "image" && l.src.kind === "node");
     // Layers go through the editor's own history (which owns them); templateId is not
     // part of that state, so it stays a plain patch.
-    replaceAllLayers(seeded);
+    replaceAllLayers([...keptImages, ...seeded]);
     onPatch({ templateId: template.id });
     setPickerOpen(false);
   }
