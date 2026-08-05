@@ -3,22 +3,17 @@ import sharp from "sharp";
 import { createOpenAI } from "@/lib/openai/server";
 import { buildZodFromParams } from "../schema-builder";
 import { gptImage2Params, gptImage1Params, gptImage1MiniParams } from "../params/openai";
+import { aspectRatioToOpenAISize } from "../cost";
 import type { ImageGenInput, ImageGenResult, MediaGenModelSpec } from "../types";
+
+// Re-exported for existing consumers (e.g. providers/__tests__/aspect-ratio.test.ts) — the
+// mapping itself now lives in cost.ts, not here, so it stays importable from client
+// components (see cost.ts's own comment for why).
+export { aspectRatioToOpenAISize };
 
 export { gptImage2Params, gptImage1Params, gptImage1MiniParams };
 
 // Params ref: https://platform.openai.com/docs/api-reference/images/create
-
-// Model used ONLY for the input-token-counting call in countOpenAIInputTokens below — NOT an
-// image generation model (gpt-image-2/gpt-image-1/-mini aren't valid Responses-API models,
-// and responses.inputTokens.count() requires a Responses-API model). OpenAI's docs confirm
-// `model` is required but give no guidance for this specific case: image generation never
-// goes through the Responses API, so there is no "real" model to match, unlike every other
-// documented use of this endpoint. Reuses this app's existing default OpenAI text model
-// (src/prompts/prompt-generate.ts) as a pragmatic choice, confirmed to work (no error) via a
-// live diagnostic probe on 2026-07-25 — not confirmed correct for vision-token accuracy by
-// any source. Revisit if OpenAI ever publishes clearer guidance for this case.
-const TOKEN_COUNTING_MODEL = "gpt-5.4-mini";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -168,23 +163,6 @@ export async function normalizeReferenceImageForOpenAI(buffer: Buffer): Promise<
   return out;
 }
 
-// ── Aspect ratio → pixel size mapping ────────────────────────────────────────
-
-const ASPECT_RATIO_TO_OPENAI_SIZE: Record<string, string> = {
-  "1:1":  "1024x1024",
-  "16:9": "1536x1024",
-  "9:16": "1024x1536",
-  "4:3":  "1536x1024",
-  "3:4":  "1024x1536",
-  "21:9": "1536x1024",
-  "4:1":  "1536x1024",
-  "1:4":  "1024x1536",
-};
-
-export function aspectRatioToOpenAISize(ratio: string): string {
-  return ASPECT_RATIO_TO_OPENAI_SIZE[ratio] ?? "1024x1024";
-}
-
 // Build the OpenAI edit `mask` File from the base64 the client painted, resized (if needed) to
 // match the base image's final dimensions — OpenAI requires the mask and the first image to be
 // the same size, and normalizeReferenceImageForOpenAI can change the base image's dimensions
@@ -298,35 +276,6 @@ export async function generateWithOpenAI(
       total_tokens:        usage?.total_tokens  ?? 0,
     },
   };
-}
-
-/**
- * Live pre-flight input-token count via OpenAI's official token-counting endpoint
- * (`responses.inputTokens.count`) — handles text-only and text+reference-image requests in
- * one call. Used by the pre-generation estimate (design spec §5). One inference, not a
- * directly confirmed 1:1 mapping to the Images API's own billing (see the design spec) —
- * worth a real-world sanity check once implemented, same as noted there. Passes
- * TOKEN_COUNTING_MODEL (see its own comment above) — the endpoint requires a model but this
- * request is never actually sent to it, so the choice is a pragmatic default, not a
- * documented answer. Always a fresh live call, never cached.
- */
-export async function countOpenAIInputTokens(
-  prompt: string,
-  referenceUrls: string[],
-): Promise<number> {
-  const openai = createOpenAI();
-  const content: Array<
-    | { type: "input_text"; text: string }
-    | { type: "input_image"; detail: "auto"; image_url: string }
-  > = [{ type: "input_text", text: prompt }];
-  for (const url of referenceUrls) {
-    content.push({ type: "input_image", detail: "auto", image_url: url });
-  }
-  const response = await openai.responses.inputTokens.count({
-    model: TOKEN_COUNTING_MODEL,
-    input: [{ role: "user", content }],
-  });
-  return response.input_tokens ?? 0;
 }
 
 // ── Model configs ─────────────────────────────────────────────────────────────

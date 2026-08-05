@@ -77,7 +77,8 @@ import {
 } from "@/lib/image-gen/validate";
 import { cn } from "@/lib/utils";
 import { describeApprovalPill } from "@/lib/nodes/prompt-focus";
-import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
+import { CREDIT_LIMIT_TOAST_MESSAGE, usdToFinalCredits } from "@/lib/credits/units";
+import { estimateImageGenerationCostUsd } from "@/lib/image-gen/estimate";
 import { LeftSection } from "./focus-left-section";
 import { RailItem } from "./focus-rail-item";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -193,20 +194,8 @@ export function ImageGenFocusView({
     nodeId: string;
     text: string;
   } | null>(null);
-  const [estimatedCredits, setEstimatedCredits] = useState<number | null>(null);
-  // Starts true (not false): the debounced estimate effect only flips this on the first
-  // effect pass after mount, one paint after the initial render — starting at false let the
-  // Generate button render briefly enabled/uncosted before that first effect ran. Starting
-  // true means the button is disabled from the very first paint; the effect corrects it to
-  // false quickly if no estimate is actually needed (e.g. no prompt connected yet).
-  const [estimating, setEstimating] = useState(true);
-  // Edit tab's own estimate — separate state from estimatedCredits/estimating above so the
-  // two tabs' debounced effects never race each other's setState calls. Starts true for the
-  // same reason as the Generate estimate above: the Edit button's disabled state is wired to
-  // "estimating" too, so starting false would let it render briefly enabled/uncosted before
-  // the first debounced effect pass corrects it.
-  const [editEstimatedCredits, setEditEstimatedCredits] = useState<number | null>(null);
-  const [editEstimating, setEditEstimating] = useState(true);
+  // estimatedCredits/editEstimatedCredits are computed directly below (D93) — no state, no
+  // fetch. See the useMemo blocks further down for both.
   const [loadingVersions, setLoadingVersions] = useState(false);
   const [loadingPreview, setLoadingPreview] = useState(false);
   // The selected rail item: "image" (the hero pane), "history", "details", or a
@@ -327,74 +316,46 @@ export function ImageGenFocusView({
   // reference every render (derived, not stored in state).
   const connectedImageUrlsKey = JSON.stringify(connectedImageUrls);
 
-  // Debounced pre-generation cost estimate — mirrors the 300ms debounce pattern this app's
-  // own prompt-focus-view.tsx already uses for its compile-preview fetch. Only meaningful on
-  // the Generate tab (Edit has its own action button, out of scope per this plan) and once
-  // there's a prompt to estimate from.
-  useEffect(() => {
-    if (!open || activeTab === "edit" || !promptUpstream) {
-      setEstimatedCredits(null);
-      setEstimating(false);
-      return;
-    }
-    if (!fetchedPrompt?.text) {
-      // A prompt node IS connected, but its output hasn't loaded yet (the separate
-      // fetchedPrompt effect above is still in flight) — this is not the same as "no
-      // prompt connected," so keep the button in its disabled/loading state rather than
-      // flashing it enabled with no cost for the second or two before the fetch resolves.
-      // That fetch's completion updates fetchedPrompt.text, which re-runs this effect.
-      setEstimating(true);
-      return;
-    }
-    let cancelled = false;
-    setEstimating(true);
-    const t = setTimeout(async () => {
-      try {
-        const res = await fetch(`/api/nodes/${nodeId}/image-generate/estimate`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            modelId: model.id,
-            quality: paramValues.quality,
-            aspect_ratio: paramValues.aspect_ratio,
-            image_size: paramValues.image_size,
-            prompt: fetchedPrompt.text,
-            referenceUrls: connectedImageUrls,
-          }),
-        });
-        const json = (await res.json()) as { estimatedCredits: number | null };
-        if (cancelled) return;
-        if (res.ok) {
-          setEstimatedCredits(json.estimatedCredits);
-        } else {
-          setEstimatedCredits(null);
-        }
-      } catch {
-        if (!cancelled) setEstimatedCredits(null);
-      } finally {
-        if (!cancelled) setEstimating(false);
-      }
-    }, 300);
-    return () => {
-      cancelled = true;
-      clearTimeout(t);
-    };
-    // connectedImageUrls/paramValues/fetchedPrompt omitted on purpose — each is a new object
-    // reference on renders that don't actually change its contents (e.g. a sibling state
-    // update, or the [open, upstream] prompt-fetch effect re-running and producing a new-but-
-    // equal fetchedPrompt object), which was re-firing this effect (and re-fetching the
-    // estimate) with no real input change. Stable JSON-stringified/primitive stand-ins fix it.
+  // Pre-generation cost estimate — a synchronous local computation (D93), not a fetch to our
+  // own API route. The previous fetch-based version still paid a real DB+auth round trip on
+  // every param change (withNode's node/canvas/client lookup in the now-deleted
+  // image-generate/estimate route) even after D92 removed the live vendor token-counting
+  // call — this eliminates that hop entirely, matching video-gen's computeVideoCost (called
+  // directly in render, no fetch at all). Only meaningful on the Generate tab (Edit has its
+  // own action button, out of scope per this plan) and once there's a prompt to estimate from.
+  const hasPromptUpstream = Boolean(promptUpstream);
+  const paramValuesKey = JSON.stringify(paramValues);
+  const estimatedCredits = useMemo(() => {
+    if (!open || activeTab === "edit" || !promptUpstream || !fetchedPrompt?.text) return null;
+    const costUsd = estimateImageGenerationCostUsd({
+      modelId: model.id,
+      quality: paramValues.quality as string | undefined,
+      aspectRatio: paramValues.aspect_ratio as string | undefined,
+      imageSize: paramValues.image_size as string | undefined,
+      referenceUrls: connectedImageUrls,
+    });
+    return costUsd === null ? null : usdToFinalCredits(costUsd);
+    // paramValues/connectedImageUrls omitted on purpose — each is a new object/array
+    // reference on renders that don't actually change its contents; stable JSON-stringified/
+    // primitive stand-ins (hasPromptUpstream, paramValuesKey, connectedImageUrlsKey) avoid
+    // recomputing on every unrelated re-render, same rationale this effect (now a memo) has
+    // always used — extracted into named variables since react-hooks/use-memo requires
+    // simple dependency expressions.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     open,
     activeTab,
-    Boolean(promptUpstream),
+    hasPromptUpstream,
     selectedModelId,
-    JSON.stringify(paramValues),
+    paramValuesKey,
     connectedImageUrlsKey,
     fetchedPrompt?.text,
-    nodeId,
   ]);
+  // The connected prompt node's output (fetched by the separate effect above) hasn't loaded
+  // yet — the Generate button stays disabled/spinning for that, independent of the now-
+  // synchronous cost estimate above.
+  const estimating =
+    open && activeTab !== "edit" && Boolean(promptUpstream) && !fetchedPrompt?.text;
 
   // Connected image NODES (id + url), for the edit-mode reference tiles.
   const connectedImageNodes = upstream
@@ -458,8 +419,8 @@ export function ImageGenFocusView({
     violation: refViolationsByUrl.get(n.url),
   }));
 
-  // Extras = the connected image nodes the user marked (base excluded). Empty selection falls
-  // back to "all other connected images" (D27 default) via selectEditReferenceUrls.
+  // Extras = the connected image nodes the user ticked (base excluded). Selection is explicit
+  // (D101): tick nothing and the edit sees only the base image — no silent "all connected".
   const selectedExtraUrls = selectEditReferenceUrls({
     connected: connectedImageNodes,
     selectedIds: selectedRefIds,
@@ -493,70 +454,44 @@ export function ImageGenFocusView({
 
   const editReferenceUrlsKey = JSON.stringify([editBaseUrl, ...selectedExtraUrls]);
 
-  // Debounced pre-generation cost estimate for the Edit tab — same 300ms-debounce shape as
-  // the Generate tab's estimate above, but keyed off the edit flow's own inputs (the same
+  // Pre-generation cost estimate for the Edit tab — same synchronous local computation as the
+  // Generate-tab estimate above (D93), keyed off the edit flow's own inputs (the same
   // prompt/references handleEdit() itself sends), since editing reserves and charges credits
   // the same way generating does. Reference-URL approximation matches the Generate estimate's
   // own precedent: this passes the raw base+extras list, not assembleEditReferences()'s
   // post-max-count/dedup list the real route actually reserves against — an existing,
   // accepted gap between estimate and reservation, kept consistent rather than special-cased.
-  useEffect(() => {
-    if (!open || activeTab !== "edit" || !canEditBase || !finalPrompt.trim()) {
-      setEditEstimatedCredits(null);
-      setEditEstimating(false);
-      return;
-    }
-    let cancelled = false;
-    setEditEstimating(true);
+  const editEstimatedCredits = useMemo(() => {
+    if (!open || activeTab !== "edit" || !canEditBase || !finalPrompt.trim()) return null;
     const referenceUrls = [editBaseUrl, ...selectedExtraUrls].filter(
       (u): u is string => Boolean(u),
     );
-    const t = setTimeout(async () => {
-      try {
-        const res = await fetch(`/api/nodes/${nodeId}/image-generate/estimate`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            modelId: model.id,
-            quality: paramValues.quality,
-            aspect_ratio: paramValues.aspect_ratio,
-            image_size: paramValues.image_size,
-            prompt: finalPrompt,
-            referenceUrls,
-          }),
-        });
-        const json = (await res.json()) as { estimatedCredits: number | null };
-        if (cancelled) return;
-        if (res.ok) {
-          setEditEstimatedCredits(json.estimatedCredits);
-        } else {
-          setEditEstimatedCredits(null);
-        }
-      } catch {
-        if (!cancelled) setEditEstimatedCredits(null);
-      } finally {
-        if (!cancelled) setEditEstimating(false);
-      }
-    }, 300);
-    return () => {
-      cancelled = true;
-      clearTimeout(t);
-    };
-    // paramValues (an object) goes in via JSON.stringify, same reason as the Generate
-    // estimate effect above — a stable primitive stand-in avoids re-firing on renders that
-    // don't actually change its contents. finalPrompt is already a string primitive, so it's
-    // used directly with no stand-in needed.
+    const costUsd = estimateImageGenerationCostUsd({
+      modelId: model.id,
+      quality: paramValues.quality as string | undefined,
+      aspectRatio: paramValues.aspect_ratio as string | undefined,
+      imageSize: paramValues.image_size as string | undefined,
+      referenceUrls,
+    });
+    return costUsd === null ? null : usdToFinalCredits(costUsd);
+    // paramValuesKey stands in for paramValues (an object), same reason as the Generate
+    // estimate above — a stable primitive avoids recomputing on renders that don't actually
+    // change its contents, and react-hooks/use-memo requires a simple dependency expression.
+    // finalPrompt is already a string primitive, so it's used directly with no stand-in needed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     open,
     activeTab,
     canEditBase,
     selectedModelId,
-    JSON.stringify(paramValues),
+    paramValuesKey,
     finalPrompt,
     editReferenceUrlsKey,
-    nodeId,
   ]);
+  // No async dependency left on this tab (finalPrompt/canEditBase are already synchronously
+  // known, unlike the Generate tab's connected-prompt fetch) — nothing to show a loading
+  // state for.
+  const editEstimating = false;
 
   const upstreamForCard: UpstreamNode[] = useMemo(
     () =>

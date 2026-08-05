@@ -144,16 +144,16 @@ export async function POST(
         masked && typeof body?.maskMime === "string" ? (body.maskMime as string) : "image/png";
       const modelBaseUrl = resolvedBaseUrl; // clean base — no composite
 
-      // Extra references: the client's chosen connected-node URLs when provided; otherwise the
-      // D27 default (all other connected images). Dedup the real base out either way.
+      // Extra references are EXPLICIT (D101): only the connected-node URLs the operator ticked
+      // are sent. An absent or empty field means no extras — the edit sees just the base image.
+      // Previously an absent field fell back to all connected images (the D27 default), which
+      // silently fed unticked references to the model. Dedup the real base out regardless.
       const bodyExtras = Array.isArray(body?.extraReferenceUrls)
         ? (body.extraReferenceUrls as unknown[]).filter(
             (u): u is string => typeof u === "string",
           )
-        : undefined;
-      const extraReferenceUrls = (bodyExtras ?? connectedImageUrls).filter(
-        (u) => u !== resolvedBaseUrl,
-      );
+        : [];
+      const extraReferenceUrls = bodyExtras.filter((u) => u !== resolvedBaseUrl);
 
       referenceUrls = assembleEditReferences({
         baseImageUrl: modelBaseUrl,
@@ -266,12 +266,11 @@ export async function POST(
     });
 
     try {
-      const costUsd = await estimateImageGenerationCostUsd({
+      const costUsd = estimateImageGenerationCostUsd({
         modelId,
         quality: validatedParams.quality as string | undefined,
         aspectRatio: validatedParams.aspect_ratio as string | undefined,
         imageSize: validatedParams.image_size as string | undefined,
-        prompt,
         referenceUrls,
       });
       if (costUsd === null) {

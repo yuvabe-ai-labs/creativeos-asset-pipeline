@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/context-menu";
 import { useCanvasStoreApi } from "@/components/canvas/canvas-store-provider";
 import { useCanvasId } from "@/components/canvas/canvas-id-context";
+import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import type { AppNode } from "@/lib/canvas-nodes";
 
 type Props = {
@@ -26,6 +27,7 @@ export function NodeContextMenu({ children, onDuplicate, onDelete, onAddReferenc
   const storeApi = useCanvasStoreApi();
   const canvasId = useCanvasId();
   const { deleteElements } = useReactFlow<AppNode>();
+  const editable = useCanvasEditable(); // D33: false when this session is read-only
 
   // Snapshot count for rendering labels — updated synchronously at open time.
   const [snapshotCount, setSnapshotCount] = useState(0);
@@ -63,13 +65,16 @@ export function NodeContextMenu({ children, onDuplicate, onDelete, onAddReferenc
     <ContextMenu onOpenChange={handleOpenChange}>
       <ContextMenuTrigger>{children}</ContextMenuTrigger>
       <ContextMenuContent className="w-44">
-        <ContextMenuItem onClick={() => (batchDuplicate.current ?? onDuplicate)()}>
+        <ContextMenuItem
+          disabled={!editable}
+          onClick={() => (batchDuplicate.current ?? onDuplicate)()}
+        >
           <Copy className="mr-2 size-3.5" strokeWidth={1.5} />
           {isMulti ? `Duplicate ${snapshotCount} nodes` : "Duplicate"}
           <ContextMenuShortcut>⌘D</ContextMenuShortcut>
         </ContextMenuItem>
         {!isMulti && onAddReferenceImage && (
-          <ContextMenuItem onClick={onAddReferenceImage}>
+          <ContextMenuItem disabled={!editable} onClick={onAddReferenceImage}>
             <ImagePlus className="mr-2 size-3.5" strokeWidth={1.5} />
             Add Reference Image
           </ContextMenuItem>

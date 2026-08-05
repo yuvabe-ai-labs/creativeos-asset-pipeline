@@ -1,26 +1,36 @@
 "use client";
 
 import { useEffect } from "react";
-import { useReactFlow } from "@xyflow/react";
 import { useCanvasStoreApi } from "./canvas-store-provider";
 import { useGalleryDrawer as useDrawerCtx } from "./gallery-drawer-context";
-import { useGalleryDrawer as useGalleryCommit } from "@/hooks/use-gallery-drawer";
-import { GalleryDrawer, GALLERY_DRAG_MIME } from "./gallery-drawer/gallery-drawer";
-import type { GalleryImage } from "./gallery-drawer/types";
+import { useGalleryPaneDrop, type GalleryPaneDropHandlers } from "@/hooks/use-gallery-pane-drop";
+import { GalleryDrawer } from "./gallery-drawer/gallery-drawer";
 
 export function GalleryDrawerIntegration({
   canvasId,
   clientId,
   initialDriveRootFolder,
+  paneDropRef,
 }: {
   canvasId: string;
   clientId: string;
   initialDriveRootFolder: { id: string; name: string } | null;
+  /**
+   * Canvas's <ReactFlow> lives outside this component's own returned tree (it's
+   * a sibling, not a wrapper), so pane-drop handlers can't be attached via JSX
+   * here — they're computed in this component (which sits inside ReactFlowProvider
+   * and can call useReactFlow) and handed to Canvas through this ref, which Canvas
+   * wires directly onto <ReactFlow>'s onDragOver/onDrop.
+   */
+  paneDropRef: React.MutableRefObject<GalleryPaneDropHandlers>;
 }) {
   const drawer = useDrawerCtx();
-  const { handleAdd } = useGalleryCommit();
-  const reactFlow = useReactFlow();
   const storeApi = useCanvasStoreApi();
+  const paneDrop = useGalleryPaneDrop();
+
+  useEffect(() => {
+    paneDropRef.current = paneDrop;
+  }, [paneDropRef, paneDrop]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -53,41 +63,6 @@ export function GalleryDrawerIntegration({
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [drawer, storeApi]);
-
-  useEffect(() => {
-    const paneEl = document.querySelector<HTMLDivElement>(".react-flow");
-    if (!paneEl) return;
-
-    function onDragOver(e: DragEvent) {
-      if (!e.dataTransfer?.types.includes(GALLERY_DRAG_MIME)) return;
-      e.preventDefault();
-      e.dataTransfer.dropEffect = "copy";
-    }
-
-    function onDrop(e: DragEvent) {
-      if ((e as DragEvent & { __galleryHandled?: boolean }).__galleryHandled) return;
-      const raw = e.dataTransfer?.getData(GALLERY_DRAG_MIME);
-      if (!raw) return;
-      e.preventDefault();
-      try {
-        const parsed = JSON.parse(raw) as { images: GalleryImage[] };
-        const position = reactFlow.screenToFlowPosition({
-          x: e.clientX,
-          y: e.clientY,
-        });
-        handleAdd(parsed.images, { position, applyOffset: false });
-      } catch (err) {
-        console.warn("[gallery] pane drop payload malformed:", err);
-      }
-    }
-
-    paneEl.addEventListener("dragover", onDragOver);
-    paneEl.addEventListener("drop", onDrop);
-    return () => {
-      paneEl.removeEventListener("dragover", onDragOver);
-      paneEl.removeEventListener("drop", onDrop);
-    };
-  }, [handleAdd, reactFlow]);
 
   return (
     <GalleryDrawer

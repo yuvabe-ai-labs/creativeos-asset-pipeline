@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeImageCost, estimateImageOutputCost, estimateImageInputCost } from "../cost";
+import { computeImageCost, estimateImageOutputCost, estimateImageInputCost, estimateGeminiInputTokens, estimateOpenAIInputTokens } from "../cost";
 
 describe("computeImageCost", () => {
   it("returns null for unknown model", () => {
@@ -98,5 +98,36 @@ describe("estimateImageInputCost", () => {
 
   it("scales linearly with token count", () => {
     expect(estimateImageInputCost("openai:gpt-image-1-mini", 500_000, false)).toBeCloseTo(1.0, 4);
+  });
+});
+
+describe("estimateGeminiInputTokens", () => {
+  it("returns the base token count for zero references", () => {
+    expect(estimateGeminiInputTokens(0)).toBe(180);
+  });
+
+  it("adds 260 tokens per reference image", () => {
+    expect(estimateGeminiInputTokens(1)).toBe(440);
+    expect(estimateGeminiInputTokens(4)).toBe(1220);
+  });
+});
+
+describe("estimateOpenAIInputTokens", () => {
+  it("returns the base token count for zero references, regardless of model", () => {
+    expect(estimateOpenAIInputTokens("openai:gpt-image-2", 0)).toBe(190);
+    expect(estimateOpenAIInputTokens("openai:gpt-image-1-mini", 0)).toBe(190);
+  });
+
+  it("uses the lower per-reference constant for gpt-image-1 and gpt-image-1-mini", () => {
+    expect(estimateOpenAIInputTokens("openai:gpt-image-1", 2)).toBe(190 + 2 * 330);
+    expect(estimateOpenAIInputTokens("openai:gpt-image-1-mini", 3)).toBe(190 + 3 * 330);
+  });
+
+  it("uses the higher per-reference constant for gpt-image-2", () => {
+    expect(estimateOpenAIInputTokens("openai:gpt-image-2", 1)).toBe(190 + 1550);
+  });
+
+  it("falls back to the highest known constant for an unrecognized model — never under-reserve", () => {
+    expect(estimateOpenAIInputTokens("openai:some-future-model", 1)).toBe(190 + 1550);
   });
 });

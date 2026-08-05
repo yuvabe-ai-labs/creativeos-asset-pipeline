@@ -96,7 +96,8 @@ export function ImageGenEditPanel({
           <AlertTriangle className="mt-0.5 size-3 shrink-0" strokeWidth={1.5} />
           <span>
             “{intent === "replace" ? "Replace" : "Add"} product” works best with
-            a product reference image connected to this node.
+            a product reference image. Tick one under “References for this edit”
+            — connecting it is not enough, only ticked references are sent.
           </span>
         </div>
       )}

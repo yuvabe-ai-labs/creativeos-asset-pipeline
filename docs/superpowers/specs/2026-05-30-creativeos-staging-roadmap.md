@@ -1771,6 +1771,59 @@ problem that's trivially auto-fixable); padding instead of cropping for the aspe
 
 **Originated →** `2026-07-28-openai-image-gen-error-remediation-design.md`.
 
+### D92 — Pre-generation input-token estimate becomes a static derived formula, not a live vendor call *(recorded 2026-08-03)*
+
+**Decision.** Replace `countOpenAIInputTokens`/`countGeminiInputTokens` (OpenAI's
+`responses.inputTokens.count`, Gemini's `countTokens` — both real network calls made on every
+debounced param change) with pure synchronous functions: `180 + refCount × 260` for Gemini
+(all 4 variants — the fit is model-independent), `190 + refCount × {330 | 1550}` for OpenAI
+(per-model per-reference constant; `gpt-image-2` tokenizes references at ~5× the rate of
+`gpt-image-1`/`-1-mini`). Constants derived from 659 real (non-test-client) historical image
+generations across staging + production, rounded up from p90 to preserve the existing
+never-under-reserve philosophy. Output-cost tables in `cost.ts` are untouched — they were
+already static and were never the latency source.
+
+**Why.** The "Est. N credits" label felt laggy because every param tweak triggered a real
+vendor round-trip purely to count input tokens, even though input cost is a small fraction of
+total cost for every priced model here (output pricing dominates) and this estimate never
+touches real billing — settlement always uses the actual provider `usage` from the real
+generation call, not this pre-flight number.
+
+**Rejected.** Caching live results by `(model, quality, size, refCount, promptHash)` (still
+pays live latency on first hit of any new combination); keeping the live call for accuracy
+(unnecessary — real settlement doesn't read this value, and input cost's share of the total
+is too small to matter).
+
+**Originated →** `2026-08-03-image-input-cost-static-estimate-design.md`.
+
+### D93 — Image-gen's pre-generation estimate is computed client-side, no API route at all; refines D92 *(recorded 2026-08-03)*
+
+**Decision.** Delete `/api/nodes/[id]/image-generate/estimate/route.ts` entirely.
+`image-gen-focus-view.tsx` now imports `estimateImageGenerationCostUsd` (D92) directly and
+calls it inside `useMemo` — matching video-gen's `computeVideoCost`, which has always been
+called straight in the render body with no route at all. Required moving
+`aspectRatioToOpenAISize` from `providers/openai.ts` (which imports `sharp` + the OpenAI SDK,
+real server-only dependencies) into `cost.ts` (which has never had one), and dropping
+`estimate.ts`'s now-unnecessary `"server-only"` guard.
+
+**Why.** D92 made the estimate's own computation synchronous, but
+`image-gen-focus-view.tsx` still reached it through a `fetch()` to our own API route, and that
+route's `withNode` wrapper does a real Supabase query (`nodes` joined to `canvases`/`clients`)
+plus `resolveCallerContext()` on every single call — a genuine DB + auth round trip on every
+param change, independent of how fast the estimate math itself is. The user caught this
+directly by comparing image-gen's estimate against video-gen's (verifiably instant) and asking
+why they didn't match. D92 alone was an incomplete fix for the underlying complaint (perceived
+latency), even though it correctly eliminated the actual vendor API call it targeted.
+
+**Rejected.** Keeping the route but optimizing `withNode` (e.g. caching the node lookup) —
+solves the wrong layer; video-gen proves the lookup isn't needed for a preview estimate at
+all, since nothing about *cost* depends on node/canvas/client identity, only on
+model/quality/size/referenceCount, all already known client-side.
+
+**Refines →** D92 (same commit family, same design doc, extends its scope after
+implementation surfaced a latency source D92's own analysis didn't cover).
+
+**Originated →** `2026-08-03-image-input-cost-static-estimate-design.md` §6.
 ### D92 — Client Moodboards are URL-first; bytes are re-hosted only on use *(recorded 2026-07-28; builds on D13, D14; revises the reference-clipper target model)*
 
 **Decision.** A **client-level Moodboard** — a named, reusable collection of reference images ("Face
@@ -1983,3 +2036,33 @@ an additive sibling field on the `/api/me` response, same pattern the admin-UX-c
 `platformRole`). **Originated.** `2026-08-05-profile-popover-header-design.md`. *This branch was cut
 from `main`, whose ADR log tops out at D100 here — `staging` has since moved ahead independently (up to
 ~D119); this number may need renumbering at merge time per this log's existing convention.*
+### D101 — Edit references are explicit: an empty selection sends no extras *(recorded 2026-08-04; reverses D27's "empty = all connected" default; refines D37/D39)*
+**Decision.** In Image Gen **Edit** mode, only the connected image nodes the operator has
+**ticked** under "References for this edit" are sent as `extraReferenceUrls`. An empty
+selection sends **no extras** — the edit sees only the base image. This replaces the D27
+default, in which an empty selection expanded to *all* other connected images. Enforced at
+both boundaries: `selectEditReferenceUrls` no longer falls back to `nonBase`, and the edit
+route no longer falls back to `connectedImageUrls` when the field is absent. **The Generate
+tab is unchanged** — there, all connected images remain references.
+
+**Why.** The tiles rendered as *unselected* (dashed border, no check) while the selection
+logic read `[]` as "unspecified → use everything", so edits silently received reference
+images the operator never picked — observed as a product tin bleeding into an edit whose
+tile was visibly unticked. The empty state also made "send no references" unreachable:
+deselecting the last tile returned `[]`, which re-expanded to all. One value, `[]`, carried
+two contradictory meanings across the view/logic seam; making selection explicit collapses
+them to one.
+
+**Rejected.** Seeding the selection with every connected id on open and keeping the D27
+default (would have preserved existing behaviour and only made it *visible*, but leaves the
+operator opted-in by default — the opposite of "explicit"); using `undefined` vs `[]` as a
+never-chosen/cleared discriminator (same effect, extra state ambiguity to carry in
+`editReferenceNodeIds` forever).
+
+**Migration.** None. `editReferenceNodeIds` keeps its shape; nodes that never ticked a tile
+now send no extras, which changes edit output on canvases tuned under the old default — the
+accepted cost of the fix. The `replace`/`add` intent warning was reworded to say ticking is
+required, since "connected" is no longer sufficient.
+
+**Originated.** Bug report 2026-08-04 (Image Gen edit mode); regression test in
+`src/lib/image-gen/__tests__/edit-prompt.test.ts`.

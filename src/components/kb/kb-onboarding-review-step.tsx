@@ -29,6 +29,12 @@ import {
   SheetTitle,
   SheetDescription,
 } from "@/components/ui/sheet";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { getModuleStatus } from "@/components/kb/kb-module-card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { KBFieldRow } from "@/components/kb/kb-field-row";
@@ -47,7 +53,12 @@ import type { ClientKBDocumentRow, ClientBrandImageRow } from "@/lib/db/types";
 import { uploadViaSignedUrl } from "@/lib/uploads/client";
 import type { ModuleKey, FieldPath, StagedChanges } from "@/lib/kb/types";
 import { MODULES, FIELD_LABELS, DOC_EXTENSIONS, IMG_EXTENSIONS } from "@/lib/kb/constants";
-import { getModuleFields, getFieldPath, buildChangeSummary } from "@/lib/kb/utils";
+import {
+  getModuleFields,
+  getFieldPath,
+  buildChangeSummary,
+  findNextModuleNeedingReview,
+} from "@/lib/kb/utils";
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -141,6 +152,32 @@ export function KBOnboardingReviewStep({
     selectedModule === "image_analysis" &&
     Object.values(currentFields).every((f) => f.value === null);
 
+  // Single footer action — Save while there are unsaved edits, otherwise Mark KB Ready (or
+  // its edit-mode/in-flight variants). Referencing handleSave/handleMarkReady here is safe
+  // even though they're declared later in this component: both are `function` declarations,
+  // which are hoisted within the component's function body.
+  type FooterAction = {
+    label: string;
+    disabled: boolean;
+    onClick?: () => void;
+    tooltip?: string;
+  };
+  const footerAction: FooterAction = dirty
+    ? { label: saving ? "Saving…" : "Save changes", disabled: saving, onClick: handleSave }
+    : isEditMode
+      ? { label: "KB is Ready", disabled: true }
+      : !isReady
+        ? {
+            label: "Mark KB Ready",
+            disabled: true,
+            tooltip: "Approve or reject every field first",
+          }
+        : {
+            label: markingReady ? "Saving…" : "Mark KB Ready",
+            disabled: markingReady,
+            onClick: handleMarkReady,
+          };
+
   // ── Field helpers ─────────────────────────────────────────────────────────
 
   // Buffers a field change into the draft only. Persisted later by handleSave.
@@ -189,6 +226,19 @@ export function KBOnboardingReviewStep({
       }
     });
     if (count > 0) toast.success(`${count} field${count === 1 ? "" : "s"} approved`);
+
+    // The module we just bulk-approved is now ready by definition (every needs_review field
+    // was just flipped to approved) — reading it back from `kb` here would race the pending
+    // setState above, so treat it as ready directly instead. Every other module's readiness
+    // is unaffected by this action, so it's safe to read straight from the current `kb`.
+    const readyByModule = Object.fromEntries(
+      MODULES.map(({ key }) => [
+        key,
+        key === module ? true : getModuleStatus(getModuleFields(kb, key)) === "ready",
+      ]),
+    ) as Record<ModuleKey, boolean>;
+    const next = findNextModuleNeedingReview(module, readyByModule);
+    if (next) setSelectedModule(next);
   }
 
   async function handleReanalyzeField(module: ModuleKey, fieldKey: string, comment: string) {
@@ -457,47 +507,27 @@ export function KBOnboardingReviewStep({
 
       {/* Fixed header — global actions + module tabs */}
       <div className="shrink-0">
-        <div className="mb-2 flex items-center justify-between gap-3">
-          {/* Left: global edit state + Save (secondary) */}
-          <div className="flex items-center gap-2">
-            {dirty && (
-              <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[0.65rem] font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-400">
-                Unsaved changes
-              </span>
-            )}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleSave}
-              disabled={!dirty || saving}
-            >
-              {saving ? "Saving…" : "Save"}
+        <div className="mb-2 flex items-center justify-end gap-3">
+          {/* Single dynamic action: "Save changes" while dirty, otherwise Mark KB Ready
+             (or its edit-mode/in-flight variants) — see the footerAction derivation above. */}
+          {footerAction.tooltip ? (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger render={<span className="inline-block" />}>
+                  <Button size="sm" disabled={footerAction.disabled}>
+                    <CheckCircle2Icon className="size-4" />
+                    {footerAction.label}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top">{footerAction.tooltip}</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          ) : (
+            <Button size="sm" onClick={footerAction.onClick} disabled={footerAction.disabled}>
+              <CheckCircle2Icon className="size-4" />
+              {footerAction.label}
             </Button>
-          </div>
-          {/* Right: Mark KB Ready (primary) — the global finalize action */}
-          <Button
-            size="sm"
-            onClick={handleMarkReady}
-            disabled={!isReady || markingReady || isEditMode || dirty}
-            title={
-              isEditMode
-                ? undefined
-                : dirty
-                  ? "Save your changes before marking the KB ready"
-                  : !isReady
-                    ? "Approve or reject every field first"
-                    : undefined
-            }
-          >
-            <CheckCircle2Icon className="size-4" />
-            {markingReady
-              ? "Saving…"
-              : isEditMode
-                ? "KB is Ready"
-                : isReady
-                  ? "Mark KB Ready"
-                  : "Review all fields first"}
-          </Button>
+          )}
         </div>
         <Tabs
           value={selectedModule}
@@ -505,7 +535,7 @@ export function KBOnboardingReviewStep({
         >
           <TabsList
             variant="line"
-            className="h-auto w-full flex-wrap justify-start gap-1 border-b border-border bg-transparent p-0 group-data-horizontal/tabs:h-auto"
+            className="h-auto w-full flex-nowrap justify-start gap-1 overflow-x-auto border-b border-border bg-transparent p-0 group-data-horizontal/tabs:h-auto"
           >
             {MODULES.map(({ key, label }) => {
               const ready = getModuleStatus(getModuleFields(kb, key)) === "ready";
@@ -513,11 +543,11 @@ export function KBOnboardingReviewStep({
                 <TabsTrigger
                   key={key}
                   value={key}
-                  className="h-auto flex-none rounded-none px-3 py-2.5 after:bg-primary group-data-horizontal/tabs:after:bottom-0"
+                  className="h-auto flex-none gap-1 rounded-none px-2 py-2.5 after:bg-primary group-data-horizontal/tabs:after:bottom-0"
                 >
                   {label}
                   {ready && (
-                    <CheckCircle2Icon className="size-3.5 text-emerald-500 dark:text-emerald-400" />
+                    <CheckCircle2Icon className="size-3 shrink-0 text-emerald-500 dark:text-emerald-400" />
                   )}
                 </TabsTrigger>
               );
@@ -548,23 +578,28 @@ export function KBOnboardingReviewStep({
             <h2 className="font-display text-lg font-semibold">
               {MODULES.find((m) => m.key === selectedModule)?.label}
             </h2>
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-muted-foreground">
-                {Object.values(currentFields).filter((f) => f.status !== "needs_review").length}
-                {" / "}
-                {Object.values(currentFields).length} reviewed
-              </span>
-              {hasNeedsReview && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleApproveAll(selectedModule)}
-                >
-                  <CheckIcon className="size-3.5" />
-                  Approve all ({needsReviewCount})
-                </Button>
-              )}
-            </div>
+            {/* The generic counter/approve-all only makes sense against visible fields —
+               when the module has no real content (allImageAnalysisNull), the empty state
+               below carries its own "mark reviewed" action instead. */}
+            {!allImageAnalysisNull && (
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-muted-foreground">
+                  {Object.values(currentFields).filter((f) => f.status !== "needs_review").length}
+                  {" / "}
+                  {Object.values(currentFields).length} reviewed
+                </span>
+                {hasNeedsReview && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleApproveAll(selectedModule)}
+                  >
+                    <CheckIcon className="size-3.5" />
+                    Approve all ({needsReviewCount})
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
 
           {allImageAnalysisNull ? (
@@ -572,12 +607,22 @@ export function KBOnboardingReviewStep({
               <ImageIcon className="size-8 text-muted-foreground/40" />
               <div>
                 <p className="text-sm font-medium text-muted-foreground">
-                  No brand images were analyzed
+                  No images were uploaded
                 </p>
                 <p className="mt-0.5 text-xs text-muted-foreground">
                   Upload images in the Source Documents &amp; Images drawer.
                 </p>
               </div>
+              {hasNeedsReview && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleApproveAll(selectedModule)}
+                >
+                  <CheckIcon className="size-3.5" />
+                  Mark this section reviewed
+                </Button>
+              )}
             </div>
           ) : (
             <div className="grid gap-10">
