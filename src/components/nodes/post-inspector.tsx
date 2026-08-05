@@ -6,6 +6,7 @@ import { PostInspectorText } from "./post-inspector-text";
 import { PostInspectorShape } from "./post-inspector-shape";
 import { PostInspectorImage } from "./post-inspector-image";
 import { PostInspectorIcon } from "./post-inspector-icon";
+import { PostInspectorCommon } from "./post-inspector-common";
 
 type Props = {
   layer: PostLayer | null;
@@ -79,15 +80,20 @@ export function PostInspector({ layer, selectedCount, onChange, onPreview, natur
         <PostInspectorShape layer={layer} onChange={onChange} onPreview={preview} />
       )}
       {layer.kind === "image" && (
-        <PostInspectorImage layer={layer} onChange={onChange} naturalSize={naturalSize} />
+        <PostInspectorImage
+          layer={layer} onChange={onChange} onPreview={preview} naturalSize={naturalSize}
+        />
       )}
-      {layer.kind === "icon" && <PostInspectorIcon layer={layer} onChange={onChange} />}
+      {layer.kind === "icon" && <PostInspectorIcon layer={layer} onChange={onChange} onPreview={preview} />}
       {layer.kind === "group" && (
         <p className="text-xs text-muted-foreground">
           Group of {layer.childIds.length} layers. Right-click the canvas to
           ungroup, align, lock, or delete.
         </p>
       )}
+      {/* Opacity and rotation are on LayerBase, so they belong to every kind — including a
+          group, where they apply to the whole group at once. */}
+      <PostInspectorCommon layer={layer} onChange={onChange} onPreview={preview} />
     </Shell>
   );
 }

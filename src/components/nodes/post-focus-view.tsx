@@ -178,7 +178,9 @@ export function PostFocusView({
         if (p.shape === "line" || p.shape === "arrow") return { w: 0.4, h: 0.06 };
         return {};
       case "icon":
-        return squareBox(0.16);
+        // 16% of the canvas width landed a phone glyph the size of a headline. An icon is a
+        // supporting mark next to copy, not a hero element — it can always be scaled up.
+        return squareBox(0.09);
       // Photos land in a generous square rather than the generic wide-and-short default box,
       // which squashed them into a strip.
       case "image":

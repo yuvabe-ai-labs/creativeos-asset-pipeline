@@ -9,6 +9,7 @@ import type { TextLayer } from "@/lib/post/types";
 import { FONT_DEFINITIONS, type FontKey } from "@/lib/post/fonts";
 import { displayFontSize, fontSizeFromDisplay } from "@/lib/post/units";
 import { PostColourSwatches } from "./post-colour-swatches";
+import { sliderValue } from "./post-inspector-common";
 
 type Props = {
   layer: TextLayer;
@@ -82,6 +83,36 @@ export function PostInspectorText({ layer, onChange, onPreview }: Props) {
           value={[nearestWeightStep(layer.fontWeight)]}
           onValueChange={(v) => onPreview({ fontWeight: Array.isArray(v) ? v[0] : v })}
           onValueCommitted={(v) => onChange({ fontWeight: Array.isArray(v) ? v[0] : v })}
+        />
+      </div>
+      <div>
+        <label className="text-eyebrow mb-1 block !text-[0.6rem]">
+          {/* Defaulted, not asserted: the field is typed required, but layers come back from
+              JSONB with no schema to guarantee it, and a missing one would crash on .toFixed
+              rather than degrade (D10). 1.2 is what createTextLayer seeds. */}
+          Line spacing — {(layer.lineHeight ?? 1.2).toFixed(2)}
+        </label>
+        {/* Rendered by the Konva Text node but previously unreachable, so a two-line headline
+            was stuck at whatever the template author chose. 0.8 lets display type tuck up
+            tight; 2.5 is airy body copy. */}
+        <Slider
+          min={0.8} max={2.5} step={0.05}
+          value={[layer.lineHeight ?? 1.2]}
+          onValueChange={(v) => onPreview({ lineHeight: sliderValue(v) })}
+          onValueCommitted={(v) => onChange({ lineHeight: sliderValue(v) })}
+        />
+      </div>
+      <div>
+        <label className="text-eyebrow mb-1 block !text-[0.6rem]">
+          Letter spacing — {layer.letterSpacing ?? 0}
+        </label>
+        {/* Every template's eyebrow ("LIMITED-TIME OFFER") is tracked out this way; until now
+            you could not do the same to your own. Negative tightens. */}
+        <Slider
+          min={-2} max={20} step={1}
+          value={[layer.letterSpacing ?? 0]}
+          onValueChange={(v) => onPreview({ letterSpacing: sliderValue(v) })}
+          onValueCommitted={(v) => onChange({ letterSpacing: sliderValue(v) })}
         />
       </div>
       <PostColourSwatches

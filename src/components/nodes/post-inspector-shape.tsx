@@ -7,6 +7,7 @@ import type { ShapeLayer } from "@/lib/post/types";
 import { PostColourSwatches } from "./post-colour-swatches";
 import { PostGradientPresets } from "./post-gradient-presets";
 import { makeGradientFill } from "@/lib/post/gradients";
+import { cornerLabel, sliderValue } from "./post-inspector-common";
 
 type Props = {
   layer: ShapeLayer;
@@ -15,7 +16,6 @@ type Props = {
   onPreview: (patch: Partial<ShapeLayer>) => void;
 };
 
-/** Corner radius reads as words ("Sharp"/"Rounded"/"Pill") rather than a raw px count (D125). */
 const CORNER_MAX = 120;
 
 export function PostInspectorShape({ layer, onChange, onPreview }: Props) {
@@ -70,17 +70,17 @@ export function PostInspectorShape({ layer, onChange, onPreview }: Props) {
 
       <div>
         <label className="text-eyebrow mb-1 block !text-[0.6rem]">
-          Corners — {layer.radius >= CORNER_MAX ? "Pill" : layer.radius === 0 ? "Sharp" : "Rounded"}
+          Corners — {cornerLabel(layer.radius, CORNER_MAX)}
         </label>
         <Slider
           min={0} max={CORNER_MAX} step={1}
           value={[Math.min(layer.radius, CORNER_MAX)]}
           onValueChange={(v) => {
-            const n = Array.isArray(v) ? v[0] : v;
+            const n = sliderValue(v);
             onPreview({ radius: n >= CORNER_MAX ? 999 : n });
           }}
           onValueCommitted={(v) => {
-            const n = Array.isArray(v) ? v[0] : v;
+            const n = sliderValue(v);
             onChange({ radius: n >= CORNER_MAX ? 999 : n });
           }}
         />
@@ -121,12 +121,8 @@ export function PostInspectorShape({ layer, onChange, onPreview }: Props) {
             <Slider
               min={1} max={40} step={1}
               value={[layer.stroke.width]}
-              onValueChange={(v) =>
-                onPreview({ stroke: { ...layer.stroke!, width: Array.isArray(v) ? v[0] : v } })
-              }
-              onValueCommitted={(v) =>
-                onChange({ stroke: { ...layer.stroke!, width: Array.isArray(v) ? v[0] : v } })
-              }
+              onValueChange={(v) => onPreview({ stroke: { ...layer.stroke!, width: sliderValue(v) } })}
+              onValueCommitted={(v) => onChange({ stroke: { ...layer.stroke!, width: sliderValue(v) } })}
             />
           </div>
         </>
