@@ -5,6 +5,7 @@ import { Group } from "react-konva";
 import type Konva from "konva";
 import type { GroupLayer, PostLayer } from "@/lib/post/types";
 import { layerToKonvaProps } from "@/lib/post/layer-konva-props";
+import { normalizedToPx } from "@/lib/post/units";
 import { getGroupChildren } from "@/lib/post/layers";
 import { PostLayerRender } from "./post-layer-render";
 
@@ -36,8 +37,9 @@ type Props = {
 // to that group's origin, not the stage — so naively nesting children (who each compute
 // their own ABSOLUTE px via their own layerToKonvaProps call, same as if they were rendered
 // top-level) under an outer Group already translated by (gx, gy) double-applies that offset.
-// Fix: wrap the children in an inner, non-refed, non-interactive <Group x={-gx} y={-gy}> that
-// cancels the outer translation before the children's own absolute coordinates take over. The
+// Fix: wrap the children in an inner, non-refed, non-interactive Group that cancels the
+// group's ORIGIN translation (see the detailed note in the body — cancelling the CURRENT
+// translation instead makes the group's transform a no-op on its own children). The
 // two translations net to zero when the outer's rotation is 0, and because Konva composes
 // transforms down the node tree, a nonzero outer rotation still rotates the whole cancelled-
 // and-recentered subtree around the outer Group's own (x, y) anchor point — the SAME pivot
@@ -50,9 +52,34 @@ export function PostGroupLayer({
   const geo = layerToKonvaProps(layer, containerW, containerH);
   const children = getGroupChildren(allLayers, layer);
 
+  // The inner group must cancel the group's ORIGIN box, not its CURRENT one.
+  //
+  // Children store creation-time absolute coordinates and are never rewritten while grouped
+  // (see ungroupLayers). Cancelling by the current box (`-geo.x`) made the two translations
+  // net to zero at every moment — including mid-drag — so the group's x/y had no rendered
+  // effect on its children at all: a drag moved them while the pointer was down, then the
+  // commit updated geo.x, the cancel followed it, and the children snapped straight back
+  // while the layer recorded a move that never visibly happened. ungroupLayers would later
+  // replay that phantom delta onto the children, teleporting them.
+  //
+  // Cancelling by the origin instead composes to gx + (cx - ox) * sx — exactly the
+  // translate-and-scale ungroupLayers applies when the group is dissolved, so what is
+  // rendered and what is persisted finally agree. For a freshly created group originBox
+  // equals the current box and sx/sy are 1, which reduces to the previous behaviour.
+  const origin = layer.originBox ?? { x: layer.x, y: layer.y, w: layer.w, h: layer.h };
+  const scaleX = origin.w === 0 ? 1 : layer.w / origin.w;
+  const scaleY = origin.h === 0 ? 1 : layer.h / origin.h;
+  const originX = normalizedToPx(origin.x, containerW);
+  const originY = normalizedToPx(origin.y, containerH);
+
   return (
     <Group ref={nodeRef} {...geo} {...nodeProps}>
-      <Group x={-geo.x} y={-geo.y}>
+      <Group
+        x={-originX * scaleX}
+        y={-originY * scaleY}
+        scaleX={scaleX}
+        scaleY={scaleY}
+      >
         {children.map((child) => (
           <PostLayerRender
             key={child.id}
