@@ -1967,3 +1967,19 @@ is UNVERIFIED — confirm before relaxing. O1's 4k tier is likewise unsettled: t
 inference, but the pricing table verified from kling.ai on 2026-07-24 has no O1 4k row, so the merge kept
 720p/1080p rather than expose a resolution that cannot be priced. **Rejected.** Sourcing O1's limits from
 fal.ai's wrapper, whose narrower values produced the wrong duration, audio and resolution sets.
+
+### D101 — Header identity chrome consolidates into a profile popover; `/api/me` gains a real `orgRole` alongside the collapsed gating `role` *(recorded 2026-08-05)*
+**Decision.** Replace the always-visible name pill + adjacent sign-out button (`IdentityChip`) and the
+org-name span in `HeaderBrand` with a single avatar-triggered popover (name, real role, org, sign out).
+`/api/me` adds an additive `orgRole: OrgRole` field for display purposes, separate from the existing
+collapsed `Identity.role` (frozen per D53, still used only for Approve-gating). **Why.** Identity chrome
+was split across both ends of the header for no functional reason; consolidating reduces permanent bar
+width and matches the Canva-style chrome the rest of the editor follows. The collapsed `role` field
+cannot be shown to users directly — it would display "Senior" for an Owner. **Rejected.** Showing the
+collapsed `role` in the popover directly (wrong for Owners) instead of adding `orgRole`. Folding the
+credits pill or the `Admin` link into the popover (one's a glanceable live meter, the other's
+navigation, not an account action). **Refines.** D53 (Identity's frozen shape — unchanged; `orgRole` is
+an additive sibling field on the `/api/me` response, same pattern the admin-UX-consistency spec used for
+`platformRole`). **Originated.** `2026-08-05-profile-popover-header-design.md`. *This branch was cut
+from `main`, whose ADR log tops out at D100 here — `staging` has since moved ahead independently (up to
+~D119); this number may need renumbering at merge time per this log's existing convention.*
