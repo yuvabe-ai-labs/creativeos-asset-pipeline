@@ -318,12 +318,6 @@ export function PostFocusView({
                 <Button variant="outline" size="icon" disabled={!canRedo} onClick={redo} aria-label="Redo">
                   <Redo2 className="size-4" />
                 </Button>
-                <Button
-                  variant="outline" size="sm"
-                  onClick={() => setTool(tool === "templates" ? null : "templates")}
-                >
-                  Change template
-                </Button>
                 <Button variant="outline" size="sm" disabled title="Publishing is coming soon">
                   Publish <span className="ml-1 text-[0.6rem] opacity-70">soon</span>
                 </Button>
