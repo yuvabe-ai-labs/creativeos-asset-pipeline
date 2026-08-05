@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import type { TextLayer } from "./types";
+import type { TextLayer, PostLayer } from "./types";
 import {
   createTextLayer,
   createShapeLayer,
