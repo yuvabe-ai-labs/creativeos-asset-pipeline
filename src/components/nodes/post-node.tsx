@@ -142,7 +142,17 @@ export function PostNode({ id, data, selected }: NodeProps) {
       layers={d.layers}
       autoPlacedNodeIds={d.autoPlacedNodeIds}
       connectedImageNodes={connectedImageNodes}
-      onPatch={(patch) => updateNodeData(id, patch)}
+      onPatch={(patch) => {
+        // Stamp the edit time here rather than at each call site: every path that changes the
+        // design — editor edits, template application, undo, redo — funnels through this one
+        // onPatch, so one rule covers them all and none can forget. Patches that carry no
+        // layers (a title rename, the auto-place bookkeeping) are not design edits and must
+        // not mark the render stale.
+        const stamped = "layers" in patch
+          ? { ...patch, layersUpdatedAt: new Date().toISOString() }
+          : patch;
+        updateNodeData(id, stamped);
+      }}
     />
     </>
   );

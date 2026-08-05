@@ -126,7 +126,12 @@ export type PostNodeData = {
   imageWidth?: number;
   imageHeight?: number;
   fileSizeBytes?: number;
-  renderedAt?: string;         // drives the "unrendered changes" badge (Task 24 staleness check)
+  renderedAt?: string;         // set on export; compared against layersUpdatedAt (D126)
+  // Set whenever the design changes. Compared against renderedAt to tell "Exported" from
+  // "Edited since export" on the node card. Absent on every node saved before this existed —
+  // readers must treat a missing value as current, never stale, or every previously-exported
+  // post would flag itself dirty on first load.
+  layersUpdatedAt?: string;
 };
 
 export type AppNode =
