@@ -7,6 +7,9 @@ import * as splitHalf from "./split-half";
 import * as boldQuote from "./bold-quote";
 import * as productHero from "./product-hero";
 import * as beforeAfter from "./before-after";
+import * as saleOffer from "./sale-offer";
+import * as event from "./event";
+import * as minimalFrame from "./minimal-frame";
 
 export type PostTemplate = {
   id: string;
@@ -43,6 +46,9 @@ export const TEMPLATES: readonly PostTemplate[] = [
   toTemplate(boldQuote),
   toTemplate(productHero),
   toTemplate(beforeAfter),
+  toTemplate(saleOffer),
+  toTemplate(event),
+  toTemplate(minimalFrame),
 ];
 
 export function getTemplate(id: string): PostTemplate | undefined {
