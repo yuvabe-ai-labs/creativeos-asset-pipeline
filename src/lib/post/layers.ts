@@ -10,7 +10,7 @@ import type {
 } from "./types";
 import { boundingBoxOf } from "./align";
 
-const DEFAULT_GEOMETRY = {
+export const DEFAULT_GEOMETRY = {
   x: 0.1,
   y: 0.1,
   w: 0.3,

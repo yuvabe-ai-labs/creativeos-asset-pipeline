@@ -15,6 +15,10 @@ import type { PostFormat } from "@/lib/post/types";
 import type { PostTemplate } from "@/lib/post/templates";
 import { nudge } from "@/lib/post/geometry";
 import { pxToNormalized } from "@/lib/post/units";
+import { DEFAULT_GEOMETRY } from "@/lib/post/layers";
+import {
+  ELEMENT_DRAG_TYPE, parseElementDrag, type ElementDragPayload,
+} from "@/lib/post/element-drag";
 import { usePostEditor } from "@/hooks/use-post-editor";
 import { usePostExport } from "@/hooks/use-post-export";
 import { EditableField } from "./editable-field";
@@ -28,7 +32,7 @@ import { PostPanelSizes } from "./post-panel-sizes";
 import { PostPanelTemplates } from "./post-panel-templates";
 import { PostPanelElements } from "./post-panel-elements";
 import { PostPanelText } from "./post-panel-text";
-import { PostPanelConnected, CONNECTED_DRAG_TYPE } from "./post-panel-connected";
+import { PostPanelConnected } from "./post-panel-connected";
 import { PostPanelLayers } from "./post-panel-layers";
 
 type ConnectedImageNode = { nodeId: string; url: string };
@@ -97,13 +101,25 @@ export function PostFocusView({
   // wide post on a large display overflows a tall one on a laptop, which is what turned the
   // canvas area into a scroller.
   const stageAreaRef = useRef<HTMLDivElement>(null);
-  const [stageArea, setStageArea] = useState({ w: 0, h: 0 });
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const [isDropTarget, setIsDropTarget] = useState(false);
+  // `offCentre` is how far this area's midpoint sits from the whole editor body's midpoint —
+  // see the `stageShift` note below for why the artboard needs it.
+  const [stageArea, setStageArea] = useState({ w: 0, h: 0, offCentre: 0 });
   useEffect(() => {
     const el = stageAreaRef.current;
     if (!el) return;
     const observer = new ResizeObserver(([entry]) => {
       const { width, height } = entry.contentRect;
-      setStageArea({ w: width, h: height });
+      const body = bodyRef.current;
+      // Measured in the same callback as the resize: opening or closing the flyout is the only
+      // thing that moves this area, and it necessarily resizes it too, so there is no offset
+      // change this can miss.
+      const offCentre = body
+        ? body.getBoundingClientRect().left + body.getBoundingClientRect().width / 2
+          - (el.getBoundingClientRect().left + el.getBoundingClientRect().width / 2)
+        : 0;
+      setStageArea({ w: width, h: height, offCentre });
     });
     observer.observe(el);
     return () => observer.disconnect();
@@ -121,6 +137,21 @@ export function PostFocusView({
   const containerH = formatSpec.height * scale;
 
   /**
+   * Nudge the artboard back onto the editor's true centre line.
+   *
+   * The stage area is the flex remainder between the rail + flyout on the left and the
+   * inspector on the right, and those two sides are never the same width — so centring the
+   * artboard *within the remainder* leaves it visibly off-centre in the window, and it jumps
+   * sideways every time the flyout is toggled. Shifting by the measured offset centres it on
+   * the editor instead, and pins it there across the toggle.
+   *
+   * Clamped so the artboard can never slide under a panel: when there isn't enough slack for
+   * the full correction, it takes as much as fits and stays fully inside its own area.
+   */
+  const maxShift = Math.max(0, (stageArea.w - containerW) / 2 - STAGE_GUTTER_PX);
+  const stageShift = Math.min(Math.max(stageArea.offCentre, -maxShift), maxShift);
+
+  /**
    * A box that is actually square ON CANVAS.
    *
    * `w` is a fraction of canvas width and `h` a fraction of canvas height, so `w === h` only
@@ -130,6 +161,64 @@ export function PostFocusView({
    */
   function squareBox(widthFraction: number) {
     return { w: widthFraction, h: (widthFraction * containerW) / containerH };
+  }
+
+  /**
+   * The box each kind of element gets when it lands. Kept apart from `addElement` only so the
+   * size rules read as one list; a field left out falls back to DEFAULT_GEOMETRY's.
+   */
+  function elementSize(p: ElementDragPayload): { w?: number; h?: number } {
+    switch (p.kind) {
+      case "shape":
+        // Round and radial primitives need a genuinely square box or they land as ovals; a
+        // rule or arrow wants a wide, short one. A rectangle keeps the generic default.
+        if (p.shape === "ellipse" || p.shape === "star" || p.shape === "diamond" || p.shape === "triangle")
+          return squareBox(0.3);
+        if (p.shape === "line" || p.shape === "arrow") return { w: 0.4, h: 0.06 };
+        return {};
+      case "icon":
+        return squareBox(0.16);
+      // Photos land in a generous square rather than the generic wide-and-short default box,
+      // which squashed them into a strip.
+      case "image":
+        return squareBox(0.5);
+      case "connected":
+        return squareBox(0.4);
+      case "text":
+        // The preset carries its own height, tuned to its font size. Returned only when it
+        // actually has one: an explicit `h: undefined` in the overrides would beat
+        // DEFAULT_GEOMETRY's height in the spread and leave the layer with no height at all.
+        return p.preset.h === undefined ? {} : { h: p.preset.h };
+    }
+  }
+
+  /**
+   * THE one way an element gets added, whether it was clicked in a panel or dragged onto the
+   * canvas — so a dropped star is the same star a clicked one is, and a new element kind needs
+   * its size decided once rather than once per entry point.
+   *
+   * `centre` is the drop point in normalized canvas coords. The element is centred on it, so it
+   * lands under the cursor instead of starting there and extending down-right, and is clamped
+   * to stay fully on the artboard when dropped near an edge (or outside it, in the grey).
+   */
+  function addElement(p: ElementDragPayload, centre?: { x: number; y: number }) {
+    const size = elementSize(p);
+    const w = size.w ?? DEFAULT_GEOMETRY.w;
+    const h = size.h ?? DEFAULT_GEOMETRY.h;
+    const at = centre
+      ? {
+          x: Math.min(Math.max(centre.x - w / 2, 0), 1 - w),
+          y: Math.min(Math.max(centre.y - h / 2, 0), 1 - h),
+        }
+      : {};
+    const geo = { ...size, ...at };
+    switch (p.kind) {
+      case "shape": return addShape({ shape: p.shape, ...geo });
+      case "icon": return addIcon(p.src, geo);
+      case "text": return addText({ ...p.preset, ...geo });
+      case "image": return addImage({ kind: "url", url: p.url }, geo);
+      case "connected": return addImage({ kind: "node", nodeId: p.nodeId }, geo);
+    }
   }
 
   // Templates open by default so the next step is discoverable, but nothing is applied
@@ -384,7 +473,7 @@ export function PostFocusView({
           </div>
         </div>
 
-        <div className="flex min-h-0 flex-1">
+        <div ref={bodyRef} className="flex min-h-0 flex-1">
           <PostToolRail active={tool} onSelect={setTool} />
           <PostToolPanel tool={tool}>
             {tool === "templates" && (
@@ -399,32 +488,18 @@ export function PostFocusView({
             {tool === "elements" && (
               <PostPanelElements
                 nodeId={nodeId}
-                onAddShape={(shape) =>
-                  addShape({
-                    shape,
-                    // Round and radial primitives need a genuinely square box or they land
-                    // as ovals; a rule or arrow wants a wide, short one. A rectangle keeps
-                    // the generic default it has always had.
-                    ...(shape === "ellipse" || shape === "star" || shape === "diamond" || shape === "triangle"
-                      ? squareBox(0.3)
-                      : shape === "line" || shape === "arrow"
-                        ? { w: 0.4, h: 0.06 }
-                        : {}),
-                  })
-                }
-                onAddIcon={(src) => addIcon(src, squareBox(0.16))}
-                // Uploaded images land in a generous square too, rather than the generic
-                // wide-and-short default box, which squashed them into a strip.
-                onAddImageUrl={(url) => addImage({ kind: "url", url }, squareBox(0.5))}
+                onAddShape={(shape) => addElement({ kind: "shape", shape })}
+                onAddIcon={(src) => addElement({ kind: "icon", src })}
+                onAddImageUrl={(url) => addElement({ kind: "image", url })}
               />
             )}
             {tool === "text" && (
-              <PostPanelText onAddText={(preset) => addText(preset)} />
+              <PostPanelText onAddText={(preset) => addElement({ kind: "text", preset })} />
             )}
             {tool === "connected" && (
               <PostPanelConnected
                 nodes={connectedImageNodes}
-                onAdd={(nodeId) => addImage({ kind: "node", nodeId })}
+                onAdd={(nodeId) => addElement({ kind: "connected", nodeId })}
               />
             )}
             {tool === "layers" && (
@@ -462,31 +537,40 @@ export function PostFocusView({
             onMouseDown={(e) => {
               if (e.target === e.currentTarget) selectLayer(null);
             }}
+            // Anything draggable in the left panels — a shape, an icon, a text preset, an
+            // uploaded or connected photo — drops here, all through one payload type.
             onDragOver={(e) => {
-              if (e.dataTransfer.types.includes(CONNECTED_DRAG_TYPE)) e.preventDefault();
+              if (!e.dataTransfer.types.includes(ELEMENT_DRAG_TYPE)) return;
+              // preventDefault is what marks this a valid drop target; without it the browser
+              // refuses the drop and animates the tile flying back to the panel.
+              e.preventDefault();
+              e.dataTransfer.dropEffect = "copy";
+              setIsDropTarget(true);
+            }}
+            onDragLeave={(e) => {
+              // Guarded on relatedTarget: dragging across a child fires dragleave for the
+              // parent too, which would flicker the highlight off on every internal boundary.
+              if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setIsDropTarget(false);
             }}
             onDrop={(e) => {
-              const droppedNodeId = e.dataTransfer.getData(CONNECTED_DRAG_TYPE);
-              if (!droppedNodeId) return;
+              setIsDropTarget(false);
+              const payload = parseElementDrag(e.dataTransfer.getData(ELEMENT_DRAG_TYPE));
+              if (!payload) return;
               e.preventDefault();
               const stageBox = stageRef.current?.container().getBoundingClientRect();
               if (!stageBox) return;
-              // The drop point becomes the new layer's CENTRE, so the image lands under the
-              // cursor rather than starting there and extending down-right.
-              const w = 0.4;
-              const h = 0.4;
-              const cx = pxToNormalized(e.clientX - stageBox.left, stageBox.width);
-              const cy = pxToNormalized(e.clientY - stageBox.top, stageBox.height);
-              addImage(
-                { kind: "node", nodeId: droppedNodeId },
-                {
-                  x: Math.min(Math.max(cx - w / 2, 0), 1 - w),
-                  y: Math.min(Math.max(cy - h / 2, 0), 1 - h),
-                  w, h,
-                },
-              );
+              addElement(payload, {
+                x: pxToNormalized(e.clientX - stageBox.left, stageBox.width),
+                y: pxToNormalized(e.clientY - stageBox.top, stageBox.height),
+              });
             }}
           >
+            {/* The shift is a transform, not a margin, so it never enters the ResizeObserver's
+                measurement and can't feed back into its own input. */}
+            <div
+              className="transition-[transform] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]"
+              style={{ transform: `translateX(${stageShift}px)` }}
+            >
             <PostLayerContextMenu
               hasSelection={selectedIds.length > 0}
               canGroup={selectedIds.length >= 2}
@@ -535,6 +619,13 @@ export function PostFocusView({
                 onImageLoaded={handleImageLoaded}
               />
             </PostLayerContextMenu>
+            </div>
+
+            {/* Drop affordance. Drawn as an overlay on the whole area rather than a border on
+                the artboard: you can drop anywhere in here, not only on the artboard itself. */}
+            {isDropTarget && (
+              <div className="pointer-events-none absolute inset-2 rounded-lg border-2 border-dashed border-primary/50 bg-primary/5" />
+            )}
           </div>
 
           {/* Inspector — the shell (width/header) always renders regardless of selection

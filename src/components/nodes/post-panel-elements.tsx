@@ -14,7 +14,20 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { fileNodeService } from "@/services/file-node.service";
 import { resolveIconSource } from "@/lib/post/icons";
+import { ELEMENT_DRAG_TYPE, serializeElementDrag, type ElementDragPayload } from "@/lib/post/element-drag";
 import type { IconSource, ShapeKind } from "@/lib/post/types";
+
+/** Every tile in this panel adds on click AND on drop, so they all carry the same two props. */
+function dragProps(payload: ElementDragPayload) {
+  return {
+    draggable: true,
+    onDragStart: (e: React.DragEvent) => {
+      e.dataTransfer.setData(ELEMENT_DRAG_TYPE, serializeElementDrag(payload));
+      e.dataTransfer.effectAllowed = "copy" as const;
+    },
+    className: "cursor-grab active:cursor-grabbing",
+  };
+}
 
 type Props = {
   nodeId: string;
@@ -170,6 +183,7 @@ export function PostPanelElements({ nodeId, onAddShape, onAddIcon, onAddImageUrl
     <div className="space-y-4">
       <div>
         <p className="mb-1 text-[0.6rem] font-semibold text-muted-foreground">Shapes</p>
+        <p className="mb-1 text-[0.6rem] text-muted-foreground">Click to add, or drag onto the canvas.</p>
         <div className="grid grid-cols-4 gap-1">
           {SHAPE_PRESET.map(({ shape, label, Icon }) => (
             <Button
@@ -179,6 +193,7 @@ export function PostPanelElements({ nodeId, onAddShape, onAddIcon, onAddImageUrl
               title={label}
               aria-label={label}
               onClick={() => onAddShape(shape)}
+              {...dragProps({ kind: "shape", shape })}
             >
               <Icon className="size-4" strokeWidth={1.5} />
             </Button>
@@ -216,6 +231,7 @@ export function PostPanelElements({ nodeId, onAddShape, onAddIcon, onAddImageUrl
                 <Button
                   key={name} variant="ghost" size="icon" title={label}
                   onClick={() => onAddIcon({ kind: "lucide", name })}
+                  {...dragProps({ kind: "icon", src: { kind: "lucide", name } })}
                 >
                   <Icon className="size-4" />
                 </Button>
@@ -233,6 +249,7 @@ export function PostPanelElements({ nodeId, onAddShape, onAddIcon, onAddImageUrl
               key={name} variant="ghost" size="icon" title={label}
               aria-label={label}
               onClick={() => onAddIcon({ kind: "simple", name })}
+              {...dragProps({ kind: "icon", src: { kind: "simple", name } })}
             >
               <BrandGlyph name={name} />
             </Button>
