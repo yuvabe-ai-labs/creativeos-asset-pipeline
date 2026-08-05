@@ -39,8 +39,22 @@ export type Fill =
   | { kind: "solid"; color: string }
   | { kind: "gradient"; from: string; to: string; angle: number };
 
+/**
+ * Which primitive a shape layer draws. Optional on the layer and defaulting to `"rect"`, so
+ * every shape saved before this existed keeps rendering as the rectangle it always was.
+ */
+export type ShapeKind =
+  | "rect"
+  | "ellipse"
+  | "triangle"
+  | "star"
+  | "diamond"
+  | "line"
+  | "arrow";
+
 export type ShapeLayer = LayerBase & {
   kind: "shape";
+  shape?: ShapeKind;
   fill: Fill;
   radius: number;
   stroke?: { color: string; width: number };

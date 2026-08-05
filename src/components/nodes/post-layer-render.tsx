@@ -81,10 +81,12 @@ export function PostLayerRender({
     );
   }
   if (layer.kind === "shape") {
+    // No cast here: a shape layer's Konva node is a Rect only when it IS a rectangle. Every
+    // other primitive is wrapped in a Group, so PostShapeLayer takes the base Node type.
     return (
       <PostShapeLayer
         layer={layer} containerW={containerW} containerH={containerH}
-        nodeRef={nodeRef as (n: Konva.Rect | null) => void} nodeProps={nodeProps}
+        nodeRef={nodeRef} nodeProps={nodeProps}
       />
     );
   }

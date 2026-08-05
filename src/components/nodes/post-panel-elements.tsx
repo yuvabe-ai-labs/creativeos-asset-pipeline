@@ -8,18 +8,30 @@ import {
   ArrowUpRight, ArrowDown, ArrowLeft, Navigation,
   Calendar, Clock, Globe, Wifi, Zap, TrendingUp, Home, Play, Pause, Volume2, Camera, Video,
   Music, Heart, ThumbsUp,
+  Circle, Triangle, Diamond, Minus, MoveRight,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { fileNodeService } from "@/services/file-node.service";
-import type { IconSource } from "@/lib/post/types";
+import type { IconSource, ShapeKind } from "@/lib/post/types";
 
 type Props = {
   nodeId: string;
-  onAddShape: () => void;
+  onAddShape: (shape: ShapeKind) => void;
   onAddIcon: (src: IconSource) => void;
   onAddImageUrl: (url: string) => void;
 };
+
+/** The primitives offered in the Shapes row. Icon names verified against lucide-react. */
+const SHAPE_PRESET: { shape: ShapeKind; label: string; Icon: typeof Phone }[] = [
+  { shape: "rect", label: "Rectangle", Icon: Square },
+  { shape: "ellipse", label: "Circle", Icon: Circle },
+  { shape: "triangle", label: "Triangle", Icon: Triangle },
+  { shape: "diamond", label: "Diamond", Icon: Diamond },
+  { shape: "star", label: "Star", Icon: Star },
+  { shape: "line", label: "Line", Icon: Minus },
+  { shape: "arrow", label: "Arrow", Icon: MoveRight },
+];
 
 type LucideEntry = { name: string; label: string; Icon: typeof Phone };
 type LucideGroup = { group: string; items: LucideEntry[] };
@@ -128,9 +140,20 @@ export function PostPanelElements({ nodeId, onAddShape, onAddIcon, onAddImageUrl
     <div className="space-y-4">
       <div>
         <p className="mb-1 text-[0.6rem] font-semibold text-muted-foreground">Shapes</p>
-        <Button variant="outline" size="sm" onClick={onAddShape} className="w-full justify-start gap-2">
-          <Square className="size-3.5" strokeWidth={1.5} /> Rectangle
-        </Button>
+        <div className="grid grid-cols-4 gap-1">
+          {SHAPE_PRESET.map(({ shape, label, Icon }) => (
+            <Button
+              key={shape}
+              variant="outline"
+              size="icon"
+              title={label}
+              aria-label={label}
+              onClick={() => onAddShape(shape)}
+            >
+              <Icon className="size-4" strokeWidth={1.5} />
+            </Button>
+          ))}
+        </div>
       </div>
 
       <div>

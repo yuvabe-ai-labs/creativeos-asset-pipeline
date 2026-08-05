@@ -2,7 +2,7 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import type { PostLayer, ImageLayer, IconLayer, ImageSource, IconSource, PostFormat, TextLayer } from "@/lib/post/types";
+import type { PostLayer, ImageLayer, IconLayer, ShapeLayer, ImageSource, IconSource, PostFormat, TextLayer } from "@/lib/post/types";
 import {
   createTextLayer, createShapeLayer, createImageLayer, createIconLayer,
   addLayer, removeLayer, updateLayer, duplicateLayer as duplicateLayerPure,
@@ -94,8 +94,8 @@ export function usePostEditor(
     setSelectedIds([layer.id]);
   }, [history.present, applyLayers]);
 
-  const addShape = useCallback(() => {
-    const layer = createShapeLayer({}, history.present.layers);
+  const addShape = useCallback((overrides?: Partial<ShapeLayer>) => {
+    const layer = createShapeLayer(overrides ?? {}, history.present.layers);
     applyLayers(addLayer(history.present.layers, layer));
     setSelectedIds([layer.id]);
   }, [history.present, applyLayers]);

@@ -343,7 +343,19 @@ export function PostFocusView({
             {tool === "elements" && (
               <PostPanelElements
                 nodeId={nodeId}
-                onAddShape={addShape}
+                onAddShape={(shape) =>
+                  addShape({
+                    shape,
+                    // Round and radial primitives need a genuinely square box or they land as
+                    // ovals; a rule or arrow wants a wide, short one. A rectangle keeps the
+                    // generic default it has always had.
+                    ...(shape === "ellipse" || shape === "star" || shape === "diamond" || shape === "triangle"
+                      ? squareBox(0.3)
+                      : shape === "line" || shape === "arrow"
+                        ? { w: 0.4, h: 0.06 }
+                        : {}),
+                  })
+                }
                 onAddIcon={(src) => addIcon(src, squareBox(0.16))}
                 // Uploaded images land in a generous square too, rather than the generic
                 // wide-and-short default box, which squashed them into a strip.
