@@ -4,6 +4,9 @@ import * as lowerThird from "./lower-third";
 import * as insetCard from "./inset-card";
 import * as sideColumn from "./side-column";
 import * as splitHalf from "./split-half";
+import * as boldQuote from "./bold-quote";
+import * as productHero from "./product-hero";
+import * as beforeAfter from "./before-after";
 
 export type PostTemplate = {
   id: string;
@@ -37,6 +40,9 @@ export const TEMPLATES: readonly PostTemplate[] = [
   toTemplate(insetCard),
   toTemplate(sideColumn),
   toTemplate(splitHalf),
+  toTemplate(boldQuote),
+  toTemplate(productHero),
+  toTemplate(beforeAfter),
 ];
 
 export function getTemplate(id: string): PostTemplate | undefined {
