@@ -1,14 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { AlignCenter, AlignLeft, AlignRight } from "lucide-react";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import type { TextLayer } from "@/lib/post/types";
 import { FONT_DEFINITIONS, type FontKey } from "@/lib/post/fonts";
 import { displayFontSize, fontSizeFromDisplay } from "@/lib/post/units";
+import { PostColourSwatches } from "./post-colour-swatches";
 
 type Props = { layer: TextLayer; onChange: (patch: Partial<TextLayer>) => void };
 
@@ -19,9 +19,6 @@ const ALIGN_OPTIONS = [
 ];
 
 export function PostInspectorText({ layer, onChange }: Props) {
-  const [sizeDraft, setSizeDraft] = useState(String(displayFontSize(layer.fontSize)));
-  useEffect(() => setSizeDraft(String(displayFontSize(layer.fontSize))), [layer.fontSize]);
-
   return (
     <div className="space-y-3">
       <div>
@@ -37,40 +34,35 @@ export function PostInspectorText({ layer, onChange }: Props) {
           </SelectContent>
         </Select>
       </div>
-      <div className="flex gap-2">
-        <div className="flex-1">
-          <label className="text-eyebrow mb-1 block !text-[0.6rem]">Size</label>
-          <Input
-            type="number" min={8} max={400}
-            value={sizeDraft}
-            onChange={(e) => setSizeDraft(e.target.value)}
-            onBlur={() => onChange({ fontSize: fontSizeFromDisplay(Number(sizeDraft)) })}
-            className="text-xs"
-          />
-        </div>
-        <div className="flex-1">
-          <label className="text-eyebrow mb-1 block !text-[0.6rem]">Weight</label>
-          <Select
-            value={String(layer.fontWeight)}
-            onValueChange={(v) => onChange({ fontWeight: Number(v) })}
-          >
-            <SelectTrigger className="w-full text-xs"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {[400, 500, 600, 700].map((w) => (
-                <SelectItem key={w} value={String(w)} className="text-xs">{w}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
       <div>
-        <label className="text-eyebrow mb-1 block !text-[0.6rem]">Colour</label>
-        <Input
-          type="color" value={layer.color}
-          onChange={(e) => onChange({ color: e.target.value })}
-          className="h-8 w-full p-1"
+        <label className="text-eyebrow mb-1 block !text-[0.6rem]">
+          Size — {displayFontSize(layer.fontSize)}
+        </label>
+        <Slider
+          min={8} max={200} step={1}
+          value={[displayFontSize(layer.fontSize)]}
+          onValueChange={(v) => onChange({ fontSize: fontSizeFromDisplay(Array.isArray(v) ? v[0] : v) })}
         />
       </div>
+      <div>
+        <label className="text-eyebrow mb-1 block !text-[0.6rem]">Weight</label>
+        <Select
+          value={String(layer.fontWeight)}
+          onValueChange={(v) => onChange({ fontWeight: Number(v) })}
+        >
+          <SelectTrigger className="w-full text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {[400, 500, 600, 700].map((w) => (
+              <SelectItem key={w} value={String(w)} className="text-xs">{w}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <PostColourSwatches
+        label="Colour"
+        value={layer.color}
+        onChange={(color) => onChange({ color })}
+      />
       <div>
         <label className="text-eyebrow mb-1 block !text-[0.6rem]">Align</label>
         <div className="flex gap-1">

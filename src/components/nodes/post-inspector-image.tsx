@@ -18,7 +18,7 @@ export function PostInspectorImage({ layer, onChange, naturalSize }: Props) {
   return (
     <div className="space-y-3">
       <div>
-        <label className="text-eyebrow mb-1 block !text-[0.6rem]">Fit</label>
+        <label className="text-eyebrow mb-1 block !text-[0.6rem]">How the image fills its box</label>
         <div className="flex gap-1">
           {(["cover", "contain"] as const).map((fit) => (
             <Button
@@ -26,7 +26,7 @@ export function PostInspectorImage({ layer, onChange, naturalSize }: Props) {
               className={cn(layer.fit === fit && "ring-2 ring-primary ring-offset-1")}
               onClick={() => onChange({ fit })}
             >
-              {fit === "cover" ? "Fill" : "Fit"}
+              {fit === "cover" ? "Fill the box" : "Fit inside"}
             </Button>
           ))}
         </div>
