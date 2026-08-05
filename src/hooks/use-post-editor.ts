@@ -63,13 +63,13 @@ export function usePostEditor(
   const selectMany = useCallback((ids: string[]) => setSelectedIds(ids), []);
 
   const addText = useCallback(() => {
-    const layer = createTextLayer();
+    const layer = createTextLayer({}, history.present);
     applyCommitted(addLayer(history.present, layer));
     setSelectedIds([layer.id]);
   }, [history.present]);
 
   const addShape = useCallback(() => {
-    const layer = createShapeLayer();
+    const layer = createShapeLayer({}, history.present);
     applyCommitted(addLayer(history.present, layer));
     setSelectedIds([layer.id]);
   }, [history.present]);
@@ -78,13 +78,13 @@ export function usePostEditor(
   // connected image wants a full-bleed 0,0,1,1 plate, not createImageLayer's generic
   // small default) without changing that default for the plain "Add > Image" case.
   const addImage = useCallback((src: ImageSource, overrides?: Partial<ImageLayer>) => {
-    const layer = createImageLayer(src, overrides);
+    const layer = createImageLayer(src, overrides, history.present);
     applyCommitted(addLayer(history.present, layer));
     setSelectedIds([layer.id]);
   }, [history.present]);
 
   const addIcon = useCallback((src: IconSource) => {
-    const layer = createIconLayer(src);
+    const layer = createIconLayer(src, {}, history.present);
     applyCommitted(addLayer(history.present, layer));
     setSelectedIds([layer.id]);
   }, [history.present]);

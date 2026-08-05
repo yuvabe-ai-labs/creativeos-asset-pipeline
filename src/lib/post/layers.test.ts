@@ -18,6 +18,7 @@ import {
   ungroupLayers,
   copyLayers,
   pasteLayers,
+  cascadeGeometry,
 } from "./layers";
 import type { GroupLayer } from "./types";
 
@@ -354,6 +355,49 @@ describe("copyLayers / pasteLayers", () => {
       expect(group.childIds).not.toContain(id);
     }
     expect(copy.children?.map((c) => c.id)).toEqual(copy.childIds);
+  });
+});
+
+describe("cascadeGeometry", () => {
+  it("places the first layer at the default origin", () => {
+    expect(cascadeGeometry([])).toEqual({ x: 0.1, y: 0.1 });
+  });
+
+  it("offsets each subsequent layer so additions never stack invisibly", () => {
+    const one = [createTextLayer()];
+    const two = [createTextLayer(), createTextLayer()];
+    expect(cascadeGeometry(one)).toEqual({ x: 0.12, y: 0.12 });
+    expect(cascadeGeometry(two)).toEqual({ x: 0.14, y: 0.14 });
+  });
+
+  it("wraps back to the origin rather than walking off the canvas", () => {
+    const many = Array.from({ length: 12 }, () => createTextLayer());
+    const { x, y } = cascadeGeometry(many);
+    expect(x).toBeLessThanOrEqual(0.6);
+    expect(y).toBeLessThanOrEqual(0.6);
+    expect(x).toBeGreaterThanOrEqual(0.1);
+  });
+});
+
+describe("created layers cascade", () => {
+  it("gives two successively created text layers different positions", () => {
+    const first = createTextLayer({}, []);
+    const second = createTextLayer({}, [first]);
+    expect(second.x).not.toBe(first.x);
+    expect(second.y).not.toBe(first.y);
+  });
+
+  it("still honours an explicit position override", () => {
+    const layer = createTextLayer({ x: 0, y: 0, w: 1, h: 1 }, [createTextLayer()]);
+    expect(layer.x).toBe(0);
+    expect(layer.y).toBe(0);
+  });
+
+  it("cascades shapes and icons too", () => {
+    const existing = [createShapeLayer()];
+    expect(createShapeLayer({}, existing).x).not.toBe(existing[0].x);
+    expect(createIconLayer({ kind: "lucide", name: "star" }, {}, existing).x)
+      .not.toBe(existing[0].x);
   });
 });
 

@@ -21,7 +21,34 @@ const DEFAULT_GEOMETRY = {
   hidden: false,
 } as const;
 
-export function createTextLayer(overrides: Partial<TextLayer> = {}): TextLayer {
+/** How far each successive new layer steps down-right, in normalized units. */
+const CASCADE_STEP = 0.02;
+/** Steps before wrapping back to the origin, so a long session never walks off-canvas. */
+const CASCADE_WRAP = 25;
+
+// Rounds away binary floating-point drift (e.g. 0.1 + 0.02 = 0.12000000000000001 in IEEE 754)
+// so cascaded coordinates compare equal to their clean decimal values.
+function roundNormalized(n: number): number {
+  return Math.round(n * 1e6) / 1e6;
+}
+
+/**
+ * Where the next created layer should sit (D128). Without this every add landed on the
+ * same coordinates, so three added texts formed a perfect stack in which only the top one
+ * was selectable and nothing indicated the others existed.
+ */
+export function cascadeGeometry(existing: PostLayer[]): { x: number; y: number } {
+  const step = (existing.length % CASCADE_WRAP) * CASCADE_STEP;
+  return {
+    x: roundNormalized(DEFAULT_GEOMETRY.x + step),
+    y: roundNormalized(DEFAULT_GEOMETRY.y + step),
+  };
+}
+
+export function createTextLayer(
+  overrides: Partial<TextLayer> = {},
+  existing: PostLayer[] = [],
+): TextLayer {
   return {
     id: crypto.randomUUID(),
     kind: "text",
@@ -33,17 +60,22 @@ export function createTextLayer(overrides: Partial<TextLayer> = {}): TextLayer {
     align: "left",
     lineHeight: 1.2,
     ...DEFAULT_GEOMETRY,
+    ...cascadeGeometry(existing),
     ...overrides,
   };
 }
 
-export function createShapeLayer(overrides: Partial<ShapeLayer> = {}): ShapeLayer {
+export function createShapeLayer(
+  overrides: Partial<ShapeLayer> = {},
+  existing: PostLayer[] = [],
+): ShapeLayer {
   return {
     id: crypto.randomUUID(),
     kind: "shape",
     fill: { kind: "solid", color: "#5829c7" },
     radius: 0,
     ...DEFAULT_GEOMETRY,
+    ...cascadeGeometry(existing),
     ...overrides,
   };
 }
@@ -51,6 +83,7 @@ export function createShapeLayer(overrides: Partial<ShapeLayer> = {}): ShapeLaye
 export function createImageLayer(
   src: ImageSource,
   overrides: Partial<ImageLayer> = {},
+  existing: PostLayer[] = [],
 ): ImageLayer {
   return {
     id: crypto.randomUUID(),
@@ -58,6 +91,7 @@ export function createImageLayer(
     src,
     fit: "cover",
     ...DEFAULT_GEOMETRY,
+    ...cascadeGeometry(existing),
     ...overrides,
   };
 }
@@ -65,6 +99,7 @@ export function createImageLayer(
 export function createIconLayer(
   src: IconSource,
   overrides: Partial<IconLayer> = {},
+  existing: PostLayer[] = [],
 ): IconLayer {
   return {
     id: crypto.randomUUID(),
@@ -74,6 +109,7 @@ export function createIconLayer(
     ...DEFAULT_GEOMETRY,
     w: 0.08,
     h: 0.08,
+    ...cascadeGeometry(existing),
     ...overrides,
   };
 }
