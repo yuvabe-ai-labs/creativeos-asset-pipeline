@@ -10,6 +10,10 @@ import * as beforeAfter from "./before-after";
 import * as saleOffer from "./sale-offer";
 import * as event from "./event";
 import * as minimalFrame from "./minimal-frame";
+import * as carouselCover from "./carousel-cover";
+import * as testimonial from "./testimonial";
+import * as announcement from "./announcement";
+import * as numberedTips from "./numbered-tips";
 
 export type PostTemplate = {
   id: string;
@@ -49,6 +53,10 @@ export const TEMPLATES: readonly PostTemplate[] = [
   toTemplate(saleOffer),
   toTemplate(event),
   toTemplate(minimalFrame),
+  toTemplate(carouselCover),
+  toTemplate(testimonial),
+  toTemplate(announcement),
+  toTemplate(numberedTips),
 ];
 
 export function getTemplate(id: string): PostTemplate | undefined {
