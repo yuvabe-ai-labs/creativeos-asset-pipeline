@@ -67,6 +67,13 @@ export function usePostEditor(
   const applyLayers = useCallback((nextLayers: PostLayer[]) => {
     liveLayersRef.current = null;
     setHistory((h) => {
+      // history.commit() skips a no-op by reference equality, but it compares the whole
+      // design object — and wrapping the layers in a fresh `{ ...h.present, layers }` here
+      // would defeat that guard even when the pure updater short-circuited and handed back
+      // the very same array (reorderLayer on a missing id, groupLayers below 2 targets,
+      // alignLayers on an empty selection...). Without this check those land a duplicate
+      // entry, so the next undo appears to do nothing.
+      if (nextLayers === h.present.layers) return h;
       const next = commitHistory(h, { ...h.present, layers: nextLayers });
       debouncedOnChange(next.present);
       return next;
