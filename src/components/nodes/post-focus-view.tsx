@@ -132,19 +132,6 @@ export function PostFocusView({
     return { w: widthFraction, h: (widthFraction * containerW) / containerH };
   }
 
-  /**
-   * Run an add action, then switch the flyout to Layers.
-   *
-   * Adding from a panel leaves that panel open showing the same grid, so nothing visibly
-   * confirms the element landed — and the new layer is exactly what the operator wants to see
-   * next (to rename it, reorder it, or check it arrived). The add itself already selects the
-   * new layer, so the Layers row is highlighted the moment the panel opens.
-   */
-  function afterAdding(add: () => void) {
-    add();
-    setTool("layers");
-  }
-
   // Templates open by default so the next step is discoverable, but nothing is applied
   // until the operator clicks a template — a Post node opens on a clean canvas showing
   // only its connected image (D117).
@@ -413,33 +400,31 @@ export function PostFocusView({
               <PostPanelElements
                 nodeId={nodeId}
                 onAddShape={(shape) =>
-                  afterAdding(() =>
-                    addShape({
-                      shape,
-                      // Round and radial primitives need a genuinely square box or they land
-                      // as ovals; a rule or arrow wants a wide, short one. A rectangle keeps
-                      // the generic default it has always had.
-                      ...(shape === "ellipse" || shape === "star" || shape === "diamond" || shape === "triangle"
-                        ? squareBox(0.3)
-                        : shape === "line" || shape === "arrow"
-                          ? { w: 0.4, h: 0.06 }
-                          : {}),
-                    }),
-                  )
+                  addShape({
+                    shape,
+                    // Round and radial primitives need a genuinely square box or they land
+                    // as ovals; a rule or arrow wants a wide, short one. A rectangle keeps
+                    // the generic default it has always had.
+                    ...(shape === "ellipse" || shape === "star" || shape === "diamond" || shape === "triangle"
+                      ? squareBox(0.3)
+                      : shape === "line" || shape === "arrow"
+                        ? { w: 0.4, h: 0.06 }
+                        : {}),
+                  })
                 }
-                onAddIcon={(src) => afterAdding(() => addIcon(src, squareBox(0.16)))}
+                onAddIcon={(src) => addIcon(src, squareBox(0.16))}
                 // Uploaded images land in a generous square too, rather than the generic
                 // wide-and-short default box, which squashed them into a strip.
-                onAddImageUrl={(url) => afterAdding(() => addImage({ kind: "url", url }, squareBox(0.5)))}
+                onAddImageUrl={(url) => addImage({ kind: "url", url }, squareBox(0.5))}
               />
             )}
             {tool === "text" && (
-              <PostPanelText onAddText={(preset) => afterAdding(() => addText(preset))} />
+              <PostPanelText onAddText={(preset) => addText(preset)} />
             )}
             {tool === "connected" && (
               <PostPanelConnected
                 nodes={connectedImageNodes}
-                onAdd={(nodeId) => afterAdding(() => addImage({ kind: "node", nodeId }))}
+                onAdd={(nodeId) => addImage({ kind: "node", nodeId })}
               />
             )}
             {tool === "layers" && (

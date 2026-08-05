@@ -13,6 +13,7 @@ import {
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { fileNodeService } from "@/services/file-node.service";
+import { resolveIconSource } from "@/lib/post/icons";
 import type { IconSource, ShapeKind } from "@/lib/post/types";
 
 type Props = {
@@ -104,15 +105,44 @@ const LUCIDE_PRESET: LucideGroup[] = [
     ],
   },
 ];
+// No LinkedIn: Simple Icons dropped the mark at LinkedIn's own request, so `siLinkedin` does
+// not exist in v16 and `resolveIconSource` falls back to an empty path — the tile placed a
+// genuinely invisible icon on the canvas. Vendoring a copy would re-take the trademark risk
+// upstream removed it to avoid. Upload the mark instead if your brand guidelines allow it.
+//
+// The filter below is the guard for the general case: a brand pulled in a future
+// simple-icons bump disappears from the picker rather than silently placing nothing.
 const SIMPLE_PRESET: { name: string; label: string }[] = [
   { name: "instagram", label: "Instagram" },
   { name: "facebook", label: "Facebook" },
   { name: "whatsapp", label: "WhatsApp" },
-  { name: "linkedin", label: "LinkedIn" },
   { name: "x", label: "X" },
   { name: "youtube", label: "YouTube" },
   { name: "tiktok", label: "TikTok" },
-];
+].filter(({ name }) => {
+  const r = resolveIconSource({ kind: "simple", name });
+  return r.kind === "simple" && r.value.path !== "";
+});
+
+/**
+ * The real Simple Icons mark, drawn from the same `resolveIconSource` the canvas uses — so
+ * the tile IS the glyph you get. It previously rendered one shared placeholder for every
+ * brand, which made seven identical buttons distinguishable only by tooltip.
+ *
+ * Drawn in `currentColor`, not the brand hex: the row sits directly under four rows of
+ * neutral Lucide glyphs, and seven saturated brand colours would shout next to them. These
+ * seven marks are unmistakable by silhouette alone.
+ */
+function BrandGlyph({ name }: { name: string }) {
+  const resolved = resolveIconSource({ kind: "simple", name });
+  // SIMPLE_PRESET is filtered to resolvable marks, so `path` is always non-empty here.
+  const path = resolved.kind === "simple" ? resolved.value.path : "";
+  return (
+    <svg viewBox="0 0 24 24" className="size-4" fill="currentColor" aria-hidden="true">
+      <path d={path} />
+    </svg>
+  );
+}
 
 export function PostPanelElements({ nodeId, onAddShape, onAddIcon, onAddImageUrl }: Props) {
   const [uploading, setUploading] = useState(false);
@@ -201,11 +231,10 @@ export function PostPanelElements({ nodeId, onAddShape, onAddIcon, onAddImageUrl
           {SIMPLE_PRESET.map(({ name, label }) => (
             <Button
               key={name} variant="ghost" size="icon" title={label}
+              aria-label={label}
               onClick={() => onAddIcon({ kind: "simple", name })}
             >
-              {/* A generic placeholder glyph in the picker row — the actual brand mark
-                  renders correctly once placed, via PostIconLayer's Simple Icons path. */}
-              <Share2 className="size-4 opacity-40" />
+              <BrandGlyph name={name} />
             </Button>
           ))}
         </div>
