@@ -43,6 +43,7 @@ import { useCanvasLock } from "@/hooks/use-canvas-lock";
 import { CanvasEditableProvider } from "./canvas-editable-context";
 import { AutosaveFlushProvider } from "./autosave-flush-context";
 import { CanvasIdProvider } from "./canvas-id-context";
+import { ClientIdProvider } from "./client-id-context";
 import { GenerationTray } from "./generation-tray";
 import { CopilotPanel } from "./copilot-panel";
 import { LockBanner } from "./lock-banner";
@@ -343,6 +344,7 @@ export function Canvas({
 
   return (
     <ReactFlowProvider>
+    <ClientIdProvider value={clientId}>
     <CanvasIdProvider value={canvasId}>
     <CanvasEditableProvider value={canEdit}>
     <AutosaveFlushProvider>
@@ -481,6 +483,7 @@ export function Canvas({
     </AutosaveFlushProvider>
     </CanvasEditableProvider>
     </CanvasIdProvider>
+    </ClientIdProvider>
     </ReactFlowProvider>
   );
 }
