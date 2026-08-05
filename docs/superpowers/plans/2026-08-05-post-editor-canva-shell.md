@@ -22,6 +22,12 @@ store, Tailwind v4 + shadcn (Base UI registry), Vitest (`environment: "node"`).
 - **Every interactive control MUST be a shadcn primitive** from `src/components/ui/*` — never a raw
   `<button>`/`<input>`/`<select>`/`<textarea>`. Base UI components compose via the `render` prop, not
   `asChild`. This has been a repeat review finding; it is not negotiable.
+  **One carve-out:** the hidden `<input type="file">` that backs image upload (moved into the
+  Elements panel by Task 18) stays raw — shadcn has no file-input primitive. It is pre-existing and
+  never rendered visibly; its trigger is a `Button`. No other raw control is acceptable.
+  Two raw `<button>`s also survive in `post-focus-view.tsx` ("Back to canvas") and
+  `post-layer-list.tsx` (the row-select button); both pre-date this plan. Do not introduce new ones,
+  and do not go fix those as a side quest — they are tracked separately.
 - **No `.tsx` file in this repo is unit-tested.** Vitest runs in `environment: "node"` with no jsdom.
   Components are verified by `npx tsc --noEmit` only. Only pure `.ts` under `src/lib/**` gets
   `describe`/`it` tests.
