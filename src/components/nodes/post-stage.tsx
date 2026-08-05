@@ -87,23 +87,50 @@ export function PostStage({
     commitLayerChange();
   }
 
-  // Rubber-band select: mousedown on empty stage space starts tracking a drag rect and
-  // clears the current selection (a plain click, with no drag, is just a mousedown+mouseup
-  // pair where the rect never grows past the `> 4`px guard below, so it correctly ends up
-  // doing nothing more than the deselect already fired here).
+  // Which TOP-LEVEL layer a click landed on, walking up from whatever node Konva reports as
+  // the event target. Konva only ever sets `evt.target` to a Shape, never to a Group — and a
+  // GroupLayer's children are rendered with isSelected hardcoded false, so their own
+  // `draggable` is always false. Reading `e.target.draggable()` directly therefore can NEVER
+  // see a selected group, which is why the guard below resolves an id instead.
+  function resolveHitLayerId(target: Konva.Node, stage: Konva.Stage): string | null {
+    let node: Konva.Node | null = target;
+    while (node && node !== stage) {
+      for (const [id, topNode] of nodeRefs.current.entries()) {
+        if (topNode === node) return id;
+      }
+      node = node.getParent();
+    }
+    return null;
+  }
+
+  // Rubber-band select: a drag starting on empty space — or on a layer that isn't the one
+  // currently being moved — draws a selection rect. A plain click with no drag never grows
+  // past the `> 4`px guard in mouseup, so it does nothing extra.
   function handleStageMouseDown(e: Konva.KonvaEventObject<MouseEvent>) {
     const stage = e.target.getStage();
     if (!stage) return;
-    // Only defer to Konva's own move-drag when the clicked node is the currently-selected,
-    // actually-draggable shape. An unselected shape (including a full-bleed background image)
-    // has draggable=false (post-layer-render.tsx), so a drag gesture starting on it does
-    // nothing in Konva itself — safe to treat as the start of a rubber-band instead.
-    if (e.target !== stage && e.target.draggable()) return;
+    const hitId = e.target === stage ? null : resolveHitLayerId(e.target, stage);
+    const hitLayer = hitId ? layers.find((l) => l.id === hitId) : null;
+
+    // Locked layers are inert to selection everywhere else (see the per-layer onSelect
+    // below), so a mousedown on one must not clear the current selection either.
+    if (hitLayer?.locked) return;
+
+    // The layer under the cursor is already selected, so it IS draggable — defer to Konva's
+    // own move-drag rather than starting a rubber-band on top of it. Matching by id (not by
+    // `.draggable()`) is what makes this correct for groups: the click lands on some child,
+    // and resolveHitLayerId walks up to the group's own top-level node.
+    if (hitId && selectedIds.includes(hitId)) return;
+
     const pos = stage.getPointerPosition();
     if (!pos) return;
     dragStartRef.current = pos;
     setSelectionRect({ x: pos.x, y: pos.y, w: 0, h: 0 });
-    onSelect(null);
+    // Only clear eagerly when the drag began on genuinely empty space. Deselecting on a
+    // mousedown that turns out to be a plain click on a layer would flash the selection off
+    // and straight back on, since Konva's click synthesis re-selects that layer a moment
+    // later — and mousedown/mouseup are separate events with a real gap between them.
+    if (hitId === null) onSelect(null);
   }
 
   function handleStageMouseMove(e: Konva.KonvaEventObject<MouseEvent>) {
