@@ -86,6 +86,18 @@ export function PostFocusView({
   const containerW = formatSpec.width * scale;
   const containerH = formatSpec.height * scale;
 
+  /**
+   * A box that is actually square ON CANVAS.
+   *
+   * `w` is a fraction of canvas width and `h` a fraction of canvas height, so `w === h` only
+   * looks square on a square format — on a 4:5 portrait a "0.08 × 0.08" icon renders 86×108px,
+   * and on a 9:16 story it's badly stretched. Scaling h by the container's own aspect gives
+   * equal pixels on every format.
+   */
+  function squareBox(widthFraction: number) {
+    return { w: widthFraction, h: (widthFraction * containerW) / containerH };
+  }
+
   // Templates open by default so the next step is discoverable, but nothing is applied
   // until the operator clicks a template — a Post node opens on a clean canvas showing
   // only its connected image (D117).
@@ -338,8 +350,10 @@ export function PostFocusView({
               <PostPanelElements
                 nodeId={nodeId}
                 onAddShape={addShape}
-                onAddIcon={addIcon}
-                onAddImageUrl={(url) => addImage({ kind: "url", url })}
+                onAddIcon={(src) => addIcon(src, squareBox(0.16))}
+                // Uploaded images land in a generous square too, rather than the generic
+                // wide-and-short default box, which squashed them into a strip.
+                onAddImageUrl={(url) => addImage({ kind: "url", url }, squareBox(0.5))}
               />
             )}
             {tool === "text" && <PostPanelText onAddText={(preset) => addText(preset)} />}

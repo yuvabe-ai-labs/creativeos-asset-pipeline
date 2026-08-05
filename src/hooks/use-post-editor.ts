@@ -2,7 +2,7 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import type { PostLayer, ImageLayer, ImageSource, IconSource, PostFormat, TextLayer } from "@/lib/post/types";
+import type { PostLayer, ImageLayer, IconLayer, ImageSource, IconSource, PostFormat, TextLayer } from "@/lib/post/types";
 import {
   createTextLayer, createShapeLayer, createImageLayer, createIconLayer,
   addLayer, removeLayer, updateLayer, duplicateLayer as duplicateLayerPure,
@@ -109,8 +109,12 @@ export function usePostEditor(
     setSelectedIds([layer.id]);
   }, [history.present, applyLayers]);
 
-  const addIcon = useCallback((src: IconSource) => {
-    const layer = createIconLayer(src, {}, history.present.layers);
+  // `overrides` matters here: w is a fraction of canvas WIDTH and h a fraction of HEIGHT, so a
+  // literal w === h is only square on a square canvas. The caller knows the container's real
+  // pixel ratio and passes a box that is actually square; without it, icons land stretched on
+  // every non-square format.
+  const addIcon = useCallback((src: IconSource, overrides?: Partial<IconLayer>) => {
+    const layer = createIconLayer(src, overrides ?? {}, history.present.layers);
     applyLayers(addLayer(history.present.layers, layer));
     setSelectedIds([layer.id]);
   }, [history.present, applyLayers]);
