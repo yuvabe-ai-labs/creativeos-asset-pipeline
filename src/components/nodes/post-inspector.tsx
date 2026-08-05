@@ -16,6 +16,14 @@ type Props = {
   // multi-select-safe actions (align, group, lock, delete).
   selectedCount: number;
   onChange: (patch: Partial<PostLayer>) => void;
+  /**
+   * Live, uncommitted update for continuous gestures (dragging a slider). Without this a
+   * slider would land one undo entry per step, so undoing a single drag would take dozens
+   * of presses. Controls that fire continuously call this while dragging and `onChange`
+   * once at the end; discrete controls (swatches, toggles) only ever call `onChange`.
+   * Falls back to `onChange` when a caller doesn't supply it.
+   */
+  onPreview?: (patch: Partial<PostLayer>) => void;
   naturalSize?: { width: number; height: number };
 };
 
@@ -43,7 +51,8 @@ function Shell({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-export function PostInspector({ layer, selectedCount, onChange, naturalSize }: Props) {
+export function PostInspector({ layer, selectedCount, onChange, onPreview, naturalSize }: Props) {
+  const preview = onPreview ?? onChange;
   if (selectedCount > 1) {
     return (
       <Shell title="Selection">
@@ -63,8 +72,12 @@ export function PostInspector({ layer, selectedCount, onChange, naturalSize }: P
   }
   return (
     <Shell title={kindLabel(layer)}>
-      {layer.kind === "text" && <PostInspectorText layer={layer} onChange={onChange} />}
-      {layer.kind === "shape" && <PostInspectorShape layer={layer} onChange={onChange} />}
+      {layer.kind === "text" && (
+        <PostInspectorText layer={layer} onChange={onChange} onPreview={preview} />
+      )}
+      {layer.kind === "shape" && (
+        <PostInspectorShape layer={layer} onChange={onChange} onPreview={preview} />
+      )}
       {layer.kind === "image" && (
         <PostInspectorImage layer={layer} onChange={onChange} naturalSize={naturalSize} />
       )}

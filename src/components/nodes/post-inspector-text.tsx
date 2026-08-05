@@ -10,7 +10,12 @@ import { FONT_DEFINITIONS, type FontKey } from "@/lib/post/fonts";
 import { displayFontSize, fontSizeFromDisplay } from "@/lib/post/units";
 import { PostColourSwatches } from "./post-colour-swatches";
 
-type Props = { layer: TextLayer; onChange: (patch: Partial<TextLayer>) => void };
+type Props = {
+  layer: TextLayer;
+  onChange: (patch: Partial<TextLayer>) => void;
+  /** Live update while the size slider is dragged; onChange lands the single undo entry. */
+  onPreview: (patch: Partial<TextLayer>) => void;
+};
 
 const ALIGN_OPTIONS = [
   { value: "left" as const, Icon: AlignLeft },
@@ -18,7 +23,7 @@ const ALIGN_OPTIONS = [
   { value: "right" as const, Icon: AlignRight },
 ];
 
-export function PostInspectorText({ layer, onChange }: Props) {
+export function PostInspectorText({ layer, onChange, onPreview }: Props) {
   return (
     <div className="space-y-3">
       <div>
@@ -41,7 +46,8 @@ export function PostInspectorText({ layer, onChange }: Props) {
         <Slider
           min={8} max={200} step={1}
           value={[displayFontSize(layer.fontSize)]}
-          onValueChange={(v) => onChange({ fontSize: fontSizeFromDisplay(Array.isArray(v) ? v[0] : v) })}
+          onValueChange={(v) => onPreview({ fontSize: fontSizeFromDisplay(Array.isArray(v) ? v[0] : v) })}
+          onValueCommitted={(v) => onChange({ fontSize: fontSizeFromDisplay(Array.isArray(v) ? v[0] : v) })}
         />
       </div>
       <div>

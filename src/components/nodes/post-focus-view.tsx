@@ -428,6 +428,13 @@ export function PostFocusView({
               onChange={(patch) => {
                 if (selectedLayer) { updateLayerLive(selectedLayer.id, patch); commitLayerChange(); }
               }}
+              // Dragging a slider fires continuously. Updating live without committing keeps
+              // the canvas responsive while leaving the whole drag as ONE undo step — the
+              // same coalescing the stage already does for a drag/resize gesture. Committing
+              // per step would make undoing one slider drag take dozens of presses.
+              onPreview={(patch) => {
+                if (selectedLayer) updateLayerLive(selectedLayer.id, patch);
+              }}
               naturalSize={selectedLayer ? naturalSizes[selectedLayer.id] : undefined}
             />
           </div>

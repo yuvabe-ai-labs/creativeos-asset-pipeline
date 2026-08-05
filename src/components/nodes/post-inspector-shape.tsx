@@ -8,12 +8,17 @@ import { PostColourSwatches } from "./post-colour-swatches";
 import { PostGradientPresets } from "./post-gradient-presets";
 import { makeGradientFill } from "@/lib/post/gradients";
 
-type Props = { layer: ShapeLayer; onChange: (patch: Partial<ShapeLayer>) => void };
+type Props = {
+  layer: ShapeLayer;
+  onChange: (patch: Partial<ShapeLayer>) => void;
+  /** Live update while a slider is dragged; onChange lands the single undo entry. */
+  onPreview: (patch: Partial<ShapeLayer>) => void;
+};
 
 /** Corner radius reads as words ("Sharp"/"Rounded"/"Pill") rather than a raw px count (D125). */
 const CORNER_MAX = 120;
 
-export function PostInspectorShape({ layer, onChange }: Props) {
+export function PostInspectorShape({ layer, onChange, onPreview }: Props) {
   const isGradient = layer.fill.kind === "gradient";
 
   return (
@@ -71,6 +76,10 @@ export function PostInspectorShape({ layer, onChange }: Props) {
           value={[Math.min(layer.radius, CORNER_MAX)]}
           onValueChange={(v) => {
             const n = Array.isArray(v) ? v[0] : v;
+            onPreview({ radius: n >= CORNER_MAX ? 999 : n });
+          }}
+          onValueCommitted={(v) => {
+            const n = Array.isArray(v) ? v[0] : v;
             onChange({ radius: n >= CORNER_MAX ? 999 : n });
           }}
         />
@@ -111,6 +120,9 @@ export function PostInspectorShape({ layer, onChange }: Props) {
               min={1} max={40} step={1}
               value={[layer.stroke.width]}
               onValueChange={(v) =>
+                onPreview({ stroke: { ...layer.stroke!, width: Array.isArray(v) ? v[0] : v } })
+              }
+              onValueCommitted={(v) =>
                 onChange({ stroke: { ...layer.stroke!, width: Array.isArray(v) ? v[0] : v } })
               }
             />
