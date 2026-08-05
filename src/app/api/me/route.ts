@@ -10,8 +10,9 @@ import { getOrgById, getOrgCreditUsage } from "@/lib/db/organizations";
 // fresh data for, every single time. Paired with useIdentity()'s fetch({ cache: "no-store" }).
 export const dynamic = "force-dynamic";
 
-// Feeds the future useIdentity() swap (Stage 1C). Returns the display name + the frozen
-// Identity.role (owner/senior → "senior" so Approve shows). See dal-logic.
+// Feeds useIdentity(). Returns the display name + the frozen Identity.role (owner/senior →
+// "senior" so Approve shows — see dal-logic) alongside the real orgRole, kept separate: the
+// popover needs to show an Owner "Owner", not "Senior".
 export async function GET() {
   const caller = await resolveCallerContext();
   const db = createServerSupabase();
@@ -25,6 +26,7 @@ export async function GET() {
   return apiOk({
     name: (data?.display_name as string) ?? "User",
     role: orgRoleToIdentityRole(caller.orgRole),
+    orgRole: caller.orgRole,
     platformRole: caller.platformRole,
     orgId: caller.orgId,
     orgName: org?.name ?? null,
