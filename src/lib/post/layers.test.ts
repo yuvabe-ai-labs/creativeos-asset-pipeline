@@ -41,6 +41,26 @@ describe("layer factories", () => {
     expect(createShapeLayer().fill).toEqual({ kind: "solid", color: "#5829c7" });
   });
 
+  it("seeds a stroke for the shapes that are DRAWN by their stroke", () => {
+    // A rule and an arrow paint no fill, so without this they render off the renderer's
+    // implicit fallbacks and the inspector has no concrete value to show.
+    for (const shape of ["line", "arrow"] as const) {
+      expect(createShapeLayer({ shape }).stroke).toEqual({ color: "#1e1e1e", width: 6 });
+    }
+  });
+
+  it("leaves filled shapes strokeless, so they don't gain an outline nobody asked for", () => {
+    for (const shape of ["rect", "ellipse", "triangle", "diamond", "star"] as const) {
+      expect(createShapeLayer({ shape }).stroke).toBeUndefined();
+    }
+    expect(createShapeLayer().stroke).toBeUndefined();
+  });
+
+  it("never overrides a stroke the caller supplied", () => {
+    const explicit = { color: "#ff0000", width: 2 };
+    expect(createShapeLayer({ shape: "line", stroke: explicit }).stroke).toEqual(explicit);
+  });
+
   it("createImageLayer stores the given source", () => {
     const layer = createImageLayer({ kind: "url", url: "https://x/y.png" });
     expect(layer.src).toEqual({ kind: "url", url: "https://x/y.png" });

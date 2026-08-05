@@ -20,6 +20,38 @@ const CORNER_MAX = 120;
 
 export function PostInspectorShape({ layer, onChange, onPreview }: Props) {
   const isGradient = layer.fill.kind === "gradient";
+  const shape = layer.shape ?? "rect";
+
+  // A rule and an arrow have no interior — post-shape-layer.tsx draws them from their stroke
+  // alone. Offering Fill, Gradient, Corners and a Border on/off for one was showing four
+  // controls of which three did nothing and the fourth was mislabelled: what "Border colour"
+  // actually set was the line's own colour. They get the two controls a line really has.
+  const isStrokeOnly = shape === "line" || shape === "arrow";
+  const stroke = layer.stroke ?? { color: "#1e1e1e", width: 6 };
+
+  if (isStrokeOnly) {
+    return (
+      <div className="space-y-3">
+        <PostColourSwatches
+          label="Colour"
+          value={stroke.color}
+          onChange={(color) => onChange({ stroke: { ...stroke, color } })}
+          onPreview={(color) => onPreview({ stroke: { ...stroke, color } })}
+        />
+        <div>
+          <label className="text-eyebrow mb-1 block !text-[0.6rem]">
+            Thickness — {stroke.width}
+          </label>
+          <Slider
+            min={1} max={40} step={1}
+            value={[stroke.width]}
+            onValueChange={(v) => onPreview({ stroke: { ...stroke, width: sliderValue(v) } })}
+            onValueCommitted={(v) => onChange({ stroke: { ...stroke, width: sliderValue(v) } })}
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-3">
@@ -68,23 +100,28 @@ export function PostInspectorShape({ layer, onChange, onPreview }: Props) {
         />
       )}
 
-      <div>
-        <label className="text-eyebrow mb-1 block !text-[0.6rem]">
-          Corners — {cornerLabel(layer.radius, CORNER_MAX)}
-        </label>
-        <Slider
-          min={0} max={CORNER_MAX} step={1}
-          value={[Math.min(layer.radius, CORNER_MAX)]}
-          onValueChange={(v) => {
-            const n = sliderValue(v);
-            onPreview({ radius: n >= CORNER_MAX ? 999 : n });
-          }}
-          onValueCommitted={(v) => {
-            const n = sliderValue(v);
-            onChange({ radius: n >= CORNER_MAX ? 999 : n });
-          }}
-        />
-      </div>
+      {/* Rectangles only. Konva takes cornerRadius on a Rect and nothing else, so
+          post-shape-layer.tsx strips it for every other primitive — a Corners slider on an
+          ellipse or a star moved a handle and changed nothing on the canvas. */}
+      {shape === "rect" && (
+        <div>
+          <label className="text-eyebrow mb-1 block !text-[0.6rem]">
+            Corners — {cornerLabel(layer.radius, CORNER_MAX)}
+          </label>
+          <Slider
+            min={0} max={CORNER_MAX} step={1}
+            value={[Math.min(layer.radius, CORNER_MAX)]}
+            onValueChange={(v) => {
+              const n = sliderValue(v);
+              onPreview({ radius: n >= CORNER_MAX ? 999 : n });
+            }}
+            onValueCommitted={(v) => {
+              const n = sliderValue(v);
+              onChange({ radius: n >= CORNER_MAX ? 999 : n });
+            }}
+          />
+        </div>
+      )}
 
       <div>
         <label className="text-eyebrow mb-1 block !text-[0.6rem]">Border</label>

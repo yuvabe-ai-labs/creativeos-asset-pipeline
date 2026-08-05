@@ -7,6 +7,7 @@ import type {
   ImageSource,
   IconSource,
   GroupLayer,
+  ShapeKind,
 } from "./types";
 import { boundingBoxOf } from "./align";
 
@@ -59,10 +60,22 @@ export function createTextLayer(
   };
 }
 
+/**
+ * A rule and an arrow are DRAWN by their stroke — post-shape-layer.tsx paints no fill for
+ * either. Seeding one here means the layer always carries the values that actually render it,
+ * rather than leaning on that renderer's implicit `?? fill.color` / `?? h/6` fallbacks, which
+ * the inspector cannot show a number for.
+ */
+const STROKE_ONLY_SHAPES = new Set<ShapeKind>(["line", "arrow"]);
+
 export function createShapeLayer(
   overrides: Partial<ShapeLayer> = {},
   existing: PostLayer[] = [],
 ): ShapeLayer {
+  const strokeSeed =
+    overrides.shape && STROKE_ONLY_SHAPES.has(overrides.shape) && !overrides.stroke
+      ? { stroke: { color: "#1e1e1e", width: 6 } }
+      : {};
   return {
     id: crypto.randomUUID(),
     kind: "shape",
@@ -70,6 +83,7 @@ export function createShapeLayer(
     radius: 0,
     ...DEFAULT_GEOMETRY,
     ...cascadeGeometry(existing),
+    ...strokeSeed,
     ...overrides,
   };
 }
