@@ -1,4 +1,14 @@
-export type PostFormat = "ig-square" | "ig-story" | "linkedin" | "a4-print";
+export type PostFormat =
+  | "ig-portrait"
+  | "ig-square"
+  | "ig-story"
+  | "facebook-post"
+  | "linkedin-post"
+  | "linkedin-square"
+  | "x-post"
+  | "youtube-thumb"
+  | "pinterest-pin"
+  | "a4-print";
 
 export type LayerBase = {
   id: string;

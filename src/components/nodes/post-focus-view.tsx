@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 import { isEditableTarget } from "@/lib/canvas-node-options";
 import type { PostNodeData } from "@/lib/canvas-nodes";
 import type { PostLayer } from "@/lib/post/types";
-import { POST_FORMATS } from "@/lib/post/formats";
+import { POST_FORMATS, resolveFormat } from "@/lib/post/formats";
 import type { PostFormat } from "@/lib/post/types";
 import type { PostTemplate } from "@/lib/post/templates";
 import { nudge } from "@/lib/post/geometry";
@@ -66,7 +66,7 @@ export function PostFocusView({
   open, onOpenChange, nodeId, title, format, templateId, layers: persistedLayers,
   autoPlacedNodeIds, connectedImageNodes, onPatch,
 }: Props) {
-  const formatSpec = POST_FORMATS[format ?? "ig-square"];
+  const formatSpec = POST_FORMATS[resolveFormat(format)];
   const scale = Math.min(1, STAGE_MAX_PX / Math.max(formatSpec.width, formatSpec.height));
   const containerW = formatSpec.width * scale;
   const containerH = formatSpec.height * scale;
@@ -105,7 +105,7 @@ export function PostFocusView({
   const { downloadPng, isExporting } = usePostExport({
     nodeId,
     stageRef,
-    format: format ?? "ig-square",
+    format: resolveFormat(format),
     title,
     onDeselect: () => selectLayer(null),
     onPatch,
@@ -143,7 +143,7 @@ export function PostFocusView({
   }
 
   function handlePickTemplate(template: PostTemplate) {
-    const seeded = template.seedLayers(format ?? "ig-square");
+    const seeded = template.seedLayers(resolveFormat(format));
     // Preserve any connected-node-sourced image (auto-placed once per source, per
     // autoPlacedNodeIds) — no template seeds its own image layer, so replacing wholesale
     // would silently discard the plate with no way to bring it back (the auto-place
@@ -255,10 +255,10 @@ export function PostFocusView({
               </SheetTitle>
               <div className="flex items-center gap-2">
                 <Select
-                  value={format ?? "ig-square"}
+                  value={resolveFormat(format)}
                   onValueChange={(v) => {
                     const next = v as PostFormat;
-                    const from = POST_FORMATS[format ?? "ig-square"];
+                    const from = POST_FORMATS[resolveFormat(format)];
                     const to = POST_FORMATS[next];
                     const ratioDelta = Math.abs(from.width / from.height - to.width / to.height);
                     // R1.6: warn, never block, on a large aspect-ratio change — normalized

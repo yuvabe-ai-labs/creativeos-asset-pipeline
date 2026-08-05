@@ -10,6 +10,6 @@ describe("buildExportFilename", () => {
     expect(buildExportFilename("", "ig-story")).toBe("untitled-post-ig-story.png");
   });
   it("strips characters that aren't safe in a filename", () => {
-    expect(buildExportFilename("50% Off!! Sale", "linkedin")).toBe("50-off-sale-linkedin.png");
+    expect(buildExportFilename("50% Off!! Sale", "linkedin-post")).toBe("50-off-sale-linkedin-post.png");
   });
 });
