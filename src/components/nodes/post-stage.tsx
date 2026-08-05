@@ -290,6 +290,14 @@ export function PostStage({
               onDragEnd={(node) => commitNodeGeometry(layer.id, node)}
               onDblClickText={() => layer.kind === "text" && !layer.locked && setEditingTextId(layer.id)}
               onImageLoaded={onImageLoaded}
+              // Grouped text (every template CTA label) registers here and opens the same
+              // inline editor, so a button can be reworded without ungrouping it first.
+              registerRef={(id, node) => {
+                if (node) nodeRefs.current.set(id, node);
+                else nodeRefs.current.delete(id);
+              }}
+              onDblClickTextFor={setEditingTextId}
+              editingLayerId={editingTextId}
             />
           ))}
           {selectionRect && (

@@ -39,6 +39,15 @@ type Props = {
   // Only the "image" branch below forwards this to PostImageLayer — every other layer
   // kind receives it but ignores it, same as onDblClickText above.
   onImageLoaded: (layerId: string, naturalW: number, naturalH: number) => void;
+  // The three below exist only for the group branch. A grouped text layer — every template's
+  // CTA label is one — was otherwise uneditable: not registered in nodeRefs, so the inline
+  // editor had nothing to position against, and handed a no-op dbl-click handler, so it could
+  // never be opened. Changing a button's wording meant discovering ungroup, which nothing in
+  // the UI surfaces.
+  registerRef?: (id: string, node: Konva.Node | null) => void;
+  onDblClickTextFor?: (id: string) => void;
+  /** Id of the layer currently open in the inline editor, so a grouped child can hide itself. */
+  editingLayerId?: string | null;
 };
 
 // THE dispatcher every layer kind renders through — both the editor stage (post-stage.tsx)
@@ -47,6 +56,7 @@ type Props = {
 export function PostLayerRender({
   layer, containerW, containerH, allLayers, isSelected, isBeingEdited = false, resolveNodeImageUrl,
   nodeRef, onSelect, onDragEnd, onDblClickText, onImageLoaded,
+  registerRef, onDblClickTextFor, editingLayerId,
 }: Props) {
   const nodeProps: Konva.NodeConfig & KonvaNodeEvents = {
     draggable: isSelected && !layer.locked,
@@ -93,6 +103,9 @@ export function PostLayerRender({
       <PostGroupLayer
         layer={layer} containerW={containerW} containerH={containerH} allLayers={allLayers}
         resolveNodeImageUrl={resolveNodeImageUrl} nodeRef={nodeRef} nodeProps={nodeProps}
+        registerRef={registerRef}
+        onDblClickTextFor={onDblClickTextFor}
+        editingLayerId={editingLayerId}
       />
     );
   }

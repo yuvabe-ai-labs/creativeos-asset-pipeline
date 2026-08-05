@@ -21,6 +21,12 @@ type Props = {
   resolveNodeImageUrl: (nodeId: string) => string | undefined;
   nodeRef: (node: Konva.Node | null) => void;
   nodeProps: Konva.NodeConfig;
+  // Text children stay non-selectable (clicking still picks the whole group), but they DO get
+  // registered and double-click-editable — every template's CTA label lives in a group, and
+  // without this the only way to reword a button was to discover ungroup.
+  registerRef?: (id: string, node: Konva.Node | null) => void;
+  onDblClickTextFor?: (id: string) => void;
+  editingLayerId?: string | null;
 };
 
 // Geometry: children store the SAME absolute (canvas-space, not group-relative) normalized
@@ -48,6 +54,7 @@ type Props = {
 // convention.
 export function PostGroupLayer({
   layer, containerW, containerH, allLayers, resolveNodeImageUrl, nodeRef, nodeProps,
+  registerRef, onDblClickTextFor, editingLayerId,
 }: Props) {
   const geo = layerToKonvaProps(layer, containerW, containerH);
   const children = getGroupChildren(allLayers, layer);
@@ -88,11 +95,18 @@ export function PostGroupLayer({
             containerH={containerH}
             allLayers={allLayers}
             isSelected={false}
+            isBeingEdited={editingLayerId === child.id}
             resolveNodeImageUrl={resolveNodeImageUrl}
-            nodeRef={() => {}} // children inside a closed group aren't individually tracked/selectable
+            // Register text children so the inline editor can measure them; everything else
+            // stays untracked, since only text is editable in place.
+            nodeRef={(node) => {
+              if (child.kind === "text") registerRef?.(child.id, node);
+            }}
             onSelect={() => {}} // clicks still bubble up to the outer Group's onClick (from nodeProps), selecting the group
             onDragEnd={() => {}}
-            onDblClickText={() => {}}
+            onDblClickText={() => {
+              if (child.kind === "text" && !child.locked) onDblClickTextFor?.(child.id);
+            }}
             onImageLoaded={() => {}} // grouped children's natural size isn't tracked individually (V2)
           />
         ))}

@@ -122,12 +122,26 @@ export function removeLayer(layers: PostLayer[], id: string): PostLayer[] {
   return layers.filter((l) => l.id !== id);
 }
 
+/**
+ * Patch a layer by id, reaching INSIDE groups.
+ *
+ * Grouping moves a child's data onto the group (`children`), out of the top-level array — so a
+ * flat `.map` silently no-ops for anything grouped. That made a grouped text layer's inline
+ * edit vanish on commit, which every template's CTA label is. Recursing keeps one id-based
+ * update working wherever the layer actually lives.
+ */
 export function updateLayer(
   layers: PostLayer[],
   id: string,
   patch: Partial<PostLayer>,
 ): PostLayer[] {
-  return layers.map((l) => (l.id === id ? ({ ...l, ...patch } as PostLayer) : l));
+  return layers.map((l) => {
+    if (l.id === id) return { ...l, ...patch } as PostLayer;
+    if (l.kind === "group" && l.children?.some((c) => c.id === id)) {
+      return { ...l, children: updateLayer(l.children, id, patch) } as PostLayer;
+    }
+    return l;
+  });
 }
 
 // Gives a layer a fresh top-level id. For a GroupLayer, ALSO gives every one of its `children` a

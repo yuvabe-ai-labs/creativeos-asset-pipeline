@@ -516,3 +516,34 @@ describe("ungroupLayers — carries a moved/resized group's transform to its chi
     expect(outB.rotation).toBeCloseTo(45, 5);
   });
 });
+
+describe("updateLayer reaches inside groups", () => {
+  it("patches a grouped child without disturbing its siblings", () => {
+    const a = createTextLayer({ text: "CTA" });
+    const b = createShapeLayer();
+    const grouped = groupLayers([a, b], [a.id, b.id]);
+
+    const next = updateLayer(grouped, a.id, { text: "Buy now" } as Partial<PostLayer>);
+
+    const group = next.find((l) => l.kind === "group");
+    expect(group?.kind).toBe("group");
+    const children = group?.kind === "group" ? group.children ?? [] : [];
+    const edited = children.find((c) => c.id === a.id);
+    expect(edited?.kind === "text" && edited.text).toBe("Buy now");
+    // The sibling is untouched, and the group itself keeps its identity.
+    expect(children.find((c) => c.id === b.id)).toEqual(b);
+    expect(group?.id).toBe(grouped.find((l) => l.kind === "group")?.id);
+  });
+
+  it("still patches a top-level layer", () => {
+    const a = createTextLayer({ text: "one" });
+    const next = updateLayer([a], a.id, { text: "two" } as Partial<PostLayer>);
+    expect(next[0].kind === "text" && next[0].text).toBe("two");
+  });
+
+  it("returns the list unchanged for an id that exists nowhere", () => {
+    const a = createTextLayer();
+    const next = updateLayer([a], "missing", { text: "x" } as Partial<PostLayer>);
+    expect(next[0]).toEqual(a);
+  });
+});
