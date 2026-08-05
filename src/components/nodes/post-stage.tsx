@@ -372,8 +372,16 @@ export function PostStage({
             className="nodrag absolute z-10 min-h-0 resize-none border-0 bg-transparent p-0 shadow-none focus-visible:border-0 focus-visible:ring-0"
             onBlur={(e) => { onCommitText(editingTextId, e.target.value); setEditingTextId(null); }}
             onKeyDown={(e) => {
-              if (e.key === "Escape") { setEditingTextId(null); }
+              // Both branches stop propagation: this overlay lives inside a Sheet, which is a
+              // Base UI Dialog, and dialogs close on Escape. Without this the instinctive
+              // "escape to cancel this edit" throws the operator out of the whole editor —
+              // and Cmd/Ctrl+Enter would likewise reach the shortcut handler above it.
+              if (e.key === "Escape") {
+                e.stopPropagation();
+                setEditingTextId(null);
+              }
               if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                e.stopPropagation();
                 onCommitText(editingTextId, (e.target as HTMLTextAreaElement).value);
                 setEditingTextId(null);
               }
