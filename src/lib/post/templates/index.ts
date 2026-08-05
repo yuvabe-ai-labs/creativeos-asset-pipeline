@@ -10,9 +10,7 @@ export type PostTemplate = {
   name: string;
   purposeTags: string[];
   copyZone: CopyZone;
-  // format is accepted for future per-format layout variants (V2); V1 templates render
-  // the same normalized layout regardless of format, since normalized geometry already
-  // makes one composition render at any output size.
+  /** Tunes one composition across three aspect bands — see aspect-band.ts and D124. */
   seedLayers: (format: PostFormat) => PostLayer[];
 };
 
@@ -21,7 +19,7 @@ type TemplateModule = {
   name: string;
   purposeTags: string[];
   copyZone: CopyZone;
-  seedLayers: () => PostLayer[];
+  seedLayers: (format: PostFormat) => PostLayer[];
 };
 
 function toTemplate(mod: TemplateModule): PostTemplate {
@@ -30,7 +28,7 @@ function toTemplate(mod: TemplateModule): PostTemplate {
     name: mod.name,
     purposeTags: mod.purposeTags,
     copyZone: mod.copyZone,
-    seedLayers: () => mod.seedLayers(),
+    seedLayers: (format) => mod.seedLayers(format),
   };
 }
 

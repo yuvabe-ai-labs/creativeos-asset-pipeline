@@ -3,6 +3,7 @@ import { TEMPLATES, getTemplate } from "./index";
 import { POST_FORMATS } from "../formats";
 import type { PostFormat, GroupLayer } from "../types";
 
+
 describe("TEMPLATES registry", () => {
   it("has exactly the four V1 templates", () => {
     expect(TEMPLATES.map((t) => t.id).sort()).toEqual(
@@ -62,6 +63,49 @@ describe("TEMPLATES registry", () => {
       const groups = layers.filter((l): l is GroupLayer => l.kind === "group");
       expect(groups.length).toBe(1);
       expect(groups[0].childIds.length).toBe(2);
+    }
+  });
+});
+
+const ALL_FORMATS = Object.keys(POST_FORMATS) as PostFormat[];
+
+describe("templates are format-aware", () => {
+  it("keeps every layer in bounds at every format", () => {
+    for (const t of TEMPLATES) {
+      for (const format of ALL_FORMATS) {
+        for (const layer of t.seedLayers(format)) {
+          expect(layer.x, `${t.id} @ ${format}`).toBeGreaterThanOrEqual(0);
+          expect(layer.y, `${t.id} @ ${format}`).toBeGreaterThanOrEqual(0);
+          expect(layer.x + layer.w, `${t.id} @ ${format}`).toBeLessThanOrEqual(1.001);
+          expect(layer.y + layer.h, `${t.id} @ ${format}`).toBeLessThanOrEqual(1.001);
+        }
+      }
+    }
+  });
+
+  it("actually varies its layout between a story and a landscape post", () => {
+    for (const t of TEMPLATES) {
+      const portrait = JSON.stringify(t.seedLayers("ig-story").map((l) => [l.x, l.y, l.w, l.h]));
+      const landscape = JSON.stringify(t.seedLayers("x-post").map((l) => [l.x, l.y, l.w, l.h]));
+      expect(portrait, `${t.id} ignores its format`).not.toBe(landscape);
+    }
+  });
+
+  it("seeds exactly one CTA group of two layers at every format", () => {
+    for (const t of TEMPLATES) {
+      for (const format of ALL_FORMATS) {
+        const groups = t.seedLayers(format).filter((l) => l.kind === "group");
+        expect(groups, `${t.id} @ ${format}`).toHaveLength(1);
+        expect(groups[0].kind === "group" && groups[0].childIds).toHaveLength(2);
+      }
+    }
+  });
+
+  it("never seeds empty placeholder copy", () => {
+    for (const t of TEMPLATES) {
+      for (const layer of t.seedLayers("ig-square")) {
+        if (layer.kind === "text") expect(layer.text.trim().length).toBeGreaterThan(0);
+      }
     }
   });
 });
