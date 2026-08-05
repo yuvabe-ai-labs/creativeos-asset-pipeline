@@ -38,10 +38,12 @@ export type KonvaTextProps = {
 // Konva's Text node has no numeric font-weight — fontStyle is a string token combining
 // bold/italic. This app's TextLayer.fontWeight (a CSS-style number) collapses to bold
 // at 600+ (semibold and up reads as "bold" at poster sizes) or normal below it.
-export function textLayerFontProps(layer: TextLayer, containerH: number): KonvaTextProps {
+export function textLayerFontProps(
+  layer: TextLayer, containerW: number, containerH: number,
+): KonvaTextProps {
   return {
     fontFamily: layer.fontFamily,
-    fontSize: fontSizeToPx(layer.fontSize, containerH),
+    fontSize: fontSizeToPx(layer.fontSize, containerW, containerH),
     fontStyle: layer.fontWeight >= 600 ? "bold" : "normal",
     fill: layer.color,
     align: layer.align,

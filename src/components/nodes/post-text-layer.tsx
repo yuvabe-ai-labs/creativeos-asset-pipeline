@@ -25,7 +25,7 @@ export function PostTextLayer({
   layer, containerW, containerH, nodeRef, nodeProps, onDblClick,
 }: Props) {
   const geo = layerToKonvaProps(layer, containerW, containerH);
-  const fontProps = textLayerFontProps(layer, containerH);
+  const fontProps = textLayerFontProps(layer, containerW, containerH);
   const fontKey = resolveFontKey(layer.fontFamily as FontKey, layer.text);
   return (
     <Text

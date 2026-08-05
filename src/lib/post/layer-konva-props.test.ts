@@ -32,7 +32,7 @@ describe("layerToKonvaProps", () => {
 describe("textLayerFontProps", () => {
   it("scales fontSize against container height and maps fontWeight to Konva's fontStyle token", () => {
     const bold = createTextLayer({ fontSize: 0.05, fontWeight: 700, color: "#111", align: "center", lineHeight: 1.4 });
-    expect(textLayerFontProps(bold, 1000)).toEqual({
+    expect(textLayerFontProps(bold, 1000, 1000)).toEqual({
       fontFamily: bold.fontFamily,
       fontSize: 50,
       fontStyle: "bold",
@@ -44,7 +44,7 @@ describe("textLayerFontProps", () => {
   });
 
   it("fontWeight below 600 maps to normal", () => {
-    expect(textLayerFontProps(createTextLayer({ fontWeight: 400 }), 1000).fontStyle).toBe("normal");
+    expect(textLayerFontProps(createTextLayer({ fontWeight: 400 }), 1000, 1000).fontStyle).toBe("normal");
   });
 });
 

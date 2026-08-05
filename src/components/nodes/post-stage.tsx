@@ -347,7 +347,7 @@ export function PostStage({
               // Same conversion textLayerFontProps (layer-konva-props.ts) uses for the
               // resting Konva Text node, so the overlay's type doesn't visibly jump in
               // size relative to the text it's replacing.
-              fontSize: fontSizeToPx(layer.fontSize, containerH),
+              fontSize: fontSizeToPx(layer.fontSize, containerW, containerH),
               lineHeight: layer.lineHeight,
               fontFamily: FONT_CSS_FAMILY[fontKey],
               fontWeight: layer.fontWeight,

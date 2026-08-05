@@ -30,12 +30,29 @@ describe("normalizedToPx / pxToNormalized", () => {
 });
 
 describe("fontSizeToPx / pxToFontSize", () => {
-  it("scales fontSize against the container HEIGHT, not width", () => {
-    expect(fontSizeToPx(0.05, 1080)).toBeCloseTo(54, 5);
+  it("measures against the shorter edge, so square is unchanged", () => {
+    // 1080x1080: min == height, identical to the old height-based behaviour.
+    expect(fontSizeToPx(0.05, 1080, 1080)).toBeCloseTo(54, 5);
   });
 
-  it("round-trips", () => {
-    expect(pxToFontSize(fontSizeToPx(0.05, 1920), 1920)).toBeCloseTo(0.05, 6);
+  it("uses width when the canvas is taller than it is wide", () => {
+    // 1080x1920 story: the old height basis gave 96px; the shorter edge gives 54px,
+    // so the same copy reads the same size as it does on a square.
+    expect(fontSizeToPx(0.05, 1080, 1920)).toBeCloseTo(54, 5);
+  });
+
+  it("uses height when the canvas is wider than it is tall", () => {
+    // 1600x900 X post.
+    expect(fontSizeToPx(0.05, 1600, 900)).toBeCloseTo(45, 5);
+  });
+
+  it("round-trips through pxToFontSize at any ratio", () => {
+    expect(pxToFontSize(fontSizeToPx(0.05, 1080, 1920), 1080, 1920)).toBeCloseTo(0.05, 6);
+    expect(pxToFontSize(fontSizeToPx(0.05, 1600, 900), 1600, 900)).toBeCloseTo(0.05, 6);
+  });
+
+  it("returns 0 rather than dividing by zero on an unmeasured canvas", () => {
+    expect(pxToFontSize(10, 0, 0)).toBe(0);
   });
 });
 
