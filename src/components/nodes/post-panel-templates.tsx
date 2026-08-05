@@ -9,7 +9,7 @@ import {
 import { cn } from "@/lib/utils";
 import { TEMPLATES, type PostTemplate } from "@/lib/post/templates";
 import type { PostFormat } from "@/lib/post/types";
-import { PostTemplatePreview } from "./post-template-preview";
+import { PostLayersPreview } from "./post-layers-preview";
 
 type Props = {
   activeTemplateId?: string;
@@ -41,7 +41,7 @@ export function PostPanelTemplates({ activeTemplateId, format, onApply }: Props)
           >
             {/* Seeded for the CURRENT format, so the thumbnail is the composition that will
                 actually land — templates tune themselves per aspect band. */}
-            <PostTemplatePreview layers={t.seedLayers(format)} format={format} />
+            <PostLayersPreview layers={t.seedLayers(format)} format={format} />
             <span className="block w-full truncate px-0.5 text-[0.65rem] font-medium leading-tight">
               {t.name}
             </span>

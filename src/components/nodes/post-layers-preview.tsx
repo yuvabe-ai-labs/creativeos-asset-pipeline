@@ -6,9 +6,14 @@ import { POST_FORMATS } from "@/lib/post/formats";
 import { getGroupChildren } from "@/lib/post/layers";
 
 type Props = {
-  /** The template's own seeded output — already tuned for `format`. */
   layers: PostLayer[];
   format: PostFormat;
+  /**
+   * Resolves a node-sourced image layer to a real URL. Supplied by the node card, where the
+   * connected photo IS most of the design and a grey block would say nothing. The templates
+   * panel omits it: a template seeds no image of its own, so there is nothing to resolve.
+   */
+  resolveNodeImageUrl?: (nodeId: string) => string | undefined;
 };
 
 /**
@@ -20,7 +25,7 @@ type Props = {
  * Every layer's x/y/w/h is already a 0-1 fraction of the canvas, so it maps straight onto
  * CSS percentages and stays correct at any aspect ratio.
  */
-export function PostTemplatePreview({ layers, format }: Props) {
+export function PostLayersPreview({ layers, format, resolveNodeImageUrl }: Props) {
   const spec = POST_FORMATS[format];
   return (
     <div
@@ -29,13 +34,22 @@ export function PostTemplatePreview({ layers, format }: Props) {
       aria-hidden
     >
       {layers.map((layer) => (
-        <PreviewLayer key={layer.id} layer={layer} allLayers={layers} />
+        <PreviewLayer
+          key={layer.id}
+          layer={layer}
+          allLayers={layers}
+          resolveNodeImageUrl={resolveNodeImageUrl}
+        />
       ))}
     </div>
   );
 }
 
-function PreviewLayer({ layer, allLayers }: { layer: PostLayer; allLayers: PostLayer[] }) {
+function PreviewLayer({ layer, allLayers, resolveNodeImageUrl }: {
+  layer: PostLayer;
+  allLayers: PostLayer[];
+  resolveNodeImageUrl?: (nodeId: string) => string | undefined;
+}) {
   if (layer.hidden) return null;
 
   const box: CSSProperties = {
@@ -53,7 +67,12 @@ function PreviewLayer({ layer, allLayers }: { layer: PostLayer; allLayers: PostL
     return (
       <>
         {getGroupChildren(allLayers, layer).map((child) => (
-          <PreviewLayer key={child.id} layer={child} allLayers={allLayers} />
+          <PreviewLayer
+            key={child.id}
+            layer={child}
+            allLayers={allLayers}
+            resolveNodeImageUrl={resolveNodeImageUrl}
+          />
         ))}
       </>
     );
@@ -96,7 +115,25 @@ function PreviewLayer({ layer, allLayers }: { layer: PostLayer; allLayers: PostL
     );
   }
 
-  // Image and icon layers: a neutral placeholder block. The connected photo isn't part of a
-  // template's seed, so drawing anything more specific would misrepresent it.
+  if (layer.kind === "image") {
+    const url = layer.src.kind === "url" ? layer.src.url : resolveNodeImageUrl?.(layer.src.nodeId);
+    if (url) {
+      return (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={url}
+          alt=""
+          style={{
+            ...box,
+            objectFit: layer.fit === "contain" ? "contain" : "cover",
+            borderRadius: layer.radius ? Math.min(layer.radius / 4, 8) : 2,
+          }}
+        />
+      );
+    }
+  }
+
+  // Everything unresolved — icons, and images whose source isn't reachable here — is a neutral
+  // block. Better an honest placeholder than inventing a shape the real layer won't have.
   return <div style={{ ...box, background: "rgba(120,120,130,0.35)", borderRadius: 2 }} />;
 }

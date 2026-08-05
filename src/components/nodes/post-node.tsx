@@ -12,6 +12,7 @@ import { renderState, RENDER_STATE_LABELS } from "@/lib/post/render-state";
 import { POST_FORMATS, resolveFormat } from "@/lib/post/formats";
 import { Button } from "@/components/ui/button";
 import { PostFocusView } from "./post-focus-view";
+import { PostLayersPreview } from "./post-layers-preview";
 import { useNodeConnectionState } from "./use-node-connection-state";
 import { NodeContextMenu } from "./node-context-menu";
 import { NodeCardHeader } from "./node-card-header";
@@ -117,7 +118,12 @@ export function PostNode({ id, data, selected }: NodeProps) {
           className="flex items-center justify-center overflow-hidden border-b border-border bg-muted/20"
           style={{ aspectRatio: `${spec.width} / ${spec.height}` }}
         >
-          {d.fileUrl ? (
+          {/* The exported PNG is the truest preview — real fonts, real photo — but only while
+              it still matches the design. Once edited past it (or before the first Download),
+              fall back to rendering the layers live, which is always current. Previously the
+              card stayed blank until you exported, so a post you'd spent real time on looked
+              untouched; and after an edit it kept showing a composition you'd moved on from. */}
+          {d.fileUrl && state === "exported" ? (
             // object-contain, not cover: the card must show the composition that was made,
             // not a centre-crop of it (D126).
             // eslint-disable-next-line @next/next/no-img-element
@@ -126,6 +132,16 @@ export function PostNode({ id, data, selected }: NodeProps) {
               alt={d.title ?? "post"}
               className="size-full object-contain"
             />
+          ) : layerCount > 0 ? (
+            <div className="size-full">
+              <PostLayersPreview
+                layers={d.layers ?? []}
+                format={format}
+                resolveNodeImageUrl={(nodeId) =>
+                  connectedImageNodes.find((c) => c.nodeId === nodeId)?.url
+                }
+              />
+            </div>
           ) : (
             <LayoutTemplate className="size-8 text-muted-foreground/40" strokeWidth={1.5} />
           )}
