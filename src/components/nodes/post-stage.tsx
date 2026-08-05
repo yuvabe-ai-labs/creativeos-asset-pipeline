@@ -130,6 +130,14 @@ export function PostStage({
     // a selected layer would take that early return, never reset, and have its click eaten.
     suppressNextClickRef.current = false;
 
+    // The Transformer owns its resize/rotate handles as child nodes, so grabbing one reports
+    // the ANCHOR as the event target. It belongs to no layer, so it resolves to a null hitId
+    // and would fall through to the "empty space" branch below — clearing the selection,
+    // detaching the Transformer mid-gesture, and killing the resize outright.
+    for (let n: Konva.Node | null = e.target; n && n !== stage; n = n.getParent()) {
+      if (n === transformerRef.current) return;
+    }
+
     const hitId = e.target === stage ? null : resolveHitLayerId(e.target, stage);
     const hitLayer = hitId ? layers.find((l) => l.id === hitId) : null;
 
