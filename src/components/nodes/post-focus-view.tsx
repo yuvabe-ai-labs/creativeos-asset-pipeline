@@ -98,6 +98,19 @@ export function PostFocusView({
     return { w: widthFraction, h: (widthFraction * containerW) / containerH };
   }
 
+  /**
+   * Run an add action, then switch the flyout to Layers.
+   *
+   * Adding from a panel leaves that panel open showing the same grid, so nothing visibly
+   * confirms the element landed — and the new layer is exactly what the operator wants to see
+   * next (to rename it, reorder it, or check it arrived). The add itself already selects the
+   * new layer, so the Layers row is highlighted the moment the panel opens.
+   */
+  function afterAdding(add: () => void) {
+    add();
+    setTool("layers");
+  }
+
   // Templates open by default so the next step is discoverable, but nothing is applied
   // until the operator clicks a template — a Post node opens on a clean canvas showing
   // only its connected image (D117).
@@ -344,29 +357,33 @@ export function PostFocusView({
               <PostPanelElements
                 nodeId={nodeId}
                 onAddShape={(shape) =>
-                  addShape({
-                    shape,
-                    // Round and radial primitives need a genuinely square box or they land as
-                    // ovals; a rule or arrow wants a wide, short one. A rectangle keeps the
-                    // generic default it has always had.
-                    ...(shape === "ellipse" || shape === "star" || shape === "diamond" || shape === "triangle"
-                      ? squareBox(0.3)
-                      : shape === "line" || shape === "arrow"
-                        ? { w: 0.4, h: 0.06 }
-                        : {}),
-                  })
+                  afterAdding(() =>
+                    addShape({
+                      shape,
+                      // Round and radial primitives need a genuinely square box or they land
+                      // as ovals; a rule or arrow wants a wide, short one. A rectangle keeps
+                      // the generic default it has always had.
+                      ...(shape === "ellipse" || shape === "star" || shape === "diamond" || shape === "triangle"
+                        ? squareBox(0.3)
+                        : shape === "line" || shape === "arrow"
+                          ? { w: 0.4, h: 0.06 }
+                          : {}),
+                    }),
+                  )
                 }
-                onAddIcon={(src) => addIcon(src, squareBox(0.16))}
+                onAddIcon={(src) => afterAdding(() => addIcon(src, squareBox(0.16)))}
                 // Uploaded images land in a generous square too, rather than the generic
                 // wide-and-short default box, which squashed them into a strip.
-                onAddImageUrl={(url) => addImage({ kind: "url", url }, squareBox(0.5))}
+                onAddImageUrl={(url) => afterAdding(() => addImage({ kind: "url", url }, squareBox(0.5)))}
               />
             )}
-            {tool === "text" && <PostPanelText onAddText={(preset) => addText(preset)} />}
+            {tool === "text" && (
+              <PostPanelText onAddText={(preset) => afterAdding(() => addText(preset))} />
+            )}
             {tool === "connected" && (
               <PostPanelConnected
                 nodes={connectedImageNodes}
-                onAdd={(nodeId) => addImage({ kind: "node", nodeId })}
+                onAdd={(nodeId) => afterAdding(() => addImage({ kind: "node", nodeId }))}
               />
             )}
             {tool === "layers" && (
@@ -390,6 +407,14 @@ export function PostFocusView({
           {/* Stage */}
           <div
             className="relative flex flex-1 items-center justify-center overflow-auto bg-muted/10 p-6"
+            // Clicking the empty area AROUND the artboard clears the selection, the way it does
+            // in any canvas tool — previously a selection survived until you happened to click
+            // bare canvas, so the Transformer sat there over work you'd moved on from.
+            // Guarded on the target being this padding itself: the panels and the inspector
+            // both act ON the selection, so a click inside them must never drop it.
+            onMouseDown={(e) => {
+              if (e.target === e.currentTarget) selectLayer(null);
+            }}
             onDragOver={(e) => {
               if (e.dataTransfer.types.includes(CONNECTED_DRAG_TYPE)) e.preventDefault();
             }}
@@ -438,9 +463,23 @@ export function PostFocusView({
                 containerW={containerW}
                 containerH={containerH}
                 selectedIds={selectedIds}
-                onSelect={selectLayer}
-                onToggleSelect={toggleLayerSelection}
-                onSelectMany={selectMany}
+                // Selecting on the canvas opens Layers, so the stack is visible with the
+                // clicked row highlighted — you can see what you picked, where it sits in the
+                // order, and rename or reorder it without hunting for the panel. Deselecting
+                // deliberately leaves the panel alone: clearing a selection isn't a request to
+                // change what you were looking at.
+                onSelect={(id) => {
+                  selectLayer(id);
+                  if (id) setTool("layers");
+                }}
+                onToggleSelect={(id) => {
+                  toggleLayerSelection(id);
+                  setTool("layers");
+                }}
+                onSelectMany={(ids) => {
+                  selectMany(ids);
+                  if (ids.length) setTool("layers");
+                }}
                 resolveNodeImageUrl={resolveNodeImageUrl}
                 updateLayerLive={updateLayerLive}
                 commitLayerChange={commitLayerChange}
