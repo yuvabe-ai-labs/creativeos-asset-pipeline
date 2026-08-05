@@ -2103,6 +2103,79 @@ it.
 last click position (surprising when the panel, not the canvas, was the last thing touched).
 **Originated.** `2026-08-05-post-editor-canva-shell-design.md`.
 
+### D129 — Brand assets get their own table, not `client_brand_images`
+**Decision.** A new `client_brand_assets` table (`category` in `logo`/`background`/`product`) holds
+the Brand Kit. `client_brand_images` is left alone.
+**Why.** `client_brand_images` is the KB's vision-analysis corpus: every reference photo uploaded to
+teach the extraction model what the brand looks like. Those rows are pipeline inputs, not material
+anyone chose to design with. Surfacing them in the Brand panel would bury three usable logos among
+forty analysis photos with nothing distinguishing them.
+**Rejected.** Reusing the table with a `kind` discriminator (one table serving a pipeline and a
+picker, with every reader needing the filter and one forgotten filter leaking the corpus into the UI).
+**Originated.** `2026-08-05-brand-kit-design.md`.
+
+### D130 — Brand details live in a JSONB column on `clients`, not the KB
+**Decision.** `clients.brand_details jsonb not null default '{}'` holds phone, email, website,
+address and social handles. Every field optional; readers tolerate all absent (D10).
+**Why.** These are facts an operator types and expects to stay exactly as typed. The KB is
+model-extracted and versioned, so a re-extraction could silently rewrite a phone number. JSONB over
+columns because the set will grow — a second number, a fourth social — and nothing queries or filters
+on these; they are read whole and rendered.
+**Rejected.** KB fields (re-extraction overwrites them); one column per detail (a migration per
+social network).
+**Originated.** `2026-08-05-brand-kit-design.md`.
+
+### D131 — `clients.logo_url` is synthesized into the panel, never migrated into a row
+**Decision.** An existing client logo appears in the Logos section as a synthetic entry, marked
+"from client profile" and not deletable there.
+**Why.** The panel is useful the first time it is opened rather than starting empty for every
+existing client, and `clients.logo_url` stays the single source of truth for the many other places
+that already read it. A data migration copying it into a row would create two logos that drift.
+**Rejected.** Migrating logos into rows (two sources of truth); leaving the panel empty until
+something is uploaded (every existing client sees a blank kit).
+**Originated.** `2026-08-05-brand-kit-design.md`.
+
+### D132 — Brand colours are derived from the KB at read time, never stored
+**Decision.** The Colours section parses hex codes out of the active KB's `colour_palette_primary`
+and `_secondary` on each load, via a pure `extractHexes`.
+**Why.** The palette already exists and is maintained where brand facts belong; copying it into the
+Brand Kit would create a second copy to keep in sync. The KB stores prose ("turmeric gold #C8A000"),
+so parsing is required either way — doing it at read time costs nothing extra.
+**Rejected.** Storing a resolved palette on the kit (drifts from the KB); asking the operator to
+re-enter colours (data they already gave us).
+**Trade-off accepted.** A KB re-extraction changes the swatches. Current beats stable here.
+**Originated.** `2026-08-05-brand-kit-design.md`.
+
+### D133 — A brand background replaces its predecessor, marked by `role`
+**Decision.** `ImageLayer` gains `role?: "brand-background"`. Placing a background removes any layer
+carrying that role, then inserts the new one at index 0.
+**Why.** Clicking three backgrounds while deciding otherwise leaves two invisible full-bleed images
+underneath, each one a layer the operator has to hunt down and delete. An explicit role is testable;
+inferring "is this a background" from geometry would misfire on any deliberately full-bleed photo.
+**Rejected.** Inferring from `w===1 && h===1 && index===0` (misclassifies a full-bleed hero photo);
+allowing them to stack (invisible layers nobody asked for).
+**Originated.** `2026-08-05-brand-kit-design.md`.
+
+### D134 — The Post editor reads `clientId` from context, not props
+**Decision.** A `client-id-context.tsx` mirroring the existing `canvas-id-context.tsx`, provided
+where `CanvasIdProvider` already is.
+**Why.** Prop-drilling would thread the value through five components (Canvas → nodes → PostNode →
+PostFocusView → panel) that have no interest in it, which the component guide forbids. The codebase
+already solved the identical problem for `canvasId`.
+**Rejected.** Prop drilling; putting `clientId` in the Zustand canvas store (it is page-scoped
+identity, not canvas state, and would need seeding on every store creation).
+**Originated.** `2026-08-05-brand-kit-design.md`.
+
+### D135 — Fonts are excluded from the Brand Kit
+**Decision.** The Brand panel offers colours, logos, backgrounds, products and details. Not fonts.
+**Why.** The KB's `typography_style` is a prose field ("clean geometric sans, generous tracking").
+Mapping it to a `FontKey` means guessing, and guessing wrong silently restyles a design — a failure
+the operator would not attribute to the Brand Kit.
+**Rejected.** Fuzzy-matching prose to the vendored families (wrong answers presented confidently);
+a per-client font picker (real, but it is a separate feature with its own upload and licensing
+questions, not a line item here).
+**Originated.** `2026-08-05-brand-kit-design.md`.
+
 ### Parked / out-of-scope (with revisit triggers)
 | Item | Status | Revisit when |
 |---|---|---|
