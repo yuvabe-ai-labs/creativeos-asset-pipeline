@@ -57,7 +57,7 @@ export function PostInspector({ layer, selectedCount, onChange, onPreview, natur
     return (
       <Shell title="Selection">
         <p className="text-xs text-muted-foreground">
-          {selectedCount} layers selected. Use the toolbar or right-click menu to align, group,
+          {selectedCount} layers selected. Right-click the canvas to align, group,
           lock, or delete.
         </p>
       </Shell>
@@ -84,7 +84,7 @@ export function PostInspector({ layer, selectedCount, onChange, onPreview, natur
       {layer.kind === "icon" && <PostInspectorIcon layer={layer} onChange={onChange} />}
       {layer.kind === "group" && (
         <p className="text-xs text-muted-foreground">
-          Group of {layer.childIds.length} layers. Use the toolbar or right-click menu to
+          Group of {layer.childIds.length} layers. Right-click the canvas to
           ungroup, align, lock, or delete.
         </p>
       )}

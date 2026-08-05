@@ -56,15 +56,6 @@ const ARROW_DIRECTIONS: Record<string, "up" | "down" | "left" | "right" | undefi
   ArrowRight: "right",
 };
 
-function layerKindLabel(layer: PostLayer): string {
-  switch (layer.kind) {
-    case "text": return "Text";
-    case "shape": return "Shape";
-    case "image": return "Image";
-    case "icon": return "Icon";
-    case "group": return "Group";
-  }
-}
 
 export function PostFocusView({
   open, onOpenChange, nodeId, title, format, templateId, layers: persistedLayers,
@@ -316,7 +307,11 @@ export function PostFocusView({
           <PostToolRail active={tool} onSelect={setTool} />
           <PostToolPanel tool={tool}>
             {tool === "templates" && (
-              <PostPanelTemplates activeTemplateId={editorTemplateId} onApply={handlePickTemplate} />
+              <PostPanelTemplates
+                activeTemplateId={editorTemplateId}
+                format={editorFormat}
+                onApply={handlePickTemplate}
+              />
             )}
             {tool === "sizes" && <PostPanelSizes format={editorFormat} onSelect={handleSelectFormat} />}
             {tool === "elements" && (
@@ -419,13 +414,8 @@ export function PostFocusView({
           {/* Inspector — the shell (width/header) always renders regardless of selection
               state; only the content below the header changes across 0/1/2+ selected. */}
           <div className="scrollbar-thin w-56 shrink-0 overflow-y-auto border-l border-border p-3">
-            <div className="text-eyebrow mb-2 !text-[0.6rem] text-muted-foreground">
-              {selectedIds.length === 0
-                ? "Inspector"
-                : selectedIds.length > 1
-                  ? `${selectedIds.length} layers selected`
-                  : selectedLayer ? layerKindLabel(selectedLayer) : "Inspector"}
-            </div>
+            {/* No heading here — PostInspector's own Shell renders it, for every selection
+                state. Having one here too printed the layer kind twice ("TEXT / TEXT"). */}
             <PostInspector
               layer={selectedLayer}
               selectedCount={selectedIds.length}

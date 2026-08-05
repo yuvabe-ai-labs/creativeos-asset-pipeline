@@ -48,7 +48,7 @@ export function PostLayerList({
   const [dragOverId, setDragOverId] = useState<string | null>(null);
 
   if (layers.length === 0) {
-    return <p className="text-sm text-muted-foreground">No layers yet — use Add to start.</p>;
+    return <p className="text-sm text-muted-foreground">No layers yet — use Elements or Text in the rail to start.</p>;
   }
 
   function handleSelect(e: { shiftKey: boolean; ctrlKey: boolean; metaKey: boolean }, id: string) {

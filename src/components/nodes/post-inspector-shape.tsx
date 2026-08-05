@@ -57,6 +57,7 @@ export function PostInspectorShape({ layer, onChange, onPreview }: Props) {
           label="Colour"
           value={layer.fill.color}
           onChange={(color) => onChange({ fill: { kind: "solid", color } })}
+          onPreview={(color) => onPreview({ fill: { kind: "solid", color } })}
         />
       ) : (
         <PostGradientPresets
@@ -111,6 +112,7 @@ export function PostInspectorShape({ layer, onChange, onPreview }: Props) {
             label="Border colour"
             value={layer.stroke.color}
             onChange={(color) => onChange({ stroke: { ...layer.stroke!, color } })}
+            onPreview={(color) => onPreview({ stroke: { ...layer.stroke!, color } })}
           />
           <div>
             <label className="text-eyebrow mb-1 block !text-[0.6rem]">

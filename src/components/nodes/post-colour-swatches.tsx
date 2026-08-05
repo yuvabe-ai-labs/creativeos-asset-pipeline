@@ -23,10 +23,12 @@ const SWATCHES: { value: string; label: string }[] = [
 type Props = {
   value: string;
   onChange: (colour: string) => void;
+  /** Live, uncommitted update while dragging inside the OS colour picker. */
+  onPreview?: (colour: string) => void;
   label: string;
 };
 
-export function PostColourSwatches({ value, onChange, label }: Props) {
+export function PostColourSwatches({ value, onChange, onPreview, label }: Props) {
   return (
     <div>
       <label className="text-eyebrow mb-1 block !text-[0.6rem]">{label}</label>
@@ -47,10 +49,14 @@ export function PostColourSwatches({ value, onChange, label }: Props) {
             style={{ backgroundColor: s.value }}
           />
         ))}
-        {/* The OS picker, kept deliberately small and last — an escape hatch, not the path. */}
+        {/* The OS picker, kept deliberately small and last — an escape hatch, not the path.
+            Chrome fires `input` continuously while the pointer moves inside the picker, so
+            routing that to the commit path would land one undo entry per sample — the same
+            problem the sliders have. Preview on `input`, commit once on `change`. */}
         <Input
           type="color"
           value={/^#[0-9a-f]{6}$/i.test(value) ? value : "#000000"}
+          onInput={(e) => (onPreview ?? onChange)((e.target as HTMLInputElement).value)}
           onChange={(e) => onChange(e.target.value)}
           aria-label={`${label} — custom`}
           title="Custom colour"

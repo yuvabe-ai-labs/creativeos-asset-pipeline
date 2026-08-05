@@ -8,9 +8,13 @@ import {
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { TEMPLATES, type PostTemplate } from "@/lib/post/templates";
+import type { PostFormat } from "@/lib/post/types";
+import { PostTemplatePreview } from "./post-template-preview";
 
 type Props = {
   activeTemplateId?: string;
+  /** The post's current format — previews are seeded for it, so what you see is what lands. */
+  format: PostFormat;
   onApply: (template: PostTemplate) => void;
 };
 
@@ -19,7 +23,7 @@ type Props = {
  * so it always confirms — including on an untouched canvas (D118). Connected images survive;
  * the caller guarantees that.
  */
-export function PostPanelTemplates({ activeTemplateId, onApply }: Props) {
+export function PostPanelTemplates({ activeTemplateId, format, onApply }: Props) {
   const [pending, setPending] = useState<PostTemplate | null>(null);
 
   return (
@@ -31,13 +35,15 @@ export function PostPanelTemplates({ activeTemplateId, onApply }: Props) {
             variant="outline"
             onClick={() => setPending(t)}
             className={cn(
-              "h-auto flex-col items-start gap-1 p-2 text-left",
+              "h-auto flex-col items-stretch gap-1.5 p-1.5 text-left",
               activeTemplateId === t.id && "ring-2 ring-primary ring-offset-1",
             )}
           >
-            <span className="block w-full truncate text-xs font-medium">{t.name}</span>
-            <span className="block w-full truncate text-[0.6rem] text-muted-foreground">
-              {t.purposeTags.join(" · ")}
+            {/* Seeded for the CURRENT format, so the thumbnail is the composition that will
+                actually land — templates tune themselves per aspect band. */}
+            <PostTemplatePreview layers={t.seedLayers(format)} format={format} />
+            <span className="block w-full truncate px-0.5 text-[0.65rem] font-medium leading-tight">
+              {t.name}
             </span>
           </Button>
         ))}
