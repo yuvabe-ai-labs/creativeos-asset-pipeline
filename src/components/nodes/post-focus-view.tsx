@@ -66,20 +66,18 @@ export function PostFocusView({
   open, onOpenChange, nodeId, title, format, templateId, layers: persistedLayers,
   autoPlacedNodeIds, connectedImageNodes, onPatch,
 }: Props) {
-  const formatSpec = POST_FORMATS[resolveFormat(format)];
-  const scale = Math.min(1, STAGE_MAX_PX / Math.max(formatSpec.width, formatSpec.height));
-  const containerW = formatSpec.width * scale;
-  const containerH = formatSpec.height * scale;
-
-  const { layers, selectedIds, selectLayer, toggleLayerSelection, selectMany, addText, addShape,
+  const { layers, format: editorFormat, setFormat,
+    selectedIds, selectLayer, toggleLayerSelection, selectMany, addText, addShape,
     addImage, addIcon, updateLayerLive, commitLayerChange, replaceAllLayers, deleteSelection,
     duplicateSelection, reorder, reorderToIndex, toggleLock, toggleHidden, group, ungroup,
     copySelection, pasteClipboard, align, undo, redo, canUndo, canRedo,
   } = usePostEditor(
-    // The hook's history owns the whole design now, not just layers. This call site is
-    // adapted only far enough to keep the editor working; the rail/panel rework that makes
-    // format and templateId genuinely hook-owned (so the Size panel drives them and undo
-    // covers them) is the integration task at the end of this plan.
+    // The hook's history owns the whole design — layers, format AND templateId. It seeds
+    // itself from these props once and is the source of truth from then on, so everything
+    // below must read `editorFormat` and write through `setFormat`/`replaceAllLayers`
+    // rather than calling onPatch for those fields directly: the hook writes all three back
+    // out on every debounced save, so a direct onPatch is silently reverted a moment later
+    // by the hook's own (never-updated) copy.
     {
       layers: persistedLayers ?? [],
       format: resolveFormat(format),
@@ -87,6 +85,11 @@ export function PostFocusView({
     },
     (next) => onPatch({ layers: next.layers, format: next.format, templateId: next.templateId }),
   );
+
+  const formatSpec = POST_FORMATS[editorFormat];
+  const scale = Math.min(1, STAGE_MAX_PX / Math.max(formatSpec.width, formatSpec.height));
+  const containerW = formatSpec.width * scale;
+  const containerH = formatSpec.height * scale;
 
   const [rail, setRail] = useState<"layers" | "brand">("layers");
   // Captured ONCE, lazily, from the TRUE initial scene — never re-derived from
@@ -116,7 +119,9 @@ export function PostFocusView({
   const { downloadPng, isExporting } = usePostExport({
     nodeId,
     stageRef,
-    format: resolveFormat(format),
+    // The editor's live format, not the prop: the prop only catches up after the debounced
+    // save round-trips, so exporting right after a format change would render the OLD size.
+    format: editorFormat,
     title,
     onDeselect: () => selectLayer(null),
     onPatch,
@@ -154,17 +159,19 @@ export function PostFocusView({
   }
 
   function handlePickTemplate(template: PostTemplate) {
-    const seeded = template.seedLayers(resolveFormat(format));
+    // Seed for the format actually on screen — templates tune their layout per aspect band,
+    // so seeding from the lagging prop would compose for the wrong shape.
+    const seeded = template.seedLayers(editorFormat);
     // Preserve any connected-node-sourced image (auto-placed once per source, per
     // autoPlacedNodeIds) — no template seeds its own image layer, so replacing wholesale
     // would silently discard the plate with no way to bring it back (the auto-place
     // effect never re-fires for a source it already recorded). Keep it at the back so
     // the template's own shapes/text layer on top of it as intended.
     const keptImages = layers.filter((l) => l.kind === "image" && l.src.kind === "node");
-    // Layers go through the editor's own history (which owns them); templateId is not
-    // part of that state, so it stays a plain patch.
-    replaceAllLayers([...keptImages, ...seeded]);
-    onPatch({ templateId: template.id });
+    // Hand templateId to replaceAllLayers rather than patching it separately: the hook owns
+    // it, so a bare onPatch would be overwritten by the hook's own copy on the next save —
+    // and passing it here also lands the whole template application as ONE undo step.
+    replaceAllLayers([...keptImages, ...seeded], template.id);
     setPickerOpen(false);
   }
 
@@ -266,10 +273,10 @@ export function PostFocusView({
               </SheetTitle>
               <div className="flex items-center gap-2">
                 <Select
-                  value={resolveFormat(format)}
+                  value={editorFormat}
                   onValueChange={(v) => {
                     const next = v as PostFormat;
-                    const from = POST_FORMATS[resolveFormat(format)];
+                    const from = POST_FORMATS[editorFormat];
                     const to = POST_FORMATS[next];
                     const ratioDelta = Math.abs(from.width / from.height - to.width / to.height);
                     // R1.6: warn, never block, on a large aspect-ratio change — normalized
@@ -278,7 +285,10 @@ export function PostFocusView({
                     if (ratioDelta > 0.3) {
                       toast.warning("Big aspect-ratio change — check the layout before downloading.");
                     }
-                    onPatch({ format: next });
+                    // Through the hook, never a bare onPatch: the hook owns format and writes
+                    // its own copy back on every save, so a direct patch is reverted seconds
+                    // later. Going through setFormat also makes the change undoable.
+                    setFormat(next);
                   }}
                 >
                   <SelectTrigger className="w-40 text-xs"><SelectValue /></SelectTrigger>
