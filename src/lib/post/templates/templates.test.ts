@@ -5,12 +5,6 @@ import type { PostFormat, GroupLayer } from "../types";
 
 
 describe("TEMPLATES registry", () => {
-  it("has exactly the four V1 templates", () => {
-    expect(TEMPLATES.map((t) => t.id).sort()).toEqual(
-      ["inset-card", "lower-third", "side-column", "split-half"].sort(),
-    );
-  });
-
   it("every template has a unique id", () => {
     const ids = TEMPLATES.map((t) => t.id);
     expect(new Set(ids).size).toBe(ids.length);
@@ -106,6 +100,25 @@ describe("templates are format-aware", () => {
       for (const layer of t.seedLayers("ig-square")) {
         if (layer.kind === "text") expect(layer.text.trim().length).toBeGreaterThan(0);
       }
+    }
+  });
+});
+
+describe("the template library", () => {
+  // NOTE: this worktree only has 4 original + 3 (sale-offer, event, minimal-frame) = 7
+  // templates. Two sibling worktrees are adding the other 7 in parallel. Once all three
+  // template branches are merged this must become toHaveLength(14).
+  it("ships seven templates with unique ids", () => {
+    expect(TEMPLATES).toHaveLength(7);
+    const ids = TEMPLATES.map((t) => t.id);
+    expect(new Set(ids).size).toBe(7);
+  });
+
+  it("gives every template a human name and at least one purpose tag", () => {
+    for (const t of TEMPLATES) {
+      expect(t.name.length).toBeGreaterThan(0);
+      expect(t.name).not.toBe(t.id);
+      expect(t.purposeTags.length).toBeGreaterThan(0);
     }
   });
 });

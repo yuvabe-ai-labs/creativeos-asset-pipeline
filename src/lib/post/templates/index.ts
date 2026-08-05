@@ -4,6 +4,9 @@ import * as lowerThird from "./lower-third";
 import * as insetCard from "./inset-card";
 import * as sideColumn from "./side-column";
 import * as splitHalf from "./split-half";
+import * as saleOffer from "./sale-offer";
+import * as event from "./event";
+import * as minimalFrame from "./minimal-frame";
 
 export type PostTemplate = {
   id: string;
@@ -37,6 +40,9 @@ export const TEMPLATES: readonly PostTemplate[] = [
   toTemplate(insetCard),
   toTemplate(sideColumn),
   toTemplate(splitHalf),
+  toTemplate(saleOffer),
+  toTemplate(event),
+  toTemplate(minimalFrame),
 ];
 
 export function getTemplate(id: string): PostTemplate | undefined {
