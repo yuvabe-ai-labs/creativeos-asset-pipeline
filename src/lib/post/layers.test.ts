@@ -360,14 +360,20 @@ describe("copyLayers / pasteLayers", () => {
 
 describe("cascadeGeometry", () => {
   it("places the first layer at the default origin", () => {
-    expect(cascadeGeometry([])).toEqual({ x: 0.1, y: 0.1 });
+    const result = cascadeGeometry([]);
+    expect(result.x).toBeCloseTo(0.1, 5);
+    expect(result.y).toBeCloseTo(0.1, 5);
   });
 
   it("offsets each subsequent layer so additions never stack invisibly", () => {
     const one = [createTextLayer()];
     const two = [createTextLayer(), createTextLayer()];
-    expect(cascadeGeometry(one)).toEqual({ x: 0.12, y: 0.12 });
-    expect(cascadeGeometry(two)).toEqual({ x: 0.14, y: 0.14 });
+    const resultOne = cascadeGeometry(one);
+    expect(resultOne.x).toBeCloseTo(0.12, 5);
+    expect(resultOne.y).toBeCloseTo(0.12, 5);
+    const resultTwo = cascadeGeometry(two);
+    expect(resultTwo.x).toBeCloseTo(0.14, 5);
+    expect(resultTwo.y).toBeCloseTo(0.14, 5);
   });
 
   it("wraps back to the origin rather than walking off the canvas", () => {

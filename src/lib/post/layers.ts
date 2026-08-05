@@ -26,12 +26,6 @@ const CASCADE_STEP = 0.02;
 /** Steps before wrapping back to the origin, so a long session never walks off-canvas. */
 const CASCADE_WRAP = 25;
 
-// Rounds away binary floating-point drift (e.g. 0.1 + 0.02 = 0.12000000000000001 in IEEE 754)
-// so cascaded coordinates compare equal to their clean decimal values.
-function roundNormalized(n: number): number {
-  return Math.round(n * 1e6) / 1e6;
-}
-
 /**
  * Where the next created layer should sit (D128). Without this every add landed on the
  * same coordinates, so three added texts formed a perfect stack in which only the top one
@@ -40,8 +34,8 @@ function roundNormalized(n: number): number {
 export function cascadeGeometry(existing: PostLayer[]): { x: number; y: number } {
   const step = (existing.length % CASCADE_WRAP) * CASCADE_STEP;
   return {
-    x: roundNormalized(DEFAULT_GEOMETRY.x + step),
-    y: roundNormalized(DEFAULT_GEOMETRY.y + step),
+    x: DEFAULT_GEOMETRY.x + step,
+    y: DEFAULT_GEOMETRY.y + step,
   };
 }
 
