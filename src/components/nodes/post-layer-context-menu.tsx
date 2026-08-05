@@ -19,6 +19,12 @@ type Props = {
   canUngroup: boolean;
   canPaste: boolean;
   isLocked: boolean;
+  /**
+   * Lock/Unlock acts on a single layer — there is no bulk primitive, and looping would make
+   * one gesture N undo steps. Gate the item rather than let it render enabled and silently
+   * do nothing for a 2+ selection.
+   */
+  canToggleLock: boolean;
   onCut: () => void;
   onCopy: () => void;
   onPaste: () => void;
@@ -40,7 +46,7 @@ type Props = {
 // props are needed here; per-layer selection (which layer was right-clicked) is Task 15's concern
 // when it wires this component into post-focus-view.tsx/post-stage.tsx.
 export function PostLayerContextMenu({
-  children, hasSelection, canGroup, canUngroup, canPaste, isLocked,
+  children, hasSelection, canGroup, canUngroup, canPaste, isLocked, canToggleLock,
   onCut, onCopy, onPaste, onDuplicate, onDelete, onToggleLock, onReorder, onGroup, onUngroup, onAlign,
 }: Props) {
   return (
@@ -60,7 +66,7 @@ export function PostLayerContextMenu({
           <CopyPlus className="mr-2 size-3.5" strokeWidth={1.5} /> Duplicate
         </ContextMenuItem>
         <ContextMenuSeparator />
-        <ContextMenuItem disabled={!hasSelection} onClick={onToggleLock}>
+        <ContextMenuItem disabled={!canToggleLock} onClick={onToggleLock}>
           {isLocked
             ? <Unlock className="mr-2 size-3.5" strokeWidth={1.5} />
             : <Lock className="mr-2 size-3.5" strokeWidth={1.5} />}

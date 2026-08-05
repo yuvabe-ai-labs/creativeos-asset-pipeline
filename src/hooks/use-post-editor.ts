@@ -138,7 +138,12 @@ export function usePostEditor(
       if (added) newIds.push(added.id);
     }
     applyCommitted(next);
-    if (newIds.length) setSelectedIds(newIds);
+    // Only move the selection onto the copies when duplicating the ACTUAL selection. A
+    // per-row duplicate button passes overrideIds for a layer the user may not have
+    // selected — retargeting there would silently replace their real selection (e.g. two
+    // layers they were about to group) with one copy of an unrelated row, mirroring the
+    // same conditional deleteSelection already applies to its own bookkeeping.
+    if (newIds.length && !overrideIds) setSelectedIds(newIds);
   }, [history.present, selectedIds]);
 
   const reorder = useCallback((id: string, direction: ReorderDirection) => {

@@ -356,6 +356,7 @@ export function PostFocusView({
               canUngroup={selectedIds.length === 1 && selectedLayer?.kind === "group"}
               canPaste={hasClipboard}
               isLocked={selectedIds.length === 1 && (selectedLayer?.locked ?? false)}
+              canToggleLock={selectedIds.length === 1}
               onCut={() => { copySelection(); deleteSelection(); setHasClipboard(true); }}
               onCopy={() => { copySelection(); setHasClipboard(true); }}
               onPaste={pasteClipboard}
