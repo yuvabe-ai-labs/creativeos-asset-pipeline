@@ -62,6 +62,22 @@ export function PostStage({
     transformer.getLayer()?.batchDraw();
   }, [selectedIds, layers]);
 
+  /**
+   * A rule and an arrow are one-dimensional: they run end to end across the middle of their
+   * box, so the only handles that mean anything are the two ends. The default eight offered
+   * six that changed the box's height — which a line has no visible use for — and made
+   * lengthening one a hunt for the right handle among near-identical dots.
+   *
+   * Only when a single one is selected: a mixed multi-select still needs the full set.
+   */
+  const soleSelected = selectedIds.length === 1
+    ? layers.find((l) => l.id === selectedIds[0])
+    : undefined;
+  const isStrokeOnlyShape =
+    soleSelected?.kind === "shape" &&
+    (soleSelected.shape === "line" || soleSelected.shape === "arrow");
+  const enabledAnchors = isStrokeOnlyShape ? ["middle-left", "middle-right"] : undefined;
+
   // Refs must not be read during render (react-hooks/refs) — resolve the editing node's
   // client rect here instead, and have the overlay below read the resulting state.
   useLayoutEffect(() => {
@@ -316,8 +332,12 @@ export function PostStage({
             borderStrokeWidth={2}
             rotateAnchorOffset={24}
             keepRatio={false}
+            enabledAnchors={enabledAnchors}
             boundBoxFunc={(oldBox, newBox) =>
-              newBox.width < 20 || newBox.height < 20 ? oldBox : newBox
+              // A line's box is short by design, and its height is never dragged now that only
+              // the end anchors are live — so hold it to the width floor alone, or the minimum
+              // would reject every resize of a box already under 20px tall.
+              newBox.width < 20 || (!isStrokeOnlyShape && newBox.height < 20) ? oldBox : newBox
             }
             onTransformEnd={() => {
               // Konva fires 'transformend' on the Transformer exactly ONCE per gesture, with
