@@ -3,11 +3,11 @@
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import type { Identity } from "@/lib/identity";
-import type { PlatformRole } from "@/lib/dal-logic";
+import type { OrgRole, PlatformRole } from "@/lib/dal-logic";
 import { ensureFreshSession } from "@/lib/supabase/session-ready";
 
-// Module-level cache + in-flight dedup: multiple components call this hook (the identity
-// chip, admin nav link, header brand, plus prompt/image-gen/video-prompt focus views), and
+// Module-level cache + in-flight dedup: multiple components call this hook (the profile
+// popover, admin nav link, header brand, plus prompt/image-gen/video-prompt focus views), and
 // any of them can mount/remount independently. Without this, each mount fires its own
 // /api/me request — observed firing dozens of times per canvas session.
 //
@@ -24,6 +24,7 @@ type FetchResult = {
   platformRole: PlatformRole | null;
   orgId: string | null;
   orgName: string | null;
+  orgRole: OrgRole | null;
   creditsUsed: number | null;
   monthlyCreditLimit: number | null;
 };
@@ -32,12 +33,13 @@ let cachedIdentity: Identity | null = null;
 let cachedPlatformRole: PlatformRole | null = null;
 let cachedOrgId: string | null = null;
 let cachedOrgName: string | null = null;
+let cachedOrgRole: OrgRole | null = null;
 let cachedCreditsUsed: number | null = null;
 let cachedMonthlyCreditLimit: number | null = null;
 let cachedHydrated = false;
 let inFlightFetch: Promise<FetchResult> | null = null;
 
-// Call this at the moment sign-out happens (see identity-chip.tsx), client-side, before/as
+// Call this at the moment sign-out happens (see profile-popover.tsx), client-side, before/as
 // the redirect fires. Without it, a subsequent sign-in as a different account in the same
 // tab sees cachedHydrated still true and silently reuses the previous account's identity —
 // see the module comment above.
@@ -46,6 +48,7 @@ export function resetIdentityCache(): void {
   cachedPlatformRole = null;
   cachedOrgId = null;
   cachedOrgName = null;
+  cachedOrgRole = null;
   cachedCreditsUsed = null;
   cachedMonthlyCreditLimit = null;
   cachedHydrated = false;
@@ -74,6 +77,7 @@ function fetchIdentity(): Promise<FetchResult> {
               platformRole: (data.platformRole as PlatformRole | undefined) ?? null,
               orgId: (data.orgId as string | undefined) ?? null,
               orgName: (data.orgName as string | undefined) ?? null,
+              orgRole: (data.orgRole as OrgRole | undefined) ?? null,
               creditsUsed: (data.creditsUsed as number | undefined) ?? null,
               monthlyCreditLimit: (data.monthlyCreditLimit as number | undefined) ?? null,
             }
@@ -82,6 +86,7 @@ function fetchIdentity(): Promise<FetchResult> {
               platformRole: null,
               orgId: null,
               orgName: null,
+              orgRole: null,
               creditsUsed: null,
               monthlyCreditLimit: null,
             },
@@ -92,6 +97,7 @@ function fetchIdentity(): Promise<FetchResult> {
           platformRole: null,
           orgId: null,
           orgName: null,
+          orgRole: null,
           creditsUsed: null,
           monthlyCreditLimit: null,
         }),
@@ -102,18 +108,19 @@ function fetchIdentity(): Promise<FetchResult> {
 
 // Reads the logged-in user's identity from the session (via /api/me). `identity`/
 // `hydrated` are the frozen public API (D53) — `setIdentity` is gone, login owns identity
-// now. `platformRole`/`orgId`/`orgName`/`creditsUsed`/`monthlyCreditLimit` are additive
-// sibling fields (gate the admin nav link / scope Realtime subscriptions / show the agency
-// name and monthly usage in the header) — Identity itself never changes shape. `hydrated`
-// flips true once the fetch resolves; until then identity/platformRole/orgId/orgName/
-// creditsUsed/monthlyCreditLimit === null means "not checked yet", so consumers must wait
-// for `hydrated` before acting on null.
+// now. `platformRole`/`orgId`/`orgName`/`orgRole`/`creditsUsed`/`monthlyCreditLimit` are
+// additive sibling fields (gate the admin nav link / scope Realtime subscriptions / show the
+// agency name, real role and monthly usage in the profile popover) — Identity itself never
+// changes shape. `hydrated` flips true once the fetch resolves; until then identity/
+// platformRole/orgId/orgName/orgRole/creditsUsed/monthlyCreditLimit === null means "not
+// checked yet", so consumers must wait for `hydrated` before acting on null.
 export function useIdentity(): {
   identity: Identity | null;
   hydrated: boolean;
   platformRole: PlatformRole | null;
   orgId: string | null;
   orgName: string | null;
+  orgRole: OrgRole | null;
   creditsUsed: number | null;
   monthlyCreditLimit: number | null;
 } {
@@ -121,6 +128,7 @@ export function useIdentity(): {
   const [platformRole, setPlatformRole] = useState<PlatformRole | null>(cachedPlatformRole);
   const [orgId, setOrgId] = useState<string | null>(cachedOrgId);
   const [orgName, setOrgName] = useState<string | null>(cachedOrgName);
+  const [orgRole, setOrgRole] = useState<OrgRole | null>(cachedOrgRole);
   const [creditsUsed, setCreditsUsed] = useState<number | null>(cachedCreditsUsed);
   const [monthlyCreditLimit, setMonthlyCreditLimit] = useState<number | null>(
     cachedMonthlyCreditLimit,
@@ -146,6 +154,7 @@ export function useIdentity(): {
       setPlatformRole(cachedPlatformRole);
       setOrgId(cachedOrgId);
       setOrgName(cachedOrgName);
+      setOrgRole(cachedOrgRole);
       setCreditsUsed(cachedCreditsUsed);
       setMonthlyCreditLimit(cachedMonthlyCreditLimit);
       setHydrated(true);
@@ -157,6 +166,7 @@ export function useIdentity(): {
       cachedPlatformRole = result.platformRole;
       cachedOrgId = result.orgId;
       cachedOrgName = result.orgName;
+      cachedOrgRole = result.orgRole;
       cachedCreditsUsed = result.creditsUsed;
       cachedMonthlyCreditLimit = result.monthlyCreditLimit;
       cachedHydrated = true;
@@ -165,6 +175,7 @@ export function useIdentity(): {
         setPlatformRole(result.platformRole);
         setOrgId(result.orgId);
         setOrgName(result.orgName);
+        setOrgRole(result.orgRole);
         setCreditsUsed(result.creditsUsed);
         setMonthlyCreditLimit(result.monthlyCreditLimit);
         setHydrated(true);
@@ -178,5 +189,14 @@ export function useIdentity(): {
     // triggering the first real fetch instead of leaving the hook permanently un-hydrated.
   }, [pathname]);
 
-  return { identity, hydrated, platformRole, orgId, orgName, creditsUsed, monthlyCreditLimit };
+  return {
+    identity,
+    hydrated,
+    platformRole,
+    orgId,
+    orgName,
+    orgRole,
+    creditsUsed,
+    monthlyCreditLimit,
+  };
 }
