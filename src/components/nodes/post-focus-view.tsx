@@ -46,7 +46,15 @@ type Props = {
   onPatch: (patch: Partial<PostNodeData>) => void;
 };
 
-const STAGE_MAX_PX = 640; // the stage scales to fit within this box, never renders at full format px
+/**
+ * Breathing room between the artboard and the panels flanking it, and how much of the
+ * remaining space the artboard is allowed to fill. Short of 1 so the canvas never looks
+ * wedged between the rail and the inspector.
+ */
+const STAGE_GUTTER_PX = 28;
+const STAGE_FILL = 0.94;
+/** Only used for the very first paint, before the stage area has been measured. */
+const STAGE_FALLBACK_PX = 520;
 
 // KeyboardEvent.key -> the `nudge()` direction token.
 const ARROW_DIRECTIONS: Record<string, "up" | "down" | "left" | "right" | undefined> = {
@@ -82,7 +90,33 @@ export function PostFocusView({
   );
 
   const formatSpec = POST_FORMATS[editorFormat];
-  const scale = Math.min(1, STAGE_MAX_PX / Math.max(formatSpec.width, formatSpec.height));
+
+  // Fit the artboard to whatever space the panels actually leave, measured rather than
+  // assumed. A fixed size can't work: the sheet is a fraction of the viewport, the flyout
+  // panel opens and closes, and formats range from 16:9 to 9:16 — so a constant that fits a
+  // wide post on a large display overflows a tall one on a laptop, which is what turned the
+  // canvas area into a scroller.
+  const stageAreaRef = useRef<HTMLDivElement>(null);
+  const [stageArea, setStageArea] = useState({ w: 0, h: 0 });
+  useEffect(() => {
+    const el = stageAreaRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      setStageArea({ w: width, h: height });
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  const availW = Math.max(0, stageArea.w - STAGE_GUTTER_PX * 2) * STAGE_FILL;
+  const availH = Math.max(0, stageArea.h - STAGE_GUTTER_PX * 2) * STAGE_FILL;
+  const scale =
+    availW > 0 && availH > 0
+      // Never upscale past the format's own pixels — a 1:1 cap keeps a small format crisp
+      // instead of blowing it up to fill a large display.
+      ? Math.min(availW / formatSpec.width, availH / formatSpec.height, 1)
+      : Math.min(1, STAGE_FALLBACK_PX / Math.max(formatSpec.width, formatSpec.height));
   const containerW = formatSpec.width * scale;
   const containerH = formatSpec.height * scale;
 
@@ -406,7 +440,13 @@ export function PostFocusView({
 
           {/* Stage */}
           <div
-            className="relative flex flex-1 items-center justify-center overflow-auto bg-muted/10 p-6"
+            ref={stageAreaRef}
+            // overflow-hidden, not auto: the artboard is scaled to fit this box, so a scrollbar
+            // here would only ever mean the fit maths is wrong — better to see that than to
+            // paper over it with a scroller nobody wants. min-w/h-0 lets this flex child
+            // actually shrink, without which it would push past its parent and re-introduce
+            // the overflow it is meant to prevent.
+            className="relative flex min-h-0 min-w-0 flex-1 items-center justify-center overflow-hidden bg-muted/10"
             // Clicking the empty area AROUND the artboard clears the selection, the way it does
             // in any canvas tool — previously a selection survived until you happened to click
             // bare canvas, so the Transformer sat there over work you'd moved on from.
