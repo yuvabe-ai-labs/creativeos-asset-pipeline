@@ -2,13 +2,11 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, Layers as LayersIcon, Palette, Redo2, Undo2 } from "lucide-react";
+import { ArrowLeft, Redo2, Undo2 } from "lucide-react";
 import { toast } from "sonner";
 import type Konva from "konva";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { cn } from "@/lib/utils";
 import { isEditableTarget } from "@/lib/canvas-node-options";
 import type { PostNodeData } from "@/lib/canvas-nodes";
 import type { PostLayer } from "@/lib/post/types";
@@ -16,16 +14,22 @@ import { POST_FORMATS, resolveFormat } from "@/lib/post/formats";
 import type { PostFormat } from "@/lib/post/types";
 import type { PostTemplate } from "@/lib/post/templates";
 import { nudge } from "@/lib/post/geometry";
+import { pxToNormalized } from "@/lib/post/units";
 import { usePostEditor } from "@/hooks/use-post-editor";
 import { usePostExport } from "@/hooks/use-post-export";
 import { EditableField } from "./editable-field";
 import { PostStage } from "./post-stage";
-import { PostLayerList } from "./post-layer-list";
-import { PostAddMenu } from "./post-add-menu";
 import { PostInspector } from "./post-inspector";
 import { PostBrandTabStub } from "./post-brand-tab-stub";
-import { PostTemplatePicker } from "./post-template-picker";
 import { PostLayerContextMenu } from "./post-layer-context-menu";
+import { PostToolRail, type PostTool } from "./post-tool-rail";
+import { PostToolPanel } from "./post-tool-panel";
+import { PostPanelSizes } from "./post-panel-sizes";
+import { PostPanelTemplates } from "./post-panel-templates";
+import { PostPanelElements } from "./post-panel-elements";
+import { PostPanelText } from "./post-panel-text";
+import { PostPanelConnected, CONNECTED_DRAG_TYPE } from "./post-panel-connected";
+import { PostPanelLayers } from "./post-panel-layers";
 
 type ConnectedImageNode = { nodeId: string; url: string };
 
@@ -66,7 +70,7 @@ export function PostFocusView({
   open, onOpenChange, nodeId, title, format, templateId, layers: persistedLayers,
   autoPlacedNodeIds, connectedImageNodes, onPatch,
 }: Props) {
-  const { layers, format: editorFormat, setFormat,
+  const { layers, format: editorFormat, templateId: editorTemplateId, setFormat,
     selectedIds, selectLayer, toggleLayerSelection, selectMany, addText, addShape,
     addImage, addIcon, updateLayerLive, commitLayerChange, replaceAllLayers, deleteSelection,
     duplicateSelection, reorder, reorderToIndex, toggleLock, toggleHidden, group, ungroup,
@@ -91,11 +95,10 @@ export function PostFocusView({
   const containerW = formatSpec.width * scale;
   const containerH = formatSpec.height * scale;
 
-  const [rail, setRail] = useState<"layers" | "brand">("layers");
-  // Captured ONCE, lazily, from the TRUE initial scene — never re-derived from
-  // `layers.length`, so the auto-place effect adding the first layer can't close the
-  // picker out from under the operator, and "Start blank" has something real to turn off.
-  const [pickerOpen, setPickerOpen] = useState(() => (persistedLayers ?? []).length === 0);
+  // Templates open by default so the next step is discoverable, but nothing is applied
+  // until the operator clicks a template — a Post node opens on a clean canvas showing
+  // only its connected image (D117).
+  const [tool, setTool] = useState<PostTool | null>("templates");
   const stageRef = useRef<Konva.Stage>(null);
 
   // Reported by post-image-layer.tsx (via PostStage's onImageLoaded) once each image
@@ -172,7 +175,6 @@ export function PostFocusView({
     // it, so a bare onPatch would be overwritten by the hook's own copy on the next save —
     // and passing it here also lands the whole template application as ONE undo step.
     replaceAllLayers([...keptImages, ...seeded], template.id);
-    setPickerOpen(false);
   }
 
   function handleRenameLayer(id: string, name: string) {
@@ -180,7 +182,22 @@ export function PostFocusView({
     commitLayerChange();
   }
 
-  const showTemplatePicker = pickerOpen;
+  // R1.6: warn, never block, on a large aspect-ratio change — normalized geometry re-fits
+  // automatically, but a big ratio jump (e.g. square -> story) can still look wrong and the
+  // operator should know to check it.
+  function handleSelectFormat(next: PostFormat) {
+    const from = POST_FORMATS[editorFormat];
+    const to = POST_FORMATS[next];
+    const ratioDelta = Math.abs(from.width / from.height - to.width / to.height);
+    if (ratioDelta > 0.3) {
+      toast.warning("Big aspect-ratio change — check the layout before downloading.");
+    }
+    // Through the hook, never a bare onPatch: the hook owns format and writes its own copy
+    // back on every save, so a direct patch is reverted seconds later. Going through
+    // setFormat also makes the change undoable.
+    setFormat(next);
+  }
+
   // Only populated for exactly one selected layer — a 2+ selection intentionally has no
   // single "the" layer (see PostInspector's own selectedCount-driven states below).
   const selectedLayer = selectedIds.length === 1
@@ -272,43 +289,20 @@ export function PostFocusView({
                 />
               </SheetTitle>
               <div className="flex items-center gap-2">
-                <Select
-                  value={editorFormat}
-                  onValueChange={(v) => {
-                    const next = v as PostFormat;
-                    const from = POST_FORMATS[editorFormat];
-                    const to = POST_FORMATS[next];
-                    const ratioDelta = Math.abs(from.width / from.height - to.width / to.height);
-                    // R1.6: warn, never block, on a large aspect-ratio change — normalized
-                    // geometry re-fits automatically, but a big ratio jump (e.g. square ->
-                    // story) can still look wrong and the operator should know to check it.
-                    if (ratioDelta > 0.3) {
-                      toast.warning("Big aspect-ratio change — check the layout before downloading.");
-                    }
-                    // Through the hook, never a bare onPatch: the hook owns format and writes
-                    // its own copy back on every save, so a direct patch is reverted seconds
-                    // later. Going through setFormat also makes the change undoable.
-                    setFormat(next);
-                  }}
-                >
-                  <SelectTrigger className="w-40 text-xs"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(POST_FORMATS).map(([key, spec]) => (
-                      <SelectItem key={key} value={key} className="text-xs">{spec.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
                 <Button variant="outline" size="icon" disabled={!canUndo} onClick={undo} aria-label="Undo">
                   <Undo2 className="size-4" />
                 </Button>
                 <Button variant="outline" size="icon" disabled={!canRedo} onClick={redo} aria-label="Redo">
                   <Redo2 className="size-4" />
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => setPickerOpen(true)}>
+                <Button
+                  variant="outline" size="sm"
+                  onClick={() => setTool(tool === "templates" ? null : "templates")}
+                >
                   Change template
                 </Button>
                 <Button variant="outline" size="sm" disabled title="Publishing is coming soon">
-                  Publish
+                  Publish <span className="ml-1 text-[0.6rem] opacity-70">soon</span>
                 </Button>
                 <Button size="sm" onClick={downloadPng} disabled={isExporting}>
                   {isExporting ? "Exporting…" : "Download"}
@@ -319,39 +313,29 @@ export function PostFocusView({
         </div>
 
         <div className="flex min-h-0 flex-1">
-          {/* Icon rail */}
-          <div className="flex w-11 shrink-0 flex-col items-center gap-2 border-r border-border py-3">
-            <Button
-              variant="ghost" size="icon"
-              className={cn(rail === "layers" && "bg-primary/10 text-primary")}
-              onClick={() => setRail("layers")}
-              aria-label="Layers"
-            >
-              <LayersIcon className="size-4" />
-            </Button>
-            <Button
-              variant="ghost" size="icon"
-              className={cn(rail === "brand" && "bg-primary/10 text-primary")}
-              onClick={() => setRail("brand")}
-              aria-label="Brand Kit"
-            >
-              <Palette className="size-4" />
-            </Button>
-            <div className="mt-auto">
-              <PostAddMenu
+          <PostToolRail active={tool} onSelect={setTool} />
+          <PostToolPanel tool={tool}>
+            {tool === "templates" && (
+              <PostPanelTemplates activeTemplateId={editorTemplateId} onApply={handlePickTemplate} />
+            )}
+            {tool === "sizes" && <PostPanelSizes format={editorFormat} onSelect={handleSelectFormat} />}
+            {tool === "elements" && (
+              <PostPanelElements
                 nodeId={nodeId}
-                onAddText={addText}
                 onAddShape={addShape}
-                onAddImageUrl={(url) => addImage({ kind: "url", url })}
                 onAddIcon={addIcon}
+                onAddImageUrl={(url) => addImage({ kind: "url", url })}
               />
-            </div>
-          </div>
-
-          {/* Left panel */}
-          <div className="scrollbar-thin w-56 shrink-0 overflow-y-auto border-r border-border p-3">
-            {rail === "layers" ? (
-              <PostLayerList
+            )}
+            {tool === "text" && <PostPanelText onAddText={(preset) => addText(preset)} />}
+            {tool === "connected" && (
+              <PostPanelConnected
+                nodes={connectedImageNodes}
+                onAdd={(nodeId) => addImage({ kind: "node", nodeId })}
+              />
+            )}
+            {tool === "layers" && (
+              <PostPanelLayers
                 layers={layers}
                 selectedIds={selectedIds}
                 onSelect={selectLayer}
@@ -364,13 +348,38 @@ export function PostFocusView({
                 onDuplicate={(id) => duplicateSelection([id])}
                 onDelete={(id) => deleteSelection([id])}
               />
-            ) : (
-              <PostBrandTabStub />
             )}
-          </div>
+            {tool === "brand" && <PostBrandTabStub />}
+          </PostToolPanel>
 
           {/* Stage */}
-          <div className="relative flex flex-1 items-center justify-center overflow-auto bg-muted/10 p-6">
+          <div
+            className="relative flex flex-1 items-center justify-center overflow-auto bg-muted/10 p-6"
+            onDragOver={(e) => {
+              if (e.dataTransfer.types.includes(CONNECTED_DRAG_TYPE)) e.preventDefault();
+            }}
+            onDrop={(e) => {
+              const droppedNodeId = e.dataTransfer.getData(CONNECTED_DRAG_TYPE);
+              if (!droppedNodeId) return;
+              e.preventDefault();
+              const stageBox = stageRef.current?.container().getBoundingClientRect();
+              if (!stageBox) return;
+              // The drop point becomes the new layer's CENTRE, so the image lands under the
+              // cursor rather than starting there and extending down-right.
+              const w = 0.4;
+              const h = 0.4;
+              const cx = pxToNormalized(e.clientX - stageBox.left, stageBox.width);
+              const cy = pxToNormalized(e.clientY - stageBox.top, stageBox.height);
+              addImage(
+                { kind: "node", nodeId: droppedNodeId },
+                {
+                  x: Math.min(Math.max(cx - w / 2, 0), 1 - w),
+                  y: Math.min(Math.max(cy - h / 2, 0), 1 - h),
+                  w, h,
+                },
+              );
+            }}
+          >
             <PostLayerContextMenu
               hasSelection={selectedIds.length > 0}
               canGroup={selectedIds.length >= 2}
@@ -405,11 +414,6 @@ export function PostFocusView({
                 onImageLoaded={handleImageLoaded}
               />
             </PostLayerContextMenu>
-            <PostTemplatePicker
-              open={showTemplatePicker}
-              onPick={handlePickTemplate}
-              onStartBlank={() => setPickerOpen(false)}
-            />
           </div>
 
           {/* Inspector — the shell (width/header) always renders regardless of selection
