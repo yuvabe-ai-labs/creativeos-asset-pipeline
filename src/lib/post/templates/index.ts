@@ -4,6 +4,10 @@ import * as lowerThird from "./lower-third";
 import * as insetCard from "./inset-card";
 import * as sideColumn from "./side-column";
 import * as splitHalf from "./split-half";
+import * as carouselCover from "./carousel-cover";
+import * as testimonial from "./testimonial";
+import * as announcement from "./announcement";
+import * as numberedTips from "./numbered-tips";
 
 export type PostTemplate = {
   id: string;
@@ -37,6 +41,10 @@ export const TEMPLATES: readonly PostTemplate[] = [
   toTemplate(insetCard),
   toTemplate(sideColumn),
   toTemplate(splitHalf),
+  toTemplate(carouselCover),
+  toTemplate(testimonial),
+  toTemplate(announcement),
+  toTemplate(numberedTips),
 ];
 
 export function getTemplate(id: string): PostTemplate | undefined {

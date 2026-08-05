@@ -5,9 +5,18 @@ import type { PostFormat, GroupLayer } from "../types";
 
 
 describe("TEMPLATES registry", () => {
-  it("has exactly the four V1 templates", () => {
+  it("has exactly the eight registered templates", () => {
     expect(TEMPLATES.map((t) => t.id).sort()).toEqual(
-      ["inset-card", "lower-third", "side-column", "split-half"].sort(),
+      [
+        "inset-card",
+        "lower-third",
+        "side-column",
+        "split-half",
+        "carousel-cover",
+        "testimonial",
+        "announcement",
+        "numbered-tips",
+      ].sort(),
     );
   });
 
