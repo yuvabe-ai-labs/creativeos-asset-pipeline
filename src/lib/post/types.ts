@@ -69,6 +69,16 @@ export type ImageLayer = LayerBase & {
   src: ImageSource;
   fit: "cover" | "contain";
   radius?: number;
+  /**
+   * Marks the layer placed by the Brand panel's Backgrounds section (D133). Placing a new
+   * brand background removes any layer carrying this, so clicking three while deciding
+   * leaves one — not two invisible full-bleed images the operator must hunt down.
+   *
+   * Optional and absent by default, so every layer saved before this existed is unaffected
+   * (D10). Deliberately explicit rather than inferred from `w===1 && h===1`, which would
+   * misclassify a deliberately full-bleed hero photo.
+   */
+  role?: "brand-background";
 };
 
 export type IconSource =
