@@ -75,7 +75,18 @@ export function PostFocusView({
     addImage, addIcon, updateLayerLive, commitLayerChange, replaceAllLayers, deleteSelection,
     duplicateSelection, reorder, reorderToIndex, toggleLock, toggleHidden, group, ungroup,
     copySelection, pasteClipboard, align, undo, redo, canUndo, canRedo,
-  } = usePostEditor(persistedLayers ?? [], (next) => onPatch({ layers: next }));
+  } = usePostEditor(
+    // The hook's history owns the whole design now, not just layers. This call site is
+    // adapted only far enough to keep the editor working; the rail/panel rework that makes
+    // format and templateId genuinely hook-owned (so the Size panel drives them and undo
+    // covers them) is the integration task at the end of this plan.
+    {
+      layers: persistedLayers ?? [],
+      format: resolveFormat(format),
+      templateId,
+    },
+    (next) => onPatch({ layers: next.layers, format: next.format, templateId: next.templateId }),
+  );
 
   const [rail, setRail] = useState<"layers" | "brand">("layers");
   // Captured ONCE, lazily, from the TRUE initial scene — never re-derived from
