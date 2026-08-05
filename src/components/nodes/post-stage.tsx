@@ -122,6 +122,14 @@ export function PostStage({
   function handleStageMouseDown(e: Konva.KonvaEventObject<MouseEvent>) {
     const stage = e.target.getStage();
     if (!stage) return;
+    // Every new gesture starts un-suppressed, and this MUST run before the early returns
+    // below. A marquee only gets its suppression flag consumed if Konva actually synthesizes
+    // a click, which it only does when the gesture started and ended on the SAME shape — so a
+    // marquee released over a different layer, over empty stage, or off-canvas leaves the flag
+    // set. If the reset sat after the "already selected" return, the very next shift-click on
+    // a selected layer would take that early return, never reset, and have its click eaten.
+    suppressNextClickRef.current = false;
+
     const hitId = e.target === stage ? null : resolveHitLayerId(e.target, stage);
     const hitLayer = hitId ? layers.find((l) => l.id === hitId) : null;
 
@@ -137,10 +145,6 @@ export function PostStage({
 
     const pos = stage.getPointerPosition();
     if (!pos) return;
-    // A fresh gesture always starts un-suppressed: if the previous one ended without the
-    // synthesized click ever arriving (release over a DIFFERENT shape), the flag would
-    // otherwise linger and swallow this gesture's legitimate click.
-    suppressNextClickRef.current = false;
     dragStartRef.current = pos;
     setSelectionRect({ x: pos.x, y: pos.y, w: 0, h: 0 });
     // Only clear eagerly when the drag began on genuinely empty space. Deselecting on a
