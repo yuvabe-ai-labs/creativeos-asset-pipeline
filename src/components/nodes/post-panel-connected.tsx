@@ -2,7 +2,7 @@
 
 import { ImageOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ELEMENT_DRAG_TYPE, serializeElementDrag } from "@/lib/post/element-drag";
+import { startElementDrag } from "./post-element-drag";
 
 type Props = {
   nodes: { nodeId: string; url: string; title?: string }[];
@@ -32,13 +32,7 @@ export function PostPanelConnected({ nodes, onAdd }: Props) {
             variant="outline"
             onClick={() => onAdd(n.nodeId)}
             draggable
-            onDragStart={(e) => {
-              e.dataTransfer.setData(
-                ELEMENT_DRAG_TYPE,
-                serializeElementDrag({ kind: "connected", nodeId: n.nodeId }),
-              );
-              e.dataTransfer.effectAllowed = "copy";
-            }}
+            onDragStart={(e) => startElementDrag(e, { kind: "connected", nodeId: n.nodeId })}
             className="h-auto cursor-grab flex-col gap-1 p-1 active:cursor-grabbing"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}

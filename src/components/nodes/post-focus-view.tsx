@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import type Konva from "konva";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { isEditableTarget } from "@/lib/canvas-node-options";
 import type { PostNodeData } from "@/lib/canvas-nodes";
 import type { PostLayer, ImageLayer } from "@/lib/post/types";
@@ -566,9 +567,17 @@ export function PostFocusView({
             }}
           >
             {/* The shift is a transform, not a margin, so it never enters the ResizeObserver's
-                measurement and can't feed back into its own input. */}
+                measurement and can't feed back into its own input.
+
+                The drop highlight rings the ARTBOARD, not the whole area: ringing the area
+                lit up a large empty rectangle that read as a glitch rather than as a target.
+                You can still drop anywhere in here — a drop in the grey clamps onto the
+                nearest edge — but the ring points at where the element will actually land. */}
             <div
-              className="transition-[transform] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]"
+              className={cn(
+                "rounded-sm transition-[transform] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]",
+                isDropTarget && "ring-2 ring-primary/60 ring-offset-4 ring-offset-background",
+              )}
               style={{ transform: `translateX(${stageShift}px)` }}
             >
             <PostLayerContextMenu
@@ -620,12 +629,6 @@ export function PostFocusView({
               />
             </PostLayerContextMenu>
             </div>
-
-            {/* Drop affordance. Drawn as an overlay on the whole area rather than a border on
-                the artboard: you can drop anywhere in here, not only on the artboard itself. */}
-            {isDropTarget && (
-              <div className="pointer-events-none absolute inset-2 rounded-lg border-2 border-dashed border-primary/50 bg-primary/5" />
-            )}
           </div>
 
           {/* Inspector — the shell (width/header) always renders regardless of selection

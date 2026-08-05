@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import type { TextLayer } from "@/lib/post/types";
-import { ELEMENT_DRAG_TYPE, serializeElementDrag } from "@/lib/post/element-drag";
+import { startElementDrag } from "./post-element-drag";
 
 /**
  * Three presets rather than one generic "add text" — a heading and a body differ only by
@@ -36,13 +36,7 @@ export function PostPanelText({ onAddText }: { onAddText: (preset: Partial<TextL
           variant="outline"
           onClick={() => onAddText(p.preset)}
           draggable
-          onDragStart={(e) => {
-            e.dataTransfer.setData(
-              ELEMENT_DRAG_TYPE,
-              serializeElementDrag({ kind: "text", preset: p.preset }),
-            );
-            e.dataTransfer.effectAllowed = "copy";
-          }}
+          onDragStart={(e) => startElementDrag(e, { kind: "text", preset: p.preset })}
           className="h-auto w-full cursor-grab justify-start px-3 py-2.5 active:cursor-grabbing"
         >
           <span className={p.className}>{p.label}</span>

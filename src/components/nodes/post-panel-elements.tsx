@@ -14,17 +14,15 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { fileNodeService } from "@/services/file-node.service";
 import { resolveIconSource } from "@/lib/post/icons";
-import { ELEMENT_DRAG_TYPE, serializeElementDrag, type ElementDragPayload } from "@/lib/post/element-drag";
+import { type ElementDragPayload } from "@/lib/post/element-drag";
+import { startElementDrag } from "./post-element-drag";
 import type { IconSource, ShapeKind } from "@/lib/post/types";
 
-/** Every tile in this panel adds on click AND on drop, so they all carry the same two props. */
+/** Every tile in this panel adds on click AND on drop, so they all carry the same three props. */
 function dragProps(payload: ElementDragPayload) {
   return {
     draggable: true,
-    onDragStart: (e: React.DragEvent) => {
-      e.dataTransfer.setData(ELEMENT_DRAG_TYPE, serializeElementDrag(payload));
-      e.dataTransfer.effectAllowed = "copy" as const;
-    },
+    onDragStart: (e: React.DragEvent<HTMLElement>) => startElementDrag(e, payload),
     className: "cursor-grab active:cursor-grabbing",
   };
 }
