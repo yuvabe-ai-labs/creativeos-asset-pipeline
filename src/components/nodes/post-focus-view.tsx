@@ -247,6 +247,27 @@ export function PostFocusView({
     replaceAllLayers([...extraImages, ...next], template.id);
   }
 
+  // "Blank" is the escape hatch from a template: every template is a starting point, and
+  // without this the only way back to an empty canvas was deleting layers one at a time.
+  // The connected photo is kept — it is the reason the node exists and is not the operator's
+  // to lose — and reset to full-bleed so it reads as a clean slate rather than as the last
+  // template's crop.
+  function handleStartBlank() {
+    const connected = layers.filter(
+      (l): l is ImageLayer => l.kind === "image" && l.src.kind === "node",
+    );
+    replaceAllLayers(
+      connected.map((l) => ({
+        ...l,
+        x: 0, y: 0, w: 1, h: 1,
+        rotation: 0,
+        fit: "cover" as const,
+        radius: undefined,
+      })),
+      null,
+    );
+  }
+
   function handleRenameLayer(id: string, name: string) {
     updateLayerLive(id, { name });
     commitLayerChange();
@@ -384,6 +405,7 @@ export function PostFocusView({
                 activeTemplateId={editorTemplateId}
                 format={editorFormat}
                 onApply={handlePickTemplate}
+                onStartBlank={handleStartBlank}
               />
             )}
             {tool === "sizes" && <PostPanelSizes format={editorFormat} onSelect={handleSelectFormat} />}

@@ -264,13 +264,15 @@ export function usePostEditor(
   //
   // `nextTemplateId` lets template application land as ONE undo step instead of two
   // (layers + templateId separately) — omit it for plain "replace layers" call sites.
-  const replaceAllLayers = useCallback((nextLayers: PostLayer[], nextTemplateId?: string) => {
+  // Pass `null` to actively CLEAR the template (starting from blank): `undefined` has to keep
+  // the current one, since that is what every plain call site means by omitting the argument.
+  const replaceAllLayers = useCallback((nextLayers: PostLayer[], nextTemplateId?: string | null) => {
     liveLayersRef.current = null;
     setHistory((h) => {
       const next = commitHistory(h, {
         ...h.present,
         layers: nextLayers,
-        templateId: nextTemplateId ?? h.present.templateId,
+        templateId: nextTemplateId === undefined ? h.present.templateId : (nextTemplateId ?? undefined),
       });
       debouncedOnChange(next.present);
       return next;
