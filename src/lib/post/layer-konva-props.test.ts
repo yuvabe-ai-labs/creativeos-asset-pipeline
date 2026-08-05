@@ -38,6 +38,9 @@ describe("textLayerFontProps", () => {
       fontStyle: "bold",
       fill: "#111",
       align: "center",
+      // Konva top-aligns text in its box by default, which left CTA labels stuck to the top
+      // edge of their pill rather than centred in it.
+      verticalAlign: "middle",
       lineHeight: 1.4,
       letterSpacing: undefined,
     });

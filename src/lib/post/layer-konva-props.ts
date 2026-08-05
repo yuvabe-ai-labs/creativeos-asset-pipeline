@@ -31,6 +31,12 @@ export type KonvaTextProps = {
   fontStyle: "bold" | "normal";
   fill: string;
   align: "left" | "center" | "right";
+  /**
+   * Konva top-aligns text inside its box by default, which left every CTA label stuck to the
+   * top edge of its pill instead of sitting in the middle of it. A layer's box IS its intended
+   * frame, so centring within it is the right default for all text, not just buttons.
+   */
+  verticalAlign: "middle";
   lineHeight: number;
   letterSpacing?: number;
 };
@@ -47,6 +53,7 @@ export function textLayerFontProps(
     fontStyle: layer.fontWeight >= 600 ? "bold" : "normal",
     fill: layer.color,
     align: layer.align,
+    verticalAlign: "middle",
     lineHeight: layer.lineHeight,
     letterSpacing: layer.letterSpacing,
   };

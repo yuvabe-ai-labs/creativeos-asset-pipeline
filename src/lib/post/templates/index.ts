@@ -15,6 +15,30 @@ import * as testimonial from "./testimonial";
 import * as announcement from "./announcement";
 import * as numberedTips from "./numbered-tips";
 
+/**
+ * Where a template wants the post's connected photo to sit.
+ *
+ * Without this, applying a template left the photo wherever it already was — usually
+ * full-bleed underneath — so a layout designed around an inset plate or a half-frame image
+ * simply didn't compose. The template is the thing that knows where its picture belongs, so
+ * it says so, and the editor moves the image there on apply.
+ */
+export type ImageSlot = {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  fit: "cover" | "contain";
+  /**
+   * Index in this template's own seeded array to splice the image into. Templates know their
+   * own stacking: a full-bleed photo goes at 0 (behind the scrim), while an inset plate sits
+   * above the background block but below the copy.
+   */
+  index: number;
+  /** Corner radius in px, for templates that frame the photo rather than bleeding it. */
+  radius?: number;
+};
+
 export type PostTemplate = {
   id: string;
   name: string;
@@ -22,6 +46,11 @@ export type PostTemplate = {
   copyZone: CopyZone;
   /** Tunes one composition across three aspect bands — see aspect-band.ts and D124. */
   seedLayers: (format: PostFormat) => PostLayer[];
+  /**
+   * Where the connected photo belongs in this composition, per format. Optional: a template
+   * without one still applies, the editor just leaves the photo full-bleed at the back.
+   */
+  imageSlot?: (format: PostFormat) => ImageSlot;
 };
 
 type TemplateModule = {
@@ -30,6 +59,7 @@ type TemplateModule = {
   purposeTags: string[];
   copyZone: CopyZone;
   seedLayers: (format: PostFormat) => PostLayer[];
+  imageSlot?: (format: PostFormat) => ImageSlot;
 };
 
 function toTemplate(mod: TemplateModule): PostTemplate {
@@ -39,6 +69,7 @@ function toTemplate(mod: TemplateModule): PostTemplate {
     purposeTags: mod.purposeTags,
     copyZone: mod.copyZone,
     seedLayers: (format) => mod.seedLayers(format),
+    imageSlot: mod.imageSlot ? (format) => mod.imageSlot!(format) : undefined,
   };
 }
 

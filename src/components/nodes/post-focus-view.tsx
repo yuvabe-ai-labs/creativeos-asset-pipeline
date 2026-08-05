@@ -9,7 +9,7 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { isEditableTarget } from "@/lib/canvas-node-options";
 import type { PostNodeData } from "@/lib/canvas-nodes";
-import type { PostLayer } from "@/lib/post/types";
+import type { PostLayer, ImageLayer } from "@/lib/post/types";
 import { POST_FORMATS, resolveFormat } from "@/lib/post/formats";
 import type { PostFormat } from "@/lib/post/types";
 import type { PostTemplate } from "@/lib/post/templates";
@@ -156,16 +156,36 @@ export function PostFocusView({
     // Seed for the format actually on screen — templates tune their layout per aspect band,
     // so seeding from the lagging prop would compose for the wrong shape.
     const seeded = template.seedLayers(editorFormat);
-    // Preserve any connected-node-sourced image (auto-placed once per source, per
-    // autoPlacedNodeIds) — no template seeds its own image layer, so replacing wholesale
-    // would silently discard the plate with no way to bring it back (the auto-place
-    // effect never re-fires for a source it already recorded). Keep it at the back so
-    // the template's own shapes/text layer on top of it as intended.
-    const keptImages = layers.filter((l) => l.kind === "image" && l.src.kind === "node");
-    // Hand templateId to replaceAllLayers rather than patching it separately: the hook owns
-    // it, so a bare onPatch would be overwritten by the hook's own copy on the next save —
-    // and passing it here also lands the whole template application as ONE undo step.
-    replaceAllLayers([...keptImages, ...seeded], template.id);
+    // Defensive: a template that hasn't declared a slot still applies, it just leaves the
+    // photo full-bleed at the back the way it used to. Better a plainer composition than a
+    // thrown error from `undefined(...)`.
+    const slot = template.imageSlot?.(editorFormat)
+      ?? { x: 0, y: 0, w: 1, h: 1, fit: "cover" as const, index: 0 };
+
+    // Compose the connected photo INTO the template rather than leaving it wherever it was.
+    // Previously it stayed full-bleed underneath, so a layout built around an inset plate or
+    // a half-frame image never actually composed — which defeats the point of a template.
+    // The template declares the slot; we move the photo there and splice it in at the depth
+    // the template asked for (behind a scrim, or above a background block but below copy).
+    const connected = layers.filter(
+      (l): l is ImageLayer => l.kind === "image" && l.src.kind === "node",
+    );
+    const [plate, ...extraImages] = connected;
+
+    const next = [...seeded];
+    if (plate) {
+      const framed: ImageLayer = {
+        ...plate,
+        x: slot.x, y: slot.y, w: slot.w, h: slot.h,
+        rotation: 0,
+        fit: slot.fit,
+        radius: slot.radius,
+      };
+      next.splice(Math.min(slot.index, next.length), 0, framed);
+    }
+    // Any further connected images keep their own geometry at the back — a template only
+    // describes a home for one photo, and silently dropping the rest would lose work.
+    replaceAllLayers([...extraImages, ...next], template.id);
   }
 
   function handleRenameLayer(id: string, name: string) {
