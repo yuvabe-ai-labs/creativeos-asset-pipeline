@@ -3,12 +3,16 @@
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import type { PostLayer } from "@/lib/post/types";
+import { rotateAboutCentre } from "@/lib/post/geometry";
 
 type Props = {
   layer: PostLayer;
   onChange: (patch: Partial<PostLayer>) => void;
   /** Live update while a slider is dragged; onChange lands the single undo entry. */
   onPreview: (patch: Partial<PostLayer>) => void;
+  /** The artboard's on-screen size — rotation is centre-preserving, which needs real px. */
+  containerW: number;
+  containerH: number;
 };
 
 /** Base UI sliders hand back an array for range sliders and a number for single ones. */
@@ -33,9 +37,17 @@ export function cornerLabel(radius: number, max: number): string {
  * neither had any UI: opacity was unreachable entirely, and rotation only via the canvas
  * rotate handle — which cannot be undone precisely or nudged to a round number.
  */
-export function PostInspectorCommon({ layer, onChange, onPreview }: Props) {
+export function PostInspectorCommon({
+  layer, onChange, onPreview, containerW, containerH,
+}: Props) {
   const opacity = layer.opacity ?? 1;
   const rotation = layer.rotation ?? 0;
+
+  // Turning about the CENTRE, not the top-left corner Konva pivots on by default — see
+  // rotateAboutCentre. Setting rotation on its own swung a layer around its corner and threw
+  // it off the artboard; a rule, being wide and short, swept its whole length away and looked
+  // like it had simply vanished.
+  const turnTo = (deg: number) => rotateAboutCentre(layer, deg, containerW, containerH);
 
   return (
     <div className="space-y-3 border-t border-border pt-3">
@@ -60,7 +72,7 @@ export function PostInspectorCommon({ layer, onChange, onPreview }: Props) {
             <Button
               variant="ghost" size="sm"
               className="h-auto px-1.5 py-0.5 text-[0.6rem]"
-              onClick={() => onChange({ rotation: 0 })}
+              onClick={() => onChange(turnTo(0))}
             >
               Straighten
             </Button>
@@ -69,8 +81,8 @@ export function PostInspectorCommon({ layer, onChange, onPreview }: Props) {
         <Slider
           min={-180} max={180} step={1}
           value={[Math.round(rotation)]}
-          onValueChange={(v) => onPreview({ rotation: sliderValue(v) })}
-          onValueCommitted={(v) => onChange({ rotation: sliderValue(v) })}
+          onValueChange={(v) => onPreview(turnTo(sliderValue(v)))}
+          onValueCommitted={(v) => onChange(turnTo(sliderValue(v)))}
         />
       </div>
     </div>

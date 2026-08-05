@@ -26,6 +26,10 @@ type Props = {
    */
   onPreview?: (patch: Partial<PostLayer>) => void;
   naturalSize?: { width: number; height: number };
+  /** The artboard's on-screen size — the rotation control turns about the layer's centre,
+   *  which is only expressible in real px (x/w scale on width, y/h on height). */
+  containerW: number;
+  containerH: number;
 };
 
 /** Plain-English name for a layer kind — internal tokens never reach the user (D122). */
@@ -52,7 +56,9 @@ function Shell({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-export function PostInspector({ layer, selectedCount, onChange, onPreview, naturalSize }: Props) {
+export function PostInspector({
+  layer, selectedCount, onChange, onPreview, naturalSize, containerW, containerH,
+}: Props) {
   const preview = onPreview ?? onChange;
   if (selectedCount > 1) {
     return (
@@ -93,7 +99,10 @@ export function PostInspector({ layer, selectedCount, onChange, onPreview, natur
       )}
       {/* Opacity and rotation are on LayerBase, so they belong to every kind — including a
           group, where they apply to the whole group at once. */}
-      <PostInspectorCommon layer={layer} onChange={onChange} onPreview={preview} />
+      <PostInspectorCommon
+        layer={layer} onChange={onChange} onPreview={preview}
+        containerW={containerW} containerH={containerH}
+      />
     </Shell>
   );
 }

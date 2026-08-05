@@ -652,6 +652,8 @@ export function PostFocusView({
                 if (selectedLayer) updateLayerLive(selectedLayer.id, patch);
               }}
               naturalSize={selectedLayer ? naturalSizes[selectedLayer.id] : undefined}
+              containerW={containerW}
+              containerH={containerH}
             />
           </div>
         </div>
