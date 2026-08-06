@@ -9,10 +9,22 @@ describe("element drag payloads", () => {
       { kind: "text", preset: { text: "Add a heading", fontSize: 0.055, fontWeight: 700 } },
       { kind: "image", url: "https://example.test/a.png" },
       { kind: "connected", nodeId: "node-1" },
+      { kind: "brand-asset", category: "logo", url: "https://example.test/logo.png" },
     ];
     for (const p of payloads) {
       expect(parseElementDrag(serializeElementDrag(p))).toEqual(p);
     }
+  });
+
+  it("carries the category, so a dropped background still goes full-bleed", () => {
+    const parsed = parseElementDrag(
+      serializeElementDrag({
+        kind: "brand-asset", category: "background", url: "https://example.test/b.png",
+      }),
+    );
+    expect(parsed).toEqual({
+      kind: "brand-asset", category: "background", url: "https://example.test/b.png",
+    });
   });
 
   it("returns null for an empty payload, which is what a foreign drag looks like", () => {

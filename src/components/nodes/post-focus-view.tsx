@@ -16,16 +16,19 @@ import type { PostFormat } from "@/lib/post/types";
 import type { PostTemplate } from "@/lib/post/templates";
 import { nudge } from "@/lib/post/geometry";
 import { pxToNormalized } from "@/lib/post/units";
-import { DEFAULT_GEOMETRY } from "@/lib/post/layers";
+import { DEFAULT_GEOMETRY, createImageLayer } from "@/lib/post/layers";
 import {
   ELEMENT_DRAG_TYPE, parseElementDrag, type ElementDragPayload,
 } from "@/lib/post/element-drag";
 import { usePostEditor } from "@/hooks/use-post-editor";
 import { usePostExport } from "@/hooks/use-post-export";
+import { useClientId } from "@/components/canvas/client-id-context";
+import { brandAssetGeometry, applyBrandBackground } from "@/lib/post/brand-placement";
+import type { BrandAsset } from "@/lib/brand-kit/types";
 import { EditableField } from "./editable-field";
 import { PostStage } from "./post-stage";
 import { PostInspector } from "./post-inspector";
-import { PostBrandTabStub } from "./post-brand-tab-stub";
+import { PostPanelBrand } from "./post-panel-brand";
 import { PostLayerContextMenu } from "./post-layer-context-menu";
 import { PostToolRail, type PostTool } from "./post-tool-rail";
 import { PostToolPanel } from "./post-tool-panel";
@@ -93,6 +96,8 @@ export function PostFocusView({
     },
     (next) => onPatch({ layers: next.layers, format: next.format, templateId: next.templateId }),
   );
+
+  const clientId = useClientId();
 
   const formatSpec = POST_FORMATS[editorFormat];
 
@@ -187,6 +192,8 @@ export function PostFocusView({
         return squareBox(0.5);
       case "connected":
         return squareBox(0.4);
+      case "brand-asset":
+        return brandAssetGeometry(p.category, containerW, containerH);
       case "text":
         // The preset carries its own height, tuned to its font size. Returned only when it
         // actually has one: an explicit `h: undefined` in the overrides would beat
@@ -221,7 +228,21 @@ export function PostFocusView({
       case "text": return addText({ ...p.preset, ...geo });
       case "image": return addImage({ kind: "url", url: p.url }, geo);
       case "connected": return addImage({ kind: "node", nodeId: p.nodeId }, geo);
+      case "brand-asset":
+        // A background ignores the drop point — there is no meaningful "where" for
+        // something that fills the canvas — and replaces any previous one (D133).
+        if (p.category === "background") return placeBrandBackground(p.url);
+        return addImage({ kind: "url", url: p.url }, geo);
     }
+  }
+
+  /** Full-bleed at the back, replacing the previous brand background (D133). */
+  function placeBrandBackground(url: string) {
+    const background = createImageLayer(
+      { kind: "url", url },
+      { x: 0, y: 0, w: 1, h: 1, fit: "cover", role: "brand-background" },
+    );
+    replaceAllLayers(applyBrandBackground(layers, background));
   }
 
   // Templates open by default so the next step is discoverable, but nothing is applied
@@ -520,7 +541,32 @@ export function PostFocusView({
                 onDelete={(id) => deleteSelection([id])}
               />
             )}
-            {tool === "brand" && <PostBrandTabStub />}
+            {tool === "brand" && (
+              <PostPanelBrand
+                clientId={clientId}
+                aspectRatio={`${formatSpec.width} / ${formatSpec.height}`}
+                hasSelection={selectedIds.length === 1}
+                onPlace={(asset: BrandAsset) =>
+                  addElement({
+                    kind: "brand-asset",
+                    category: asset.category,
+                    url: asset.storageUrl,
+                  })
+                }
+                onApplyColour={(hex) => {
+                  if (!selectedLayer) return;
+                  // Text and icons carry `color`; a shape carries a `fill`. Images and
+                  // groups have neither, so a swatch does nothing to them.
+                  if (selectedLayer.kind === "text" || selectedLayer.kind === "icon") {
+                    updateLayerLive(selectedLayer.id, { color: hex });
+                    commitLayerChange();
+                  } else if (selectedLayer.kind === "shape") {
+                    updateLayerLive(selectedLayer.id, { fill: { kind: "solid", color: hex } });
+                    commitLayerChange();
+                  }
+                }}
+              />
+            )}
           </PostToolPanel>
 
           {/* Stage */}

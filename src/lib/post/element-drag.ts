@@ -1,4 +1,5 @@
 import type { IconSource, ShapeKind, TextLayer } from "./types";
+import type { BrandAssetCategory } from "@/lib/brand-kit/types";
 
 /**
  * The single `dataTransfer` key every draggable tile in the left panels writes and the stage's
@@ -16,9 +17,10 @@ export type ElementDragPayload =
   | { kind: "icon"; src: IconSource }
   | { kind: "text"; preset: Partial<TextLayer> }
   | { kind: "image"; url: string }
-  | { kind: "connected"; nodeId: string };
+  | { kind: "connected"; nodeId: string }
+  | { kind: "brand-asset"; category: BrandAssetCategory; url: string };
 
-const KINDS = ["shape", "icon", "text", "image", "connected"] as const;
+const KINDS = ["shape", "icon", "text", "image", "connected", "brand-asset"] as const;
 
 export function serializeElementDrag(payload: ElementDragPayload): string {
   return JSON.stringify(payload);
