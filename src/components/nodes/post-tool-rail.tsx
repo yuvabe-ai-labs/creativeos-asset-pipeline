@@ -17,7 +17,7 @@ export const POST_TOOLS: { key: PostTool; label: string; icon: LucideIcon; comin
   { key: "text", label: "Text", icon: Type },
   { key: "connected", label: "Connected", icon: ImageDown },
   { key: "layers", label: "Layers", icon: LayersIcon },
-  { key: "brand", label: "Brand", icon: Palette, comingSoon: true },
+  { key: "brand", label: "Brand", icon: Palette },
 ];
 
 type Props = {

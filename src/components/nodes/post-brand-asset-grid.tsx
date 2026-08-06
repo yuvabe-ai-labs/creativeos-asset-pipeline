@@ -1,16 +1,23 @@
 "use client";
 
 import { useRef } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Trash2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { startElementDrag } from "./post-element-drag";
 import { SYNTHETIC_LOGO_ID } from "@/lib/brand-kit/constants";
 import type { BrandAsset, BrandAssetCategory } from "@/lib/brand-kit/types";
 
+/** Singular and concrete — "Upload logo" beats a bare plus icon at telling you what the
+ *  tile does, and matches the section you are already looking at. */
+const UPLOAD_LABELS: Record<BrandAssetCategory, string> = {
+  logo: "Upload logo",
+  background: "Upload background",
+  product: "Upload product",
+};
+
 type Props = {
   category: BrandAssetCategory;
-  label: string;
   hint: string;
   columns: 2 | 3;
   assets: BrandAsset[];
@@ -23,7 +30,7 @@ type Props = {
 };
 
 export function PostBrandAssetGrid({
-  category, label, hint, columns, assets, aspectRatio, uploading,
+  category, hint, columns, assets, aspectRatio, uploading,
   onPlace, onUpload, onRemove,
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -31,7 +38,6 @@ export function PostBrandAssetGrid({
 
   return (
     <div>
-      <p className="text-eyebrow mb-1 !text-[0.6rem]">{label}</p>
       <p className="mb-1 text-[0.6rem] text-muted-foreground">
         Click to add, or drag onto the canvas.
       </p>
@@ -73,6 +79,16 @@ export function PostBrandAssetGrid({
                   )}
                 />
               </span>
+              <span className="block w-full truncate px-0.5 text-[0.6rem] font-medium leading-tight">
+                {asset.name}
+              </span>
+              {/* Says why this one has no remove button. Without it, the missing control
+                  reads as broken rather than deliberate. */}
+              {asset.id === SYNTHETIC_LOGO_ID && (
+                <span className="block w-full truncate px-0.5 text-[0.55rem] font-normal leading-tight text-muted-foreground">
+                  From client profile
+                </span>
+              )}
             </Button>
             {/* The client's own logo is not a row — the client page owns it (D131). */}
             {asset.id !== SYNTHETIC_LOGO_ID && (
@@ -94,15 +110,18 @@ export function PostBrandAssetGrid({
           variant="outline"
           disabled={uploading}
           onClick={() => inputRef.current?.click()}
-          title={`Upload to ${label}`}
-          aria-label={`Upload to ${label}`}
+          title="Upload"
+          aria-label={`Upload a new ${category}`}
           className="h-auto w-full flex-col gap-1 border-dashed border-primary/40 p-1 hover:bg-primary/5"
         >
           <span
             className="flex w-full items-center justify-center"
             style={{ aspectRatio: aspectRatio ?? "1 / 1" }}
           >
-            <Plus className="size-4 text-primary" strokeWidth={1.5} />
+            <Upload className="size-4 text-primary" strokeWidth={1.5} />
+          </span>
+          <span className="block w-full px-0.5 text-[0.6rem] font-medium leading-tight text-primary">
+            {uploading ? "Uploading…" : UPLOAD_LABELS[category]}
           </span>
         </Button>
       </div>
