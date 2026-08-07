@@ -1,3 +1,5 @@
+import type { BrandAssetCategory } from "@/lib/brand-kit/types";
+
 const MAX_SLUG_LENGTH = 60;
 
 export function sanitizeSlug(input: string): string {
@@ -104,4 +106,19 @@ export function pathForKBDocument(args: {
 }): string {
   const name = buildStoredName(args.filename);
   return `clients/${args.clientId}/kb-documents/${args.docId}/${name}`;
+}
+
+/**
+ * Where a Brand Kit asset lives. The `assetId` is minted before signing and reused as the
+ * row id at finalize, so the blob and the row always agree — and a finalize that fails
+ * after a successful upload leaves an orphan that is trivially attributable.
+ */
+export function pathForBrandAsset(args: {
+  clientId: string;
+  category: BrandAssetCategory;
+  assetId: string;
+  filename: string;
+}): string {
+  const name = buildStoredName(args.filename);
+  return `clients/${args.clientId}/brand-kit/${args.category}/${args.assetId}/${name}`;
 }

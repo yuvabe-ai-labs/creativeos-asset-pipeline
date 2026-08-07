@@ -1934,6 +1934,248 @@ was dropped as redundant with the rail. `listEvalTraces` + `ReviewScreen` are le
 **unreferenced** — the sequential reviewer this decision replaces.
 **Originated.** `2026-07-02-eval-viewer-error-analysis-design.md`; plan `2026-07-02-eval-viewer.md`.
 
+### D116 — Post editor left chrome: one icon rail + one shared flyout panel
+**Decision.** The Post editor's left chrome is a 56px icon rail (Templates, Elements, Text,
+Connected, Layers) whose items open a single shared 256px flyout panel. Clicking the active item
+closes it; the panel stays open while the user works on the canvas. The bottom-left `+` add-menu
+(`post-add-menu.tsx`) is deleted.
+**Why.** One panel shell means one width, one scroll behaviour, one empty state — and it matches the
+mental model every designer already has from Canva. Keeping the panel open supports repeated
+placement (add three icons in a row) without re-opening it each time.
+**Rejected.** Per-item popovers (the `+` menu's existing pattern) — five independent popovers drift
+in width, position and scroll behaviour, which is how the current chrome got inconsistent.
+**Originated.** `2026-08-05-post-editor-canva-shell-design.md`.
+
+### D117 — A Post node opens on a clean canvas
+**Decision.** Delete the auto-opening template picker modal and its `pickerOpen` state. A Post node
+opens showing a white canvas containing only the auto-placed connected image; the Templates panel is
+open in the rail, but no template is ever applied without an explicit click.
+**Why.** The operator should see their own image first and choose whether they want a template at
+all. The old modal forced a template decision before anything was visible.
+**Rejected.** Keeping the auto-opening modal; auto-applying a default template.
+**Originated.** `2026-08-05-post-editor-canva-shell-design.md`.
+
+### D118 — Applying a template always confirms, and always preserves connected images
+**Decision.** Picking a template opens an `AlertDialog` ("This replaces your current layout. Your
+connected image is kept."). On confirm, seeded layers replace all layers **except** image layers
+whose `src.kind === "node"` — the connected-image preservation `handlePickTemplate` already
+implements. The dialog shows unconditionally, including on an untouched canvas.
+**Why.** Template application is the one destructive action in the editor and it is one click away.
+Preserving connected images matches the auto-place effect's own contract: it fires at most once per
+source node, so a discarded connected image can never be recovered automatically.
+**Rejected.** Skipping the dialog when the canvas is "pristine" — defining pristine across undo/redo
+and auto-placement costs more than the dialog does. Replacing connected images too — it makes trying
+a template a destructive experiment.
+**Originated.** `2026-08-05-post-editor-canva-shell-design.md`.
+
+### D119 — Layer properties stay in the fixed right inspector, normalised per kind
+**Decision.** Keep the existing fixed-width (`w-56`) right inspector rather than moving properties
+into a contextual toolbar. Every layer kind renders the same internal shell — a `text-eyebrow` kind
+label, then uniformly-spaced labelled sections — so changing selection changes contents without
+restructuring the panel's rhythm.
+**Why.** The reported problem was inconsistency between kinds ("when text is selected the edit
+layout is completely different"), not the panel's location. Normalising the shell fixes the actual
+complaint at a fraction of the cost.
+**Rejected.** Canva's contextual top toolbar — a substantially larger rework than the reported
+problem requires, and it would have to re-solve multi-select and empty states from scratch.
+**Originated.** `2026-08-05-post-editor-canva-shell-design.md`.
+
+### D120 — The layer list is a rail item in the shared flyout
+**Decision.** The layer list becomes one more rail item, rendered in the same flyout panel as every
+other tool.
+**Why.** One consistent panel system; the stack stays one click away and as discoverable as
+templates or elements.
+**Rejected.** Canva's floating "Position" popover (hides the stack behind an extra click, and the
+operator had specifically asked for layer editing in the left panel); an always-docked layers strip
+(permanently costs the canvas horizontal space).
+**Originated.** `2026-08-05-post-editor-canva-shell-design.md`.
+
+### D121 — The connected-nodes panel is a view over existing props, not a new query
+**Decision.** The connected-nodes panel renders thumbnails from the `connectedImageNodes:
+{ nodeId, url }[]` prop `post-focus-view.tsx` already receives. Click adds the image centred;
+drag-and-drop places it at the drop point. It lists only directly-connected image-bearing nodes.
+**Why.** The data is already plumbed in and already scoped to "what is wired to this node" — the
+panel is a new view, not new plumbing, and needs no canvas-store access.
+**Rejected.** Querying the canvas store for all project images (loses the wired-to-this-node
+guarantee and grows unbounded); including past uploads (deferred, not needed to place a connected
+image).
+**Originated.** `2026-08-05-post-editor-canva-shell-design.md`.
+
+### D122 — Format selection is a Size rail panel with friendly labels only
+**Decision.** The header format dropdown moves into a "Size" rail panel listing ten formats grouped
+by platform (Instagram portrait/square/story, Facebook, LinkedIn post/square, X, YouTube thumbnail,
+Pinterest pin, A4 print), each row a ratio swatch + plain-English name + pixel dimensions. No
+internal key (`ig-square`), layer `kind`, or other token is ever rendered to the user. `"linkedin"`
+becomes `"linkedin-post"` with a read-time fallback for saved nodes.
+**Why.** Ten platform-grouped options do not fit a header dropdown, and Instagram's best-performing
+feed size (4:5 portrait) was missing entirely. The old dropdown also *displayed* raw keys: Base UI's
+`SelectValue` renders the raw value unless given a render function, so the trigger read `ig-square`
+while the menu items read "Instagram square (1:1)" — a display bug the panel removes at the root.
+**Rejected.** Keeping the header dropdown and only fixing the label bug (does not scale past ~5
+options). Custom user-entered dimensions (needs validation UI, and can't be template-tuned per band).
+**Originated.** `2026-08-05-post-editor-canva-shell-design.md`.
+
+### D123 — Font size is measured against the canvas's shorter edge
+**Decision.** `fontSizeToPx` switches its basis from `containerH` to `min(containerW, containerH)`.
+**Why.** `TextLayer.fontSize` is a 0–1 fraction, so a height basis makes identical copy render 49px
+on a 1080-tall square and 86px on a 1920-tall story while both canvases stay 1080 wide — text tuned
+for one ratio is unusable at another, which blocks D122's expanded format set. The shorter edge is
+stable across ratios. For every square format `min == height`, so this is a no-op on square posts —
+the default, and the bulk of existing data — bounding the blast radius of the reinterpretation.
+**Rejected.** Keeping the height basis and compensating inside each template (leaves live format
+switching broken for user-authored text, not just template text). A write-time migration of saved
+`fontSize` values (D10's narrow waist means layers are schemaless JSONB; a rewrite is riskier than
+the bounded re-render).
+**Originated.** `2026-08-05-post-editor-canva-shell-design.md`.
+
+### D124 — Templates tune one composition across three aspect bands; library grows to 14
+**Decision.** A pure `aspectBand(format)` helper classifies formats as `portrait | square |
+landscape`; each template picks per-band values for a few numbers (margins, headline size, scrim
+height, CTA width). Ten templates are added to the existing four: bold quote, product hero,
+before/after, carousel cover, testimonial, announcement, numbered tips, sale offer, event, minimal
+frame.
+**Why.** Templates previously accepted `format` and ignored it. Banding fixes composition across
+ratios at roughly 1.5× authoring cost. The four original templates existed to prove the seeding
+mechanism; a library is only useful if someone reaches for it, which needs coverage of what teams
+actually post.
+**Rejected.** Separate template files per ratio (~42 files for 14 templates, 3× maintenance, every
+future edit made three times). Leaving templates format-agnostic (the status quo D122 breaks).
+**Originated.** `2026-08-05-post-editor-canva-shell-design.md`.
+
+### D125 — Inspector controls are visual, never raw values
+**Decision.** Gradient fill becomes a row of ready-made gradient swatches plus a four-way direction
+control; solid colour becomes a swatch grid (brand, neutrals, recents) with the OS picker behind a
+"Custom…" swatch; corner radius, border thickness and text size become `Slider`s with plain labels
+("Corners: Sharp → Rounded"). No field asks for a CSS colour string or a bare number.
+**Why.** The gradient control shipped as two free-text boxes expecting `rgba(0,0,0,0.72)`, and
+gradient angle had no control at all — hardcoded to `0` at creation and unreachable thereafter. The
+users are marketers, not CSS authors. `slider.tsx` already exists, so this needs no new primitive and
+stays inside CLAUDE.md's shadcn-only rule.
+**Rejected.** Keeping free-text colour entry with validation/preview (still asks for syntax nobody
+should need). A full colour-picker component with hue/alpha channels (heavier than the job, and the
+OS picker already covers the rare custom case).
+**Originated.** `2026-08-05-post-editor-canva-shell-design.md`.
+
+### D126 — The Post node card previews at true aspect ratio and reports real render state
+**Decision.** The card's preview box takes its aspect ratio from the node's own format (rather than a
+hardcoded `aspect-square … object-cover`) and uses `object-contain`. A new `layersUpdatedAt` stamp is
+written whenever layers change and compared against the already-written `renderedAt` to drive a
+three-state chip: **Draft** (never exported) / **Exported** (unchanged since) / **Edited since
+export**. Legacy nodes with no `layersUpdatedAt` read as Exported, not stale. The card also gains a
+metadata line (format short name + layer count) and an honest empty state.
+**Why.** The card was misrepresenting work on two axes at once. A 9:16 story was centre-cropped into
+a square, showing a composition the user never made — worse once D122 ships ten formats. And the
+thumbnail is the *last exported PNG*, so any edit after an export left the card silently showing an
+old design. The staleness mechanism was already designed and half-built: `PostNodeData.renderedAt`
+is declared with the comment "drives the 'unrendered changes' badge (Task 24 staleness check)" and
+is written on every export, but nothing ever read it — the original plan ended at Task 22. The old
+"Rendered"/"Pending" chip compounded this by meaning "has ever been exported", so a finished design
+read *Pending* and an edited one read *Rendered*.
+**Rejected.** Rendering a live mini-canvas per card instead of the exported PNG (N Konva stages on a
+busy board). Renaming the chip without detecting staleness (stops the lie, leaves the stale
+thumbnail). Assuming stale for legacy nodes (flags every previously-exported post as dirty on first
+load — the exact false alarm the badge exists to prevent).
+**Originated.** `2026-08-05-post-editor-canva-shell-design.md`.
+
+### D127 — Undo covers format and template, not layers alone
+**Decision.** `usePostEditor`'s history state widens from `PostLayer[]` to
+`{ layers, format, templateId }`. Title stays outside history.
+**Why.** Layer edits were undoable; format and template changes went through `onPatch` and were not.
+So after a format change ⌘Z did not revert it — it reached past and undid an unrelated earlier layer
+edit, which is worse than no-op because it silently damages something the user wasn't looking at.
+With D122 raising format changes from a rare 4-way choice to a routine 10-way one, the inconsistency
+stops being an edge case. Title is excluded deliberately: it is metadata, like a filename, and
+behaves as an inline field everywhere else in this app.
+**Rejected.** Leaving format outside history and blocking ⌘Z when the last action wasn't a layer edit
+(needs action-type tracking the history doesn't have, and still surprises). Putting title in too
+(inline-field edits aren't design state).
+**Originated.** `2026-08-05-post-editor-canva-shell-design.md`.
+
+### D128 — Newly added layers cascade instead of stacking
+**Decision.** `createTextLayer`/`createShapeLayer`/`createIconLayer` offset each new layer from the
+last rather than all spreading one fixed `DEFAULT_GEOMETRY`, wrapping when the cascade would leave
+the canvas.
+**Why.** Every added element landed at identical coordinates, so adding three text layers produced a
+perfect stack in which only the top one was selectable and nothing indicated the others existed. The
+codebase already uses this idea for `duplicateLayer`'s +0.02/+0.02 nudge; new layers simply never got
+it.
+**Rejected.** Placing new layers at the viewport centre (identical stacking problem); placing at the
+last click position (surprising when the panel, not the canvas, was the last thing touched).
+**Originated.** `2026-08-05-post-editor-canva-shell-design.md`.
+
+### D129 — Brand assets get their own table, not `client_brand_images`
+**Decision.** A new `client_brand_assets` table (`category` in `logo`/`background`/`product`) holds
+the Brand Kit. `client_brand_images` is left alone.
+**Why.** `client_brand_images` is the KB's vision-analysis corpus: every reference photo uploaded to
+teach the extraction model what the brand looks like. Those rows are pipeline inputs, not material
+anyone chose to design with. Surfacing them in the Brand panel would bury three usable logos among
+forty analysis photos with nothing distinguishing them.
+**Rejected.** Reusing the table with a `kind` discriminator (one table serving a pipeline and a
+picker, with every reader needing the filter and one forgotten filter leaking the corpus into the UI).
+**Originated.** `2026-08-05-brand-kit-design.md`.
+
+### D130 — Brand details live in a JSONB column on `clients`, not the KB
+**Decision.** `clients.brand_details jsonb not null default '{}'` holds phone, email, website,
+address and social handles. Every field optional; readers tolerate all absent (D10).
+**Why.** These are facts an operator types and expects to stay exactly as typed. The KB is
+model-extracted and versioned, so a re-extraction could silently rewrite a phone number. JSONB over
+columns because the set will grow — a second number, a fourth social — and nothing queries or filters
+on these; they are read whole and rendered.
+**Rejected.** KB fields (re-extraction overwrites them); one column per detail (a migration per
+social network).
+**Originated.** `2026-08-05-brand-kit-design.md`.
+
+### D131 — `clients.logo_url` is synthesized into the panel, never migrated into a row
+**Decision.** An existing client logo appears in the Logos section as a synthetic entry, marked
+"from client profile" and not deletable there.
+**Why.** The panel is useful the first time it is opened rather than starting empty for every
+existing client, and `clients.logo_url` stays the single source of truth for the many other places
+that already read it. A data migration copying it into a row would create two logos that drift.
+**Rejected.** Migrating logos into rows (two sources of truth); leaving the panel empty until
+something is uploaded (every existing client sees a blank kit).
+**Originated.** `2026-08-05-brand-kit-design.md`.
+
+### D132 — Brand colours are derived from the KB at read time, never stored
+**Decision.** The Colours section parses hex codes out of the active KB's `colour_palette_primary`
+and `_secondary` on each load, via a pure `extractHexes`.
+**Why.** The palette already exists and is maintained where brand facts belong; copying it into the
+Brand Kit would create a second copy to keep in sync. The KB stores prose ("turmeric gold #C8A000"),
+so parsing is required either way — doing it at read time costs nothing extra.
+**Rejected.** Storing a resolved palette on the kit (drifts from the KB); asking the operator to
+re-enter colours (data they already gave us).
+**Trade-off accepted.** A KB re-extraction changes the swatches. Current beats stable here.
+**Originated.** `2026-08-05-brand-kit-design.md`.
+
+### D133 — A brand background replaces its predecessor, marked by `role`
+**Decision.** `ImageLayer` gains `role?: "brand-background"`. Placing a background removes any layer
+carrying that role, then inserts the new one at index 0.
+**Why.** Clicking three backgrounds while deciding otherwise leaves two invisible full-bleed images
+underneath, each one a layer the operator has to hunt down and delete. An explicit role is testable;
+inferring "is this a background" from geometry would misfire on any deliberately full-bleed photo.
+**Rejected.** Inferring from `w===1 && h===1 && index===0` (misclassifies a full-bleed hero photo);
+allowing them to stack (invisible layers nobody asked for).
+**Originated.** `2026-08-05-brand-kit-design.md`.
+
+### D134 — The Post editor reads `clientId` from context, not props
+**Decision.** A `client-id-context.tsx` mirroring the existing `canvas-id-context.tsx`, provided
+where `CanvasIdProvider` already is.
+**Why.** Prop-drilling would thread the value through five components (Canvas → nodes → PostNode →
+PostFocusView → panel) that have no interest in it, which the component guide forbids. The codebase
+already solved the identical problem for `canvasId`.
+**Rejected.** Prop drilling; putting `clientId` in the Zustand canvas store (it is page-scoped
+identity, not canvas state, and would need seeding on every store creation).
+**Originated.** `2026-08-05-brand-kit-design.md`.
+
+### D135 — Fonts are excluded from the Brand Kit
+**Decision.** The Brand panel offers colours, logos, backgrounds, products and details. Not fonts.
+**Why.** The KB's `typography_style` is a prose field ("clean geometric sans, generous tracking").
+Mapping it to a `FontKey` means guessing, and guessing wrong silently restyles a design — a failure
+the operator would not attribute to the Brand Kit.
+**Rejected.** Fuzzy-matching prose to the vendored families (wrong answers presented confidently);
+a per-client font picker (real, but it is a separate feature with its own upload and licensing
+questions, not a line item here).
+**Originated.** `2026-08-05-brand-kit-design.md`.
+
 ### Parked / out-of-scope (with revisit triggers)
 | Item | Status | Revisit when |
 |---|---|---|

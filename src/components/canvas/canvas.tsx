@@ -32,6 +32,7 @@ import { DrawNode } from "@/components/nodes/draw-node";
 import { ImageGenNode } from "@/components/nodes/image-gen-node";
 import { VideoPromptNode } from "@/components/nodes/video-prompt-node";
 import { VideoGenNode } from "@/components/nodes/video-gen-node";
+import { PostNode } from "@/components/nodes/post-node";
 import { useCanvasStore, useCanvasStoreApi } from "./canvas-store-provider";
 import { useAnyFocusViewOpen } from "@/hooks/use-focus-view-open";
 import { CanvasAutosave } from "./canvas-autosave";
@@ -42,6 +43,7 @@ import { useCanvasLock } from "@/hooks/use-canvas-lock";
 import { CanvasEditableProvider } from "./canvas-editable-context";
 import { AutosaveFlushProvider } from "./autosave-flush-context";
 import { CanvasIdProvider } from "./canvas-id-context";
+import { ClientIdProvider } from "./client-id-context";
 import { GenerationTray } from "./generation-tray";
 import { CopilotPanel } from "./copilot-panel";
 import { LockBanner } from "./lock-banner";
@@ -65,6 +67,7 @@ const nodeTypes: NodeTypes = {
   "image-gen": ImageGenNode,
   "video-prompt": VideoPromptNode,
   "video-gen": VideoGenNode,
+  post: PostNode,
 };
 
 export function Canvas({
@@ -341,6 +344,7 @@ export function Canvas({
 
   return (
     <ReactFlowProvider>
+    <ClientIdProvider value={clientId}>
     <CanvasIdProvider value={canvasId}>
     <CanvasEditableProvider value={canEdit}>
     <AutosaveFlushProvider>
@@ -479,6 +483,7 @@ export function Canvas({
     </AutosaveFlushProvider>
     </CanvasEditableProvider>
     </CanvasIdProvider>
+    </ClientIdProvider>
     </ReactFlowProvider>
   );
 }

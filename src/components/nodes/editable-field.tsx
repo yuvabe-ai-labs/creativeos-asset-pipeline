@@ -98,11 +98,16 @@ export function EditableField({
         onChange={(e) => setDraft(e.target.value)}
         onBlur={commit}
         onKeyDown={(e) => {
+          // stopPropagation, not just preventDefault: when this field sits inside a Sheet or
+          // Dialog, that dialog listens for Escape on the DOCUMENT and never checks
+          // defaultPrevented — so cancelling an edit would also close the editor around it.
           if (e.key === "Escape") {
+            e.stopPropagation();
             e.preventDefault();
             cancel();
           }
           if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+            e.stopPropagation();
             e.preventDefault();
             commit();
           }
@@ -119,11 +124,15 @@ export function EditableField({
       onChange={(e) => setDraft(e.target.value)}
       onBlur={commit}
       onKeyDown={(e) => {
+        // See the multiline branch above — an enclosing Sheet/Dialog closes on Escape from a
+        // document-level listener that ignores defaultPrevented.
         if (e.key === "Escape") {
+          e.stopPropagation();
           e.preventDefault();
           cancel();
         }
         if (e.key === "Enter") {
+          e.stopPropagation();
           e.preventDefault();
           commit();
         }

@@ -97,6 +97,11 @@ function defaultData(type: string): AppNode["data"] {
       return { title: "", modelId: DEFAULT_CLIENT_MODEL_ID };
     case "video-gen":
       return { title: "", modelId: DEFAULT_VIDEO_CLIENT_MODEL_ID };
+    case "post":
+      // 4:5 portrait, not square: it's Instagram's best-performing feed size and takes the
+      // most vertical space in the feed. Only affects NEW nodes — resolveFormat's fallback
+      // stays square so existing posts that never stored a format keep rendering as they do.
+      return { title: "", format: "ig-portrait" as const, layers: [] };
     case "script":
     default:
       return { title: "" };

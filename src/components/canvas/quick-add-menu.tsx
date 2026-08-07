@@ -11,6 +11,7 @@ import {
   Clapperboard,
   ClipboardPaste,
   Images,
+  LayoutTemplate,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -39,6 +40,7 @@ const ICONS: Record<AddNodeType, LucideIcon> = {
   "image-gen": ImageIcon,
   "video-prompt": Clapperboard,
   "video-gen": Clapperboard,
+  post: LayoutTemplate,
 };
 
 const MENU_W = 240;

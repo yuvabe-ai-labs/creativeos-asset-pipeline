@@ -72,6 +72,19 @@ describe("getNodeOutput", () => {
   it("returns empty string for a draw node with no instructions", () => {
     expect(getNodeOutput({ type: "draw", data: {}, activeOutput: null })).toBe("");
   });
+
+  it("returns a post node's rendered fileUrl", () => {
+    const output = getNodeOutput({
+      type: "post",
+      data: { fileUrl: "https://storage.googleapis.com/bucket/post.png" },
+      activeOutput: null,
+    });
+    expect(output).toBe("https://storage.googleapis.com/bucket/post.png");
+  });
+
+  it("returns empty string for a post node with nothing rendered yet", () => {
+    expect(getNodeOutput({ type: "post", data: {}, activeOutput: null })).toBe("");
+  });
 });
 
 describe("renderShotContext", () => {

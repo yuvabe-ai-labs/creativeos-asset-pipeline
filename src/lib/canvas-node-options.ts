@@ -13,7 +13,8 @@ export type AddNodeType =
   | "draw"
   | "image-gen"
   | "video-prompt"
-  | "video-gen";
+  | "video-gen"
+  | "post";
 
 export interface AddNodeOption {
   type: AddNodeType;
@@ -30,6 +31,7 @@ export const ADD_NODE_OPTIONS: readonly AddNodeOption[] = [
   { type: "image-gen", label: "Image Gen", mnemonic: "I" },
   { type: "video-prompt", label: "Video Prompt", mnemonic: "V" },
   { type: "video-gen", label: "Video Gen", mnemonic: "G" },
+  { type: "post", label: "Post", mnemonic: "O" },
 ];
 
 const BY_MNEMONIC = new Map<string, AddNodeType>(
