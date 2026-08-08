@@ -2,13 +2,21 @@ import { describe, it, expect } from "vitest";
 import { veoParams, veoLiteParams, VEO_NEGATIVE_DEFAULT } from "../params/veo";
 
 describe("veoParams", () => {
-  it("keeps aspect_ratio, duration and negative_prompt as primary", () => {
+  it("keeps aspect_ratio, duration, resolution and negative_prompt as primary", () => {
     const primary = veoParams.filter((p) => p.group === "primary");
     expect(primary.map((p) => p.name)).toEqual([
       "aspect_ratio",
       "duration",
+      "resolution",
       "negative_prompt",
     ]);
+  });
+
+  it("offers 720p/1080p resolution, defaulting to 720p", () => {
+    const resolution = veoParams.find((p) => p.name === "resolution");
+    expect(resolution?.component).toBe("select");
+    expect(resolution?.constraints).toEqual({ type: "select", options: ["720p", "1080p"] });
+    expect(resolution?.defaultValue).toBe("720p");
   });
 
   it("has no advanced params, so Veo shows no Advanced accordion", () => {

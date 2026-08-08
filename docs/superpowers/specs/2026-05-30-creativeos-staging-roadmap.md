@@ -2293,3 +2293,36 @@ required, since "connected" is no longer sufficient.
 
 **Originated.** Bug report 2026-08-04 (Image Gen edit mode); regression test in
 `src/lib/image-gen/__tests__/edit-prompt.test.ts`.
+
+### D102 — Veo exposes a resolution param (720p/1080p), priced per Google's own per-resolution rates *(recorded 2026-08-08)*
+
+**Decision.** `params/veo.ts` gains a `resolution` select (`720p` | `1080p`, default `720p`),
+shared across Lite/Fast/Quality same as the rest of `veoParams`. `buildVeoConfig` now passes
+`resolution` through to `GenerateVideosConfig` (the SDK field existed all along —
+`node_modules/@google/genai/dist/genai.d.ts` documents `resolution?: string`, "720p and 1080p
+are supported" — it was simply never set). `computeVideoCost` prices Lite/Fast per-resolution
+(`$0.05/$0.08` and `$0.10/$0.12` per second) via a new `VEO_RESOLUTION_PRICING` table, same
+strict-lookup-no-fallback shape as `KLING_RESOLUTION_PRICING`; Quality stays flat at
+`$0.40/s` since Google prices it identically at both resolutions. 4k is deliberately not
+exposed — the SDK's `resolution` field documents only 720p/1080p as valid values, though
+Google's own pricing page separately lists 4k rates for Quality/Fast.
+
+**Why.** Every Veo generation ran at the API's 720p default with no way to ask for more —
+not a deliberate scope cut, just a param nobody had wired up (found when an operator asked
+why no resolution control existed in the UI, unlike Kling's). Google publishes real, sourced
+1080p rates for Lite/Fast (confirmed 2026-08-08 against `ai.google.dev/gemini-api/docs/pricing`
+directly, corroborated by two independent secondary sources), so there's a real price to add,
+not a guess.
+
+**Rejected.** Also exposing 4k (would need a resolution value the `@google/genai` SDK doesn't
+document as supported — risking a runtime rejection with no way to verify in advance without
+burning a real generation against the live API).
+
+**Migration.** None. Existing nodes have no `resolution` param in their saved params; the
+default-value fallback (`params.resolution ?? "720p"`) means every prior generation's implicit
+behavior — 720p — is exactly what a node with no saved value now explicitly requests.
+
+**Originated.** User question 2026-08-08 ("what's the resolution of videos for veo, did we
+miss that?"); implemented same session. Pricing sourced from `ai.google.dev/gemini-api/docs/pricing`
+(fetched 2026-08-08). Tests: `src/lib/video-gen/__tests__/veo-params.test.ts`,
+`veo-provider.test.ts`, `cost.test.ts`.

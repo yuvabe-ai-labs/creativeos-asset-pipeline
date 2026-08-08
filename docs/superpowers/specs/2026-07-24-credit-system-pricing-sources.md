@@ -41,9 +41,9 @@ Two separate stored facts, not one value with a live formula:
 
 | Model | Rate | Confidence | Source |
 |---|---|---|---|
-| `veo:veo-3.1-lite` | $0.05/s (720p) | 🟢 | `ai.google.dev/gemini-api/docs/pricing`, page pasted directly by the user 2026-07-24 |
-| `veo:veo-3.1-fast` | $0.10/s (720p) | 🟢 | same |
-| `veo:veo-3.1` (Quality) | $0.40/s (720p) | 🟢 | same — **corrected this session**, was $0.2667/s (a stale "base rate" a 1.5× audio multiplier never actually applied, since Veo has no audio toggle in this app) |
+| `veo:veo-3.1-lite` | $0.05/s (720p) / $0.08/s (1080p) | 🟢 | `ai.google.dev/gemini-api/docs/pricing`, fetched 2026-08-08; 720p figure originally pasted by the user 2026-07-24 |
+| `veo:veo-3.1-fast` | $0.10/s (720p) / $0.12/s (1080p) | 🟢 | same |
+| `veo:veo-3.1` (Quality) | $0.40/s (720p and 1080p — flat) | 🟢 | same — corrected 2026-07-24, was $0.2667/s (a stale "base rate" a 1.5× audio multiplier never actually applied, since Veo has no audio toggle in this app) |
 | `openai:sora-2` | $0.10/s (720p) | 🟢 | `developers.openai.com/api/docs/pricing`, "Video generation models" table, pasted directly by the user 2026-07-24 — exact match. (That page also lists `sora-2-pro` at $0.30–$0.70/s by resolution — a real model, just not one this app's registry offers.) |
 | `kling:kling-3-0-turbo` | $0.112/s (720p, native audio only) / $0.14/s (1080p) | 🟢 | `kling.ai/document-api/pricing/base/video`, full table pasted directly by the user 2026-07-24 |
 | `kling:kling-2-6` | $0.042/s (720p, off only) / $0.07–$0.14/s (1080p) | 🟢 | same — 720p+native audio has no priced tier at all (real table shows "-" for that cell); `computeVideoCost` returns `null` for that combination rather than silently substituting the off rate, a real bug found and fixed this session |
@@ -51,9 +51,11 @@ Two separate stored facts, not one value with a live formula:
 | `kling:kling-3-0` | $0.084–$0.126/s (720p) / $0.112–$0.168/s (1080p) / $0.42/s (4k) | 🟢 | same — **corrected this session**: the with-audio rate was $0.112/$0.14, a flat +$0.028/s guess; the real table's delta is +$0.042 (720p) / +$0.056 (1080p), a consistent +50%, not a flat step |
 | `kling:kling-o1` | $0.084/s (720p) / $0.112/s (1080p), flat regardless of audio | 🟢 | same — **corrected this session, structurally**: the old $0.112/$0.14 "with audio" tier was wrong on two counts — it reused kling-3-0's now-also-corrected flawed delta, and more fundamentally the real table splits O1's price by *video input* (a reference video clip), not audio — a dimension this app never sends (image-to-video via start frame only, same as every other Kling model here). Audio doesn't move O1's price at all; every O1 generation with audio enabled had been silently overcharged |
 
-**Why Veo has no resolution tiers above 720p:** this app doesn't expose a resolution param
-for Veo at all (`params/veo.ts` has none) — 720p is the only reachable tier regardless of
-what Google publishes for 1080p/4k.
+**Why Veo stops at 1080p, not 4k:** `params/veo.ts`'s resolution select (added 2026-08-08)
+only offers 720p/1080p — Google's page also lists 4k for Quality ($0.60/s) and Fast
+($0.30/s), but the `@google/genai` SDK's `GenerateVideosConfig.resolution` field documents
+only "720p" and "1080p" as supported, so 4k was left unpriced as unreachable rather than
+dead weight in the table.
 
 **Why Veo has no real audio multiplier:** confirmed directly against the pasted page — every
 Veo 3.1 price is labeled "with audio price (default)," no separate cheaper no-audio tier

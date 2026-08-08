@@ -57,9 +57,9 @@ generating, so these estimates are exact, not approximations.
 
 | Provider | Model | Rate |
 |---|---|---|
-| Google | Veo 3.1 Lite | $0.05/s |
-| Google | Veo 3.1 Fast | $0.10/s |
-| Google | Veo 3.1 Quality | $0.40/s |
+| Google | Veo 3.1 Lite | $0.05/s (720p) → $0.08/s at 1080p |
+| Google | Veo 3.1 Fast | $0.10/s (720p) → $0.12/s at 1080p |
+| Google | Veo 3.1 Quality | $0.40/s (flat — same rate at 720p and 1080p) |
 | OpenAI | Sora 2 | $0.10/s |
 | Kling | 3.0 Turbo | $0.112/s (native audio) → $0.14/s at 1080p |
 | Kling | 2.6 | $0.042/s → up to $0.14/s with audio at 1080p |
