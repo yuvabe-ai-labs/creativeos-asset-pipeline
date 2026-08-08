@@ -23,12 +23,22 @@ type Props = {
  *  the union is wider than BrandAssetCategory. */
 type BrandSection = BrandAssetCategory | "colours" | "details";
 
+/**
+ * Details is hidden for now.
+ *
+ * Phone, address and social handles exist to fill contact components, and those are deferred
+ * (`2026-08-06-post-components-design.md`). Until they ship, the section is a form that saves
+ * data nothing reads — which invites someone to fill it in and wonder why nothing happened.
+ *
+ * Deliberately still built and reachable: the column, the API, the hook and
+ * `PostBrandDetails` all remain, so restoring it is putting this one line back:
+ *   { key: "details", label: "Details" },
+ */
 const SECTIONS: { key: BrandSection; label: string }[] = [
   { key: "logo", label: "Logos" },
   { key: "colours", label: "Colours" },
   { key: "background", label: "Backgrounds" },
   { key: "product", label: "Products" },
-  { key: "details", label: "Details" },
 ];
 
 export function PostPanelBrand({

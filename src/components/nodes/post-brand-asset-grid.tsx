@@ -1,8 +1,12 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { Trash2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { startElementDrag } from "./post-element-drag";
 import { SYNTHETIC_LOGO_ID } from "@/lib/brand-kit/constants";
@@ -34,6 +38,9 @@ export function PostBrandAssetGrid({
   onPlace, onUpload, onRemove,
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
+  // Deleting is irreversible — the blob goes too — and the button sits one hover away from
+  // the tile you were trying to place. It confirms.
+  const [pendingDelete, setPendingDelete] = useState<BrandAsset | null>(null);
   const mine = assets.filter((a) => a.category === category);
 
   return (
@@ -131,7 +138,7 @@ export function PostBrandAssetGrid({
                 size="icon"
                 aria-label={`Remove ${asset.name}`}
                 title="Remove"
-                onClick={() => onRemove(asset.id)}
+                onClick={() => setPendingDelete(asset)}
                 className="absolute -right-1 -top-1 size-5 rounded-full border border-border bg-card opacity-0 transition-opacity duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:opacity-100"
               >
                 <Trash2 className="size-3" strokeWidth={1.5} />
@@ -159,6 +166,34 @@ export function PostBrandAssetGrid({
           if (inputRef.current) inputRef.current.value = "";
         }}
       />
+
+      <AlertDialog
+        open={pendingDelete !== null}
+        onOpenChange={(o) => { if (!o) setPendingDelete(null); }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove “{pendingDelete?.name}”?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {/* Says the two things that decide the answer: the blast radius (every canvas
+                  for this client, not just this post) and that it cannot be undone. */}
+              This deletes it from the brand kit for every canvas on this client. Posts you
+              have already made keep the copy they placed. This can&apos;t be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (pendingDelete) onRemove(pendingDelete.id);
+                setPendingDelete(null);
+              }}
+            >
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
