@@ -21,6 +21,7 @@ import {
   markKBJobStuckIfRunning,
   getKBJob,
 } from "@/lib/db/kb-jobs";
+import { withAction } from "@/lib/actions/with-action";
 
 // ── Field Patch ───────────────────────────────────────────────────────────────
 // Replaces PATCH /api/clients/:id/kb/field
@@ -29,22 +30,24 @@ export async function patchKBFieldAction(
   path: string[],
   patch: Record<string, unknown>,
 ): Promise<void> {
-  const supabase = createServerSupabase();
-  const { data, error } = await supabase
-    .from("client_kb_versions")
-    .select("output")
-    .eq("id", versionId)
-    .maybeSingle();
+  return withAction("patchKBFieldAction", async () => {
+    const supabase = createServerSupabase();
+    const { data, error } = await supabase
+      .from("client_kb_versions")
+      .select("output")
+      .eq("id", versionId)
+      .maybeSingle();
 
-  if (error || !data) throw new Error("Version not found");
+    if (error || !data) throw new Error("Version not found");
 
-  const updated = setNestedField(
-    data.output as Record<string, unknown>,
-    path,
-    patch,
-  ) as unknown as TraceableBrandKB;
+    const updated = setNestedField(
+      data.output as Record<string, unknown>,
+      path,
+      patch,
+    ) as unknown as TraceableBrandKB;
 
-  await updateKBVersionOutput(versionId, updated);
+    await updateKBVersionOutput(versionId, updated);
+  });
 }
 
 // ── Bulk Save ─────────────────────────────────────────────────────────────────
@@ -55,7 +58,9 @@ export async function saveKBOutputAction(
   versionId: string,
   output: TraceableBrandKB,
 ): Promise<void> {
-  await updateKBVersionOutput(versionId, output);
+  return withAction("saveKBOutputAction", async () => {
+    await updateKBVersionOutput(versionId, output);
+  });
 }
 
 // ── Mark KB Ready ─────────────────────────────────────────────────────────────
@@ -65,24 +70,26 @@ export async function markKBReadyAction(
   versionId: string,
   clientSlug: string,
 ): Promise<{ ok: true } | { error: string }> {
-  const supabase = createServerSupabase();
-  const { data, error } = await supabase
-    .from("client_kb_versions")
-    .select("output")
-    .eq("id", versionId)
-    .maybeSingle();
+  return withAction("markKBReadyAction", async () => {
+    const supabase = createServerSupabase();
+    const { data, error } = await supabase
+      .from("client_kb_versions")
+      .select("output")
+      .eq("id", versionId)
+      .maybeSingle();
 
-  if (error || !data) return { error: "Version not found." };
+    if (error || !data) return { error: "Version not found." };
 
-  if (!computeReadyStatus(data.output as TraceableBrandKB)) {
-    return { error: "All fields must be reviewed before marking KB ready." };
-  }
+    if (!computeReadyStatus(data.output as TraceableBrandKB)) {
+      return { error: "All fields must be reviewed before marking KB ready." };
+    }
 
-  await setKBStatus(clientId, "ready");
-  revalidatePath(`/clients/${clientSlug}`);
-  revalidatePath(`/clients/${clientSlug}/kb`);
+    await setKBStatus(clientId, "ready");
+    revalidatePath(`/clients/${clientSlug}`);
+    revalidatePath(`/clients/${clientSlug}/kb`);
 
-  return { ok: true };
+    return { ok: true };
+  });
 }
 
 // ── Delete KB Document ────────────────────────────────────────────────────────
@@ -92,23 +99,25 @@ export async function deleteKBDocumentAction(
   clientId: string,
   docId: string,
 ): Promise<void> {
-  const supabase = createServerSupabase();
-  const { data, error } = await supabase
-    .from("client_kb_documents")
-    .select("storage_url, client_id")
-    .eq("id", docId)
-    .maybeSingle();
+  return withAction("deleteKBDocumentAction", async () => {
+    const supabase = createServerSupabase();
+    const { data, error } = await supabase
+      .from("client_kb_documents")
+      .select("storage_url, client_id")
+      .eq("id", docId)
+      .maybeSingle();
 
-  if (error) throw error;
-  if (!data || data.client_id !== clientId) throw new Error("Document not found");
+    if (error) throw error;
+    if (!data || data.client_id !== clientId) throw new Error("Document not found");
 
-  try {
-    await removeObject(data.storage_url);
-  } catch {
-    // Best-effort cleanup — proceed with DB delete regardless
-  }
+    try {
+      await removeObject(data.storage_url);
+    } catch {
+      // Best-effort cleanup — proceed with DB delete regardless
+    }
 
-  await deleteKBDocument(docId);
+    await deleteKBDocument(docId);
+  });
 }
 
 // ── Delete Brand Image ────────────────────────────────────────────────────────
@@ -118,73 +127,79 @@ export async function deleteBrandImageAction(
   clientId: string,
   imageId: string,
 ): Promise<void> {
-  const supabase = createServerSupabase();
-  const { data, error } = await supabase
-    .from("client_brand_images")
-    .select("storage_url, client_id")
-    .eq("id", imageId)
-    .maybeSingle();
+  return withAction("deleteBrandImageAction", async () => {
+    const supabase = createServerSupabase();
+    const { data, error } = await supabase
+      .from("client_brand_images")
+      .select("storage_url, client_id")
+      .eq("id", imageId)
+      .maybeSingle();
 
-  if (error) throw error;
-  if (!data || data.client_id !== clientId) throw new Error("Image not found");
+    if (error) throw error;
+    if (!data || data.client_id !== clientId) throw new Error("Image not found");
 
-  try {
-    await removeObject(data.storage_url);
-  } catch {
-    // Best-effort cleanup
-  }
+    try {
+      await removeObject(data.storage_url);
+    } catch {
+      // Best-effort cleanup
+    }
 
-  await deleteBrandImage(imageId);
+    await deleteBrandImage(imageId);
+  });
 }
 
 // ── KB Build Job ──────────────────────────────────────────────────────────────
 
 export async function startKBBuildJob(clientId: string): Promise<{ jobId: string }> {
-  const client = await getClientById(clientId);
-  if (!client) throw new Error("Client not found.");
+  return withAction("startKBBuildJob", async () => {
+    const client = await getClientById(clientId);
+    if (!client) throw new Error("Client not found.");
 
-  const [docs, images] = await Promise.all([
-    listKBDocuments(clientId),
-    listBrandImages(clientId),
-  ]);
+    const [docs, images] = await Promise.all([
+      listKBDocuments(clientId),
+      listBrandImages(clientId),
+    ]);
 
-  if (!client.website_url && docs.length === 0) {
-    throw new Error("Add a website URL or upload at least one document.");
-  }
-
-  let job;
-  try {
-    job = await insertKBJob({
-      clientId,
-      orgId: client.org_id,
-      websiteUrl: client.website_url,
-      docIdsUsed: docs.map((d) => d.id),
-    });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : JSON.stringify(e);
-    if (msg.includes("client_kb_jobs_one_running_idx") || msg.includes("23505")) {
-      throw new Error("A KB build is already running for this client.");
+    if (!client.website_url && docs.length === 0) {
+      throw new Error("Add a website URL or upload at least one document.");
     }
-    throw e;
-  }
 
-  const run = await tasks.trigger("kb-build", {
-    jobId: job.id,
-    clientId,
-    websiteUrl: client.website_url,
-    docIds: docs.map((d) => d.id),
-    imageIds: images.map((i) => i.id),
+    let job;
+    try {
+      job = await insertKBJob({
+        clientId,
+        orgId: client.org_id,
+        websiteUrl: client.website_url,
+        docIdsUsed: docs.map((d) => d.id),
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : JSON.stringify(e);
+      if (msg.includes("client_kb_jobs_one_running_idx") || msg.includes("23505")) {
+        throw new Error("A KB build is already running for this client.");
+      }
+      throw e;
+    }
+
+    const run = await tasks.trigger("kb-build", {
+      jobId: job.id,
+      clientId,
+      websiteUrl: client.website_url,
+      docIds: docs.map((d) => d.id),
+      imageIds: images.map((i) => i.id),
+    });
+
+    await setKBJobTriggerRunId(job.id, run.id);
+    revalidatePath(`/clients/${client.slug}/kb`);
+    return { jobId: job.id };
   });
-
-  await setKBJobTriggerRunId(job.id, run.id);
-  revalidatePath(`/clients/${client.slug}/kb`);
-  return { jobId: job.id };
 }
 
 export async function markStuckJobFailed(jobId: string): Promise<void> {
-  const job = await getKBJob(jobId);
-  if (!job) throw new Error("Job not found.");
-  await markKBJobStuckIfRunning(jobId);
-  const client = await getClientById(job.client_id);
-  if (client) revalidatePath(`/clients/${client.slug}/kb`);
+  return withAction("markStuckJobFailed", async () => {
+    const job = await getKBJob(jobId);
+    if (!job) throw new Error("Job not found.");
+    await markKBJobStuckIfRunning(jobId);
+    const client = await getClientById(job.client_id);
+    if (client) revalidatePath(`/clients/${client.slug}/kb`);
+  });
 }
