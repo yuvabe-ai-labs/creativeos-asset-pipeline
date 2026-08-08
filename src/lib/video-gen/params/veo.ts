@@ -9,14 +9,20 @@ export const VEO_NEGATIVE_DEFAULT =
 // Valid Veo durationSeconds values: 4, 6, 8 (API only accepts these three)
 export const veoParams: ParamSpec[] = [
   {
-    name: "aspect_ratio",
-    label: "Aspect Ratio",
+    // Google's GenerateVideosConfig.resolution accepts "720p" | "1080p" for all three Veo 3.1
+    // variants (node_modules/@google/genai/dist/genai.d.ts) — previously left unset here, which
+    // silently pinned every generation to the API's 720p default. See cost.ts for the
+    // per-resolution rate this now unlocks. Ordered first, paired with Duration in the top row —
+    // same placement as Kling's resolutionParam/durationParam (params/kling.ts) — so the two
+    // models' param panels read consistently instead of Veo being the odd one out.
+    name: "resolution",
+    label: "Resolution",
     component: "select",
     group: "primary",
     order: 0,
     visible: true,
-    defaultValue: "16:9",
-    constraints: { type: "select", options: ["16:9", "9:16"] },
+    defaultValue: "720p",
+    constraints: { type: "select", options: ["720p", "1080p"] },
   },
   {
     name: "duration",
@@ -29,26 +35,20 @@ export const veoParams: ParamSpec[] = [
     constraints: { type: "select", options: ["4", "6", "8"] },
   },
   {
-    // Google's GenerateVideosConfig.resolution accepts "720p" | "1080p" for all three Veo 3.1
-    // variants (node_modules/@google/genai/dist/genai.d.ts) — previously left unset here, which
-    // silently pinned every generation to the API's 720p default. See cost.ts for the
-    // per-resolution rate this now unlocks. Ordered after Duration (not paired with Aspect
-    // Ratio) so the existing Aspect Ratio + Duration top row is unchanged; this stacks as its
-    // own row above the Negative Prompt textarea.
-    name: "resolution",
-    label: "Resolution",
+    name: "aspect_ratio",
+    label: "Aspect Ratio",
     component: "select",
     group: "primary",
     order: 2,
     visible: true,
-    defaultValue: "720p",
-    constraints: { type: "select", options: ["720p", "1080p"] },
+    defaultValue: "16:9",
+    constraints: { type: "select", options: ["16:9", "9:16"] },
   },
   {
     // D78: prefilled visual-defect list, editable; drives Veo's GenerateVideosConfig.negativePrompt.
     // Stays PRIMARY (not advanced) — it is tuned per shot often enough to belong on the
     // always-visible surface, not behind the Advanced accordion. Orders last so the textarea
-    // renders full-width below the paired Aspect Ratio + Duration row.
+    // renders full-width below the paired Resolution + Duration row.
     name: "negative_prompt",
     label: "Negative Prompt",
     component: "textarea",

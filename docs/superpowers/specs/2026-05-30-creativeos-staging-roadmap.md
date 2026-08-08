@@ -2297,7 +2297,10 @@ required, since "connected" is no longer sufficient.
 ### D102 — Veo exposes a resolution param (720p/1080p), priced per Google's own per-resolution rates *(recorded 2026-08-08)*
 
 **Decision.** `params/veo.ts` gains a `resolution` select (`720p` | `1080p`, default `720p`),
-shared across Lite/Fast/Quality same as the rest of `veoParams`. `buildVeoConfig` now passes
+shared across Lite/Fast/Quality same as the rest of `veoParams`. Ordered first, paired with
+Duration in the top row — same placement as Kling's `resolutionParam`/`durationParam`
+(`params/kling.ts`), so `Aspect Ratio` (Veo-only, no Kling equivalent) moves to stack below
+instead of holding the pairing slot. `buildVeoConfig` now passes
 `resolution` through to `GenerateVideosConfig` (the SDK field existed all along —
 `node_modules/@google/genai/dist/genai.d.ts` documents `resolution?: string`, "720p and 1080p
 are supported" — it was simply never set). `computeVideoCost` prices Lite/Fast per-resolution

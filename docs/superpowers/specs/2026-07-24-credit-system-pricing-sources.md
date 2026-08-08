@@ -39,17 +39,20 @@ Two separate stored facts, not one value with a live formula:
 
 ## 3. Video — `src/lib/video-gen/cost.ts`
 
-| Model | Rate | Confidence | Source |
-|---|---|---|---|
-| `veo:veo-3.1-lite` | $0.05/s (720p) / $0.08/s (1080p) | 🟢 | `ai.google.dev/gemini-api/docs/pricing`, fetched 2026-08-08; 720p figure originally pasted by the user 2026-07-24 |
-| `veo:veo-3.1-fast` | $0.10/s (720p) / $0.12/s (1080p) | 🟢 | same |
-| `veo:veo-3.1` (Quality) | $0.40/s (720p and 1080p — flat) | 🟢 | same — corrected 2026-07-24, was $0.2667/s (a stale "base rate" a 1.5× audio multiplier never actually applied, since Veo has no audio toggle in this app) |
-| `openai:sora-2` | $0.10/s (720p) | 🟢 | `developers.openai.com/api/docs/pricing`, "Video generation models" table, pasted directly by the user 2026-07-24 — exact match. (That page also lists `sora-2-pro` at $0.30–$0.70/s by resolution — a real model, just not one this app's registry offers.) |
-| `kling:kling-3-0-turbo` | $0.112/s (720p, native audio only) / $0.14/s (1080p) | 🟢 | `kling.ai/document-api/pricing/base/video`, full table pasted directly by the user 2026-07-24 |
-| `kling:kling-2-6` | $0.042/s (720p, off only) / $0.07–$0.14/s (1080p) | 🟢 | same — 720p+native audio has no priced tier at all (real table shows "-" for that cell); `computeVideoCost` returns `null` for that combination rather than silently substituting the off rate, a real bug found and fixed this session |
-| `kling:kling-2-5-turbo` | $0.042/s (720p) / $0.07/s (1080p) | 🟢 | same |
-| `kling:kling-3-0` | $0.084–$0.126/s (720p) / $0.112–$0.168/s (1080p) / $0.42/s (4k) | 🟢 | same — **corrected this session**: the with-audio rate was $0.112/$0.14, a flat +$0.028/s guess; the real table's delta is +$0.042 (720p) / +$0.056 (1080p), a consistent +50%, not a flat step |
-| `kling:kling-o1` | $0.084/s (720p) / $0.112/s (1080p), flat regardless of audio | 🟢 | same — **corrected this session, structurally**: the old $0.112/$0.14 "with audio" tier was wrong on two counts — it reused kling-3-0's now-also-corrected flawed delta, and more fundamentally the real table splits O1's price by *video input* (a reference video clip), not audio — a dimension this app never sends (image-to-video via start frame only, same as every other Kling model here). Audio doesn't move O1's price at all; every O1 generation with audio enabled had been silently overcharged |
+All ₹ figures use `USD_TO_INR = 95.77` (`src/lib/pricing.ts`) — CreativeOS's own constant,
+not a separate assumption.
+
+| Model | Rate ($/s) | ≈ Rate (₹/s) | Confidence | Source |
+|---|---|---|---|---|
+| `veo:veo-3.1-lite` | $0.05 (720p) / $0.08 (1080p) | ₹4.79 (720p) / ₹7.66 (1080p) | 🟢 | `ai.google.dev/gemini-api/docs/pricing`, fetched 2026-08-08; 720p figure originally pasted by the user 2026-07-24 |
+| `veo:veo-3.1-fast` | $0.10 (720p) / $0.12 (1080p) | ₹9.58 (720p) / ₹11.49 (1080p) | 🟢 | same |
+| `veo:veo-3.1` (Quality) | $0.40 (720p and 1080p — flat) | ₹38.31 (flat) | 🟢 | same — corrected 2026-07-24, was $0.2667/s (a stale "base rate" a 1.5× audio multiplier never actually applied, since Veo has no audio toggle in this app) |
+| `openai:sora-2` | $0.10 (720p) | ₹9.58 | 🟢 | `developers.openai.com/api/docs/pricing`, "Video generation models" table, pasted directly by the user 2026-07-24 — exact match. (That page also lists `sora-2-pro` at $0.30–$0.70/s by resolution — a real model, just not one this app's registry offers.) |
+| `kling:kling-3-0-turbo` | $0.112 (720p, native audio only) / $0.14 (1080p) | ₹10.73 (720p) / ₹13.41 (1080p) | 🟢 | `kling.ai/document-api/pricing/base/video`, full table pasted directly by the user 2026-07-24 |
+| `kling:kling-2-6` | $0.042 (720p, off only) / $0.07–$0.14 (1080p) | ₹4.02 (720p) / ₹6.70–₹13.41 (1080p) | 🟢 | same — 720p+native audio has no priced tier at all (real table shows "-" for that cell); `computeVideoCost` returns `null` for that combination rather than silently substituting the off rate, a real bug found and fixed this session |
+| `kling:kling-2-5-turbo` | $0.042 (720p) / $0.07 (1080p) | ₹4.02 (720p) / ₹6.70 (1080p) | 🟢 | same |
+| `kling:kling-3-0` | $0.084–$0.126 (720p) / $0.112–$0.168 (1080p) / $0.42 (4k) | ₹8.04–₹12.07 (720p) / ₹10.73–₹16.09 (1080p) / ₹40.22 (4k) | 🟢 | same — **corrected this session**: the with-audio rate was $0.112/$0.14, a flat +$0.028/s guess; the real table's delta is +$0.042 (720p) / +$0.056 (1080p), a consistent +50%, not a flat step |
+| `kling:kling-o1` | $0.084 (720p) / $0.112 (1080p), flat regardless of audio | ₹8.04 (720p) / ₹10.73 (1080p) | 🟢 | same — **corrected this session, structurally**: the old $0.112/$0.14 "with audio" tier was wrong on two counts — it reused kling-3-0's now-also-corrected flawed delta, and more fundamentally the real table splits O1's price by *video input* (a reference video clip), not audio — a dimension this app never sends (image-to-video via start frame only, same as every other Kling model here). Audio doesn't move O1's price at all; every O1 generation with audio enabled had been silently overcharged |
 
 **Why Veo stops at 1080p, not 4k:** `params/veo.ts`'s resolution select (added 2026-08-08)
 only offers 720p/1080p — Google's page also lists 4k for Quality ($0.60/s) and Fast
@@ -60,6 +63,96 @@ dead weight in the table.
 **Why Veo has no real audio multiplier:** confirmed directly against the pasted page — every
 Veo 3.1 price is labeled "with audio price (default)," no separate cheaper no-audio tier
 exists. This app never toggles Veo's audio either way, so there's nothing to multiply.
+
+### OpenArt's own credit pricing (their system — not the same unit as CreativeOS's credits)
+
+🟢 Manually logged by the user directly from OpenArt's own generation UI (not a third-party
+blog estimate — see the correction note below). Revises the first pass of this table, which
+didn't separate Kling's audio-on/audio-off credit costs; the user re-logged Kling 3.0 and
+Kling O1 with the audio dimension split out.
+
+**OpenArt credits and CreativeOS credits are two unrelated units, not a shared currency** —
+OpenArt's credit is worth $0.0025 (at the conversion basis below), CreativeOS's credit is
+worth $0.001 fixed (`USD_TO_CREDITS`, §1). A raw credit-count-to-credit-count comparison
+between the two platforms would be meaningless; only the real-money (₹/$) conversion of each
+is comparable, which is what the benchmark table further down does.
+
+**Conversion basis: ~400 OpenArt credits per $1.** Not an OpenArt-published flat rate —
+OpenArt's own subscription plans each imply a different credits-per-dollar figure (Starter
+$14/4,000cr ≈ 286/$1; Plus $34/12,000cr ≈ 353/$1; Pro $56/24,000cr ≈ 429/$1; Wonder
+$240/106,000cr ≈ 442/$1 — cheaper credits at higher tiers). The simple average across those
+four plans is ≈377/$1; 400/$1 is used here as a round, representative approximation of that
+average (per the user's instruction), not an exact per-plan figure. → $0.0025/credit →
+₹0.2394/credit at `USD_TO_INR = 95.77`.
+
+| Model | Resolution | Audio | OpenArt credits/s | ≈ ₹/s | ≈ $/s |
+|---|---|---|---|---|---|
+| Veo 3.1 Lite | 720p | flat (incl. audio) | 20 | ₹4.79 | $0.050 |
+| Veo 3.1 Lite | 1080p | flat (incl. audio) | 30 | ₹7.18 | $0.075 |
+| Veo 3.1 Fast | 720p | flat (incl. audio) | 35 | ₹8.38 | $0.0875 |
+| Veo 3.1 Fast | 1080p | flat (incl. audio) | 40 | ₹9.58 | $0.100 |
+| Veo 3.1 Quality | 720p / 1080p (flat) | flat (incl. audio) | 135 | ₹32.32 | $0.3375 |
+| Kling 3.0 | 720p | off | 25 | ₹5.99 | $0.0625 |
+| Kling 3.0 | 720p | native | 35 | ₹8.38 | $0.0875 |
+| Kling 3.0 | 1080p | off | 35 | ₹8.38 | $0.0875 |
+| Kling 3.0 | 1080p | native | 40 | ₹9.58 | $0.100 |
+| Kling O1 | 720p | off | 20 | ₹4.79 | $0.050 |
+| Kling O1 | 1080p | off | 30 | ₹7.18 | $0.075 |
+
+**Two rows flagged, not included above — logged values don't hold together internally:**
+
+- **Kling 3.0, 720p, off:** the 3s/4s/5s/6s readings (75/100/125/150) are a clean 25 credits/s
+  — used above — but the 15s reading (350) doesn't fit that rate (25×15 = 375, not 350). Every
+  *other* row in this data (including 720p **native**, and both 1080p rows) holds a consistent
+  rate all the way to 15s. Could be a real per-tier price break at the top of the duration
+  range, or a transcription slip on one cell — flagging rather than silently trusting either
+  the 25/s rate or the 350 endpoint.
+- **Kling O1, audio:** doesn't reduce to a per-second rate at all. 720p: 5s = 125 credits
+  (25/s) but 10s = 175 credits (17.5/s) — and 175 is *less* than the 720p **no-audio** 10s
+  price (200), i.e. turning audio on would be cheaper than leaving it off, which isn't
+  plausible for a real pricing table. 1080p has the same shape: 5s = 250 (50/s), 10s = 350
+  (35/s), no consistent rate. Worth re-checking directly in OpenArt's UI before this goes in
+  as a trusted figure — as logged, it reads like a transcription error rather than real
+  pricing.
+
+### Benchmark — price comparison, ₹/s (real money, not credits either side)
+
+The one table that actually answers "who's more expensive": both sides converted to rupees,
+credits dropped entirely (OpenArt's and CreativeOS's are different units — see above; putting
+credit counts side by side would compare units, not prices). CreativeOS's ₹ figure is its raw
+vendor pass-through cost (`MARGIN_PERCENT = 0`, §1 — no markup applied today).
+
+| Model | Resolution | Audio | OpenArt ≈ ₹/s | CreativeOS ≈ ₹/s | Cheaper | Ratio (OpenArt ÷ CreativeOS) |
+|---|---|---|---|---|---|---|
+| Veo 3.1 Lite | 720p | flat | ₹4.79 | ₹4.79 | tie | 1.00× |
+| Veo 3.1 Lite | 1080p | flat | ₹7.18 | ₹7.66 | OpenArt | 0.94× |
+| Veo 3.1 Fast | 720p | flat | ₹8.38 | ₹9.58 | OpenArt | 0.88× |
+| Veo 3.1 Fast | 1080p | flat | ₹9.58 | ₹11.49 | OpenArt | 0.83× |
+| Veo 3.1 Quality | 720p / 1080p | flat | ₹32.32 | ₹38.31 | OpenArt | 0.84× |
+| Kling 3.0 | 720p | off | ₹5.99 | ₹8.04 | OpenArt | 0.74× |
+| Kling 3.0 | 720p | native | ₹8.38 | ₹12.07 | OpenArt | 0.69× |
+| Kling 3.0 | 1080p | off | ₹8.38 | ₹10.73 | OpenArt | 0.78× |
+| Kling 3.0 | 1080p | native | ₹9.58 | ₹16.09 | OpenArt | 0.60× |
+| Kling O1 | 720p | off | ₹4.79 | ₹8.04 | OpenArt | 0.60× |
+| Kling O1 | 1080p | off | ₹7.18 | ₹10.73 | OpenArt | 0.67× |
+
+**Every one of the 11 matched rows is OpenArt-at-or-cheaper than CreativeOS's raw vendor
+cost** — range 0.60×–1.00×, median ≈0.78×. In plain terms: right now, OpenArt is selling
+video generations to its subscribers for close to (Lite 720p: exactly) what CreativeOS itself
+pays Google/Kling to produce one — before CreativeOS adds any margin at all. That's only
+possible because OpenArt's real revenue is the monthly subscription, not the per-generation
+credit; a per-generation credit price alone, compared to a pure pass-through cost, was never
+going to look profitable for either platform.
+
+**Correction to an earlier estimate in this doc's history:** a prior pass (same session,
+before either round of real data existed) used third-party blog aggregators as a stand-in for
+OpenArt's pricing and concluded OpenArt ran ~2–3× over raw vendor cost on video — built on a
+stale, unconfirmed Kling 2.1 figure from a review site, not OpenArt's actual rates. The real,
+logged numbers say the opposite: OpenArt prices video at or under what CreativeOS pays the
+vendor directly in every measured case, most likely subsidized by the subscription/bundle
+model rather than margined per generation. Lesson: don't trust third-party pricing
+aggregators for a competitor's credit costs when the real number is one logged-in screenshot
+away.
 
 ---
 
