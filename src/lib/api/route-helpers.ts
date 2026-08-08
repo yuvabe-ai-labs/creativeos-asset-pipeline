@@ -22,7 +22,7 @@ type AnyResponse = NextResponse<any>;
 // non-GET/HEAD request is blocked before its handler runs. Allowed writes while
 // elevated are audit-logged here too, so every call site that adopts this gate gets
 // both behaviors for free — no per-route bookkeeping.
-async function assertImpersonationWriteAllowed(req: Request): Promise<AnyResponse | null> {
+export async function assertImpersonationWriteAllowed(req: Request): Promise<AnyResponse | null> {
   const method = req.method.toUpperCase();
   if (method === "GET" || method === "HEAD") return null;
 
