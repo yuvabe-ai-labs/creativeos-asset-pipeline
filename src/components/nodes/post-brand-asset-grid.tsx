@@ -38,10 +38,36 @@ export function PostBrandAssetGrid({
 
   return (
     <div>
-      <p className="mb-1 text-[0.6rem] text-muted-foreground">
-        Click to add, or drag onto the canvas.
-      </p>
+      {/* Only once there is something to click or drag — on an empty section it described an
+          interaction that was not available yet. */}
+      {mine.length > 0 && (
+        <p className="mb-1 text-[0.6rem] text-muted-foreground">
+          Click to add, or drag onto the canvas.
+        </p>
+      )}
       <div className={cn("grid gap-1", columns === 2 ? "grid-cols-2" : "grid-cols-3")}>
+        {/* Upload leads the grid. Trailing it meant that on a section with a dozen assets the
+            way to ADD one was below the fold, and on an empty section the only control sat
+            under an explanatory paragraph instead of where the eye lands first. */}
+        <Button
+          variant="outline"
+          disabled={uploading}
+          onClick={() => inputRef.current?.click()}
+          title={UPLOAD_LABELS[category]}
+          aria-label={`Upload a new ${category}`}
+          className="h-auto w-full flex-col items-stretch gap-1 border-dashed border-primary/40 p-1 hover:bg-primary/5"
+        >
+          <span
+            className="flex w-full items-center justify-center"
+            style={{ aspectRatio: aspectRatio ?? "1 / 1" }}
+          >
+            <Upload className="size-4 text-primary" strokeWidth={1.5} />
+          </span>
+          <span className="block w-full truncate px-0.5 text-[0.6rem] font-medium leading-tight text-primary">
+            {uploading ? "Uploading…" : UPLOAD_LABELS[category]}
+          </span>
+        </Button>
+
         {mine.map((asset) => (
           <div key={asset.id} className="group relative">
             <Button
@@ -57,7 +83,11 @@ export function PostBrandAssetGrid({
                   url: asset.storageUrl,
                 })
               }
-              className="h-auto w-full cursor-grab p-1 active:cursor-grabbing"
+              // flex-col items-stretch is load-bearing, not cosmetic. buttonVariants' base is
+              // `inline-flex items-center justify-center` — a ROW — so without this the
+              // thumbnail and the name label sat side by side and flex shrank the image box
+              // to a sliver beside the text. Matches post-panel-templates.tsx's tile.
+              className="h-auto w-full cursor-grab flex-col items-stretch gap-1 p-1 active:cursor-grabbing"
             >
               {/* Chequerboard behind logos: they are usually transparent PNGs, and on a
                   white tile a white mark looks like an empty button. */}
@@ -69,13 +99,17 @@ export function PostBrandAssetGrid({
                 )}
                 style={{ aspectRatio: aspectRatio ?? "1 / 1" }}
               >
+                {/* contain for logos and products — the tile's job is to let you identify the
+                    asset, and cover crops the edges off a product shot. Backgrounds are the
+                    exception: they get APPLIED as cover, so a cover preview is the truthful
+                    one there. */}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={asset.storageUrl}
                   alt={asset.name}
                   className={cn(
                     "size-full",
-                    category === "logo" ? "object-contain" : "object-cover",
+                    category === "background" ? "object-cover" : "object-contain",
                   )}
                 />
               </span>
@@ -106,28 +140,10 @@ export function PostBrandAssetGrid({
           </div>
         ))}
 
-        <Button
-          variant="outline"
-          disabled={uploading}
-          onClick={() => inputRef.current?.click()}
-          title="Upload"
-          aria-label={`Upload a new ${category}`}
-          className="h-auto w-full flex-col gap-1 border-dashed border-primary/40 p-1 hover:bg-primary/5"
-        >
-          <span
-            className="flex w-full items-center justify-center"
-            style={{ aspectRatio: aspectRatio ?? "1 / 1" }}
-          >
-            <Upload className="size-4 text-primary" strokeWidth={1.5} />
-          </span>
-          <span className="block w-full px-0.5 text-[0.6rem] font-medium leading-tight text-primary">
-            {uploading ? "Uploading…" : UPLOAD_LABELS[category]}
-          </span>
-        </Button>
       </div>
 
       {mine.length === 0 && (
-        <p className="mt-1 text-[0.6rem] text-muted-foreground">{hint}</p>
+        <p className="mt-2 text-[0.6rem] text-muted-foreground">{hint}</p>
       )}
 
       {/* The one carve-out from the shadcn-only rule: a hidden native file input is the

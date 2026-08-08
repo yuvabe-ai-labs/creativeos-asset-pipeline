@@ -65,11 +65,13 @@ export function PostPanelBrand({
   const activeCategory = BRAND_ASSET_CATEGORIES.find((c) => c.category === section);
 
   return (
-    // Two columns rather than one long scroll: the kit has five sections and stacking them
-    // meant scrolling past every logo to reach the address field. The nav keeps all five one
-    // click away and each section gets the full panel height.
-    <div className="flex gap-3">
-      <nav className="flex w-24 shrink-0 flex-col gap-0.5 border-r border-border pr-2">
+    // Sections run ACROSS the top, not down the side. The flyout is 256px wide; a 96px
+    // vertical nav plus its gap and rule left about 115px for content, which at three columns
+    // made every thumbnail ~35px — too small to tell one logo from another, which is the only
+    // thing a picker has to do. Wrapping chips cost two rows of height once and give the grid
+    // the full width back.
+    <div>
+      <nav className="mb-3 flex flex-wrap gap-1 border-b border-border pb-2">
         {SECTIONS.map(({ key, label }) => (
           <Button
             key={key}
@@ -77,7 +79,7 @@ export function PostPanelBrand({
             aria-pressed={section === key}
             onClick={() => setSection(key)}
             className={cn(
-              "h-auto justify-start rounded-md px-2 py-1.5 text-left text-xs font-medium",
+              "h-auto rounded-full px-2 py-1 text-[0.65rem] font-medium",
               section === key
                 ? "bg-primary/10 text-primary hover:bg-primary/10"
                 : "text-muted-foreground",
@@ -88,10 +90,9 @@ export function PostPanelBrand({
         ))}
       </nav>
 
-      <div className="min-w-0 flex-1">
-        <p className="text-eyebrow mb-2 !text-[0.6rem]">
-          {SECTIONS.find((s) => s.key === section)?.label}
-        </p>
+      {/* No section heading here: the active chip above already names it, and printing it
+          twice is the duplicate-title problem this panel had at the top of the editor. */}
+      <div className="min-w-0">
 
         {section === "colours" && (
           colours.length === 0 ? (

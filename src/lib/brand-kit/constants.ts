@@ -30,7 +30,9 @@ export const BRAND_ASSET_CATEGORIES: {
     category: "product",
     label: "Products",
     hint: "No product shots yet — upload one to drop it straight into a post.",
-    columns: 3,
+    // Two, not three. A product shot is a photograph — telling two jars of turmeric cream
+    // apart needs more pixels than picking out a logo's silhouette does.
+    columns: 2,
   },
 ];
 
