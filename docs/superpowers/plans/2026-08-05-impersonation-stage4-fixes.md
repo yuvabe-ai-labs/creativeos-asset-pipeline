@@ -28,7 +28,7 @@ Everything else is a scoped bug fix.
 - Design-system/shadcn rules from the original plan's Global Constraints still apply to any UI
   touched here (Task 3's banner degrade-gracefully change).
 - This project's reuse rule: "two call sites = extract." `withAction()` (Task 2) is exactly
-  this rule applied at 18-call-site scale.
+  this rule applied at 19-call-site scale.
 
 ---
 
@@ -205,7 +205,7 @@ git commit -m "fix(auth): wire resolveOrgId() into page-level org resolution (St
 - Consumes: `resolveImpersonationState` from `@/lib/auth/impersonation`, `logImpersonationEvent`
   from `@/lib/db/impersonation-audit`.
 - Produces: `withAction<T>(actionName: string, handler: () => Promise<T>): Promise<T>` —
-  consumed by Task 3 (wraps all ~18 mutating server actions).
+  consumed by Task 3 (wraps all 19 mutating server actions).
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -340,7 +340,7 @@ if the caller is impersonating without elevated mode, and audit-logs the write v
 `withMoodboard` pattern already used for API routes.
 
 **Why.** The whole-branch review that closed out Stage 4's initial implementation found the
-write-gate covered only the 4 API-route helpers — roughly 18 server actions and 5 additional
+write-gate covered only the 4 API-route helpers — 19 server actions and 5 additional
 API routes had no gate at all, including the canvas editor's autosave and two destructive
 delete paths. A per-call-site retrofit closes today's gap but leaves the same hole for the
 next mutating action anyone adds. A mandatory wrapper, mirroring this project's existing
@@ -378,13 +378,13 @@ git commit -m "feat(actions): add withAction() write-gate wrapper for server act
 **Interfaces:**
 - Consumes: `withAction` from `@/lib/actions/with-action` (Task 2).
 
-This is a mechanical wrap-the-body task, one function at a time, across 6 files and 18
+This is a mechanical wrap-the-body task, one function at a time, across 6 files and 19
 functions. The transformation: change the function body from doing its work directly to
 calling `return withAction("<actionName>", () => <original body as an arrow function>);` — the
 action name string is just the function's own name, for the audit trail.
 
 - [ ] **Step 1: Read each file fresh (they may have changed slightly since planning) and
-  confirm the full list of mutating actions.** Known list (18 functions, confirm each still
+  confirm the full list of mutating actions.** Known list (19 functions, confirm each still
   exists with this shape):
 
   `src/lib/actions/nodes.ts`: `saveCanvasNodesAction`, `saveCanvasAction`,
@@ -439,7 +439,7 @@ action name string is just the function's own name, for the audit trail.
   ```
   Apply the same shape (wrap the existing body in an `async () => { ... }` passed to
   `withAction("<functionName>", ...)`, keep the outer function's signature and return type
-  exactly as-is) to all 18 functions listed in Step 1. For functions with an early-return
+  exactly as-is) to all 19 functions listed in Step 1. For functions with an early-return
   validation (like `renameCanvasAction`'s name checks above), the validation stays *inside* the
   wrapped body — those checks are input validation, not something that should run before the
   impersonation gate; letting the gate run first (outside, implicitly, since it's the first
@@ -450,7 +450,7 @@ action name string is just the function's own name, for the audit trail.
 
 Run: `grep -rln "^export async function.*Action\b\|^export async function startKBBuildJob\|^export async function markStuckJobFailed" src/lib/actions/nodes.ts src/lib/actions/canvases.ts src/lib/actions/kb.ts src/lib/actions/approval.ts src/lib/actions/eval.ts src/lib/actions/canvas-lock.ts`
 
-Then for each of the 18 function names from Step 1, confirm `withAction(` appears between its
+Then for each of the 19 function names from Step 1, confirm `withAction(` appears between its
 `export async function` line and its closing brace (a quick per-function grep or manual read is
 fine — there's no automated arity check like Task 7's `tsc` had, since `withAction` is
 optional-by-type, not enforced by the type system; this is exactly the gap D101 exists to close
