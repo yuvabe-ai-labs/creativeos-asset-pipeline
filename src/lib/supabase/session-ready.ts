@@ -39,6 +39,15 @@ if (typeof document !== "undefined") {
   });
 }
 
+// Real connectivity loss (WiFi handoff, laptop sleep/wake, mobile network switch) is the
+// same failure shape as a backgrounded tab: requests queue up while offline, then all fire
+// together the moment the browser comes back — racing the same rotating refresh token.
+// visibilitychange alone misses this (the tab can stay visible the whole time), so the
+// browser's own connectivity signal needs its own proactive check.
+if (typeof window !== "undefined") {
+  window.addEventListener("online", () => void checkSession());
+}
+
 // Await this before any request that depends on being authenticated. Deduped: many
 // concurrent callers (e.g. one useNodeCost per node on a canvas) share the same in-flight
 // check instead of each doing their own.
