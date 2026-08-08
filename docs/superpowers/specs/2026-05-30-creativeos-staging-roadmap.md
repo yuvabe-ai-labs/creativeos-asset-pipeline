@@ -1967,3 +1967,26 @@ is UNVERIFIED — confirm before relaxing. O1's 4k tier is likewise unsettled: t
 inference, but the pricing table verified from kling.ai on 2026-07-24 has no O1 4k row, so the merge kept
 720p/1080p rather than expose a resolution that cannot be priced. **Rejected.** Sourcing O1's limits from
 fal.ai's wrapper, whose narrower values produced the wrong duration, audio and resolution sets.
+
+### D101 — Server actions get a mandatory `withAction()` wrapper for the Stage 4 write-gate *(recorded 2026-08-05; refines D81)*
+
+**Decision.** Every `"use server"` mutating action calls through a new
+`src/lib/actions/with-action.ts` `withAction()` wrapper, which throws before the handler runs
+if the caller is impersonating without elevated mode, and audit-logs the write via
+`logImpersonationEvent` on success. Mirrors the `withClient`/`withCanvas`/`withNode`/
+`withMoodboard` pattern already used for API routes.
+
+**Why.** The whole-branch review that closed out Stage 4's initial implementation found the
+write-gate covered only the 4 API-route helpers — roughly 18 server actions and 5 additional
+API routes had no gate at all, including the canvas editor's autosave and two destructive
+delete paths. A per-call-site retrofit closes today's gap but leaves the same hole for the
+next mutating action anyone adds. A mandatory wrapper, mirroring this project's existing
+`apiError`/`apiOk` convention for API routes, makes the gate structurally hard to skip rather
+than relying on every future PR remembering it.
+
+**Rejected.** Leaving the gate as a per-call-site opt-in (matches the existing route-helper
+pattern, less code today) — rejected because the review's own finding is that spec-time
+enumeration of call sites reliably misses some, and a passive convention doesn't prevent the
+next miss.
+
+**Originated →** `2026-08-05-impersonation-stage4-fixes.md`.
