@@ -2,17 +2,7 @@ import type { PostFormat, PostLayer } from "../types";
 import type { CopyZone } from "../copy-zone-hint";
 import * as lowerThird from "./lower-third";
 import * as insetCard from "./inset-card";
-import * as sideColumn from "./side-column";
-import * as splitHalf from "./split-half";
-import * as boldQuote from "./bold-quote";
-import * as productHero from "./product-hero";
-import * as beforeAfter from "./before-after";
-import * as saleOffer from "./sale-offer";
-import * as event from "./event";
 import * as minimalFrame from "./minimal-frame";
-import * as carouselCover from "./carousel-cover";
-import * as testimonial from "./testimonial";
-import * as announcement from "./announcement";
 import * as numberedTips from "./numbered-tips";
 
 /**
@@ -73,20 +63,16 @@ function toTemplate(mod: TemplateModule): PostTemplate {
   };
 }
 
+/**
+ * Four templates, not fourteen. The other ten were cut on 2026-08-08 as not good enough to
+ * put in front of a client — a library is judged by its weakest entry, and a mediocre one
+ * costs more (it gets picked, then fought with) than it saves. These four hold up; the rest
+ * are in git history if any is ever worth reviving.
+ */
 export const TEMPLATES: readonly PostTemplate[] = [
   toTemplate(lowerThird),
   toTemplate(insetCard),
-  toTemplate(sideColumn),
-  toTemplate(splitHalf),
-  toTemplate(boldQuote),
-  toTemplate(productHero),
-  toTemplate(beforeAfter),
-  toTemplate(saleOffer),
-  toTemplate(event),
   toTemplate(minimalFrame),
-  toTemplate(carouselCover),
-  toTemplate(testimonial),
-  toTemplate(announcement),
   toTemplate(numberedTips),
 ];
 

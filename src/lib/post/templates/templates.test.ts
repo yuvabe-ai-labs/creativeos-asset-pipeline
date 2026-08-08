@@ -108,10 +108,10 @@ describe("the template library", () => {
   // Deliberately a count + uniqueness check rather than a hardcoded id roster: the roster
   // version had to be rewritten by all three template branches independently and conflicted
   // on every merge, while catching nothing this doesn't.
-  it("ships fourteen templates with unique ids", () => {
-    expect(TEMPLATES).toHaveLength(14);
+  it("ships four templates with unique ids", () => {
+    expect(TEMPLATES).toHaveLength(4);
     const ids = TEMPLATES.map((t) => t.id);
-    expect(new Set(ids).size).toBe(14);
+    expect(new Set(ids).size).toBe(4);
   });
 
   it("gives every template a human name and at least one purpose tag", () => {
