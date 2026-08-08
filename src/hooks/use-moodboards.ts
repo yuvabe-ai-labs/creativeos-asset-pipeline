@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { Moodboard, MoodboardItem } from "@/lib/db/moodboards";
+import { authFetch } from "@/lib/supabase/session-ready";
 
 export function useMoodboards(clientId: string) {
   const [boards, setBoards] = useState<Moodboard[]>([]);
@@ -10,7 +11,7 @@ export function useMoodboards(clientId: string) {
   const [loading, setLoading] = useState(false);
 
   const loadBoards = useCallback(async () => {
-    const res = await fetch(`/api/clients/${clientId}/moodboards`);
+    const res = await authFetch(`/api/clients/${clientId}/moodboards`);
     if (!res.ok) return;
     const json = (await res.json()) as { moodboards: Moodboard[] };
     setBoards(json.moodboards);
@@ -19,7 +20,7 @@ export function useMoodboards(clientId: string) {
   const loadItems = useCallback(async (boardId: string) => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/moodboards/${boardId}/items`);
+      const res = await authFetch(`/api/moodboards/${boardId}/items`);
       if (res.ok) {
         const json = (await res.json()) as { items: MoodboardItem[] };
         setItems(json.items);

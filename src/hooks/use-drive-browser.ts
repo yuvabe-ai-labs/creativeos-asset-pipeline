@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { DriveBrowseItem, DriveBrowseResponse } from "@/app/api/drive/browse/route";
+import { authFetch } from "@/lib/supabase/session-ready";
 
 export type { DriveBrowseItem };
 
@@ -72,7 +73,7 @@ export function useDriveBrowser(rootFolder: FolderFrame | null) {
       );
 
       try {
-        const res = await fetch(buildUrl(folder.id, searchTerm, pageToken), {
+        const res = await authFetch(buildUrl(folder.id, searchTerm, pageToken), {
           signal: ctrl.signal,
         });
         if (ctrl.signal.aborted) return;

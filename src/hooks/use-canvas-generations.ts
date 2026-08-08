@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { CanvasGenerationItem } from "@/app/api/canvas/[id]/generations/route";
 import { createBrowserSupabase } from "@/lib/supabase/client";
+import { authFetch } from "@/lib/supabase/session-ready";
 import { useIdentity } from "@/hooks/use-identity";
 import { subscribeToOrgGenerationUpdates } from "@/lib/realtime/org-generation-updates";
 
@@ -29,7 +30,7 @@ async function fetchGenerations(
   canvasId: string,
   signal: AbortSignal,
 ): Promise<CanvasGenerationItem[]> {
-  const res = await fetch(`/api/canvas/${canvasId}/generations`, { signal });
+  const res = await authFetch(`/api/canvas/${canvasId}/generations`, { signal });
   if (!res.ok) throw new Error(`generations fetch failed: ${res.status}`);
   const body = (await res.json()) as { items: CanvasGenerationItem[] };
   return body.items;

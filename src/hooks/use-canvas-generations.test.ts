@@ -1,4 +1,11 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
+
+vi.mock("@/lib/supabase/client", () => ({
+  createBrowserSupabase: () => ({
+    auth: { getSession: async () => ({ data: { session: null } }) },
+  }),
+}));
+
 import {
   __canvasGenerationsInternals,
   __resetCanvasGenerationsCache,

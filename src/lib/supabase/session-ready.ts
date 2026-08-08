@@ -45,3 +45,13 @@ if (typeof document !== "undefined") {
 export function ensureFreshSession(): Promise<void> {
   return checkSession();
 }
+
+// Drop-in fetch() replacement for every authenticated client-side call to this app's own
+// /api/* routes. Routes the request through ensureFreshSession() first so it can never be
+// one of the racing callers described above — call this instead of bare fetch(), don't
+// await ensureFreshSession() yourself and then call fetch() separately (that reintroduces
+// the exact race this exists to close if a new call site copies the pattern wrong).
+export async function authFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  await ensureFreshSession();
+  return fetch(input, init);
+}

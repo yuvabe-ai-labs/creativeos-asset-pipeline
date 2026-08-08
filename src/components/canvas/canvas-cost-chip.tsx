@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createBrowserSupabase } from "@/lib/supabase/client";
-import { ensureFreshSession } from "@/lib/supabase/session-ready";
+import { authFetch } from "@/lib/supabase/session-ready";
 import { useIdentity } from "@/hooks/use-identity";
 import { subscribeToOrgGenerationUpdates } from "@/lib/realtime/org-generation-updates";
 
@@ -17,8 +17,7 @@ export function CanvasCostChip({ canvasId }: { canvasId: string }) {
       try {
         // See use-node-cost.ts — dedups the same stale-refresh-token race across every
         // cost fetch a canvas view fires at once.
-        await ensureFreshSession();
-        const res = await fetch(`/api/canvas/${canvasId}/cost`);
+        const res = await authFetch(`/api/canvas/${canvasId}/cost`);
         if (!res.ok || cancelled) return;
         const data = await res.json() as { totalCredits: number };
         if (!cancelled) setCanvasCostCredits(data.totalCredits);
