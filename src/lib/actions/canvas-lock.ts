@@ -6,28 +6,27 @@ import {
   releaseCanvasLock,
   getCanvasLock,
 } from "@/lib/db/canvas-lock";
-import { withAction } from "@/lib/actions/with-action";
+
+// Lock actions are per-editor-session bookkeeping (who currently holds the edit lock),
+// not tenant business data — deliberately NOT gated by withAction() (Stage 4). Gating
+// acquireCanvasLockAction would throw on every canvas open while impersonating
+// read-only, breaking the primary "just look around" flow; gating the 15s heartbeat
+// would flood the audit trail. See docs/superpowers/plans/2026-08-09-impersonation-stage4-fixes-2.md.
 
 export async function acquireCanvasLockAction(
   canvasId: string,
   sessionId: string,
   name: string | null,
 ) {
-  return withAction("acquireCanvasLockAction", async () => {
-    return acquireCanvasLock(canvasId, sessionId, name);
-  });
+  return acquireCanvasLock(canvasId, sessionId, name);
 }
 
 export async function heartbeatCanvasLockAction(canvasId: string, sessionId: string) {
-  return withAction("heartbeatCanvasLockAction", async () => {
-    return heartbeatCanvasLock(canvasId, sessionId);
-  });
+  return heartbeatCanvasLock(canvasId, sessionId);
 }
 
 export async function releaseCanvasLockAction(canvasId: string, sessionId: string) {
-  return withAction("releaseCanvasLockAction", async () => {
-    await releaseCanvasLock(canvasId, sessionId);
-  });
+  await releaseCanvasLock(canvasId, sessionId);
 }
 
 export async function getCanvasLockAction(canvasId: string) {

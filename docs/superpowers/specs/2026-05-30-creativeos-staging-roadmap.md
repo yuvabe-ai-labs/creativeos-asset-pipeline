@@ -1990,3 +1990,10 @@ enumeration of call sites reliably misses some, and a passive convention doesn't
 next miss.
 
 **Originated →** `2026-08-05-impersonation-stage4-fixes.md`.
+
+**Amendment (2026-08-09):** Canvas-lock bookkeeping actions
+(`acquireCanvasLockAction`/`heartbeatCanvasLockAction`/`releaseCanvasLockAction` in
+`canvas-lock.ts`) are explicitly exempt from `withAction()` — they're per-editor-session state,
+not tenant data, and gating the 15s heartbeat would flood the audit trail while gating lock
+acquisition would break read-only impersonation's primary "browse a canvas" flow. Matches
+`getCanvasLockAction`'s existing read exemption.
