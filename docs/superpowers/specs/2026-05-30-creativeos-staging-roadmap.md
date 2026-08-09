@@ -2176,6 +2176,29 @@ a per-client font picker (real, but it is a separate feature with its own upload
 questions, not a line item here).
 **Originated.** `2026-08-05-brand-kit-design.md`.
 
+### D136 — Header identity chrome consolidates into a profile popover, including credits; `CanvasCostChip` becomes the bar's stat chip; `/api/me` gains a real `orgRole` *(supersedes the profile-popover design from `2026-08-05-profile-popover-header-design.md`, cut on an orphaned worktree as "D101" there — a numbering collision with this log's own unrelated D101 below, from branch divergence, not a real dependency)*
+**Decision.** Replace the always-visible name pill + adjacent sign-out button (`IdentityChip`)
+and the org-name span in `HeaderBrand` with a single avatar-triggered popover (name, real role,
+credits with progress bar, workspace, sign out in red). The header's standalone credits pill
+(`HeaderCredits`) is removed from the bar and its content relocates into the popover. The canvas
+page's per-canvas spend display (`CanvasCostChip`) becomes the bar's remaining glanceable stat
+chip, restyled with an icon and "Canvas Consumption" label. `/api/me` adds an additive
+`orgRole: OrgRole` field for display, separate from the existing collapsed `Identity.role`
+(frozen per D53).
+**Why.** A newer reference design distinguishes two different numbers the old bar conflated: org
+month-to-date usage (now popover-only) vs. one canvas's lifetime spend (now the bar's chip,
+directly relevant to the page you're on). The collapsed `role` field still cannot be shown to
+users directly (would display "Senior" for an Owner) — same reasoning as D101.
+**Rejected.** Keeping the credits pill in the bar per D101 §6 — superseded by the newer
+reference design's split between org-level and canvas-level spend. Showing the collapsed `role`
+in the popover directly (wrong for Owners). Folding the `Admin` link into the popover (still a
+navigation destination, not an account action).
+**Refines.** D53 (Identity's frozen shape — unchanged; `orgRole` is an additive sibling field).
+The orphaned worktree's profile-popover design (avatar-trigger/popover shell and `orgRole`
+plumbing carry over unchanged; its "credits stays in the bar" decision does not — that design
+was never merged to staging).
+**Originated.** `2026-08-09-profile-popover-header-design.md`.
+
 ### Parked / out-of-scope (with revisit triggers)
 | Item | Status | Revisit when |
 |---|---|---|
