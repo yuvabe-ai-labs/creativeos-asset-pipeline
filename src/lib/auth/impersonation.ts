@@ -1,7 +1,7 @@
 import "server-only";
 import { cache } from "react";
 import { cookies } from "next/headers";
-import { resolveCallerContext } from "@/lib/dal";
+import { resolveCallerContext, resolveCallerContextOrNull } from "@/lib/dal";
 import { logImpersonationEvent } from "@/lib/db/impersonation-audit";
 import {
   encodeImpersonationCookie,
@@ -44,8 +44,8 @@ export const resolveImpersonationState = cache(async (): Promise<ImpersonationSt
   const payload = await readPayload();
   if (!payload) return { isImpersonating: false };
 
-  const caller = await resolveCallerContext();
-  if (caller.userId !== payload.operatorId || caller.platformRole !== "super_admin") {
+  const caller = await resolveCallerContextOrNull();
+  if (!caller || caller.userId !== payload.operatorId || caller.platformRole !== "super_admin") {
     return { isImpersonating: false };
   }
 

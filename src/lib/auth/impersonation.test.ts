@@ -23,11 +23,18 @@ vi.mock("@/lib/dal", () => ({
     orgRole: "owner",
     mustChangePassword: false,
   })),
+  resolveCallerContextOrNull: vi.fn(async () => ({
+    userId: "op-1",
+    platformRole: "super_admin",
+    orgId: "yuvabe-org",
+    orgRole: "owner",
+    mustChangePassword: false,
+  })),
 }));
 
 vi.mock("@/lib/db/impersonation-audit", () => ({ logImpersonationEvent: logMock }));
 
-import { resolveCallerContext } from "@/lib/dal";
+import { resolveCallerContextOrNull } from "@/lib/dal";
 import {
   resolveImpersonationState,
   startImpersonation,
@@ -80,13 +87,19 @@ describe("resolveImpersonationState", () => {
 
   it("returns not-impersonating when the operator's live role is no longer super_admin (D81)", async () => {
     cookieStore.get.mockReturnValue({ value: validCookieValue() });
-    vi.mocked(resolveCallerContext).mockResolvedValueOnce({
+    vi.mocked(resolveCallerContextOrNull).mockResolvedValueOnce({
       userId: "op-1",
       platformRole: "member",
       orgId: "yuvabe-org",
       orgRole: "owner",
       mustChangePassword: false,
     });
+    await expect(resolveImpersonationState()).resolves.toEqual({ isImpersonating: false });
+  });
+
+  it("returns not-impersonating when there is no active session (D81, no redirect loop on /login)", async () => {
+    cookieStore.get.mockReturnValue({ value: validCookieValue() });
+    vi.mocked(resolveCallerContextOrNull).mockResolvedValueOnce(null);
     await expect(resolveImpersonationState()).resolves.toEqual({ isImpersonating: false });
   });
 

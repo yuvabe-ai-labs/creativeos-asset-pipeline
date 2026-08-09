@@ -24,16 +24,21 @@ vi.mock("next/headers", () => ({ cookies: vi.fn(async () => cookieStore) }));
 
 vi.mock("@/lib/dal", async () => {
   const actual = await vi.importActual<typeof import("@/lib/dal")>("@/lib/dal");
+  const callerContext = async () => ({
+    userId: "op-1",
+    email: "operator@yuvabe.com",
+    platformRole: liveRoleBox.current,
+    orgId: "yuvabe-org",
+    orgRole: "owner",
+    mustChangePassword: false,
+  });
   return {
     ...actual,
-    resolveCallerContext: vi.fn(async () => ({
-      userId: "op-1",
-      email: "operator@yuvabe.com",
-      platformRole: liveRoleBox.current,
-      orgId: "yuvabe-org",
-      orgRole: "owner",
-      mustChangePassword: false,
-    })),
+    resolveCallerContext: vi.fn(callerContext),
+    // resolveImpersonationState()'s live-role re-check (D81) now uses this non-redirecting
+    // variant instead of resolveCallerContext — mock it the same way so the
+    // "revoking platform_role mid-session" scenario still exercises the live check.
+    resolveCallerContextOrNull: vi.fn(callerContext),
   };
 });
 

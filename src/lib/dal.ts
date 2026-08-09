@@ -51,6 +51,38 @@ export const resolveCallerContext = cache(async (): Promise<CallerContext> => {
   };
 });
 
+// Non-redirecting variant of resolveCallerContext(), for callers that must never trigger a
+// navigation as a side effect of checking who's logged in — e.g. the impersonation banner,
+// which renders on every page including /login itself. Returns null instead of redirecting
+// when there's no session; do not use this for anything that gates access to real data (use
+// resolveCallerContext() for that — its redirect is the correct behavior everywhere else).
+export const resolveCallerContextOrNull = cache(async (): Promise<CallerContext | null> => {
+  const supabase = await createSSRServerClient();
+  const user = await getUserWithRetry(supabase);
+  if (!user) return null;
+
+  const platformRole = mapAppMetadataToPlatformRole(user.app_metadata);
+  const mustChangePassword = mapAppMetadataToMustChangePassword(user.app_metadata);
+
+  const db = createServerSupabase();
+  const { data: membership, error } = await db
+    .from("org_memberships")
+    .select("org_id, org_role")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (error) throw error;
+  if (!membership) return null;
+
+  return {
+    userId: user.id,
+    email: user.email ?? null,
+    platformRole,
+    orgId: membership.org_id as string,
+    orgRole: membership.org_role as OrgRole,
+    mustChangePassword,
+  };
+});
+
 // The org whose data the caller should see. Defaults to the caller's own org; when a
 // valid, live-re-checked impersonation session is active (Stage 4, D81), returns the
 // target org instead. See src/lib/auth/impersonation.ts for the cookie mechanics.
