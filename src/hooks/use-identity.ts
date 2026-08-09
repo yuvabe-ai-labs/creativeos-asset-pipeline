@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import type { Identity } from "@/lib/identity";
-import type { PlatformRole } from "@/lib/dal-logic";
+import type { OrgRole, PlatformRole } from "@/lib/dal-logic";
 import { authFetch } from "@/lib/supabase/session-ready";
 
 // Module-level cache + in-flight dedup: multiple components call this hook (the identity
@@ -24,6 +24,7 @@ type FetchResult = {
   platformRole: PlatformRole | null;
   orgId: string | null;
   orgName: string | null;
+  orgRole: OrgRole | null;
   creditsUsed: number | null;
   monthlyCreditLimit: number | null;
 };
@@ -32,6 +33,7 @@ let cachedIdentity: Identity | null = null;
 let cachedPlatformRole: PlatformRole | null = null;
 let cachedOrgId: string | null = null;
 let cachedOrgName: string | null = null;
+let cachedOrgRole: OrgRole | null = null;
 let cachedCreditsUsed: number | null = null;
 let cachedMonthlyCreditLimit: number | null = null;
 let cachedHydrated = false;
@@ -46,6 +48,7 @@ export function resetIdentityCache(): void {
   cachedPlatformRole = null;
   cachedOrgId = null;
   cachedOrgName = null;
+  cachedOrgRole = null;
   cachedCreditsUsed = null;
   cachedMonthlyCreditLimit = null;
   cachedHydrated = false;
@@ -73,6 +76,7 @@ function fetchIdentity(): Promise<FetchResult> {
               platformRole: (data.platformRole as PlatformRole | undefined) ?? null,
               orgId: (data.orgId as string | undefined) ?? null,
               orgName: (data.orgName as string | undefined) ?? null,
+              orgRole: (data.orgRole as OrgRole | undefined) ?? null,
               creditsUsed: (data.creditsUsed as number | undefined) ?? null,
               monthlyCreditLimit: (data.monthlyCreditLimit as number | undefined) ?? null,
             }
@@ -81,6 +85,7 @@ function fetchIdentity(): Promise<FetchResult> {
               platformRole: null,
               orgId: null,
               orgName: null,
+              orgRole: null,
               creditsUsed: null,
               monthlyCreditLimit: null,
             },
@@ -91,6 +96,7 @@ function fetchIdentity(): Promise<FetchResult> {
           platformRole: null,
           orgId: null,
           orgName: null,
+          orgRole: null,
           creditsUsed: null,
           monthlyCreditLimit: null,
         }),
@@ -113,6 +119,7 @@ export function useIdentity(): {
   platformRole: PlatformRole | null;
   orgId: string | null;
   orgName: string | null;
+  orgRole: OrgRole | null;
   creditsUsed: number | null;
   monthlyCreditLimit: number | null;
 } {
@@ -120,6 +127,7 @@ export function useIdentity(): {
   const [platformRole, setPlatformRole] = useState<PlatformRole | null>(cachedPlatformRole);
   const [orgId, setOrgId] = useState<string | null>(cachedOrgId);
   const [orgName, setOrgName] = useState<string | null>(cachedOrgName);
+  const [orgRole, setOrgRole] = useState<OrgRole | null>(cachedOrgRole);
   const [creditsUsed, setCreditsUsed] = useState<number | null>(cachedCreditsUsed);
   const [monthlyCreditLimit, setMonthlyCreditLimit] = useState<number | null>(
     cachedMonthlyCreditLimit,
@@ -145,6 +153,7 @@ export function useIdentity(): {
       setPlatformRole(cachedPlatformRole);
       setOrgId(cachedOrgId);
       setOrgName(cachedOrgName);
+      setOrgRole(cachedOrgRole);
       setCreditsUsed(cachedCreditsUsed);
       setMonthlyCreditLimit(cachedMonthlyCreditLimit);
       setHydrated(true);
@@ -156,6 +165,7 @@ export function useIdentity(): {
       cachedPlatformRole = result.platformRole;
       cachedOrgId = result.orgId;
       cachedOrgName = result.orgName;
+      cachedOrgRole = result.orgRole;
       cachedCreditsUsed = result.creditsUsed;
       cachedMonthlyCreditLimit = result.monthlyCreditLimit;
       cachedHydrated = true;
@@ -164,6 +174,7 @@ export function useIdentity(): {
         setPlatformRole(result.platformRole);
         setOrgId(result.orgId);
         setOrgName(result.orgName);
+        setOrgRole(result.orgRole);
         setCreditsUsed(result.creditsUsed);
         setMonthlyCreditLimit(result.monthlyCreditLimit);
         setHydrated(true);
@@ -177,5 +188,5 @@ export function useIdentity(): {
     // triggering the first real fetch instead of leaving the hook permanently un-hydrated.
   }, [pathname]);
 
-  return { identity, hydrated, platformRole, orgId, orgName, creditsUsed, monthlyCreditLimit };
+  return { identity, hydrated, platformRole, orgId, orgName, orgRole, creditsUsed, monthlyCreditLimit };
 }
