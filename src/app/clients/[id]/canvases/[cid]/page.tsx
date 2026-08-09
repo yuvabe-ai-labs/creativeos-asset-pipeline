@@ -103,11 +103,9 @@ export default async function CanvasPage({
             </BreadcrumbItem>
           </BreadcrumbList>
         </Breadcrumb>
-        {/* IdentityChip now lives in the root layout header (shown on every page) —
-            not duplicated here. */}
         <div className="flex items-center gap-3">
-          <GalleryDrawerTrigger />
           <CanvasCostChip canvasId={canvas.id} />
+          <GalleryDrawerTrigger />
         </div>
       </header>
 
