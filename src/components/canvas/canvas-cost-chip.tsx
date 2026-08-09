@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Zap } from "lucide-react";
 import { createBrowserSupabase } from "@/lib/supabase/client";
 import { authFetch } from "@/lib/supabase/session-ready";
 import { useIdentity } from "@/hooks/use-identity";
@@ -59,9 +60,14 @@ export function CanvasCostChip({ canvasId }: { canvasId: string }) {
   if (canvasCostCredits === null || canvasCostCredits <= 0) return null;
 
   return (
-    <div className="flex items-center gap-1 text-xs text-muted-foreground">
-      <span className="font-medium tabular-nums text-foreground">{canvasCostCredits.toLocaleString()}</span>
-      <span>credits total</span>
+    <div className="flex items-center gap-2">
+      <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+        <Zap className="size-3" strokeWidth={1.5} />
+      </span>
+      <span className="font-display text-sm font-semibold tabular-nums text-foreground">
+        {canvasCostCredits.toLocaleString()}
+      </span>
+      <span className="text-xs text-muted-foreground">Canvas Consumption</span>
     </div>
   );
 }
