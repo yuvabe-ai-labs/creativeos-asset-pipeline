@@ -1,29 +1,9 @@
-"use client";
-
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useIdentity } from "@/hooks/use-identity";
-import { HeaderCredits } from "./header-credits";
 
-// The wordmark always shows. Two independent gates below it: showIdentity (never on
-// /login or /account/password, never before hydration — avoids a flash of a previous/wrong
-// agency name on first paint, and there's nothing meaningful to show on either page anyway:
-// /account/password is a locked-down "set your password" gate — see use-identity.ts's
-// pathname skip for why) controls the agency name AND credits as a pair; showOrgName further
-// hides just the name when it's literally "Yuvabe Studios" — that's already the static brand
-// eyebrow to its left, so showing the org name too would visibly duplicate it (only happens
-// for Yuvabe's own org, which is both the platform operator and a tenant on its own platform).
-// Credits must NOT be nested inside showOrgName's block — that previously hid the whole
-// credits display for Yuvabe's own org along with the (correctly) hidden duplicate name.
-// No divider before HeaderCredits — its own bordered pill shape already separates it.
-const IDENTITY_HIDDEN_PATHS = ["/login", "/account/password"];
-
+// The wordmark + static "Yuvabe Studios" eyebrow always show. Org name and credits used to
+// render here too (gated on identity having resolved) — both moved into ProfilePopover, see
+// docs/superpowers/specs/2026-08-09-profile-popover-header-design.md §5.
 export function HeaderBrand() {
-  const pathname = usePathname();
-  const { hydrated, orgName } = useIdentity();
-  const showIdentity = !IDENTITY_HIDDEN_PATHS.includes(pathname) && hydrated && Boolean(orgName);
-  const showOrgName = showIdentity && orgName !== "Yuvabe Studios";
-
   return (
     <div className="flex items-center gap-3">
       <Link href="/" className="flex items-center gap-3">
@@ -32,13 +12,6 @@ export function HeaderBrand() {
         </span>
       </Link>
       <span className="text-eyebrow hidden sm:block">Yuvabe Studios</span>
-      {showOrgName && (
-        <>
-          <span className="h-4 w-px bg-border" aria-hidden="true" />
-          <span className="text-sm font-medium text-muted-foreground">{orgName}</span>
-        </>
-      )}
-      {showIdentity && <HeaderCredits />}
     </div>
   );
 }

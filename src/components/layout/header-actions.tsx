@@ -2,7 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { AdminNavLink } from "@/components/identity/admin-nav-link";
-import { IdentityChip } from "@/components/identity/identity-chip";
+import { ProfilePopover } from "@/components/identity/profile-popover";
 
 // Hidden on /login — there's no session to reflect on the sign-in form itself, so
 // showing "signed in as X" / an admin link / sign-out there is just confusing chrome,
@@ -14,7 +14,7 @@ export function HeaderActions() {
   return (
     <div className="flex items-center gap-3">
       <AdminNavLink />
-      <IdentityChip />
+      <ProfilePopover />
     </div>
   );
 }
