@@ -34,7 +34,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withNode(req, params, async (nodeId, _node, caller, clientId) => {
+  return withNode(req, params, async (nodeId, _node, caller, clientId, effectiveOrgId) => {
     const body = (await req.json().catch(() => null)) as
       | { instruction?: unknown; slices?: unknown; controls?: unknown; targetProvider?: unknown }
       | null;
@@ -73,7 +73,7 @@ export async function POST(
     try {
       generation = await insertGeneration({
         nodeId,
-        orgId: caller.orgId,
+        orgId: effectiveOrgId,
         clientId,
         userId: caller.userId,
         userEmail: caller.email,
@@ -84,7 +84,7 @@ export async function POST(
       });
 
       const estimatedCredits = estimatePromptCredits(resolved.upstream.filter(isVisionAttachment).length);
-      const reservation = await reserveCredits(caller.orgId, generation.id, estimatedCredits);
+      const reservation = await reserveCredits(effectiveOrgId, generation.id, estimatedCredits);
       if (!reservation.ok) {
         throw new CreditLimitError("Monthly credit limit reached");
       }
@@ -136,7 +136,7 @@ export async function POST(
       // usdToFinalCredits' 5-credit rounding step, so every prompt generation — regardless
       // of attachment count — settled at the same 5-credit floor.
       await settleGeneration({
-        orgId: caller.orgId,
+        orgId: effectiveOrgId,
         generationId: generation.id,
         actualAmount: estimatedCredits,
       });
@@ -167,7 +167,7 @@ export async function POST(
       });
       if (generation?.id) {
         await failGeneration({ generationId: generation.id, error: message }).catch(() => null);
-        await refundReservation({ orgId: caller.orgId, generationId: generation.id }).catch(() => null);
+        await refundReservation({ orgId: effectiveOrgId, generationId: generation.id }).catch(() => null);
       }
       const status = e instanceof CreditLimitError ? 402 : 500;
       return apiError(message, status);

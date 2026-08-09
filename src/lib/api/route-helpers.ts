@@ -157,6 +157,7 @@ export async function withNode(
     node: NodeRow,
     caller: CallerContext,
     clientId: string,
+    effectiveOrgId: string,
   ) => Promise<AnyResponse>,
 ): Promise<AnyResponse> {
   const { id: nodeId } = await params;
@@ -182,7 +183,7 @@ export async function withNode(
 
   const caller = await resolveCallerContext();
   const { canvases: _canvases, ...node } = row;
-  return handler(nodeId, node as NodeRow, caller, canvas.client_id);
+  return handler(nodeId, node as NodeRow, caller, canvas.client_id, effectiveOrgId);
 }
 
 // ── Moodboard resolution ──────────────────────────────────────────────────────

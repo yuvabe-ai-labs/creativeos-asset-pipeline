@@ -1,5 +1,5 @@
 import { apiError, apiOk } from "@/lib/api/route-helpers";
-import { resolveCallerContext } from "@/lib/dal";
+import { resolveCallerContext, resolveOrgId } from "@/lib/dal";
 import { orgRoleToIdentityRole } from "@/lib/dal-logic";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { getOrgById, getOrgCreditUsage } from "@/lib/db/organizations";
@@ -14,11 +14,12 @@ export const dynamic = "force-dynamic";
 // Identity.role (owner/senior → "senior" so Approve shows). See dal-logic.
 export async function GET() {
   const caller = await resolveCallerContext();
+  const effectiveOrgId = await resolveOrgId();
   const db = createServerSupabase();
   const [{ data, error }, org, creditsUsed] = await Promise.all([
     db.from("profiles").select("display_name").eq("user_id", caller.userId).maybeSingle(),
-    getOrgById(caller.orgId),
-    getOrgCreditUsage(caller.orgId),
+    getOrgById(effectiveOrgId),
+    getOrgCreditUsage(effectiveOrgId),
   ]);
   if (error) return apiError("Failed to load profile.", 500);
 
@@ -26,7 +27,7 @@ export async function GET() {
     name: (data?.display_name as string) ?? "User",
     role: orgRoleToIdentityRole(caller.orgRole),
     platformRole: caller.platformRole,
-    orgId: caller.orgId,
+    orgId: effectiveOrgId,
     orgName: org?.name ?? null,
     creditsUsed,
     monthlyCreditLimit: org?.monthly_credit_limit ?? null,
