@@ -49,6 +49,25 @@ vi.mock("@/lib/supabase/server", () => ({
         if (table === "impersonation_audit_log") auditRows.push(row);
         return { error: null };
       },
+      // startImpersonation's I3 org-existence check (getOrgById) queries this table —
+      // "target-org" must resolve so these flow scenarios can still enter impersonation.
+      select: () => ({
+        eq: (_column: string, value: string) => ({
+          maybeSingle: async () => ({
+            data:
+              table === "organizations" && value === "target-org"
+                ? {
+                    id: "target-org",
+                    name: "Target Org",
+                    slug: "target-org",
+                    monthly_credit_limit: null,
+                    created_at: new Date().toISOString(),
+                  }
+                : null,
+            error: null,
+          }),
+        }),
+      }),
     }),
   })),
 }));

@@ -2,6 +2,7 @@ import "server-only";
 import { cache } from "react";
 import { cookies } from "next/headers";
 import { resolveCallerContext, resolveCallerContextOrNull } from "@/lib/dal";
+import { getOrgById } from "@/lib/db/organizations";
 import { logImpersonationEvent } from "@/lib/db/impersonation-audit";
 import {
   encodeImpersonationCookie,
@@ -75,6 +76,15 @@ async function setImpersonationCookie(payload: ImpersonationPayload, secret: str
 export async function startImpersonation(targetOrgId: string): Promise<void> {
   const secret = getSecret();
   if (!secret) return;
+  // I3: validate the target org exists before touching any session state — an invalid
+  // UUID (or an org deleted between page render and click) must never produce a "successful"
+  // impersonation session with no way to resolve a display name for it.
+  const org = await getOrgById(targetOrgId);
+  if (!org) throw new Error("Organization not found.");
+  // I2: close out any prior session's audit trail first — re-entering impersonation
+  // (e.g. targeting a different org) while already impersonating must not orphan an
+  // unterminated session_started with no matching session_ended.
+  await endImpersonation();
   const caller = await resolveCallerContext();
   const payload: ImpersonationPayload = {
     operatorId: caller.userId,
@@ -107,14 +117,17 @@ export async function enterElevatedMode(): Promise<void> {
   });
 }
 
-// No-ops if there's no active impersonation session — nothing to clear, and logging an
-// end event with no corresponding start would pollute the audit trail.
+// Always deletes the cookie, even if the secret is unset or the payload can't be
+// decoded (e.g. after a secret rotation) — an undecodable cookie must never become an
+// unclearable one (I4). The audit log entry is still only written when there was a
+// real payload to decode — logging an end event with no corresponding start would
+// pollute the audit trail.
 export async function endImpersonation(): Promise<void> {
   const secret = getSecret();
   const payload = secret ? await readPayload() : null;
-  if (!payload) return;
   const store = await cookies();
   store.delete(COOKIE_NAME);
+  if (!payload) return;
   await logImpersonationEvent({
     operatorId: payload.operatorId,
     targetOrgId: payload.targetOrgId,

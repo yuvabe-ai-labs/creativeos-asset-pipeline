@@ -10,7 +10,17 @@ export async function ImpersonationBanner() {
   if (!state.isImpersonating) return null;
 
   const org = await getOrgById(state.targetOrgId);
-  if (!org) return null; // org deleted mid-session — fail closed, banner just disappears
+  if (!org) {
+    // org deleted mid-session (a race — startImpersonation's own existence check can't
+    // prevent this) — degrade instead of disappearing, so the operator always has a
+    // working Exit button rather than being stuck impersonating with no visible way out.
+    return (
+      <div className="flex h-9 items-center justify-center gap-3 bg-muted px-4 text-sm text-foreground">
+        <span>Viewing as (organization no longer exists)</span>
+        <ImpersonationBannerActions orgId={state.targetOrgId} elevated={state.elevated} />
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-9 items-center justify-center gap-3 bg-muted px-4 text-sm text-foreground">

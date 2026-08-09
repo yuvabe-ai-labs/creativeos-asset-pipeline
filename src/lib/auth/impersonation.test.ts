@@ -1,17 +1,28 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { ImpersonationEvent } from "@/lib/db/impersonation-audit";
+import type { OrgRow } from "@/lib/db/organizations";
 
 vi.mock("server-only", () => ({}));
 
 // vi.mock factories are hoisted above top-level `const`s, so any variable a factory
 // reads directly (not just closes over inside a nested function) must itself be
 // declared via vi.hoisted() to avoid a TDZ ReferenceError at import time.
-const { cookieStore, logMock } = vi.hoisted(() => ({
+const { cookieStore, logMock, getOrgByIdMock } = vi.hoisted(() => ({
   cookieStore: {
     get: vi.fn(),
     set: vi.fn(),
     delete: vi.fn(),
   },
-  logMock: vi.fn(async () => undefined),
+  logMock: vi.fn(async (_event: ImpersonationEvent) => undefined),
+  getOrgByIdMock: vi.fn(
+    async (_id: string): Promise<OrgRow | null> => ({
+      id: "target-org",
+      name: "Target Org",
+      slug: "target-org",
+      monthly_credit_limit: null,
+      created_at: new Date().toISOString(),
+    }),
+  ),
 }));
 vi.mock("next/headers", () => ({ cookies: vi.fn(async () => cookieStore) }));
 
@@ -33,6 +44,7 @@ vi.mock("@/lib/dal", () => ({
 }));
 
 vi.mock("@/lib/db/impersonation-audit", () => ({ logImpersonationEvent: logMock }));
+vi.mock("@/lib/db/organizations", () => ({ getOrgById: getOrgByIdMock }));
 
 import { resolveCallerContextOrNull } from "@/lib/dal";
 import {
@@ -117,6 +129,7 @@ describe("startImpersonation", () => {
   });
 
   it("sets the cookie and logs session_started", async () => {
+    cookieStore.get.mockReturnValue(undefined); // no prior session to end
     await startImpersonation("target-org");
     expect(cookieStore.set).toHaveBeenCalledTimes(1);
     const [name, value, options] = cookieStore.set.mock.calls[0];
@@ -126,6 +139,49 @@ describe("startImpersonation", () => {
     expect(logMock).toHaveBeenCalledWith({
       operatorId: "op-1",
       targetOrgId: "target-org",
+      eventType: "session_started",
+    });
+  });
+
+  it("throws when the target org doesn't exist (I3)", async () => {
+    cookieStore.get.mockReturnValue(undefined);
+    getOrgByIdMock.mockResolvedValueOnce(null);
+    await expect(startImpersonation("missing-org")).rejects.toThrow("Organization not found.");
+    // no half-applied state: neither the cookie nor the audit log should have been touched
+    expect(cookieStore.set).not.toHaveBeenCalled();
+    expect(cookieStore.delete).not.toHaveBeenCalled();
+    expect(logMock).not.toHaveBeenCalled();
+  });
+
+  it("ends the prior session before starting the new one when re-entering (I2)", async () => {
+    // A prior session is already active, targeting "target-org" (the default cookie fixture).
+    cookieStore.get.mockReturnValue({ value: validCookieValue() });
+    getOrgByIdMock.mockResolvedValueOnce({
+      id: "other-org",
+      name: "Other Org",
+      slug: "other-org",
+      monthly_credit_limit: null,
+      created_at: new Date().toISOString(),
+    });
+
+    await startImpersonation("other-org");
+
+    expect(cookieStore.delete).toHaveBeenCalledWith("impersonation");
+    expect(cookieStore.set).toHaveBeenCalledTimes(1);
+    const [, , options] = cookieStore.set.mock.calls[0];
+    expect(options).toMatchObject({ httpOnly: true, path: "/" });
+
+    expect(logMock).toHaveBeenCalledTimes(2);
+    // Order matters: the old session's session_ended must be logged before the new
+    // session's session_started, not just that both eventually happen.
+    expect(logMock.mock.calls[0][0]).toEqual({
+      operatorId: "op-1",
+      targetOrgId: "target-org",
+      eventType: "session_ended",
+    });
+    expect(logMock.mock.calls[1][0]).toEqual({
+      operatorId: "op-1",
+      targetOrgId: "other-org",
       eventType: "session_started",
     });
   });
@@ -173,10 +229,13 @@ describe("endImpersonation", () => {
     });
   });
 
-  it("no-ops when there is no active impersonation session", async () => {
+  it("still deletes the cookie but skips the audit log when there is no active session (I4)", async () => {
     cookieStore.get.mockReturnValue(undefined);
     await endImpersonation();
-    expect(cookieStore.delete).not.toHaveBeenCalled();
+    // I4: delete is unconditional — never leave an unclearable cookie behind, even
+    // though there was nothing to decode here.
+    expect(cookieStore.delete).toHaveBeenCalledWith("impersonation");
+    // Still no audit entry for a session that never existed — that guarantee is unchanged.
     expect(logMock).not.toHaveBeenCalled();
   });
 });
