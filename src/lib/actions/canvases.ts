@@ -5,7 +5,7 @@ import { createCanvas, renameCanvas, deleteCanvas } from "@/lib/db/canvases";
 import { getActiveKBVersion } from "@/lib/db/kb";
 import { saveCanvasNodes } from "@/lib/db/nodes";
 import { saveCanvasEdges } from "@/lib/db/edges";
-import { resolveCallerContext } from "@/lib/dal";
+import { resolveOrgId } from "@/lib/dal";
 import type { TraceableBrandKB } from "@/lib/kb/schema";
 import { withAction } from "@/lib/actions/with-action";
 
@@ -18,8 +18,8 @@ export async function createCanvasAction(input: {
     const name = input.name?.trim();
     if (!name) throw new Error("Canvas needs a name");
 
-    const caller = await resolveCallerContext();
-    const canvas = await createCanvas({ clientId: input.clientId, orgId: caller.orgId, name });
+    const orgId = await resolveOrgId();
+    const canvas = await createCanvas({ clientId: input.clientId, orgId, name });
 
     // If the client has an active KB, seed a KB node + a connected Brief node.
     const activeKB = await getActiveKBVersion(input.clientId);
