@@ -5,12 +5,15 @@ import { saveCanvasEdges } from "@/lib/db/edges";
 import { getCanvasLockHolder } from "@/lib/db/canvas-lock";
 import { updateActiveVersionOutput } from "@/lib/db/versions";
 import type { Edge } from "@xyflow/react";
+import { withAction } from "@/lib/actions/with-action";
 
 export async function saveCanvasNodesAction(
   canvasId: string,
   nodes: PersistedNode[],
 ) {
-  await saveCanvasNodes(canvasId, nodes);
+  return withAction("saveCanvasNodesAction", async () => {
+    await saveCanvasNodes(canvasId, nodes);
+  });
 }
 
 // D33: server-enforced autosave. Writes only if the caller holds the lock; otherwise
@@ -26,22 +29,28 @@ export async function saveCanvasAction(
     sessionId: string;
   },
 ): Promise<{ ok: true } | { ok: false; lockLost: true }> {
-  const holder = await getCanvasLockHolder(canvasId);
-  if (holder !== payload.sessionId) return { ok: false, lockLost: true };
+  return withAction("saveCanvasAction", async () => {
+    const holder = await getCanvasLockHolder(canvasId);
+    if (holder !== payload.sessionId) return { ok: false, lockLost: true };
 
-  await saveCanvasNodes(canvasId, payload.nodes, payload.removedNodeIds);
-  await saveCanvasEdges(canvasId, payload.edges, payload.removedEdgeIds);
-  return { ok: true };
+    await saveCanvasNodes(canvasId, payload.nodes, payload.removedNodeIds);
+    await saveCanvasEdges(canvasId, payload.edges, payload.removedEdgeIds);
+    return { ok: true };
+  });
 }
 
 // Save manual edits to the Script node's parsed output (D19): updates the
 // active version's output in place — does NOT create a new version.
 export async function saveScriptOutputAction(nodeId: string, output: unknown) {
-  await updateActiveVersionOutput(nodeId, output);
+  return withAction("saveScriptOutputAction", async () => {
+    await updateActiveVersionOutput(nodeId, output);
+  });
 }
 
 // Save manual edits to the Prompt node's generated output (D19): updates the
 // active version's output in place — does NOT create a new version.
 export async function savePromptOutputAction(nodeId: string, output: unknown) {
-  await updateActiveVersionOutput(nodeId, output);
+  return withAction("savePromptOutputAction", async () => {
+    await updateActiveVersionOutput(nodeId, output);
+  });
 }

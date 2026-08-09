@@ -10,6 +10,20 @@ import {
 } from "@/lib/db/organizations";
 import { CreateOrgSchema, parseCreditLimit, parseResetPassword } from "@/lib/orgs/org-schema";
 
+// This file's three actions are deliberately NOT gated by withAction() (Stage 4's
+// impersonation write-gate). They're /admin platform-administration actions
+// (requireSuperAdmin()-gated already) — D85 draws an explicit line between
+// "administering the platform" via /admin and "acting as an org" via impersonation,
+// and these actions' target orgId is an explicit caller-supplied parameter (or, for
+// createOrgAction, doesn't exist yet) that's never correlated with whatever org an
+// operator happens to be impersonating elsewhere in the same session. Gating them was
+// tried and reverted (review round 2): it both spuriously blocked unrelated /admin
+// work during an unrelated impersonation session, and made the impersonation_audit_log
+// misattribute the write's target org (it logs the impersonated org, not the org this
+// action actually touched — since withAction() has no way to know the two differ).
+// See docs/superpowers/plans/2026-08-09-impersonation-stage4-fixes-2.md and the
+// ALLOWLIST entries in src/lib/actions/with-action-coverage.test.ts.
+
 export type CreateOrgState =
   | { error?: string; result?: { email: string; tempPassword: string; orgId: string } }
   | undefined;

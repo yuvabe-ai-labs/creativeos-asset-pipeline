@@ -2352,3 +2352,33 @@ behavior — 720p — is exactly what a node with no saved value now explicitly 
 miss that?"); implemented same session. Pricing sourced from `ai.google.dev/gemini-api/docs/pricing`
 (fetched 2026-08-08). Tests: `src/lib/video-gen/__tests__/veo-params.test.ts`,
 `veo-provider.test.ts`, `cost.test.ts`.
+
+### D101 — Server actions get a mandatory `withAction()` wrapper for the Stage 4 write-gate *(recorded 2026-08-05; refines D81; numbering collision with D101 above — parallel branch, unrelated decision, same pattern as D136's note)*
+
+**Decision.** Every `"use server"` mutating action calls through a new
+`src/lib/actions/with-action.ts` `withAction()` wrapper, which throws before the handler runs
+if the caller is impersonating without elevated mode, and audit-logs the write via
+`logImpersonationEvent` on success. Mirrors the `withClient`/`withCanvas`/`withNode`/
+`withMoodboard` pattern already used for API routes.
+
+**Why.** The whole-branch review that closed out Stage 4's initial implementation found the
+write-gate covered only the 4 API-route helpers — roughly 18 server actions and 5 additional
+API routes had no gate at all, including the canvas editor's autosave and two destructive
+delete paths. A per-call-site retrofit closes today's gap but leaves the same hole for the
+next mutating action anyone adds. A mandatory wrapper, mirroring this project's existing
+`apiError`/`apiOk` convention for API routes, makes the gate structurally hard to skip rather
+than relying on every future PR remembering it.
+
+**Rejected.** Leaving the gate as a per-call-site opt-in (matches the existing route-helper
+pattern, less code today) — rejected because the review's own finding is that spec-time
+enumeration of call sites reliably misses some, and a passive convention doesn't prevent the
+next miss.
+
+**Originated →** `2026-08-05-impersonation-stage4-fixes.md`.
+
+**Amendment (2026-08-09):** Canvas-lock bookkeeping actions
+(`acquireCanvasLockAction`/`heartbeatCanvasLockAction`/`releaseCanvasLockAction` in
+`canvas-lock.ts`) are explicitly exempt from `withAction()` — they're per-editor-session state,
+not tenant data, and gating the 15s heartbeat would flood the audit trail while gating lock
+acquisition would break read-only impersonation's primary "browse a canvas" flow. Matches
+`getCanvasLockAction`'s existing read exemption.

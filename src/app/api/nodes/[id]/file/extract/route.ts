@@ -11,7 +11,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withNode(params, async () => {
+  return withNode(req, params, async () => {
     const body = await req.json().catch(() => null);
     const llmPrompt = typeof body?.llmPrompt === "string" ? body.llmPrompt.trim() : "";
     if (!llmPrompt) return apiError("llmPrompt is required.", 400);

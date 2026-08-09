@@ -16,7 +16,7 @@ import {
 } from "@/lib/kb/schema";
 import { kbReanalyzePrompt } from "@/prompts/kb-reanalyze";
 import { z } from "zod";
-import { apiError, apiOk, withTryCatch } from "@/lib/api/route-helpers";
+import { apiError, apiOk, withTryCatch, assertImpersonationWriteAllowed } from "@/lib/api/route-helpers";
 
 type ModuleKey =
   | "brand_voice"
@@ -67,6 +67,9 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   await params; // clientId not needed for this route — versionId scopes the update
+
+  const blocked = await assertImpersonationWriteAllowed(req);
+  if (blocked) return blocked;
 
   return withTryCatch("Re-analysis failed", async () => {
     const { versionId, module, fieldKey, comment } = await req.json() as {

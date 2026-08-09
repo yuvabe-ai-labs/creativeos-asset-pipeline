@@ -4,13 +4,14 @@ import { SYNTHETIC_LOGO_ID } from "@/lib/brand-kit/constants";
 
 // DELETE /api/clients/:id/brand-kit/assets/:assetId
 export async function DELETE(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string; assetId: string }> },
 ) {
   const { assetId } = await params;
   // `Promise<{ id; assetId }>` satisfies withClient's `Promise<{ id }>` structurally — no
   // cast needed; TypeScript accepts the extra property on a non-fresh type.
   return withClient(
+    req,
     params,
     async (clientId) =>
       withTryCatch("Could not remove the asset.", async () => {

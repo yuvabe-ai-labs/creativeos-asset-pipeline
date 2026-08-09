@@ -45,10 +45,10 @@ function defaultEmptyImageAnalysis(): TraceableBrandKB["image_analysis"] {
 // Re-runs AI extraction with the client's existing documents and images.
 // Creates a new KB version, sets it active, and resets kb_status to 'in_review'.
 export async function POST(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withClient(params, async (clientId) => {
+  return withClient(req, params, async (clientId) => {
     return withTryCatch("Re-extraction failed", async () => {
       const [docs, images] = await Promise.all([
         listKBDocuments(clientId),

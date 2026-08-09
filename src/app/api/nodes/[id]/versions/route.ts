@@ -6,10 +6,10 @@ import { apiOk, withNode } from "@/lib/api/route-helpers";
 // GET /api/nodes/:id/versions — return all generate versions + active pointer.
 // Powers the Prompt focus view's version history panel.
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withNode(params, async (nodeId, node) => {
+  return withNode(req, params, async (nodeId, node) => {
     const rows = await listVersions(nodeId);
     const creditsByVersion = await getCreditsChargedByVersionIds(rows.map((v) => v.id));
 

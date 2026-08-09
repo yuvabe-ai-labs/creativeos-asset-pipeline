@@ -1,6 +1,6 @@
 import { createServerSupabase } from "@/lib/supabase/server";
 import { fileKindForExt } from "@/lib/nodes/file-constants";
-import { apiError, apiOk } from "@/lib/api/route-helpers";
+import { apiError, apiOk, assertImpersonationWriteAllowed } from "@/lib/api/route-helpers";
 import { removeObject } from "@/lib/storage";
 import { publicUrlFor } from "@/lib/storage/gcs";
 import { resolveOwnership } from "@/lib/storage/ownership";
@@ -13,6 +13,9 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id: nodeId } = await params;
+
+  const blocked = await assertImpersonationWriteAllowed(req);
+  if (blocked) return blocked;
 
   const body = (await req.json().catch(() => null)) as {
     path?: string;

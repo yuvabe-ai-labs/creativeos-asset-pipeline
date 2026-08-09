@@ -9,10 +9,10 @@ import type { BrandAsset } from "@/lib/brand-kit/types";
 // The panel shows nothing useful without all three, so three round trips would only buy
 // three loading states.
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withClient(params, async (clientId, client) =>
+  return withClient(req, params, async (clientId, client) =>
     withTryCatch("Could not load the brand kit.", async () => {
       const [assets, details, colours] = await Promise.all([
         listBrandAssets(clientId),

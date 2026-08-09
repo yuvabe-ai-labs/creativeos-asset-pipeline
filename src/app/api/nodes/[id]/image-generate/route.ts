@@ -40,7 +40,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withNode(params, async (nodeId, _node, caller, clientId) => {
+  return withNode(req, params, async (nodeId, _node, caller, clientId, effectiveOrgId) => {
     const body = (await req.json().catch(() => null)) as
       | {
           modelId?: unknown;
@@ -255,7 +255,7 @@ export async function POST(
     // Join the shared generations substrate (D26) — image is the synchronous fast path.
     const generation = await insertGeneration({
       nodeId,
-      orgId: caller.orgId,
+      orgId: effectiveOrgId,
       clientId,
       userId: caller.userId,
       userEmail: caller.email,
@@ -278,7 +278,7 @@ export async function POST(
       }
 
       const estimatedCredits = usdToFinalCredits(costUsd);
-      const reservation = await reserveCredits(caller.orgId, generation.id, estimatedCredits);
+      const reservation = await reserveCredits(effectiveOrgId, generation.id, estimatedCredits);
       if (!reservation.ok) {
         throw new CreditLimitError("Monthly credit limit reached");
       }
@@ -330,7 +330,7 @@ export async function POST(
       // of 0 credits in that case, not a reason to skip settlement.
       const actualCredits = cost ? usdToFinalCredits(cost.usd) : 0;
       await settleGeneration({
-        orgId: caller.orgId,
+        orgId: effectiveOrgId,
         generationId: generation.id,
         actualAmount: actualCredits,
       });
@@ -359,7 +359,7 @@ export async function POST(
         error: message,
       }).catch(() => null);
       await failGeneration({ generationId: generation.id, error: message }).catch(() => null);
-      await refundReservation({ orgId: caller.orgId, generationId: generation.id }).catch(() => null);
+      await refundReservation({ orgId: effectiveOrgId, generationId: generation.id }).catch(() => null);
       const status = e instanceof CreditLimitError ? 402 : 500;
       return apiError(message, status);
     }

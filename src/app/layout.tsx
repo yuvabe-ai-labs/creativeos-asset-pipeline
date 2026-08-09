@@ -4,6 +4,7 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { HeaderBrand } from "@/components/layout/header-brand";
 import { HeaderActions } from "@/components/layout/header-actions";
+import { ImpersonationBanner } from "@/components/layout/impersonation-banner";
 
 // Yuvabe brand fonts (ref/Yuvabe Studios Design System). Two families only.
 const clash = localFont({
@@ -35,7 +36,7 @@ export const metadata: Metadata = {
   description: "Canvas-based asset generation for reel production",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
@@ -46,6 +47,7 @@ export default function RootLayout({
       className={`${clash.variable} ${gilroy.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
+        <ImpersonationBanner />
         <header className="sticky top-0 z-40 flex h-16 shrink-0 items-center justify-between border-b border-border/80 bg-background/80 px-6 backdrop-blur-md">
           <HeaderBrand />
           <HeaderActions />

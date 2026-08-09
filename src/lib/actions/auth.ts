@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { createSSRServerClient } from "@/lib/supabase/ssr-server";
 import { LoginSchema } from "@/lib/auth/login-schema";
+import { endImpersonation } from "@/lib/auth/impersonation";
 
 export type AuthActionState = { error?: string } | undefined;
 
@@ -38,4 +39,5 @@ export async function loginAction(
 export async function logoutAction(): Promise<void> {
   const supabase = await createSSRServerClient();
   await supabase.auth.signOut();
+  await endImpersonation();
 }

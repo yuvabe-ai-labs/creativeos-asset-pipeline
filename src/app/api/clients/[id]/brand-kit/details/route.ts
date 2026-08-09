@@ -13,7 +13,7 @@ export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withClient(params, async (clientId) =>
+  return withClient(req, params, async (clientId) =>
     withTryCatch("Could not save the detail.", async () => {
       const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
       if (!body || typeof body !== "object") {
