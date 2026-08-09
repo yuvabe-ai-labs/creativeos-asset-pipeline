@@ -101,6 +101,7 @@ describe("resolveImpersonationState", () => {
     cookieStore.get.mockReturnValue({ value: validCookieValue() });
     vi.mocked(resolveCallerContextOrNull).mockResolvedValueOnce({
       userId: "op-1",
+      email: "op-1@yuvabe.com",
       platformRole: "member",
       orgId: "yuvabe-org",
       orgRole: "owner",

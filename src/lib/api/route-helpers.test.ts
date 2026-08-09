@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 vi.mock("server-only", () => ({}));
 
@@ -20,7 +20,9 @@ vi.mock("@/lib/dal", () => ({
 // declared via vi.hoisted() to avoid a TDZ ReferenceError at import time (same pattern
 // as src/lib/auth/impersonation.test.ts).
 const { resolveImpersonationStateMock, logMock } = vi.hoisted(() => ({
-  resolveImpersonationStateMock: vi.fn(async () => ({ isImpersonating: false }) as const),
+  resolveImpersonationStateMock: vi.fn(async (): Promise<
+    { isImpersonating: false } | { isImpersonating: true; operatorId: string; targetOrgId: string; elevated: boolean }
+  > => ({ isImpersonating: false })),
   logMock: vi.fn(async () => undefined),
 }));
 vi.mock("@/lib/auth/impersonation", () => ({
@@ -44,7 +46,7 @@ describe("withClient write-gating", () => {
 
   it("allows GET when not impersonating", async () => {
     resolveImpersonationStateMock.mockResolvedValue({ isImpersonating: false });
-    const handler = vi.fn(async () => new Response(null, { status: 200 }));
+    const handler = vi.fn(async () => NextResponse.json(null, { status: 200 }));
     const res = await withClient(req("GET"), params, handler);
     expect(res.status).toBe(200);
     expect(handler).toHaveBeenCalled();
@@ -52,7 +54,7 @@ describe("withClient write-gating", () => {
 
   it("allows POST when not impersonating", async () => {
     resolveImpersonationStateMock.mockResolvedValue({ isImpersonating: false });
-    const handler = vi.fn(async () => new Response(null, { status: 200 }));
+    const handler = vi.fn(async () => NextResponse.json(null, { status: 200 }));
     const res = await withClient(req("POST"), params, handler);
     expect(res.status).toBe(200);
     expect(handler).toHaveBeenCalled();
@@ -62,7 +64,7 @@ describe("withClient write-gating", () => {
     resolveImpersonationStateMock.mockResolvedValue({
       isImpersonating: true, operatorId: "op-1", targetOrgId: "org-1", elevated: false,
     });
-    const handler = vi.fn(async () => new Response(null, { status: 200 }));
+    const handler = vi.fn(async () => NextResponse.json(null, { status: 200 }));
     const res = await withClient(req("POST"), params, handler);
     expect(res.status).toBe(403);
     expect(handler).not.toHaveBeenCalled();
@@ -72,7 +74,7 @@ describe("withClient write-gating", () => {
     resolveImpersonationStateMock.mockResolvedValue({
       isImpersonating: true, operatorId: "op-1", targetOrgId: "org-1", elevated: false,
     });
-    const handler = vi.fn(async () => new Response(null, { status: 200 }));
+    const handler = vi.fn(async () => NextResponse.json(null, { status: 200 }));
     const res = await withClient(req("GET"), params, handler);
     expect(res.status).toBe(200);
     expect(handler).toHaveBeenCalled();
@@ -82,7 +84,7 @@ describe("withClient write-gating", () => {
     resolveImpersonationStateMock.mockResolvedValue({
       isImpersonating: true, operatorId: "op-1", targetOrgId: "org-1", elevated: true,
     });
-    const handler = vi.fn(async () => new Response(null, { status: 200 }));
+    const handler = vi.fn(async () => NextResponse.json(null, { status: 200 }));
     const res = await withClient(req("POST"), params, handler);
     expect(res.status).toBe(200);
     expect(handler).toHaveBeenCalled();
@@ -98,7 +100,7 @@ describe("withClient write-gating", () => {
     resolveImpersonationStateMock.mockResolvedValue({
       isImpersonating: true, operatorId: "op-1", targetOrgId: "org-1", elevated: false,
     });
-    await withClient(req("POST"), params, vi.fn(async () => new Response(null, { status: 200 })));
+    await withClient(req("POST"), params, vi.fn(async () => NextResponse.json(null, { status: 200 })));
     expect(logMock).not.toHaveBeenCalled();
   });
 });

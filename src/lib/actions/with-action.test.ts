@@ -3,7 +3,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 vi.mock("server-only", () => ({}));
 
 const { resolveImpersonationStateMock, logMock } = vi.hoisted(() => ({
-  resolveImpersonationStateMock: vi.fn(async () => ({ isImpersonating: false }) as const),
+  resolveImpersonationStateMock: vi.fn(async (): Promise<
+    { isImpersonating: false } | { isImpersonating: true; operatorId: string; targetOrgId: string; elevated: boolean }
+  > => ({ isImpersonating: false })),
   logMock: vi.fn(async () => undefined),
 }));
 vi.mock("@/lib/auth/impersonation", () => ({

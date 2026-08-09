@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-const insertMock = vi.fn(async () => ({ error: null }));
+const insertMock = vi.fn(async (): Promise<{ error: { message: string } | null }> => ({ error: null }));
 vi.mock("@/lib/supabase/server", () => ({
   createServerSupabase: vi.fn(() => ({
     from: () => ({ insert: insertMock }),
