@@ -30,7 +30,7 @@ export async function loginAction(
   redirect("/");
 }
 
-// No redirect() here on purpose — the caller (identity-chip.tsx) does a hard
+// No redirect() here on purpose — the caller (profile-popover.tsx) does a hard
 // window.location navigation after this resolves, specifically to force a full page
 // reload. A Server Action's own redirect() is a soft, client-side transition that leaves
 // every module-level client cache (useIdentity's included) intact across sign-out, which

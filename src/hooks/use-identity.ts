@@ -6,8 +6,8 @@ import type { Identity } from "@/lib/identity";
 import type { OrgRole, PlatformRole } from "@/lib/dal-logic";
 import { authFetch } from "@/lib/supabase/session-ready";
 
-// Module-level cache + in-flight dedup: multiple components call this hook (the identity
-// chip, admin nav link, header brand, plus prompt/image-gen/video-prompt focus views), and
+// Module-level cache + in-flight dedup: multiple components call this hook (the profile
+// popover, admin nav link, plus prompt/image-gen/video-prompt focus views), and
 // any of them can mount/remount independently. Without this, each mount fires its own
 // /api/me request — observed firing dozens of times per canvas session.
 //
@@ -39,7 +39,7 @@ let cachedMonthlyCreditLimit: number | null = null;
 let cachedHydrated = false;
 let inFlightFetch: Promise<FetchResult> | null = null;
 
-// Call this at the moment sign-out happens (see identity-chip.tsx), client-side, before/as
+// Call this at the moment sign-out happens (see profile-popover.tsx), client-side, before/as
 // the redirect fires. Without it, a subsequent sign-in as a different account in the same
 // tab sees cachedHydrated still true and silently reuses the previous account's identity —
 // see the module comment above.
@@ -136,16 +136,17 @@ export function useIdentity(): {
   const pathname = usePathname();
 
   useEffect(() => {
-    // HeaderBrand renders (and calls this hook) on /login AND /account/password too.
-    // /login: there's no session to check yet. /account/password: proxy.ts actively
-    // 403s /api/me for a user who still owes a password change (it's an /api path, not
-    // under /account/password's own exclusion) — so fetching here wouldn't just be
-    // premature, it would DETERMINISTICALLY get blocked and cache a false "logged out"
-    // result at module scope. Either way, changePasswordAction's/loginAction's
-    // redirect("/") is a soft navigation (no full page reload), so that stale cache
-    // would survive it and every consumer would show "no identity" until a hard refresh
-    // cleared the module. Skipping the fetch on both pages means the first real fetch
-    // happens once pathname actually changes away from them.
+    // ProfilePopover (rendered from HeaderActions, which itself skips /login) calls this
+    // hook on every other page, including /account/password. /login: there's no session to
+    // check yet, and nothing renders there to call this hook anyway. /account/password:
+    // proxy.ts actively 403s /api/me for a user who still owes a password change (it's an
+    // /api path, not under /account/password's own exclusion) — so fetching here wouldn't
+    // just be premature, it would DETERMINISTICALLY get blocked and cache a false "logged
+    // out" result at module scope. Either way, changePasswordAction's/loginAction's
+    // redirect("/") is a soft navigation (no full page reload), so that stale cache would
+    // survive it and every consumer would show "no identity" until a hard refresh cleared
+    // the module. Skipping the fetch on both pages means the first real fetch happens once
+    // pathname actually changes away from them.
     if (pathname === "/login" || pathname === "/account/password") return;
     if (cachedHydrated) {
       // Already resolved by an earlier mount — sync immediately, no new fetch.

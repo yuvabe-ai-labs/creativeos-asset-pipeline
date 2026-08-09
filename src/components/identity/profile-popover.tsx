@@ -1,7 +1,7 @@
 "use client";
 
 import type { FormEvent } from "react";
-import { Building2, LogOut } from "lucide-react";
+import { Building2, LogOut, UserRound } from "lucide-react";
 import { useIdentity, resetIdentityCache } from "@/hooks/use-identity";
 import { logoutAction } from "@/lib/actions/auth";
 import { initials } from "@/lib/format/initials";
@@ -21,7 +21,7 @@ const ROLE_LABELS: Record<OrgRole, string> = {
 // sign out all live in one avatar-triggered popover now. See
 // docs/superpowers/specs/2026-08-09-profile-popover-header-design.md.
 export function ProfilePopover() {
-  const { identity, hydrated, orgName, orgRole, creditsUsed } = useIdentity();
+  const { identity, orgName, orgRole, creditsUsed } = useIdentity();
 
   // A Server Action's redirect() is a soft, client-side transition — it would leave every
   // module-level client cache (useIdentity's included) intact across sign-out, which was
@@ -37,8 +37,6 @@ export function ProfilePopover() {
     window.location.href = "/login";
   }
 
-  if (!hydrated || !identity) return null;
-
   return (
     <Popover>
       <PopoverTrigger
@@ -47,26 +45,34 @@ export function ProfilePopover() {
             variant="ghost"
             size="icon"
             aria-label="Account menu"
-            className="rounded-full bg-primary/10 text-xs font-medium text-primary transition-all duration-200 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] hover:bg-primary/10 hover:text-primary hover:ring-1 hover:ring-primary/40"
+            className="rounded-full bg-primary/10 text-xs font-medium text-primary transition-all duration-200 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] hover:bg-primary/10 hover:text-primary aria-expanded:bg-primary/10 aria-expanded:text-primary hover:ring-1 hover:ring-primary/40 dark:hover:bg-primary/10"
           >
-            {initials(identity.name)}
+            {identity ? (
+              initials(identity.name)
+            ) : (
+              <UserRound className="size-3.5" strokeWidth={1.5} />
+            )}
           </Button>
         }
       />
-      <PopoverContent align="end" className="w-64 p-1">
-        <div className="flex flex-col gap-0.5 px-2 py-1">
-          <span className="text-sm font-medium text-foreground">{identity.name}</span>
-          {orgRole && (
-            <span className="text-xs text-muted-foreground">{ROLE_LABELS[orgRole]}</span>
-          )}
-        </div>
-        {creditsUsed !== null && (
+      <PopoverContent align="end" className="w-64 gap-0 p-1">
+        {identity && (
           <>
+            <div className="flex flex-col gap-0.5 px-2 py-1">
+              <span className="text-sm font-medium text-foreground">{identity.name}</span>
+              {orgRole && (
+                <span className="text-xs text-muted-foreground">{ROLE_LABELS[orgRole]}</span>
+              )}
+            </div>
             <div className="h-px bg-border" aria-hidden="true" />
-            <ProfileCredits />
           </>
         )}
-        <div className="h-px bg-border" aria-hidden="true" />
+        {creditsUsed !== null && (
+          <>
+            <ProfileCredits />
+            <div className="h-px bg-border" aria-hidden="true" />
+          </>
+        )}
         <div className="flex flex-col gap-1 px-2 py-1">
           <div className="flex items-center gap-1.5">
             <Building2 className="size-3.5 text-muted-foreground" strokeWidth={1.5} />
@@ -80,7 +86,7 @@ export function ProfilePopover() {
             type="submit"
             variant="ghost"
             size="sm"
-            className="w-full justify-start gap-2 px-2 text-destructive hover:text-destructive"
+            className="w-full justify-start gap-2 px-2 text-sm text-destructive hover:bg-destructive/5 hover:text-destructive"
           >
             <LogOut className="size-3.5" strokeWidth={1.5} />
             Sign out
