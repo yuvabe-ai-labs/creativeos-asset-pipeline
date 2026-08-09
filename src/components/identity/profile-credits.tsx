@@ -75,35 +75,34 @@ export function ProfileCredits() {
       : null;
 
   return (
-    <div className="flex flex-col gap-1.5 px-2 py-1.5">
-      <div className="flex items-center gap-1.5">
-        <span
+    <div className="flex flex-col gap-2 px-4 py-3.5">
+      <div className="flex items-center gap-2">
+        <Zap
           className={cn(
-            "flex size-4 shrink-0 items-center justify-center rounded-full",
-            over ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" : "bg-primary/10 text-primary",
+            "size-4 shrink-0",
+            over ? "text-amber-600 dark:text-amber-400" : "text-primary",
           )}
-        >
-          <Zap className="size-2.5" strokeWidth={1.5} />
-        </span>
+          strokeWidth={1.5}
+        />
         <span className="text-eyebrow">Credits</span>
       </div>
-      <div className="flex items-baseline gap-1">
+      <div className="flex items-baseline gap-1.5">
         <span
           className={cn(
-            "font-display text-lg leading-none font-semibold tracking-tight",
+            "font-display text-xl leading-none font-semibold tracking-tight",
             over ? "text-amber-600 dark:text-amber-400" : "text-foreground",
           )}
         >
           {used.toLocaleString()}
         </span>
         {monthlyCreditLimit !== null && (
-          <span className="text-xs leading-none text-muted-foreground">
+          <span className="text-sm leading-none text-muted-foreground">
             / {monthlyCreditLimit.toLocaleString()}
           </span>
         )}
       </div>
       {fillPct !== null && (
-        <div className="h-1 w-full overflow-hidden rounded-full bg-muted">
+        <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
           <div
             className={cn(
               "h-full rounded-full transition-[width] duration-500",

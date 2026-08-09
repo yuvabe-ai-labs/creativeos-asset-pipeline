@@ -45,24 +45,34 @@ export function ProfilePopover() {
             variant="ghost"
             size="icon"
             aria-label="Account menu"
-            className="rounded-full bg-primary/10 text-xs font-medium text-primary transition-all duration-200 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] hover:bg-primary/10 hover:text-primary aria-expanded:bg-primary/10 aria-expanded:text-primary hover:ring-1 hover:ring-primary/40 dark:hover:bg-primary/10"
+            className="size-9 rounded-full bg-primary/10 text-sm font-medium text-primary transition-all duration-200 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] hover:bg-primary/10 hover:text-primary aria-expanded:bg-primary/10 aria-expanded:text-primary hover:ring-1 hover:ring-primary/40 dark:hover:bg-primary/10"
           >
             {identity ? (
               initials(identity.name)
             ) : (
-              <UserRound className="size-3.5" strokeWidth={1.5} />
+              <UserRound className="size-4" strokeWidth={1.5} />
             )}
           </Button>
         }
       />
-      <PopoverContent align="end" className="w-64 gap-0 p-1">
+      <PopoverContent
+        align="end"
+        className="w-72 gap-0 overflow-hidden rounded-xl p-0"
+      >
         {identity && (
           <>
-            <div className="flex flex-col gap-0.5 px-2 py-1">
-              <span className="text-sm font-medium text-foreground">{identity.name}</span>
-              {orgRole && (
-                <span className="text-xs text-muted-foreground">{ROLE_LABELS[orgRole]}</span>
-              )}
+            <div className="flex items-center gap-3 px-4 py-3.5">
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-medium text-primary">
+                {initials(identity.name)}
+              </span>
+              <div className="flex min-w-0 flex-col">
+                <span className="truncate text-base font-semibold text-foreground">
+                  {identity.name}
+                </span>
+                {orgRole && (
+                  <span className="text-sm text-muted-foreground">{ROLE_LABELS[orgRole]}</span>
+                )}
+              </div>
             </div>
             <div className="h-px bg-border" aria-hidden="true" />
           </>
@@ -73,23 +83,22 @@ export function ProfilePopover() {
             <div className="h-px bg-border" aria-hidden="true" />
           </>
         )}
-        <div className="flex flex-col gap-1 px-2 py-1">
-          <div className="flex items-center gap-1.5">
-            <Building2 className="size-3.5 text-muted-foreground" strokeWidth={1.5} />
+        <div className="flex flex-col gap-2 px-4 py-3.5">
+          <div className="flex items-center gap-2">
+            <Building2 className="size-4 text-primary" strokeWidth={1.5} />
             <span className="text-eyebrow">Workspace</span>
           </div>
-          <span className="text-sm font-medium text-foreground">{orgName ?? "—"}</span>
+          <span className="text-base font-medium text-foreground">{orgName ?? "—"}</span>
         </div>
         <div className="h-px bg-border" aria-hidden="true" />
         <form onSubmit={handleSignOut}>
           <Button
             type="submit"
             variant="ghost"
-            size="sm"
-            className="w-full justify-start gap-2 px-2 text-sm text-destructive hover:bg-destructive/5 hover:text-destructive"
+            className="h-auto w-full justify-start gap-2 rounded-none px-4 py-3.5 text-base font-medium text-destructive hover:bg-destructive/5 hover:text-destructive"
           >
-            <LogOut className="size-3.5" strokeWidth={1.5} />
-            Sign out
+            <LogOut className="size-4" strokeWidth={1.5} />
+            Sign Out
           </Button>
         </form>
       </PopoverContent>

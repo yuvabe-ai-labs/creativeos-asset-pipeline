@@ -62,12 +62,12 @@ export function CanvasCostChip({ canvasId }: { canvasId: string }) {
   return (
     <div className="flex items-center gap-2">
       <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-        <Zap className="size-3" strokeWidth={1.5} />
+        <Zap className="size-3.5" strokeWidth={1.5} />
       </span>
-      <span className="font-display text-sm font-semibold tabular-nums text-foreground">
+      <span className="font-display text-base leading-none font-semibold tabular-nums text-foreground">
         {canvasCostCredits.toLocaleString()}
       </span>
-      <span className="text-xs text-muted-foreground">Canvas Consumption</span>
+      <span className="text-sm leading-none text-muted-foreground">Canvas Consumption</span>
     </div>
   );
 }
