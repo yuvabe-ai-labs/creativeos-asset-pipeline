@@ -10,7 +10,7 @@ import type { RealtimeChannel, RealtimePostgresChangesPayload } from "@supabase/
 type CreditTransactionRow = { amount: number };
 
 /**
- * Live "used this month" figure next to the agency name. Hydrates from useIdentity()'s
+ * Org's "used this month" figure, shown inside ProfilePopover. Hydrates from useIdentity()'s
  * cached /api/me fetch, then stays current via a Realtime subscription on new
  * credit_transactions rows. Uses an EXPLICIT `org_id` filter (not RLS alone) — an initial
  * RLS-only subscription (relying purely on the "org isolation" select policy, migration
@@ -22,7 +22,7 @@ type CreditTransactionRow = { amount: number };
  * left open across the UTC month rollover can read stale until the next full page load —
  * accepted, not engineered around (see plan's Global Constraints).
  */
-export function HeaderCredits() {
+export function ProfileCredits() {
   const { hydrated, orgId, creditsUsed, monthlyCreditLimit } = useIdentity();
   const [liveDelta, setLiveDelta] = useState(0);
 
@@ -43,7 +43,7 @@ export function HeaderCredits() {
     void supabase.auth.getSession().then(() => {
       if (cancelled) return;
       channel = supabase
-        .channel(`header-credits:${orgId}`)
+        .channel(`profile-credits:${orgId}`)
         .on(
           "postgres_changes",
           {
@@ -75,43 +75,44 @@ export function HeaderCredits() {
       : null;
 
   return (
-    <div className="flex w-[200px] items-center gap-2.5 rounded-2xl border border-border bg-card py-2 pl-2.5 pr-3 ">
-      <span
-        className={cn(
-          "flex size-7 shrink-0 items-center justify-center rounded-full",
-          over ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" : "bg-primary/10 text-primary",
-        )}
-      >
-        <Zap className="size-3.5" strokeWidth={1.5} />
-      </span>
-      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-        <div className="flex items-baseline gap-1">
-          <span
-            className={cn(
-              "font-display text-lg leading-none font-semibold tracking-tight",
-              over ? "text-amber-600 dark:text-amber-400" : "text-foreground",
-            )}
-          >
-            {used.toLocaleString()}
-          </span>
-          {monthlyCreditLimit !== null && (
-            <span className="text-xs leading-none text-muted-foreground">
-              / {monthlyCreditLimit.toLocaleString()}
-            </span>
+    <div className="flex flex-col gap-1.5 px-2 py-1.5">
+      <div className="flex items-center gap-1.5">
+        <span
+          className={cn(
+            "flex size-4 shrink-0 items-center justify-center rounded-full",
+            over ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" : "bg-primary/10 text-primary",
           )}
-        </div>
-        {fillPct !== null && (
-          <div className="h-1 w-full overflow-hidden rounded-full bg-muted">
-            <div
-              className={cn(
-                "h-full rounded-full transition-[width] duration-500",
-                over ? "bg-amber-500" : "bg-primary",
-              )}
-              style={{ width: `${over ? 100 : fillPct}%` }}
-            />
-          </div>
+        >
+          <Zap className="size-2.5" strokeWidth={1.5} />
+        </span>
+        <span className="text-eyebrow">Credits</span>
+      </div>
+      <div className="flex items-baseline gap-1">
+        <span
+          className={cn(
+            "font-display text-lg leading-none font-semibold tracking-tight",
+            over ? "text-amber-600 dark:text-amber-400" : "text-foreground",
+          )}
+        >
+          {used.toLocaleString()}
+        </span>
+        {monthlyCreditLimit !== null && (
+          <span className="text-xs leading-none text-muted-foreground">
+            / {monthlyCreditLimit.toLocaleString()}
+          </span>
         )}
       </div>
+      {fillPct !== null && (
+        <div className="h-1 w-full overflow-hidden rounded-full bg-muted">
+          <div
+            className={cn(
+              "h-full rounded-full transition-[width] duration-500",
+              over ? "bg-amber-500" : "bg-primary",
+            )}
+            style={{ width: `${over ? 100 : fillPct}%` }}
+          />
+        </div>
+      )}
     </div>
   );
 }
