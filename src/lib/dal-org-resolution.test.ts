@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 vi.mock("server-only", () => ({}));
 
@@ -55,4 +57,39 @@ describe("page-level org resolution uses resolveOrgId(), not caller.orgId", () =
     const { resolveOrgId } = await import("@/lib/dal");
     await expect(resolveOrgId()).resolves.toBe("target-org");
   });
+});
+
+// Strips `//` line comments before the caller.orgId check below, so a file's own
+// explanatory prose (e.g. eval/[canvasId]/page.tsx's "Uses resolveOrgId() (not
+// caller.orgId) for consistency..." comment) can't produce a false positive — the
+// check cares about actual usage, not the string appearing in a comment about why it
+// was deliberately avoided.
+function stripLineComments(source: string): string {
+  // [^\r\n]* (not `.*` anchored on `$`) so this also works on CRLF line endings —
+  // `.` excludes line terminators, so a trailing \r before \n stops `.*$` from ever
+  // reaching the anchor and silently no-ops the strip.
+  return source.replace(/\/\/[^\r\n]*/g, "");
+}
+
+describe("every org-scoped page resolves its org via resolveOrgId(), not caller.orgId", () => {
+  const pageFiles = [
+    "src/app/page.tsx",
+    "src/app/clients/[id]/page.tsx",
+    "src/app/clients/[id]/kb/page.tsx",
+    "src/app/clients/[id]/canvases/[cid]/page.tsx",
+    "src/app/eval/[canvasId]/page.tsx",
+  ];
+
+  for (const relPath of pageFiles) {
+    it(`${relPath} calls resolveOrgId(), not caller.orgId, for org scoping`, () => {
+      const source = readFileSync(join(process.cwd(), relPath), "utf8");
+      expect(source).toContain("resolveOrgId()");
+      // A page using caller.orgId for org-scoping (not some other field) is exactly
+      // the C1 regression — this substring check is deliberately blunt, matching the
+      // action-coverage test's own philosophy: cheap, source-level, and it fails loudly
+      // the moment the wiring reverts, regardless of whether resolveOrgId() itself
+      // still works correctly in isolation.
+      expect(stripLineComments(source)).not.toMatch(/caller\.orgId/);
+    });
+  }
 });
