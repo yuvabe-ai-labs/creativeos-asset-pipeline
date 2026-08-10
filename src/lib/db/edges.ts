@@ -2,27 +2,12 @@ import "server-only";
 import { createServerSupabase } from "@/lib/supabase/server";
 import type { Edge } from "@xyflow/react";
 import { chunkIds, planReconcile } from "./reconcile";
+import { edgeRowToFlow, flowEdgeToRow, type EdgeRow } from "./edge-rows";
 
-type EdgeRow = {
-  id: string;
-  canvas_id: string;
-  source_node_id: string;
-  target_node_id: string;
-  source_handle: string | null;
-  target_handle: string | null;
-  created_at: string;
-};
-
-// Convert DB row to React Flow Edge format
-function edgeRowToFlow(row: EdgeRow): Edge {
-  return {
-    id: row.id,
-    source: row.source_node_id,
-    target: row.target_node_id,
-    sourceHandle: row.source_handle ?? undefined,
-    targetHandle: row.target_handle ?? undefined,
-  };
-}
+// The row<->Edge conversion lives in ./edge-rows so there is exactly one definition of it.
+// It used to be inlined here AND hand-written a third time in /api/nodes/duplicate-batch,
+// where it was written with React Flow's field names instead of the column names — which
+// failed every batch duplicate of a selection containing an edge.
 
 export async function listEdges(canvasId: string): Promise<Edge[]> {
   const supabase = createServerSupabase();
@@ -44,14 +29,7 @@ export async function saveCanvasEdges(
   const supabase = createServerSupabase();
 
   if (edges.length > 0) {
-    const rows = edges.map((e) => ({
-      id: e.id,
-      canvas_id: canvasId,
-      source_node_id: e.source,
-      target_node_id: e.target,
-      source_handle: e.sourceHandle ?? null,
-      target_handle: e.targetHandle ?? null,
-    }));
+    const rows = edges.map((e) => flowEdgeToRow(canvasId, e));
     const { error } = await supabase.from("edges").upsert(rows);
     if (error) throw error;
   }

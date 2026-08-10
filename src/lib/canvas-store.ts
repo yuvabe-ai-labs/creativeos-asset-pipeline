@@ -219,10 +219,16 @@ export function createCanvasStore(
       const node = get().nodes.find((n) => n.id === id);
       if (!node || node.type === "kb") return;
 
+      // Duplication is a network round-trip (the node, then its active version), so
+      // the canvas stays unchanged until it resolves. Without a pending toast there is
+      // no feedback at all and the operator cannot tell the action registered.
+      const toastId = toast.loading("Duplicating node…");
+
       try {
         const res = await fetch(`/api/nodes/${id}/duplicate`, { method: "POST" });
         if (!res.ok) {
           console.error("Duplicate node failed:", await res.text());
+          toast.error("Couldn't duplicate node", { id: toastId });
           return;
         }
         const { node: newNode } = await res.json() as { node: { id: string; position: { x: number; y: number }; type: string; data: Record<string, unknown>; active_version_id: string | null } };
@@ -258,8 +264,11 @@ export function createCanvasStore(
           ],
           edges: [...get().edges, ...clonedEdges],
         });
+
+        toast.success("Node duplicated", { id: toastId });
       } catch (err) {
         console.error("Duplicate node error:", err);
+        toast.error("Couldn't duplicate node", { id: toastId });
       }
     },
     duplicateNodes: async (ids, canvasId) => {
@@ -274,6 +283,12 @@ export function createCanvasStore(
         return get().duplicateNode(eligible[0]);
       }
       if (eligible.length === 0) return;
+
+      // Batch duplication does strictly more work than the single-node path (nodes,
+      // their versions, then the remapped internal edges), so the wait is longer and
+      // the need for pending feedback correspondingly greater. The single-node fast
+      // path above returns first, so it raises its own toast and never double-reports.
+      const toastId = toast.loading(`Duplicating ${eligible.length} nodes…`);
 
       // Resolve internal edges: both source and target must be in the selection
       const eligibleSet = new Set(eligible);
@@ -290,20 +305,22 @@ export function createCanvasStore(
 
         if (!res.ok) {
           console.error("Batch duplicate failed:", await res.text());
-          toast.error("Couldn't duplicate nodes");
+          toast.error("Couldn't duplicate nodes", { id: toastId });
           return;
         }
 
         const { nodes: newNodes, edges: newEdges } = (await res.json()) as {
-          nodes: { id: string; position: { x: number; y: number }; type: string; data: Record<string, unknown>; active_version_id: string | null }[];
+          nodes: { id: string; position: { x: number; y: number }; type: string; data: Record<string, unknown>; active_version_id: string | null; sourceId?: string }[];
           edges: { id: string; source: string; target: string }[];
         };
 
-        // Zip new nodes with source nodes by index (server preserves insertion order)
+        // Pair each duplicate with the node it came from by the id the SERVER reports, not by
+        // array position. Position only matched by luck: the server resolves its sources with
+        // `.in("id", ...)`, which Postgres is free to return in any order, and a mismatch
+        // spread the wrong source over the duplicate — including its `type`.
         const sourceById = new Map(get().nodes.map((n) => [n.id, n]));
-        const newAppNodes = newNodes.map((newNode, i) => {
-          const sourceId = eligible[i];
-          const source = sourceById.get(sourceId);
+        const newAppNodes = newNodes.map((newNode) => {
+          const source = newNode.sourceId ? sourceById.get(newNode.sourceId) : undefined;
           const data = { ...(source?.data as Record<string, unknown> ?? {}), ...(newNode.data as Record<string, unknown>) };
           return {
             ...(source as Partial<AppNode> ?? {}),
@@ -325,9 +342,13 @@ export function createCanvasStore(
             ...newEdges.map((e) => ({ ...e })) as Edge[],
           ],
         });
+
+        // Report what the server actually created, not what was requested — the route
+        // skips ineligible rows, so the two can differ.
+        toast.success(`${newAppNodes.length} nodes duplicated`, { id: toastId });
       } catch (err) {
         console.error("Batch duplicate error:", err);
-        toast.error("Couldn't duplicate nodes");
+        toast.error("Couldn't duplicate nodes", { id: toastId });
       }
     },
     // Materialize each shot of a parsed Script into its own Shot node (seed-and-fork,
