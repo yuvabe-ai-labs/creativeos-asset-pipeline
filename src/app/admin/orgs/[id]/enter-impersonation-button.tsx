@@ -60,7 +60,7 @@ export function EnterImpersonationButton({
           <AlertDialogDescription>
             You&rsquo;ll see CreativeOS exactly as {orgName} sees it, using their
             data. You&rsquo;ll be read-only — you can look around but not change
-            anything. This session is recorded in the audit log.
+            anything.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

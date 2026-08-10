@@ -1,6 +1,7 @@
 "use client";
 
 import { createBrowserSupabase } from "@/lib/supabase/client";
+import { notifyIfReadOnlyBlocked } from "@/lib/auth/read-only-notice";
 
 // Supabase refresh tokens are single-use/rotating: whichever request refreshes an expired
 // one first invalidates it for everyone else. auth-js's own lock only serializes refresh
@@ -62,5 +63,10 @@ export function ensureFreshSession(): Promise<void> {
 // the exact race this exists to close if a new call site copies the pattern wrong).
 export async function authFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   await ensureFreshSession();
-  return fetch(input, init);
+  const res = await fetch(input, init);
+  // Surface an impersonation write-block here rather than leaving each call site to
+  // report it as its own generic failure. Reads and every other status fall straight
+  // through — this only inspects 403s.
+  await notifyIfReadOnlyBlocked(res);
+  return res;
 }

@@ -77,12 +77,9 @@ export function ImpersonationBannerActions({
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Enable editing for {orgName}?</AlertDialogTitle>
-              {/* States the one-way nature explicitly: there is deliberately no path
-                  back to read-only short of exiting (spec §2). */}
               <AlertDialogDescription>
                 You&rsquo;ll be able to create, edit and delete {orgName}&rsquo;s real
-                data. Every change is recorded against your account. To go back to
-                read-only you&rsquo;ll need to exit and re-enter.
+                data.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

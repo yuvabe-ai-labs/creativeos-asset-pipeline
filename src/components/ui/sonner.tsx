@@ -39,6 +39,10 @@ const Toaster = ({ ...props }: ToasterProps) => {
       toastOptions={{
         classNames: {
           toast: "cn-toast",
+          // Sonner's own default fades descriptions to near-invisible against our light
+          // popover surface. Pin them to the design system's metadata grey (neutral-500)
+          // at full opacity — a toast's second line is often the part that matters.
+          description: "!text-muted-foreground !opacity-100",
         },
       }}
       {...props}
