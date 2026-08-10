@@ -2502,6 +2502,40 @@ literal is de-duplicated).
 `revalidatePath` and a plain return — the contract change fails the suite rather than passing
 silently.
 
+### D141 — The impersonation audit view groups by session, counts autosaves instead of listing them, and reads generations from `generations` rather than the audit log *(recorded 2026-08-11; closes `2026-08-04-impersonation-stage4-design.md` §7's first out-of-scope item; originated in `2026-08-11-impersonation-audit-view-design.md`)*
+**Decision.** Surface `impersonation_audit_log` as a "Support activity" tab on
+`/admin/orgs/[id]`, grouped into sessions (`session_started` → `session_ended`). Within a
+session, `saveCanvasAction` rows are counted into a single "N canvas saves" line rather than
+listed; `write_action` rows pointing at a `/generate` endpoint are dropped entirely and replaced
+by the corresponding rows from the `generations` table, correlated at read time by timestamp
+window and operator id. No migration, no new columns, no change to the write path.
+**Why.** The table had been written since Stage 4 and read by nothing, so the trail could not
+answer the one question it existed for. But absence was only half the problem: `saveCanvasAction`
+is wrapped in `withAction`, so every autosave while elevated writes a row, and a short editing
+session emits dozens of identical entries that bury the one generation an operator cares about.
+A raw dump would have surfaced the noise, not the signal. Generations are the richer case:
+`generations.user_id` is already set from `caller.userId` — the real operator, not the
+impersonated org's user — while `effectiveOrgId` files the row under the customer's org, so a
+generation made during impersonation is already fully attributable with type, model, status and
+credits. Reading that instead of the gate's `{ method, path }` yields a strictly better record
+for free, which is why the write path needs no enrichment.
+**Rejected.** Filtering autosaves out entirely (loses the ability to tell an active editing
+session from a passive one, and the view would no longer reflect what happened). A raw
+chronological table with a type filter (most faithful, least code, but requires filtering on
+every visit to find anything — the noise problem restated as a user chore). Enriching the
+gate's logged `detail` so writes record which resource they touched (touches every gated route,
+and the generations correlation already covers the case that matters). A cross-org
+`/admin/audit` feed (reasonable next step, roughly double the work, and worse for investigating
+one customer). Keeping both the `write_action` row and the `generations` row for a generation —
+every generation would appear twice, once opaquely.
+**Refines.** D81 (what gets logged — unchanged), D101 (`withAction` — unchanged; this ADR only
+reinterprets its output), D139 (the elevated state's amber treatment is reused to mark sessions
+where editing was enabled).
+**Known gap.** Dropping the generate-endpoint `write_action` rows is the one place this view
+discards real audit data. It is confined to events for which a strictly richer record of the
+same action exists, and the rows remain in the table. Autosave timing is likewise not
+recoverable from the view, only from the table.
+
 ### D139 — Replacing a File node's attachment re-derives its title, unless the operator renamed it *(recorded 2026-08-10; originated in QA rows FIL_02/FIL_07, Linear YUV-272)*
 **Decision.** On replace, rewrite the node title from the new filename **only while the existing
 title is still the one we derived** — compared case- and whitespace-insensitively against the
