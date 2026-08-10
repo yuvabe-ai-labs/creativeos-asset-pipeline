@@ -7,8 +7,9 @@ import {
   AccordionTrigger,
   AccordionContent,
 } from "@/components/ui/accordion";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { initials } from "@/lib/format/initials";
-import { cn } from "@/lib/utils";
 import type { ImpersonationSession } from "@/lib/auth/impersonation-audit-view";
 import { SessionEntryRow } from "./session-entry-row";
 
@@ -42,47 +43,38 @@ function summarize(session: ImpersonationSession): string {
   return parts.length ? parts.join(" · ") : "No changes recorded";
 }
 
+// Every session is the same Card as the Overview tab's — the state signal lives in the
+// badge, never in the card's own surface. Tinting the card would be a large colour fill,
+// which the design system reserves for nothing at all.
 export function SessionCard({ session }: { session: ImpersonationSession }) {
   const StateIcon = session.elevated ? Unlock : Eye;
 
   return (
-    <div
-      className={cn(
-        "rounded-xl border bg-background shadow-card",
-        session.elevated ? "border-[#ffca2d]/40 bg-[#ffca2d]/5" : "border-border",
-      )}
-    >
+    <Card className="gap-0 py-0 shadow-card">
       <Accordion>
         <AccordionItem value={session.id}>
           <AccordionTrigger className="px-5 py-4">
             <div className="flex w-full items-center gap-3 text-left">
-              <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-neutral-900 text-[10px] font-semibold text-white">
+              <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-foreground text-[10px] font-semibold text-background">
                 {initials(session.operatorName)}
               </span>
               <div className="flex min-w-0 flex-col">
-                <span className="truncate font-semibold text-neutral-900">
+                <span className="truncate font-semibold text-foreground">
                   {session.operatorName}
                 </span>
-                <span className="truncate text-xs text-neutral-500">
+                <span className="truncate text-xs text-muted-foreground">
                   {summarize(session)}
                 </span>
               </div>
               <div className="ml-auto flex shrink-0 items-center gap-3">
-                <span className="text-sm text-neutral-500">
+                <span className="text-sm text-muted-foreground">
                   {formatDay(session.startedAt)}, {formatTime(session.startedAt)} ·{" "}
                   {durationLabel(session.startedAt, session.endedAt)}
                 </span>
-                <span
-                  className={cn(
-                    "text-eyebrow flex items-center gap-1.5 rounded-full px-2 py-1",
-                    session.elevated
-                      ? "bg-[#ffca2d]/20 text-neutral-900"
-                      : "bg-muted text-neutral-500",
-                  )}
-                >
-                  <StateIcon className="size-3" strokeWidth={1.5} />
+                <Badge variant={session.elevated ? "destructive" : "default"}>
+                  <StateIcon className="mr-1.5 size-3" strokeWidth={1.5} />
                   {session.elevated ? "Editing" : "Read-only"}
-                </span>
+                </Badge>
               </div>
             </div>
           </AccordionTrigger>
@@ -92,7 +84,7 @@ export function SessionCard({ session }: { session: ImpersonationSession }) {
                 <SessionEntryRow key={`${entry.kind}-${entry.at}-${i}`} entry={entry} />
               ))}
               {session.quietCount > 0 && (
-                <li className="flex items-baseline gap-3 py-1.5 text-sm text-neutral-400">
+                <li className="flex items-baseline gap-3 py-1.5 text-sm text-muted-foreground/70">
                   <span className="w-12 shrink-0" />
                   <span>
                     {session.quietCount} quiet writes (autosaves, upload handshakes)
@@ -101,16 +93,16 @@ export function SessionCard({ session }: { session: ImpersonationSession }) {
               )}
               {session.endedAt && (
                 <li className="flex items-baseline gap-3 py-1.5">
-                  <span className="w-12 shrink-0 font-mono text-xs tabular-nums text-neutral-500">
+                  <span className="w-12 shrink-0 font-mono text-xs tabular-nums text-muted-foreground">
                     {formatTime(session.endedAt)}
                   </span>
-                  <span className="text-sm text-neutral-500">Exited</span>
+                  <span className="text-sm text-muted-foreground">Exited</span>
                 </li>
               )}
             </ul>
           </AccordionContent>
         </AccordionItem>
       </Accordion>
-    </div>
+    </Card>
   );
 }

@@ -16,23 +16,23 @@ export function SessionEntryRow({ entry }: { entry: SessionEntry }) {
 
   return (
     <li className="flex items-baseline gap-3 py-1.5">
-      <span className="w-12 shrink-0 font-mono text-xs tabular-nums text-neutral-500">
+      <span className="w-12 shrink-0 font-mono text-xs tabular-nums text-muted-foreground">
         {timeOf(entry.at)}
       </span>
-      <Icon className="size-3.5 shrink-0 translate-y-0.5 text-neutral-400" strokeWidth={1.5} />
+      <Icon className="size-3.5 shrink-0 translate-y-0.5 text-muted-foreground/60" strokeWidth={1.5} />
       {entry.kind === "generation" ? (
-        <span className="flex flex-wrap items-baseline gap-x-2 text-sm text-neutral-900">
+        <span className="flex flex-wrap items-baseline gap-x-2 text-sm text-foreground">
           Generated {entry.genType}
-          {entry.model && <span className="text-neutral-500">· {entry.model}</span>}
+          {entry.model && <span className="text-muted-foreground">· {entry.model}</span>}
           {entry.credits !== null && (
-            <span className="text-neutral-500">· {entry.credits} credits</span>
+            <span className="text-muted-foreground">· {entry.credits} credits</span>
           )}
           {entry.status !== "succeeded" && (
             <span className="text-eyebrow text-destructive">{entry.status}</span>
           )}
         </span>
       ) : (
-        <span className="text-sm text-neutral-900">
+        <span className="text-sm text-foreground">
           {entry.kind === "elevated" ? "Enabled editing" : entry.label}
         </span>
       )}
