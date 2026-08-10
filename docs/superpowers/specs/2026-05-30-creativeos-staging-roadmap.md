@@ -2180,7 +2180,9 @@ questions, not a line item here).
 **Decision.** Replace the always-visible name pill + adjacent sign-out button (`IdentityChip`)
 and the org-name span in `HeaderBrand` with a single avatar-triggered popover (name, real role,
 credits with progress bar, workspace, sign out in red). The header's standalone credits pill
-(`HeaderCredits`) is removed from the bar and its content relocates into the popover. The canvas
+(`HeaderCredits`) is removed from the bar and its content relocates into the popover. The static
+"Yuvabe Studios" eyebrow beside the wordmark goes too — the popover's Workspace row is now the
+single answer to "which workspace am I in", so `HeaderBrand` reduces to the wordmark alone. The canvas
 page's per-canvas spend display (`CanvasCostChip`) becomes the bar's remaining glanceable stat
 chip, restyled with an icon and "Canvas Consumption" label. `/api/me` adds an additive
 `orgRole: OrgRole` field for display, separate from the existing collapsed `Identity.role`

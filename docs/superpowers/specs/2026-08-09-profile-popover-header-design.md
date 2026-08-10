@@ -81,11 +81,15 @@ A 3-entry label map (`owner → "Owner"`, `senior → "Senior"`, `designer → "
 inline in the popover component — single call site, so per this repo's "two call sites =
 extract, one = leave inline" rule it stays inline.
 
-## 5. `HeaderBrand` loses the org-name span *and* the credits pill
+## 5. `HeaderBrand` reduces to the wordmark alone
 
 Drop the org-name `<span>` + its divider (`showOrgName`) — same as the prior design. Also drop
 `<HeaderCredits />` from this component entirely (§1) — its content moves into the popover
-(§3), so `HeaderBrand` renders just the wordmark + "Yuvabe Studios" eyebrow. `showIdentity`
+(§3). Finally, drop the **static "Yuvabe Studios" eyebrow** too: with the workspace now named
+explicitly in the popover (§3.5), a second, always-visible agency name beside the wordmark
+answers the same question twice — and reads as *this canvas's* workspace when it isn't one
+(it's the platform operator's name, hardcoded). `HeaderBrand` ends up rendering only the
+`CreativeOS` wordmark link. `showIdentity`
 (the hydration + pathname gate) is no longer needed here once nothing downstream of it renders;
 remove it along with the now-unused `orgName`/credits-gating logic in this file. The
 `use-identity.ts` fields it currently reads (`orgName`, `creditsUsed`, `monthlyCreditLimit`)
@@ -129,7 +133,8 @@ matches the reference's left-to-right order.
 - **Edit:** `src/components/layout/header-actions.tsx` — swap `<IdentityChip />` for
   `<ProfilePopover />`.
 - **Edit:** `src/components/layout/header-brand.tsx` — remove the org-name span, `showOrgName`,
-  `showIdentity`, and `<HeaderCredits />` (§5).
+  `showIdentity`, `<HeaderCredits />`, and the static "Yuvabe Studios" eyebrow, leaving only the
+  wordmark link (§5).
 - **Edit:** `src/app/api/me/route.ts` — add `orgRole` to the response (§4).
 - **Edit:** `src/hooks/use-identity.ts` — add `orgRole` as a cached sibling field (§4).
 - **Edit:** `src/components/canvas/canvas-cost-chip.tsx` — restyle as a stat chip (§6).
