@@ -57,7 +57,13 @@ describe("acquireCanvasLockAction", () => {
 
     expect(acquireCanvasLockMock).not.toHaveBeenCalled();
     expect(getCanvasLockMock).toHaveBeenCalledWith("canvas-1");
-    expect(result).toEqual({ ok: false, heldBy: { name: "Real Customer User" } });
+    // `reason` distinguishes this from an ordinary "someone else holds it" denial, so
+    // the client can say why Take-over did nothing instead of failing silently.
+    expect(result).toEqual({
+      ok: false,
+      reason: "read-only",
+      heldBy: { name: "Real Customer User" },
+    });
   });
 
   it("does not acquire the lock while impersonating read-only when nobody currently holds it", async () => {
@@ -72,7 +78,11 @@ describe("acquireCanvasLockAction", () => {
     const result = await acquireCanvasLockAction("canvas-1", "session-1", "Operator");
 
     expect(acquireCanvasLockMock).not.toHaveBeenCalled();
-    expect(result).toEqual({ ok: false, heldBy: { name: null } });
+    expect(result).toEqual({
+      ok: false,
+      reason: "read-only",
+      heldBy: { name: null },
+    });
   });
 
   it("still acquires the lock normally when not impersonating", async () => {

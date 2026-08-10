@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useReducer, useRef } from "react";
+import { toast } from "sonner";
 import { useIdentity } from "./use-identity";
 import {
   lockReducer,
@@ -15,6 +16,7 @@ import {
   getCanvasLockAction,
 } from "@/lib/actions/canvas-lock";
 import { trackConnection } from "@/lib/canvas/connection-status";
+import { getLockSessionId } from "@/lib/canvas/lock-session";
 
 const POLL_MS = 10_000;
 
@@ -24,8 +26,10 @@ export function useCanvasLock(canvasId: string) {
   const { identity } = useIdentity();
   const [state, dispatch] = useReducer(lockReducer, INITIAL_LOCK_STATE);
 
+  // Per-tab and stable across reloads — takeOver() reloads the page, and a fresh id
+  // here would leave the reloaded tab unable to re-acquire the lock it just took.
   const sessionIdRef = useRef<string | null>(null);
-  if (sessionIdRef.current === null) sessionIdRef.current = crypto.randomUUID();
+  if (sessionIdRef.current === null) sessionIdRef.current = getLockSessionId(canvasId);
   const sessionId = sessionIdRef.current;
 
   const nameRef = useRef<string | null>(identity?.name ?? null);
@@ -92,7 +96,22 @@ export function useCanvasLock(canvasId: string) {
     if (r.ok) {
       dispatch({ type: "tookOver" });
       window.location.reload(); // reload to pick up the latest committed canvas
+      return;
     }
+    // A denied take-over used to be silent, so the button looked broken.
+    if ("reason" in r && r.reason === "read-only") {
+      toast.error("Editing is disabled", {
+        description:
+          "You're viewing as another organization. Enable editing in the banner to take over.",
+        id: "impersonation-read-only",
+      });
+      return;
+    }
+    toast.error("Couldn't take over editing", {
+      description: r.heldBy.name
+        ? `${r.heldBy.name} is still editing this canvas.`
+        : "Another session is still editing this canvas.",
+    });
   }, [canvasId, sessionId]);
 
   const reportLockLost = useCallback(() => dispatch({ type: "heartbeatLost" }), []);

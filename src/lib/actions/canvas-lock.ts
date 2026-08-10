@@ -34,7 +34,14 @@ export async function acquireCanvasLockAction(
     // returning getCanvasLock's raw result) so the hook's existing denied-lock path
     // handles this with no new branching, without ever writing to the lock columns.
     const lock = await getCanvasLock(canvasId);
-    return { ok: false as const, heldBy: { name: lock.heldBy?.name ?? null } };
+    // `reason` lets the client tell "you are read-only" apart from "someone else holds
+    // it" — the two denials look identical otherwise, and Take-over silently did
+    // nothing at all in the read-only case.
+    return {
+      ok: false as const,
+      reason: "read-only" as const,
+      heldBy: { name: lock.heldBy?.name ?? null },
+    };
   }
   return acquireCanvasLock(canvasId, sessionId, name);
 }
