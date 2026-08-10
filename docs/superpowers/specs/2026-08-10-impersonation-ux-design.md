@@ -75,7 +75,7 @@ should not be the faintest element in the bar.
 | Background | white | soft `#ffca2d` wash (~10%) |
 | Left rule | 3px brand purple | 3px amber |
 | Icon | `Eye` | `Unlock` |
-| Pill | "Read-only", `neutral-500` | "Changes are live" + pulsing dot |
+| Pill | "Read-only", `neutral-500` | "Editing" + pulsing dot |
 | Actions | `Enable editing`, `Exit` | `Exit` |
 
 Same skeleton in both states, unmistakably different temperature. This is the only place the

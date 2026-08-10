@@ -21,7 +21,9 @@ export function bannerPresentation(
     // a soft glow" rule — enough to change the bar's temperature, never a flat fill.
     return {
       eyebrow: "Editing as",
-      stateLabel: "Changes are live",
+      // Parallel to "Read-only", and deliberately plain: the eyebrow already reads
+      // "EDITING AS <org>", so this only has to name the mode, not narrate it.
+      stateLabel: "Editing",
       barClass: "bg-[#ffca2d]/10 border-[#ffca2d]/40",
       ruleClass: "bg-[#ffca2d]",
       showEnableEditing: false,

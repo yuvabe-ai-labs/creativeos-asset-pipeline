@@ -12,7 +12,7 @@ describe("bannerPresentation", () => {
   it("reads as live editing, and hides Enable editing, when elevated", () => {
     const p = bannerPresentation(true);
     expect(p.eyebrow).toBe("Editing as");
-    expect(p.stateLabel).toBe("Changes are live");
+    expect(p.stateLabel).toBe("Editing");
     expect(p.showEnableEditing).toBe(false);
   });
 
