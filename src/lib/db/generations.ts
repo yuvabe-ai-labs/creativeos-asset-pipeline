@@ -2,6 +2,7 @@ import "server-only";
 import { createServerSupabase } from "@/lib/supabase/server";
 import type { GenerationRow } from "./types";
 import { getReservationAmounts } from "./credit-transactions";
+import type { GenerationRow as ImpersonationGenerationRow } from "@/lib/auth/impersonation-audit-view";
 
 // Real settled credits per version, keyed by version_id — for the node focus views' usage
 // popovers, which used to recompute an estimate client-side from paramsUsed.tokensUsed. That
@@ -205,4 +206,32 @@ export async function listGenerationsForOrgPage(
     })),
     total: count ?? 0,
   };
+}
+
+// Generations for an org since a point in time — the read side of the impersonation
+// audit view (D141). generations.user_id is the REAL operator even while impersonating,
+// which is what makes correlating them to an impersonation session possible at all.
+//
+// Deviation from the plan brief: generations carries org_id directly (added by the RLS
+// backstop, migration 0014) — the same column listGenerationsForOrgPage above filters on
+// — so this scopes the same way rather than joining through nodes/canvases/clients; no
+// such join exists anywhere in this file. The brief's `credits_consumed` column also no
+// longer exists — migration 0019 renamed it to `cost_usd` and added a separate
+// `credits_charged` column for the real settled amount — so it's selected as
+// `credits_charged` and aliased back to `credits_consumed` to match GenerationRow's shape.
+export async function listGenerationsInWindowForOrg(
+  orgId: string,
+  fromISO: string,
+): Promise<ImpersonationGenerationRow[]> {
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("generations")
+    .select(
+      "node_id, type, model_used, status, credits_consumed:credits_charged, user_id, created_at",
+    )
+    .eq("org_id", orgId)
+    .gte("created_at", fromISO)
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as unknown as ImpersonationGenerationRow[];
 }
