@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { useBrandKit } from "@/hooks/use-brand-kit";
 import { BRAND_ASSET_CATEGORIES } from "@/lib/brand-kit/constants";
@@ -34,9 +35,21 @@ type BrandSection = BrandAssetCategory | "colours" | "details";
  * `PostBrandDetails` all remain, so restoring it is putting this one line back:
  *   { key: "details", label: "Details" },
  */
+/**
+ * Colours is deferred, for a different reason than Details.
+ *
+ * The swatches derive from the KB's `colour_palette_primary`/`_secondary`, which are
+ * model-extracted prose ("turmeric gold #C8A000"). Most clients have no hex in there at all,
+ * so the section is empty for them, and where it is not, the values are the model's guess. A
+ * palette worth clicking needs colours somebody entered deliberately, which the KB does not
+ * store today.
+ *
+ * `extractHexes`, its tests and the API's `colours` field all stay. Restoring the section is
+ * putting this line back:
+ *   { key: "colours", label: "Colours" },
+ */
 const SECTIONS: { key: BrandSection; label: string }[] = [
   { key: "logo", label: "Logos" },
-  { key: "colours", label: "Colours" },
   { key: "background", label: "Backgrounds" },
   { key: "product", label: "Products" },
 ];
@@ -58,7 +71,27 @@ export function PostPanelBrand({
   }
 
   if (loading) {
-    return <p className="px-1 py-8 text-center text-xs text-muted-foreground">Loading…</p>;
+    // Shaped like the panel it becomes — a chip row, then a grid of tiles — so nothing shifts
+    // when the data lands. A centred "Loading…" said nothing about what was coming and then
+    // shoved the real content in from a different position.
+    return (
+      <div>
+        <div className="mb-3 flex flex-wrap gap-1 border-b border-border pb-2">
+          {[44, 72, 56].map((w) => (
+            <Skeleton key={w} className="h-[22px] rounded-full" style={{ width: w }} />
+          ))}
+        </div>
+        <Skeleton className="mb-1 h-2.5 w-36" />
+        <div className="grid grid-cols-3 gap-1">
+          {Array.from({ length: 6 }, (_, i) => (
+            <div key={i} className="space-y-1">
+              <Skeleton className="aspect-square w-full rounded-sm" />
+              <Skeleton className="h-2 w-3/4" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
   }
 
   if (error) {

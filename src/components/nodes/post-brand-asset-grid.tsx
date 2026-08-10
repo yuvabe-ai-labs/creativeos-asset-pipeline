@@ -114,6 +114,12 @@ export function PostBrandAssetGrid({
                 <img
                   src={asset.storageUrl}
                   alt={asset.name}
+                  // The originals are full-resolution uploads rendering into a ~74px tile.
+                  // Lazy defers the ones below the fold; async decoding keeps the decode off
+                  // the main thread so opening the panel doesn't jank. Matches
+                  // reference-image-picker/image-tile.tsx.
+                  loading="lazy"
+                  decoding="async"
                   className={cn(
                     "size-full",
                     category === "background" ? "object-cover" : "object-contain",

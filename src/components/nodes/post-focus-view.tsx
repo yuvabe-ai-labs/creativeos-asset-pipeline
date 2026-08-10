@@ -2,6 +2,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { ArrowLeft, Redo2, Undo2 } from "lucide-react";
 import { toast } from "sonner";
 import type Konva from "konva";
@@ -16,6 +17,7 @@ import type { PostFormat } from "@/lib/post/types";
 import type { PostTemplate } from "@/lib/post/templates";
 import { nudge } from "@/lib/post/geometry";
 import { pxToNormalized } from "@/lib/post/units";
+import { captureThumbnail } from "@/lib/post/thumbnail";
 import { DEFAULT_GEOMETRY, createImageLayer } from "@/lib/post/layers";
 import {
   ELEMENT_DRAG_TYPE, parseElementDrag, type ElementDragPayload,
@@ -454,8 +456,32 @@ export function PostFocusView({
       deleteSelection, duplicateSelection, undo, redo, reorder, group, ungroup, copySelection,
       pasteClipboard]);
 
+  /**
+   * Grab a thumbnail of the real stage, then close.
+   *
+   * Every exit funnels through here — the Back button, Escape, and a click on the overlay —
+   * so there is no route out of the editor that leaves the card showing a stale preview.
+   *
+   * Ordering matters twice. The selection is cleared FIRST, flushed synchronously, because
+   * Konva's Transformer handles are real nodes and would otherwise be baked into the image
+   * (usePostExport clears them the same way, for the same reason). And the capture happens
+   * BEFORE onOpenChange, while the stage is still mounted — afterwards there is nothing to
+   * read.
+   */
+  const closeWithThumbnail = useCallback(() => {
+    const stage = stageRef.current;
+    if (stage) {
+      flushSync(() => selectLayer(null));
+      const thumbnail = captureThumbnail(stage);
+      // null means the canvas could not be read — a cross-origin image that slipped past the
+      // proxy. Not worth a toast: the card keeps whatever preview it already had.
+      if (thumbnail) onPatch({ thumbnail });
+    }
+    onOpenChange(false);
+  }, [stageRef, selectLayer, onPatch, onOpenChange]);
+
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    <Sheet open={open} onOpenChange={(next) => { if (next) onOpenChange(true); else closeWithThumbnail(); }}>
       <SheetContent
         side="bottom"
         showCloseButton={false}
@@ -465,7 +491,7 @@ export function PostFocusView({
           <div className="mx-auto w-full max-w-6xl px-6 pb-4 pt-3">
             <button
               type="button"
-              onClick={() => onOpenChange(false)}
+              onClick={closeWithThumbnail}
               className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
             >
               <ArrowLeft className="size-4" /> Back to canvas
@@ -594,7 +620,9 @@ export function PostFocusView({
               // refuses the drop and animates the tile flying back to the panel.
               e.preventDefault();
               e.dataTransfer.dropEffect = "copy";
-              setIsDropTarget(true);
+              // dragover fires continuously for the whole gesture. The functional form lets
+              // React bail without queueing an update per event.
+              setIsDropTarget((was) => (was ? was : true));
             }}
             onDragLeave={(e) => {
               // Guarded on relatedTarget: dragging across a child fires dragleave for the

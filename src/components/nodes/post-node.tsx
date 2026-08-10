@@ -132,6 +132,16 @@ export function PostNode({ id, data, selected }: NodeProps) {
               alt={d.title ?? "post"}
               className="size-full object-contain"
             />
+          ) : d.thumbnail ? (
+            // Captured from the real Konva stage when the editor last closed (D136), so this
+            // is the design exactly as it was drawn — not the DOM preview's approximation of
+            // it, which renders every shape primitive as a rectangle and ignores rotation.
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={d.thumbnail}
+              alt={d.title ?? "post"}
+              className="size-full object-contain"
+            />
           ) : layerCount > 0 ? (
             <div className="size-full">
               <PostLayersPreview

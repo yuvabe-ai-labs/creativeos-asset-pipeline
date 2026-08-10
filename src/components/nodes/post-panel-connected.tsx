@@ -39,6 +39,8 @@ export function PostPanelConnected({ nodes, onAdd }: Props) {
             <img
               src={n.url}
               alt={n.title ?? "Connected image"}
+              loading="lazy"
+              decoding="async"
               className="aspect-square w-full rounded-sm object-cover"
             />
             <span className="block w-full truncate text-[0.6rem] text-muted-foreground">

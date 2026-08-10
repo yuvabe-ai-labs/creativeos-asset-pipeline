@@ -132,6 +132,15 @@ export type PostNodeData = {
   // readers must treat a missing value as current, never stale, or every previously-exported
   // post would flag itself dirty on first load.
   layersUpdatedAt?: string;
+  /**
+   * A small JPEG data URL of the design, captured from the real Konva stage when the editor
+   * closes (D136). The node card shows it whenever there is no fresh exported PNG, so a draft
+   * looks like the post you just made instead of like an approximation of it.
+   *
+   * Absent on every node saved before this existed, and on any post not opened since — the
+   * card falls back to the DOM layers preview, so a missing value is normal, not an error.
+   */
+  thumbnail?: string;
 };
 
 export type AppNode =
