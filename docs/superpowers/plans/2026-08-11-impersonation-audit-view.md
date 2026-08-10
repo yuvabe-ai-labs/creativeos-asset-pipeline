@@ -560,11 +560,17 @@ export function groupIntoSessions(
   const unconsumed = [...generations].sort((a, b) => a.created_at.localeCompare(b.created_at));
 
   const sessions: ImpersonationSession[] = [];
-  let open: ImpersonationSession | null = null;
+
+  // One open session PER OPERATOR. The caller passes every operator's rows for the org
+  // in one list, so a single "currently open" pointer cross-attributes whenever two
+  // operators impersonate the same org with overlapping windows: one's writes land on
+  // the other's session, one session gets stamped with the wrong end time, and the other
+  // stays endedAt: null forever.
+  const openByOperator = new Map<string, ImpersonationSession>();
 
   for (const event of ordered) {
     if (event.event_type === "session_started") {
-      open = {
+      const session: ImpersonationSession = {
         id: event.id,
         operatorId: event.operator_id,
         operatorName: nameByUserId[event.operator_id] ?? "Unknown operator",
@@ -574,17 +580,20 @@ export function groupIntoSessions(
         entries: [],
         quietCount: 0,
       };
-      sessions.push(open);
+      sessions.push(session);
+      openByOperator.set(event.operator_id, session);
       continue;
     }
 
-    // Only possible when the page's window truncates mid-session. Synthesising a session
-    // for these would invent a start time we do not have.
+    const open = openByOperator.get(event.operator_id);
+    // No open session for this operator — either the page's window truncated mid-session,
+    // or this operator's session already closed. Synthesising one would invent a start
+    // time we do not have.
     if (!open) continue;
 
     if (event.event_type === "session_ended") {
       open.endedAt = event.occurred_at;
-      open = null;
+      openByOperator.delete(event.operator_id);
       continue;
     }
 
