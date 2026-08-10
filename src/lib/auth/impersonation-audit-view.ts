@@ -153,11 +153,14 @@ export function groupIntoSessions(
   const unconsumed = [...generations].sort((a, b) => a.created_at.localeCompare(b.created_at));
 
   const sessions: ImpersonationSession[] = [];
-  let open: ImpersonationSession | null = null;
+  // One open session per operator — a page can contain interleaved sessions from
+  // multiple operators impersonating the same org concurrently, and a single shared
+  // pointer would cross-attribute events between them.
+  const openByOperator = new Map<string, ImpersonationSession>();
 
   for (const event of ordered) {
     if (event.event_type === "session_started") {
-      open = {
+      const session: ImpersonationSession = {
         id: event.id,
         operatorId: event.operator_id,
         operatorName: nameByUserId[event.operator_id] ?? "Unknown operator",
@@ -167,9 +170,12 @@ export function groupIntoSessions(
         entries: [],
         quietCount: 0,
       };
-      sessions.push(open);
+      sessions.push(session);
+      openByOperator.set(event.operator_id, session);
       continue;
     }
+
+    const open = openByOperator.get(event.operator_id);
 
     // Only possible when the page's window truncates mid-session. Synthesising a session
     // for these would invent a start time we do not have.
@@ -177,7 +183,7 @@ export function groupIntoSessions(
 
     if (event.event_type === "session_ended") {
       open.endedAt = event.occurred_at;
-      open = null;
+      openByOperator.delete(event.operator_id);
       continue;
     }
 

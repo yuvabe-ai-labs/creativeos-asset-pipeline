@@ -96,7 +96,8 @@ describe("classifyWriteAction", () => {
 
 const NODE = "3f2504e0-4f89-11d3-9a0c-0305e82c3301";
 const OP = "op-1";
-const NAMES = { [OP]: "Adarsh" };
+const OP_B = "op-2";
+const NAMES = { [OP]: "Adarsh", [OP_B]: "Priya" };
 
 function ev(
   event_type: string,
@@ -279,6 +280,38 @@ describe("groupIntoSessions", () => {
       "2026-08-11T10:00:00Z",
       "2026-08-10T10:00:00Z",
     ]);
+  });
+
+  it("tracks one open session per operator, so overlapping sessions don't cross-attribute events", () => {
+    const sessions = groupIntoSessions(
+      [
+        ev("session_started", "2026-08-11T00:00:00Z", null, OP), // t0: A starts
+        ev("session_started", "2026-08-11T00:05:00Z", null, OP_B), // t1: B starts
+        ev(
+          "write_action",
+          "2026-08-11T00:10:00Z",
+          { action: "deleteCanvasAction" },
+          OP,
+        ), // t2: A writes — must land on A's session, not B's
+        ev("session_ended", "2026-08-11T00:15:00Z", null, OP), // t3: A ends
+        ev("session_ended", "2026-08-11T00:20:00Z", null, OP_B), // t4: B ends
+      ],
+      [],
+      NAMES,
+    );
+
+    expect(sessions).toHaveLength(2);
+
+    const sessionA = sessions.find((s) => s.operatorId === OP)!;
+    const sessionB = sessions.find((s) => s.operatorId === OP_B)!;
+
+    expect(sessionA.entries).toEqual([
+      { kind: "action", at: "2026-08-11T00:10:00Z", label: "Deleted a canvas" },
+    ]);
+    expect(sessionB.entries).toEqual([]);
+
+    expect(sessionA.endedAt).toBe("2026-08-11T00:15:00Z");
+    expect(sessionB.endedAt).toBe("2026-08-11T00:20:00Z");
   });
 
   it("falls back to a placeholder when the operator has no profile row", () => {
