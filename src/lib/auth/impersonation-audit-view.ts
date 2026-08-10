@@ -93,3 +93,142 @@ export function classifyWriteAction(
   // The audit guarantee: anything unmapped is still visible, verbatim.
   return { kind: "action", label: `${method} ${path}` };
 }
+
+export type AuditEventType =
+  | "session_started"
+  | "elevated_mode_entered"
+  | "write_action"
+  | "session_ended";
+
+export type AuditEventRow = {
+  id: string;
+  operator_id: string;
+  event_type: AuditEventType;
+  detail: Record<string, unknown> | null;
+  occurred_at: string;
+};
+
+export type GenerationRow = {
+  node_id: string;
+  type: string;
+  model_used: string | null;
+  status: string;
+  credits_consumed: number | null;
+  user_id: string | null;
+  created_at: string;
+};
+
+export type SessionEntry =
+  | { kind: "elevated"; at: string }
+  | {
+      kind: "generation";
+      at: string;
+      genType: string;
+      model: string | null;
+      status: string;
+      credits: number | null;
+    }
+  | { kind: "action"; at: string; label: string };
+
+export type ImpersonationSession = {
+  id: string;
+  operatorId: string;
+  operatorName: string;
+  startedAt: string;
+  endedAt: string | null;
+  elevated: boolean;
+  entries: SessionEntry[];
+  quietCount: number;
+};
+
+export function groupIntoSessions(
+  events: AuditEventRow[],
+  generations: GenerationRow[],
+  nameByUserId: Record<string, string>,
+): ImpersonationSession[] {
+  const ordered = [...events].sort((a, b) => a.occurred_at.localeCompare(b.occurred_at));
+
+  // Consumed as they are matched, so two generations on the SAME node during one session
+  // map to their own rows in order rather than both claiming the first.
+  const unconsumed = [...generations].sort((a, b) => a.created_at.localeCompare(b.created_at));
+
+  const sessions: ImpersonationSession[] = [];
+  let open: ImpersonationSession | null = null;
+
+  for (const event of ordered) {
+    if (event.event_type === "session_started") {
+      open = {
+        id: event.id,
+        operatorId: event.operator_id,
+        operatorName: nameByUserId[event.operator_id] ?? "Unknown operator",
+        startedAt: event.occurred_at,
+        endedAt: null,
+        elevated: false,
+        entries: [],
+        quietCount: 0,
+      };
+      sessions.push(open);
+      continue;
+    }
+
+    // Only possible when the page's window truncates mid-session. Synthesising a session
+    // for these would invent a start time we do not have.
+    if (!open) continue;
+
+    if (event.event_type === "session_ended") {
+      open.endedAt = event.occurred_at;
+      open = null;
+      continue;
+    }
+
+    if (event.event_type === "elevated_mode_entered") {
+      open.elevated = true;
+      open.entries.push({ kind: "elevated", at: event.occurred_at });
+      continue;
+    }
+
+    const classification = classifyWriteAction(event.detail);
+
+    if (classification.kind === "quiet") {
+      open.quietCount += 1;
+      continue;
+    }
+
+    if (classification.kind === "action") {
+      open.entries.push({ kind: "action", at: event.occurred_at, label: classification.label });
+      continue;
+    }
+
+    // kind === "generate": match exactly on node id, by the same operator, at or after
+    // the audit row (the gate logs before the handler runs, so the generation follows).
+    const index = unconsumed.findIndex(
+      (g) =>
+        g.node_id === classification.nodeId &&
+        g.user_id === event.operator_id &&
+        g.created_at >= event.occurred_at,
+    );
+
+    if (index === -1) {
+      // No generations row — the generation failed before it was inserted. Keeping this
+      // is the whole reason correlation is not a path blacklist.
+      open.entries.push({
+        kind: "action",
+        at: event.occurred_at,
+        label: "Attempted a generation",
+      });
+      continue;
+    }
+
+    const [generation] = unconsumed.splice(index, 1);
+    open.entries.push({
+      kind: "generation",
+      at: generation.created_at,
+      genType: generation.type,
+      model: generation.model_used,
+      status: generation.status,
+      credits: generation.credits_consumed,
+    });
+  }
+
+  return sessions.reverse(); // newest first
+}

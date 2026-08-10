@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { classifyWriteAction } from "./impersonation-audit-view";
+import { classifyWriteAction, groupIntoSessions } from "./impersonation-audit-view";
 
 describe("classifyWriteAction", () => {
   it("treats autosaves as quiet — the flood this whole view exists to suppress", () => {
@@ -91,5 +91,198 @@ describe("classifyWriteAction", () => {
     expect(
       classifyWriteAction({ method: "DELETE", path: "/api/something/else" }),
     ).toEqual({ kind: "action", label: "Deleted a resource" });
+  });
+});
+
+const NODE = "3f2504e0-4f89-11d3-9a0c-0305e82c3301";
+const OP = "op-1";
+const NAMES = { [OP]: "Adarsh" };
+
+function ev(
+  event_type: string,
+  occurred_at: string,
+  detail: Record<string, unknown> | null = null,
+  operator_id = OP,
+) {
+  return { id: `${event_type}-${occurred_at}`, operator_id, event_type, detail, occurred_at } as never;
+}
+
+describe("groupIntoSessions", () => {
+  it("groups a complete session in order and names the operator", () => {
+    const sessions = groupIntoSessions(
+      [
+        ev("session_started", "2026-08-11T00:12:00Z"),
+        ev("elevated_mode_entered", "2026-08-11T00:14:00Z"),
+        ev("write_action", "2026-08-11T00:31:00Z", { action: "deleteCanvasAction" }),
+        ev("session_ended", "2026-08-11T00:48:00Z"),
+      ],
+      [],
+      NAMES,
+    );
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0].operatorName).toBe("Adarsh");
+    expect(sessions[0].elevated).toBe(true);
+    expect(sessions[0].endedAt).toBe("2026-08-11T00:48:00Z");
+    expect(sessions[0].entries.map((e) => e.kind)).toEqual(["elevated", "action"]);
+  });
+
+  it("returns an unterminated session as still active rather than dropping it", () => {
+    const sessions = groupIntoSessions(
+      [ev("session_started", "2026-08-11T00:12:00Z")],
+      [],
+      NAMES,
+    );
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0].endedAt).toBeNull();
+  });
+
+  it("collapses autosaves into quietCount and lists none of them", () => {
+    const sessions = groupIntoSessions(
+      [
+        ev("session_started", "2026-08-11T00:12:00Z"),
+        ev("write_action", "2026-08-11T00:13:00Z", { action: "saveCanvasAction" }),
+        ev("write_action", "2026-08-11T00:14:00Z", { action: "saveCanvasAction" }),
+        ev("write_action", "2026-08-11T00:15:00Z", { action: "saveCanvasAction" }),
+      ],
+      [],
+      NAMES,
+    );
+    expect(sessions[0].quietCount).toBe(3);
+    expect(sessions[0].entries).toHaveLength(0);
+  });
+
+  it("replaces a generate row with the matching generation, by node id", () => {
+    const sessions = groupIntoSessions(
+      [
+        ev("session_started", "2026-08-11T00:12:00Z"),
+        ev("write_action", "2026-08-11T00:19:00Z", {
+          method: "POST",
+          path: `/api/nodes/${NODE}/generate`,
+        }),
+      ],
+      [
+        {
+          node_id: NODE,
+          type: "image",
+          model_used: "kling-o1",
+          status: "succeeded",
+          credits_consumed: 4,
+          user_id: OP,
+          created_at: "2026-08-11T00:19:02Z",
+        },
+      ],
+      NAMES,
+    );
+    expect(sessions[0].entries).toEqual([
+      {
+        kind: "generation",
+        at: "2026-08-11T00:19:02Z",
+        genType: "image",
+        model: "kling-o1",
+        status: "succeeded",
+        credits: 4,
+      },
+    ]);
+  });
+
+  // A generation that failed before its row was inserted must not vanish.
+  it("keeps an unmatched generate row as an attempt", () => {
+    const sessions = groupIntoSessions(
+      [
+        ev("session_started", "2026-08-11T00:12:00Z"),
+        ev("write_action", "2026-08-11T00:19:00Z", {
+          method: "POST",
+          path: `/api/nodes/${NODE}/generate`,
+        }),
+      ],
+      [],
+      NAMES,
+    );
+    expect(sessions[0].entries).toEqual([
+      { kind: "action", at: "2026-08-11T00:19:00Z", label: "Attempted a generation" },
+    ]);
+  });
+
+  it("does not claim a generation made by a different operator", () => {
+    const sessions = groupIntoSessions(
+      [
+        ev("session_started", "2026-08-11T00:12:00Z"),
+        ev("write_action", "2026-08-11T00:19:00Z", {
+          method: "POST",
+          path: `/api/nodes/${NODE}/generate`,
+        }),
+      ],
+      [
+        {
+          node_id: NODE,
+          type: "image",
+          model_used: "kling-o1",
+          status: "succeeded",
+          credits_consumed: 4,
+          user_id: "someone-else",
+          created_at: "2026-08-11T00:19:02Z",
+        },
+      ],
+      NAMES,
+    );
+    expect(sessions[0].entries[0]).toMatchObject({ label: "Attempted a generation" });
+  });
+
+  it("matches two generations on the same node to their own rows, in order", () => {
+    const sessions = groupIntoSessions(
+      [
+        ev("session_started", "2026-08-11T00:12:00Z"),
+        ev("write_action", "2026-08-11T00:19:00Z", {
+          method: "POST",
+          path: `/api/nodes/${NODE}/generate`,
+        }),
+        ev("write_action", "2026-08-11T00:25:00Z", {
+          method: "POST",
+          path: `/api/nodes/${NODE}/generate`,
+        }),
+      ],
+      [
+        { node_id: NODE, type: "image", model_used: "a", status: "succeeded",
+          credits_consumed: 1, user_id: OP, created_at: "2026-08-11T00:19:02Z" },
+        { node_id: NODE, type: "image", model_used: "b", status: "failed",
+          credits_consumed: null, user_id: OP, created_at: "2026-08-11T00:25:03Z" },
+      ],
+      NAMES,
+    );
+    expect(sessions[0].entries.map((e) => (e as { model: string }).model)).toEqual(["a", "b"]);
+  });
+
+  it("discards events that precede the first session_started", () => {
+    const sessions = groupIntoSessions(
+      [
+        ev("write_action", "2026-08-11T00:01:00Z", { action: "deleteCanvasAction" }),
+        ev("session_started", "2026-08-11T00:12:00Z"),
+      ],
+      [],
+      NAMES,
+    );
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0].entries).toHaveLength(0);
+  });
+
+  it("returns sessions newest-first", () => {
+    const sessions = groupIntoSessions(
+      [
+        ev("session_started", "2026-08-10T10:00:00Z"),
+        ev("session_ended", "2026-08-10T10:30:00Z"),
+        ev("session_started", "2026-08-11T10:00:00Z"),
+      ],
+      [],
+      NAMES,
+    );
+    expect(sessions.map((s) => s.startedAt)).toEqual([
+      "2026-08-11T10:00:00Z",
+      "2026-08-10T10:00:00Z",
+    ]);
+  });
+
+  it("falls back to a placeholder when the operator has no profile row", () => {
+    const sessions = groupIntoSessions([ev("session_started", "2026-08-11T00:12:00Z")], [], {});
+    expect(sessions[0].operatorName).toBe("Unknown operator");
   });
 });
