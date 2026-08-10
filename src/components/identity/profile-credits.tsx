@@ -84,12 +84,14 @@ export function ProfileCredits() {
           )}
           strokeWidth={1.5}
         />
-        <span className="text-eyebrow">Credits</span>
+        <span className="text-eyebrow" style={{ letterSpacing: "0.1em" }}>
+          Credits
+        </span>
       </div>
       <div className="flex items-baseline gap-1.5">
         <span
           className={cn(
-            "font-display text-xl leading-none font-semibold tracking-tight",
+            "text-base leading-none font-semibold",
             over ? "text-amber-600 dark:text-amber-400" : "text-foreground",
           )}
         >

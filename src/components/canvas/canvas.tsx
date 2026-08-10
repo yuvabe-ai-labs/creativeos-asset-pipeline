@@ -50,7 +50,6 @@ import { LockBanner } from "./lock-banner";
 import { DeleteConfirmDialog } from "./delete-confirm-dialog";
 import { useDeleteConfirmation } from "@/hooks/use-delete-confirmation";
 import { CanvasKBStatus, CanvasKBBadge } from "./canvas-kb-status";
-import { GalleryDrawerTrigger } from "./gallery-drawer-trigger";
 import { GalleryDrawerIntegration } from "./gallery-drawer-integration";
 import type { GalleryPaneDropHandlers } from "@/hooks/use-gallery-pane-drop";
 import type { ClientKBJobRow } from "@/lib/db/types";
@@ -361,9 +360,8 @@ export function Canvas({
       {/* Headless KB status subscriber — drives kbStatus in the canvas store */}
       <CanvasKBStatus clientId={clientId} initialJob={initialKBJob} hasActiveKB={hasActiveKB} />
 
-      {/* Top-right overlay: gallery trigger + KB badge */}
+      {/* Top-right overlay: KB badge */}
       <div className="absolute right-4 top-4 z-10 flex items-center gap-2">
-        <GalleryDrawerTrigger />
         <CanvasKBBadge />
       </div>
 

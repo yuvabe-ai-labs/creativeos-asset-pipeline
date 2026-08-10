@@ -86,7 +86,9 @@ export function ProfilePopover() {
         <div className="flex flex-col gap-2 px-4 py-3.5">
           <div className="flex items-center gap-2">
             <Building2 className="size-4 text-primary" strokeWidth={1.5} />
-            <span className="text-eyebrow">Workspace</span>
+            <span className="text-eyebrow" style={{ letterSpacing: "0.1em" }}>
+              Workspace
+            </span>
           </div>
           <span className="text-base font-medium text-foreground">{orgName ?? "—"}</span>
         </div>
