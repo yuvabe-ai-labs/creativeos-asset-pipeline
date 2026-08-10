@@ -31,26 +31,28 @@ export function NodeCardHeader({
   status,
 }: Props) {
   return (
-    <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
-      <div className="min-w-0 flex-1">
-        {/* Icon on the title's line (vertically centered with it). */}
-        <div className="flex items-center gap-1.5">
-          <Icon className="size-3.5 shrink-0 stroke-[1.5] text-primary" />
-          {onCommitTitle ? (
-            <NodeTitle value={title} placeholder={placeholder ?? ""} onCommit={onCommitTitle} />
-          ) : (
-            // Static label — same font/inset as the editable title so the ref handle below
-            // lines up identically (the px-1.5 matches NodeTitle's field padding).
-            <span className="min-w-0 flex-1 truncate px-1.5 py-1 font-display text-sm font-medium">
-              {title}
-            </span>
-          )}
-        </div>
-        {/* Ref handle below, indented to sit under the title TEXT:
-            icon 14px + gap 6px + the title field's own px-1.5 (6px) = 26px. */}
-        <NodeHandle nodeId={nodeId} nodeType={nodeType} className="block pl-[26px]" />
+    // Two stacked rows, not a two-column split. The status used to sit in a right-hand column
+    // centred against BOTH lines, while the ref handle below renders at 20-28px with
+    // whitespace-nowrap — so the handle overflowed its column and ran underneath the status
+    // pill. Putting the status on the title's own row means the handle gets the full width and
+    // the two can never collide, at any zoom tier.
+    <div className="border-b border-border px-3 py-2">
+      <div className="flex items-center gap-1.5">
+        <Icon className="size-3.5 shrink-0 stroke-[1.5] text-primary" />
+        {onCommitTitle ? (
+          <NodeTitle value={title} placeholder={placeholder ?? ""} onCommit={onCommitTitle} />
+        ) : (
+          // Static label — same font/inset as the editable title so the ref handle below
+          // lines up identically (the px-1.5 matches NodeTitle's field padding).
+          <span className="min-w-0 flex-1 truncate px-1.5 py-1 font-display text-sm font-medium">
+            {title}
+          </span>
+        )}
+        {status != null && <div className="shrink-0">{status}</div>}
       </div>
-      {status != null && <div className="shrink-0">{status}</div>}
+      {/* Ref handle on its own full-width row, indented to sit under the title TEXT:
+          icon 14px + gap 6px + the title field's own px-1.5 (6px) = 26px. */}
+      <NodeHandle nodeId={nodeId} nodeType={nodeType} className="block pl-[26px]" />
     </div>
   );
 }

@@ -15,10 +15,22 @@ describe("thumbnailPixelRatio", () => {
     expect(360 * ratio).toBeLessThan(200);
   });
 
-  it("never upscales a stage already smaller than the target", () => {
-    // Re-encoding a 120px stage at 200px buys no detail and costs bytes.
-    expect(thumbnailPixelRatio(120, 90, 200)).toBe(1);
-    expect(thumbnailPixelRatio(200, 200, 200)).toBe(1);
+  it("renders a small stage ABOVE 1:1, because Konva re-rasterises rather than upscales", () => {
+    // A post is authored at 1080px; a 240px stage is a downscaled view of it, so asking for
+    // more pixels recovers detail that really exists rather than inventing any.
+    expect(thumbnailPixelRatio(240, 300, 480)).toBeCloseTo(1.6, 6);
+  });
+
+  it("holds the ratio at 2 so a tiny stage can't demand an enormous canvas", () => {
+    expect(thumbnailPixelRatio(60, 40, 480)).toBe(2);
+    expect(thumbnailPixelRatio(10, 10, 480)).toBe(2);
+  });
+
+  it("targets a card-sized image on a real laptop artboard", () => {
+    // 430x538 is what a 1080x1350 post measures on a laptop. The card is 224 CSS px, so on a
+    // 2x display it needs ~448px — the first version targeted 200 and produced 160.
+    const ratio = thumbnailPixelRatio(430, 538, 480);
+    expect(Math.round(430 * ratio)).toBeGreaterThanOrEqual(384);
   });
 
   it("returns 1 for an unmeasured stage rather than Infinity or NaN", () => {
