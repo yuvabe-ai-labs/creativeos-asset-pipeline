@@ -113,7 +113,7 @@ export type GenerationRow = {
   type: string;
   model_used: string | null;
   status: string;
-  credits_consumed: number | null;
+  credits_charged: number | null;
   user_id: string | null;
   created_at: string;
 };
@@ -232,7 +232,7 @@ export function groupIntoSessions(
       genType: generation.type,
       model: generation.model_used,
       status: generation.status,
-      credits: generation.credits_consumed,
+      credits: generation.credits_charged,
     });
   }
 

@@ -215,10 +215,12 @@ export async function listGenerationsForOrgPage(
 // Deviation from the plan brief: generations carries org_id directly (added by the RLS
 // backstop, migration 0014) — the same column listGenerationsForOrgPage above filters on
 // — so this scopes the same way rather than joining through nodes/canvases/clients; no
-// such join exists anywhere in this file. The brief's `credits_consumed` column also no
-// longer exists — migration 0019 renamed it to `cost_usd` and added a separate
-// `credits_charged` column for the real settled amount — so it's selected as
-// `credits_charged` and aliased back to `credits_consumed` to match GenerationRow's shape.
+// such join exists anywhere in this file. The plan also asked for `credits_consumed`,
+// which no longer exists: migration 0019 renamed it to `cost_usd` because it "has always
+// held raw USD, never credits, despite the name", and added `credits_charged` for the
+// real settled credit amount. `credits_charged` is therefore what the view wants, and it
+// is carried under that name rather than aliased back — reviving the old name is exactly
+// the confusion 0019 existed to end.
 export async function listGenerationsInWindowForOrg(
   orgId: string,
   fromISO: string,
@@ -227,7 +229,7 @@ export async function listGenerationsInWindowForOrg(
   const { data, error } = await supabase
     .from("generations")
     .select(
-      "node_id, type, model_used, status, credits_consumed:credits_charged, user_id, created_at",
+      "node_id, type, model_used, status, credits_charged, user_id, created_at",
     )
     .eq("org_id", orgId)
     .gte("created_at", fromISO)
