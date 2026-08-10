@@ -4,6 +4,7 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import type { ClientRow, CanvasRow, NodeRow } from "@/lib/db/types";
 import { resolveOrgId, resolveCallerContext, type CallerContext } from "@/lib/dal";
 import { resolveImpersonationState } from "@/lib/auth/impersonation";
+import { IMPERSONATION_READ_ONLY_MESSAGE } from "@/lib/auth/constants";
 import { logImpersonationEvent } from "@/lib/db/impersonation-audit";
 
 // PostgREST may surface an embedded to-one relation as an object or a single-element
@@ -30,10 +31,7 @@ export async function assertImpersonationWriteAllowed(req: Request): Promise<Any
   if (!impersonation.isImpersonating) return null;
 
   if (!impersonation.elevated) {
-    return apiError(
-      "Read-only while impersonating — enter elevated mode to make changes.",
-      403,
-    );
+    return apiError(IMPERSONATION_READ_ONLY_MESSAGE, 403);
   }
 
   await logImpersonationEvent({

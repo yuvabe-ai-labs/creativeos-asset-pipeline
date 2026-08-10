@@ -1,5 +1,6 @@
 import "server-only";
 import { resolveImpersonationState } from "@/lib/auth/impersonation";
+import { IMPERSONATION_READ_ONLY_MESSAGE } from "@/lib/auth/constants";
 import { logImpersonationEvent } from "@/lib/db/impersonation-audit";
 
 // Stage 4 write-gate for server actions (D101) — the action-side counterpart to
@@ -16,9 +17,7 @@ export async function withAction<T>(
   const impersonation = await resolveImpersonationState();
 
   if (impersonation.isImpersonating && !impersonation.elevated) {
-    throw new Error(
-      "Read-only while impersonating — enter elevated mode to make changes.",
-    );
+    throw new Error(IMPERSONATION_READ_ONLY_MESSAGE);
   }
 
   const result = await handler();
