@@ -2384,3 +2384,34 @@ next miss.
 not tenant data, and gating the 15s heartbeat would flood the audit trail while gating lock
 acquisition would break read-only impersonation's primary "browse a canvas" flow. Matches
 `getCanvasLockAction`'s existing read exemption.
+
+### D137 — "Video Prompt" becomes "Motion Prompt" (`M`); Video Gen takes `V`; bare `g` is reserved for the Gallery drawer *(recorded 2026-08-10; originated in QA row CAN_06/GAL_01, Linear YUV-267)*
+**Decision.** Reassign the canvas quick-add mnemonics so no node type claims `g`:
+`video-prompt` → **`M`**, relabelled **"Motion Prompt"**; `video-gen` → **`V`** (was `G`).
+The Gallery drawer keeps bare `g` as its sole owner. The persisted `nodes.type` slug stays
+`"video-prompt"` — only the human-facing label changes. The node-handle abbreviation moves
+`VPR` → `MPR` (derived from the uuid at render time, so nothing stored re-points).
+**Why.** Two independent `document`-level `keydown` listeners both claimed bare `g` —
+`canvas.tsx`'s mnemonic dispatch and `gallery-drawer-integration.tsx`'s drawer toggle — so one
+press both spawned a Video Gen node and toggled the drawer. Sibling listeners on the same target
+cannot cancel one another (`stopPropagation` does not apply; `preventDefault` only suppresses the
+browser default), so the collision had to be resolved in the key assignment, not in handler
+ordering. "Motion Prompt" also matches what the product already called this node everywhere the
+operator actually looks: the card's title placeholder, the focus view's "Generated motion prompt"
+section, and its "Motion prompt generated" toast all predate this decision. `M` follows the
+node's new name, which frees `V` for Video Gen — the node operators reach for far more often than
+a drawer, and therefore the better claimant of the shorter, more guessable key.
+**Rejected.** Making the Gallery `Ctrl/Cmd+G`-only and leaving `G` on Video Gen — the modified
+chord already exists as a second path, but demoting the drawer's bare key would penalise the more
+frequent action to preserve a mnemonic that no longer matched the node's name anyway. Renaming
+the `video-prompt` type slug to `motion-prompt` — it is persisted in `nodes.type`, so it would
+need a data migration plus coordinated changes to the API route path, prompt IDs
+(`video-prompt-generate`), and eval traces, for zero user-visible gain. Resolving the collision by
+listener ordering or a shared key-dispatch registry — real fixes for a real class of bug, but far
+more machinery than this one duplicated key warrants; revisit if a third listener ever wants a
+bare letter.
+**Refines.** D24 (the Video Prompt node's role between Image Gen and Video Gen — unchanged; this
+is naming and key assignment only).
+**Guard.** `canvas-node-options.test.ts` asserts `mnemonicToType("g") === null` and that no entry
+in `ADD_NODE_OPTIONS` carries mnemonic `g`, so re-taking the key fails the suite rather than
+silently reintroducing the double-fire.

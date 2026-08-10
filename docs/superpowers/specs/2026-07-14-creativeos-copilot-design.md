@@ -102,7 +102,8 @@ identities**:
 
 - **`nodeHandle(node)`** = `${TYPE_ABBREV}-${uuid.slice(0,4).toUpperCase()}` — a pure function of the
   immutable uuid, so it is **stable** (never re-points), needs **zero storage**, and survives deletes
-  / reorders. Abbreviations: `SCR, KB, FILE, TXT, PRM, SHOT, DRAW, IMG, VPR, VID`.
+  / reorders. Abbreviations: `SCR, KB, FILE, TXT, PRM, SHOT, DRAW, IMG, MPR, VID`
+  (`MPR` was `VPR` before the Motion Prompt rename, D137).
 - **`nodeLabel(node)`** → `{ name, handle }` — friendly name (title, else type-derived) + handle.
 - **`resolveMentions(text, nodes)`** → node ids — parses `@HANDLE` tokens back to ids (case-insensitive).
 - Shown on the **card face of every node type** — a readable eyebrow tag in the **header, next to the

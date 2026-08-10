@@ -108,7 +108,7 @@ export function VideoGenConnectedSection({
                 )}
               />
               <span className="truncate text-xs font-semibold text-foreground">
-                Video prompt
+                Motion prompt
               </span>
             </button>
             {onOpenDetail && (

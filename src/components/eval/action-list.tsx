@@ -5,7 +5,7 @@ import type { NodeTrace, NodeAction } from "@/lib/eval/node-traces";
 
 const GROUP_LABEL: Record<NodeAction, string> = {
   prompt: "Prompts", "image-gen": "Images", "video-gen": "Videos",
-  "video-prompt": "Video prompts", script: "Scripts",
+  "video-prompt": "Motion prompts", script: "Scripts",
 };
 const ORDER: NodeAction[] = ["prompt", "image-gen", "video-prompt", "video-gen", "script"];
 
