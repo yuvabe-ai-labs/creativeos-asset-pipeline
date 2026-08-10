@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Eye } from "lucide-react";
 import { requireSuperAdmin } from "@/lib/auth/require-super-admin";
+import { resolveImpersonationState } from "@/lib/auth/impersonation";
 import {
   getOrgById,
   listOrgMembers,
@@ -34,6 +36,10 @@ export default async function OrgDetailPage({
   const { id } = await params;
   const org = await getOrgById(id);
   if (!org) notFound();
+
+  const impersonation = await resolveImpersonationState();
+  const isViewingThisOrg =
+    impersonation.isImpersonating && impersonation.targetOrgId === org.id;
 
   const now = new Date();
   const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
@@ -78,7 +84,17 @@ export default async function OrgDetailPage({
         <h1 className="font-display text-2xl font-semibold tracking-tight">
           {org.name}
         </h1>
-        <EnterImpersonationButton orgId={org.id} />
+        {isViewingThisOrg ? (
+          // Offering "Enter as this org" while already inside it is the kind of dead
+          // control that makes the whole feature feel unresponsive. Exit lives in the
+          // banner, so this is a status, not an action.
+          <span className="flex items-center gap-1.5 text-sm text-neutral-500">
+            <Eye className="size-3.5" strokeWidth={1.5} />
+            You&rsquo;re viewing as this org
+          </span>
+        ) : (
+          <EnterImpersonationButton orgId={org.id} orgName={org.name} />
+        )}
       </div>
       <OrgDetailTabs
         org={org}
