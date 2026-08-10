@@ -35,16 +35,21 @@ richer than anything the gate could reasonably have logged.
 
 ## 3. Read path
 
-Two bounded queries, both on the existing `/admin/orgs/[id]` server page:
+Three bounded queries on the existing `/admin/orgs/[id]` server page:
 
-1. **Audit rows** for the org, newest-first, capped (§7). Operator display names come from the
-   `profiles` table (`user_id` → `display_name`), the same join `listOrgMembers` already uses.
-2. **Recent generations** for the org, over the window the returned sessions span.
+1. **Session anchors** — `session_started` rows for the org, newest first, `limit`/`offset` by
+   page. These define the page's time window.
+2. **All audit rows** for the org within that window.
+3. **Generations** for the org within that window.
 
-One generations query for the whole page, bucketed in memory — not one per session.
+Operator display names come from the `profiles` table (`user_id` → `display_name`), the same
+join `listOrgMembers` already uses.
 
-New in `src/lib/db/impersonation-audit.ts`: `listImpersonationEventsForOrg(orgId, limit)`.
-New in `src/lib/db/generations.ts`: a time-windowed lookup for the org.
+New in `src/lib/db/impersonation-audit.ts`:
+`listImpersonationSessionPage(orgId, { page, pageSize })`, returning `{ rows, total }` to match
+`listGenerationsForOrgPage`'s established shape.
+New in `src/lib/db/generations.ts`: a window lookup returning `node_id`, `type`, `model_used`,
+`status`, `credits_consumed`, `user_id`, `created_at`.
 
 ## 4. Grouping — a pure module
 
@@ -56,7 +61,7 @@ type SessionEntry =
   | { kind: "elevated"; at: string }
   | { kind: "generation"; at: string; genType: string; model: string | null;
       status: string; credits: number | null }
-  | { kind: "write"; at: string; label: string };
+  | { kind: "action"; at: string; label: string };
 
 type ImpersonationSession = {
   id: string;              // the session_started row's id
@@ -65,83 +70,147 @@ type ImpersonationSession = {
   startedAt: string;
   endedAt: string | null;  // null → still active
   elevated: boolean;
-  entries: SessionEntry[]; // chronological, noise removed
-  saveCount: number;       // collapsed autosaves
+  entries: SessionEntry[]; // chronological, plumbing removed
+  quietCount: number;      // collapsed autosaves and handshakes
 };
 ```
 
-- `groupIntoSessions(events, generations): ImpersonationSession[]` — opens a session at
-  `session_started`, closes at `session_ended`. A session with no end renders as **still
-  active** rather than being dropped. Events arriving before any `session_started` (possible
-  only from a truncated window) are discarded rather than synthesising a fake session.
-  Generations join a session by timestamp window **and** matching operator id.
-- `describeWriteAction(detail): { label: string; kind: "save" | "generate" | "other" }` —
-  classifies one `write_action` row.
+`groupIntoSessions(events, generations)` opens a session at `session_started` and closes it at
+`session_ended`. A session with no end renders as **still active** rather than being dropped.
+Events arriving before the page's first `session_started` are discarded rather than
+synthesising a fake session.
 
-### Classification rules
+### 4.1 Correlating generations — by node id, not by time
 
-| Row | Treatment |
+A `write_action` row for a generate endpoint carries the **node uuid in its path**, and
+`generations.node_id` is that same uuid. So the two are matched **exactly**, within the
+session's window and on matching operator id — no fuzzy timestamp window, nothing to tune.
+
+When a match exists, the `write_action` row is dropped and the generation entry replaces it:
+strictly richer, and no double-listing.
+
+**When no match exists, the row is kept** as `"Attempted a generation"`. A generation that
+failed before its row was inserted is exactly the kind of event an audit trail must not lose,
+and a path-blacklist would have silently swallowed it.
+
+### 4.2 Which actions matter — three buckets
+
+Grounded in the actual surface: 18 `withAction`-gated server actions and ~48 gated API routes.
+
+**Bucket 1 — quiet (counted into `quietCount`, never listed).** High-frequency plumbing that
+carries no intent:
+
+- `saveCanvasAction`, `saveCanvasNodesAction` — autosave, the original flood
+- `*/sign` routes (`file/sign`, `logo/sign`, `brand-kit/assets/sign`, `kb/*/sign`) — the
+  pre-upload signing handshake; the paired `finalize` is the real event
+- `cost`, `compile-preview`, `upstream-images` — POSTs that compute rather than mutate
+
+**Bucket 2 — superseded (dropped, replaced by a generation entry).** Only where §4.1 finds a
+matching `generations` row.
+
+**Bucket 3 — meaningful (listed with a human label).** Everything else, including:
+
+| Source | Label |
 |---|---|
-| `{ action: "saveCanvasAction" }` | **Noise.** Counted into `saveCount`, never listed. |
-| `{ action: "<name>Action" }` | Human label, e.g. `deleteCanvasAction` → "Deleted a canvas". |
-| path matching a `/generate` endpoint | **Dropped** — see below. |
-| anything else | Compact `METHOD /path` fallback, so nothing is silently lost. |
+| `createCanvasAction` / `deleteCanvasAction` / `renameCanvasAction` | Created / Deleted / Renamed a canvas |
+| `createClientAction` | Created a client |
+| `deleteKBDocumentAction` | Deleted a knowledge-base document |
+| `deleteBrandImageAction` | Deleted a brand image |
+| `patchKBFieldAction` / `saveKBOutputAction` | Edited the knowledge base |
+| `startKBBuildJob` / `markKBReadyAction` | Started / completed a knowledge-base build |
+| `savePromptOutputAction` / `saveScriptOutputAction` | Edited a prompt's / script's output |
+| `setVersionApprovalAction` / `setVersionLabelAction` | Approved / labelled a version |
+| `markStuckJobFailed` | Marked a stuck job failed |
+| `DELETE` on any gated route | Deleted a \<resource\> |
+| `*/finalize` routes | Uploaded a file |
+| `kb/re-analyze`, `kb/re-extract` | Re-ran knowledge-base extraction |
+| `restore-version` | Restored a version |
+| `duplicate`, `duplicate-batch` | Duplicated a node |
 
-**Generation rows are dropped deliberately.** The real `generations` row supersedes them;
-keeping both would list every generation twice — once as an opaque
-`POST /api/nodes/<uuid>/generate`, once properly. This is the one place the view discards
-real audit data, and it does so only where a strictly richer record of the same event exists.
+**The fallback is visible, never silent.** Anything unmapped renders as `METHOD /path`. A new
+gated route added later therefore *appears* in the trail as something, rather than vanishing —
+which is the whole guarantee an audit view has to make. `testAction` is the sole exception, as
+it only exists for the test suite.
 
 ## 5. UI
 
 A third tab, **Support activity**, beside Overview and Generations in
-`src/app/admin/orgs/[id]/org-detail-tabs.tsx`. New component
-`src/components/admin/impersonation-audit.tsx`.
+`src/app/admin/orgs/[id]/org-detail-tabs.tsx`. New components under
+`src/components/admin/impersonation-audit/` (split per the ~200-line rule: the list, a session
+card, and the entry row).
 
-An accordion (`src/components/ui/accordion.tsx` already exists) of sessions, newest first:
+Not a table. A session is an episode, so each one is a **card** — white, 1px `neutral-200`
+border, `shadow-card`, radius 12–16px, generous padding, the same object language as the rest
+of the product.
+
+**Collapsed card** — one line, scannable:
 
 ```
-▾  Adarsh · 11 Aug, 00:12 — 00:48        [Editing]
-     00:14  Enabled editing
-     00:19  Generated image · kling-o1 · 4 credits
-     00:26  Generated video · veo-3 · 12 credits
-     00:31  Deleted a canvas
-     ⤷ 142 canvas saves
-     00:48  Exited
+┌──────────────────────────────────────────────────────────────────┐
+│ (AD)  Adarsh          11 Aug, 00:12 · 36 min      [ Editing ]  ▾ │
+│       3 generations · 1 deletion · 142 quiet writes              │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
-Read-only sessions carry a neutral pill; sessions where editing was enabled carry the amber
-treatment from D139's banner, so the consequential ones are scannable without reading. An
-active session shows "in progress" in place of an end time.
+- Operator initials chip (reusing `initials` from `@/lib/format/initials`), name in
+  `font-semibold`, timestamp and duration in `neutral-500`.
+- A summary line of counts, so a collapsed card still answers "did anything happen here".
+- State pill: neutral `Read-only`, or amber `Editing` reusing D139's banner treatment, so the
+  consequential sessions are scannable without opening anything. An open session shows a
+  pulsing dot and `In progress` in place of a duration.
 
-**Naming:** the tab is "Support activity", not "Impersonation" — plain language, consistent
-with D139's choice of "Enable editing" over the internal "elevated mode".
+**Expanded** — a vertical timeline, 1px `neutral-200` rule down the left, entries hung off it:
 
-**Empty state:** "No support sessions recorded for this organization."
+```
+│  00:14   ⬤  Enabled editing
+│  00:19   ▣  Generated image · kling-o1 · 4 credits
+│  00:26   ▣  Generated video · veo-3 · 12 credits          failed
+│  00:31   ▣  Deleted a canvas
+│          ⋯  142 quiet writes (autosaves, uploads handshakes)
+│  00:48   ⬤  Exited
+```
 
-## 6. Testing
+- Times in tabular figures, `neutral-500`, fixed column so they align.
+- Lucide icons at 1.5 stroke; generation entries carry model and credits as `neutral-500`
+  metadata, and a failed generation shows its status without shouting.
+- The quiet-write line is muted and un-timed — it is a count, not an event.
+- Accordion open/close uses the system easing `cubic-bezier(0.22,1,0.36,1)` at 200ms. No
+  springs.
 
-Pure-module tests only, matching the repo's convention (no DOM stack — see §8 of the
-impersonation UX design for why):
+**Empty state:** a calm centred line inside the tab — "No support sessions recorded for this
+organization." — not an empty table shell.
 
-- a complete session groups start → elevated → writes → end in order
+## 6. Pagination
+
+Mirrors `GenerationsTable` exactly, so the two tabs behave identically:
+
+- Page 1 is rendered server-side and passed in as `initial`, and the first client effect pass
+  is skipped so mount does not immediately re-fetch it.
+- Later pages come from a new `GET /api/admin/orgs/[id]/impersonation-sessions` route,
+  `requireSuperAdmin()`-gated like its neighbour.
+- The shared `Pagination` primitive plus a rows-per-page `Select` (10 / 20 / 50), default
+  **20 sessions**.
+- `pageCount` is clamped the same way, so a page that empties out mid-session cannot strand
+  the user past the end.
+
+## 7. Testing
+
+Pure-module tests, matching the repo's convention (no DOM stack — see §8 of the impersonation
+UX design for why):
+
+- a complete session groups start → elevated → writes → end, in order
 - an unterminated session is returned as active, not dropped
-- consecutive `saveCanvasAction` rows collapse into `saveCount` and appear in no entry
-- a generation lands in the session whose window contains it
-- a generation by a *different* operator in the same window does **not** join the session
-- `write_action` rows for a generate endpoint are dropped, leaving exactly one entry per
-  generation
-- events preceding the first `session_started` are discarded
+- consecutive autosave rows collapse into `quietCount` and appear in no entry
+- a generation matches its `write_action` row by node id, leaving exactly one entry
+- a generate row with **no** matching generation is kept as "Attempted a generation"
+- a generation by a *different* operator in the same window does not join the session
+- an unmapped action renders as a visible `METHOD /path` rather than disappearing
+- events preceding the page's first `session_started` are discarded
 
-## 7. Bounds and out of scope
+## 8. Out of scope
 
-- Capped at the **25 most recent sessions**, with a matching cap on the underlying event
-  query, so an org with heavy support history cannot slow the page. No pagination in this
-  pass — if 25 proves limiting, pagination is the follow-up, not a redesign.
-- **No cross-org `/admin/audit` feed.** Per-org only. A global feed is a reasonable next step
-  and deliberately not built here.
-- **No change to what gets written.** Adding structured detail to the gate (so a write knows
-  *which* canvas it touched) would improve the "other" fallback rows, but it touches every
-  gated route and the generations correlation already covers the case that matters.
+- **No cross-org `/admin/audit` feed.** Per-org only; a global feed is a reasonable next step.
+- **No change to what gets written.** Adding structured detail to the gate would improve the
+  fallback rows, but it touches every gated route and §4.1 already covers what matters.
 - **Autosave timing is not recoverable** from this view. Counting rather than listing is what
   keeps generations visible; the rows remain in the table for anyone who needs them.

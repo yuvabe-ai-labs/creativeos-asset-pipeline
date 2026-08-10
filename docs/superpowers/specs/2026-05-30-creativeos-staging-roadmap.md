@@ -2505,10 +2505,14 @@ silently.
 ### D141 — The impersonation audit view groups by session, counts autosaves instead of listing them, and reads generations from `generations` rather than the audit log *(recorded 2026-08-11; closes `2026-08-04-impersonation-stage4-design.md` §7's first out-of-scope item; originated in `2026-08-11-impersonation-audit-view-design.md`)*
 **Decision.** Surface `impersonation_audit_log` as a "Support activity" tab on
 `/admin/orgs/[id]`, grouped into sessions (`session_started` → `session_ended`). Within a
-session, `saveCanvasAction` rows are counted into a single "N canvas saves" line rather than
-listed; `write_action` rows pointing at a `/generate` endpoint are dropped entirely and replaced
-by the corresponding rows from the `generations` table, correlated at read time by timestamp
-window and operator id. No migration, no new columns, no change to the write path.
+session, events fall into three buckets: **quiet** plumbing (autosaves, `*/sign` upload
+handshakes, `cost`/`compile-preview` computations) counted into a single "N quiet writes" line;
+**superseded** generate rows, dropped in favour of the matching `generations` row; and
+**meaningful** actions, listed with a human label. Correlation is **exact, by node id** — the
+audit path carries the node uuid and `generations.node_id` is that same uuid — not by timestamp
+window. Anything unmapped falls through to a visible `METHOD /path` rather than being hidden.
+Paginated at 20 sessions per page, mirroring `GenerationsTable`. No migration, no new columns,
+no change to the write path.
 **Why.** The table had been written since Stage 4 and read by nothing, so the trail could not
 answer the one question it existed for. But absence was only half the problem: `saveCanvasAction`
 is wrapped in `withAction`, so every autosave while elevated writes a row, and a short editing
@@ -2527,14 +2531,18 @@ gate's logged `detail` so writes record which resource they touched (touches eve
 and the generations correlation already covers the case that matters). A cross-org
 `/admin/audit` feed (reasonable next step, roughly double the work, and worse for investigating
 one customer). Keeping both the `write_action` row and the `generations` row for a generation —
-every generation would appear twice, once opaquely.
+every generation would appear twice, once opaquely. **Blacklisting generate-endpoint paths**
+(the first draft of this decision): a path list drifts as routes are added, and it would have
+silently swallowed a generation that failed before its `generations` row was inserted — exactly
+the event an audit trail must not lose. Matching on node id and *keeping* unmatched rows as
+"Attempted a generation" is both exact and fail-safe.
 **Refines.** D81 (what gets logged — unchanged), D101 (`withAction` — unchanged; this ADR only
 reinterprets its output), D139 (the elevated state's amber treatment is reused to mark sessions
 where editing was enabled).
-**Known gap.** Dropping the generate-endpoint `write_action` rows is the one place this view
-discards real audit data. It is confined to events for which a strictly richer record of the
-same action exists, and the rows remain in the table. Autosave timing is likewise not
-recoverable from the view, only from the table.
+**Known gap.** Autosave and signing-handshake timing is not recoverable from the view, only
+from the table — counting rather than listing them is precisely what keeps generations visible.
+A generate row is only ever dropped when a matching `generations` row exists to replace it, so
+no event leaves the view without a strictly richer record taking its place.
 
 ### D139 — Replacing a File node's attachment re-derives its title, unless the operator renamed it *(recorded 2026-08-10; originated in QA rows FIL_02/FIL_07, Linear YUV-272)*
 **Decision.** On replace, rewrite the node title from the new filename **only while the existing
