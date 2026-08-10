@@ -347,3 +347,30 @@
     animation: none;
   }
 }
+
+/* ─── Base UI modal pointer-blocker (D138) ──────────────────────────────
+   Every modal Base UI overlay portals an internal blocker div that swallows
+   pointer events on everything behind it. Base UI ships it with only
+   `position: fixed; inset: 0` and NO z-index, so it computes to auto (~0) —
+   below our z-50 Sheet/Dialog popups. A confirm dialog opened from inside a
+   Sheet therefore looked modal but left the Sheet's own fields fully
+   editable, because the one element meant to block them sat underneath them.
+
+   Matching z-50 rather than exceeding it is deliberate: the blocker is
+   portalled immediately BEFORE its own popup, and a nested overlay's portal
+   mounts after its parent's, so document order already resolves every tie in
+   the right direction — innermost blocker above the parent's content, each
+   popup above its own blocker. A higher value would instead put the blocker
+   over its own popup.
+
+   Styleable only from here: the element is rendered by Base UI's portal
+   internals, so no component of ours can reach it via props.
+
+   The role guard is load-bearing. `data-base-ui-inert` alone is too broad —
+   floating-ui's markOthers() stamps that same attribute onto the OUTSIDE
+   elements it marks inert (app containers, sibling portal roots), and giving
+   those a z-index would reshuffle stacking well outside this fix. Only the
+   blocker pairs the attribute with role="presentation". */
+[data-base-ui-inert][role="presentation"] {
+  z-index: 50;
+}
