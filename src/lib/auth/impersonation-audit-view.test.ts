@@ -70,4 +70,26 @@ describe("classifyWriteAction", () => {
     expect(classifyWriteAction(null)).toEqual({ kind: "action", label: "Unknown action" });
     expect(classifyWriteAction({})).toEqual({ kind: "action", label: "Unknown action" });
   });
+
+  // The DELETE branch must run BEFORE the PATH_LABELS loop. If it ever moves after,
+  // this path matches /versions$ and a deletion gets mislabelled "Created a version".
+  it("prefers the DELETE label over a path-family label for the same path", () => {
+    expect(
+      classifyWriteAction({ method: "DELETE", path: "/api/nodes/n1/versions" }),
+    ).toEqual({ kind: "action", label: "Deleted a node" });
+  });
+
+  // The audit guarantee, action side: an unmapped action shows under its own name.
+  it("falls back to the raw action name for an unmapped action", () => {
+    expect(classifyWriteAction({ action: "someBrandNewAction" })).toEqual({
+      kind: "action",
+      label: "someBrandNewAction",
+    });
+  });
+
+  it("names an unrecognised delete target generically rather than guessing", () => {
+    expect(
+      classifyWriteAction({ method: "DELETE", path: "/api/something/else" }),
+    ).toEqual({ kind: "action", label: "Deleted a resource" });
+  });
 });
