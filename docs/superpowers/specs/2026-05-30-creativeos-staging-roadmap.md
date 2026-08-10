@@ -2415,3 +2415,111 @@ is naming and key assignment only).
 **Guard.** `canvas-node-options.test.ts` asserts `mnemonicToType("g") === null` and that no entry
 in `ADD_NODE_OPTIONS` carries mnemonic `g`, so re-taking the key fails the suite rather than
 silently reintroducing the double-fire.
+
+### D138 — Base UI's modal pointer-blocker is given `z-index: 50` in `globals.css`; confirm dialogs stay non-dismissible *(recorded 2026-08-10; originated in QA rows SCR_14/SCR_18, Linear YUV-268)*
+**Decision.** Add one global rule — `[data-base-ui-inert][role="presentation"] { z-index: 50 }` — so the
+blocker Base UI portals for every modal overlay actually sits above our `z-50` Sheet and Dialog
+popups. Keep `AlertDialog` for destructive confirms, so an outside click is *absorbed* rather than
+dismissing the dialog.
+**Why.** Base UI ships `InternalBackdrop` with only `position: fixed; inset: 0` and no z-index, so
+it computed to `auto` (~0) while `SheetContent` is `z-50`. A confirm dialog opened from inside a
+focus-view Sheet looked modal — its own overlay and popup are `z-50` and portal later — but the
+Sheet's fields stayed fully editable, because the one element meant to block them rendered
+underneath them. Operators could click away from "Re-extracting will overwrite your unsaved edits",
+keep typing, then confirm, losing exactly the edits the dialog existed to protect. Matching `z-50`
+rather than exceeding it is deliberate: the blocker portals immediately before its own popup, and a
+nested overlay's portal mounts after its parent's, so document order already resolves every tie
+correctly — a higher value would instead lift the blocker over its own popup.
+**Rejected.** Swapping `AlertDialog` for a dismissible `Dialog` to match the test sheet's "clicking
+outside dismisses" wording — Base UI omits `modal` and `disablePointerDismissal` from
+`AlertDialogRootProps` precisely so a destructive confirm cannot be dismissed by a stray click, and
+the sheet's expectation was written before that was understood. Styling the blocker from the
+component layer (unreachable — Base UI renders it inside its own portal internals). A bare
+`[data-base-ui-inert]` selector (floating-ui's `markOthers()` stamps the same attribute on outside
+elements it marks inert, so the `role="presentation"` guard is load-bearing). Per-dialog z-index
+bumps (would need repeating at every call site and re-tuning whenever an overlay nests deeper).
+**Refines.** The shadcn/Base UI primitive layer (`alert-dialog.tsx`, `sheet.tsx` unchanged — this is
+purely the missing stacking rule beneath them).
+**Known gap.** `CopilotPanel` is deliberately `z-[60]` to float above focus-view sheets, so it stays
+interactive while a confirm dialog is open. Out of scope here — closing it means lifting the alert
+dialog's own overlay and popup above 60 too, which is a broader layering pass.
+
+### D139 — The impersonation banner is sticky session chrome with two distinct visual states; operators read "Enable editing", never "elevated mode" *(recorded 2026-08-10; supersedes `2026-08-04-impersonation-stage4-design.md` §5; originated in `2026-08-10-impersonation-ux-design.md`)*
+**Decision.** Rebuild the banner as `sticky top-0 z-50` chrome, `h-11`, gutter-aligned and
+left-aligned, with the app header shifted to `top-11` while impersonating. Read-only and elevated
+become visually distinct states rather than one bar with a swapped badge: read-only is a white bar
+with a 3px purple left rule, an `Eye` icon and a `VIEWING AS` eyebrow; elevated is a soft ~10%
+`#ffca2d` wash with an amber rule, an `Unlock` icon, a pulsing dot and an `EDITING AS` eyebrow.
+Exit is promoted from `ghost` to `outline`. The user-facing label for elevated mode becomes
+**"Enable editing"**; the internal term is unchanged in code, in this log, and in the
+`elevated_mode_entered` audit event.
+**Why.** The shipped banner was `bg-muted`, `h-9`, centered — and, critically, *not sticky while the
+header below it was*. Scrolling therefore erased every trace of impersonation, letting an operator
+forget they were inside a customer's account while writing to it. That is a safety defect, not
+polish, and it is the reason this ADR exists rather than a styling tweak. The two states needed to
+differ in temperature, not just in a small badge, because the elevated state is the one where writes
+land on a real customer's data. Yellow-as-tint and purple-as-rule keep this inside the design
+system's "purple sparingly, never a large fill; yellow only as a soft glow" constraint while still
+being unmissable. "Elevated mode" is jargon that describes our cookie payload, not the operator's
+intent; a tester reported the feature "didn't feel like it activated at all," and opaque vocabulary
+was part of that.
+**Rejected.** A persistent colored ring inset around the whole viewport (macOS screen-sharing style)
+— maximally unmissable, but visually loud against a "light editorial premium" system and it costs
+layout on every page for a state that the sticky bar already covers. Keeping the thin strip and
+relying on toasts and dialogs alone to signal activation — toasts are transient, and the failure
+being fixed is precisely that the *persistent* signal was too weak. Renaming "elevated mode"
+throughout code and the audit log — churn across the DAL, the write-gate, the `event_type` CHECK
+constraint and four prior ADRs, for a term no operator reads.
+**Refines.** D81 (impersonation session semantics — unchanged), D138 (`AlertDialog` for the two new
+confirm dialogs).
+**Deferred, by decision.** Returning from elevated mode to read-only (would need a new
+`elevated_mode_exited` event and therefore a migration widening the `event_type` CHECK constraint) —
+so elevated stays one-way for the session, and the confirm dialog must say so. Surfacing the 2-hour
+TTL as a countdown or expiry warning — the operator-facing story is "you are viewing as X," not a
+clock.
+
+### D140 — Impersonation server actions return instead of redirecting; the client navigates and toasts *(recorded 2026-08-10; originated in `2026-08-10-impersonation-ux-design.md`)*
+**Decision.** `enterImpersonationAction` and `exitImpersonationAction` drop their `redirect()` calls,
+instead performing their work, calling `revalidatePath("/", "layout")`, and returning. The calling
+client component fires a `sonner` toast and then `router.push()`es. The read-only gate message,
+currently duplicated verbatim in `route-helpers.ts` and `with-action.ts`, moves to one exported
+constant.
+**Why.** A server-side `redirect()` unmounts the calling component before it can render anything, so
+the three impersonation transitions were structurally incapable of acknowledging themselves — the
+app's `<Toaster />` was already mounted in `layout.tsx` and simply unreachable from this feature.
+Moving navigation client-side is what makes the acknowledgement possible at all. It also deletes the
+`unstable_rethrow` branch in `enter-impersonation-button.tsx`, which existed only to tell Next's
+redirect control-flow rejection apart from a genuine failure; with no redirect, a thrown value is
+unambiguously an error, and the inline `<span className="text-destructive">` nodes (which never
+cleared once set) become toasts.
+**Rejected.** Keeping the server redirect and carrying the toast across it via a `?impersonated=1`
+search param stripped by `router.replace`, or via a short-lived flash cookie — both work, and both
+add URL or cookie plumbing to compensate for a redirect that has no reason to be server-side once
+the client is already handling the interaction.
+**Refines.** D101 (`withAction()` write-gate — the gate itself is unchanged; only the message
+literal is de-duplicated).
+**Guard.** The existing action tests assert the redirect, so they must be updated to assert
+`revalidatePath` and a plain return — the contract change fails the suite rather than passing
+silently.
+
+### D139 — Replacing a File node's attachment re-derives its title, unless the operator renamed it *(recorded 2026-08-10; originated in QA rows FIL_02/FIL_07, Linear YUV-272)*
+**Decision.** On replace, rewrite the node title from the new filename **only while the existing
+title is still the one we derived** — compared case- and whitespace-insensitively against the
+outgoing filename. A title the operator typed survives any number of replaces. `fileNameToTitle`
+moves from `copilot/actions.ts` to `lib/nodes/file-title.ts` (re-exported from its old home) and
+gains `shouldRederiveTitle`.
+**Why.** The title was derived under `if (!title)`, so it was set once on first upload and never
+again: replacing an image with a `.txt` updated the kind badge and preview but left the node
+labelled with the old image's name. Unconditionally re-deriving would have been the obvious fix and
+the wrong one — it silently discards deliberate names, which is worse than a stale one. The
+case-insensitive comparison exists because titles derived before this change were not title-cased;
+an exact match would classify every pre-existing node as "manually renamed" and freeze its title
+permanently.
+**Rejected.** Always re-deriving (destroys operator intent). Never re-deriving, i.e. the status quo
+(the reported bug). A `titleIsCustom` flag on node data (needs a migration and a backfill that
+cannot recover intent for existing rows, where the comparison infers it for free). Leaving the
+duplicated inline derivation in `file-focus-view.tsx` — it had already drifted from
+`fileNameToTitle` (no title-casing, no trim), which is exactly the divergence the reuse rule exists
+to prevent.
+**Side effect.** Manually-uploaded File nodes now title-case like copilot-created ones
+("hero-shot.png" → "Hero Shot", previously "hero shot"). Existing titles are untouched.
