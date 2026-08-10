@@ -1,57 +1,108 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogTrigger,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogAction,
+  AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
 import {
   enterElevatedModeAction,
   exitImpersonationAction,
 } from "@/lib/actions/impersonation";
 
+// Takes showEnableEditing rather than `elevated`: the banner has already made that
+// decision in bannerPresentation(), and passing both would be two sources of truth for
+// one piece of state.
 export function ImpersonationBannerActions({
   orgId,
-  elevated,
+  orgName,
+  showEnableEditing,
 }: {
   orgId: string;
-  elevated: boolean;
+  orgName: string;
+  showEnableEditing: boolean;
 }) {
   const [isPending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
+
+  function enableEditing() {
+    startTransition(async () => {
+      try {
+        await enterElevatedModeAction();
+        toast.warning(`Editing enabled for ${orgName}`, {
+          description: "Changes you make now are written to their real data.",
+        });
+        router.refresh();
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Couldn't enable editing.");
+      }
+    });
+  }
+
+  function exit() {
+    startTransition(async () => {
+      try {
+        await exitImpersonationAction();
+        toast.success("Exited — back in your own account");
+        router.push(`/admin/orgs/${orgId}`);
+      } catch (e) {
+        toast.error(
+          e instanceof Error ? e.message : "Couldn't exit impersonation.",
+        );
+      }
+    });
+  }
 
   return (
     <div className="flex items-center gap-2">
-      {elevated ? (
-        <Badge variant="destructive">Elevated</Badge>
-      ) : (
-        <Button
-          type="button"
-          size="xs"
-          variant="outline"
-          disabled={isPending}
-          onClick={() =>
-            startTransition(async () => {
-              setError(null);
-              try {
-                await enterElevatedModeAction();
-              } catch {
-                setError("Failed to enter elevated mode.");
-              }
-            })
-          }
-        >
-          Enter elevated mode
-        </Button>
+      {showEnableEditing && (
+        <AlertDialog>
+          <AlertDialogTrigger
+            render={
+              <Button type="button" size="xs" variant="outline" disabled={isPending}>
+                Enable editing
+              </Button>
+            }
+          />
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Enable editing for {orgName}?</AlertDialogTitle>
+              {/* States the one-way nature explicitly: there is deliberately no path
+                  back to read-only short of exiting (spec §2). */}
+              <AlertDialogDescription>
+                You&rsquo;ll be able to create, edit and delete {orgName}&rsquo;s real
+                data. Every change is recorded against your account. To go back to
+                read-only you&rsquo;ll need to exit and re-enter.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction variant="destructive" onClick={enableEditing}>
+                Enable editing
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       )}
       <Button
         type="button"
         size="xs"
-        variant="ghost"
+        variant="outline"
         disabled={isPending}
-        onClick={() => startTransition(() => exitImpersonationAction(orgId))}
+        onClick={exit}
       >
         Exit
       </Button>
-      {error && <span className="text-destructive">{error}</span>}
     </div>
   );
 }
