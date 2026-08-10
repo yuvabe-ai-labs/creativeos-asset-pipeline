@@ -797,12 +797,48 @@ export async function listImpersonationSessionPage(
 Run: `npx tsc --noEmit`
 Expected: no errors under `src/`. Errors under `.next/types/` are pre-existing stale build artifacts — ignore them.
 
-- [ ] **Step 4: Confirm the pure tests still pass**
+- [ ] **Step 4: Test the page-window logic**
 
-Run: `npx vitest run src/lib/auth/impersonation-audit-view.test.ts --testTimeout=30000`
-Expected: PASS, 18 tests. (The DB functions have no unit tests by design — this repo does not mock Supabase at that layer; they are exercised by hand in Task 6.)
+This repo **does** mock Supabase at the db layer — `src/lib/db/impersonation-audit.test.ts`,
+`recent-canvas.test.ts`, `client-with-count.test.ts` and others all do. **Read the existing
+`src/lib/db/impersonation-audit.test.ts` first and follow its mocking style**, extending its
+`createServerSupabase` mock to return a chainable query builder.
 
-- [ ] **Step 5: Commit**
+The behaviour that must be covered is the one the plan's own self-review caught: the event
+window is open-ended (a session's events run past its start, so it cannot be closed by a
+timestamp), which means **on page 2 the window also sweeps in every newer session**. The
+anchor-id filter is what actually selects the page. Append to
+`src/lib/db/impersonation-audit.test.ts`:
+
+```ts
+describe("listImpersonationSessionPage", () => {
+  it("returns only the requested page's sessions, not the newer ones the open-ended window drags in", async () => {
+    // Page 2's anchor is the OLD session. The event query, being open-ended from that
+    // anchor, also returns the NEW session's rows — which must not appear in the result.
+    // Arrange the mock so the anchor query yields only the old session_started row while
+    // the event query yields both sessions' rows, then assert one session comes back.
+  });
+
+  it("reports total from the anchor query's exact count", async () => {
+    // total must count every session_started row for the org, not just the page.
+  });
+
+  it("short-circuits to an empty page when the org has no sessions", async () => {
+    // No anchors → no follow-up queries, sessions: [].
+  });
+});
+```
+
+Replace each comment with a real arrangement and assertion — a test that asserts nothing is
+worse than no test. The first case is the important one; it is a bug this plan already had
+once.
+
+- [ ] **Step 5: Run the tests**
+
+Run: `npx vitest run src/lib/db/impersonation-audit.test.ts src/lib/auth/impersonation-audit-view.test.ts --testTimeout=30000`
+Expected: PASS — the 18 pure tests plus the existing `logImpersonationEvent` tests plus the 3 new ones.
+
+- [ ] **Step 6: Commit**
 
 ```bash
 git add src/lib/db/impersonation-audit.ts src/lib/db/generations.ts
@@ -1289,6 +1325,6 @@ git commit -m "feat(audit): Support activity tab on the org detail page"
 
 ## Notes for the implementer
 
-- **Do not add `@testing-library/react` or a jsdom environment.** This repo tests pure logic under `environment: "node"`. All the decision-making here lives in `impersonation-audit-view.ts` precisely so it is testable without a DOM; the components are deliberately thin.
+- **Do not add `@testing-library/react` or a jsdom environment.** This repo tests pure logic under `environment: "node"`. All the decision-making here lives in `impersonation-audit-view.ts` precisely so it is testable without a DOM; the components are deliberately thin. The db layer IS unit-tested, by mocking `createServerSupabase` — see `src/lib/db/impersonation-audit.test.ts`.
 - **Two PostgREST joins are copy-from-neighbour, not invent-from-scratch**: the generations org scope (Task 3, copy from `listGenerationsForOrgPage`) and the `Select` sub-components (Task 6, copy from `generations-table.tsx`). Both are called out in their steps.
 - **`.next/types/validator.ts` errors are pre-existing** stale build artifacts and unrelated to this work. Only errors under `src/` matter.
