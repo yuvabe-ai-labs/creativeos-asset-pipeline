@@ -2565,3 +2565,33 @@ duplicated inline derivation in `file-focus-view.tsx` — it had already drifted
 to prevent.
 **Side effect.** Manually-uploaded File nodes now title-case like copilot-created ones
 ("hero-shot.png" → "Hero Shot", previously "hero shot"). Existing titles are untouched.
+
+### D142 — A tray row's kind is derived from the node type, not the job row; status is icon-only *(recorded 2026-08-11; refines D35; originated in `2026-08-11-generation-tray-ux-design.md`)*
+**Decision.** Replace `TrayItem.assetType` (`image | video | prompt`, read off the `generations`
+row) with `TrayItem.kind` (`image-prompt | image | motion-prompt | video`), resolved from the job
+type **plus `node.type`**, and expose `TRAY_KIND_META` (label / track / stage) from the pure
+`generation-tray.ts`. The row renders kind as a leading chip — glyph = track (`ImageIcon` /
+`Clapperboard`), chip weight = stage (outlined = prompt, `bg-accent` = output) — and status as a
+trailing glyph with no visible label (`Loader2` spin `text-warning-text` / `CheckCircle2`
+`text-success-text` / `AlertTriangle` `text-destructive`), the word preserved in `title` +
+`aria-label`. Failed rows take `border-destructive/30 bg-destructive/10`.
+**Why.** Two node types write `type: "prompt"` — the Prompt node and the Motion Prompt node — so
+the tray had *no information available* to tell an Image Prompt from a Motion Prompt and rendered
+both as "Prompt". That is a derivation gap; no restyling could close it, and the node type was
+already in hand in `deriveTrayItems`. Encoding track and stage as two facets of one chip (2×2) beats
+four unrelated glyphs because a shot's prompt and the output it produced then share a glyph, so the
+rail's left edge scans as a pipeline. Icon-only status removes the third text element from a narrow
+row, and the colors are all pre-existing `globals.css` tokens rather than the mock's invented hues.
+**Fixes.** Failed rendered in `text-muted-foreground` — the quietest tone in the system — so
+failures receded exactly where they should announce themselves. Expect existing canvases to look
+like they grew errors; the failures were always there.
+**Rejected.** Grouping rows by shot and splitting the tray into Image/Video sections (both fight the
+status-first sort, which answers the operator's actual question — what is running, what broke).
+Four distinct glyphs, one per kind (loses the prompt→output relationship). A colored left track rail
+(needs a second hue; purple is the only brand color). A "N generations failed" summary banner
+(duplicates the rows, costs height in a `max-h-[50vh]` rail). Keeping the status word (the specific
+thing that made the rail feel text-heavy). Any tray-level retry — D35's navigation-only guardrail is
+explicitly re-confirmed, not relaxed.
+**Refines.** D35 (the tray's behavior model, retention rule, sort order, and pointer-surface
+guardrail are all unchanged — this is presentation plus the kind derivation). Depends on D137 for
+the "Motion Prompt" label.
