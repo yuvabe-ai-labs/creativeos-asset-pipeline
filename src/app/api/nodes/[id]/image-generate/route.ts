@@ -8,6 +8,7 @@ import {
   type EditIntent,
 } from "@/lib/image-gen/edit-prompt";
 import type { MentionUpstream } from "@/lib/nodes/resolve-mention-tokens";
+import { withProductDetailSuffix } from "@/lib/image-gen/utils";
 import { computeImageCost } from "@/lib/image-gen/cost";
 import { estimateImageGenerationCostUsd } from "@/lib/image-gen/estimate";
 import { usdToFinalCredits } from "@/lib/credits/units";
@@ -164,15 +165,16 @@ export async function POST(
       // Use the operator's (possibly hand-edited) final prompt when provided; otherwise compose
       // it from the per-intent template. The literal prompt sent is recorded for traceability.
       const editedPrompt = typeof body?.prompt === "string" ? body.prompt.trim() : "";
-      prompt =
+      prompt = withProductDetailSuffix(
         editedPrompt ||
-        buildEditPrompt({
-          instruction,
-          intent,
-          hasExtraReference: extraReferenceUrls.length > 0,
-          masked,
-          upstream: mentionUpstream,
-        });
+          buildEditPrompt({
+            instruction,
+            intent,
+            hasExtraReference: extraReferenceUrls.length > 0,
+            masked,
+            upstream: mentionUpstream,
+          }),
+      );
       inputsUsed = {
         promptVersionId: carriedPromptVersionId,
         baseVersionId: baseVersionId ?? null,
@@ -187,7 +189,7 @@ export async function POST(
       if (!promptNode?.activeOutput) {
         return apiError("No connected Prompt node with output found.", 400);
       }
-      prompt = String(promptNode.activeOutput);
+      prompt = withProductDetailSuffix(String(promptNode.activeOutput));
       referenceUrls = connectedImageUrls.slice(0, config.maxReferenceImages);
       inputsUsed = {
         promptNodeId: promptNode.nodeId,
