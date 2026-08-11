@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { Zap } from "lucide-react";
-import { createBrowserSupabase } from "@/lib/supabase/client";
 import { authFetch } from "@/lib/supabase/session-ready";
 import { useIdentity } from "@/hooks/use-identity";
 import { subscribeToOrgGenerationUpdates } from "@/lib/realtime/org-generation-updates";
@@ -28,26 +27,21 @@ export function CanvasCostChip({ canvasId }: { canvasId: string }) {
     }
     void fetchCost();
 
-    // Re-fetch once a succeeded generation lands on one of this canvas's nodes —
-    // otherwise this total is stuck at its pre-generation value until a full page reload
-    // (YUV-250, the canvas-level counterpart of the per-node cost figure's same bug).
-    // Checked live per event (a single indexed node lookup) rather than snapshotting this
-    // canvas's node ids once up front, so a node created after this component mounts —
-    // an everyday occurrence, not an edge case — is still covered.
+    // Re-fetch once a succeeded generation lands anywhere in the org — otherwise this total
+    // is stuck at its pre-generation value until a full page reload (YUV-250, the
+    // canvas-level counterpart of the per-node cost figure's same bug). This used to gate
+    // the refetch on a client-side `nodes` lookup keyed by row.node_id + canvasId, but
+    // `nodes` has RLS enabled with ZERO policies (migration 0017_default_deny_rls.sql):
+    // the browser client's anon-key session always got zero rows back, so that check
+    // silently never passed and fetchCost() never ran. There is no browser-safe way to ask
+    // "is this node on my canvas" directly, so instead we refetch unconditionally on every
+    // succeeded generation in the org — /api/canvas/[id]/cost does the real per-canvas
+    // scoping server-side. Worst case: one harmless extra refetch for another canvas.
     let unsubscribe: (() => void) | null = null;
     if (orgId) {
-      const supabase = createBrowserSupabase();
       unsubscribe = subscribeToOrgGenerationUpdates(orgId, (row) => {
         if (row.status !== "succeeded") return;
-        void supabase
-          .from("nodes")
-          .select("id")
-          .eq("id", row.node_id)
-          .eq("canvas_id", canvasId)
-          .maybeSingle()
-          .then(({ data }: { data: { id: string } | null }) => {
-            if (!cancelled && data) void fetchCost();
-          });
+        void fetchCost();
       });
     }
 

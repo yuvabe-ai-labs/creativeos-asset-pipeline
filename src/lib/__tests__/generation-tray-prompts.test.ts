@@ -44,7 +44,7 @@ describe("deriveTrayItems with prompts", () => {
 
     const items = deriveTrayItems(nodes, edges, jobs, now);
     expect(items).toHaveLength(1);
-    expect(items[0].assetType).toBe("prompt");
+    expect(items[0].kind).toBe("image-prompt");
   });
 
   it("still includes image-type jobs", () => {
@@ -54,6 +54,6 @@ describe("deriveTrayItems with prompts", () => {
 
     const items = deriveTrayItems(nodes, edges, jobs, now);
     expect(items).toHaveLength(1);
-    expect(items[0].assetType).toBe("image");
+    expect(items[0].kind).toBe("image");
   });
 });
