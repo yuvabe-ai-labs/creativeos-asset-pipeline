@@ -1,6 +1,7 @@
 import { Loader2, CheckCircle2, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { TrayItem } from "@/lib/generation-tray";
+import { TRAY_KIND_META } from "@/lib/generation-tray";
 
 const STATUS_META: Record<
   TrayItem["status"],
@@ -20,8 +21,7 @@ export function GenerationTrayItem({
 }) {
   const meta = STATUS_META[item.status];
   const Icon = meta.icon;
-  const assetLabel =
-    item.assetType === "video" ? "Video" : item.assetType === "prompt" ? "Prompt" : "Image";
+  const assetLabel = TRAY_KIND_META[item.kind].label;
   return (
     <button
       onClick={() => onOpen(item.nodeId)}
