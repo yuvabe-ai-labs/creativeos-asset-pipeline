@@ -33,8 +33,9 @@ feel dense, and the word duplicates the glyph that already sits at the row's oth
 
 ## 2. Goal
 
-Make a tray row legible without reading it: **kind from a leading glyph, status from a trailing
-glyph, nothing else.** Keep the tray navigation-only.
+Let a tray row say what it is — an Image Prompt, an Image, a Motion Prompt, a Video — and show its
+status as a glyph rather than a word. Change nothing else: not the tray's geometry, not its chrome,
+not its closed state, and not its navigation-only behavior.
 
 ## 3. Non-goals
 
@@ -97,89 +98,90 @@ matches. The persisted `nodes.type` slug stays `"video-prompt"` — this is disp
 
 ```
 ┌────────────────────────────────────┐
-│  (▫🖼)  Shot 1 · Image Prompt    ✓ │   outlined chip = prompt stage
-│  (▪🖼)  Shot 1 · Image           ✓ │   tinted chip   = output stage
-│  (▫🖼)  Shot 2 · Image Prompt    ◌ │
-│  (▫🎬)  Shot 3 · Motion Prompt   ◌ │
-│  (▪🎬)  Shot 3 · Video           ✓ │
-│▓ (▪🎬)  Untitled · Video        ⚠ ▓│   failed row tinted
+│  Shot 1 · Image Prompt           ✓ │
+│  Shot 1 · Image                  ✓ │
+│  Shot 2 · Image Prompt           ◌ │
+│  Shot 3 · Motion Prompt          ◌ │
+│  Shot 3 · Video                  ✓ │
+│  Untitled · Video                ⚠ │
 └────────────────────────────────────┘
 ```
 
-**Leading kind chip** — `size-7 rounded-lg`, centred glyph at `size-3.5 stroke-[1.5]`.
+**The row is pure text plus one status glyph** — it matches the design comp exactly. There is no
+leading icon.
 
-| Facet | Encoding |
-| :--- | :--- |
-| `track: "image"` | `ImageIcon` (the glyph already on the Image Gen node card) |
-| `track: "video"` | `Clapperboard` (already on both the Motion Prompt and Video Gen cards) |
-| `stage: "prompt"` | `border border-border`, transparent bg, `text-muted-foreground` |
-| `stage: "output"` | `bg-accent` (`neutral-100`), no border, `text-foreground` |
+**The label carries the kind, and that is the whole point of §4.** `{shotLabel} · {label}` at
+`text-xs font-medium`, `text-foreground`, with the `·` separator in `text-muted-foreground`,
+truncating with `truncate`. Because nothing else distinguishes an Image Prompt row from a Motion
+Prompt row, the derivation fix is *more* load-bearing here, not less: before §4, the tray could only
+render the word "Prompt" for both.
 
-`bg-accent` rather than `bg-muted` for the output chip: `--muted` is `neutral-50`, which is nearly
-invisible against the white `bg-card` row and would leave the prompt/output distinction resting on
-the border alone. `neutral-100` reads as a deliberate fill while staying well below the row's own
-contrast. Three differentiators stack — ring vs fill, muted vs full-strength glyph, and the label
-text itself — so the distinction never depends on any single one.
+**Trailing status glyph — icon only, `size-3.5`, `stroke-[1.5]`.** It replaces both the old leading
+glyph and the trailing status word, so the row goes from three elements to two.
 
-Two glyphs, not four. The pairing is the signal: a shot's prompt and the output it produced share a
-glyph and differ only in chip weight, so the left edge of the tray reads as a pipeline. Four
-unrelated glyphs were rejected (§8).
+| Status | Glyph | Class | Token | Value | On white |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| Running | `Loader2` + `animate-spin` | `text-gen-running` | `--gen-running` | `#ffd230` | 1.45:1 |
+| Ready | `CheckCircle2` | `text-gen-ready` | `--gen-ready` | `#0fea81` | 1.60:1 |
+| Failed | `AlertTriangle` | `text-gen-failed` | `--gen-failed` | `#fc171b` | 3.96:1 |
 
-**Label** — `{shotLabel} · {TRAY_KIND_META[kind].label}` at `text-sm`, shot and kind both
-`text-foreground` with the `·` separator in `text-muted-foreground`. Truncates with `truncate`.
+**These three hues come from the design comp, not from the palette**, and are added to
+`globals.css` as new primitives registered in `@theme` — so the components still reference tokens
+and hardcode nothing. They are deliberately brighter than the semantic 700 steps and **two of the
+three do not clear the 3.0:1 WCAG floor for graphical objects.**
 
-**Trailing status glyph — icon only, `size-[18px]`, `stroke-[1.5]`:**
+That is an accepted, explicit trade: status here is *never carried by colour alone*. Each state has
+a distinct glyph shape (rotating arc / circled check / triangle), and the status word is on the
+row's `title` and `aria-label`. Colour is reinforcement, not the signal. The alternative — the
+semantic `-text` 700 steps (`green-700` 4.71:1, `yellow-700` 4.57:1, `red-orange-700` 4.52:1) —
+clears the floor comfortably but reads olive/mustard/vermillion rather than the comp's green/amber/
+red, because the Yuvabe palette has no emerald or pure red. Both options were measured and shown
+before the choice was made.
 
-| Status | Glyph | Class | Token chain |
-| :--- | :--- | :--- | :--- |
-| Running | `Loader2` + `animate-spin` | `text-warning-text` | `--warning-text` → `--yellow-700` |
-| Ready | `CheckCircle2` | `text-success-text` | `--success-text` → `--green-700` |
-| Failed | `AlertTriangle` | `text-destructive-text` | `--destructive-text` → `--red-orange-700` |
-
-All are pre-existing `globals.css` tokens registered in `@theme` (`--color-success-text`,
-`--color-warning-text`, `--color-destructive-text`), so the palette is token-driven — nothing
-hardcoded, nothing invented.
-
-**All three glyphs take the `-text` (700-step) variant.** `globals.css:139-146` documents the rule:
-`--x` is *the fill / solid surface*, `--x-foreground` is *ink on that fill*, and `--x-text` is *ink
-on a LIGHT surface (the 700 step)*. A status glyph is ink on a light surface in all three states —
-including Failed, whose row tint is a 10% wash, still light. The 700 steps also carry verified
-contrast annotations (`green-700` 4.71:1, `yellow-700` 4.57:1, `red-orange-700` 4.52:1); the 500
-steps carry none, because they were never meant as ink.
-
-Note this makes the tray *diverge* from `approval-badge.tsx:22`, which puts `text-destructive`
-(the 500 fill) on a `bg-destructive/10` chip. That badge is the outlier against the documented
-convention, not the precedent — an earlier draft of this spec cited it as one and was wrong.
+**Scoped to the tray on purpose.** `--gen-*` drives only these glyphs and the failed row's tint.
+The semantic `--success` / `--warning` / `--destructive` families are untouched and still drive
+`approval-badge.tsx` and everything else, so this brightness trade does not leak into surfaces that
+never agreed to it.
 
 **Accessibility.** The status word is removed from the DOM as *visible* text but retained as the
 row's `title` and folded into its `aria-label`
 (`"Shot 1 · Image Prompt — Ready"`), so the tray stays operable by screen reader and hover. Status is
 never encoded by color alone: each state has a distinct glyph shape.
 
-**The spinner.** `Loader2` is a rotating open arc with no arrowheads. The reference mock read as a
+**The spinner.** `Loader2` is a rotating open arc with no arrowheads. The design comp read as a
 "reload" control because it drew `RefreshCw`, whose arrowheads make it look like an actionable retry
-button on a surface that has no actions. `Loader2` is also already the repo's in-progress idiom
-(`ProcessingPill`, the collapsed tray pill), so this is consistency, not novelty.
+button on a surface that has no actions. This was the complaint that started the work. `Loader2` is
+also already the repo's in-progress idiom (`ProcessingPill`), so this is consistency, not novelty.
 
-**Failed row treatment** — the row card takes `border-destructive/30 bg-destructive/10`, verbatim the
-language `approval-badge.tsx` already uses for `changes_requested`. No other row state is tinted;
-Running and Ready rows stay white.
+**No per-status row treatment.** Every row is the same white card whatever its status; the glyph
+alone carries the state. A tinted failed row was built and then removed — it read as heavy against a
+list of otherwise identical rows, and the comp draws failed rows plain. The §1(c) bug is still fixed
+without it: the failure signal moved from `text-muted-foreground`, the quietest tone in the system,
+to a saturated red at 3.96:1 — the highest-contrast of the three status glyphs.
 
-**Row chrome** — `rounded-xl border border-border bg-card px-3 py-3`. **`shadow-card` is removed from
-the row.** Rows currently carry a card shadow *inside* an already-shadowed panel, which is the main
-reason the shipped tray reads as muddy rather than crisp; inside a container, borders alone are the
-correct elevation. Hover keeps `-translate-y-px` with the house easing.
+**Row chrome is unchanged from the shipped tray** — `rounded-lg border border-border bg-card px-3
+py-2`, `shadow-card`, label at `text-xs font-medium`, glyph at `size-3.5`, hover `-translate-y-px`
+on the house easing. **No dimension moves.** An earlier pass enlarged the row (`px-4 py-2.5`,
+`text-sm font-semibold`) and dropped `shadow-card`; both were reverted. The redesign is a swap of
+*what* each row says, not a resize of the rail — the tray keeps its existing footprint on the canvas
+so nothing else in the editor has to shift around it.
 
 ## 6. The panel
 
-- **Width `w-64` → `w-72`.** The longest realistic row — chip + `Untitled · Motion Prompt` + status
-  glyph — does not fit 256px without truncating the kind, which would defeat the whole change.
-- Row gap `gap-1.5` → `gap-2`; list padding `p-2` → `p-2.5`.
-- Header, collapse chevron, `localStorage` persistence, `max-h-[50vh]` scroll: unchanged.
-- **Collapsed count pill recolored** to match the row palette. Today it renders running *and* ready
-  both in `text-primary` and failed in `text-muted-foreground` — it will directly contradict the new
-  row colors if left alone. It becomes `text-warning-text` / `text-success-text` /
-  `text-destructive`, same glyphs as the rows.
+**The panel does not change at all.** `w-64`, row gap `gap-1.5`, list padding `p-2`, the header,
+the `ChevronDown` collapse affordance, `localStorage` persistence, and `max-h-[50vh]` scroll are all
+exactly as shipped. A `w-72` widening was tried and reverted along with the row resize (§8).
+
+**The collapsed count pill does not change either** — same `rounded-full` chip, same corner, same
+`px-3 py-1.5`, and *the same colors it always had* (`text-primary` for running and ready,
+`text-muted-foreground` for failed). This is a deliberate exception to the §5 palette: the closed
+state was not part of the complaint, so it is left alone rather than dragged along for consistency's
+sake. The tray's two states are allowed to differ here because the pill is a count summary, not a
+status list — nothing in it needs to be matched against a row.
+
+The one change to this file is mechanical: both raw `<button>` elements become the `Button`
+primitive, which `CLAUDE.md` requires and the shipped code violated. An alternative collapsed state —
+keeping the panel shell and header and moving non-zero counts into it — was built and reverted (§8).
 
 ## 7. Unchanged
 
@@ -195,24 +197,40 @@ navigation-only click behavior. No route, schema, or migration touched.
   the flat list. Revisit if reels routinely exceed ~6 shots.
 - **Splitting the tray into fixed Image / Video sections.** Makes the track unmissable but tears a
   single shot's pipeline across two places in the rail.
-- **Four distinct glyphs** (Sparkles / Image / Clapperboard / Video, one per kind). Fastest
-  single-row read, but nothing then relates a prompt to the output it produced, and the two prompt
-  stages share no family resemblance. The 2×2 (track glyph × stage chip) carries strictly more
-  information with half the glyphs.
+- **A leading kind chip** — a track glyph (`ImageIcon` / `Clapperboard`) in a chip whose weight
+  encoded the stage (outlined = prompt, filled = output). Built, reviewed, then **removed**: it made
+  the row scannable without reading, but it departed visibly from the design comp, which draws rows
+  as pure text. The label now carries the kind alone. This is the trade that makes §4 load-bearing —
+  with no chip, a wrong `kind` is an unreadable row rather than a merely undecorated one.
+- **Four distinct glyphs** (Sparkles / Image / Clapperboard / Video, one per kind). Rejected before
+  the chip was, and moot now: nothing relates a prompt to the output it produced, and the two prompt
+  stages share no family resemblance.
 - **A colored left track rail per row.** Would need a second hue to read as a distinction, and purple
   is the system's only brand color.
 - **A summary "N generations failed" banner** under the tray header. Persists while scrolling, but
-  duplicates what the rows already say and costs vertical space in a `max-h-[50vh]` rail. Tinting the
-  failed row itself puts the signal where the fix is.
+  duplicates what the rows already say and costs vertical space in a `max-h-[50vh]` rail.
+- **A tinted failed row.** Built, then removed — see §5. The red glyph carries it.
+- **Resizing the rail** (`w-72` panel, `px-4 py-2.5` rows at `text-sm font-semibold`, no
+  `shadow-card`, looser list spacing). Built, then reverted: the tray's footprint on the canvas is
+  load-bearing for everything laid out around it, and none of the actual complaints were about size.
+  The redesign changes what a row *says*, not how much room it takes.
+- **A collapsed state that keeps the panel shell and header** with counts inline, so collapsing read
+  as the same object rather than a swap to an unrelated pill. Built, then reverted with the resize —
+  the existing pill is what operators already recognise, and changing it was not asked for.
 - **Keeping the status word as a visible label.** It is the specific thing that makes the rail feel
   text-heavy, and it says nothing the glyph doesn't.
+- **Using the semantic 700 steps for the status glyphs.** Clears WCAG comfortably, but reads
+  olive/mustard/vermillion instead of the comp's green/amber/red. Measured against the comp hues and
+  rejected on fidelity — see §5 for the accepted contrast trade.
+- **A separate `rounded-full` count pill for the collapsed state.** The shipped behavior, replaced in
+  §6.1: it swapped one shape for an unrelated one instead of reading as the same panel collapsing.
 
 ## 9. Consequence to expect
 
 This is a **behavioral** change, not purely cosmetic. Failed rows move from `text-muted-foreground`
-to destructive color plus a tinted row, so existing canvases will look like they suddenly grew
-errors. They did not — the failures were always in the tray, rendered in the quietest tone the
-system has. This is the (c) bug in §1 being fixed, and the louder appearance is the intended result.
+— the quietest tone in the system — to a saturated red glyph, so existing canvases will look like
+they suddenly grew errors. They did not: the failures were always in the tray, just invisible. This
+is the (c) bug in §1 being fixed, and the louder appearance is the intended result.
 
 ## 10. Testing
 
@@ -230,18 +248,26 @@ Repo convention: node-env vitest over pure `src/lib/**`; the panel is verified b
 - Stale-timeout still fires for `kind === "image"` and still does **not** fire for
   `"image-prompt"` or `"video"` — guards the §4 keying change.
 
-**Manual:** a canvas with all four kinds in all three states; confirm the left edge scans as a
-pipeline, the running glyph reads as a spinner rather than a retry button, the failed row tints, the
-collapsed pill's colors match the rows, and `w-72` fits `Untitled · Motion Prompt` untruncated.
+**Manual:** a canvas with all four kinds in all three states; confirm the four labels are distinct
+and correct (especially Image Prompt vs Motion Prompt on the same canvas), the running glyph reads as
+a spinner rather than a retry button, `w-72` fits `Untitled · Motion Prompt` untruncated, and
+collapsing keeps the same shell with non-zero counts in the header and no `0`s.
 
 ## 11. Implementation surface
 
 **Changed:**
-- `src/lib/generation-tray.ts` — `TrayKind` + `TRAY_KIND_META` replace `assetType`; kind resolution
-  reads `node.type`; stale guard re-keyed to `kind === "image"`.
-- `src/components/canvas/generation-tray-item.tsx` — leading kind chip, icon-only status, failed-row
-  tint, `shadow-card` removed, `title`/`aria-label`.
-- `src/components/canvas/generation-tray.tsx` — `w-72`, spacing, recolored collapsed count pill.
+- `src/lib/generation-tray.ts` — `TrayKind` + `TRAY_KIND_META` + `resolveTrayKind` replace
+  `assetType`; kind resolution reads `node.type`; stale guard re-keyed to `kind === "image"`.
+- `src/app/globals.css` — three new primitives `--gen-ready` / `--gen-failed` / `--gen-running`,
+  registered in `@theme` as `--color-gen-*`. No existing token's value changes.
+- `src/components/canvas/generation-tray-item.tsx` — label reads `TRAY_KIND_META[kind].label`;
+  status glyph moves to the row's trailing edge and loses its text label; tones become `--gen-*`;
+  `title`/`aria-label` added; raw `<button>` → `Button`. **Every dimension is untouched.**
+- `src/components/canvas/generation-tray.tsx` — two raw `<button>`s → `Button`, nothing else.
+  Geometry, chrome, and the collapsed pill (including its colors) are all untouched.
 - `src/lib/generation-tray.test.ts`, `src/lib/__tests__/generation-tray-prompts.test.ts` — per §10.
 
-**Unchanged:** every route, `use-generation-tray.ts`, `canvas-store.ts`, the `generations` schema.
+**Unchanged:** every route, `use-generation-tray.ts`, `canvas-store.ts`, the `generations` schema,
+every pre-existing `globals.css` token — including `--success` / `--warning` / `--destructive`,
+which still drive `approval-badge.tsx` and every other status surface — and the full geometry of
+both the panel and the row.

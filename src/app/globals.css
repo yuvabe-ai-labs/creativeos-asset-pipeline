@@ -108,7 +108,7 @@
      the status word is on the row's title/aria-label. Scoped to the tray's
      status glyphs on purpose: the semantic --success/--warning/--destructive
      families still drive approval badges and everything else, and are unchanged. */
-  --gen-ready: #16b568;
+  --gen-ready: #0fea81;
   --gen-failed: #fc171b;
   --gen-running: #ffd230;
 

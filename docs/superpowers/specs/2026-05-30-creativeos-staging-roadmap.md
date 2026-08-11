@@ -2570,28 +2570,43 @@ to prevent.
 **Decision.** Replace `TrayItem.assetType` (`image | video | prompt`, read off the `generations`
 row) with `TrayItem.kind` (`image-prompt | image | motion-prompt | video`), resolved from the job
 type **plus `node.type`**, and expose `TRAY_KIND_META` (label / track / stage) from the pure
-`generation-tray.ts`. The row renders kind as a leading chip — glyph = track (`ImageIcon` /
-`Clapperboard`), chip weight = stage (outlined = prompt, `bg-accent` = output) — and status as a
-trailing glyph with no visible label (`Loader2` spin `text-warning-text` / `CheckCircle2`
-`text-success-text` / `AlertTriangle` `text-destructive-text`), the word preserved in `title` +
-`aria-label`. Failed rows take `border-destructive/30 bg-destructive/10`.
+`generation-tray.ts`. The row is **pure text plus one trailing status glyph** — `{shotLabel} ·
+{kind label}` at `font-semibold`, with no visible status word (it is preserved in `title` +
+`aria-label`). Every row is the same white card regardless of status. Status glyphs take three new
+`globals.css` primitives lifted from the design comp — `--gen-running` `#ffd230` (`Loader2`,
+spinning), `--gen-ready` `#16b568` (`CheckCircle2`), `--gen-failed` `#fc171b` (`AlertTriangle`) —
+registered in `@theme` as `--color-gen-*` so components still reference tokens. **No geometry
+changes** — the panel's `w-64`, the row's `px-3 py-2` / `text-xs` / `shadow-card`, the header, and
+the collapsed `rounded-full` count pill are all exactly as shipped; the pill only takes the new
+tones. This is a swap of what a row *says*, not a resize of the rail.
 **Why.** Two node types write `type: "prompt"` — the Prompt node and the Motion Prompt node — so
 the tray had *no information available* to tell an Image Prompt from a Motion Prompt and rendered
 both as "Prompt". That is a derivation gap; no restyling could close it, and the node type was
-already in hand in `deriveTrayItems`. Encoding track and stage as two facets of one chip (2×2) beats
-four unrelated glyphs because a shot's prompt and the output it produced then share a glyph, so the
-rail's left edge scans as a pipeline. Icon-only status removes the third text element from a narrow
-row, and the colors are all pre-existing `globals.css` tokens rather than the mock's invented hues.
+already in hand in `deriveTrayItems`. With the row reduced to text, the **label is the only thing
+carrying the kind**, which makes that derivation load-bearing rather than decorative. Icon-only
+status removes the third text element from a narrow row.
+**Accepted trade — the `--gen-*` hues do not meet WCAG's 3:1 floor for graphical objects**
+(measured on white: yellow 1.45:1, green 2.70:1, red 3.96:1). Accepted because status is never
+carried by colour alone — each state has a distinct glyph *shape* and the word is on
+`title`/`aria-label`. The semantic 700 steps (4.5:1+) were measured against the comp and rejected on
+fidelity: the Yuvabe palette has no emerald or pure red, so they read olive/mustard/vermillion.
+Scoped deliberately: `--success` / `--warning` / `--destructive` are unchanged and still drive
+`approval-badge.tsx`, so the trade does not leak to surfaces that never agreed to it.
 **Fixes.** Failed rendered in `text-muted-foreground` — the quietest tone in the system — so
 failures receded exactly where they should announce themselves. Expect existing canvases to look
 like they grew errors; the failures were always there.
-**Rejected.** Grouping rows by shot and splitting the tray into Image/Video sections (both fight the
-status-first sort, which answers the operator's actual question — what is running, what broke).
-Four distinct glyphs, one per kind (loses the prompt→output relationship). A colored left track rail
-(needs a second hue; purple is the only brand color). A "N generations failed" summary banner
-(duplicates the rows, costs height in a `max-h-[50vh]` rail). Keeping the status word (the specific
-thing that made the rail feel text-heavy). Any tray-level retry — D35's navigation-only guardrail is
-explicitly re-confirmed, not relaxed.
+**Rejected.** Three things were built, reviewed, and then reverted, all for the same reason — they
+changed more of the tray than the complaint covered: a **leading kind chip** (track glyph × stage
+weight), a **tinted failed row**, and a **resize** (`w-72` panel, larger rows, no `shadow-card`,
+plus a collapsed state rebuilt around the panel shell). The rail's footprint is load-bearing for
+what is laid out around it, and none of the reported problems were about size. Also rejected:
+grouping rows by shot and splitting the tray into Image/Video sections (both fight the status-first
+sort, which answers the operator's actual question — what is running, what broke); four distinct
+glyphs, one per kind; a colored left track rail (needs a second hue; purple is the only brand
+color); a "N generations failed" summary banner (duplicates the rows, costs height in a
+`max-h-[50vh]` rail); keeping the status word (the specific thing that made the rail feel
+text-heavy). Any tray-level retry — D35's navigation-only guardrail is explicitly re-confirmed, not
+relaxed.
 **Refines.** D35 (the tray's behavior model, retention rule, sort order, and pointer-surface
 guardrail are all unchanged — this is presentation plus the kind derivation). Depends on D137 for
 the "Motion Prompt" label.

@@ -29,33 +29,30 @@ export function GenerationTrayItem({
   // is why the kind derivation (D142) had to stop reading the job row's `type` column —
   // both prompt nodes write "prompt" there.
   const kind = TRAY_KIND_META[item.kind];
-  const isFailed = item.status === "failed";
   const accessibleName = `${item.shotLabel} · ${kind.label} — ${status.label}`;
 
   return (
     <Button
       variant="ghost"
       onClick={() => onOpen(item.nodeId)}
-      title={accessibleName}
       aria-label={accessibleName}
       className={cn(
-        "h-auto w-full justify-between gap-3 rounded-lg border px-4 py-2.5 text-left font-semibold",
-        // No shadow — the row sits inside an already-shadowed panel, where a second
-        // shadow reads as mud. Inside a container, the border IS the elevation.
-        "transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-px",
-        isFailed
-          ? "border-gen-failed/30 bg-gen-failed/5 hover:bg-gen-failed/10"
-          : "border-border bg-card hover:bg-card",
+        // Every row looks the same regardless of status — the glyph alone carries it.
+        "h-auto w-full items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2 text-left font-medium",
+        // `hover:bg-card` pins the hover background to the resting one, cancelling the
+        // ghost variant's `hover:bg-muted`. Without it the row greys on hover — a change
+        // the raw <button> never had. The lift is the only hover effect, as before.
+        "shadow-card transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-card hover:-translate-y-px",
       )}
     >
-      <span className="min-w-0 flex-1 truncate text-sm text-foreground">
+      <span className="min-w-0 flex-1 truncate text-xs text-foreground">
         {item.shotLabel}
-        <span className="px-1.5 text-muted-foreground">·</span>
+        <span className="px-1 text-muted-foreground">·</span>
         {kind.label}
       </span>
       <StatusIcon
         className={cn(
-          "size-[18px] shrink-0 stroke-[1.5]",
+          "size-3.5 shrink-0 stroke-[1.5]",
           status.tone,
           status.spin && "animate-spin",
         )}
