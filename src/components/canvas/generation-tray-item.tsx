@@ -20,7 +20,7 @@ const STATUS_META: Record<
 > = {
   running: { label: "Running", icon: Loader2, tone: "text-warning-text", spin: true },
   ready: { label: "Ready", icon: CheckCircle2, tone: "text-success-text" },
-  failed: { label: "Failed", icon: AlertTriangle, tone: "text-destructive" },
+  failed: { label: "Failed", icon: AlertTriangle, tone: "text-destructive-text" },
 };
 
 // Two glyphs, not four: a shot's prompt and the output it produced share a track glyph and
