@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { CanvasGenerationItem } from "@/app/api/canvas/[id]/generations/route";
-import { createBrowserSupabase } from "@/lib/supabase/client";
 import { authFetch } from "@/lib/supabase/session-ready";
 import { useIdentity } from "@/hooks/use-identity";
 import { subscribeToOrgGenerationUpdates } from "@/lib/realtime/org-generation-updates";
@@ -82,31 +81,25 @@ export function useCanvasGenerations(canvasId: string) {
     void doFetch(canvasId).finally(() => setLoading(false));
   }, [canvasId]);
 
-  // Re-fetch once a succeeded generation lands on one of this canvas's nodes — otherwise
-  // the Gallery Drawer's "Canvas Generations" tab only ever picks up new images via the
-  // manual refresh button. Checked live per event (a single indexed node lookup) rather
-  // than snapshotting this canvas's node ids once up front, so a node created after this
-  // hook mounts is still covered — no staleness window.
+  // Re-fetch once a succeeded generation lands anywhere in the org — otherwise the Gallery
+  // Drawer's "Canvas Generations" tab only ever picks up new images via the manual refresh
+  // button. This used to gate the refetch on a client-side lookup of whether row.node_id
+  // belonged to this canvas (`supabase.from("nodes").select(...)`), but `nodes` has RLS
+  // enabled with ZERO policies (migration 0017_default_deny_rls.sql — a deliberate
+  // lockdown, not an oversight): the browser client's anon-key session always gets zero
+  // rows back from it, so that check silently never passed and doFetch() never ran. There
+  // is no browser-safe way to ask "is this node on my canvas" directly, so instead we
+  // refetch unconditionally on every succeeded generation in the org — the real per-canvas
+  // scoping already happens server-side inside doFetch's own endpoint (service-role client,
+  // filtered by canvasId). Worst case: one harmless extra refetch when the event belongs to
+  // a different canvas in the same org.
   useEffect(() => {
     if (!orgId) return;
-    let cancelled = false;
-    const supabase = createBrowserSupabase();
     const unsubscribe = subscribeToOrgGenerationUpdates(orgId, (row) => {
       if (row.status !== "succeeded") return;
-      void supabase
-        .from("nodes")
-        .select("id")
-        .eq("id", row.node_id)
-        .eq("canvas_id", canvasId)
-        .maybeSingle()
-        .then(({ data }: { data: { id: string } | null }) => {
-          if (!cancelled && data) void doFetch(canvasId);
-        });
+      void doFetch(canvasId);
     });
-    return () => {
-      cancelled = true;
-      unsubscribe();
-    };
+    return unsubscribe;
   }, [canvasId, orgId]);
 
   const refresh = useCallback(async () => {

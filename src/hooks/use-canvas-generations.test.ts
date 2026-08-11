@@ -1,5 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
+// authFetch (used by doFetch) routes through ensureFreshSession(), which calls
+// createBrowserSupabase() — stub it so that doesn't throw for missing env vars in tests.
 vi.mock("@/lib/supabase/client", () => ({
   createBrowserSupabase: () => ({
     auth: { getSession: async () => ({ data: { session: null } }) },
