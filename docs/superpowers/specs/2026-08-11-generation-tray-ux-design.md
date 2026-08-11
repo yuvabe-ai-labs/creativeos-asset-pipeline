@@ -134,12 +134,22 @@ unrelated glyphs were rejected (§8).
 | :--- | :--- | :--- | :--- |
 | Running | `Loader2` + `animate-spin` | `text-warning-text` | `--warning-text` → `--yellow-700` |
 | Ready | `CheckCircle2` | `text-success-text` | `--success-text` → `--green-700` |
-| Failed | `AlertTriangle` | `text-destructive` | `--destructive` → `--red-orange-500` |
+| Failed | `AlertTriangle` | `text-destructive-text` | `--destructive-text` → `--red-orange-700` |
 
-All four are pre-existing `globals.css` tokens registered in `@theme` (`--color-success-text`,
-`--color-warning-text`, `--color-destructive`), so the palette is token-driven — nothing hardcoded,
-nothing invented. The `-text` (700-weight) variants are used for the two glyphs that would otherwise
-sit at 500 on white and read washed out.
+All are pre-existing `globals.css` tokens registered in `@theme` (`--color-success-text`,
+`--color-warning-text`, `--color-destructive-text`), so the palette is token-driven — nothing
+hardcoded, nothing invented.
+
+**All three glyphs take the `-text` (700-step) variant.** `globals.css:139-146` documents the rule:
+`--x` is *the fill / solid surface*, `--x-foreground` is *ink on that fill*, and `--x-text` is *ink
+on a LIGHT surface (the 700 step)*. A status glyph is ink on a light surface in all three states —
+including Failed, whose row tint is a 10% wash, still light. The 700 steps also carry verified
+contrast annotations (`green-700` 4.71:1, `yellow-700` 4.57:1, `red-orange-700` 4.52:1); the 500
+steps carry none, because they were never meant as ink.
+
+Note this makes the tray *diverge* from `approval-badge.tsx:22`, which puts `text-destructive`
+(the 500 fill) on a `bg-destructive/10` chip. That badge is the outlier against the documented
+convention, not the precedent — an earlier draft of this spec cited it as one and was wrong.
 
 **Accessibility.** The status word is removed from the DOM as *visible* text but retained as the
 row's `title` and folded into its `aria-label`

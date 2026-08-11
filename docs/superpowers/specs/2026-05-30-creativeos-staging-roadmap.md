@@ -2573,7 +2573,7 @@ type **plus `node.type`**, and expose `TRAY_KIND_META` (label / track / stage) f
 `generation-tray.ts`. The row renders kind as a leading chip — glyph = track (`ImageIcon` /
 `Clapperboard`), chip weight = stage (outlined = prompt, `bg-accent` = output) — and status as a
 trailing glyph with no visible label (`Loader2` spin `text-warning-text` / `CheckCircle2`
-`text-success-text` / `AlertTriangle` `text-destructive`), the word preserved in `title` +
+`text-success-text` / `AlertTriangle` `text-destructive-text`), the word preserved in `title` +
 `aria-label`. Failed rows take `border-destructive/30 bg-destructive/10`.
 **Why.** Two node types write `type: "prompt"` — the Prompt node and the Motion Prompt node — so
 the tray had *no information available* to tell an Image Prompt from a Motion Prompt and rendered

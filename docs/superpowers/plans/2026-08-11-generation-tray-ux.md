@@ -13,7 +13,7 @@
 ## Global Constraints
 
 - **shadcn primitives only, never native.** Per `CLAUDE.md`: every interactive control MUST be a shadcn primitive from `src/components/ui/*`. Never a raw `<button>`. Both tray files currently use raw `<button>` — a pre-existing violation this plan corrects in the tasks that touch them. Base UI composes via the `render` prop, not `asChild`.
-- **No hardcoded colors.** Drive everything through the shadcn CSS variables in `globals.css`. The five tokens this plan uses are all already registered in `@theme`: `text-warning-text`, `text-success-text`, `text-destructive`, `bg-accent`, `bg-muted`.
+- **No hardcoded colors.** Drive everything through the shadcn CSS variables in `globals.css`. The five tokens this plan uses are all already registered in `@theme`: `text-warning-text`, `text-success-text`, `text-destructive-text`, `bg-accent`, `bg-muted`.
 - **Motion easing is `cubic-bezier(0.22,1,0.36,1)` only**, at 200/320/500ms. No springs, no bounce.
 - **Lucide icons only, `stroke-[1.5]`, no fills.**
 - **Elevation uses the `shadow-card` / `shadow-md` / `shadow-lg` tokens** — but rows inside the panel take **no shadow at all** (§Task 2).
@@ -370,7 +370,7 @@ const STATUS_META: Record<
 > = {
   running: { label: "Running", icon: Loader2, tone: "text-warning-text", spin: true },
   ready: { label: "Ready", icon: CheckCircle2, tone: "text-success-text" },
-  failed: { label: "Failed", icon: AlertTriangle, tone: "text-destructive" },
+  failed: { label: "Failed", icon: AlertTriangle, tone: "text-destructive-text" },
 };
 
 // Two glyphs, not four: a shot's prompt and the output it produced share a track glyph and
