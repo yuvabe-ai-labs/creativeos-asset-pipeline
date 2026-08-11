@@ -107,12 +107,12 @@ function fetchIdentity(): Promise<FetchResult> {
 
 // Reads the logged-in user's identity from the session (via /api/me). `identity`/
 // `hydrated` are the frozen public API (D53) — `setIdentity` is gone, login owns identity
-// now. `platformRole`/`orgId`/`orgName`/`creditsUsed`/`monthlyCreditLimit` are additive
-// sibling fields (gate the admin nav link / scope Realtime subscriptions / show the agency
-// name and monthly usage in the header) — Identity itself never changes shape. `hydrated`
-// flips true once the fetch resolves; until then identity/platformRole/orgId/orgName/
-// creditsUsed/monthlyCreditLimit === null means "not checked yet", so consumers must wait
-// for `hydrated` before acting on null.
+// now. `platformRole`/`orgId`/`orgName`/`orgRole`/`creditsUsed`/`monthlyCreditLimit` are
+// additive sibling fields (gate the admin nav link / scope Realtime subscriptions / show the
+// agency name, real role and monthly usage in the profile popover) — Identity itself never
+// changes shape. `hydrated` flips true once the fetch resolves; until then identity/
+// platformRole/orgId/orgName/orgRole/creditsUsed/monthlyCreditLimit === null means "not
+// checked yet", so consumers must wait for `hydrated` before acting on null.
 export function useIdentity(): {
   identity: Identity | null;
   hydrated: boolean;
@@ -189,5 +189,14 @@ export function useIdentity(): {
     // triggering the first real fetch instead of leaving the hook permanently un-hydrated.
   }, [pathname]);
 
-  return { identity, hydrated, platformRole, orgId, orgName, orgRole, creditsUsed, monthlyCreditLimit };
+  return {
+    identity,
+    hydrated,
+    platformRole,
+    orgId,
+    orgName,
+    orgRole,
+    creditsUsed,
+    monthlyCreditLimit,
+  };
 }
