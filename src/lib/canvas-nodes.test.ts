@@ -163,4 +163,7 @@ describe("canConnect", () => {
     expect(canConnect("post", "prompt")).toBe(false);
     expect(canConnect("post", "image-gen")).toBe(false);
   });
+  it("an (Image) Prompt node cannot connect to Video Gen — video-generate/route.ts never reads it", () => {
+    expect(canConnect("prompt", "video-gen")).toBe(false);
+  });
 });

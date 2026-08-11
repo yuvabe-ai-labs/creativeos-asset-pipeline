@@ -159,7 +159,9 @@ export type AppNode =
 // PRD §10 — which source node types may connect to which target node types.
 // The Video Prompt node (D24) sits between Image Gen and Video Gen: the still feeds it as a
 // vision reference (image-gen → video-prompt), and it outputs a motion prompt
-// (video-prompt → video-gen). prompt → video-gen is retained as the inline fallback path.
+// (video-prompt → video-gen). video-generate/route.ts reads its text prompt ONLY from a
+// connected video-prompt node — an (Image) Prompt node connected straight to Video Gen is
+// never read, so `prompt` is deliberately absent from video-gen's source list here.
 export const VALID_CONNECTIONS: Record<string, readonly string[]> = {
   kb:             ["script"],
   script:         ["prompt"],
@@ -167,7 +169,7 @@ export const VALID_CONNECTIONS: Record<string, readonly string[]> = {
   file:           ["prompt", "image-gen", "video-prompt", "video-gen", "shot", "post"],
   draw:           ["prompt", "image-gen", "video-prompt", "video-gen", "shot", "post"],
   text:           ["prompt", "video-prompt"],
-  prompt:         ["prompt", "image-gen", "video-gen"],
+  prompt:         ["prompt", "image-gen"],
   "image-gen":    ["prompt", "video-gen", "video-prompt", "shot", "post"],
   "video-prompt": ["video-gen"],
   "video-gen":    [],
