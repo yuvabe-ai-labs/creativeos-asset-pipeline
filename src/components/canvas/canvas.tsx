@@ -45,7 +45,7 @@ import { AutosaveFlushProvider } from "./autosave-flush-context";
 import { CanvasIdProvider } from "./canvas-id-context";
 import { ClientIdProvider } from "./client-id-context";
 import { GenerationTray } from "./generation-tray";
-import { CopilotPanel } from "./copilot-panel";
+// import { CopilotPanel } from "./copilot-panel"; // YUV-233: disabled for now
 import { LockBanner } from "./lock-banner";
 import { DeleteConfirmDialog } from "./delete-confirm-dialog";
 import { useDeleteConfirmation } from "@/hooks/use-delete-confirmation";
@@ -476,7 +476,8 @@ export function Canvas({
       </ReactFlow>
 
       <GenerationTray canvasId={canvasId} />
-      <CopilotPanel canvasId={canvasId} />
+      {/* YUV-233: Copilot panel overlaps the Gallery Drawer — disabled for now. */}
+      {/* <CopilotPanel canvasId={canvasId} /> */}
     </div>
     </AutosaveFlushProvider>
     </CanvasEditableProvider>
