@@ -20,11 +20,15 @@ describe("help chapters", () => {
     }
   });
 
-  it("gives every step in a visible chapter a clip and a title", () => {
+  it("gives every step in a visible chapter a clip, a title and body lines", () => {
     for (const c of visibleChapters()) {
       for (const [i, s] of c.steps.entries()) {
         expect(s.clip.trim(), `${c.slug} step ${i + 1} clip`).not.toBe("");
         expect(s.title.trim(), `${c.slug} step ${i + 1} title`).not.toBe("");
+        expect(s.body.length, `${c.slug} step ${i + 1} body`).toBeGreaterThan(0);
+        for (const line of s.body) {
+          expect(line.trim(), `${c.slug} step ${i + 1} body line`).not.toBe("");
+        }
       }
     }
   });
