@@ -11,6 +11,20 @@ need doesn't exist yet, add it to `src/components/ui/` rather than dropping to a
 native element. Non-interactive elements (`span`/`div`/`p` for labels, badges,
 and layout) are fine.
 
+**This holds for anything *inside* a control too.** An icon, unit label, or button
+sitting in a field — a show/hide password eye, a search icon, a "https://" prefix,
+a clear button — is composed with `InputGroup` / `InputGroupInput` /
+`InputGroupAddon` / `InputGroupButton` from `src/components/ui/input-group.tsx`.
+It is **never** a raw `<button>` absolutely positioned over an `Input`. The group
+owns the field's focus ring, disabled and invalid states, so an overlaid element
+sits on top of that styling instead of participating in it, and the seam shows the
+moment the field is focused or errors.
+
+Before hand-rolling any control arrangement, check whether the registry already
+composes it (https://ui.shadcn.com) and whether the primitive is already vendored
+in `src/components/ui/`. `input-group.tsx` is the one most often missed, because it
+solves a layout problem rather than naming a control.
+
 <!-- TRIGGER.DEV SKILLS START -->
 ## Trigger.dev agent skills
 
