@@ -213,7 +213,12 @@ export function ConnectedDetailView({
         <NodeIcon type={node.type} />
         <span className="text-eyebrow">{node.label}</span>
       </div>
-      <div className="flex-1 min-h-0 overflow-y-auto rounded-xl border border-border bg-muted/20 p-5">
+      <div
+        className={cn(
+          "flex-1 min-h-0 overflow-y-auto rounded-xl border border-border bg-muted/20 p-5",
+          isImage && "flex items-center justify-center",
+        )}
+      >
         {isImage ? (
           <img
             src={node.fileUrl}

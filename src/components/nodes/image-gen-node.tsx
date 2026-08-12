@@ -65,7 +65,12 @@ export function ImageGenNode({ id, data, selected, positionAbsoluteX, positionAb
               : n.type === "image-gen"
                 ? (d.parsed as string | undefined)
                 : undefined,
-          fileKind: n.type === "file" ? (d.fileKind as string | undefined) : undefined,
+          fileKind:
+            n.type === "file" || n.type === "draw"
+              ? (d.fileKind as string | undefined)
+              : n.type === "image-gen"
+                ? "image"
+                : undefined,
           fileSizeBytes: d.fileSizeBytes as number | undefined,
           imageWidth: d.imageWidth as number | undefined,
           imageHeight: d.imageHeight as number | undefined,
