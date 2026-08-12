@@ -1,14 +1,18 @@
 "use client";
 
-import type { FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Building2, LogOut, UserRound } from "lucide-react";
 import { useIdentity, resetIdentityCache } from "@/hooks/use-identity";
 import { logoutAction } from "@/lib/actions/auth";
 import { initials } from "@/lib/format/initials";
+import { createBrowserSupabase } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ProfileCredits } from "./profile-credits";
 import type { OrgRole } from "@/lib/dal-logic";
+import type { RealtimeChannel, RealtimePostgresChangesPayload } from "@supabase/supabase-js";
+
+type CreditTransactionRow = { amount: number };
 
 const ROLE_LABELS: Record<OrgRole, string> = {
   owner: "Owner",
@@ -21,7 +25,66 @@ const ROLE_LABELS: Record<OrgRole, string> = {
 // sign out all live in one avatar-triggered popover now. See
 // docs/superpowers/specs/2026-08-09-profile-popover-header-design.md.
 export function ProfilePopover() {
-  const { identity, orgName, orgRole, creditsUsed } = useIdentity();
+  const { hydrated, identity, orgId, orgName, orgRole, creditsUsed, monthlyCreditLimit } =
+    useIdentity();
+  const [liveDelta, setLiveDelta] = useState(0);
+
+  // This subscription lives HERE, in the always-mounted popover shell, and NOT in
+  // ProfileCredits where it started — that placement is the whole fix. HeaderActions mounts
+  // this component on every page, but everything inside <PopoverContent> is unmounted while
+  // the popover is closed (Base UI's Popover.Portal defaults to keepMounted: false). Credits
+  // are spent while it's closed, so owning the channel down there meant nothing was
+  // listening at the only moment that mattered, and `liveDelta` was thrown away on every
+  // close — the figure sat at its page-load value until a manual refresh. Keep it mounted at
+  // this level; ProfileCredits renders what it's handed.
+  useEffect(() => {
+    if (!hydrated || !orgId) return;
+    let cancelled = false;
+    let channel: RealtimeChannel | null = null;
+    const supabase = createBrowserSupabase();
+
+    // @supabase/ssr's browser client doesn't proactively load the session on init — it's
+    // lazy until something calls getSession()/getUser(). Subscribing to Realtime before
+    // that resolves opens the websocket with NO JWT attached, so credit_transactions' RLS
+    // policy (org_id = ...auth.uid()...) evaluates auth.uid() as null and silently drops
+    // every row — the subscription looks "connected" but never delivers anything. Awaiting
+    // the session first guarantees the websocket carries a valid JWT before it subscribes.
+    //
+    // The EXPLICIT org_id filter is also load-bearing: an RLS-only subscription (relying
+    // purely on the "org isolation" select policy, migration 0019) didn't reliably deliver
+    // events in practice.
+    void supabase.auth.getSession().then(() => {
+      if (cancelled) return;
+      channel = supabase
+        .channel(`profile-credits:${orgId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "credit_transactions",
+            filter: `org_id=eq.${orgId}`,
+          },
+          (payload: RealtimePostgresChangesPayload<CreditTransactionRow>) => {
+            const row = payload.new as CreditTransactionRow;
+            setLiveDelta((d) => d + row.amount);
+          },
+        )
+        .subscribe();
+    });
+
+    return () => {
+      cancelled = true;
+      if (channel) void supabase.removeChannel(channel);
+    };
+  }, [hydrated, orgId]);
+
+  // Incrementing locally by each row's `amount` avoids a refetch per event. Settlement
+  // writes two rows (refund of the reservation, then actual consumption), and
+  // org_credit_usage is itself a plain sum (design spec §3), so summing every row stays
+  // exactly correct within a UTC month. A tab left open across the UTC month rollover reads
+  // stale until the next full page load — accepted, not engineered around.
+  const used = creditsUsed === null ? null : creditsUsed + liveDelta;
 
   // A Server Action's redirect() is a soft, client-side transition — it would leave every
   // module-level client cache (useIdentity's included) intact across sign-out, which was
@@ -77,9 +140,9 @@ export function ProfilePopover() {
             <div className="h-px bg-border" aria-hidden="true" />
           </>
         )}
-        {creditsUsed !== null && (
+        {used !== null && (
           <>
-            <ProfileCredits />
+            <ProfileCredits used={used} monthlyCreditLimit={monthlyCreditLimit} />
             <div className="h-px bg-border" aria-hidden="true" />
           </>
         )}
