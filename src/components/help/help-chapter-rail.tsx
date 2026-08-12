@@ -40,7 +40,16 @@ export function HelpChapterRail({
       >
         {chapter.steps.map((s, i) => (
           <AccordionItem key={s.title} value={i + 1}>
-            <AccordionTrigger className="gap-3 no-underline hover:no-underline">
+            {/* Tailwind v4 drops the default pointer cursor on <button>, so a row reads as
+                inert without it. The tint bleeds out via -mx-2/px-2 so the hover target
+                looks generous while the number and title stay aligned with the panel. */}
+            <AccordionTrigger
+              className={cn(
+                "-mx-2 gap-3 rounded-lg px-2 no-underline hover:no-underline",
+                "cursor-pointer transition-colors duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]",
+                "hover:bg-muted/60",
+              )}
+            >
               <span
                 className={cn(
                   "text-eyebrow shrink-0 pt-0.5 text-[0.65rem]",
