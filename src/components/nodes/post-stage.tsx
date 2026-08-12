@@ -113,6 +113,20 @@ export function PostStage({
     commitLayerChange();
   }
 
+  /**
+   * Did this event land on the Transformer rather than on a layer?
+   *
+   * The Transformer owns its resize/rotate handles and its border as child nodes, so grabbing
+   * one reports the ANCHOR as the target. It belongs to no layer, so it resolves to a null id
+   * and would otherwise be read as "empty space" — clearing the selection mid-gesture.
+   */
+  function isTransformerTarget(target: Konva.Node, stage: Konva.Stage): boolean {
+    for (let n: Konva.Node | null = target; n && n !== stage; n = n.getParent()) {
+      if (n === transformerRef.current) return true;
+    }
+    return false;
+  }
+
   function idForNode(node: Konva.Node): string | undefined {
     return [...nodeRefs.current.entries()].find(([, n]) => n === node)?.[0];
   }
@@ -139,6 +153,14 @@ export function PostStage({
   function handleStageMouseDown(e: Konva.KonvaEventObject<MouseEvent>) {
     const stage = e.target.getStage();
     if (!stage) return;
+    // Primary button only. A right-click fires mousedown too, and this whole path used to run
+    // for it: right-clicking the GAP between marquee-selected layers resolved to no layer,
+    // took the "empty space" branch and cleared the selection outright — so the context menu
+    // that opened a moment later had nothing left to act on, and every group action was gone.
+    // It also opened a rubber band that no mouseup ever closed, leaving the marquee armed.
+    // Selection for a right-click is handleStageContextMenu's job, and it already preserves
+    // an existing multi-selection.
+    if (e.evt.button !== 0) return;
     // Every new gesture starts un-suppressed, and this MUST run before the early returns
     // below. A marquee only gets its suppression flag consumed if Konva actually synthesizes
     // a click, which it only does when the gesture started and ended on the SAME shape — so a
@@ -151,9 +173,7 @@ export function PostStage({
     // the ANCHOR as the event target. It belongs to no layer, so it resolves to a null hitId
     // and would fall through to the "empty space" branch below — clearing the selection,
     // detaching the Transformer mid-gesture, and killing the resize outright.
-    for (let n: Konva.Node | null = e.target; n && n !== stage; n = n.getParent()) {
-      if (n === transformerRef.current) return;
-    }
+    if (isTransformerTarget(e.target, stage)) return;
 
     const hitId = e.target === stage ? null : resolveHitLayerId(e.target, stage);
     const hitLayer = hitId ? layers.find((l) => l.id === hitId) : null;
@@ -186,6 +206,10 @@ export function PostStage({
   function handleStageContextMenu(e: Konva.KonvaEventObject<PointerEvent>) {
     const stage = e.target.getStage();
     if (!stage) return;
+    // The Transformer's border and handles wrap the WHOLE selection, and they belong to no
+    // layer — so right-clicking them resolved to null and cleared the very selection the menu
+    // was about to act on. Leave the selection exactly as it is and let the menu open on it.
+    if (isTransformerTarget(e.target, stage)) return;
     const hitId = e.target === stage ? null : resolveHitLayerId(e.target, stage);
     if (hitId === null) {
       onSelect(null);

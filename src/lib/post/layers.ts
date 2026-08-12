@@ -44,7 +44,7 @@ export function createTextLayer(
   overrides: Partial<TextLayer> = {},
   existing: PostLayer[] = [],
 ): TextLayer {
-  return {
+  return clampToCanvas({
     id: crypto.randomUUID(),
     kind: "text",
     text: "Text",
@@ -57,7 +57,7 @@ export function createTextLayer(
     ...DEFAULT_GEOMETRY,
     ...cascadeGeometry(existing),
     ...overrides,
-  };
+  });
 }
 
 /**
@@ -76,7 +76,7 @@ export function createShapeLayer(
     overrides.shape && STROKE_ONLY_SHAPES.has(overrides.shape) && !overrides.stroke
       ? { stroke: { color: "#1e1e1e", width: 6 } }
       : {};
-  return {
+  return clampToCanvas({
     id: crypto.randomUUID(),
     kind: "shape",
     fill: { kind: "solid", color: "#5829c7" },
@@ -85,7 +85,7 @@ export function createShapeLayer(
     ...cascadeGeometry(existing),
     ...strokeSeed,
     ...overrides,
-  };
+  });
 }
 
 export function createImageLayer(
@@ -93,7 +93,7 @@ export function createImageLayer(
   overrides: Partial<ImageLayer> = {},
   existing: PostLayer[] = [],
 ): ImageLayer {
-  return {
+  return clampToCanvas({
     id: crypto.randomUUID(),
     kind: "image",
     src,
@@ -101,7 +101,7 @@ export function createImageLayer(
     ...DEFAULT_GEOMETRY,
     ...cascadeGeometry(existing),
     ...overrides,
-  };
+  });
 }
 
 export function createIconLayer(
@@ -109,7 +109,7 @@ export function createIconLayer(
   overrides: Partial<IconLayer> = {},
   existing: PostLayer[] = [],
 ): IconLayer {
-  return {
+  return clampToCanvas({
     id: crypto.randomUUID(),
     kind: "icon",
     src,
@@ -119,7 +119,7 @@ export function createIconLayer(
     h: 0.08,
     ...cascadeGeometry(existing),
     ...overrides,
-  };
+  });
 }
 
 /**
@@ -131,6 +131,25 @@ export function createIconLayer(
  * dimmed whichever child was being edited — so double-clicking a CTA pill made its label
  * vanish and gave you nothing to type into.
  */
+/**
+ * Pull a freshly-created layer back onto the canvas.
+ *
+ * The cascade steps x and y by 0.02 per existing layer so additions don't stack invisibly,
+ * but it knows nothing about how big the new layer is — so a wide one eventually starts far
+ * enough right to hang off the edge. A text preset 0.8 wide does it on the seventh add.
+ *
+ * Only ever pulls INWARD, and only along an axis that actually overflows, so a layer placed
+ * deliberately at full bleed (x:0, w:1 — every template's background) is untouched. A layer
+ * larger than the canvas pins to the origin rather than taking a negative coordinate.
+ */
+function clampToCanvas<T extends { x: number; y: number; w: number; h: number }>(geo: T): T {
+  return {
+    ...geo,
+    x: Math.max(0, Math.min(geo.x, 1 - geo.w)),
+    y: Math.max(0, Math.min(geo.y, 1 - geo.h)),
+  };
+}
+
 export function findLayer(layers: PostLayer[], id: string): PostLayer | undefined {
   for (const layer of layers) {
     if (layer.id === id) return layer;

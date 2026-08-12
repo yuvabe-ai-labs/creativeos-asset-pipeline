@@ -601,3 +601,39 @@ describe("findLayer reaches inside groups", () => {
     expect(findLayer(grouped, group.id)?.id).toBe(group.id);
   });
 });
+
+describe("new layers stay on the canvas", () => {
+  it("keeps a wide layer in bounds once the cascade has walked right", () => {
+    // The cascade steps x by 0.02 per existing layer, so the 7th wide text preset would
+    // otherwise start at 0.22 and run to 1.02 — off the right edge.
+    const existing = Array.from({ length: 6 }, () => createTextLayer());
+    const layer = createTextLayer({ w: 0.8 }, existing);
+    expect(layer.x + layer.w).toBeLessThanOrEqual(1.0001);
+    expect(layer.x).toBeGreaterThanOrEqual(0);
+  });
+
+  it("keeps a tall layer in bounds too", () => {
+    const existing = Array.from({ length: 8 }, () => createShapeLayer());
+    const layer = createShapeLayer({ h: 0.85 }, existing);
+    expect(layer.y + layer.h).toBeLessThanOrEqual(1.0001);
+    expect(layer.y).toBeGreaterThanOrEqual(0);
+  });
+
+  it("still cascades normally when there is room", () => {
+    const existing = [createTextLayer(), createTextLayer()];
+    const layer = createTextLayer({ w: 0.3 }, existing);
+    expect(layer.x).toBeCloseTo(0.14, 6);
+  });
+
+  it("pins a layer wider than the canvas to the left edge rather than a negative x", () => {
+    const layer = createShapeLayer({ w: 1.4 }, [createShapeLayer()]);
+    expect(layer.x).toBe(0);
+  });
+
+  it("honours an explicit position instead of clamping it away", () => {
+    // Templates place layers deliberately; only the CASCADE needs correcting.
+    const layer = createShapeLayer({ x: 0, y: 0, w: 1, h: 1 });
+    expect(layer.x).toBe(0);
+    expect(layer.w).toBe(1);
+  });
+});

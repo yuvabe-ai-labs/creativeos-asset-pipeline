@@ -8,21 +8,30 @@ import { startElementDrag } from "./post-element-drag";
  * Three presets rather than one generic "add text" — a heading and a body differ only by
  * size and weight, and picking the right one up front is faster than restyling afterwards.
  */
+/**
+ * Each preset sets its own WIDTH, not just its height.
+ *
+ * Without one they inherited DEFAULT_GEOMETRY's 0.3 — 324px on a 1080 canvas — while
+ * "Add a heading" at fontSize 0.055 needs about 400px. It wrapped to two lines, and two
+ * lines at lineHeight 1.2 is 143px against a box only 122px tall, so the second line was
+ * clipped and you saw "Add a". The other two fit at 0.3, but only just (0.27 and 0.24 of
+ * it), so they are widened too rather than left one longer word away from the same bug.
+ */
 const TEXT_PRESETS: { label: string; className: string; preset: Partial<TextLayer> }[] = [
   {
     label: "Heading",
     className: "text-lg font-bold",
-    preset: { text: "Add a heading", fontSize: 0.055, fontWeight: 700, h: 0.09 },
+    preset: { text: "Add a heading", fontSize: 0.055, fontWeight: 700, w: 0.8, h: 0.09 },
   },
   {
     label: "Subheading",
     className: "text-sm font-semibold",
-    preset: { text: "Add a subheading", fontSize: 0.032, fontWeight: 600, h: 0.06 },
+    preset: { text: "Add a subheading", fontSize: 0.032, fontWeight: 600, w: 0.8, h: 0.06 },
   },
   {
     label: "Body text",
     className: "text-xs font-normal",
-    preset: { text: "Add a line of body text", fontSize: 0.02, fontWeight: 400, h: 0.045 },
+    preset: { text: "Add a line of body text", fontSize: 0.02, fontWeight: 400, w: 0.8, h: 0.045 },
   },
 ];
 
