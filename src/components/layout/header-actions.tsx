@@ -1,8 +1,10 @@
 "use client";
 
+import { Suspense } from "react";
 import { usePathname } from "next/navigation";
 import { AdminNavLink } from "@/components/identity/admin-nav-link";
 import { ProfilePopover } from "@/components/identity/profile-popover";
+import { HelpMenu } from "@/components/help/help-menu";
 
 // Hidden on /login — there's no session to reflect on the sign-in form itself, so
 // showing "signed in as X" / an admin link / sign-out there is just confusing chrome,
@@ -13,6 +15,11 @@ export function HeaderActions() {
 
   return (
     <div className="flex items-center gap-3">
+      {/* Suspense: HelpMenu reads useSearchParams, which opts its subtree out of
+          static rendering unless a boundary contains it. */}
+      <Suspense fallback={null}>
+        <HelpMenu />
+      </Suspense>
       <AdminNavLink />
       <ProfilePopover />
     </div>
