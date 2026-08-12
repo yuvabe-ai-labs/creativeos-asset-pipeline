@@ -7,6 +7,11 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: path.resolve(__dirname),
   },
+  images: {
+    // The login panel's photography (src/lib/login-images.ts). Scoped to this one
+    // host so an arbitrary remote URL can't be laundered through our optimiser.
+    remotePatterns: [{ protocol: "https", hostname: "images.unsplash.com" }],
+  },
 };
 
 export default nextConfig;

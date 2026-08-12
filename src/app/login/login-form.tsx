@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { ArrowRight } from "lucide-react";
 import { loginAction, type AuthActionState } from "@/lib/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,7 +16,14 @@ export function LoginForm() {
     <form action={action} className="flex flex-col gap-4">
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="email">Email</Label>
-        <Input id="email" name="email" type="email" autoComplete="email" required />
+        <Input
+          id="email"
+          name="email"
+          type="email"
+          autoComplete="email"
+          placeholder="you@example.com"
+          required
+        />
       </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="password">Password</Label>
@@ -27,9 +35,14 @@ export function LoginForm() {
           required
         />
       </div>
-      {state?.error && <p className="text-sm text-destructive">{state.error}</p>}
-      <Button type="submit" disabled={pending} className="mt-2">
+      {state?.error && (
+        <p role="alert" className="text-sm text-destructive">
+          {state.error}
+        </p>
+      )}
+      <Button type="submit" disabled={pending} className="mt-2 w-full">
         {pending ? "Signing in…" : "Sign in"}
+        {!pending && <ArrowRight className="size-4" strokeWidth={1.5} />}
       </Button>
     </form>
   );
