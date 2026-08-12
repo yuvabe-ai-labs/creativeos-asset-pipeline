@@ -122,8 +122,24 @@ export function createIconLayer(
   };
 }
 
+/**
+ * Look a layer up by id, reaching INSIDE groups — the same reach `updateLayer` has.
+ *
+ * The two disagreeing is a bug, not a distinction: every template's CTA label is a text layer
+ * inside a shape+text group, and a top-level-only lookup returned nothing for it. The stage's
+ * inline text editor used that lookup to decide what to edit, while the group separately
+ * dimmed whichever child was being edited — so double-clicking a CTA pill made its label
+ * vanish and gave you nothing to type into.
+ */
 export function findLayer(layers: PostLayer[], id: string): PostLayer | undefined {
-  return layers.find((l) => l.id === id);
+  for (const layer of layers) {
+    if (layer.id === id) return layer;
+    if (layer.kind === "group" && layer.children) {
+      const nested = findLayer(layer.children, id);
+      if (nested) return nested;
+    }
+  }
+  return undefined;
 }
 
 // Arrays are ordered back -> front (index 0 renders first, underneath everything else),

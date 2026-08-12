@@ -567,3 +567,37 @@ describe("updateLayer reaches inside groups", () => {
     expect(next[0]).toEqual(a);
   });
 });
+
+describe("findLayer reaches inside groups", () => {
+  it("finds a layer nested in a group, the way updateLayer already does", () => {
+    // Every template's CTA label is a text layer inside a shape+text group. A non-recursive
+    // lookup returned undefined for it, so double-clicking the pill hid the text (the group
+    // dims the layer being edited) but never opened an editor for it.
+    const pill = createShapeLayer({ name: "CTA pill" });
+    const label = createTextLayer({ name: "CTA label", text: "Shop now" });
+    const grouped = groupLayers([pill, label], [pill.id, label.id]);
+
+    const found = findLayer(grouped, label.id);
+    expect(found).toBeDefined();
+    expect(found?.kind).toBe("text");
+    expect((found as TextLayer).text).toBe("Shop now");
+  });
+
+  it("still finds top-level layers", () => {
+    const a = createTextLayer({ name: "a", text: "top" });
+    expect(findLayer([a], a.id)?.id).toBe(a.id);
+  });
+
+  it("returns undefined for an id that is nowhere", () => {
+    const a = createTextLayer({ name: "a" });
+    expect(findLayer([a], "no-such-id")).toBeUndefined();
+  });
+
+  it("finds the group itself, not only its children", () => {
+    const pill = createShapeLayer({ name: "CTA pill" });
+    const label = createTextLayer({ name: "CTA label" });
+    const grouped = groupLayers([pill, label], [pill.id, label.id]);
+    const group = grouped.find((l) => l.kind === "group") as GroupLayer;
+    expect(findLayer(grouped, group.id)?.id).toBe(group.id);
+  });
+});

@@ -5,7 +5,8 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Stage, Layer, Transformer, Rect } from "react-konva";
 import type Konva from "konva";
 import type { PostLayer } from "@/lib/post/types";
-import { pxToNormalized, fontSizeToPx } from "@/lib/post/units";
+import { pxToNormalized, fontSizeToPx, editorTopPadding } from "@/lib/post/units";
+import { findLayer } from "@/lib/post/layers";
 import { resolveFontKey, type FontKey } from "@/lib/post/fonts";
 import { Textarea } from "@/components/ui/textarea";
 import { PostLayerRender } from "./post-layer-render";
@@ -367,7 +368,10 @@ export function PostStage({
           the Stage via the container's client rect. */}
       {editingTextId && stageContainer && editingRect && (() => {
         const rect = editingRect;
-        const layer = layers.find((l) => l.id === editingTextId);
+        // findLayer, not layers.find: a CTA label lives INSIDE its pill's group, so a
+        // top-level-only lookup found nothing and returned null here — while the group had
+        // already dimmed that child for editing. The label vanished with no editor behind it.
+        const layer = findLayer(layers, editingTextId);
         if (layer?.kind !== "text") return null;
         // Mirror the SAME font resolution post-text-layer.tsx uses for the resting Konva
         // Text node (Tamil-companion fallback included) so the overlay's face matches the
@@ -385,6 +389,15 @@ export function PostStage({
               // size relative to the text it's replacing.
               fontSize: fontSizeToPx(layer.fontSize, containerW, containerH),
               lineHeight: layer.lineHeight,
+              // Konva centres a text block vertically in its box (verticalAlign: "middle");
+              // a textarea top-aligns. Without this pad the text jumped up on entering edit
+              // mode and dropped back on leaving it, on every single edit.
+              paddingTop: editorTopPadding(
+                rect.height,
+                fontSizeToPx(layer.fontSize, containerW, containerH),
+                layer.lineHeight ?? 1.2,
+                layer.text.split("\n").length,
+              ),
               fontFamily: FONT_CSS_FAMILY[fontKey],
               fontWeight: layer.fontWeight,
               color: layer.color,

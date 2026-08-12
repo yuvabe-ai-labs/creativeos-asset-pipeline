@@ -173,15 +173,14 @@ export function PostNode({ id, data, selected }: NodeProps) {
           </p>
         </div>
 
+        {/* Incoming only. A Post is the end of the chain — VALID_CONNECTIONS lists `post: []`,
+            so nothing downstream will ever accept it, and the outgoing handle this used to
+            render was an affordance that could only ever fail. video-gen, the other terminal
+            node, has always been target-only; Post was the outlier. */}
         <Handle
           type="target"
           position={Position.Left}
           className="size-4! border-2! border-card! bg-muted-foreground!"
-        />
-        <Handle
-          type="source"
-          position={Position.Right}
-          className="size-4! border-2! border-card! bg-primary!"
         />
       </div>
     </NodeContextMenu>

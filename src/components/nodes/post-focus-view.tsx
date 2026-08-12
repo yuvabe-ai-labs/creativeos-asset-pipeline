@@ -410,6 +410,11 @@ export function PostFocusView({
       } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") {
         e.preventDefault();
         if (e.shiftKey) redo(); else undo();
+      } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "y") {
+        // The Windows convention for redo, alongside Ctrl+Shift+Z. Both are muscle memory
+        // depending on which apps you came from, and only one of them worked.
+        e.preventDefault();
+        redo();
       } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "g") {
         e.preventDefault();
         if (e.shiftKey) ungroup(); else group();

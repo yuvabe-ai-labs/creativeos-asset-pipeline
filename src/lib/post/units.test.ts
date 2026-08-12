@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  editorTopPadding,
   normalizedToPx,
   pxToNormalized,
   fontSizeToPx,
@@ -64,5 +65,32 @@ describe("display font size (1080px baseline)", () => {
   it("round-trips through fontSizeFromDisplay", () => {
     const normalized = fontSizeFromDisplay(48);
     expect(displayFontSize(normalized)).toBe(48);
+  });
+});
+
+describe("editorTopPadding", () => {
+  it("centres a single line in its box, matching Konva's verticalAlign:middle", () => {
+    // A 100px box holding one 20px line at lineHeight 1.2 (= 24px of type) needs 38px above
+    // it to sit centred. Without this the textarea top-aligns and the text visibly jumps up
+    // the moment edit mode opens.
+    expect(editorTopPadding(100, 20, 1.2, 1)).toBeCloseTo(38, 6);
+  });
+
+  it("accounts for multiple lines", () => {
+    expect(editorTopPadding(100, 20, 1.2, 2)).toBeCloseTo(26, 6);
+  });
+
+  it("never goes negative when the text is taller than its box", () => {
+    // Overflowing text starts at the top and scrolls; a negative padding would push the
+    // first line up out of sight.
+    expect(editorTopPadding(20, 20, 1.2, 3)).toBe(0);
+  });
+
+  it("is zero when the type exactly fills the box", () => {
+    expect(editorTopPadding(24, 20, 1.2, 1)).toBeCloseTo(0, 6);
+  });
+
+  it("treats a missing line count as one line", () => {
+    expect(editorTopPadding(100, 20, 1.2, 0)).toBeCloseTo(38, 6);
   });
 });
