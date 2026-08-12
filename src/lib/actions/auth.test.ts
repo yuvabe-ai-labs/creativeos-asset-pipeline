@@ -5,16 +5,22 @@ vi.mock("server-only", () => ({}));
 // vi.mock factories are hoisted above top-level `const`s, so any variable a factory
 // reads directly must itself be declared via vi.hoisted() to avoid a TDZ ReferenceError
 // at import time (same pattern as src/lib/auth/impersonation.test.ts).
-const { signOutMock, endImpersonationMock } = vi.hoisted(() => ({
+const { signOutMock, endImpersonationMock, cookieDeleteMock } = vi.hoisted(() => ({
   signOutMock: vi.fn(async () => ({ error: null })),
   endImpersonationMock: vi.fn(async () => undefined),
+  cookieDeleteMock: vi.fn(),
 }));
 vi.mock("@/lib/supabase/ssr-server", () => ({
   createSSRServerClient: vi.fn(async () => ({ auth: { signOut: signOutMock } })),
 }));
 vi.mock("@/lib/auth/impersonation", () => ({ endImpersonation: endImpersonationMock }));
+// next/headers throws outside a request scope, so the cookie store is stubbed here.
+vi.mock("next/headers", () => ({
+  cookies: vi.fn(async () => ({ delete: cookieDeleteMock, set: vi.fn() })),
+}));
 
 import { logoutAction } from "./auth";
+import { REMEMBER_COOKIE } from "@/lib/auth/session-persistence";
 
 describe("logoutAction", () => {
   beforeEach(() => vi.resetAllMocks());
@@ -33,5 +39,13 @@ describe("logoutAction", () => {
   it("signs out only the current session, never every device on the account", async () => {
     await logoutAction();
     expect(signOutMock).toHaveBeenCalledWith({ scope: "local" });
+  });
+
+  // The "Keep me signed in" preference belongs to the session that just ended. Left
+  // behind, one user's choice would silently govern the next person to sign in on this
+  // machine — which matters here precisely because teams share a login.
+  it("clears the remember-me preference so it cannot outlive the session", async () => {
+    await logoutAction();
+    expect(cookieDeleteMock).toHaveBeenCalledWith(REMEMBER_COOKIE);
   });
 });

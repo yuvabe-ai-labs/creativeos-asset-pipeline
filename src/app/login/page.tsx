@@ -10,11 +10,11 @@ export const dynamic = "force-dynamic";
 
 export default function LoginPage() {
   return (
-    <main className="flex flex-1 items-center justify-center p-6">
+    <main className="login-surface flex flex-1 items-center justify-center p-6">
       <Card className="grid w-full max-w-5xl overflow-hidden p-0 md:min-h-[34rem] md:grid-cols-2">
         <LoginPanel />
 
-        <div className="login-surface flex flex-col justify-center px-8 py-12 sm:px-12">
+        <div className="flex flex-col justify-center px-8 py-12 sm:px-12">
           <p className="text-eyebrow text-[0.65rem] text-muted-foreground">Welcome back</p>
           <h1 className="font-display mt-2 text-3xl font-semibold tracking-tight">
             Sign in

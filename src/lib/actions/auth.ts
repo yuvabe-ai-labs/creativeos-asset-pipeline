@@ -1,9 +1,15 @@
 "use server";
 
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { createSSRServerClient } from "@/lib/supabase/ssr-server";
 import { LoginSchema } from "@/lib/auth/login-schema";
 import { endImpersonation } from "@/lib/auth/impersonation";
+import {
+  REMEMBER_COOKIE,
+  REMEMBER_COOKIE_MAX_AGE,
+  rememberCookieValue,
+} from "@/lib/auth/session-persistence";
 
 export type AuthActionState = { error?: string } | undefined;
 
@@ -14,12 +20,15 @@ export async function loginAction(
   const parsed = LoginSchema.safeParse({
     email: formData.get("email"),
     password: formData.get("password"),
+    remember: formData.get("remember") ?? undefined,
   });
   if (!parsed.success) {
     return { error: "Enter a valid email and password." };
   }
 
-  const supabase = await createSSRServerClient();
+  const persistSession = parsed.data.remember;
+
+  const supabase = await createSSRServerClient({ persistSession });
   const { data, error } = await supabase.auth.signInWithPassword({
     email: parsed.data.email,
     password: parsed.data.password,
@@ -27,6 +36,21 @@ export async function loginAction(
   if (error || !data.user) {
     return { error: "Incorrect email or password." };
   }
+
+  // Record the choice for proxy.ts, which re-writes the auth cookies on every request to
+  // keep the session fresh. Without this it would reapply Supabase's own long maxAge on
+  // the very next navigation and quietly undo an unticked "Remember me".
+  //
+  // The preference cookie mirrors the lifetime it describes: persistent when remembering,
+  // a session cookie when not, so it disappears alongside the credentials it governs.
+  const cookieStore = await cookies();
+  cookieStore.set(REMEMBER_COOKIE, rememberCookieValue(persistSession), {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    ...(persistSession ? { maxAge: REMEMBER_COOKIE_MAX_AGE } : {}),
+  });
 
   redirect("/");
 }
@@ -45,5 +69,8 @@ export async function logoutAction(): Promise<void> {
   // (diagnosed from staging auth logs showing POST /auth/v1/logout?scope=global, which
   // was the real cause of the "random logouts / offline banner while working" reports).
   await supabase.auth.signOut({ scope: "local" });
+  // The preference belongs to the session that just ended — leaving it behind would let
+  // one user's "don't remember me" silently govern the next person to sign in here.
+  (await cookies()).delete(REMEMBER_COOKIE);
   await endImpersonation();
 }

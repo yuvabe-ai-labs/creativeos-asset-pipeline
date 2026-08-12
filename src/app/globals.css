@@ -394,20 +394,21 @@
   z-index: 50;
 }
 
-/* ─── Sign-in form surface ───────────────────────────────────────────────────
-   The form half of /login. Built from the design system's own background
-   vocabulary rather than a new one: the same 72px signal lattice as
-   `.canvas-surface`, plus the two brand glows.
+/* ─── Sign-in page backdrop ──────────────────────────────────────────────────
+   The surface /login's card floats on — the page behind the card, not the card
+   itself. Built from the design system's own background vocabulary rather than a
+   new one: the same 72px signal lattice as `.canvas-surface`, plus the two brand
+   glows.
 
    Both glows are deliberately near-threshold. Purple is the single brand colour
    and is never a background fill, so it appears here only as a ~10% wash decaying
-   from one corner — enough to tint the white, not enough to read as "a purple
-   panel". Yellow is admitted for exactly one job in this system, a soft radial
+   from one corner — enough to tint the page, not enough to read as "a purple
+   screen". Yellow is admitted for exactly one job in this system, a soft radial
    glow, which is what it does here and nothing else.
 
-   The lattice is a step fainter than `.canvas-surface`'s: that grid sits behind a
-   working canvas where it aids alignment, whereas this one sits behind body copy
-   and input fields, where the same contrast would fight the text. */
+   The lattice is a step fainter than `.canvas-surface`'s. That grid sits behind a
+   working canvas where it earns its contrast by aiding alignment; this one is
+   pure atmosphere behind a floating card, so it only has to be felt. */
 .login-surface {
   background-color: var(--neutral-25);
   background-image:

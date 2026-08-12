@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { ArrowRight } from "lucide-react";
 import { loginAction, type AuthActionState } from "@/lib/actions/auth";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -35,6 +36,17 @@ export function LoginForm() {
           required
         />
       </div>
+      {/* Base UI's Checkbox renders a span plus its own hidden input, so it posts with
+          the form exactly like a native one — no native control needed. Defaulted on:
+          every session was persistent before this existed, so leaving it unticked by
+          default would silently shorten sessions for people who never asked. */}
+      <div className="mt-1 flex items-center gap-2.5">
+        <Checkbox id="remember" name="remember" defaultChecked />
+        <Label htmlFor="remember" className="cursor-pointer font-normal">
+          Keep me signed in
+        </Label>
+      </div>
+
       {state?.error && (
         <p role="alert" className="text-sm text-destructive">
           {state.error}
