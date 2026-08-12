@@ -157,6 +157,11 @@ export async function withNode(
     clientId: string,
     effectiveOrgId: string,
   ) => Promise<AnyResponse>,
+  // Route-local override for the "row doesn't exist" case. Callers whose result is
+  // meaningless for a missing node (e.g. /cost — no row means no generations, same
+  // as zero) can hand back a soft default instead of the generic 404; the org-mismatch
+  // branch below always stays a hard 404 (that's an access check, not a lookup miss).
+  options?: { onNotFound?: () => AnyResponse },
 ): Promise<AnyResponse> {
   const { id: nodeId } = await params;
   const supabase = createServerSupabase();
@@ -166,7 +171,7 @@ export async function withNode(
     .eq("id", nodeId)
     .maybeSingle();
   if (error) throw error;
-  if (!data) return apiError("Node not found.", 404);
+  if (!data) return options?.onNotFound?.() ?? apiError("Node not found.", 404);
 
   const row = data as unknown as NodeWithOrgChain;
   const canvas = unwrapEmbed(row.canvases);
