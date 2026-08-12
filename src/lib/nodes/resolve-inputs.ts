@@ -14,7 +14,7 @@ const TYPE_LABEL: Record<string, string> = {
   shot: "Shot",
   draw: "Sketch",
   "image-gen": "Image",
-  "video-prompt": "Video Prompt",
+  "video-prompt": "Motion Prompt",
 };
 
 export type UpstreamPreview = {

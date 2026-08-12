@@ -1,16 +1,16 @@
 import { listClients, listArchivedClients } from "@/lib/db/clients";
 import { listRecentCanvases } from "@/lib/db/canvases";
 import { ClientsHomeTabs } from "@/components/clients/clients-home-tabs";
-import { resolveCallerContext } from "@/lib/dal";
+import { resolveOrgId } from "@/lib/dal";
 
 export const dynamic = "force-dynamic"; // always read fresh from the DB
 
 export default async function ClientsPage() {
-  const caller = await resolveCallerContext();
+  const effectiveOrgId = await resolveOrgId();
   const [clients, archivedClients, recentCanvases] = await Promise.all([
-    listClients(caller.orgId),
-    listArchivedClients(caller.orgId),
-    listRecentCanvases(caller.orgId),
+    listClients(effectiveOrgId),
+    listArchivedClients(effectiveOrgId),
+    listRecentCanvases(effectiveOrgId),
   ]);
 
   return (

@@ -12,7 +12,7 @@ export async function POST(
   if (!sessionId) return apiError("sessionId is required.", 400);
 
   const { cid } = await params;
-  return withCanvas(Promise.resolve({ id: cid }), async (canvasId) => {
+  return withCanvas(req, Promise.resolve({ id: cid }), async (canvasId) => {
     await releaseCanvasLock(canvasId, sessionId);
     return apiOk({ released: true });
   });

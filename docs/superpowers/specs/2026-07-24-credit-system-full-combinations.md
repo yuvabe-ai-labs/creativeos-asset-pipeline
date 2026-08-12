@@ -15,13 +15,17 @@ vendor (flagged explicitly, not blank by omission).
 
 ## Video
 
-### Veo (Google) — no resolution or audio param exposed; flat rate × duration
+### Veo (Google) — resolution param exposed (2026-08-08), no audio param; rate × duration
 
-| Model | Rate |
-|---|---|
-| Veo 3.1 Lite | $0.05/s |
-| Veo 3.1 Fast | $0.10/s |
-| Veo 3.1 Quality | $0.40/s |
+| Model | 720p | 1080p |
+|---|---|---|
+| Veo 3.1 Lite | $0.05/s | $0.08/s |
+| Veo 3.1 Fast | $0.10/s | $0.12/s |
+| Veo 3.1 Quality | $0.40/s | $0.40/s (flat) |
+
+4k exists on Google's own pricing page (Quality $0.60/s, Fast $0.30/s) but isn't reachable
+here — `params/veo.ts`'s resolution select only offers 720p/1080p, matching the two values
+the `@google/genai` SDK's `GenerateVideosConfig.resolution` documents as supported.
 
 ### Sora (OpenAI) — one size tier only
 

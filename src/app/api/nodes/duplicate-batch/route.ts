@@ -1,5 +1,6 @@
 import { createServerSupabase } from "@/lib/supabase/server";
 import { apiError, apiOk, withTryCatch, withCanvas } from "@/lib/api/route-helpers";
+import { edgeRowToFlow, flowEdgeToRow, type EdgeRow } from "@/lib/db/edge-rows";
 
 type InternalEdge = { source: string; target: string };
 
@@ -20,7 +21,7 @@ export async function POST(req: Request) {
   // canvasId comes from the request body, not a URL param — this route isn't rooted at
   // /api/canvas/[id]/* or /api/nodes/[id]/*, so it never went through an isolation check
   // at all until now. withCanvas takes the same { id } shape everywhere else uses.
-  return withCanvas(Promise.resolve({ id: canvasId }), async () => {
+  return withCanvas(req, Promise.resolve({ id: canvasId }), async () => {
     return withTryCatch("Batch duplicate failed", async () => {
     const supabase = createServerSupabase();
 
@@ -116,17 +117,23 @@ export async function POST(req: Request) {
     // 5. Remap and insert internal edges
     // Only remap edges where both endpoints are in the eligible set
     const eligibleIds = new Set(eligible.map((n) => n.id));
-    const edgesToInsert = (internalEdges ?? [])
+    // Through flowEdgeToRow, not hand-mapped. Building these rows by hand is what broke this
+    // endpoint: the columns are source_node_id / target_node_id and both are NOT NULL, so
+    // rows keyed `source` / `target` failed the insert and returned a 500 — but only when the
+    // selection actually contained an edge, which is why it looked like a File + Image Gen
+    // problem rather than an every-edge problem.
+    const edgesToInsert: EdgeRow[] = (internalEdges ?? [])
       .filter((e): e is InternalEdge => typeof e?.source === "string" && typeof e?.target === "string")
       .filter((e) => eligibleIds.has(e.source) && eligibleIds.has(e.target))
-      .map((e) => ({
-        id: crypto.randomUUID(),
-        canvas_id: canvasId,
-        source: oldToNew.get(e.source)!,
-        target: oldToNew.get(e.target)!,
-      }));
+      .map((e) =>
+        flowEdgeToRow(canvasId, {
+          id: crypto.randomUUID(),
+          source: oldToNew.get(e.source)!,
+          target: oldToNew.get(e.target)!,
+        }),
+      );
 
-    let insertedEdges: typeof edgesToInsert = [];
+    let insertedEdges: EdgeRow[] = [];
     if (edgesToInsert.length > 0) {
       const { data: edgeData, error: edgeErr } = await supabase
         .from("edges")
@@ -134,12 +141,31 @@ export async function POST(req: Request) {
         .select();
 
       if (edgeErr || !edgeData) {
+        // The duplicate nodes are already committed at this point — there is no transaction
+        // spanning the two inserts — so leaving them would strand copies the client never
+        // learns about, and every retry would strand more.
+        await supabase.from("nodes").delete().in("id", [...oldToNew.values()]);
         return apiError("Failed to insert duplicate edges.", 500);
       }
-      insertedEdges = edgeData;
+      insertedEdges = edgeData as EdgeRow[];
     }
 
-    return apiOk({ nodes: insertedNodes, edges: insertedEdges }, 201);
+    // Each duplicate says which node it came from, rather than leaving the client to pair
+    // them up by array position.
+    //
+    // Positional pairing was only ever correct by luck: `eligible` here is derived from
+    // `.in("id", nodeIds)`, and Postgres gives no ordering guarantee for an IN filter, so the
+    // server's order need not match the client's. When it did not, the client spread the
+    // WRONG source node over the duplicate — including its `type`, so a copied File node
+    // could land in the store as an image-gen node. It never showed up because this path
+    // failed at the edge insert for any selection containing an edge; fixing that made it
+    // reachable.
+    const newToOld = new Map([...oldToNew].map(([oldId, newId]) => [newId, oldId]));
+    const nodesWithSource = insertedNodes.map((n) => ({ ...n, sourceId: newToOld.get(n.id) }));
+
+    // Edges go back in React Flow's shape, since that is what the client puts straight into
+    // its store. Handing back raw rows would leave every duplicated edge with no `source`.
+    return apiOk({ nodes: nodesWithSource, edges: insertedEdges.map(edgeRowToFlow) }, 201);
     });
   });
 }

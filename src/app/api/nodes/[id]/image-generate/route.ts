@@ -8,6 +8,7 @@ import {
   type EditIntent,
 } from "@/lib/image-gen/edit-prompt";
 import type { MentionUpstream } from "@/lib/nodes/resolve-mention-tokens";
+import { withProductDetailSuffix } from "@/lib/image-gen/utils";
 import { computeImageCost } from "@/lib/image-gen/cost";
 import { estimateImageGenerationCostUsd } from "@/lib/image-gen/estimate";
 import { usdToFinalCredits } from "@/lib/credits/units";
@@ -40,7 +41,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withNode(params, async (nodeId, _node, caller, clientId) => {
+  return withNode(req, params, async (nodeId, _node, caller, clientId, effectiveOrgId) => {
     const body = (await req.json().catch(() => null)) as
       | {
           modelId?: unknown;
@@ -164,15 +165,16 @@ export async function POST(
       // Use the operator's (possibly hand-edited) final prompt when provided; otherwise compose
       // it from the per-intent template. The literal prompt sent is recorded for traceability.
       const editedPrompt = typeof body?.prompt === "string" ? body.prompt.trim() : "";
-      prompt =
+      prompt = withProductDetailSuffix(
         editedPrompt ||
-        buildEditPrompt({
-          instruction,
-          intent,
-          hasExtraReference: extraReferenceUrls.length > 0,
-          masked,
-          upstream: mentionUpstream,
-        });
+          buildEditPrompt({
+            instruction,
+            intent,
+            hasExtraReference: extraReferenceUrls.length > 0,
+            masked,
+            upstream: mentionUpstream,
+          }),
+      );
       inputsUsed = {
         promptVersionId: carriedPromptVersionId,
         baseVersionId: baseVersionId ?? null,
@@ -187,7 +189,7 @@ export async function POST(
       if (!promptNode?.activeOutput) {
         return apiError("No connected Prompt node with output found.", 400);
       }
-      prompt = String(promptNode.activeOutput);
+      prompt = withProductDetailSuffix(String(promptNode.activeOutput));
       referenceUrls = connectedImageUrls.slice(0, config.maxReferenceImages);
       inputsUsed = {
         promptNodeId: promptNode.nodeId,
@@ -255,7 +257,7 @@ export async function POST(
     // Join the shared generations substrate (D26) — image is the synchronous fast path.
     const generation = await insertGeneration({
       nodeId,
-      orgId: caller.orgId,
+      orgId: effectiveOrgId,
       clientId,
       userId: caller.userId,
       userEmail: caller.email,
@@ -278,7 +280,7 @@ export async function POST(
       }
 
       const estimatedCredits = usdToFinalCredits(costUsd);
-      const reservation = await reserveCredits(caller.orgId, generation.id, estimatedCredits);
+      const reservation = await reserveCredits(effectiveOrgId, generation.id, estimatedCredits);
       if (!reservation.ok) {
         throw new CreditLimitError("Monthly credit limit reached");
       }
@@ -330,7 +332,7 @@ export async function POST(
       // of 0 credits in that case, not a reason to skip settlement.
       const actualCredits = cost ? usdToFinalCredits(cost.usd) : 0;
       await settleGeneration({
-        orgId: caller.orgId,
+        orgId: effectiveOrgId,
         generationId: generation.id,
         actualAmount: actualCredits,
       });
@@ -359,7 +361,7 @@ export async function POST(
         error: message,
       }).catch(() => null);
       await failGeneration({ generationId: generation.id, error: message }).catch(() => null);
-      await refundReservation({ orgId: caller.orgId, generationId: generation.id }).catch(() => null);
+      await refundReservation({ orgId: effectiveOrgId, generationId: generation.id }).catch(() => null);
       const status = e instanceof CreditLimitError ? 402 : 500;
       return apiError(message, status);
     }

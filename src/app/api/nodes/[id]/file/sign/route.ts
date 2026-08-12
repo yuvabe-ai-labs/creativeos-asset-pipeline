@@ -4,7 +4,7 @@ import {
   FILE_NODE_MAX_SIZE,
   fileKindForExt,
 } from "@/lib/nodes/file-constants";
-import { apiError, apiOk, validateFileSize } from "@/lib/api/route-helpers";
+import { apiError, apiOk, validateFileSize, assertImpersonationWriteAllowed } from "@/lib/api/route-helpers";
 import { signNodeFileUpload } from "@/lib/storage";
 
 // POST /api/nodes/:id/file/sign — validate metadata and return a signed URL for a
@@ -15,6 +15,9 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id: nodeId } = await params;
+
+  const blocked = await assertImpersonationWriteAllowed(req);
+  if (blocked) return blocked;
 
   const body = (await req.json().catch(() => null)) as {
     filename?: string;

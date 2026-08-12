@@ -3,6 +3,7 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { _put, _remove, _signPutUrl, getBucketName, publicUrlFor } from "./gcs";
 import { resolveOwnership } from "./ownership";
 import {
+  pathForBrandAsset,
   pathForBrandImage,
   pathForClientLogo,
   pathForImageGen,
@@ -10,6 +11,7 @@ import {
   pathForNodeFile,
   pathForVideoGen,
 } from "./paths";
+import type { BrandAssetCategory } from "@/lib/brand-kit/types";
 
 export type UploadResult = { url: string; path: string };
 
@@ -185,6 +187,22 @@ export async function signKBDocumentUpload(args: {
   const path = pathForKBDocument({
     clientId: args.clientId,
     docId: args.docId,
+    filename: args.filename,
+  });
+  return _sign(path, args.contentType);
+}
+
+export async function signClientBrandAssetUpload(args: {
+  clientId: string;
+  category: BrandAssetCategory;
+  assetId: string;
+  filename: string;
+  contentType: string;
+}): Promise<SignedUploadResult> {
+  const path = pathForBrandAsset({
+    clientId: args.clientId,
+    category: args.category,
+    assetId: args.assetId,
     filename: args.filename,
   });
   return _sign(path, args.contentType);

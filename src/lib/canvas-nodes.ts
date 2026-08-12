@@ -7,6 +7,7 @@ import type { ReelScript } from "@/lib/nodes/reel-script";
 import type { VideoControls } from "@/lib/nodes/video-controls";
 import type { VideoProvider } from "@/prompts/video-prompt-generate";
 import type { EditIntent } from "@/lib/image-gen/edit-prompt";
+import type { PostFormat, PostLayer } from "@/lib/post/types";
 
 export type ScriptNodeData = {
   title?: string;
@@ -111,6 +112,37 @@ export type ShotNodeData = {
   };
 };
 
+export type PostNodeData = {
+  title?: string;
+  format?: PostFormat;
+  templateId?: string;         // which starter template seeded this scene, for "Change template"
+  layers?: PostLayer[];        // ordered back -> front — authored content, no version log (D19-style)
+  // Durable record of every connected node whose image has EVER been auto-placed. The
+  // auto-place effect only fires for ids NOT in here, so deleting an auto-placed layer
+  // sticks — across re-renders, remounts and reloads — instead of being re-added.
+  autoPlacedNodeIds?: string[];
+  fileUrl?: string;            // flattened PNG — this node's output
+  filename?: string;
+  imageWidth?: number;
+  imageHeight?: number;
+  fileSizeBytes?: number;
+  renderedAt?: string;         // set on export; compared against layersUpdatedAt (D126)
+  // Set whenever the design changes. Compared against renderedAt to tell "Exported" from
+  // "Edited since export" on the node card. Absent on every node saved before this existed —
+  // readers must treat a missing value as current, never stale, or every previously-exported
+  // post would flag itself dirty on first load.
+  layersUpdatedAt?: string;
+  /**
+   * A small JPEG data URL of the design, captured from the real Konva stage when the editor
+   * closes (D136). The node card shows it whenever there is no fresh exported PNG, so a draft
+   * looks like the post you just made instead of like an approximation of it.
+   *
+   * Absent on every node saved before this existed, and on any post not opened since — the
+   * card falls back to the DOM layers preview, so a missing value is normal, not an error.
+   */
+  thumbnail?: string;
+};
+
 export type AppNode =
   | Node<ScriptNodeData, "script">
   | Node<KBNodeData, "kb">
@@ -121,23 +153,27 @@ export type AppNode =
   | Node<DrawNodeData, "draw">
   | Node<ImageGenNodeData, "image-gen">
   | Node<VideoPromptNodeData, "video-prompt">
-  | Node<VideoGenNodeData, "video-gen">;
+  | Node<VideoGenNodeData, "video-gen">
+  | Node<PostNodeData, "post">;
 
 // PRD §10 — which source node types may connect to which target node types.
 // The Video Prompt node (D24) sits between Image Gen and Video Gen: the still feeds it as a
 // vision reference (image-gen → video-prompt), and it outputs a motion prompt
-// (video-prompt → video-gen). prompt → video-gen is retained as the inline fallback path.
+// (video-prompt → video-gen). video-generate/route.ts reads its text prompt ONLY from a
+// connected video-prompt node — an (Image) Prompt node connected straight to Video Gen is
+// never read, so `prompt` is deliberately absent from video-gen's source list here.
 export const VALID_CONNECTIONS: Record<string, readonly string[]> = {
   kb:             ["script"],
   script:         ["prompt"],
   shot:           ["prompt", "video-prompt"],
-  file:           ["prompt", "image-gen", "video-prompt", "video-gen", "shot"],
-  draw:           ["prompt", "image-gen", "video-prompt", "video-gen", "shot"],
+  file:           ["prompt", "image-gen", "video-prompt", "video-gen", "shot", "post"],
+  draw:           ["prompt", "image-gen", "video-prompt", "video-gen", "shot", "post"],
   text:           ["prompt", "video-prompt"],
-  prompt:         ["prompt", "image-gen", "video-gen"],
-  "image-gen":    ["prompt", "video-gen", "video-prompt", "shot"],
+  prompt:         ["prompt", "image-gen"],
+  "image-gen":    ["prompt", "video-gen", "video-prompt", "shot", "post"],
   "video-prompt": ["video-gen"],
   "video-gen":    [],
+  "post":         [],
 } as const;
 
 // The single ordered connection check: may a `sourceType` node feed a `targetType` node?

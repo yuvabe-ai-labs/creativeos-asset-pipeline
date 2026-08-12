@@ -10,6 +10,10 @@ vi.mock("@/lib/dal", () => ({
     orgRole: "owner",
     mustChangePassword: false,
   })),
+  resolveOrgId: vi.fn(async () => "org-1"),
+}));
+vi.mock("@/lib/auth/impersonation", () => ({
+  resolveImpersonationState: vi.fn(async () => ({ isImpersonating: false })),
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -43,9 +47,10 @@ describe("GET /api/me", () => {
     const res = await GET();
     expect(res.status).toBe(200);
     const body = await res.json();
-    // orgRoleToIdentityRole("owner") collapses to "senior" — that field must stay as-is.
+    // orgRoleToIdentityRole("owner") collapses to "senior" — that field must stay as-is,
+    // it's frozen per D53 and still gates the Approve feature.
     expect(body.role).toBe("senior");
-    // orgRole is the new, real value — this is what Task 3's popover displays.
+    // orgRole is the new, real value — this is what Task 4's popover displays as "Owner".
     expect(body.orgRole).toBe("owner");
     expect(body.name).toBe("Arun");
     expect(body.orgName).toBe("Yuvabe Studios");

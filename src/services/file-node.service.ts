@@ -14,8 +14,16 @@ type FileUploadResult = Pick<
 
 type ExtractResult = { processedOutput: string };
 
+export type FileUploadOptions = {
+  // Don't delete the node's current `data.fileUrl` object. Set it when the upload is an
+  // ASSET stored under the node rather than a replacement for the node's own primary
+  // file — e.g. a Post layer image, where `fileUrl` holds the flattened render. Only the
+  // signed-URL path honours it (the text-file form POST has no such case).
+  keepExisting?: boolean;
+};
+
 class FileNodeService {
-  async upload(nodeId: string, file: File): Promise<FileUploadResult> {
+  async upload(nodeId: string, file: File, opts: FileUploadOptions = {}): Promise<FileUploadResult> {
     if (file.size > FILE_NODE_MAX_SIZE) {
       throw new Error("File exceeds the 10 MB limit. Please choose a smaller file.");
     }
@@ -39,7 +47,7 @@ class FileNodeService {
     return uploadViaSignedUrl<FileUploadResult>(file, {
       signEndpoint: `/api/nodes/${nodeId}/file/sign`,
       finalizeEndpoint: `/api/nodes/${nodeId}/file/finalize`,
-      finalizeBody: dimensions,
+      finalizeBody: { ...dimensions, ...(opts.keepExisting && { keepExisting: true }) },
     });
   }
 

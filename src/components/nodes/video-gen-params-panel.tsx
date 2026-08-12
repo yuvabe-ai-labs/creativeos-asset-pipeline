@@ -111,7 +111,7 @@ export function VideoGenParamsPanel({
     <TooltipProvider>
       <div className="space-y-4">
         {/* Params — the first two compact controls share the top row (Resolution + Duration,
-            or Aspect Ratio + Duration for Veo); any remaining controls stack below, with a
+            same placement for both Kling and Veo); any remaining controls stack below, with a
             textarea (Negative Prompt) always spanning full width. */}
         {(() => {
           const canPair =

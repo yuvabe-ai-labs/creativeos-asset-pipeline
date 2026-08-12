@@ -2,6 +2,7 @@
 
 import { createServerSupabase } from "@/lib/supabase/server";
 import { buildApprovalUpdate, type ApprovalStatus } from "@/lib/approval";
+import { withAction } from "@/lib/actions/with-action";
 
 // D29: set the approval flag on a SPECIFIC version (the caller passes the node's active
 // version id). Annotates an attempt — never a new attempt — so no new version row, mirroring
@@ -10,16 +11,18 @@ export async function setVersionApprovalAction(
   versionId: string,
   input: { status: ApprovalStatus; approvedBy: string | null; note?: string | null },
 ) {
-  const supabase = createServerSupabase();
-  const update = buildApprovalUpdate({
-    status: input.status,
-    by: input.approvedBy,
-    at: new Date().toISOString(),
-    note: input.note ?? null,
+  return withAction("setVersionApprovalAction", async () => {
+    const supabase = createServerSupabase();
+    const update = buildApprovalUpdate({
+      status: input.status,
+      by: input.approvedBy,
+      at: new Date().toISOString(),
+      note: input.note ?? null,
+    });
+    const { error } = await supabase
+      .from("node_versions")
+      .update(update)
+      .eq("id", versionId);
+    if (error) throw error;
   });
-  const { error } = await supabase
-    .from("node_versions")
-    .update(update)
-    .eq("id", versionId);
-  if (error) throw error;
 }

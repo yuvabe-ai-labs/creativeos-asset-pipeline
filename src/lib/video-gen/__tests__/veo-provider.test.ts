@@ -30,4 +30,12 @@ describe("buildVeoConfig", () => {
     expect(cfg.aspectRatio).toBe("16:9");
     expect(cfg.numberOfVideos).toBe(1);
   });
+
+  it("defaults resolution to 720p when absent", () => {
+    expect(buildVeoConfig(base).resolution).toBe("720p");
+  });
+
+  it("passes 1080p through when requested", () => {
+    expect(buildVeoConfig({ ...base, resolution: "1080p" }).resolution).toBe("1080p");
+  });
 });

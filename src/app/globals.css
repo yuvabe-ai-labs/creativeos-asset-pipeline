@@ -30,6 +30,9 @@
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-destructive-text: var(--destructive-text);
+  --color-gen-ready: var(--gen-ready);
+  --color-gen-failed: var(--gen-failed);
+  --color-gen-running: var(--gen-running);
   --color-success: var(--success);
   --color-success-foreground: var(--success-foreground);
   --color-success-text: var(--success-text);
@@ -96,6 +99,18 @@
   --yellow-700: #957004; /* 4.57:1 */
   --cyan-700: #15828e; /* 4.55:1 */
   --red-orange-700: #e0330a; /* 4.52:1 */
+
+  /* Generation-status glyph hues (D142). Picked from the Generation Tray design
+     comp rather than derived from the palette above, so they are DELIBERATELY
+     brighter than the 700s and do not clear the 3.0:1 icon floor on white:
+     green 2.70:1, red 3.96:1, yellow 1.45:1. Accepted because status here is
+     never carried by colour alone — each state has a distinct glyph shape and
+     the status word is on the row's title/aria-label. Scoped to the tray's
+     status glyphs on purpose: the semantic --success/--warning/--destructive
+     families still drive approval badges and everything else, and are unchanged. */
+  --gen-ready: #0fea81;
+  --gen-failed: #fc171b;
+  --gen-running: #ffd230;
 
   /* Neutrals */
   --neutral-0: #ffffff;
@@ -192,6 +207,10 @@
   --accent: #2c2058;
   --accent-foreground: #f8f8fa;
   --destructive: #f56b49;
+
+  /* --gen-ready/-failed/-running are deliberately NOT overridden here: the comp's
+     saturated hues are already the light end, and measure 8.9 / 4.2 / 12.1 on this
+     card. They inherit from :root. */
 
   /* On the dark card (#1c1540) the 500s are the LIGHT end, so -text collapses back
      onto them: green 8.41:1, yellow 11.16, cyan 7.07, destructive 5.75. The 700s
@@ -313,6 +332,25 @@
   }
 }
 
+/* Thin, on-brand scrollbar — replaces the raw native scrollbar (arrow buttons, gray
+   track) on overflowing panels (Post editor's layer list / inspector) with a subtle
+   neutral thumb on a transparent track. Deliberately low-contrast: it should read as
+   "barely there," not as a new visual element. */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--neutral-300) transparent;
+}
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: var(--neutral-300);
+  border-radius: 999px;
+}
+
 /* Marching-ant edges — flowing connection lines for the canvas loading state */
 @keyframes dash-flow {
   to {
@@ -327,4 +365,31 @@
   .animate-dash-flow {
     animation: none;
   }
+}
+
+/* ─── Base UI modal pointer-blocker (D138) ──────────────────────────────
+   Every modal Base UI overlay portals an internal blocker div that swallows
+   pointer events on everything behind it. Base UI ships it with only
+   `position: fixed; inset: 0` and NO z-index, so it computes to auto (~0) —
+   below our z-50 Sheet/Dialog popups. A confirm dialog opened from inside a
+   Sheet therefore looked modal but left the Sheet's own fields fully
+   editable, because the one element meant to block them sat underneath them.
+
+   Matching z-50 rather than exceeding it is deliberate: the blocker is
+   portalled immediately BEFORE its own popup, and a nested overlay's portal
+   mounts after its parent's, so document order already resolves every tie in
+   the right direction — innermost blocker above the parent's content, each
+   popup above its own blocker. A higher value would instead put the blocker
+   over its own popup.
+
+   Styleable only from here: the element is rendered by Base UI's portal
+   internals, so no component of ours can reach it via props.
+
+   The role guard is load-bearing. `data-base-ui-inert` alone is too broad —
+   floating-ui's markOthers() stamps that same attribute onto the OUTSIDE
+   elements it marks inert (app containers, sibling portal roots), and giving
+   those a z-index would reshuffle stacking well outside this fix. Only the
+   blocker pairs the attribute with role="presentation". */
+[data-base-ui-inert][role="presentation"] {
+  z-index: 50;
 }

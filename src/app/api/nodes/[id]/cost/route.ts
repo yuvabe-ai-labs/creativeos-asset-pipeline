@@ -8,7 +8,7 @@ export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withNode(params, async (nodeId) => {
+  return withNode(req, params, async (nodeId) => {
     // ?also=id1,id2,... lets callers include upstream pipeline node IDs so the
     // badge reflects the full cost of reaching this generation, not just this node.
     const { searchParams } = new URL(req.url);

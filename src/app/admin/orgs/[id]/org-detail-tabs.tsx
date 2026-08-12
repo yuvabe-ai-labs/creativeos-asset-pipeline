@@ -8,6 +8,7 @@ import { GenerationsTable } from "@/components/admin/generations-table";
 import { UsageTrendChart } from "@/components/admin/usage-trend-chart";
 import { CreditBreakdownList } from "@/components/admin/credit-breakdown-list";
 import { ResetPasswordDialog } from "./reset-password-dialog";
+import { ImpersonationAudit } from "@/components/admin/impersonation-audit/impersonation-audit";
 import { formatRelativeTime } from "@/lib/format/relative-time";
 import type {
   OrgRow,
@@ -15,6 +16,7 @@ import type {
   CreditBreakdownRow,
 } from "@/lib/db/organizations";
 import type { GenerationsPage } from "@/lib/db/generations";
+import type { ImpersonationSessionPage } from "@/lib/db/impersonation-audit";
 
 const triggerClass =
   "flex-none px-0 py-0 font-display text-xl font-semibold tracking-tight text-foreground/40 data-active:text-foreground";
@@ -52,6 +54,7 @@ export function OrgDetailTabs({
   yearlyHistory,
   breakdownByType,
   breakdownByModel,
+  impersonationSessions,
 }: {
   org: OrgRow;
   members: Member[];
@@ -63,6 +66,7 @@ export function OrgDetailTabs({
   yearlyHistory: CreditHistoryPoint[];
   breakdownByType: CreditBreakdownRow[];
   breakdownByModel: CreditBreakdownRow[];
+  impersonationSessions: ImpersonationSessionPage;
 }) {
   const [tab, setTab] = useState("overview");
 
@@ -74,6 +78,9 @@ export function OrgDetailTabs({
         </TabsTrigger>
         <TabsTrigger value="generations" className={triggerClass}>
           Generations
+        </TabsTrigger>
+        <TabsTrigger value="support" className={triggerClass}>
+          Support activity
         </TabsTrigger>
       </TabsList>
 
@@ -140,6 +147,12 @@ export function OrgDetailTabs({
         </div>
 
         <GenerationsTable orgId={org.id} initial={generationsPage} />
+      </TabsContent>
+
+      {/* Support activity: what a support operator did while impersonating this org —
+          a read-only audit trail, kept separate from the org's own usage data above. */}
+      <TabsContent value="support" className="animate-rise flex flex-col gap-8">
+        <ImpersonationAudit orgId={org.id} initial={impersonationSessions} />
       </TabsContent>
     </Tabs>
   );

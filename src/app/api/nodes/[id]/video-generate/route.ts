@@ -26,7 +26,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withNode(params, async (nodeId, _node, caller, clientId) => {
+  return withNode(req, params, async (nodeId, _node, caller, clientId, effectiveOrgId) => {
     const raw = await req.json().catch(() => null);
     const parsed = GenerateBodySchema.safeParse(raw);
     if (!parsed.success) {
@@ -120,7 +120,7 @@ export async function POST(
     // Insert generation record (status: 'running')
     const generation = await insertGeneration({
       nodeId,
-      orgId: caller.orgId,
+      orgId: effectiveOrgId,
       clientId,
       userId: caller.userId,
       userEmail: caller.email,
@@ -146,7 +146,7 @@ export async function POST(
         throw new Error(`No cost estimate available for ${modelId} at these params.`);
       }
       const estimatedCredits = usdToFinalCredits(estimate.usd);
-      const reservation = await reserveCredits(caller.orgId, generation.id, estimatedCredits);
+      const reservation = await reserveCredits(effectiveOrgId, generation.id, estimatedCredits);
       if (!reservation.ok) {
         throw new CreditLimitError("Monthly credit limit reached");
       }
@@ -167,7 +167,7 @@ export async function POST(
     } catch (e) {
       const message = e instanceof Error ? e.message : "Video generation failed";
       await failGeneration({ generationId: generation.id, error: message }).catch(() => null);
-      await refundReservation({ orgId: caller.orgId, generationId: generation.id }).catch(() => null);
+      await refundReservation({ orgId: effectiveOrgId, generationId: generation.id }).catch(() => null);
       const status = e instanceof CreditLimitError ? 402 : 500;
       return apiError(message, status);
     }

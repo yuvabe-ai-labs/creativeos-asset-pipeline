@@ -8,7 +8,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withNode(params, async (nodeId) => {
+  return withNode(req, params, async (nodeId) => {
     const body = (await req.json().catch(() => null)) as { versionId?: unknown } | null;
     const versionId = typeof body?.versionId === "string" ? body.versionId : null;
     if (!versionId) return apiError("versionId required.", 400);

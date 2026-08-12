@@ -9,6 +9,7 @@ import {
   pathForClientLogo,
   pathForBrandImage,
   pathForKBDocument,
+  pathForBrandAsset,
 } from "./paths";
 
 describe("sanitizeSlug", () => {
@@ -132,5 +133,28 @@ describe("path builders", () => {
     ).toBe(
       "clients/c1/kb-documents/doc1/brief__2026-06-30T14-23-45-678Z.pdf",
     );
+  });
+});
+
+describe("pathForBrandAsset", () => {
+  it("nests by client, then category, then asset id", () => {
+    const path = pathForBrandAsset({
+      clientId: "c1", category: "logo", assetId: "a1", filename: "mark.png",
+    });
+    expect(path.startsWith("clients/c1/brand-kit/logo/a1/")).toBe(true);
+  });
+
+  it("separates the three categories", () => {
+    const args = { clientId: "c1", assetId: "a1", filename: "x.png" };
+    expect(pathForBrandAsset({ ...args, category: "background" })).toContain("/brand-kit/background/");
+    expect(pathForBrandAsset({ ...args, category: "product" })).toContain("/brand-kit/product/");
+  });
+
+  it("routes the filename through buildStoredName, so a hostile name cannot escape", () => {
+    const path = pathForBrandAsset({
+      clientId: "c1", category: "logo", assetId: "a1", filename: "../../etc/passwd.png",
+    });
+    expect(path.startsWith("clients/c1/brand-kit/logo/a1/")).toBe(true);
+    expect(path).not.toContain("..");
   });
 });

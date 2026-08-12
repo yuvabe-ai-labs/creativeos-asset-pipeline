@@ -39,7 +39,7 @@ export function CopilotPanel({ canvasId }: { canvasId: string }) {
 
   if (!open) {
     return (
-      <Button onClick={() => setOpen(true)} className="absolute right-4 top-4 z-[60] gap-2 shadow-md">
+      <Button onClick={() => setOpen(true)} className="absolute right-4 bottom-4 z-[60] gap-2 shadow-md">
         <Sparkles className="size-4" /> Copilot
       </Button>
     );
