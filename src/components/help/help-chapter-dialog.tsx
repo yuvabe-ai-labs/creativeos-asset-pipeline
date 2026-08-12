@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, ArrowRight, Map } from "lucide-react";
+import { ArrowLeft, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -8,13 +8,12 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { cn } from "@/lib/utils";
 import type { HelpChapter } from "@/lib/help/types";
-import { HelpMapPage } from "@/components/help/help-map-page";
-import { HelpStepPage } from "@/components/help/help-step-page";
+import { HelpChapterRail } from "@/components/help/help-chapter-rail";
+import { HelpStepVideo } from "@/components/help/help-step-video";
 
 // Controlled: the caller owns chapter + step so the URL stays the source of truth.
-// `step` is a page index — 0 is the map, 1..n are the content steps.
+// `step` is 1-based; there is no page 0 — the rail carries the shape of the chapter.
 export function HelpChapterDialog({
   chapter,
   step,
@@ -29,23 +28,23 @@ export function HelpChapterDialog({
   if (!chapter) return null;
 
   const total = chapter.steps.length;
-  const onMap = step === 0;
-  const current = chapter.steps[step - 1];
+  const current = chapter.steps[step - 1] ?? chapter.steps[0];
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-h-[85vh] w-full overflow-y-auto sm:max-w-3xl">
+      {/* Sized for real screen recordings: the clip is the point, so the pane holding it
+          gets the room. sm:max-w-none overrides the dialog's default narrow width. */}
+      <DialogContent className="flex h-[min(88vh,44rem)] w-[min(94vw,78rem)] flex-col gap-4 sm:max-w-none">
         <DialogTitle className="font-display text-xl">{chapter.question}</DialogTitle>
-        <DialogDescription className="sr-only">
-          {onMap ? chapter.summary : (current?.title ?? chapter.summary)}
-        </DialogDescription>
+        <DialogDescription className="sr-only">{chapter.summary}</DialogDescription>
 
-        <div className="py-2">
-          {onMap || !current ? (
-            <HelpMapPage chapter={chapter} onSelectStep={onStepChange} />
-          ) : (
-            <HelpStepPage step={current} index={step} total={total} />
-          )}
+        <div className="grid min-h-0 flex-1 gap-6 md:grid-cols-[22rem_1fr]">
+          <div className="min-h-0 overflow-y-auto pr-1">
+            <HelpChapterRail chapter={chapter} step={step} onSelectStep={onStepChange} />
+          </div>
+          <div className="min-h-0">
+            <HelpStepVideo step={current} />
+          </div>
         </div>
 
         <div className="flex items-center justify-between gap-4 border-t pt-3">
@@ -53,40 +52,14 @@ export function HelpChapterDialog({
             variant="ghost"
             size="sm"
             onClick={() => onStepChange(step - 1)}
-            disabled={onMap}
+            disabled={step <= 1}
           >
             <ArrowLeft className="size-4" strokeWidth={1.5} /> Back
           </Button>
 
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onClick={() => onStepChange(0)}
-              disabled={onMap}
-              aria-label="Back to overview"
-            >
-              <Map className="size-4" strokeWidth={1.5} />
-            </Button>
-            {chapter.steps.map((s, i) => (
-              <Button
-                key={s.title}
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => onStepChange(i + 1)}
-                aria-label={`Step ${i + 1}: ${s.title}`}
-                aria-current={step === i + 1}
-                className="size-4 p-0"
-              >
-                <span
-                  className={cn(
-                    "size-2 rounded-full transition-colors",
-                    step === i + 1 ? "bg-primary" : "bg-border",
-                  )}
-                />
-              </Button>
-            ))}
-          </div>
+          <span className="text-eyebrow text-[0.65rem] text-muted-foreground">
+            {step} / {total}
+          </span>
 
           <Button size="sm" onClick={() => onStepChange(step + 1)} disabled={step >= total}>
             Next <ArrowRight className="size-4" strokeWidth={1.5} />

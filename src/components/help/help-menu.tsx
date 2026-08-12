@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { CircleHelp, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,7 +21,6 @@ import { HelpChapterDialog } from "@/components/help/help-chapter-dialog";
 // friendly — and so this component derives its state during render rather than in an
 // effect (react-hooks/set-state-in-effect).
 export function HelpMenu() {
-  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
@@ -32,10 +31,17 @@ export function HelpMenu() {
   const howTo = chapters.filter((c) => c.question.startsWith("How"));
   const why = chapters.filter((c) => !c.question.startsWith("How"));
 
+  // history.pushState, not router.push. In the App Router a router.push is a navigation
+  // even when only the query changes, so opening a chapter — and every Back/Next inside
+  // it — refetches the RSC payload and re-runs the whole page's server components. On a
+  // heavy route like the KB page that is seconds of lag for what is purely client state.
+  // Next patches the native history methods into its own router (see its
+  // single-page-applications guide), so usePathname/useSearchParams still update and the
+  // URL stays deep-linkable and shareable — without touching the server.
   const openAt = (slug: string, step: number) =>
-    router.push(`${pathname}${helpParamsFor(slug, step)}`, { scroll: false });
+    window.history.pushState(null, "", `${pathname}${helpParamsFor(slug, step)}`);
 
-  const close = () => router.push(pathname, { scroll: false });
+  const close = () => window.history.pushState(null, "", pathname);
 
   return (
     <>
@@ -53,7 +59,7 @@ export function HelpMenu() {
           <DropdownMenuGroup>
             <DropdownMenuGroupLabel>How do I…</DropdownMenuGroupLabel>
             {howTo.map((c) => (
-              <DropdownMenuItem key={c.slug} onClick={() => openAt(c.slug, 0)}>
+              <DropdownMenuItem key={c.slug} onClick={() => openAt(c.slug, 1)}>
                 {c.question}
               </DropdownMenuItem>
             ))}
@@ -62,7 +68,7 @@ export function HelpMenu() {
           <DropdownMenuGroup>
             <DropdownMenuGroupLabel>Why…</DropdownMenuGroupLabel>
             {why.map((c) => (
-              <DropdownMenuItem key={c.slug} onClick={() => openAt(c.slug, 0)}>
+              <DropdownMenuItem key={c.slug} onClick={() => openAt(c.slug, 1)}>
                 {c.question}
               </DropdownMenuItem>
             ))}
@@ -72,7 +78,7 @@ export function HelpMenu() {
 
       <HelpChapterDialog
         chapter={chapter}
-        step={location?.step ?? 0}
+        step={location?.step ?? 1}
         onStepChange={(step) => chapter && openAt(chapter.slug, step)}
         onClose={close}
       />
