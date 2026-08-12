@@ -15,6 +15,16 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { AddConnection } from "./add-connection";
 import { EditableField } from "./editable-field";
 import { GenerationErrorBadge } from "./generation-error-badge";
@@ -129,6 +139,14 @@ export function PromptFocusView({
   const { identity } = useIdentity();
   const editable = useCanvasEditable(); // D33: false when this session is read-only
   const [evalSaving, setEvalSaving] = useState(false);
+  // A pending destructive action awaiting confirmation. Replaces window.confirm
+  // so the prompt stays inside the design system instead of native OS chrome.
+  const [confirm, setConfirm] = useState<{
+    title: string;
+    description: string;
+    actionLabel: string;
+    onConfirm: () => void;
+  } | null>(null);
 
   if (seed.open !== open || seed.output !== output || seed.nodeId !== nodeId) {
     const opening = open && !seed.open; // sheet just opened (false → true)
@@ -368,6 +386,22 @@ export function PromptFocusView({
     }
   }
 
+  // YUV-288: navigating away must not silently drop an unsaved manual edit to the
+  // generated prompt — same guard script-focus-view.tsx already applies to its draft.
+  function requestClose() {
+    if (dirty) {
+      setConfirm({
+        title: "Discard unsaved changes?",
+        description:
+          "You have edits that haven't been saved. Closing now will discard them.",
+        actionLabel: "Discard",
+        onConfirm: () => onOpenChange(false),
+      });
+      return;
+    }
+    onOpenChange(false);
+  }
+
   function toggleSlice(key: KBSliceKey) {
     const next = slices.includes(key)
       ? slices.filter((k) => k !== key)
@@ -399,7 +433,13 @@ export function PromptFocusView({
     ) : undefined;
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    <Sheet
+      open={open}
+      onOpenChange={(next) => {
+        if (next) onOpenChange(true);
+        else requestClose();
+      }}
+    >
       <SheetContent
         side="bottom"
         showCloseButton={false}
@@ -411,7 +451,7 @@ export function PromptFocusView({
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => onOpenChange(false)}
+              onClick={requestClose}
               className="-ml-2.5 gap-1.5 font-medium text-muted-foreground hover:text-foreground"
             >
               <ArrowLeft className="size-4" /> Back to canvas
@@ -705,6 +745,33 @@ export function PromptFocusView({
           </div>
         </div>
       </SheetContent>
+
+      <AlertDialog
+        open={!!confirm}
+        onOpenChange={(next) => {
+          if (!next) setConfirm(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{confirm?.title}</AlertDialogTitle>
+            <AlertDialogDescription>{confirm?.description}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setConfirm(null)}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                confirm?.onConfirm();
+                setConfirm(null);
+              }}
+            >
+              {confirm?.actionLabel}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Sheet>
   );
 }
