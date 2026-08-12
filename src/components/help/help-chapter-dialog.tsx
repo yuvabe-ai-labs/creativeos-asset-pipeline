@@ -51,22 +51,39 @@ export function HelpChapterDialog({
           </div>
         </div>
 
-        <div className="flex items-center justify-between gap-4 border-t pt-3">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => onStepChange(step - 1)}
-            disabled={step <= 1}
-          >
-            <ArrowLeft className="size-4" strokeWidth={1.5} /> Back
-          </Button>
+        {/* Three columns rather than justify-between so the counter sits dead centre
+            regardless of how wide the button groups are. Stepping is one paired group on
+            the left; Close is a separate concern and sits apart from it. */}
+        <div className="grid grid-cols-3 items-center gap-4 border-t pt-3">
+          <div className="flex items-center gap-2 justify-self-start">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onStepChange(step - 1)}
+              disabled={step <= 1}
+            >
+              <ArrowLeft className="size-4" strokeWidth={1.5} /> Back
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => onStepChange(step + 1)}
+              disabled={step >= total}
+            >
+              Next <ArrowRight className="size-4" strokeWidth={1.5} />
+            </Button>
+          </div>
 
-          <span className="text-eyebrow text-[0.65rem] text-muted-foreground">
+          <span className="text-eyebrow justify-self-center text-[0.65rem] text-muted-foreground">
             {step} / {total}
           </span>
 
-          <Button size="sm" onClick={() => onStepChange(step + 1)} disabled={step >= total}>
-            Next <ArrowRight className="size-4" strokeWidth={1.5} />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onClose}
+            className="justify-self-end"
+          >
+            Close
           </Button>
         </div>
       </DialogContent>
