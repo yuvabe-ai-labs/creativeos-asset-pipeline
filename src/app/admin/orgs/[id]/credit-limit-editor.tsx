@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { updateOrgCreditLimitAction } from "@/lib/actions/admin";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +25,10 @@ export function CreditLimitEditor({
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Only true right after the admin clicks "Set limit" — an org that already has a
+  // limit renders straight into mode "set" on page load, and that mount must NOT
+  // steal focus (YUV-291: it risked an accidental edit before the admin typed anything).
+  const focusOnMountRef = useRef(false);
 
   async function save(raw: string) {
     setSaving(true);
@@ -52,6 +56,7 @@ export function CreditLimitEditor({
     setDraft(committedValue);
     setError(null);
     setSaved(false);
+    focusOnMountRef.current = true;
   }
 
   function cancelEdit() {
@@ -86,7 +91,12 @@ export function CreditLimitEditor({
       {mode === "set" && (
         <div className="flex items-center gap-2">
           <Input
-            autoFocus
+            ref={(el) => {
+              if (el && focusOnMountRef.current) {
+                el.focus();
+                focusOnMountRef.current = false;
+              }
+            }}
             value={draft}
             onChange={(e) => {
               setDraft(e.target.value);

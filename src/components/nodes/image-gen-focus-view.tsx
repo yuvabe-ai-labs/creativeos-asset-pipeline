@@ -226,6 +226,10 @@ export function ImageGenFocusView({
       onPatch({ params: merged });
       annotationRef.current?.clear(); // drop any painted mask — it must not cross models
       setHasMaskRegion(false);
+      // The hand-edited override can still carry the masked-region sentence baked in from
+      // before the switch (YUV-287) — clear it so finalPrompt re-derives from the template,
+      // same as handlePickChip/handleInstructionChange already do for other invalidations.
+      setPromptOverride(null);
     }
     // NOTE: paramValues is intentionally excluded from the dep array — we only
     // want this effect to fire when the model changes, not on every param edit.
