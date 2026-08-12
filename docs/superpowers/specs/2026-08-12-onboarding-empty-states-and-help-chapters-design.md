@@ -3,7 +3,9 @@
 **Date:** 2026-08-12
 **Status:** Design approved — ready for an implementation plan
 **Area:** Onboarding / first-run experience
-**ADRs originated:** D102, D103
+**ADRs originated:** D103, D104 *(appended to the roadmap ADR log 2026-08-12; the earlier
+duplicate `D101` was resolved at the same time by renumbering the edit-references entry to
+D102)*
 
 ---
 
@@ -496,13 +498,13 @@ Colocated `*.test.ts`, matching the existing convention.
 
 ## 12. ADR entries
 
-To append to `2026-05-30-creativeos-staging-roadmap.md` §7.
+**Appended to `2026-05-30-creativeos-staging-roadmap.md` §7 on 2026-08-12** as **D103** and
+**D104**. The duplicate `D101` in that log (header profile popover, recorded 2026-08-05, and
+explicit edit references, recorded 2026-08-04) was resolved in the same commit by renumbering
+the edit-references entry to **D102** — the later position in the log takes the higher number
+so the sequence stays ascending, per the convention used at D94/D95.
 
-> **Note for whoever appends these:** `D101` is currently assigned twice in that log — the
-> header profile popover (recorded 2026-08-05) and explicit edit references (recorded
-> 2026-08-04). Resolve that collision when adding D102/D103.
-
-### D102 — In-app onboarding is pull-not-push: empty states carry the actions, a global Help menu carries the explanations
+### D103 — In-app onboarding is pull-not-push: empty states carry the actions, a global Help menu carries the explanations
 
 **Decision.** Onboarding for design partners is two surfaces only: list/blank-surface empty
 states with a concept line plus one CTA, and a global `Help ▾` menu of chaptered, video-led
@@ -522,7 +524,7 @@ wrong content 6/7 of the time).
 
 **Originated →** `2026-08-12-onboarding-empty-states-and-help-chapters-design.md`
 
-### D103 — Help chapters are authored data with a map page, not derived from the pipeline definition
+### D104 — Help chapters are authored data with a map page, not derived from the pipeline definition
 
 **Decision.** Chapters live in `src/lib/help/chapters.ts` as authored records
 (`slug`, `question`, `summary`, `steps[]`, `mapStyle?`, `draft?`). **Every** chapter opens on

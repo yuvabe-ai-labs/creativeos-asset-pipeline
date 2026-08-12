@@ -2036,7 +2036,7 @@ an additive sibling field on the `/api/me` response, same pattern the admin-UX-c
 `platformRole`). **Originated.** `2026-08-05-profile-popover-header-design.md`. *This branch was cut
 from `main`, whose ADR log tops out at D100 here — `staging` has since moved ahead independently (up to
 ~D119); this number may need renumbering at merge time per this log's existing convention.*
-### D101 — Edit references are explicit: an empty selection sends no extras *(recorded 2026-08-04; reverses D27's "empty = all connected" default; refines D37/D39)*
+### D102 — Edit references are explicit: an empty selection sends no extras *(recorded 2026-08-04; **renumbered from D101** on 2026-08-12 — the profile-popover entry above had independently claimed D101, and that entry's own note anticipated a collision; the later position in this log takes the higher number so the sequence stays ascending; reverses D27's "empty = all connected" default; refines D37/D39)*
 **Decision.** In Image Gen **Edit** mode, only the connected image nodes the operator has
 **ticked** under "References for this edit" are sent as `extraReferenceUrls`. An empty
 selection sends **no extras** — the edit sees only the base image. This replaces the D27
@@ -2066,3 +2066,48 @@ required, since "connected" is no longer sufficient.
 
 **Originated.** Bug report 2026-08-04 (Image Gen edit mode); regression test in
 `src/lib/image-gen/__tests__/edit-prompt.test.ts`.
+
+### D103 — In-app onboarding is pull-not-push: empty states carry the actions, a global Help menu carries the explanations *(recorded 2026-08-12; originated → `2026-08-12-onboarding-empty-states-and-help-chapters-design.md`)*
+
+**Decision.** Onboarding for design partners is two surfaces only: list empty states with a
+concept line plus one CTA, and a global `Help ▾` menu of chaptered, video-led explainers the
+user opens on demand. Nothing is pushed, sequenced, or fired on first view.
+
+**Why.** Every V1 user receives a personalised live demo and has active tech support, so the
+job is recall, not teaching. Pushed onboarding fires when the user has intent to act, shows
+once, and is then gone — the worst possible property for a recall aid. Pull-based help is
+available at every future moment of hesitation and needs no per-user state, which is why V1
+adds no tables and no columns.
+
+**Rejected.** First-view modals per key screen (they need seen-state infrastructure that costs
+more than the onboarding it delivers at this user count); product tours and tooltip sequences
+(completion collapses from ~72% at 3 steps to ~16% at 7); a single long canvas overview video
+(linear, so it cannot convey the shape of a multi-step flow, and it is the wrong content 6/7
+of the time). Also **dropped during implementation**: a planned empty-canvas overlay —
+`createCanvasAction` seeds every canvas with a KB node plus a connected Script node, and that
+node already carries a complete empty state, so the overlay would have been unreachable code.
+
+### D104 — Help chapters are authored data with a map page, not derived from the pipeline definition *(recorded 2026-08-12; builds on D103; originated → `2026-08-12-onboarding-empty-states-and-help-chapters-design.md`)*
+
+**Decision.** Chapters live in `src/lib/help/chapters.ts` as authored records (`slug`,
+`question`, `summary`, `steps[]`, `mapStyle?`, `draft?`). **Every** chapter opens on a **map
+page** — its description plus the whole journey as numbered blocks derived from
+`steps[].title` — then steps through description-plus-clip pages. `mapStyle` selects whether
+those blocks are drawn connected (`sequence`, the default) or unconnected (`alternatives`,
+for chapters that are several routes to one outcome rather than an ordered flow).
+
+**Why.** The map page is what makes multi-step explainable: video is linear, so a viewer sees
+the current frame but never the shape; the map turns the sequence into a spatial object
+grasped at a glance, after which each step is a lookup. It is mandatory even for 2-step
+chapters — the viewer arrives having asked a question, and the intro is where that question
+gets answered before the mechanics start; a uniform shape also means the surface never
+behaves differently based on a length the user cannot see in advance. Deriving map captions
+from step titles means a chapter's sequence is authored once and cannot drift.
+
+**Rejected.** Indexing chapters off `GUIDED_CHAIN` in `src/lib/guided-flow.ts` — it is not
+trusted as a dependency for user-facing content, and it structurally cannot cover client
+creation, KB build and KB review, where the worst friction lives. Also rejected: a carousel
+library (no swipe requirement, fully controlled content); GIFs for step clips (an order of
+magnitude heavier than muted autoplay video for identical behaviour); and visible "coming
+soon" menu entries for unrecorded chapters (`draft: true` hides them instead — promising
+absent help is worse than silence when a human support channel is the fallback).
