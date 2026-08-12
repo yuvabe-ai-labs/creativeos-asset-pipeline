@@ -1,38 +1,44 @@
 /**
- * The login panel's photography. Twelve hand-picked Unsplash frames spanning the kinds
- * of work CreativeOS is pointed at: D2C product stills, paper craft, and woodwork —
- * made things, shot well.
+ * The login panel's photography: **rooms where things get made**.
+ *
+ * The brief is a threshold, not a catalogue — signing in should feel like stepping into
+ * a workshop or studio. So these are spaces with evidence of work in them (benches,
+ * offcuts, wet clay, loaded brushes), not product packshots. A lit hero shot of a
+ * finished object sells the object; a studio says "your work happens here", which is
+ * the thing a sign-in screen should say.
  *
  * Hardcoded rather than fetched: the sign-in screen must render before the user has a
  * session, so it cannot depend on an API key, a rate limit, or a network round trip in
- * front of the login form. (Unsplash's search API needs a key — it answers 307
- * "Authorization required" — which is a second reason not to reach for it here.)
+ * front of the login form. (Unsplash's search API answers 307 "Authorization required"
+ * without a key — a second reason not to reach for it at runtime.)
  *
- * Every URL below was checked for a 200 before being added; a plausible-looking photo
- * id is not a real one, and several candidates 404'd. Sizing params are baked in so the
- * origin fetch is bounded even though Next re-optimises the result.
+ * Every URL below was checked for a 200 before landing; plausible-looking photo ids are
+ * frequently not real ones. Sizing params are baked in so the origin fetch is bounded
+ * even though Next re-optimises the result.
  */
 const UNSPLASH = "https://images.unsplash.com";
 const PARAMS = "auto=format&fit=crop&w=1400&q=75";
 
 export const LOGIN_IMAGES: readonly string[] = [
-  // ── D2C product ────────────────────────────────────────────────────────────
-  `${UNSPLASH}/photo-1441986300917-64674bd600d8?${PARAMS}`, // retail storefront
-  `${UNSPLASH}/photo-1523275335684-37898b6baf30?${PARAMS}`, // watch, product still
-  `${UNSPLASH}/photo-1505740420928-5e560c06d30e?${PARAMS}`, // headphones on colour
-  `${UNSPLASH}/photo-1542291026-7eec264c27ff?${PARAMS}`, // sneaker, studio light
-  `${UNSPLASH}/photo-1572635196237-14b3f281503f?${PARAMS}`, // sunglasses, editorial
-  `${UNSPLASH}/photo-1585386959984-a4155224a1ad?${PARAMS}`, // fragrance, hard shadow
+  // ── Wood shops / carpentry ─────────────────────────────────────────────────
+  `${UNSPLASH}/photo-1546964432-2ca7fcd08632?${PARAMS}`,
+  `${UNSPLASH}/photo-1605125626499-e2c7efbd1ab3?${PARAMS}`,
+  `${UNSPLASH}/photo-1547609434-b732edfee020?${PARAMS}`,
+  `${UNSPLASH}/photo-1597960194599-22929afc25b1?${PARAMS}`,
+  `${UNSPLASH}/photo-1590880795696-20c7dfadacde?${PARAMS}`,
 
-  // ── Paper craft / origami ──────────────────────────────────────────────────
-  `${UNSPLASH}/photo-1563260797-cb5cd70254c8?${PARAMS}`, // two paper cranes, warm ground
-  `${UNSPLASH}/photo-1558244402-286dd748c593?${PARAMS}`, // folded-paper geometric wall
-  `${UNSPLASH}/photo-1520013817300-1f4c1cb245ef?${PARAMS}`, // yellow paper boat on blue
+  // ── Painters' and artists' studios ─────────────────────────────────────────
+  `${UNSPLASH}/photo-1459908676235-d5f02a50184b?${PARAMS}`,
+  `${UNSPLASH}/photo-1534511902651-6ab0ce131f2a?${PARAMS}`,
+  `${UNSPLASH}/photo-1613574714687-c33b9e90200d?${PARAMS}`,
+  `${UNSPLASH}/photo-1601397210737-a5534480bdc5?${PARAMS}`,
+  `${UNSPLASH}/photo-1526389157-6a5cc2bb4afa?${PARAMS}`,
 
-  // ── Woodwork / craft ───────────────────────────────────────────────────────
-  `${UNSPLASH}/photo-1547609434-b732edfee020?${PARAMS}`, // workshop bench
-  `${UNSPLASH}/photo-1597960194599-22929afc25b1?${PARAMS}`, // hand tools, timber
-  `${UNSPLASH}/photo-1590880795696-20c7dfadacde?${PARAMS}`, // joinery detail
+  // ── Ceramics / pottery studios ─────────────────────────────────────────────
+  `${UNSPLASH}/photo-1595351298020-038700609878?${PARAMS}`,
+  `${UNSPLASH}/photo-1610206349499-c932c3b3aacb?${PARAMS}`,
+  `${UNSPLASH}/photo-1572853566597-b83cde546912?${PARAMS}`,
+  `${UNSPLASH}/photo-1528466829416-7c2576152a09?${PARAMS}`,
 ];
 
 /** One frame per page load. Called from a server component, so it never hydrates twice. */
