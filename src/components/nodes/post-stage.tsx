@@ -318,6 +318,14 @@ export function PostStage({
               }}
               onSelect={(evt) => {
                 if (layer.locked) return;
+                // Konva synthesizes `click` for ANY button — Stage._pointerdown arms it with
+                // `ListenClick = true` and _pointerup fires it whenever the gesture started
+                // and ended on the same shape, neither checking `button`. So a right-click on
+                // a layer fired this handler on mouseup, AFTER the context menu had opened,
+                // and replaced a multi-selection with the single layer under the cursor —
+                // exactly the group actions the menu was opened to reach.
+                const native = evt?.evt;
+                if (native && "button" in native && native.button !== 0) return;
                 // Swallow the click Konva synthesizes at the end of a marquee that began and
                 // ended on this layer — without this it would replace the just-made
                 // multi-selection with this single layer.
