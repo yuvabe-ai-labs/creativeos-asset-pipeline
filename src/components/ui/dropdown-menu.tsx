@@ -23,11 +23,22 @@ function DropdownMenuContent({
 }) {
   return (
     <MenuPrimitive.Portal>
-      <MenuPrimitive.Positioner sideOffset={sideOffset} align={align}>
+      {/* z-index lives on the Positioner, not the Popup. Base UI portals an invisible
+          pointer-blocker for modal popups, which globals.css pins at z-50 (D138). The
+          Positioner is this portal's direct child, so a z-index only on the Popup inside
+          it leaves the whole menu subtree stacked at `auto` — under the blocker. The menu
+          still renders (the blocker is transparent) but every pointer event is swallowed,
+          so item onClick never fires. Dialog escapes this because its Popup *is* the
+          portal's direct child. */}
+      <MenuPrimitive.Positioner
+        className="z-50"
+        sideOffset={sideOffset}
+        align={align}
+      >
         <MenuPrimitive.Popup
           data-slot="dropdown-menu-content"
           className={cn(
-            "z-50 min-w-72 origin-(--transform-origin) rounded-xl bg-popover p-1.5 text-sm text-popover-foreground shadow-card ring-1 ring-foreground/10 outline-none",
+            "min-w-72 origin-(--transform-origin) rounded-xl bg-popover p-1.5 text-sm text-popover-foreground shadow-card ring-1 ring-foreground/10 outline-none",
             "duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
             className
           )}

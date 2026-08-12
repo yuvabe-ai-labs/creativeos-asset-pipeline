@@ -2631,7 +2631,7 @@ of the time). Also **dropped during implementation**: a planned empty-canvas ove
 `createCanvasAction` seeds every canvas with a KB node plus a connected Script node, and that
 node already carries a complete empty state, so the overlay would have been unreachable code.
 
-### D144 — Help chapters are authored data with a map page, not derived from the pipeline definition *(recorded 2026-08-12; builds on D143; originated → `2026-08-12-onboarding-empty-states-and-help-chapters-design.md`)*
+### D144 — Help chapters are authored data with a map page, not derived from the pipeline definition *(recorded 2026-08-12; builds on D143; **map page superseded by D147** same day; originated → `2026-08-12-onboarding-empty-states-and-help-chapters-design.md`)*
 
 **Decision.** Chapters live in `src/lib/help/chapters.ts` as authored records (`slug`,
 `question`, `summary`, `steps[]`, `mapStyle?`, `draft?`). **Every** chapter opens on a **map
@@ -2655,3 +2655,82 @@ library (no swipe requirement, fully controlled content); GIFs for step clips (a
 magnitude heavier than muted autoplay video for identical behaviour); and visible "coming
 soon" menu entries for unrecorded chapters (`draft: true` hides them instead — promising
 absent help is worse than silence when a human support channel is the fallback).
+
+### D145 — A Base UI menu carries its `z-index` on the `Positioner`, not the `Popup` *(recorded 2026-08-12; refines D138; originated in the Help menu's dead-click bug)*
+
+**Decision.** In `dropdown-menu.tsx`, `z-50` sits on `Menu.Positioner`, not on `Menu.Popup`.
+Any future three-level Base UI overlay (`Portal → Positioner → Popup`) follows the same rule:
+the stacking value belongs on whichever element is the **portal's direct child**.
+
+**Why.** D138 pinned Base UI's invisible pointer-blocker at `z-index: 50` and reasoned that
+document order would break the tie, because the blocker portals immediately before its own
+popup. That reasoning silently assumed the two-level shape Dialog and Sheet have, where the
+popup *is* the portal's direct child and carries the `z-50` itself. Menu has a third level.
+With `z-50` on the Popup, the Positioner above it kept `z-index: auto`, so the entire menu
+subtree stacked below the blocker — and because the blocker is transparent, the menu rendered
+perfectly while swallowing every pointer event before it reached an item. The Help menu opened,
+highlighted and looked correct, but no `onClick` ever fired; only deep links reached the
+chapter dialog. Moving the value up one level puts the whole subtree above the blocker while
+preserving D138's tie-break for the dialogs it was written for.
+
+**Rejected.** Raising the Popup above `z-50` (re-opens exactly the bug D138 closed — the blocker
+would sit under its own popup for nested overlays). Narrowing the D138 selector to exclude menus
+(the blocker's job is real for a modal menu too; the problem was never that it existed, only
+where it stacked). Making the menu non-modal to drop the blocker entirely (loses the focus and
+outside-dismiss semantics the menu wants).
+
+**Refines.** D138 — same primitive layer, same global rule, corrected for a portal shape that
+decision did not account for.
+
+### D146 — Help chapter navigation is client-side: `history.pushState`, never `router.push` *(recorded 2026-08-12; refines D143/D144)*
+
+**Decision.** `HelpMenu` opens, steps and closes chapters with `window.history.pushState`.
+The URL stays the single source of truth — no duplicated `useState` — and `useSearchParams`
+still drives the dialog.
+
+**Why.** In the App Router a `router.push` is a navigation even when only the query string
+changes: Next refetches the RSC payload and re-runs the whole page's server components. Help is
+mounted globally in the root layout, so that cost is paid on whatever page the user is standing
+on — seconds on a heavy route like the KB page, for state that is entirely client-side. Next
+patches the native history methods into its own router and dispatches `ACTION_RESTORE`, so
+`usePathname`/`useSearchParams` update reactively and D144's deep links, sharing and back-button
+behaviour all survive untouched.
+
+**Rejected.** Local `useState` for the open chapter (fastest, but duplicates state and breaks
+`?help=` deep links — the property D144 exists to protect). Leaving `router.push` and accepting
+the lag (the delay is long enough on the KB page that a click reads as unresponsive, which is
+fatal for a recall aid meant to be opened mid-task).
+
+**Refines.** D143's pull-based Help surface — the placement and content are unchanged; only the
+navigation mechanism behind them.
+
+### D147 — A Help chapter is one two-pane screen: a step rail beside the clip, not a map page followed by step pages *(recorded 2026-08-12; supersedes D144's map page; originated → `2026-08-12-help-chapter-accordion.md`)*
+
+**Decision.** The chapter dialog is a single large screen. The left rail carries
+`chapter.summary` plus a single-open accordion of **every** step; the right pane plays the
+open step's clip; Back/Next at the foot move that selection. Expanding a step *is* selecting
+it — one piece of state drives both. `HelpStep.body` becomes `string[]`: bulleted lines
+narrating the clip's overall story, **not** timestamps into it, so a conceptual step is a
+single line. Step indices are 1-based (`?help=<slug>` opens on step 1; there is no page 0),
+and `mapStyle` is renamed `stepStyle`, now controlling only whether rail rows are numbered.
+
+**Why.** D144 introduced the map page for a real reason: video is linear, so a viewer sees the
+current frame but never the shape of the journey. The rail serves that same purpose strictly
+better — the shape stays on screen *while* the clip plays, instead of being a page you pass
+through once and then lose. That removes D144's weakest property, a mandatory click before any
+content, which the original spec already flagged as tempting to skip for two-step chapters.
+The summary survives at the top of the rail, so the "answer the question before the mechanics"
+argument still holds, and now holds on every step rather than only the first. Bulleted bodies
+suit the accordion: three or four scannable lines read better in a panel than a paragraph, and
+because they narrate rather than synchronise, recording stays cheap.
+
+**Rejected.** Keeping the map page as a first tab alongside the rail (the rail *is* the map —
+two representations of one thing that could drift). A multi-open accordion (the right pane
+plays exactly one clip, so a second open panel would have no clip and two states to reconcile).
+Mapping bullets to clip timestamps (doubles the precision required of every recording; a
+ten-second clip does not need chapter markers). Numbering `alternatives` chapters' rows anyway
+(a numbered vertical list reads as "do these in order", which is the exact lie `stepStyle`
+exists to prevent — those rails use a dash and read "3 ways to do this").
+
+**Supersedes.** D144's map page and its `mapStyle` field. D144's authored-not-derived chapter
+data, its `draft` flag, and its rejection of `GUIDED_CHAIN` indexing all stand unchanged.
