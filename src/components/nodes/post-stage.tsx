@@ -7,6 +7,7 @@ import type Konva from "konva";
 import type { PostLayer } from "@/lib/post/types";
 import { pxToNormalized, fontSizeToPx, editorTopPadding } from "@/lib/post/units";
 import { findLayer } from "@/lib/post/layers";
+import { boundingBoxOf, pointInBox } from "@/lib/post/align";
 import { resolveFontKey, type FontKey } from "@/lib/post/fonts";
 import { Textarea } from "@/components/ui/textarea";
 import { PostLayerRender } from "./post-layer-render";
@@ -210,6 +211,26 @@ export function PostStage({
     // layer — so right-clicking them resolved to null and cleared the very selection the menu
     // was about to act on. Leave the selection exactly as it is and let the menu open on it.
     if (isTransformerTarget(e.target, stage)) return;
+
+    // Right-clicking anywhere inside a multi-selection's own box keeps that selection.
+    //
+    // Hit-testing the shape under the cursor is not enough, and this is the bug operators
+    // actually hit: the box spans the gaps BETWEEN the selected layers, and can span layers
+    // that were never selected at all. Right-clicking either resolved to "not part of the
+    // selection" and collapsed it to whatever sat underneath — so the group actions the menu
+    // was opened for had just been taken away. The box is what is being aimed at.
+    if (selectedIds.length > 1) {
+      const pos = stage.getPointerPosition();
+      const selected = selectedIds
+        .map((id) => findLayer(layers, id))
+        .filter((l): l is PostLayer => l !== undefined);
+      if (pos && selected.length > 1) {
+        const px = pxToNormalized(pos.x, containerW);
+        const py = pxToNormalized(pos.y, containerH);
+        if (pointInBox(px, py, boundingBoxOf(selected))) return;
+      }
+    }
+
     const hitId = e.target === stage ? null : resolveHitLayerId(e.target, stage);
     if (hitId === null) {
       onSelect(null);

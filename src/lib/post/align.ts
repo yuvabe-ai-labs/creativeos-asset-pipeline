@@ -47,3 +47,20 @@ export function alignLayers(layers: PostLayer[], selectedIds: string[], mode: Al
     return updateLayer(acc, layer.id, patch);
   }, layers);
 }
+
+/**
+ * Is a normalized point inside a normalized box? Edges count as inside.
+ *
+ * Used to decide whether a right-click belongs to an existing multi-selection. Hit-testing
+ * the SHAPE under the cursor is not enough: the selection's bounding box contains gaps
+ * between its layers, and can contain layers that were never selected. Right-clicking either
+ * of those resolved to "not part of the selection" and collapsed it to whatever happened to
+ * be underneath — the box is what the operator is aiming at, so the box is what we test.
+ */
+export function pointInBox(
+  x: number,
+  y: number,
+  box: { x: number; y: number; w: number; h: number },
+): boolean {
+  return x >= box.x && x <= box.x + box.w && y >= box.y && y <= box.y + box.h;
+}

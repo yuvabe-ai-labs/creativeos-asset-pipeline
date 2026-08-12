@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { boundingBoxOf, alignLayers, type AlignMode } from "./align";
+import { boundingBoxOf, alignLayers, pointInBox, type AlignMode } from "./align";
 import { createTextLayer } from "./layers";
 
 describe("boundingBoxOf", () => {
@@ -67,5 +67,33 @@ describe("alignLayers", () => {
   it("is a no-op for an empty selection", () => {
     const a = createTextLayer();
     expect(alignLayers([a], [], "left")).toEqual([a]);
+  });
+});
+
+describe("pointInBox", () => {
+  const box = { x: 0.2, y: 0.2, w: 0.4, h: 0.3 };
+
+  it("is true anywhere inside, including the gaps BETWEEN the selected layers", () => {
+    // The whole point: right-clicking the empty space inside a multi-selection's box is
+    // still a click on the selection, not on whatever happens to sit underneath.
+    expect(pointInBox(0.4, 0.3, box)).toBe(true);
+  });
+
+  it("is true on the edges, so a click on the marquee border counts", () => {
+    expect(pointInBox(0.2, 0.2, box)).toBe(true);
+    expect(pointInBox(0.6, 0.5, box)).toBe(true);
+  });
+
+  it("is false outside on every side", () => {
+    expect(pointInBox(0.1, 0.3, box)).toBe(false);
+    expect(pointInBox(0.9, 0.3, box)).toBe(false);
+    expect(pointInBox(0.4, 0.05, box)).toBe(false);
+    expect(pointInBox(0.4, 0.95, box)).toBe(false);
+  });
+
+  it("handles a zero-area box without claiming the whole canvas", () => {
+    const dot = { x: 0.5, y: 0.5, w: 0, h: 0 };
+    expect(pointInBox(0.5, 0.5, dot)).toBe(true);
+    expect(pointInBox(0.51, 0.5, dot)).toBe(false);
   });
 });
