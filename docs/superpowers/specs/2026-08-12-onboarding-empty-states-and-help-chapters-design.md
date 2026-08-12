@@ -102,7 +102,7 @@ never yields to onboarding: no video makes 40 fields shorter. Classifying those 
 | A5 | KB build running | wait | Phase labels + stuck-build reset | **Done** |
 | A6 | **KB review, ~40 fields** | 3 + 5 | **Help chapter** + a UI fast path (out of scope) | Nothing |
 | B1 | Client → no canvases | 1 | Empty state + CTA | Card exists, **copy only, no CTA** |
-| B2 | **Empty canvas** | 1 + 3 | **Empty state + CTA**, and the flagship chapter | **Nothing at all** |
+| B2 | New canvas | 2 + 3 | Flagship chapter *(no empty state — canvas is seeded)* | **Seeded KB + Script node** |
 | B3 | Script node | 2 | Node empty state | **Done** |
 | B4 | Fan out shots | 2 | Inline chip | Partial |
 | B6 | Shot → image prompt | 2 | Guided "Create next" | **Done (D36)** |
@@ -128,7 +128,7 @@ waits.
 
 **In V1**
 
-- Three list/blank-surface empty states with a concept line and one CTA.
+- Two list empty states with a concept line and one CTA.
 - A global `Help ▾` menu in the app bar opening chaptered, video-led explainers.
 - Seven authored chapters (23 step clips + 7 map pages).
 - Deep-linkable chapters.
@@ -173,9 +173,21 @@ state that teaches and one that merely labels.
 |---|---|---|---|
 | Clients home (`clients-home-tabs.tsx`) | No clients yet | "A client keeps every brand document, canvas, and asset siloed under one account — set it up once and reuse it across every reel." | `+ Add client` |
 | Client → canvases (`clients/[id]/page.tsx`) | No canvases yet | "A canvas is one reel project — script, shots, prompts, images and clips on a single board." | `+ New canvas` |
-| Empty canvas (new) | *(no title)* | "Start from a finished reel script — CreativeOS parses it into shots you can turn into images and clips." | `Paste a script` + hint *or press / for anything else* |
 
-**Why not a fourth for "client has no KB":** `clients/[id]/page.tsx:59-61` redirects any
+**Why there is no empty-canvas state.** An earlier draft of this spec specified a third
+empty state — an overlay on a blank canvas with a *Paste a script* CTA. **It was wrong and
+is removed.** `src/lib/actions/canvases.ts:22-58` seeds every new canvas with a **KB node
+plus a connected Script node**, and the Script node's focus view already carries a complete
+empty state (dropzone, paste box, title, brand-context toggles) in
+`src/components/nodes/script-empty-state.tsx`. A blank canvas does not occur on the normal
+path, so the overlay would have been unreachable code.
+
+The residual gap there is **type 2, not type 1**: the canvas opens with a seeded Script node,
+and nothing tells a first-time user to open it. That is one line of card copy at most, and it
+is best judged while recording chapter 1 — where the author will see the first frame exactly
+as a new user does. Left out of V1 deliberately rather than guessed at now.
+
+**Why there is no state for "client has no KB":** `clients/[id]/page.tsx:59-61` redirects any
 client whose `kb_status !== "ready"` to the KB page, so that empty state can never render.
 The KB page is itself the landing surface for that condition and already carries its own
 setup UI.
@@ -183,14 +195,9 @@ setup UI.
 ### Behaviour notes
 
 - The clients CTA **reuses `NewClientDialog`** with its own trigger rather than
-  instantiating a second dialog; likewise `NewCanvasDialog` for canvases. This keeps one
-  creation path per object.
-- The empty-canvas state is an overlay on the React Flow pane
-  (`src/components/canvas/canvas-empty-state.tsx`), shown when the canvas holds no nodes.
-  Its CTA creates a Script node at the viewport centre — the same action the `/` palette
-  performs, called directly, not duplicated.
-- The overlay is **not** shown to a read-only viewer (the single-writer lock, D33): with no
-  edit rights the CTA cannot succeed, and offering it would be a dead end.
+  instantiating a second dialog; likewise `NewCanvasDialog` for canvases. Both gain an
+  optional `trigger?: React.ReactNode` prop defaulting to their current button, so there is
+  still exactly one creation path per object.
 - The `Recent` tab's empty state stays copy-only. Its honest next action is "open a client",
   which is the other tab on the same screen — a CTA there would be noise.
 
@@ -384,7 +391,6 @@ that still has to be connected to the node consuming it.*
 **New**
 
 - `src/components/shared/empty-state.tsx`
-- `src/components/canvas/canvas-empty-state.tsx`
 - `src/components/ui/dropdown-menu.tsx` *(Base UI Menu)*
 - `src/components/help/help-menu.tsx`
 - `src/components/help/help-chapter-dialog.tsx`
@@ -392,13 +398,16 @@ that still has to be connected to the node consuming it.*
 - `src/components/help/help-step-page.tsx`
 - `src/lib/help/chapters.ts`
 - `src/lib/help/chapters.test.ts`
+- `src/lib/help/deep-link.ts`
+- `src/lib/help/deep-link.test.ts`
 
 **Edited**
 
 - `src/components/layout/header-actions.tsx` — mount `Help ▾`
 - `src/components/clients/clients-home-tabs.tsx` — clients empty state → `EmptyState` + CTA
 - `src/app/clients/[id]/page.tsx` — canvases empty state → `EmptyState` + CTA
-- `src/components/canvas/canvas.tsx` — mount the empty-canvas overlay
+- `src/components/clients/new-client-dialog.tsx` — optional `trigger` prop
+- `src/components/canvases/new-canvas-dialog.tsx` — optional `trigger` prop
 
 Each help component stays one export per file, under the ~200-line split threshold, per
 `docs/component-structure.md`.
@@ -429,10 +438,15 @@ flags.
   first page rather than degrade.
 - Deep-link parsing round-trips (`?help=&step=` → chapter/step → back to params), including
   out-of-range and unknown-slug inputs falling back to a closed modal rather than throwing.
-- Render tests: each empty state exposes its CTA, and the empty-canvas overlay renders no
-  CTA in read-only mode.
 
-Colocated `*.test.ts(x)`, matching the existing convention.
+**Pure-logic tests only.** `vitest.config.ts` sets `environment: "node"` and the repo has no
+jsdom and no React Testing Library, so component rendering cannot be asserted without adding
+dependencies. This matches the house posture used for the tray and guided flow: pure logic is
+TDD'd in node-env vitest, UI and store wiring is verified by `npx tsc --noEmit`, `npm run
+lint`, and manual check. All testable logic here is therefore deliberately pushed into
+`src/lib/help/` rather than into the components.
+
+Colocated `*.test.ts`, matching the existing convention.
 
 ---
 
