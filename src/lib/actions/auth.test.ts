@@ -24,4 +24,14 @@ describe("logoutAction", () => {
     expect(signOutMock).toHaveBeenCalled();
     expect(endImpersonationMock).toHaveBeenCalled();
   });
+
+  // Supabase's signOut() defaults to scope "global", which revokes EVERY session for the
+  // account — every other device, browser and tab. This deployment has teams sharing a
+  // single login, so the default meant one person signing out silently kicked all their
+  // colleagues out mid-work (confirmed in staging auth logs: POST /auth/v1/logout?scope=global).
+  // "local" ends only the session that asked to be ended.
+  it("signs out only the current session, never every device on the account", async () => {
+    await logoutAction();
+    expect(signOutMock).toHaveBeenCalledWith({ scope: "local" });
+  });
 });
