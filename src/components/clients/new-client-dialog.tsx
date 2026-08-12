@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, type ChangeEvent } from "react";
+import { useState, useTransition, type ChangeEvent, type ReactElement } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ImageIcon } from "lucide-react";
@@ -21,7 +21,9 @@ import {
 
 type LogoState = { file: File; preview: string } | null;
 
-export function NewClientDialog() {
+// `trigger` lets the empty state reuse this dialog instead of standing up a second
+// creation path — one dialog, two entry points.
+export function NewClientDialog({ trigger }: { trigger?: ReactElement } = {}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -87,7 +89,7 @@ export function NewClientDialog() {
         if (!o) reset();
       }}
     >
-      <DialogTrigger render={<Button>New client</Button>} />
+      <DialogTrigger render={trigger ?? <Button>New client</Button>} />
       <DialogContent className="max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>New client</DialogTitle>

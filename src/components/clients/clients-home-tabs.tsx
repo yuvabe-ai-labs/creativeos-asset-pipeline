@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/shared/empty-state";
 import { NewClientDialog } from "@/components/clients/new-client-dialog";
 import { ClientsTable } from "@/components/clients/clients-table";
 import { RecentCanvasesTable } from "@/components/canvases/recent-canvases-table";
@@ -55,12 +57,11 @@ export function ClientsHomeTabs({
 
       <TabsContent value="clients" className="animate-rise">
         {clients.length === 0 ? (
-          <Card className="flex flex-col items-center justify-center gap-2 border-dashed p-14 text-center">
-            <p className="font-display text-lg font-medium">No clients yet</p>
-            <p className="max-w-sm text-sm text-muted-foreground">
-              Create your first client to start building canvases.
-            </p>
-          </Card>
+          <EmptyState
+            title="No clients yet"
+            body="A client keeps every brand document, canvas, and asset siloed under one account — set it up once and reuse it across every reel."
+            action={<NewClientDialog trigger={<Button>+ Add client</Button>} />}
+          />
         ) : (
           <ClientsTable clients={clients} />
         )}

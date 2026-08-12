@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, type ReactElement } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { createCanvasAction } from "@/lib/actions/canvases";
@@ -16,12 +16,16 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 
+// `trigger` lets the empty state reuse this dialog instead of standing up a second
+// creation path — one dialog, two entry points.
 export function NewCanvasDialog({
   clientId,
   clientSlug,
+  trigger,
 }: {
   clientId: string;
   clientSlug: string;
+  trigger?: ReactElement;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -61,7 +65,7 @@ export function NewCanvasDialog({
         if (!o) setName("");
       }}
     >
-      <DialogTrigger render={<Button>New canvas</Button>} />
+      <DialogTrigger render={trigger ?? <Button>New canvas</Button>} />
       <DialogContent>
         <DialogHeader>
           <DialogTitle>New canvas</DialogTitle>

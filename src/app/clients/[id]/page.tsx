@@ -5,6 +5,7 @@ import { listCanvases } from "@/lib/db/canvases";
 import { resolveCallerContext } from "@/lib/dal";
 import { NewCanvasDialog } from "@/components/canvases/new-canvas-dialog";
 import { CanvasesTable } from "@/components/canvases/canvases-table";
+import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
@@ -109,12 +110,17 @@ export default async function ClientPage({
       </header>
 
       {canvases.length === 0 ? (
-        <Card className="animate-rise flex flex-col items-center gap-2 border-dashed p-14 text-center">
-          <p className="font-display text-lg font-medium">No canvases yet</p>
-          <p className="max-w-sm text-sm text-muted-foreground">
-            A canvas is one creative project. Create one to open the editor.
-          </p>
-        </Card>
+        <EmptyState
+          title="No canvases yet"
+          body="A canvas is one reel project — script, shots, prompts, images and clips on a single board."
+          action={
+            <NewCanvasDialog
+              clientId={client.id}
+              clientSlug={client.slug}
+              trigger={<Button>+ New canvas</Button>}
+            />
+          }
+        />
       ) : (
         <div className="animate-rise">
           <CanvasesTable canvases={canvases} clientSlug={client.slug} />
