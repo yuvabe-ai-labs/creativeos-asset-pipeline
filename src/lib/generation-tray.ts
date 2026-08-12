@@ -37,9 +37,41 @@ export const STALE_RUNNING_MS = 300_000;
 
 export type TrayStatus = "running" | "ready" | "failed";
 
+/** What a row IS. Four values, because a `generations` row's `type` column collapses the
+ *  two prompt node types into one value and the tray must tell them apart (D142). */
+export type TrayKind = "image-prompt" | "image" | "motion-prompt" | "video";
+
+/** Display label plus the two facets the row encodes visually: `track` picks the glyph,
+ *  `stage` picks the chip weight. Pure data so it is unit-testable here — the Lucide glyph
+ *  for each track is a runtime import and therefore lives in the component. */
+export const TRAY_KIND_META: Record<
+  TrayKind,
+  { label: string; track: "image" | "video"; stage: "prompt" | "output" }
+> = {
+  "image-prompt": { label: "Image Prompt", track: "image", stage: "prompt" },
+  image: { label: "Image", track: "image", stage: "output" },
+  // "Motion Prompt", not "Video Prompt" — D137 renamed the node everywhere the
+  // operator looks. Only the persisted `nodes.type` slug stays "video-prompt".
+  "motion-prompt": { label: "Motion Prompt", track: "video", stage: "prompt" },
+  video: { label: "Video", track: "video", stage: "output" },
+};
+
+/** A `prompt` job row cannot say which prompt node wrote it — the Prompt node and the
+ *  Motion Prompt node both write `type: "prompt"` — so the node type is the tiebreaker.
+ *  Falls back rather than throwing: this is a read-only derived view that must never
+ *  blank the tray on unexpected data. */
+export function resolveTrayKind(
+  jobType: GenerationRow["type"],
+  nodeType: string | undefined,
+): TrayKind {
+  if (jobType === "image") return "image";
+  if (jobType === "video") return "video";
+  return nodeType === "video-prompt" ? "motion-prompt" : "image-prompt";
+}
+
 export type TrayItem = {
   nodeId: string;
-  assetType: "image" | "video" | "prompt";
+  kind: TrayKind;
   status: TrayStatus;
   shotLabel: string;
   order: number;
@@ -78,12 +110,7 @@ export function deriveTrayItems(
   for (const jobRow of latestJobPerNode(jobs)) {
     const node = byId.get(jobRow.node_id);
     if (!node) continue; // node deleted → orphan row
-    const assetType: TrayItem["assetType"] =
-      jobRow.type === "video"
-        ? "video"
-        : jobRow.type === "prompt"
-          ? "prompt"
-          : "image";
+    const kind = resolveTrayKind(jobRow.type, node.type);
 
     let status: TrayStatus =
       jobRow.status === "running"
@@ -92,9 +119,10 @@ export function deriveTrayItems(
           ? "ready"
           : "failed";
 
-    // Stale running IMAGE (client disconnected mid-request) → Failed. Video is owned
-    // by the async pipeline's own reconciliation, so it is not stale-timed here.
-    if (status === "running" && assetType === "image") {
+    // Stale running IMAGE OUTPUT (client disconnected mid-request) → Failed. Prompts are
+    // fast and were never stale-timed; video is owned by the async pipeline's own
+    // reconciliation. Keying on `kind === "image"` preserves both exclusions exactly.
+    if (status === "running" && kind === "image") {
       if (nowMs - Date.parse(jobRow.created_at) > STALE_RUNNING_MS)
         status = "failed";
     }
@@ -114,7 +142,7 @@ export function deriveTrayItems(
 
     items.push({
       nodeId: jobRow.node_id,
-      assetType,
+      kind,
       status,
       shotLabel: resolveShotLabel(jobRow.node_id, nodes, edges),
       order,

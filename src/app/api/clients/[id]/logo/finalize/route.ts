@@ -9,7 +9,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withClient(params, async (clientId) => {
+  return withClient(req, params, async (clientId) => {
     const body = (await req.json().catch(() => null)) as {
       path?: string;
       filename?: string;

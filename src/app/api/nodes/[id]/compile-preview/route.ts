@@ -9,7 +9,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withNode(params, async (nodeId, node) => {
+  return withNode(req, params, async (nodeId, node) => {
     const body = (await req.json().catch(() => null)) as { slices?: unknown } | null;
 
     // Video Prompt has its own resolver: an image-gen upstream travels as a vision

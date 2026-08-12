@@ -255,7 +255,7 @@ function VideoGenDetailPanel({
 
       {item.type === "prompt" && promptNode && (
         <div className="flex min-h-0 flex-1 flex-col gap-3">
-          <span className="text-eyebrow">Video prompt</span>
+          <span className="text-eyebrow">Motion prompt</span>
           <div className="min-h-0 flex-1 overflow-y-auto rounded-xl border border-border bg-muted/20 p-5">
             {promptNode.text ? (
               <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/80">
@@ -783,7 +783,7 @@ export function VideoGenFocusView({
 
   // ── Rail: connected items + selection (mirrors image-gen-focus-view) ─────────
   const connectedItems: { id: string; type: "prompt" | "image"; label: string }[] = [
-    ...(promptNode ? [{ id: promptNode.id, type: "prompt" as const, label: "Video prompt" }] : []),
+    ...(promptNode ? [{ id: promptNode.id, type: "prompt" as const, label: "Motion prompt" }] : []),
     ...upstreamImages.map((img) => ({
       id: img.id,
       type: "image" as const,

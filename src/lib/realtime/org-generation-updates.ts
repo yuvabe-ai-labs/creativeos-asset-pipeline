@@ -9,7 +9,7 @@ export type GenerationUpdateRow = { node_id: string; status: string };
 // callers (per-node cost, canvas cost) subscribe without each opening its own duplicate
 // channel with the identical org_id filter. Filtering on org_id (not node_id/canvas_id,
 // neither of which this table's RLS can be trusted to enforce for free) mirrors
-// header-credits.tsx's hard-won lesson: RLS alone silently drops postgres_changes rows,
+// profile-credits.tsx's hard-won lesson: RLS alone silently drops postgres_changes rows,
 // only an explicit column filter reliably delivers them.
 const channels = new Map<string, RealtimeChannel>();
 const listeners = new Map<string, Set<(row: GenerationUpdateRow) => void>>();
@@ -27,7 +27,7 @@ export function subscribeToOrgGenerationUpdates(
     const supabase = createBrowserSupabase();
     // Await the session before subscribing — subscribing first opens the websocket with no
     // JWT attached, so RLS evaluates auth.uid() as null and silently drops every row (same
-    // fix as header-credits.tsx).
+    // fix as profile-credits.tsx).
     void supabase.auth.getSession().then(() => {
       pendingOrgIds.delete(orgId);
       if (!listeners.has(orgId)) return; // every subscriber unsubscribed before this resolved

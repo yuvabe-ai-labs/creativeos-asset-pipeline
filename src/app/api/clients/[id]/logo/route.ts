@@ -15,7 +15,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withClient(params, async (clientId) => {
+  return withClient(req, params, async (clientId) => {
     return withTryCatch("Logo upload failed", async () => {
       const fileResult = await parseFormFile(req);
       if (isApiError(fileResult)) return fileResult;

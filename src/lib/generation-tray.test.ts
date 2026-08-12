@@ -7,6 +7,8 @@ import {
   resolveShotLabel,
   latestJobPerNode,
   deriveTrayItems,
+  resolveTrayKind,
+  TRAY_KIND_META,
   STALE_RUNNING_MS,
 } from "./generation-tray";
 
@@ -95,7 +97,7 @@ describe("deriveTrayItems", () => {
     const items = deriveTrayItems([node("pr", "prompt")], [], jobs, now);
     expect(items).toHaveLength(1);
     expect(items[0].nodeId).toBe("pr");
-    expect(items[0].assetType).toBe("prompt");
+    expect(items[0].kind).toBe("image-prompt");
   });
 
   it("renders a stale running IMAGE job as failed, but not a running video", () => {
@@ -127,5 +129,94 @@ describe("deriveTrayItems", () => {
     ];
     const order = deriveTrayItems(nodes, edges, jobs, now).map((i) => i.status);
     expect(order).toEqual(["running", "ready"]);
+  });
+});
+
+describe("resolveTrayKind", () => {
+  // THE BUG: both the Prompt node and the Motion Prompt node write `type: "prompt"`,
+  // so the job row alone cannot say which one ran. The node type is the tiebreaker.
+  it("distinguishes the two node types that both write type:'prompt'", () => {
+    expect(resolveTrayKind("prompt", "prompt")).toBe("image-prompt");
+    expect(resolveTrayKind("prompt", "video-prompt")).toBe("motion-prompt");
+  });
+
+  it("maps the output job types straight through", () => {
+    expect(resolveTrayKind("image", "image-gen")).toBe("image");
+    expect(resolveTrayKind("video", "video-gen")).toBe("video");
+  });
+
+  it("falls back to image-prompt on an unexpected node type rather than throwing", () => {
+    expect(resolveTrayKind("prompt", undefined)).toBe("image-prompt");
+    expect(resolveTrayKind("prompt", "file")).toBe("image-prompt");
+  });
+});
+
+describe("TRAY_KIND_META", () => {
+  it("covers every TrayKind", () => {
+    expect(Object.keys(TRAY_KIND_META).sort()).toEqual([
+      "image",
+      "image-prompt",
+      "motion-prompt",
+      "video",
+    ]);
+  });
+
+  it("pairs each prompt with its output on the same track", () => {
+    expect(TRAY_KIND_META["image-prompt"].track).toBe(TRAY_KIND_META.image.track);
+    expect(TRAY_KIND_META["motion-prompt"].track).toBe(TRAY_KIND_META.video.track);
+  });
+
+  it("marks exactly the two prompt kinds as the prompt stage", () => {
+    const prompts = Object.entries(TRAY_KIND_META)
+      .filter(([, m]) => m.stage === "prompt")
+      .map(([k]) => k)
+      .sort();
+    expect(prompts).toEqual(["image-prompt", "motion-prompt"]);
+  });
+});
+
+describe("deriveTrayItems kind resolution", () => {
+  const now = Date.parse("2026-07-05T00:00:30.000Z");
+
+  it("derives kind from the node type when the job row says only 'prompt'", () => {
+    const nodes = [node("pr", "prompt"), node("vp", "video-prompt")];
+    const jobs = [
+      job({ id: "a", node_id: "pr", type: "prompt", status: "succeeded" }),
+      job({ id: "b", node_id: "vp", type: "prompt", status: "succeeded" }),
+    ];
+    const byNode = Object.fromEntries(
+      deriveTrayItems(nodes, [], jobs, now).map((i) => [i.nodeId, i.kind]),
+    );
+    expect(byNode).toEqual({ pr: "image-prompt", vp: "motion-prompt" });
+  });
+
+  it("derives the two output kinds", () => {
+    const nodes = [node("gi", "image-gen"), node("gv", "video-gen")];
+    const jobs = [
+      job({ id: "a", node_id: "gi", type: "image", status: "succeeded" }),
+      job({ id: "b", node_id: "gv", type: "video", status: "succeeded" }),
+    ];
+    const byNode = Object.fromEntries(
+      deriveTrayItems(nodes, [], jobs, now).map((i) => [i.nodeId, i.kind]),
+    );
+    expect(byNode).toEqual({ gi: "image", gv: "video" });
+  });
+
+  // Guards the stale-guard re-key from `assetType === "image"` to `kind === "image"`.
+  // Not red-first — it asserts that behavior did NOT change.
+  it("stale-times the image OUTPUT kind only, never a running prompt", () => {
+    const stale = Date.parse("2026-07-05T00:00:00.000Z") + STALE_RUNNING_MS + 1;
+    const jobs = [
+      job({ id: "i", node_id: "gi", type: "image", status: "running" }),
+      job({ id: "p", node_id: "pr", type: "prompt", status: "running" }),
+    ];
+    const items = deriveTrayItems(
+      [node("gi", "image-gen"), node("pr", "prompt")],
+      [],
+      jobs,
+      stale,
+    );
+    expect(items.find((i) => i.nodeId === "gi")?.status).toBe("failed");
+    expect(items.find((i) => i.nodeId === "pr")?.status).toBe("running");
   });
 });

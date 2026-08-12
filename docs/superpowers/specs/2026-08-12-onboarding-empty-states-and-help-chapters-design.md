@@ -3,9 +3,8 @@
 **Date:** 2026-08-12
 **Status:** Design approved — ready for an implementation plan
 **Area:** Onboarding / first-run experience
-**ADRs originated:** D103, D104 *(appended to the roadmap ADR log 2026-08-12; the earlier
-duplicate `D101` was resolved at the same time by renumbering the edit-references entry to
-D102)*
+**ADRs originated:** D143, D144 *(appended to the roadmap ADR log 2026-08-12, after merging
+`origin/main`, whose log had moved on to D142)*
 
 ---
 
@@ -498,13 +497,18 @@ Colocated `*.test.ts`, matching the existing convention.
 
 ## 12. ADR entries
 
-**Appended to `2026-05-30-creativeos-staging-roadmap.md` §7 on 2026-08-12** as **D103** and
-**D104**. The duplicate `D101` in that log (header profile popover, recorded 2026-08-05, and
-explicit edit references, recorded 2026-08-04) was resolved in the same commit by renumbering
-the edit-references entry to **D102** — the later position in the log takes the higher number
-so the sequence stays ascending, per the convention used at D94/D95.
+**Appended to `2026-05-30-creativeos-staging-roadmap.md` §7 on 2026-08-12** as **D143** and
+**D144**, after merging `origin/main`.
 
-### D103 — In-app onboarding is pull-not-push: empty states carry the actions, a global Help menu carries the explanations
+> **On the duplicate `D101`:** an earlier pass here renumbered the edit-references entry to
+> D102 to break that collision. That was **reverted** — `origin/main` had already assigned
+> D102 to the Veo resolution param, and the log carries duplicates at D78, D79, D80, D81,
+> D92, D93, D101 and D139. Duplicate numbers are an endemic result of parallel branches
+> claiming numbers off a stale base, not a defect for a feature branch to fix in passing.
+> Renumbering shared history from a side branch creates more collisions than it resolves;
+> if it is worth fixing, it is worth its own pass on `main`.
+
+### D143 — In-app onboarding is pull-not-push: empty states carry the actions, a global Help menu carries the explanations
 
 **Decision.** Onboarding for design partners is two surfaces only: list/blank-surface empty
 states with a concept line plus one CTA, and a global `Help ▾` menu of chaptered, video-led
@@ -524,7 +528,7 @@ wrong content 6/7 of the time).
 
 **Originated →** `2026-08-12-onboarding-empty-states-and-help-chapters-design.md`
 
-### D104 — Help chapters are authored data with a map page, not derived from the pipeline definition
+### D144 — Help chapters are authored data with a map page, not derived from the pipeline definition
 
 **Decision.** Chapters live in `src/lib/help/chapters.ts` as authored records
 (`slug`, `question`, `summary`, `steps[]`, `mapStyle?`, `draft?`). **Every** chapter opens on

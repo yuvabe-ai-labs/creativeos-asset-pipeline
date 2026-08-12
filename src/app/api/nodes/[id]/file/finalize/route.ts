@@ -1,6 +1,6 @@
 import { createServerSupabase } from "@/lib/supabase/server";
 import { fileKindForExt } from "@/lib/nodes/file-constants";
-import { apiError, apiOk } from "@/lib/api/route-helpers";
+import { apiError, apiOk, assertImpersonationWriteAllowed } from "@/lib/api/route-helpers";
 import { removeObject } from "@/lib/storage";
 import { publicUrlFor } from "@/lib/storage/gcs";
 import { resolveOwnership } from "@/lib/storage/ownership";
@@ -14,12 +14,20 @@ export async function POST(
 ) {
   const { id: nodeId } = await params;
 
+  const blocked = await assertImpersonationWriteAllowed(req);
+  if (blocked) return blocked;
+
   const body = (await req.json().catch(() => null)) as {
     path?: string;
     filename?: string;
     size?: number;
     imageWidth?: number;
     imageHeight?: number;
+    // Opt-in: keep the node's existing `data.fileUrl` object instead of deleting it.
+    // For nodes whose `fileUrl` is a RENDER OUTPUT rather than an upload slot (the Post
+    // node's flattened PNG), an asset upload under the same node must not destroy it.
+    // Defaults to false, so every existing caller keeps the replace-and-clean behaviour.
+    keepExisting?: boolean;
   } | null;
   if (!body?.path || !body.filename) {
     return apiError("path and filename are required.", 400);
@@ -55,7 +63,7 @@ export async function POST(
 
   const existingUrl = (nodeRow as { data: Record<string, unknown> }).data
     ?.fileUrl as string | undefined;
-  if (existingUrl) {
+  if (existingUrl && !body.keepExisting) {
     try {
       await removeObject(existingUrl);
     } catch {

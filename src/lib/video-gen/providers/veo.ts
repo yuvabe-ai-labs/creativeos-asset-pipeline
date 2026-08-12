@@ -39,17 +39,20 @@ export function buildVeoConfig(params: Record<string, unknown>): {
   aspectRatio: string;
   durationSeconds: number;
   numberOfVideos: number;
+  resolution: string;
   negativePrompt?: string;
 } {
   const VALID_DURATIONS = [4, 6, 8];
   const parsed = Number(params.duration);
   const durationSeconds = VALID_DURATIONS.includes(parsed) ? parsed : 6;
   const aspectRatio = String(params.aspect_ratio ?? "16:9");
+  const resolution = String(params.resolution ?? "720p");
   const negativePrompt = String(params.negative_prompt ?? "").trim();
   return {
     aspectRatio,
     durationSeconds,
     numberOfVideos: 1,
+    resolution,
     ...(negativePrompt ? { negativePrompt } : {}),
   };
 }

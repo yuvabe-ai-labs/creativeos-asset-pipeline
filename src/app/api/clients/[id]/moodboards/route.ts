@@ -2,15 +2,15 @@ import { NextRequest } from "next/server";
 import { apiError, apiOk, withClient } from "@/lib/api/route-helpers";
 import { listMoodboards, createMoodboard } from "@/lib/db/moodboards";
 
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  return withClient(params, async (clientId) => {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  return withClient(req, params, async (clientId) => {
     const moodboards = await listMoodboards(clientId);
     return apiOk({ moodboards });
   });
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  return withClient(params, async (clientId) => {
+  return withClient(req, params, async (clientId) => {
     let body: { name?: string };
     try {
       body = await req.json();

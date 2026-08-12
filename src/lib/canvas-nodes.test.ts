@@ -154,4 +154,16 @@ describe("canConnect", () => {
     expect(canConnect("video-prompt", "video-gen")).toBe(true);
     expect(canConnect("video-gen", "video-prompt")).toBe(false);
   });
+  it("accepts image-producing sources into a post", () => {
+    expect(canConnect("image-gen", "post")).toBe(true);
+    expect(canConnect("file", "post")).toBe(true);
+    expect(canConnect("draw", "post")).toBe(true);
+  });
+  it("a post has no valid downstream targets", () => {
+    expect(canConnect("post", "prompt")).toBe(false);
+    expect(canConnect("post", "image-gen")).toBe(false);
+  });
+  it("an (Image) Prompt node cannot connect to Video Gen — video-generate/route.ts never reads it", () => {
+    expect(canConnect("prompt", "video-gen")).toBe(false);
+  });
 });

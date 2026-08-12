@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import { getClientById } from "@/lib/db/clients";
 import { createServerSupabase } from "@/lib/supabase/server";
 import type { ClientRow, CanvasRow, NodeRow } from "@/lib/db/types";
-import { resolveCallerContext, type CallerContext } from "@/lib/dal";
+import { resolveOrgId, resolveCallerContext, type CallerContext } from "@/lib/dal";
+import { resolveImpersonationState } from "@/lib/auth/impersonation";
+import { IMPERSONATION_READ_ONLY_MESSAGE } from "@/lib/auth/constants";
+import { logImpersonationEvent } from "@/lib/db/impersonation-audit";
 
 // PostgREST may surface an embedded to-one relation as an object or a single-element
 // array, depending on schema-cache heuristics (same ambiguity handled in
@@ -11,6 +14,33 @@ import { resolveCallerContext, type CallerContext } from "@/lib/dal";
 function unwrapEmbed<T>(value: T | T[] | null | undefined): T | null {
   if (Array.isArray(value)) return value[0] ?? null;
   return value ?? null;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyResponse = NextResponse<any>;
+
+// The Stage 4 write-gate (D81): while impersonating and not in elevated mode, every
+// non-GET/HEAD request is blocked before its handler runs. Allowed writes while
+// elevated are audit-logged here too, so every call site that adopts this gate gets
+// both behaviors for free — no per-route bookkeeping.
+export async function assertImpersonationWriteAllowed(req: Request): Promise<AnyResponse | null> {
+  const method = req.method.toUpperCase();
+  if (method === "GET" || method === "HEAD") return null;
+
+  const impersonation = await resolveImpersonationState();
+  if (!impersonation.isImpersonating) return null;
+
+  if (!impersonation.elevated) {
+    return apiError(IMPERSONATION_READ_ONLY_MESSAGE, 403);
+  }
+
+  await logImpersonationEvent({
+    operatorId: impersonation.operatorId,
+    targetOrgId: impersonation.targetOrgId,
+    eventType: "write_action",
+    detail: { method, path: new URL(req.url).pathname },
+  });
+  return null;
 }
 
 // ── Route param type ──────────────────────────────────────────────────────────
@@ -37,10 +67,8 @@ export function apiOk<T extends Record<string, unknown>>(
 
 // ── Client resolution ─────────────────────────────────────────────────────────
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type AnyResponse = NextResponse<any>;
-
 export async function withClient(
+  req: Request,
   params: Promise<{ id: string }>,
   handler: (clientId: string, client: ClientRow) => Promise<AnyResponse>,
 ): Promise<AnyResponse> {
@@ -48,14 +76,17 @@ export async function withClient(
   const client = await getClientById(clientId);
   if (!client) return apiError("Client not found.", 404);
 
-  // Org isolation: a client outside the caller's org is a 404 (never 403 — do not
-  // confirm foreign resources exist). No super_admin bypass here — cross-org access
-  // to a client's actual data is /admin's job or, later, impersonation (Stage 4), not
-  // a standing exception on every route. super_admin's own clients still work fine.
-  const caller = await resolveCallerContext();
-  if (client.org_id !== caller.orgId) {
+  // Org isolation: a client outside the effective org (the caller's own org, or the
+  // impersonation target when active — resolveOrgId() decides which) is a 404 (never
+  // 403 — do not confirm foreign resources exist).
+  const effectiveOrgId = await resolveOrgId();
+  if (client.org_id !== effectiveOrgId) {
     return apiError("Client not found.", 404);
   }
+
+  const blocked = await assertImpersonationWriteAllowed(req);
+  if (blocked) return blocked;
+
   return handler(clientId, client);
 }
 
@@ -71,6 +102,7 @@ type CanvasWithOrg = CanvasRow & {
 // /api/clients/[id]/*, so they had no org check whatsoever. Canvas -> client -> org,
 // resolved in one query via an embedded join, not two sequential lookups.
 export async function withCanvas(
+  req: Request,
   params: Promise<{ id: string }>,
   handler: (canvasId: string, canvas: CanvasRow) => Promise<AnyResponse>,
 ): Promise<AnyResponse> {
@@ -86,10 +118,14 @@ export async function withCanvas(
 
   const row = data as unknown as CanvasWithOrg;
   const client = unwrapEmbed(row.clients);
-  const caller = await resolveCallerContext();
-  if (!client || client.org_id !== caller.orgId) {
+  const effectiveOrgId = await resolveOrgId();
+  if (!client || client.org_id !== effectiveOrgId) {
     return apiError("Canvas not found.", 404);
   }
+
+  const blocked = await assertImpersonationWriteAllowed(req);
+  if (blocked) return blocked;
+
   const { clients: _clients, ...canvas } = row;
   return handler(canvasId, canvas as CanvasRow);
 }
@@ -112,12 +148,14 @@ type NodeWithOrgChain = NodeRow & {
 // into generations (org_id not-null since 0014; client_id/user_id/email available too)
 // need them and both are already resolved here, so no extra query to pass them along.
 export async function withNode(
+  req: Request,
   params: Promise<{ id: string }>,
   handler: (
     nodeId: string,
     node: NodeRow,
     caller: CallerContext,
     clientId: string,
+    effectiveOrgId: string,
   ) => Promise<AnyResponse>,
 ): Promise<AnyResponse> {
   const { id: nodeId } = await params;
@@ -133,12 +171,17 @@ export async function withNode(
   const row = data as unknown as NodeWithOrgChain;
   const canvas = unwrapEmbed(row.canvases);
   const client = canvas ? unwrapEmbed(canvas.clients) : null;
-  const caller = await resolveCallerContext();
-  if (!canvas || !client || client.org_id !== caller.orgId) {
+  const effectiveOrgId = await resolveOrgId();
+  if (!canvas || !client || client.org_id !== effectiveOrgId) {
     return apiError("Node not found.", 404);
   }
+
+  const blocked = await assertImpersonationWriteAllowed(req);
+  if (blocked) return blocked;
+
+  const caller = await resolveCallerContext();
   const { canvases: _canvases, ...node } = row;
-  return handler(nodeId, node as NodeRow, caller, canvas.client_id);
+  return handler(nodeId, node as NodeRow, caller, canvas.client_id, effectiveOrgId);
 }
 
 // ── Moodboard resolution ──────────────────────────────────────────────────────
@@ -154,6 +197,7 @@ type MoodboardWithOrg = {
 // auth landed — so a board id from ANY org resolved and served, or deleted, its items.
 // Moodboard -> client -> org in one query, 404 (never 403) on mismatch.
 export async function withMoodboard(
+  req: Request,
   moodboardId: string,
   handler: (moodboardId: string, caller: CallerContext) => Promise<AnyResponse>,
 ): Promise<AnyResponse> {
@@ -167,10 +211,15 @@ export async function withMoodboard(
   if (!data) return apiError("Moodboard not found.", 404);
 
   const client = unwrapEmbed((data as unknown as MoodboardWithOrg).clients);
-  const caller = await resolveCallerContext();
-  if (!client || client.org_id !== caller.orgId) {
+  const effectiveOrgId = await resolveOrgId();
+  if (!client || client.org_id !== effectiveOrgId) {
     return apiError("Moodboard not found.", 404);
   }
+
+  const blocked = await assertImpersonationWriteAllowed(req);
+  if (blocked) return blocked;
+
+  const caller = await resolveCallerContext();
   return handler(moodboardId, caller);
 }
 

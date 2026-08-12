@@ -24,7 +24,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withNode(params, async (nodeId, node) => {
+  return withNode(req, params, async (nodeId, node) => {
     const fileResult = await parseFormFile(req);
     if (isApiError(fileResult)) return fileResult;
     const { file } = fileResult;
@@ -110,10 +110,10 @@ export async function POST(
 
 // DELETE /api/nodes/:id/file — remove the stored image or document for this node.
 export async function DELETE(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withNode(params, async (_nodeId, node) => {
+  return withNode(req, params, async (_nodeId, node) => {
     const fileUrl = (node.data as Record<string, unknown>)?.fileUrl as
       | string
       | undefined;

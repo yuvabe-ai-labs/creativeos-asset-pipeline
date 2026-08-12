@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useReactFlow } from "@xyflow/react";
 import { useShallow } from "zustand/react/shallow";
 import { ChevronDown, Loader2, CheckCircle2, AlertTriangle } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import type { Edge } from "@xyflow/react";
 import type { AppNode } from "@/lib/canvas-nodes";
 import type { GenerationRow } from "@/lib/db/types";
@@ -65,9 +66,10 @@ export function GenerationTray({ canvasId }: { canvasId: string }) {
 
   if (collapsed) {
     return (
-      <button
+      <Button
+        variant="outline"
         onClick={() => toggleCollapsed(false)}
-        className="absolute right-4 top-1/2 z-20 flex -translate-y-1/2 items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 shadow-card"
+        className="absolute right-4 top-1/2 z-20 h-auto -translate-y-1/2 gap-2 rounded-full px-3 py-1.5 shadow-card"
         aria-label="Expand generation tray"
       >
         <span className="flex items-center gap-1 text-xs text-primary">
@@ -79,7 +81,7 @@ export function GenerationTray({ canvasId }: { canvasId: string }) {
         <span className="flex items-center gap-1 text-xs text-muted-foreground">
           <AlertTriangle className="size-3 stroke-[1.5]" /> {counts.failed}
         </span>
-      </button>
+      </Button>
     );
   }
 
@@ -87,13 +89,15 @@ export function GenerationTray({ canvasId }: { canvasId: string }) {
     <div className="absolute right-4 top-1/2 z-20 flex w-64 -translate-y-1/2 flex-col rounded-xl border border-border bg-card/95 shadow-card backdrop-blur">
       <div className="flex items-center justify-between border-b border-border px-3 py-2">
         <span className="text-eyebrow !text-[0.65rem]">Generation Tray</span>
-        <button
+        <Button
+          variant="ghost"
+          size="icon-xs"
           onClick={() => toggleCollapsed(true)}
-          className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-muted"
+          className="text-muted-foreground"
           aria-label="Collapse generation tray"
         >
           <ChevronDown className="size-4 stroke-[1.5]" />
-        </button>
+        </Button>
       </div>
       <div className="flex max-h-[50vh] flex-col gap-1.5 overflow-y-auto p-2">
         {items.map((item) => (

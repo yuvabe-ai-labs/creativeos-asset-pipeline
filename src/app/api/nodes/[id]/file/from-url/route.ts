@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { uploadNodeFile, removeObject } from "@/lib/storage";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { apiError, apiOk } from "@/lib/api/route-helpers";
+import { apiError, apiOk, assertImpersonationWriteAllowed } from "@/lib/api/route-helpers";
 import { FILE_NODE_IMAGE_EXTENSIONS, FILE_NODE_IMAGE_SIZE_LIMIT } from "@/lib/nodes/file-constants";
 
 const MIME_TO_EXT: Record<string, string> = {
@@ -17,6 +17,9 @@ function extFromUrl(url: string): string {
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: nodeId } = await params;
+
+  const blocked = await assertImpersonationWriteAllowed(req);
+  if (blocked) return blocked;
 
   let body: { imageUrl?: string; sourceUrl?: string; filename?: string };
   try {

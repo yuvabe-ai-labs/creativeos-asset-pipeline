@@ -1,6 +1,7 @@
 "use client";
 
 import { createBrowserSupabase } from "@/lib/supabase/client";
+import { notifyIfReadOnlyBlocked } from "@/lib/auth/read-only-notice";
 
 // Supabase refresh tokens are single-use/rotating: whichever request refreshes an expired
 // one first invalidates it for everyone else. auth-js's own lock only serializes refresh
@@ -39,9 +40,33 @@ if (typeof document !== "undefined") {
   });
 }
 
+// Real connectivity loss (WiFi handoff, laptop sleep/wake, mobile network switch) is the
+// same failure shape as a backgrounded tab: requests queue up while offline, then all fire
+// together the moment the browser comes back — racing the same rotating refresh token.
+// visibilitychange alone misses this (the tab can stay visible the whole time), so the
+// browser's own connectivity signal needs its own proactive check.
+if (typeof window !== "undefined") {
+  window.addEventListener("online", () => void checkSession());
+}
+
 // Await this before any request that depends on being authenticated. Deduped: many
 // concurrent callers (e.g. one useNodeCost per node on a canvas) share the same in-flight
 // check instead of each doing their own.
 export function ensureFreshSession(): Promise<void> {
   return checkSession();
+}
+
+// Drop-in fetch() replacement for every authenticated client-side call to this app's own
+// /api/* routes. Routes the request through ensureFreshSession() first so it can never be
+// one of the racing callers described above — call this instead of bare fetch(), don't
+// await ensureFreshSession() yourself and then call fetch() separately (that reintroduces
+// the exact race this exists to close if a new call site copies the pattern wrong).
+export async function authFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  await ensureFreshSession();
+  const res = await fetch(input, init);
+  // Surface an impersonation write-block here rather than leaving each call site to
+  // report it as its own generic failure. Reads and every other status fall straight
+  // through — this only inspects 403s.
+  await notifyIfReadOnlyBlocked(res);
+  return res;
 }

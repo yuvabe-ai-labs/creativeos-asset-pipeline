@@ -7,13 +7,14 @@ import {
 } from "./canvas-node-options";
 
 describe("ADD_NODE_OPTIONS", () => {
-  it("has the 8 user-addable node types (kb excluded)", () => {
+  it("has the 9 user-addable node types (kb excluded)", () => {
     const types = ADD_NODE_OPTIONS.map((o) => o.type).sort();
     expect(types).toEqual(
       [
         "draw",
         "file",
         "image-gen",
+        "post",
         "prompt",
         "script",
         "text",
@@ -45,8 +46,9 @@ describe("mnemonicToType", () => {
       p: "prompt",
       d: "draw",
       i: "image-gen",
-      v: "video-prompt",
-      g: "video-gen",
+      m: "video-prompt",
+      v: "video-gen",
+      o: "post",
     };
     for (const [key, type] of Object.entries(expected)) {
       expect(mnemonicToType(key)).toBe(type);
@@ -61,6 +63,15 @@ describe("mnemonicToType", () => {
     expect(mnemonicToType("k")).toBeNull();
     expect(mnemonicToType("z")).toBeNull();
     expect(mnemonicToType("")).toBeNull();
+  });
+
+  // Regression guard for the bare-"g" double-fire (D137): the Gallery drawer owns "g"
+  // via its own document keydown listener. While a node type also claimed it, one press
+  // both toggled the drawer AND spawned a node, because two sibling listeners on
+  // `document` cannot cancel each other. "g" must stay unclaimed here.
+  it("leaves 'g' unmapped — the Gallery drawer owns that key", () => {
+    expect(mnemonicToType("g")).toBeNull();
+    expect(ADD_NODE_OPTIONS.some((o) => o.mnemonic.toLowerCase() === "g")).toBe(false);
   });
 });
 

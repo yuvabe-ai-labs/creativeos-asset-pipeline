@@ -1,29 +1,31 @@
 import { USD_TO_INR } from "@/lib/pricing";
 
-// Source: ai.google.dev/gemini-api/docs/pricing (verified 2026-07-24, page fetched by the
-// user directly — every Veo 3.1 row is explicitly labeled "with audio price (default)",
-// with no separate, cheaper no-audio tier listed at all). This app never toggles Veo's
-// audio either way — params/veo.ts has no audio field, so Veo always runs at the API's own
-// default, which generates audio. audioMultiplier is kept at 1.0 for all three Veo models
-// (no real audio-based price split exists to multiply) purely so this table shares a shape
-// with Kling's. Resolution tiers above 720p (1080p/4k) aren't modeled: this app doesn't
-// expose a resolution param for Veo, so 720p is the only reachable tier.
-//   Lite:    $0.05/s (720p)
-//   Fast:    $0.10/s (720p)
-//   Quality: $0.40/s (720p) — previously 0.2667 here (a stale "base rate" that a 1.5x
-//     audio multiplier never actually applied, since Veo has no audio toggle) — a
-//     confirmed 33% under-count on every Quality generation to date. Not backfilled,
-//     corrected going forward only.
+// Source: platform.openai.com/docs/pricing (verified June 2026)
+// $0.10/s at 720p; no audio output, no premium multiplier
 const VIDEO_MODEL_PRICING: Record<
   string,
   { perSecond: number; audioMultiplier: number }
 > = {
-  "veo:veo-3.1-lite":  { perSecond: 0.05, audioMultiplier: 1.0 },
-  "veo:veo-3.1-fast":  { perSecond: 0.10, audioMultiplier: 1.0 },
-  "veo:veo-3.1":       { perSecond: 0.40, audioMultiplier: 1.0 },
-  // Source: platform.openai.com/docs/pricing (verified June 2026)
-  // $0.10/s at 720p; no audio output, no premium multiplier
   "openai:sora-2":     { perSecond: 0.10,   audioMultiplier: 1.0 },
+};
+
+// Source: ai.google.dev/gemini-api/docs/pricing (verified 2026-08-08). Every Veo 3.1 row is
+// still the flat "with audio" price (default) — no separate, cheaper no-audio tier — so audio
+// stays irrelevant to price, same as before. What changed: params/veo.ts now exposes a
+// resolution param (previously absent, so every generation silently ran at the API's 720p
+// default), and the API's own pricing table splits 720p from 1080p for Lite and Fast (Quality
+// is priced flat across both — Google confirms one rate for "720p and 1080p"). 4k exists on
+// Quality ($0.60/s) and Fast ($0.30/s) per the same page, but is left out: the SDK's
+// GenerateVideosConfig.resolution only documents "720p" and "1080p" as supported values
+// (node_modules/@google/genai/dist/genai.d.ts), and params/veo.ts doesn't offer a 4k option —
+// so a 4k rate here would be unreachable dead weight.
+//   Lite:    $0.05/s (720p) → $0.08/s (1080p)
+//   Fast:    $0.10/s (720p) → $0.12/s (1080p)
+//   Quality: $0.40/s (720p and 1080p — same rate)
+const VEO_RESOLUTION_PRICING: Record<string, Record<string, number>> = {
+  "veo:veo-3.1-lite":  { "720p": 0.05, "1080p": 0.08 },
+  "veo:veo-3.1-fast":  { "720p": 0.10, "1080p": 0.12 },
+  "veo:veo-3.1":       { "720p": 0.40, "1080p": 0.40 },
 };
 
 // Kling price varies by resolution AND audio (not just audio) — resolution-keyed table.
@@ -115,6 +117,16 @@ export function computeVideoCost(
     // (resolution, audio) combination genuinely isn't priced (e.g. kling-2-6 at 720p
     // with native audio) — return null rather than silently substituting the wrong tier.
     const perSecond = audioEnabled ? rates.on : rates.off;
+    if (perSecond === undefined) return null;
+    const usd = durationSeconds * perSecond;
+    return { usd, inr: usd * USD_TO_INR };
+  }
+
+  const veoResolutionPricing = VEO_RESOLUTION_PRICING[modelId];
+  if (veoResolutionPricing) {
+    // Strict lookup, same as Kling above — an unreachable resolution (e.g. "4k", which the UI
+    // never offers for Veo) returns null rather than silently substituting the 720p rate.
+    const perSecond = veoResolutionPricing[resolution ?? "720p"];
     if (perSecond === undefined) return null;
     const usd = durationSeconds * perSecond;
     return { usd, inr: usd * USD_TO_INR };

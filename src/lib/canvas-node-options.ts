@@ -13,7 +13,8 @@ export type AddNodeType =
   | "draw"
   | "image-gen"
   | "video-prompt"
-  | "video-gen";
+  | "video-gen"
+  | "post";
 
 export interface AddNodeOption {
   type: AddNodeType;
@@ -28,8 +29,11 @@ export const ADD_NODE_OPTIONS: readonly AddNodeOption[] = [
   { type: "prompt", label: "Prompt", mnemonic: "P" },
   { type: "draw", label: "Draw", mnemonic: "D" },
   { type: "image-gen", label: "Image Gen", mnemonic: "I" },
-  { type: "video-prompt", label: "Video Prompt", mnemonic: "V" },
-  { type: "video-gen", label: "Video Gen", mnemonic: "G" },
+  // "M" for Motion Prompt, freeing "V" for Video Gen and "G" for the Gallery drawer,
+  // which owns bare "g" through its own document listener (D137).
+  { type: "video-prompt", label: "Motion Prompt", mnemonic: "M" },
+  { type: "video-gen", label: "Video Gen", mnemonic: "V" },
+  { type: "post", label: "Post", mnemonic: "O" },
 ];
 
 const BY_MNEMONIC = new Map<string, AddNodeType>(

@@ -37,7 +37,7 @@ export function describeNode(node: { type?: string; data: Record<string, unknown
     case "image-gen":
       return "image generation";
     case "video-prompt":
-      return "video prompt";
+      return "motion prompt";
     case "video-gen":
       return "video generation";
     default:
@@ -59,7 +59,7 @@ const NODE_ABBREV: Record<string, string> = {
   shot: "SHOT",
   draw: "DRAW",
   "image-gen": "IMG",
-  "video-prompt": "VPR",
+  "video-prompt": "MPR",
   "video-gen": "VID",
 };
 

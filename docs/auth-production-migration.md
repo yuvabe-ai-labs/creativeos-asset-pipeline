@@ -429,8 +429,11 @@ repo yet) is a separate step this doc doesn't own.
 - Migration CI automation — still parked (`2026-07-21-migration-ci-automation.md`). Until
   that's built, this doc's manual dashboard steps are the only way to apply migrations to
   production, same as staging.
-- Stage 4 (impersonation) — not yet built as of this doc's last update (2026-07-27). Stage 1,
-  Stage 2 (including 2C, the async worker tenant check), and Stage 3 (credit system) are all
-  fully shipped to staging and covered above — check
-  `docs/superpowers/plans/2026-07-24-credit-system-index.md` for Stage 3's per-sub-plan status
-  before treating this doc's migration list as final, since a new stage adds more.
+- Stage 4 (impersonation) — built on `feat/impersonation-stage4`, migration `0027_impersonation.sql`
+  not yet applied to production. Before deploying Stage 4's app code: (1) apply
+  `supabase/migrations/0027_impersonation.sql` via the Supabase dashboard SQL editor, same
+  process as every other migration in this doc; (2) set `IMPERSONATION_COOKIE_SECRET` in
+  production's environment (generate with
+  `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` — a missing value
+  fails closed, so this can technically be deployed without it, but impersonation will silently
+  be unavailable until it's set).

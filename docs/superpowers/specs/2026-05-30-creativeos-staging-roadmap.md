@@ -1934,6 +1934,273 @@ was dropped as redundant with the rail. `listEvalTraces` + `ReviewScreen` are le
 **unreferenced** — the sequential reviewer this decision replaces.
 **Originated.** `2026-07-02-eval-viewer-error-analysis-design.md`; plan `2026-07-02-eval-viewer.md`.
 
+### D116 — Post editor left chrome: one icon rail + one shared flyout panel
+**Decision.** The Post editor's left chrome is a 56px icon rail (Templates, Elements, Text,
+Connected, Layers) whose items open a single shared 256px flyout panel. Clicking the active item
+closes it; the panel stays open while the user works on the canvas. The bottom-left `+` add-menu
+(`post-add-menu.tsx`) is deleted.
+**Why.** One panel shell means one width, one scroll behaviour, one empty state — and it matches the
+mental model every designer already has from Canva. Keeping the panel open supports repeated
+placement (add three icons in a row) without re-opening it each time.
+**Rejected.** Per-item popovers (the `+` menu's existing pattern) — five independent popovers drift
+in width, position and scroll behaviour, which is how the current chrome got inconsistent.
+**Originated.** `2026-08-05-post-editor-canva-shell-design.md`.
+
+### D117 — A Post node opens on a clean canvas
+**Decision.** Delete the auto-opening template picker modal and its `pickerOpen` state. A Post node
+opens showing a white canvas containing only the auto-placed connected image; the Templates panel is
+open in the rail, but no template is ever applied without an explicit click.
+**Why.** The operator should see their own image first and choose whether they want a template at
+all. The old modal forced a template decision before anything was visible.
+**Rejected.** Keeping the auto-opening modal; auto-applying a default template.
+**Originated.** `2026-08-05-post-editor-canva-shell-design.md`.
+
+### D118 — Applying a template always confirms, and always preserves connected images
+**Decision.** Picking a template opens an `AlertDialog` ("This replaces your current layout. Your
+connected image is kept."). On confirm, seeded layers replace all layers **except** image layers
+whose `src.kind === "node"` — the connected-image preservation `handlePickTemplate` already
+implements. The dialog shows unconditionally, including on an untouched canvas.
+**Why.** Template application is the one destructive action in the editor and it is one click away.
+Preserving connected images matches the auto-place effect's own contract: it fires at most once per
+source node, so a discarded connected image can never be recovered automatically.
+**Rejected.** Skipping the dialog when the canvas is "pristine" — defining pristine across undo/redo
+and auto-placement costs more than the dialog does. Replacing connected images too — it makes trying
+a template a destructive experiment.
+**Originated.** `2026-08-05-post-editor-canva-shell-design.md`.
+
+### D119 — Layer properties stay in the fixed right inspector, normalised per kind
+**Decision.** Keep the existing fixed-width (`w-56`) right inspector rather than moving properties
+into a contextual toolbar. Every layer kind renders the same internal shell — a `text-eyebrow` kind
+label, then uniformly-spaced labelled sections — so changing selection changes contents without
+restructuring the panel's rhythm.
+**Why.** The reported problem was inconsistency between kinds ("when text is selected the edit
+layout is completely different"), not the panel's location. Normalising the shell fixes the actual
+complaint at a fraction of the cost.
+**Rejected.** Canva's contextual top toolbar — a substantially larger rework than the reported
+problem requires, and it would have to re-solve multi-select and empty states from scratch.
+**Originated.** `2026-08-05-post-editor-canva-shell-design.md`.
+
+### D120 — The layer list is a rail item in the shared flyout
+**Decision.** The layer list becomes one more rail item, rendered in the same flyout panel as every
+other tool.
+**Why.** One consistent panel system; the stack stays one click away and as discoverable as
+templates or elements.
+**Rejected.** Canva's floating "Position" popover (hides the stack behind an extra click, and the
+operator had specifically asked for layer editing in the left panel); an always-docked layers strip
+(permanently costs the canvas horizontal space).
+**Originated.** `2026-08-05-post-editor-canva-shell-design.md`.
+
+### D121 — The connected-nodes panel is a view over existing props, not a new query
+**Decision.** The connected-nodes panel renders thumbnails from the `connectedImageNodes:
+{ nodeId, url }[]` prop `post-focus-view.tsx` already receives. Click adds the image centred;
+drag-and-drop places it at the drop point. It lists only directly-connected image-bearing nodes.
+**Why.** The data is already plumbed in and already scoped to "what is wired to this node" — the
+panel is a new view, not new plumbing, and needs no canvas-store access.
+**Rejected.** Querying the canvas store for all project images (loses the wired-to-this-node
+guarantee and grows unbounded); including past uploads (deferred, not needed to place a connected
+image).
+**Originated.** `2026-08-05-post-editor-canva-shell-design.md`.
+
+### D122 — Format selection is a Size rail panel with friendly labels only
+**Decision.** The header format dropdown moves into a "Size" rail panel listing ten formats grouped
+by platform (Instagram portrait/square/story, Facebook, LinkedIn post/square, X, YouTube thumbnail,
+Pinterest pin, A4 print), each row a ratio swatch + plain-English name + pixel dimensions. No
+internal key (`ig-square`), layer `kind`, or other token is ever rendered to the user. `"linkedin"`
+becomes `"linkedin-post"` with a read-time fallback for saved nodes.
+**Why.** Ten platform-grouped options do not fit a header dropdown, and Instagram's best-performing
+feed size (4:5 portrait) was missing entirely. The old dropdown also *displayed* raw keys: Base UI's
+`SelectValue` renders the raw value unless given a render function, so the trigger read `ig-square`
+while the menu items read "Instagram square (1:1)" — a display bug the panel removes at the root.
+**Rejected.** Keeping the header dropdown and only fixing the label bug (does not scale past ~5
+options). Custom user-entered dimensions (needs validation UI, and can't be template-tuned per band).
+**Originated.** `2026-08-05-post-editor-canva-shell-design.md`.
+
+### D123 — Font size is measured against the canvas's shorter edge
+**Decision.** `fontSizeToPx` switches its basis from `containerH` to `min(containerW, containerH)`.
+**Why.** `TextLayer.fontSize` is a 0–1 fraction, so a height basis makes identical copy render 49px
+on a 1080-tall square and 86px on a 1920-tall story while both canvases stay 1080 wide — text tuned
+for one ratio is unusable at another, which blocks D122's expanded format set. The shorter edge is
+stable across ratios. For every square format `min == height`, so this is a no-op on square posts —
+the default, and the bulk of existing data — bounding the blast radius of the reinterpretation.
+**Rejected.** Keeping the height basis and compensating inside each template (leaves live format
+switching broken for user-authored text, not just template text). A write-time migration of saved
+`fontSize` values (D10's narrow waist means layers are schemaless JSONB; a rewrite is riskier than
+the bounded re-render).
+**Originated.** `2026-08-05-post-editor-canva-shell-design.md`.
+
+### D124 — Templates tune one composition across three aspect bands; library grows to 14
+**Decision.** A pure `aspectBand(format)` helper classifies formats as `portrait | square |
+landscape`; each template picks per-band values for a few numbers (margins, headline size, scrim
+height, CTA width). Ten templates are added to the existing four: bold quote, product hero,
+before/after, carousel cover, testimonial, announcement, numbered tips, sale offer, event, minimal
+frame.
+**Why.** Templates previously accepted `format` and ignored it. Banding fixes composition across
+ratios at roughly 1.5× authoring cost. The four original templates existed to prove the seeding
+mechanism; a library is only useful if someone reaches for it, which needs coverage of what teams
+actually post.
+**Rejected.** Separate template files per ratio (~42 files for 14 templates, 3× maintenance, every
+future edit made three times). Leaving templates format-agnostic (the status quo D122 breaks).
+**Originated.** `2026-08-05-post-editor-canva-shell-design.md`.
+
+### D125 — Inspector controls are visual, never raw values
+**Decision.** Gradient fill becomes a row of ready-made gradient swatches plus a four-way direction
+control; solid colour becomes a swatch grid (brand, neutrals, recents) with the OS picker behind a
+"Custom…" swatch; corner radius, border thickness and text size become `Slider`s with plain labels
+("Corners: Sharp → Rounded"). No field asks for a CSS colour string or a bare number.
+**Why.** The gradient control shipped as two free-text boxes expecting `rgba(0,0,0,0.72)`, and
+gradient angle had no control at all — hardcoded to `0` at creation and unreachable thereafter. The
+users are marketers, not CSS authors. `slider.tsx` already exists, so this needs no new primitive and
+stays inside CLAUDE.md's shadcn-only rule.
+**Rejected.** Keeping free-text colour entry with validation/preview (still asks for syntax nobody
+should need). A full colour-picker component with hue/alpha channels (heavier than the job, and the
+OS picker already covers the rare custom case).
+**Originated.** `2026-08-05-post-editor-canva-shell-design.md`.
+
+### D126 — The Post node card previews at true aspect ratio and reports real render state
+**Decision.** The card's preview box takes its aspect ratio from the node's own format (rather than a
+hardcoded `aspect-square … object-cover`) and uses `object-contain`. A new `layersUpdatedAt` stamp is
+written whenever layers change and compared against the already-written `renderedAt` to drive a
+three-state chip: **Draft** (never exported) / **Exported** (unchanged since) / **Edited since
+export**. Legacy nodes with no `layersUpdatedAt` read as Exported, not stale. The card also gains a
+metadata line (format short name + layer count) and an honest empty state.
+**Why.** The card was misrepresenting work on two axes at once. A 9:16 story was centre-cropped into
+a square, showing a composition the user never made — worse once D122 ships ten formats. And the
+thumbnail is the *last exported PNG*, so any edit after an export left the card silently showing an
+old design. The staleness mechanism was already designed and half-built: `PostNodeData.renderedAt`
+is declared with the comment "drives the 'unrendered changes' badge (Task 24 staleness check)" and
+is written on every export, but nothing ever read it — the original plan ended at Task 22. The old
+"Rendered"/"Pending" chip compounded this by meaning "has ever been exported", so a finished design
+read *Pending* and an edited one read *Rendered*.
+**Rejected.** Rendering a live mini-canvas per card instead of the exported PNG (N Konva stages on a
+busy board). Renaming the chip without detecting staleness (stops the lie, leaves the stale
+thumbnail). Assuming stale for legacy nodes (flags every previously-exported post as dirty on first
+load — the exact false alarm the badge exists to prevent).
+**Originated.** `2026-08-05-post-editor-canva-shell-design.md`.
+
+### D127 — Undo covers format and template, not layers alone
+**Decision.** `usePostEditor`'s history state widens from `PostLayer[]` to
+`{ layers, format, templateId }`. Title stays outside history.
+**Why.** Layer edits were undoable; format and template changes went through `onPatch` and were not.
+So after a format change ⌘Z did not revert it — it reached past and undid an unrelated earlier layer
+edit, which is worse than no-op because it silently damages something the user wasn't looking at.
+With D122 raising format changes from a rare 4-way choice to a routine 10-way one, the inconsistency
+stops being an edge case. Title is excluded deliberately: it is metadata, like a filename, and
+behaves as an inline field everywhere else in this app.
+**Rejected.** Leaving format outside history and blocking ⌘Z when the last action wasn't a layer edit
+(needs action-type tracking the history doesn't have, and still surprises). Putting title in too
+(inline-field edits aren't design state).
+**Originated.** `2026-08-05-post-editor-canva-shell-design.md`.
+
+### D128 — Newly added layers cascade instead of stacking
+**Decision.** `createTextLayer`/`createShapeLayer`/`createIconLayer` offset each new layer from the
+last rather than all spreading one fixed `DEFAULT_GEOMETRY`, wrapping when the cascade would leave
+the canvas.
+**Why.** Every added element landed at identical coordinates, so adding three text layers produced a
+perfect stack in which only the top one was selectable and nothing indicated the others existed. The
+codebase already uses this idea for `duplicateLayer`'s +0.02/+0.02 nudge; new layers simply never got
+it.
+**Rejected.** Placing new layers at the viewport centre (identical stacking problem); placing at the
+last click position (surprising when the panel, not the canvas, was the last thing touched).
+**Originated.** `2026-08-05-post-editor-canva-shell-design.md`.
+
+### D129 — Brand assets get their own table, not `client_brand_images`
+**Decision.** A new `client_brand_assets` table (`category` in `logo`/`background`/`product`) holds
+the Brand Kit. `client_brand_images` is left alone.
+**Why.** `client_brand_images` is the KB's vision-analysis corpus: every reference photo uploaded to
+teach the extraction model what the brand looks like. Those rows are pipeline inputs, not material
+anyone chose to design with. Surfacing them in the Brand panel would bury three usable logos among
+forty analysis photos with nothing distinguishing them.
+**Rejected.** Reusing the table with a `kind` discriminator (one table serving a pipeline and a
+picker, with every reader needing the filter and one forgotten filter leaking the corpus into the UI).
+**Originated.** `2026-08-05-brand-kit-design.md`.
+
+### D130 — Brand details live in a JSONB column on `clients`, not the KB
+**Decision.** `clients.brand_details jsonb not null default '{}'` holds phone, email, website,
+address and social handles. Every field optional; readers tolerate all absent (D10).
+**Why.** These are facts an operator types and expects to stay exactly as typed. The KB is
+model-extracted and versioned, so a re-extraction could silently rewrite a phone number. JSONB over
+columns because the set will grow — a second number, a fourth social — and nothing queries or filters
+on these; they are read whole and rendered.
+**Rejected.** KB fields (re-extraction overwrites them); one column per detail (a migration per
+social network).
+**Originated.** `2026-08-05-brand-kit-design.md`.
+
+### D131 — `clients.logo_url` is synthesized into the panel, never migrated into a row
+**Decision.** An existing client logo appears in the Logos section as a synthetic entry, marked
+"from client profile" and not deletable there.
+**Why.** The panel is useful the first time it is opened rather than starting empty for every
+existing client, and `clients.logo_url` stays the single source of truth for the many other places
+that already read it. A data migration copying it into a row would create two logos that drift.
+**Rejected.** Migrating logos into rows (two sources of truth); leaving the panel empty until
+something is uploaded (every existing client sees a blank kit).
+**Originated.** `2026-08-05-brand-kit-design.md`.
+
+### D132 — Brand colours are derived from the KB at read time, never stored
+**Decision.** The Colours section parses hex codes out of the active KB's `colour_palette_primary`
+and `_secondary` on each load, via a pure `extractHexes`.
+**Why.** The palette already exists and is maintained where brand facts belong; copying it into the
+Brand Kit would create a second copy to keep in sync. The KB stores prose ("turmeric gold #C8A000"),
+so parsing is required either way — doing it at read time costs nothing extra.
+**Rejected.** Storing a resolved palette on the kit (drifts from the KB); asking the operator to
+re-enter colours (data they already gave us).
+**Trade-off accepted.** A KB re-extraction changes the swatches. Current beats stable here.
+**Originated.** `2026-08-05-brand-kit-design.md`.
+
+### D133 — A brand background replaces its predecessor, marked by `role`
+**Decision.** `ImageLayer` gains `role?: "brand-background"`. Placing a background removes any layer
+carrying that role, then inserts the new one at index 0.
+**Why.** Clicking three backgrounds while deciding otherwise leaves two invisible full-bleed images
+underneath, each one a layer the operator has to hunt down and delete. An explicit role is testable;
+inferring "is this a background" from geometry would misfire on any deliberately full-bleed photo.
+**Rejected.** Inferring from `w===1 && h===1 && index===0` (misclassifies a full-bleed hero photo);
+allowing them to stack (invisible layers nobody asked for).
+**Originated.** `2026-08-05-brand-kit-design.md`.
+
+### D134 — The Post editor reads `clientId` from context, not props
+**Decision.** A `client-id-context.tsx` mirroring the existing `canvas-id-context.tsx`, provided
+where `CanvasIdProvider` already is.
+**Why.** Prop-drilling would thread the value through five components (Canvas → nodes → PostNode →
+PostFocusView → panel) that have no interest in it, which the component guide forbids. The codebase
+already solved the identical problem for `canvasId`.
+**Rejected.** Prop drilling; putting `clientId` in the Zustand canvas store (it is page-scoped
+identity, not canvas state, and would need seeding on every store creation).
+**Originated.** `2026-08-05-brand-kit-design.md`.
+
+### D135 — Fonts are excluded from the Brand Kit
+**Decision.** The Brand panel offers colours, logos, backgrounds, products and details. Not fonts.
+**Why.** The KB's `typography_style` is a prose field ("clean geometric sans, generous tracking").
+Mapping it to a `FontKey` means guessing, and guessing wrong silently restyles a design — a failure
+the operator would not attribute to the Brand Kit.
+**Rejected.** Fuzzy-matching prose to the vendored families (wrong answers presented confidently);
+a per-client font picker (real, but it is a separate feature with its own upload and licensing
+questions, not a line item here).
+**Originated.** `2026-08-05-brand-kit-design.md`.
+
+### D136 — Header identity chrome consolidates into a profile popover, including credits; `CanvasCostChip` becomes the bar's stat chip; `/api/me` gains a real `orgRole` *(supersedes the profile-popover design from `2026-08-05-profile-popover-header-design.md`, cut on an orphaned worktree as "D101" there — a numbering collision with this log's own unrelated D101 below, from branch divergence, not a real dependency)*
+**Decision.** Replace the always-visible name pill + adjacent sign-out button (`IdentityChip`)
+and the org-name span in `HeaderBrand` with a single avatar-triggered popover (name, real role,
+credits with progress bar, workspace, sign out in red). The header's standalone credits pill
+(`HeaderCredits`) is removed from the bar and its content relocates into the popover. The static
+"Yuvabe Studios" eyebrow beside the wordmark goes too — the popover's Workspace row is now the
+single answer to "which workspace am I in", so `HeaderBrand` reduces to the wordmark alone. The canvas
+page's per-canvas spend display (`CanvasCostChip`) becomes the bar's remaining glanceable stat
+chip, restyled with an icon and "Canvas Consumption" label. `/api/me` adds an additive
+`orgRole: OrgRole` field for display, separate from the existing collapsed `Identity.role`
+(frozen per D53).
+**Why.** A newer reference design distinguishes two different numbers the old bar conflated: org
+month-to-date usage (now popover-only) vs. one canvas's lifetime spend (now the bar's chip,
+directly relevant to the page you're on). The collapsed `role` field still cannot be shown to
+users directly (would display "Senior" for an Owner) — same reasoning as D101.
+**Rejected.** Keeping the credits pill in the bar per D101 §6 — superseded by the newer
+reference design's split between org-level and canvas-level spend. Showing the collapsed `role`
+in the popover directly (wrong for Owners). Folding the `Admin` link into the popover (still a
+navigation destination, not an account action).
+**Refines.** D53 (Identity's frozen shape — unchanged; `orgRole` is an additive sibling field).
+The orphaned worktree's profile-popover design (avatar-trigger/popover shell and `orgRole`
+plumbing carry over unchanged; its "credits stays in the bar" decision does not — that design
+was never merged to staging).
+**Originated.** `2026-08-09-profile-popover-header-design.md`.
+
 ### Parked / out-of-scope (with revisit triggers)
 | Item | Status | Revisit when |
 |---|---|---|
@@ -2021,22 +2288,7 @@ inference, but the pricing table verified from kling.ai on 2026-07-24 has no O1 
 720p/1080p rather than expose a resolution that cannot be priced. **Rejected.** Sourcing O1's limits from
 fal.ai's wrapper, whose narrower values produced the wrong duration, audio and resolution sets.
 
-### D101 — Header identity chrome consolidates into a profile popover; `/api/me` gains a real `orgRole` alongside the collapsed gating `role` *(recorded 2026-08-05)*
-**Decision.** Replace the always-visible name pill + adjacent sign-out button (`IdentityChip`) and the
-org-name span in `HeaderBrand` with a single avatar-triggered popover (name, real role, org, sign out).
-`/api/me` adds an additive `orgRole: OrgRole` field for display purposes, separate from the existing
-collapsed `Identity.role` (frozen per D53, still used only for Approve-gating). **Why.** Identity chrome
-was split across both ends of the header for no functional reason; consolidating reduces permanent bar
-width and matches the Canva-style chrome the rest of the editor follows. The collapsed `role` field
-cannot be shown to users directly — it would display "Senior" for an Owner. **Rejected.** Showing the
-collapsed `role` in the popover directly (wrong for Owners) instead of adding `orgRole`. Folding the
-credits pill or the `Admin` link into the popover (one's a glanceable live meter, the other's
-navigation, not an account action). **Refines.** D53 (Identity's frozen shape — unchanged; `orgRole` is
-an additive sibling field on the `/api/me` response, same pattern the admin-UX-consistency spec used for
-`platformRole`). **Originated.** `2026-08-05-profile-popover-header-design.md`. *This branch was cut
-from `main`, whose ADR log tops out at D100 here — `staging` has since moved ahead independently (up to
-~D119); this number may need renumbering at merge time per this log's existing convention.*
-### D102 — Edit references are explicit: an empty selection sends no extras *(recorded 2026-08-04; **renumbered from D101** on 2026-08-12 — the profile-popover entry above had independently claimed D101, and that entry's own note anticipated a collision; the later position in this log takes the higher number so the sequence stays ascending; reverses D27's "empty = all connected" default; refines D37/D39)*
+### D101 — Edit references are explicit: an empty selection sends no extras *(recorded 2026-08-04; reverses D27's "empty = all connected" default; refines D37/D39)*
 **Decision.** In Image Gen **Edit** mode, only the connected image nodes the operator has
 **ticked** under "References for this edit" are sent as `extraReferenceUrls`. An empty
 selection sends **no extras** — the edit sees only the base image. This replaces the D27
@@ -2067,7 +2319,299 @@ required, since "connected" is no longer sufficient.
 **Originated.** Bug report 2026-08-04 (Image Gen edit mode); regression test in
 `src/lib/image-gen/__tests__/edit-prompt.test.ts`.
 
-### D103 — In-app onboarding is pull-not-push: empty states carry the actions, a global Help menu carries the explanations *(recorded 2026-08-12; originated → `2026-08-12-onboarding-empty-states-and-help-chapters-design.md`)*
+### D102 — Veo exposes a resolution param (720p/1080p), priced per Google's own per-resolution rates *(recorded 2026-08-08)*
+
+**Decision.** `params/veo.ts` gains a `resolution` select (`720p` | `1080p`, default `720p`),
+shared across Lite/Fast/Quality same as the rest of `veoParams`. Ordered first, paired with
+Duration in the top row — same placement as Kling's `resolutionParam`/`durationParam`
+(`params/kling.ts`), so `Aspect Ratio` (Veo-only, no Kling equivalent) moves to stack below
+instead of holding the pairing slot. `buildVeoConfig` now passes
+`resolution` through to `GenerateVideosConfig` (the SDK field existed all along —
+`node_modules/@google/genai/dist/genai.d.ts` documents `resolution?: string`, "720p and 1080p
+are supported" — it was simply never set). `computeVideoCost` prices Lite/Fast per-resolution
+(`$0.05/$0.08` and `$0.10/$0.12` per second) via a new `VEO_RESOLUTION_PRICING` table, same
+strict-lookup-no-fallback shape as `KLING_RESOLUTION_PRICING`; Quality stays flat at
+`$0.40/s` since Google prices it identically at both resolutions. 4k is deliberately not
+exposed — the SDK's `resolution` field documents only 720p/1080p as valid values, though
+Google's own pricing page separately lists 4k rates for Quality/Fast.
+
+**Why.** Every Veo generation ran at the API's 720p default with no way to ask for more —
+not a deliberate scope cut, just a param nobody had wired up (found when an operator asked
+why no resolution control existed in the UI, unlike Kling's). Google publishes real, sourced
+1080p rates for Lite/Fast (confirmed 2026-08-08 against `ai.google.dev/gemini-api/docs/pricing`
+directly, corroborated by two independent secondary sources), so there's a real price to add,
+not a guess.
+
+**Rejected.** Also exposing 4k (would need a resolution value the `@google/genai` SDK doesn't
+document as supported — risking a runtime rejection with no way to verify in advance without
+burning a real generation against the live API).
+
+**Migration.** None. Existing nodes have no `resolution` param in their saved params; the
+default-value fallback (`params.resolution ?? "720p"`) means every prior generation's implicit
+behavior — 720p — is exactly what a node with no saved value now explicitly requests.
+
+**Originated.** User question 2026-08-08 ("what's the resolution of videos for veo, did we
+miss that?"); implemented same session. Pricing sourced from `ai.google.dev/gemini-api/docs/pricing`
+(fetched 2026-08-08). Tests: `src/lib/video-gen/__tests__/veo-params.test.ts`,
+`veo-provider.test.ts`, `cost.test.ts`.
+
+### D101 — Server actions get a mandatory `withAction()` wrapper for the Stage 4 write-gate *(recorded 2026-08-05; refines D81; numbering collision with D101 above — parallel branch, unrelated decision, same pattern as D136's note)*
+
+**Decision.** Every `"use server"` mutating action calls through a new
+`src/lib/actions/with-action.ts` `withAction()` wrapper, which throws before the handler runs
+if the caller is impersonating without elevated mode, and audit-logs the write via
+`logImpersonationEvent` on success. Mirrors the `withClient`/`withCanvas`/`withNode`/
+`withMoodboard` pattern already used for API routes.
+
+**Why.** The whole-branch review that closed out Stage 4's initial implementation found the
+write-gate covered only the 4 API-route helpers — roughly 18 server actions and 5 additional
+API routes had no gate at all, including the canvas editor's autosave and two destructive
+delete paths. A per-call-site retrofit closes today's gap but leaves the same hole for the
+next mutating action anyone adds. A mandatory wrapper, mirroring this project's existing
+`apiError`/`apiOk` convention for API routes, makes the gate structurally hard to skip rather
+than relying on every future PR remembering it.
+
+**Rejected.** Leaving the gate as a per-call-site opt-in (matches the existing route-helper
+pattern, less code today) — rejected because the review's own finding is that spec-time
+enumeration of call sites reliably misses some, and a passive convention doesn't prevent the
+next miss.
+
+**Originated →** `2026-08-05-impersonation-stage4-fixes.md`.
+
+**Amendment (2026-08-09):** Canvas-lock bookkeeping actions
+(`acquireCanvasLockAction`/`heartbeatCanvasLockAction`/`releaseCanvasLockAction` in
+`canvas-lock.ts`) are explicitly exempt from `withAction()` — they're per-editor-session state,
+not tenant data, and gating the 15s heartbeat would flood the audit trail while gating lock
+acquisition would break read-only impersonation's primary "browse a canvas" flow. Matches
+`getCanvasLockAction`'s existing read exemption.
+
+### D137 — "Video Prompt" becomes "Motion Prompt" (`M`); Video Gen takes `V`; bare `g` is reserved for the Gallery drawer *(recorded 2026-08-10; originated in QA row CAN_06/GAL_01, Linear YUV-267)*
+**Decision.** Reassign the canvas quick-add mnemonics so no node type claims `g`:
+`video-prompt` → **`M`**, relabelled **"Motion Prompt"**; `video-gen` → **`V`** (was `G`).
+The Gallery drawer keeps bare `g` as its sole owner. The persisted `nodes.type` slug stays
+`"video-prompt"` — only the human-facing label changes. The node-handle abbreviation moves
+`VPR` → `MPR` (derived from the uuid at render time, so nothing stored re-points).
+**Why.** Two independent `document`-level `keydown` listeners both claimed bare `g` —
+`canvas.tsx`'s mnemonic dispatch and `gallery-drawer-integration.tsx`'s drawer toggle — so one
+press both spawned a Video Gen node and toggled the drawer. Sibling listeners on the same target
+cannot cancel one another (`stopPropagation` does not apply; `preventDefault` only suppresses the
+browser default), so the collision had to be resolved in the key assignment, not in handler
+ordering. "Motion Prompt" also matches what the product already called this node everywhere the
+operator actually looks: the card's title placeholder, the focus view's "Generated motion prompt"
+section, and its "Motion prompt generated" toast all predate this decision. `M` follows the
+node's new name, which frees `V` for Video Gen — the node operators reach for far more often than
+a drawer, and therefore the better claimant of the shorter, more guessable key.
+**Rejected.** Making the Gallery `Ctrl/Cmd+G`-only and leaving `G` on Video Gen — the modified
+chord already exists as a second path, but demoting the drawer's bare key would penalise the more
+frequent action to preserve a mnemonic that no longer matched the node's name anyway. Renaming
+the `video-prompt` type slug to `motion-prompt` — it is persisted in `nodes.type`, so it would
+need a data migration plus coordinated changes to the API route path, prompt IDs
+(`video-prompt-generate`), and eval traces, for zero user-visible gain. Resolving the collision by
+listener ordering or a shared key-dispatch registry — real fixes for a real class of bug, but far
+more machinery than this one duplicated key warrants; revisit if a third listener ever wants a
+bare letter.
+**Refines.** D24 (the Video Prompt node's role between Image Gen and Video Gen — unchanged; this
+is naming and key assignment only).
+**Guard.** `canvas-node-options.test.ts` asserts `mnemonicToType("g") === null` and that no entry
+in `ADD_NODE_OPTIONS` carries mnemonic `g`, so re-taking the key fails the suite rather than
+silently reintroducing the double-fire.
+
+### D138 — Base UI's modal pointer-blocker is given `z-index: 50` in `globals.css`; confirm dialogs stay non-dismissible *(recorded 2026-08-10; originated in QA rows SCR_14/SCR_18, Linear YUV-268)*
+**Decision.** Add one global rule — `[data-base-ui-inert][role="presentation"] { z-index: 50 }` — so the
+blocker Base UI portals for every modal overlay actually sits above our `z-50` Sheet and Dialog
+popups. Keep `AlertDialog` for destructive confirms, so an outside click is *absorbed* rather than
+dismissing the dialog.
+**Why.** Base UI ships `InternalBackdrop` with only `position: fixed; inset: 0` and no z-index, so
+it computed to `auto` (~0) while `SheetContent` is `z-50`. A confirm dialog opened from inside a
+focus-view Sheet looked modal — its own overlay and popup are `z-50` and portal later — but the
+Sheet's fields stayed fully editable, because the one element meant to block them rendered
+underneath them. Operators could click away from "Re-extracting will overwrite your unsaved edits",
+keep typing, then confirm, losing exactly the edits the dialog existed to protect. Matching `z-50`
+rather than exceeding it is deliberate: the blocker portals immediately before its own popup, and a
+nested overlay's portal mounts after its parent's, so document order already resolves every tie
+correctly — a higher value would instead lift the blocker over its own popup.
+**Rejected.** Swapping `AlertDialog` for a dismissible `Dialog` to match the test sheet's "clicking
+outside dismisses" wording — Base UI omits `modal` and `disablePointerDismissal` from
+`AlertDialogRootProps` precisely so a destructive confirm cannot be dismissed by a stray click, and
+the sheet's expectation was written before that was understood. Styling the blocker from the
+component layer (unreachable — Base UI renders it inside its own portal internals). A bare
+`[data-base-ui-inert]` selector (floating-ui's `markOthers()` stamps the same attribute on outside
+elements it marks inert, so the `role="presentation"` guard is load-bearing). Per-dialog z-index
+bumps (would need repeating at every call site and re-tuning whenever an overlay nests deeper).
+**Refines.** The shadcn/Base UI primitive layer (`alert-dialog.tsx`, `sheet.tsx` unchanged — this is
+purely the missing stacking rule beneath them).
+**Known gap.** `CopilotPanel` is deliberately `z-[60]` to float above focus-view sheets, so it stays
+interactive while a confirm dialog is open. Out of scope here — closing it means lifting the alert
+dialog's own overlay and popup above 60 too, which is a broader layering pass.
+
+### D139 — The impersonation banner is sticky session chrome with two distinct visual states; operators read "Enable editing", never "elevated mode" *(recorded 2026-08-10; supersedes `2026-08-04-impersonation-stage4-design.md` §5; originated in `2026-08-10-impersonation-ux-design.md`)*
+**Decision.** Rebuild the banner as `sticky top-0 z-50` chrome, `h-11`, gutter-aligned and
+left-aligned, with the app header shifted to `top-11` while impersonating. Read-only and elevated
+become visually distinct states rather than one bar with a swapped badge: read-only is a white bar
+with a 3px purple left rule, an `Eye` icon and a `VIEWING AS` eyebrow; elevated is a soft ~10%
+`#ffca2d` wash with an amber rule, an `Unlock` icon, a pulsing dot and an `EDITING AS` eyebrow.
+Exit is promoted from `ghost` to `outline`. The user-facing label for elevated mode becomes
+**"Enable editing"**; the internal term is unchanged in code, in this log, and in the
+`elevated_mode_entered` audit event.
+**Why.** The shipped banner was `bg-muted`, `h-9`, centered — and, critically, *not sticky while the
+header below it was*. Scrolling therefore erased every trace of impersonation, letting an operator
+forget they were inside a customer's account while writing to it. That is a safety defect, not
+polish, and it is the reason this ADR exists rather than a styling tweak. The two states needed to
+differ in temperature, not just in a small badge, because the elevated state is the one where writes
+land on a real customer's data. Yellow-as-tint and purple-as-rule keep this inside the design
+system's "purple sparingly, never a large fill; yellow only as a soft glow" constraint while still
+being unmissable. "Elevated mode" is jargon that describes our cookie payload, not the operator's
+intent; a tester reported the feature "didn't feel like it activated at all," and opaque vocabulary
+was part of that.
+**Rejected.** A persistent colored ring inset around the whole viewport (macOS screen-sharing style)
+— maximally unmissable, but visually loud against a "light editorial premium" system and it costs
+layout on every page for a state that the sticky bar already covers. Keeping the thin strip and
+relying on toasts and dialogs alone to signal activation — toasts are transient, and the failure
+being fixed is precisely that the *persistent* signal was too weak. Renaming "elevated mode"
+throughout code and the audit log — churn across the DAL, the write-gate, the `event_type` CHECK
+constraint and four prior ADRs, for a term no operator reads.
+**Refines.** D81 (impersonation session semantics — unchanged), D138 (`AlertDialog` for the two new
+confirm dialogs).
+**Deferred, by decision.** Returning from elevated mode to read-only (would need a new
+`elevated_mode_exited` event and therefore a migration widening the `event_type` CHECK constraint) —
+so elevated stays one-way for the session, and the confirm dialog must say so. Surfacing the 2-hour
+TTL as a countdown or expiry warning — the operator-facing story is "you are viewing as X," not a
+clock.
+
+### D140 — Impersonation server actions return instead of redirecting; the client navigates and toasts *(recorded 2026-08-10; originated in `2026-08-10-impersonation-ux-design.md`)*
+**Decision.** `enterImpersonationAction` and `exitImpersonationAction` drop their `redirect()` calls,
+instead performing their work, calling `revalidatePath("/", "layout")`, and returning. The calling
+client component fires a `sonner` toast and then `router.push()`es. The read-only gate message,
+currently duplicated verbatim in `route-helpers.ts` and `with-action.ts`, moves to one exported
+constant.
+**Why.** A server-side `redirect()` unmounts the calling component before it can render anything, so
+the three impersonation transitions were structurally incapable of acknowledging themselves — the
+app's `<Toaster />` was already mounted in `layout.tsx` and simply unreachable from this feature.
+Moving navigation client-side is what makes the acknowledgement possible at all. It also deletes the
+`unstable_rethrow` branch in `enter-impersonation-button.tsx`, which existed only to tell Next's
+redirect control-flow rejection apart from a genuine failure; with no redirect, a thrown value is
+unambiguously an error, and the inline `<span className="text-destructive">` nodes (which never
+cleared once set) become toasts.
+**Rejected.** Keeping the server redirect and carrying the toast across it via a `?impersonated=1`
+search param stripped by `router.replace`, or via a short-lived flash cookie — both work, and both
+add URL or cookie plumbing to compensate for a redirect that has no reason to be server-side once
+the client is already handling the interaction.
+**Refines.** D101 (`withAction()` write-gate — the gate itself is unchanged; only the message
+literal is de-duplicated).
+**Guard.** The existing action tests assert the redirect, so they must be updated to assert
+`revalidatePath` and a plain return — the contract change fails the suite rather than passing
+silently.
+
+### D141 — The impersonation audit view groups by session, counts autosaves instead of listing them, and reads generations from `generations` rather than the audit log *(recorded 2026-08-11; closes `2026-08-04-impersonation-stage4-design.md` §7's first out-of-scope item; originated in `2026-08-11-impersonation-audit-view-design.md`)*
+**Decision.** Surface `impersonation_audit_log` as a "Support activity" tab on
+`/admin/orgs/[id]`, grouped into sessions (`session_started` → `session_ended`). Within a
+session, events fall into three buckets: **quiet** plumbing (autosaves, `*/sign` upload
+handshakes, `cost`/`compile-preview` computations) counted into a single "N quiet writes" line;
+**superseded** generate rows, dropped in favour of the matching `generations` row; and
+**meaningful** actions, listed with a human label. Correlation is **exact, by node id** — the
+audit path carries the node uuid and `generations.node_id` is that same uuid — not by timestamp
+window. Anything unmapped falls through to a visible `METHOD /path` rather than being hidden.
+Paginated at 20 sessions per page, mirroring `GenerationsTable`. No migration, no new columns,
+no change to the write path.
+**Why.** The table had been written since Stage 4 and read by nothing, so the trail could not
+answer the one question it existed for. But absence was only half the problem: `saveCanvasAction`
+is wrapped in `withAction`, so every autosave while elevated writes a row, and a short editing
+session emits dozens of identical entries that bury the one generation an operator cares about.
+A raw dump would have surfaced the noise, not the signal. Generations are the richer case:
+`generations.user_id` is already set from `caller.userId` — the real operator, not the
+impersonated org's user — while `effectiveOrgId` files the row under the customer's org, so a
+generation made during impersonation is already fully attributable with type, model, status and
+credits. Reading that instead of the gate's `{ method, path }` yields a strictly better record
+for free, which is why the write path needs no enrichment.
+**Rejected.** Filtering autosaves out entirely (loses the ability to tell an active editing
+session from a passive one, and the view would no longer reflect what happened). A raw
+chronological table with a type filter (most faithful, least code, but requires filtering on
+every visit to find anything — the noise problem restated as a user chore). Enriching the
+gate's logged `detail` so writes record which resource they touched (touches every gated route,
+and the generations correlation already covers the case that matters). A cross-org
+`/admin/audit` feed (reasonable next step, roughly double the work, and worse for investigating
+one customer). Keeping both the `write_action` row and the `generations` row for a generation —
+every generation would appear twice, once opaquely. **Blacklisting generate-endpoint paths**
+(the first draft of this decision): a path list drifts as routes are added, and it would have
+silently swallowed a generation that failed before its `generations` row was inserted — exactly
+the event an audit trail must not lose. Matching on node id and *keeping* unmatched rows as
+"Attempted a generation" is both exact and fail-safe.
+**Refines.** D81 (what gets logged — unchanged), D101 (`withAction` — unchanged; this ADR only
+reinterprets its output), D139 (the elevated state's amber treatment is reused to mark sessions
+where editing was enabled).
+**Known gap.** Autosave and signing-handshake timing is not recoverable from the view, only
+from the table — counting rather than listing them is precisely what keeps generations visible.
+A generate row is only ever dropped when a matching `generations` row exists to replace it, so
+no event leaves the view without a strictly richer record taking its place.
+
+### D139 — Replacing a File node's attachment re-derives its title, unless the operator renamed it *(recorded 2026-08-10; originated in QA rows FIL_02/FIL_07, Linear YUV-272)*
+**Decision.** On replace, rewrite the node title from the new filename **only while the existing
+title is still the one we derived** — compared case- and whitespace-insensitively against the
+outgoing filename. A title the operator typed survives any number of replaces. `fileNameToTitle`
+moves from `copilot/actions.ts` to `lib/nodes/file-title.ts` (re-exported from its old home) and
+gains `shouldRederiveTitle`.
+**Why.** The title was derived under `if (!title)`, so it was set once on first upload and never
+again: replacing an image with a `.txt` updated the kind badge and preview but left the node
+labelled with the old image's name. Unconditionally re-deriving would have been the obvious fix and
+the wrong one — it silently discards deliberate names, which is worse than a stale one. The
+case-insensitive comparison exists because titles derived before this change were not title-cased;
+an exact match would classify every pre-existing node as "manually renamed" and freeze its title
+permanently.
+**Rejected.** Always re-deriving (destroys operator intent). Never re-deriving, i.e. the status quo
+(the reported bug). A `titleIsCustom` flag on node data (needs a migration and a backfill that
+cannot recover intent for existing rows, where the comparison infers it for free). Leaving the
+duplicated inline derivation in `file-focus-view.tsx` — it had already drifted from
+`fileNameToTitle` (no title-casing, no trim), which is exactly the divergence the reuse rule exists
+to prevent.
+**Side effect.** Manually-uploaded File nodes now title-case like copilot-created ones
+("hero-shot.png" → "Hero Shot", previously "hero shot"). Existing titles are untouched.
+
+### D142 — A tray row's kind is derived from the node type, not the job row; status is icon-only *(recorded 2026-08-11; refines D35; originated in `2026-08-11-generation-tray-ux-design.md`)*
+**Decision.** Replace `TrayItem.assetType` (`image | video | prompt`, read off the `generations`
+row) with `TrayItem.kind` (`image-prompt | image | motion-prompt | video`), resolved from the job
+type **plus `node.type`**, and expose `TRAY_KIND_META` (label / track / stage) from the pure
+`generation-tray.ts`. The row is **pure text plus one trailing status glyph** — `{shotLabel} ·
+{kind label}` at `font-semibold`, with no visible status word (it is preserved in `title` +
+`aria-label`). Every row is the same white card regardless of status. Status glyphs take three new
+`globals.css` primitives lifted from the design comp — `--gen-running` `#ffd230` (`Loader2`,
+spinning), `--gen-ready` `#16b568` (`CheckCircle2`), `--gen-failed` `#fc171b` (`AlertTriangle`) —
+registered in `@theme` as `--color-gen-*` so components still reference tokens. **No geometry
+changes** — the panel's `w-64`, the row's `px-3 py-2` / `text-xs` / `shadow-card`, the header, and
+the collapsed `rounded-full` count pill are all exactly as shipped; the pill only takes the new
+tones. This is a swap of what a row *says*, not a resize of the rail.
+**Why.** Two node types write `type: "prompt"` — the Prompt node and the Motion Prompt node — so
+the tray had *no information available* to tell an Image Prompt from a Motion Prompt and rendered
+both as "Prompt". That is a derivation gap; no restyling could close it, and the node type was
+already in hand in `deriveTrayItems`. With the row reduced to text, the **label is the only thing
+carrying the kind**, which makes that derivation load-bearing rather than decorative. Icon-only
+status removes the third text element from a narrow row.
+**Accepted trade — the `--gen-*` hues do not meet WCAG's 3:1 floor for graphical objects**
+(measured on white: yellow 1.45:1, green 2.70:1, red 3.96:1). Accepted because status is never
+carried by colour alone — each state has a distinct glyph *shape* and the word is on
+`title`/`aria-label`. The semantic 700 steps (4.5:1+) were measured against the comp and rejected on
+fidelity: the Yuvabe palette has no emerald or pure red, so they read olive/mustard/vermillion.
+Scoped deliberately: `--success` / `--warning` / `--destructive` are unchanged and still drive
+`approval-badge.tsx`, so the trade does not leak to surfaces that never agreed to it.
+**Fixes.** Failed rendered in `text-muted-foreground` — the quietest tone in the system — so
+failures receded exactly where they should announce themselves. Expect existing canvases to look
+like they grew errors; the failures were always there.
+**Rejected.** Three things were built, reviewed, and then reverted, all for the same reason — they
+changed more of the tray than the complaint covered: a **leading kind chip** (track glyph × stage
+weight), a **tinted failed row**, and a **resize** (`w-72` panel, larger rows, no `shadow-card`,
+plus a collapsed state rebuilt around the panel shell). The rail's footprint is load-bearing for
+what is laid out around it, and none of the reported problems were about size. Also rejected:
+grouping rows by shot and splitting the tray into Image/Video sections (both fight the status-first
+sort, which answers the operator's actual question — what is running, what broke); four distinct
+glyphs, one per kind; a colored left track rail (needs a second hue; purple is the only brand
+color); a "N generations failed" summary banner (duplicates the rows, costs height in a
+`max-h-[50vh]` rail); keeping the status word (the specific thing that made the rail feel
+text-heavy). Any tray-level retry — D35's navigation-only guardrail is explicitly re-confirmed, not
+relaxed.
+**Refines.** D35 (the tray's behavior model, retention rule, sort order, and pointer-surface
+guardrail are all unchanged — this is presentation plus the kind derivation). Depends on D137 for
+the "Motion Prompt" label.
+
+### D143 — In-app onboarding is pull-not-push: empty states carry the actions, a global Help menu carries the explanations *(recorded 2026-08-12; originated → `2026-08-12-onboarding-empty-states-and-help-chapters-design.md`)*
 
 **Decision.** Onboarding for design partners is two surfaces only: list empty states with a
 concept line plus one CTA, and a global `Help ▾` menu of chaptered, video-led explainers the
@@ -2087,7 +2631,7 @@ of the time). Also **dropped during implementation**: a planned empty-canvas ove
 `createCanvasAction` seeds every canvas with a KB node plus a connected Script node, and that
 node already carries a complete empty state, so the overlay would have been unreachable code.
 
-### D104 — Help chapters are authored data with a map page, not derived from the pipeline definition *(recorded 2026-08-12; builds on D103; originated → `2026-08-12-onboarding-empty-states-and-help-chapters-design.md`)*
+### D144 — Help chapters are authored data with a map page, not derived from the pipeline definition *(recorded 2026-08-12; builds on D143; originated → `2026-08-12-onboarding-empty-states-and-help-chapters-design.md`)*
 
 **Decision.** Chapters live in `src/lib/help/chapters.ts` as authored records (`slug`,
 `question`, `summary`, `steps[]`, `mapStyle?`, `draft?`). **Every** chapter opens on a **map

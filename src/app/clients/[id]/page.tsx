@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getClientBySlug } from "@/lib/db/clients";
 import { listCanvases } from "@/lib/db/canvases";
-import { resolveCallerContext } from "@/lib/dal";
+import { resolveOrgId } from "@/lib/dal";
 import { NewCanvasDialog } from "@/components/canvases/new-canvas-dialog";
 import { CanvasesTable } from "@/components/canvases/canvases-table";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -36,12 +36,12 @@ export default async function ClientPage({
 }) {
   const { id } = await params; // `id` is the client slug
   const client = await getClientBySlug(id);
-  const caller = await resolveCallerContext();
+  const effectiveOrgId = await resolveOrgId();
 
   // Org isolation: a client outside the caller's org renders as not-found, never
   // confirming a foreign org's client exists — same rule as withClient() in
   // route-helpers.ts, applied here since this page bypasses that helper.
-  if (!client || client.org_id !== caller.orgId) {
+  if (!client || client.org_id !== effectiveOrgId) {
     return (
       <main className="mx-auto flex w-full max-w-4xl flex-1 items-center justify-center px-6 py-12">
         <Card className="flex min-w-[26rem] flex-col items-center gap-3 border-dashed p-16 text-center">

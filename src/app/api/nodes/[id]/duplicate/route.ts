@@ -2,10 +2,10 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { apiError, apiOk, withTryCatch, withNode } from "@/lib/api/route-helpers";
 
 export async function POST(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withNode(params, async (sourceNodeId, sourceNode) => {
+  return withNode(req, params, async (sourceNodeId, sourceNode) => {
     return withTryCatch("Duplicate node failed", async () => {
       const supabase = createServerSupabase();
 
