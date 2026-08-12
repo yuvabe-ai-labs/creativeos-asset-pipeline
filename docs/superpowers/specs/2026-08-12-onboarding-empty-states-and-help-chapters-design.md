@@ -130,7 +130,7 @@ waits.
 
 - Three list/blank-surface empty states with a concept line and one CTA.
 - A global `Help ▾` menu in the app bar opening chaptered, video-led explainers.
-- Five authored chapters (17 step clips + 5 map pages).
+- Seven authored chapters (23 step clips + 7 map pages).
 - Deep-linkable chapters.
 
 **Out of V1**
@@ -216,13 +216,22 @@ rejected: the list wants menu keyboard semantics (roving focus, type-ahead, esca
 
 Built on the existing `dialog.tsx`, over a dimmed backdrop.
 
-**Page 1 — the map.** The chapter's whole journey as connected, numbered blocks with short
-captions, one per step. Clicking a block jumps to that step.
+**Page 1 — the map. Every chapter opens here, without exception** — the 2-step chapters as
+much as the 7-step one. It carries the chapter's `summary` description plus the whole
+journey as connected, numbered blocks with short captions, one per step. Clicking a block
+jumps to that step.
 
 This page is what makes multi-step chapters work. Video is linear — you can see the current
 frame but never the shape. The map converts the sequence into a spatial object grasped in
 one glance, after which each step page is a lookup into a model the viewer already holds.
 It is the reason a 7-step chapter is viable here where a 7-step tour would not be.
+
+**Why short chapters get one too.** It would be tempting to let a 2-step chapter open
+straight on step 1 and save a click. Two reasons not to: the viewer arrives having asked a
+*question*, and the intro is where the answer gets framed before the mechanics start; and a
+uniform shape means every chapter is navigated the same way, so the surface never behaves
+differently depending on a length the user cannot see in advance. `summary` is therefore a
+required field, not an optional one.
 
 **Pages 2..N — the steps.** Split layout: left, a text description of the step; right, a
 ~10s clip. Prev/next controls and dot indicators at the bottom, plus a home control back to
@@ -246,14 +255,22 @@ export type HelpStep = {
 export type HelpChapter = {
   slug: string;        // URL key, e.g. "create-a-reel"
   question: string;    // menu label, e.g. "How do I create a reel?"
-  summary: string;     // intro paragraph on the map page
+  summary: string;     // required — the description on the map page every chapter opens with
   steps: HelpStep[];
+  mapStyle?: "sequence" | "alternatives";  // default "sequence"
   draft?: boolean;     // authored but unrecorded — excluded from the menu
 };
 ```
 
 The map page **derives its blocks from `steps[].title`**, so a chapter's sequence is written
 once and cannot drift between the map and the step pages.
+
+**`mapStyle` exists because not every chapter is a sequence.** "How do I create a reel?" is
+seven steps in order; "How do I bring in references?" is three *alternative routes* to the
+same outcome. Rendering the second as arrow-connected blocks would tell the viewer to do all
+three in order, which is wrong. `sequence` draws connectors between blocks; `alternatives`
+drops them and the blocks read as a set. One optional field, one branch in the map renderer,
+and the map stops lying about chapters it does not fit.
 
 **Authored, not derived from `GUIDED_CHAIN`.** An earlier option was to index chapters off
 `src/lib/guided-flow.ts`'s pipeline definition. Rejected on two grounds: that chain is not
@@ -279,10 +296,10 @@ params. Nearly free to implement, and during a design-partner phase the ability 
 
 ---
 
-## 6. The five V1 chapters
+## 6. The seven V1 chapters
 
-17 step clips + 5 map pages. The shell supports every chapter in the menu below; only these
-five are recorded for V1.
+23 step clips + 7 map pages. The shell supports every chapter in the menu below; only these
+seven are recorded for V1.
 
 ### 1. How do I create a reel? — 7 steps *(flagship)*
 
@@ -328,12 +345,35 @@ new node and not an overwrite. The standalone path is a separate chapter — see
 *Chapters 4 and 5 are pure support-question deflection. Both are 2 steps, and neither
 concept is explained anywhere in the UI today.*
 
+### 6. How do I generate a reference image? — 3 steps
+
+1. Generate the look you want to reference — an Image Gen node prompted for palette,
+   surface and mood rather than for the final asset
+2. Bring it in: right-click the target node → **Add Reference Image** → **Generated Images**
+3. Connect it and generate — the picker drops a File node beside the target but **does not
+   wire it for you**
+
+*Step 3 is the whole reason this chapter earns a slot. `2026-07-13-reference-image-picker-design.md`
+lists "no auto-connection to originating node" as an explicit non-goal, so an image that was
+picked but never connected silently does nothing — indistinguishable, from the user's side,
+from the reference being ignored.*
+
+### 7. How do I bring in references? — 3 routes *(`mapStyle: "alternatives"`)*
+
+1. Upload or paste — drop a file on the canvas, or paste an image from the clipboard
+2. Pull from Google Drive or this canvas's generated images — the reference picker
+3. Reuse a client moodboard — Gallery drawer → **Moodboards** → drag onto the canvas
+
+*Three independent routes to the same outcome, which is why this chapter sets
+`mapStyle: "alternatives"`. Each route ends the same way: the image lands as a File node
+that still has to be connected to the node consuming it.*
+
 ### Authored but `draft` (not recorded in V1)
 
 `how-do-i-create-an-image-prompt` · `how-do-i-create-an-image` ·
 `how-do-i-edit-an-image-in-isolation` · `how-do-i-turn-a-still-into-a-video` ·
 `how-do-i-go-back-to-an-earlier-version` · `how-do-i-set-up-a-new-client` ·
-`how-do-i-bring-in-references` · `how-do-i-archive-a-project` ·
+`how-do-i-archive-a-project` ·
 `what-are-the-fundamentals-of-prompting-for-images` ·
 `what-are-the-fundamentals-of-prompting-for-reels`
 
@@ -384,7 +424,9 @@ flags.
 ## 9. Testing
 
 - `chapters.ts` data tests: slugs unique, every non-draft step has a clip URL, no draft
-  chapter reaches the menu, every chapter has ≥1 step.
+  chapter reaches the menu, every chapter has ≥1 step, and **every chapter has a non-empty
+  `summary`** — the map page is unconditional, so a missing description would ship a blank
+  first page rather than degrade.
 - Deep-link parsing round-trips (`?help=&step=` → chapter/step → back to params), including
   out-of-range and unknown-slug inputs falling back to a closed modal rather than throwing.
 - Render tests: each empty state exposes its CTA, and the empty-canvas overlay renders no
@@ -396,9 +438,10 @@ Colocated `*.test.ts(x)`, matching the existing convention.
 
 ## 10. V2
 
-- **Conceptual chapters** — prompting fundamentals for images and reels; a different page
-  shape (no map, no per-step clips; text with a still example). Same modal shell, second
-  page renderer.
+- **Conceptual chapters** — prompting fundamentals for images and reels. They still open on
+  an intro page like every other chapter (likely `mapStyle: "alternatives"`, since a set of
+  principles is not a sequence); what differs is the step pages, which carry a still example
+  rather than a clip. Same modal shell, second page renderer.
 - **Copilot as the onboarding surface.** `src/lib/copilot/playbooks.ts` already contains a
   playbook runner with exactly one playbook (`image-for-shot`). A "set up my first reel"
   playbook is the AI-native version of a checklist and beats any tour — the product is
@@ -468,14 +511,19 @@ wrong content 6/7 of the time).
 ### D103 — Help chapters are authored data with a map page, not derived from the pipeline definition
 
 **Decision.** Chapters live in `src/lib/help/chapters.ts` as authored records
-(`slug`, `question`, `summary`, `steps[]`, `draft?`). A multi-step chapter opens on a **map
-page** that renders the whole journey as numbered blocks, derived from `steps[].title`, then
-steps through description-plus-clip pages.
+(`slug`, `question`, `summary`, `steps[]`, `mapStyle?`, `draft?`). **Every** chapter opens on
+a **map page** — its description plus the whole journey as numbered blocks derived from
+`steps[].title` — then steps through description-plus-clip pages. `mapStyle` selects whether
+those blocks are drawn connected (`sequence`, the default) or unconnected (`alternatives`,
+for chapters that are several routes to one outcome rather than an ordered flow).
 
 **Why.** The map page is what makes multi-step explainable: video is linear, so a viewer sees
 the current frame but never the shape; the map turns the sequence into a spatial object
-grasped at a glance, after which each step is a lookup. Deriving map captions from step
-titles means a chapter's sequence is authored once and cannot drift.
+grasped at a glance, after which each step is a lookup. It is mandatory even for 2-step
+chapters — the viewer arrives having asked a question, and the intro is where that question
+gets answered before the mechanics start; a uniform shape also means the surface never
+behaves differently based on a length the user cannot see in advance. Deriving map captions
+from step titles means a chapter's sequence is authored once and cannot drift.
 
 **Rejected.** Indexing chapters off `GUIDED_CHAIN` in `src/lib/guided-flow.ts` — it is not
 trusted as a dependency for user-facing content, and it structurally cannot cover Journey A
