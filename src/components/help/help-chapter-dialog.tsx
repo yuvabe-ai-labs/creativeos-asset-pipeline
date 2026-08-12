@@ -38,8 +38,12 @@ export function HelpChapterDialog({
         <DialogTitle className="font-display text-xl">{chapter.question}</DialogTitle>
         <DialogDescription className="sr-only">{chapter.summary}</DialogDescription>
 
-        <div className="grid min-h-0 flex-1 gap-6 md:grid-cols-[22rem_1fr]">
-          <div className="min-h-0 overflow-y-auto pr-1">
+        <div className="grid min-h-0 flex-1 gap-6 md:grid-cols-[24rem_1fr]">
+          {/* px-2 matches the rail rows' -mx-2 hover bleed, so the tint has somewhere to
+              go. Without it the rows overhang the container, and since overflow-y is set,
+              CSS computes overflow-x to auto rather than visible — a stray horizontal
+              scrollbar. overflow-x-hidden guards against sub-pixel rounding on top. */}
+          <div className="min-h-0 overflow-x-hidden overflow-y-auto px-2">
             <HelpChapterRail chapter={chapter} step={step} onSelectStep={onStepChange} />
           </div>
           <div className="min-h-0">
