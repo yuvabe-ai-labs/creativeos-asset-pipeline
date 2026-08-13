@@ -300,10 +300,20 @@ worse than silence — particularly when a human support channel is the real fal
 
 ### Clips
 
-`<video autoplay loop muted playsinline>` with webm/mp4 sources — visually identical to a
-GIF at roughly an order of magnitude less weight, and it degrades to a paused first frame if
-autoplay is blocked. Files are served from **GCS** (already wired for media, D13), not
-committed to git, so ~40 eventual clips never become permanent repository weight.
+> **Revised 2026-08-13 (D148).** Clips are committed to `public/help-videos/`, not hosted
+> in GCS. The raw captures are ~3.4 Mbps, so the repo-weight argument below was sized an
+> order of magnitude too high; re-encoded they are ~350KB each, ~8MB for all 23.
+
+`<video autoplay loop muted playsinline>` — visually identical to a GIF at roughly an order
+of magnitude less weight, and it degrades to a paused first frame if autoplay is blocked.
+
+Files live at `public/help-videos/<chapter-slug>/<nn>-<step>.mp4` and are re-encoded before
+committing: H.264, CRF 26, native resolution, no audio track (they play muted anyway),
+`+faststart`. Raw recordings sit in numbered folders that `.gitignore` excludes.
+
+An empty `clip` means authored-but-unrecorded. The step still renders its title and body —
+which carry the actual answer — and the pane shows a placeholder instead of a broken frame.
+Recording lags authoring, and that is expected rather than exceptional.
 
 ### Deep links
 

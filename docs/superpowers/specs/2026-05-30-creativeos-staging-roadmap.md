@@ -2734,3 +2734,37 @@ exists to prevent — those rails use a dash and read "3 ways to do this").
 
 **Supersedes.** D144's map page and its `mapStyle` field. D144's authored-not-derived chapter
 data, its `draft` flag, and its rejection of `GUIDED_CHAIN` indexing all stand unchanged.
+
+### D148 — Help clips are committed to `public/`, re-encoded, not hosted in object storage *(recorded 2026-08-13; supersedes the GCS hosting decision in `2026-08-12-onboarding-empty-states-and-help-chapters-design.md` §5)*
+
+**Decision.** Chapter clips live in `public/help-videos/<chapter-slug>/<nn>-<step>.mp4` and
+ship with the app. They are re-encoded before committing — H.264, CRF 26, native
+resolution, **no audio track** (they play muted), `+faststart`. Raw recordings stay in
+numbered folders (`public/help-videos/1/…`) which `.gitignore` excludes. An empty `clip`
+string means "authored, not yet recorded": the step still renders its title and body, and
+the player shows a placeholder rather than a broken frame.
+
+**Why.** The original decision kept clips out of git so "~40 eventual clips never become
+permanent repository weight". That reasoning was sized against the raw captures, which run
+~3.4 Mbps — an order of magnitude above what low-motion UI footage needs. Re-encoded, a
+clip is ~350KB instead of ~5MB, so 23 clips are ~8MB and 40 are ~14MB. At that size the
+premise fails: hosting them separately costs more than it saves. Committing them makes a
+clip and the code referencing it land in one atomic commit, with no upload step, no bucket
+or CORS to configure, no window where the page points at a file that isn't there yet, and
+working clips in local dev with no network. The re-encode is worth doing regardless of
+where the files live — a help modal pulling 5MB per step is slow wherever it is hosted.
+
+**Rejected.** Committing the raw captures (30MB for six clips, ~115MB for 23, permanent in
+history, and re-records compound it). Git LFS (adds setup and GitHub bandwidth quotas to
+solve a problem that disappears once the files are 350KB). Keeping GCS (a second system to
+upload to and keep in sync, for ~14MB of assets). CRF 28 or a 1280-wide downscale (another
+~30% smaller, but these are recordings of UI where text legibility is the whole point —
+the conservative setting stays until someone has watched them at the smaller one).
+
+**Also.** `proxy.ts`'s matcher gains `mp4|webm`. Without it every clip request runs the
+session check — an auth round-trip to serve a static file, multiplied by the browser's
+range requests for video — and signed-out requests 307 to `/login`.
+
+**Supersedes.** The "Clips" paragraph of §5 in
+`2026-08-12-onboarding-empty-states-and-help-chapters-design.md`. The muted-autoplay-video
+choice there (over GIFs) stands unchanged.

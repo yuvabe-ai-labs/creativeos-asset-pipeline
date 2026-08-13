@@ -20,15 +20,29 @@ describe("help chapters", () => {
     }
   });
 
-  it("gives every step in a visible chapter a clip, a title and body lines", () => {
+  it("gives every step in a visible chapter a title and body lines", () => {
+    // A clip is NOT required: recording lags authoring, and an unrecorded step still
+    // answers the question through its title and body, with a placeholder in the pane.
     for (const c of visibleChapters()) {
       for (const [i, s] of c.steps.entries()) {
-        expect(s.clip.trim(), `${c.slug} step ${i + 1} clip`).not.toBe("");
         expect(s.title.trim(), `${c.slug} step ${i + 1} title`).not.toBe("");
         expect(s.body.length, `${c.slug} step ${i + 1} body`).toBeGreaterThan(0);
         for (const line of s.body) {
           expect(line.trim(), `${c.slug} step ${i + 1} body line`).not.toBe("");
         }
+      }
+    }
+  });
+
+  it("points every clip that exists at a local /help-videos path", () => {
+    // Clips ship from public/ now. A leftover absolute URL would 404 silently in the
+    // player, which looks identical to "not recorded yet" but isn't.
+    for (const c of HELP_CHAPTERS) {
+      for (const [i, s] of c.steps.entries()) {
+        if (s.clip === "") continue;
+        expect(s.clip, `${c.slug} step ${i + 1} clip`).toMatch(
+          /^\/help-videos\/[a-z0-9-]+\/[a-z0-9-]+\.mp4$/,
+        );
       }
     }
   });

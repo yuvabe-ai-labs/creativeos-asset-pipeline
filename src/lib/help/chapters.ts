@@ -1,8 +1,17 @@
 import type { HelpChapter } from "@/lib/help/types";
 
-// Clips are hosted in object storage rather than committed — ~40 eventual clips would
-// otherwise become permanent repo weight (D13 keeps bytes out of the database too).
-const CLIPS = "https://storage.googleapis.com/creativeos-help/v1";
+// Clips ship with the app from `public/`, not object storage. The original plan kept
+// them out of git to avoid permanent repo weight, and that was right for the source
+// recordings — but those are ~3.4 Mbps screen captures, an order of magnitude above what
+// low-motion UI footage needs. Re-encoded (H.264, CRF 26, no audio track, since they play
+// muted) a clip is ~350KB rather than ~5MB, so the full set of 23 is about 8MB: small
+// enough that hosting them separately costs more than it saves. In return a clip and the
+// code referencing it land in one commit, with no upload step and no window where the
+// page points at a file that isn't there yet.
+//
+// An empty `clip` means "authored, not yet recorded" — the step still renders its title
+// and body, and the player shows a placeholder instead of a broken frame.
+const CLIPS = "/help-videos";
 
 export const HELP_CHAPTERS: HelpChapter[] = [
   {
@@ -70,7 +79,7 @@ export const HELP_CHAPTERS: HelpChapter[] = [
           "Approve the clip you want to keep.",
           "Archive the project to bundle the script, prompts, controls and attempts together.",
         ],
-        clip: `${CLIPS}/create-a-reel/07-approve-archive.mp4`,
+        clip: "",
       },
     ],
   },
@@ -152,7 +161,7 @@ export const HELP_CHAPTERS: HelpChapter[] = [
           "Use an Image Gen node for the look you want to carry over.",
           "Prompt for palette, surface and mood rather than for the finished asset.",
         ],
-        clip: `${CLIPS}/generate-a-reference-image/01-generate-the-look.mp4`,
+        clip: "",
       },
       {
         title: "Bring it in from Generated Images",
@@ -161,7 +170,7 @@ export const HELP_CHAPTERS: HelpChapter[] = [
           "Choose Add Reference Image.",
           "Pick your image from the Generated Images tab.",
         ],
-        clip: `${CLIPS}/generate-a-reference-image/02-add-reference.mp4`,
+        clip: "",
       },
       {
         title: "Connect it, then generate",
@@ -170,7 +179,7 @@ export const HELP_CHAPTERS: HelpChapter[] = [
           "Draw the connection yourself.",
           "An unconnected reference is simply ignored.",
         ],
-        clip: `${CLIPS}/generate-a-reference-image/03-connect-and-generate.mp4`,
+        clip: "",
       },
     ],
   },
@@ -188,7 +197,7 @@ export const HELP_CHAPTERS: HelpChapter[] = [
           "Or paste one from your clipboard.",
           "Either creates a File node where you drop it.",
         ],
-        clip: `${CLIPS}/bring-in-references/01-upload-or-paste.mp4`,
+        clip: "",
       },
       {
         title: "Pull from Google Drive or this canvas's generated images",
@@ -196,7 +205,7 @@ export const HELP_CHAPTERS: HelpChapter[] = [
           "Right-click a node and choose Add Reference Image.",
           "Browse connected Drive folders, or everything already generated on this canvas.",
         ],
-        clip: `${CLIPS}/bring-in-references/02-drive-or-generated.mp4`,
+        clip: "",
       },
       {
         title: "Reuse a client moodboard",
@@ -205,7 +214,7 @@ export const HELP_CHAPTERS: HelpChapter[] = [
           "Drag an item onto the canvas.",
           "It becomes an ordinary File node.",
         ],
-        clip: `${CLIPS}/bring-in-references/03-moodboard.mp4`,
+        clip: "",
       },
     ],
   },
@@ -222,7 +231,7 @@ export const HELP_CHAPTERS: HelpChapter[] = [
           "You can still open every node and read everything.",
           "Only changes are blocked, so you cannot overwrite their work.",
         ],
-        clip: `${CLIPS}/why-cant-i-edit-this-canvas/01-someone-editing.mp4`,
+        clip: "",
       },
       {
         title: "Take over once their session goes stale",
@@ -230,7 +239,7 @@ export const HELP_CHAPTERS: HelpChapter[] = [
           "If they have stopped working, their session goes stale.",
           "The take-over button then becomes available and the canvas is yours to edit.",
         ],
-        clip: `${CLIPS}/why-cant-i-edit-this-canvas/02-take-over.mp4`,
+        clip: "",
       },
     ],
   },
@@ -247,7 +256,7 @@ export const HELP_CHAPTERS: HelpChapter[] = [
           "You can keep working anywhere on the canvas.",
           "Nothing is lost if you navigate away or close the tab.",
         ],
-        clip: `${CLIPS}/where-did-my-video-go/01-runs-in-background.mp4`,
+        clip: "",
       },
       {
         title: "Find it in the generation tray",
@@ -256,7 +265,7 @@ export const HELP_CHAPTERS: HelpChapter[] = [
           "Click one to fly to its node and open it.",
           "A ready job stays listed until you approve it.",
         ],
-        clip: `${CLIPS}/where-did-my-video-go/02-generation-tray.mp4`,
+        clip: "",
       },
     ],
   },

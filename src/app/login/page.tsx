@@ -25,7 +25,7 @@ export default function LoginPage() {
 
           <LoginForm />
 
-          <p className="mt-10 text-xs text-muted-foreground/80">
+          <p className="mt-10 text-xs text-foreground/70">
             © {new Date().getFullYear()} Yuvabe Studios
           </p>
         </div>
