@@ -18,6 +18,7 @@ import {
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { FileNodeData } from "@/lib/canvas-nodes";
+import { nextFileNodeTitle } from "@/lib/nodes/title";
 import { fileNodeService } from "@/services/file-node.service";
 import { useGooglePicker } from "@/hooks/use-google-picker";
 import { DriveIcon } from "@/components/ui/drive-icon";
@@ -86,10 +87,14 @@ export function FileFocusView({
     try {
       const result = await fileNodeService.upload(nodeId, file);
       onPatch(result);
-      if (!title) {
-        const derived = file.name.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " ");
-        onPatch({ title: derived });
-      }
+      // `title`/`filename` are this render's props — i.e. the state BEFORE the patch above —
+      // which is exactly what the rule needs to tell an auto-derived title from a typed one.
+      const nextTitle = nextFileNodeTitle({
+        currentTitle: title,
+        previousFilename: filename,
+        nextFilename: result.filename ?? file.name,
+      });
+      if (nextTitle !== null) onPatch({ title: nextTitle });
       setReplacing(false);
       toast.success("File attached");
     } catch (e) {
@@ -169,10 +174,13 @@ export function FileFocusView({
     try {
       const result = await fileNodeService.pickFromDrive(nodeId, driveFile);
       onPatch(result);
-      if (!title) {
-        const derived = (result.filename ?? "").replace(/\.[^.]+$/, "").replace(/[-_]+/g, " ");
-        onPatch({ title: derived });
-      }
+      // Same rule as the upload path — importing from Drive replaces the attachment too.
+      const nextTitle = nextFileNodeTitle({
+        currentTitle: title,
+        previousFilename: filename,
+        nextFilename: result.filename ?? driveFile.driveFileName,
+      });
+      if (nextTitle !== null) onPatch({ title: nextTitle });
       setReplacing(false);
       toast.success("File imported from Google Drive");
     } catch (e) {
