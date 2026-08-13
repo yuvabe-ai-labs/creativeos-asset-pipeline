@@ -4,13 +4,15 @@ import type { HelpChapter } from "@/lib/help/types";
 // them out of git to avoid permanent repo weight, and that was right for the source
 // recordings — but those are ~3.4 Mbps screen captures, an order of magnitude above what
 // low-motion UI footage needs. Re-encoded (H.264, CRF 26, no audio track, since they play
-// muted) a clip is ~350KB rather than ~5MB, so the full set of 23 is about 8MB: small
+// muted) a clip is ~350KB rather than ~5MB, so the full set of 22 is about 6MB: small
 // enough that hosting them separately costs more than it saves. In return a clip and the
 // code referencing it land in one commit, with no upload step and no window where the
 // page points at a file that isn't there yet.
 //
-// An empty `clip` means "authored, not yet recorded" — the step still renders its title
-// and body, and the player shows a placeholder instead of a broken frame.
+// All 22 are recorded as of 2026-08-13. An empty `clip` remains legal and means
+// "authored, not yet recorded" — the step still renders its title and body, and the
+// player shows a placeholder instead of a broken frame. The draft chapters below rely
+// on that, and so will any new step written before its recording exists.
 const CLIPS = "/help-videos";
 
 export const HELP_CHAPTERS: HelpChapter[] = [
@@ -248,7 +250,7 @@ export const HELP_CHAPTERS: HelpChapter[] = [
           "You can keep working anywhere on the canvas.",
           "Nothing is lost if you navigate away or close the tab.",
         ],
-        clip: "",
+        clip: `${CLIPS}/where-did-my-video-go/01-runs-in-background.mp4`,
       },
       {
         title: "Find it in the generation tray",
@@ -257,7 +259,7 @@ export const HELP_CHAPTERS: HelpChapter[] = [
           "Click one to fly to its node and open it.",
           "A ready job stays listed until you approve it.",
         ],
-        clip: "",
+        clip: `${CLIPS}/where-did-my-video-go/02-generation-tray.mp4`,
       },
     ],
   },
