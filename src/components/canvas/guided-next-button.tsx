@@ -35,6 +35,10 @@ export function GuidedNextButton({
   const label = plan.existingId ? step.openLabel : step.createLabel;
   const disabled = !plan.gate.enabled;
 
+  // Opens immediately — guidedCreateNext writes the node and its edges into the client store
+  // only, and the focus view resolves its inputs SERVER-side from persisted edges. Rather than
+  // hold the click for that save, each focus view flushes autosave itself on open and keeps its
+  // skeleton up until the flush and the fetch behind it have both landed.
   const handleClick = () => {
     const id = guidedCreateNext(sourceId);
     if (!id) return;

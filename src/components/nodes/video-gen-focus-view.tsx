@@ -362,8 +362,13 @@ export function VideoGenFocusView({
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [pendingDialog, setPendingDialog] = useState<DialogState>(null);
 
-  const [loadingVersions, setLoadingVersions] = useState(false);
-  const [loadingConnected, setLoadingConnected] = useState(false);
+  // Seeded from `open`, not `false`. The seed block below re-arms these on the false → true
+  // TRANSITION, which a node created by the guided button never has — guidedCreateNext and
+  // setFocusedNodeId land in the same batch, so the card mounts with its focus view already
+  // open. Both flags stayed false through the first resolve, so the rail rendered "No inputs
+  // connected." rather than its skeleton while the inputs were still on their way.
+  const [loadingVersions, setLoadingVersions] = useState(open);
+  const [loadingConnected, setLoadingConnected] = useState(open);
 
   // Reset detail view when the sheet opens or switches to a different node; re-arm skeletons.
   const [openNodeSeed, setOpenNodeSeed] = useState({ open, nodeId });
@@ -487,8 +492,14 @@ export function VideoGenFocusView({
       })
       .catch(() => {})
       .finally(() => setLoadingVersions(false));
-    void refreshUpstream().finally(() => setLoadingConnected(false));
-  }, [open, nodeId, setVideoGenGenerating, setVideoGenError, refreshUpstream]);
+    // persistThenRefresh, not refreshUpstream: a node reached straight from the guided
+    // "Create video generation" button exists only in the client store at this point, and the
+    // upstream-images route walks PERSISTED edges — so fetching first beat autosave's 600ms
+    // debounce and the Connected rail came up empty until a close-and-reopen. The flush is
+    // covered by the same `loadingConnected` skeleton as the fetch behind it, so the sheet
+    // still opens instantly and the wait reads as loading rather than as "nothing connected".
+    void persistThenRefresh().finally(() => setLoadingConnected(false));
+  }, [open, nodeId, setVideoGenGenerating, setVideoGenError, persistThenRefresh]);
 
   // Refresh versions when a generation finishes (isGenerating transitions true → false)
   const wasGeneratingRef = useRef(false);

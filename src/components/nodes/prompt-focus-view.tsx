@@ -61,6 +61,8 @@ import { setVersionLabelAction } from "@/lib/actions/eval";
 import { setVersionApprovalAction } from "@/lib/actions/approval";
 import { useIdentity } from "@/hooks/use-identity";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
+import { useFlushAutosave } from "@/components/canvas/autosave-flush-context";
+import { Skeleton } from "@/components/ui/skeleton";
 import type { ApprovalStatus } from "@/lib/approval";
 import { cn } from "@/lib/utils";
 import { PromptVersionChips } from "./prompt-version-chips";
@@ -126,7 +128,14 @@ export function PromptFocusView({
   const [versions, setVersions] = useState<VersionSummary[]>([]);
   const [activeVersionId, setActiveVersionId] = useState<string | null>(null);
   const [restoring, setRestoring] = useState(false);
-  const [loadingPreview, setLoadingPreview] = useState(false);
+  // Seeded from `open`, not `false` — see the note in video-prompt-focus-view.tsx: a node
+  // created by the guided button mounts with its focus view already open, so the false → true
+  // transition the seed block arms on never happens and the panel showed its empty state
+  // instead of a skeleton for the whole first resolve.
+  const [loadingPreview, setLoadingPreview] = useState(open);
+  // False until this node's edges are known to be PERSISTED — gates every server-side
+  // resolve below. See the flush effect for why.
+  const [inputsPersisted, setInputsPersisted] = useState(false);
   // The selected rail item: "prompt" (the compose editor), "kb", "review", or a
   // connected node's id (right pane shows that node's read-only detail).
   const [selected, setSelected] = useState<string>("prompt");
@@ -138,6 +147,7 @@ export function PromptFocusView({
   const [approvalSaving, setApprovalSaving] = useState(false);
   const { identity } = useIdentity();
   const editable = useCanvasEditable(); // D33: false when this session is read-only
+  const flushAutosave = useFlushAutosave();
   const [evalSaving, setEvalSaving] = useState(false);
   // A pending destructive action awaiting confirmation. Replaces window.confirm
   // so the prompt stays inside the design system instead of native OS chrome.
@@ -165,6 +175,12 @@ export function PromptFocusView({
     // regenerate/restore/save would strand it `true` forever.
     if (opening) {
       setLoadingPreview(true);
+    }
+    // Re-arm the "inputs are persisted" gate the same way (see the effect below). Adjusted
+    // during render rather than in that effect, which cannot set state synchronously —
+    // a node switch inside an already-open sheet has to wait for its own flush.
+    if (opening || nodeChanged) {
+      setInputsPersisted(false);
     }
   }
 
@@ -220,8 +236,40 @@ export function PromptFocusView({
     }
   }
 
+  /**
+   * Everything below resolves this node's inputs SERVER-side, from PERSISTED edges
+   * (compile-preview → resolvePromptInputs). A node reached straight from the guided
+   * "Create image prompt" button exists only in the client store at that moment — autosave
+   * persists it on a 600ms debounce, which the fetch below used to beat, so the Connected
+   * panel came up empty on first open and only filled in after a close-and-reopen.
+   *
+   * Flush first, then fetch. The sheet still opens instantly; `loadingPreview` (armed on the
+   * open transition above) keeps the skeleton up across the flush AND the fetch behind it,
+   * so the wait reads as loading rather than as "nothing is connected".
+   *
+   * Its own effect, not an await inside the fetch below: that one re-runs on every `slices`
+   * change, and a flush per slice toggle would mean a full canvas save per checkbox.
+   */
   useEffect(() => {
     if (!open) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        await flushAutosave();
+      } catch (err) {
+        console.error("[prompt] autosave flush failed:", err);
+      }
+      // Fetch even if the flush failed: autosave retries on its own, and a node whose edges
+      // were already persisted must not be held hostage to an unrelated save failure.
+      if (!cancelled) setInputsPersisted(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, nodeId, flushAutosave]);
+
+  useEffect(() => {
+    if (!open || !inputsPersisted) return;
     let cancelled = false;
 
     void (async () => {
@@ -269,7 +317,7 @@ export function PromptFocusView({
       cancelled = true;
       clearTimeout(t);
     };
-  }, [open, nodeId, slices]);
+  }, [open, nodeId, slices, inputsPersisted]);
 
   // Seed per-shot controls from the connected shot the first time they're unset; the operator
   // can then override and we never re-derive (the `controls != null` guard).
@@ -551,11 +599,18 @@ export function PromptFocusView({
                   {isNodeSelected ? (
                     detailNode ? (
                       <ConnectedDetailView node={detailNode} />
+                    ) : loadingPreview ? (
+                      // The panel's SHAPE while its inputs resolve (the autosave flush plus the
+                      // compile-preview behind it) — a centred "Loading…" in an empty pane reads
+                      // like "nothing is connected", which is the wrong impression for a node
+                      // whose inputs are merely on their way.
+                      <div className="flex h-full flex-col gap-4 px-6 py-6">
+                        <Skeleton className="h-3 w-28" />
+                        <Skeleton className="min-h-0 flex-1 rounded-xl" />
+                      </div>
                     ) : (
                       <div className="flex h-full items-center justify-center px-6 py-6">
-                        <p className="text-sm text-muted-foreground">
-                          {loadingPreview ? "Loading…" : "This input has no preview yet."}
-                        </p>
+                        <p className="text-sm text-muted-foreground">This input has no preview yet.</p>
                       </div>
                     )
                   ) : (

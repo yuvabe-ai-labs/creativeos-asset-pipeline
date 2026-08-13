@@ -197,8 +197,18 @@ export function ImageGenFocusView({
   } | null>(null);
   // estimatedCredits/editEstimatedCredits are computed directly below (D93) — no state, no
   // fetch. See the useMemo blocks further down for both.
-  const [loadingVersions, setLoadingVersions] = useState(false);
-  const [loadingPreview, setLoadingPreview] = useState(false);
+  const [loadingVersions, setLoadingVersions] = useState(open);
+  // Seeded from `open`, not `false` — see the note in video-prompt-focus-view.tsx: a node
+  // created by the guided button mounts with its focus view already open, so the open
+  // TRANSITION the re-arm below keys on never happens and the panel showed its empty state
+  // instead of a skeleton while the prompt's text was still arriving.
+  //
+  // Mirrors that re-arm's own condition exactly: only arm when there IS a prompt to fetch.
+  // The effect that clears this flag returns early when none is connected, so arming
+  // unconditionally would strand the skeleton on forever.
+  const [loadingPreview, setLoadingPreview] = useState(
+    () => open && upstream.some((u) => u.type === "prompt"),
+  );
   // The selected rail item: "image" (the hero pane), "history", "details", or a
   // connected node's id (right pane shows that node's read-only detail).
   const [selected, setSelected] = useState<string>("image");
@@ -1124,16 +1134,21 @@ export function ImageGenFocusView({
                 </div>
               )}
 
-              {/* Connected node — read-only detail */}
+              {/* Connected node — read-only detail. While its text is still arriving, show the
+                  panel's SHAPE: a centred "no preview yet" in an empty pane reads as "nothing
+                  is connected", which is the wrong impression for an input on its way. */}
               {isNodeSelected &&
                 (selectedNodeReady && selectedNode ? (
                   <ConnectedDetailView node={selectedNode} />
+                ) : loadingPreview ? (
+                  <div className="flex h-full flex-col gap-4 px-6 py-6">
+                    <Skeleton className="h-3 w-28" />
+                    <Skeleton className="min-h-0 flex-1 rounded-xl" />
+                  </div>
                 ) : (
                   <div className="flex h-full items-center justify-center px-6 py-6">
                     <p className="text-sm text-muted-foreground">
-                      {loadingPreview
-                        ? "Loading…"
-                        : "This input has no preview yet."}
+                      This input has no preview yet.
                     </p>
                   </div>
                 ))}
