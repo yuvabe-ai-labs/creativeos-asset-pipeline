@@ -197,7 +197,7 @@ export const HELP_CHAPTERS: HelpChapter[] = [
           "Or paste one from your clipboard.",
           "Either creates a File node where you drop it.",
         ],
-        clip: "",
+        clip: `${CLIPS}/bring-in-references/01-upload-or-paste.mp4`,
       },
       {
         title: "Pull from Google Drive or this canvas's generated images",
@@ -205,7 +205,7 @@ export const HELP_CHAPTERS: HelpChapter[] = [
           "Right-click a node and choose Add Reference Image.",
           "Browse connected Drive folders, or everything already generated on this canvas.",
         ],
-        clip: "",
+        clip: `${CLIPS}/bring-in-references/02-drive-or-generated.mp4`,
       },
       {
         title: "Reuse a client moodboard",
@@ -214,7 +214,7 @@ export const HELP_CHAPTERS: HelpChapter[] = [
           "Drag an item onto the canvas.",
           "It becomes an ordinary File node.",
         ],
-        clip: "",
+        clip: `${CLIPS}/bring-in-references/03-moodboard.mp4`,
       },
     ],
   },
