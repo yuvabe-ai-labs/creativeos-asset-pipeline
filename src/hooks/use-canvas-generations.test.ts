@@ -11,6 +11,7 @@ vi.mock("@/lib/supabase/client", () => ({
 import {
   __canvasGenerationsInternals,
   __resetCanvasGenerationsCache,
+  revalidateCanvasGenerations,
 } from "./use-canvas-generations";
 
 const fetchMock = vi.fn();
@@ -65,6 +66,24 @@ describe("useCanvasGenerations internals", () => {
     fetchMock.mockResolvedValueOnce(mockGens(["b"]));
     await __canvasGenerationsInternals.doFetch("canvas-1");
     expect(__canvasGenerationsInternals.getEntry("canvas-1")?.items[0].id).toBe("b");
+  });
+
+  it("revalidates every cached canvas, keeping the old items visible until the new ones land", async () => {
+    fetchMock.mockResolvedValueOnce(mockGens(["a"]));
+    await __canvasGenerationsInternals.doFetch("canvas-1");
+
+    fetchMock.mockResolvedValueOnce(mockGens(["a", "b"]));
+    const pending = revalidateCanvasGenerations();
+    // Stale-while-revalidate: the cache entry is NOT torn down mid-flight, so the drawer
+    // keeps rendering the images it already had instead of flashing an empty state.
+    expect(__canvasGenerationsInternals.getEntry("canvas-1")?.items).toHaveLength(1);
+    await pending;
+    expect(__canvasGenerationsInternals.getEntry("canvas-1")?.items).toHaveLength(2);
+  });
+
+  it("revalidating with nothing cached fetches nothing", async () => {
+    await revalidateCanvasGenerations();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("sets loadError on failure and empties items", async () => {

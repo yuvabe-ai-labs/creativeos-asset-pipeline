@@ -70,9 +70,7 @@ export function ImageGenOutputSettingsBody({
   // can't drift apart. `estimating` disables the button too (below), but deliberately has
   // no entry here — the spinning Loader2 icon on the button is the indicator for that case,
   // not a tooltip message.
-  const generateDisabledReason: string | null = generating
-    ? "A generation is already running."
-    : editing
+  const generateDisabledReason: string | null = editing
       ? "An edit is already running."
       : !editable
         ? "Another session is editing — this canvas is read-only."

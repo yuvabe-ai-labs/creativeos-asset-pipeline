@@ -62,6 +62,7 @@ import { InlineApprovalBar } from "./inline-approval-bar";
 import { setVersionLabelAction } from "@/lib/actions/eval";
 import { setVersionApprovalAction } from "@/lib/actions/approval";
 import { useIdentity } from "@/hooks/use-identity";
+import { revalidateCanvasGenerations } from "@/hooks/use-canvas-generations";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import type { ApprovalStatus } from "@/lib/approval";
 import {
@@ -616,6 +617,10 @@ export function ImageGenFocusView({
       onPatch({ parsed: json.imageUrl });
       setActiveVersionId(json.versionId ?? null);
       await fetchVersions();
+      // Tell the Gallery Drawer's Canvas Generations tab about the image we just made. The
+      // route has already committed the succeeded generation by the time it answers us, so
+      // this is the reliable signal — the drawer can be sitting open next to this focus view.
+      void revalidateCanvasGenerations();
       toast.success("Image generated");
     } catch (e) {
       const message = e instanceof Error ? e.message : "Generation failed";
@@ -712,6 +717,7 @@ export function ImageGenFocusView({
       setActiveVersionId(json.versionId ?? null);
       annotationRef.current?.clear();
       await fetchVersions();
+      void revalidateCanvasGenerations(); // same as handleGenerate — an edit is a generation too
       toast.success("Image edited");
     } catch (e) {
       const message = e instanceof Error ? e.message : "Edit failed";
