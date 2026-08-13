@@ -11,7 +11,11 @@ const GAP_X = 220;
 const GAP_Y = 260;
 const OFFSET_X = 280;
 
-function titleFromFilename(filename: string): string {
+// Deliberately NOT lib/nodes/title.ts's titleFromFilename: a gallery pick keeps the file's
+// name as-is minus the extension ("hero-shot"), where an uploaded file's auto-title also reads
+// separators as spaces ("hero shot"). nextFileNodeTitle() knows about both spellings, so
+// replacing the attachment on a node created here still re-derives its title.
+function stripExtension(filename: string): string {
   const dot = filename.lastIndexOf(".");
   return dot > 0 ? filename.slice(0, dot) : filename;
 }
@@ -40,7 +44,7 @@ export function useGalleryDrawer() {
         const nodeId = crypto.randomUUID();
         addNode("file", position, nodeId);
 
-        const title = titleFromFilename(image.filename);
+        const title = stripExtension(image.filename);
 
         if (image.source === "drive" && image.driveMimeType) {
           updateNodeData(nodeId, {
