@@ -70,6 +70,7 @@ import {
   defaultsForModel,
 } from "@/lib/image-gen/client-models";
 import { smartMergeParams } from "@/lib/image-gen/params/merge";
+import { paramsForRestore } from "@/lib/generations/version-params";
 import { ImageGenOutputSettingsBody } from "./image-gen-output-settings-body";
 import {
   validateReferenceImages,
@@ -712,23 +713,69 @@ export function ImageGenFocusView({
     }
   }
 
+  /**
+   * Put the node back into the state that produced this version — its model and its params,
+   * not only its image (YUV-295).
+   *
+   * Restoring used to write `parsed` alone, so v1's image sat under whatever model and quality
+   * happened to be set, and the very next Generate silently used those instead of the ones the
+   * operator had just chosen to go back to.
+   *
+   * `seenModelIdRef` is moved forward BEFORE the patch on purpose: the model-change effect
+   * above exists to migrate params when the OPERATOR switches models, and smartMergeParams
+   * resets anything that isn't a select/slider to the new model's defaults. A restore already
+   * carries the exact params that model ran with, so letting that migration fire would undo
+   * the restore it was reacting to.
+   */
   async function handleRestoreVersion(versionId: string) {
     setRestoring(true);
+    // One toast for the whole gesture — the id below swaps this spinner in place rather than
+    // stacking a second toast. Restore is two round trips (the POST, then the refetch).
+    const toastId = toast.loading("Restoring version…");
     try {
       const res = await fetch(`/api/nodes/${nodeId}/restore-version`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ versionId }),
       });
-      const json = (await res.json()) as { output?: string; error?: string };
+      const json = (await res.json()) as {
+        output?: string;
+        modelUsed?: string | null;
+        paramsUsed?: Record<string, unknown>;
+        error?: string;
+      };
       if (!res.ok) throw new Error(json.error ?? "Restore failed");
-      if (json.output) onPatch({ parsed: json.output });
+      // params_used carries its own modelId for image versions (the image-generate route writes
+      // it there); model_used is the same value, and the fallback covers either being absent.
+      const restoredModelId =
+        (typeof json.paramsUsed?.modelId === "string" ? json.paramsUsed.modelId : null) ??
+        json.modelUsed ??
+        null;
+      const restoredParams = restoredModelId
+        ? paramsForRestore(imageGenClientModelMap[restoredModelId]?.params, json.paramsUsed ?? {})
+        : null;
+      if (restoredModelId && restoredParams) {
+        seenModelIdRef.current = restoredModelId;
+        setParamValues(restoredParams);
+        onPatch({
+          ...(json.output ? { parsed: json.output } : {}),
+          modelId: restoredModelId,
+          params: restoredParams,
+        });
+      } else if (json.output) {
+        onPatch({ parsed: json.output });
+      }
       setActiveVersionId(versionId);
       setHasMaskRegion(false); // restored a different base — drop any stale mask-region flag
       await fetchVersions();
-      toast.success("Version restored");
+      toast.success(
+        restoredParams
+          ? "Version restored — model and settings applied"
+          : "Image restored — its settings are no longer available",
+        { id: toastId },
+      );
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Restore failed");
+      toast.error(e instanceof Error ? e.message : "Restore failed", { id: toastId });
     } finally {
       setRestoring(false);
     }
