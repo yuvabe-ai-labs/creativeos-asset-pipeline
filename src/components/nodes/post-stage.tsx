@@ -6,7 +6,7 @@ import { Stage, Layer, Transformer, Rect } from "react-konva";
 import type Konva from "konva";
 import type { PostLayer } from "@/lib/post/types";
 import { pxToNormalized, fontSizeToPx, editorTopPadding } from "@/lib/post/units";
-import { findLayer } from "@/lib/post/layers";
+import { findLayer, topLevelOwnerId } from "@/lib/post/layers";
 import { boundingBoxOf, pointInBox } from "@/lib/post/align";
 import { resolveFontKey, type FontKey } from "@/lib/post/fonts";
 import { Textarea } from "@/components/ui/textarea";
@@ -137,11 +137,18 @@ export function PostStage({
   // GroupLayer's children are rendered with isSelected hardcoded false, so their own
   // `draggable` is always false. Reading `e.target.draggable()` directly therefore can NEVER
   // see a selected group, which is why the guard below resolves an id instead.
+  //
+  // The final `topLevelOwnerId` hop is what makes "top-level" true rather than merely intended
+  // (YUV-303). `nodeRefs` is not a top-level-only map: `registerRef` below also files every
+  // GROUPED TEXT child under its own id, because the inline text editor has to measure those
+  // nodes. A right-click on a CTA pill lands on its label, and the walk matched that child id
+  // first — so the selection became a layer that isn't in `layers`, and Group/Ungroup/Delete/
+  // the inspector all silently did nothing with it.
   function resolveHitLayerId(target: Konva.Node, stage: Konva.Stage): string | null {
     let node: Konva.Node | null = target;
     while (node && node !== stage) {
       for (const [id, topNode] of nodeRefs.current.entries()) {
-        if (topNode === node) return id;
+        if (topNode === node) return topLevelOwnerId(layers, id);
       }
       node = node.getParent();
     }
