@@ -3,13 +3,18 @@
 import { cn } from "@/lib/utils";
 import { History } from "lucide-react";
 import type { ImageTokenUsage } from "@/lib/image-gen/types";
+import { describeVersionParams } from "@/lib/generations/version-params";
+import { imageGenClientModelMap } from "@/lib/image-gen/client-models";
 
 export type ImageGenVersionSummary = {
   id: string;
   output: string | null;   // image URL
   error: string | null;
   modelUsed?: string | null;
-  paramsUsed: {
+  // The raw `node_versions.params_used` record: the model's own params plus the pipeline's
+  // bookkeeping. `modelId`/`tokensUsed` are called out because callers read them by name;
+  // everything else is read through the model's param specs (lib/generations/version-params).
+  paramsUsed: Record<string, unknown> & {
     modelId?: string;
     tokensUsed?: ImageTokenUsage | null;
   };
@@ -75,8 +80,17 @@ export function ImageGenVersionHistory({
             const isError  = Boolean(v.error);
             const isDisabled = isActive || restoring || isError;
             const label = `v${total - i}`;
-            const modelLabel =
-              (v.paramsUsed?.modelId ?? v.modelUsed ?? "").split(":")[1] ?? "";
+            const versionModelId = v.paramsUsed?.modelId ?? v.modelUsed ?? "";
+            const modelLabel = versionModelId.split(":")[1] ?? "";
+            // YUV-295: what this version was actually generated with. Without it two rows for
+            // the same prompt are indistinguishable — and since restoring one now also restores
+            // its model and params, the row has to show what restoring would apply.
+            const paramSummary = describeVersionParams(
+              imageGenClientModelMap[versionModelId]?.params,
+              v.paramsUsed ?? {},
+            )
+              .map((p) => `${p.label}: ${p.value}`)
+              .join(" · ");
 
             return (
               <li key={v.id}>
@@ -142,6 +156,12 @@ export function ImageGenVersionHistory({
                   {modelLabel && (
                     <p className="ml-3.5 mt-0.5 line-clamp-1 text-[0.7rem] leading-snug text-muted-foreground">
                       {modelLabel}
+                    </p>
+                  )}
+
+                  {paramSummary && (
+                    <p className="ml-3.5 mt-0.5 line-clamp-2 text-[0.65rem] leading-snug text-muted-foreground/80">
+                      {paramSummary}
                     </p>
                   )}
 

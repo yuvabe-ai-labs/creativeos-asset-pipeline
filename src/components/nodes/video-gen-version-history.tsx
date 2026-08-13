@@ -2,6 +2,8 @@
 
 import { cn } from "@/lib/utils";
 import { History } from "lucide-react";
+import { describeVersionParams } from "@/lib/generations/version-params";
+import { videoGenClientModelMap } from "@/lib/video-gen/client-models";
 
 export type VideoGenVersionSummary = {
   id: string;
@@ -63,6 +65,15 @@ export function VideoGenVersionHistory({
             const isDisabled = isActive || restoring || isError;
             const label = `v${total - i}`;
             const modelLabel = (v.modelUsed ?? "").split(":")[1] ?? "";
+            // YUV-295: what this version was actually generated with. Without it two rows for
+            // the same shot are indistinguishable — and since restoring one now also restores
+            // its model and params, the row has to show what restoring would apply.
+            const paramSummary = describeVersionParams(
+              videoGenClientModelMap[v.modelUsed ?? ""]?.params,
+              v.paramsUsed,
+            )
+              .map((p) => `${p.label}: ${p.value}`)
+              .join(" · ");
 
             return (
               <li key={v.id}>
@@ -132,6 +143,12 @@ export function VideoGenVersionHistory({
                   {modelLabel && (
                     <p className="ml-3.5 mt-0.5 line-clamp-1 text-[0.7rem] leading-snug text-muted-foreground">
                       {modelLabel}
+                    </p>
+                  )}
+
+                  {paramSummary && (
+                    <p className="ml-3.5 mt-0.5 line-clamp-2 text-[0.65rem] leading-snug text-muted-foreground/80">
+                      {paramSummary}
                     </p>
                   )}
                 </button>

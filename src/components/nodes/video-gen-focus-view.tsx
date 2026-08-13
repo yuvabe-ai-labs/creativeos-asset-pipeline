@@ -37,6 +37,7 @@ import {
   videoGenClientModelMap,
 } from "@/lib/video-gen/client-models";
 import { smartMergeVideoParams } from "@/lib/video-gen/params/merge";
+import { paramsForRestore } from "@/lib/generations/version-params";
 import {
   areFramesAndRefsExclusive,
   buildConstraintState,
@@ -674,16 +675,49 @@ export function VideoGenFocusView({
     }
   }
 
+  /**
+   * Put the node back into the state that produced this version — its model and its params,
+   * not only its video (YUV-295).
+   *
+   * Restoring used to write `parsed` alone, so v1's clip sat under whatever model and duration
+   * happened to be set, and the very next Generate silently used those instead of the ones the
+   * operator had just chosen to go back to.
+   *
+   * The version's params are read back through the restored model's own specs
+   * (paramsForRestore), which drops the pipeline's `durationSeconds` bookkeeping and fills any
+   * param the version predates with that model's default. A version whose model the client no
+   * longer knows restores the video alone and says so — writing params that belong to no model
+   * would leave the node unable to generate.
+   */
   async function handleRestoreVersion(versionId: string) {
     setRestoring(true);
+    // One toast for the whole gesture: the same id is handed to the success/error call below,
+    // so sonner swaps this spinner in place rather than stacking a second toast under it.
+    // Restore is two round trips (the POST, then the version refetch) — long enough that a
+    // silent wait reads as a dead click.
+    const toastId = toast.loading("Restoring version…");
     try {
-      const { output } = await videoGenApi.restoreVersion(nodeId, versionId);
-      onPatch({ parsed: output });
+      const { output, modelUsed, paramsUsed } = await videoGenApi.restoreVersion(nodeId, versionId);
+      const restoredParams = modelUsed
+        ? paramsForRestore(videoGenClientModelMap[modelUsed]?.params, paramsUsed)
+        : null;
+      if (modelUsed && restoredParams) {
+        setModelId(modelUsed);
+        setParams(restoredParams);
+        onPatch({ parsed: output, modelId: modelUsed, params: restoredParams });
+      } else {
+        onPatch({ parsed: output });
+      }
       setActiveVersionId(versionId);
       await fetchVersions();
-      toast.success("Version restored");
+      toast.success(
+        restoredParams
+          ? "Version restored — model and settings applied"
+          : "Video restored — its settings are no longer available",
+        { id: toastId },
+      );
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Restore failed");
+      toast.error(e instanceof Error ? e.message : "Restore failed", { id: toastId });
     } finally {
       setRestoring(false);
     }
