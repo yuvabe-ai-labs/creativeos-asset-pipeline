@@ -231,7 +231,7 @@ export const HELP_CHAPTERS: HelpChapter[] = [
           "You can still open every node and read everything.",
           "Only changes are blocked, so you cannot overwrite their work.",
         ],
-        clip: "",
+        clip: `${CLIPS}/why-cant-i-edit-this-canvas/01-someone-editing.mp4`,
       },
       {
         title: "Take over once their session goes stale",
@@ -239,7 +239,7 @@ export const HELP_CHAPTERS: HelpChapter[] = [
           "If they have stopped working, their session goes stale.",
           "The take-over button then becomes available and the canvas is yours to edit.",
         ],
-        clip: "",
+        clip: `${CLIPS}/why-cant-i-edit-this-canvas/02-take-over.mp4`,
       },
     ],
   },
