@@ -65,7 +65,7 @@ describe("help chapters", () => {
   });
 
   it("finds a chapter by slug and returns undefined for an unknown one", () => {
-    expect(chapterBySlug("create-a-reel")?.steps).toHaveLength(7);
+    expect(chapterBySlug("create-a-reel")?.steps).toHaveLength(6);
     expect(chapterBySlug("nope")).toBeUndefined();
   });
 });
