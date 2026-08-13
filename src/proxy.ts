@@ -71,8 +71,12 @@ export async function proxy(request: NextRequest) {
 
 // Run on everything EXCEPT: /login, webhooks (server-to-server, no session), Next
 // internals, and static assets.
+//
+// mp4/webm are in the exclusion list for the Help chapter clips in public/help-videos.
+// Without them every clip request runs the session check — an auth round-trip per file
+// to serve a static asset — and the browser's range requests for video multiply that.
 export const config = {
   matcher: [
-    "/((?!login|api/webhooks|_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|svg|gif|webp|ico|woff2?|ttf)$).*)",
+    "/((?!login|api/webhooks|_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|svg|gif|webp|ico|woff2?|ttf|mp4|webm)$).*)",
   ],
 };
