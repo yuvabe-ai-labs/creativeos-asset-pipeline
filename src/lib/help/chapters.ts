@@ -161,7 +161,7 @@ export const HELP_CHAPTERS: HelpChapter[] = [
           "Use an Image Gen node for the look you want to carry over.",
           "Prompt for palette, surface and mood rather than for the finished asset.",
         ],
-        clip: "",
+        clip: `${CLIPS}/generate-a-reference-image/01-generate-the-look.mp4`,
       },
       {
         title: "Bring it in from Generated Images",
@@ -170,7 +170,7 @@ export const HELP_CHAPTERS: HelpChapter[] = [
           "Choose Add Reference Image.",
           "Pick your image from the Generated Images tab.",
         ],
-        clip: "",
+        clip: `${CLIPS}/generate-a-reference-image/02-add-reference.mp4`,
       },
       {
         title: "Connect it, then generate",
@@ -179,7 +179,7 @@ export const HELP_CHAPTERS: HelpChapter[] = [
           "Draw the connection yourself.",
           "An unconnected reference is simply ignored.",
         ],
-        clip: "",
+        clip: `${CLIPS}/generate-a-reference-image/03-connect-and-generate.mp4`,
       },
     ],
   },
