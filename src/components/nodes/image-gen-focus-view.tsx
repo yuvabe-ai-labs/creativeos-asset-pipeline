@@ -592,6 +592,11 @@ export function ImageGenFocusView({
   }
 
   async function handleGenerate() {
+    // Second line of defence behind the button's disabled state: a run in flight must never
+    // be able to start another one. The disabled prop alone lives in a sibling component and
+    // has already been lost once to an unrelated tooltip edit — this guard is next to the
+    // request it protects, and covers any future caller that isn't that button.
+    if (generating || editing) return;
     if (!promptUpstream) {
       toast.error("Connect a Prompt node first.");
       return;
@@ -670,6 +675,7 @@ export function ImageGenFocusView({
   }
 
   async function handleEdit() {
+    if (editing || generating) return; // same re-entrancy guard as handleGenerate
     const baseVersionId = activeVersionId ?? undefined;
     const baseImageUrl = baseVersionId ? undefined : baseNodeUrl ?? undefined;
     if (!baseVersionId && !baseImageUrl) {
