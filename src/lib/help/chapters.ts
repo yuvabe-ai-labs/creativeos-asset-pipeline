@@ -73,14 +73,6 @@ export const HELP_CHAPTERS: HelpChapter[] = [
         ],
         clip: `${CLIPS}/create-a-reel/06-generate-clip.mp4`,
       },
-      {
-        title: "Approve and archive",
-        body: [
-          "Approve the clip you want to keep.",
-          "Archive the project to bundle the script, prompts, controls and attempts together.",
-        ],
-        clip: "",
-      },
     ],
   },
   {

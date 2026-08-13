@@ -131,7 +131,7 @@ waits.
 
 - Two list empty states with a concept line and one CTA.
 - A global `Help ▾` menu in the app bar opening chaptered, video-led explainers.
-- Seven authored chapters (23 step clips).
+- Seven authored chapters (22 step clips).
 - Deep-linkable chapters.
 
 **Out of V1**
@@ -330,10 +330,10 @@ whatever page the user is standing on.
 
 ## 6. The seven V1 chapters
 
-23 step clips. The shell supports every chapter in the menu below; only these
+22 step clips. The shell supports every chapter in the menu below; only these
 seven are recorded for V1.
 
-### 1. How do I create a reel? — 7 steps *(flagship)*
+### 1. How do I create a reel? — 6 steps *(flagship)*
 
 1. Paste your reel script
 2. Fan out the shots
@@ -341,7 +341,11 @@ seven are recorded for V1.
 4. Generate and approve the image
 5. Write the motion prompt from the approved still
 6. Generate the clip
-7. Approve and archive
+
+*Cut to 6 on 2026-08-13. A seventh step, "Approve and archive", was authored but never
+recorded; it was dropped rather than left as the one placeholder in an otherwise complete
+chapter. Archiving is a project-level action rather than part of making a reel, so it reads
+better as its own chapter — `how-do-i-archive-a-project` is already authored as a draft.*
 
 *If recording load needs cutting, this is the lever: collapse (1,2) and (5,6) to reach 5
 steps. Do not cut chapters — cut steps within this one.*
