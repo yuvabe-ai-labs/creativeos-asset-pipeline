@@ -65,11 +65,9 @@ export function ImageGenOutputSettingsBody({
   const editable = useCanvasEditable(); // D33: false when this session is read-only
   const refOverLimit = referenceCount > model.maxReferenceImages;
 
-  // One derived reason drives both the Generate button's disabled state and its
-  // tooltip — the button is never disabled without an explanation, and the two
-  // can't drift apart. `estimating` disables the button too (below), but deliberately has
-  // no entry here — the spinning Loader2 icon on the button is the indicator for that case,
-  // not a tooltip message.
+  // Why the Generate button is disabled, when that needs SAYING. States the button already
+  // narrates itself get no entry here: `generating` has its own "Generating…" label and
+  // `estimating` its spinning Loader2 — a tooltip repeating them is noise.
   const generateDisabledReason: string | null = editing
       ? "An edit is already running."
       : !editable
@@ -81,6 +79,13 @@ export function ImageGenOutputSettingsBody({
               ? "A reference image doesn't meet this model's requirements. Try resizing it or switching to a different model."
               : `${refValidation.violations.length} reference images don't meet this model's requirements. Try resizing them or switching to a different model.`
             : null;
+
+  // Whether it's disabled is a SEPARATE question from whether there's a tooltip for it.
+  // Deriving one from the other is what broke this: dropping the in-progress tooltip message
+  // silently dropped the in-progress guard with it, leaving "Generating…" fully clickable —
+  // every extra click fired another request, and charged for another image.
+  const generateDisabled =
+    Boolean(generateDisabledReason) || generating || estimating;
 
   return (
     <>
@@ -110,7 +115,7 @@ export function ImageGenOutputSettingsBody({
                 className="px-14 py-4 text-sm"
                 size="default"
                 onClick={onGenerate}
-                disabled={Boolean(generateDisabledReason) || estimating}
+                disabled={generateDisabled}
               >
                 {estimating ? (
                   <Loader2 className="size-4 animate-spin" strokeWidth={1.5} />
