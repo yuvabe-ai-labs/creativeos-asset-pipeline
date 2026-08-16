@@ -167,6 +167,17 @@ Tagged **[V2]** or **[Later]**.
 | R1.7 | The AI can **help write** the "what this brand should do" part, which a person then accepts or edits. It never adds a signal on its own. | V2 |
 | R1.8 | The copilot proposing signals; automatic trend feeds. | Later |
 
+> **Footnote — where "past performance" could come from later.** We looked at whether Shopify is
+> worth integrating, and one finding lands directly on R1.2: **Shopify has sales data.** *"This
+> product is moving"* is a market signal with a proper source behind it, which is more than we can
+> say for the other four kinds. It's parked, not planned — past performance still waits on
+> publishing — but it's the most likely way that signal kind eventually gets filled.
+>
+> The same research says integrating with Shopify is worth doing **as a source of product data,
+> not as a place to sell.** Their App Store rules bar tools that connect merchants to agencies, so
+> listing isn't open to us. Full write-up:
+> **[Shopify integration research](2026-08-16-shopify-integration-research.md)**.
+
 ### 6.2 Signals — how they reach the work
 
 | | | |
@@ -333,6 +344,7 @@ This produces **evidence, not features.** Nothing new gets built in the editor.
 | Copilot design, parts 1 and 2, plus the playbook runner | The copilot we're switching back on | Written |
 | `2026-07-02-eval-viewer-error-analysis-design.md` | The screen where the analysis happens | Written |
 | Self-checking retry loop | The loop, its limits, where it plugs in | Sprint 3 |
+| [`2026-08-16-shopify-integration-research.md`](2026-08-16-shopify-integration-research.md) | Background reading — whether Shopify is worth integrating, and where "past performance" signals could come from | Research, no decision taken |
 
 **Only market signals needs a new design.** Approval, publishing, the copilot, the eval screen and
 the asset library are all already designed or already scoped. For those five, V2's job is to build,
