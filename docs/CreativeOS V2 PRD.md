@@ -10,13 +10,6 @@
 > for multi-tenancy and for Posts. Client approval and publishing were already written up in the
 > **Post PRD** (§6.8–§6.10); we're scheduling that work here, not redesigning it.
 
-> **Also explored: Shopify.** We looked at a Shopify integration alongside this plan. Verdict:
-> **worth doing as a data source** — a client's store can feed product names, prices and
-> photography straight into their brand workspace, a few days of work with no review process — but
-> **closed to us as a sales channel**: Shopify's App Store rules bar tools that connect merchants
-> to agencies, and everything there is billed per store, not per agency. Nothing is scheduled in
-> V2; the likely future bridge is *past-performance signals* fed by store sales data. Full
-> write-up: [Shopify integration research](2026-08-16-shopify-integration-research.md).
 
 ---
 
@@ -47,6 +40,14 @@ The six workstreams:
 | **4. Evals** | Bring back the test harness, finish the analysis, watch for sameness | Items 1 and 5 change what we send the model. This is how we notice if quality slips. |
 | **5. Agentic** | Turn the copilot back on | It's finished code sitting behind a layout bug. |
 | **6. Asset library** | Let people find past work across canvases, not just the one they're in | Sold at every price tier. The data is already there — only the search is missing. |
+
+> **Also explored: Shopify.** We looked at a Shopify integration alongside this plan. Verdict:
+> **worth doing as a data source** — a client's store can feed product names, prices and
+> photography straight into their brand workspace, a few days of work with no review process — but
+> **closed to us as a sales channel**: Shopify's App Store rules bar tools that connect merchants
+> to agencies, and everything there is billed per store, not per agency. Nothing is scheduled in
+> V2; the likely future bridge is *past-performance signals* fed by store sales data. Full
+> write-up: [Shopify integration research](2026-08-16-shopify-integration-research.md).
 
 ---
 

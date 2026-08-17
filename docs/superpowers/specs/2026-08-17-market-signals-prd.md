@@ -41,7 +41,7 @@ the 20-shot fixture), and the MR team and designers **actually use the shelf** d
 |---|---|
 | **MR team** (exists today, Yuvabe-side) | Owns signals: finds, writes, maintains, retires. Curates all three scopes. Modeled as a simple role flag for now (like `senior`), not new RBAC. |
 | **Designers / seniors** | Consume signals — toggle them into generations, browse them while ideating. Never required to. |
-| **The copilot / connectors** (later) | Propose signals. **Never publish** — everything goes live through MR review. |
+| **Tool integrations / agents** (later) | Propose signals — integrations first (they remove the data entry), agents after. **Never publish** — everything goes live through MR review. |
 
 ## 4. What a signal is
 
@@ -163,20 +163,20 @@ A working session with the MR team, before the curation surface is built (it sha
 
 Output: one page appended to this spec; the curation surface is built against it.
 
-## 9. The load shift — human-with-tools → agent-with-review
+## 9. The load shift — three steps, MR always the gate
 
-The constant is the **MR gate**; what changes is who does the finding and typing.
+The constant is the **MR gate**; what changes across the steps is who finds and who types.
 
-| Stage | Who finds | Who writes | Who approves | When |
-|---|---|---|---|---|
-| 1 | MR, in their tools | MR, AI-assisted | MR (implicit) | Sprint 1 |
-| 2 | **Copilot, on MR's request** — "research what's trending in ayurvedic skincare" → proposed signals | AI drafts | **MR, via the review queue (F8)** | Sprint 3 |
-| 3 | Connectors, continuously | AI drafts | MR, via F8 | Phase 2, tool-by-tool |
+| Step | How signals arrive | Who approves | When |
+|---|---|---|---|
+| 1 | **Manual.** MR researches in their external tools and enters signals by hand — pure data entry — and the generation engine consumes them. | MR (implicit — they wrote it) | Sprint 1 |
+| 2 | **Tool integrations.** The listening/analytics tools connect into the platform and their findings arrive as *proposed* signals — the data entry disappears. | **MR, via the review queue (F8)** | Phase 2, tool-by-tool |
+| 3 | **Agentic research.** Agents do the research themselves and propose signals — human in the loop on every one. | MR, via F8 | After step 2 |
 
-Stage 2 is deliberately scheduled (not "later"): it needs only the re-enabled copilot, web
-research, and F8 — no external API agreements — and it is the load shift in miniature. F8 itself is
-a list of `proposed` signals with approve / edit / reject; the report-parse bridge (§8.4) uses the
-identical surface.
+The **review queue (F8)** is built in sprint 3, *ahead of* step 2, so intake has its gate ready
+before anything automatic arrives. It's a list of `proposed` signals with approve / edit / reject —
+and the report-parse bridge (§8.4) uses the identical surface, so the queue earns its keep even
+while entry is still manual.
 
 ## 10. Measurement
 
@@ -195,8 +195,8 @@ identical surface.
 |---|---|
 | **1 — prove signals work** | Day 1: harness back. **Days 1–2: MR discovery (§8).** Days 1–4: record + resolver (F1). Days 3–6: curation surface + MR flag + LLM assist, shaped by discovery (F2). Days 5–8: Script + Prompt integration (F3). Days 8–10: on/off measurement (F7). |
 | **2 — posting flow** | No build. **MR team curates for real** — the habit test (§10). |
-| **3 — signals in daily work** | Downstream toggles (F4), gallery-drawer shelf + drag (F5), Signal node (F6), **review queue (F8) + copilot-researched signals (§9 stage 2)**. |
-| **Phase 2** | Intake connectors tool-by-tool; category/global curation UI beyond basics; past-performance signals (publish/Shopify data). |
+| **3 — signals in daily work** | Downstream toggles (F4), gallery-drawer shelf + drag (F5), Signal node (F6), **review queue (F8)** — built ahead of step-2 intake (§9). |
+| **Phase 2** | **Step 2: tool integrations** feeding the queue, tool-by-tool; then **step 3: agentic research** with MR approval. Category/global curation UI beyond basics; past-performance signals (publish/Shopify data). |
 
 Drop order inside sprint 1: LLM assist → curation polish. **Never:** record + resolver,
 Script/Prompt integration, measurement, or the discovery session.
