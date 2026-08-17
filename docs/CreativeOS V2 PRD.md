@@ -125,6 +125,14 @@ through a working publish flow. Doing signals first means we submit at the end o
 publishing goes live about two weeks later than if we'd done it the other way round. We know, and
 that's fine — signals matter more right now.
 
+> **Caveat — the signals PRD is bigger than one sprint.** Sprint 1 delivers its **foundation plus
+> one usable slice**: MR enters a signal, a designer toggles it onto a script or prompt, the
+> output changes, and we can measure it. The browsing shelf, the Signal node, downstream toggles
+> and the review queue come in sprint 3 and phase 2. Whether even the slice fully fits is flagged
+> as an open question in the
+> [Market Signals PRD](superpowers/specs/2026-08-17-market-signals-prd.md) (§12), with a
+> recommendation on what to protect.
+
 **Sprint 1 — market signals, measured**
 
 | | Days | What |

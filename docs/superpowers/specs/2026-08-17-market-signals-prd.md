@@ -203,6 +203,16 @@ Script/Prompt integration, measurement, or the discovery session.
 
 ## 12. Open questions
 
+0. **Does this PRD fit the two-week sprint? Probably not all of it — decide at sprint planning,
+   not mid-sprint.** Recommendation: treat sprint 1 as **the foundation plus one usable
+   end-to-end slice** — the record + resolver, a plain entry form the MR team can genuinely use,
+   Script + Prompt toggles, usage recorded, and the on/off measurement. That slice is complete in
+   itself: MR enters a signal, a designer toggles it on, the output changes, and we can prove it.
+   The AI direction-assist and curation polish are the first drops (directions get written by hand
+   for a fortnight). The shelf, the Signal node, downstream toggles and the review queue were
+   never sprint-1 scope — they are sprint 3 and phase 2. What must survive any cut: the record,
+   the toggles, and the measurement — an unmeasured signals feature is the outcome the V2 plan
+   calls worthless.
 1. The three discovery questions (§8) — answered by the MR session, sprint 1 days 1–2.
 2. **Validity defaults per kind** — proposed starting points, MR corrects: seasonal moment = its
    season; trending format = 4 weeks; competitor pattern = 8 weeks; audience shift = 6 months.
