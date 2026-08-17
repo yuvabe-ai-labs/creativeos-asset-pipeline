@@ -328,7 +328,7 @@ This produces **evidence, not features.** Nothing new gets built in the editor.
 
 | Doc | Covers | Status |
 |---|---|---|
-| Market signals design | The signal record, kinds, dates, how they apply, the Signal node | **To write — the only one missing** |
+| [`superpowers/specs/2026-08-17-market-signals-prd.md`](superpowers/specs/2026-08-17-market-signals-prd.md) | Market signals **PRD** — the record, scopes, the MR team's process, both consumption modes, the manual→agent path, sprint mapping. Its design spec follows once MR discovery closes | **PRD drafted — in review** |
 | `2026-08-03-post-client-approval-design.md` | Share links, feedback, what approval attaches to, offline fallback | Written |
 | `2026-08-03-post-publishing-design.md` | Connections, publish flow, staging around platform approval | Written |
 | Copilot design, parts 1 and 2, plus the playbook runner | The copilot we're switching back on | Written |
