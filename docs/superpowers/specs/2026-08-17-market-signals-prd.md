@@ -32,15 +32,16 @@ service** — and its output lands in deliverables, not in the tool where genera
 ## 2. The goal
 
 Every generation starts informed by the market, and ideation happens with market material in view.
-Two tests that it's real: switching signals on **measurably changes what gets generated** (against
-the 20-shot fixture), and the MR team and designers **actually use the shelf** during real work.
+Two tests that it's real: switching signals on **measurably changes what gets generated** —
+measured on real client work — and the MR team and designers **actually use the shelf** during
+real work.
 
 ## 3. Who does what
 
 | Who | Role |
 |---|---|
 | **MR team** (exists today, Yuvabe-side) | Owns signals: finds, writes, maintains, retires. Curates all three scopes. Modeled as a simple role flag for now (like `senior`), not new RBAC. |
-| **Designers / seniors** | Consume signals — toggle them into generations, browse them while ideating. Never required to. |
+| **Designers / seniors** | Consume signals — apply them to generations, browse them while ideating. Never required to. |
 | **Tool integrations / agents** (later) | Propose signals — integrations first (they remove the data entry), agents after. **Never publish** — everything goes live through MR review. |
 
 ## 4. What a signal is
@@ -102,27 +103,25 @@ resolveSignals(clientId) →
     OR (scope = 'client'   AND client_id = clientId)
 ```
 
-Both routes into a generation (toggles and, later, the Signal node) call this same function —
-same signal, same rendered context, indistinguishable downstream.
+However a signal reaches a generation, this one function resolves it — same signal, same
+context, everywhere.
 
 ## 6. Mode A — informing generation
 
 **The Script node is the primary consumer.** A signal shapes what the reel is about and what kinds
 of shots get written — upstream, where creative decisions happen. **The Prompt node joins it in the
-first cut** for a practical reason: the 20-shot fixture measures the image-prompt layer, so the
-Prompt toggle is what makes the on/off comparison possible. Shot Composer and Motion Prompt follow
-(sprint 3).
+first cut** — scripts are where signals shape the idea, prompts are where they shape the image,
+and testing on real work covers both layers. Shot Composer and Motion Prompt follow (sprint 3).
 
-Mechanics, all copying the KB-slice pattern (`parse-context.ts`):
+How it behaves — the *what*; the actual surface (controls, placement, any on-canvas presence) is
+decided in the design spec, after this PRD is discussed:
 
-* A **catalog + toggles** in the node's focus view, beside the KB slice toggles. **Off by default,
-  per node** — turning a signal on is a deliberate act.
-* A pure **`buildSignalContext(signals, selectedIds)`** renders selected signals as labeled lines
-  (kind, direction, and the observation one level quieter), exactly as `buildParseContext` does.
-* The **compiled prompt shows** which signals were applied, before Generate.
-* Every generation **snapshots what it used** into `inputs_used`:
-  `signals_used: [{id, scope, kind, direction}]` — the direction text itself, not just the id,
-  because signals are edited in place and provenance must survive the edit.
+* **Off by default.** A signal influences a generation only when someone deliberately applies it
+  to that piece of work.
+* **Visible before Generate.** What's being applied is shown with the prompt, before the model
+  runs.
+* **Recorded after.** Every generation records the signals it used, including the direction text
+  itself — signals are edited in place, so the record must survive the edit.
 
 ## 7. Mode B — material for thinking
 
@@ -130,10 +129,9 @@ Signals are browsable, not just injectable.
 
 * **Sprint 1 (minimal):** the curation page itself is the browse surface — every signal shows its
   references as thumbnails. Ideation material exists from day one where it's maintained.
-* **Sprint 3 (proper):** a **Signals tab in the gallery drawer** — flip through category
-  references while working; **drag one into a moodboard or onto the canvas** (same re-host path as
-  moodboard items). The **Signal node** makes a signal visible in the graph and image-grounds the
-  Shot Composer (D28's handle).
+* **Later (shape to be decided):** browsing and using signals from inside the canvas while
+  working. How that surfaces — and whether a signal ever appears as an element on the canvas
+  itself — is an implementation question for the design spec, after this PRD is discussed.
 
 ## 8. Curation and the research process — with the real MR team
 
@@ -151,7 +149,7 @@ not how research happens:
    the F8 review pattern arriving early, fed by their own document instead of an API. It may beat
    form-entry as the primary input path; discovery decides.
 
-### Discovery — scheduled work, not a footnote (sprint 1, days 1–2)
+### Discovery — scheduled work, not a footnote (sprint 1, before the curation surface)
 
 A working session with the MR team, before the curation surface is built (it shapes days 3–6):
 
@@ -180,12 +178,13 @@ while entry is still manual.
 
 ## 10. Measurement
 
-* **Signals on/off against the frozen 20-shot fixture** (harness restored first): quality labels
+* **Signals on/off on real client work** — the same script parsed, the same shot prompted, with
+  signals off and then on: quality labels
   *and* output variety. A signal that changes nothing means the feature is a dashboard — the PRD's
   kill signal.
 * **Homogenization guard:** signals must not become the new monotony ("everything chases the same
   trend"). Variety is measured *with signals on*, not just quality.
-* **Usage:** signals added per week, and toggled into real generations. Sprint 2 is the natural
+* **Usage:** signals added per week, and applied to real generations. Sprint 2 is the natural
   habit test — the MR team curates while the build works elsewhere; an empty shelf by sprint 3 is
   the biggest risk showing up early, while it's cheap to see.
 
@@ -193,9 +192,9 @@ while entry is still manual.
 
 | Sprint | Signals work |
 |---|---|
-| **1 — prove signals work** | Day 1: harness back. **Days 1–2: MR discovery (§8).** Days 1–4: record + resolver (F1). Days 3–6: curation surface + MR flag + LLM assist, shaped by discovery (F2). Days 5–8: Script + Prompt integration (F3). Days 8–10: on/off measurement (F7). |
+| **1 — prove signals work** | In build order: (1) agree the measurement — real work, on/off protocol, labels; (2) **MR discovery** (§8); (3) the record + resolver (F1); (4) the curation surface + MR flag + LLM assist, shaped by discovery (F2); (5) Script + Prompt integration (F3); (6) the on/off measurement on real scripts (F7). |
 | **2 — posting flow** | No build. **MR team curates for real** — the habit test (§10). |
-| **3 — signals in daily work** | Downstream toggles (F4), gallery-drawer shelf + drag (F5), Signal node (F6), **review queue (F8)** — built ahead of step-2 intake (§9). |
+| **3 — signals in daily work** | Signals reaching the rest of the chain (Shot Composer, Motion Prompt); in-canvas browsing and use, in whatever shape the design spec lands on; the **review queue (F8)** — built ahead of step-2 intake (§9). |
 | **Phase 2** | **Step 2: tool integrations** feeding the queue, tool-by-tool; then **step 3: agentic research** with MR approval. Category/global curation UI beyond basics; past-performance signals (publish/Shopify data). |
 
 Drop order inside sprint 1: LLM assist → curation polish. **Never:** record + resolver,
@@ -206,14 +205,14 @@ Script/Prompt integration, measurement, or the discovery session.
 0. **Does this PRD fit the two-week sprint? Probably not all of it — decide at sprint planning,
    not mid-sprint.** Recommendation: treat sprint 1 as **the foundation plus one usable
    end-to-end slice** — the record + resolver, a plain entry form the MR team can genuinely use,
-   Script + Prompt toggles, usage recorded, and the on/off measurement. That slice is complete in
-   itself: MR enters a signal, a designer toggles it on, the output changes, and we can prove it.
+   Script + Prompt integration, usage recorded, and the on/off measurement. That slice is complete
+   in itself: MR enters a signal, a designer applies it, the output changes, and we can prove it.
    The AI direction-assist and curation polish are the first drops (directions get written by hand
-   for a fortnight). The shelf, the Signal node, downstream toggles and the review queue were
-   never sprint-1 scope — they are sprint 3 and phase 2. What must survive any cut: the record,
-   the toggles, and the measurement — an unmeasured signals feature is the outcome the V2 plan
+   for a fortnight). In-canvas browsing, the rest of the chain and the review queue were never
+   sprint-1 scope — they are sprint 3 and phase 2. What must survive any cut: the record, the
+   Script + Prompt integration, and the measurement — an unmeasured signals feature is the outcome the V2 plan
    calls worthless.
-1. The three discovery questions (§8) — answered by the MR session, sprint 1 days 1–2.
+1. The three discovery questions (§8) — answered by the MR session, early in sprint 1.
 2. **Validity defaults per kind** — proposed starting points, MR corrects: seasonal moment = its
    season; trending format = 4 weeks; competitor pattern = 8 weeks; audience shift = 6 months.
 3. **Client → category mapping** — `clients.category` set by MR vs derived from KB `industry`.
