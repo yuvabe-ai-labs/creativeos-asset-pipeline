@@ -133,30 +133,25 @@ that's fine — signals matter more right now.
 > [Market Signals PRD](superpowers/specs/2026-08-17-market-signals-prd.md) (§12), with a
 > recommendation on what to protect.
 
-**Sprint 1 — market signals, measured** *(in build order)*
+**Sprint 1 — market signals, measured**
 
-1. **Agree the measurement.** We test on real client work — the eval screen already exists; set
-   the labels (good/bad + variety) and the signals on/off comparison protocol.
-2. **MR discovery** — sit with the MR team: their output format, cadence, and tools. Shapes the
-   curation surface.
-3. **Signals** — the record, applying them, and recording which ones were used.
-4. **Showing applied signals in the prompt** before you generate.
-5. **Test signals on and off on real client scripts** — quality and variety, both.
+| | Days | What |
+|---|---|---|
+| 1 | 1 | **Agree the measurement.** We test on real client work — the eval screen already exists; set the labels (good/bad + variety) and the signals on/off comparison protocol. |
+| 2 | 1–2 | **MR discovery** — sit with the MR team: their output format, cadence, and tools. Shapes the curation surface. |
+| 3 | 1–5 | **Signals** — the record, applying them automatically, and recording which ones were used. |
+| 4 | 5–7 | **Showing applied signals in the prompt** before you generate. |
+| 5 | 8–10 | **Test signals on and off on real client scripts** — quality and variety, both. |
+| — | 1–10 | **Validation starts now and runs through both sprints.** Real designers on real reels and posts — it costs calendar days, not build days. |
 
-**Throughout:** validation starts now and runs through both sprints — real designers on real reels
-and posts. It costs calendar days, not build days.
+**Sprint 2 — harden the posting flow**
 
-**Sprint 2 — harden the posting flow** *(in build order)*
-
-1. **Client approval links** (Post PRD §6.8) — built for a general "thing to approve", not just a
-   post, so stills and clips can reuse it.
-2. **Connect and publish** (§6.9) — Meta and LinkedIn connections, publishing with a locked
-   caption, a record of every publish, and the copy-and-download fallback.
-3. **Submit to Meta** — test instructions, screencast, a reason for each permission. Privacy
-   Policy and Terms are already live on the website.
-
-**Alongside, as capacity allows:** the asset library and the copilot re-enable. If they don't fit,
-they open sprint 3 rather than squeezing this one.
+| | Days | What |
+|---|---|---|
+| 6 | 1–6 | **Client approval links** (Post PRD §6.8) — built for a general "thing to approve", not just a post, so stills and clips can reuse it. |
+| 7 | 6–9 | **Connect and publish** (§6.9) — Meta and LinkedIn connections, publishing with a locked caption, a record of every publish, and the copy-and-download fallback. |
+| 8 | 9–10 | **Submit to Meta** — test instructions, screencast, a reason for each permission. Privacy Policy and Terms are already live on the website. |
+| — | alongside | **Asset library and the copilot re-enable** — "the rest", slotted in as capacity allows. If they don't fit, they open sprint 3 rather than squeezing this one. |
 
 **The self-checking retry loop stays in sprint 3.** It needs the evals to tell it what "good
 enough" means, and by then sprint 1 will have produced exactly that.
@@ -272,12 +267,6 @@ This produces **evidence, not features.** Nothing new gets built in the editor.
 | R8.3 | Drag something you found **back onto a canvas** as a reference. *"Find the approved still I made for this client"* without reopening the canvas that made it. | V2 |
 | R8.4 | **Start saving a thumbnail** when someone adds a moodboard image. | V2 |
 | R8.5 | Search by what an image looks like; search across clients; search prompt text. | Later |
-
-> **R8.4 is the one thing here that gets more expensive the longer we wait.** A moodboard item can
-> only be saved while the original link still works. Anything we collected with just a link, whose
-> link later breaks, **can never be recovered.** Every other item on the "later" list stays the same
-> size while it waits. This one quietly loses value every week. It's a small change, and that alone
-> is why it's in V2 — not because image search is coming soon.
 
 ---
 
