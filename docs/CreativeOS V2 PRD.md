@@ -54,7 +54,7 @@ Same order as the moves in §1 — each one exists because of a specific problem
 | **Improve the daily workflow** | **Past work has no home.** Finding an approved still means reopening old canvases one by one. The asset library is sold at every price tier, and the data behind it is already being recorded — only the search is missing. |
 | **Figure out our agentic patterns** | **The copilot is switched off.** Fully built, merged, then commented out of the canvas over a layout bug. Our biggest single feature can't be reached by anyone. |
 | **Evals for continuous improvement** | **We need to see more data and improve our prompts with it.** The one time we looked, 20 shots all came out looking the same — a real prompt problem, found by looking. Then the analysis was dropped and the test deleted. Evals make that looking routine: more outputs seen, patterns spotted, prompts improved with evidence instead of guessing. |
-| **Market signals** | **The product doesn't know what month it is.** June and Diwali get identical context, so the work is on-brand but out of touch — and we already sell the fix: "market signals" is on our pricing page with nothing behind it. |
+| **Market signals** | **The product knows the brand, but it's blind to the market.** It carries tone, compliance and visual identity — nothing about what's trending, what competitors are running, which formats are working, how the audience is shifting, or what a season demands. Reading the market and turning it into creative is the half of the job agencies are actually hired for, and today it lives only in designers' heads — and we already sell the fix: "market signals" is on our pricing page with nothing behind it. |
 
 ---
 
