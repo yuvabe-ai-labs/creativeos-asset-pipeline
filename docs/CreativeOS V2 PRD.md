@@ -34,7 +34,7 @@ The six workstreams:
 
 | | What | Why now |
 |---|---|---|
-| **1. Market signals** | A list, kept per client, of what's changing in their market — usable when we generate | We already sell this on the pricing page. Nothing is behind it. |
+| **1. Market signals** | What's changing in the market, kept at three levels — for everyone, per category, per client — usable when we generate | We already sell this on the pricing page. Nothing is behind it. |
 | **2. Post + reel validation** | Real designers using it on real client work, and measuring what happens | Both are built and unproven. The Post PRD already says what would tell us we're wrong. |
 | **3. Post integration + publish** | Client approval links, then publishing to live accounts | Two-thirds of the Post spec isn't built. It's also the thing no competitor offers. |
 | **4. Evals** | Measure on real client work — outputs labelled, signals compared on and off, sameness tracked | Items 1 and 5 change what we send the model. This is how we notice if quality slips. |
@@ -68,11 +68,13 @@ Same order as the moves in §1 — each one exists because of a specific problem
 
 ## 3. Who this is for
 
-Designers, seniors and owners as before — plus, with item 3, **the client**, who reviews and approves
-without needing an account.
+Designers, seniors and owners as before — plus, with item 3, **the client**, who reviews and
+approves without needing an account.
 
-V2 raises one people question rather than adding a user: **whose job is it to add market signals?**
-See §10.
+And one more, for signals: **the Market Research team.** They exist today — market research is
+already a service we run for clients — and they own signals: finding them, writing them, keeping
+them current, across all three levels. Designers use signals; the MR team tends them. Details in
+the [Market Signals PRD](superpowers/specs/2026-08-17-market-signals-prd.md).
 
 ---
 
@@ -96,7 +98,7 @@ For Posts, the Post PRD's rule still stands: **anything that only makes the edit
 
 | Area | **V2** | **Later** |
 |---|---|---|
-| **Adding signals** | Added by a person, kept per client. Five kinds — one of them waits for publishing. | The copilot researching signals for a human to approve; automatic trend feeds. |
+| **Adding signals** | Added by the MR team, at three levels (global / category / client). Five kinds — one waits for publishing. | Tool integrations that remove the data entry, then agentic research — MR review gates both. |
 | **Using signals** | Applied deliberately per piece of work; how they surface in the canvas is decided once the signals PRD is discussed. | Signals that suggest themselves per shot. |
 | **Validation** | Posts **and reels**, with real designers on real client work. | — |
 | **Approval** | Client approval links, built so stills and clips can use them too. | Comments pinned to a spot on the image; email notifications. |
@@ -140,8 +142,9 @@ that's fine — signals matter more right now.
 2. **MR discovery** — sit with the MR team: their output format, cadence, and tools. Shapes the
    curation surface.
 3. **Signals** — the record, applying them, and recording which ones were used.
-4. **Showing applied signals in the prompt** before you generate.
-5. **Test signals on and off on real client scripts** — quality and variety, both.
+4. **The curation surface** — where the MR team enters and maintains signals, shaped by discovery.
+5. **Script + Prompt integration** — applied signals shown in the prompt before you generate.
+6. **Test signals on and off on real client scripts** — quality and variety, both.
 
 **Throughout:** validation starts now and runs through both sprints — real designers on real reels
 and posts. It costs calendar days, not build days.
@@ -161,9 +164,9 @@ they open sprint 3 rather than squeezing this one.
 **The self-checking retry loop stays in sprint 3.** It needs the evals to tell it what "good
 enough" means, and by then sprint 1 will have produced exactly that.
 
-**If sprint 1 runs late,** drop in this order: the read-through of test outputs, then the Signal
-node. **Never drop:** the measurement, the signal record with automatic application, or the on/off
-comparison — those three are the sprint.
+**If sprint 1 runs late,** drop in this order: the AI direction-assist, then curation polish.
+**Never drop:** the measurement, the signal record, or the on/off comparison — those three are the
+sprint.
 
 **If sprint 2 runs late,** drop in this order: the library and copilot (to sprint 3), then
 **LinkedIn** (ship Meta first — the Post PRD already treats LinkedIn as its own step).
@@ -179,14 +182,14 @@ Tagged **[V2]** or **[Later]**.
 
 | | | |
 |---|---|---|
-| R1.1 | A **signal** belongs to a client and can be used on any of their canvases — same as the Brand KB and moodboards. | V2 |
+| R1.1 | A **signal** lives at one of three levels — **global** (everyone), **category** ("ayurvedic skincare"), or **client** (this brand only) — and a client's canvases see all three merged. A client's own signals never leak elsewhere. | V2 |
 | R1.2 | Five kinds: **trending format**, **competitor pattern**, **seasonal moment**, **audience shift**, **past performance**. Past performance **waits** — it needs data we only get once publishing works. | V2 |
 | R1.3 | A signal says **what's happening and what this brand should do about it**. Without the second half it's useless to a generation, so we shouldn't quietly accept one. | V2 |
 | R1.4 | A signal can carry reference images or a link to where it came from. We store the link, not the image — same approach as moodboards. | V2 |
 | R1.5 | A signal has **dates it's valid between**, and can go out of date. A Diwali angle in March is worse than no signal at all. Out-of-date signals stop being used, and are shown as expired rather than quietly disappearing. | V2 |
-| R1.6 | **A person adds signals.** Nothing is scraped or pulled in automatically. | V2 |
+| R1.6 | **The MR team adds signals** — they run this research as a client service today; the tool becomes where their findings land. Nothing is scraped or pulled in automatically. | V2 |
 | R1.7 | The AI can **help write** the "what this brand should do" part, which a person then accepts or edits. It never adds a signal on its own. | V2 |
-| R1.8 | The copilot proposing signals; automatic trend feeds. | Later |
+| R1.8 | Tool integrations feeding signals in (removing the data entry), then agentic research — the MR team reviews everything before it goes live, at every stage. | Later |
 
 > **Footnote — where "past performance" could come from later.** We looked at whether Shopify is
 > worth integrating, and one finding lands directly on R1.2: **Shopify has sales data.** *"This
@@ -259,7 +262,7 @@ This produces **evidence, not features.** Nothing new gets built in the editor.
 |---|---|---|
 | R7.1 | **The copilot works again** — fix the overlap with the gallery drawer properly rather than leaving it switched off. | V2 |
 | R7.2 | Generating still **waits for a person** to press the button. The copilot sets things up; a human decides. | V2 |
-| R7.3 | The copilot can **apply signals** to a node, under the safety rules it already follows. Depends on items 3 and 4 in §5.1. | V2 |
+| R7.3 | The copilot can **apply signals** to a node, under the safety rules it already follows. Depends on the sprint-1 signals work landing. | V2 |
 | R7.4 | The **self-checking retry loop** — asks "is this image good enough?", tries again with something changed, with a hard limit on tries and spend, and every attempt visible in history. **Moved to sprint 3**, because it needs the evals to tell it what "good enough" means. | Later |
 | R7.5 | Running many shots in parallel. | Later |
 
@@ -306,7 +309,7 @@ This produces **evidence, not features.** Nothing new gets built in the editor.
 | **Publishing needs approval first** — nothing publishes without a current client approval. | Settles the build order. Approval before publish, no way round it. |
 | **The measurement has to be agreed before signals ship.** | It's the only way to compare signals on versus off. A day of work, and it gates the measuring half of V2. |
 | **Past-performance signals need publishing data.** | Waits until item 3 is live. The only signal kind with something in front of it. |
-| **Someone has to actually add signals.** | If nobody does, the feature is dead however good it is. §10 Q1 needs answering before we build, and empty states need to carry the action. |
+| **The MR team has to actually adopt signal entry.** | If findings keep landing only in client decks, the feature is dead however good it is. MR discovery is a sprint-1 item, entry has to cost a minute or two, and empty states carry the action. |
 | **We need a brand-icon set** for posts with a contact strip — our current icon set has no social logos and won't add them, for trademark reasons. | Carried over from the Post PRD. Real dependency, not optional. |
 | **Client brand KBs need to be in decent shape.** | Signals can't say anything useful about a brand we barely know. Pick pilot clients accordingly. |
 
@@ -319,7 +322,7 @@ This produces **evidence, not features.** Nothing new gets built in the editor.
 | **The scope is bigger than two weeks.** Two of the six are new builds. | §5.1 splits it into two sprints in priority order, with the drop order agreed up front — so if we run short, what gets cut is already decided. |
 | **Meta submission slips again.** It's already slipped from "day one". | Make it a task with a name and a date (R4.2), not background work. The copy-and-download fallback carries the pilot either way. |
 | **Signals make everything look the same** — every asset chasing the same trending format, and the monotony comes back wearing a new outfit. | Exactly why R6.4 and R6.5 exist. We measure variety with signals on and off, on the same real scripts, before calling signals done. |
-| **Nobody adds signals.** | Treated as the main product risk, not a design detail. §10 Q1; empty states carry the action; the AI assist (R1.7) makes writing a good one cheap. |
+| **Signal entry doesn't stick with the MR team.** | Treated as the main product risk, not a design detail. Discovery shapes the surface around their real process; the AI assist (R1.7) makes writing a good one cheap; sprint 2 is the habit test. |
 | **Out-of-date signals spoil the work.** | Valid-between dates (R1.5); expired ones stop being used and are shown as expired. |
 | **A shared link gets forwarded and the wrong person approves.** | Accepted, as the Post PRD already decided: it's the same trust as emailing a PDF, which is what it replaces — with expiry, the ability to revoke, one link per item, and the approver's name on the record. |
 | **The retry loop burns credits.** | Scheduled last, once the evals give it something to stop on. Hard limit on tries and spend, every attempt in history, and a person still presses Generate. |
@@ -329,11 +332,12 @@ This produces **evidence, not features.** Nothing new gets built in the editor.
 
 ## 10. Still to decide
 
-1. **Whose job is it to add signals, and when?** A designer mid-canvas, a senior once a week, or the
-   owner per client? This decides where it lives and whether it gets used at all — the biggest risk
-   in §9.
-2. **How long is each kind of signal valid by default?** A seasonal moment and an audience shift
-   don't expire on the same schedule.
+1. ~~Whose job is it to add signals?~~ **Answered: the MR team** — see §3 and the
+   [Market Signals PRD](superpowers/specs/2026-08-17-market-signals-prd.md). The remaining signal
+   questions (their cadence, tools, and output format) belong to the MR discovery session, sprint 1.
+2. **How long is each kind of signal valid by default?** The signals PRD proposes starting points
+   (seasonal moment = its season, trending format = 4 weeks, competitor pattern = 8 weeks,
+   audience shift = 6 months); the MR team corrects them at discovery.
 3. **How long does a share link last?** The Post PRD suggests 30 days. Confirm before building.
 4. **If a client asks for changes after approving, does that cancel the approval?** The Post PRD
    assumes yes. **And should they see previous rounds?** It assumes no for now.
