@@ -336,6 +336,7 @@ and it is the permission architecture an agency tool actually wants.
 | Risk | Note |
 |---|---|
 | **Scope drift toward merchant-side.** Once a connector exists, *"we already have the integration — why not sell to merchants?"* becomes an easy thing to say. | The moat identified in the competitive research — per-client tenancy, per-client cost, multi-brand isolation — is worth **nothing** to a single merchant. Merchant-side does not extend the business; it discards the differentiator and enters a commodity band against free. Requirement 1.1.14 happens to protect us from a mistake we might otherwise talk ourselves into. |
+| **The free floor keeps rising.** Shopify Magic went from product descriptions to image editing to social post generation inside a year, free on every plan. | Each Editions release commoditises another layer of basic creative work; anything in our product near that band loses value from below. Defence: what free tooling can't do — per-client brand context, multi-client isolation, client approval, the full reel pipeline. Watch each Editions release to know where the floor is. |
 | **The human handoff does not happen.** | Test with two clients before investing. Behavioural risk, not technical. |
 | **`shop.brand` turns out unreachable.** | Prototype day one; the product-catalog value stands without it. |
 | **Token lifecycle.** Revealed once, revoked on uninstall. | Secure storage, clear re-key path, and a visible "connection health" state — the same pattern the Post PRD already requires for social connections. |
