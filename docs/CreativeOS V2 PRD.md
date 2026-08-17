@@ -321,15 +321,6 @@ This produces **evidence, not features.** Nothing new gets built in the editor.
 3. **How long does a share link last?** The Post PRD suggests 30 days. Confirm before building.
 4. **If a client asks for changes after approving, does that cancel the approval?** The Post PRD
    assumes yes. **And should they see previous rounds?** It assumes no for now.
-5. **How do we fix the copilot and gallery drawer overlapping** — does the copilot become a different
-   shape rather than a second panel on the same edge?
-6. **How many design partners, on which clients**, before validation is a real signal and not one
-   person's opinion?
-7. **How wide is the asset library** — one client, or the whole agency? R8.1 assumes per client,
-   matching everything else. An agency hunting *"that shot we did for someone else"* would want
-   wider, which raises a permissions question.
-8. **Does a signal belong in the archive** as part of how an asset was made? It shaped the output, so
-   probably yes.
 
 ---
 
