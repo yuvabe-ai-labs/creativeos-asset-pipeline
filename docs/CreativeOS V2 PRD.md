@@ -4,7 +4,7 @@
 **Status:** Draft, pending review. Scope agreed 2026-08-16.
 **Owner:** Cyril Varghese
 **Size:** Planned as a two-week sprint. **Six things won't fit in two weeks**, so §5.1 splits them
-into two sprints. The reason is a waiting period we don't control, not how fast we can build.
+into two sprints.
 
 > **How this fits with our other docs.** The MVP PRD describes the product as it stands today. This
 > doc covers one version. When V2 ships, it gets folded into the MVP PRD's changelog — same as we did
@@ -15,15 +15,22 @@ into two sprints. The reason is a waiting period we don't control, not how fast 
 
 ## 1. What V2 is for
 
-Today CreativeOS makes reels and posts, but it **starts from scratch every time**. It uses the same
-brand context whether it's June or Diwali. It keeps no memory of what worked last time. And when the
-work is finished, **it stops before the client ever sees it.**
+**V2 takes the work of V1 further — adding the key things that set us apart, and solidifying what
+we already have.** In practice that means five moves:
 
-V2 fixes both ends. The idea is the line already on our own website:
+* **Improve reels with feedback** — real designers on real client work, with evals telling us what's
+  actually working.
+* **Harden the posting flow with integration** — client approval, then publishing to live accounts.
+* **Improve the daily workflow** — approval links and a searchable asset library.
+* **Figure out our agentic patterns** — the copilot back on now, the self-checking retry loop next.
+* **Evals for continuous improvement** — so every change we make is measured, not assumed.
+
+And one new differentiating piece — **market signals**: what's changing in the client's market,
+usable at the moment we generate. All of it serves the line already on our own website:
 
 > **"Your next D2C creative should not start from zero."**
 
-Six pieces get us there:
+The six workstreams:
 
 | | What | Why now |
 |---|---|---|
@@ -34,25 +41,21 @@ Six pieces get us there:
 | **5. Agentic** | Turn the copilot back on | It's finished code sitting behind a layout bug. |
 | **6. Asset library** | Let people find past work across canvases, not just the one they're in | Sold at every price tier. The data is already there — only the search is missing. |
 
-**Not in V2:** teaching the system from designer corrections, a third asset type, campaign fan-out,
-or regenerating a plate to fit a template.
-
 ---
 
 ## 2. The problems we're solving
 
-| Problem | What it costs us |
-|---|---|
-| **A reel has no ending.** Script → shots → images → clips → a zip file we keep. The client never sees it. | Our original product makes expensive assets and then files them away. Posts get a client. Reels get a folder. |
-| Only a third of the Post feature exists — you can make a post, but not send it or publish it. | We can't test whether the whole idea works. And **we can't even apply to Meta**, because their reviewers need to click through a working publish flow. |
-| The product doesn't know what month it is. A reel made in June and one made at Diwali get identical context. | The work is on-brand but out of touch — which is the thing agencies get hired to get right. |
-| "Market signals" and "the self-learning agent" are on our public pricing page. Neither exists. | A customer disproves the second one just by making two reels. |
-| The copilot is finished and commented out of the canvas. | Our biggest single feature can't be reached by anyone. |
-| Our one quality test found that 20 shots all came out looking the same. We never finished the analysis, and we deleted the test. | Our worst known quality problem is unmeasured — and V2 adds new inputs on top of it. |
+Each problem below maps to one of the moves in §1 — nothing in V2 is there for its own sake.
 
-**That last row is why evals are in this version and not the next one.** Signals and the copilot both
-change what we send the model. Adding them to a prompt whose main flaw is "everything looks the same",
-with no way to check, is how a quality problem becomes invisible.
+| Problem | What it costs us | V2 answer |
+|---|---|---|
+| **A reel has no ending** | Script → shots → images → clips → a zip file we keep. The client never sees the work. Posts get a client; reels get a folder. | Approval links |
+| **Only a third of Posts exists** | You can make a post, but not send it or publish it — and **we can't even apply to Meta**, because their reviewers need a working publish flow to click through. | Publishing |
+| **Reels are built but unproven** | No designer has used the pipeline on real client work with anyone measuring. We're guessing. | Validation |
+| **Approvals and past work have no home** | Client sign-off lives on WhatsApp, and finding an approved still means reopening old canvases one by one. | Approval + library |
+| **The copilot is switched off** | Finished and commented out of the canvas. Our biggest single feature can't be reached by anyone. | Agentic |
+| **Our one quality test was never finished** | It found 20 shots all coming out looking the same. We never finished the analysis, and we deleted the test. | Evals |
+| **The product doesn't know what month it is** | June and Diwali get identical context — and we already sell the fix: "market signals" is on our pricing page with nothing behind it. | Market signals |
 
 ---
 
@@ -95,21 +98,18 @@ For Posts, the Post PRD's rule still stands: **anything that only makes the edit
 | **Agentic** | Copilot switched back on. | The self-checking retry loop; running many shots in parallel. |
 | **Asset library** | Search past work across a whole client. Start saving moodboard thumbnails. | Search by what an image looks like; searching across clients. |
 
-### 5.1 Why this is two sprints
+### 5.1 The plan — two sprints
 
-**One fact decides it, and it isn't how fast we work.**
+Meta's app review takes **2–6 weeks**, usually more than one round, and it only starts once their
+reviewer can click through a working connect-and-publish flow. The plan works around that clock:
 
-> Publishing **cannot go live in two weeks no matter how many people we put on it.** Meta's app
-> review takes **2–6 weeks**, usually with more than one round, and the clock only starts once their
-> reviewer can click through a working connect-and-publish flow. Our own Post PRD says it plainly:
-> *"The critical path is a calendar, not code. Submit on day one."* Day one has already passed.
+* **Sprint 1** builds client approval and publishing, and **gets our Meta application in** —
+  starting the review clock.
+* **Sprint 2** builds signals, the asset library and the copilot **while that clock runs**.
 
-So the most valuable thing this sprint can do for publishing isn't to *finish* it — it's to **get to
-the point where we can apply.** Every day we don't apply is a day added to when publishing works.
-Nothing else in V2 has a clock like that.
-
-Publishing also can't come first, because **nothing publishes without a current client approval**
-(Post PRD R9.2). Approval has to exist before the publish flow can even be demonstrated.
+Inside sprint 1, approval comes before publishing for a simple reason: **nothing publishes without
+a current client approval** (Post PRD R9.2), so the publish flow can't even be demonstrated until
+approval exists.
 
 **Sprint 1 — get the work to the client, and start the clock**
 
