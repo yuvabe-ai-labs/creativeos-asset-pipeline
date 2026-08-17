@@ -45,17 +45,16 @@ The six workstreams:
 
 ## 2. The problems we're solving
 
-Each problem below maps to one of the moves in §1 — nothing in V2 is there for its own sake.
+Same order as the moves in §1 — each one exists because of a specific problem we have today.
 
-| Problem | What it costs us | V2 answer |
-|---|---|---|
-| **A reel has no ending** | Script → shots → images → clips → a zip file we keep. The client never sees the work. Posts get a client; reels get a folder. | Approval links |
-| **Only a third of Posts exists** | You can make a post, but not send it or publish it — and **we can't even apply to Meta**, because their reviewers need a working publish flow to click through. | Publishing |
-| **Reels are built but unproven** | No designer has used the pipeline on real client work with anyone measuring. We're guessing. | Validation |
-| **Approvals and past work have no home** | Client sign-off lives on WhatsApp, and finding an approved still means reopening old canvases one by one. | Approval + library |
-| **The copilot is switched off** | Finished and commented out of the canvas. Our biggest single feature can't be reached by anyone. | Agentic |
-| **Our one quality test was never finished** | It found 20 shots all coming out looking the same. We never finished the analysis, and we deleted the test. | Evals |
-| **The product doesn't know what month it is** | June and Diwali get identical context — and we already sell the fix: "market signals" is on our pricing page with nothing behind it. | Market signals |
+| What we're doing | The problem it fixes |
+|---|---|
+| **Improve reels with feedback** | **Reels are built but unproven.** No designer has run the pipeline on real client work with anyone measuring — and the finished work never reaches the client. It ends as a zip file we keep. Posts get a client; reels get a folder. |
+| **Harden the posting flow** | **Only a third of Posts exists.** Composing works; approval and publishing don't. Client sign-off happens on WhatsApp, where nothing records what they saw or said — and **we can't even apply to Meta** until their reviewers can click through a working publish flow. |
+| **Improve the daily workflow** | **Past work has no home.** Finding an approved still means reopening old canvases one by one. The asset library is sold at every price tier, and the data behind it is already being recorded — only the search is missing. |
+| **Figure out our agentic patterns** | **The copilot is switched off.** Fully built, merged, then commented out of the canvas over a layout bug. Our biggest single feature can't be reached by anyone. |
+| **Evals for continuous improvement** | **We keep building the measurement and never running it.** Our one quality test found 20 shots all coming out looking the same — then the analysis was dropped and the test deleted. That's happened three times now, in different corners of the product. |
+| **Market signals** | **The product doesn't know what month it is.** June and Diwali get identical context, so the work is on-brand but out of touch — and we already sell the fix: "market signals" is on our pricing page with nothing behind it. |
 
 ---
 
