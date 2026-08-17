@@ -3,8 +3,7 @@
 **Date:** 2026-08-16
 **Status:** Draft, pending review. Scope agreed 2026-08-16.
 **Owner:** Cyril Varghese
-**Size:** Planned as a two-week sprint. **Six things won't fit in two weeks**, so §5.1 splits them
-into two sprints.
+**Size:** Two sprints — §5.1 has the order, and what gets dropped first if we run short.
 
 > **How this fits with our other docs.** The MVP PRD describes the product as it stands today. This
 > doc covers one version. When V2 ships, it gets folded into the MVP PRD's changelog — same as we did
@@ -99,23 +98,23 @@ For Posts, the Post PRD's rule still stands: **anything that only makes the edit
 
 ### 5.1 The plan — two sprints
 
-The priority order for this version:
+Priority order:
 
-1. **Market signals** — the differentiating piece, and the headline of this version.
-2. **Improving reels and hardening posts** — reels get their feedback loop (evals + validation);
-   posts get approval, publishing, and the Meta application.
-3. **The rest** — the asset library and the copilot, as capacity allows.
+1. **Market signals first** — the one genuinely new thing in this version.
+2. **Then improving reels and hardening posts** — reels get their feedback loop (evals +
+   validation); posts get approval, publishing, and the Meta application.
+3. **Then the rest** — the asset library and the copilot, as capacity allows.
 
-So **sprint 1 is signals**, measured properly from day one — the eval harness comes back first
-because it's how we prove signals change the output. **Sprint 2 hardens the posting flow**:
-approval, then publishing, then the Meta application (approval first, because nothing publishes
-without a current client approval — Post PRD R9.2). Validation of reels and posts runs through
-both sprints, because it costs calendar time, not build time.
+So **sprint 1 is signals** — with the eval harness back first, because that's how we check signals
+actually change the output. **Sprint 2 is the posting flow**: approval, then publishing, then the
+Meta application (approval first, because nothing publishes without a current client approval —
+Post PRD R9.2). Validation of reels and posts runs through both sprints, since it costs calendar
+time, not build time.
 
-One consequence, stated plainly: Meta's **2–6 week review** only starts once their reviewer can
-click through a working publish flow, so putting signals first moves that submission to the end of
-sprint 2 — **publishing goes live roughly two weeks later than it would the other way round.**
-That's the accepted cost of leading with the differentiator.
+One thing to be aware of: Meta's **2–6 week review** only starts once their reviewer can click
+through a working publish flow. Doing signals first means we submit at the end of sprint 2, so
+publishing goes live about two weeks later than if we'd done it the other way round. We know, and
+that's fine — signals matter more right now.
 
 **Sprint 1 — market signals, measured**
 
@@ -264,7 +263,7 @@ This produces **evidence, not features.** Nothing new gets built in the editor.
 
 | Sign | Why it matters |
 |---|---|
-| **A client approves work through a link** | Both reels and posts finally have an ending. Nobody else in our space does this. |
+| **A client approves work through a link** | Both reels and posts finally have an ending — and none of the tools we compete with do this. |
 | **We've submitted to Meta** | The only thing in V2 that gets worse the longer we wait. |
 | **A signal visibly changes what gets generated** | Our own rule (§4) in one measurement. If it doesn't, signals are a dashboard. |
 | **Output stays as varied, or gets more varied, with signals on** | Proof we haven't made our worst problem worse. |
@@ -301,7 +300,7 @@ This produces **evidence, not features.** Nothing new gets built in the editor.
 
 | Risk | What we do about it |
 |---|---|
-| **Six things don't fit in two weeks.** Two of them are new. | §5.1 splits it up front and says what one sprint would actually hold. Six things at eighty percent is the one outcome worth nothing. |
+| **The scope is bigger than two weeks.** Two of the six are new builds. | §5.1 splits it into two sprints in priority order, with the drop order agreed up front — so if we run short, what gets cut is already decided. |
 | **Meta submission slips again.** It's already slipped from "day one". | Make it a task with a name and a date (R4.2), not background work. The copy-and-download fallback carries the pilot either way. |
 | **Signals make everything look the same** — every asset chasing the same trending format, and the monotony comes back wearing a new outfit. | Exactly why R6.4 and R6.5 exist. We measure variety with signals on and off, against the same 20 shots, before calling signals done. |
 | **Nobody adds signals.** | Treated as the main product risk, not a design detail. §10 Q1; empty states carry the action; the AI assist (R1.7) makes writing a good one cheap. |
