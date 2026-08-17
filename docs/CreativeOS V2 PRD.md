@@ -99,53 +99,54 @@ For Posts, the Post PRD's rule still stands: **anything that only makes the edit
 
 ### 5.1 The plan — two sprints
 
-Meta's app review takes **2–6 weeks**, usually more than one round, and it only starts once their
-reviewer can click through a working connect-and-publish flow. The plan works around that clock:
+The priority order for this version:
 
-* **Sprint 1** builds client approval and publishing, and **gets our Meta application in** —
-  starting the review clock.
-* **Sprint 2** builds signals, the asset library and the copilot **while that clock runs**.
+1. **Market signals** — the differentiating piece, and the headline of this version.
+2. **Improving reels and hardening posts** — reels get their feedback loop (evals + validation);
+   posts get approval, publishing, and the Meta application.
+3. **The rest** — the asset library and the copilot, as capacity allows.
 
-Inside sprint 1, approval comes before publishing for a simple reason: **nothing publishes without
-a current client approval** (Post PRD R9.2), so the publish flow can't even be demonstrated until
-approval exists.
+So **sprint 1 is signals**, measured properly from day one — the eval harness comes back first
+because it's how we prove signals change the output. **Sprint 2 hardens the posting flow**:
+approval, then publishing, then the Meta application (approval first, because nothing publishes
+without a current client approval — Post PRD R9.2). Validation of reels and posts runs through
+both sprints, because it costs calendar time, not build time.
 
-**Sprint 1 — get the work to the client, and start the clock**
+One consequence, stated plainly: Meta's **2–6 week review** only starts once their reviewer can
+click through a working publish flow, so putting signals first moves that submission to the end of
+sprint 2 — **publishing goes live roughly two weeks later than it would the other way round.**
+That's the accepted cost of leading with the differentiator.
+
+**Sprint 1 — market signals, measured**
 
 | | Days | What |
 |---|---|---|
-| 1 | 1 | **Bring back the eval harness.** It's still in git history, and the helper script never left. Cheap, and it makes everything after it testable. |
+| 1 | 1 | **Bring back the eval harness.** It's still in git history, and the helper script never left. It comes first because it's how we prove signals change the output. |
 | 2 | 1–2 | **Read through the 20 test outputs** and write up what's wrong with them. A person reading, alongside the build. |
-| 3 | 1–6 | **Client approval links** (Post PRD §6.8) — built for a general "thing to approve", not just a post, so stills and clips can reuse it. |
-| 4 | 6–9 | **Connect and publish** (§6.9) — Meta and LinkedIn connections, publishing with a locked caption, a record of every publish, and the copy-and-download fallback. |
-| 5 | 9–10 | **Submit to Meta** — test instructions, screencast, a reason for each permission. Privacy Policy and Terms are already live on the website. |
-| — | 1–10 | **Post and reel validation runs the whole time.** It costs calendar days, not build days — start it on day one or there's nothing to show by day ten. |
+| 3 | 1–5 | **Signals** — the record, applying them automatically, and recording which ones were used. |
+| 4 | 5–7 | **The Signal node**, and showing applied signals in the prompt before you generate. |
+| 5 | 8–10 | **Test signals on and off** against the same 20 shots — quality and variety, both. |
+| — | 1–10 | **Validation starts now and runs through both sprints.** Real designers on real reels and posts — it costs calendar days, not build days. |
 
-**Sprint 2 — give the work somewhere to start from**
+**Sprint 2 — harden the posting flow**
 
 | | Days | What |
 |---|---|---|
-| 6 | 1–5 | **Signals: the record, applying them automatically, and recording which ones were used.** |
-| 7 | 5–7 | **The Signal node**, and showing applied signals in the prompt before you generate. |
-| 8 | 3–6 | **Asset library** — search across a whole client, and start saving moodboard thumbnails. Doesn't depend on signals, so it can run alongside. |
-| 9 | 6–7 | **Turn the copilot back on** — fix the overlap with the gallery drawer. |
-| 10 | 8–10 | **Run the tests again**, with signals on and off, against the same 20 shots. |
+| 6 | 1–6 | **Client approval links** (Post PRD §6.8) — built for a general "thing to approve", not just a post, so stills and clips can reuse it. |
+| 7 | 6–9 | **Connect and publish** (§6.9) — Meta and LinkedIn connections, publishing with a locked caption, a record of every publish, and the copy-and-download fallback. |
+| 8 | 9–10 | **Submit to Meta** — test instructions, screencast, a reason for each permission. Privacy Policy and Terms are already live on the website. |
+| — | alongside | **Asset library and the copilot re-enable** — "the rest", slotted in as capacity allows. If they don't fit, they open sprint 3 rather than squeezing this one. |
 
-**The self-checking retry loop moves to sprint 3.** It was already waiting on the evals to tell it
-what "good enough" means. Adding a sixth item means it stops being the thing that gets squeezed and
-becomes the thing that leads the next sprint.
+**The self-checking retry loop stays in sprint 3.** It needs the evals to tell it what "good
+enough" means, and by then sprint 1 will have produced exactly that.
 
-**If it really has to be one sprint**, do sprint 1 only — approval, publishing up to submission,
-validation and the testing. **Signals and the asset library can't share a fortnight with approval and
-publishing.** Trying all six gets us six things at eighty percent, which is worth nothing.
+**If sprint 1 runs late,** drop in this order: the read-through of test outputs, then the Signal
+node. **Never drop:** the harness, the signal record with automatic application, or the on/off
+comparison — those three are the sprint.
 
-**If sprint 1 runs late,** drop in this order: the read-through of test outputs, then **LinkedIn**
-(ship Meta first — the Post PRD already treats LinkedIn as its own step). **Never drop:** the
-harness, approval, or submitting to Meta.
-
-**If sprint 2 runs late,** drop in this order: the Signal node, turning the copilot on, then the
-search filters (keep the wider search, lose the refinement). **Never drop:** the signal record,
-applying signals automatically, or the on/off comparison.
+**If sprint 2 runs late,** drop in this order: the library and copilot (to sprint 3), then
+**LinkedIn** (ship Meta first — the Post PRD already treats LinkedIn as its own step).
+**Never drop:** approval, or submitting to Meta.
 
 ---
 
