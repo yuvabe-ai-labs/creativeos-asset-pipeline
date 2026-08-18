@@ -437,3 +437,10 @@ repo yet) is a separate step this doc doesn't own.
   `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` — a missing value
   fails closed, so this can technically be deployed without it, but impersonation will silently
   be unavailable until it's set).
+- `0028_credit_transactions_generation_set_null.sql` — fixes a gap between `0007`
+  (`generations.node_id` cascades on node delete) and `0019` (`credit_transactions.generation_id`
+  added later with no `ON DELETE` action, defaulting to `RESTRICT`). In production today,
+  deleting any node with a billed generation will hit the same `23503` foreign key violation
+  seen in staging (autosave retries the delete forever). Apply before/with the next production
+  migration sweep, same dashboard SQL editor process as every other migration in this doc — no
+  app code depends on it, so it can go out on its own ahead of a full deploy.

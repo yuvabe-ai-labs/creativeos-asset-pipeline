@@ -13,7 +13,8 @@
     "test:watch": "vitest",
     "env:check": "node scripts/check-env.mjs",
     "env:staging": "node scripts/check-env.mjs .env.staging && node scripts/use-env.mjs staging && next dev",
-    "env:prod": "node scripts/check-env.mjs .env.production && node scripts/use-env.mjs production && next dev"
+    "env:prod": "node scripts/check-env.mjs .env.production && node scripts/use-env.mjs production && next dev",
+    "report:client": "node scripts/client-canvas-report.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",

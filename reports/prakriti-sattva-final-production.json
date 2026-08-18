@@ -1,0 +1,1413 @@
+{
+  "generatedAt": "2026-08-13T13:02:08.040Z",
+  "environment": "production",
+  "supabaseUrl": "https://udxnhxferhiqjvnztyhm.supabase.co",
+  "client": {
+    "slug": "prakriti-sattva-final",
+    "name": "Prakriti Sattva final",
+    "id": "e0cbb3c0-a233-4ba7-9037-ec8b65416a7f",
+    "orgId": "215aaa9e-357f-4b2d-b1e0-b603ad8afaa0",
+    "websiteUrl": null,
+    "kbStatus": "ready",
+    "driveRootFolderId": "1UJ51F1IxcW7DbnuT9IF0zbZAofXLRvr4",
+    "archivedAt": null,
+    "createdAt": "2026-06-17T08:59:18.773229+00:00",
+    "updatedAt": "2026-06-17T08:59:18.773229+00:00"
+  },
+  "totals": {
+    "canvases": 26,
+    "nodes": 662,
+    "imageGenNodes": 114,
+    "videoGenNodes": 57,
+    "genNodesWithOutput": 143,
+    "nodesByType": {
+      "shot": 109,
+      "image-gen": 114,
+      "video-prompt": 51,
+      "video-gen": 57,
+      "prompt": 89,
+      "kb": 26,
+      "file": 174,
+      "draw": 6,
+      "script": 33,
+      "text": 3
+    },
+    "generations": 434,
+    "generationsByType": {
+      "video": 100,
+      "image": 254,
+      "prompt": 80
+    },
+    "generationsByStatus": {
+      "succeeded": 388,
+      "failed": 46
+    },
+    "generationsByModel": {
+      "veo:veo-3.1-lite": 27,
+      "veo:veo-3.1": 10,
+      "openai:sora-2": 4,
+      "gemini:gemini-2.5-flash-image": 5,
+      "openai:gpt-5.4-mini": 80,
+      "gemini:gemini-3-pro-image": 199,
+      "veo:veo-3.1-fast": 5,
+      "openai:gpt-image-2": 47,
+      "gemini:gemini-3.1-flash-image": 3,
+      "kling:kling-3-0": 37,
+      "kling:kling-o1": 9,
+      "kling:kling-v3": 8
+    },
+    "creditsCharged": 12525,
+    "costUsd": 62.0745,
+    "nodeVersions": 807,
+    "versionsByDecision": {
+      "pending": 788,
+      "approved": 12,
+      "changes_requested": 7
+    }
+  },
+  "canvases": [
+    {
+      "slug": "turmeric-sea-buckthorn-1",
+      "name": "Turmeric Sea Buckthorn 1",
+      "createdAt": "2026-06-17T09:06:20.298495+00:00",
+      "lastActivity": "2026-08-12T15:07:21.972446+00:00",
+      "nodes": {
+        "total": 57,
+        "imageGen": 11,
+        "videoGen": 8,
+        "genTotal": 19,
+        "genWithOutput": 12,
+        "byType": {
+          "shot": 6,
+          "image-gen": 11,
+          "video-prompt": 5,
+          "video-gen": 8,
+          "prompt": 10,
+          "kb": 1,
+          "file": 14,
+          "draw": 1,
+          "script": 1
+        }
+      },
+      "generations": {
+        "total": 12,
+        "byType": {
+          "video": 12
+        },
+        "byStatus": {
+          "succeeded": 9,
+          "failed": 3
+        },
+        "byModel": {
+          "veo:veo-3.1-lite": 7,
+          "veo:veo-3.1": 4,
+          "openai:sora-2": 1
+        },
+        "creditsCharged": 0,
+        "costUsd": 4.467
+      },
+      "versions": {
+        "total": 69,
+        "byDecision": {
+          "pending": 69
+        }
+      }
+    },
+    {
+      "slug": "image-gen-test-canvas",
+      "name": "IMAGE GEN TEST CANVAS",
+      "createdAt": "2026-06-17T10:03:01.884751+00:00",
+      "lastActivity": "2026-08-12T10:19:47.573795+00:00",
+      "nodes": {
+        "total": 28,
+        "imageGen": 7,
+        "videoGen": 2,
+        "genTotal": 9,
+        "genWithOutput": 8,
+        "byType": {
+          "shot": 6,
+          "video-prompt": 2,
+          "file": 4,
+          "kb": 1,
+          "script": 2,
+          "image-gen": 7,
+          "video-gen": 2,
+          "draw": 1,
+          "prompt": 3
+        }
+      },
+      "generations": {
+        "total": 7,
+        "byType": {
+          "image": 1,
+          "video": 4,
+          "prompt": 2
+        },
+        "byStatus": {
+          "succeeded": 6,
+          "failed": 1
+        },
+        "byModel": {
+          "gemini:gemini-2.5-flash-image": 1,
+          "veo:veo-3.1": 2,
+          "veo:veo-3.1-lite": 2,
+          "openai:gpt-5.4-mini": 2
+        },
+        "creditsCharged": 0,
+        "costUsd": 3.7429
+      },
+      "versions": {
+        "total": 29,
+        "byDecision": {
+          "pending": 29
+        }
+      }
+    },
+    {
+      "slug": "sep-26-19-keshya-oil",
+      "name": "Sep 26  #19 Keshya Oil",
+      "createdAt": "2026-06-29T05:25:59.535034+00:00",
+      "lastActivity": "2026-06-30T06:55:46.253704+00:00",
+      "nodes": {
+        "total": 41,
+        "imageGen": 9,
+        "videoGen": 1,
+        "genTotal": 10,
+        "genWithOutput": 7,
+        "byType": {
+          "video-prompt": 1,
+          "video-gen": 1,
+          "prompt": 10,
+          "file": 11,
+          "shot": 6,
+          "image-gen": 9,
+          "text": 1,
+          "kb": 1,
+          "script": 1
+        }
+      },
+      "generations": {
+        "total": 0,
+        "byType": {},
+        "byStatus": {},
+        "byModel": {},
+        "creditsCharged": 0,
+        "costUsd": 0
+      },
+      "versions": {
+        "total": 33,
+        "byDecision": {
+          "pending": 33
+        }
+      }
+    },
+    {
+      "slug": "sep-22-18-turmeric-sea-buckthorn",
+      "name": "sep 22 #18 turmeric sea buckthorn",
+      "createdAt": "2026-06-29T08:03:47.68844+00:00",
+      "lastActivity": "2026-08-06T06:19:24.145953+00:00",
+      "nodes": {
+        "total": 13,
+        "imageGen": 1,
+        "videoGen": 1,
+        "genTotal": 2,
+        "genWithOutput": 2,
+        "byType": {
+          "video-gen": 1,
+          "kb": 1,
+          "script": 1,
+          "shot": 5,
+          "file": 2,
+          "prompt": 1,
+          "image-gen": 1,
+          "video-prompt": 1
+        }
+      },
+      "generations": {
+        "total": 3,
+        "byType": {
+          "video": 3
+        },
+        "byStatus": {
+          "succeeded": 2,
+          "failed": 1
+        },
+        "byModel": {
+          "veo:veo-3.1-lite": 2,
+          "veo:veo-3.1": 1
+        },
+        "creditsCharged": 0,
+        "costUsd": 0.4
+      },
+      "versions": {
+        "total": 17,
+        "byDecision": {
+          "pending": 17
+        }
+      }
+    },
+    {
+      "slug": "may-2027-53-mother-s-day",
+      "name": "may 2027 #53 Mother's Day",
+      "createdAt": "2026-06-30T06:15:37.972625+00:00",
+      "lastActivity": "2026-08-13T12:44:37.437731+00:00",
+      "nodes": {
+        "total": 29,
+        "imageGen": 4,
+        "videoGen": 4,
+        "genTotal": 8,
+        "genWithOutput": 6,
+        "byType": {
+          "shot": 4,
+          "file": 9,
+          "prompt": 4,
+          "script": 2,
+          "video-gen": 4,
+          "kb": 1,
+          "image-gen": 4,
+          "video-prompt": 1
+        }
+      },
+      "generations": {
+        "total": 6,
+        "byType": {
+          "image": 1,
+          "video": 5
+        },
+        "byStatus": {
+          "succeeded": 6
+        },
+        "byModel": {
+          "gemini:gemini-3-pro-image": 1,
+          "veo:veo-3.1-lite": 3,
+          "veo:veo-3.1-fast": 1,
+          "veo:veo-3.1": 1
+        },
+        "creditsCharged": 0,
+        "costUsd": 2.9002
+      },
+      "versions": {
+        "total": 41,
+        "byDecision": {
+          "pending": 39,
+          "approved": 2
+        }
+      }
+    },
+    {
+      "slug": "may2027-52",
+      "name": "may2027#52",
+      "createdAt": "2026-07-01T02:28:34.73933+00:00",
+      "lastActivity": "2026-07-22T07:02:41.762079+00:00",
+      "nodes": {
+        "total": 26,
+        "imageGen": 1,
+        "videoGen": 2,
+        "genTotal": 3,
+        "genWithOutput": 3,
+        "byType": {
+          "prompt": 7,
+          "script": 1,
+          "file": 5,
+          "kb": 1,
+          "video-gen": 2,
+          "shot": 6,
+          "video-prompt": 3,
+          "image-gen": 1
+        }
+      },
+      "generations": {
+        "total": 6,
+        "byType": {
+          "video": 6
+        },
+        "byStatus": {
+          "succeeded": 3,
+          "failed": 3
+        },
+        "byModel": {
+          "veo:veo-3.1-lite": 3,
+          "openai:sora-2": 2,
+          "veo:veo-3.1-fast": 1
+        },
+        "creditsCharged": 0,
+        "costUsd": 0.7
+      },
+      "versions": {
+        "total": 30,
+        "byDecision": {
+          "pending": 26,
+          "changes_requested": 2,
+          "approved": 2
+        }
+      }
+    },
+    {
+      "slug": "keshya-shampoo-powder",
+      "name": "Keshya Shampoo Powder",
+      "createdAt": "2026-07-01T06:34:56.170482+00:00",
+      "lastActivity": "2026-07-22T16:11:19.412731+00:00",
+      "nodes": {
+        "total": 2,
+        "imageGen": 0,
+        "videoGen": 0,
+        "genTotal": 0,
+        "genWithOutput": 0,
+        "byType": {
+          "script": 1,
+          "kb": 1
+        }
+      },
+      "generations": {
+        "total": 0,
+        "byType": {},
+        "byStatus": {},
+        "byModel": {},
+        "creditsCharged": 0,
+        "costUsd": 0
+      },
+      "versions": {
+        "total": 0,
+        "byDecision": {}
+      }
+    },
+    {
+      "slug": "24",
+      "name": "#24",
+      "createdAt": "2026-07-03T06:15:09.289753+00:00",
+      "lastActivity": "2026-08-06T06:22:29.572718+00:00",
+      "nodes": {
+        "total": 10,
+        "imageGen": 1,
+        "videoGen": 0,
+        "genTotal": 1,
+        "genWithOutput": 0,
+        "byType": {
+          "shot": 5,
+          "image-gen": 1,
+          "prompt": 2,
+          "kb": 1,
+          "script": 1
+        }
+      },
+      "generations": {
+        "total": 0,
+        "byType": {},
+        "byStatus": {},
+        "byModel": {},
+        "creditsCharged": 0,
+        "costUsd": 0
+      },
+      "versions": {
+        "total": 3,
+        "byDecision": {
+          "pending": 3
+        }
+      }
+    },
+    {
+      "slug": "more-radiant-than-her-40-nov-2026",
+      "name": "More Radiant Than Her 40 (Nov 2026)",
+      "createdAt": "2026-07-03T06:18:17.315566+00:00",
+      "lastActivity": "2026-07-20T05:11:19.554077+00:00",
+      "nodes": {
+        "total": 12,
+        "imageGen": 1,
+        "videoGen": 1,
+        "genTotal": 2,
+        "genWithOutput": 2,
+        "byType": {
+          "script": 1,
+          "kb": 1,
+          "shot": 5,
+          "prompt": 1,
+          "file": 1,
+          "image-gen": 1,
+          "video-prompt": 1,
+          "video-gen": 1
+        }
+      },
+      "generations": {
+        "total": 3,
+        "byType": {
+          "video": 3
+        },
+        "byStatus": {
+          "succeeded": 3
+        },
+        "byModel": {
+          "veo:veo-3.1-lite": 3
+        },
+        "creditsCharged": 0,
+        "costUsd": 0.6
+      },
+      "versions": {
+        "total": 13,
+        "byDecision": {
+          "pending": 13
+        }
+      }
+    },
+    {
+      "slug": "38",
+      "name": "#38",
+      "createdAt": "2026-07-03T06:25:48.953475+00:00",
+      "lastActivity": "2026-08-12T10:22:38.161993+00:00",
+      "nodes": {
+        "total": 24,
+        "imageGen": 7,
+        "videoGen": 1,
+        "genTotal": 8,
+        "genWithOutput": 5,
+        "byType": {
+          "draw": 2,
+          "file": 4,
+          "image-gen": 7,
+          "shot": 5,
+          "prompt": 3,
+          "script": 1,
+          "kb": 1,
+          "video-gen": 1
+        }
+      },
+      "generations": {
+        "total": 3,
+        "byType": {
+          "image": 3
+        },
+        "byStatus": {
+          "succeeded": 3
+        },
+        "byModel": {
+          "openai:gpt-image-2": 3
+        },
+        "creditsCharged": 0,
+        "costUsd": 0
+      },
+      "versions": {
+        "total": 22,
+        "byDecision": {
+          "pending": 20,
+          "approved": 1,
+          "changes_requested": 1
+        }
+      }
+    },
+    {
+      "slug": "27-keshya-hair-oil",
+      "name": "27 Keshya Hair Oil",
+      "createdAt": "2026-07-06T05:49:28.003593+00:00",
+      "lastActivity": "2026-08-13T12:47:39.363337+00:00",
+      "nodes": {
+        "total": 6,
+        "imageGen": 0,
+        "videoGen": 0,
+        "genTotal": 0,
+        "genWithOutput": 0,
+        "byType": {
+          "kb": 1,
+          "script": 1,
+          "shot": 4
+        }
+      },
+      "generations": {
+        "total": 0,
+        "byType": {},
+        "byStatus": {},
+        "byModel": {},
+        "creditsCharged": 0,
+        "costUsd": 0
+      },
+      "versions": {
+        "total": 7,
+        "byDecision": {
+          "pending": 7
+        }
+      }
+    },
+    {
+      "slug": "40-rose-butter",
+      "name": "40 rose butter",
+      "createdAt": "2026-07-06T06:06:28.448775+00:00",
+      "lastActivity": "2026-08-13T12:47:32.817071+00:00",
+      "nodes": {
+        "total": 8,
+        "imageGen": 3,
+        "videoGen": 0,
+        "genTotal": 3,
+        "genWithOutput": 2,
+        "byType": {
+          "image-gen": 3,
+          "kb": 1,
+          "script": 1,
+          "prompt": 1,
+          "file": 2
+        }
+      },
+      "generations": {
+        "total": 4,
+        "byType": {
+          "image": 4
+        },
+        "byStatus": {
+          "succeeded": 3,
+          "failed": 1
+        },
+        "byModel": {
+          "openai:gpt-image-2": 1,
+          "gemini:gemini-3.1-flash-image": 1,
+          "gemini:gemini-2.5-flash-image": 2
+        },
+        "creditsCharged": 135,
+        "costUsd": 0.1333
+      },
+      "versions": {
+        "total": 10,
+        "byDecision": {
+          "pending": 10
+        }
+      }
+    },
+    {
+      "slug": "august-15th-independence-day",
+      "name": "August 15th Independence Day",
+      "createdAt": "2026-07-06T08:54:46.356139+00:00",
+      "lastActivity": "2026-08-06T06:28:17.878257+00:00",
+      "nodes": {
+        "total": 11,
+        "imageGen": 1,
+        "videoGen": 0,
+        "genTotal": 1,
+        "genWithOutput": 0,
+        "byType": {
+          "draw": 2,
+          "kb": 1,
+          "script": 2,
+          "prompt": 1,
+          "file": 4,
+          "image-gen": 1
+        }
+      },
+      "generations": {
+        "total": 0,
+        "byType": {},
+        "byStatus": {},
+        "byModel": {},
+        "creditsCharged": 0,
+        "costUsd": 0
+      },
+      "versions": {
+        "total": 0,
+        "byDecision": {}
+      }
+    },
+    {
+      "slug": "oct-13-22-gift-nourishment",
+      "name": "Oct 13 #22 Gift Nourishment",
+      "createdAt": "2026-07-07T06:37:28.446812+00:00",
+      "lastActivity": "2026-08-06T06:23:56.761007+00:00",
+      "nodes": {
+        "total": 57,
+        "imageGen": 12,
+        "videoGen": 2,
+        "genTotal": 14,
+        "genWithOutput": 12,
+        "byType": {
+          "file": 24,
+          "image-gen": 12,
+          "shot": 6,
+          "prompt": 7,
+          "video-prompt": 3,
+          "script": 1,
+          "kb": 1,
+          "video-gen": 2,
+          "text": 1
+        }
+      },
+      "generations": {
+        "total": 73,
+        "byType": {
+          "image": 53,
+          "prompt": 10,
+          "video": 10
+        },
+        "byStatus": {
+          "succeeded": 60,
+          "failed": 13
+        },
+        "byModel": {
+          "gemini:gemini-3-pro-image": 41,
+          "openai:gpt-image-2": 12,
+          "openai:gpt-5.4-mini": 10,
+          "veo:veo-3.1-fast": 2,
+          "veo:veo-3.1-lite": 6,
+          "openai:sora-2": 1,
+          "veo:veo-3.1": 1
+        },
+        "creditsCharged": 0,
+        "costUsd": 5.919
+      },
+      "versions": {
+        "total": 86,
+        "byDecision": {
+          "pending": 84,
+          "approved": 2
+        }
+      }
+    },
+    {
+      "slug": "oct-20-23-turmeric-sea-buckthorn",
+      "name": "Oct 20 #23 Turmeric Sea Buckthorn",
+      "createdAt": "2026-07-07T07:04:22.300673+00:00",
+      "lastActivity": "2026-07-22T06:59:10.37954+00:00",
+      "nodes": {
+        "total": 25,
+        "imageGen": 4,
+        "videoGen": 1,
+        "genTotal": 5,
+        "genWithOutput": 4,
+        "byType": {
+          "kb": 1,
+          "shot": 7,
+          "prompt": 4,
+          "image-gen": 4,
+          "file": 6,
+          "script": 2,
+          "video-gen": 1
+        }
+      },
+      "generations": {
+        "total": 12,
+        "byType": {
+          "image": 10,
+          "prompt": 2
+        },
+        "byStatus": {
+          "succeeded": 12
+        },
+        "byModel": {
+          "openai:gpt-image-2": 1,
+          "gemini:gemini-3-pro-image": 7,
+          "openai:gpt-5.4-mini": 2,
+          "gemini:gemini-2.5-flash-image": 2
+        },
+        "creditsCharged": 0,
+        "costUsd": 0.6997
+      },
+      "versions": {
+        "total": 24,
+        "byDecision": {
+          "pending": 24
+        }
+      }
+    },
+    {
+      "slug": "51",
+      "name": "#51",
+      "createdAt": "2026-07-13T08:41:33.303202+00:00",
+      "lastActivity": "2026-08-13T04:44:54.871756+00:00",
+      "nodes": {
+        "total": 30,
+        "imageGen": 5,
+        "videoGen": 4,
+        "genTotal": 9,
+        "genWithOutput": 9,
+        "byType": {
+          "prompt": 5,
+          "file": 5,
+          "kb": 1,
+          "image-gen": 5,
+          "video-gen": 4,
+          "video-prompt": 4,
+          "shot": 5,
+          "script": 1
+        }
+      },
+      "generations": {
+        "total": 37,
+        "byType": {
+          "prompt": 7,
+          "image": 20,
+          "video": 10
+        },
+        "byStatus": {
+          "succeeded": 36,
+          "failed": 1
+        },
+        "byModel": {
+          "openai:gpt-5.4-mini": 7,
+          "gemini:gemini-3-pro-image": 19,
+          "openai:gpt-image-2": 1,
+          "kling:kling-3-0": 10
+        },
+        "creditsCharged": 0,
+        "costUsd": 6.1377
+      },
+      "versions": {
+        "total": 58,
+        "byDecision": {
+          "pending": 58
+        }
+      }
+    },
+    {
+      "slug": "50",
+      "name": "#50",
+      "createdAt": "2026-07-15T05:25:52.000052+00:00",
+      "lastActivity": "2026-08-07T10:58:52.118727+00:00",
+      "nodes": {
+        "total": 34,
+        "imageGen": 5,
+        "videoGen": 5,
+        "genTotal": 10,
+        "genWithOutput": 10,
+        "byType": {
+          "text": 1,
+          "image-gen": 5,
+          "file": 7,
+          "prompt": 4,
+          "shot": 4,
+          "video-prompt": 5,
+          "script": 2,
+          "kb": 1,
+          "video-gen": 5
+        }
+      },
+      "generations": {
+        "total": 38,
+        "byType": {
+          "image": 15,
+          "prompt": 9,
+          "video": 14
+        },
+        "byStatus": {
+          "succeeded": 34,
+          "failed": 4
+        },
+        "byModel": {
+          "gemini:gemini-3-pro-image": 15,
+          "openai:gpt-5.4-mini": 9,
+          "kling:kling-3-0": 10,
+          "kling:kling-o1": 4
+        },
+        "creditsCharged": 1177.5,
+        "costUsd": 7.4105
+      },
+      "versions": {
+        "total": 56,
+        "byDecision": {
+          "pending": 55,
+          "changes_requested": 1
+        }
+      }
+    },
+    {
+      "slug": "49",
+      "name": "#49",
+      "createdAt": "2026-07-17T05:02:20.430451+00:00",
+      "lastActivity": "2026-08-12T09:06:10.531028+00:00",
+      "nodes": {
+        "total": 41,
+        "imageGen": 10,
+        "videoGen": 1,
+        "genTotal": 11,
+        "genWithOutput": 10,
+        "byType": {
+          "script": 2,
+          "file": 14,
+          "kb": 1,
+          "prompt": 7,
+          "image-gen": 10,
+          "shot": 6,
+          "video-gen": 1
+        }
+      },
+      "generations": {
+        "total": 53,
+        "byType": {
+          "prompt": 10,
+          "image": 43
+        },
+        "byStatus": {
+          "succeeded": 53
+        },
+        "byModel": {
+          "openai:gpt-5.4-mini": 10,
+          "gemini:gemini-3-pro-image": 21,
+          "openai:gpt-image-2": 22
+        },
+        "creditsCharged": 6152.5,
+        "costUsd": 6.0265
+      },
+      "versions": {
+        "total": 67,
+        "byDecision": {
+          "pending": 59,
+          "approved": 5,
+          "changes_requested": 3
+        }
+      }
+    },
+    {
+      "slug": "31",
+      "name": "#31",
+      "createdAt": "2026-07-21T09:07:14.053255+00:00",
+      "lastActivity": "2026-07-31T05:57:42.768609+00:00",
+      "nodes": {
+        "total": 37,
+        "imageGen": 4,
+        "videoGen": 4,
+        "genTotal": 8,
+        "genWithOutput": 7,
+        "byType": {
+          "file": 12,
+          "prompt": 5,
+          "image-gen": 4,
+          "kb": 1,
+          "video-gen": 4,
+          "shot": 7,
+          "script": 1,
+          "video-prompt": 3
+        }
+      },
+      "generations": {
+        "total": 22,
+        "byType": {
+          "image": 13,
+          "prompt": 4,
+          "video": 5
+        },
+        "byStatus": {
+          "succeeded": 18,
+          "failed": 4
+        },
+        "byModel": {
+          "gemini:gemini-3-pro-image": 13,
+          "openai:gpt-5.4-mini": 4,
+          "kling:kling-v3": 2,
+          "kling:kling-3-0": 3
+        },
+        "creditsCharged": 0,
+        "costUsd": 2.6843
+      },
+      "versions": {
+        "total": 28,
+        "byDecision": {
+          "pending": 28
+        }
+      }
+    },
+    {
+      "slug": "52",
+      "name": "#52",
+      "createdAt": "2026-07-21T10:23:33.707237+00:00",
+      "lastActivity": "2026-08-08T04:40:15.31535+00:00",
+      "nodes": {
+        "total": 59,
+        "imageGen": 10,
+        "videoGen": 7,
+        "genTotal": 17,
+        "genWithOutput": 16,
+        "byType": {
+          "image-gen": 10,
+          "video-prompt": 9,
+          "file": 18,
+          "video-gen": 7,
+          "script": 2,
+          "kb": 1,
+          "prompt": 6,
+          "shot": 6
+        }
+      },
+      "generations": {
+        "total": 58,
+        "byType": {
+          "image": 38,
+          "video": 9,
+          "prompt": 11
+        },
+        "byStatus": {
+          "succeeded": 55,
+          "failed": 3
+        },
+        "byModel": {
+          "gemini:gemini-3-pro-image": 33,
+          "kling:kling-v3": 4,
+          "openai:gpt-5.4-mini": 11,
+          "openai:gpt-image-2": 5,
+          "kling:kling-3-0": 3,
+          "kling:kling-o1": 2
+        },
+        "creditsCharged": 0,
+        "costUsd": 8.0182
+      },
+      "versions": {
+        "total": 88,
+        "byDecision": {
+          "pending": 88
+        }
+      }
+    },
+    {
+      "slug": "35-sandal-madder-body-butter-oil",
+      "name": "#35 Sandal Madder Body Butter & Oil",
+      "createdAt": "2026-07-21T10:27:36.432662+00:00",
+      "lastActivity": "2026-08-13T12:44:09.328245+00:00",
+      "nodes": {
+        "total": 8,
+        "imageGen": 1,
+        "videoGen": 0,
+        "genTotal": 1,
+        "genWithOutput": 0,
+        "byType": {
+          "file": 1,
+          "image-gen": 1,
+          "script": 1,
+          "kb": 1,
+          "shot": 3,
+          "prompt": 1
+        }
+      },
+      "generations": {
+        "total": 4,
+        "byType": {
+          "image": 2,
+          "prompt": 2
+        },
+        "byStatus": {
+          "failed": 2,
+          "succeeded": 2
+        },
+        "byModel": {
+          "gemini:gemini-3-pro-image": 2,
+          "openai:gpt-5.4-mini": 2
+        },
+        "creditsCharged": 0,
+        "costUsd": 0.0053
+      },
+      "versions": {
+        "total": 6,
+        "byDecision": {
+          "pending": 6
+        }
+      }
+    },
+    {
+      "slug": "30",
+      "name": "#30",
+      "createdAt": "2026-07-23T08:08:15.805196+00:00",
+      "lastActivity": "2026-08-13T12:48:04.542438+00:00",
+      "nodes": {
+        "total": 14,
+        "imageGen": 1,
+        "videoGen": 1,
+        "genTotal": 2,
+        "genWithOutput": 2,
+        "byType": {
+          "image-gen": 1,
+          "file": 4,
+          "video-prompt": 1,
+          "video-gen": 1,
+          "kb": 1,
+          "script": 1,
+          "shot": 4,
+          "prompt": 1
+        }
+      },
+      "generations": {
+        "total": 8,
+        "byType": {
+          "image": 5,
+          "video": 2,
+          "prompt": 1
+        },
+        "byStatus": {
+          "succeeded": 8
+        },
+        "byModel": {
+          "gemini:gemini-3-pro-image": 5,
+          "kling:kling-v3": 2,
+          "openai:gpt-5.4-mini": 1
+        },
+        "creditsCharged": 0,
+        "costUsd": 1.995
+      },
+      "versions": {
+        "total": 11,
+        "byDecision": {
+          "pending": 11
+        }
+      }
+    },
+    {
+      "slug": "34-know-your-prakriti",
+      "name": "#34 Know Your Prakriti.",
+      "createdAt": "2026-07-23T08:21:38.561949+00:00",
+      "lastActivity": "2026-08-06T06:19:00.092509+00:00",
+      "nodes": {
+        "total": 19,
+        "imageGen": 3,
+        "videoGen": 2,
+        "genTotal": 5,
+        "genWithOutput": 3,
+        "byType": {
+          "kb": 1,
+          "script": 1,
+          "prompt": 2,
+          "image-gen": 3,
+          "video-prompt": 2,
+          "video-gen": 2,
+          "file": 4,
+          "shot": 4
+        }
+      },
+      "generations": {
+        "total": 18,
+        "byType": {
+          "prompt": 6,
+          "image": 7,
+          "video": 5
+        },
+        "byStatus": {
+          "succeeded": 15,
+          "failed": 3
+        },
+        "byModel": {
+          "openai:gpt-5.4-mini": 6,
+          "gemini:gemini-3.1-flash-image": 2,
+          "veo:veo-3.1-fast": 1,
+          "kling:kling-3-0": 2,
+          "veo:veo-3.1": 1,
+          "veo:veo-3.1-lite": 1,
+          "gemini:gemini-3-pro-image": 5
+        },
+        "creditsCharged": 0,
+        "costUsd": 1.3985
+      },
+      "versions": {
+        "total": 23,
+        "byDecision": {
+          "pending": 23
+        }
+      }
+    },
+    {
+      "slug": "rose-gift-set-39",
+      "name": "rose gift set  #39",
+      "createdAt": "2026-07-27T05:27:23.388746+00:00",
+      "lastActivity": "2026-08-13T12:46:13.818359+00:00",
+      "nodes": {
+        "total": 28,
+        "imageGen": 4,
+        "videoGen": 4,
+        "genTotal": 8,
+        "genWithOutput": 8,
+        "byType": {
+          "video-gen": 4,
+          "file": 5,
+          "shot": 5,
+          "image-gen": 4,
+          "video-prompt": 4,
+          "prompt": 4,
+          "script": 1,
+          "kb": 1
+        }
+      },
+      "generations": {
+        "total": 32,
+        "byType": {
+          "image": 18,
+          "video": 6,
+          "prompt": 8
+        },
+        "byStatus": {
+          "succeeded": 32
+        },
+        "byModel": {
+          "gemini:gemini-3-pro-image": 16,
+          "kling:kling-3-0": 6,
+          "openai:gpt-5.4-mini": 8,
+          "openai:gpt-image-2": 2
+        },
+        "creditsCharged": 0,
+        "costUsd": 3.8639
+      },
+      "versions": {
+        "total": 50,
+        "byDecision": {
+          "pending": 50
+        }
+      }
+    },
+    {
+      "slug": "41",
+      "name": "#42",
+      "createdAt": "2026-08-11T05:51:36.21278+00:00",
+      "lastActivity": "2026-08-11T11:59:52.055652+00:00",
+      "nodes": {
+        "total": 5,
+        "imageGen": 1,
+        "videoGen": 0,
+        "genTotal": 1,
+        "genWithOutput": 1,
+        "byType": {
+          "kb": 1,
+          "script": 1,
+          "file": 2,
+          "image-gen": 1
+        }
+      },
+      "generations": {
+        "total": 2,
+        "byType": {
+          "image": 2
+        },
+        "byStatus": {
+          "succeeded": 2
+        },
+        "byModel": {
+          "gemini:gemini-3-pro-image": 2
+        },
+        "creditsCharged": 355,
+        "costUsd": 0.3528
+      },
+      "versions": {
+        "total": 3,
+        "byDecision": {
+          "pending": 3
+        }
+      }
+    },
+    {
+      "slug": "46",
+      "name": "#46",
+      "createdAt": "2026-08-12T07:00:02.035135+00:00",
+      "lastActivity": "2026-08-13T12:03:09.826251+00:00",
+      "nodes": {
+        "total": 38,
+        "imageGen": 8,
+        "videoGen": 6,
+        "genTotal": 14,
+        "genWithOutput": 14,
+        "byType": {
+          "image-gen": 8,
+          "video-prompt": 6,
+          "video-gen": 6,
+          "file": 16,
+          "kb": 1,
+          "script": 1
+        }
+      },
+      "generations": {
+        "total": 33,
+        "byType": {
+          "image": 19,
+          "prompt": 8,
+          "video": 6
+        },
+        "byStatus": {
+          "succeeded": 26,
+          "failed": 7
+        },
+        "byModel": {
+          "gemini:gemini-3-pro-image": 19,
+          "openai:gpt-5.4-mini": 8,
+          "kling:kling-o1": 3,
+          "kling:kling-3-0": 3
+        },
+        "creditsCharged": 4705,
+        "costUsd": 4.6197
+      },
+      "versions": {
+        "total": 33,
+        "byDecision": {
+          "pending": 33
+        }
+      }
+    }
+  ],
+  "ranking": [
+    {
+      "slug": "turmeric-sea-buckthorn-1",
+      "name": "Turmeric Sea Buckthorn 1",
+      "imageGen": 11,
+      "videoGen": 8,
+      "genTotal": 19
+    },
+    {
+      "slug": "52",
+      "name": "#52",
+      "imageGen": 10,
+      "videoGen": 7,
+      "genTotal": 17
+    },
+    {
+      "slug": "oct-13-22-gift-nourishment",
+      "name": "Oct 13 #22 Gift Nourishment",
+      "imageGen": 12,
+      "videoGen": 2,
+      "genTotal": 14
+    },
+    {
+      "slug": "46",
+      "name": "#46",
+      "imageGen": 8,
+      "videoGen": 6,
+      "genTotal": 14
+    },
+    {
+      "slug": "49",
+      "name": "#49",
+      "imageGen": 10,
+      "videoGen": 1,
+      "genTotal": 11
+    },
+    {
+      "slug": "sep-26-19-keshya-oil",
+      "name": "Sep 26  #19 Keshya Oil",
+      "imageGen": 9,
+      "videoGen": 1,
+      "genTotal": 10
+    },
+    {
+      "slug": "50",
+      "name": "#50",
+      "imageGen": 5,
+      "videoGen": 5,
+      "genTotal": 10
+    },
+    {
+      "slug": "51",
+      "name": "#51",
+      "imageGen": 5,
+      "videoGen": 4,
+      "genTotal": 9
+    },
+    {
+      "slug": "image-gen-test-canvas",
+      "name": "IMAGE GEN TEST CANVAS",
+      "imageGen": 7,
+      "videoGen": 2,
+      "genTotal": 9
+    },
+    {
+      "slug": "31",
+      "name": "#31",
+      "imageGen": 4,
+      "videoGen": 4,
+      "genTotal": 8
+    },
+    {
+      "slug": "may-2027-53-mother-s-day",
+      "name": "may 2027 #53 Mother's Day",
+      "imageGen": 4,
+      "videoGen": 4,
+      "genTotal": 8
+    },
+    {
+      "slug": "rose-gift-set-39",
+      "name": "rose gift set  #39",
+      "imageGen": 4,
+      "videoGen": 4,
+      "genTotal": 8
+    },
+    {
+      "slug": "38",
+      "name": "#38",
+      "imageGen": 7,
+      "videoGen": 1,
+      "genTotal": 8
+    },
+    {
+      "slug": "oct-20-23-turmeric-sea-buckthorn",
+      "name": "Oct 20 #23 Turmeric Sea Buckthorn",
+      "imageGen": 4,
+      "videoGen": 1,
+      "genTotal": 5
+    },
+    {
+      "slug": "34-know-your-prakriti",
+      "name": "#34 Know Your Prakriti.",
+      "imageGen": 3,
+      "videoGen": 2,
+      "genTotal": 5
+    },
+    {
+      "slug": "may2027-52",
+      "name": "may2027#52",
+      "imageGen": 1,
+      "videoGen": 2,
+      "genTotal": 3
+    },
+    {
+      "slug": "40-rose-butter",
+      "name": "40 rose butter",
+      "imageGen": 3,
+      "videoGen": 0,
+      "genTotal": 3
+    },
+    {
+      "slug": "30",
+      "name": "#30",
+      "imageGen": 1,
+      "videoGen": 1,
+      "genTotal": 2
+    },
+    {
+      "slug": "sep-22-18-turmeric-sea-buckthorn",
+      "name": "sep 22 #18 turmeric sea buckthorn",
+      "imageGen": 1,
+      "videoGen": 1,
+      "genTotal": 2
+    },
+    {
+      "slug": "more-radiant-than-her-40-nov-2026",
+      "name": "More Radiant Than Her 40 (Nov 2026)",
+      "imageGen": 1,
+      "videoGen": 1,
+      "genTotal": 2
+    },
+    {
+      "slug": "august-15th-independence-day",
+      "name": "August 15th Independence Day",
+      "imageGen": 1,
+      "videoGen": 0,
+      "genTotal": 1
+    },
+    {
+      "slug": "24",
+      "name": "#24",
+      "imageGen": 1,
+      "videoGen": 0,
+      "genTotal": 1
+    },
+    {
+      "slug": "35-sandal-madder-body-butter-oil",
+      "name": "#35 Sandal Madder Body Butter & Oil",
+      "imageGen": 1,
+      "videoGen": 0,
+      "genTotal": 1
+    },
+    {
+      "slug": "41",
+      "name": "#42",
+      "imageGen": 1,
+      "videoGen": 0,
+      "genTotal": 1
+    },
+    {
+      "slug": "27-keshya-hair-oil",
+      "name": "27 Keshya Hair Oil",
+      "imageGen": 0,
+      "videoGen": 0,
+      "genTotal": 0
+    },
+    {
+      "slug": "keshya-shampoo-powder",
+      "name": "Keshya Shampoo Powder",
+      "imageGen": 0,
+      "videoGen": 0,
+      "genTotal": 0
+    }
+  ]
+}
