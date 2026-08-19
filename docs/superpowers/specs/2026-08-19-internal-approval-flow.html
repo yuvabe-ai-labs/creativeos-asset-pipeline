@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Internal approval — flow reference</title>
+<style>
+  :root {
+    --ink: #0b0f19; --ink-2: #52525b; --ink-3: #a1a1aa;
+    --line: #e4e4e7; --bg: #fafafa; --card: #ffffff;
+    --brand: #5829c7; --brand-tint: rgba(88,41,199,.08);
+    --amber: #f59e0b; --amber-line: #fcd34d; --amber-bg: #fffbeb; --amber-ink: #92400e;
+    --red: #dc2626; --red-line: #fecaca; --red-bg: #fef2f2; --red-ink: #b91c1c;
+    --shadow: 0 8px 20px rgba(11,15,25,.06);
+    --ease: cubic-bezier(0.22,1,0.36,1);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: "Gilroy", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 15px; line-height: 1.65; -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 56px 28px 96px; }
+  h1, h2, h3 { font-family: "Clash Display", ui-sans-serif, system-ui, sans-serif; margin: 0; letter-spacing: -0.01em; }
+  h1 { font-size: 34px; font-weight: 600; }
+  h2 { font-size: 22px; font-weight: 600; margin: 52px 0 6px; }
+  p { margin: 8px 0; color: var(--ink-2); }
+  .lede { font-size: 16px; max-width: 70ch; }
+  .eyebrow { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); font-weight: 600; }
+  .rule { height: 1px; background: var(--line); margin: 10px 0 22px; }
+  code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: .88em; background: #f4f4f5; padding: 1px 5px; border-radius: 4px; }
+  a { color: var(--brand); }
+  .meta-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+  .tag { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; font-weight: 600;
+         color: var(--brand); background: var(--brand-tint); border-radius: 99px; padding: 4px 11px; }
+  .tag.grey { color: var(--ink-2); background: #f4f4f5; }
+
+  /* ── step scaffold ──────────────────────────────────────────────────── */
+  .flow { display: grid; gap: 16px; margin-top: 26px; }
+  .stp { display: grid; grid-template-columns: 38px 1fr; gap: 16px; align-items: start; }
+  .bub { width: 38px; height: 38px; border-radius: 10px; color: #fff; text-align: center;
+         font: 600 14px/38px "Clash Display", ui-sans-serif, sans-serif; background: var(--brand); }
+  .bub.j { background: var(--ink); }
+  .bod { border: 1px solid var(--line); border-radius: 12px; background: var(--card);
+         overflow: hidden; box-shadow: var(--shadow); }
+  .hd { padding: 12px 15px; border-bottom: 1px solid #f1f1f3; display: flex;
+        align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .t { font: 600 14px/1.3 "Clash Display", ui-sans-serif, sans-serif; color: var(--ink); }
+  .who { font-size: 9px; letter-spacing: .1em; text-transform: uppercase; font-weight: 600;
+         padding: 4px 8px; border-radius: 99px; }
+  .w-j { background: #f4f4f5; color: var(--ink-2); border: 1px solid var(--line); }
+  .w-s { background: var(--brand-tint); color: var(--brand); border: 1px solid rgba(88,41,199,.18); }
+  .w-a { background: #fdfaf3; color: #92610b; border: 1px solid #f0e3c4; }
+  .bb { padding: 15px; }
+  .cp { font-size: 13px; line-height: 1.65; margin: 11px 0 0; }
+  .cp b { color: var(--ink); font-weight: 600; }
+
+  /* ── wireframe kit ──────────────────────────────────────────────────── */
+  .win { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: #fff; }
+  .bar { display: flex; align-items: center; gap: 9px; padding: 8px 11px; background: #fcfcfd; border-bottom: 1px solid #f1f1f3; }
+  .brand { width: 15px; height: 15px; border-radius: 4px; background: var(--brand); }
+  .sp { flex: 1; }
+  .ico { position: relative; width: 24px; height: 24px; border-radius: 6px; border: 1px solid var(--line);
+         background: #fff; font-size: 11px; display: flex; align-items: center; justify-content: center; }
+  .pip { position: absolute; top: -5px; right: -5px; min-width: 15px; height: 15px; padding: 0 4px;
+         border-radius: 99px; background: var(--amber-bg); border: 1px solid var(--amber-line);
+         color: var(--amber-ink); font: 600 9px/13px ui-sans-serif, sans-serif; text-align: center; }
+  .av { width: 20px; height: 20px; border-radius: 50%; background: #ececef; }
+
+  .row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; }
+  .row + .row { border-top: 1px solid #f5f5f6; }
+  .sq { width: 21px; height: 21px; border-radius: 5px; background: #f1f1f3; flex: none; }
+  .nm { font: 500 12px/1.2 ui-sans-serif, sans-serif; color: var(--ink); flex: 1; }
+  .sub { font: 400 10px/1.2 ui-sans-serif, sans-serif; color: var(--ink-3); }
+  .cnt { display: inline-flex; align-items: center; gap: 6px; padding: 2px 9px; border-radius: 99px;
+         border: 1px solid var(--line); background: #fff; color: var(--ink-2);
+         font: 600 10px/1.6 ui-sans-serif, sans-serif; font-variant-numeric: tabular-nums; }
+  .cnt.amb { border-color: var(--amber-line); background: var(--amber-bg); color: var(--amber-ink); }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--amber); flex: none; }
+
+  .cv { position: relative; height: 118px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden;
+        background: linear-gradient(#f4f5f7 1px, transparent 1px) 0 0/21px 21px,
+                    linear-gradient(90deg, #f4f5f7 1px, transparent 1px) 0 0/21px 21px, #fcfcfd; }
+  .nd { position: absolute; width: 42px; height: 30px; border-radius: 5px; background: #fff; border: 1px solid var(--line); }
+  .nd.hot { border-color: var(--amber-line); box-shadow: 0 0 0 3px rgba(245,158,11,.16); }
+  .nd.bad { border-color: var(--red-line); box-shadow: 0 0 0 3px rgba(220,38,38,.12); }
+  .cta { position: absolute; right: 8px; top: 8px; display: inline-flex; align-items: center; gap: 7px;
+         padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff;
+         font: 600 10px/1 ui-sans-serif, sans-serif; color: var(--ink); box-shadow: 0 6px 14px rgba(11,15,25,.07); }
+  .drw { position: absolute; top: 0; bottom: 0; right: 0; width: 110px; background: #fff;
+         border-left: 1px solid var(--line); box-shadow: -7px 0 16px rgba(11,15,25,.06); padding: 8px; }
+  .dh { font: 600 8px/1 ui-sans-serif, sans-serif; letter-spacing: .1em; text-transform: uppercase;
+        color: var(--ink-3); padding: 1px 1px 7px; }
+  .it { height: 20px; border-radius: 4px; background: #fafafb; border: 1px solid #eeeef0; margin-bottom: 5px;
+        display: flex; align-items: center; gap: 5px; padding: 0 5px; }
+  .it .th { width: 12px; height: 12px; border-radius: 3px; background: #e6e6e9; flex: none; }
+  .it .ln { height: 4px; border-radius: 2px; background: #dededf; flex: 1; }
+  .it.sel { background: var(--amber-bg); border-color: var(--amber-line); }
+  .sheet { position: absolute; left: 0; right: 0; bottom: 0; height: 74%; background: #fff;
+           border-top: 1px solid var(--line); border-radius: 10px 10px 0 0; padding: 9px 11px;
+           box-shadow: 0 -8px 20px rgba(11,15,25,.10); }
+  .art { height: 44px; border-radius: 5px; background: #f1f1f3; border: 1px solid #e9e9ec; margin: 7px 0; }
+  .btn { font: 600 9px/1 ui-sans-serif, sans-serif; border-radius: 5px; padding: 6px 10px; display: inline-block; }
+  .ok { background: var(--brand); color: #fff; }
+  .no { background: #fff; border: 1px solid var(--line); color: var(--ink-2); }
+  .rej { background: var(--red-ink); color: #fff; }
+  .note { font: 400 10px/1.5 ui-sans-serif, sans-serif; color: var(--red-ink); background: var(--red-bg);
+          border-left: 2px solid var(--red-line); padding: 6px 9px; border-radius: 0 4px 4px 0; }
+  .fld { border: 1px solid var(--line); border-radius: 6px; padding: 7px 9px;
+         font: 400 10px/1 ui-sans-serif, sans-serif; color: var(--ink-3); background: #fcfcfd; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .lock { font: 600 10px/1 ui-sans-serif, sans-serif; color: #92610b; background: #fdfaf3;
+          border: 1px solid #f0e3c4; border-radius: 6px; padding: 7px 10px; display: inline-block; }
+  .callout { border-left: 3px solid var(--brand); background: var(--brand-tint); border-radius: 0 10px 10px 0;
+             padding: 14px 18px; margin-top: 30px; }
+  .callout p { color: #3f2a7a; margin: 0; font-size: 14px; }
+  @media (max-width: 720px) { .two { grid-template-columns: 1fr; } .wrap { padding: 36px 18px 64px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="eyebrow">CreativeOS · design reference</div>
+  <h1>Internal approval — flow reference</h1>
+  <div class="rule"></div>
+  <p class="lede">
+    The eight steps of internal maker-checker approval, junior → senior → junior. Wireframe fidelity:
+    the shapes and the <em>state changes</em> are the point, not the styling. Companion to
+    <a href="2026-08-19-internal-approval-workflow-prd.md">the internal approval PRD</a> — where the
+    two disagree, the PRD is right and this file is stale.
+  </p>
+  <div class="meta-row">
+    <span class="tag">2026-08-19</span>
+    <span class="tag grey">branch: approval</span>
+    <span class="tag grey">D148–D156</span>
+    <span class="tag grey">not client approval</span>
+  </div>
+
+  <h2>The loop</h2>
+  <p>Steps 8 → 3 close automatically. Nothing is submitted, resubmitted, or assigned.</p>
+
+  <div class="flow">
+
+    <div class="stp"><div class="bub">1</div><div class="bod">
+      <div class="hd"><span class="t">Super-admin adds a second seat</span><span class="who w-a">Yuvabe admin</span></div>
+      <div class="bb">
+        <div class="win">
+          <div class="row" style="background:#fcfcfd;border-bottom:1px solid #f1f1f3">
+            <span class="nm" style="font-weight:600">Aurora Studios · Members</span>
+            <span class="btn ok">Add member</span></div>
+          <div class="row"><div class="sq"></div><span class="nm">Meera R.</span><span class="sub">owner</span></div>
+          <div class="row"><div class="sq"></div><span class="nm">Dev K.</span><span class="sub">designer</span></div>
+        </div>
+        <p class="cp"><b>R1.1–R1.3.</b> <code>org_role</code> already allows owner / senior / designer —
+        the schema never limited seats. What was missing was any code path to create the second user:
+        <code>createOrgWithOwner</code> hardcodes <code>'owner'</code> and is the only caller of
+        <code>auth.admin.createUser</code> in the repo.</p>
+      </div>
+    </div></div>
+
+    <div class="stp"><div class="bub j">2</div><div class="bod">
+      <div class="hd"><span class="t">Junior generates an asset</span><span class="who w-j">Dev · designer</span></div>
+      <div class="bb">
+        <div class="cv">
+          <div class="nd" style="left:15px;top:17px"></div>
+          <div class="nd hot" style="left:76px;top:46px"></div>
+          <div class="nd" style="left:23px;top:78px"></div>
+          <span class="cnt amb" style="position:absolute;left:124px;top:50px"><span class="dot"></span>Pending</span>
+        </div>
+        <p class="cp"><b>R3.1–R3.3.</b> Every new version defaults to <b>pending</b> — there is no submit
+        button. Only the <b>active</b> version is ever queued, so twenty regenerations remain one item.</p>
+      </div>
+    </div></div>
+
+    <div class="stp"><div class="bub">3</div><div class="bod">
+      <div class="hd"><span class="t">The count bubbles up three levels</span><span class="who w-s">Meera · senior</span></div>
+      <div class="bb">
+        <div class="two">
+          <div class="win">
+            <div class="row" style="background:#fcfcfd;border-bottom:1px solid #f1f1f3"><span class="nm" style="font-weight:600">Clients</span></div>
+            <div class="row"><div class="sq"></div><span class="nm">Aurora Skincare</span><span class="cnt"><span class="dot"></span>7</span></div>
+            <div class="row"><div class="sq"></div><span class="nm">Northwind Coffee</span></div>
+          </div>
+          <div class="win">
+            <div class="row" style="background:#fcfcfd;border-bottom:1px solid #f1f1f3"><span class="nm" style="font-weight:600">Canvases</span></div>
+            <div class="row"><span class="nm">Spring Reel</span><span class="cnt"><span class="dot"></span>5</span></div>
+            <div class="row"><span class="nm">Launch Teaser</span><span class="cnt"><span class="dot"></span>2</span></div>
+          </div>
+        </div>
+        <p class="cp"><b>R5.1–R5.10.</b> One number at three zoom levels — a client's count is the sum of
+        its canvases'. <b>Neutral pill, amber dot.</b> Red is reserved for <code>changes_requested</code>,
+        so a colour never means two things on one journey.</p>
+      </div>
+    </div></div>
+
+    <div class="stp"><div class="bub">4</div><div class="bod">
+      <div class="hd"><span class="t">Open the canvas — without taking the lock</span><span class="who w-s">Meera · senior</span></div>
+      <div class="bb">
+        <div class="cv">
+          <div class="nd" style="left:15px;top:17px"></div>
+          <div class="nd hot" style="left:76px;top:46px"></div>
+          <div class="nd" style="left:23px;top:78px"></div>
+          <span class="cta"><span class="dot"></span>Review requested <span class="cnt amb" style="padding:1px 7px">5</span></span>
+        </div>
+        <p class="cp" style="margin-bottom:9px"><span class="lock">Dev is still editing — and stays editing</span></p>
+        <p class="cp"><b>R7.1–R7.4.</b> This is what is broken today, twice over: a senior <b>cannot</b>
+        approve while the junior holds the lock (<code>canApprove={editable &amp;&amp; …}</code>), and
+        opening the canvas at all <b>takes</b> the lock from them (<code>useCanvasLock</code> acquires on
+        mount). Approval only writes to <code>node_versions</code>, so it never needed the lock.</p>
+      </div>
+    </div></div>
+
+    <div class="stp"><div class="bub">5</div><div class="bod">
+      <div class="hd"><span class="t">Drawer opens · click an item</span><span class="who w-s">Meera · senior</span></div>
+      <div class="bb">
+        <div class="cv">
+          <div class="nd" style="left:15px;top:17px"></div>
+          <div class="nd hot" style="left:66px;top:46px"></div>
+          <div class="drw">
+            <div class="dh">Pending · 5</div>
+            <div class="it sel"><span class="th"></span><span class="ln"></span></div>
+            <div class="it"><span class="th"></span><span class="ln"></span></div>
+            <div class="it"><span class="th"></span><span class="ln"></span></div>
+          </div>
+        </div>
+        <p class="cp"><b>R6.1–R6.3, R6.9.</b> Each row: preview, which node, who made it, when. Clicking
+        flies to the node and opens its focus view. <b>No sequence</b> — the senior picks the order, and
+        nothing advances on their behalf.</p>
+      </div>
+    </div></div>
+
+    <div class="stp"><div class="bub">6</div><div class="bod">
+      <div class="hd"><span class="t">Reject with a note</span><span class="who w-s">Meera · senior</span></div>
+      <div class="bb">
+        <div class="cv">
+          <div class="nd" style="left:15px;top:17px"></div>
+          <div class="drw">
+            <div class="dh">Pending · 5</div>
+            <div class="it sel"><span class="th"></span><span class="ln"></span></div>
+            <div class="it"><span class="th"></span><span class="ln"></span></div>
+          </div>
+          <div class="sheet">
+            <div style="font:600 10px/1 ui-sans-serif,sans-serif;color:var(--ink)">Shot 03 · Image Gen</div>
+            <div class="art"></div>
+            <div class="fld" style="margin-bottom:7px">Skin tone reads orange under the rim light…</div>
+            <span class="btn no">Approve</span> <span class="btn rej">Reject</span>
+          </div>
+        </div>
+        <p class="cp"><b>R6.5, R6.10–R6.12.</b> A rejection <b>requires</b> a note; an approval does not.
+        The drawer is non-modal and stays mounted underneath — close the sheet and the list is right
+        there, one item shorter. No focus view changes shape.</p>
+      </div>
+    </div></div>
+
+    <div class="stp"><div class="bub j">7</div><div class="bod">
+      <div class="hd"><span class="t">It comes back to the junior</span><span class="who w-j">Dev · designer</span></div>
+      <div class="bb">
+        <div class="win">
+          <div class="bar"><div class="brand"></div>
+            <span style="font:600 11px/1 ui-sans-serif,sans-serif;color:var(--ink)">CreativeOS</span>
+            <div class="sp"></div><div class="ico">⚑<span class="pip">1</span></div><div class="av"></div></div>
+          <div style="padding:10px">
+            <div class="row" style="border:1px solid #eeeef0;border-radius:8px;padding:9px 10px">
+              <div class="sq" style="width:28px;height:28px"></div>
+              <div style="flex:1;min-width:0">
+                <div style="font:500 12px/1.3 ui-sans-serif,sans-serif;color:var(--ink)">Shot 03 — hero plate</div>
+                <div class="sub">Spring Reel · 2h ago</div>
+              </div>
+              <span style="color:#d4d4d8">›</span>
+            </div>
+          </div>
+        </div>
+        <p class="cp"><b>R9.1–R9.8.</b> Navbar icon, number badge, popover list of pointers. It lives in
+        the app chrome because rejected work <b>spans canvases and clients</b> — no single canvas could
+        host it. The same control serves a senior, scoped to what is pending for them.</p>
+      </div>
+    </div></div>
+
+    <div class="stp"><div class="bub j">8</div><div class="bod">
+      <div class="hd"><span class="t">Read the note on the node · regenerate</span><span class="who w-j">Dev · designer</span></div>
+      <div class="bb">
+        <div class="cv">
+          <div class="nd bad" style="left:66px;top:21px"></div>
+          <div class="sheet" style="height:66%">
+            <div class="note" style="margin-bottom:7px">Skin tone reads orange under the rim light — rerun cooler.</div>
+            <span class="btn ok">Regenerate</span>
+          </div>
+        </div>
+        <p class="cp"><b>R9.3–R9.4.</b> The note is read <b>here</b>, beside the controls that fix it —
+        which is why the popover stays a pointer. Regenerating writes a new version at <b>pending</b>, so
+        the item leaves Dev's list and returns to Meera's. <b>Neither side resubmits anything.</b></p>
+      </div>
+    </div></div>
+
+  </div>
+
+  <div class="callout">
+    <p><strong>The loop closes on one existing rule.</strong> D29 already specifies that a regenerate
+    produces a new version at <em>pending</em>. That single fact is what makes steps 8 → 3 automatic in
+    both directions — no submit action, no resubmit action, and no assignee stored anywhere.</p>
+  </div>
+
+</div>
+</body>
+</html>

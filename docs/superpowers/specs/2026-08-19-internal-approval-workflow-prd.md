@@ -5,6 +5,9 @@
 **Owner:** Cyril Varghese
 **Audience:** Product, design, engineering. This is the *what* and *why*. The *how* lives in the
 design specs listed in §12.
+**Flow reference:** **[`2026-08-19-internal-approval-flow.html`](2026-08-19-internal-approval-flow.html)**
+— the eight steps of the loop as wireframes, each annotated with the requirements it satisfies.
+**Open it in a browser.** Where it and this PRD disagree, the PRD is right and the mockup is stale.
 
 > **Not to be confused with client approval.** [`2026-08-03-post-client-approval-design.md`](2026-08-03-post-client-approval-design.md)
 > covers an **external client** approving a finished post over a tokenized link, with no account.
@@ -406,8 +409,11 @@ against §7 at the moment of writing rather than assumed.**
 
 This PRD owns *what* and *why*. The *how* belongs in design specs, to be written next:
 
-- **Seats and enforcement** — R1.x, R2.x, R11.x.
-- **Queue, counts, and bubbling** — R3.x, R4.x, R5.x, R8.x.
-- **Review drawer and the lock** — R6.x, R7.x, R9.x, R10.x.
+| Document | Covers | Status |
+|---|---|---|
+| [Flow reference](2026-08-19-internal-approval-flow.html) | The eight-step loop as wireframes, annotated with requirement numbers — **open in a browser** | Written |
+| Seats and enforcement | R1.x, R2.x, R11.x | Owed |
+| Queue, counts, and bubbling | R3.x, R4.x, R5.x, R8.x | Owed |
+| Review drawer and the lock | R6.x, R7.x, R9.x, R10.x | Owed |
 
 **Where a design spec and this PRD disagree, the PRD is right and the spec is stale.**
