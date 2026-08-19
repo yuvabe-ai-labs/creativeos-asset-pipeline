@@ -106,10 +106,11 @@ export function ImageGenOutputSettingsBody({
         </div>
       )}
       {showGenerate && (
+        <div className="mt-4 border-t border-border pt-4">
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger
-              render={<span className="mt-5 inline-flex w-fit" />}
+              render={<span className="inline-flex w-fit" />}
             >
               <Button
                 className="px-14 py-4 text-sm"
@@ -141,6 +142,7 @@ export function ImageGenOutputSettingsBody({
             )}
           </Tooltip>
         </TooltipProvider>
+        </div>
       )}
     </>
   );

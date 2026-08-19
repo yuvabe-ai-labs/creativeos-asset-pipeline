@@ -2,9 +2,50 @@ import { describe, it, expect } from "vitest";
 import {
   deriveShotControlDefaults,
   renderShotControls,
+  controlHighlightTerms,
   DEFAULT_SHOT_CONTROLS,
   SHOT_CONTROLS,
 } from "./shot-controls";
+
+describe("controlHighlightTerms", () => {
+  it("returns the curated keywords for each set control", () => {
+    expect(
+      controlHighlightTerms({ lens: "macro-100", composition: "center", lighting: "auto" }),
+    ).toEqual(["100mm", "macro lens", "extreme close detail", "center-framed", "centered"]);
+  });
+
+  it("covers the lens spec keywords including the aperture", () => {
+    expect(controlHighlightTerms({ lens: "portrait-85", composition: "auto", lighting: "auto" })).toEqual([
+      "85mm",
+      "f/1.8",
+      "portrait lens",
+      "shallow depth of field",
+    ]);
+  });
+
+  it("lists the close-crop variants the model actually writes", () => {
+    expect(
+      controlHighlightTerms({ lens: "auto", composition: "close-crop", lighting: "auto" }),
+    ).toEqual(["tight close crop", "close cropped", "close crop", "tight crop"]);
+  });
+
+  it("every non-auto option has at least one highlight keyword", () => {
+    for (const group of SHOT_CONTROLS) {
+      for (const opt of group.options) {
+        if (opt.value === "auto") continue;
+        const terms = controlHighlightTerms({
+          ...DEFAULT_SHOT_CONTROLS,
+          [group.key]: opt.value,
+        });
+        expect(terms.length, `${group.key}:${opt.value}`).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it("returns no terms when every control is Auto", () => {
+    expect(controlHighlightTerms(DEFAULT_SHOT_CONTROLS)).toEqual([]);
+  });
+});
 
 describe("deriveShotControlDefaults", () => {
   it("maps a wide shot to a wide lens", () => {

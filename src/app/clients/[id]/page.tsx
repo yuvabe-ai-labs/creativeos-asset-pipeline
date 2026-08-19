@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Settings } from "lucide-react";
 import { redirect } from "next/navigation";
 import { getClientBySlug } from "@/lib/db/clients";
 import { listCanvases } from "@/lib/db/canvases";
@@ -77,8 +78,8 @@ export default async function ClientPage({
         </BreadcrumbList>
       </Breadcrumb>
 
-      <header className="animate-rise mb-10 mt-4 flex items-start justify-between gap-4">
-        <div className="flex items-start gap-4">
+      <header className="animate-rise mb-10 mt-4 flex items-end justify-between gap-4">
+        <div className="flex items-end gap-4">
           {client.logo_url ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -91,19 +92,21 @@ export default async function ClientPage({
               {initials(client.name)}
             </span>
           )}
-          <div>
-            <h1 className="font-display text-4xl font-semibold tracking-[-0.02em]">
-              {client.name}
-            </h1>
-          </div>
+          <h1 className="font-display text-4xl font-semibold tracking-[-0.02em]">
+            {client.name}
+          </h1>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex shrink-0 items-end gap-2">
           <Button
             variant="outline"
-            size="sm"
             nativeButton={false}
-            render={<Link href={`/clients/${client.slug}/kb`}>Brand KB</Link>}
+            render={
+              <Link href={`/clients/${client.slug}/kb`}>
+                <Settings className="size-4" strokeWidth={1.5} />
+                Settings
+              </Link>
+            }
           />
           <NewCanvasDialog clientId={client.id} clientSlug={client.slug} />
         </div>

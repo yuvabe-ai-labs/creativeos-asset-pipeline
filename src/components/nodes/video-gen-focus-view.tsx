@@ -176,7 +176,7 @@ function LeftSection({
       >
         <div className="flex items-center gap-1.5">
           <Icon className="size-3.5 text-primary" strokeWidth={1.5} />
-          <span className="text-eyebrow">{label}</span>
+          <span className="text-eyebrow text-foreground/75">{label}</span>
         </div>
         <div className="flex items-center gap-2">
           {badge && (
@@ -246,13 +246,14 @@ function VideoGenDetailPanel({
 
   return (
     <div className="flex w-full max-w-5xl flex-col gap-4 px-6 py-6">
-      <button
+      <Button
         type="button"
+        variant="ghost"
         onClick={onBack}
-        className="inline-flex items-center gap-1.5 self-start text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+        className="h-auto gap-1.5 self-start border-0 p-0 text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground"
       >
         <ArrowLeft className="size-4" strokeWidth={1.5} /> Back to video
-      </button>
+      </Button>
 
       {item.type === "prompt" && promptNode && (
         <div className="flex min-h-0 flex-1 flex-col gap-3">
@@ -298,22 +299,23 @@ function VideoGenDetailPanel({
                   return (
                     <Tooltip key={role}>
                       <TooltipTrigger render={<span />}>
-                        <button
+                        <Button
                           type="button"
+                          variant="ghost"
                           aria-disabled={disabled}
                           onClick={() =>
                             !disabled && onRoleChange(item.id, role)
                           }
                           className={cn(
-                            "rounded-lg border px-4 py-2 text-sm font-medium transition-colors",
+                            "h-auto rounded-lg border px-4 py-2 transition-colors",
                             active
-                              ? "border-primary bg-primary text-primary-foreground"
-                              : "border-border bg-background text-foreground hover:bg-muted",
+                              ? "border-primary bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground dark:hover:bg-primary"
+                              : "border-border bg-background text-foreground hover:bg-muted hover:text-foreground dark:hover:bg-muted",
                             disabled && "cursor-not-allowed opacity-40",
                           )}
                         >
                           {label}
-                        </button>
+                        </Button>
                       </TooltipTrigger>
                       {tooltip && (
                         <TooltipContent side="top">{tooltip}</TooltipContent>
@@ -853,13 +855,14 @@ export function VideoGenFocusView({
         {/* Header */}
         <div className="shrink-0 border-b">
           <div className="mx-auto w-full max-w-7xl px-6 pb-5 pt-3">
-            <button
+            <Button
               type="button"
+              variant="ghost"
               onClick={() => onOpenChange(false)}
-              className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+              className="h-auto gap-1.5 border-0 p-0 text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground"
             >
               <ArrowLeft className="size-4" strokeWidth={1.5} /> Back to canvas
-            </button>
+            </Button>
             <header className="mt-4 flex items-start justify-between gap-4">
               <div>
                 <SheetTitle className="p-0 font-display text-3xl font-semibold tracking-tight">
@@ -879,16 +882,15 @@ export function VideoGenFocusView({
                   {loadingVersions ? (
                     <Skeleton className="h-8 w-20 rounded-md" />
                   ) : (
-                    versions.length > 0 && (
-                      <VideoGenUsagePopover
-                        versions={versions}
-                        nodeId={nodeId}
-                        upstreamNodeIds={[
-                          ...(promptNode ? [promptNode.id] : []),
-                          ...upstreamImages.map((u) => u.id),
-                        ]}
-                      />
-                    )
+                    /* Always rendered once loaded — pre-generation it reads "0 credits used". */
+                    <VideoGenUsagePopover
+                      versions={versions}
+                      nodeId={nodeId}
+                      upstreamNodeIds={[
+                        ...(promptNode ? [promptNode.id] : []),
+                        ...upstreamImages.map((u) => u.id),
+                      ]}
+                    />
                   )}
                   <Tooltip>
                     <TooltipTrigger render={<span />}>
@@ -1165,7 +1167,8 @@ export function VideoGenFocusView({
               </div>
               <div className="min-h-0 flex-1">
                 {mode === "skeleton" && (
-                  <div className="size-full animate-pulse rounded-xl bg-muted-foreground/15" />
+                  // 9:16, flush left — the same footprint the result frame will occupy.
+                  <div className="aspect-[9/16] h-full max-w-full animate-pulse rounded-xl bg-muted-foreground/15" />
                 )}
                 {mode === "empty" && (
                   <div className="flex size-full items-center justify-center rounded-xl border border-dashed border-border">
@@ -1184,13 +1187,14 @@ export function VideoGenFocusView({
                   </div>
                 )}
                 {mode === "result" && videoUrl && (
-                  <div className="flex size-full items-center justify-center">
-                    <video
-                      src={videoUrl}
-                      controls
-                      className="w-full max-h-full rounded-xl border border-border shadow-card"
-                    />
-                  </div>
+                  // Height-driven 9:16 frame, flush left — same treatment as the
+                  // image-gen result: the border hugs the video instead of a
+                  // width-forced box painting gutters inside it.
+                  <video
+                    src={videoUrl}
+                    controls
+                    className="aspect-[9/16] h-full max-w-full rounded-xl border border-border bg-muted/20"
+                  />
                 )}
               </div>
             </div>

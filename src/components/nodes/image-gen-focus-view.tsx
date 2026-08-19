@@ -40,7 +40,8 @@ import {
 } from "./image-gen-version-history";
 import { ImageGenUsagePopover } from "./image-gen-usage-popover";
 import { ImageGenEditPanel } from "./image-gen-edit-panel";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import {
   ImageGenAnnotationCanvas,
   type AnnotationHandle,
@@ -971,36 +972,19 @@ export function ImageGenFocusView({
                 </SheetTitle>
               </div>
               <div className="flex shrink-0 items-center gap-2">
-                {/* The Generate/Edit tabs (needs canEditBase) and Usage popover (needs
-                    versions) both depend on the versions fetch that starts when the sheet
-                    opens — reserve their space with a skeleton instead of rendering nothing
-                    until it resolves, which read as the header controls suddenly popping in. */}
+                {/* The Usage popover depends on the versions fetch that starts when the
+                    sheet opens — reserve its space with a skeleton rather than letting it
+                    pop into the header once the request resolves. The Generate/Edit toggle
+                    used to sit here too; it now lives over the image it acts on. */}
                 {loadingVersions ? (
-                  <Skeleton className="h-8 w-44 rounded-lg" />
+                  <Skeleton className="h-8 w-28 rounded-lg" />
                 ) : (
-                  <>
-                    {canEditBase && (
-                      <Tabs
-                        value={activeTab}
-                        onValueChange={(v) => {
-                          setActiveTab(v as "generate" | "edit");
-                          setSelected("image"); // the tab's UI lives in the hero pane
-                        }}
-                      >
-                        <TabsList>
-                          <TabsTrigger value="generate">Generate</TabsTrigger>
-                          <TabsTrigger value="edit">Edit</TabsTrigger>
-                        </TabsList>
-                      </Tabs>
-                    )}
-                    {versions.length > 0 && (
-                      <ImageGenUsagePopover
-                        versions={versions}
-                        nodeId={nodeId}
-                        upstreamNodeIds={upstream.map((u) => u.id)}
-                      />
-                    )}
-                  </>
+                  /* Always rendered — pre-generation it reads "0 credits used". */
+                  <ImageGenUsagePopover
+                    versions={versions}
+                    nodeId={nodeId}
+                    upstreamNodeIds={upstream.map((u) => u.id)}
+                  />
                 )}
                 <GuidedNextButton
                   sourceId={nodeId}
@@ -1108,11 +1092,11 @@ export function ImageGenFocusView({
                       </AccordionItem>
                     </Accordion>
                   ) : (
-                    <div className="rounded-xl border border-border bg-card p-4 shadow-card">
-                      <LeftSection icon={Settings2} label="Output settings">
-                        {outputSettingsBody}
-                      </LeftSection>
-                    </div>
+                    // Flat, like the image-prompt compose column — the card emphasis
+                    // belongs to the generated output on the right, not the controls.
+                    <LeftSection icon={Settings2} label="Output settings">
+                      {outputSettingsBody}
+                    </LeftSection>
                   )}
 
                   {activeTab === "edit" && canEditBase && (
@@ -1233,13 +1217,36 @@ export function ImageGenFocusView({
 
             {/* Right column — the output, always visible */}
             <div className="flex min-h-0 flex-1 flex-col gap-3 px-6 py-5">
-              <div className="flex items-center gap-1.5">
-                <Sparkles className="size-3.5 text-primary" strokeWidth={1.5} />
-                <span className="text-eyebrow">
-                  {activeTab === "edit" && editBaseUrl && !editing
-                    ? "Base image"
-                    : "Generated image"}
-                </span>
+              <div className="flex items-center gap-6">
+                <div className="flex items-center gap-1.5">
+                  <Sparkles className="size-3.5 text-primary" strokeWidth={1.5} />
+                  <span className="text-eyebrow">
+                    {activeTab === "edit" && editBaseUrl && !editing
+                      ? "Base image"
+                      : "Generated image"}
+                  </span>
+                </div>
+                {/* Edit mode acts on the image directly below, so the control sits with
+                    that image rather than in the page header two panes away — and beside
+                    the heading rather than pushed to the far edge, where it read as
+                    unrelated chrome. A switch, not tabs: two modes of one surface, only
+                    one of which departs from the default. */}
+                {!loadingVersions && canEditBase && (
+                  <Label
+                    htmlFor={`image-edit-mode-${nodeId}`}
+                    className="flex shrink-0 cursor-pointer items-center gap-2.5 text-sm font-medium text-foreground"
+                  >
+                    Edit
+                    <Switch
+                      id={`image-edit-mode-${nodeId}`}
+                      checked={activeTab === "edit"}
+                      onCheckedChange={(checked) => {
+                        setActiveTab(checked ? "edit" : "generate");
+                        setSelected("image"); // the mode's controls live in this pane
+                      }}
+                    />
+                  </Label>
+                )}
               </div>
               <div className="min-h-0 flex-1">
                 {activeTab === "edit" && editBaseUrl && !editing ? (
@@ -1252,15 +1259,18 @@ export function ImageGenFocusView({
                       onMarksChange={setHasMaskRegion}
                     />
                   ) : (
-                    <div className="flex size-full flex-col items-center justify-center gap-3">
+                    // Same frame as the result view, so toggling Edit does not resize
+                    // the picture. The hint is an overlay rather than a row beneath it —
+                    // a flow hint would steal height and reintroduce the mismatch.
+                    <div className="relative h-full w-fit max-w-full overflow-hidden rounded-xl border border-border bg-muted/20">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={editBaseUrl}
                         alt={title || "Base image"}
-                        className="max-h-[80%] max-w-full rounded-xl border border-border object-contain"
+                        className="h-full w-auto max-w-full object-contain"
                         draggable={false}
                       />
-                      <p className="text-xs text-muted-foreground">
+                      <p className="pointer-events-none absolute inset-x-0 bottom-0 bg-background/80 px-3 py-1.5 text-center text-xs text-muted-foreground backdrop-blur-sm">
                         This model edits from your description — say what to
                         change and where.
                       </p>
@@ -1269,7 +1279,9 @@ export function ImageGenFocusView({
                 ) : (
                   <>
                     {mode === "skeleton" && (
-                      <div className="size-full animate-pulse rounded-xl bg-muted-foreground/15" />
+                      // 9:16, centred — the same footprint the result frame will occupy,
+                      // so the swap to the real image doesn't change shape.
+                      <div className="aspect-[9/16] h-full max-w-full animate-pulse rounded-xl bg-muted-foreground/15" />
                     )}
 
                     {mode === "empty" && !editing && (
@@ -1304,12 +1316,16 @@ export function ImageGenFocusView({
                     )}
 
                     {mode === "result" && imageUrl && (
-                      <div className="group relative size-full overflow-hidden rounded-xl border border-border bg-muted/20">
+                      // w-fit: the frame hugs the image (height-driven, width from the
+                      // image's own ratio) instead of filling the column and painting
+                      // gutters inside the border. Overlays anchor to the image, not
+                      // the empty column.
+                      <div className="group relative h-full w-fit max-w-full overflow-hidden rounded-xl border border-border bg-muted/20">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           src={imageUrl}
                           alt={title || "Generated image"}
-                          className="size-full object-contain"
+                          className="h-full w-auto max-w-full object-contain"
                         />
                         {editing && (
                           <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/60 backdrop-blur-sm">
@@ -1323,22 +1339,24 @@ export function ImageGenFocusView({
                           </div>
                         )}
                         <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                          <button
+                          <Button
                             type="button"
+                            variant="ghost"
                             onClick={handleDownload}
-                            className="inline-flex items-center gap-1 rounded-md bg-background/80 px-2 py-1 text-xs font-medium text-foreground backdrop-blur"
+                            className="h-auto gap-1 rounded-md border-0 bg-background/80 px-2 py-1 text-xs text-foreground backdrop-blur hover:bg-background/80 hover:text-foreground"
                             aria-label="Download image"
                           >
                             <Download className="size-3.5" strokeWidth={1.5} />
-                          </button>
-                          <button
+                          </Button>
+                          <Button
                             type="button"
+                            variant="ghost"
                             onClick={() => setZoomOpen(true)}
-                            className="inline-flex items-center gap-1 rounded-md bg-background/80 px-2 py-1 text-xs font-medium text-foreground backdrop-blur"
+                            className="h-auto gap-1 rounded-md border-0 bg-background/80 px-2 py-1 text-xs text-foreground backdrop-blur hover:bg-background/80 hover:text-foreground"
                           >
                             <ZoomIn className="size-3.5" strokeWidth={1.5} />{" "}
                             Zoom
-                          </button>
+                          </Button>
                         </div>
                       </div>
                     )}

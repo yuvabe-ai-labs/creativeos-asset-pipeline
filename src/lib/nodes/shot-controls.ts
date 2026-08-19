@@ -11,6 +11,11 @@ export type ShotControlOption = {
   value: string;
   label: string;
   prose: string; // injected into the prompt; "" for the Auto (no-constraint) option
+  // Curated keywords the UI highlights in generated output for cross-checking. Shorter and
+  // more variant-tolerant than `prose`, because the model reorders and re-adjectives the
+  // prose ("generous negative space" → "large negative space"). Hyphens/spaces are
+  // interchangeable at match time, so one spelling per variant is enough.
+  highlight?: string[];
 };
 
 export type ShotControls = Record<ShotControlKey, string>;
@@ -25,11 +30,31 @@ export const SHOT_CONTROLS: {
     label: "Lens",
     options: [
       { value: "auto", label: "Auto", prose: "" },
-      { value: "wide-24", label: "Wide 24mm", prose: "a 24mm wide-angle lens, deep focus" },
-      { value: "wide-35", label: "Wide 35mm", prose: "a 35mm wide lens" },
-      { value: "standard-50", label: "Standard 50mm", prose: "a 50mm standard lens" },
-      { value: "portrait-85", label: "Portrait 85mm", prose: "an 85mm f/1.8 portrait lens with shallow depth of field" },
-      { value: "macro-100", label: "Macro 100mm", prose: "a 100mm macro lens with extreme close detail" },
+      {
+        value: "wide-24",
+        label: "Wide 24mm",
+        prose: "a 24mm wide-angle lens, deep focus",
+        highlight: ["24mm", "wide-angle lens", "deep focus"],
+      },
+      { value: "wide-35", label: "Wide 35mm", prose: "a 35mm wide lens", highlight: ["35mm", "wide lens"] },
+      {
+        value: "standard-50",
+        label: "Standard 50mm",
+        prose: "a 50mm standard lens",
+        highlight: ["50mm", "standard lens"],
+      },
+      {
+        value: "portrait-85",
+        label: "Portrait 85mm",
+        prose: "an 85mm f/1.8 portrait lens with shallow depth of field",
+        highlight: ["85mm", "f/1.8", "portrait lens", "shallow depth of field"],
+      },
+      {
+        value: "macro-100",
+        label: "Macro 100mm",
+        prose: "a 100mm macro lens with extreme close detail",
+        highlight: ["100mm", "macro lens", "extreme close detail"],
+      },
     ],
   },
   {
@@ -37,11 +62,36 @@ export const SHOT_CONTROLS: {
     label: "Composition",
     options: [
       { value: "auto", label: "Auto", prose: "" },
-      { value: "center", label: "Center-framed", prose: "a center-framed composition" },
-      { value: "negative-space", label: "Negative space", prose: "generous negative space, minimal and restrained" },
-      { value: "flat-lay", label: "Flat-lay / overhead", prose: "an overhead flat-lay composition" },
-      { value: "close-crop", label: "Tight close-crop", prose: "a tight close crop" },
-      { value: "thirds", label: "Rule of thirds", prose: "a rule-of-thirds composition" },
+      {
+        value: "center",
+        label: "Center-framed",
+        prose: "a center-framed composition",
+        highlight: ["center-framed", "centered"],
+      },
+      {
+        value: "negative-space",
+        label: "Negative space",
+        prose: "generous negative space, minimal and restrained",
+        highlight: ["negative space", "minimal and restrained"],
+      },
+      {
+        value: "flat-lay",
+        label: "Flat-lay / overhead",
+        prose: "an overhead flat-lay composition",
+        highlight: ["flat-lay", "overhead"],
+      },
+      {
+        value: "close-crop",
+        label: "Tight close-crop",
+        prose: "a tight close crop",
+        highlight: ["tight close crop", "close cropped", "close crop", "tight crop"],
+      },
+      {
+        value: "thirds",
+        label: "Rule of thirds",
+        prose: "a rule-of-thirds composition",
+        highlight: ["rule-of-thirds"],
+      },
     ],
   },
   {
@@ -49,11 +99,36 @@ export const SHOT_CONTROLS: {
     label: "Lighting",
     options: [
       { value: "auto", label: "Auto", prose: "" },
-      { value: "soft-daylight", label: "Soft window daylight", prose: "soft diffused window daylight" },
-      { value: "golden-hour", label: "Golden hour", prose: "warm golden-hour backlighting" },
-      { value: "chiaroscuro", label: "Dramatic chiaroscuro", prose: "dramatic chiaroscuro with deep shadow contrast" },
-      { value: "studio-softbox", label: "Studio softbox", prose: "three-point studio softbox lighting" },
-      { value: "candlelit", label: "Candlelit warm", prose: "warm candlelit ambience" },
+      {
+        value: "soft-daylight",
+        label: "Soft window daylight",
+        prose: "soft diffused window daylight",
+        highlight: ["soft diffused", "window daylight", "window light"],
+      },
+      {
+        value: "golden-hour",
+        label: "Golden hour",
+        prose: "warm golden-hour backlighting",
+        highlight: ["golden-hour", "backlighting"],
+      },
+      {
+        value: "chiaroscuro",
+        label: "Dramatic chiaroscuro",
+        prose: "dramatic chiaroscuro with deep shadow contrast",
+        highlight: ["chiaroscuro", "deep shadow"],
+      },
+      {
+        value: "studio-softbox",
+        label: "Studio softbox",
+        prose: "three-point studio softbox lighting",
+        highlight: ["three-point", "studio softbox", "softbox"],
+      },
+      {
+        value: "candlelit",
+        label: "Candlelit warm",
+        prose: "warm candlelit ambience",
+        highlight: ["candlelit", "candle-lit", "candlelight"],
+      },
     ],
   },
 ];
@@ -98,6 +173,27 @@ export function deriveShotControlDefaults(shotText: string): ShotControls {
   else if (has("window light", "daylight", "diffused")) lighting = "soft-daylight";
 
   return { lens, composition, lighting };
+}
+
+// Highlightable keywords for the current controls, for the UI to string-match in the
+// generated output. Prefers each option's curated `highlight` list; falls back to the
+// prose split at commas and " with ", stripped of leading articles, for any future option
+// that lacks one.
+export function controlHighlightTerms(controls: ShotControls): string[] {
+  const terms: string[] = [];
+  for (const group of SHOT_CONTROLS) {
+    const opt = group.options.find((o) => o.value === controls[group.key]);
+    if (!opt || opt.value === "auto") continue;
+    if (opt.highlight?.length) {
+      terms.push(...opt.highlight);
+      continue;
+    }
+    for (const part of opt.prose.split(/,| with /)) {
+      const term = part.trim().replace(/^an?\s+/i, "");
+      if (term) terms.push(term);
+    }
+  }
+  return terms;
 }
 
 // The constraint block injected into the compiled prompt. "" when every control is Auto.

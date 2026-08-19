@@ -19,10 +19,10 @@ export function LeftSection({
 }) {
   return (
     <div>
-      <div className="mb-2 flex items-center justify-between">
+      <div className="mb-3 flex items-center justify-between">
         <div className="flex items-center gap-1.5">
           <Icon className="size-3.5 text-primary" />
-          <span className="text-eyebrow">{label}</span>
+          <span className="text-eyebrow text-foreground/75">{label}</span>
         </div>
         <div className="flex items-center gap-2">
           {badge && (

@@ -14,7 +14,7 @@ export function ClientsListSkeleton() {
         <Skeleton className="h-9 w-32 rounded-md" />
       </header>
 
-      <ListSkeleton withAvatar />
+      <ListSkeleton withAvatar withSort={false} />
     </main>
   );
 }

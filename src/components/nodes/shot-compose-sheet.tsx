@@ -215,13 +215,13 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
         {/* header */}
         <div className="shrink-0 border-b">
           <div className="mx-auto w-full max-w-5xl px-6 pb-5 pt-3">
-            <button
-              type="button"
+            <Button
+              variant="ghost"
               onClick={() => onOpenChange(false)}
-              className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+              className="h-auto p-0 text-muted-foreground hover:bg-transparent hover:text-foreground dark:hover:bg-transparent"
             >
               <ArrowLeft className="size-4" /> Back to canvas
-            </button>
+            </Button>
 
             <header className="mt-4 flex items-start justify-between gap-4">
               <div>
@@ -355,15 +355,16 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
                           <Tooltip>
                             <TooltipTrigger
                               render={
-                                <button
-                                  type="button"
+                                <Button
+                                  variant="ghost"
+                                  size="icon-xs"
                                   onClick={() => togglePick(i)}
                                   aria-label={picked.has(i) ? "Unmark for promote" : "Mark for promote"}
                                   className={cn(
-                                    "flex size-6 items-center justify-center rounded-md border transition-colors",
+                                    "size-6 rounded-md border",
                                     picked.has(i)
-                                      ? "border-primary bg-primary text-primary-foreground"
-                                      : "border-muted-foreground/40 bg-background hover:border-primary hover:bg-primary/5 hover:text-primary",
+                                      ? "border-primary bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground dark:hover:bg-primary"
+                                      : "border-muted-foreground/40 bg-background hover:border-primary hover:bg-primary/5 hover:text-primary dark:hover:bg-primary/5",
                                   )}
                                 >
                                   {picked.has(i) ? (
@@ -371,7 +372,7 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
                                   ) : (
                                     <Plus className="size-3.5 text-muted-foreground" strokeWidth={1.5} />
                                   )}
-                                </button>
+                                </Button>
                               }
                             />
                             <TooltipContent>
