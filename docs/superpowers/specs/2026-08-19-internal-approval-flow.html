@@ -281,18 +281,18 @@
           <div class="row" style="background:#fcfcfd;border-bottom:1px solid #f1f1f3">
             <span class="nm" style="font-weight:600">Aurora Studios · Members</span>
             <span class="btn ok">Add member</span></div>
-          <div class="row"><div class="sq"></div><span class="nm">Meera R.</span><span class="sub">owner</span></div>
-          <div class="row"><div class="sq"></div><span class="nm">Dev K.</span><span class="sub">designer</span></div>
+          <div class="row"><div class="sq"></div><span class="nm">Vanchi</span><span class="sub">owner</span></div>
+          <div class="row"><div class="sq"></div><span class="nm">Ruby</span><span class="sub">designer</span></div>
         </div>
-        <p class="cp"><b>R1.1–R1.3.</b> <code>org_role</code> already allows owner / senior / designer —
-        the schema never limited seats. What was missing was any code path to create the second user:
-        <code>createOrgWithOwner</code> hardcodes <code>'owner'</code> and is the only caller of
-        <code>auth.admin.createUser</code> in the repo.</p>
+        <p class="cp"><b>R1.1–R1.3.</b> One step creates the auth user, the profile and the membership,
+        and returns a temporary password to share out of band. Roles are <code>owner</code>,
+        <code>senior</code> and <code>designer</code>; an organization must always keep at least one
+        owner.</p>
       </div>
     </div></div>
 
     <div class="stp"><div class="bub j">2</div><div class="bod">
-      <div class="hd"><span class="t">Junior generates an asset</span><span class="who w-j">Dev · designer</span></div>
+      <div class="hd"><span class="t">Junior generates an asset</span><span class="who w-j">Ruby · designer</span></div>
       <div class="bb">
         <div class="cv">
           <div class="nd" style="left:15px;top:17px"></div>
@@ -306,7 +306,7 @@
     </div></div>
 
     <div class="stp"><div class="bub">3</div><div class="bod">
-      <div class="hd"><span class="t">The count bubbles up three levels</span><span class="who w-s">Meera · senior</span></div>
+      <div class="hd"><span class="t">The count bubbles up three levels</span><span class="who w-s">Vanchi · senior</span></div>
       <div class="bb">
         <div class="two">
           <div class="win">
@@ -327,7 +327,7 @@
     </div></div>
 
     <div class="stp"><div class="bub">4</div><div class="bod">
-      <div class="hd"><span class="t">Open the canvas — without taking the lock</span><span class="who w-s">Meera · senior</span></div>
+      <div class="hd"><span class="t">Open the canvas — without taking the lock</span><span class="who w-s">Vanchi · senior</span></div>
       <div class="bb">
         <div class="cv">
           <div class="nd" style="left:15px;top:17px"></div>
@@ -335,16 +335,16 @@
           <div class="nd" style="left:23px;top:78px"></div>
           <span class="cta"><span class="dot"></span>Review requested <span class="cnt amb" style="padding:1px 7px">5</span></span>
         </div>
-        <p class="cp" style="margin-bottom:9px"><span class="lock">Dev is still editing — and stays editing</span></p>
-        <p class="cp"><b>R7.1–R7.4.</b> This is what is broken today, twice over: a senior <b>cannot</b>
-        approve while the junior holds the lock (<code>canApprove={editable &amp;&amp; …}</code>), and
-        opening the canvas at all <b>takes</b> the lock from them (<code>useCanvasLock</code> acquires on
-        mount). Approval only writes to <code>node_versions</code>, so it never needed the lock.</p>
+        <p class="cp" style="margin-bottom:9px"><span class="lock">The junior holds the edit lock throughout</span></p>
+        <p class="cp"><b>R7.1–R7.4.</b> Reviewing neither requires the canvas edit lock nor acquires it,
+        so whoever is editing keeps editing throughout. Approval writes only to
+        <code>node_versions</code>, which cannot conflict with the canvas snapshot writes the lock
+        exists to serialise.</p>
       </div>
     </div></div>
 
     <div class="stp"><div class="bub">5</div><div class="bod">
-      <div class="hd"><span class="t">Drawer opens · click an item</span><span class="who w-s">Meera · senior</span></div>
+      <div class="hd"><span class="t">Drawer opens · click an item</span><span class="who w-s">Vanchi · senior</span></div>
       <div class="bb">
         <div class="cv">
           <div class="nd" style="left:15px;top:17px"></div>
@@ -356,14 +356,14 @@
             <div class="it"><span class="th"></span><span class="ln"></span></div>
           </div>
         </div>
-        <p class="cp"><b>R6.1–R6.3, R6.9.</b> Each row: preview, which node, who made it, when. Clicking
-        flies to the node and opens its focus view. <b>No sequence</b> — the senior picks the order, and
-        nothing advances on their behalf.</p>
+        <p class="cp"><b>R6.1–R6.3, R6.9.</b> Each row shows a preview, which node it is, who made it,
+        and when. Clicking flies the canvas to that node and opens its focus view. Items are decided
+        one at a time, in whatever order the senior chooses.</p>
       </div>
     </div></div>
 
     <div class="stp"><div class="bub">6</div><div class="bod">
-      <div class="hd"><span class="t">Reject with a note</span><span class="who w-s">Meera · senior</span></div>
+      <div class="hd"><span class="t">Reject with a note</span><span class="who w-s">Vanchi · senior</span></div>
       <div class="bb">
         <div class="cv">
           <div class="nd" style="left:15px;top:17px"></div>
@@ -380,13 +380,13 @@
           </div>
         </div>
         <p class="cp"><b>R6.5, R6.10–R6.12.</b> A rejection <b>requires</b> a note; an approval does not.
-        The drawer is non-modal and stays mounted underneath — close the sheet and the list is right
-        there, one item shorter. No focus view changes shape.</p>
+        The drawer is non-modal and stays mounted beneath the focus view, so closing the sheet returns
+        to the list with the decided item already gone.</p>
       </div>
     </div></div>
 
     <div class="stp"><div class="bub j">7</div><div class="bod">
-      <div class="hd"><span class="t">It comes back to the junior</span><span class="who w-j">Dev · designer</span></div>
+      <div class="hd"><span class="t">It comes back to the junior</span><span class="who w-j">Ruby · designer</span></div>
       <div class="bb">
         <div class="win">
           <div class="bar"><div class="brand"></div>
@@ -410,7 +410,7 @@
     </div></div>
 
     <div class="stp"><div class="bub j">8</div><div class="bod">
-      <div class="hd"><span class="t">Read the note on the node · regenerate</span><span class="who w-j">Dev · designer</span></div>
+      <div class="hd"><span class="t">Read the note on the node · regenerate</span><span class="who w-j">Ruby · designer</span></div>
       <div class="bb">
         <div class="cv">
           <div class="nd bad" style="left:66px;top:21px"></div>
@@ -419,18 +419,18 @@
             <span class="btn ok">Regenerate</span>
           </div>
         </div>
-        <p class="cp"><b>R9.3–R9.4.</b> The note is read <b>here</b>, beside the controls that fix it —
-        which is why the popover stays a pointer. Regenerating writes a new version at <b>pending</b>, so
-        the item leaves Dev's list and returns to Meera's. <b>Neither side resubmits anything.</b></p>
+        <p class="cp"><b>R9.3–R9.4.</b> The reviewer's note is read on the node, beside the controls that
+        act on it. Regenerating writes a new version at <b>pending</b>, so the asset leaves the junior's
+        list and returns to the senior's queue. <b>Neither side resubmits anything.</b></p>
       </div>
     </div></div>
 
   </div>
 
   <div class="callout">
-    <p><strong>The loop closes on one existing rule.</strong> D29 already specifies that a regenerate
-    produces a new version at <em>pending</em>. That single fact is what makes steps 8 → 3 automatic in
-    both directions — no submit action, no resubmit action, and no assignee stored anywhere.</p>
+    <p><strong>The loop closes on one rule.</strong> A regenerate produces a new version at
+    <em>pending</em> (D29). That single fact makes steps 8 → 3 automatic in both directions — no submit
+    action, no resubmit action, and no assignee stored anywhere.</p>
   </div>
 
 </div>
