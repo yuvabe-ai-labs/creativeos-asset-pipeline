@@ -107,7 +107,8 @@ they change what the pipeline *does*, whereas this PRD only changes what people 
 - Pending-review counts bubbling at client, canvas, and node level, updating live.
 - A review drawer on the canvas that navigates to the node under review.
 - Approval that works while another person holds the canvas lock, without taking it from them.
-- A rejected-work queue for the junior who made the asset.
+- A navbar icon with a number badge, opening a popover list of work waiting on you — rejected work
+  for a junior, pending review for a senior.
 - Approval controls for video assets (currently absent).
 - Attribution migrated from free-text names to real user references.
 
@@ -116,7 +117,9 @@ they change what the pipeline *does*, whereas this PRD only changes what people 
 - Org owners provisioning their own seats (super-admin only for now — §10 Q1).
 - Email, push, or any out-of-app notification. In-app only.
 - Gating, auto-advance, or connection blocking on unapproved assets (D11).
-- Batch approve, and cross-client aggregate inboxes beyond the client-row count.
+- Batch approve — every decision is made one asset at a time.
+- A cross-canvas *review run*. The navbar popover (§6.9) is org-wide, but it only **navigates**; runs
+  stay scoped to one canvas (R9.7).
 - Reviewing prompt or motion-prompt text nodes. Assets only.
 - Client-facing approval — that is a separate PRD.
 - More than one org per user; the `one_org_per_user` index stands.
@@ -197,6 +200,13 @@ Requirements are numbered `R<section>.<n>` and referenced by the design specs.
   act on it.
 - **R5.7** A senior can travel client → canvas → node purely by following the counts, without knowing
   in advance where the work is.
+- **R5.8** The count is rendered as a **neutral pill carrying a single amber dot**. Amber is the
+  attention colour, matching the `pending` state the existing `ApprovalBadge` already renders in amber.
+- **R5.9** **Red is reserved for `changes_requested` and must not be used for pending counts.** A red
+  dot meaning "needs review" at the client level, resolving to a red badge meaning "was rejected" at
+  the node level, would give one colour two meanings inside the single journey R5.7 describes.
+- **R5.10** The treatment must stay legible when *many* rows carry a count. A page on which every row
+  is flagged should still read as a list, not an alarm.
 
 ### 6.6 The review drawer
 
@@ -214,6 +224,20 @@ Requirements are numbered `R<section>.<n>` and referenced by the design specs.
 - **R6.7** The drawer is available to every role; for a `designer` it is a read-only view of what is
   outstanding.
 - **R6.8** Opening, reading, and acting in the drawer **never acquires the canvas lock** (§6.7).
+- **R6.9** Clicking a row **starts a review run**, not a single lookup. The senior moves through that
+  canvas's pending items in sequence without returning to the drawer between them.
+- **R6.10** While a run is active, the node's focus view shows the senior's **position in the queue**
+  ("3 of 7") and offers **approve-and-advance**, so acting on an item moves to the next one.
+- **R6.11** A run is navigable by keyboard, and a senior may move through items without deciding on
+  each — skipping is allowed; only the queue's contents are fixed, not the order they act in.
+- **R6.12** The drawer is non-modal and takes no backdrop: the canvas stays interactive behind it,
+  matching the gallery drawer's existing behaviour.
+
+> **Why a run.** Focus views open as a bottom sheet at 92% of viewport height, so the drawer and the
+> node it navigates to cannot both be on screen. Rather than shrink every node type's focus view, the
+> drawer hands off a queue and steps aside. `review-screen.tsx` already implements this shape —
+> one item per screen, keyboard navigation, save-and-advance, a progress counter — and was written to
+> be source-agnostic, so this is largely rewiring rather than new construction.
 
 ### 6.7 Approval and the canvas lock
 
@@ -245,16 +269,34 @@ Requirements are numbered `R<section>.<n>` and referenced by the design specs.
 - **R8.5** If the live connection drops, the surfaces must not display a confidently wrong count —
   degrade to the value from last load rather than to zero.
 
-### 6.9 The junior's rejected queue
+### 6.9 The navbar queue — both roles, one control
 
-- **R9.1** A junior has a surface listing assets they generated that were **rejected**.
-- **R9.2** Each entry shows the reviewer's note, who wrote it, and when — the note is the entire
-  point of the surface.
-- **R9.3** Clicking an entry navigates to that node, the same way the senior's drawer does.
-- **R9.4** An entry leaves this queue when the junior regenerates, because the new version returns to
+- **R9.1** Work waiting on you is reached from a **navbar icon carrying a number badge**, which opens
+  a **popover containing a list**. It is not a page and not a canvas surface.
+- **R9.2** The popover is deliberately **minimal — a list of pointers**. Each row identifies the asset
+  and where it lives; that is all it owes the reader.
+- **R9.3** Clicking an entry navigates to that node. **The reviewer's note is read on the node**, next
+  to the asset and the controls to regenerate it — the place the fix actually happens.
+- **R9.4** An entry leaves the list when the junior regenerates, because the new version returns to
   `pending` (R3.6) and the asset re-enters the senior's queue. The hand-off is automatic in both
   directions.
-- **R9.5** A senior also has this surface for their own rejected work; it is not designer-only.
+- **R9.5** **One control, one meaning — "things waiting on you."** For a `designer` it lists their own
+  rejected work; for a `senior`/`owner` it lists what is pending review. A senior who has had their
+  own work rejected sees that too.
+- **R9.6** The icon lives in the **app chrome**, not on a canvas, because the work it points at
+  **spans canvases and clients**. No single canvas could host it.
+- **R9.7** **The popover navigates; it does not run.** A senior therefore has *two* entry points, and
+  they are deliberately different: the **navbar popover is org-wide and jumps to a node**, while the
+  **canvas sidebar is canvas-scoped and starts a review run** (§6.6). Only the sidebar begins a run.
+- **R9.8** The two counts a senior sees are **scoped differently and will legitimately disagree** —
+  the navbar counts everything outstanding, the canvas control counts only this canvas. Each must
+  state its scope, so that a navbar reading of 12 beside a canvas reading of 5 is obviously two
+  questions answered, not a bug.
+
+> **Why the run stays canvas-scoped.** A run that spanned canvases would have to load a different
+> canvas mid-sequence on every "approve and next" — new lock state, new Realtime channel, a viewport
+> jump the senior did not ask for. Keeping the run inside one canvas costs the senior one extra click
+> per canvas and removes that entire class of problem.
 
 ### 6.10 Video assets
 
@@ -335,13 +377,11 @@ Requirements are numbered `R<section>.<n>` and referenced by the design specs.
 
 1. **Should org owners eventually provision their own seats?** Super-admin-only is right for the
    pilot, but it puts Yuvabe in the loop for every hire. Deferred, not rejected.
-2. **Does a `designer` see other designers' rejected work?** R9.1 says a junior sees their own.
-   Whether the queue is per-person or per-org for juniors is unsettled.
-3. **Should self-approval be blocked for seniors?** R2.5 permits it because a one-senior agency
+2. **Should self-approval be blocked for seniors?** R2.5 permits it because a one-senior agency
    would otherwise deadlock. Revisit if orgs grow.
-4. **Is "Rejected" or "Changes requested" the right label?** The stored value stays
+3. **Is "Rejected" or "Changes requested" the right label?** The stored value stays
    `changes_requested`; the UI wording is a copy decision, currently "Rejected".
-5. **Does an approved asset ever need to leave the approved state?** Reset-to-pending exists in the
+4. **Does an approved asset ever need to leave the approved state?** Reset-to-pending exists in the
    action today. Whether it belongs in this workflow's UI is undecided.
 
 ## 11. Decisions this PRD introduces
@@ -358,6 +398,9 @@ against §7 at the moment of writing rather than assumed.**
 | **D151** | Seats are provisioned by the super-admin, extending the existing org-detail surface. Org self-serve is deferred. |
 | **D152** | Approval permission is enforced server-side against the caller's org role, retiring the cosmetic-only gate D29 §3 deferred. |
 | **D153** | `operator` and `approved_by` become real user references; legacy free-text values degrade rather than block. Executes D29 §5.2. |
+| **D154** | Pending counts are a neutral pill with an amber dot; **red stays reserved for `changes_requested`**. Extends D29's existing badge palette upward to the client and canvas levels rather than introducing a second alarm colour. |
+| **D155** | Reviewing is a **run, not a lookup**: the canvas drawer hands a queue to the focus view, which carries position and approve-and-advance. Adopts the `review-screen.tsx` shape rather than shrinking every node type's 92vh bottom sheet. |
+| **D156** | One navbar control serves both roles — org-wide, a list of pointers, **navigates but never runs**. The run stays canvas-scoped, so no "approve and next" ever loads a different canvas. |
 
 ## 12. Where the design lives
 
