@@ -1,7 +1,7 @@
 "use client";
 
-import type { CSSProperties } from "react";
-import { Sparkles, type LucideIcon } from "lucide-react";
+import type { CSSProperties, ReactNode } from "react";
+import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -17,14 +17,16 @@ type ShotTileStripProps = {
   icon: LucideIcon;
   label: string;
   tiles: ShotControlOption[];
-  autoOption: ShotControlOption;
   value: string;
   onChange: (value: string) => void;
   // Per-control presentation, all driven off the option value:
   tileLabel: (value: string) => string; // terse label under each tile
   tooltip: (value: string) => string; // "when to use this" hint
   caption: (value: string) => string; // full label + descriptor under the strip
-  mediaSrc: (value: string) => string; // the tile image
+  mediaSrc?: (value: string) => string; // the tile image
+  /** Renders the tile media instead of an <img> — used by Camera, whose tiles
+   *  are animated scenes rather than posters. Takes precedence over mediaSrc. */
+  renderMedia?: (value: string) => ReactNode;
   mediaStyle?: (value: string) => CSSProperties | undefined; // e.g. Lens' focal-length zoom
   columns?: number; // set → CSS-grid layout with N columns; unset → single flex row
   placeholderIcon?: LucideIcon; // shown when a tile's mediaSrc is "" (default: the strip's `icon`)
@@ -32,7 +34,7 @@ type ShotTileStripProps = {
 };
 
 // Shared "show-don't-tell" strip for a shot control: an image tile per option cropped/framed to
-// teach the choice at a glance, Auto pulled out into a header chip, per-tile usage tooltips, and a
+// teach the choice at a glance, per-tile usage tooltips, and a
 // lifted+scaled selected tile. Lens and Composition both render through this — the only difference
 // is the tile media (mediaSrc/mediaStyle). Renderer-only: same value/onChange contract as the
 // text-pill controls, so compilePrompt output is unchanged.
@@ -40,48 +42,24 @@ export function ShotTileStrip({
   icon,
   label,
   tiles,
-  autoOption,
   value,
   onChange,
   tileLabel,
   tooltip,
   caption,
   mediaSrc,
+  renderMedia,
   mediaStyle,
   columns,
   placeholderIcon,
   compact,
 }: ShotTileStripProps) {
-  const autoActive = value === autoOption.value;
   const PlaceholderIcon = placeholderIcon ?? icon;
   return (
     // One provider for the row so that, once any tooltip opens, hovering a neighbour opens instantly.
     <TooltipProvider delay={300}>
       <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <FieldLabel icon={icon} label={label} />
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  variant="outline"
-                  size="sm"
-                  aria-pressed={autoActive}
-                  onClick={() => onChange(autoOption.value)}
-                  className={cn(
-                    "nodrag",
-                    autoActive &&
-                      "border-primary/50 bg-primary/5 text-primary hover:bg-primary/10 hover:text-primary",
-                  )}
-                >
-                  <Sparkles className="size-3.5" strokeWidth={1.5} />
-                  {autoOption.label}
-                </Button>
-              }
-            />
-            <TooltipContent>{tooltip(autoOption.value)}</TooltipContent>
-          </Tooltip>
-        </div>
+        <FieldLabel icon={icon} label={label} />
 
         <div
           className={cn(columns ? "grid gap-1.5" : "flex gap-1.5")}
@@ -91,7 +69,7 @@ export function ShotTileStrip({
         >
           {tiles.map((opt) => {
             const active = opt.value === value;
-            const src = mediaSrc(opt.value);
+            const src = mediaSrc?.(opt.value) ?? "";
             return (
               <Tooltip key={opt.value}>
                 <TooltipTrigger
@@ -103,6 +81,7 @@ export function ShotTileStrip({
                       className={cn(
                         "nodrag h-auto flex-col gap-1 p-1 duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]",
                         columns ? "w-full" : "flex-1",
+                        renderMedia && "cam-tile",
                         active &&
                           "z-10 scale-105 border-primary bg-primary/5 shadow-lg ring-2 ring-primary",
                       )}
@@ -113,7 +92,9 @@ export function ShotTileStrip({
                           compact ? "aspect-[16/10]" : "aspect-square",
                         )}
                       >
-                        {src ? (
+                        {renderMedia ? (
+                          renderMedia(opt.value)
+                        ) : src ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img
                             src={src}

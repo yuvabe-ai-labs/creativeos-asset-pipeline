@@ -117,11 +117,17 @@ export function CanvasesTable({
         />
 
         <div className="overflow-hidden rounded-xl border bg-card shadow-card">
-          <div className="text-eyebrow flex items-center gap-4 border-b bg-muted/40 px-5 py-3 text-[0.7rem] text-muted-foreground/80">
-            <span className="flex-3">Canvas</span>
-            <span className="flex-2">Last edited</span>
-            <span className="flex-1 text-right">Created</span>
-            <span className="w-8" />
+          {/* Mirrors the row nesting exactly: an inner flex-1 track carrying the three
+              columns, then a w-32 sibling standing in for the row-actions gutter. Any
+              other arrangement leaves the right-aligned headers running past the data
+              they label, because the actions occupy that space in every row. */}
+          <div className="text-eyebrow flex items-center border-b bg-muted/40 py-3 text-[0.7rem] text-muted-foreground/80">
+            <div className="flex min-w-0 flex-1 items-center gap-4 pl-5">
+              <span className="min-w-0 flex-3">Canvas</span>
+              <span className="min-w-0 flex-2 text-right">Last edited</span>
+              <span className="min-w-0 flex-1 text-right">Created</span>
+            </div>
+            <span className="w-32 shrink-0" aria-hidden />
           </div>
 
           {rows.length === 0 ? (
@@ -142,28 +148,46 @@ export function CanvasesTable({
                     aria-label={canvas.name}
                     className="absolute inset-0"
                   />
-                  <div className="pointer-events-none relative flex items-center gap-4 px-5 py-3.5 pr-12">
-                    <span className="flex-3 font-medium">{canvas.name}</span>
-                    <span className="flex-2 text-sm text-muted-foreground">
-                      {formatRelativeTime(canvas.updated_at)}
-                    </span>
-                    <span className="flex flex-1 items-center justify-end gap-2 text-sm text-muted-foreground">
-                      {new Date(canvas.created_at).toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                      })}
-                      <Link
-                        href={`/eval/${canvas.id}`}
-                        title="Error analysis — inspect this canvas's generations"
-                        className="pointer-events-auto relative z-10 inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/5 hover:text-primary"
-                      >
-                        <Microscope className="size-3.5" strokeWidth={1.5} /> Evals
-                      </Link>
+                  <div className="pointer-events-none relative flex min-w-0 items-center py-3.5">
+                    <div className="flex min-w-0 flex-1 items-center gap-4 pl-5">
+                      {/* Truncates but does NOT get a hover tooltip: this row is a
+                          stretched-link pattern, and re-enabling pointer events on the
+                          name to catch hover would swallow the click that opens the
+                          canvas. The stretched Link already carries the full name as
+                          its aria-label for assistive tech. */}
+                      <span className="min-w-0 flex-3 truncate font-medium">{canvas.name}</span>
+                      <span className="min-w-0 flex-2 truncate text-right text-sm whitespace-nowrap text-muted-foreground">
+                        {formatRelativeTime(canvas.updated_at)}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-right text-sm whitespace-nowrap text-muted-foreground">
+                        {new Date(canvas.created_at).toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                        })}
+                      </span>
+                    </div>
+                    {/* Row actions — their own fixed gutter, so they never eat into the
+                        Created column and pull the data out from under its header. */}
+                    <div className="flex w-32 shrink-0 items-center justify-end gap-2 pr-5">
+                      <Button
+                        variant="outline"
+                        size="xs"
+                        nativeButton={false}
+                        className="pointer-events-auto relative z-10 border-border bg-background text-muted-foreground hover:border-primary/40 hover:bg-primary/5 hover:text-primary dark:border-border dark:bg-background dark:hover:bg-primary/5"
+                        render={
+                          <Link
+                            href={`/eval/${canvas.id}`}
+                            title="Error analysis — inspect this canvas's generations"
+                          >
+                            <Microscope className="size-3.5" strokeWidth={1.5} /> Evals
+                          </Link>
+                        }
+                      />
                       <ChevronRight
-                        className="size-4 text-muted-foreground/40 transition-transform group-hover:translate-x-0.5"
+                        className="size-4 shrink-0 text-muted-foreground/40 transition-transform group-hover:translate-x-0.5"
                         strokeWidth={1.5}
                       />
-                    </span>
+                    </div>
                   </div>
 
                   {/* ⋯ action menu — sits on top of the link */}
@@ -183,22 +207,24 @@ export function CanvasesTable({
                         }
                       />
                       <PopoverContent align="end" className="w-36 p-1">
-                        <button
+                        <Button
                           type="button"
-                          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-muted"
+                          variant="ghost"
+                          className="h-auto w-full justify-start gap-2 rounded-md px-2 py-1.5 font-normal"
                           onClick={() => openRename(canvas)}
                         >
                           <Pencil className="size-3.5" strokeWidth={1.5} />
                           Rename
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                           type="button"
-                          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-destructive transition-colors hover:bg-destructive/10"
+                          variant="ghost"
+                          className="h-auto w-full justify-start gap-2 rounded-md px-2 py-1.5 font-normal text-destructive hover:bg-destructive/10 hover:text-destructive"
                           onClick={() => setDeletingCanvas(canvas)}
                         >
                           <Trash2 className="size-3.5" strokeWidth={1.5} />
                           Delete
-                        </button>
+                        </Button>
                       </PopoverContent>
                     </Popover>
                   </div>

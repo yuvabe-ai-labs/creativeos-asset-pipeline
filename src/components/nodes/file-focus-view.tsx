@@ -209,13 +209,14 @@ export function FileFocusView({
         >
           <div className="shrink-0 border-b">
             <div className="mx-auto w-full max-w-5xl px-6 pb-5 pt-3">
-              <button
+              <Button
                 type="button"
+                variant="ghost"
                 onClick={() => onOpenChange(false)}
-                className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+                className="h-auto gap-1.5 border-0 p-0 text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground"
               >
                 <ArrowLeft className="size-4" /> Back to canvas
-              </button>
+              </Button>
 
               <header className="mt-4 flex items-start justify-between gap-4">
                 <div>
@@ -248,15 +249,16 @@ export function FileFocusView({
                     >
                       <RefreshCw className="size-4 text-primary" /> Replace
                     </Button>
-                    <button
+                    <Button
                       type="button"
+                      variant="outline"
                       onClick={handleOpenPicker}
                       disabled={replacing || loading}
-                      className="inline-flex h-11 items-center gap-2.5 rounded-lg border border-neutral-200 bg-white px-4 text-sm font-medium text-neutral-700 shadow-sm transition-all hover:bg-neutral-50 hover:shadow disabled:pointer-events-none disabled:opacity-50 active:scale-[0.99]"
+                      className="h-11 gap-2.5 border-neutral-200 bg-white px-4 text-neutral-700 shadow-sm hover:bg-neutral-50 hover:text-neutral-700 hover:shadow active:scale-[0.99] active:not-aria-[haspopup]:translate-y-0"
                     >
                       <DriveIcon size={16} />
                       Replace from Drive
-                    </button>
+                    </Button>
                     <Button variant="outline" size="lg" onClick={handleRemove}>
                       <Trash2 className="size-4 text-destructive" />
                       <span className="text-destructive">Remove</span>

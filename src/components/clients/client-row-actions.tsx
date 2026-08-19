@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { MoreHorizontal, Archive, ArchiveRestore } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import {
   Popover,
   PopoverContent,
@@ -39,11 +40,12 @@ export function ClientRowActions({
         <MoreHorizontal className="size-4" strokeWidth={1.5} />
       </PopoverTrigger>
       <PopoverContent align="end" className="w-44 gap-0 p-1">
-        <button
+        <Button
           type="button"
+          variant="ghost"
           onClick={toggle}
           disabled={pending}
-          className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm transition-colors hover:bg-muted disabled:opacity-50"
+          className="h-auto w-full justify-start gap-2 rounded-md px-2.5 py-2 font-normal"
         >
           {archived ? (
             <ArchiveRestore className="size-4" strokeWidth={1.5} />
@@ -51,7 +53,7 @@ export function ClientRowActions({
             <Archive className="size-4" strokeWidth={1.5} />
           )}
           {archived ? "Unarchive" : "Archive"}
-        </button>
+        </Button>
       </PopoverContent>
     </Popover>
   );

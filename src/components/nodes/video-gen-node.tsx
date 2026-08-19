@@ -3,6 +3,7 @@
 import { useState, useCallback } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { Clapperboard } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { useDeleteNode } from "@/hooks/use-delete-node";
@@ -124,12 +125,13 @@ export function VideoGenNode({ id, data, selected, positionAbsoluteX, positionAb
           )}
           {/* Open ↗ left, generation status right — ProcessingPill renders null when idle. */}
           <div className="flex items-center justify-between gap-2">
-            <button
+            <Button
+              variant="ghost"
               onClick={() => setFocusOpen(true)}
-              className="nodrag -mx-1.5 inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10"
+              className="nodrag -mx-1.5 h-auto gap-1 rounded-md border-0 px-1.5 py-1 text-xs text-primary transition-colors hover:bg-primary/10 hover:text-primary"
             >
               Open ↗
-            </button>
+            </Button>
             <ProcessingPill processing={isGenerating} />
           </div>
         </div>

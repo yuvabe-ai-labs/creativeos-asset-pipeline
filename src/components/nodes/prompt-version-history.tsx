@@ -2,6 +2,7 @@
 
 import { History } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import type { ModelRequestRecord } from "@/lib/nodes/model-request";
 
 export type VersionSummary = {
@@ -76,16 +77,16 @@ export function PromptVersionHistory({
 
           return (
             <li key={v.id}>
-              <button
-                type="button"
+              <Button
+                variant="ghost"
                 disabled={isDisabled}
                 onClick={() => !isDisabled && onRestore(v.id)}
                 className={cn(
-                  "group w-full rounded-lg border px-3 py-2 text-left transition-colors",
+                  "group h-auto w-full flex-col items-stretch justify-start gap-0 rounded-lg border px-3 py-2 text-left font-normal whitespace-normal disabled:pointer-events-auto disabled:opacity-100",
                   isActive
-                    ? "border-primary bg-primary/8 cursor-default"
+                    ? "border-primary bg-primary/8 cursor-default hover:bg-primary/8 hover:text-inherit dark:hover:bg-primary/8"
                     : hasError
-                      ? "cursor-not-allowed border-border opacity-60"
+                      ? "cursor-not-allowed border-border opacity-60 disabled:opacity-60 hover:bg-transparent hover:text-inherit dark:hover:bg-transparent"
                       : "cursor-pointer border-border hover:bg-muted",
                 )}
               >
@@ -132,7 +133,7 @@ export function PromptVersionHistory({
                     {v.paramsUsed.instruction}
                   </p>
                 )}
-              </button>
+              </Button>
             </li>
           );
         })}

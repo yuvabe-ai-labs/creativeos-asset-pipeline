@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import type { NodeTrace, NodeAction } from "@/lib/eval/node-traces";
 
 const GROUP_LABEL: Record<NodeAction, string> = {
@@ -42,11 +43,12 @@ export function ActionList({
                 const active = t.nodeId === selectedId;
                 return (
                   <li key={t.nodeId}>
-                    <button
+                    <Button
+                      variant="ghost"
                       onClick={() => onSelect(t.nodeId)}
                       className={cn(
-                        "w-full rounded-lg border px-3 py-2 text-left transition-colors",
-                        active ? "border-primary bg-primary/8" : "border-border hover:bg-muted",
+                        "h-auto w-full flex-col items-stretch gap-0 whitespace-normal px-3 py-2 text-left font-normal",
+                        active ? "border-primary bg-primary/8 hover:bg-primary/8" : "border-border",
                       )}
                     >
                       <div className="flex items-center justify-between gap-2">
@@ -59,7 +61,7 @@ export function ActionList({
                       {t.versions.length > 1 && (
                         <span className="text-[0.65rem] text-muted-foreground">{t.versions.length} versions</span>
                       )}
-                    </button>
+                    </Button>
                   </li>
                 );
               })}

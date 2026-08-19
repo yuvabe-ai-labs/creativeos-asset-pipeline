@@ -2,6 +2,7 @@
 
 import { Check, MessageSquareWarning, RotateCcw, Loader2 } from "lucide-react";
 import { useState } from "react";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { ApprovalStatus } from "@/lib/approval";
 
@@ -105,26 +106,27 @@ function ActionButton({
 }) {
   const activeTone = {
     emerald:
-      "border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400",
+      "border-emerald-200 bg-emerald-50 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-600 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400",
     amber:
-      "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300",
-    muted: "border-border bg-muted text-foreground",
+      "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-50 hover:text-amber-700 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300",
+    muted: "border-border bg-muted text-foreground hover:bg-muted hover:text-foreground",
   }[tone];
   return (
-    <button
+    <Button
       type="button"
+      variant="ghost"
       disabled={saving}
       onClick={onClick}
       title={title}
       className={cn(
-        "inline-flex items-center justify-center rounded-md border p-1.5 transition-colors disabled:opacity-50",
+        "h-auto rounded-md p-1.5 transition-colors",
         active
           ? activeTone
           : "border-border bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground",
       )}
     >
       {saving ? <Loader2 className="size-3.5 animate-spin" strokeWidth={1.5} /> : children}
-    </button>
+    </Button>
   );
 }
 

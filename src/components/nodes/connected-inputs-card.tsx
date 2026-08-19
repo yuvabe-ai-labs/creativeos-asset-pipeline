@@ -87,10 +87,11 @@ export function ConnectedInputsCard({ upstream, preview, onOpenDetail, imageOnly
           <li key={u.id} className="rounded-lg border border-border overflow-hidden">
             {/* Header row — click anywhere on left side to toggle */}
             <div className="flex items-center gap-1.5 px-2.5 py-2">
-              <button
+              <Button
                 type="button"
+                variant="ghost"
                 onClick={() => toggle(u.id)}
-                className="flex-1 flex items-center gap-1.5 min-w-0 text-left"
+                className="flex-1 shrink h-auto min-w-0 justify-start gap-1.5 rounded-none border-0 p-0 text-left font-normal hover:bg-transparent"
               >
                 <ChevronRight
                   className={cn(
@@ -118,16 +119,17 @@ export function ConnectedInputsCard({ upstream, preview, onOpenDetail, imageOnly
                     LLM
                   </span>
                 )}
-              </button>
+              </Button>
               {onOpenDetail && (
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
                   onClick={() => onOpenDetail(u.id)}
                   title="View full details"
-                  className="shrink-0 text-muted-foreground transition-colors hover:text-primary"
+                  className="h-auto border-0 p-0 text-muted-foreground transition-colors hover:bg-transparent hover:text-primary"
                 >
                   <Maximize2 className="size-3.5" />
-                </button>
+                </Button>
               )}
             </div>
 

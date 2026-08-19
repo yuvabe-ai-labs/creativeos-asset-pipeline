@@ -34,30 +34,32 @@ export function LabelBar({ decision, note, saving, noteRef, onDecision, onNote, 
     <div className="shrink-0 border-t border-border bg-background/90 backdrop-blur">
       <div className="mx-auto flex w-full max-w-4xl items-start gap-3 px-6 py-3">
         <div className="flex items-center gap-2">
-          <button
+          <Button
             type="button"
+            variant="ghost"
             onClick={() => onDecision(decision === "pass" ? null : "pass")}
             className={cn(
-              "inline-flex items-center rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors",
+              "h-auto gap-0 px-3 py-1.5",
               decision === "pass"
-                ? "border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400"
-                : "border-border text-muted-foreground hover:bg-muted",
+                ? "border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400 dark:hover:bg-emerald-950/40 dark:hover:text-emerald-400"
+                : "border-border text-muted-foreground hover:text-muted-foreground dark:hover:bg-muted",
             )}
           >
             <Check className="size-4" /> Pass <Kbd>p</Kbd>
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="ghost"
             onClick={() => onDecision(decision === "fail" ? null : "fail")}
             className={cn(
-              "inline-flex items-center rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors",
+              "h-auto gap-0 px-3 py-1.5",
               decision === "fail"
-                ? "border-red-300 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-400"
-                : "border-border text-muted-foreground hover:bg-muted",
+                ? "border-red-300 bg-red-50 text-red-700 hover:bg-red-50 hover:text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-400 dark:hover:bg-red-950/40 dark:hover:text-red-400"
+                : "border-border text-muted-foreground hover:text-muted-foreground dark:hover:bg-muted",
             )}
           >
             <X className="size-4" /> Fail <Kbd>f</Kbd>
-          </button>
+          </Button>
         </div>
 
         <textarea

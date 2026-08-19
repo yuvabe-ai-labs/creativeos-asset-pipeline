@@ -9,7 +9,10 @@ import { GUIDED_CHAIN, planGuidedNext } from "@/lib/guided-flow";
 
 // Guided next-node CTA (D36). Creates → connects → places → opens the next pipeline
 // node — never runs a model. Idempotent: navigates to an existing next instead of
-// duplicating. Rendered as a card chip (Shot) or a focus-view primary button (others).
+// duplicating. Rendered as a card chip (Shot) or a focus-view header button (others) —
+// a primary-tinted outline, not solid: it's navigation, so the view's own Generate CTA
+// stays the one primary, but as a guided "add" action it must stay discoverable, so it
+// borrows the chip's border-primary/40 + text-primary treatment instead of neutral gray.
 export function GuidedNextButton({
   sourceId,
   variant,
@@ -48,23 +51,31 @@ export function GuidedNextButton({
 
   if (variant === "chip") {
     return (
-      <button
+      <Button
         type="button"
+        variant="ghost"
         onClick={handleClick}
         disabled={disabled}
         title={plan.gate.nudge}
         className={cn(
-          "nodrag flex items-center gap-1 rounded-md border border-dashed border-primary/40 px-2 py-1 text-[0.65rem] text-primary transition-colors hover:bg-primary/5",
-          disabled && "cursor-not-allowed opacity-50",
+          "nodrag h-auto gap-1 rounded-md border-dashed border-primary/40 px-2 py-1 text-[0.65rem] font-normal text-primary hover:bg-primary/5 hover:text-primary",
+          disabled && "disabled:pointer-events-auto cursor-not-allowed opacity-50",
         )}
       >
         <ArrowRight className="size-3" strokeWidth={1.5} /> {label}
-      </button>
+      </Button>
     );
   }
 
   return (
-    <Button size="sm" onClick={handleClick} disabled={disabled} title={plan.gate.nudge}>
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={handleClick}
+      disabled={disabled}
+      title={plan.gate.nudge}
+      className="border-primary/40 text-primary hover:bg-primary/5 hover:text-primary"
+    >
       {label} <ArrowRight className="size-4" strokeWidth={1.5} />
     </Button>
   );

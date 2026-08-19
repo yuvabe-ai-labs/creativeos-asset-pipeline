@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { ChevronLeft, ChevronRight, ListChecks } from "lucide-react";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import { setVersionLabelAction } from "@/lib/actions/eval";
 import { TracePanels } from "./trace-panels";
 import { LabelBar } from "./label-bar";
@@ -123,30 +123,28 @@ export function ReviewScreen({ traces: initial }: { canvasId: string; traces: Ev
               {labelled}/{total} labelled
             </span>
             <div className="flex items-center gap-1">
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="icon-xs"
                 onClick={() => go(-1)}
                 disabled={index === 0}
-                className={cn(
-                  "inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
-                  index === 0 && "pointer-events-none opacity-40",
-                )}
+                className="rounded-md text-muted-foreground disabled:opacity-40"
                 aria-label="Previous"
               >
                 <ChevronLeft className="size-4" />
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
+                variant="ghost"
+                size="icon-xs"
                 onClick={() => go(1)}
                 disabled={index === total - 1}
-                className={cn(
-                  "inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
-                  index === total - 1 && "pointer-events-none opacity-40",
-                )}
+                className="rounded-md text-muted-foreground disabled:opacity-40"
                 aria-label="Next"
               >
                 <ChevronRight className="size-4" />
-              </button>
+              </Button>
             </div>
           </div>
         </div>

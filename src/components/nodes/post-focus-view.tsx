@@ -494,13 +494,13 @@ export function PostFocusView({
       >
         <div className="shrink-0 border-b">
           <div className="mx-auto w-full max-w-6xl px-6 pb-4 pt-3">
-            <button
-              type="button"
+            <Button
+              variant="ghost"
               onClick={closeWithThumbnail}
-              className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+              className="h-auto p-0 text-muted-foreground hover:bg-transparent hover:text-foreground dark:hover:bg-transparent"
             >
               <ArrowLeft className="size-4" /> Back to canvas
-            </button>
+            </Button>
             <header className="mt-3 flex items-center justify-between gap-4">
               <SheetTitle className="p-0 font-display text-2xl font-semibold tracking-tight">
                 <EditableField

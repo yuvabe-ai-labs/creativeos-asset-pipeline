@@ -71,17 +71,18 @@ export function ImageGenEditPanel({
       {/* Quick-action chips — dashed-border primary chips (AGENTS.md) */}
       <div className="flex flex-wrap gap-1.5">
         {CHIPS.map((c) => (
-          <button
+          <Button
             key={c.intent}
             type="button"
+            variant="ghost"
             onClick={() => onPickChip(c.intent, c.starter)}
             className={cn(
-              "nodrag inline-flex items-center rounded-full border border-dashed border-primary/40 px-2.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/5",
+              "nodrag inline-flex h-auto items-center rounded-full border border-dashed border-primary/40 px-2.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/5 hover:text-primary dark:hover:bg-primary/5",
               intent === c.intent && "border-solid bg-primary/10"
             )}
           >
             {c.label}
-          </button>
+          </Button>
         ))}
       </div>
       <MentionInstructionEditor

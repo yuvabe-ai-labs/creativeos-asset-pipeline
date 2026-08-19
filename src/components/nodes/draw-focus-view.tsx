@@ -116,13 +116,14 @@ export function DrawFocusView({
       >
         <div className="shrink-0 border-b">
           <div className="mx-auto w-full max-w-5xl px-6 pb-5 pt-3">
-            <button
+            <Button
               type="button"
+              variant="ghost"
               onClick={() => onOpenChange(false)}
-              className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+              className="h-auto gap-1.5 border-0 p-0 text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground"
             >
               <ArrowLeft className="size-4" /> Back to canvas
-            </button>
+            </Button>
 
             <header className="mt-4 flex items-start justify-between gap-4">
               <SheetTitle className="p-0 font-display text-3xl font-semibold tracking-tight">
@@ -173,15 +174,16 @@ export function DrawFocusView({
               {/* controls — flat (no shadow), so the canvas stays the focus */}
               <div className="flex shrink-0 items-center gap-3 rounded-xl border border-border bg-card px-3 py-2">
                 {DRAW_COLORS.map((c) => (
-                  <button
+                  <Button
                     key={c}
                     type="button"
+                    variant="ghost"
                     onClick={() => {
                       setColor(c);
                       setTool("pen");
                     }}
                     className={cn(
-                      "size-6 rounded-full border border-border transition",
+                      "size-6 rounded-full border-border p-0 transition",
                       tool === "pen" &&
                         color === c &&
                         "ring-2 ring-primary ring-offset-1",
@@ -191,25 +193,27 @@ export function DrawFocusView({
                   />
                 ))}
                 <span className="mx-1 h-5 w-px bg-border" />
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
                   onClick={() => setTool("eraser")}
                   className={cn(
-                    "inline-flex size-8 items-center justify-center rounded-md transition hover:bg-muted",
+                    "size-8 rounded-md p-0 transition hover:bg-muted",
                     tool === "eraser" && "ring-2 ring-primary ring-offset-1",
                   )}
                   aria-label="Eraser"
                 >
                   <Eraser className="size-4" strokeWidth={1.5} />
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
+                  variant="ghost"
                   onClick={() => setConfirmClear(true)}
-                  className="inline-flex size-8 items-center justify-center rounded-md text-destructive transition hover:bg-muted"
+                  className="size-8 rounded-md p-0 text-destructive transition hover:bg-muted hover:text-destructive"
                   aria-label="Clear canvas"
                 >
                   <Trash2 className="size-4" strokeWidth={1.5} />
-                </button>
+                </Button>
                 <span className="mx-1 h-5 w-px bg-border" />
                 <Select
                   value={orientation}

@@ -170,13 +170,13 @@ export function ScriptFocusView({
       >
         <div className="shrink-0 border-b">
           <div className="mx-auto w-full max-w-5xl px-6 pb-5 pt-3">
-            <button
-              type="button"
+            <Button
+              variant="ghost"
               onClick={requestClose}
-              className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+              className="h-auto p-0 text-muted-foreground hover:bg-transparent hover:text-foreground dark:hover:bg-transparent"
             >
               <ArrowLeft className="size-4" /> Back to canvas
-            </button>
+            </Button>
 
             <header className="mt-4 flex items-start justify-between gap-4">
               <div>

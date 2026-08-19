@@ -2,6 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import { History } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { describeVersionParams } from "@/lib/generations/version-params";
 import { videoGenClientModelMap } from "@/lib/video-gen/client-models";
 
@@ -77,17 +78,18 @@ export function VideoGenVersionHistory({
 
             return (
               <li key={v.id}>
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
                   disabled={isDisabled}
                   onClick={() => !isDisabled && onRestore(v.id)}
                   className={cn(
-                    "group w-full rounded-lg border px-3 py-2 text-left transition-colors",
+                    "group block h-auto w-full rounded-lg border px-3 py-2 text-left font-normal whitespace-normal transition-colors hover:bg-transparent dark:hover:bg-transparent disabled:pointer-events-auto disabled:opacity-100",
                     isActive
                       ? "border-primary bg-primary/8 cursor-default"
                       : isError
-                        ? "cursor-not-allowed border-border opacity-60"
-                        : "cursor-pointer border-border hover:bg-muted",
+                        ? "cursor-not-allowed border-border opacity-60 disabled:opacity-60"
+                        : "cursor-pointer border-border hover:bg-muted dark:hover:bg-muted",
                   )}
                 >
                   <div className="flex items-center justify-between gap-2">
@@ -151,7 +153,7 @@ export function VideoGenVersionHistory({
                       {paramSummary}
                     </p>
                   )}
-                </button>
+                </Button>
               </li>
             );
           })}

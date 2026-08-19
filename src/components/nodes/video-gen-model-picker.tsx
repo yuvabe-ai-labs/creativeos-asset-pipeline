@@ -31,10 +31,12 @@ export function VideoGenModelPicker({
   children?: ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-border bg-card px-4 py-3.5 shadow-card">
+    // Flat, like the image-gen output settings: the controls are the page's work,
+    // and a card around them competes with the generated video for emphasis.
+    <div>
       <div className="mb-3 flex items-center gap-1.5">
         <Cpu className="size-3.5 text-primary" strokeWidth={1.5} />
-        <span className="text-eyebrow">Model</span>
+        <span className="text-eyebrow text-foreground/75">Model</span>
       </div>
 
       <div className="flex flex-wrap items-center gap-x-7 gap-y-2.5">
@@ -72,7 +74,7 @@ export function VideoGenModelPicker({
 
       {children && (
         <>
-          <div className="my-3.5 h-px bg-border" />
+          <div className="my-4 h-px bg-border" />
           {children}
         </>
       )}

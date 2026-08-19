@@ -4,7 +4,6 @@ import { Sun } from "lucide-react";
 import { ShotTileStrip } from "./shot-tile-strip";
 import {
   LIGHTING_TILES,
-  LIGHTING_AUTO,
   lightingImage,
   lightingTileLabel,
   lightingCaption,
@@ -27,7 +26,6 @@ export function LightingSelect({
       icon={Sun}
       label="Lighting"
       tiles={LIGHTING_TILES}
-      autoOption={LIGHTING_AUTO}
       value={value}
       onChange={onChange}
       tileLabel={lightingTileLabel}

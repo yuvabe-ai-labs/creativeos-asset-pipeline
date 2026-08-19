@@ -4,6 +4,7 @@ import { type ChangeEvent, type DragEvent, useRef, useState } from "react";
 import { UploadCloud } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DriveIcon } from "@/components/ui/drive-icon";
+import { Button } from "@/components/ui/button";
 
 type FileEmptyStateProps = {
   onUpload: (file: File) => void;
@@ -81,14 +82,15 @@ export function FileEmptyState({ onUpload, onPickFromDrive }: FileEmptyStateProp
       </label>
 
       {onPickFromDrive && (
-        <button
+        <Button
           type="button"
+          variant="ghost"
           onClick={onPickFromDrive}
-          className="nodrag flex w-full items-center justify-center gap-3 rounded-xl border border-neutral-200 bg-white px-4 py-3 text-sm font-medium text-neutral-700 shadow-sm transition-all hover:bg-neutral-50 hover:shadow active:scale-[0.99]"
+          className="nodrag flex h-auto w-full items-center justify-center gap-3 rounded-xl border border-neutral-200 bg-white px-4 py-3 text-sm font-medium text-neutral-700 shadow-sm transition-all hover:bg-neutral-50 hover:text-neutral-700 hover:shadow active:scale-[0.99] dark:hover:bg-neutral-50"
         >
           <DriveIcon size={18} />
           Pick from Google Drive
-        </button>
+        </Button>
       )}
     </div>
   );

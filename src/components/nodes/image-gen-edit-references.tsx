@@ -2,6 +2,7 @@
 
 import { AlertTriangle, Check, ImageIcon, Pin } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 
 export type EditReferenceItem = {
   id: string;
@@ -44,19 +45,20 @@ export function ImageGenEditReferences({
             const hasViolation = !!it.violation;
             return (
               <div key={it.id} className="group relative size-16">
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
                   disabled={it.isBase}
                   onClick={() => !it.isBase && onToggle(it.id)}
                   className={cn(
-                    "nodrag size-full overflow-hidden rounded-lg border transition-colors",
+                    "nodrag size-full overflow-hidden rounded-lg border p-0 transition-colors hover:bg-transparent dark:hover:bg-transparent disabled:pointer-events-auto disabled:opacity-100",
                     hasViolation
                       ? "border-amber-400"
                       : it.isBase
-                        ? "border-border opacity-90"
+                        ? "border-border opacity-90 disabled:opacity-90"
                         : selected
                           ? "border-primary ring-2 ring-primary/30"
-                          : "border-dashed border-primary/40 hover:bg-primary/5",
+                          : "border-dashed border-primary/40 hover:bg-primary/5 dark:hover:bg-primary/5",
                   )}
                   title={it.isBase ? "Base image (being edited)" : it.label}
                 >
@@ -85,7 +87,7 @@ export function ImageGenEditReferences({
                       </span>
                     )
                   )}
-                </button>
+                </Button>
 
                 {/* Violation badge */}
                 {hasViolation && (
@@ -95,20 +97,21 @@ export function ImageGenEditReferences({
                 )}
 
                 {!it.isBase && canSetBase && !hasViolation && (
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
                     onClick={() => onSetBase(it.id)}
                     className={cn(
-                      "nodrag absolute left-1 top-1 inline-flex size-5 items-center justify-center",
+                      "nodrag absolute left-1 top-1 inline-flex size-5 items-center justify-center p-0",
                       "rounded-full border border-primary/40 bg-background/90 text-primary shadow-card",
                       "opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100",
-                      "hover:bg-primary hover:text-primary-foreground",
+                      "hover:bg-primary hover:text-primary-foreground dark:hover:bg-primary",
                     )}
                     title="Set as base image"
                     aria-label="Set as base image"
                   >
                     <Pin className="size-3" strokeWidth={1.5} />
-                  </button>
+                  </Button>
                 )}
               </div>
             );
