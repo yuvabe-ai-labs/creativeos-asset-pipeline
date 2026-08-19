@@ -118,8 +118,7 @@ they change what the pipeline *does*, whereas this PRD only changes what people 
 - Email, push, or any out-of-app notification. In-app only.
 - Gating, auto-advance, or connection blocking on unapproved assets (D11).
 - Batch approve — every decision is made one asset at a time.
-- A cross-canvas *review run*. The navbar popover (§6.9) is org-wide, but it only **navigates**; runs
-  stay scoped to one canvas (R9.7).
+- Any guided or auto-advancing review sequence. The senior clicks each item themselves (R6.9).
 - Reviewing prompt or motion-prompt text nodes. Assets only.
 - Client-facing approval — that is a separate PRD.
 - More than one org per user; the `one_org_per_user` index stands.
@@ -224,20 +223,21 @@ Requirements are numbered `R<section>.<n>` and referenced by the design specs.
 - **R6.7** The drawer is available to every role; for a `designer` it is a read-only view of what is
   outstanding.
 - **R6.8** Opening, reading, and acting in the drawer **never acquires the canvas lock** (§6.7).
-- **R6.9** Clicking a row **starts a review run**, not a single lookup. The senior moves through that
-  canvas's pending items in sequence without returning to the drawer between them.
-- **R6.10** While a run is active, the node's focus view shows the senior's **position in the queue**
-  ("3 of 7") and offers **approve-and-advance**, so acting on an item moves to the next one.
-- **R6.11** A run is navigable by keyboard, and a senior may move through items without deciding on
-  each — skipping is allowed; only the queue's contents are fixed, not the order they act in.
-- **R6.12** The drawer is non-modal and takes no backdrop: the canvas stays interactive behind it,
-  matching the gallery drawer's existing behaviour.
+- **R6.9** **There is no review sequence.** Each item is clicked, opened, and decided on its own. The
+  senior chooses what to look at and in what order; nothing advances on their behalf.
+- **R6.10** The drawer is non-modal and takes no backdrop, matching the gallery drawer's existing
+  behaviour. It **stays open** while a focus view is on screen.
+- **R6.11** Because the drawer stays open, dismissing the focus view returns the senior to the list
+  already in place — with the decided item gone (R6.6). Reviewing several items costs one open of the
+  drawer, not one per item.
+- **R6.12** The focus view carries **no queue position and no approve-and-next**. Approval is the same
+  control it is anywhere else on the canvas.
 
-> **Why a run.** Focus views open as a bottom sheet at 92% of viewport height, so the drawer and the
-> node it navigates to cannot both be on screen. Rather than shrink every node type's focus view, the
-> drawer hands off a queue and steps aside. `review-screen.tsx` already implements this shape —
-> one item per screen, keyboard navigation, save-and-advance, a progress counter — and was written to
-> be source-agnostic, so this is largely rewiring rather than new construction.
+> **Why no sequence.** Focus views open as a bottom sheet at 92% of viewport height, so the drawer and
+> the node it points at cannot share the screen — but they do not need to. Leaving the drawer mounted
+> underneath means the list is waiting when the sheet closes, which gets the benefit of a run (no
+> repeated reopening) without auto-advancing past work the senior has not looked at. Nothing in any
+> node type's focus view has to change.
 
 ### 6.7 Approval and the canvas lock
 
@@ -285,18 +285,18 @@ Requirements are numbered `R<section>.<n>` and referenced by the design specs.
   own work rejected sees that too.
 - **R9.6** The icon lives in the **app chrome**, not on a canvas, because the work it points at
   **spans canvases and clients**. No single canvas could host it.
-- **R9.7** **The popover navigates; it does not run.** A senior therefore has *two* entry points, and
-  they are deliberately different: the **navbar popover is org-wide and jumps to a node**, while the
-  **canvas sidebar is canvas-scoped and starts a review run** (§6.6). Only the sidebar begins a run.
+- **R9.7** A senior has *two* entry points, differing only in **scope**: the **navbar popover is
+  org-wide**, the **canvas sidebar is scoped to the canvas in front of them** (§6.6). Both do the same
+  thing — list items, and go to the one you click.
 - **R9.8** The two counts a senior sees are **scoped differently and will legitimately disagree** —
   the navbar counts everything outstanding, the canvas control counts only this canvas. Each must
   state its scope, so that a navbar reading of 12 beside a canvas reading of 5 is obviously two
   questions answered, not a bug.
 
-> **Why the run stays canvas-scoped.** A run that spanned canvases would have to load a different
-> canvas mid-sequence on every "approve and next" — new lock state, new Realtime channel, a viewport
-> jump the senior did not ask for. Keeping the run inside one canvas costs the senior one extra click
-> per canvas and removes that entire class of problem.
+> **Why two surfaces rather than one.** They answer different questions — *"what is waiting on me
+> anywhere?"* and *"what is waiting on me here?"* — and the second is the one a senior already sitting
+> on a canvas actually asks. Neither auto-advances, so having both costs nothing but a second read of
+> the same derivation.
 
 ### 6.10 Video assets
 
@@ -399,8 +399,8 @@ against §7 at the moment of writing rather than assumed.**
 | **D152** | Approval permission is enforced server-side against the caller's org role, retiring the cosmetic-only gate D29 §3 deferred. |
 | **D153** | `operator` and `approved_by` become real user references; legacy free-text values degrade rather than block. Executes D29 §5.2. |
 | **D154** | Pending counts are a neutral pill with an amber dot; **red stays reserved for `changes_requested`**. Extends D29's existing badge palette upward to the client and canvas levels rather than introducing a second alarm colour. |
-| **D155** | Reviewing is a **run, not a lookup**: the canvas drawer hands a queue to the focus view, which carries position and approve-and-advance. Adopts the `review-screen.tsx` shape rather than shrinking every node type's 92vh bottom sheet. |
-| **D156** | One navbar control serves both roles — org-wide, a list of pointers, **navigates but never runs**. The run stays canvas-scoped, so no "approve and next" ever loads a different canvas. |
+| **D155** | Reviewing is **item-by-item, never a sequence**: the drawer stays mounted under the focus view so the list is waiting when the sheet closes. Rejects both a queue runner (auto-advances past unexamined work) and a drawer that closes on click (one reopen per item). No focus view changes shape. |
+| **D156** | One navbar control serves both roles — org-wide, a minimal list of pointers. It differs from the canvas drawer **only in scope**, so a senior's two counts legitimately disagree and each must state what it counts. |
 
 ## 12. Where the design lives
 
