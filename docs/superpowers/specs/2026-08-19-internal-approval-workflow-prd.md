@@ -34,6 +34,23 @@ a **review drawer** on the canvas, and a **rejection that travels back to the ju
 That sentence is the scope rule. Every requirement below either puts work in front of the reviewer
 or gets it back to the maker. Anything that does neither is out of scope.
 
+> ### ⛔ Prerequisite — more than one user per organization
+>
+> **Everything in this PRD assumes an organization contains at least two people holding different
+> roles. Today it contains exactly one.** `createOrgWithOwner` creates a single `owner` alongside the
+> org and is the only code path in the repo that calls `auth.admin.createUser`; there is no way to add
+> a second member, and no way to give anyone the `senior` or `designer` role the schema already
+> defines.
+>
+> Maker-checker is meaningless with one seat — the maker and the checker are the same person, every
+> queue is self-addressed, and the role check in R2.1 has nothing to distinguish. **§6.1 is therefore
+> not one requirement among many; it is the gate.** Nothing else in this PRD is testable, demonstrable,
+> or even observable until it ships, and it should be built and verified first.
+>
+> The good news is that it is small: the schema already permits it (`org_role` is already
+> `owner | senior | designer`, and the unique index constrains *one org per user*, not one user per
+> org), so this is a provisioning path and a screen — not a data-model change.
+
 ## 2. Context & problem
 
 ### 2.1 What already exists
@@ -130,8 +147,14 @@ they change what the pipeline *does*, whereas this PRD only changes what people 
 
 Requirements are numbered `R<section>.<n>` and referenced by the design specs.
 
-### 6.1 Seats and roles
+### 6.1 Seats and roles — **the prerequisite**
 
+> **Build and verify this section first.** Every other section depends on it and none of them can be
+> demonstrated without it. See the prerequisite callout in §1.
+
+- **R1.0** An organization can contain **more than one user**, and its members can hold **different
+  roles**. This is the precondition for the entire PRD: with a single seat there is no maker-checker
+  separation to enforce, route, or display.
 - **R1.1** A super-admin can add a member to an existing organization from the org detail page,
   supplying email, display name, and role (`owner | senior | designer`).
 - **R1.2** Adding a member creates the auth user, the profile, and the membership, and returns a
@@ -350,6 +373,8 @@ Requirements are numbered `R<section>.<n>` and referenced by the design specs.
 
 ## 8. Dependencies and constraints
 
+- **Multiple seats per organization (§6.1).** The hard prerequisite. Not a dependency on other work —
+  it is the first thing this PRD builds, and nothing else can be verified before it lands.
 - **Existing approval state (D29).** States, columns, and semantics are reused as-is. The only change
   to them is the identity migration in §6.11.
 - **The active-version model (D5/D18).** R3.3 depends on it entirely; without it R3.1 floods the queue.
@@ -411,8 +436,8 @@ This PRD owns *what* and *why*. The *how* belongs in design specs, to be written
 
 | Document | Covers | Status |
 |---|---|---|
-| [Flow reference](2026-08-19-internal-approval-flow.html) | The eight-step loop as wireframes, annotated with requirement numbers — **open in a browser** | Written |
-| Seats and enforcement | R1.x, R2.x, R11.x | Owed |
+| [Flow reference](2026-08-19-internal-approval-flow.html) | The prerequisite, then the seven-step loop as wireframes, annotated with requirement numbers — **open in a browser** | Written |
+| Seats and enforcement — **build first** | R1.x, R2.x, R11.x | Owed |
 | Queue, counts, and bubbling | R3.x, R4.x, R5.x, R8.x | Owed |
 | Review drawer and the lock | R6.x, R7.x, R9.x, R10.x | Owed |
 

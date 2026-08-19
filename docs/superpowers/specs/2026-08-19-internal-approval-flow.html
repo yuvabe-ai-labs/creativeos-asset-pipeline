@@ -111,6 +111,21 @@
   .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .lock { font: 600 10px/1 ui-sans-serif, sans-serif; color: #92610b; background: #fdfaf3;
           border: 1px solid #f0e3c4; border-radius: 6px; padding: 7px 10px; display: inline-block; }
+  /* ── prerequisite ───────────────────────────────────────────────────── */
+  .pre { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1.15fr); gap: 20px;
+         border: 1px solid var(--line); border-left: 3px solid #f0b429; border-radius: 0 12px 12px 0;
+         background: var(--card); box-shadow: var(--shadow); padding: 20px; margin-top: 20px; }
+  .pre-l, .pre-r { min-width: 0; }
+  .roles { display: grid; gap: 9px; margin-bottom: 4px; }
+  .rrow { display: grid; grid-template-columns: 78px 1fr; gap: 11px; align-items: baseline; }
+  .rl { font: 600 9.5px/1 ui-monospace, Menlo, monospace; letter-spacing: .04em; text-align: center;
+        padding: 5px 7px; border-radius: 6px; background: #f4f4f5; color: var(--ink-2);
+        border: 1px solid var(--line); }
+  .rl-o { background: #fdfaf3; color: #92610b; border-color: #f0e3c4; }
+  .rl-s { background: var(--brand-tint); color: var(--brand); border-color: rgba(88,41,199,.18); }
+  .rd { font-size: 12.5px; line-height: 1.55; color: var(--ink-2); }
+  @media (max-width: 720px) { .pre { grid-template-columns: 1fr; } }
+
   .callout { border-left: 3px solid var(--brand); background: var(--brand-tint); border-radius: 0 10px 10px 0;
              padding: 14px 18px; margin-top: 30px; }
   .callout p { color: #3f2a7a; margin: 0; font-size: 14px; }
@@ -149,7 +164,7 @@
   <h1>Internal approval — flow reference</h1>
   <div class="rule"></div>
   <p class="lede">
-    The eight steps of internal maker-checker approval, junior → senior → junior. Wireframe fidelity:
+    A prerequisite, then the seven steps of internal maker-checker approval, junior → senior → junior. Wireframe fidelity:
     the shapes and the <em>state changes</em> are the point, not the styling. Companion to
     <a href="2026-08-19-internal-approval-workflow-prd.md">the internal approval PRD</a> — where the
     two disagree, the PRD is right and this file is stale.
@@ -159,6 +174,33 @@
     <span class="tag grey">branch: approval</span>
     <span class="tag grey">D148–D156</span>
     <span class="tag grey">not client approval</span>
+  </div>
+
+  <h2>Prerequisite — more than one user per organization</h2>
+  <p class="lede">The flow below assumes an organization contains <strong>at least two people holding
+  different roles</strong>. An organization with a single seat has no maker-checker separation to
+  route or enforce, so none of the following exists until this does. <strong>Build it first.</strong></p>
+
+  <div class="pre">
+    <div class="pre-l">
+      <div class="win">
+        <div class="row" style="background:#fcfcfd;border-bottom:1px solid #f1f1f3">
+          <span class="nm" style="font-weight:600">Aurora Studios · Members</span>
+          <span class="btn ok">Add member</span></div>
+        <div class="row"><div class="sq"></div><span class="nm">Vanchi</span><span class="rl rl-o">owner</span></div>
+        <div class="row"><div class="sq"></div><span class="nm">Ruby</span><span class="rl">designer</span></div>
+      </div>
+    </div>
+    <div class="pre-r">
+      <div class="roles">
+        <div class="rrow"><span class="rl rl-o">owner</span><span class="rd">Runs the org. Reviews as a senior does. At least one must always exist.</span></div>
+        <div class="rrow"><span class="rl rl-s">senior</span><span class="rd">Reviews and signs off. May approve or reject any asset in the org.</span></div>
+        <div class="rrow"><span class="rl">designer</span><span class="rd">Generates assets. May read every approval state, but cannot set one.</span></div>
+      </div>
+      <p class="cp"><b>R1.0–R1.6.</b> A super-admin adds the member; one step creates the auth user, the
+      profile and the membership, and returns a temporary password to share out of band. A user belongs
+      to exactly one organization.</p>
+    </div>
   </div>
 
   <h2>Data flow at a glance</h2>
@@ -270,28 +312,11 @@
   </p>
 
   <h2>The loop, step by step</h2>
-  <p>Steps 8 → 3 close automatically. Nothing is submitted, resubmitted, or assigned.</p>
+  <p>Steps 7 → 2 close automatically. Nothing is submitted, resubmitted, or assigned.</p>
 
   <div class="flow">
 
-    <div class="stp"><div class="bub">1</div><div class="bod">
-      <div class="hd"><span class="t">Super-admin adds a second seat</span><span class="who w-a">Yuvabe admin</span></div>
-      <div class="bb">
-        <div class="win">
-          <div class="row" style="background:#fcfcfd;border-bottom:1px solid #f1f1f3">
-            <span class="nm" style="font-weight:600">Aurora Studios · Members</span>
-            <span class="btn ok">Add member</span></div>
-          <div class="row"><div class="sq"></div><span class="nm">Vanchi</span><span class="sub">owner</span></div>
-          <div class="row"><div class="sq"></div><span class="nm">Ruby</span><span class="sub">designer</span></div>
-        </div>
-        <p class="cp"><b>R1.1–R1.3.</b> One step creates the auth user, the profile and the membership,
-        and returns a temporary password to share out of band. Roles are <code>owner</code>,
-        <code>senior</code> and <code>designer</code>; an organization must always keep at least one
-        owner.</p>
-      </div>
-    </div></div>
-
-    <div class="stp"><div class="bub j">2</div><div class="bod">
+    <div class="stp"><div class="bub j">1</div><div class="bod">
       <div class="hd"><span class="t">Junior generates an asset</span><span class="who w-j">Ruby · designer</span></div>
       <div class="bb">
         <div class="cv">
@@ -305,7 +330,7 @@
       </div>
     </div></div>
 
-    <div class="stp"><div class="bub">3</div><div class="bod">
+    <div class="stp"><div class="bub">2</div><div class="bod">
       <div class="hd"><span class="t">The count bubbles up three levels</span><span class="who w-s">Vanchi · senior</span></div>
       <div class="bb">
         <div class="two">
@@ -326,7 +351,7 @@
       </div>
     </div></div>
 
-    <div class="stp"><div class="bub">4</div><div class="bod">
+    <div class="stp"><div class="bub">3</div><div class="bod">
       <div class="hd"><span class="t">Open the canvas — without taking the lock</span><span class="who w-s">Vanchi · senior</span></div>
       <div class="bb">
         <div class="cv">
@@ -343,7 +368,7 @@
       </div>
     </div></div>
 
-    <div class="stp"><div class="bub">5</div><div class="bod">
+    <div class="stp"><div class="bub">4</div><div class="bod">
       <div class="hd"><span class="t">Drawer opens · click an item</span><span class="who w-s">Vanchi · senior</span></div>
       <div class="bb">
         <div class="cv">
@@ -362,7 +387,7 @@
       </div>
     </div></div>
 
-    <div class="stp"><div class="bub">6</div><div class="bod">
+    <div class="stp"><div class="bub">5</div><div class="bod">
       <div class="hd"><span class="t">Reject with a note</span><span class="who w-s">Vanchi · senior</span></div>
       <div class="bb">
         <div class="cv">
@@ -385,7 +410,7 @@
       </div>
     </div></div>
 
-    <div class="stp"><div class="bub j">7</div><div class="bod">
+    <div class="stp"><div class="bub j">6</div><div class="bod">
       <div class="hd"><span class="t">It comes back to the junior</span><span class="who w-j">Ruby · designer</span></div>
       <div class="bb">
         <div class="win">
@@ -409,7 +434,7 @@
       </div>
     </div></div>
 
-    <div class="stp"><div class="bub j">8</div><div class="bod">
+    <div class="stp"><div class="bub j">7</div><div class="bod">
       <div class="hd"><span class="t">Read the note on the node · regenerate</span><span class="who w-j">Ruby · designer</span></div>
       <div class="bb">
         <div class="cv">
@@ -429,7 +454,7 @@
 
   <div class="callout">
     <p><strong>The loop closes on one rule.</strong> A regenerate produces a new version at
-    <em>pending</em> (D29). That single fact makes steps 8 → 3 automatic in both directions — no submit
+    <em>pending</em> (D29). That single fact makes steps 7 → 2 automatic in both directions — no submit
     action, no resubmit action, and no assignee stored anywhere.</p>
   </div>
 
