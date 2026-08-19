@@ -114,6 +114,31 @@
   .callout { border-left: 3px solid var(--brand); background: var(--brand-tint); border-radius: 0 10px 10px 0;
              padding: 14px 18px; margin-top: 30px; }
   .callout p { color: #3f2a7a; margin: 0; font-size: 14px; }
+
+  /* ── flow diagram ───────────────────────────────────────────────────── */
+  .dgwrap { border: 1px solid var(--line); border-radius: 12px; background: var(--card);
+            box-shadow: var(--shadow); padding: 8px; margin-top: 22px; overflow-x: auto; }
+  .dg { display: block; width: 100%; min-width: 760px; height: auto; }
+  .dg text { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .dg .bx { fill: #fff; stroke: var(--line); stroke-width: 1; }
+  .dg .bx-a { fill: var(--amber-bg); stroke: var(--amber-line); }
+  .dg .bx-r { fill: var(--red-bg); stroke: var(--red-line); }
+  .dg .bx-d { fill: #f4f4f5; stroke: #dededf; }
+  .dg .band { fill: #fafafb; stroke: #f0f0f2; }
+  .dg .band-s { fill: rgba(88,41,199,.035); stroke: rgba(88,41,199,.10); }
+  .dg .ttl { font-size: 12.5px; font-weight: 600; fill: var(--ink); }
+  .dg .sub2 { font-size: 10.5px; fill: var(--ink-3); }
+  .dg .lane { font-size: 9.5px; font-weight: 600; letter-spacing: .11em; fill: var(--ink-3); }
+  .dg .lane-s { fill: var(--brand); }
+  .dg .edge { stroke: #b9b9c0; stroke-width: 1.6; fill: none; }
+  .dg .edge-r { stroke: var(--red); stroke-width: 1.6; fill: none; }
+  .dg .edge-p { stroke: var(--brand); stroke-width: 1.6; fill: none; stroke-dasharray: 5 4; }
+  .dg .etxt { font-size: 10px; font-weight: 600; fill: var(--ink-2); }
+  .dg .etxt-r { fill: var(--red-ink); }
+  .dg .etxt-p { fill: var(--brand); }
+  /* data annotation inside each box — purple = writes, grey = derived reads */
+  .dg .dat { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 9.5px; fill: var(--ink-3); }
+  .dg .dat.w { fill: var(--brand); font-weight: 600; }
   @media (max-width: 720px) { .two { grid-template-columns: 1fr; } .wrap { padding: 36px 18px 64px; } }
 </style>
 </head>
@@ -136,7 +161,115 @@
     <span class="tag grey">not client approval</span>
   </div>
 
-  <h2>The loop</h2>
+  <h2>Data flow at a glance</h2>
+  <p class="lede">Two lanes, one loop. <strong style="color:var(--brand)">Purple</strong> marks the only
+  two operations that <em>write</em>; everything else is derived on read, so there is no queue table,
+  no assignment record, and no state to keep in sync.</p>
+
+  <div class="dgwrap">
+  <svg class="dg" viewBox="0 0 1000 400" role="img" aria-label="Internal approval data flow: a junior generates an asset which inserts a node_versions row at pending; counts and drawers are derived on read; the senior's decision updates that row; a rejection surfaces in the junior's navbar and regenerating inserts a new version back at pending.">
+    <defs>
+      <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="#b9b9c0"/></marker>
+      <marker id="ah-r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="#dc2626"/></marker>
+      <marker id="ah-p" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="#5829c7"/></marker>
+    </defs>
+
+    <!-- lanes -->
+    <rect class="band"   x="16"  y="40"  width="968" height="140" rx="12"/>
+    <rect class="band-s" x="16"  y="240" width="968" height="140" rx="12"/>
+    <text class="lane"   x="34"  y="62">JUNIOR · DESIGNER</text>
+    <text class="lane lane-s" x="34" y="262">SENIOR · REVIEWER</text>
+
+    <!-- ── junior lane ── -->
+    <g>
+      <rect class="bx" x="120" y="72" width="130" height="64" rx="9"/>
+      <text class="ttl"  x="185" y="96"  text-anchor="middle">Generate asset</text>
+      <text class="sub2" x="185" y="111" text-anchor="middle">image-gen · video-gen</text>
+      <text class="dat w" x="185" y="127" text-anchor="middle">INSERT node_versions</text>
+    </g>
+    <g>
+      <rect class="bx bx-a" x="285" y="72" width="130" height="64" rx="9"/>
+      <text class="ttl"  x="350" y="96"  text-anchor="middle">Pending</text>
+      <text class="sub2" x="350" y="111" text-anchor="middle">active version only</text>
+      <text class="dat"  x="350" y="127" text-anchor="middle">approval_status</text>
+    </g>
+    <g>
+      <rect class="bx bx-r" x="605" y="72" width="130" height="64" rx="9"/>
+      <text class="ttl"  x="670" y="96"  text-anchor="middle">Navbar badge</text>
+      <text class="sub2" x="670" y="111" text-anchor="middle">popover of pointers</text>
+      <text class="dat"  x="670" y="127" text-anchor="middle">where operator = me</text>
+    </g>
+    <g>
+      <rect class="bx" x="800" y="72" width="130" height="64" rx="9"/>
+      <text class="ttl"  x="865" y="96"  text-anchor="middle">Regenerate</text>
+      <text class="sub2" x="865" y="111" text-anchor="middle">note read on the node</text>
+      <text class="dat w" x="865" y="127" text-anchor="middle">INSERT new version</text>
+    </g>
+
+    <!-- ── senior lane ── -->
+    <g>
+      <rect class="bx" x="285" y="272" width="130" height="64" rx="9"/>
+      <text class="ttl"  x="350" y="296" text-anchor="middle">Counts bubble</text>
+      <text class="sub2" x="350" y="311" text-anchor="middle">client → canvas → node</text>
+      <text class="dat"  x="350" y="327" text-anchor="middle">derived · no write</text>
+    </g>
+    <g>
+      <rect class="bx" x="445" y="272" width="130" height="64" rx="9"/>
+      <text class="ttl"  x="510" y="296" text-anchor="middle">Review drawer</text>
+      <text class="sub2" x="510" y="311" text-anchor="middle">this canvas only</text>
+      <text class="dat"  x="510" y="327" text-anchor="middle">derived · no write</text>
+    </g>
+    <g>
+      <rect class="bx" x="605" y="272" width="130" height="64" rx="9"/>
+      <text class="ttl"  x="670" y="296" text-anchor="middle">Senior decides</text>
+      <text class="sub2" x="670" y="311" text-anchor="middle">role checked server-side</text>
+      <text class="dat w" x="670" y="327" text-anchor="middle">UPDATE node_versions</text>
+    </g>
+    <g>
+      <rect class="bx bx-d" x="800" y="272" width="130" height="64" rx="9"/>
+      <text class="ttl"  x="865" y="296" text-anchor="middle">Approved</text>
+      <text class="sub2" x="865" y="311" text-anchor="middle">leaves every queue</text>
+      <text class="dat"  x="865" y="327" text-anchor="middle">approved_by · _at</text>
+    </g>
+
+    <!-- ── edges ── -->
+    <path class="edge" d="M250,104 L279,104" marker-end="url(#ah)"/>
+    <path class="edge" d="M350,136 L350,266" marker-end="url(#ah)"/>
+    <text class="etxt" x="362" y="207">enters the queue</text>
+
+    <path class="edge" d="M415,304 L439,304" marker-end="url(#ah)"/>
+    <path class="edge" d="M575,304 L599,304" marker-end="url(#ah)"/>
+
+    <path class="edge" d="M735,304 L794,304" marker-end="url(#ah)"/>
+    <text class="etxt" x="764" y="295" text-anchor="middle">approve</text>
+
+    <path class="edge-r" d="M670,272 L670,142" marker-end="url(#ah-r)"/>
+    <text class="etxt etxt-r" x="682" y="200">reject</text>
+    <text class="etxt etxt-r" x="682" y="213">+ note</text>
+
+    <path class="edge" d="M735,104 L794,104" marker-end="url(#ah)"/>
+
+    <!-- loop back -->
+    <path class="edge-p" d="M930,104 L952,104 L952,26 L350,26 L350,66" marker-end="url(#ah-p)"/>
+    <text class="etxt etxt-p" x="651" y="19" text-anchor="middle">new version starts at pending — no resubmit</text>
+
+    <!-- lock annotation -->
+    <text class="etxt" x="34" y="356">Approval never takes</text>
+    <text class="etxt" x="34" y="369">the canvas lock</text>
+  </svg>
+  </div>
+
+  <p class="cp" style="max-width:78ch">
+    <b>Only two arrows write.</b> Generating inserts a version row at <code>pending</code>; deciding
+    updates that same row. Every count, drawer and popover in between is a <em>read</em> over
+    <code>approval_status</code> — which is why there is no assignee column, no queue table, and nothing
+    that can fall out of sync with the assets themselves.
+  </p>
+
+  <h2>The loop, step by step</h2>
   <p>Steps 8 → 3 close automatically. Nothing is submitted, resubmitted, or assigned.</p>
 
   <div class="flow">
