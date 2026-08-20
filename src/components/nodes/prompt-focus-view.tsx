@@ -31,6 +31,7 @@ import { GenerationErrorBadge } from "./generation-error-badge";
 import { MentionInstructionEditor } from "./mention-instruction-editor";
 import { normalizeTitle } from "@/lib/nodes/title";
 import { Button } from "@/components/ui/button";
+import { FieldLabel } from "./field-label";
 import { GuidedNextButton } from "@/components/canvas/guided-next-button";
 import { SliceToggles } from "./slice-toggles";
 import { DEFAULT_INSTRUCTION } from "@/lib/nodes/prompt";
@@ -503,7 +504,7 @@ export function PromptFocusView({
       >
         {/* Header */}
         <div className="shrink-0 border-b">
-          <div className="mx-auto w-full max-w-6xl px-6 pb-5 pt-3">
+          <div className="mx-auto w-full max-w-7xl px-6 pb-5 pt-3">
             <Button
               variant="ghost"
               size="sm"
@@ -544,7 +545,7 @@ export function PromptFocusView({
         </div>
 
         {/* Body: left rail + detail pane */}
-        <div className="mx-auto flex w-full max-w-6xl min-h-0 flex-1 overflow-hidden">
+        <div className="mx-auto flex w-full max-w-7xl min-h-0 flex-1 overflow-hidden">
           {/* Rail */}
           <nav className="flex w-56 shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-border px-3 py-4">
             <RailItem
@@ -555,7 +556,7 @@ export function PromptFocusView({
             />
 
             <div className="flex items-center justify-between px-2.5 pb-1 pt-3">
-              <span className="text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground/70">
+              <span className="text-[0.65rem] font-semibold uppercase tracking-wider text-foreground/70">
                 Connected · {upstream.length}
               </span>
               <AddConnection
@@ -595,7 +596,9 @@ export function PromptFocusView({
           </nav>
 
           {/* Detail pane */}
-          <div className="min-h-0 flex-1 overflow-hidden">
+          {/* No overflow-hidden: it would crop the raised column's left shadow.
+              The columns inside own their scrolling. */}
+          <div className="min-h-0 flex-1">
             {/* Prompt — two-column compose: the instruction + controls sit in the center
                 column (which swaps to a selected connected input's read-only detail), and
                 the generated prompt owns the right column. */}
@@ -604,7 +607,10 @@ export function PromptFocusView({
                 {/* Center column — instruction & controls; swaps to a connected input's
                     read-only detail when one is selected in the rail. The right column
                     stays the generated output either way. */}
-                <div className="flex h-full w-full max-w-md min-h-0 flex-col overflow-hidden border-r border-border">
+                {/* Raised work surface, matching the image-gen settings column: the
+                    output pane beside it is already bg-muted/20, so card + a sideways
+                    shadow is all this needs to come forward. */}
+                <div className="flex h-full w-[54%] shrink-0 min-h-0 flex-col overflow-hidden border-x border-primary/25 bg-card panel-raised">
                   {isNodeSelected ? (
                     detailNode ? (
                       <ConnectedDetailView node={detailNode} />
@@ -631,10 +637,7 @@ export function PromptFocusView({
                   <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
                     {/* Instruction + controls */}
                     <div className="flex flex-col gap-3 px-6 py-5">
-                      <div className="flex items-center gap-1.5">
-                        <PencilLine className="size-3.5 text-primary" />
-                        <span className="text-eyebrow">Instruction</span>
-                      </div>
+                      <FieldLabel icon={PencilLine} label="Instruction" />
                       <MentionInstructionEditor
                         value={instructionDraft}
                         onChange={(v) => {
@@ -672,7 +675,9 @@ export function PromptFocusView({
 
                 {/* Right column — ALWAYS the generated output. Faintly tinted so the white
                     output card reads as the page's product against it. */}
-                <div className="min-h-0 flex-1 overflow-y-auto bg-muted/20">
+                {/* Plain, deliberately unstyled: the compose column beside it is the
+                    emphasised surface, and a tinted pane here competed with it. */}
+                <div className="min-h-0 flex-1 overflow-y-auto">
                   <div className="flex h-full flex-col gap-3 px-6 py-5">
                       <div className="flex shrink-0 items-start justify-between gap-2">
                         <div className="flex items-center gap-1.5">
@@ -743,7 +748,7 @@ export function PromptFocusView({
                                 ))}
                               </span>
                             )}
-                            className="min-h-64 max-w-[65ch] flex-1 resize-none overflow-y-auto rounded-xl border border-border bg-card p-4 text-base leading-7 shadow-card [field-sizing:fixed]"
+                            className="min-h-64 max-w-[65ch] flex-1 resize-none overflow-y-auto rounded-xl p-4 text-base leading-7 [field-sizing:fixed]"
                           />
                           <div className="flex shrink-0 items-center gap-2 self-start">
                             <Button variant="outline" onClick={handleSave} disabled={!dirty}>

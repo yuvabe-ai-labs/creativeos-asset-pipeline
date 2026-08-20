@@ -75,7 +75,7 @@ export function ImageGenOutputSettings({
         <div className="space-y-4">
           {imageGenClientModelGroups.map((group) => (
             <div key={group.provider} className="space-y-2">
-              <span className="text-[0.65rem] font-medium tracking-wide text-muted-foreground/70 uppercase">
+              <span className="text-[0.65rem] font-medium tracking-wide text-foreground/70 uppercase">
                 {group.label}
               </span>
               <ParamChipGroup

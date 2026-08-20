@@ -30,6 +30,7 @@ import { GenerationErrorBadge } from "./generation-error-badge";
 import { MentionInstructionEditor } from "./mention-instruction-editor";
 import { normalizeTitle } from "@/lib/nodes/title";
 import { Button } from "@/components/ui/button";
+import { FieldLabel } from "./field-label";
 import { GuidedNextButton } from "@/components/canvas/guided-next-button";
 import { SliceToggles } from "./slice-toggles";
 import { DEFAULT_MOTION_INSTRUCTION } from "@/lib/nodes/video-prompt";
@@ -499,7 +500,7 @@ export function VideoPromptFocusView({
       >
         {/* Header */}
         <div className="shrink-0 border-b">
-          <div className="mx-auto w-full max-w-6xl px-6 pb-5 pt-3">
+          <div className="mx-auto w-full max-w-7xl px-6 pb-5 pt-3">
             <Button
               variant="ghost"
               size="sm"
@@ -540,7 +541,7 @@ export function VideoPromptFocusView({
         </div>
 
         {/* Body: left rail + detail pane */}
-        <div className="mx-auto flex w-full max-w-6xl min-h-0 flex-1 overflow-hidden">
+        <div className="mx-auto flex w-full max-w-7xl min-h-0 flex-1 overflow-hidden">
           {/* Rail */}
           <nav className="flex w-56 shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-border px-3 py-4">
             <RailItem
@@ -551,7 +552,7 @@ export function VideoPromptFocusView({
             />
 
             <div className="flex items-center justify-between px-2.5 pb-1 pt-3">
-              <span className="text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground/70">
+              <span className="text-[0.65rem] font-semibold uppercase tracking-wider text-foreground/70">
                 Connected · {upstream.length}
               </span>
               <AddConnection
@@ -591,7 +592,9 @@ export function VideoPromptFocusView({
           </nav>
 
           {/* Detail pane */}
-          <div className="min-h-0 flex-1 overflow-hidden">
+          {/* No overflow-hidden: it would crop the raised column's left shadow.
+              The columns inside own their scrolling. */}
+          <div className="min-h-0 flex-1">
             {/* Prompt — the compose editor: compose (left) + generated output (right) */}
             {selected === "prompt" && (
               <div className="flex h-full w-full min-h-0 overflow-hidden">
@@ -600,15 +603,12 @@ export function VideoPromptFocusView({
                     capped so the generated prompt on the right owns the width.
                     max-w-lg rather than the image prompt's max-w-md: the frame +
                     camera-grid row is denser than the image prompt's controls. */}
-                <div className="flex h-full w-full max-w-lg min-h-0 flex-col overflow-hidden border-r border-border">
+                <div className="flex h-full w-[54%] shrink-0 min-h-0 flex-col overflow-hidden border-x border-primary/25 bg-card panel-raised">
                   <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
                   <div className="flex flex-col gap-4 px-6 py-4">
                   {/* Instruction — top, like the image prompt */}
                   <div className="flex flex-col gap-3">
-                    <div className="flex items-center gap-1.5">
-                      <PencilLine className="size-3.5 text-primary" />
-                      <span className="text-eyebrow">Instruction</span>
-                    </div>
+                    <FieldLabel icon={PencilLine} label="Instruction" />
                     <MentionInstructionEditor
                       value={instructionDraft}
                       onChange={(v) => {
@@ -679,7 +679,7 @@ export function VideoPromptFocusView({
                 {/* Right column — generated motion prompt output. Faintly tinted so the
                     white output card reads as the page's product against it (same
                     treatment as the image-prompt view). */}
-                <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto bg-muted/20 px-6 py-5">
+                <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-6 py-5">
                   {/* items-start: the title wraps and the version chips row can wrap
                       too — both anchor to the top instead of drifting vertically. */}
                   <div className="flex items-start justify-between gap-2">
@@ -750,7 +750,7 @@ export function VideoPromptFocusView({
                             ))}
                           </span>
                         )}
-                        className="min-h-[16rem] max-w-[65ch] flex-1 resize-none overflow-y-auto rounded-xl border border-border bg-card p-4 text-base leading-7 shadow-card [field-sizing:fixed]"
+                        className="min-h-[16rem] max-w-[65ch] flex-1 resize-none overflow-y-auto rounded-xl p-4 text-base leading-7 [field-sizing:fixed]"
                       />
                       <div className="flex items-center gap-2 self-start">
                         <Button variant="outline" onClick={handleSave} disabled={!dirty}>

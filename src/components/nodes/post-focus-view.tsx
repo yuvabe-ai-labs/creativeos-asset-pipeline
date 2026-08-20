@@ -493,7 +493,7 @@ export function PostFocusView({
         className="gap-0 overflow-hidden rounded-t-2xl bg-background data-[side=bottom]:h-[92vh]"
       >
         <div className="shrink-0 border-b">
-          <div className="mx-auto w-full max-w-6xl px-6 pb-4 pt-3">
+          <div className="mx-auto w-full max-w-7xl px-6 pb-4 pt-3">
             <Button
               variant="ghost"
               onClick={closeWithThumbnail}

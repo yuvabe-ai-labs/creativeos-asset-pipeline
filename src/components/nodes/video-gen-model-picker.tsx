@@ -36,13 +36,13 @@ export function VideoGenModelPicker({
     <div>
       <div className="mb-3 flex items-center gap-1.5">
         <Cpu className="size-3.5 text-primary" strokeWidth={1.5} />
-        <span className="text-eyebrow text-foreground/75">Model</span>
+        <span className="text-eyebrow">Model</span>
       </div>
 
       <div className="flex flex-wrap items-center gap-x-7 gap-y-2.5">
         {videoGenClientModelGroups.map((providerGroup) => (
           <div key={providerGroup.label} className="flex items-center gap-2.5">
-            <span className="shrink-0 text-[0.7rem] font-medium uppercase tracking-wide text-muted-foreground/70">
+            <span className="shrink-0 text-[0.7rem] font-medium uppercase tracking-wide text-foreground/70">
               {providerGroup.label}
             </span>
             <div className="flex flex-wrap items-center gap-1.5">

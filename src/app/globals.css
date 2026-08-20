@@ -130,6 +130,16 @@
   --shadow-md: 0 4px 10px rgba(11, 15, 25, 0.06);
   --shadow-lg: 0 8px 16px rgba(11, 15, 25, 0.12);
 
+  /* Sideways elevation for the focus views' action column — the panel the
+     operator actually works in. Throws BOTH ways: a one-sided cast made the
+     column look shunted against the rail rather than lifted off the page, so
+     the pair is what actually reads as elevation. No vertical component — the
+     column runs the full height, so a downward cast would have nothing to
+     fall on. */
+  --shadow-panel:
+    6px 0 12px -8px rgba(11, 15, 25, 0.14),
+    -6px 0 12px -8px rgba(11, 15, 25, 0.14);
+
   /* Motion */
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --duration-fast: 200ms;
@@ -281,7 +291,11 @@
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.22em;
-  color: var(--muted-foreground);
+  /* Darkened here rather than at call sites. It was previously
+     --muted-foreground and got overridden to foreground/75 in LeftSection — but
+     two dozen eyebrows are hand-rolled rather than going through LeftSection, so
+     they never picked it up and read visibly lighter than their neighbours. */
+  color: color-mix(in oklab, var(--foreground) 75%, transparent);
 }
 
 /* Canvas surface — the signal grid, so the editor reads as a workspace */
@@ -498,6 +512,14 @@
 /* Camera tiles hold their first frame until hovered or selected. The scene sets
    animation-play-state:inherit on every animated node, so setting it once here
    reaches the whole 3D set. */
+/* Raised action column in the focus views. Set as box-shadow directly rather
+   than through shadow-[var(--shadow-panel)]: Tailwind rewrites shadow utilities
+   to inject a colour, and that pass drops all but the first shadow in a
+   multi-value var — which left this casting to one side only. */
+.panel-raised {
+  box-shadow: var(--shadow-panel);
+}
+
 .cam-tile {
   animation-play-state: paused;
 }

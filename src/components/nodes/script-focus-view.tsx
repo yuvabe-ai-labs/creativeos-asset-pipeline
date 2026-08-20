@@ -169,7 +169,7 @@ export function ScriptFocusView({
         className="gap-0 overflow-hidden rounded-t-2xl bg-background data-[side=bottom]:h-[92vh]"
       >
         <div className="shrink-0 border-b">
-          <div className="mx-auto w-full max-w-5xl px-6 pb-5 pt-3">
+          <div className="mx-auto w-full max-w-7xl px-6 pb-5 pt-3">
             <Button
               variant="ghost"
               onClick={requestClose}
@@ -257,7 +257,7 @@ export function ScriptFocusView({
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="mx-auto w-full max-w-5xl px-6 py-8">
+          <div className="mx-auto w-full max-w-7xl px-6 py-8">
             {mode === "skeleton" && (
               <div className="flex flex-col items-center justify-center gap-3 py-24 text-muted-foreground">
                 <Loader2 className="size-8 animate-spin text-primary" />

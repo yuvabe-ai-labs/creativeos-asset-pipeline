@@ -214,7 +214,7 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
       >
         {/* header */}
         <div className="shrink-0 border-b">
-          <div className="mx-auto w-full max-w-5xl px-6 pb-5 pt-3">
+          <div className="mx-auto w-full max-w-7xl px-6 pb-5 pt-3">
             <Button
               variant="ghost"
               onClick={() => onOpenChange(false)}
