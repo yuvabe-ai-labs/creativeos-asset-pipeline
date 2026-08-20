@@ -208,7 +208,7 @@ export function FileFocusView({
           className="gap-0 overflow-hidden rounded-t-2xl bg-background data-[side=bottom]:h-[92vh]"
         >
           <div className="shrink-0 border-b">
-            <div className="mx-auto w-full max-w-5xl px-6 pb-5 pt-3">
+            <div className="mx-auto w-full max-w-7xl px-6 pb-5 pt-3">
               <Button
                 type="button"
                 variant="ghost"
@@ -280,7 +280,7 @@ export function FileFocusView({
           </div>
 
           <div className="min-h-0 flex-1 flex flex-col">
-            <div className="mx-auto w-full max-w-5xl px-6 py-6 flex-1 min-h-0 flex flex-col">
+            <div className="mx-auto w-full max-w-7xl px-6 py-6 flex-1 min-h-0 flex flex-col">
               {mode === "loading" && (
                 <div className="flex flex-col items-center justify-center gap-3 py-24 text-muted-foreground">
                   <Loader2 className="size-8 animate-spin text-primary" />

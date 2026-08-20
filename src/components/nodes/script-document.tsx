@@ -57,7 +57,7 @@ export function ScriptDocument({
   const links = script.product_links ?? [];
 
   return (
-    <div className="grid gap-12 text-sm">
+    <div className="grid max-w-[78ch] gap-12 text-sm">
       <EditableField
         value={script.title ?? ""}
         onCommit={set(["title"])}

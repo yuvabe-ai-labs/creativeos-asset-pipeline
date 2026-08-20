@@ -62,7 +62,7 @@ import {
 } from "./video-gen-version-history";
 import { VideoGenUsagePopover } from "./video-gen-usage-popover";
 import { Skeleton } from "@/components/ui/skeleton";
-import { VideoGenParamsPanel, hasParamsInGroup } from "./video-gen-params-panel";
+import { VideoGenParamsPanel } from "./video-gen-params-panel";
 import { VideoGenConnectedSection } from "./video-gen-connected-section";
 import { RailItem } from "./focus-rail-item";
 import { AddConnection } from "./add-connection";
@@ -176,7 +176,7 @@ function LeftSection({
       >
         <div className="flex items-center gap-1.5">
           <Icon className="size-3.5 text-primary" strokeWidth={1.5} />
-          <span className="text-eyebrow text-foreground/75">{label}</span>
+          <span className="text-eyebrow">{label}</span>
         </div>
         <div className="flex items-center gap-2">
           {badge && (
@@ -361,7 +361,6 @@ export function VideoGenFocusView({
   const [selected, setSelected] = useState<string>("video");
   // Only the Advanced group collapses (Audio / Multi-Shot / Negative Prompt); Frames and
   // Output settings are always expanded. Defaults closed so the panel opens uncluttered.
-  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [pendingDialog, setPendingDialog] = useState<DialogState>(null);
 
   // Seeded from `open`, not `false`. The seed block below re-arms these on the false → true
@@ -892,41 +891,6 @@ export function VideoGenFocusView({
                       ]}
                     />
                   )}
-                  <Tooltip>
-                    <TooltipTrigger render={<span />}>
-                      <Button
-                        size="lg"
-                        onClick={handleGenerate}
-                        disabled={
-                          isGenerating ||
-                          constraints.disableGenerate ||
-                          !editable ||
-                          (currentModel?.provider === "kling" &&
-                            !Object.values(effectiveImageRoles).includes("start_frame"))
-                        }
-                      >
-                        <Sparkles className="size-4" strokeWidth={1.5} />
-                        {isGenerating
-                          ? "Generating…"
-                          : videoUrl
-                            ? "Re-generate"
-                            : "Generate"}
-                        {!isGenerating && estimatedCredits !== null && (
-                          <EstimatedCreditsLabel credits={estimatedCredits} />
-                        )}
-                      </Button>
-                    </TooltipTrigger>
-                    {(constraints.disableGenerate && constraints.disableGenerateReason) ? (
-                      <TooltipContent side="bottom">
-                        {constraints.disableGenerateReason}
-                      </TooltipContent>
-                    ) : currentModel?.provider === "kling" &&
-                      !Object.values(effectiveImageRoles).includes("start_frame") ? (
-                      <TooltipContent side="bottom">
-                        Kling requires a start frame — connect an image and assign it as Start Frame
-                      </TooltipContent>
-                    ) : null}
-                  </Tooltip>
                 </div>
                 {lastError && !isGenerating && (
                   <div className="mt-1">
@@ -1029,9 +993,11 @@ export function VideoGenFocusView({
 
           {/* Detail pane: the middle column swaps with the rail selection; the output column on
               the right is ALWAYS visible so the operator can tune while watching the result. */}
-          <div className="flex min-h-0 flex-1 overflow-hidden">
+          {/* No overflow-hidden: it would crop the raised column's left shadow.
+              The columns inside own their scrolling. */}
+          <div className="flex min-h-0 flex-1">
             {/* Middle column */}
-            <div className="min-h-0 w-[54%] shrink-0 overflow-y-auto border-r border-border">
+            <div className="min-h-0 w-[54%] shrink-0 overflow-y-auto border-x border-primary/25 bg-card panel-raised">
               {/* Video — flat, independently-collapsible peer groups (Frames / Output / Fine-tune / Advanced) */}
               {selected === "video" && (
                 <div className="flex flex-col gap-10 px-6 py-5">
@@ -1051,14 +1017,6 @@ export function VideoGenFocusView({
                     />
                   </VideoGenModelPicker>
                   {(() => {
-                    const paramsPanelProps = {
-                      modelId,
-                      // D98: what the panel shows is what doGenerate posts.
-                      params: effectiveParams,
-                      onParamChange: handleParamChange,
-                      lockedParams: constraints.lockedParams,
-                      lockedParamReasons: constraints.lockedParamReasons,
-                    };
                     return (
                       <>
                         {/* The spine heads the Frames section: it is the summary of exactly what
@@ -1081,23 +1039,51 @@ export function VideoGenFocusView({
                             />
                           </div>
                         </LeftSection>
-                        {/* Advanced is the one collapsible group, so the secondary controls
-                            don't crowd the panel by default. */}
-                        {hasParamsInGroup(modelId, "advanced") && (
-                          <LeftSection
-                            icon={SlidersHorizontal}
-                            label="Advanced"
-                            open={advancedOpen}
-                            onToggle={() => setAdvancedOpen((o) => !o)}
-                          >
-                            {advancedOpen && (
-                              <VideoGenParamsPanel {...paramsPanelProps} group="advanced" />
-                            )}
-                          </LeftSection>
-                        )}
                       </>
                     );
                   })()}
+
+                  {/* Generate closes the column, after every setting it depends on —
+                      it used to sit in the page header, far from the controls that
+                      decide what it will cost and whether it is even legal to run. */}
+                  <div className="border-t border-border pt-4">
+                    <Tooltip>
+                      <TooltipTrigger render={<span className="block w-full" />}>
+                        <Button
+                          size="lg"
+                          className="w-full"
+                          onClick={handleGenerate}
+                          disabled={
+                            isGenerating ||
+                            constraints.disableGenerate ||
+                            !editable ||
+                            (currentModel?.provider === "kling" &&
+                              !Object.values(effectiveImageRoles).includes("start_frame"))
+                          }
+                        >
+                          <Sparkles className="size-4" strokeWidth={1.5} />
+                          {isGenerating
+                            ? "Generating…"
+                            : videoUrl
+                              ? "Re-generate"
+                              : "Generate"}
+                          {!isGenerating && estimatedCredits !== null && (
+                            <EstimatedCreditsLabel credits={estimatedCredits} />
+                          )}
+                        </Button>
+                      </TooltipTrigger>
+                      {(constraints.disableGenerate && constraints.disableGenerateReason) ? (
+                        <TooltipContent side="bottom">
+                          {constraints.disableGenerateReason}
+                        </TooltipContent>
+                      ) : currentModel?.provider === "kling" &&
+                        !Object.values(effectiveImageRoles).includes("start_frame") ? (
+                        <TooltipContent side="bottom">
+                          Kling requires a start frame — connect an image and assign it as Start Frame
+                        </TooltipContent>
+                      ) : null}
+                    </Tooltip>
+                  </div>
                 </div>
               )}
 
@@ -1159,8 +1145,9 @@ export function VideoGenFocusView({
               )}
             </div>
 
-            {/* Right column — the video, always visible */}
-            <div className="flex min-h-0 flex-1 flex-col gap-3 px-6 py-5">
+            {/* Right column — the video, always visible. Faintly sunk so the
+                settings column reads as raised against it. */}
+            <div className="flex min-h-0 flex-1 flex-col gap-3 bg-muted/20 px-6 py-5">
               <div className="flex items-center gap-1.5">
                 <Clapperboard className="size-3.5 text-primary" strokeWidth={1.5} />
                 <span className="text-eyebrow">Video</span>

@@ -1013,7 +1013,7 @@ export function ImageGenFocusView({
             />
 
             <div className="flex items-center justify-between px-2.5 pb-1 pt-3">
-              <span className="text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground/70">
+              <span className="text-[0.65rem] font-semibold uppercase tracking-wider text-foreground/70">
                 Connected · {upstream.length}
               </span>
               <AddConnection
@@ -1064,9 +1064,16 @@ export function ImageGenFocusView({
           {/* Detail pane: the middle column swaps with the rail selection; the
               output column on the right is ALWAYS visible, so the operator can
               look at refs, settings, or the prompt while watching the result. */}
-          <div className="flex min-h-0 flex-1 overflow-hidden">
-            {/* Middle column */}
-            <div className="min-h-0 w-[54%] shrink-0 overflow-y-auto border-r border-border">
+          {/* No overflow-hidden: it would crop the raised column's left shadow.
+              The columns inside own their scrolling. */}
+          <div className="flex min-h-0 flex-1">
+            {/* Middle column — the one the operator acts in, so it is the raised
+                white surface: card background plus a sideways shadow against the
+                muted output pane beside it. Deliberately NOT a purple wash — the
+                design system reserves the brand colour for accents and forbids it
+                as a large background fill, and a tinted column would also fight the
+                purple CTA sitting inside it. */}
+            <div className="min-h-0 w-[54%] shrink-0 overflow-y-auto border-x border-primary/25 bg-card panel-raised">
               {/* Image — model & controls; plus the edit tools on the Edit tab */}
               {selected === "image" && (
                 <div className="flex flex-col gap-6 px-6 py-5">
@@ -1215,8 +1222,9 @@ export function ImageGenFocusView({
               )}
             </div>
 
-            {/* Right column — the output, always visible */}
-            <div className="flex min-h-0 flex-1 flex-col gap-3 px-6 py-5">
+            {/* Right column — the output, always visible. Faintly sunk so the
+                action column reads as raised against it. */}
+            <div className="flex min-h-0 flex-1 flex-col gap-3 bg-muted/20 px-6 py-5">
               <div className="flex items-center gap-6">
                 <div className="flex items-center gap-1.5">
                   <Sparkles className="size-3.5 text-primary" strokeWidth={1.5} />
