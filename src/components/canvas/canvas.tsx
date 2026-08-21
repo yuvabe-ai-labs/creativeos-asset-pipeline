@@ -75,12 +75,15 @@ export function Canvas({
   initialKBJob,
   hasActiveKB,
   initialDriveRootFolder,
+  reviewMode = false,
 }: {
   canvasId: string;
   clientId: string;
   initialKBJob: ClientKBJobRow | null;
   hasActiveKB: boolean;
   initialDriveRootFolder: { id: string; name: string } | null;
+  /** D161: arrived via a review link (?review=1) — do not take the edit lock (R7.2). */
+  reviewMode?: boolean;
 }) {
   // One subscription, shallow-compared, so the component only re-renders when
   // these slices actually change.
@@ -120,7 +123,7 @@ export function Canvas({
   const anyFocusViewOpen = useAnyFocusViewOpen();
 
   const { canEdit, heldByName, canTakeOver, sessionId, takeOver, reportLockLost } =
-    useCanvasLock(canvasId);
+    useCanvasLock(canvasId, { acquire: !reviewMode });
   // Read the latest canEdit from event handlers/closures without re-subscribing them.
   const canEditRef = useRef(canEdit);
   useLayoutEffect(() => {
