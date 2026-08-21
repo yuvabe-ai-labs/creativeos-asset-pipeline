@@ -9,6 +9,7 @@ import {
 } from "react";
 import {
   ArrowLeft,
+  BadgeCheck,
   ChevronDown,
   Clapperboard,
   History,
@@ -53,6 +54,10 @@ import { EstimatedCreditsLabel } from "./estimated-credits-label";
 import { createBrowserSupabase } from "@/lib/supabase/client";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
+import { useIdentity } from "@/hooks/use-identity";
+import { InlineApprovalBar } from "./inline-approval-bar";
+import { setVersionApprovalAction } from "@/lib/actions/approval";
+import type { ApprovalStatus } from "@/lib/approval";
 import { useFlushAutosave } from "@/components/canvas/autosave-flush-context";
 import { useVideoGenStatus } from "@/hooks/use-video-gen-status";
 import {
@@ -352,6 +357,11 @@ export function VideoGenFocusView({
   const [promptNode, setPromptNode] = useState<UpstreamPromptNode | null>(null);
   const [versions, setVersions] = useState<VideoGenVersionSummary[]>([]);
   const [activeVersionId, setActiveVersionId] = useState<string | null>(null);
+  // D29 approval flag — R10.1. video-gen-node.tsx has always rendered ApprovalBadge, but
+  // this focus view had no control able to change it, so a video read "Pending" forever.
+  const [approvalStatus, setApprovalStatus] = useState<ApprovalStatus>("pending");
+  const [approvalNote, setApprovalNote] = useState("");
+  const [approvalSaving, setApprovalSaving] = useState(false);
   const [restoring, setRestoring] = useState(false);
   // The selected rail item: "video" (settings + preview), "history", "details", or a connected
   // node's id (middle column shows that node's role/detail view). Mirrors image-gen-focus-view.
@@ -385,6 +395,7 @@ export function VideoGenFocusView({
   const setVideoGenError = useCanvasStore((s) => s.setVideoGenError);
   const disconnectNodes = useCanvasStore((s) => s.disconnectNodes);
   const editable = useCanvasEditable(); // D33: false when this session is read-only
+  const { identity } = useIdentity();
   const flushAutosave = useFlushAutosave();
 
   // Stable ref for onPatch — breaks the useCallback → useEffect dep cycle
@@ -400,6 +411,8 @@ export function VideoGenFocusView({
       setActiveVersionId(data.activeVersionId);
       const active = data.versions.find((v) => v.id === data.activeVersionId);
       if (active?.output) onPatchRef.current({ parsed: active.output });
+      setApprovalStatus(active?.approvalStatus ?? "pending");
+      setApprovalNote(active?.note ?? "");
     } catch {
       /* best-effort */
     }
@@ -483,6 +496,8 @@ export function VideoGenFocusView({
         setActiveVersionId(data.activeVersionId);
         const active = data.versions.find((v) => v.id === data.activeVersionId);
         if (active?.output) onPatchRef.current({ parsed: active.output });
+        setApprovalStatus(active?.approvalStatus ?? "pending");
+        setApprovalNote(active?.note ?? "");
       })
       .catch(() => {})
       .finally(() => setLoadingVersions(false));
@@ -671,6 +686,27 @@ export function VideoGenFocusView({
             : "Generation failed";
       setLastError(msg);
       toast.error(msg, { duration: 6000 });
+    }
+  }
+
+  // R10.1 — matches image-gen-focus-view's saveApproval exactly.
+  async function saveApproval(status: ApprovalStatus, note: string | null) {
+    if (!activeVersionId) return;
+    setApprovalSaving(true);
+    try {
+      await setVersionApprovalAction(activeVersionId, { status, note });
+      setApprovalStatus(status);
+      setApprovalNote(note ?? "");
+      // Push into the store so the on-canvas badge refreshes immediately — without this
+      // the badge stays stale until a full reload re-hydrates from the DB.
+      onPatch({ approvalStatus: status });
+    } catch (e) {
+      // Surface the server's message, not a fixed string: after D166 the realistic
+      // failures are "you are not permitted…" and "a note is required…", both of which
+      // the reviewer needs to actually read.
+      toast.error(e instanceof Error ? e.message : "Failed to save approval");
+    } finally {
+      setApprovalSaving(false);
     }
   }
 
@@ -988,6 +1024,20 @@ export function VideoGenFocusView({
               {/* Video — flat, independently-collapsible peer groups (Frames / Output / Fine-tune / Advanced) */}
               {selected === "video" && (
                 <div className="flex flex-col gap-10 px-6 py-5">
+                  {/* R10.1: sign-off sits with the asset, the same place image-gen puts it.
+                      Only once there is something to review — an ungenerated node has no
+                      active version to approve (R3.5). */}
+                  {activeVersionId && (
+                    <LeftSection icon={BadgeCheck} label="Approval">
+                      <InlineApprovalBar
+                        status={approvalStatus}
+                        note={approvalNote}
+                        saving={approvalSaving}
+                        canApprove={editable && identity?.role === "senior"}
+                        onSet={saveApproval}
+                      />
+                    </LeftSection>
+                  )}
                   {/* Model first: it decides which roles exist, which params show, and which
                       combinations are legal, so every choice below it is downstream of this one. */}
                   {/* Output settings share the model's card: resolution and duration are
