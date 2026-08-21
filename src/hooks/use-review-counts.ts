@@ -23,7 +23,16 @@ export function useReviewCounts(initial: ReviewCounts): ReviewCounts {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Re-seed when the server sends a newer value (a navigation, or router.refresh()).
-  useEffect(() => setCounts(initial), [initial]);
+  // Adjusted DURING RENDER rather than in an effect: setState inside an effect triggers
+  // the cascading re-render React 19 warns about, and the seed comparison is the pattern
+  // this codebase already uses for the same problem (see the `seed.open !== open` block in
+  // video-prompt-focus-view.tsx). The reference check is enough — `initial` comes from a
+  // server component, so it only changes identity when the server actually re-rendered.
+  const [seed, setSeed] = useState<ReviewCounts>(initial);
+  if (seed !== initial) {
+    setSeed(initial);
+    setCounts(initial);
+  }
 
   useEffect(() => {
     if (!orgId) return;

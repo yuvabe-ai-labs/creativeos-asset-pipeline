@@ -34,16 +34,23 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { renameCanvasAction, deleteCanvasAction } from "@/lib/actions/canvases";
+import { PendingCountPill } from "@/components/shared/pending-count-pill";
+import { useReviewCounts } from "@/hooks/use-review-counts";
 import type { CanvasRow } from "@/lib/db/types";
+import type { ReviewCounts } from "@/lib/review/queue";
 
 export function CanvasesTable({
   canvases,
   clientSlug,
+  reviewCounts,
 }: {
   canvases: CanvasRow[];
   clientSlug: string;
+  reviewCounts: ReviewCounts;
 }) {
   const router = useRouter();
+  // R8.1: one subscription for the table, seeded from the server-rendered counts.
+  const liveCounts = useReviewCounts(reviewCounts);
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortKey>("recent");
   const [renamingCanvas, setRenamingCanvas] = useState<CanvasRow | null>(null);
@@ -143,7 +150,16 @@ export function CanvasesTable({
                     className="absolute inset-0"
                   />
                   <div className="pointer-events-none relative flex items-center gap-4 px-5 py-3.5 pr-12">
-                    <span className="flex-3 font-medium">{canvas.name}</span>
+                    {/* Inside the pointer-events-none overlay on purpose: the row
+                        navigates via a stretched <Link>, so the pill must not capture
+                        clicks or it would punch a dead spot in the row. */}
+                    <span className="flex-3 flex items-center gap-2 font-medium">
+                      {canvas.name}
+                      <PendingCountPill
+                        count={liveCounts.byCanvas[canvas.id] ?? 0}
+                        scope="canvas"
+                      />
+                    </span>
                     <span className="flex-2 text-sm text-muted-foreground">
                       {formatRelativeTime(canvas.updated_at)}
                     </span>
