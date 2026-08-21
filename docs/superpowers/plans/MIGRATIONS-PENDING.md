@@ -22,8 +22,12 @@ Apply through the Supabase SQL editor (paste + Run), in this order. There is no
       Verify queries: `docs/auth-production-migration.md` § "Migration 0030".
       **Blocks:** approval enforcement, maker attribution, all M2 realtime.
 
-*(M2 will add `0031_review_queue.sql` — the `review_queue_items` view and the
-`org_review_counts` RPC. It will be appended here when written.)*
+- [ ] **`0031_review_queue.sql`** — M2
+      `review_queue_items` view + `org_review_counts(p_org_id)` RPC.
+      **Depends on 0030** (selects `node_versions.org_id` and `operator_user_id`) —
+      apply in order. Both statements are `create or replace`, so it is safe to re-run.
+      Verify queries: `docs/auth-production-migration.md` § "Migration 0031".
+      **Blocks:** every pending count, the review drawer, the navbar inbox.
 
 ---
 

@@ -480,3 +480,26 @@ select tablename from pg_publication_tables
 Application code that depends on this: `setVersionApprovalAction` (reads `org_id`, writes
 `approved_by_user_id`) and every `insertVersion()` call site (writes `operator_user_id`).
 Deploying that code before this migration produces `column ... does not exist` errors.
+
+## Migration 0031 — review queue derivation (2026-08-21)
+
+`supabase/migrations/0031_review_queue.sql`. Paste into the Supabase SQL editor → Run.
+**Apply after 0030** — the view selects `node_versions.org_id` and `operator_user_id`,
+both of which 0030 creates.
+
+Adds the `review_queue_items` view (nodes joined to their ACTIVE version, assets only) and
+`org_review_counts(p_org_id)`, which returns per-client and per-canvas pending counts in a
+single call rather than one query per row (PRD §8's free-tier constraint — the client list
+renders for every org member on every visit).
+
+Both statements are `create or replace`, so this is safe to re-run.
+
+**Verify after running:**
+
+```sql
+-- the view resolves; zero rows is correct on a quiet org
+select count(*) from review_queue_items where approval_status = 'pending';
+
+-- R5.5 as a query: the per-canvas rows must sum to the per-client totals
+select client_id, sum(pending) from org_review_counts('<org-uuid>') group by client_id;
+```
