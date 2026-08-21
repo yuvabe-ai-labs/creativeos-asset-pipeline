@@ -646,11 +646,10 @@ export function VideoGenFocusView({
   }
 
   async function handleGenerate() {
-    // C0 (Kling): start frame required — button should be disabled, but guard anyway
-    if (currentModel?.provider === "kling") {
-      const hasStartFrame = Object.values(effectiveImageRoles).includes("start_frame");
-      if (!hasStartFrame) return;
-    }
+    // C0: whatever the model's rules forbid — button should be disabled, but guard anyway. This
+    // used to be a hardcoded "Kling needs a start frame" check; D101 made that false for O1, which
+    // generates from references alone, so the question is asked of the rules instead.
+    if (constraints.disableGenerate) return;
 
     // C2: images connected but none assigned (non-Kling providers)
     if (upstreamImages.length > 0 && Object.keys(effectiveImageRoles).length === 0) {
@@ -1054,11 +1053,7 @@ export function VideoGenFocusView({
                           className="w-full"
                           onClick={handleGenerate}
                           disabled={
-                            isGenerating ||
-                            constraints.disableGenerate ||
-                            !editable ||
-                            (currentModel?.provider === "kling" &&
-                              !Object.values(effectiveImageRoles).includes("start_frame"))
+                            isGenerating || constraints.disableGenerate || !editable
                           }
                         >
                           <Sparkles className="size-4" strokeWidth={1.5} />
@@ -1072,14 +1067,9 @@ export function VideoGenFocusView({
                           )}
                         </Button>
                       </TooltipTrigger>
-                      {(constraints.disableGenerate && constraints.disableGenerateReason) ? (
+                      {constraints.disableGenerate && constraints.disableGenerateReason ? (
                         <TooltipContent side="bottom">
                           {constraints.disableGenerateReason}
-                        </TooltipContent>
-                      ) : currentModel?.provider === "kling" &&
-                        !Object.values(effectiveImageRoles).includes("start_frame") ? (
-                        <TooltipContent side="bottom">
-                          Kling requires a start frame — connect an image and assign it as Start Frame
                         </TooltipContent>
                       ) : null}
                     </Tooltip>

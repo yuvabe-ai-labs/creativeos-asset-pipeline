@@ -30,11 +30,13 @@ function durationParam(min: number, max: number, defaultValue: number): ParamSpe
 }
 
 // O1 (the /omni-video endpoint) is NOT a continuous range like 3.0. Kling only accepts an
-// arbitrary duration when the request carries a `refer_image`; with a plain first frame — which
-// is all `buildKlingContents` ever sends — it rejects anything but 5 or 10:
+// arbitrary duration when the request carries a `refer_image`; on a frames-only request it
+// rejects anything but 5 or 10:
 //   400 {"code":1201,"message":"Duration only supports 5 or 10 seconds when no refer_image is provided"}
 // Two non-contiguous stops can't be expressed as a slider, so O1 gets a chip select instead.
-// Restoring the full 3–10 range means implementing refer_image, not widening this list.
+// D100 added `refer_image`, so 3–15 IS reachable once a reference is attached — the list stays at
+// 5/10 because the param spec is static and cannot narrow itself back when the last reference is
+// removed. Widening it needs a rule that pins 5/10 at referenceCount 0, not just a longer list.
 // Stores a STRING where 3.0's slider stores a number; both settings builders coerce with
 // Number(), so either survives the round trip.
 function durationSelectParam(options: string[], defaultValue: string): ParamSpec {
@@ -62,6 +64,23 @@ function audioParam(options: string[], defaultValue: string): ParamSpec {
     constraints: { type: "select", options },
   };
 }
+
+// OM8 — the omni endpoint REQUIRES `aspect_ratio` when a request carries no first frame and no
+// reference video, which is exactly the references-only shape D101 unlocked. With a start frame
+// present Kling derives the ratio from that image and buildO1Settings omits the field entirely,
+// so this control governs one specific path rather than every generation. That is why it sits in
+// Advanced instead of beside Resolution — it must be reachable, not prominent.
+const aspectRatioParam: ParamSpec = {
+  name: "aspect_ratio",
+  label: "Aspect Ratio",
+  component: "select",
+  group: "advanced",
+  order: 2,
+  visible: true,
+  defaultValue: "16:9",
+  constraints: { type: "select", options: ["16:9", "9:16", "1:1"] },
+  description: "Used only when generating from references with no start frame.",
+};
 
 const multiShotParam: ParamSpec = {
   name: "multi_shot",
@@ -115,5 +134,6 @@ export const klingO1Params: ParamSpec[] = [
   durationSelectParam(["5", "10"], "5"),
   audioParam(["native", "off"], "off"),
   multiShotParam,
+  aspectRatioParam,
   negativePromptParam,
 ];
