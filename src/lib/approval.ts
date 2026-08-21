@@ -25,24 +25,32 @@ export function requiresNote(status: ApprovalStatus): boolean {
 
 export type ApprovalUpdate = {
   approval_status: ApprovalStatus;
-  approved_by: string | null;
+  // R11.2: the REVIEWER as a real user reference. The legacy `approved_by` text column
+  // is never written again — reads resolve this id to a current display name and fall
+  // back to the old string for pre-migration rows (R11.4).
+  approved_by_user_id: string | null;
   approved_at: string | null;
   note: string | null;
 };
 
 export function buildApprovalUpdate(input: {
   status: ApprovalStatus;
-  by: string | null;
+  by: string | null; // the caller's user id — never a display name, never client-supplied
   at: string;
   note?: string | null;
 }): ApprovalUpdate {
   // Reset to pending clears attribution and feedback — the version is un-reviewed again.
   if (input.status === "pending") {
-    return { approval_status: "pending", approved_by: null, approved_at: null, note: null };
+    return {
+      approval_status: "pending",
+      approved_by_user_id: null,
+      approved_at: null,
+      note: null,
+    };
   }
   return {
     approval_status: input.status,
-    approved_by: input.by,
+    approved_by_user_id: input.by,
     approved_at: input.at,
     // note is feedback for the maker — only meaningful for changes_requested.
     note: input.status === "changes_requested" ? (input.note ?? null) : null,

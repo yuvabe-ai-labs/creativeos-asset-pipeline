@@ -16,7 +16,9 @@
 - **Migrations are applied BY HAND** through the Supabase SQL editor (paste + Run). There is no `supabase db push` in this project. An agent must never claim a migration is applied — it can only write the file and log it as pending.
 - **Migrations are batched to the end of the feature** (operator decision, 2026-08-21). Write them, commit them, record them in `docs/superpowers/plans/MIGRATIONS-PENDING.md`, and continue as if applied. Never block a task on one. Surface the pending list when the feature is done.
 - **Test command:** `npx vitest run <path>`. Full suite: `npx vitest run`. Baseline at branch start: **157 files, 1246 tests, 0 failures.**
-- **Lint:** `npm run lint` must pass before every commit.
+- **Lint:** `npm run lint` before every commit. **The base already has 28 errors and 28 warnings** on `origin/main` (canvas hooks, `post-stage.tsx`, `sora.ts`, and others). The bar is therefore **no NEW errors in files this feature touches**, not a clean run — verify with:
+  `npm run lint 2>&1 | awk '/^C:/{f=$0} /error/{print f}' | sort -u`
+  and confirm no file you edited appears. Do not "fix" unrelated pre-existing errors here; that is a separate change and it would bury this feature's diff.
 - **Design system:** Clash Display (`font-display`) + Gilroy only. Purple `#5829c7` sparingly. Amber = pending, `destructive` token = changes_requested. Never hardcode colors outside the documented status-badge exception.
 - **ADR numbers for this feature are D159–D167.** Do not use D149–D158 — those belong to the unmerged reel-editor branch. See the design spec §2.1.
 - **Commit style:** end every commit message with `Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>`.

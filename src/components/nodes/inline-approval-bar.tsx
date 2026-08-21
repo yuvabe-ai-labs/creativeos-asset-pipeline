@@ -16,7 +16,10 @@ export function InlineApprovalBar({
   status: ApprovalStatus;
   note: string;
   saving: boolean;
-  canApprove: boolean; // cosmetic role hint (spec §4.4); NOT security
+  // R2.3: hides the control from a designer as a COURTESY. The real gate is the role
+  // check inside setVersionApprovalAction, which resolves the caller server-side (D166) —
+  // this prop is not, and must never become, the mechanism.
+  canApprove: boolean;
   onSet: (status: ApprovalStatus, note: string | null) => void;
 }) {
   const [draftNote, setDraftNote] = useState(note);

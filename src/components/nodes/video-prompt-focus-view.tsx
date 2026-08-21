@@ -309,11 +309,7 @@ export function VideoPromptFocusView({
     if (!activeVersionId) return;
     setApprovalSaving(true);
     try {
-      await setVersionApprovalAction(activeVersionId, {
-        status,
-        approvedBy: identity?.name ?? null,
-        note,
-      });
+      await setVersionApprovalAction(activeVersionId, { status, note });
       setApprovalStatus(status);
       setApprovalNote(note ?? "");
       // Push into the store so the on-canvas badge refreshes immediately — without
