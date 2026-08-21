@@ -2768,3 +2768,100 @@ range requests for video — and signed-out requests 307 to `/login`.
 **Supersedes.** The "Clips" paragraph of §5 in
 `2026-08-12-onboarding-empty-states-and-help-chapters-design.md`. The muted-autoplay-video
 choice there (over GIFs) stands unchanged.
+
+### D159 — Every review surface is one derived view, not three queries that agree *(recorded 2026-08-21; originated → `2026-08-21-internal-approval-workflow-design.md`)*
+
+**Decision.** Client counts, canvas counts, the review drawer and both roles' navbar lists
+are all filters over a single `review_queue_items` view, which joins `nodes` to its active
+`node_versions` row and keeps only `image-gen` / `video-gen`.
+
+**Why.** The internal-approval PRD's R5.5 requires the three zoom levels to show the same
+underlying number. Three independently written queries can drift apart; one derivation
+cannot. Joining on `active_version_id` also delivers R3.3 and R3.5 for free — a node with
+twenty regenerations exposes exactly one row, and a node that never generated exposes none.
+R5.5 stops being a convention someone has to remember and becomes structurally unavailable
+to violate.
+
+**Rejected.** A materialised queue table with an assignee column. It reintroduces precisely
+the synchronisation problem the derivation avoids, and D150's "review is derived, not
+assigned" had already settled the question for the per-canvas queue.
+
+**Numbering note.** This feature takes **D159–D167**. D149–D158 are claimed by the reel
+editor on the unmerged `feat/video-editor` branch; numbering this work D149 would collide
+the moment either branch merged. The gap is deliberate, not lost history — see
+`2026-08-21-internal-approval-workflow-design.md` §2.1.
+
+### D164 — Seats are provisioned by the super-admin on the existing org-detail surface *(recorded 2026-08-21; originated → `2026-08-21-internal-approval-workflow-design.md`)*
+
+**Decision.** `addOrgMember` / `updateMemberRole` extend the `/admin/orgs/[id]` Members
+card with an add-member dialog and a per-row role `Select`. Org owners cannot provision
+their own seats.
+
+**Why.** `createOrgWithOwner` hardcoded `org_role: 'owner'` and was the only caller of
+`auth.admin.createUser` in the repo, so an organization could contain exactly one person
+holding exactly one role. Maker-checker is meaningless with one seat. The schema always
+permitted more — the unique index is `one_org_per_user`, one *org per user*, not one user
+per org — so this is a provisioning path and a screen, not a data-model change.
+
+**Not re-implemented.** The last-owner rule (R1.4) stays in migration 0012's
+`org_memberships_last_owner` trigger. An invariant that must hold regardless of which code
+path attempts the write belongs in the database; duplicating it in the action would create
+two places to drift.
+
+**Rejected.** Org self-serve invites. Right eventually, but it puts a whole invite/accept
+lifecycle in front of a pilot that needs two seats in one org (PRD §10 Q1 — deferred, not
+rejected on the merits).
+
+### D166 — Approval permission is enforced server-side, and the action stops accepting a caller-supplied reviewer *(recorded 2026-08-21; retires the cosmetic-only gate D29 §3 deferred; originated → `2026-08-21-internal-approval-workflow-design.md`)*
+
+**Decision.** `setVersionApprovalAction` resolves the caller via `resolveCallerContext()`,
+refuses `designer`, verifies the version belongs to the caller's org, requires a note on
+`changes_requested`, and writes the caller's own id as reviewer. The `approvedBy` parameter
+is **removed from the signature**.
+
+**Why.** Removing the parameter matters as much as adding the check. The action previously
+recorded whatever identity the browser sent, and a role check layered on top of a
+caller-supplied identity is not enforcement — it is decoration with an extra step. D29
+deferred this for want of real auth; `resolveCallerContext` now exists, so it is buildable.
+The role gate runs before any database read, so a designer cannot use the action to probe
+which version ids exist.
+
+**Also.** R6.5 (a rejection requires a note) is enforced here too, not merely disabled in
+the UI — a rejection with no explanation is useless to the maker it routes back to.
+
+**Rejected.** Keeping `approvedBy` and validating it against the session. It leaves a
+spoofable parameter in the signature for no benefit: if it must equal the session's user,
+it should not be a parameter at all.
+
+### D167 — `node_versions` gains `org_id` and an org-isolation SELECT policy; attribution becomes real user references *(recorded 2026-08-21; executes D29 §5.2; originated → `2026-08-21-internal-approval-workflow-design.md`)*
+
+**Decision.** Migration `0030_approval_workflow.sql` adds `org_id` to `node_versions`
+(backfilled node→canvas→client→org, maintained by a BEFORE INSERT trigger), an
+`(org_id, approval_status)` index, an `org isolation` SELECT policy, membership of the
+`supabase_realtime` publication, and `operator_user_id` / `approved_by_user_id`. The legacy
+`operator` / `approved_by` text columns are kept and never written again.
+
+**Why the policy is load-bearing, not a backstop.** Migration 0017 enabled RLS on
+`node_versions` with **zero** policies (default-deny). Realtime delivers `postgres_changes`
+rows *through* RLS, so the live updates the approval workflow needs would have received
+nothing at all — silently. This is the same failure 0018 had to fix after 0017 killed the
+Generation Tray. The policy also satisfies R2.4: a designer may read every approval state
+and note, because review is not secret; only *setting* a status is restricted.
+
+**Why a trigger, not an application-layer assignment.** There are eleven `node_versions`
+insert sites and more will follow — including two duplicate routes that bypass
+`insertVersion()` entirely and write the table directly. A path that forgot `org_id` would
+produce versions invisible to every count and every subscription: a bug presenting as "the
+queue is quietly wrong" rather than as an error. The duplicate routes are the concrete proof
+the trigger was the right call.
+
+**On attribution.** The PRD described this as migrating `operator` from MVP-era free-text
+names. It is not — `operator` was only ever written as the literal `"duplicate"`; no
+generation path recorded a maker at all. R11.1 is therefore a *new write on every generation
+path*, which is what makes R4.3 (route a rejection back to the person who made it)
+resolvable. Names resolve on read through `org_memberships`, so a renamed user is never
+shown under a stale name and a reference can never resolve across an org boundary (R11.3,
+R11.5).
+
+**Rejected.** Reusing `operator` for the user id. It holds legacy values and is typed
+`text`; overloading it would make "is this a name or an id?" a per-row guess.
