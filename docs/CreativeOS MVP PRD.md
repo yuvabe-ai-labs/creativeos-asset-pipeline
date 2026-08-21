@@ -1,15 +1,21 @@
 # CreativeOS MVP PRD
 
-## Canvas-based asset generation for reel production
+## Canvas-based asset generation for reels and posts
 
 [Figma board](https://www.figma.com/board/90dIUhXohYzzp0QKEYMUIq/Creative-OS---PRD-and-Mental-Model?node-id=0-1&p=f&t=LXtWkwPy3Rh0qzSA-0)
 
-> **Document version: v2 (Script-node revision).** The first input node *shipped* is a
-> **Script node** — it parses a *finished reel script* into structured, editable,
-> asset-ready fields. The original **Brief node** (parsing an upstream brief into
-> structured context) is **retained for later** — not built yet, not removed; it remains
-> a defined MVP node type. See the **Changelog** below for what changed and why; build
-> sequencing lives in `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md`.
+> **Document version: v3 (Production-platform revision, 2026-08-16).** CreativeOS is no longer a
+> single-tenant internal tool that makes reel assets. It is a **multi-tenant product** that
+> external agencies log into (**Organizations + Supabase Auth**, D42–D53), it produces a **second
+> asset type** end-to-end (**Post node** — compose, approve, publish, D116–D136), it meters what
+> it spends (**credit ledger + pre-generation estimates**, D77/D92/D93), and it generates video
+> across **three providers** (Veo · Sora · Kling, D78–D81/D90/D99–D102). See **§0.1** for the full
+> v2 → v3 changelog.
+>
+> The v2 spine is unchanged: the first input node shipped is the **Script node** (parses a
+> finished reel script into asset-ready fields), and the **Brief node** remains defined-but-unbuilt.
+> Build sequencing and the authoritative *why* for every decision live in the ADR log,
+> `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` §7 (now **D1–D148**).
 
 ---
 
@@ -37,17 +43,72 @@
 | 18 | **Guided next-node flow added.** A contextual **"Create next"** action on each pipeline node **saves → creates → connects → places → opens** the next node down the chain (Shot → image prompt → Image Gen → video prompt → Video Gen), wiring the extra parents each step needs (shot + still → Video Prompt; motion prompt + still → Video Gen). It **never runs a model** — the designer sets controls, verifies inputs, and clicks Generate (D11). **Idempotent** (navigates to an existing next node, never duplicates); the Image Gen → video CTA is enabled once a still exists, with a *"not approved yet"* nudge (approval guides, never gates — D29). Reuses the D35 seams (`focusedNodeId`, ancestor edge-walk). | §14, §17 | D36 |
 | 19 | **Client Moodboards added.** A **client-level** collection of reference images ("Face cream", "Mother's Day"), reusable across every canvas for that client — filled by a small **browser capture extension** (right-click any image on the web → "Add to moodboard") and by in-app **add-by-URL**, browsed as a **Moodboards tab** in the Gallery drawer. Stored **URL-first**: an item is a row holding the image URL + the page it came from; **nothing is fetched at add time**, and full bytes are re-hosted to storage **only when the item is dragged onto a canvas** and becomes an ordinary **File node** — the moment durability starts to matter (generation + archive). | §6, §9, §11.4, §17, §18, §21 F6 | D92 |
 
+---
+
+## 0.1 Changelog — v2 (Script node) → v3 (Production platform)
+
+Where v2 was one revision (the Script node), v3 absorbs roughly a hundred decisions recorded
+between 2026-07-05 and 2026-08-16. The through-line: **CreativeOS stopped being an internal
+single-tenant reel-asset tool and became a multi-tenant product with a second asset type.**
+
+Only **product-level** shifts are listed. Implementation-level ADRs (z-index rules, context vs
+props, listener collisions) stay in the ADR log where they belong.
+
+| # | Change | Where | Decision |
+|---|---|---|---|
+| 20 | **Organizations + real auth.** An **Organization** (agency) is now the tenant and isolation boundary above `clients`; users **log in** (Supabase Auth, invite-only), and no row/file/realtime event crosses the org boundary. Soft identity (D29) is superseded as the *source* of identity — `useIdentity()` kept its API, its internals swapped. Default-deny **RLS** on every table; **impersonation** with an audit log and a read-only default. Own PRD: `CreativeOS Multi-Tenancy Pilot PRD.md` | §5, §6, §17, §18, §21 F1, §22 | D42–D53, D77–D89, D139–D141 |
+| 21 | **Post node — a second asset type, end to end.** Image Gen makes a *plate*; what ships to a client is a **post**: that plate with a headline, CTA, logo and colour band. A **Post node** composes text/shapes/images/icons over a connected image in a Canva-shaped editor (icon rail + shared flyout, fixed right inspector, 14 templates across three aspect bands), then carries client approval and publishing. Positioning: *"they don't have to switch tools to generate on-brand images."* | §1, §7, §10, §11.8, §14, §17 | D116–D128 |
+| 22 | **Brand Kit — client-level design material.** A `client_brand_assets` table (logos / backgrounds / products) + `clients.brand_details` (phone, email, website, socials) + colours **derived from the active KB at read time**. Deliberately distinct from `client_brand_images`, which is the KB's vision-analysis *corpus*, not material anyone chose to design with. Fonts excluded on purpose | §6, §9.1 | D129–D135 |
+| 23 | **Cost is visible and metered.** A **pre-generation credit estimate** renders before Generate on Prompt, Image Gen and Video Gen; spend is recorded in an append-only **`credit_transactions` ledger** (reservation → consumption → refund) with atomic row-locked reservation against a monthly org cap. The estimate is a **static derived formula / client-side computation**, never a live vendor call | §11.5–11.7, §25 | D47→D77, D92, D93 |
+| 24 | **Video generation is multi-provider.** Veo 3.1 (Lite/Fast/Quality) + Sora 2 + Kling (3.0, O1). A **Target selector** on the Motion Prompt node shapes the prompt for its provider and locks to a connected Video Gen node. Camera is **uniform text-in-prompt for every provider** (Kling's `camera_control` path was built and then removed). The motion prompt is **preservation-first** — it restates fixed subject identity so branded products hold. Per-model capability descriptors; Veo gains a resolution param | §7.2, §11.7, §12 | D78–D81, D90, D99–D102 |
+| 25 | **Start + end frame is the default shape of a video generation.** The video focus view leads with a **shot spine** — Start → End \| Reference in narrative order — reporting which roles are filled and what duration results. A missing end frame is an **empty slot at rest**, never a block. Rationale is economic: an image costs ~$0.067 against $0.40–$4.20 for a video re-roll, so composing an end frame is 6–63× cheaper than re-rolling until the motion is right. The API route **rejects** rule violations rather than auto-correcting | §10, §11.7 | D95–D98 |
+| 26 | **Image editing matured into a composer.** A `Generate \| Edit` tab pair; the edit region travels in the **selected model's native channel** (OpenAI alpha mask painted by the user; Gemini text-only) — the burned-in annotation composite was retired because it reproduced the scribble into the output. The edit base is an **explicit pinned choice**, and edit references are **explicit**: an empty selection sends no extras | §11.6 | D37–D39, D101 |
+| 27 | **Eval workbench — the learning loop got its surface.** `/eval/[canvasId]` lists every generated node grouped by action; the detail shows input → output, the **exact request sent**, and a **Δ that names what the human changed** between versions (structured field comparison, no LLM). Open coding only (Good/Bad + note). The quality axis stays distinct from the sign-off axis | §4.4, §13, §21 F4 | D94 |
+| 28 | **The reference picker became a working surface.** The gallery is a **right drawer** (not a modal) that stays open across canvas interactions, with References (Drive, flat by recency) · Assets (canvas generations) · **Moodboards** tabs, infinite scroll, and **drag-and-drop onto a node** (auto-connects). The Prompt focus view became a **left-rail master–detail** | §9.3, §11.4, §11.5 | D40, D41 |
+| 29 | **In-app onboarding is pull-not-push.** No tours, no first-view modals, no seen-state tables. Two surfaces only: **list empty states** carrying one CTA, and a global **Help ▾** menu of chaptered, video-led explainers — each chapter one two-pane screen (step rail beside the clip). Clips are committed to `public/`, re-encoded | §24 | D143–D148 |
+| 30 | **"Video Prompt" is now "Motion Prompt."** Label + mnemonic only (`M`; Video Gen takes `V`; bare `g` belongs to the Gallery drawer). The persisted `nodes.type` slug stays `"video-prompt"` | §6, §7.2 | D137 |
+| 31 | **A KB node exists on the canvas.** Every new canvas is seeded with a **KB node + a connected Script node**, so the canvas opens with its context already wired. This **reverses v2's "KB node is not a node"** rule (§8) — the client-level Brand KB surface still exists; the canvas node is a *reader* of it | §7.1, §8 | seeded per D143 |
+| 32 | **Copilot — ⚠ BUILT BUT NOT RELEASED.** A docked panel that drives the canvas by language: server thinks / client acts / human gates, three stateless calls per turn, uuid-derived node ref handles, @-mention grounding, and a playbook runner whose generation steps always pause at a human gate. Merged to `main`, then **commented out** because the panel overlaps the Gallery drawer (YUV-233). **No operator can reach any of it today** | §23, §21 F1b | D54–D76 |
+
+### Status honesty
+
+Two entries deserve more than a table row, because the ADR log's confident present tense makes
+both read as shipped when neither is reachable by a user:
+
+* **Copilot (D54–D76) is built but switched off.** The full stack shipped — three stateless calls
+  per turn, node ref handles (`TYPE-XXXX`), @-mention grounding, playbook runner with HITL gates —
+  and is then **commented out of the canvas** (`canvas.tsx`, YUV-233: the panel overlaps the Gallery
+  drawer). It is code on `staging` that no operator can reach. Treated here as **built, unreleased**.
+* **The canvas-level Review surface (D34) is still an approved design with no implementation.**
+  Approval itself works per-node and per-version; what does not exist is the list→detail queue at
+  `…/canvases/[cid]/review`. Unchanged since v2 — flagged because the ADR log's confident tone
+  reads as shipped.
+
+### A note on ADR numbering
+
+The ADR log now carries **duplicate D-numbers from parallel branch work** — two D78/D79/D80/D81
+(auth/RLS vs. video-provider), two D92/D93 (token estimate vs. moodboards), two D101 (edit
+references vs. `withAction()`), two D139 (impersonation banner vs. File-node retitling). The log
+annotates each collision in place. **Cite D-numbers with their subject**, not the number alone,
+until a renumbering pass lands. Next genuinely free number: **D149**.
+
+---
+
 Everything below the changelog is the full PRD with these changes applied. Sections
-not touched by the Script-node revision (problem, principles, downstream Prompt/Image/
-Video nodes, archive, scope) are unchanged in intent.
+not touched by a revision (problem, principles, archive) are unchanged in intent.
 
 ---
 
 ## 1. Product summary
 
-CreativeOS is an internal canvas-based asset generation tool for a creative/marketing studio.
+CreativeOS is a canvas-based asset generation platform for creative/marketing agencies.
 
-The studio creates many types of marketing assets, including reels, posts, brochures, campaign visuals, and product creatives. The long-term platform can support multiple asset workflows, but the MVP starts with a focused wedge:
+> **v3 note.** The original framing — *"an internal tool for a studio"* — no longer holds. External
+> agencies log in to their own **Organization**, which owns its client brands end to end with zero
+> visibility into any other org's data (D42–D53). The product is still used *by agency staff*; what
+> changed is that "the studio" is now one tenant among several.
+
+The studio creates many types of marketing assets, including reels, posts, brochures, campaign visuals, and product creatives. The long-term platform can support multiple asset workflows, but the MVP started with a focused wedge:
 
 **Help designers create the prompt, image, and video assets needed for a reel without switching between multiple AI tools.**
 
@@ -63,7 +124,19 @@ Reel script / context / references
 
 The MVP does **not** create full reels, stitch scenes together, handle timelines, or edit final videos. It focuses on producing the individual image/video assets needed for a piece of a reel.
 
-The product keeps the original **Clients → Canvases → Nodes** foundation from the working CreativeOS direction, but simplifies the MVP by removing automated branching, auto-rewiring, and separate output nodes.
+**A second wedge shipped in v3 — the post.** Image Gen produces a *plate* (a photographic
+background); what actually ships to a client is a **post** — that plate with a headline, body copy,
+a CTA, a logo, and usually a colour band over it. That step used to happen in Canva. The **Post
+node** (§11.8) brings it in-canvas, on the same positioning as the reel wedge:
+
+> **"They don't have to switch tools to generate on-brand images."**
+
+The Post editor deliberately does **not** compete with Canva on editing quality — that race is
+unwinnable. It competes on not making you leave, and on everything either side of the editing: the
+plate is already here, the brand is already here, approval and publishing are attached.
+
+The product keeps the original **Organizations → Clients → Canvases → Nodes** foundation, but
+simplifies by removing automated branching, auto-rewiring, and separate output nodes.
 
 ---
 
@@ -172,6 +245,25 @@ re-measure*. Each turn tightens prompt quality with evidence instead of vibe-che
 Method and rationale: `docs/evals/2026-06-14-eval-flywheel-rationale.md`;
 the raw-output capture (Step 1) is built per **D22**.
 
+**The loop got its microscope in v3 — the eval workbench (D94).** `/eval/[canvasId]` is a
+list+detail surface over **every generated node, grouped by action**, across **all versions**:
+
+* The detail focuses on **input → output**, and shows the **exact request sent** — the real
+  system prompt, compiled user input and attachments, not a reconstruction.
+* Walking a node's versions produces a **Δ that names what the human changed** — `controls`,
+  `instruction`, `kbSlices`, upstream `reference`, `promptVersion` — by **structured field
+  comparison, with no LLM**. Naming the changed knob (rather than diffing a blob) is only possible
+  because inputs are captured as *structured fields* in the first place; this is the payoff of the
+  §13 capture discipline.
+* When nothing structured changed but the output moved, it is flagged a **re-roll** — i.e. model
+  nondeterminism, not a human improvement.
+* **Open coding only** (Good / Bad + a note on the viewed version). Failure tags and axial
+  clustering are deliberately deferred: you cluster *after* reading, by hand, first.
+
+**The two axes never cross.** The quality/learning signal (`decision`) is written and read
+separately from the sign-off signal (`approval_status`, §22.2). An output can be *good but not
+signed off*, or *approved but instructive*; collapsing them would destroy both.
+
 ---
 
 ## 5. Users
@@ -206,31 +298,62 @@ They can:
 
 For MVP, the same person may act as both designer and admin.
 
-### Identity & concurrent access *(D29 / D33 — see §22)*
+### Third user: Client *(external, no account — v3)*
 
-Users now identify themselves with a **soft identity** (name + role: **senior** or
-**designer**) set once at app start — spoofable by design, an audit trail rather than a
-login (real auth is still backlog, F1). The role gates only *cosmetics* (a senior sees the
-Approve control).
+With the Post node (§11.8), the **client** enters the picture for the first time — and only as an
+approver. They receive a shared link, see exactly what will publish (artwork + caption), and reply
+with an approval or a comment. **The client never composes.**
+
+That single fact is what licenses a deliberately small editor: a skilled designer with a
+constrained toolset and no tool-switching is well served, where a brand-side marketer handed the
+same thing would find it missing features. We build for the first.
+
+### Identity & concurrent access *(v3 — see §22)*
+
+**Real authentication shipped.** Users **log in** (Supabase Auth, invite-only) and belong to an
+**Organization**; every access check reduces to "is this row in my org?" (D42–D53). The v2 soft
+identity (a spoofable localStorage name) is superseded as the *source* of identity — `useIdentity()`
+kept its API and swapped its internals, exactly as the D29 seam intended.
+
+Two role axes: `platform_role` in the JWT (is this a Yuvabe super-admin?) and `org_role` on the
+membership (owner / member). A super-admin's normal app view is scoped to **their own org**;
+cross-org visibility lives only in `/admin` and in **impersonation**, which is audited and
+**read-only by default** — writes require explicitly entering elevated mode (D139–D141).
 
 Multiple people (or tabs) can open the same canvas, but **only one session edits at a
 time**: the first holds a **single-writer lock**; everyone else is **read-only** until they
-take it over. This is what makes the shared internal workspace safe without full multi-tenant
-auth. Details in **§22**.
+take it over. Details in **§22**.
 
 ---
 
 ## 6. Information architecture
 
 ```
-Client
-├── KB (Brand KB — versioned)
-├── Files
-├── Moodboards          (named reference-image collections — D92)
-└── Canvases
-    └── Canvas
-        └── Nodes
+Organization (agency — the tenant & isolation boundary)   ← v3, D42
+├── Users / memberships          (Supabase Auth; platform_role + org_role — D49, D50)
+├── Credit ledger                (append-only; monthly cap — D77)
+└── Clients
+    └── Client
+        ├── KB (Brand KB — versioned)
+        ├── Brand Kit            (logos · backgrounds · products · details · colours — D129–D135)
+        ├── Files
+        ├── Moodboards           (named reference-image collections — D92)
+        └── Canvases
+            └── Canvas
+                └── Nodes
 ```
+
+**Nothing below the Organization moved.** Every table already FKs up to `clients`, so every row
+inherits its org through the tree — adding the tenant layer meant one `org_id` column on `clients`,
+not a schema rewrite (D42).
+
+### Organization level *(v3)*
+
+An organization is one agency. It owns its clients end to end, and it is the boundary every access
+check reduces to. It also carries the **credit ledger** (§25): an append-only
+`credit_transactions` log (reservation → consumption → refund) with a monthly hard cap, so a pilot
+agency's spend can be monitored, capped, and invoiced from real numbers rather than one mutable
+counter (D77, supersedes D47).
 
 ### Client level
 
@@ -243,6 +366,7 @@ It contains:
   to avoid, preferred verbs/phrases, disclaimers), derived from uploaded documents and
   vision-analyzed brand images. The KB has an append-only version log, an active-version
   pointer, and a readiness gate (`pending → in_review → ready`).
+* **Client Brand Kit** (D129–D135) — the design material an operator actually reaches for
 * Client files
 * Client references
 * **Client Moodboards** (D92)
@@ -250,6 +374,32 @@ It contains:
 
 Client-level context is reusable across canvases. A canvas (and its Script node) is only
 reachable once the client's KB is **ready**.
+
+#### Brand Kit *(D129–D135)*
+
+Where the **Brand KB** is *model-extracted knowledge about* the brand, the **Brand Kit** is the
+*material you design with*: **logos**, **backgrounds**, **products**, **contact details**, and
+**colours**. It is what the Post editor (§11.8) reaches into so a designer never looks up a hex
+code or hunts for a logo file.
+
+The two are deliberately separate tables. `client_brand_images` — the KB's corpus — holds every
+reference photo uploaded to *teach* the extraction model what the brand looks like; those are
+pipeline inputs, not material anyone chose to design with. Surfacing them in a Brand panel would
+bury three usable logos among forty analysis photos with nothing distinguishing them (D129).
+
+Three storage decisions worth knowing, because each resists an obvious-looking shortcut:
+
+* **Details are typed, not extracted.** Phone, email, website, address and socials live in
+  `clients.brand_details` (JSONB). They are facts an operator types and expects to stay exactly as
+  typed — putting them in the versioned KB means a re-extraction could silently rewrite a phone
+  number (D130).
+* **Colours are derived, never stored.** The Colours section parses hex codes out of the active KB's
+  palette fields on each load. The palette already exists where brand facts belong; copying it in
+  would create a second copy to keep in sync. Accepted trade-off: a KB re-extraction changes the
+  swatches — *current* beats *stable* here (D132).
+* **Fonts are excluded on purpose.** The KB's `typography_style` is prose ("clean geometric sans,
+  generous tracking"). Mapping that to a real font means guessing, and guessing wrong **silently
+  restyles a design** — a failure the operator would never attribute to the Brand Kit (D135).
 
 #### Moodboards *(D92)*
 
@@ -306,11 +456,20 @@ Operators manually create, duplicate, connect, and arrange nodes.
 right-clicking the canvas, then type to filter and press Enter (or click) to drop the
 node where the cursor sits. Power users can skip the palette entirely — a single-letter
 mnemonic creates that node type instantly at the cursor: **S** Script, **F** File,
-**N** Note, **P** Prompt, **D** Draw, **I** Image Gen, **V** Video Prompt, **G** Video
+**N** Note, **P** Prompt, **D** Draw, **I** Image Gen, **M** Motion Prompt, **V** Video
 Gen. Keyboard shortcuts are suppressed while a node's text field is focused, so typing
 into a node never spawns a node. Other canvas shortcuts: **⌘/Ctrl + D** duplicates the
-selection, **Backspace / Delete** removes it. When the clipboard holds an image, the
-palette also offers **Paste image** (creates a File node at the cursor).
+selection, **Backspace / Delete** removes it, and bare **g** opens the **Gallery drawer**.
+When the clipboard holds an image, the palette also offers **Paste image** (creates a File
+node at the cursor).
+
+> **Why `M` and `V` (D137).** These were `V` (Video Prompt) and `G` (Video Gen) until two
+> independent document-level `keydown` listeners — the canvas mnemonic dispatch and the Gallery
+> drawer toggle — **both claimed bare `g`**, so one press spawned a node *and* opened the drawer.
+> Sibling listeners on the same target cannot cancel one another, so the collision had to be
+> resolved in the key assignment rather than in handler ordering. `M` follows the node's new name,
+> which frees the shorter, more guessable `V` for the node operators actually reach for more often.
+> A test asserts no option ever re-takes `g`.
 
 ### Node level
 
@@ -327,6 +486,7 @@ Inputs → Action → Output → History (if needed)
 ```
 Input nodes
 ├── Script node      (shipped)
+├── KB node          (canvas-side reader of the client's active Brand KB — seeded per canvas)
 ├── Brief node       (planned — retained for later)
 ├── Text node
 ├── Shot node        (created by "fan out shots" from a parsed Script — D21)
@@ -335,18 +495,28 @@ Input nodes
 
 Prompt nodes
 ├── Prompt node          (image/text prompts)
-└── Video Prompt node    (motion prompts for Veo — D24)
+└── Motion Prompt node   (motion prompts for Veo · Sora · Kling — D24, renamed D137)
 
 Generate nodes
 ├── Image Gen node
 └── Video Gen node
+
+Compose nodes
+└── Post node        (lays copy/brand over a generated plate; approval + publishing — D116–D128)
 ```
+
+**Eleven node types are registered** (`script`, `kb`, `file`, `text`, `prompt`, `shot`, `draw`,
+`image-gen`, `video-prompt`, `video-gen`, `post`). Note the persisted slug for the Motion Prompt
+node is still `"video-prompt"` — only the human-facing label changed (D137), because renaming a
+slug that lives in `nodes.type` would cost a data migration plus coordinated route/prompt-id/eval
+changes for zero user-visible gain.
 
 ### 7.1 Input nodes
 
 | Node | Purpose | Output |
 | :---- | :---- | :---- |
 | **Script node** *(shipped)* | Parses a **finished reel script** into structured, editable, asset-ready fields | Raw script text + structured reel-script JSON |
+| **KB node** *(v3)* | A canvas-side **reader** of the client's active Brand KB, so the context a canvas runs on is visible in the graph rather than purely ambient. Seeded automatically on every new canvas alongside a connected Script node | Brand-KB context (read-only mirror of the client's active version) |
 | **Brief node** *(planned — retained for later)* | Parses an upstream **project brief** into structured context | Raw text + structured brief |
 | **Text node** | Holds manual notes, copy, constraints, or instructions | Text |
 | **Shot node** *(D21)* | One shot of a reel, materialized from a parsed Script via **"fan out shots."** Carries the full parsed script **narrowed to its single shot** ("a Script node with one shot") — editable shot description + all the script metadata + order. Its content **is** its output (no version log on the output — like a Text node). It also offers a **"Compose variations"** action (**D28**) that runs the LLM to suggest role-aware shot ideas; those runs are **captured** as version rows but are **never made active**, so the output stays the editable `data.script` | For an image prompt, the shot's **visual description + production medium** only (**D23** — reel-level copy is dropped); the full carried script is retained for later/video use |
@@ -396,19 +566,40 @@ Generate nodes
 | Node | Purpose | Output |
 | :---- | :---- | :---- |
 | **Prompt node** | Combines client context (Brand KB), connected inputs (incl. parsed script fields), inline files, and operator instruction into generated **image/text** prompts | Text |
-| **Video Prompt node** *(D24)* | Writes a **Veo motion prompt** for image-to-video: *vision-reads the approved Image Gen still* + shot action context + Brand KB, steered by **camera/motion master controls** structured from the Veo 3.1 guide (camera as a standalone clause, no scene re-description — the frame carries the visuals). Synchronous LLM; versioned like the Prompt node | Text (motion prompt) |
+| **Motion Prompt node** *(D24; renamed D137)* | Writes a **motion prompt** for image-to-video: *vision-reads the approved Image Gen still* + shot action context + Brand KB, steered by **camera/motion controls**. **Provider-aware** — a Target selector shapes the prompt for Veo · Sora · Kling and locks to a connected Video Gen node's provider. Synchronous LLM; versioned like the Prompt node | Text (motion prompt) |
 
-> The **Video Prompt node** is to *video* what the Prompt node is to *images*. It is a separate
+> The **Motion Prompt node** is to *video* what the Prompt node is to *images*. It is a separate
 > node (not a mode of the Prompt node) for canvas legibility and because a motion prompt has its
 > own controls and grounds itself by **looking at the approved frame**. It feeds the Video Gen
 > node. Inline motion text typed on the Video Gen node remains a quick-test fallback (D24).
+
+> **Provider-aware, but uniformly so (D78 → D79 → D80).** The node targets three providers, and the
+> shape of that awareness was corrected twice — worth recording, because the correction is the
+> lesson. D78 shipped Kling's camera through its native `camera_control` parameter with a curated
+> visual grid. That was **wrong on the facts**: `camera_control` is Kling-1.5-only, and Kling 3.0+
+> use a separate, un-integrated feature. D79 therefore **removed the entire native-camera path** and
+> made camera a **uniform text-in-prompt control for every provider** — less code, consistent UX,
+> and what both vendors' own prompt guides recommend anyway. The Target selector survives, switching
+> only the *prompt variant* (a shared spine plus minimal per-provider deltas).
+>
+> D80 then made that shared spine **preservation-first**: it dropped the hard word cap and restates
+> the fixed subject identity (product shape, label, logo, lettering, colours, props, lighting) so
+> **branded products hold their identity through motion**. Veo's visual-defect suppression moved to
+> its native `negativePrompt` parameter with a product-tuned default — deliberately *not* including
+> bare `text`/`logo`, so a product's real label survives.
 
 ### 7.3 Generate nodes
 
 | Node | Purpose | Output |
 | :---- | :---- | :---- |
 | **Image Gen node** | Generates images from prompt text, image references, and selected controls — and **edits an existing image** (remove / replace / add an element) as a new attempt (D27) | Generated image attempts (incl. edits) |
-| **Video Gen node** | Generates videos (image-to-video) from a **Video Prompt node's motion prompt** + the **approved Image Gen still** (start frame) + selected controls. Long-running async job (D25) | Generated video attempts |
+| **Video Gen node** | Generates videos (image-to-video) from a **Motion Prompt node's motion prompt** + a **shot spine** of images (start frame · end frame · references — D95) + selected controls, against a chosen provider (Veo · Sora · Kling). Long-running async job (D25) | Generated video attempts |
+
+### 7.4 Compose nodes *(v3)*
+
+| Node | Purpose | Output |
+| :---- | :---- | :---- |
+| **Post node** *(D116–D128)* | Composes a finished **social post** over a connected generated image: text, shapes, images and icons on a layered stage, with brand colours/logos pulled from the Brand Kit, an AI-written caption + hashtags, compliance warnings against the client's KB, client approval by shared link, and publishing | A composed post (layers + artwork) + caption/hashtags + approval state |
 
 ---
 
@@ -422,7 +613,13 @@ These are not separate node types:
 * Generated Video node
 * Output node
 * Archive node
-* KB node *(the Brand KB is a **client-level** surface, not a canvas node — see D17)*
+
+> **Reversed in v3: the KB node.** v2 stated flatly that the Brand KB is a client-level surface and
+> *not* a canvas node. A **KB node now exists** and is seeded on every new canvas alongside a
+> connected Script node, so a canvas opens with its context already wired and visible in the graph.
+> The client-level KB surface is unchanged and still authoritative — the canvas node **reads** the
+> active version, it does not own or edit it. Ambient resolution via the parent chain (§9.1, D6)
+> also still works; the node makes that context *legible*, it does not replace the mechanism.
 
 Important rules:
 
@@ -430,6 +627,7 @@ Important rules:
 * A finished reel script (pasted or `.md`/`.txt`) = **Script node**
 * Generated image = output inside **Image Gen node**
 * Generated video = output inside **Video Gen node**
+* A finished social post = output inside **Post node** *(v3)*
 * Archive = **canvas-level project action**
 
 ---
@@ -468,9 +666,10 @@ Examples:
 * Text node → Prompt node
 * File node → Prompt node
 * Prompt node → Image Gen node
-* Image Gen output → Video Prompt node *(vision reference for the motion prompt — D24)*
+* Image Gen output → Motion Prompt node *(vision reference for the motion prompt — D24)*
 * Image Gen output → Video Gen node *(start frame)*
-* Video Prompt node → Video Gen node *(motion prompt)*
+* Motion Prompt node → Video Gen node *(motion prompt)*
+* Image Gen output → Post node *(the plate a post composes over — v3)*
 
 ### 9.3 Inline files
 
@@ -510,16 +709,19 @@ Inline files are local to that Prompt node. They are not automatically added to 
 | Draw node | Image Gen node | Use the sketch as a generation reference |
 | Prompt node | Prompt node | Refine or transform text |
 | Prompt node | Image Gen node | Use text as image generation prompt |
-| Prompt node | Video Gen node | Use text as video generation prompt *(fallback path; the default is via a Video Prompt node — D24)* |
-| Shot node | Video Prompt node | Use the shot's **action / strategic objective** as the motion context (`renderShotForVideo`, D24) |
-| Text node | Video Prompt node | Add motion notes or constraints |
-| File node: image | Video Prompt node | Use an image as a style reference for the motion prompt |
-| Draw node | Video Prompt node | Use a sketch as a style reference for the motion prompt |
+| Prompt node | Video Gen node | Use text as video generation prompt *(fallback path; the default is via a Motion Prompt node — D24)* |
+| Shot node | Motion Prompt node | Use the shot's **action / strategic objective** as the motion context (`renderShotForVideo`, D24) |
+| Text node | Motion Prompt node | Add motion notes or constraints |
+| File node: image | Motion Prompt node | Use an image as a style reference for the motion prompt |
+| Draw node | Motion Prompt node | Use a sketch as a style reference for the motion prompt |
 | Image Gen output | Prompt node | Use generated image for prompt refinement |
-| Image Gen output | Video Prompt node | **Vision-read** the approved still to ground the motion prompt (D24) |
-| Image Gen output | Video Gen node | Use generated image as the **start frame** for image-to-video |
-| Video Prompt node | Video Gen node | Use the generated **motion prompt** for the Veo job (D24) |
+| Image Gen output | Motion Prompt node | **Vision-read** the approved still to ground the motion prompt (D24) |
+| Image Gen output | Video Gen node | Fill a **shot-spine role** — start frame, end frame, or reference (D95) |
+| Image Gen output | **Post node** | Use the generated image as the **plate** the post composes over (D117) |
+| File node: image | **Post node** | Use an uploaded image as the post's plate or as a placed layer |
+| Motion Prompt node | Video Gen node | Use the generated **motion prompt** for the video job (D24) |
 | Video Gen output | Archive action | Archive approved final output |
+| Post node output | Archive action | Archive the approved composed post |
 
 ---
 
@@ -988,6 +1190,27 @@ restorable lineage — and each edit is independently approvable like any other 
 reuses the same generate pipeline and execution substrate (§20); only the prompt is composed
 differently. Full design: `docs/superpowers/specs/2026-06-28-image-editing-design.md`.
 
+**Editing matured into a composer *(v3 — D37–D39, D101)*.** The focus view carries a
+`Generate | Edit` tab pair. Three refinements are worth stating, because each reversed something
+that looked reasonable:
+
+* **The region travels in the model's native channel, not in pixels (D38).** OpenAI gets a real
+  alpha **mask** that the operator paints, with the base image sent **clean**; Gemini gets **text
+  only**. A `supportsMask` capability flag drives both the UI and the payload. The earlier approach
+  — compositing the drawn marks into the base image — **reproduced the marks into the output**
+  (a black scribble rendered onto the edited photo). That composite is retired.
+* **The base is an explicit, persisted choice (D39).** It used to be `connectedImageNodes[0]` —
+  the earliest node in the canvas list, which is roughly *creation* order, not connection order —
+  so it reassigned invisibly as references were connected and could never be deliberately chosen.
+  Now a hover **pin** sets it. A generated attempt always outranks a pinned reference; a pin only
+  applies while its node is still connected, so the base is never dangling.
+* **References are explicit: an empty selection sends nothing (D101).** Only ticked reference
+  tiles are sent. Previously `[]` meant "unspecified → use everything", while the tiles rendered
+  as *unselected* — so edits silently received references the operator never picked (observed as a
+  product tin bleeding into an edit whose tile was visibly unticked), and "send no references" was
+  literally unreachable. One value carried two contradictory meanings across the view/logic seam.
+  **The Generate tab is unchanged** — there, all connected images remain references.
+
 ---
 
 ### 11.7 Video Gen node
@@ -1001,12 +1224,36 @@ Base prompt text + image input + selected video control values
 
 #### Inputs
 
-* Prompt text from Prompt node
-* Image reference from File node
-* Generated image output from Image Gen node
-* Selected video control values
+* Motion prompt from the **Motion Prompt node** (or inline text as a quick-test fallback)
+* **Shot spine images**, each connected image assigned a **role** — `start_frame`, `end_frame`, or
+  `reference` (D95)
+* Selected video control values, **per provider** (Veo · Sora · Kling)
 
 No uploaded video reference input in MVP.
+
+#### The shot spine *(D95 — the defining v3 change to this node)*
+
+The focus view **leads** with the spine — **Start → End | Reference**, in narrative order — which
+reports which roles are filled and what duration the combination yields.
+
+* A missing end frame is an **empty slot at rest** — never an error, never a block on Generate.
+* Slots the selected model **cannot** use are shown as `unsupported` rather than omitted, so
+  absence stays legible.
+* The spine is **read-only**: roles are assigned from the connected thumbnails, so its slots are
+  status pips — deliberately *not* the dashed-primary + plus treatment this codebase reserves for
+  Add affordances.
+
+**Why lead with it.** The economics: an image costs ~$0.067 against **$0.40–$4.20 for a video
+re-roll**, so composing an end frame is **6–63× cheaper** than re-rolling until the motion comes
+out right — and it forces the operator to decide what the action actually *is*. That is an
+opinion, so the layout **states** it rather than a rule enforcing it. Requiring an end frame, or
+confirming on the way to Generate, were both rejected: they make an opinion feel like a defect.
+
+An end frame is **derived by editing the start frame**, not generated fresh (D96) — interpolation
+morphs in proportion to how far apart the two frames are, so a freshly generated "ending" is a
+different scene and the model tweens between two strangers. An edit keeps scene, lighting and
+subject, and moves only what should move. *(The one-click "Create end frame" button was removed
+2026-08-02 pending a fuller treatment; the derivation path itself remains.)*
 
 #### Actions
 
@@ -1040,18 +1287,137 @@ Video Gen node
 
 #### Controls
 
-The master video control schema is shared. Each Video Gen node stores the selected values
-for that node. Example master video controls: motion preset, camera move, duration,
-lighting continuity, pace.
+Controls are **per model, not shared across providers** (D99). Veo, Sora, Kling 3.0 and Kling O1
+each declare their own capability descriptor — image inputs, parameter set, and rule list. There is
+no single shared shape, because their reference mechanisms differ *in kind*: Kling 3.0 uses an
+`element` registry while Kling O1 takes inline `refer_image` images, and one shape can only ever be
+wrong for one of them.
 
-Each video generation attempt stores: master-controls schema version used, selected control
-values, base prompt used, image input used, final compiled prompt sent to model,
-model/provider, generated video output, error (if any), approval/rejection decision.
+Example controls: duration, resolution, aspect ratio, audio, multi-shot. Veo exposes a
+**resolution** select (720p/1080p) priced per Google's own per-resolution rates (D102).
+
+Two rules govern how those controls reach the model — both written after real generations were
+wasted:
+
+* **The API route rejects violations; it never auto-corrects (D97).** Constraint rules are checked
+  in the UI *and* re-checked server-side as a **400-returning backstop**. The server's check is
+  **stricter** — it counts references that actually resolved to URLs after upstream traversal, not
+  roles merely assigned — and it runs **before** the generation row is inserted and before credits
+  are reserved, so a rejected request records nothing and leaves the balance untouched. Auto-
+  correcting silently changes both what the caller asked for and what they are billed. *13 Veo
+  generations were spent on invalid reference/duration combinations before this existed.*
+* **Locked values are written into params, not merely displayed (D98).** Rule-locked values are
+  merged into the params that get **posted**, and every read — panel, cost estimate, request —
+  goes through that one merged object. Previously the panel rendered the locked value while the
+  posted params kept the stale one, so the UI showed a locked 8 and sent 6: **11 observed
+  generation failures**, and a mis-quoted credit estimate alongside them.
+
+Each video generation attempt stores: the model's capability descriptor + selected control
+values, base prompt used, image inputs **and their spine roles**, final compiled prompt sent to
+model, model/provider, generated video output, error (if any), approval/rejection decision.
+
+> **Sourcing discipline for provider limits.** Kling's own docs return HTTP 446 to automated
+> fetches, and third-party wrappers (fal.ai, WaveSpeed) publish *narrower* values than the live
+> endpoints accept — sourcing O1's limits from a wrapper produced the wrong duration, audio and
+> resolution sets. Provider parameters are pinned to **what the live endpoint actually accepts**,
+> verified against official docs pasted in by hand (D81, D100).
 
 Video generation is **long-running and asynchronous**: an attempt is submitted, tracked as an
 **in-flight job**, and resolves to output-or-error later (the provider is polled — no callback). Its
 state is durable and survives a page refresh, so the operator can leave and come back to a finished
 clip. (How generation executes: §20.)
+
+---
+
+### 11.8 Post node  *(v3 — D116–D136)*
+
+#### Purpose
+
+The Post node lays copy and brand material over a generated plate, producing the thing that
+actually ships to a client.
+
+Connected image (the plate)
++ text / shape / image / icon layers
++ Brand Kit material + AI-written caption
+→ Composed post → client approval → publish
+
+Full product rationale: `docs/superpowers/specs/2026-08-03-post-prd.md`. Design specs for the
+editor, components, approval and publishing sit alongside it.
+
+#### The scope rule
+
+> **Anything that only makes the *editor* better is out. Anything that makes the *pipeline*
+> smarter is in.**
+
+This is written down because the first feature request after launch will be a drop shadow, and the
+one after that will be image filters, and each is individually reasonable. Canva wins that race;
+every hour spent on it is an hour they already spent better. **Explicitly never:** stock libraries,
+illustration packs, filters, effects, blend modes, freeform drawing, text-on-curve.
+
+#### Inputs
+
+* A connected **generated image** (Image Gen) or uploaded image — the plate
+* **Brand Kit** material: colours, logos, backgrounds, products (§6)
+* The client's **KB compliance rules** (banned words/claims, tone, disclaimers)
+* Operator-typed on-image copy
+
+#### Editor shape
+
+* **Left chrome is one 56px icon rail** (Templates · Elements · Text · Connected · Layers) opening
+  a **single shared 256px flyout**. One panel shell means one width, one scroll behaviour, one
+  empty state — and it matches the mental model every designer already has from Canva. The panel
+  **stays open** while working, so placing three icons in a row doesn't mean re-opening it three
+  times (D116).
+* **Layer properties live in a fixed right inspector**, normalised per layer kind (D119).
+  Inspector controls are **visual, never raw values** (D125) — a designer picks a weight, not a
+  number.
+* **Four layer kinds:** text, shape (solid or gradient — a gradient shape is how a **scrim** is
+  made, because light text over a busy plate is unreadable without one), image, icon.
+* **A post opens on a clean canvas** (D117): the operator sees their own image first, with the
+  Templates panel open but **no template ever applied without an explicit click**. The
+  auto-opening template modal was deleted — it forced a template decision before anything was
+  visible.
+* **Templates: 14 compositions across three aspect bands** (D124), named by *composition* (Lower
+  third, Inset card, Side column, Split half) and tagged by purpose. Composition is what decides
+  whether a template fits the plate you have; purpose doesn't. Applying one **always confirms**
+  and **always preserves connected images** (D118) — it is the one destructive action in the
+  editor and it sits one click away.
+* **Format is a Size rail panel with friendly labels only** (D122); font size is measured against
+  the canvas's **shorter edge** (D123) so type holds its proportion across formats.
+* **Undo covers format and template changes, not layers alone** (D127) — the operations most
+  likely to be regretted are exactly the structural ones.
+* Newly added layers **cascade instead of stacking** (D128), so three added icons are three
+  visible icons rather than one apparent icon hiding two.
+* The node **card previews at true aspect ratio** and reports real render state (D126).
+
+#### Copy & compliance
+
+* **Caption and hashtags live on the post**, not in a publish dialog — the client approves artwork
+  and caption as **one thing**. An offer's terms, price and claims live in the caption.
+* Caption + hashtags are **AI-generated one-shot** from brand tone, compliance rules, evergreen
+  tags, the connected brief and the rendered artwork itself; hand-editable afterwards. Metered
+  against credits like any other model call.
+* **Compliance warns and never blocks** — not export, not publish, not even a banned word. *A tool
+  designers are told to use, which also refuses to let them export, gets routed around. Warnings
+  that are always right are worth more than a block that is occasionally wrong.* Text contrast is
+  flagged advisory with "add a scrim" as a one-click fix.
+* Post copy is the **only text in the pipeline a human writes by hand** — every other text is
+  model-generated under brand compliance constraints — and it is the text that publishes at full
+  size on the client's own account. That asymmetry is why compliance checking exists here at all.
+
+#### Language
+
+English and Tamil. Every font offers a **Tamil companion** with visible fallback, because a
+brand's Latin font has **no Tamil glyphs at all**. *Accepted V1 risk: a missing glyph renders as
+empty boxes in both preview and export, and V1 will not catch it.*
+
+#### Output
+
+* A rendered post image that **matches the preview exactly**, exportable at print resolution
+  (A4 / 300 DPI), always reflecting the current composition rather than a stale render
+* Caption + hashtags
+* Approval state (client-facing shared link — approve or comment)
+* The render is available to the rest of the canvas like any other image
 
 ---
 
@@ -1119,6 +1485,7 @@ active version** — it does not create a new row.
 | Image Gen node | User clicks **Generate image** |
 | Video Gen node | User clicks **Generate video** |
 | Shot node *(Compose — D28)* | User clicks **Compose** — the run is captured as a version row (frozen `generated_output`) but is **never made active**; the Shot's output stays its own `data.script` |
+| Post node *(v3)* | User clicks **Generate caption** — the copy run is an attempt like any other, metered against credits |
 | Generation attempt | User approves or rejects a specific attempt |
 
 #### What is not versioned separately
@@ -1166,15 +1533,31 @@ Create client (with a ready Brand KB)
 Canvas view:
 
 ```
-Script node
-→ (fan out shots) → Shot node ×N
+KB node (seeded) ─┐
+Script node ──────┴→ (fan out shots) → Shot node ×N
    each Shot node
    → Prompt node: image prompt
-   → Image Gen node
-   → Prompt node: video prompt / refinement
-   → Video Gen node
+   → Image Gen node                    ← start frame
+       ├─(edit)→ Image Gen node        ← end frame (D96)
+       └────────→ Post node            ← the post branch (v3)
+   → Motion Prompt node
+   → Video Gen node  (spine: start · end · reference)
 → Archive project action  (assembles the N approved clips, in shot order)
 ```
+
+**The post flow *(v3)*.** A canvas no longer has to end in a clip. From any approved still:
+
+```
+Image Gen (approved plate)
+→ Post node        (pick format → optionally a template → compose copy + brand)
+→ Generate caption + hashtags
+→ Compliance check (warns, never blocks)
+→ Share for client approval   (link; approve or comment)
+→ Publish                     (Instagram · Facebook · LinkedIn)
+```
+
+Reels and posts are **siblings off the same plate**, not alternatives chosen up front — the same
+generated image can feed a Video Gen node and a Post node from the same canvas.
 
 ---
 
@@ -1230,6 +1613,30 @@ archive bundle
 
 The MVP includes:
 
+**v3 additions** *(see §0.1 for the full changelog)*
+
+* **Organizations + Supabase Auth** — invite-only login, org-scoped data with default-deny RLS,
+  `/admin` surfaces, audited impersonation with a read-only default (D42–D53, D77–D89, D139–D141).
+  Own PRD: `CreativeOS Multi-Tenancy Pilot PRD.md`
+* **Post node** — compose copy/brand over a generated plate, AI caption + hashtags, compliance
+  warnings, client approval by link, publishing (D116–D128)
+* **Brand Kit** — client-level logos, backgrounds, products, details; colours derived from the KB
+  (D129–D135)
+* **Credits** — pre-generation estimates on Prompt / Image Gen / Video Gen + an append-only ledger
+  with atomic reservation against a monthly org cap (D77, D92, D93)
+* **Multi-provider video** — Veo 3.1 (Lite/Fast/Quality) · Sora 2 · Kling (3.0, O1), uniform
+  text-camera, preservation-first motion prompt, per-model capability descriptors (D78–D81,
+  D90, D99–D102)
+* **Start + end frame shot spine** on Video Gen, with server-side rule rejection (D95–D98)
+* **Eval workbench** at `/eval/[canvasId]` — per-node, all-version error analysis with a named Δ
+  (D94)
+* **Gallery drawer** — right-side, stays open, References / Assets / Moodboards, drag-onto-node
+  (D41)
+* **In-app Help** — pull-based chaptered video explainers + list empty states (D143–D148)
+* **KB node** seeded on every canvas alongside a connected Script node
+
+**From v1–v2**
+
 * Client workspace
 * Client **Brand KB** (versioned; documents + brand-image analysis; readiness gate)
 * **Client Moodboards** — named, reusable reference-image collections per client, filled by a **browser capture extension** (right-click → "Add to moodboard") and by in-app add-by-URL, browsed in a **Moodboards tab** of the Gallery drawer, and **dragged onto the canvas as File nodes** (re-hosted to storage on use). Stored **URL-first** (D92)
@@ -1275,16 +1682,30 @@ The MVP does not include:
 * KB node on canvas (the Brand KB is a client-level surface, not a canvas node)
 * Uploaded video references
 * `.docx` / `.pdf` script extraction (deferred — D15) *(PDF image extraction → §21 F3)*
-* Multi-model picker
 * Vector DB/RAG (the context "% slider" is parked until a KB outgrows the window)
 * Moodboard **thumbnail caching, add-time re-hosting, dedup, and shot→reference vector search** — deferred, each a clean additive column + write-path later (D92) *(→ §21 F6)*
 * Moodboard **board sharing across clients**, curation/reordering beyond add/remove, and auto/shot-aware reference suggestions (D92)
 * **Auth on the moodboard endpoints** — the extension-facing routes are open, consistent with the app's deferred-auth posture *(→ §21 F1)*
 * Automated taxonomy mining
-* Client-facing access *(→ §21 F1)*
-* Multi-tenant auth *(→ §21 F1)*
 * Advanced graph intelligence
 * Automatic prompt improvement from history
+
+**Post node — deliberately deferred to V2** *(the scope rule, §11.8)*
+
+* Campaign fan-out (one composition re-fitted across every format)
+* Layout-aware round trip (picking a template regenerates the plate to fit its copy zone) — *the
+  thing Canva structurally cannot do, because it doesn't own the generator*
+* AI-generated **on-image** text (V1 generates caption + hashtags only)
+* Org-authored templates; per-network captions; regenerate/compare copy variants
+* Indian scripts beyond Tamil; glyph-coverage checking
+* Pin-anchored approval comments + notifications; scheduling, carousels, video posts
+
+**No longer out of scope** *(shipped in v3 — moved here from the v2 list)*
+
+* ~~Client-facing access~~ — clients now approve posts via a shared link (§11.8)
+* ~~Multi-tenant auth~~ — shipped (D42–D53); F1's auth half is closed
+* ~~Multi-model picker~~ — video is multi-provider (Veo · Sora · Kling); image gen selects between
+  editing-capable models
 
 ---
 
@@ -1306,6 +1727,20 @@ The MVP is successful if an internal designer can:
 
 The output should be at least comparable to the current manual process, while reducing tool
 switching and making iteration history clearer.
+
+### v3 additions to the bar
+
+The MVP criteria above are necessary but no longer sufficient. v3 succeeds if:
+
+12. **An external agency** signs in and works entirely inside its own Organization, with **zero
+    visibility into any other org's data** — rows, files, or realtime events.
+13. Yuvabe can **see and cap** what each org consumes, and invoice from real ledger numbers.
+14. A designer takes an approved still to a **finished, on-brand post** — copy, brand colours,
+    logo, caption, compliance check — **without opening Canva**.
+15. A client **approves that post from a link**, seeing exactly what will publish, without an
+    account and without learning a tool.
+16. A reviewer opens the **eval workbench** and can answer *"what did the human change between
+    v2 and v3, and did it help?"* without reading code or database rows.
 
 ---
 
@@ -1329,6 +1764,19 @@ ADR log in the staging roadmap (referenced inline):
 * Where does a node's output live? *(single source: the active version's `output`; no display cache — D19)*
 * How is a generation executed — does the request block? *(two paths over one `generations` job row, chosen by **duration not modality**: **synchronous** when the model returns in-request (image today), **async** submit→reconcile→graduate when long-running (video); image & video share the substrate — D12/D25/**D26**. Full flows: `docs/architecture/2026-06-18-generation-execution-flows.md`)*
 
+**Answered in v3:**
+
+* How is tenant isolation enforced? *(layered: app-layer checks at the chokepoints **plus**
+  default-deny RLS on every table; async workers re-validate a job's `org_id` before processing —
+  D44/D78/D79/D88)*
+* How is generation spend controlled? *(append-only ledger with atomic row-locked reservation
+  before dispatch, settled on completion — D77)*
+* How do provider differences reach the UI? *(per-model capability descriptors declaring image
+  inputs, params and rules; no shared shape across providers — D99)*
+* Where does a provider constraint get enforced? *(both ends — UI, then the API route as a
+  400-returning backstop that never auto-corrects, running before the generation row and the
+  credit reservation — D97)*
+
 ---
 
 ## 21. Future / Backlog
@@ -1337,24 +1785,38 @@ Items deliberately **not** in the MVP build, captured here so they can be turned
 project epics/tasks. Each lists current state, the backlog scope, and the trigger to pick
 it up. These are *additive* to the MVP — none block the Stage 1–5 pipeline.
 
-### F1 — Multi-user & access control
+### F1 — Multi-user & access control  *(largely SHIPPED in v3)*
 
-* **Now:** single shared internal workspace. **Soft identity shipped (D29, §22.1)** — a
-  spoofable name + role set at app start, stamped as maker/checker on versions — and a
-  **single-writer lock (D33, §22.3)** lets several people share a canvas safely (one editor at
-  a time). What's still missing is *real* auth: no login/sessions, no per-user ownership, no
-  RLS. `node_versions.operator` now carries the soft-identity name, not a real user id.
-* **Backlog (still):**
-  * Supabase Auth (login / sessions) — swaps in behind `useIdentity()` (§22 intro).
-  * Per-user / owner identity on clients & canvases.
-  * Row-Level Security (RLS) once real identities exist.
-  * Promote the lock's soft `editing_name` and versions' `operator` to a real `user_id`.
-* **To decide when picked up:** scope (separate accounts + per-user ownership vs. just a
-  shared internal app with named operators) and timing.
-  * *Cheapest-safe path:* keep the `operator` field and reserve an owner / `user_id` hook
-    now, so adding accounts later is not a painful data migration.
-* **Revisit when:** external / client-facing access is needed, or multiple designers need
-  separate ownership / audit trails.
+* **Now: shipped.** **Organizations** are the tenant boundary (D42), users **log in** via
+  Supabase Auth (invite-only, D43), **default-deny RLS** covers every table (D88), two role axes
+  exist (`platform_role` in the JWT, `org_role` on the membership — D50), memberships are a join
+  table from day one (D49), and **impersonation** ships with an audit log and a read-only default
+  (D139–D141). `useIdentity()` kept its API and swapped its internals exactly as D29 planned.
+  Own PRD: `CreativeOS Multi-Tenancy Pilot PRD.md`.
+* **Backlog (what genuinely remains):**
+  * **Multi-seat orgs in practice.** The schema is membership-shaped and enforces one active org
+    per user, but the pilot runs **one user per org** — multi-seat is untested in anger.
+  * **RBAC with teeth.** `org_role` exists; almost nothing branches on it. Approval remains a
+    *cosmetic* senior-only control (§22.2).
+  * **Self-serve onboarding + billing.** Org/user creation is an admin UI (D82); invoicing is
+    off-platform (D47/D77).
+  * **Forced password change on first login** — deferred, not built (D84).
+  * Promote the canvas lock's `editing_name` to a real `user_id`.
+* **Revisit when:** a pilot agency needs more than one seat, or self-serve signup is on the table.
+
+### F1b — Copilot: built, switched off
+
+* **Now:** the copilot shipped in full (D54–D76) — server thinks / client acts / human gates
+  (D54), three stateless calls per turn (D55), uuid-derived node ref handles (D56), @-mention
+  grounding (D57), writes gated by blast radius (D63), and a **playbook runner** where human
+  actions are first-class steps and generation steps always pause at an HITL gate (D67–D70).
+  It is then **commented out of the canvas** (YUV-233) because the docked panel overlaps the
+  Gallery drawer (D41) — so none of it is reachable by an operator today.
+* **Backlog:** resolve the panel-vs-drawer layout collision and re-enable; then the deferred
+  **parallel-run canvas matrix** (D62 — agreed direction, not built) and the per-shot
+  "is this image good enough?" repair cell that D58 reserves as the *one* genuinely agentic loop.
+* **Revisit when:** the layout conflict is worth an hour — this is the cheapest large capability
+  in the backlog, because the work is already done and merged.
 
 ### F2 — Provenance for all analysis & parsing (quote/span-level)
 
@@ -1394,7 +1856,7 @@ it up. These are *additive* to the MVP — none block the Stage 1–5 pipeline.
   `docs/superpowers/specs/2026-07-02-production-review-mode-design.md`. It promotes the *fast
   review-workflow* half of this feature: a per-canvas **list→detail queue** at
   `…/canvases/[cid]/review` where a senior moves through a reel's prompts and generated outputs
-  (Image Prompt · Video Prompt · Image Gen · Video Gen), **approving / requesting changes inline**
+  (Image Prompt · Motion Prompt · Image Gen · Video Gen), **approving / requesting changes inline**
   (reusing the D29 action) **without opening the editor** — decoupled from the D33 lock, and
   *mark-don't-block* (approval never triggers the next step; preserves D11). Still **not** built
   anywhere: gating, notifications, and **commenting**.
@@ -1412,10 +1874,19 @@ it up. These are *additive* to the MVP — none block the Stage 1–5 pipeline.
     designer changed the model output" diff (§4.4) and the comment thread together become the
     review record.
   * Notifications (in-app, later email/Slack) when review is requested or a comment mentions you.
-* **Depends on:** the **review surface (D34) rides on soft identity (D29)** — no F1 needed to ship it.
-  **F1** (real user identities) is still required for comment authorship, `@mention`, and *enforced*
-  reviewer roles (D34's senior-only control is a cosmetic hint, spoofable). Build F1 first or in
-  lockstep for those.
+* **⚠ Status correction (v3).** D34's review surface is **still not built** — no
+  `…/canvases/[cid]/review` route exists. Approval works per-node and per-version; the list→detail
+  queue does not. The ADR log's confident present tense reads as shipped; it is an approved design
+  with no implementation, unchanged since it was recorded on 2026-07-02.
+* **Partly answered by the eval workbench (D94).** A *different* axis of "review" did ship:
+  `/eval/[canvasId]` lists every generated node grouped by action, shows the exact request sent,
+  and names the **Δ between versions** by structured field comparison. That is the **quality /
+  learning** axis (`decision` = Good/Bad + note); it is deliberately never written from the
+  **sign-off** axis (`approval_status`), and it does not replace the review queue.
+* **Depends on:** **F1 has now shipped**, so the blockers it named are cleared — comment
+  authorship, `@mention`, and *enforced* reviewer roles are all buildable today. What is still
+  cosmetic is the senior-only Approve control (§22.2): the role exists in the JWT, nothing gates
+  on it yet.
 * **To decide when picked up:** comment granularity (node vs. attempt/version), whether
   "changes requested" blocks downstream wiring or only flags it (lean **mark, don't block** —
   consistent with D9/D21), and notification channels.
@@ -1484,21 +1955,46 @@ it up. These are *additive* to the MVP — none block the Stage 1–5 pipeline.
 ## 22. Identity, approval & multi-user editing *(shipped)*
 
 Three capabilities were added after the original single-operator framing, promoting parts of
-backlog **F1** (multi-user) and **F4** (approval flow) into the build. They are deliberately
-*internal-grade* — **soft and spoofable**, an audit/coordination layer, not security. The
-seams for real auth (F1) are reserved, not built: when login lands, only the *source* of
-identity changes, not these call sites.
+backlog **F1** (multi-user) and **F4** (approval flow) into the build.
 
-### 22.1 Soft identity (D29)
+> **v3: identity is no longer soft.** The 22.1 description below is kept because it explains the
+> *seam*, but the seam has since been filled. Users **log in** (Supabase Auth, invite-only) and
+> belong to an **Organization**; `useIdentity()` kept its API and swapped its internals — the
+> single change D53 predicted. Approval and the canvas lock (22.2, 22.3) are unchanged in shape;
+> they now sit on real identities.
 
-* On first use the app asks **"Who are you?"** — a **name + role** (`senior | designer`),
-  stored in `localStorage` and switchable any time from a **top-bar chip**. Read everywhere
-  via `useIdentity()`.
-* **Spoofable by design** — it *attributes* work, it does not *gate* access. The role hint is
-  cosmetic (a senior sees the Approve control).
-* The **maker** (who generated an attempt) is stamped into `node_versions.operator`; the
-  **checker** (who signed off) into `approved_by` — finally filling the operator seam D14
-  reserved.
+### 22.1 Identity — from soft to real (D29 → D43/D53)
+
+**What v2 shipped (superseded as the source of identity).** On first use the app asked
+**"Who are you?"** — a name + role stored in `localStorage`, spoofable by design, an audit trail
+rather than a login. Its purpose was to fill the `operator` / `approved_by` seam D14 reserved
+without committing to auth.
+
+**What v3 ships.**
+
+* **Supabase Auth**, invite-only; "Keep me signed in" honoured on every request.
+* **Organizations** own clients; every access check reduces to "is this row in my org?" (D42).
+* **Two role axes** (D50): `platform_role` in the JWT (Yuvabe super-admin?) and `org_role` on the
+  membership (owner / member). One active org per user, enforced by a unique index; **the last
+  owner of an org cannot be removed or demoted** (D80).
+* **The DAL owns identity** (D51) — middleware/proxy checks are optimistic-only and never the
+  authority.
+* **A super-admin's normal app view is scoped to their own org** (D85). Cross-org visibility
+  exists only in `/admin` and in impersonation — so the everyday view can't accidentally leak
+  another tenant.
+* **Impersonation** (D139–D141) is sticky session chrome with two distinct visual states,
+  **read-only by default**; writes require explicitly entering elevated mode, and everything is
+  written to an audit log. Operators read *"Enable editing"* — never *"elevated mode"*.
+* **Enforcement is layered, not single-point**: app-layer checks at the chokepoints *plus*
+  **default-deny RLS on every table** (D88, superseding D44's "app-layer only" half). Async
+  workers **re-validate a job's `org_id` against the resource's current `org_id`** before
+  processing (D79), and the generation-completion webhook is authenticated with a shared secret
+  (D89).
+
+> **One lesson worth keeping.** Enabling org-isolation policies was not sufficient on its own —
+> a **pre-existing `anon_read_generations` policy silently defeated** the new isolation policy
+> (D86). RLS policies are additive (`OR`), so one forgotten permissive policy nullifies a correct
+> restrictive one. Adding a policy is not the same as securing a table.
 
 ### 22.2 Maker-checker approval (D29)
 
@@ -1541,5 +2037,132 @@ concurrency at the source is simpler and correct for an internal tool. **Live co
 > Full designs: `docs/superpowers/specs/2026-06-29-approval-flag-design.md` (D29),
 > `docs/superpowers/specs/2026-07-01-canvas-pessimistic-lock-design.md` (D33),
 > `docs/superpowers/specs/2026-07-02-production-review-mode-design.md` (**D34** — canvas-level
-> read-only review surface; *approved design, implementation pending*). Decision log:
-> staging-roadmap §7, **D29 / D33 / D34** (D33 supersedes the optimistic **D32**).
+> read-only review surface; *approved design, still unimplemented as of 2026-08-16*). Auth:
+> `CreativeOS Multi-Tenancy Pilot PRD.md` + `2026-07-21-auth-staging-rollout-plan.md`. Decision
+> log: staging-roadmap §7.
+
+---
+
+## 23. Copilot *(built — currently disabled)*
+
+A docked chat panel that drives the canvas by language. **Merged to `main`, then commented out**
+(`canvas.tsx`, YUV-233) because it overlaps the Gallery drawer. Documented here because it is real
+code with settled architecture, not a proposal — see §21 F1b for the path to re-enabling it.
+
+### 23.1 The shape
+
+* **Server thinks, client acts, human gates (D54).** The model only ever returns decisions,
+  proposals and references; **all graph mutation happens client-side** through the canvas store's
+  recipes. A confused model can propose, never mutate — which keeps the security *and* undo
+  boundary in one place.
+* **Three stateless calls per turn (D55):** prose (streamed), references (`json_schema`), actions
+  (`tools`). Zero partial-JSON parsing; each call has exactly one job.
+* **Node ref handles (D56, D66):** every node carries a stable, human-visible `TYPE-XXXX` handle
+  derived from its uuid by a pure function — referenceable identity with **zero storage** that can
+  never re-point. Chat, tools, @-mentions and elicitation all speak handles. Shown in every node's
+  header; badges flip size at a zoom threshold rather than counter-scaling (D76).
+* **@-mention is human-directed grounding (D57):** the human names the nodes that matter;
+  resolution is client-side with zero model calls. The copilot never volunteers candidate pickers.
+* **The copilot is the run's command bar, driver and narrator (D60)** — not a container you work
+  inside. Language drives the existing nodes; **the canvas holds the work**, so it stays visible
+  and editable in the graph the rest of the product understands.
+
+### 23.2 Why it is a workflow, not an agent
+
+> **The test: in a workflow you can number the steps before running; in an agent you can only
+> number the iterations.** (D58)
+
+The script → shots → image run is a **deterministic workflow**. Its steps are enumerable in
+advance, so an autonomous planner adds latency and cost without benefit. Genuine agency is
+reserved for exactly one place — the per-shot *"is this image good enough?"* repair cell, where
+outcomes really are unpredictable — budget-capped and plugged into a single playbook step. Speed
+comes from **workflow techniques** (parallelism, a language entry point, model-filled control
+defaults), not from agency (D61).
+
+Complex commands are **routed playbooks, not agent plans** (D67). Slot-filling is frame-based with
+authored elicitation (D68); **human actions are first-class playbook steps** completed by a store
+predicate (D69); and **generation steps always pause** at a human gate (D70) — preserving D11's
+rule that the human is the scheduler. One run at a time, session-scoped; cancelling keeps whatever
+nodes were created (D71).
+
+---
+
+## 24. Onboarding & in-app help *(v3 — D143–D148)*
+
+### 24.1 Pull, not push
+
+> Every V1 user gets a personalised live demo and has active tech support, so **the job is recall,
+> not teaching.**
+
+That single observation decides the whole design. Pushed onboarding fires when the user has intent
+to *act*, shows once, and is then gone — the worst possible property for a recall aid. Pull-based
+help is available at **every future moment of hesitation** and needs no per-user state, which is
+why this shipped with **no new tables and no new columns**.
+
+Two surfaces only:
+
+* **List empty states** — a concept line plus one CTA, carrying the action.
+* **A global `Help ▾` menu** — chaptered, video-led explainers opened on demand.
+
+Nothing is pushed, sequenced, or fired on first view.
+
+**Rejected, with reasons worth keeping:** first-view modals per screen (they need seen-state
+infrastructure costing more than the onboarding it delivers at this user count); product tours and
+tooltip sequences (**completion collapses from ~72% at 3 steps to ~16% at 7**); one long overview
+video (linear, so it cannot convey the *shape* of a multi-step flow, and it is the wrong content
+6/7 of the time).
+
+### 24.2 Chapter shape
+
+A chapter is **one two-pane screen** — a step rail beside the clip (D147) — from authored data in
+`src/lib/help/chapters.ts`, never derived from the pipeline definition (D144). Deriving from
+`GUIDED_CHAIN` was rejected on two grounds: it isn't trusted as a dependency for user-facing
+content, and it **structurally cannot cover client creation, KB build and KB review — where the
+worst friction actually lives**.
+
+Unrecorded chapters are **hidden** (`draft: true`), not shown as "coming soon": promising absent
+help is worse than silence when a human support channel is the fallback. Clips are committed to
+`public/` and re-encoded rather than hosted in object storage (D148); navigation is client-side
+`history.pushState`, never `router.push` (D146).
+
+---
+
+## 25. Cost, credits & metering *(v3)*
+
+Generation costs real money, and v3 made that visible at both ends.
+
+### 25.1 Before you generate — the estimate
+
+Every generating node (**Prompt · Image Gen · Video Gen**) renders an **estimated credit cost
+before Generate**. The estimate is a **static derived formula**, never a live vendor
+token-counting call (D92) — and for image gen it is computed **client-side with no API route at
+all** (D93). A pre-flight network round trip to price a request the user may not even send is cost
+and latency for information a formula already has.
+
+### 25.2 After you generate — the ledger
+
+Spend lands in an **append-only `credit_transactions` ledger** (`reservation` → `consumption` →
+`refund` / `adjustment`), scoped per org, with the month boundary pinned to UTC (D77):
+
+1. `reserveCredits()` **locks the org's row**, sums this month's reservations + consumption, and
+   rejects if the estimate would breach the org's limit.
+2. On success the reservation **settles to actual cost** via a consumption row.
+3. On failure or cancellation it is **zeroed by a refund row**.
+
+**Why a ledger and not a counter.** The original design (D47) summed `credits_consumed` on read.
+That cannot stop two concurrent requests near the cap from both passing, because nothing is
+reserved until *after* the job runs. A row lock at reservation time closes the race, and an
+append-only log gives reconciliation and future billing a real audit trail instead of one mutable
+number.
+
+Ordering matters and is deliberate: **validation runs before both `insertGeneration` and
+`reserveCredits`** (D97), so a request rejected for breaking a provider's rules records no
+generation and leaves the balance untouched.
+
+### 25.3 Pricing discipline
+
+Provider prices are **sourced, not estimated**. Veo's per-resolution rates were confirmed against
+Google's own pricing page and corroborated by two independent sources before being encoded (D102);
+Kling's tables were verified from kling.ai directly. Cost tables use **strict lookup with no
+fallback** — an unpriced combination fails loudly rather than quietly billing a guess. A
+resolution tier that cannot be priced is **not exposed** (O1's 4k, D100).
