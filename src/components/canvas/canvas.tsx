@@ -51,6 +51,7 @@ import { DeleteConfirmDialog } from "./delete-confirm-dialog";
 import { useDeleteConfirmation } from "@/hooks/use-delete-confirmation";
 import { CanvasKBStatus, CanvasKBBadge } from "./canvas-kb-status";
 import { GalleryDrawerIntegration } from "./gallery-drawer-integration";
+import { ReviewDrawer } from "./review-drawer/review-drawer";
 import type { GalleryPaneDropHandlers } from "@/hooks/use-gallery-pane-drop";
 import type { ClientKBJobRow } from "@/lib/db/types";
 
@@ -375,6 +376,11 @@ export function Canvas({
         initialDriveRootFolder={initialDriveRootFolder}
         paneDropRef={galleryPaneDropRef}
       />
+
+      {/* D163: review drawer. Mounted here (inside ReactFlowProvider and the canvas store)
+          because its rows fly the canvas to a node — the same navigation the generation
+          tray performs. Non-modal, so it stays put under a focus view (R6.11). */}
+      <ReviewDrawer canvasId={canvasId} />
 
       {!canEdit && (
         <LockBanner heldByName={heldByName} canTakeOver={canTakeOver} onTakeOver={takeOver} />
