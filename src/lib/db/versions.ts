@@ -14,6 +14,10 @@ export async function insertVersion(input: {
   error?: string | null;
   note?: string | null;
   operator?: string | null;
+  // R11.1: the MAKER, as a real user reference. `operator` above is the legacy free-text
+  // column — never written for generated versions (historically it only ever held the
+  // literal "duplicate"), kept only so pre-migration rows still read (R11.4).
+  operatorUserId?: string | null;
 }): Promise<NodeVersionRow> {
   const supabase = createServerSupabase();
   const { data, error } = await supabase
@@ -32,6 +36,7 @@ export async function insertVersion(input: {
       error: input.error ?? null,
       note: input.note ?? null,
       operator: input.operator ?? null,
+      operator_user_id: input.operatorUserId ?? null,
     })
     .select()
     .single();

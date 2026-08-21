@@ -5,7 +5,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withNode(req, params, async (sourceNodeId, sourceNode) => {
+  return withNode(req, params, async (sourceNodeId, sourceNode, caller) => {
     return withTryCatch("Duplicate node failed", async () => {
       const supabase = createServerSupabase();
 
@@ -56,6 +56,10 @@ export async function POST(
               output: activeVersion.output ?? null,
               generated_output: activeVersion.generated_output ?? null,
               operator: "duplicate",
+              // R11.1: this copy is set active below, so it enters the review queue at
+              // `pending` — and a queued item with no maker cannot be routed back on
+              // rejection (R4.3). The person who duplicated it is its maker.
+              operator_user_id: caller.userId,
             })
             .select()
             .single();
