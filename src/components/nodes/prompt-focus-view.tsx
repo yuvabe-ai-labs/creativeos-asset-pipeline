@@ -712,7 +712,9 @@ export function PromptFocusView({
                         status={approvalStatus}
                         note={approvalNote}
                         saving={approvalSaving}
-                        canApprove={editable && identity?.role === "senior"}
+                        // R7.1/D160: not gated on `editable` — approval writes only to
+                        // node_versions, outside what the D33 lock serialises.
+                        canApprove={identity?.role === "senior"}
                         onSet={saveApproval}
                       />
                     </div>

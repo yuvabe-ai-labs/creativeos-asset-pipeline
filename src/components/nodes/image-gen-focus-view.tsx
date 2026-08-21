@@ -1135,11 +1135,15 @@ export function ImageGenFocusView({
                           onNote={setEvalNote}
                           onNoteBlur={handleEvalNoteBlur}
                         />
+                        {/* R7.1/D160: canApprove is NOT gated on `editable`. Approval
+                            writes only to node_versions, so it is not in the class of
+                            writes the D33 lock serialises — a senior signs off while a
+                            junior keeps editing. */}
                         <InlineApprovalBar
                           status={approvalStatus}
                           note={approvalNote}
                           saving={approvalSaving}
-                          canApprove={editable && identity?.role === "senior"}
+                          canApprove={identity?.role === "senior"}
                           onSet={saveApproval}
                         />
                       </div>
