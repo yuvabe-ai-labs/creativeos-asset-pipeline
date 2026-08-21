@@ -26,7 +26,7 @@ export function InlineApprovalBar({
   const [showNote, setShowNote] = useState(status === "changes_requested");
 
   if (!canApprove) {
-    return <ApprovalReadout status={status} />;
+    return <ApprovalReadout status={status} note={note} />;
   }
 
   return (
@@ -131,16 +131,29 @@ function ActionButton({
   );
 }
 
-function ApprovalReadout({ status }: { status: ApprovalStatus }) {
+// What a designer sees. It used to render the status label and NOTHING else, which meant
+// the reviewer's note — the entire payload of the return path — was invisible to the one
+// person it is written for: they knew they had been rejected, but not why.
+function ApprovalReadout({ status, note }: { status: ApprovalStatus; note: string }) {
   const label = {
     pending: "Awaiting approval",
     approved: "Approved",
     changes_requested: "Changes requested",
   }[status];
   return (
-    <div className="flex items-center justify-between">
-      <span className="text-eyebrow">Approval</span>
-      <span className="text-xs text-muted-foreground">{label}</span>
+    <div className="min-w-0">
+      <div className="flex items-center justify-between">
+        <span className="text-eyebrow">Approval</span>
+        <span className="text-xs text-muted-foreground">{label}</span>
+      </div>
+      {/* R9.3: the note is read ON THE NODE, beside the controls that act on it — the
+          place the fix actually happens. Destructive tone, matching the colour
+          changes_requested already carries on ApprovalBadge. */}
+      {status === "changes_requested" && note.trim() && (
+        <p className="mt-2 rounded-r-md border-l-2 border-destructive/40 bg-destructive/5 px-2.5 py-1.5 text-xs leading-relaxed text-destructive">
+          {note}
+        </p>
+      )}
     </div>
   );
 }
