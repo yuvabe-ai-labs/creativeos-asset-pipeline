@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildApprovalUpdate } from "./approval";
+import { buildApprovalUpdate, canSetApproval, requiresNote } from "./approval";
 
 const AT = "2026-06-29T10:00:00.000Z";
 
@@ -22,5 +22,27 @@ describe("buildApprovalUpdate", () => {
   it("pending: resets everything (who/when/note cleared)", () => {
     expect(buildApprovalUpdate({ status: "pending", by: "Asha", at: AT, note: "x" }))
       .toEqual({ approval_status: "pending", approved_by: null, approved_at: null, note: null });
+  });
+});
+
+describe("canSetApproval", () => {
+  it("permits owner and senior", () => {
+    expect(canSetApproval("owner")).toBe(true);
+    expect(canSetApproval("senior")).toBe(true);
+  });
+
+  it("refuses designer — R2.1, the whole point of the check", () => {
+    expect(canSetApproval("designer")).toBe(false);
+  });
+});
+
+describe("requiresNote", () => {
+  it("requires a note for a rejection — R6.5", () => {
+    expect(requiresNote("changes_requested")).toBe(true);
+  });
+
+  it("does not require one for approval or reset", () => {
+    expect(requiresNote("approved")).toBe(false);
+    expect(requiresNote("pending")).toBe(false);
   });
 });
