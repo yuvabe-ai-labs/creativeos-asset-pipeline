@@ -59,6 +59,7 @@ import type { MentionUpstream } from "@/lib/nodes/resolve-mention-tokens";
 import { editModeForModel } from "@/lib/image-gen/edit-mode";
 import { InlineEvalBar } from "./inline-eval-bar";
 import { InlineApprovalBar } from "./inline-approval-bar";
+import { useCanvasStoreApi } from "@/components/canvas/canvas-store-provider";
 import { setVersionLabelAction } from "@/lib/actions/eval";
 import { setVersionApprovalAction } from "@/lib/actions/approval";
 import { useIdentity } from "@/hooks/use-identity";
@@ -200,6 +201,7 @@ export function ImageGenFocusView({
   const [loadingPreview, setLoadingPreview] = useState(false);
   // The selected rail item: "image" (the hero pane), "history", "details", or a
   // connected node's id (right pane shows that node's read-only detail).
+  const focusStoreApi = useCanvasStoreApi();
   const [selected, setSelected] = useState<string>("image");
   const [openSeed, setOpenSeed] = useState(open);
   const seenModelIdRef = useRef(model.id);
@@ -211,9 +213,19 @@ export function ImageGenFocusView({
       setLoadingVersions(true);
       // Only arm the preview skeleton if there's actually a prompt node to fetch.
       setLoadingPreview(upstream.some((u) => u.type === "prompt"));
-      setSelected("image"); // return to the hero pane on open
+      // Normally the hero pane — but a programmatic open from the review drawer or the
+      // navbar inbox asks for "details", where sign-off lives. Landing on the hero pane
+      // would make a reviewer hunt for the control they were sent here to use.
+      setSelected(focusStoreApi.getState().focusSection ?? "image");
     }
   }
+
+  // Clear the one-shot section request once this view has consumed it, so opening any
+  // other node afterwards goes to its own default. Guarded on `open`, so the many closed
+  // focus views mounted across the canvas never clear a request meant for one of them.
+  useEffect(() => {
+    if (open) focusStoreApi.getState().setFocusSection(null);
+  }, [open, focusStoreApi]);
 
   // A connected node is selected when `selected` isn't one of the fixed rail keys.
   const isNodeSelected = !["image", "history", "details"].includes(selected);

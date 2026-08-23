@@ -65,3 +65,15 @@ export function selectInboxFor(
   if (role === "designer") return items.filter(mineRejected);
   return items.filter((i) => i.approvalStatus === "pending" || mineRejected(i));
 }
+
+// The SAME rule as selectInboxFor, expressed as a PostgREST `or` filter so the database
+// can page it. Filtering in JS after fetching would make every page the wrong size — ask
+// for 25 and get 9 back once the role filter runs.
+//
+// Two expressions of one rule is a real risk, so queue.test.ts asserts they agree over a
+// fixture set. If you change one, the test fails until you change the other.
+export function inboxFilterFor(role: OrgRole, userId: string): string {
+  const mineRejected = `and(approval_status.eq.changes_requested,operator_user_id.eq.${userId})`;
+  if (role === "designer") return mineRejected;
+  return `approval_status.eq.pending,${mineRejected}`;
+}

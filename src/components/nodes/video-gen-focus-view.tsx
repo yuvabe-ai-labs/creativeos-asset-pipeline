@@ -52,7 +52,7 @@ import { computeVideoCost, isVideoAudioEnabled, asResolutionString } from "@/lib
 import { usdToFinalCredits } from "@/lib/credits/units";
 import { EstimatedCreditsLabel } from "./estimated-credits-label";
 import { createBrowserSupabase } from "@/lib/supabase/client";
-import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
+import { useCanvasStore, useCanvasStoreApi } from "@/components/canvas/canvas-store-provider";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { useIdentity } from "@/hooks/use-identity";
 import { InlineApprovalBar } from "./inline-approval-bar";
@@ -374,17 +374,28 @@ export function VideoGenFocusView({
   const [loadingVersions, setLoadingVersions] = useState(false);
   const [loadingConnected, setLoadingConnected] = useState(false);
 
+  const focusStoreApi = useCanvasStoreApi();
   // Reset detail view when the sheet opens or switches to a different node; re-arm skeletons.
   const [openNodeSeed, setOpenNodeSeed] = useState({ open, nodeId });
   if (openNodeSeed.open !== open || openNodeSeed.nodeId !== nodeId) {
     setOpenNodeSeed({ open, nodeId });
     setPendingDialog(null);
     if (open) {
-      setSelected("video");
+      // Normally the video pane — but a programmatic open from the review drawer or the
+      // navbar inbox asks for "details", where sign-off lives. Landing on the video pane
+      // would make a reviewer hunt for the control they were sent here to use.
+      setSelected(focusStoreApi.getState().focusSection ?? "video");
       setLoadingVersions(true);
       setLoadingConnected(true);
     }
   }
+
+  // Clear the one-shot section request once this view has consumed it, so opening any
+  // other node afterwards goes to its own default. Guarded on `open`, so the many closed
+  // focus views mounted across the canvas never clear a request meant for one of them.
+  useEffect(() => {
+    if (open) focusStoreApi.getState().setFocusSection(null);
+  }, [open, focusStoreApi]);
 
   const { isGenerating, lastError, setGenerating, setLastError } =
     useVideoGenStatus(nodeId);
@@ -1024,22 +1035,6 @@ export function VideoGenFocusView({
               {/* Video — flat, independently-collapsible peer groups (Frames / Output / Fine-tune / Advanced) */}
               {selected === "video" && (
                 <div className="flex flex-col gap-10 px-6 py-5">
-                  {/* R10.1: sign-off sits with the asset, the same place image-gen puts it.
-                      Only once there is something to review — an ungenerated node has no
-                      active version to approve (R3.5). */}
-                  {activeVersionId && (
-                    <LeftSection icon={BadgeCheck} label="Approval">
-                      <InlineApprovalBar
-                        status={approvalStatus}
-                        note={approvalNote}
-                        saving={approvalSaving}
-                        // R7.1/D160: not gated on `editable` — approval writes only to
-                        // node_versions, outside what the D33 lock serialises.
-                        canApprove={identity?.role === "senior"}
-                        onSet={saveApproval}
-                      />
-                    </LeftSection>
-                  )}
                   {/* Model first: it decides which roles exist, which params show, and which
                       combinations are legal, so every choice below it is downstream of this one. */}
                   {/* Output settings share the model's card: resolution and duration are
@@ -1158,7 +1153,28 @@ export function VideoGenFocusView({
 
               {/* Details — active constraint rules */}
               {selected === "details" && (
-                <div className="px-6 py-5">
+                <div className="flex flex-col gap-6 px-6 py-5">
+                  {/* R10.1. Under Details, in a "Review" section — the same place and the
+                      same shape image-gen uses. Sign-off must sit in one predictable spot
+                      across node types, or a reviewer has to re-learn the layout per
+                      asset. */}
+                  <LeftSection icon={BadgeCheck} label="Review">
+                    {activeVersionId ? (
+                      <InlineApprovalBar
+                        status={approvalStatus}
+                        note={approvalNote}
+                        saving={approvalSaving}
+                        // R7.1/D160: not gated on `editable` — approval writes only to
+                        // node_versions, outside what the D33 lock serialises.
+                        canApprove={identity?.role === "senior"}
+                        onSet={saveApproval}
+                      />
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        Generate a video first to review and approve it.
+                      </p>
+                    )}
+                  </LeftSection>
                   <ActiveRulesCard constraints={constraints} />
                 </div>
               )}
@@ -1200,6 +1216,7 @@ export function VideoGenFocusView({
                   </div>
                 )}
               </div>
+
             </div>
           </div>
         </div>

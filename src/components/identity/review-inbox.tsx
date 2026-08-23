@@ -1,15 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { Inbox } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useIdentity } from "@/hooks/use-identity";
-import { subscribeToOrgVersionUpdates } from "@/lib/realtime/org-version-updates";
-import { authFetch } from "@/lib/supabase/session-ready";
+import { useReviewList } from "@/hooks/use-review-list";
+import { ReviewItemThumb } from "@/components/review/review-item-thumb";
+import { ReviewListSkeleton } from "@/components/review/review-list-skeleton";
+import { InfiniteScrollSentinel } from "@/components/review/infinite-scroll-sentinel";
 import { formatRelativeTime } from "@/lib/format/relative-time";
-import type { InboxItem } from "@/lib/review/queue";
+import { cn } from "@/lib/utils";
 
 // D165 — one navbar control, both roles.
 //
@@ -18,49 +20,26 @@ import type { InboxItem } from "@/lib/review/queue";
 //
 // R9.5: one control, one meaning — "things waiting on you." For a designer that is their
 // own rejected work; for a senior/owner it is what is pending review, plus their own
-// rejections. The role split lives server-side in selectInboxFor, so this component never
-// branches on role at all — which is why there is no role prop here to get wrong.
+// rejections. The role split lives server-side, so this component never branches on role —
+// which is why there is no role prop here to get wrong.
 export function ReviewInbox() {
-  const { orgId, hydrated } = useIdentity();
-  const [items, setItems] = useState<InboxItem[]>([]);
-
-  // Pure fetch; returns null when the list should be left as it is (R8.5).
-  const fetchItems = useCallback(async (): Promise<InboxItem[] | null> => {
-    try {
-      const res = await authFetch("/api/review/inbox", { cache: "no-store" });
-      if (!res.ok) return null;
-      const data = (await res.json()) as { items: InboxItem[] };
-      return data.items;
-    } catch {
-      return null;
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!hydrated || !orgId) return;
-    let cancelled = false;
-
-    const refresh = () => {
-      void (async () => {
-        const next = await fetchItems();
-        if (!cancelled && next) setItems(next);
-      })();
-    };
-
-    refresh();
-    const unsubscribe = subscribeToOrgVersionUpdates(orgId, refresh);
-    return () => {
-      cancelled = true;
-      unsubscribe();
-    };
-  }, [hydrated, orgId, fetchItems]);
+  const { hydrated } = useIdentity();
+  const [open, setOpen] = useState(false);
+  // Kept subscribed while closed so the badge count is live — the badge IS the feature
+  // (R9.1); a count that only updates when you open the popover would be pointless.
+  const { items, loading, loadingMore, hasMore, loadMore } = useReviewList(
+    "/api/review/inbox",
+    hydrated,
+  );
 
   // Nothing waiting: render nothing at all, matching PendingCountPill's zero rule (R5.1).
   // An empty inbox icon is a small standing reproach for no reason.
-  if (items.length === 0) return null;
+  if (!hydrated || (!loading && items.length === 0)) return null;
+  // Don't flash an empty badge during the very first load.
+  if (loading && items.length === 0) return null;
 
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
         render={
           <Button
@@ -72,8 +51,16 @@ export function ReviewInbox() {
             <Inbox className="size-4 stroke-[1.5]" />
             {/* Amber, matching `pending` everywhere else (R5.8). Never red — that is
                 reserved for changes_requested on the node itself (R5.9). */}
-            <span className="absolute -right-1 -top-1 inline-flex min-w-[1rem] items-center justify-center rounded-full border border-amber-300 bg-amber-50 px-1 text-[0.6rem] font-semibold leading-4 tabular-nums text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300">
+            <span
+              className={cn(
+                "absolute -right-1 -top-1 inline-flex min-w-[1rem] items-center justify-center",
+                "rounded-full border border-amber-300 bg-amber-50 px-1 text-[0.6rem] font-semibold",
+                "leading-4 tabular-nums text-amber-800",
+                "dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300",
+              )}
+            >
               {items.length}
+              {hasMore ? "+" : ""}
             </span>
           </Button>
         }
@@ -86,38 +73,57 @@ export function ReviewInbox() {
           <span className="text-[0.7rem] text-muted-foreground">everywhere</span>
         </div>
 
-        <div className="flex max-h-96 flex-col gap-1 overflow-y-auto p-1.5">
-          {items.map((item) => (
-            <Link
-              key={item.versionId}
-              // R9.3: land on the node itself — the note is read there, beside the controls
-              // that act on it. ?review=1 so following a pointer never takes the lock from
-              // whoever is editing (R7.2).
-              href={`/clients/${item.clientSlug}/canvases/${item.canvasSlug}?review=1&node=${item.nodeId}`}
-              className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-muted"
-            >
-              {item.output ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={item.output}
-                  alt=""
-                  className="size-8 shrink-0 rounded-md border border-border object-cover"
-                />
-              ) : (
-                <span className="size-8 shrink-0 rounded-md border border-border bg-muted" />
+        <div className="max-h-96 overflow-y-auto p-1.5">
+          {loading ? (
+            <ReviewListSkeleton rows={4} />
+          ) : (
+            <>
+              <div className="flex flex-col gap-0.5">
+                {items.map((item) => {
+                  const label =
+                    item.nodeTitle || (item.nodeType === "video-gen" ? "Video" : "Image");
+                  return (
+                    <Link
+                      key={item.versionId}
+                      onClick={() => setOpen(false)}
+                      // R9.3: land on the node itself — the note is read there, beside the
+                      // controls that act on it. ?review=1 so following a pointer never
+                      // takes the lock from whoever is editing (R7.2).
+                      href={`/clients/${item.clientSlug}/canvases/${item.canvasSlug}?review=1&node=${item.nodeId}`}
+                      className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-muted"
+                    >
+                      <ReviewItemThumb
+                        output={item.output}
+                        nodeType={item.nodeType}
+                        size={32}
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="flex items-center gap-1.5">
+                          <span className="truncate text-xs font-medium">{label}</span>
+                          {/* The one thing a pointer must distinguish: work sent BACK to
+                              you reads differently from work waiting ON you. */}
+                          {item.approvalStatus === "changes_requested" && (
+                            <span className="shrink-0 rounded-full bg-destructive/10 px-1.5 text-[0.6rem] font-semibold text-destructive">
+                              Sent back
+                            </span>
+                          )}
+                        </span>
+                        {/* R9.2: a POINTER — what it is and where it lives. That is all it
+                            owes the reader; the note itself is read on the node. */}
+                        <span className="block truncate text-[0.7rem] text-muted-foreground">
+                          {item.clientName} · {item.canvasName} ·{" "}
+                          {formatRelativeTime(item.createdAt)}
+                        </span>
+                      </span>
+                    </Link>
+                  );
+                })}
+              </div>
+              {hasMore && (
+                <InfiniteScrollSentinel onVisible={loadMore} loading={loadingMore} />
               )}
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-xs font-medium">
-                  {item.nodeTitle || (item.nodeType === "video-gen" ? "Video" : "Image")}
-                </span>
-                {/* R9.2: a POINTER — what it is and where it lives. That is all it owes the
-                    reader; the note itself is read on the node. */}
-                <span className="block truncate text-[0.7rem] text-muted-foreground">
-                  {item.clientName} · {item.canvasName} · {formatRelativeTime(item.createdAt)}
-                </span>
-              </span>
-            </Link>
-          ))}
+            </>
+          )}
         </div>
       </PopoverContent>
     </Popover>

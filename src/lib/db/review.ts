@@ -3,10 +3,14 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { resolveDisplayNames } from "./profiles";
 import {
   summarizeCounts,
-  selectInboxFor,
+  inboxFilterFor,
   type ReviewCounts,
   type InboxItem,
 } from "@/lib/review/queue";
+
+// One page of a review list. Small enough that the first paint is fast on a slow
+// connection, large enough that a normal canvas needs no second fetch.
+export const DEFAULT_PAGE_SIZE = 25;
 import type { OrgRole } from "@/lib/dal-logic";
 import type { ApprovalStatus } from "@/lib/approval";
 
@@ -86,6 +90,7 @@ async function toInboxItems(orgId: string, rows: QueueRow[]): Promise<InboxItem[
 export async function listCanvasPendingItems(
   orgId: string,
   canvasId: string,
+  page: { limit: number; offset: number } = { limit: DEFAULT_PAGE_SIZE, offset: 0 },
 ): Promise<InboxItem[]> {
   const supabase = createServerSupabase();
   const { data, error } = await supabase
@@ -94,7 +99,12 @@ export async function listCanvasPendingItems(
     .eq("org_id", orgId)
     .eq("canvas_id", canvasId)
     .eq("approval_status", "pending")
-    .order("created_at", { ascending: false });
+    // Secondary sort on version_id: created_at alone is not unique enough on a batch
+    // generated in the same second, and a non-deterministic order makes offset paging
+    // drop or repeat rows between pages.
+    .order("created_at", { ascending: false })
+    .order("version_id", { ascending: false })
+    .range(page.offset, page.offset + page.limit - 1);
   if (error) throw error;
   // `as unknown as` because review_queue_items is a VIEW created in migration 0031 and is
   // absent from the generated Supabase types, so the client infers GenericStringError[].
@@ -109,16 +119,21 @@ export async function listOrgReviewInbox(
   orgId: string,
   userId: string,
   role: OrgRole,
+  page: { limit: number; offset: number } = { limit: DEFAULT_PAGE_SIZE, offset: 0 },
 ): Promise<InboxItem[]> {
   const supabase = createServerSupabase();
   const { data, error } = await supabase
     .from("review_queue_items")
     .select(QUEUE_COLUMNS)
     .eq("org_id", orgId)
-    .in("approval_status", ["pending", "changes_requested"])
-    .order("created_at", { ascending: false });
+    // The role rule runs in SQL, not in JS after the fetch — otherwise every page comes
+    // back the wrong size (ask for 25, get 9). inboxFilterFor is proven equivalent to
+    // selectInboxFor by queue.test.ts.
+    .or(inboxFilterFor(role, userId))
+    .order("created_at", { ascending: false })
+    .order("version_id", { ascending: false })
+    .range(page.offset, page.offset + page.limit - 1);
   if (error) throw error;
   // Cast explained at listCanvasPendingItems above (view absent from generated types).
-  const items = await toInboxItems(orgId, (data ?? []) as unknown as QueueRow[]);
-  return selectInboxFor(role, userId, items);
+  return toInboxItems(orgId, (data ?? []) as unknown as QueueRow[]);
 }

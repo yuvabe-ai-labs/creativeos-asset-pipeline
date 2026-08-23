@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { summarizeCounts, selectInboxFor, type InboxItem } from "./queue";
+import {
+  summarizeCounts,
+  selectInboxFor,
+  inboxFilterFor,
+  type InboxItem,
+} from "./queue";
 
 describe("summarizeCounts", () => {
   it("groups by canvas and sums to a client", () => {
@@ -114,4 +119,61 @@ describe("selectInboxFor", () => {
   it("a designer sees nothing when none of the rejected work is theirs", () => {
     expect(selectInboxFor("designer", "nobody", all)).toEqual([]);
   });
+});
+
+// inboxFilterFor expresses the SAME rule as selectInboxFor, in PostgREST syntax, so the
+// database can page it. Two expressions of one rule can drift; this evaluates the filter
+// against the fixtures and asserts it selects exactly what the JS selector does.
+describe("inboxFilterFor agrees with selectInboxFor", () => {
+  // A deliberately small PostgREST `or`-filter evaluator — enough for the two shapes this
+  // function emits (`approval_status.eq.X` and `and(a.eq.X,b.eq.Y)`). If the filter ever
+  // grows a shape this cannot parse, it throws rather than silently passing.
+  function evaluate(filter: string, item: InboxItem): boolean {
+    const clauses: string[] = [];
+    let depth = 0;
+    let current = "";
+    for (const ch of filter) {
+      if (ch === "(") depth++;
+      if (ch === ")") depth--;
+      if (ch === "," && depth === 0) {
+        clauses.push(current);
+        current = "";
+        continue;
+      }
+      current += ch;
+    }
+    if (current) clauses.push(current);
+
+    const field = (name: string) =>
+      name === "approval_status" ? item.approvalStatus : item.operatorUserId;
+
+    const evalOne = (clause: string): boolean => {
+      const and = clause.match(/^and\((.*)\)$/);
+      if (and) return and[1].split(",").every(evalOne);
+      const eq = clause.match(/^([a-z_]+)\.eq\.(.*)$/);
+      if (!eq) throw new Error(`Unparsed filter clause: ${clause}`);
+      return field(eq[1]) === eq[2];
+    };
+
+    return clauses.some(evalOne);
+  }
+
+  const fixtures = [
+    item({ versionId: "p1", approvalStatus: "pending", operatorUserId: "someone" }),
+    item({ versionId: "p2", approvalStatus: "pending", operatorUserId: "me" }),
+    item({ versionId: "r1", approvalStatus: "changes_requested", operatorUserId: "me" }),
+    item({ versionId: "r2", approvalStatus: "changes_requested", operatorUserId: "someone" }),
+    item({ versionId: "a1", approvalStatus: "approved", operatorUserId: "me" }),
+    item({ versionId: "a2", approvalStatus: "approved", operatorUserId: "someone" }),
+  ];
+
+  for (const role of ["designer", "senior", "owner"] as const) {
+    it(`selects the same items for ${role}`, () => {
+      const viaSql = fixtures
+        .filter((i) => evaluate(inboxFilterFor(role, "me"), i))
+        .map((i) => i.versionId);
+      const viaJs = selectInboxFor(role, "me", fixtures).map((i) => i.versionId);
+      expect(viaSql.sort()).toEqual(viaJs.sort());
+    });
+  }
 });

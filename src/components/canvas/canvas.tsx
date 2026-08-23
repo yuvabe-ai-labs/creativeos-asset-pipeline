@@ -77,6 +77,7 @@ export function Canvas({
   hasActiveKB,
   initialDriveRootFolder,
   reviewMode = false,
+  focusNodeId = null,
 }: {
   canvasId: string;
   clientId: string;
@@ -85,6 +86,8 @@ export function Canvas({
   initialDriveRootFolder: { id: string; name: string } | null;
   /** D161: arrived via a review link (?review=1) — do not take the edit lock (R7.2). */
   reviewMode?: boolean;
+  /** R9.3: `?node=` from a navbar-inbox pointer — fly to it and open its Details. */
+  focusNodeId?: string | null;
 }) {
   // One subscription, shallow-compared, so the component only re-renders when
   // these slices actually change.
@@ -380,7 +383,7 @@ export function Canvas({
       {/* D163: review drawer. Mounted here (inside ReactFlowProvider and the canvas store)
           because its rows fly the canvas to a node — the same navigation the generation
           tray performs. Non-modal, so it stays put under a focus view (R6.11). */}
-      <ReviewDrawer canvasId={canvasId} />
+      <ReviewDrawer canvasId={canvasId} initialFocusNodeId={focusNodeId} />
 
       {!canEdit && (
         <LockBanner heldByName={heldByName} canTakeOver={canTakeOver} onTakeOver={takeOver} />

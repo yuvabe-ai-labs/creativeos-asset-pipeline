@@ -33,13 +33,14 @@ export default async function CanvasPage({
   searchParams,
 }: {
   params: Promise<{ id: string; cid: string }>;
-  searchParams: Promise<{ review?: string }>;
+  searchParams: Promise<{ review?: string; node?: string }>;
 }) {
   const { id, cid } = await params; // client slug, canvas slug
   // D161: read server-side rather than with useSearchParams — that hook opts its whole
   // subtree out of static rendering and would need a Suspense boundary around the canvas.
-  const { review } = await searchParams;
+  const { review, node } = await searchParams;
   const reviewMode = review === "1";
+  const focusNodeId = typeof node === "string" && node ? node : null;
   const client = await getClientBySlug(id);
   const canvas = client ? await getCanvasBySlug(client.id, cid) : null;
   const effectiveOrgId = await resolveOrgId();
@@ -135,6 +136,7 @@ export default async function CanvasPage({
             hasActiveKB={!!activeKBVersion}
             initialDriveRootFolder={initialDriveRootFolder}
             reviewMode={reviewMode}
+            focusNodeId={focusNodeId}
           />
         </CanvasStoreProvider>
       </div>
