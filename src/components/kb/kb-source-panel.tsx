@@ -176,21 +176,22 @@ export function KBSourcePanel({
                         {formatBytes(doc.size_bytes)}
                       </span>
                     )}
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
                       title={isPending ? "Undo removal" : "Remove"}
                       onClick={() =>
                         isPending ? onUndoDocRemoval(doc.id) : onMarkDocForRemoval(doc.id)
                       }
                       className={cn(
-                        "shrink-0 transition-opacity",
+                        "h-auto p-0 transition-opacity hover:bg-transparent dark:hover:bg-transparent",
                         isPending
                           ? "text-muted-foreground opacity-100 hover:text-foreground"
                           : "text-muted-foreground opacity-0 hover:text-destructive group-hover:opacity-100",
                       )}
                     >
                       {isPending ? <Undo2Icon className="size-3.5" /> : <XIcon className="size-3.5" />}
-                    </button>
+                    </Button>
                   </li>
                 );
               })}
@@ -249,19 +250,20 @@ export function KBSourcePanel({
                         New
                       </span>
                     )}
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
                       title={isPending ? "Undo removal" : "Remove"}
                       onClick={() =>
                         isPending ? onUndoImageRemoval(img.id) : onMarkImageForRemoval(img.id)
                       }
                       className={cn(
-                        "absolute right-0.5 top-0.5 flex size-5 items-center justify-center rounded-full bg-black/60 text-white transition-opacity",
+                        "absolute right-0.5 top-0.5 size-5 rounded-full bg-black/60 p-0 text-white transition-opacity hover:bg-black/60 hover:text-white dark:hover:bg-black/60",
                         isPending ? "opacity-100" : "opacity-0 group-hover:opacity-100",
                       )}
                     >
                       {isPending ? <Undo2Icon className="size-3" /> : <XIcon className="size-3" />}
-                    </button>
+                    </Button>
                   </div>
                 );
               })}

@@ -3,6 +3,9 @@
 import { cn } from "@/lib/utils";
 import { History } from "lucide-react";
 import type { ApprovalStatus } from "@/lib/approval";
+import { Button } from "@/components/ui/button";
+import { describeVersionParams } from "@/lib/generations/version-params";
+import { videoGenClientModelMap } from "@/lib/video-gen/client-models";
 
 export type VideoGenVersionSummary = {
   id: string;
@@ -68,20 +71,30 @@ export function VideoGenVersionHistory({
             const isDisabled = isActive || restoring || isError;
             const label = `v${total - i}`;
             const modelLabel = (v.modelUsed ?? "").split(":")[1] ?? "";
+            // YUV-295: what this version was actually generated with. Without it two rows for
+            // the same shot are indistinguishable — and since restoring one now also restores
+            // its model and params, the row has to show what restoring would apply.
+            const paramSummary = describeVersionParams(
+              videoGenClientModelMap[v.modelUsed ?? ""]?.params,
+              v.paramsUsed,
+            )
+              .map((p) => `${p.label}: ${p.value}`)
+              .join(" · ");
 
             return (
               <li key={v.id}>
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
                   disabled={isDisabled}
                   onClick={() => !isDisabled && onRestore(v.id)}
                   className={cn(
-                    "group w-full rounded-lg border px-3 py-2 text-left transition-colors",
+                    "group block h-auto w-full rounded-lg border px-3 py-2 text-left font-normal whitespace-normal transition-colors hover:bg-transparent dark:hover:bg-transparent disabled:pointer-events-auto disabled:opacity-100",
                     isActive
                       ? "border-primary bg-primary/8 cursor-default"
                       : isError
-                        ? "cursor-not-allowed border-border opacity-60"
-                        : "cursor-pointer border-border hover:bg-muted",
+                        ? "cursor-not-allowed border-border opacity-60 disabled:opacity-60"
+                        : "cursor-pointer border-border hover:bg-muted dark:hover:bg-muted",
                   )}
                 >
                   <div className="flex items-center justify-between gap-2">
@@ -139,7 +152,13 @@ export function VideoGenVersionHistory({
                       {modelLabel}
                     </p>
                   )}
-                </button>
+
+                  {paramSummary && (
+                    <p className="ml-3.5 mt-0.5 line-clamp-2 text-[0.65rem] leading-snug text-muted-foreground/80">
+                      {paramSummary}
+                    </p>
+                  )}
+                </Button>
               </li>
             );
           })}

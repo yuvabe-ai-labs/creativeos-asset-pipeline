@@ -4,7 +4,6 @@ import { Aperture } from "lucide-react";
 import { ShotTileStrip } from "./shot-tile-strip";
 import {
   LENS_TILES,
-  LENS_AUTO,
   LENS_PREVIEW_SRC,
   lensZoom,
   lensTileLabel,
@@ -28,7 +27,6 @@ export function LensSelect({
       icon={Aperture}
       label="Lens"
       tiles={LENS_TILES}
-      autoOption={LENS_AUTO}
       value={value}
       onChange={onChange}
       tileLabel={lensTileLabel}

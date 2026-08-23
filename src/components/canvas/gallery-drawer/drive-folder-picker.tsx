@@ -176,12 +176,13 @@ export function DriveFolderPicker({
               const selected = state.selected?.id === folder.id;
 
               return (
-                <button
+                <Button
                   key={folder.id}
                   type="button"
+                  variant="ghost"
                   onClick={() => handleSelect(folder)}
                   className={cn(
-                    "flex w-full items-center gap-3 rounded-lg border border-transparent px-3 py-3 text-left transition-all",
+                    "h-auto w-full justify-start gap-3 px-3 py-3 text-left",
                     "hover:bg-muted/50",
                     selected && "border-primary/30 bg-primary/5",
                   )}
@@ -200,7 +201,7 @@ export function DriveFolderPicker({
                       Shared
                     </Badge>
                   )}
-                </button>
+                </Button>
               );
             })}
         </div>

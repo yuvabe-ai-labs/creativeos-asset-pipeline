@@ -14,6 +14,7 @@ import {
   toggleLock,
   toggleHidden,
   findLayer,
+  topLevelOwnerId,
   groupLayers,
   ungroupLayers,
   copyLayers,
@@ -599,6 +600,57 @@ describe("findLayer reaches inside groups", () => {
     const grouped = groupLayers([pill, label], [pill.id, label.id]);
     const group = grouped.find((l) => l.kind === "group") as GroupLayer;
     expect(findLayer(grouped, group.id)?.id).toBe(group.id);
+  });
+});
+
+describe("topLevelOwnerId (YUV-303)", () => {
+  // Every action in the editor — group, ungroup, delete, reorder, the inspector — addresses a
+  // TOP-LEVEL layer id. A right-click resolves whatever Konva node sits under the cursor, and
+  // for a group that node is usually one of its children (every template's CTA label). Handing
+  // a child id to those actions silently no-ops: the layer isn't in the top-level array.
+  it("maps a grouped child's id to the group that owns it", () => {
+    const pill = createShapeLayer({ name: "CTA pill" });
+    const label = createTextLayer({ name: "CTA label" });
+    const grouped = groupLayers([pill, label], [pill.id, label.id]);
+    const group = grouped.find((l) => l.kind === "group") as GroupLayer;
+
+    expect(topLevelOwnerId(grouped, label.id)).toBe(group.id);
+    expect(topLevelOwnerId(grouped, pill.id)).toBe(group.id);
+  });
+
+  it("returns a top-level id unchanged", () => {
+    const a = createTextLayer({ name: "a" });
+    expect(topLevelOwnerId([a], a.id)).toBe(a.id);
+  });
+
+  it("returns the group's own id for the group itself", () => {
+    const pill = createShapeLayer();
+    const label = createTextLayer();
+    const grouped = groupLayers([pill, label], [pill.id, label.id]);
+    const group = grouped.find((l) => l.kind === "group") as GroupLayer;
+    expect(topLevelOwnerId(grouped, group.id)).toBe(group.id);
+  });
+
+  it("resolves a child of a nested group to the OUTERMOST group", () => {
+    // groupLayers has no guard against grouping a selection that already contains a group,
+    // so nesting is reachable — and only the outermost id is addressable at top level.
+    const pill = createShapeLayer();
+    const label = createTextLayer();
+    const inner = groupLayers([pill, label], [pill.id, label.id]);
+    const innerGroup = inner.find((l) => l.kind === "group") as GroupLayer;
+    const badge = createIconLayer({ kind: "lucide", name: "star" });
+    const outer = groupLayers([...inner, badge], [innerGroup.id, badge.id]);
+    const outerGroup = outer.find(
+      (l) => l.kind === "group" && l.id !== innerGroup.id,
+    ) as GroupLayer;
+
+    expect(topLevelOwnerId(outer, label.id)).toBe(outerGroup.id);
+    expect(topLevelOwnerId(outer, innerGroup.id)).toBe(outerGroup.id);
+  });
+
+  it("returns null for an id that is nowhere", () => {
+    const a = createTextLayer();
+    expect(topLevelOwnerId([a], "no-such-id")).toBeNull();
   });
 });
 

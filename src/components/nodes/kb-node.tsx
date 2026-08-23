@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { BookOpenIcon, ArrowUpRightIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import {
   Sheet,
   SheetContent,
@@ -122,12 +123,16 @@ function KBSheetContent({
         <SheetDescription>
           Source documents used to build the brand knowledge base.
         </SheetDescription>
-        <Link
-          href={`/clients/${clientSlug}/kb`}
-          className="mt-1 inline-flex w-fit items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
-        >
-          Edit KB <ArrowUpRightIcon className="size-3" />
-        </Link>
+        <Button
+          size="xs"
+          nativeButton={false}
+          className="mt-1 w-fit gap-1.5 px-3 font-semibold hover:bg-primary/90"
+          render={
+            <Link href={`/clients/${clientSlug}/kb`}>
+              Edit KB <ArrowUpRightIcon className="size-3" />
+            </Link>
+          }
+        />
       </SheetHeader>
 
       <div className="flex-1 overflow-y-auto">
@@ -319,9 +324,12 @@ export function KBNode({ id, data, selected }: NodeProps) {
         <Sheet open={sheetOpen} onOpenChange={handleOpenChange}>
           <SheetTrigger
             render={
-              <button className="nodrag mt-1.5 text-[0.65rem] font-medium text-primary hover:underline">
+              <Button
+                variant="link"
+                className="nodrag mt-1.5 h-auto border-0 p-0 text-[0.65rem] font-medium text-primary"
+              >
                 Open ↗
-              </button>
+              </Button>
             }
           />
           {sheetOpen && (

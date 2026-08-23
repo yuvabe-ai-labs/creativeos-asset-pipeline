@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { Plus, X } from "lucide-react";
 import { looksLikeReelScript, type ReelScript } from "@/lib/nodes/reel-script";
+import { Button } from "@/components/ui/button";
 import { EditableField } from "./editable-field";
 
 type Path = (string | number)[];
@@ -56,7 +57,7 @@ export function ScriptDocument({
   const links = script.product_links ?? [];
 
   return (
-    <div className="grid gap-12 text-sm">
+    <div className="grid max-w-[78ch] gap-12 text-sm">
       <EditableField
         value={script.title ?? ""}
         onCommit={set(["title"])}
@@ -124,26 +125,26 @@ export function ScriptDocument({
                 />
               </div>
               {!readOnly && (
-                <button
-                  type="button"
+                <Button
+                  variant="ghost"
                   aria-label="Remove shot"
                   onClick={() => onRemoveItem?.(["visual_script", "shots"], i)}
-                  className="nodrag rounded-md p-1 text-muted-foreground hover:bg-muted"
+                  className="nodrag h-auto rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-muted-foreground dark:hover:bg-muted"
                 >
                   <X className="size-3.5" />
-                </button>
+                </Button>
               )}
             </li>
           ))}
         </ol>
         {!readOnly && (
-          <button
-            type="button"
+          <Button
+            variant="ghost"
             onClick={() => onAddItem?.(["visual_script", "shots"], { description: "", duration: "" })}
-            className="nodrag mt-3 inline-flex items-center gap-1.5 rounded-md border border-dashed border-primary/40 px-2.5 py-1.5 text-sm font-medium text-primary transition-colors hover:bg-primary/5 hover:border-primary/60"
+            className="nodrag mt-3 h-auto rounded-md border border-dashed border-primary/40 px-2.5 py-1.5 text-primary hover:border-primary/60 hover:bg-primary/5 hover:text-primary dark:hover:bg-primary/5"
           >
             <Plus className="size-4" /> Add shot
-          </button>
+          </Button>
         )}
         <div className="mt-3">
           <span className="text-xs text-muted-foreground">Execution</span>
@@ -175,25 +176,25 @@ export function ScriptDocument({
                 className="flex-1"
               />
               {!readOnly && (
-                <button
-                  type="button"
+                <Button
+                  variant="ghost"
                   aria-label="Remove line"
                   onClick={() => onRemoveItem?.(["on_screen_text", "body"], i)}
-                  className="nodrag rounded-md p-1 text-muted-foreground hover:bg-muted"
+                  className="nodrag h-auto rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-muted-foreground dark:hover:bg-muted"
                 >
                   <X className="size-3.5" />
-                </button>
+                </Button>
               )}
             </div>
           ))}
           {!readOnly && (
-            <button
-              type="button"
+            <Button
+              variant="ghost"
               onClick={() => onAddItem?.(["on_screen_text", "body"], "")}
-              className="nodrag mt-3 inline-flex items-center gap-1.5 rounded-md border border-dashed border-primary/40 px-2.5 py-1.5 text-sm font-medium text-primary transition-colors hover:bg-primary/5 hover:border-primary/60"
+              className="nodrag mt-3 h-auto rounded-md border border-dashed border-primary/40 px-2.5 py-1.5 text-primary hover:border-primary/60 hover:bg-primary/5 hover:text-primary dark:hover:bg-primary/5"
             >
               <Plus className="size-4" /> Add line
-            </button>
+            </Button>
           )}
           <EditableField
             value={script.on_screen_text?.outro ?? ""}
@@ -262,26 +263,26 @@ export function ScriptDocument({
                 className="flex-1"
               />
               {!readOnly && (
-                <button
-                  type="button"
+                <Button
+                  variant="ghost"
                   aria-label="Remove note"
                   onClick={() => onRemoveItem?.(["qc_notes"], i)}
-                  className="nodrag rounded-md p-1 text-muted-foreground hover:bg-muted"
+                  className="nodrag h-auto rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-muted-foreground dark:hover:bg-muted"
                 >
                   <X className="size-3.5" />
-                </button>
+                </Button>
               )}
             </li>
           ))}
         </ul>
         {!readOnly && (
-          <button
-            type="button"
+          <Button
+            variant="ghost"
             onClick={() => onAddItem?.(["qc_notes"], "")}
-            className="nodrag mt-3 inline-flex items-center gap-1.5 rounded-md border border-dashed border-primary/40 px-2.5 py-1.5 text-sm font-medium text-primary transition-colors hover:bg-primary/5 hover:border-primary/60"
+            className="nodrag mt-3 h-auto rounded-md border border-dashed border-primary/40 px-2.5 py-1.5 text-primary hover:border-primary/60 hover:bg-primary/5 hover:text-primary dark:hover:bg-primary/5"
           >
             <Plus className="size-4" /> Add note
-          </button>
+          </Button>
         )}
       </Section>
 
@@ -297,26 +298,26 @@ export function ScriptDocument({
                 className="flex-1"
               />
               {!readOnly && (
-                <button
-                  type="button"
+                <Button
+                  variant="ghost"
                   aria-label="Remove link"
                   onClick={() => onRemoveItem?.(["product_links"], i)}
-                  className="nodrag rounded-md p-1 text-muted-foreground hover:bg-muted"
+                  className="nodrag h-auto rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-muted-foreground dark:hover:bg-muted"
                 >
                   <X className="size-3.5" />
-                </button>
+                </Button>
               )}
             </li>
           ))}
         </ul>
         {!readOnly && (
-          <button
-            type="button"
+          <Button
+            variant="ghost"
             onClick={() => onAddItem?.(["product_links"], "")}
-            className="nodrag mt-3 inline-flex items-center gap-1.5 rounded-md border border-dashed border-primary/40 px-2.5 py-1.5 text-sm font-medium text-primary transition-colors hover:bg-primary/5 hover:border-primary/60"
+            className="nodrag mt-3 h-auto rounded-md border border-dashed border-primary/40 px-2.5 py-1.5 text-primary hover:border-primary/60 hover:bg-primary/5 hover:text-primary dark:hover:bg-primary/5"
           >
             <Plus className="size-4" /> Add link
-          </button>
+          </Button>
         )}
       </Section>
     </div>

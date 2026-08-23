@@ -1,6 +1,7 @@
 "use client";
 
 import { ThumbsUp, ThumbsDown, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 type Decision = "pass" | "fail" | null;
@@ -39,15 +40,16 @@ export function InlineEvalBar({
 
         {visible && (
           <div className="flex items-center gap-1">
-            <button
+            <Button
               type="button"
+              variant="ghost"
               disabled={saving}
               onClick={() => toggle("pass")}
               title="Mark as pass"
               className={cn(
-                "inline-flex items-center justify-center rounded-md border p-1.5 transition-colors disabled:opacity-50",
+                "h-auto rounded-md p-1.5 transition-colors",
                 decision === "pass"
-                  ? "border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400"
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-600 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400"
                   : "border-border bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground",
               )}
             >
@@ -56,17 +58,18 @@ export function InlineEvalBar({
               ) : (
                 <ThumbsUp className="size-3.5" strokeWidth={1.5} />
               )}
-            </button>
+            </Button>
 
-            <button
+            <Button
               type="button"
+              variant="ghost"
               disabled={saving}
               onClick={() => toggle("fail")}
               title="Mark as fail"
               className={cn(
-                "inline-flex items-center justify-center rounded-md border p-1.5 transition-colors disabled:opacity-50",
+                "h-auto rounded-md p-1.5 transition-colors",
                 decision === "fail"
-                  ? "border-red-200 bg-red-50 text-red-600 dark:border-red-800 dark:bg-red-950/40 dark:text-red-400"
+                  ? "border-red-200 bg-red-50 text-red-600 hover:bg-red-50 hover:text-red-600 dark:border-red-800 dark:bg-red-950/40 dark:text-red-400"
                   : "border-border bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground",
               )}
             >
@@ -75,7 +78,7 @@ export function InlineEvalBar({
               ) : (
                 <ThumbsDown className="size-3.5" strokeWidth={1.5} />
               )}
-            </button>
+            </Button>
           </div>
         )}
       </div>

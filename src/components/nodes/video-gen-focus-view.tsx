@@ -38,6 +38,7 @@ import {
   videoGenClientModelMap,
 } from "@/lib/video-gen/client-models";
 import { smartMergeVideoParams } from "@/lib/video-gen/params/merge";
+import { paramsForRestore } from "@/lib/generations/version-params";
 import {
   areFramesAndRefsExclusive,
   buildConstraintState,
@@ -67,7 +68,7 @@ import {
 } from "./video-gen-version-history";
 import { VideoGenUsagePopover } from "./video-gen-usage-popover";
 import { Skeleton } from "@/components/ui/skeleton";
-import { VideoGenParamsPanel, hasParamsInGroup } from "./video-gen-params-panel";
+import { VideoGenParamsPanel } from "./video-gen-params-panel";
 import { VideoGenConnectedSection } from "./video-gen-connected-section";
 import { RailItem } from "./focus-rail-item";
 import { AddConnection } from "./add-connection";
@@ -251,13 +252,14 @@ function VideoGenDetailPanel({
 
   return (
     <div className="flex w-full max-w-5xl flex-col gap-4 px-6 py-6">
-      <button
+      <Button
         type="button"
+        variant="ghost"
         onClick={onBack}
-        className="inline-flex items-center gap-1.5 self-start text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+        className="h-auto gap-1.5 self-start border-0 p-0 text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground"
       >
         <ArrowLeft className="size-4" strokeWidth={1.5} /> Back to video
-      </button>
+      </Button>
 
       {item.type === "prompt" && promptNode && (
         <div className="flex min-h-0 flex-1 flex-col gap-3">
@@ -303,22 +305,23 @@ function VideoGenDetailPanel({
                   return (
                     <Tooltip key={role}>
                       <TooltipTrigger render={<span />}>
-                        <button
+                        <Button
                           type="button"
+                          variant="ghost"
                           aria-disabled={disabled}
                           onClick={() =>
                             !disabled && onRoleChange(item.id, role)
                           }
                           className={cn(
-                            "rounded-lg border px-4 py-2 text-sm font-medium transition-colors",
+                            "h-auto rounded-lg border px-4 py-2 transition-colors",
                             active
-                              ? "border-primary bg-primary text-primary-foreground"
-                              : "border-border bg-background text-foreground hover:bg-muted",
+                              ? "border-primary bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground dark:hover:bg-primary"
+                              : "border-border bg-background text-foreground hover:bg-muted hover:text-foreground dark:hover:bg-muted",
                             disabled && "cursor-not-allowed opacity-40",
                           )}
                         >
                           {label}
-                        </button>
+                        </Button>
                       </TooltipTrigger>
                       {tooltip && (
                         <TooltipContent side="top">{tooltip}</TooltipContent>
@@ -375,17 +378,17 @@ export function VideoGenFocusView({
   );
   // Only the Advanced group collapses (Audio / Multi-Shot / Negative Prompt); Frames and
   // Output settings are always expanded. Defaults closed so the panel opens uncluttered.
-  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [pendingDialog, setPendingDialog] = useState<DialogState>(null);
 
-  // Seeded from `open`, not hardcoded false. It is armed inside the open-TRANSITION block
-  // above — but a navbar-inbox link mounts this view ALREADY open, so that transition
-  // never fires and every skeleton in here stayed off through the whole first fetch. The
-  // Review section then asserted "Generate a video first…" and snapped to the approval
-  // control when the versions landed.
+  // Seeded from `open`, not `false`. The seed block below re-arms these on the false → true
+  // TRANSITION, which any path that mounts the view ALREADY open never has.
+  //
+  // Both branches hit this independently. Guided creation: guidedCreateNext and
+  // setFocusedNodeId land in the same batch, so the card mounts with its focus view open
+  // and the rail rendered "No inputs connected." instead of a skeleton. Review: a
+  // navbar-inbox link does the same, and the Review section asserted "Generate a video
+  // first…" before snapping to the approval control. One bug, two symptoms.
   const [loadingVersions, setLoadingVersions] = useState(open);
-  // Same mount-already-open hole as loadingVersions above — armed only on the transition,
-  // so a cold arrival from the inbox skipped its skeleton too.
   const [loadingConnected, setLoadingConnected] = useState(open);
 
   // Reset detail view when the sheet opens or switches to a different node; re-arm skeletons.
@@ -525,8 +528,14 @@ export function VideoGenFocusView({
       })
       .catch(() => {})
       .finally(() => setLoadingVersions(false));
-    void refreshUpstream().finally(() => setLoadingConnected(false));
-  }, [open, nodeId, setVideoGenGenerating, setVideoGenError, refreshUpstream]);
+    // persistThenRefresh, not refreshUpstream: a node reached straight from the guided
+    // "Create video generation" button exists only in the client store at this point, and the
+    // upstream-images route walks PERSISTED edges — so fetching first beat autosave's 600ms
+    // debounce and the Connected rail came up empty until a close-and-reopen. The flush is
+    // covered by the same `loadingConnected` skeleton as the fetch behind it, so the sheet
+    // still opens instantly and the wait reads as loading rather than as "nothing connected".
+    void persistThenRefresh().finally(() => setLoadingConnected(false));
+  }, [open, nodeId, setVideoGenGenerating, setVideoGenError, persistThenRefresh]);
 
   // Refresh versions when a generation finishes (isGenerating transitions true → false)
   const wasGeneratingRef = useRef(false);
@@ -734,16 +743,49 @@ export function VideoGenFocusView({
     }
   }
 
+  /**
+   * Put the node back into the state that produced this version — its model and its params,
+   * not only its video (YUV-295).
+   *
+   * Restoring used to write `parsed` alone, so v1's clip sat under whatever model and duration
+   * happened to be set, and the very next Generate silently used those instead of the ones the
+   * operator had just chosen to go back to.
+   *
+   * The version's params are read back through the restored model's own specs
+   * (paramsForRestore), which drops the pipeline's `durationSeconds` bookkeeping and fills any
+   * param the version predates with that model's default. A version whose model the client no
+   * longer knows restores the video alone and says so — writing params that belong to no model
+   * would leave the node unable to generate.
+   */
   async function handleRestoreVersion(versionId: string) {
     setRestoring(true);
+    // One toast for the whole gesture: the same id is handed to the success/error call below,
+    // so sonner swaps this spinner in place rather than stacking a second toast under it.
+    // Restore is two round trips (the POST, then the version refetch) — long enough that a
+    // silent wait reads as a dead click.
+    const toastId = toast.loading("Restoring version…");
     try {
-      const { output } = await videoGenApi.restoreVersion(nodeId, versionId);
-      onPatch({ parsed: output });
+      const { output, modelUsed, paramsUsed } = await videoGenApi.restoreVersion(nodeId, versionId);
+      const restoredParams = modelUsed
+        ? paramsForRestore(videoGenClientModelMap[modelUsed]?.params, paramsUsed)
+        : null;
+      if (modelUsed && restoredParams) {
+        setModelId(modelUsed);
+        setParams(restoredParams);
+        onPatch({ parsed: output, modelId: modelUsed, params: restoredParams });
+      } else {
+        onPatch({ parsed: output });
+      }
       setActiveVersionId(versionId);
       await fetchVersions();
-      toast.success("Version restored");
+      toast.success(
+        restoredParams
+          ? "Version restored — model and settings applied"
+          : "Video restored — its settings are no longer available",
+        { id: toastId },
+      );
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Restore failed");
+      toast.error(e instanceof Error ? e.message : "Restore failed", { id: toastId });
     } finally {
       setRestoring(false);
     }
@@ -868,13 +910,14 @@ export function VideoGenFocusView({
         {/* Header */}
         <div className="shrink-0 border-b">
           <div className="mx-auto w-full max-w-7xl px-6 pb-5 pt-3">
-            <button
+            <Button
               type="button"
+              variant="ghost"
               onClick={() => onOpenChange(false)}
-              className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+              className="h-auto gap-1.5 border-0 p-0 text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground"
             >
               <ArrowLeft className="size-4" strokeWidth={1.5} /> Back to canvas
-            </button>
+            </Button>
             <header className="mt-4 flex items-start justify-between gap-4">
               <div>
                 <SheetTitle className="p-0 font-display text-3xl font-semibold tracking-tight">
@@ -894,52 +937,16 @@ export function VideoGenFocusView({
                   {loadingVersions ? (
                     <Skeleton className="h-8 w-20 rounded-md" />
                   ) : (
-                    versions.length > 0 && (
-                      <VideoGenUsagePopover
-                        versions={versions}
-                        nodeId={nodeId}
-                        upstreamNodeIds={[
-                          ...(promptNode ? [promptNode.id] : []),
-                          ...upstreamImages.map((u) => u.id),
-                        ]}
-                      />
-                    )
+                    /* Always rendered once loaded — pre-generation it reads "0 credits used". */
+                    <VideoGenUsagePopover
+                      versions={versions}
+                      nodeId={nodeId}
+                      upstreamNodeIds={[
+                        ...(promptNode ? [promptNode.id] : []),
+                        ...upstreamImages.map((u) => u.id),
+                      ]}
+                    />
                   )}
-                  <Tooltip>
-                    <TooltipTrigger render={<span />}>
-                      <Button
-                        size="lg"
-                        onClick={handleGenerate}
-                        disabled={
-                          isGenerating ||
-                          constraints.disableGenerate ||
-                          !editable ||
-                          (currentModel?.provider === "kling" &&
-                            !Object.values(effectiveImageRoles).includes("start_frame"))
-                        }
-                      >
-                        <Sparkles className="size-4" strokeWidth={1.5} />
-                        {isGenerating
-                          ? "Generating…"
-                          : videoUrl
-                            ? "Re-generate"
-                            : "Generate"}
-                        {!isGenerating && estimatedCredits !== null && (
-                          <EstimatedCreditsLabel credits={estimatedCredits} />
-                        )}
-                      </Button>
-                    </TooltipTrigger>
-                    {(constraints.disableGenerate && constraints.disableGenerateReason) ? (
-                      <TooltipContent side="bottom">
-                        {constraints.disableGenerateReason}
-                      </TooltipContent>
-                    ) : currentModel?.provider === "kling" &&
-                      !Object.values(effectiveImageRoles).includes("start_frame") ? (
-                      <TooltipContent side="bottom">
-                        Kling requires a start frame — connect an image and assign it as Start Frame
-                      </TooltipContent>
-                    ) : null}
-                  </Tooltip>
                 </div>
                 {lastError && !isGenerating && (
                   <div className="mt-1">
@@ -1042,9 +1049,11 @@ export function VideoGenFocusView({
 
           {/* Detail pane: the middle column swaps with the rail selection; the output column on
               the right is ALWAYS visible so the operator can tune while watching the result. */}
-          <div className="flex min-h-0 flex-1 overflow-hidden">
+          {/* No overflow-hidden: it would crop the raised column's left shadow.
+              The columns inside own their scrolling. */}
+          <div className="flex min-h-0 flex-1">
             {/* Middle column */}
-            <div className="min-h-0 w-[54%] shrink-0 overflow-y-auto border-r border-border">
+            <div className="min-h-0 w-[54%] shrink-0 overflow-y-auto border-x border-primary/25 bg-card panel-raised">
               {/* Video — flat, independently-collapsible peer groups (Frames / Output / Fine-tune / Advanced) */}
               {selected === "video" && (
                 <div className="flex flex-col gap-10 px-6 py-5">
@@ -1064,14 +1073,6 @@ export function VideoGenFocusView({
                     />
                   </VideoGenModelPicker>
                   {(() => {
-                    const paramsPanelProps = {
-                      modelId,
-                      // D98: what the panel shows is what doGenerate posts.
-                      params: effectiveParams,
-                      onParamChange: handleParamChange,
-                      lockedParams: constraints.lockedParams,
-                      lockedParamReasons: constraints.lockedParamReasons,
-                    };
                     return (
                       <>
                         {/* The spine heads the Frames section: it is the summary of exactly what
@@ -1094,23 +1095,51 @@ export function VideoGenFocusView({
                             />
                           </div>
                         </LeftSection>
-                        {/* Advanced is the one collapsible group, so the secondary controls
-                            don't crowd the panel by default. */}
-                        {hasParamsInGroup(modelId, "advanced") && (
-                          <LeftSection
-                            icon={SlidersHorizontal}
-                            label="Advanced"
-                            open={advancedOpen}
-                            onToggle={() => setAdvancedOpen((o) => !o)}
-                          >
-                            {advancedOpen && (
-                              <VideoGenParamsPanel {...paramsPanelProps} group="advanced" />
-                            )}
-                          </LeftSection>
-                        )}
                       </>
                     );
                   })()}
+
+                  {/* Generate closes the column, after every setting it depends on —
+                      it used to sit in the page header, far from the controls that
+                      decide what it will cost and whether it is even legal to run. */}
+                  <div className="border-t border-border pt-4">
+                    <Tooltip>
+                      <TooltipTrigger render={<span className="block w-full" />}>
+                        <Button
+                          size="lg"
+                          className="w-full"
+                          onClick={handleGenerate}
+                          disabled={
+                            isGenerating ||
+                            constraints.disableGenerate ||
+                            !editable ||
+                            (currentModel?.provider === "kling" &&
+                              !Object.values(effectiveImageRoles).includes("start_frame"))
+                          }
+                        >
+                          <Sparkles className="size-4" strokeWidth={1.5} />
+                          {isGenerating
+                            ? "Generating…"
+                            : videoUrl
+                              ? "Re-generate"
+                              : "Generate"}
+                          {!isGenerating && estimatedCredits !== null && (
+                            <EstimatedCreditsLabel credits={estimatedCredits} />
+                          )}
+                        </Button>
+                      </TooltipTrigger>
+                      {(constraints.disableGenerate && constraints.disableGenerateReason) ? (
+                        <TooltipContent side="bottom">
+                          {constraints.disableGenerateReason}
+                        </TooltipContent>
+                      ) : currentModel?.provider === "kling" &&
+                        !Object.values(effectiveImageRoles).includes("start_frame") ? (
+                        <TooltipContent side="bottom">
+                          Kling requires a start frame — connect an image and assign it as Start Frame
+                        </TooltipContent>
+                      ) : null}
+                    </Tooltip>
+                  </div>
                 </div>
               )}
 
@@ -1199,15 +1228,17 @@ export function VideoGenFocusView({
               )}
             </div>
 
-            {/* Right column — the video, always visible */}
-            <div className="flex min-h-0 flex-1 flex-col gap-3 px-6 py-5">
+            {/* Right column — the video, always visible. Faintly sunk so the
+                settings column reads as raised against it. */}
+            <div className="flex min-h-0 flex-1 flex-col gap-3 bg-muted/20 px-6 py-5">
               <div className="flex items-center gap-1.5">
                 <Clapperboard className="size-3.5 text-primary" strokeWidth={1.5} />
                 <span className="text-eyebrow">Video</span>
               </div>
               <div className="min-h-0 flex-1">
                 {mode === "skeleton" && (
-                  <div className="size-full animate-pulse rounded-xl bg-muted-foreground/15" />
+                  // 9:16, flush left — the same footprint the result frame will occupy.
+                  <div className="aspect-[9/16] h-full max-w-full animate-pulse rounded-xl bg-muted-foreground/15" />
                 )}
                 {mode === "empty" && (
                   <div className="flex size-full items-center justify-center rounded-xl border border-dashed border-border">
@@ -1226,13 +1257,14 @@ export function VideoGenFocusView({
                   </div>
                 )}
                 {mode === "result" && videoUrl && (
-                  <div className="flex size-full items-center justify-center">
-                    <video
-                      src={videoUrl}
-                      controls
-                      className="w-full max-h-full rounded-xl border border-border shadow-card"
-                    />
-                  </div>
+                  // Height-driven 9:16 frame, flush left — same treatment as the
+                  // image-gen result: the border hugs the video instead of a
+                  // width-forced box painting gutters inside it.
+                  <video
+                    src={videoUrl}
+                    controls
+                    className="aspect-[9/16] h-full max-w-full rounded-xl border border-border bg-muted/20"
+                  />
                 )}
               </div>
 

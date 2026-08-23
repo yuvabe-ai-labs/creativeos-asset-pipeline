@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { KB_PARSE_SLICES, type KBSliceKey } from "@/lib/kb/parse-context";
 
@@ -22,20 +23,21 @@ export function SliceToggles({ selected, onToggle, className, allowedKeys }: Sli
       {slices.map((s) => {
         const active = selected.includes(s.key);
         return (
-          <button
+          <Button
             key={s.key}
             type="button"
+            variant="ghost"
             aria-pressed={active}
             onClick={() => onToggle(s.key)}
             className={cn(
-              "nodrag rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+              "nodrag h-auto rounded-full px-2.5 py-1 text-xs transition-colors",
               active
-                ? "border-primary bg-primary/10 text-primary"
-                : "border-border text-muted-foreground hover:bg-muted",
+                ? "border-primary bg-primary/10 text-primary hover:bg-primary/10 hover:text-primary"
+                : "border-border text-muted-foreground hover:bg-muted hover:text-muted-foreground",
             )}
           >
             {s.label}
-          </button>
+          </Button>
         );
       })}
     </div>

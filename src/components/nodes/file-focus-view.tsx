@@ -18,6 +18,7 @@ import {
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { FileNodeData } from "@/lib/canvas-nodes";
+import { nextFileNodeTitle } from "@/lib/nodes/title";
 import { fileNodeService } from "@/services/file-node.service";
 import { useGooglePicker } from "@/hooks/use-google-picker";
 import { DriveIcon } from "@/components/ui/drive-icon";
@@ -86,10 +87,14 @@ export function FileFocusView({
     try {
       const result = await fileNodeService.upload(nodeId, file);
       onPatch(result);
-      if (!title) {
-        const derived = file.name.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " ");
-        onPatch({ title: derived });
-      }
+      // `title`/`filename` are this render's props — i.e. the state BEFORE the patch above —
+      // which is exactly what the rule needs to tell an auto-derived title from a typed one.
+      const nextTitle = nextFileNodeTitle({
+        currentTitle: title,
+        previousFilename: filename,
+        nextFilename: result.filename ?? file.name,
+      });
+      if (nextTitle !== null) onPatch({ title: nextTitle });
       setReplacing(false);
       toast.success("File attached");
     } catch (e) {
@@ -169,10 +174,13 @@ export function FileFocusView({
     try {
       const result = await fileNodeService.pickFromDrive(nodeId, driveFile);
       onPatch(result);
-      if (!title) {
-        const derived = (result.filename ?? "").replace(/\.[^.]+$/, "").replace(/[-_]+/g, " ");
-        onPatch({ title: derived });
-      }
+      // Same rule as the upload path — importing from Drive replaces the attachment too.
+      const nextTitle = nextFileNodeTitle({
+        currentTitle: title,
+        previousFilename: filename,
+        nextFilename: result.filename ?? driveFile.driveFileName,
+      });
+      if (nextTitle !== null) onPatch({ title: nextTitle });
       setReplacing(false);
       toast.success("File imported from Google Drive");
     } catch (e) {
@@ -200,14 +208,15 @@ export function FileFocusView({
           className="gap-0 overflow-hidden rounded-t-2xl bg-background data-[side=bottom]:h-[92vh]"
         >
           <div className="shrink-0 border-b">
-            <div className="mx-auto w-full max-w-5xl px-6 pb-5 pt-3">
-              <button
+            <div className="mx-auto w-full max-w-7xl px-6 pb-5 pt-3">
+              <Button
                 type="button"
+                variant="ghost"
                 onClick={() => onOpenChange(false)}
-                className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+                className="h-auto gap-1.5 border-0 p-0 text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground"
               >
                 <ArrowLeft className="size-4" /> Back to canvas
-              </button>
+              </Button>
 
               <header className="mt-4 flex items-start justify-between gap-4">
                 <div>
@@ -240,15 +249,16 @@ export function FileFocusView({
                     >
                       <RefreshCw className="size-4 text-primary" /> Replace
                     </Button>
-                    <button
+                    <Button
                       type="button"
+                      variant="outline"
                       onClick={handleOpenPicker}
                       disabled={replacing || loading}
-                      className="inline-flex h-11 items-center gap-2.5 rounded-lg border border-neutral-200 bg-white px-4 text-sm font-medium text-neutral-700 shadow-sm transition-all hover:bg-neutral-50 hover:shadow disabled:pointer-events-none disabled:opacity-50 active:scale-[0.99]"
+                      className="h-11 gap-2.5 border-neutral-200 bg-white px-4 text-neutral-700 shadow-sm hover:bg-neutral-50 hover:text-neutral-700 hover:shadow active:scale-[0.99] active:not-aria-[haspopup]:translate-y-0"
                     >
                       <DriveIcon size={16} />
                       Replace from Drive
-                    </button>
+                    </Button>
                     <Button variant="outline" size="lg" onClick={handleRemove}>
                       <Trash2 className="size-4 text-destructive" />
                       <span className="text-destructive">Remove</span>
@@ -270,7 +280,7 @@ export function FileFocusView({
           </div>
 
           <div className="min-h-0 flex-1 flex flex-col">
-            <div className="mx-auto w-full max-w-5xl px-6 py-6 flex-1 min-h-0 flex flex-col">
+            <div className="mx-auto w-full max-w-7xl px-6 py-6 flex-1 min-h-0 flex flex-col">
               {mode === "loading" && (
                 <div className="flex flex-col items-center justify-center gap-3 py-24 text-muted-foreground">
                   <Loader2 className="size-8 animate-spin text-primary" />

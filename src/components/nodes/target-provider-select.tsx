@@ -22,7 +22,10 @@ export function TargetProviderSelect({
   lockedLabel?: string; // set → disabled, shows the reason (e.g. "set by connected video node")
 }) {
   return (
-    <div className="space-y-2">
+    // The lock reason rides on `title` instead of a caption line: as a paragraph it
+    // was both visual noise and — being wider than the two chips above it — the thing
+    // forcing this column wide enough to wrap Speed onto a second row beside it.
+    <div className="space-y-2" title={lockedLabel}>
       <FieldLabel icon={Cpu} label="Target model" />
       <ParamChipGroup
         options={OPTIONS}
@@ -30,7 +33,6 @@ export function TargetProviderSelect({
         onValueChange={(v) => onChange(v as VideoProvider)}
         disabled={Boolean(lockedLabel)}
       />
-      {lockedLabel && <p className="text-xs text-muted-foreground">{lockedLabel}</p>}
     </div>
   );
 }

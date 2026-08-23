@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import type { UpstreamImage } from "@/lib/video-gen/api";
 import type { ImageInputCapabilities } from "@/lib/video-gen/types";
 
@@ -73,22 +74,23 @@ export function VideoGenImageRoles({
                 const disabled = notSupported || atRefLimit;
 
                 return (
-                  <button
+                  <Button
                     key={r.value}
                     type="button"
+                    variant="ghost"
                     disabled={disabled}
                     onClick={() => !disabled && onRoleChange(img.id, r.value)}
                     className={cn(
-                      "rounded px-2 py-1 text-[0.6rem] font-medium transition-colors",
+                      "h-auto rounded border-0 px-2 py-1 text-[0.6rem] font-medium transition-colors disabled:pointer-events-auto disabled:opacity-100",
                       isActive && !notSupported
-                        ? "bg-primary text-primary-foreground"
+                        ? "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground dark:hover:bg-primary"
                         : disabled
-                          ? "cursor-not-allowed text-muted-foreground/20"
-                          : "text-muted-foreground hover:bg-muted",
+                          ? "cursor-not-allowed text-muted-foreground/20 hover:bg-transparent hover:text-muted-foreground/20 dark:hover:bg-transparent"
+                          : "text-muted-foreground hover:bg-muted hover:text-muted-foreground dark:hover:bg-muted",
                     )}
                   >
                     {r.label}
-                  </button>
+                  </Button>
                 );
               })}
             </div>

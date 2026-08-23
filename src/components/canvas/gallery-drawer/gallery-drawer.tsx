@@ -139,6 +139,17 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
     }
   }
 
+  // Re-read this canvas's generations every time the drawer opens. useCanvasGenerations caches
+  // per canvas id at module scope for the whole session, so without this the Canvas Generations
+  // tab kept showing whatever it fetched the first time the drawer was ever opened — closing
+  // and reopening it after generating an image changed nothing. Background revalidation (not
+  // refresh()), so the images already on screen stay put instead of flashing a spinner.
+  const revalidateGenerations = generations.revalidate;
+  useEffect(() => {
+    if (!open) return;
+    void revalidateGenerations();
+  }, [open, revalidateGenerations]);
+
   // Auto-clear stale folder ID from DB when Drive says it's gone.
   useEffect(() => {
     if (browser.loadError !== "folder_not_found" || !rootFolder) return;

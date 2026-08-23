@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { FileText } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
@@ -98,12 +99,13 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
         </div>
       ) : (
         <div className="px-3 py-3">
-          <button
+          <Button
+            variant="ghost"
             onClick={() => setFocusOpen(true)}
-            className="nodrag -mx-1.5 inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10"
+            className="nodrag -mx-1.5 h-auto gap-1 rounded-md border-0 px-1.5 py-1 text-xs text-primary transition-colors hover:bg-primary/10 hover:text-primary"
           >
             Open ↗
-          </button>
+          </Button>
         </div>
       )}
 

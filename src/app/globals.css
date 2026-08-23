@@ -63,12 +63,14 @@
   --radius-4xl: calc(var(--radius) * 2.8);
 
   /* Elevation scale — soft, high, blue-black-tinted (Yuvabe).
-     Each generates a shadow-* utility. Two-layer = contact + ambient. */
+     Each generates a shadow-* utility. Two-layer = contact + ambient.
+     Ambient offsets/blur run at HALF the original Yuvabe export — the full-size
+     halos made every surface read as a floating panel. Contact layers stay 1px. */
   --shadow-xs: 0 1px 2px rgba(11, 15, 25, 0.06);
-  --shadow-sm: 0 1px 2px rgba(11, 15, 25, 0.06), 0 2px 8px rgba(11, 15, 25, 0.05);
-  --shadow-card: 0 1px 3px rgba(11, 15, 25, 0.08), 0 12px 28px rgba(11, 15, 25, 0.1);
-  --shadow-md: 0 2px 6px rgba(11, 15, 25, 0.06), 0 8px 20px rgba(11, 15, 25, 0.1);
-  --shadow-lg: 0 8px 16px rgba(11, 15, 25, 0.08), 0 20px 40px rgba(11, 15, 25, 0.14);
+  --shadow-sm: 0 1px 2px rgba(11, 15, 25, 0.06), 0 1px 4px rgba(11, 15, 25, 0.05);
+  --shadow-card: 0 1px 2px rgba(11, 15, 25, 0.08), 0 6px 14px rgba(11, 15, 25, 0.1);
+  --shadow-md: 0 1px 3px rgba(11, 15, 25, 0.06), 0 4px 10px rgba(11, 15, 25, 0.1);
+  --shadow-lg: 0 4px 8px rgba(11, 15, 25, 0.08), 0 10px 20px rgba(11, 15, 25, 0.14);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -123,10 +125,20 @@
   --neutral-700: #374151;
   --neutral-900: #111827;
 
-  /* Elevation (tinted blue-black, 3-step) */
+  /* Elevation (tinted blue-black, 3-step) — halved with the @theme scale above */
   --shadow-sm: 0 1px 2px rgba(11, 15, 25, 0.06);
-  --shadow-md: 0 8px 20px rgba(11, 15, 25, 0.06);
-  --shadow-lg: 0 16px 32px rgba(11, 15, 25, 0.12);
+  --shadow-md: 0 4px 10px rgba(11, 15, 25, 0.06);
+  --shadow-lg: 0 8px 16px rgba(11, 15, 25, 0.12);
+
+  /* Sideways elevation for the focus views' action column — the panel the
+     operator actually works in. Throws BOTH ways: a one-sided cast made the
+     column look shunted against the rail rather than lifted off the page, so
+     the pair is what actually reads as elevation. No vertical component — the
+     column runs the full height, so a downward cast would have nothing to
+     fall on. */
+  --shadow-panel:
+    6px 0 12px -8px rgba(11, 15, 25, 0.14),
+    -6px 0 12px -8px rgba(11, 15, 25, 0.14);
 
   /* Motion */
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
@@ -179,7 +191,8 @@
   --chart-3: var(--lavender-500);
   --chart-4: var(--cyan-500);
   --chart-5: var(--green-500);
-  --radius: 0.75rem;
+  /* Halved from the original 0.75rem — every rounded-* step derives from this. */
+  --radius: 0.375rem;
   --sidebar: var(--neutral-50);
   --sidebar-foreground: var(--neutral-900);
   --sidebar-primary: var(--purple-500);
@@ -278,7 +291,11 @@
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.22em;
-  color: var(--muted-foreground);
+  /* Darkened here rather than at call sites. It was previously
+     --muted-foreground and got overridden to foreground/75 in LeftSection — but
+     two dozen eyebrows are hand-rolled rather than going through LeftSection, so
+     they never picked it up and read visibly lighter than their neighbours. */
+  color: color-mix(in oklab, var(--foreground) 75%, transparent);
 }
 
 /* Canvas surface — the signal grid, so the editor reads as a workspace */
@@ -429,4 +446,85 @@
     100% 100%,
     72px 72px,
     72px 72px;
+}
+
+/* ── Camera-motion preview tiles (Video Prompt → Camera) ─────────────────────
+   A schematic 3D scene per camera move, ported from the Camera Motion 3D design
+   canvas: the camera rig animates while the subject holds still, so each tile
+   demonstrates its own move instead of decorating it with an unrelated photo.
+
+   Easing here deliberately departs from the system's cubic-bezier(0.22,1,0.36,1).
+   That curve is an ease-OUT; on an `alternate` loop it decelerates into both ends
+   and reads as a lurch. These are looping diagrams rather than UI transitions, so
+   they use a symmetric ease-in-out. Nothing else in the app uses --cam-ease. */
+:root {
+  --cam-ease: cubic-bezier(0.45, 0.05, 0.25, 1);
+}
+
+@keyframes cam-push {
+  to { transform: translateZ(120px); }
+}
+@keyframes cam-pull {
+  to { transform: translateZ(-160px); }
+}
+@keyframes cam-orbit {
+  from { transform: rotateY(-35deg); }
+  to { transform: rotateY(35deg); }
+}
+@keyframes cam-pan {
+  from { transform: rotateY(0deg); }
+  to { transform: rotateY(-12deg); }
+}
+@keyframes cam-tilt {
+  from { transform: rotateX(0deg); }
+  to { transform: rotateX(8deg); }
+}
+@keyframes cam-crane {
+  from { transform: translateY(2px) rotateX(2deg); }
+  to { transform: translateY(20px) rotateX(22deg); }
+}
+@keyframes cam-hand {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  16% { transform: translate3d(2px, -1.5px, 0) rotateZ(0.7deg); }
+  34% { transform: translate3d(-1.8px, 1px, 0) rotateZ(-0.6deg); }
+  52% { transform: translate3d(1.2px, 1.8px, 0) rotateZ(0.5deg); }
+  70% { transform: translate3d(-2.2px, -0.8px, 0) rotateZ(-0.8deg); }
+  86% { transform: translate3d(1px, -2px, 0) rotateZ(0.6deg); }
+}
+/* Seamless: one full grid cell per cycle, so the ground streams without a jump. */
+@keyframes cam-track {
+  to { background-position: 24px 0, 24px 0; }
+}
+@keyframes cam-blink {
+  0%, 55%, 100% { opacity: 1; }
+  70%, 85% { opacity: 0.1; }
+}
+
+/* Nine looping scenes on one screen is exactly the case this media query exists
+   for. The tiles still render — they just hold their first frame. */
+@media (prefers-reduced-motion: reduce) {
+  .cam-scene,
+  .cam-scene * {
+    animation: none !important;
+  }
+}
+
+/* Camera tiles hold their first frame until hovered or selected. The scene sets
+   animation-play-state:inherit on every animated node, so setting it once here
+   reaches the whole 3D set. */
+/* Raised action column in the focus views. Set as box-shadow directly rather
+   than through shadow-[var(--shadow-panel)]: Tailwind rewrites shadow utilities
+   to inject a colour, and that pass drops all but the first shadow in a
+   multi-value var — which left this casting to one side only. */
+.panel-raised {
+  box-shadow: var(--shadow-panel);
+}
+
+.cam-tile {
+  animation-play-state: paused;
+}
+.cam-tile:hover,
+.cam-tile:focus-visible,
+.cam-tile[aria-pressed="true"] {
+  animation-play-state: running;
 }

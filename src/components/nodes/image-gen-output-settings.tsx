@@ -65,14 +65,17 @@ export function ImageGenOutputSettings({
     .sort((a: ParamSpec, b: ParamSpec) => a.order - b.order);
 
   return (
-    <div className="space-y-5">
-      {/* Model — grouped chips inside a card, one row of chips per provider. */}
-      <div className="space-y-2">
+    <div className="space-y-4 [&>*+*]:border-t [&>*+*]:border-border [&>*+*]:pt-4">
+      {/* Model — one chip row per provider. Deliberately NOT boxed: Model, Aspect
+          ratio and Resolution are peers, and a card around only the first read as
+          "this one is different". The provider sub-labels plus the tighter inner
+          spacing carry the nesting on their own. */}
+      <div className="space-y-3">
         <FieldLabel icon={Cpu} label="Model" />
-        <div className="space-y-3 rounded-xl border border-border p-3">
+        <div className="space-y-4">
           {imageGenClientModelGroups.map((group) => (
-            <div key={group.provider} className="space-y-1.5">
-              <span className="text-[0.7rem] font-medium text-muted-foreground">
+            <div key={group.provider} className="space-y-2">
+              <span className="text-[0.65rem] font-medium tracking-wide text-foreground/70 uppercase">
                 {group.label}
               </span>
               <ParamChipGroup
@@ -87,10 +90,10 @@ export function ImageGenOutputSettings({
 
       {/* Primary params — each rendered as a chip group, stacked vertically so
           Quality/Resolution always sits below Aspect Ratio. */}
-      <div className="flex flex-col gap-5">
+      <div className="flex flex-col gap-4 [&>*+*]:border-t [&>*+*]:border-border [&>*+*]:pt-4">
         {primaryParams.map((param: ParamSpec) =>
           param.constraints.type === "select" ? (
-            <div key={param.name} className="space-y-2">
+            <div key={param.name} className="space-y-3">
               <FieldLabel
                 icon={PARAM_ICONS[param.name] ?? Settings2}
                 label={param.label}

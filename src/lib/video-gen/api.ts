@@ -98,18 +98,29 @@ export const videoGenApi = {
     return { generationId: json.generationId };
   },
 
+  // Returns the version's model and params alongside its video so the caller can put the node
+  // back into the state that produced it (YUV-295), not just swap the clip. `modelUsed` is null
+  // for versions predating the field; `paramsUsed` is `{}` for versions that recorded none.
   async restoreVersion(
     nodeId: string,
     versionId: string,
-  ): Promise<{ output: string }> {
+  ): Promise<{ output: string; modelUsed: string | null; paramsUsed: Record<string, unknown> }> {
     const res = await fetch(`/api/nodes/${nodeId}/restore-version`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ versionId }),
     });
     if (!res.ok) await parseError(res, "Restore failed");
-    const json = await res.json() as { output: string | null };
+    const json = await res.json() as {
+      output: string | null;
+      modelUsed?: string | null;
+      paramsUsed?: Record<string, unknown>;
+    };
     if (typeof json.output !== "string") throw new Error("No output returned from restore");
-    return { output: json.output };
+    return {
+      output: json.output,
+      modelUsed: json.modelUsed ?? null,
+      paramsUsed: json.paramsUsed ?? {},
+    };
   },
 };

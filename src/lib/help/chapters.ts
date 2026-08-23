@@ -4,13 +4,15 @@ import type { HelpChapter } from "@/lib/help/types";
 // them out of git to avoid permanent repo weight, and that was right for the source
 // recordings — but those are ~3.4 Mbps screen captures, an order of magnitude above what
 // low-motion UI footage needs. Re-encoded (H.264, CRF 26, no audio track, since they play
-// muted) a clip is ~350KB rather than ~5MB, so the full set of 23 is about 8MB: small
+// muted) a clip is ~350KB rather than ~5MB, so the full set of 22 is about 6MB: small
 // enough that hosting them separately costs more than it saves. In return a clip and the
 // code referencing it land in one commit, with no upload step and no window where the
 // page points at a file that isn't there yet.
 //
-// An empty `clip` means "authored, not yet recorded" — the step still renders its title
-// and body, and the player shows a placeholder instead of a broken frame.
+// All 22 are recorded as of 2026-08-13. An empty `clip` remains legal and means
+// "authored, not yet recorded" — the step still renders its title and body, and the
+// player shows a placeholder instead of a broken frame. The draft chapters below rely
+// on that, and so will any new step written before its recording exists.
 const CLIPS = "/help-videos";
 
 export const HELP_CHAPTERS: HelpChapter[] = [
@@ -72,14 +74,6 @@ export const HELP_CHAPTERS: HelpChapter[] = [
           "The generation tray tells you when the clip is ready.",
         ],
         clip: `${CLIPS}/create-a-reel/06-generate-clip.mp4`,
-      },
-      {
-        title: "Approve and archive",
-        body: [
-          "Approve the clip you want to keep.",
-          "Archive the project to bundle the script, prompts, controls and attempts together.",
-        ],
-        clip: "",
       },
     ],
   },
@@ -231,7 +225,7 @@ export const HELP_CHAPTERS: HelpChapter[] = [
           "You can still open every node and read everything.",
           "Only changes are blocked, so you cannot overwrite their work.",
         ],
-        clip: "",
+        clip: `${CLIPS}/why-cant-i-edit-this-canvas/01-someone-editing.mp4`,
       },
       {
         title: "Take over once their session goes stale",
@@ -239,7 +233,7 @@ export const HELP_CHAPTERS: HelpChapter[] = [
           "If they have stopped working, their session goes stale.",
           "The take-over button then becomes available and the canvas is yours to edit.",
         ],
-        clip: "",
+        clip: `${CLIPS}/why-cant-i-edit-this-canvas/02-take-over.mp4`,
       },
     ],
   },
@@ -256,7 +250,7 @@ export const HELP_CHAPTERS: HelpChapter[] = [
           "You can keep working anywhere on the canvas.",
           "Nothing is lost if you navigate away or close the tab.",
         ],
-        clip: "",
+        clip: `${CLIPS}/where-did-my-video-go/01-runs-in-background.mp4`,
       },
       {
         title: "Find it in the generation tray",
@@ -265,7 +259,7 @@ export const HELP_CHAPTERS: HelpChapter[] = [
           "Click one to fly to its node and open it.",
           "A ready job stays listed until you approve it.",
         ],
-        clip: "",
+        clip: `${CLIPS}/where-did-my-video-go/02-generation-tray.mp4`,
       },
     ],
   },

@@ -5,15 +5,22 @@ import { Skeleton } from "@/components/ui/skeleton";
  * the clients list (`/`) and canvases list (`/clients/[id]`). Mirrors ListToolbar
  * (search + sort) and the 3/2/1-weighted table chrome so the swap to real content
  * produces no layout shift. `withAvatar` adds the size-9 logo tile the clients
- * table shows in its first column.
+ * table shows in its first column. `withSort` mirrors whether the page's toolbar
+ * renders the sort select — the clients list is search-only.
  */
-export function ListSkeleton({ withAvatar = false }: { withAvatar?: boolean }) {
+export function ListSkeleton({
+  withAvatar = false,
+  withSort = true,
+}: {
+  withAvatar?: boolean;
+  withSort?: boolean;
+}) {
   return (
     <div>
-      {/* Toolbar: search input (flex-1) + sort select — mirrors ListToolbar */}
+      {/* Toolbar: search input (flex-1) + optional sort select — mirrors ListToolbar */}
       <div className="mb-5 flex items-center gap-3">
         <Skeleton className="h-11 flex-1 rounded-xl" />
-        <Skeleton className="h-11 w-28 rounded-xl" />
+        {withSort && <Skeleton className="h-11 w-28 rounded-xl" />}
       </div>
 
       <div className="overflow-hidden rounded-xl border bg-card shadow-card">

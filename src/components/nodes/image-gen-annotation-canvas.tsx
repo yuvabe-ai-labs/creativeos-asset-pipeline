@@ -9,6 +9,7 @@ import {
   useState,
 } from "react";
 import { Eraser, Trash2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Slider } from "@/components/ui/slider";
 import { overlayToMaskRGBA } from "@/lib/image-gen/mask";
@@ -161,14 +162,15 @@ export const ImageGenAnnotationCanvas = forwardRef<AnnotationHandle, Props>(
     return (
       <div className="flex h-full min-h-0 gap-3">
         {/* Canvas area */}
-        <div className="flex h-full min-h-0 flex-1 flex-col items-center gap-2">
-          <p className="shrink-0 text-xs text-muted-foreground">
-            Paint over the area you want to change.
-          </p>
-          {/* Bounded image area: takes the height left after the hint, so the wrapper's
-              max-h-full (below) resolves against THIS box and the image is contained, not clipped. */}
+        <div className="flex h-full min-h-0 flex-1 flex-col items-center">
+          {/* The hint used to sit here as its own row, which made the painted image
+              shorter than the same image in generate mode. It is an overlay now, so
+              this box hands its full height to the picture. */}
           <div className="flex min-h-0 w-full flex-1 items-center justify-center">
-            {/* Wrapper matches the image aspect so the overlay lines up exactly. */}
+            {/* Wrapper matches the image aspect so the overlay lines up exactly — which
+                is why the height is a MAX and not h-full: pinning the height while the
+                width clamps at max-w-full breaks the aspect box, letterboxing the image
+                inside its own frame and knocking the paint canvas out of registration. */}
             <div
               className="relative max-h-full max-w-full overflow-hidden rounded-xl border border-border bg-muted/20"
               style={
@@ -195,17 +197,22 @@ export const ImageGenAnnotationCanvas = forwardRef<AnnotationHandle, Props>(
                   style={{ cursor: "crosshair", touchAction: "none" }}
                 />
               )}
+              {/* pointer-events-none: this sits over the paintable canvas. */}
+              <p className="pointer-events-none absolute inset-x-0 bottom-0 bg-background/80 px-3 py-1.5 text-center text-xs text-muted-foreground backdrop-blur-sm">
+                Paint over the area you want to change.
+              </p>
             </div>
           </div>
         </div>
 
         {/* Right rail — brush/eraser · brush size · clear */}
         <div className="flex w-16 shrink-0 flex-col items-center gap-3 rounded-xl border border-border bg-card px-2 py-3">
-          <button
+          <Button
             type="button"
+            variant="ghost"
             onClick={() => setTool("pen")}
             className={cn(
-              "inline-flex size-8 items-center justify-center rounded-md transition hover:bg-muted",
+              "size-8 rounded-md p-0 transition hover:bg-muted",
               tool === "pen" && "ring-2 ring-primary ring-offset-1"
             )}
             aria-label="Paint region"
@@ -214,19 +221,20 @@ export const ImageGenAnnotationCanvas = forwardRef<AnnotationHandle, Props>(
               className="size-4 rounded-full"
               style={{ backgroundColor: MASK_COLOR }}
             />
-          </button>
+          </Button>
 
-          <button
+          <Button
             type="button"
+            variant="ghost"
             onClick={() => setTool("eraser")}
             className={cn(
-              "inline-flex size-8 items-center justify-center rounded-md transition hover:bg-muted",
+              "size-8 rounded-md p-0 transition hover:bg-muted",
               tool === "eraser" && "ring-2 ring-primary ring-offset-1"
             )}
             aria-label="Eraser"
           >
             <Eraser className="size-4" strokeWidth={1.5} />
-          </button>
+          </Button>
 
           {/* Brush size — vertical slider (fixed 200px) with a live preview dot */}
           <div className="flex flex-col items-center gap-2 py-1">
@@ -247,14 +255,15 @@ export const ImageGenAnnotationCanvas = forwardRef<AnnotationHandle, Props>(
             />
           </div>
 
-          <button
+          <Button
             type="button"
+            variant="ghost"
             onClick={resetMarks}
-            className="inline-flex size-8 items-center justify-center rounded-md text-destructive transition hover:bg-muted"
+            className="size-8 rounded-md p-0 text-destructive transition hover:bg-muted hover:text-destructive"
             aria-label="Clear annotation"
           >
             <Trash2 className="size-4" strokeWidth={1.5} />
-          </button>
+          </Button>
         </div>
       </div>
     );

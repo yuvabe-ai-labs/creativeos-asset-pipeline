@@ -161,6 +161,30 @@ export function findLayer(layers: PostLayer[], id: string): PostLayer | undefine
   return undefined;
 }
 
+/**
+ * Which TOP-LEVEL layer owns `id` — the layer itself if it sits in the top-level array, the
+ * group that contains it (outermost, when groups nest) if it doesn't, null if it is nowhere.
+ *
+ * Every editor action addresses a top-level id: groupLayers/ungroupLayers/removeLayer/
+ * reorderLayer all work on the top-level array, and the inspector resolves its layer with a
+ * flat `layers.find`. A grouped child's id is NOT one of those — handing it to them silently
+ * does nothing (YUV-303).
+ *
+ * That is exactly what a right-click on a group produced. Konva reports the child SHAPE under
+ * the cursor as the event target, and post-stage.tsx's ref map also holds every grouped text
+ * child (it has to — the inline editor measures those nodes), so walking up from the target hit
+ * the label's own id before ever reaching the group's. The selection collapsed onto a layer that
+ * does not exist at top level, which greyed out Ungroup, left the inspector empty, and made
+ * every menu item a no-op. Resolving through here keeps a click ON a group meaning the GROUP.
+ */
+export function topLevelOwnerId(layers: PostLayer[], id: string): string | null {
+  for (const layer of layers) {
+    if (layer.id === id) return layer.id;
+    if (layer.kind === "group" && findLayer(layer.children ?? [], id)) return layer.id;
+  }
+  return null;
+}
+
 // Arrays are ordered back -> front (index 0 renders first, underneath everything else),
 // so appending puts the new layer on top — matching "Add" always landing visibly in front.
 export function addLayer(layers: PostLayer[], layer: PostLayer): PostLayer[] {

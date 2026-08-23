@@ -36,8 +36,11 @@ the in-repo source of truth. Aesthetic: *"light editorial premium."*
 - **Drive everything through the shadcn CSS variables** in `globals.css` — never hardcode
   colors. Use the `.text-eyebrow` utility for tracked small-caps labels (not mono).
 - **Hierarchy from weight / casing / tracking / color, not size.** ~3 type sizes per page.
-- **Cards:** white, 1px `neutral-200` border, soft high blue-black shadow
-  (`0 8px 20px rgba(11,15,25,.06)`), generous padding, radius 12–24px.
+- **Cards:** white, 1px `neutral-200` border, soft blue-black shadow
+  (`shadow-card`: `0 1px 2px rgba(11,15,25,.08), 0 6px 14px rgba(11,15,25,.1)` — ambient
+  halos run at half the original Yuvabe export so surfaces don't read as floating panels),
+  generous padding, radius ~8–14px (`rounded-xl`–`rounded-3xl`; all steps derive from
+  `--radius: 0.375rem` in `globals.css`).
 - **Motion:** easing `cubic-bezier(0.22,1,0.36,1)` only (no springs/bounce); 200/320/500ms.
   Card hover is barely-perceptible (`translateY(-2px) scale(1.006)`, no shadow change).
   Prefer CSS. For React orchestration the **`motion`** library (Framer Motion) is installed —

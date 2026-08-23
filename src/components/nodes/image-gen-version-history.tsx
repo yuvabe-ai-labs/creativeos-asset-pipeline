@@ -2,14 +2,20 @@
 
 import { cn } from "@/lib/utils";
 import { History } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import type { ImageTokenUsage } from "@/lib/image-gen/types";
+import { describeVersionParams } from "@/lib/generations/version-params";
+import { imageGenClientModelMap } from "@/lib/image-gen/client-models";
 
 export type ImageGenVersionSummary = {
   id: string;
   output: string | null;   // image URL
   error: string | null;
   modelUsed?: string | null;
-  paramsUsed: {
+  // The raw `node_versions.params_used` record: the model's own params plus the pipeline's
+  // bookkeeping. `modelId`/`tokensUsed` are called out because callers read them by name;
+  // everything else is read through the model's param specs (lib/generations/version-params).
+  paramsUsed: Record<string, unknown> & {
     modelId?: string;
     tokensUsed?: ImageTokenUsage | null;
   };
@@ -75,22 +81,32 @@ export function ImageGenVersionHistory({
             const isError  = Boolean(v.error);
             const isDisabled = isActive || restoring || isError;
             const label = `v${total - i}`;
-            const modelLabel =
-              (v.paramsUsed?.modelId ?? v.modelUsed ?? "").split(":")[1] ?? "";
+            const versionModelId = v.paramsUsed?.modelId ?? v.modelUsed ?? "";
+            const modelLabel = versionModelId.split(":")[1] ?? "";
+            // YUV-295: what this version was actually generated with. Without it two rows for
+            // the same prompt are indistinguishable — and since restoring one now also restores
+            // its model and params, the row has to show what restoring would apply.
+            const paramSummary = describeVersionParams(
+              imageGenClientModelMap[versionModelId]?.params,
+              v.paramsUsed ?? {},
+            )
+              .map((p) => `${p.label}: ${p.value}`)
+              .join(" · ");
 
             return (
               <li key={v.id}>
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
                   disabled={isDisabled}
                   onClick={() => !isDisabled && onRestore(v.id)}
                   className={cn(
-                    "group w-full rounded-lg border px-3 py-2 text-left transition-colors",
+                    "group block h-auto w-full rounded-lg border px-3 py-2 text-left font-normal whitespace-normal transition-colors hover:bg-transparent dark:hover:bg-transparent disabled:pointer-events-auto disabled:opacity-100",
                     isActive
                       ? "border-primary bg-primary/8 cursor-default"
                       : isError
-                        ? "cursor-not-allowed border-border opacity-60"
-                        : "cursor-pointer border-border hover:bg-muted",
+                        ? "cursor-not-allowed border-border opacity-60 disabled:opacity-60"
+                        : "cursor-pointer border-border hover:bg-muted dark:hover:bg-muted",
                   )}
                 >
                   <div className="flex items-center justify-between gap-2">
@@ -145,6 +161,12 @@ export function ImageGenVersionHistory({
                     </p>
                   )}
 
+                  {paramSummary && (
+                    <p className="ml-3.5 mt-0.5 line-clamp-2 text-[0.65rem] leading-snug text-muted-foreground/80">
+                      {paramSummary}
+                    </p>
+                  )}
+
                   {v.inputsUsed?.baseVersionId && (
                     <p className="ml-3.5 mt-0.5 text-[0.65rem] leading-snug text-primary/70">
                       edited from {labelById.get(v.inputsUsed.baseVersionId) ?? "an earlier version"}
@@ -155,7 +177,7 @@ export function ImageGenVersionHistory({
                       “{v.inputsUsed.instruction}”
                     </p>
                   )}
-                </button>
+                </Button>
               </li>
             );
           })}

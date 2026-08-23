@@ -5,6 +5,7 @@ import { XIcon, SparklesIcon, CheckIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { EditableField } from "@/components/nodes/editable-field";
 import { KBColorSwatches } from "@/components/kb/kb-color-swatches";
+import { Button } from "@/components/ui/button";
 import {
   Popover,
   PopoverContent,
@@ -152,24 +153,26 @@ export function KBFieldRow({
           {!isReanalyzing && (
             <div className="flex shrink-0 items-center gap-1">
               {isRejected ? (
-                <button
+                <Button
                   type="button"
+                  variant="link"
                   onClick={() => onEdit((field.value as string | string[]) ?? "")}
-                  className="text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
+                  className="h-auto p-0 text-xs font-normal text-muted-foreground underline-offset-2 hover:text-foreground"
                 >
                   Restore
-                </button>
+                </Button>
               ) : (
                 <>
                   {isEmpty && field.status === "needs_review" && (
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
                       onClick={onApprove}
                       title="Approve — confirm this field is empty"
-                      className="flex size-6 items-center justify-center rounded-md text-muted-foreground hover:bg-emerald-100 hover:text-emerald-700 dark:hover:bg-emerald-900/30 transition-colors"
+                      className="size-6 rounded-md p-0 text-muted-foreground hover:bg-emerald-100 hover:text-emerald-700 dark:hover:bg-emerald-900/30"
                     >
                       <CheckIcon className="size-3.5" />
-                    </button>
+                    </Button>
                   )}
                   <Popover
                     open={aiOpen}
@@ -180,13 +183,14 @@ export function KBFieldRow({
                   >
                     <PopoverTrigger
                       render={
-                        <button
+                        <Button
                           type="button"
+                          variant="ghost"
                           title="Refine with AI"
-                          className="flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary data-[popup-open]:bg-primary/10 data-[popup-open]:text-primary"
+                          className="size-6 rounded-md p-0 text-muted-foreground hover:bg-primary/10 hover:text-primary aria-expanded:bg-primary/10 aria-expanded:text-primary data-[popup-open]:bg-primary/10 data-[popup-open]:text-primary"
                         >
                           <SparklesIcon className="size-3.5" />
-                        </button>
+                        </Button>
                       }
                     />
                     <PopoverContent align="end" sideOffset={6} className="w-80 gap-0">
@@ -208,27 +212,28 @@ export function KBFieldRow({
                       />
                       <div className="mt-2 flex items-center justify-between">
                         <span className="text-[0.6rem] text-muted-foreground">⌘↵ to submit</span>
-                        <button
+                        <Button
                           type="button"
                           onClick={handleSubmitAI}
                           disabled={!aiComment.trim()}
-                          className="flex items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-40"
+                          className="h-auto gap-1 rounded-md px-2.5 py-1 text-xs hover:bg-primary/90 disabled:opacity-40"
                         >
                           <SparklesIcon className="size-3" />
                           Re-analyze
-                        </button>
+                        </Button>
                       </div>
                     </PopoverContent>
                   </Popover>
                   {!isEmpty && (
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
                       onClick={onReject}
                       title="Reject"
-                      className="flex size-6 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                      className="size-6 rounded-md p-0 text-muted-foreground dark:hover:bg-muted"
                     >
                       <XIcon className="size-3.5" />
-                    </button>
+                    </Button>
                   )}
                 </>
               )}

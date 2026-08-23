@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ChevronRight, Maximize2, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import {
   Tooltip,
   TooltipContent,
@@ -82,24 +83,26 @@ export function VideoGenConnectedSection({
       {/* Clear roles button — only shown when at least one role is assigned */}
       {hasAnyAssignment && onReset && (
         <div className="flex justify-end">
-          <button
+          <Button
             type="button"
+            variant="ghost"
             onClick={onReset}
-            className="inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+            className="h-auto gap-1 border-0 p-0 text-xs font-normal text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground"
           >
             <RotateCcw className="size-3" strokeWidth={1.5} />
             Clear roles
-          </button>
+          </Button>
         </div>
       )}
 
       {promptNode && (
         <div className="overflow-hidden rounded-lg border border-border">
           <div className="flex items-center gap-1.5 px-2.5 py-2">
-            <button
+            <Button
               type="button"
+              variant="ghost"
               onClick={() => setPromptOpen((p) => !p)}
-              className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+              className="flex h-auto min-w-0 flex-1 shrink items-center justify-start gap-1.5 rounded-none border-0 p-0 text-left font-normal hover:bg-transparent"
             >
               <ChevronRight
                 className={cn(
@@ -110,16 +113,17 @@ export function VideoGenConnectedSection({
               <span className="truncate text-xs font-semibold text-foreground">
                 Motion prompt
               </span>
-            </button>
+            </Button>
             {onOpenDetail && (
-              <button
+              <Button
                 type="button"
+                variant="ghost"
                 onClick={() => onOpenDetail(promptNode.id, "prompt")}
                 title="View full prompt"
-                className="shrink-0 text-muted-foreground transition-colors hover:text-primary"
+                className="h-auto shrink-0 border-0 p-0 text-muted-foreground transition-colors hover:bg-transparent hover:text-primary"
               >
                 <Maximize2 className="size-3.5" />
-              </button>
+              </Button>
             )}
           </div>
           {promptOpen && (
@@ -161,14 +165,15 @@ export function VideoGenConnectedSection({
                     />
                   </div>
                   {onOpenDetail && (
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
                       onClick={() => onOpenDetail(image.id, "image")}
                       title="View full image"
-                      className="absolute right-1.5 top-1.5 flex items-center justify-center rounded bg-black/60 p-1 text-white/80 opacity-0 backdrop-blur-sm transition-opacity hover:text-white group-hover:opacity-100"
+                      className="absolute right-1.5 top-1.5 flex h-auto w-auto items-center justify-center rounded border-0 bg-black/60 p-1 text-white/80 opacity-0 backdrop-blur-sm transition-opacity hover:bg-black/60 hover:text-white group-hover:opacity-100 dark:hover:bg-black/60"
                     >
                       <Maximize2 className="size-3" />
-                    </button>
+                    </Button>
                   )}
                   <div className="absolute bottom-0 left-0 right-0 flex justify-center gap-1 bg-black/60 p-1.5 backdrop-blur-sm">
                     {(["start_frame", "end_frame", "reference"] as const).map((role) => {
@@ -192,23 +197,24 @@ export function VideoGenConnectedSection({
                       }
 
                       const btn = (
-                        <button
+                        <Button
                           key={role}
                           type="button"
+                          variant="ghost"
                           aria-disabled={structurallyDisabled}
                           aria-label={`Set as ${role.replace(/_/g, " ")}`}
                           onClick={handleClick}
                           className={cn(
-                            "rounded px-2 py-0.5 text-[0.65rem] font-semibold transition-colors",
+                            "h-auto rounded border-0 px-2 py-0.5 text-[0.65rem] font-semibold transition-colors",
                             active
-                              ? "bg-primary text-primary-foreground"
-                              : "bg-white/20 text-white/80 hover:bg-white/30",
+                              ? "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground dark:hover:bg-primary"
+                              : "bg-white/20 text-white/80 hover:bg-white/30 hover:text-white/80 dark:hover:bg-white/30",
                             structurallyDisabled && "cursor-not-allowed opacity-40",
                             isConstraintBlocked && !active && "opacity-60 cursor-pointer",
                           )}
                         >
                           {label}
-                        </button>
+                        </Button>
                       );
                       if (!tooltip) return btn;
                       return (

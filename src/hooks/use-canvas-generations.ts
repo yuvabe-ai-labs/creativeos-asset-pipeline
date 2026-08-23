@@ -52,6 +52,28 @@ async function doFetch(canvasId: string) {
   }
 }
 
+/**
+ * Refetch the generations of every canvas already in this session's cache (or just one, when
+ * given an id) — the in-app "a generation just landed" signal, called straight from the code
+ * that completed it.
+ *
+ * The Gallery Drawer's "Canvas Generations" tab used to depend entirely on the org-wide
+ * Realtime subscription below to notice new images, and that out-of-band path had already been
+ * repaired twice without the tab actually updating. It doesn't need to be out-of-band at all:
+ * /api/nodes/[id]/image-generate awaits succeedGeneration() BEFORE it responds, so by the time
+ * the focus view's fetch resolves the row is already committed and this refetch is guaranteed
+ * to see it. Realtime stays wired up as a bonus for generations completed in another tab.
+ *
+ * Deliberately keyless-by-default: callers (a node focus view) know a generation finished but
+ * not which canvas cache holds it, and a session realistically has one canvas cached anyway.
+ * Nothing is fetched for a canvas that was never opened — the drawer's own first-open fetch
+ * covers that.
+ */
+export function revalidateCanvasGenerations(canvasId?: string): Promise<void> {
+  const ids = canvasId ? (cache.has(canvasId) ? [canvasId] : []) : [...cache.keys()];
+  return Promise.all(ids.map((id) => doFetch(id))).then(() => undefined);
+}
+
 /** Test-only pure internals. */
 export const __canvasGenerationsInternals = {
   doFetch,
@@ -112,6 +134,14 @@ export function useCanvasGenerations(canvasId: string) {
     }
   }, [canvasId]);
 
+  // Background re-read for callers that want fresh data without the spinner: unlike refresh()
+  // (the header button, where the operator asked for it and should SEE it happen) this keeps
+  // the cached items on screen and swaps them once the new ones arrive. Used on drawer open,
+  // where the mount-time effect above deliberately can't help — its cache.has() short-circuit
+  // means a canvas fetched once in this session is never re-read, so a drawer closed and
+  // reopened after a generation showed exactly the images it had the first time.
+  const revalidate = useCallback(() => revalidateCanvasGenerations(canvasId), [canvasId]);
+
   const entry = cache.get(canvasId);
 
   return {
@@ -119,5 +149,6 @@ export function useCanvasGenerations(canvasId: string) {
     loading,
     loadError: entry?.loadError ?? null,
     refresh,
+    revalidate,
   };
 }

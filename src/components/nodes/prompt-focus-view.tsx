@@ -31,7 +31,7 @@ import { GenerationErrorBadge } from "./generation-error-badge";
 import { MentionInstructionEditor } from "./mention-instruction-editor";
 import { normalizeTitle } from "@/lib/nodes/title";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+import { FieldLabel } from "./field-label";
 import { GuidedNextButton } from "@/components/canvas/guided-next-button";
 import { SliceToggles } from "./slice-toggles";
 import { DEFAULT_INSTRUCTION } from "@/lib/nodes/prompt";
@@ -43,6 +43,7 @@ import type { KBSliceKey } from "@/lib/kb/parse-context";
 import { ShotControlsRow } from "./shot-controls-row";
 import {
   deriveShotControlDefaults,
+  controlHighlightTerms,
   DEFAULT_SHOT_CONTROLS,
   type ShotControls,
 } from "@/lib/nodes/shot-controls";
@@ -61,13 +62,19 @@ import { setVersionLabelAction } from "@/lib/actions/eval";
 import { setVersionApprovalAction } from "@/lib/actions/approval";
 import { useIdentity } from "@/hooks/use-identity";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
+import { useFlushAutosave } from "@/components/canvas/autosave-flush-context";
+import { Skeleton } from "@/components/ui/skeleton";
 import type { ApprovalStatus } from "@/lib/approval";
 import { cn } from "@/lib/utils";
 import { PromptVersionChips } from "./prompt-version-chips";
-import { describeApprovalPill } from "@/lib/nodes/prompt-focus";
+import {
+  describeApprovalPill,
+  splitSentenceBeats,
+  segmentByTerms,
+  CAMERA_SPEC_PATTERNS,
+} from "@/lib/nodes/prompt-focus";
 import { LeftSection } from "./focus-left-section";
 import { RailItem } from "./focus-rail-item";
-import { PromptShotReference, PromptShotReferenceEmpty } from "./prompt-shot-reference";
 
 type PromptFocusViewProps = {
   open: boolean;
@@ -126,7 +133,14 @@ export function PromptFocusView({
   const [versions, setVersions] = useState<VersionSummary[]>([]);
   const [activeVersionId, setActiveVersionId] = useState<string | null>(null);
   const [restoring, setRestoring] = useState(false);
-  const [loadingPreview, setLoadingPreview] = useState(false);
+  // Seeded from `open`, not `false` — see the note in video-prompt-focus-view.tsx: a node
+  // created by the guided button mounts with its focus view already open, so the false → true
+  // transition the seed block arms on never happens and the panel showed its empty state
+  // instead of a skeleton for the whole first resolve.
+  const [loadingPreview, setLoadingPreview] = useState(open);
+  // False until this node's edges are known to be PERSISTED — gates every server-side
+  // resolve below. See the flush effect for why.
+  const [inputsPersisted, setInputsPersisted] = useState(false);
   // The selected rail item: "prompt" (the compose editor), "kb", "review", or a
   // connected node's id (right pane shows that node's read-only detail).
   const [selected, setSelected] = useState<string>("prompt");
@@ -138,6 +152,7 @@ export function PromptFocusView({
   const [approvalSaving, setApprovalSaving] = useState(false);
   const { identity } = useIdentity();
   const editable = useCanvasEditable(); // D33: false when this session is read-only
+  const flushAutosave = useFlushAutosave();
   const [evalSaving, setEvalSaving] = useState(false);
   // A pending destructive action awaiting confirmation. Replaces window.confirm
   // so the prompt stays inside the design system instead of native OS chrome.
@@ -166,6 +181,12 @@ export function PromptFocusView({
     if (opening) {
       setLoadingPreview(true);
     }
+    // Re-arm the "inputs are persisted" gate the same way (see the effect below). Adjusted
+    // during render rather than in that effect, which cannot set state synchronously —
+    // a node switch inside an already-open sheet has to wait for its own flush.
+    if (opening || nodeChanged) {
+      setInputsPersisted(false);
+    }
   }
 
   // A connected node is selected when `selected` isn't one of the fixed rail keys.
@@ -173,9 +194,13 @@ export function PromptFocusView({
   const selectedNode = isNodeSelected
     ? preview.connected.find((c) => c.nodeId === selected) ?? null
     : null;
-  // Pinned shot preview beside the compose column — Prompt nodes carry one shot in
-  // practice; show the first.
-  const shotPreview = preview.connected.find((c) => c.type === "shot") ?? null;
+  // Cross-check highlights for the read view: the curated keywords for each set control,
+  // plus camera-spec patterns (focal length, aperture) that always highlight — under an
+  // Auto control those show what the model chose.
+  const highlightTerms = useMemo(
+    () => [...controlHighlightTerms(controls ?? DEFAULT_SHOT_CONTROLS), ...CAMERA_SPEC_PATTERNS],
+    [controls],
+  );
   // The compose layout owns both the "Prompt" rail item and any connected-input selection:
   // selecting a connected input swaps the CENTER column to its read-only detail; the right
   // column is ALWAYS the generated output.
@@ -220,8 +245,40 @@ export function PromptFocusView({
     }
   }
 
+  /**
+   * Everything below resolves this node's inputs SERVER-side, from PERSISTED edges
+   * (compile-preview → resolvePromptInputs). A node reached straight from the guided
+   * "Create image prompt" button exists only in the client store at that moment — autosave
+   * persists it on a 600ms debounce, which the fetch below used to beat, so the Connected
+   * panel came up empty on first open and only filled in after a close-and-reopen.
+   *
+   * Flush first, then fetch. The sheet still opens instantly; `loadingPreview` (armed on the
+   * open transition above) keeps the skeleton up across the flush AND the fetch behind it,
+   * so the wait reads as loading rather than as "nothing is connected".
+   *
+   * Its own effect, not an await inside the fetch below: that one re-runs on every `slices`
+   * change, and a flush per slice toggle would mean a full canvas save per checkbox.
+   */
   useEffect(() => {
     if (!open) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        await flushAutosave();
+      } catch (err) {
+        console.error("[prompt] autosave flush failed:", err);
+      }
+      // Fetch even if the flush failed: autosave retries on its own, and a node whose edges
+      // were already persisted must not be held hostage to an unrelated save failure.
+      if (!cancelled) setInputsPersisted(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, nodeId, flushAutosave]);
+
+  useEffect(() => {
+    if (!open || !inputsPersisted) return;
     let cancelled = false;
 
     void (async () => {
@@ -269,7 +326,7 @@ export function PromptFocusView({
       cancelled = true;
       clearTimeout(t);
     };
-  }, [open, nodeId, slices]);
+  }, [open, nodeId, slices, inputsPersisted]);
 
   // Seed per-shot controls from the connected shot the first time they're unset; the operator
   // can then override and we never re-derive (the `controls != null` guard).
@@ -443,7 +500,7 @@ export function PromptFocusView({
       >
         {/* Header */}
         <div className="shrink-0 border-b">
-          <div className="mx-auto w-full max-w-6xl px-6 pb-5 pt-3">
+          <div className="mx-auto w-full max-w-7xl px-6 pb-5 pt-3">
             <Button
               variant="ghost"
               size="sm"
@@ -466,7 +523,8 @@ export function PromptFocusView({
               </div>
 
               <div className="flex shrink-0 items-center gap-2">
-                {versions.length > 0 && <UsagePopover versions={versions} />}
+                {/* Always rendered — pre-generation it reads "0 credits used". */}
+                <UsagePopover versions={versions} />
                 <GuidedNextButton
                   sourceId={nodeId}
                   variant="button"
@@ -483,7 +541,7 @@ export function PromptFocusView({
         </div>
 
         {/* Body: left rail + detail pane */}
-        <div className="mx-auto flex w-full max-w-6xl min-h-0 flex-1 overflow-hidden">
+        <div className="mx-auto flex w-full max-w-7xl min-h-0 flex-1 overflow-hidden">
           {/* Rail */}
           <nav className="flex w-56 shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-border px-3 py-4">
             <RailItem
@@ -494,7 +552,7 @@ export function PromptFocusView({
             />
 
             <div className="flex items-center justify-between px-2.5 pb-1 pt-3">
-              <span className="text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground/70">
+              <span className="text-[0.65rem] font-semibold uppercase tracking-wider text-foreground/70">
                 Connected · {upstream.length}
               </span>
               <AddConnection
@@ -534,7 +592,9 @@ export function PromptFocusView({
           </nav>
 
           {/* Detail pane */}
-          <div className="min-h-0 flex-1 overflow-hidden">
+          {/* No overflow-hidden: it would crop the raised column's left shadow.
+              The columns inside own their scrolling. */}
+          <div className="min-h-0 flex-1">
             {/* Prompt — two-column compose: the instruction + controls sit in the center
                 column (which swaps to a selected connected input's read-only detail), and
                 the generated prompt owns the right column. */}
@@ -543,35 +603,37 @@ export function PromptFocusView({
                 {/* Center column — instruction & controls; swaps to a connected input's
                     read-only detail when one is selected in the rail. The right column
                     stays the generated output either way. */}
-                <div className="flex h-full w-full max-w-md min-h-0 flex-col overflow-hidden border-r border-border">
+                {/* Raised work surface, matching the image-gen settings column: the
+                    output pane beside it is already bg-muted/20, so card + a sideways
+                    shadow is all this needs to come forward. */}
+                <div className="flex h-full w-[54%] shrink-0 min-h-0 flex-col overflow-hidden border-x border-primary/25 bg-card panel-raised">
                   {isNodeSelected ? (
                     detailNode ? (
                       <ConnectedDetailView node={detailNode} />
+                    ) : loadingPreview ? (
+                      // The panel's SHAPE while its inputs resolve (the autosave flush plus the
+                      // compile-preview behind it) — a centred "Loading…" in an empty pane reads
+                      // like "nothing is connected", which is the wrong impression for a node
+                      // whose inputs are merely on their way.
+                      <div className="flex h-full flex-col gap-4 px-6 py-6">
+                        <Skeleton className="h-3 w-28" />
+                        <Skeleton className="min-h-0 flex-1 rounded-xl" />
+                      </div>
                     ) : (
                       <div className="flex h-full items-center justify-center px-6 py-6">
-                        <p className="text-sm text-muted-foreground">
-                          {loadingPreview ? "Loading…" : "This input has no preview yet."}
-                        </p>
+                        <p className="text-sm text-muted-foreground">This input has no preview yet.</p>
                       </div>
                     )
                   ) : (
                     <>
-                  {/* Whole column scrolls — shot reference + instruction + controls + the
-                      Generate button all flow together; when content extends you reach the
-                      button via the scrollbar rather than pinning it to the bottom. */}
+                  {/* Whole column scrolls — instruction + controls + the Generate button all
+                      flow together; when content extends you reach the button via the
+                      scrollbar rather than pinning it to the bottom. The connected Shot is
+                      not repeated here — it's readable via its rail item on the left. */}
                   <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-                    {shotPreview ? (
-                      <PromptShotReference label={shotPreview.label} text={shotPreview.text} />
-                    ) : (
-                      <PromptShotReferenceEmpty />
-                    )}
-
                     {/* Instruction + controls */}
-                    <div className="flex flex-col gap-3 border-t border-border px-6 py-5">
-                      <div className="flex items-center gap-1.5">
-                        <PencilLine className="size-3.5 text-primary" />
-                        <span className="text-eyebrow">Instruction</span>
-                      </div>
+                    <div className="flex flex-col gap-3 px-6 py-5">
+                      <FieldLabel icon={PencilLine} label="Instruction" />
                       <MentionInstructionEditor
                         value={instructionDraft}
                         onChange={(v) => {
@@ -607,10 +669,13 @@ export function PromptFocusView({
                   )}
                 </div>
 
-                {/* Right column — ALWAYS the generated output */}
+                {/* Right column — ALWAYS the generated output. Faintly tinted so the white
+                    output card reads as the page's product against it. */}
+                {/* Plain, deliberately unstyled: the compose column beside it is the
+                    emphasised surface, and a tinted pane here competed with it. */}
                 <div className="min-h-0 flex-1 overflow-y-auto">
                   <div className="flex h-full flex-col gap-3 px-6 py-5">
-                      <div className="flex shrink-0 items-center justify-between gap-2">
+                      <div className="flex shrink-0 items-start justify-between gap-2">
                         <div className="flex items-center gap-1.5">
                           <Sparkles className="size-3.5 text-primary" />
                           <span className="text-eyebrow">Generated prompt</span>
@@ -651,13 +716,38 @@ export function PromptFocusView({
 
                       {mode === "result" && (
                         <>
-                          <Textarea
+                          {/* Read view by default — the pane is read far more than edited. One
+                              sentence per beat (the generator writes its required elements in a
+                              stable order, so sentence ≈ section), measure capped at 65ch.
+                              Clicking swaps to the raw-text editor; the Save flow below is
+                              unchanged — commit (blur / Cmd+Enter) only updates the draft. */}
+                          <EditableField
+                            multiline
                             value={draft}
-                            onChange={(e) => setDraft(e.target.value)}
-                            className="min-h-64 flex-1 resize-none rounded-xl p-4 text-base leading-relaxed [field-sizing:fixed]"
+                            onCommit={setDraft}
+                            readOnly={!editable}
+                            placeholder="Empty — click to edit"
+                            renderDisplay={(text) => (
+                              <span className="block space-y-2.5">
+                                {splitSentenceBeats(text).map((beat, i) => (
+                                  <span key={i} className="block">
+                                    {segmentByTerms(beat, highlightTerms).map((seg, j) =>
+                                      seg.highlighted ? (
+                                        <span key={j} className="rounded bg-primary/10 px-0.5 font-bold">
+                                          {seg.text}
+                                        </span>
+                                      ) : (
+                                        <span key={j}>{seg.text}</span>
+                                      ),
+                                    )}
+                                  </span>
+                                ))}
+                              </span>
+                            )}
+                            className="min-h-64 max-w-[65ch] flex-1 resize-none overflow-y-auto rounded-xl p-4 text-base leading-7 [field-sizing:fixed]"
                           />
                           <div className="flex shrink-0 items-center gap-2 self-start">
-                            <Button onClick={handleSave} disabled={!dirty}>
+                            <Button variant="outline" onClick={handleSave} disabled={!dirty}>
                               Save
                             </Button>
                             {dirty && (

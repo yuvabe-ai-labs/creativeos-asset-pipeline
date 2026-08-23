@@ -5,8 +5,9 @@ import Link from "next/link";
 import { ListToolbar } from "@/components/ui/list-toolbar";
 import { KBStatusBadge } from "@/components/clients/kb-status-badge";
 import { PendingCountPill } from "@/components/shared/pending-count-pill";
+import { TruncatedText } from "@/components/ui/truncated-text";
 import { ClientRowActions } from "@/components/clients/client-row-actions";
-import { filterAndSort, type SortKey } from "@/lib/list/filter-sort";
+import { filterAndSort } from "@/lib/list/filter-sort";
 import { formatRelativeTime } from "@/lib/format/relative-time";
 import { initials } from "@/lib/format/initials";
 import type { ClientWithCount } from "@/lib/db/clients";
@@ -24,15 +25,14 @@ export function ClientsTable({
   counts?: Record<string, number>;
 }) {
   const [query, setQuery] = useState("");
-  const [sort, setSort] = useState<SortKey>("recent");
 
   const rows = useMemo(
     () =>
-      filterAndSort(clients, query, sort, {
+      filterAndSort(clients, query, "recent", {
         name: (c) => c.name,
         timestamp: (c) => c.last_active,
       }),
-    [clients, query, sort],
+    [clients, query],
   );
 
   return (
@@ -40,16 +40,21 @@ export function ClientsTable({
       <ListToolbar
         query={query}
         onQueryChange={setQuery}
-        sort={sort}
-        onSortChange={setSort}
         placeholder="Search clients…"
       />
 
       <div className="overflow-hidden rounded-xl border bg-card shadow-card">
-        <div className="text-eyebrow flex items-center gap-4 border-b bg-muted/40 px-5 py-3 text-[0.7rem] text-muted-foreground/80">
-          <span className="flex-[3]">Client</span>
-          <span className="flex-[2]">Last active</span>
-          <span className="flex-1 text-right">Brand KB</span>
+        {/* Mirrors the row nesting exactly: an inner flex-1 track holding the three
+            columns, plus a w-12 sibling standing in for the row-actions gutter
+            (size-8 + pl-1 + pr-3). Flattening these into one flex row would add a
+            fourth gap-4 the rows never spend, pushing every header 16px off column. */}
+        <div className="text-eyebrow flex items-center border-b bg-muted/40 py-3 text-[0.7rem] text-muted-foreground/80">
+          <div className="flex min-w-0 flex-1 items-center gap-4 px-5">
+            <span className="min-w-0 flex-[3]">Client</span>
+            <span className="min-w-0 flex-[2] text-right">Last active</span>
+            <span className="min-w-0 flex-1 text-right">Brand KB</span>
+          </div>
+          <span className="w-12 shrink-0" aria-hidden />
         </div>
 
         {rows.length === 0 ? (
@@ -65,9 +70,9 @@ export function ClientsTable({
               >
                 <Link
                   href={`/clients/${client.slug}`}
-                  className="flex flex-1 items-center gap-4 px-5 py-3.5 transition-colors"
+                  className="flex min-w-0 flex-1 items-center gap-4 px-5 py-3.5 transition-colors"
                 >
-                  <span className="flex flex-[3] items-center gap-3">
+                  <span className="flex min-w-0 flex-[3] items-center gap-3">
                     {client.logo_url ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
@@ -80,17 +85,20 @@ export function ClientsTable({
                         {initials(client.name)}
                       </span>
                     )}
-                    <span className="font-medium">
-                      {client.name}
-                      <span className="ml-1.5 font-normal text-muted-foreground/60">
+                    <span className="flex min-w-0 items-baseline gap-1.5">
+                      <TruncatedText className="font-medium">
+                        {client.name}
+                      </TruncatedText>
+                      <span className="shrink-0 text-muted-foreground/60">
                         ({client.canvas_count})
                       </span>
                     </span>
                   </span>
-                  <span className="flex-[2] text-sm text-muted-foreground">
+                  <span className="min-w-0 flex-[2] truncate text-right text-sm whitespace-nowrap text-muted-foreground">
                     {formatRelativeTime(client.last_active)}
                   </span>
-                  <span className="flex flex-1 items-center justify-end gap-2">
+                  {/* min-w-0 from staging's truncation work; the pill is R5.1's count. */}
+                  <span className="flex min-w-0 flex-1 items-center justify-end gap-2">
                     <PendingCountPill count={counts[client.id] ?? 0} scope="client" />
                     <KBStatusBadge status={client.kb_status} />
                   </span>

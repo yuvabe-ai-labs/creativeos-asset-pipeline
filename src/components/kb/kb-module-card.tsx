@@ -2,6 +2,7 @@
 
 import { Circle, CircleDashed, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import type { KBField, KBFieldStatus } from "@/lib/kb/schema";
 
 type ModuleStatus = "not_started" | "in_progress" | "ready";
@@ -57,12 +58,13 @@ export function KBModuleCard({ label, fields, isSelected, onClick }: Props) {
   const Icon = STATUS_ICON[status];
 
   return (
-    <button
+    <Button
       type="button"
+      variant="ghost"
       onClick={onClick}
       className={cn(
-        "w-full rounded-lg border px-4 py-3 text-left transition-all",
-        "hover:border-foreground/20 hover:bg-muted/40",
+        "h-auto w-full flex-col items-stretch gap-0 whitespace-normal px-4 py-3 text-left font-normal [&_svg]:pointer-events-auto",
+        "hover:border-foreground/20 hover:bg-muted/40 dark:hover:bg-muted/40",
         isSelected
           ? "border-primary/50 bg-primary/5 ring-1 ring-primary/30"
           : "border-border bg-card",
@@ -86,7 +88,7 @@ export function KBModuleCard({ label, fields, isSelected, onClick }: Props) {
           style={{ width: `${progressPct}%` }}
         />
       </div>
-    </button>
+    </Button>
   );
 }
 

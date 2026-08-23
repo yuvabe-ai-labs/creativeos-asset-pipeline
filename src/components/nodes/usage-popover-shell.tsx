@@ -1,6 +1,7 @@
 "use client";
 
 import { ReceiptText } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -40,13 +41,21 @@ export function UsagePopoverShell({
     <Popover>
       <PopoverTrigger
         render={
-          <button
-            type="button"
-            className="inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          >
+          /* The credits total IS the trigger — no "Usage" label. Link variant
+             (primary color, underline on hover) so it reads as clickable; the
+             popover holds the per-generation breakdown. Same guard as the body:
+             while the pipeline total is loading, don't flash this node's own
+             (smaller) total. */
+          <Button variant="link" size="sm" type="button">
             <ReceiptText className="size-3.5" strokeWidth={1.5} />
-            Usage
-          </button>
+            {pipelineLoading ? (
+              <Skeleton className="h-3 w-16" />
+            ) : (
+              <span className="tabular-nums">
+                {pipelineTotalCredits ?? totalCredits} used
+              </span>
+            )}
+          </Button>
         }
       />
       <PopoverContent align="end" className="w-64 p-4">
