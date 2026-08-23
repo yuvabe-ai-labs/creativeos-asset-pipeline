@@ -2865,3 +2865,106 @@ R11.5).
 
 **Rejected.** Reusing `operator` for the user id. It holds legacy values and is typed
 `text`; overloading it would make "is this a name or an id?" a per-row guess.
+
+### D160 — Approval is decoupled from the D33 canvas lock *(recorded 2026-08-23; refines D33; executes what D34 asserted; originated → `2026-08-21-internal-approval-workflow-design.md`)*
+
+**Decision.** The approval control in all four focus views drops its `editable &&` guard. A
+senior can approve or reject while another person holds the canvas edit lock.
+
+**Why.** The lock exists to stop two full-snapshot canvas writes clobbering each other.
+Approval writes only to `node_versions`, annotating an existing attempt — it touches no
+canvas, node or edge row, so it was never in the class of writes the lock defends. D34
+already stated this outright (*"D33's 'viewers can't approve' is a canvas-UI gate, not a
+server guard"*); the UI simply never matched the decision, so in practice a senior who
+arrived second could not review at all.
+
+**On staleness.** The obvious worry — approving something regenerated a moment ago — is
+handled by approval targeting a **specific version id**. A stale approval lands on the old
+version; the new one stays `pending` and remains in the queue. Correctness comes from
+version targeting plus the live view (§6.8), not from holding a lock.
+
+**Scope.** Reversed for approval alone. Canvas edits, generation and parse remain
+single-writer under D33 (R7.3).
+
+### D161 — A canvas can be entered in a non-acquiring review mode *(recorded 2026-08-23; refines D33; originated → `2026-08-21-internal-approval-workflow-design.md`)*
+
+**Decision.** `useCanvasLock(canvasId, { acquire })`, with review mode carried in the URL as
+`?review=1` and read server-side. Every count pill and every navbar pointer links with it.
+In review mode the canvas mounts without acquiring the lock and opens the review drawer.
+
+**Why.** `useCanvasLock` acquired on mount unconditionally, so a senior *merely arriving* to
+review flipped a junior who was mid-generation into read-only. Reviewing the work
+interrupted the work — and combined with the D33 gate on approval (see D160), the workflow
+failed in both directions at once: if the junior got there first the senior could not
+review, and if the senior got there first the junior stopped being able to work.
+
+**Why the URL rather than a toggle.** It makes the entry point the thing that carries the
+intent: you are in review mode because you followed a review link, which is exactly the
+journey R5.7 describes. No extra state to keep, and a shared link reproduces the mode.
+
+**Rejected.** Lazy acquisition on first edit intent. It is the more elegant answer and would
+satisfy R7.2 even for a senior who opens a canvas by hand — but it rewrites D33's core
+behaviour for every user on every canvas, while the PRD asks only to decouple *approval*. A
+lock-model rewrite should not ride along inside an approval change. Worth revisiting on its
+own terms.
+
+**Also rejected.** Guarding the heartbeat/release/poll effects too. They key off
+`isEditor`/`isViewer`, which a non-acquiring session never becomes, so they are already
+inert — touching them would widen the blast radius past what R7.2 asks for.
+
+### D162 — Review is derived, not assigned *(recorded 2026-08-23; consistent with D9; originated → `2026-08-21-internal-approval-workflow-design.md`)*
+
+**Decision.** There is no assignee column and no assignment record. Every `senior` and
+`owner` in an organization sees the same queue, derived on read from `approval_status`.
+Rejection is the only person-specific routing, and it resolves through the version's maker
+reference rather than through a stored assignment.
+
+**Why.** An assignment table is state that can disagree with the work it describes — items
+assigned to someone who left, assignments that outlive the asset, a queue that needs
+reconciling. Deriving from approval state means the queue cannot drift, because there is
+nothing to drift from. Small agencies also do not want routing: they want everyone senior to
+see everything outstanding.
+
+**Consequence.** Two seniors may act on the same item; last write wins, and the live updates
+in §6.8 make the collision visible rather than silent (R4.4).
+
+### D163 — Reviewing is item-by-item, never a sequence *(recorded 2026-08-23; originated → `2026-08-21-internal-approval-workflow-design.md`)*
+
+**Decision.** The review drawer is non-modal, takes no backdrop, and **stays mounted beneath
+the focus view**. Each item is clicked, opened and decided on its own. No queue position, no
+approve-and-next, no auto-advance anywhere.
+
+**Why.** A focus view opens as a bottom sheet at 92% of viewport height, so the drawer and
+the node it points at cannot share the screen — but they do not need to. Leaving the drawer
+mounted underneath means the list is waiting when the sheet closes, with the decided item
+already gone (it left because the list is derived, not because anything removed it). That
+buys the benefit of a run — one open of the drawer, not one per item — without moving past
+work the senior has not looked at.
+
+**Rejected.** A queue runner with approve-and-next: it auto-advances past unexamined work,
+which is precisely the failure mode a review step exists to prevent. Also rejected: a drawer
+that closes on row click, which costs one reopen per item and makes reviewing five things
+feel like five separate errands.
+
+**Consequence.** No node type's focus view has to change shape. The drawer routes; it never
+becomes a second approval surface.
+
+### D165 — One navbar control serves both roles, differing from the canvas drawer only in scope *(recorded 2026-08-23; originated → `2026-08-21-internal-approval-workflow-design.md`)*
+
+**Decision.** A single navbar icon with a count badge opens a popover listing "things
+waiting on you" — org-wide. For a `designer` that is their own rejected work; for a
+`senior`/`owner` it is everything pending review plus their own rejections. The role split
+lives in one pure, unit-tested selector, so no component branches on role.
+
+**Why in the chrome.** The work it points at spans canvases and clients. No single canvas
+could host it, which is exactly why the canvas drawer cannot be the only surface.
+
+**Why two surfaces rather than one.** They answer different questions — *"what is waiting on
+me anywhere?"* and *"what is waiting on me here?"* — and the second is the one a senior
+already sitting on a canvas actually asks. Neither auto-advances, so having both costs
+nothing but a second read of the same derivation.
+
+**Consequence, stated rather than hidden.** A senior's two counts are scoped differently and
+will legitimately disagree. Each surface therefore states what it counts ("on this canvas" /
+"everywhere"), so a navbar reading of 12 beside a canvas reading of 5 is obviously two
+questions answered rather than a bug.

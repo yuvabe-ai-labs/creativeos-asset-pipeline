@@ -31,11 +31,24 @@ Apply through the Supabase SQL editor (paste + Run), in this order. There is no
 
 ---
 
+## Status: all three milestones are code-complete (2026-08-23)
+
+M1, M2 and M3 are all implemented and committed. **Both migrations below are still
+unapplied**, which is the only thing standing between the branch and a working feature.
+
 ## After applying the batch
 
-Run the verify queries for each migration above, then work the M1 Acceptance checklist in
-`2026-08-21-internal-approval-m1.md` — it is written as the post-migration pass and is not
-runnable before this point.
+1. Apply `0030`, then `0031`, in that order — 0031's view selects columns 0030 creates.
+2. Run the verify queries for each (see `docs/auth-production-migration.md`).
+3. Work the acceptance checklists, which are all written as post-migration passes:
+   - `2026-08-21-internal-approval-m1.md` § M1 Acceptance — seats, enforcement, attribution
+   - `2026-08-21-internal-approval-m2.md` § M2 Acceptance — counts and live updates
+   - `2026-08-21-internal-approval-m3.md` § M3 Acceptance — drawer, lock, navbar
+4. Together those cover PRD §7's eight success criteria.
+
+**Until they are applied**, every surface that reads a count, the drawer, and the navbar
+inbox will error with `relation "review_queue_items" does not exist` or
+`column "org_id" does not exist`. That is this file, not a bug — do not work around it.
 
 Then delete this file. It tracks a temporary state, and a stale "pending" list is worse
 than none.
