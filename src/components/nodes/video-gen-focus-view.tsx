@@ -378,8 +378,15 @@ export function VideoGenFocusView({
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [pendingDialog, setPendingDialog] = useState<DialogState>(null);
 
-  const [loadingVersions, setLoadingVersions] = useState(false);
-  const [loadingConnected, setLoadingConnected] = useState(false);
+  // Seeded from `open`, not hardcoded false. It is armed inside the open-TRANSITION block
+  // above — but a navbar-inbox link mounts this view ALREADY open, so that transition
+  // never fires and every skeleton in here stayed off through the whole first fetch. The
+  // Review section then asserted "Generate a video first…" and snapped to the approval
+  // control when the versions landed.
+  const [loadingVersions, setLoadingVersions] = useState(open);
+  // Same mount-already-open hole as loadingVersions above — armed only on the transition,
+  // so a cold arrival from the inbox skipped its skeleton too.
+  const [loadingConnected, setLoadingConnected] = useState(open);
 
   // Reset detail view when the sheet opens or switches to a different node; re-arm skeletons.
   const [openNodeSeed, setOpenNodeSeed] = useState({ open, nodeId });
