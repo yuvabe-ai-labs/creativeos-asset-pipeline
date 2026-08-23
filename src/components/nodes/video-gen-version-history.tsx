@@ -2,6 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import { History } from "lucide-react";
+import type { ApprovalStatus } from "@/lib/approval";
 import { Button } from "@/components/ui/button";
 import { describeVersionParams } from "@/lib/generations/version-params";
 import { videoGenClientModelMap } from "@/lib/video-gen/client-models";
@@ -15,6 +16,10 @@ export type VideoGenVersionSummary = {
   createdAt: string;
   // Real settled credits — null for legacy versions predating the credit system.
   creditsCharged?: number | null;
+  // D29 approval flag. The versions API has always returned these; video was the one
+  // node type with no control able to act on them (R10.1).
+  approvalStatus?: ApprovalStatus;
+  note?: string | null;
 };
 
 type Props = {

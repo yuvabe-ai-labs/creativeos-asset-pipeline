@@ -366,11 +366,7 @@ export function PromptFocusView({
     if (!activeVersionId) return;
     setApprovalSaving(true);
     try {
-      await setVersionApprovalAction(activeVersionId, {
-        status,
-        approvedBy: identity?.name ?? null,
-        note,
-      });
+      await setVersionApprovalAction(activeVersionId, { status, note });
       setApprovalStatus(status);
       setApprovalNote(note ?? "");
       // Push into the store so the on-canvas badge refreshes immediately — without
@@ -806,7 +802,9 @@ export function PromptFocusView({
                         status={approvalStatus}
                         note={approvalNote}
                         saving={approvalSaving}
-                        canApprove={editable && identity?.role === "senior"}
+                        // R7.1/D160: not gated on `editable` — approval writes only to
+                        // node_versions, outside what the D33 lock serialises.
+                        canApprove={identity?.role === "senior"}
                         onSet={saveApproval}
                       />
                     </div>

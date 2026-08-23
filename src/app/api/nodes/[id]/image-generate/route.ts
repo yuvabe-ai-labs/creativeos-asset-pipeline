@@ -313,6 +313,7 @@ export async function POST(
       // Record the version
       const version = await insertVersion({
         nodeId,
+        operatorUserId: caller.userId, // R11.1: the maker
         inputsUsed,
         paramsUsed: {
           modelId,
@@ -356,6 +357,7 @@ export async function POST(
       const message = e instanceof Error ? e.message : "Image generation failed";
       await insertVersion({
         nodeId,
+        operatorUserId: caller.userId, // a failed attempt still has a maker
         paramsUsed: { modelId, ...validatedParams },
         modelUsed: modelId,
         error: message,

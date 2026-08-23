@@ -8,8 +8,10 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { NewClientDialog } from "@/components/clients/new-client-dialog";
 import { ClientsTable } from "@/components/clients/clients-table";
 import { RecentCanvasesTable } from "@/components/canvases/recent-canvases-table";
+import { useReviewCounts } from "@/hooks/use-review-counts";
 import type { ClientWithCount } from "@/lib/db/clients";
 import type { RecentCanvas } from "@/lib/db/recent-canvas";
+import type { ReviewCounts } from "@/lib/review/queue";
 
 const triggerClass =
   "flex-none px-0 py-0 font-display text-3xl font-semibold tracking-[-0.02em] text-foreground/40 data-active:text-foreground sm:text-4xl";
@@ -24,12 +26,17 @@ export function ClientsHomeTabs({
   clients,
   archivedClients,
   recentCanvases,
+  reviewCounts,
 }: {
   clients: ClientWithCount[];
   archivedClients: ClientWithCount[];
   recentCanvases: RecentCanvas[];
+  reviewCounts: ReviewCounts;
 }) {
   const [tab, setTab] = useState("clients");
+  // R8.1/R8.2: ONE subscription for the whole page, not one per row. Seeded from the
+  // server value so the first paint is already correct.
+  const liveCounts = useReviewCounts(reviewCounts);
 
   return (
     <Tabs value={tab} onValueChange={setTab}>
@@ -63,7 +70,7 @@ export function ClientsHomeTabs({
             action={<NewClientDialog trigger={<Button>+ Add client</Button>} />}
           />
         ) : (
-          <ClientsTable clients={clients} />
+          <ClientsTable clients={clients} counts={liveCounts.byClient} />
         )}
       </TabsContent>
 

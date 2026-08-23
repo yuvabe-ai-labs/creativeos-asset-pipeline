@@ -60,6 +60,8 @@ import type { MentionUpstream } from "@/lib/nodes/resolve-mention-tokens";
 import { editModeForModel } from "@/lib/image-gen/edit-mode";
 import { InlineEvalBar } from "./inline-eval-bar";
 import { InlineApprovalBar } from "./inline-approval-bar";
+import { ApprovalSkeleton } from "./approval-skeleton";
+import { useCanvasStoreApi } from "@/components/canvas/canvas-store-provider";
 import { setVersionLabelAction } from "@/lib/actions/eval";
 import { setVersionApprovalAction } from "@/lib/actions/approval";
 import { useIdentity } from "@/hooks/use-identity";
@@ -199,21 +201,30 @@ export function ImageGenFocusView({
   } | null>(null);
   // estimatedCredits/editEstimatedCredits are computed directly below (D93) — no state, no
   // fetch. See the useMemo blocks further down for both.
-  const [loadingVersions, setLoadingVersions] = useState(open);
-  // Seeded from `open`, not `false` — see the note in video-prompt-focus-view.tsx: a node
-  // created by the guided button mounts with its focus view already open, so the open
-  // TRANSITION the re-arm below keys on never happens and the panel showed its empty state
-  // instead of a skeleton while the prompt's text was still arriving.
+  // Seeded from `open`, not `false`. These flags are armed inside the open-TRANSITION
+  // block below, so any path that mounts this view ALREADY open skips them and every
+  // skeleton stays off through the first fetch.
   //
-  // Mirrors that re-arm's own condition exactly: only arm when there IS a prompt to fetch.
-  // The effect that clears this flag returns early when none is connected, so arming
+  // Both branches hit this independently: the guided button creates a node with its focus
+  // view already open (see video-prompt-focus-view.tsx), and a navbar-inbox review link
+  // does the same. The visible symptom differed — an empty prompt panel there, "Generate
+  // an image first…" snapping to the approval control here — but it is one bug.
+  const [loadingVersions, setLoadingVersions] = useState(open);
+  // Mirrors the re-arm's own condition exactly: only arm when there IS a prompt to fetch.
+  // The effect that clears this flag returns early when none is connected, so arming it
   // unconditionally would strand the skeleton on forever.
   const [loadingPreview, setLoadingPreview] = useState(
     () => open && upstream.some((u) => u.type === "prompt"),
   );
   // The selected rail item: "image" (the hero pane), "history", "details", or a
   // connected node's id (right pane shows that node's read-only detail).
-  const [selected, setSelected] = useState<string>("image");
+  const focusStoreApi = useCanvasStoreApi();
+  // Initialised from the store, not just updated on the open TRANSITION: arriving from a
+  // navbar-inbox link can mount this view already open, in which case the transition never
+  // fires and the requested section would be lost.
+  const [selected, setSelected] = useState<string>(
+    () => (open ? focusStoreApi.getState().focusSection : null) ?? "image",
+  );
   const [openSeed, setOpenSeed] = useState(open);
   const seenModelIdRef = useRef(model.id);
 
@@ -224,9 +235,19 @@ export function ImageGenFocusView({
       setLoadingVersions(true);
       // Only arm the preview skeleton if there's actually a prompt node to fetch.
       setLoadingPreview(upstream.some((u) => u.type === "prompt"));
-      setSelected("image"); // return to the hero pane on open
+      // Normally the hero pane — but a programmatic open from the review drawer or the
+      // navbar inbox asks for "details", where sign-off lives. Landing on the hero pane
+      // would make a reviewer hunt for the control they were sent here to use.
+      setSelected(focusStoreApi.getState().focusSection ?? "image");
     }
   }
+
+  // Clear the one-shot section request once this view has consumed it, so opening any
+  // other node afterwards goes to its own default. Guarded on `open`, so the many closed
+  // focus views mounted across the canvas never clear a request meant for one of them.
+  useEffect(() => {
+    if (open) focusStoreApi.getState().setFocusSection(null);
+  }, [open, focusStoreApi]);
 
   // A connected node is selected when `selected` isn't one of the fixed rail keys.
   const isNodeSelected = !["image", "history", "details"].includes(selected);
@@ -840,11 +861,7 @@ export function ImageGenFocusView({
     if (!activeVersionId) return;
     setApprovalSaving(true);
     try {
-      await setVersionApprovalAction(activeVersionId, {
-        status,
-        approvedBy: identity?.name ?? null,
-        note,
-      });
+      await setVersionApprovalAction(activeVersionId, { status, note });
       setApprovalStatus(status);
       setApprovalNote(note ?? "");
       // Push into the store so the on-canvas badge refreshes immediately — without
@@ -1193,7 +1210,11 @@ export function ImageGenFocusView({
               {selected === "details" && (
                 <div className="flex flex-col gap-6 px-6 py-5">
                   <LeftSection icon={BadgeCheck} label="Review">
-                    {mode === "result" && !!activeVersionId ? (
+                    {/* Skeleton while versions are in flight — otherwise this asserts
+                        "Generate an image first…" and then snaps to the real control. */}
+                    {loadingVersions ? (
+                      <ApprovalSkeleton />
+                    ) : mode === "result" && !!activeVersionId ? (
                       <div className="flex flex-col gap-3">
                         <InlineEvalBar
                           decision={evalDecision}
@@ -1204,11 +1225,15 @@ export function ImageGenFocusView({
                           onNote={setEvalNote}
                           onNoteBlur={handleEvalNoteBlur}
                         />
+                        {/* R7.1/D160: canApprove is NOT gated on `editable`. Approval
+                            writes only to node_versions, so it is not in the class of
+                            writes the D33 lock serialises — a senior signs off while a
+                            junior keeps editing. */}
                         <InlineApprovalBar
                           status={approvalStatus}
                           note={approvalNote}
                           saving={approvalSaving}
-                          canApprove={editable && identity?.role === "senior"}
+                          canApprove={identity?.role === "senior"}
                           onSet={saveApproval}
                         />
                       </div>

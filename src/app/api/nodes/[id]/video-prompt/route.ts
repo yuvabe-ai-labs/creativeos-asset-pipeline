@@ -101,6 +101,7 @@ export async function POST(
 
       const version = await insertVersion({
         nodeId,
+        operatorUserId: caller.userId, // R11.1: the maker
         inputsUsed: {
           upstream: resolved.upstream.map((u) => ({ nodeId: u.nodeId, versionId: u.versionId })),
           kbVersionId: resolved.kbVersionId,
@@ -155,6 +156,7 @@ export async function POST(
       // a failed attempt is still a version — the log learns from failures too
       await insertVersion({
         nodeId,
+        operatorUserId: caller.userId, // a failed attempt still has a maker
         inputsUsed: { request },
         paramsUsed: {
           instruction,

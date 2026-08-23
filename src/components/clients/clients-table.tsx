@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { ListToolbar } from "@/components/ui/list-toolbar";
 import { KBStatusBadge } from "@/components/clients/kb-status-badge";
+import { PendingCountPill } from "@/components/shared/pending-count-pill";
 import { TruncatedText } from "@/components/ui/truncated-text";
 import { ClientRowActions } from "@/components/clients/client-row-actions";
 import { filterAndSort } from "@/lib/list/filter-sort";
@@ -14,9 +15,14 @@ import type { ClientWithCount } from "@/lib/db/clients";
 export function ClientsTable({
   clients,
   archived = false,
+  counts = {},
 }: {
   clients: ClientWithCount[];
   archived?: boolean;
+  // R5.1 — pending-review count per client id. Defaults to {} so the archived table works
+  // unchanged: archived clients deliberately carry no counts, since flagging review work
+  // in a recovery view would point at canvases nobody is meant to be working on.
+  counts?: Record<string, number>;
 }) {
   const [query, setQuery] = useState("");
 
@@ -91,7 +97,9 @@ export function ClientsTable({
                   <span className="min-w-0 flex-[2] truncate text-right text-sm whitespace-nowrap text-muted-foreground">
                     {formatRelativeTime(client.last_active)}
                   </span>
+                  {/* min-w-0 from staging's truncation work; the pill is R5.1's count. */}
                   <span className="flex min-w-0 flex-1 items-center justify-end gap-2">
+                    <PendingCountPill count={counts[client.id] ?? 0} scope="client" />
                     <KBStatusBadge status={client.kb_status} />
                   </span>
                 </Link>

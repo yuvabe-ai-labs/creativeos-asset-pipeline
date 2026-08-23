@@ -437,3 +437,69 @@ repo yet) is a separate step this doc doesn't own.
   `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` — a missing value
   fails closed, so this can technically be deployed without it, but impersonation will silently
   be unavailable until it's set).
+
+## Migration 0030 — approval workflow (2026-08-21)
+
+`supabase/migrations/0030_approval_workflow.sql`. Paste into the Supabase SQL editor → Run.
+Same manual dashboard process as every other migration in this doc.
+
+Adds to `node_versions`: `org_id` (backfilled 3-hop node→canvas→client→org, plus a
+BEFORE INSERT trigger to keep it true), an `(org_id, approval_status)` index, an
+`org isolation` SELECT policy, membership of the `supabase_realtime` publication, and the
+`operator_user_id` / `approved_by_user_id` user references.
+
+**Why the policy matters:** `0017` enabled RLS on `node_versions` with zero policies
+(default-deny). Realtime delivers `postgres_changes` rows *through* RLS, so the internal
+approval workflow's live updates would silently receive nothing without it — the same
+failure mode `0018` had to fix for the Generation Tray. This is not a backstop; the feature
+does not work without it.
+
+**Why a trigger rather than filling `org_id` in `insertVersion()`:** there are eleven
+insert call sites today and more will follow. A path that forgot the column would produce
+versions invisible to every pending count and every subscription — a failure that presents
+as "the queue is quietly wrong" rather than as an error.
+
+**Safe to re-run.** `create policy` and `alter publication` are not idempotent on their own,
+so both are guarded (`drop policy if exists`, and a `pg_publication_tables` existence check).
+
+**Verify after running:**
+
+```sql
+-- expect 0 — every version should carry an org
+select count(*) from node_versions where org_id is null;
+
+-- expect 1 row
+select policyname from pg_policies
+ where tablename = 'node_versions' and policyname = 'org isolation';
+
+-- expect 1 row
+select tablename from pg_publication_tables
+ where pubname = 'supabase_realtime' and tablename = 'node_versions';
+```
+
+Application code that depends on this: `setVersionApprovalAction` (reads `org_id`, writes
+`approved_by_user_id`) and every `insertVersion()` call site (writes `operator_user_id`).
+Deploying that code before this migration produces `column ... does not exist` errors.
+
+## Migration 0031 — review queue derivation (2026-08-21)
+
+`supabase/migrations/0031_review_queue.sql`. Paste into the Supabase SQL editor → Run.
+**Apply after 0030** — the view selects `node_versions.org_id` and `operator_user_id`,
+both of which 0030 creates.
+
+Adds the `review_queue_items` view (nodes joined to their ACTIVE version, assets only) and
+`org_review_counts(p_org_id)`, which returns per-client and per-canvas pending counts in a
+single call rather than one query per row (PRD §8's free-tier constraint — the client list
+renders for every org member on every visit).
+
+Both statements are `create or replace`, so this is safe to re-run.
+
+**Verify after running:**
+
+```sql
+-- the view resolves; zero rows is correct on a quiet org
+select count(*) from review_queue_items where approval_status = 'pending';
+
+-- R5.5 as a query: the per-canvas rows must sum to the per-client totals
+select client_id, sum(pending) from org_review_counts('<org-uuid>') group by client_id;
+```

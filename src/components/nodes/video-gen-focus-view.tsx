@@ -9,6 +9,7 @@ import {
 } from "react";
 import {
   ArrowLeft,
+  BadgeCheck,
   ChevronDown,
   Clapperboard,
   History,
@@ -52,8 +53,13 @@ import { computeVideoCost, isVideoAudioEnabled, asResolutionString } from "@/lib
 import { usdToFinalCredits } from "@/lib/credits/units";
 import { EstimatedCreditsLabel } from "./estimated-credits-label";
 import { createBrowserSupabase } from "@/lib/supabase/client";
-import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
+import { useCanvasStore, useCanvasStoreApi } from "@/components/canvas/canvas-store-provider";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
+import { useIdentity } from "@/hooks/use-identity";
+import { InlineApprovalBar } from "./inline-approval-bar";
+import { ApprovalSkeleton } from "./approval-skeleton";
+import { setVersionApprovalAction } from "@/lib/actions/approval";
+import type { ApprovalStatus } from "@/lib/approval";
 import { useFlushAutosave } from "@/components/canvas/autosave-flush-context";
 import { useVideoGenStatus } from "@/hooks/use-video-gen-status";
 import {
@@ -355,19 +361,33 @@ export function VideoGenFocusView({
   const [promptNode, setPromptNode] = useState<UpstreamPromptNode | null>(null);
   const [versions, setVersions] = useState<VideoGenVersionSummary[]>([]);
   const [activeVersionId, setActiveVersionId] = useState<string | null>(null);
+  // D29 approval flag — R10.1. video-gen-node.tsx has always rendered ApprovalBadge, but
+  // this focus view had no control able to change it, so a video read "Pending" forever.
+  const [approvalStatus, setApprovalStatus] = useState<ApprovalStatus>("pending");
+  const [approvalNote, setApprovalNote] = useState("");
+  const [approvalSaving, setApprovalSaving] = useState(false);
   const [restoring, setRestoring] = useState(false);
   // The selected rail item: "video" (settings + preview), "history", "details", or a connected
   // node's id (middle column shows that node's role/detail view). Mirrors image-gen-focus-view.
-  const [selected, setSelected] = useState<string>("video");
+  const focusStoreApi = useCanvasStoreApi();
+  // Initialised from the store, not just updated on the open TRANSITION: arriving from a
+  // navbar-inbox link can mount this view already open, in which case the transition never
+  // fires and the requested section would be lost.
+  const [selected, setSelected] = useState<string>(
+    () => (open ? focusStoreApi.getState().focusSection : null) ?? "video",
+  );
   // Only the Advanced group collapses (Audio / Multi-Shot / Negative Prompt); Frames and
   // Output settings are always expanded. Defaults closed so the panel opens uncluttered.
   const [pendingDialog, setPendingDialog] = useState<DialogState>(null);
 
   // Seeded from `open`, not `false`. The seed block below re-arms these on the false → true
-  // TRANSITION, which a node created by the guided button never has — guidedCreateNext and
-  // setFocusedNodeId land in the same batch, so the card mounts with its focus view already
-  // open. Both flags stayed false through the first resolve, so the rail rendered "No inputs
-  // connected." rather than its skeleton while the inputs were still on their way.
+  // TRANSITION, which any path that mounts the view ALREADY open never has.
+  //
+  // Both branches hit this independently. Guided creation: guidedCreateNext and
+  // setFocusedNodeId land in the same batch, so the card mounts with its focus view open
+  // and the rail rendered "No inputs connected." instead of a skeleton. Review: a
+  // navbar-inbox link does the same, and the Review section asserted "Generate a video
+  // first…" before snapping to the approval control. One bug, two symptoms.
   const [loadingVersions, setLoadingVersions] = useState(open);
   const [loadingConnected, setLoadingConnected] = useState(open);
 
@@ -377,11 +397,21 @@ export function VideoGenFocusView({
     setOpenNodeSeed({ open, nodeId });
     setPendingDialog(null);
     if (open) {
-      setSelected("video");
+      // Normally the video pane — but a programmatic open from the review drawer or the
+      // navbar inbox asks for "details", where sign-off lives. Landing on the video pane
+      // would make a reviewer hunt for the control they were sent here to use.
+      setSelected(focusStoreApi.getState().focusSection ?? "video");
       setLoadingVersions(true);
       setLoadingConnected(true);
     }
   }
+
+  // Clear the one-shot section request once this view has consumed it, so opening any
+  // other node afterwards goes to its own default. Guarded on `open`, so the many closed
+  // focus views mounted across the canvas never clear a request meant for one of them.
+  useEffect(() => {
+    if (open) focusStoreApi.getState().setFocusSection(null);
+  }, [open, focusStoreApi]);
 
   const { isGenerating, lastError, setGenerating, setLastError } =
     useVideoGenStatus(nodeId);
@@ -392,6 +422,7 @@ export function VideoGenFocusView({
   const setVideoGenError = useCanvasStore((s) => s.setVideoGenError);
   const disconnectNodes = useCanvasStore((s) => s.disconnectNodes);
   const editable = useCanvasEditable(); // D33: false when this session is read-only
+  const { identity } = useIdentity();
   const flushAutosave = useFlushAutosave();
 
   // Stable ref for onPatch — breaks the useCallback → useEffect dep cycle
@@ -407,6 +438,8 @@ export function VideoGenFocusView({
       setActiveVersionId(data.activeVersionId);
       const active = data.versions.find((v) => v.id === data.activeVersionId);
       if (active?.output) onPatchRef.current({ parsed: active.output });
+      setApprovalStatus(active?.approvalStatus ?? "pending");
+      setApprovalNote(active?.note ?? "");
     } catch {
       /* best-effort */
     }
@@ -490,6 +523,8 @@ export function VideoGenFocusView({
         setActiveVersionId(data.activeVersionId);
         const active = data.versions.find((v) => v.id === data.activeVersionId);
         if (active?.output) onPatchRef.current({ parsed: active.output });
+        setApprovalStatus(active?.approvalStatus ?? "pending");
+        setApprovalNote(active?.note ?? "");
       })
       .catch(() => {})
       .finally(() => setLoadingVersions(false));
@@ -684,6 +719,27 @@ export function VideoGenFocusView({
             : "Generation failed";
       setLastError(msg);
       toast.error(msg, { duration: 6000 });
+    }
+  }
+
+  // R10.1 — matches image-gen-focus-view's saveApproval exactly.
+  async function saveApproval(status: ApprovalStatus, note: string | null) {
+    if (!activeVersionId) return;
+    setApprovalSaving(true);
+    try {
+      await setVersionApprovalAction(activeVersionId, { status, note });
+      setApprovalStatus(status);
+      setApprovalNote(note ?? "");
+      // Push into the store so the on-canvas badge refreshes immediately — without this
+      // the badge stays stale until a full reload re-hydrates from the DB.
+      onPatch({ approvalStatus: status });
+    } catch (e) {
+      // Surface the server's message, not a fixed string: after D166 the realistic
+      // failures are "you are not permitted…" and "a note is required…", both of which
+      // the reviewer needs to actually read.
+      toast.error(e instanceof Error ? e.message : "Failed to save approval");
+    } finally {
+      setApprovalSaving(false);
     }
   }
 
@@ -1139,7 +1195,34 @@ export function VideoGenFocusView({
 
               {/* Details — active constraint rules */}
               {selected === "details" && (
-                <div className="px-6 py-5">
+                <div className="flex flex-col gap-6 px-6 py-5">
+                  {/* R10.1. Under Details, in a "Review" section — the same place and the
+                      same shape image-gen uses. Sign-off must sit in one predictable spot
+                      across node types, or a reviewer has to re-learn the layout per
+                      asset. */}
+                  <LeftSection icon={BadgeCheck} label="Review">
+                    {/* Skeleton while the versions request is in flight. Without it this
+                        showed "Generate a video first…" — a definite, wrong answer — and
+                        then snapped to the approval control when the fetch landed. Saying
+                        nothing is loaded yet beats saying the wrong thing confidently. */}
+                    {loadingVersions ? (
+                      <ApprovalSkeleton />
+                    ) : activeVersionId ? (
+                      <InlineApprovalBar
+                        status={approvalStatus}
+                        note={approvalNote}
+                        saving={approvalSaving}
+                        // R7.1/D160: not gated on `editable` — approval writes only to
+                        // node_versions, outside what the D33 lock serialises.
+                        canApprove={identity?.role === "senior"}
+                        onSet={saveApproval}
+                      />
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        Generate a video first to review and approve it.
+                      </p>
+                    )}
+                  </LeftSection>
                   <ActiveRulesCard constraints={constraints} />
                 </div>
               )}
@@ -1184,6 +1267,7 @@ export function VideoGenFocusView({
                   />
                 )}
               </div>
+
             </div>
           </div>
         </div>

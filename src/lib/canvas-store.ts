@@ -58,6 +58,12 @@ export type CanvasState = {
   // Programmatic focus-view open signal — set by the tray to open a node's focus view.
   focusedNodeId: string | null;
   setFocusedNodeId: (id: string | null) => void;
+  // Which SECTION of the focus view to land on when it opens programmatically. Null means
+  // "the view's own default". The review drawer and navbar inbox set "details", because
+  // arriving from a review queue and landing on the generation settings makes the reviewer
+  // hunt for the approval control they were sent there to use.
+  focusSection: string | null;
+  setFocusSection: (section: string | null) => void;
   // Which nodes currently have a focus view on screen. The canvas reads this to go
   // inert: a focus view is a modal surface, so the pane's keyboard shortcuts (Delete,
   // ⌘D, the bare mnemonics, "g") must not fire behind it. Keyed by node id rather than
@@ -469,6 +475,9 @@ export function createCanvasStore(
 
     focusedNodeId: null,
     setFocusedNodeId: (id) => set({ focusedNodeId: id }),
+
+    focusSection: null,
+    setFocusSection: (section) => set({ focusSection: section }),
 
     openFocusViewIds: [],
     setFocusViewOpen: (id, open) =>

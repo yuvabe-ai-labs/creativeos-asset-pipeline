@@ -2768,3 +2768,203 @@ range requests for video — and signed-out requests 307 to `/login`.
 **Supersedes.** The "Clips" paragraph of §5 in
 `2026-08-12-onboarding-empty-states-and-help-chapters-design.md`. The muted-autoplay-video
 choice there (over GIFs) stands unchanged.
+
+### D159 — Every review surface is one derived view, not three queries that agree *(recorded 2026-08-21; originated → `2026-08-21-internal-approval-workflow-design.md`)*
+
+**Decision.** Client counts, canvas counts, the review drawer and both roles' navbar lists
+are all filters over a single `review_queue_items` view, which joins `nodes` to its active
+`node_versions` row and keeps only `image-gen` / `video-gen`.
+
+**Why.** The internal-approval PRD's R5.5 requires the three zoom levels to show the same
+underlying number. Three independently written queries can drift apart; one derivation
+cannot. Joining on `active_version_id` also delivers R3.3 and R3.5 for free — a node with
+twenty regenerations exposes exactly one row, and a node that never generated exposes none.
+R5.5 stops being a convention someone has to remember and becomes structurally unavailable
+to violate.
+
+**Rejected.** A materialised queue table with an assignee column. It reintroduces precisely
+the synchronisation problem the derivation avoids, and D150's "review is derived, not
+assigned" had already settled the question for the per-canvas queue.
+
+**Numbering note.** This feature takes **D159–D167**. D149–D158 are claimed by the reel
+editor on the unmerged `feat/video-editor` branch; numbering this work D149 would collide
+the moment either branch merged. The gap is deliberate, not lost history — see
+`2026-08-21-internal-approval-workflow-design.md` §2.1.
+
+### D164 — Seats are provisioned by the super-admin on the existing org-detail surface *(recorded 2026-08-21; originated → `2026-08-21-internal-approval-workflow-design.md`)*
+
+**Decision.** `addOrgMember` / `updateMemberRole` extend the `/admin/orgs/[id]` Members
+card with an add-member dialog and a per-row role `Select`. Org owners cannot provision
+their own seats.
+
+**Why.** `createOrgWithOwner` hardcoded `org_role: 'owner'` and was the only caller of
+`auth.admin.createUser` in the repo, so an organization could contain exactly one person
+holding exactly one role. Maker-checker is meaningless with one seat. The schema always
+permitted more — the unique index is `one_org_per_user`, one *org per user*, not one user
+per org — so this is a provisioning path and a screen, not a data-model change.
+
+**Not re-implemented.** The last-owner rule (R1.4) stays in migration 0012's
+`org_memberships_last_owner` trigger. An invariant that must hold regardless of which code
+path attempts the write belongs in the database; duplicating it in the action would create
+two places to drift.
+
+**Rejected.** Org self-serve invites. Right eventually, but it puts a whole invite/accept
+lifecycle in front of a pilot that needs two seats in one org (PRD §10 Q1 — deferred, not
+rejected on the merits).
+
+### D166 — Approval permission is enforced server-side, and the action stops accepting a caller-supplied reviewer *(recorded 2026-08-21; retires the cosmetic-only gate D29 §3 deferred; originated → `2026-08-21-internal-approval-workflow-design.md`)*
+
+**Decision.** `setVersionApprovalAction` resolves the caller via `resolveCallerContext()`,
+refuses `designer`, verifies the version belongs to the caller's org, requires a note on
+`changes_requested`, and writes the caller's own id as reviewer. The `approvedBy` parameter
+is **removed from the signature**.
+
+**Why.** Removing the parameter matters as much as adding the check. The action previously
+recorded whatever identity the browser sent, and a role check layered on top of a
+caller-supplied identity is not enforcement — it is decoration with an extra step. D29
+deferred this for want of real auth; `resolveCallerContext` now exists, so it is buildable.
+The role gate runs before any database read, so a designer cannot use the action to probe
+which version ids exist.
+
+**Also.** R6.5 (a rejection requires a note) is enforced here too, not merely disabled in
+the UI — a rejection with no explanation is useless to the maker it routes back to.
+
+**Rejected.** Keeping `approvedBy` and validating it against the session. It leaves a
+spoofable parameter in the signature for no benefit: if it must equal the session's user,
+it should not be a parameter at all.
+
+### D167 — `node_versions` gains `org_id` and an org-isolation SELECT policy; attribution becomes real user references *(recorded 2026-08-21; executes D29 §5.2; originated → `2026-08-21-internal-approval-workflow-design.md`)*
+
+**Decision.** Migration `0030_approval_workflow.sql` adds `org_id` to `node_versions`
+(backfilled node→canvas→client→org, maintained by a BEFORE INSERT trigger), an
+`(org_id, approval_status)` index, an `org isolation` SELECT policy, membership of the
+`supabase_realtime` publication, and `operator_user_id` / `approved_by_user_id`. The legacy
+`operator` / `approved_by` text columns are kept and never written again.
+
+**Why the policy is load-bearing, not a backstop.** Migration 0017 enabled RLS on
+`node_versions` with **zero** policies (default-deny). Realtime delivers `postgres_changes`
+rows *through* RLS, so the live updates the approval workflow needs would have received
+nothing at all — silently. This is the same failure 0018 had to fix after 0017 killed the
+Generation Tray. The policy also satisfies R2.4: a designer may read every approval state
+and note, because review is not secret; only *setting* a status is restricted.
+
+**Why a trigger, not an application-layer assignment.** There are eleven `node_versions`
+insert sites and more will follow — including two duplicate routes that bypass
+`insertVersion()` entirely and write the table directly. A path that forgot `org_id` would
+produce versions invisible to every count and every subscription: a bug presenting as "the
+queue is quietly wrong" rather than as an error. The duplicate routes are the concrete proof
+the trigger was the right call.
+
+**On attribution.** The PRD described this as migrating `operator` from MVP-era free-text
+names. It is not — `operator` was only ever written as the literal `"duplicate"`; no
+generation path recorded a maker at all. R11.1 is therefore a *new write on every generation
+path*, which is what makes R4.3 (route a rejection back to the person who made it)
+resolvable. Names resolve on read through `org_memberships`, so a renamed user is never
+shown under a stale name and a reference can never resolve across an org boundary (R11.3,
+R11.5).
+
+**Rejected.** Reusing `operator` for the user id. It holds legacy values and is typed
+`text`; overloading it would make "is this a name or an id?" a per-row guess.
+
+### D160 — Approval is decoupled from the D33 canvas lock *(recorded 2026-08-23; refines D33; executes what D34 asserted; originated → `2026-08-21-internal-approval-workflow-design.md`)*
+
+**Decision.** The approval control in all four focus views drops its `editable &&` guard. A
+senior can approve or reject while another person holds the canvas edit lock.
+
+**Why.** The lock exists to stop two full-snapshot canvas writes clobbering each other.
+Approval writes only to `node_versions`, annotating an existing attempt — it touches no
+canvas, node or edge row, so it was never in the class of writes the lock defends. D34
+already stated this outright (*"D33's 'viewers can't approve' is a canvas-UI gate, not a
+server guard"*); the UI simply never matched the decision, so in practice a senior who
+arrived second could not review at all.
+
+**On staleness.** The obvious worry — approving something regenerated a moment ago — is
+handled by approval targeting a **specific version id**. A stale approval lands on the old
+version; the new one stays `pending` and remains in the queue. Correctness comes from
+version targeting plus the live view (§6.8), not from holding a lock.
+
+**Scope.** Reversed for approval alone. Canvas edits, generation and parse remain
+single-writer under D33 (R7.3).
+
+### D161 — A canvas can be entered in a non-acquiring review mode *(recorded 2026-08-23; refines D33; originated → `2026-08-21-internal-approval-workflow-design.md`)*
+
+**Decision.** `useCanvasLock(canvasId, { acquire })`, with review mode carried in the URL as
+`?review=1` and read server-side. Every count pill and every navbar pointer links with it.
+In review mode the canvas mounts without acquiring the lock and opens the review drawer.
+
+**Why.** `useCanvasLock` acquired on mount unconditionally, so a senior *merely arriving* to
+review flipped a junior who was mid-generation into read-only. Reviewing the work
+interrupted the work — and combined with the D33 gate on approval (see D160), the workflow
+failed in both directions at once: if the junior got there first the senior could not
+review, and if the senior got there first the junior stopped being able to work.
+
+**Why the URL rather than a toggle.** It makes the entry point the thing that carries the
+intent: you are in review mode because you followed a review link, which is exactly the
+journey R5.7 describes. No extra state to keep, and a shared link reproduces the mode.
+
+**Rejected.** Lazy acquisition on first edit intent. It is the more elegant answer and would
+satisfy R7.2 even for a senior who opens a canvas by hand — but it rewrites D33's core
+behaviour for every user on every canvas, while the PRD asks only to decouple *approval*. A
+lock-model rewrite should not ride along inside an approval change. Worth revisiting on its
+own terms.
+
+**Also rejected.** Guarding the heartbeat/release/poll effects too. They key off
+`isEditor`/`isViewer`, which a non-acquiring session never becomes, so they are already
+inert — touching them would widen the blast radius past what R7.2 asks for.
+
+### D162 — Review is derived, not assigned *(recorded 2026-08-23; consistent with D9; originated → `2026-08-21-internal-approval-workflow-design.md`)*
+
+**Decision.** There is no assignee column and no assignment record. Every `senior` and
+`owner` in an organization sees the same queue, derived on read from `approval_status`.
+Rejection is the only person-specific routing, and it resolves through the version's maker
+reference rather than through a stored assignment.
+
+**Why.** An assignment table is state that can disagree with the work it describes — items
+assigned to someone who left, assignments that outlive the asset, a queue that needs
+reconciling. Deriving from approval state means the queue cannot drift, because there is
+nothing to drift from. Small agencies also do not want routing: they want everyone senior to
+see everything outstanding.
+
+**Consequence.** Two seniors may act on the same item; last write wins, and the live updates
+in §6.8 make the collision visible rather than silent (R4.4).
+
+### D163 — Reviewing is item-by-item, never a sequence *(recorded 2026-08-23; originated → `2026-08-21-internal-approval-workflow-design.md`)*
+
+**Decision.** The review drawer is non-modal, takes no backdrop, and **stays mounted beneath
+the focus view**. Each item is clicked, opened and decided on its own. No queue position, no
+approve-and-next, no auto-advance anywhere.
+
+**Why.** A focus view opens as a bottom sheet at 92% of viewport height, so the drawer and
+the node it points at cannot share the screen — but they do not need to. Leaving the drawer
+mounted underneath means the list is waiting when the sheet closes, with the decided item
+already gone (it left because the list is derived, not because anything removed it). That
+buys the benefit of a run — one open of the drawer, not one per item — without moving past
+work the senior has not looked at.
+
+**Rejected.** A queue runner with approve-and-next: it auto-advances past unexamined work,
+which is precisely the failure mode a review step exists to prevent. Also rejected: a drawer
+that closes on row click, which costs one reopen per item and makes reviewing five things
+feel like five separate errands.
+
+**Consequence.** No node type's focus view has to change shape. The drawer routes; it never
+becomes a second approval surface.
+
+### D165 — One navbar control serves both roles, differing from the canvas drawer only in scope *(recorded 2026-08-23; originated → `2026-08-21-internal-approval-workflow-design.md`)*
+
+**Decision.** A single navbar icon with a count badge opens a popover listing "things
+waiting on you" — org-wide. For a `designer` that is their own rejected work; for a
+`senior`/`owner` it is everything pending review plus their own rejections. The role split
+lives in one pure, unit-tested selector, so no component branches on role.
+
+**Why in the chrome.** The work it points at spans canvases and clients. No single canvas
+could host it, which is exactly why the canvas drawer cannot be the only surface.
+
+**Why two surfaces rather than one.** They answer different questions — *"what is waiting on
+me anywhere?"* and *"what is waiting on me here?"* — and the second is the one a senior
+already sitting on a canvas actually asks. Neither auto-advances, so having both costs
+nothing but a second read of the same derivation.
+
+**Consequence, stated rather than hidden.** A senior's two counts are scoped differently and
+will legitimately disagree. Each surface therefore states what it counts ("on this canvas" /
+"everywhere"), so a navbar reading of 12 beside a canvas reading of 5 is obviously two
+questions answered rather than a bug.

@@ -3,6 +3,7 @@ import { Settings } from "lucide-react";
 import { redirect } from "next/navigation";
 import { getClientBySlug } from "@/lib/db/clients";
 import { listCanvases } from "@/lib/db/canvases";
+import { getOrgReviewCounts } from "@/lib/db/review";
 import { resolveOrgId } from "@/lib/dal";
 import { NewCanvasDialog } from "@/components/canvases/new-canvas-dialog";
 import { CanvasesTable } from "@/components/canvases/canvases-table";
@@ -62,7 +63,12 @@ export default async function ClientPage({
     redirect(`/clients/${client.slug}/kb`);
   }
 
-  const canvases = await listCanvases(client.id);
+  // R5.2: seeded server-side alongside the canvases, so the first paint carries the right
+  // numbers. Same RPC the client list uses — R5.5 holds at runtime, not just in the schema.
+  const [canvases, reviewCounts] = await Promise.all([
+    listCanvases(client.id),
+    getOrgReviewCounts(effectiveOrgId),
+  ]);
 
   return (
     <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-12">
@@ -126,7 +132,11 @@ export default async function ClientPage({
         />
       ) : (
         <div className="animate-rise">
-          <CanvasesTable canvases={canvases} clientSlug={client.slug} />
+          <CanvasesTable
+            canvases={canvases}
+            clientSlug={client.slug}
+            reviewCounts={reviewCounts}
+          />
         </div>
       )}
     </main>

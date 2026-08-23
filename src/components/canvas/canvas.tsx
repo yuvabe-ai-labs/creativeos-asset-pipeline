@@ -51,6 +51,7 @@ import { DeleteConfirmDialog } from "./delete-confirm-dialog";
 import { useDeleteConfirmation } from "@/hooks/use-delete-confirmation";
 import { CanvasKBStatus, CanvasKBBadge } from "./canvas-kb-status";
 import { GalleryDrawerIntegration } from "./gallery-drawer-integration";
+import { ReviewDrawer } from "./review-drawer/review-drawer";
 import type { GalleryPaneDropHandlers } from "@/hooks/use-gallery-pane-drop";
 import type { ClientKBJobRow } from "@/lib/db/types";
 
@@ -75,12 +76,18 @@ export function Canvas({
   initialKBJob,
   hasActiveKB,
   initialDriveRootFolder,
+  reviewMode = false,
+  focusNodeId = null,
 }: {
   canvasId: string;
   clientId: string;
   initialKBJob: ClientKBJobRow | null;
   hasActiveKB: boolean;
   initialDriveRootFolder: { id: string; name: string } | null;
+  /** D161: arrived via a review link (?review=1) — do not take the edit lock (R7.2). */
+  reviewMode?: boolean;
+  /** R9.3: `?node=` from a navbar-inbox pointer — fly to it and open its Details. */
+  focusNodeId?: string | null;
 }) {
   // One subscription, shallow-compared, so the component only re-renders when
   // these slices actually change.
@@ -120,7 +127,7 @@ export function Canvas({
   const anyFocusViewOpen = useAnyFocusViewOpen();
 
   const { canEdit, heldByName, canTakeOver, sessionId, takeOver, reportLockLost } =
-    useCanvasLock(canvasId);
+    useCanvasLock(canvasId, { acquire: !reviewMode });
   // Read the latest canEdit from event handlers/closures without re-subscribing them.
   const canEditRef = useRef(canEdit);
   useLayoutEffect(() => {
@@ -372,6 +379,11 @@ export function Canvas({
         initialDriveRootFolder={initialDriveRootFolder}
         paneDropRef={galleryPaneDropRef}
       />
+
+      {/* D163: review drawer. Mounted here (inside ReactFlowProvider and the canvas store)
+          because its rows fly the canvas to a node — the same navigation the generation
+          tray performs. Non-modal, so it stays put under a focus view (R6.11). */}
+      <ReviewDrawer canvasId={canvasId} initialFocusNodeId={focusNodeId} />
 
       {!canEdit && (
         <LockBanner heldByName={heldByName} canTakeOver={canTakeOver} onTakeOver={takeOver} />
