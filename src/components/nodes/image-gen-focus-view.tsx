@@ -59,6 +59,7 @@ import type { MentionUpstream } from "@/lib/nodes/resolve-mention-tokens";
 import { editModeForModel } from "@/lib/image-gen/edit-mode";
 import { InlineEvalBar } from "./inline-eval-bar";
 import { InlineApprovalBar } from "./inline-approval-bar";
+import { ApprovalSkeleton } from "./approval-skeleton";
 import { useCanvasStoreApi } from "@/components/canvas/canvas-store-provider";
 import { setVersionLabelAction } from "@/lib/actions/eval";
 import { setVersionApprovalAction } from "@/lib/actions/approval";
@@ -202,7 +203,12 @@ export function ImageGenFocusView({
   // The selected rail item: "image" (the hero pane), "history", "details", or a
   // connected node's id (right pane shows that node's read-only detail).
   const focusStoreApi = useCanvasStoreApi();
-  const [selected, setSelected] = useState<string>("image");
+  // Initialised from the store, not just updated on the open TRANSITION: arriving from a
+  // navbar-inbox link can mount this view already open, in which case the transition never
+  // fires and the requested section would be lost.
+  const [selected, setSelected] = useState<string>(
+    () => (open ? focusStoreApi.getState().focusSection : null) ?? "image",
+  );
   const [openSeed, setOpenSeed] = useState(open);
   const seenModelIdRef = useRef(model.id);
 
@@ -1136,7 +1142,11 @@ export function ImageGenFocusView({
               {selected === "details" && (
                 <div className="flex flex-col gap-6 px-6 py-5">
                   <LeftSection icon={BadgeCheck} label="Review">
-                    {mode === "result" && !!activeVersionId ? (
+                    {/* Skeleton while versions are in flight — otherwise this asserts
+                        "Generate an image first…" and then snaps to the real control. */}
+                    {loadingVersions ? (
+                      <ApprovalSkeleton />
+                    ) : mode === "result" && !!activeVersionId ? (
                       <div className="flex flex-col gap-3">
                         <InlineEvalBar
                           decision={evalDecision}

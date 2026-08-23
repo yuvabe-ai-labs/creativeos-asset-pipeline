@@ -61,18 +61,23 @@ export function ReviewDrawer({
   }
 
   // A navbar-inbox link carries ?node=<id>. Without this the link landed you on the right
-  // canvas with nothing open — you still had to find the asset yourself, which defeats
-  // the point of a pointer. Runs once, after the nodes exist to fly to.
+  // canvas with nothing open — you still had to find the asset yourself, which defeats the
+  // point of a pointer.
+  //
+  // Keyed on the canvas's NODES, not on the drawer's list: on a fresh page load the nodes
+  // hydrate after this mounts, and an effect that only re-ran when the list changed could
+  // miss the window entirely and never open anything.
+  const nodes = useCanvasStore((s) => s.nodes);
   const flownToRef = useRef(false);
   useEffect(() => {
     if (!initialFocusNodeId || flownToRef.current) return;
     const node = getNode(initialFocusNodeId);
-    if (!node) return; // nodes not hydrated yet — a later render will catch it
+    if (!node) return; // not hydrated yet — the next nodes change re-runs this
     flownToRef.current = true;
     setCenter(node.position.x + 120, node.position.y + 60, { zoom: 1, duration: 500 });
     setFocusSection("details");
     setFocusedNodeId(initialFocusNodeId);
-  }, [initialFocusNodeId, getNode, setCenter, setFocusSection, setFocusedNodeId, items]);
+  }, [initialFocusNodeId, getNode, setCenter, setFocusSection, setFocusedNodeId, nodes]);
 
   return (
     <Sheet open={open} onOpenChange={(next) => !next && closeDrawer()} modal={false}>

@@ -56,6 +56,7 @@ import { useCanvasStore, useCanvasStoreApi } from "@/components/canvas/canvas-st
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { useIdentity } from "@/hooks/use-identity";
 import { InlineApprovalBar } from "./inline-approval-bar";
+import { ApprovalSkeleton } from "./approval-skeleton";
 import { setVersionApprovalAction } from "@/lib/actions/approval";
 import type { ApprovalStatus } from "@/lib/approval";
 import { useFlushAutosave } from "@/components/canvas/autosave-flush-context";
@@ -365,7 +366,13 @@ export function VideoGenFocusView({
   const [restoring, setRestoring] = useState(false);
   // The selected rail item: "video" (settings + preview), "history", "details", or a connected
   // node's id (middle column shows that node's role/detail view). Mirrors image-gen-focus-view.
-  const [selected, setSelected] = useState<string>("video");
+  const focusStoreApi = useCanvasStoreApi();
+  // Initialised from the store, not just updated on the open TRANSITION: arriving from a
+  // navbar-inbox link can mount this view already open, in which case the transition never
+  // fires and the requested section would be lost.
+  const [selected, setSelected] = useState<string>(
+    () => (open ? focusStoreApi.getState().focusSection : null) ?? "video",
+  );
   // Only the Advanced group collapses (Audio / Multi-Shot / Negative Prompt); Frames and
   // Output settings are always expanded. Defaults closed so the panel opens uncluttered.
   const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -374,7 +381,6 @@ export function VideoGenFocusView({
   const [loadingVersions, setLoadingVersions] = useState(false);
   const [loadingConnected, setLoadingConnected] = useState(false);
 
-  const focusStoreApi = useCanvasStoreApi();
   // Reset detail view when the sheet opens or switches to a different node; re-arm skeletons.
   const [openNodeSeed, setOpenNodeSeed] = useState({ open, nodeId });
   if (openNodeSeed.open !== open || openNodeSeed.nodeId !== nodeId) {
@@ -1159,7 +1165,13 @@ export function VideoGenFocusView({
                       across node types, or a reviewer has to re-learn the layout per
                       asset. */}
                   <LeftSection icon={BadgeCheck} label="Review">
-                    {activeVersionId ? (
+                    {/* Skeleton while the versions request is in flight. Without it this
+                        showed "Generate a video first…" — a definite, wrong answer — and
+                        then snapped to the approval control when the fetch landed. Saying
+                        nothing is loaded yet beats saying the wrong thing confidently. */}
+                    {loadingVersions ? (
+                      <ApprovalSkeleton />
+                    ) : activeVersionId ? (
                       <InlineApprovalBar
                         status={approvalStatus}
                         note={approvalNote}
