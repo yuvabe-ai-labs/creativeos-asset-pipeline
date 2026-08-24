@@ -3029,3 +3029,59 @@ row already `approved` at migration time.
 "unseen" the moment this ships, flooding every maker's inbox with old news on deploy day. The
 dismiss-on-view mechanism is meant to govern approvals that happen from here forward, not to
 retroactively judge the backlog.
+
+### D173 — `node_version_decisions` is a new append-only log, kept alongside `node_versions`' current-state columns *(recorded 2026-08-24; originated → `2026-08-24-decision-history-panel-design.md`)*
+
+**Decision.** A new table logs every real approve/reject decision — status, note, reviewer,
+timestamp — one row per decision, never updated or deleted. `node_versions`' own
+`approval_status`/`note`/`approved_by_user_id`/`approved_at` columns are untouched and remain
+the source of truth for the review queue, counts, and navbar inbox (D159's
+`review_queue_items` view reads only those columns).
+
+**Why.** `setVersionApprovalAction` always writes onto the same `node_versions` row via
+`activeVersionId`, and the existing "Undo" control resets a decided version back to
+`pending` so it can be decided again — both reachable in the shipped UI, and both silently
+destroy the prior decision's note. The log exists to keep that history without touching
+anything the review-queue derivation (D159) already depends on.
+
+### D174 — Reset-to-pending writes no log row *(recorded 2026-08-24; originated → `2026-08-24-decision-history-panel-design.md`)*
+
+**Decision.** Only a transition to `approved` or `changes_requested` appends to
+`node_version_decisions`. "Undo" (reset to `pending`) is not itself logged.
+
+**Why.** Undo clears current state so a version can be re-decided — it is not, itself, a
+decision anyone made about the work. Logging it would clutter the history with a
+non-event between every real pair of decisions.
+
+### D175 — The decision-log insert is best-effort, non-transactional with the status update *(recorded 2026-08-24; originated → `2026-08-24-decision-history-panel-design.md`)*
+
+**Decision.** `setVersionApprovalAction` inserts the log row after its `node_versions` UPDATE
+succeeds; if the insert fails, the error is caught and logged server-side, never surfaced to
+the reviewer or allowed to fail the approve/reject action itself.
+
+**Why.** The log is observability, not the source of truth. A reviewer's approve/reject must
+never appear to fail — or actually roll back — because a supplementary audit write had a
+problem. Mirrors D170's `markVersionApprovalSeenAction`, which is best-effort for the same
+reason.
+
+### D176 — Version-history rows collapse by default; restoring becomes an explicit button *(recorded 2026-08-24; originated → `2026-08-24-decision-history-panel-design.md`)*
+
+**Decision.** Every row except the currently-active version starts collapsed (thumbnail,
+label, colored status icon, time only). Row-body click toggles expand/collapse; restoring is
+a separate, always-visible button on an expanded row rather than a whole-row click target.
+
+**Why.** The panel had grown to up to seven stacked lines per row with no way to collapse
+any of it. Whole-row-click-to-restore also meant "look closer at this version" and "revert
+to this version" were the same accidental gesture — separating them fixes both problems at
+once.
+
+### D177 — Revises D169: approval and rejection both get a matching icon, not just rejection *(recorded 2026-08-24; originated → `2026-08-24-decision-history-panel-design.md`)*
+
+**Decision.** `ApprovalReadout`'s "Approved by X" line gains a small emerald `Check` icon;
+the rejection note block gains a small destructive-toned `MessageSquareWarning` icon — the
+same two icons `InlineApprovalBar` already uses for its own Approve/Reject buttons, reused
+rather than introducing new icon vocabulary.
+
+**Why.** D169 deliberately kept approval neutral ("approval isn't an alert"). Explicit
+follow-up instruction overrides that one specific call: both outcomes should be visually
+identifiable at a glance, not just the negative one.
