@@ -58,7 +58,10 @@ import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { useIdentity } from "@/hooks/use-identity";
 import { InlineApprovalBar } from "./inline-approval-bar";
 import { ApprovalSkeleton } from "./approval-skeleton";
-import { setVersionApprovalAction } from "@/lib/actions/approval";
+import {
+  setVersionApprovalAction,
+  markVersionApprovalSeenAction,
+} from "@/lib/actions/approval";
 import type { ApprovalStatus } from "@/lib/approval";
 import { useFlushAutosave } from "@/components/canvas/autosave-flush-context";
 import { useVideoGenStatus } from "@/hooks/use-video-gen-status";
@@ -365,6 +368,8 @@ export function VideoGenFocusView({
   // this focus view had no control able to change it, so a video read "Pending" forever.
   const [approvalStatus, setApprovalStatus] = useState<ApprovalStatus>("pending");
   const [approvalNote, setApprovalNote] = useState("");
+  const [approvedByName, setApprovedByName] = useState<string | null>(null);
+  const [approvedAt, setApprovedAt] = useState<string | null>(null);
   const [approvalSaving, setApprovalSaving] = useState(false);
   const [restoring, setRestoring] = useState(false);
   // The selected rail item: "video" (settings + preview), "history", "details", or a connected
@@ -440,6 +445,8 @@ export function VideoGenFocusView({
       if (active?.output) onPatchRef.current({ parsed: active.output });
       setApprovalStatus(active?.approvalStatus ?? "pending");
       setApprovalNote(active?.note ?? "");
+      setApprovedByName(active?.approvedByName ?? null);
+      setApprovedAt(active?.approvedAt ?? null);
     } catch {
       /* best-effort */
     }
@@ -525,6 +532,8 @@ export function VideoGenFocusView({
         if (active?.output) onPatchRef.current({ parsed: active.output });
         setApprovalStatus(active?.approvalStatus ?? "pending");
         setApprovalNote(active?.note ?? "");
+        setApprovedByName(active?.approvedByName ?? null);
+        setApprovedAt(active?.approvedAt ?? null);
       })
       .catch(() => {})
       .finally(() => setLoadingVersions(false));
@@ -545,6 +554,17 @@ export function VideoGenFocusView({
     }
     wasGeneratingRef.current = isGenerating;
   }, [isGenerating, open, fetchVersions]);
+
+  // D170: the maker's mirror of ?review=1 landing a reviewer on the node. Fire-and-forget
+  // — the server no-ops for anyone who isn't the version's own maker, or when there's
+  // nothing to mark, so this is safe to call unconditionally whenever this focus view is
+  // showing an approved active version.
+  useEffect(() => {
+    if (!open || !activeVersionId || approvalStatus !== "approved") return;
+    void markVersionApprovalSeenAction(activeVersionId).catch(() => {
+      /* best-effort */
+    });
+  }, [open, activeVersionId, approvalStatus]);
 
   // ── Handlers ───────────────────────────────────────────────────────────────
 
@@ -1211,6 +1231,8 @@ export function VideoGenFocusView({
                       <InlineApprovalBar
                         status={approvalStatus}
                         note={approvalNote}
+                        approvedByName={approvedByName}
+                        approvedAt={approvedAt}
                         saving={approvalSaving}
                         // R7.1/D160: not gated on `editable` — approval writes only to
                         // node_versions, outside what the D33 lock serialises.

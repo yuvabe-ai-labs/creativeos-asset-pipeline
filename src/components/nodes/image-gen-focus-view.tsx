@@ -63,7 +63,10 @@ import { InlineApprovalBar } from "./inline-approval-bar";
 import { ApprovalSkeleton } from "./approval-skeleton";
 import { useCanvasStoreApi } from "@/components/canvas/canvas-store-provider";
 import { setVersionLabelAction } from "@/lib/actions/eval";
-import { setVersionApprovalAction } from "@/lib/actions/approval";
+import {
+  setVersionApprovalAction,
+  markVersionApprovalSeenAction,
+} from "@/lib/actions/approval";
 import { useIdentity } from "@/hooks/use-identity";
 import { revalidateCanvasGenerations } from "@/hooks/use-canvas-generations";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
@@ -192,6 +195,8 @@ export function ImageGenFocusView({
   const [approvalStatus, setApprovalStatus] =
     useState<ApprovalStatus>("pending");
   const [approvalNote, setApprovalNote] = useState("");
+  const [approvedByName, setApprovedByName] = useState<string | null>(null);
+  const [approvedAt, setApprovedAt] = useState<string | null>(null);
   const [approvalSaving, setApprovalSaving] = useState(false);
   const { identity } = useIdentity();
   const editable = useCanvasEditable(); // D33: false when this session is read-only
@@ -290,6 +295,8 @@ export function ImageGenFocusView({
           setEvalNote(active?.note ?? "");
           setApprovalStatus(active?.approvalStatus ?? "pending");
           setApprovalNote(active?.note ?? "");
+          setApprovedByName(active?.approvedByName ?? null);
+          setApprovedAt(active?.approvedAt ?? null);
         }
       } catch {
         /* best-effort */
@@ -301,6 +308,17 @@ export function ImageGenFocusView({
       cancelled = true;
     };
   }, [open, nodeId]);
+
+  // D170: the maker's mirror of ?review=1 landing a reviewer on the node. Fire-and-forget
+  // — the server no-ops for anyone who isn't the version's own maker, or when there's
+  // nothing to mark, so this is safe to call unconditionally whenever this focus view is
+  // showing an approved active version.
+  useEffect(() => {
+    if (!open || !activeVersionId || approvalStatus !== "approved") return;
+    void markVersionApprovalSeenAction(activeVersionId).catch(() => {
+      /* best-effort */
+    });
+  }, [open, activeVersionId, approvalStatus]);
 
   useEffect(() => {
     if (!open) return;
@@ -608,6 +626,8 @@ export function ImageGenFocusView({
       setEvalNote(active?.note ?? "");
       setApprovalStatus(active?.approvalStatus ?? "pending");
       setApprovalNote(active?.note ?? "");
+      setApprovedByName(active?.approvedByName ?? null);
+      setApprovedAt(active?.approvedAt ?? null);
     } catch {
       /* best-effort */
     }
@@ -1232,6 +1252,8 @@ export function ImageGenFocusView({
                         <InlineApprovalBar
                           status={approvalStatus}
                           note={approvalNote}
+                          approvedByName={approvedByName}
+                          approvedAt={approvedAt}
                           saving={approvalSaving}
                           canApprove={identity?.role === "senior"}
                           onSet={saveApproval}
