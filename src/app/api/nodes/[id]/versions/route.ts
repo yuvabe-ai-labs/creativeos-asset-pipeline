@@ -1,5 +1,6 @@
 import { listVersions } from "@/lib/db/versions";
 import { getCreditsChargedByVersionIds } from "@/lib/db/generations";
+import { getDecisionsByVersionIds } from "@/lib/db/decisions";
 import { resolveDisplayNames } from "@/lib/db/profiles";
 import type { ModelRequestRecord } from "@/lib/nodes/model-request";
 import { apiOk, withNode } from "@/lib/api/route-helpers";
@@ -12,16 +13,24 @@ export async function GET(
 ) {
   return withNode(req, params, async (nodeId, node, _caller, _clientId, effectiveOrgId) => {
     const rows = await listVersions(nodeId);
-    const creditsByVersion = await getCreditsChargedByVersionIds(rows.map((v) => v.id));
+    const versionIds = rows.map((v) => v.id);
+    const creditsByVersion = await getCreditsChargedByVersionIds(versionIds);
+    // D173: the full decision log for every version on this node, one batched query.
+    const decisionsByVersion = await getDecisionsByVersionIds(versionIds);
 
     // D168: resolve maker and reviewer to CURRENT display names in one round trip,
     // reusing the same helper review/queue.ts already uses for the navbar inbox — never
-    // a second, drifting implementation of the same lookup.
-    const userIds = rows.flatMap((v) => [v.operator_user_id, v.approved_by_user_id]);
-    const names = await resolveDisplayNames(
-      effectiveOrgId,
-      userIds.filter((id): id is string => !!id),
-    );
+    // a second, drifting implementation of the same lookup. D173 extends this ONE call to
+    // also cover every decision's reviewer, rather than a second name-resolution pass.
+    const decisionReviewerIds = [...decisionsByVersion.values()]
+      .flat()
+      .map((d) => d.decided_by_user_id)
+      .filter((id): id is string => !!id);
+    const userIds = [
+      ...rows.flatMap((v) => [v.operator_user_id, v.approved_by_user_id]),
+      ...decisionReviewerIds,
+    ].filter((id): id is string => !!id);
+    const names = await resolveDisplayNames(effectiveOrgId, userIds);
 
     return apiOk({
       activeVersionId: node.active_version_id,
@@ -53,6 +62,14 @@ export async function GET(
         approvedByName:
           (v.approved_by_user_id && names.get(v.approved_by_user_id)) || null,
         approvedAt: typeof v.approved_at === "string" ? v.approved_at : null,
+        // D173: full decision history, newest first — getDecisionsByVersionIds already
+        // orders it, this is a straight map, not a re-sort.
+        decisions: (decisionsByVersion.get(v.id) ?? []).map((d) => ({
+          status: d.status,
+          note: d.note,
+          reviewerName: (d.decided_by_user_id && names.get(d.decided_by_user_id)) || null,
+          decidedAt: d.decided_at,
+        })),
         inputsUsed: (v.inputs_used ?? {}) as {
           baseVersionId?: string | null;
           instruction?: string;
