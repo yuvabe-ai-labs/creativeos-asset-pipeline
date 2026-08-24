@@ -65,6 +65,8 @@ function item(over: Partial<InboxItem>): InboxItem {
     note: null,
     operatorUserId: "ruby",
     makerName: "Ruby",
+    approvedByUserId: null,
+    approvedSeenAt: null,
     createdAt: "2026-08-21T00:00:00Z",
     ...over,
   };
@@ -121,13 +123,67 @@ describe("selectInboxFor", () => {
   });
 });
 
+describe("selectInboxFor — unseen approvals (D170/D171)", () => {
+  const myApprovedUnseen = item({
+    versionId: "au1",
+    approvalStatus: "approved",
+    operatorUserId: "me",
+    approvedByUserId: "senior-1",
+    approvedSeenAt: null,
+  });
+  const mySelfApproved = item({
+    versionId: "au2",
+    approvalStatus: "approved",
+    operatorUserId: "me",
+    approvedByUserId: "me",
+    approvedSeenAt: null,
+  });
+  const myApprovedSeen = item({
+    versionId: "au3",
+    approvalStatus: "approved",
+    operatorUserId: "me",
+    approvedByUserId: "senior-1",
+    approvedSeenAt: "2026-08-24T00:00:00Z",
+  });
+  const othersApprovedUnseen = item({
+    versionId: "au4",
+    approvalStatus: "approved",
+    operatorUserId: "someone-else",
+    approvedByUserId: "senior-1",
+    approvedSeenAt: null,
+  });
+  const all = [myApprovedUnseen, mySelfApproved, myApprovedSeen, othersApprovedUnseen];
+
+  it("designer sees their own unseen approval — D170", () => {
+    expect(selectInboxFor("designer", "me", all).map((i) => i.versionId)).toEqual(["au1"]);
+  });
+
+  it("senior/owner sees their own unseen approval too — D170 applies to every role", () => {
+    for (const role of ["senior", "owner"] as const) {
+      expect(selectInboxFor(role, "me", all).map((i) => i.versionId)).toContain("au1");
+    }
+  });
+
+  it("self-approval never notifies — D171", () => {
+    expect(selectInboxFor("designer", "me", all).map((i) => i.versionId)).not.toContain("au2");
+  });
+
+  it("an already-seen approval does not reappear", () => {
+    expect(selectInboxFor("designer", "me", all).map((i) => i.versionId)).not.toContain("au3");
+  });
+
+  it("someone else's approval never appears in my inbox", () => {
+    expect(selectInboxFor("designer", "me", all).map((i) => i.versionId)).not.toContain("au4");
+  });
+});
+
 // inboxFilterFor expresses the SAME rule as selectInboxFor, in PostgREST syntax, so the
 // database can page it. Two expressions of one rule can drift; this evaluates the filter
 // against the fixtures and asserts it selects exactly what the JS selector does.
 describe("inboxFilterFor agrees with selectInboxFor", () => {
-  // A deliberately small PostgREST `or`-filter evaluator — enough for the two shapes this
-  // function emits (`approval_status.eq.X` and `and(a.eq.X,b.eq.Y)`). If the filter ever
-  // grows a shape this cannot parse, it throws rather than silently passing.
+  // A deliberately small PostgREST `or`-filter evaluator — enough for the shapes this
+  // function emits (`field.eq.X`, `field.neq.X`, `field.is.null`, and `and(...)`). If the
+  // filter ever grows a shape this cannot parse, it throws rather than silently passing.
   function evaluate(filter: string, item: InboxItem): boolean {
     const clauses: string[] = [];
     let depth = 0;
@@ -144,15 +200,31 @@ describe("inboxFilterFor agrees with selectInboxFor", () => {
     }
     if (current) clauses.push(current);
 
-    const field = (name: string) =>
-      name === "approval_status" ? item.approvalStatus : item.operatorUserId;
+    const field = (name: string): string | null => {
+      switch (name) {
+        case "approval_status":
+          return item.approvalStatus;
+        case "operator_user_id":
+          return item.operatorUserId;
+        case "approved_by_user_id":
+          return item.approvedByUserId;
+        case "approved_seen_at":
+          return item.approvedSeenAt;
+        default:
+          throw new Error(`Unknown field: ${name}`);
+      }
+    };
 
     const evalOne = (clause: string): boolean => {
       const and = clause.match(/^and\((.*)\)$/);
       if (and) return and[1].split(",").every(evalOne);
+      const isNull = clause.match(/^([a-z_]+)\.is\.null$/);
+      if (isNull) return field(isNull[1]) === null;
+      const neq = clause.match(/^([a-z_]+)\.neq\.(.*)$/);
+      if (neq) return field(neq[1]) !== neq[2];
       const eq = clause.match(/^([a-z_]+)\.eq\.(.*)$/);
-      if (!eq) throw new Error(`Unparsed filter clause: ${clause}`);
-      return field(eq[1]) === eq[2];
+      if (eq) return field(eq[1]) === eq[2];
+      throw new Error(`Unparsed filter clause: ${clause}`);
     };
 
     return clauses.some(evalOne);
@@ -163,8 +235,34 @@ describe("inboxFilterFor agrees with selectInboxFor", () => {
     item({ versionId: "p2", approvalStatus: "pending", operatorUserId: "me" }),
     item({ versionId: "r1", approvalStatus: "changes_requested", operatorUserId: "me" }),
     item({ versionId: "r2", approvalStatus: "changes_requested", operatorUserId: "someone" }),
-    item({ versionId: "a1", approvalStatus: "approved", operatorUserId: "me" }),
-    item({ versionId: "a2", approvalStatus: "approved", operatorUserId: "someone" }),
+    item({
+      versionId: "au1",
+      approvalStatus: "approved",
+      operatorUserId: "me",
+      approvedByUserId: "senior-1",
+      approvedSeenAt: null,
+    }),
+    item({
+      versionId: "au2",
+      approvalStatus: "approved",
+      operatorUserId: "me",
+      approvedByUserId: "me",
+      approvedSeenAt: null,
+    }),
+    item({
+      versionId: "au3",
+      approvalStatus: "approved",
+      operatorUserId: "me",
+      approvedByUserId: "senior-1",
+      approvedSeenAt: "2026-08-24T00:00:00Z",
+    }),
+    item({
+      versionId: "au4",
+      approvalStatus: "approved",
+      operatorUserId: "someone",
+      approvedByUserId: "senior-1",
+      approvedSeenAt: null,
+    }),
   ];
 
   for (const role of ["designer", "senior", "owner"] as const) {
