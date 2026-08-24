@@ -87,10 +87,13 @@ select
   v.note,
   v.operator_user_id,
   v.operator,
-  v.approved_by_user_id,
-  v.approved_seen_at,
   v.created_at,
-  v.approved_at
+  v.approved_at,
+  -- New columns appended at the END, not inserted mid-list: PostgreSQL's
+  -- `create or replace view` requires every pre-existing column to keep its exact name
+  -- and ordinal position, or the statement fails to apply.
+  v.approved_by_user_id,
+  v.approved_seen_at
 from nodes n
 join node_versions v on v.id = n.active_version_id
 join canvases      cv on cv.id = n.canvas_id
