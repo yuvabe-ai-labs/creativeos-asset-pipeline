@@ -76,6 +76,7 @@ export type NodeRow = {
 export type NodeVersionRow = {
   id: string;
   node_id: string;
+  org_id: string | null;
   inputs_used: Record<string, unknown>;
   params_used: Record<string, unknown>;
   model_used: string | null;
@@ -87,10 +88,19 @@ export type NodeVersionRow = {
   decision: string | null;
   note: string | null;
   operator: string | null;
+  // R11.1: the maker as a real user reference. `operator` above is the legacy free-text
+  // column, kept only so pre-migration rows still read (R11.4).
+  operator_user_id: string | null;
   // D29 maker-checker approval flag (distinct from `decision`, the D22 quality signal).
   approval_status: "pending" | "approved" | "changes_requested";
   approved_by: string | null;
+  // R11.2: the reviewer as a real user reference. `approved_by` above is never written
+  // again (D167).
+  approved_by_user_id: string | null;
   approved_at: string | null;
+  // D170: set once, when the maker's own focus view has shown them an approved active
+  // version. Null until then; backfilled to approved_at for pre-existing rows (D172).
+  approved_seen_at: string | null;
   created_at: string;
 };
 
