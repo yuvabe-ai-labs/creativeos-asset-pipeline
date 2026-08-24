@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { cn } from "@/lib/utils";
 import { History } from "lucide-react";
@@ -34,7 +34,7 @@ export type ImageGenVersionSummary = {
     instruction?: string;
     intent?: string;
   };
-  // Real settled credits â€” null for legacy versions predating the credit system.
+  // Real settled credits — null for legacy versions predating the credit system.
   creditsCharged?: number | null;
 };
 
@@ -53,7 +53,7 @@ export function ImageGenVersionHistory({
 }: Props) {
   if (versions.length === 0) return null;
   const total = versions.length;
-  // versionId â†’ "vN" label, so an edit can name the version it was derived from.
+  // versionId → "vN" label, so an edit can name the version it was derived from.
   const labelById = new Map(versions.map((v, i) => [v.id, `v${total - i}`]));
 
   return (
@@ -77,14 +77,14 @@ export function ImageGenVersionHistory({
             const versionModelId = v.paramsUsed?.modelId ?? v.modelUsed ?? "";
             const modelLabel = versionModelId.split(":")[1] ?? "";
             // YUV-295: what this version was actually generated with. Without it two rows for
-            // the same prompt are indistinguishable â€” and since restoring one now also restores
+            // the same prompt are indistinguishable — and since restoring one now also restores
             // its model and params, the row has to show what restoring would apply.
             const paramSummary = describeVersionParams(
               imageGenClientModelMap[versionModelId]?.params,
               v.paramsUsed ?? {},
             )
               .map((p) => `${p.label}: ${p.value}`)
-              .join(" Â· ");
+              .join(" · ");
 
             return (
               <li key={v.id}>
@@ -174,7 +174,7 @@ export function ImageGenVersionHistory({
                     <p className="ml-3.5 mt-0.5 text-[0.65rem] leading-snug text-muted-foreground/80">
                       Made by {v.makerName}
                       {v.approvalStatus === "approved" && v.approvedByName && (
-                        <> Â· Approved by {v.approvedByName} Â· {formatRelativeTime(v.approvedAt ?? null)}</>
+                        <> · Approved by {v.approvedByName} · {formatRelativeTime(v.approvedAt ?? null)}</>
                       )}
                     </p>
                   )}
