@@ -987,7 +987,7 @@ Then, immediately after the existing block:
 ```typescript
                   {v.inputsUsed?.instruction && (
                     <p className="ml-3.5 mt-0.5 line-clamp-1 text-[0.7rem] leading-snug text-muted-foreground">
-                      "{v.inputsUsed.instruction}"
+                      “{v.inputsUsed.instruction}”
                     </p>
                   )}
 ```
