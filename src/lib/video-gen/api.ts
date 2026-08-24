@@ -61,6 +61,12 @@ export const videoGenApi = {
         makerName?: string | null;
         approvedByName?: string | null;
         approvedAt?: string | null;
+        decisions?: Array<{
+          status: "approved" | "changes_requested";
+          note: string | null;
+          reviewerName: string | null;
+          decidedAt: string;
+        }>;
       }>;
     };
     return {
@@ -78,6 +84,7 @@ export const videoGenApi = {
         makerName: v.makerName ?? null,
         approvedByName: v.approvedByName ?? null,
         approvedAt: v.approvedAt ?? null,
+        decisions: v.decisions ?? [],
       })),
     };
   },
