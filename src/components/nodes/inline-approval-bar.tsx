@@ -230,15 +230,20 @@ function ApprovalReadout({
         </span>
       </div>
       {/* R9.3: the note is read ON THE NODE, beside the controls that act on it — the
-          place the fix actually happens. */}
+          place the fix actually happens. D177 revises D169's "approval is neutral, no
+          icon" call: both outcomes now get a matching icon, reused from this file's own
+          Approve/Reject buttons above — not a new icon vocabulary. */}
       {status === "changes_requested" && note.trim() && (
-        <p className="mt-2 rounded-r-md border-l-2 border-destructive/40 bg-destructive/5 px-2.5 py-1.5 text-xs leading-relaxed text-destructive">
-          {note}
+        <p className="mt-2 flex items-start gap-1.5 rounded-r-md border-l-2 border-destructive/40 bg-destructive/5 px-2.5 py-1.5 text-xs leading-relaxed text-destructive">
+          <MessageSquareWarning className="mt-0.5 size-3 shrink-0" strokeWidth={1.5} />
+          <span>{note}</span>
         </p>
       )}
-      {/* D169: who approved, and when — captured since D167, invisible until now. */}
+      {/* D169/D177: who approved, and when — captured since D167, invisible until D169,
+          neutral-only until D177. */}
       {status === "approved" && approvedByName && (
-        <p className="mt-1.5 text-xs text-muted-foreground">
+        <p className="mt-1.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Check className="size-3 shrink-0 text-emerald-600 dark:text-emerald-400" strokeWidth={1.5} />
           Approved by {approvedByName} · {formatRelativeTime(approvedAt)}
         </p>
       )}
