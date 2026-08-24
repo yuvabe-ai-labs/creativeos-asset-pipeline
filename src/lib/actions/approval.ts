@@ -9,6 +9,7 @@ import {
   type ApprovalStatus,
 } from "@/lib/approval";
 import { withAction } from "@/lib/actions/with-action";
+import { insertDecision } from "@/lib/db/decisions";
 
 // D29/D166: set the approval flag on a SPECIFIC version (the caller passes the node's
 // active version id). Annotates an attempt — never a new attempt — so no new version
@@ -56,10 +57,11 @@ export async function setVersionApprovalAction(
       throw new Error("Version not found.");
     }
 
+    const at = new Date().toISOString();
     const update = buildApprovalUpdate({
       status: input.status,
       by: caller.userId,
-      at: new Date().toISOString(),
+      at,
       note,
     });
 
@@ -68,6 +70,24 @@ export async function setVersionApprovalAction(
       .update(update)
       .eq("id", versionId);
     if (error) throw error;
+
+    // D173/D175: append-only decision history, best-effort. A logging failure must never
+    // block or fail the approve/reject action the reviewer just performed — the status
+    // update above already succeeded and is the source of truth; this is observability.
+    if (input.status === "approved" || input.status === "changes_requested") {
+      try {
+        await insertDecision({
+          versionId,
+          orgId: caller.orgId,
+          status: input.status,
+          note,
+          decidedByUserId: caller.userId,
+          decidedAt: at,
+        });
+      } catch (e) {
+        console.error("Failed to log approval decision history", e);
+      }
+    }
   });
 }
 
