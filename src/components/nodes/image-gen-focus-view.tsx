@@ -68,6 +68,7 @@ import {
   markVersionApprovalSeenAction,
 } from "@/lib/actions/approval";
 import { useIdentity } from "@/hooks/use-identity";
+import { useNodeVersionUpdates } from "@/hooks/use-node-version-updates";
 import { revalidateCanvasGenerations } from "@/hooks/use-canvas-generations";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import type { ApprovalStatus } from "@/lib/approval";
@@ -608,7 +609,10 @@ export function ImageGenFocusView({
     ? "result"
     : "empty";
 
-  async function fetchVersions() {
+  // `preserveEvalDraft` exists for the live-refresh path only — see useNodeVersionUpdates
+  // below. Every other caller is reacting to the viewer's OWN action (generate, restore,
+  // decide), where re-seeding from the server is the point.
+  async function fetchVersions(opts?: { preserveEvalDraft?: boolean }) {
     try {
       const res = await fetch(`/api/nodes/${nodeId}/versions`);
       if (!res.ok) return;
@@ -622,7 +626,10 @@ export function ImageGenFocusView({
         (v) => v.id === json.activeVersionId
       );
       setEvalDecision(active?.decision ?? null);
-      setEvalNote(active?.note ?? "");
+      // The eval note is a CONTROLLED draft saved on blur, so re-seeding it mid-keystroke
+      // discards whatever the viewer was typing. Harmless when they triggered the refresh
+      // themselves; a silent loss when someone else's decision triggered it.
+      if (!opts?.preserveEvalDraft) setEvalNote(active?.note ?? "");
       setApprovalStatus(active?.approvalStatus ?? "pending");
       setApprovalNote(active?.note ?? "");
       setApprovedByName(active?.approvedByName ?? null);
@@ -631,6 +638,13 @@ export function ImageGenFocusView({
       /* best-effort */
     }
   }
+
+  // D179: keep this panel live while it is open. Someone else approving, rejecting or
+  // regenerating THIS node refreshes it in place — the decision thread, the status icons
+  // and the rail badge all read from `versions`, so re-reading it re-syncs every one.
+  useNodeVersionUpdates(nodeId, open, () => {
+    void fetchVersions({ preserveEvalDraft: true });
+  });
 
   async function handleGenerate() {
     // Second line of defence behind the button's disabled state: a run in flight must never

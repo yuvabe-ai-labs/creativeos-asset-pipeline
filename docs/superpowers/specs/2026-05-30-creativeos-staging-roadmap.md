@@ -3108,3 +3108,30 @@ unnoticed: there was no single place where the mapping could be seen to be wrong
 **Rejected.** Fixing only the badge in the panel that prompted the report. That would have
 left an image node and a prompt node disagreeing about what amber means, trading one
 inconsistency for another.
+
+### D179 — An open focus view is live, via a node-FILTERED ping on the existing org channel *(recorded 2026-08-25; extends D159's realtime path)*
+
+**Decision.** `subscribeToOrgVersionUpdates` now passes the changed row's `node_id` (and
+nothing else) to its listeners. A new `useNodeVersionUpdates(nodeId, enabled, onChange)`
+hook subscribes an open focus view and refetches **only** when the changed row belongs to
+that node, debounced 400ms. Both gen focus views use it. The row itself is still withheld.
+
+**Why filtered rather than "refetch on any ping".** The channel is org-wide — deliberately,
+because one channel per org keeps the subscription count flat no matter how many nodes are
+open, and Supabase evaluates every `postgres_changes` filter per subscription. But org-wide
+means an unfiltered consumer wakes on every generation anywhere in the org: N people
+generating × M open focus views, all refetching a node that did not change. The node id
+turns that into "refetch only when this node actually changed," which is rare. It is a
+FILTER, not payload-for-patching — the D159 rule that consumers re-derive from the server
+rather than patching a row into local state is unchanged.
+
+**Why not a per-node channel.** Server-side filtering would be more precise, but it costs
+one subscription per open focus view and pushes the filtering into the part of the stack
+that scales worst. Client-side filtering on a shared channel is cheaper on both sides.
+
+**Consequence, stated rather than hidden.** A null `node_id` (a DELETE without REPLICA
+IDENTITY FULL) is treated as "might be mine" and refreshes: a redundant refetch is cheap, a
+missed one leaves the panel silently wrong. And because a live refresh can now be triggered
+by *someone else's* action, `fetchVersions` takes `preserveEvalDraft` on that path only —
+the eval note is a controlled draft saved on blur, so re-seeding it mid-keystroke would
+discard what the viewer was typing.

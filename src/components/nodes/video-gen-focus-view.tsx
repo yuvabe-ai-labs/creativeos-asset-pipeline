@@ -56,6 +56,7 @@ import { createBrowserSupabase } from "@/lib/supabase/client";
 import { useCanvasStore, useCanvasStoreApi } from "@/components/canvas/canvas-store-provider";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { useIdentity } from "@/hooks/use-identity";
+import { useNodeVersionUpdates } from "@/hooks/use-node-version-updates";
 import { InlineApprovalBar } from "./inline-approval-bar";
 import { ApprovalSkeleton } from "./approval-skeleton";
 import {
@@ -451,6 +452,11 @@ export function VideoGenFocusView({
       /* best-effort */
     }
   }, [nodeId]);
+
+  // D179: keep this panel live while it is open. Someone else approving, rejecting or
+  // regenerating THIS node refreshes it in place — the decision thread, the status icons
+  // and the rail badge all read from `versions`, so re-reading it re-syncs every one.
+  useNodeVersionUpdates(nodeId, open, fetchVersions);
 
   // Unlike image-gen/prompt, this view's connected inputs are NOT read off the store —
   // the route walks persisted edges two levels up (node → video-prompt → video-gen),
