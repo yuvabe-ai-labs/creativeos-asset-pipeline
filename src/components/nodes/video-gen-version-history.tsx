@@ -9,7 +9,8 @@ import { Button } from "@/components/ui/button";
 import { describeVersionParams } from "@/lib/generations/version-params";
 import { videoGenClientModelMap } from "@/lib/video-gen/client-models";
 import { formatRelativeTime } from "@/lib/format/relative-time";
-import { VersionStatusIcon, VersionDecisionThread } from "./version-decision-history";
+import { ApprovalStatusIcon } from "@/components/review/approval-status-icon";
+import { VersionDecisionThread } from "./version-decision-history";
 
 export type VideoGenVersionSummary = {
   id: string;
@@ -97,7 +98,10 @@ export function VideoGenVersionHistory({
           </span>
         </div>
       )}
-      <div className="max-h-52 overflow-y-auto pb-2">
+      {/* No max-height and no nested scroller: the focus view's middle column already
+          owns scrolling, so capping this list only truncated it inside a pane that had
+          room to spare. */}
+      <div className="pb-2">
         <ul className="space-y-1">
           {versions.map((v, i) => {
             const isActive = v.id === activeVersionId;
@@ -130,7 +134,14 @@ export function VideoGenVersionHistory({
                 >
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex min-w-0 items-center gap-2">
-                      <VersionStatusIcon status={v.approvalStatus} />
+                      {/* A failed generation has no approval state to report — showing
+                          the amber "pending" dot would assert it is queued for a reviewer
+                          when it produced no output at all. */}
+                      {isError ? (
+                        <span className="size-1.5 shrink-0 rounded-full bg-red-500" />
+                      ) : (
+                        <ApprovalStatusIcon status={v.approvalStatus} />
+                      )}
                       <span
                         className={cn(
                           "text-sm font-medium",
@@ -158,6 +169,11 @@ export function VideoGenVersionHistory({
                       {isActive && (
                         <span className="text-[0.65rem] font-semibold uppercase tracking-wide text-primary">
                           Active
+                        </span>
+                      )}
+                      {isError && (
+                        <span className="text-[0.65rem] font-semibold uppercase tracking-wide text-red-500">
+                          Error
                         </span>
                       )}
                       <ChevronDown
@@ -206,9 +222,6 @@ export function VideoGenVersionHistory({
                           Restore this version
                         </Button>
                       </div>
-                    )}
-                    {isError && (
-                      <p className="mt-2 text-right text-xs text-red-500">Error</p>
                     )}
                   </div>
                 )}

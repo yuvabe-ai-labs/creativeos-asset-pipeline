@@ -83,8 +83,7 @@ import {
   validateReferenceImages,
   type RefImageMeta,
 } from "@/lib/image-gen/validate";
-import { cn } from "@/lib/utils";
-import { describeApprovalPill } from "@/lib/nodes/prompt-focus";
+import { ApprovalStatusBadge } from "@/components/review/approval-status-badge";
 import { CREDIT_LIMIT_TOAST_MESSAGE, usdToFinalCredits } from "@/lib/credits/units";
 import { estimateImageGenerationCostUsd } from "@/lib/image-gen/estimate";
 import { LeftSection } from "./focus-left-section";
@@ -887,6 +886,11 @@ export function ImageGenFocusView({
       // Push into the store so the on-canvas badge refreshes immediately — without
       // this the badge stays stale until a full reload re-hydrates from the DB.
       onPatch({ approvalStatus: status });
+      // Re-read the versions list: it is the ONLY source of the History panel's decision
+      // thread, its status icons, and the reviewer name/time on the approval readout.
+      // Without this the reviewer's own decision is invisible on the very screen they
+      // made it on until they reopen the focus view (D173).
+      await fetchVersions();
     } catch {
       toast.error("Failed to save approval");
     } finally {
@@ -935,29 +939,8 @@ export function ImageGenFocusView({
     }
   }
 
-  const pill = describeApprovalPill(approvalStatus);
-  const pillTone =
-    pill.tone === "positive"
-      ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-900/20 dark:text-emerald-400"
-      : pill.tone === "warning"
-      ? "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-400"
-      : "border-border bg-muted text-muted-foreground";
-
   const reviewBadge =
-    mode === "result" ? (
-      <span
-        className={cn(
-          "shrink-0 rounded-full border px-1.5 py-0.5 text-[0.6rem] font-semibold",
-          pillTone
-        )}
-      >
-        {pill.tone === "positive"
-          ? "Approved"
-          : pill.tone === "warning"
-          ? "Changes"
-          : "Pending"}
-      </span>
-    ) : undefined;
+    mode === "result" ? <ApprovalStatusBadge status={approvalStatus} /> : undefined;
 
   const outputSettingsBody = (
     <ImageGenOutputSettingsBody

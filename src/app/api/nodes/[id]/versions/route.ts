@@ -65,6 +65,7 @@ export async function GET(
         // D173: full decision history, newest first — getDecisionsByVersionIds already
         // orders it, this is a straight map, not a re-sort.
         decisions: (decisionsByVersion.get(v.id) ?? []).map((d) => ({
+          id: d.id,
           status: d.status,
           note: d.note,
           reviewerName: (d.decided_by_user_id && names.get(d.decided_by_user_id)) || null,

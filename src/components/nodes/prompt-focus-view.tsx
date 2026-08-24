@@ -65,14 +65,13 @@ import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { useFlushAutosave } from "@/components/canvas/autosave-flush-context";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { ApprovalStatus } from "@/lib/approval";
-import { cn } from "@/lib/utils";
 import { PromptVersionChips } from "./prompt-version-chips";
 import {
-  describeApprovalPill,
   splitSentenceBeats,
   segmentByTerms,
   CAMERA_SPEC_PATTERNS,
 } from "@/lib/nodes/prompt-focus";
+import { ApprovalStatusBadge } from "@/components/review/approval-status-badge";
 import { LeftSection } from "./focus-left-section";
 import { RailItem } from "./focus-rail-item";
 
@@ -465,25 +464,8 @@ export function PromptFocusView({
   const activeRequest =
     versions.find((v) => v.id === activeVersionId)?.inputsUsed?.request ?? null;
 
-  const pill = describeApprovalPill(approvalStatus);
-  const pillTone =
-    pill.tone === "positive"
-      ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-900/20 dark:text-emerald-400"
-      : pill.tone === "warning"
-        ? "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-400"
-        : "border-border bg-muted text-muted-foreground";
-
   const reviewBadge =
-    mode === "result" ? (
-      <span
-        className={cn(
-          "shrink-0 rounded-full border px-1.5 py-0.5 text-[0.6rem] font-semibold",
-          pillTone,
-        )}
-      >
-        {pill.tone === "positive" ? "Approved" : pill.tone === "warning" ? "Changes" : "Pending"}
-      </span>
-    ) : undefined;
+    mode === "result" ? <ApprovalStatusBadge status={approvalStatus} /> : undefined;
 
   return (
     <Sheet

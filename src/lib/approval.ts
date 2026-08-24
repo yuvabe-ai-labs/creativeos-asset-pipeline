@@ -41,6 +41,10 @@ export type ApprovalUpdate = {
 // version-history panels and their shared VersionDecisionThread component, so the field
 // names are written down in exactly one place.
 export type VersionDecisionSummary = {
+  // The log row's own id. Carried so the thread can key on it: the list grows at the HEAD
+  // (newest first), so an array index would re-key every existing entry on each new
+  // decision.
+  id: string;
   status: "approved" | "changes_requested";
   note: string | null;
   reviewerName: string | null;

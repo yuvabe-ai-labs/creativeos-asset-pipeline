@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useIdentity } from "@/hooks/use-identity";
 import { useReviewList } from "@/hooks/use-review-list";
+import { ApprovalStatusIcon } from "@/components/review/approval-status-icon";
 import { ReviewItemThumb } from "@/components/review/review-item-thumb";
 import { ReviewListSkeleton } from "@/components/review/review-list-skeleton";
 import { InfiniteScrollSentinel } from "@/components/review/infinite-scroll-sentinel";
@@ -101,9 +102,13 @@ export function ReviewInbox() {
                         <span className="flex items-center gap-1.5">
                           <span className="truncate text-xs font-medium">{label}</span>
                           {/* The one thing a pointer must distinguish: work sent BACK to
-                              you reads differently from work waiting ON you. */}
+                              you reads differently from work waiting ON you. Icon +
+                              colour are ApprovalStatusIcon's (D178), the same pair the
+                              node's own history rows use, so the badge here and the row
+                              it points at never disagree. */}
                           {item.approvalStatus === "changes_requested" && (
-                            <span className="shrink-0 rounded-full bg-destructive/10 px-1.5 text-[0.6rem] font-semibold text-destructive">
+                            <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-destructive/10 px-1.5 py-0.5 text-[0.6rem] font-semibold text-destructive">
+                              <ApprovalStatusIcon status="changes_requested" />
                               Sent back
                             </span>
                           )}
@@ -111,7 +116,8 @@ export function ReviewInbox() {
                               opposite news. Emerald matches STATUS_META.approved in
                               InlineApprovalBar, never the destructive token rejection uses. */}
                           {item.approvalStatus === "approved" && (
-                            <span className="shrink-0 rounded-full bg-emerald-500/10 px-1.5 text-[0.6rem] font-semibold text-emerald-700 dark:text-emerald-400">
+                            <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[0.6rem] font-semibold text-emerald-700 dark:text-emerald-400">
+                              <ApprovalStatusIcon status="approved" />
                               Approved
                             </span>
                           )}

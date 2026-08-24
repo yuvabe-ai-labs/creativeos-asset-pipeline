@@ -753,6 +753,11 @@ export function VideoGenFocusView({
       // Push into the store so the on-canvas badge refreshes immediately — without this
       // the badge stays stale until a full reload re-hydrates from the DB.
       onPatch({ approvalStatus: status });
+      // Re-read the versions list: it is the ONLY source of the History panel's decision
+      // thread, its status icons, and the reviewer name/time on the approval readout.
+      // Without this the reviewer's own decision is invisible on the very screen they
+      // made it on until they reopen the focus view (D173).
+      await fetchVersions();
     } catch (e) {
       // Surface the server's message, not a fixed string: after D166 the realistic
       // failures are "you are not permitted…" and "a note is required…", both of which

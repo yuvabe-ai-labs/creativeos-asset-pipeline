@@ -62,6 +62,7 @@ export const videoGenApi = {
         approvedByName?: string | null;
         approvedAt?: string | null;
         decisions?: Array<{
+          id: string;
           status: "approved" | "changes_requested";
           note: string | null;
           reviewerName: string | null;
