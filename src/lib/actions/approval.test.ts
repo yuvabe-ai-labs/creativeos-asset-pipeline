@@ -144,3 +144,94 @@ describe("setVersionApprovalAction", () => {
     });
   });
 });
+
+import { markVersionApprovalSeenAction } from "./approval";
+
+// Stubs the version-row lookup with a given operator/status/seen state, and captures
+// whatever update payload the action attempts to write (or records that none was).
+function stubSeenDb(row: {
+  operatorUserId: string | null;
+  approvalStatus: string;
+  approvedSeenAt: string | null;
+} | null) {
+  const captured: { update?: Record<string, unknown>; updated: boolean } = { updated: false };
+  mockFrom.mockImplementation(() => ({
+    select: () => ({
+      eq: () => ({
+        maybeSingle: async () =>
+          row === null
+            ? { data: null, error: null }
+            : {
+                data: {
+                  id: "v1",
+                  operator_user_id: row.operatorUserId,
+                  approval_status: row.approvalStatus,
+                  approved_seen_at: row.approvedSeenAt,
+                },
+                error: null,
+              },
+      }),
+    }),
+    update: (payload: Record<string, unknown>) => {
+      captured.update = payload;
+      captured.updated = true;
+      return { eq: async () => ({ error: null }) };
+    },
+  }));
+  return captured;
+}
+
+describe("markVersionApprovalSeenAction", () => {
+  it("stamps approved_seen_at when the caller is the maker of an approved, unseen version", async () => {
+    mockCaller.mockResolvedValue(caller("designer", "ruby-1"));
+    const captured = stubSeenDb({
+      operatorUserId: "ruby-1",
+      approvalStatus: "approved",
+      approvedSeenAt: null,
+    });
+    await markVersionApprovalSeenAction("v1");
+    expect(captured.updated).toBe(true);
+    expect(captured.update).toHaveProperty("approved_seen_at");
+    expect(typeof captured.update?.approved_seen_at).toBe("string");
+  });
+
+  it("is a no-op for a version belonging to someone else", async () => {
+    mockCaller.mockResolvedValue(caller("designer", "ruby-1"));
+    const captured = stubSeenDb({
+      operatorUserId: "someone-else",
+      approvalStatus: "approved",
+      approvedSeenAt: null,
+    });
+    await markVersionApprovalSeenAction("v1");
+    expect(captured.updated).toBe(false);
+  });
+
+  it("is a no-op when the version is not approved", async () => {
+    mockCaller.mockResolvedValue(caller("senior", "senior-1"));
+    const captured = stubSeenDb({
+      operatorUserId: "senior-1",
+      approvalStatus: "pending",
+      approvedSeenAt: null,
+    });
+    await markVersionApprovalSeenAction("v1");
+    expect(captured.updated).toBe(false);
+  });
+
+  it("is a no-op when already seen", async () => {
+    mockCaller.mockResolvedValue(caller("designer", "ruby-1"));
+    const captured = stubSeenDb({
+      operatorUserId: "ruby-1",
+      approvalStatus: "approved",
+      approvedSeenAt: "2026-08-24T00:00:00Z",
+    });
+    await markVersionApprovalSeenAction("v1");
+    expect(captured.updated).toBe(false);
+  });
+
+  it("is a no-op for a version that does not exist — never throws (fire-and-forget caller)", async () => {
+    mockCaller.mockResolvedValue(caller("designer", "ruby-1"));
+    const captured = stubSeenDb(null);
+    await expect(markVersionApprovalSeenAction("v1")).resolves.toBeUndefined();
+    expect(captured.updated).toBe(false);
+  });
+});

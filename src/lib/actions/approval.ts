@@ -70,3 +70,41 @@ export async function setVersionApprovalAction(
     if (error) throw error;
   });
 }
+
+// D170: a maker's approval notification is a dismiss-on-view read receipt. Called
+// fire-and-forget from the node's own focus view when its active version is approved
+// (Task 9) — the maker's mirror of ?review=1 landing a reviewer on the node (R9.3).
+//
+// Deliberately silent rather than throwing on "not applicable" conditions: wrong caller,
+// wrong status, or already seen are not errors, they are simply "nothing to do here" —
+// this is a read receipt, not a security boundary that should surface failures to a
+// fire-and-forget caller.
+export async function markVersionApprovalSeenAction(versionId: string): Promise<void> {
+  return withAction("markVersionApprovalSeenAction", async () => {
+    const caller = await resolveCallerContext();
+    const supabase = createServerSupabase();
+
+    const { data: version, error: readErr } = await supabase
+      .from("node_versions")
+      .select("id, operator_user_id, approval_status, approved_seen_at")
+      .eq("id", versionId)
+      .maybeSingle();
+    if (readErr) throw readErr;
+    if (!version) return;
+
+    const row = version as {
+      operator_user_id: string | null;
+      approval_status: string;
+      approved_seen_at: string | null;
+    };
+    if (row.operator_user_id !== caller.userId) return;
+    if (row.approval_status !== "approved") return;
+    if (row.approved_seen_at !== null) return;
+
+    const { error } = await supabase
+      .from("node_versions")
+      .update({ approved_seen_at: new Date().toISOString() })
+      .eq("id", versionId);
+    if (error) throw error;
+  });
+}
