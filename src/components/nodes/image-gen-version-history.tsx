@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import type { ImageTokenUsage } from "@/lib/image-gen/types";
 import { describeVersionParams } from "@/lib/generations/version-params";
 import { imageGenClientModelMap } from "@/lib/image-gen/client-models";
+import { formatRelativeTime } from "@/lib/format/relative-time";
 
 export type ImageGenVersionSummary = {
   id: string;
@@ -43,16 +44,6 @@ type Props = {
   onRestore: (versionId: string) => void;
   restoring: boolean;
 };
-
-function relativeTime(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  return `${Math.floor(hrs / 24)}d ago`;
-}
 
 export function ImageGenVersionHistory({
   versions,
@@ -132,7 +123,7 @@ export function ImageGenVersionHistory({
                         {label}
                       </span>
                       <span className="shrink-0 text-xs text-muted-foreground">
-                        {relativeTime(v.createdAt)}
+                        {formatRelativeTime(v.createdAt)}
                       </span>
                     </div>
 
@@ -176,7 +167,20 @@ export function ImageGenVersionHistory({
                   )}
                   {v.inputsUsed?.instruction && (
                     <p className="ml-3.5 mt-0.5 line-clamp-1 text-[0.7rem] leading-snug text-muted-foreground">
-                      “{v.inputsUsed.instruction}”
+                      "{v.inputsUsed.instruction}"
+                    </p>
+                  )}
+                  {v.makerName && (
+                    <p className="ml-3.5 mt-0.5 text-[0.65rem] leading-snug text-muted-foreground/80">
+                      Made by {v.makerName}
+                      {v.approvalStatus === "approved" && v.approvedByName && (
+                        <> · Approved by {v.approvedByName} · {formatRelativeTime(v.approvedAt ?? null)}</>
+                      )}
+                    </p>
+                  )}
+                  {v.approvalStatus === "changes_requested" && v.approvedByName && v.note && (
+                    <p className="ml-3.5 mt-0.5 line-clamp-2 text-[0.65rem] leading-snug text-destructive/80">
+                      {v.approvedByName} requested changes: {v.note}
                     </p>
                   )}
                 </Button>
