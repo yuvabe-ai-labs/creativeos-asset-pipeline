@@ -107,6 +107,14 @@ export function ReviewInbox() {
                               Sent back
                             </span>
                           )}
+                          {/* D170: the maker's approval notification — same row shape,
+                              opposite news. Emerald matches STATUS_META.approved in
+                              InlineApprovalBar, never the destructive token rejection uses. */}
+                          {item.approvalStatus === "approved" && (
+                            <span className="shrink-0 rounded-full bg-emerald-500/10 px-1.5 text-[0.6rem] font-semibold text-emerald-700 dark:text-emerald-400">
+                              Approved
+                            </span>
+                          )}
                         </span>
                         {/* R9.2: a POINTER — what it is and where it lives. That is all it
                             owes the reader; the note itself is read on the node. */}
