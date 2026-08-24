@@ -56,6 +56,11 @@ export const videoGenApi = {
         paramsUsed: Record<string, unknown>;
         createdAt: string;
         creditsCharged?: number | null;
+        approvalStatus?: "pending" | "approved" | "changes_requested";
+        note?: string | null;
+        makerName?: string | null;
+        approvedByName?: string | null;
+        approvedAt?: string | null;
       }>;
     };
     return {
@@ -68,6 +73,11 @@ export const videoGenApi = {
         paramsUsed: v.paramsUsed ?? {},
         createdAt: v.createdAt,
         creditsCharged: v.creditsCharged ?? null,
+        approvalStatus: v.approvalStatus,
+        note: v.note ?? null,
+        makerName: v.makerName ?? null,
+        approvedByName: v.approvedByName ?? null,
+        approvedAt: v.approvedAt ?? null,
       })),
     };
   },

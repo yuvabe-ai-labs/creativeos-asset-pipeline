@@ -20,6 +20,10 @@ export type VideoGenVersionSummary = {
   // node type with no control able to act on them (R10.1).
   approvalStatus?: ApprovalStatus;
   note?: string | null;
+  // R11.3/R11.4: resolved display names, else null (D168).
+  makerName?: string | null;
+  approvedByName?: string | null;
+  approvedAt?: string | null;
 };
 
 type Props = {

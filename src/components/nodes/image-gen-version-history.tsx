@@ -24,7 +24,9 @@ export type ImageGenVersionSummary = {
   note: string | null;
   // D29 approval flag (distinct from decision).
   approvalStatus?: "pending" | "approved" | "changes_requested";
-  approvedBy?: string | null;
+  // R11.3/R11.4: resolved display names, else the legacy fallback, else null (D168).
+  makerName?: string | null;
+  approvedByName?: string | null;
   approvedAt?: string | null;
   inputsUsed?: {
     baseVersionId?: string | null;
