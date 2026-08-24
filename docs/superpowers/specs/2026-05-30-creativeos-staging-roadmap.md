@@ -3085,3 +3085,26 @@ rather than introducing new icon vocabulary.
 **Why.** D169 deliberately kept approval neutral ("approval isn't an alert"). Explicit
 follow-up instruction overrides that one specific call: both outcomes should be visually
 identifiable at a glance, not just the negative one.
+
+### D178 — One approval-status vocabulary, owned by two shared components *(recorded 2026-08-25; completes D177; retires `describeApprovalPill`)*
+
+**Decision.** `components/review/approval-status-icon.tsx` (`ApprovalStatusIcon`) and
+`components/review/approval-status-badge.tsx` (`ApprovalStatusBadge`) own the approval
+status vocabulary for the whole product: emerald `Check` = approved, destructive
+`MessageSquareWarning` = changes requested, amber dot = pending. Every surface renders one
+of the two — version-history rows and their decision threads, the navbar review inbox
+tags, and the focus-view rail badge. `describeApprovalPill` (`lib/nodes/prompt-focus.ts`)
+is deleted.
+
+**Why.** D177 gave the *node's* approval readout an icon, but three other surfaces still
+hand-rolled their own markup, and one of them disagreed outright: `describeApprovalPill`
+mapped `changes_requested` to an amber "warning" tone and `pending` to neutral grey —
+inverting the amber-means-pending convention every other approval surface uses, so the
+same version read as amber "Changes" on the rail and a red flag in its own history two
+inches away. Its three call sites (image-gen, prompt, video-prompt focus views) each
+re-implemented the tone → class mapping verbatim, which is exactly why the drift went
+unnoticed: there was no single place where the mapping could be seen to be wrong.
+
+**Rejected.** Fixing only the badge in the panel that prompted the report. That would have
+left an image node and a prompt node disagreeing about what amber means, trading one
+inconsistency for another.
