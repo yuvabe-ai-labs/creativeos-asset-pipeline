@@ -37,6 +37,16 @@ export type ApprovalUpdate = {
   note: string | null;
 };
 
+// D173: the shape the versions API route returns per logged decision — reused by both
+// version-history panels and their shared VersionDecisionThread component, so the field
+// names are written down in exactly one place.
+export type VersionDecisionSummary = {
+  status: "approved" | "changes_requested";
+  note: string | null;
+  reviewerName: string | null;
+  decidedAt: string;
+};
+
 export function buildApprovalUpdate(input: {
   status: ApprovalStatus;
   by: string | null; // the caller's user id — never a display name, never client-supplied
