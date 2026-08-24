@@ -40,7 +40,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withNode(req, params, async (nodeId) => {
+  return withNode(req, params, async (nodeId, _node, caller) => {
     const body = (await req.json().catch(() => null)) as
       | { role?: unknown; slices?: unknown }
       | null;
@@ -75,6 +75,9 @@ export async function POST(
 
       const version = await insertVersion({
         nodeId,
+        // R11.1. A compose row is capture-only (D28, never set active), so it never
+        // enters the review queue — but it still has a maker worth recording.
+        operatorUserId: caller.userId,
         inputsUsed: {
           role: role.key,
           kbSlices: resolved.slices,
@@ -97,6 +100,7 @@ export async function POST(
       const message = e instanceof Error ? e.message : "Compose failed";
       await insertVersion({
         nodeId,
+        operatorUserId: caller.userId, // a failed attempt still has a maker
         paramsUsed: { role: role.key, promptId: shotComposePrompt.id, promptVersion: shotComposePrompt.version },
         modelUsed: `openai:${shotComposePrompt.model}`,
         error: message,

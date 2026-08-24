@@ -40,7 +40,8 @@ import {
 } from "./image-gen-version-history";
 import { ImageGenUsagePopover } from "./image-gen-usage-popover";
 import { ImageGenEditPanel } from "./image-gen-edit-panel";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import {
   ImageGenAnnotationCanvas,
   type AnnotationHandle,
@@ -59,6 +60,8 @@ import type { MentionUpstream } from "@/lib/nodes/resolve-mention-tokens";
 import { editModeForModel } from "@/lib/image-gen/edit-mode";
 import { InlineEvalBar } from "./inline-eval-bar";
 import { InlineApprovalBar } from "./inline-approval-bar";
+import { ApprovalSkeleton } from "./approval-skeleton";
+import { useCanvasStoreApi } from "@/components/canvas/canvas-store-provider";
 import { setVersionLabelAction } from "@/lib/actions/eval";
 import { setVersionApprovalAction } from "@/lib/actions/approval";
 import { useIdentity } from "@/hooks/use-identity";
@@ -198,21 +201,30 @@ export function ImageGenFocusView({
   } | null>(null);
   // estimatedCredits/editEstimatedCredits are computed directly below (D93) — no state, no
   // fetch. See the useMemo blocks further down for both.
-  const [loadingVersions, setLoadingVersions] = useState(open);
-  // Seeded from `open`, not `false` — see the note in video-prompt-focus-view.tsx: a node
-  // created by the guided button mounts with its focus view already open, so the open
-  // TRANSITION the re-arm below keys on never happens and the panel showed its empty state
-  // instead of a skeleton while the prompt's text was still arriving.
+  // Seeded from `open`, not `false`. These flags are armed inside the open-TRANSITION
+  // block below, so any path that mounts this view ALREADY open skips them and every
+  // skeleton stays off through the first fetch.
   //
-  // Mirrors that re-arm's own condition exactly: only arm when there IS a prompt to fetch.
-  // The effect that clears this flag returns early when none is connected, so arming
+  // Both branches hit this independently: the guided button creates a node with its focus
+  // view already open (see video-prompt-focus-view.tsx), and a navbar-inbox review link
+  // does the same. The visible symptom differed — an empty prompt panel there, "Generate
+  // an image first…" snapping to the approval control here — but it is one bug.
+  const [loadingVersions, setLoadingVersions] = useState(open);
+  // Mirrors the re-arm's own condition exactly: only arm when there IS a prompt to fetch.
+  // The effect that clears this flag returns early when none is connected, so arming it
   // unconditionally would strand the skeleton on forever.
   const [loadingPreview, setLoadingPreview] = useState(
     () => open && upstream.some((u) => u.type === "prompt"),
   );
   // The selected rail item: "image" (the hero pane), "history", "details", or a
   // connected node's id (right pane shows that node's read-only detail).
-  const [selected, setSelected] = useState<string>("image");
+  const focusStoreApi = useCanvasStoreApi();
+  // Initialised from the store, not just updated on the open TRANSITION: arriving from a
+  // navbar-inbox link can mount this view already open, in which case the transition never
+  // fires and the requested section would be lost.
+  const [selected, setSelected] = useState<string>(
+    () => (open ? focusStoreApi.getState().focusSection : null) ?? "image",
+  );
   const [openSeed, setOpenSeed] = useState(open);
   const seenModelIdRef = useRef(model.id);
 
@@ -223,9 +235,19 @@ export function ImageGenFocusView({
       setLoadingVersions(true);
       // Only arm the preview skeleton if there's actually a prompt node to fetch.
       setLoadingPreview(upstream.some((u) => u.type === "prompt"));
-      setSelected("image"); // return to the hero pane on open
+      // Normally the hero pane — but a programmatic open from the review drawer or the
+      // navbar inbox asks for "details", where sign-off lives. Landing on the hero pane
+      // would make a reviewer hunt for the control they were sent here to use.
+      setSelected(focusStoreApi.getState().focusSection ?? "image");
     }
   }
+
+  // Clear the one-shot section request once this view has consumed it, so opening any
+  // other node afterwards goes to its own default. Guarded on `open`, so the many closed
+  // focus views mounted across the canvas never clear a request meant for one of them.
+  useEffect(() => {
+    if (open) focusStoreApi.getState().setFocusSection(null);
+  }, [open, focusStoreApi]);
 
   // A connected node is selected when `selected` isn't one of the fixed rail keys.
   const isNodeSelected = !["image", "history", "details"].includes(selected);
@@ -839,11 +861,7 @@ export function ImageGenFocusView({
     if (!activeVersionId) return;
     setApprovalSaving(true);
     try {
-      await setVersionApprovalAction(activeVersionId, {
-        status,
-        approvedBy: identity?.name ?? null,
-        note,
-      });
+      await setVersionApprovalAction(activeVersionId, { status, note });
       setApprovalStatus(status);
       setApprovalNote(note ?? "");
       // Push into the store so the on-canvas badge refreshes immediately — without
@@ -971,36 +989,19 @@ export function ImageGenFocusView({
                 </SheetTitle>
               </div>
               <div className="flex shrink-0 items-center gap-2">
-                {/* The Generate/Edit tabs (needs canEditBase) and Usage popover (needs
-                    versions) both depend on the versions fetch that starts when the sheet
-                    opens — reserve their space with a skeleton instead of rendering nothing
-                    until it resolves, which read as the header controls suddenly popping in. */}
+                {/* The Usage popover depends on the versions fetch that starts when the
+                    sheet opens — reserve its space with a skeleton rather than letting it
+                    pop into the header once the request resolves. The Generate/Edit toggle
+                    used to sit here too; it now lives over the image it acts on. */}
                 {loadingVersions ? (
-                  <Skeleton className="h-8 w-44 rounded-lg" />
+                  <Skeleton className="h-8 w-28 rounded-lg" />
                 ) : (
-                  <>
-                    {canEditBase && (
-                      <Tabs
-                        value={activeTab}
-                        onValueChange={(v) => {
-                          setActiveTab(v as "generate" | "edit");
-                          setSelected("image"); // the tab's UI lives in the hero pane
-                        }}
-                      >
-                        <TabsList>
-                          <TabsTrigger value="generate">Generate</TabsTrigger>
-                          <TabsTrigger value="edit">Edit</TabsTrigger>
-                        </TabsList>
-                      </Tabs>
-                    )}
-                    {versions.length > 0 && (
-                      <ImageGenUsagePopover
-                        versions={versions}
-                        nodeId={nodeId}
-                        upstreamNodeIds={upstream.map((u) => u.id)}
-                      />
-                    )}
-                  </>
+                  /* Always rendered — pre-generation it reads "0 credits used". */
+                  <ImageGenUsagePopover
+                    versions={versions}
+                    nodeId={nodeId}
+                    upstreamNodeIds={upstream.map((u) => u.id)}
+                  />
                 )}
                 <GuidedNextButton
                   sourceId={nodeId}
@@ -1029,7 +1030,7 @@ export function ImageGenFocusView({
             />
 
             <div className="flex items-center justify-between px-2.5 pb-1 pt-3">
-              <span className="text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground/70">
+              <span className="text-[0.65rem] font-semibold uppercase tracking-wider text-foreground/70">
                 Connected · {upstream.length}
               </span>
               <AddConnection
@@ -1080,9 +1081,16 @@ export function ImageGenFocusView({
           {/* Detail pane: the middle column swaps with the rail selection; the
               output column on the right is ALWAYS visible, so the operator can
               look at refs, settings, or the prompt while watching the result. */}
-          <div className="flex min-h-0 flex-1 overflow-hidden">
-            {/* Middle column */}
-            <div className="min-h-0 w-[54%] shrink-0 overflow-y-auto border-r border-border">
+          {/* No overflow-hidden: it would crop the raised column's left shadow.
+              The columns inside own their scrolling. */}
+          <div className="flex min-h-0 flex-1">
+            {/* Middle column — the one the operator acts in, so it is the raised
+                white surface: card background plus a sideways shadow against the
+                muted output pane beside it. Deliberately NOT a purple wash — the
+                design system reserves the brand colour for accents and forbids it
+                as a large background fill, and a tinted column would also fight the
+                purple CTA sitting inside it. */}
+            <div className="min-h-0 w-[54%] shrink-0 overflow-y-auto border-x border-primary/25 bg-card panel-raised">
               {/* Image — model & controls; plus the edit tools on the Edit tab */}
               {selected === "image" && (
                 <div className="flex flex-col gap-6 px-6 py-5">
@@ -1108,11 +1116,11 @@ export function ImageGenFocusView({
                       </AccordionItem>
                     </Accordion>
                   ) : (
-                    <div className="rounded-xl border border-border bg-card p-4 shadow-card">
-                      <LeftSection icon={Settings2} label="Output settings">
-                        {outputSettingsBody}
-                      </LeftSection>
-                    </div>
+                    // Flat, like the image-prompt compose column — the card emphasis
+                    // belongs to the generated output on the right, not the controls.
+                    <LeftSection icon={Settings2} label="Output settings">
+                      {outputSettingsBody}
+                    </LeftSection>
                   )}
 
                   {activeTab === "edit" && canEditBase && (
@@ -1202,7 +1210,11 @@ export function ImageGenFocusView({
               {selected === "details" && (
                 <div className="flex flex-col gap-6 px-6 py-5">
                   <LeftSection icon={BadgeCheck} label="Review">
-                    {mode === "result" && !!activeVersionId ? (
+                    {/* Skeleton while versions are in flight — otherwise this asserts
+                        "Generate an image first…" and then snaps to the real control. */}
+                    {loadingVersions ? (
+                      <ApprovalSkeleton />
+                    ) : mode === "result" && !!activeVersionId ? (
                       <div className="flex flex-col gap-3">
                         <InlineEvalBar
                           decision={evalDecision}
@@ -1213,11 +1225,15 @@ export function ImageGenFocusView({
                           onNote={setEvalNote}
                           onNoteBlur={handleEvalNoteBlur}
                         />
+                        {/* R7.1/D160: canApprove is NOT gated on `editable`. Approval
+                            writes only to node_versions, so it is not in the class of
+                            writes the D33 lock serialises — a senior signs off while a
+                            junior keeps editing. */}
                         <InlineApprovalBar
                           status={approvalStatus}
                           note={approvalNote}
                           saving={approvalSaving}
-                          canApprove={editable && identity?.role === "senior"}
+                          canApprove={identity?.role === "senior"}
                           onSet={saveApproval}
                         />
                       </div>
@@ -1231,15 +1247,39 @@ export function ImageGenFocusView({
               )}
             </div>
 
-            {/* Right column — the output, always visible */}
-            <div className="flex min-h-0 flex-1 flex-col gap-3 px-6 py-5">
-              <div className="flex items-center gap-1.5">
-                <Sparkles className="size-3.5 text-primary" strokeWidth={1.5} />
-                <span className="text-eyebrow">
-                  {activeTab === "edit" && editBaseUrl && !editing
-                    ? "Base image"
-                    : "Generated image"}
-                </span>
+            {/* Right column — the output, always visible. Faintly sunk so the
+                action column reads as raised against it. */}
+            <div className="flex min-h-0 flex-1 flex-col gap-3 bg-muted/20 px-6 py-5">
+              <div className="flex items-center gap-6">
+                <div className="flex items-center gap-1.5">
+                  <Sparkles className="size-3.5 text-primary" strokeWidth={1.5} />
+                  <span className="text-eyebrow">
+                    {activeTab === "edit" && editBaseUrl && !editing
+                      ? "Base image"
+                      : "Generated image"}
+                  </span>
+                </div>
+                {/* Edit mode acts on the image directly below, so the control sits with
+                    that image rather than in the page header two panes away — and beside
+                    the heading rather than pushed to the far edge, where it read as
+                    unrelated chrome. A switch, not tabs: two modes of one surface, only
+                    one of which departs from the default. */}
+                {!loadingVersions && canEditBase && (
+                  <Label
+                    htmlFor={`image-edit-mode-${nodeId}`}
+                    className="flex shrink-0 cursor-pointer items-center gap-2.5 text-sm font-medium text-foreground"
+                  >
+                    Edit
+                    <Switch
+                      id={`image-edit-mode-${nodeId}`}
+                      checked={activeTab === "edit"}
+                      onCheckedChange={(checked) => {
+                        setActiveTab(checked ? "edit" : "generate");
+                        setSelected("image"); // the mode's controls live in this pane
+                      }}
+                    />
+                  </Label>
+                )}
               </div>
               <div className="min-h-0 flex-1">
                 {activeTab === "edit" && editBaseUrl && !editing ? (
@@ -1252,15 +1292,18 @@ export function ImageGenFocusView({
                       onMarksChange={setHasMaskRegion}
                     />
                   ) : (
-                    <div className="flex size-full flex-col items-center justify-center gap-3">
+                    // Same frame as the result view, so toggling Edit does not resize
+                    // the picture. The hint is an overlay rather than a row beneath it —
+                    // a flow hint would steal height and reintroduce the mismatch.
+                    <div className="relative h-full w-fit max-w-full overflow-hidden rounded-xl border border-border bg-muted/20">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={editBaseUrl}
                         alt={title || "Base image"}
-                        className="max-h-[80%] max-w-full rounded-xl border border-border object-contain"
+                        className="h-full w-auto max-w-full object-contain"
                         draggable={false}
                       />
-                      <p className="text-xs text-muted-foreground">
+                      <p className="pointer-events-none absolute inset-x-0 bottom-0 bg-background/80 px-3 py-1.5 text-center text-xs text-muted-foreground backdrop-blur-sm">
                         This model edits from your description — say what to
                         change and where.
                       </p>
@@ -1269,7 +1312,9 @@ export function ImageGenFocusView({
                 ) : (
                   <>
                     {mode === "skeleton" && (
-                      <div className="size-full animate-pulse rounded-xl bg-muted-foreground/15" />
+                      // 9:16, centred — the same footprint the result frame will occupy,
+                      // so the swap to the real image doesn't change shape.
+                      <div className="aspect-[9/16] h-full max-w-full animate-pulse rounded-xl bg-muted-foreground/15" />
                     )}
 
                     {mode === "empty" && !editing && (
@@ -1304,12 +1349,16 @@ export function ImageGenFocusView({
                     )}
 
                     {mode === "result" && imageUrl && (
-                      <div className="group relative size-full overflow-hidden rounded-xl border border-border bg-muted/20">
+                      // w-fit: the frame hugs the image (height-driven, width from the
+                      // image's own ratio) instead of filling the column and painting
+                      // gutters inside the border. Overlays anchor to the image, not
+                      // the empty column.
+                      <div className="group relative h-full w-fit max-w-full overflow-hidden rounded-xl border border-border bg-muted/20">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           src={imageUrl}
                           alt={title || "Generated image"}
-                          className="size-full object-contain"
+                          className="h-full w-auto max-w-full object-contain"
                         />
                         {editing && (
                           <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/60 backdrop-blur-sm">
@@ -1323,22 +1372,24 @@ export function ImageGenFocusView({
                           </div>
                         )}
                         <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                          <button
+                          <Button
                             type="button"
+                            variant="ghost"
                             onClick={handleDownload}
-                            className="inline-flex items-center gap-1 rounded-md bg-background/80 px-2 py-1 text-xs font-medium text-foreground backdrop-blur"
+                            className="h-auto gap-1 rounded-md border-0 bg-background/80 px-2 py-1 text-xs text-foreground backdrop-blur hover:bg-background/80 hover:text-foreground"
                             aria-label="Download image"
                           >
                             <Download className="size-3.5" strokeWidth={1.5} />
-                          </button>
-                          <button
+                          </Button>
+                          <Button
                             type="button"
+                            variant="ghost"
                             onClick={() => setZoomOpen(true)}
-                            className="inline-flex items-center gap-1 rounded-md bg-background/80 px-2 py-1 text-xs font-medium text-foreground backdrop-blur"
+                            className="h-auto gap-1 rounded-md border-0 bg-background/80 px-2 py-1 text-xs text-foreground backdrop-blur hover:bg-background/80 hover:text-foreground"
                           >
                             <ZoomIn className="size-3.5" strokeWidth={1.5} />{" "}
                             Zoom
-                          </button>
+                          </Button>
                         </div>
                       </div>
                     )}

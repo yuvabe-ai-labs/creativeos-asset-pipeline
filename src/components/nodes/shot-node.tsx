@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { Clapperboard, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { useDeleteNode } from "@/hooks/use-delete-node";
 import { useFocusViewRegistration } from "@/hooks/use-focus-view-open";
@@ -109,13 +110,13 @@ export function ShotNode({ id, data, selected, positionAbsoluteX, positionAbsolu
           </p>
 
           <div className="mt-1 flex items-center gap-1.5">
-            <button
-              type="button"
+            <Button
+              variant="ghost"
               onClick={() => setComposeOpen(true)}
-              className="nodrag flex items-center gap-1 rounded-md border border-dashed border-primary/40 px-2 py-1 text-[0.65rem] text-primary transition-colors hover:bg-primary/5"
+              className="nodrag h-auto gap-1 rounded-md border border-dashed border-primary/40 px-2 py-1 text-[0.65rem] text-primary hover:bg-primary/5 hover:text-primary dark:hover:bg-primary/5"
             >
               <Sparkles className="size-3" strokeWidth={1.5} /> Compose
-            </button>
+            </Button>
             <GuidedNextButton sourceId={id} variant="chip" />
           </div>
         </div>

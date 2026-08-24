@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from "react";
 import { ThumbsUp, ThumbsDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import type { NodeTrace } from "@/lib/eval/node-traces";
 import { diffVersions } from "@/lib/eval/diff-versions";
 import { OutputRenderer } from "./output-renderer";
@@ -33,26 +34,32 @@ function OpenCoding({
     <section className="rounded-xl border border-border bg-card p-4 shadow-card">
       <div className="mb-3"><span className="text-eyebrow">D · Open coding</span></div>
       <div className="mb-3 flex gap-2">
-        <button
+        <Button
           type="button"
+          variant="ghost"
           onClick={() => onLabel(decision === "pass" ? null : "pass", draft)}
           className={cn(
-            "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors",
-            decision === "pass" ? "border-emerald-300 bg-emerald-50 text-emerald-700" : "border-border text-muted-foreground hover:bg-muted",
+            "h-auto px-3 py-1.5",
+            decision === "pass"
+              ? "border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-700"
+              : "border-border text-muted-foreground hover:text-muted-foreground",
           )}
         >
           <ThumbsUp className="size-4" strokeWidth={1.5} /> Good
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
+          variant="ghost"
           onClick={() => onLabel(decision === "fail" ? null : "fail", draft)}
           className={cn(
-            "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors",
-            decision === "fail" ? "border-red-300 bg-red-50 text-red-700" : "border-border text-muted-foreground hover:bg-muted",
+            "h-auto px-3 py-1.5",
+            decision === "fail"
+              ? "border-red-300 bg-red-50 text-red-700 hover:bg-red-50 hover:text-red-700"
+              : "border-border text-muted-foreground hover:text-muted-foreground",
           )}
         >
           <ThumbsDown className="size-4" strokeWidth={1.5} /> Bad
-        </button>
+        </Button>
       </div>
       <textarea
         value={draft}
@@ -85,29 +92,32 @@ export function TraceDetail({
       {n > 1 && (
         <div className="flex flex-wrap items-center gap-3">
           <div className="inline-flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-xs">
-            <button type="button" disabled={ix >= n - 1} onClick={() => onStep(ix + 1)} className="disabled:opacity-30" title="Older">
+            <Button type="button" variant="ghost" disabled={ix >= n - 1} onClick={() => onStep(ix + 1)} className="h-auto p-0 hover:bg-transparent disabled:opacity-30" title="Older">
               <ChevronLeft className="size-4" strokeWidth={1.5} />
-            </button>
+            </Button>
             <span>v{vNum(ix)} <span className="text-muted-foreground">of {n}</span></span>
-            <button type="button" disabled={ix <= 0} onClick={() => onStep(ix - 1)} className="disabled:opacity-30" title="Newer">
+            <Button type="button" variant="ghost" disabled={ix <= 0} onClick={() => onStep(ix - 1)} className="h-auto p-0 hover:bg-transparent disabled:opacity-30" title="Newer">
               <ChevronRight className="size-4" strokeWidth={1.5} />
-            </button>
+            </Button>
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
             {trace.versions.map((v, i) => (
-              <button
+              <Button
                 key={v.versionId}
                 type="button"
+                variant="ghost"
                 onClick={() => onStep(i)}
                 className={cn(
-                  "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[0.7rem]",
-                  i === ix ? "border-primary bg-primary/8 font-medium text-primary" : "border-border text-muted-foreground hover:bg-muted",
+                  "h-auto gap-1 rounded-full px-2 py-0.5 text-[0.7rem] font-normal",
+                  i === ix
+                    ? "border-primary bg-primary/8 font-medium text-primary hover:bg-primary/8 hover:text-primary"
+                    : "border-border text-muted-foreground hover:text-muted-foreground",
                 )}
               >
                 {v.decision === "pass" && <span className="text-emerald-600">✓</span>}
                 {v.decision === "fail" && <span className="text-red-600">✕</span>}
                 v{vNum(i)}
-              </button>
+              </Button>
             ))}
           </div>
         </div>

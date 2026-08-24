@@ -289,14 +289,15 @@ export function KBOnboardingUploadStep({
                       </span>
                     )}
                     {!isRunning && (
-                      <button
+                      <Button
                         type="button"
+                        variant="ghost"
                         onClick={() => removeDoc(doc.id)}
-                        className="ml-1 shrink-0 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground transition-opacity"
+                        className="ml-1 h-auto p-0 opacity-0 group-hover:opacity-100 text-muted-foreground transition-opacity hover:bg-transparent dark:hover:bg-transparent"
                         aria-label="Remove"
                       >
                         <XIcon className="size-3.5" />
-                      </button>
+                      </Button>
                     )}
                   </li>
                 ))}
@@ -350,14 +351,15 @@ export function KBOnboardingUploadStep({
                       </span>
                     )}
                     {!isRunning && (
-                      <button
+                      <Button
                         type="button"
+                        variant="ghost"
                         onClick={() => removeImage(img.id)}
-                        className="ml-1 shrink-0 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground transition-opacity"
+                        className="ml-1 h-auto p-0 opacity-0 group-hover:opacity-100 text-muted-foreground transition-opacity hover:bg-transparent dark:hover:bg-transparent"
                         aria-label="Remove"
                       >
                         <XIcon className="size-3.5" />
-                      </button>
+                      </Button>
                     )}
                   </li>
                 ))}

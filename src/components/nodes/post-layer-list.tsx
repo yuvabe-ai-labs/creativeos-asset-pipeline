@@ -169,13 +169,13 @@ export function PostLayerList({
                   {rowInner}
                 </div>
               ) : (
-                <button
-                  type="button"
+                <Button
+                  variant="ghost"
                   onClick={(e) => handleSelect(e, layer.id)}
-                  className="flex-1 flex items-center gap-1.5 min-w-0 text-left"
+                  className="h-auto flex-1 shrink justify-start gap-1.5 rounded-md p-0 text-left text-xs font-normal min-w-0 hover:bg-transparent hover:text-inherit dark:hover:bg-transparent"
                 >
                   {rowInner}
-                </button>
+                </Button>
               )}
               <div className="hidden shrink-0 items-center gap-0.5 group-hover:flex">
                 <Button

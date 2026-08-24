@@ -90,7 +90,7 @@ export function VideoGenParamsPanel({
     // Uniform cell: a FieldLabel (icon + name) above the control, so every stacked param row —
     // chip select, slider, or textarea — shares the same label weight and spacing.
     return (
-      <div key={spec.name} className="space-y-2">
+      <div key={spec.name} className="space-y-3">
         <FieldLabel icon={PARAM_ICONS[spec.name] ?? Settings2} label={spec.label} />
         {isLocked && reason ? (
           <Tooltip>
@@ -121,7 +121,7 @@ export function VideoGenParamsPanel({
           const rowParams = canPair ? visibleParams.slice(0, 2) : [];
           const stackParams = canPair ? visibleParams.slice(2) : visibleParams;
           return (
-            <div className="space-y-4">
+            <div className="space-y-4 [&>*+*]:border-t [&>*+*]:border-border [&>*+*]:pt-4">
               {rowParams.length > 0 && (
                 // Compact control (Mode / Aspect Ratio) sizes to its content; the slider
                 // beside it (Duration) fills the rest of the row — no dead half-column gap.

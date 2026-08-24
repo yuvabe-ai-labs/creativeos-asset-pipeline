@@ -9,6 +9,7 @@ import {
 } from "react";
 import {
   ArrowLeft,
+  BadgeCheck,
   ChevronDown,
   Clapperboard,
   History,
@@ -52,8 +53,13 @@ import { computeVideoCost, isVideoAudioEnabled, asResolutionString } from "@/lib
 import { usdToFinalCredits } from "@/lib/credits/units";
 import { EstimatedCreditsLabel } from "./estimated-credits-label";
 import { createBrowserSupabase } from "@/lib/supabase/client";
-import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
+import { useCanvasStore, useCanvasStoreApi } from "@/components/canvas/canvas-store-provider";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
+import { useIdentity } from "@/hooks/use-identity";
+import { InlineApprovalBar } from "./inline-approval-bar";
+import { ApprovalSkeleton } from "./approval-skeleton";
+import { setVersionApprovalAction } from "@/lib/actions/approval";
+import type { ApprovalStatus } from "@/lib/approval";
 import { useFlushAutosave } from "@/components/canvas/autosave-flush-context";
 import { useVideoGenStatus } from "@/hooks/use-video-gen-status";
 import {
@@ -62,7 +68,7 @@ import {
 } from "./video-gen-version-history";
 import { VideoGenUsagePopover } from "./video-gen-usage-popover";
 import { Skeleton } from "@/components/ui/skeleton";
-import { VideoGenParamsPanel, hasParamsInGroup } from "./video-gen-params-panel";
+import { VideoGenParamsPanel } from "./video-gen-params-panel";
 import { VideoGenConnectedSection } from "./video-gen-connected-section";
 import { RailItem } from "./focus-rail-item";
 import { AddConnection } from "./add-connection";
@@ -246,13 +252,14 @@ function VideoGenDetailPanel({
 
   return (
     <div className="flex w-full max-w-5xl flex-col gap-4 px-6 py-6">
-      <button
+      <Button
         type="button"
+        variant="ghost"
         onClick={onBack}
-        className="inline-flex items-center gap-1.5 self-start text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+        className="h-auto gap-1.5 self-start border-0 p-0 text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground"
       >
         <ArrowLeft className="size-4" strokeWidth={1.5} /> Back to video
-      </button>
+      </Button>
 
       {item.type === "prompt" && promptNode && (
         <div className="flex min-h-0 flex-1 flex-col gap-3">
@@ -298,22 +305,23 @@ function VideoGenDetailPanel({
                   return (
                     <Tooltip key={role}>
                       <TooltipTrigger render={<span />}>
-                        <button
+                        <Button
                           type="button"
+                          variant="ghost"
                           aria-disabled={disabled}
                           onClick={() =>
                             !disabled && onRoleChange(item.id, role)
                           }
                           className={cn(
-                            "rounded-lg border px-4 py-2 text-sm font-medium transition-colors",
+                            "h-auto rounded-lg border px-4 py-2 transition-colors",
                             active
-                              ? "border-primary bg-primary text-primary-foreground"
-                              : "border-border bg-background text-foreground hover:bg-muted",
+                              ? "border-primary bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground dark:hover:bg-primary"
+                              : "border-border bg-background text-foreground hover:bg-muted hover:text-foreground dark:hover:bg-muted",
                             disabled && "cursor-not-allowed opacity-40",
                           )}
                         >
                           {label}
-                        </button>
+                        </Button>
                       </TooltipTrigger>
                       {tooltip && (
                         <TooltipContent side="top">{tooltip}</TooltipContent>
@@ -353,20 +361,33 @@ export function VideoGenFocusView({
   const [promptNode, setPromptNode] = useState<UpstreamPromptNode | null>(null);
   const [versions, setVersions] = useState<VideoGenVersionSummary[]>([]);
   const [activeVersionId, setActiveVersionId] = useState<string | null>(null);
+  // D29 approval flag — R10.1. video-gen-node.tsx has always rendered ApprovalBadge, but
+  // this focus view had no control able to change it, so a video read "Pending" forever.
+  const [approvalStatus, setApprovalStatus] = useState<ApprovalStatus>("pending");
+  const [approvalNote, setApprovalNote] = useState("");
+  const [approvalSaving, setApprovalSaving] = useState(false);
   const [restoring, setRestoring] = useState(false);
   // The selected rail item: "video" (settings + preview), "history", "details", or a connected
   // node's id (middle column shows that node's role/detail view). Mirrors image-gen-focus-view.
-  const [selected, setSelected] = useState<string>("video");
+  const focusStoreApi = useCanvasStoreApi();
+  // Initialised from the store, not just updated on the open TRANSITION: arriving from a
+  // navbar-inbox link can mount this view already open, in which case the transition never
+  // fires and the requested section would be lost.
+  const [selected, setSelected] = useState<string>(
+    () => (open ? focusStoreApi.getState().focusSection : null) ?? "video",
+  );
   // Only the Advanced group collapses (Audio / Multi-Shot / Negative Prompt); Frames and
   // Output settings are always expanded. Defaults closed so the panel opens uncluttered.
-  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [pendingDialog, setPendingDialog] = useState<DialogState>(null);
 
   // Seeded from `open`, not `false`. The seed block below re-arms these on the false → true
-  // TRANSITION, which a node created by the guided button never has — guidedCreateNext and
-  // setFocusedNodeId land in the same batch, so the card mounts with its focus view already
-  // open. Both flags stayed false through the first resolve, so the rail rendered "No inputs
-  // connected." rather than its skeleton while the inputs were still on their way.
+  // TRANSITION, which any path that mounts the view ALREADY open never has.
+  //
+  // Both branches hit this independently. Guided creation: guidedCreateNext and
+  // setFocusedNodeId land in the same batch, so the card mounts with its focus view open
+  // and the rail rendered "No inputs connected." instead of a skeleton. Review: a
+  // navbar-inbox link does the same, and the Review section asserted "Generate a video
+  // first…" before snapping to the approval control. One bug, two symptoms.
   const [loadingVersions, setLoadingVersions] = useState(open);
   const [loadingConnected, setLoadingConnected] = useState(open);
 
@@ -376,11 +397,21 @@ export function VideoGenFocusView({
     setOpenNodeSeed({ open, nodeId });
     setPendingDialog(null);
     if (open) {
-      setSelected("video");
+      // Normally the video pane — but a programmatic open from the review drawer or the
+      // navbar inbox asks for "details", where sign-off lives. Landing on the video pane
+      // would make a reviewer hunt for the control they were sent here to use.
+      setSelected(focusStoreApi.getState().focusSection ?? "video");
       setLoadingVersions(true);
       setLoadingConnected(true);
     }
   }
+
+  // Clear the one-shot section request once this view has consumed it, so opening any
+  // other node afterwards goes to its own default. Guarded on `open`, so the many closed
+  // focus views mounted across the canvas never clear a request meant for one of them.
+  useEffect(() => {
+    if (open) focusStoreApi.getState().setFocusSection(null);
+  }, [open, focusStoreApi]);
 
   const { isGenerating, lastError, setGenerating, setLastError } =
     useVideoGenStatus(nodeId);
@@ -391,6 +422,7 @@ export function VideoGenFocusView({
   const setVideoGenError = useCanvasStore((s) => s.setVideoGenError);
   const disconnectNodes = useCanvasStore((s) => s.disconnectNodes);
   const editable = useCanvasEditable(); // D33: false when this session is read-only
+  const { identity } = useIdentity();
   const flushAutosave = useFlushAutosave();
 
   // Stable ref for onPatch — breaks the useCallback → useEffect dep cycle
@@ -406,6 +438,8 @@ export function VideoGenFocusView({
       setActiveVersionId(data.activeVersionId);
       const active = data.versions.find((v) => v.id === data.activeVersionId);
       if (active?.output) onPatchRef.current({ parsed: active.output });
+      setApprovalStatus(active?.approvalStatus ?? "pending");
+      setApprovalNote(active?.note ?? "");
     } catch {
       /* best-effort */
     }
@@ -489,6 +523,8 @@ export function VideoGenFocusView({
         setActiveVersionId(data.activeVersionId);
         const active = data.versions.find((v) => v.id === data.activeVersionId);
         if (active?.output) onPatchRef.current({ parsed: active.output });
+        setApprovalStatus(active?.approvalStatus ?? "pending");
+        setApprovalNote(active?.note ?? "");
       })
       .catch(() => {})
       .finally(() => setLoadingVersions(false));
@@ -686,6 +722,27 @@ export function VideoGenFocusView({
     }
   }
 
+  // R10.1 — matches image-gen-focus-view's saveApproval exactly.
+  async function saveApproval(status: ApprovalStatus, note: string | null) {
+    if (!activeVersionId) return;
+    setApprovalSaving(true);
+    try {
+      await setVersionApprovalAction(activeVersionId, { status, note });
+      setApprovalStatus(status);
+      setApprovalNote(note ?? "");
+      // Push into the store so the on-canvas badge refreshes immediately — without this
+      // the badge stays stale until a full reload re-hydrates from the DB.
+      onPatch({ approvalStatus: status });
+    } catch (e) {
+      // Surface the server's message, not a fixed string: after D166 the realistic
+      // failures are "you are not permitted…" and "a note is required…", both of which
+      // the reviewer needs to actually read.
+      toast.error(e instanceof Error ? e.message : "Failed to save approval");
+    } finally {
+      setApprovalSaving(false);
+    }
+  }
+
   /**
    * Put the node back into the state that produced this version — its model and its params,
    * not only its video (YUV-295).
@@ -853,13 +910,14 @@ export function VideoGenFocusView({
         {/* Header */}
         <div className="shrink-0 border-b">
           <div className="mx-auto w-full max-w-7xl px-6 pb-5 pt-3">
-            <button
+            <Button
               type="button"
+              variant="ghost"
               onClick={() => onOpenChange(false)}
-              className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+              className="h-auto gap-1.5 border-0 p-0 text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground"
             >
               <ArrowLeft className="size-4" strokeWidth={1.5} /> Back to canvas
-            </button>
+            </Button>
             <header className="mt-4 flex items-start justify-between gap-4">
               <div>
                 <SheetTitle className="p-0 font-display text-3xl font-semibold tracking-tight">
@@ -879,52 +937,16 @@ export function VideoGenFocusView({
                   {loadingVersions ? (
                     <Skeleton className="h-8 w-20 rounded-md" />
                   ) : (
-                    versions.length > 0 && (
-                      <VideoGenUsagePopover
-                        versions={versions}
-                        nodeId={nodeId}
-                        upstreamNodeIds={[
-                          ...(promptNode ? [promptNode.id] : []),
-                          ...upstreamImages.map((u) => u.id),
-                        ]}
-                      />
-                    )
+                    /* Always rendered once loaded — pre-generation it reads "0 credits used". */
+                    <VideoGenUsagePopover
+                      versions={versions}
+                      nodeId={nodeId}
+                      upstreamNodeIds={[
+                        ...(promptNode ? [promptNode.id] : []),
+                        ...upstreamImages.map((u) => u.id),
+                      ]}
+                    />
                   )}
-                  <Tooltip>
-                    <TooltipTrigger render={<span />}>
-                      <Button
-                        size="lg"
-                        onClick={handleGenerate}
-                        disabled={
-                          isGenerating ||
-                          constraints.disableGenerate ||
-                          !editable ||
-                          (currentModel?.provider === "kling" &&
-                            !Object.values(effectiveImageRoles).includes("start_frame"))
-                        }
-                      >
-                        <Sparkles className="size-4" strokeWidth={1.5} />
-                        {isGenerating
-                          ? "Generating…"
-                          : videoUrl
-                            ? "Re-generate"
-                            : "Generate"}
-                        {!isGenerating && estimatedCredits !== null && (
-                          <EstimatedCreditsLabel credits={estimatedCredits} />
-                        )}
-                      </Button>
-                    </TooltipTrigger>
-                    {(constraints.disableGenerate && constraints.disableGenerateReason) ? (
-                      <TooltipContent side="bottom">
-                        {constraints.disableGenerateReason}
-                      </TooltipContent>
-                    ) : currentModel?.provider === "kling" &&
-                      !Object.values(effectiveImageRoles).includes("start_frame") ? (
-                      <TooltipContent side="bottom">
-                        Kling requires a start frame — connect an image and assign it as Start Frame
-                      </TooltipContent>
-                    ) : null}
-                  </Tooltip>
                 </div>
                 {lastError && !isGenerating && (
                   <div className="mt-1">
@@ -1027,9 +1049,11 @@ export function VideoGenFocusView({
 
           {/* Detail pane: the middle column swaps with the rail selection; the output column on
               the right is ALWAYS visible so the operator can tune while watching the result. */}
-          <div className="flex min-h-0 flex-1 overflow-hidden">
+          {/* No overflow-hidden: it would crop the raised column's left shadow.
+              The columns inside own their scrolling. */}
+          <div className="flex min-h-0 flex-1">
             {/* Middle column */}
-            <div className="min-h-0 w-[54%] shrink-0 overflow-y-auto border-r border-border">
+            <div className="min-h-0 w-[54%] shrink-0 overflow-y-auto border-x border-primary/25 bg-card panel-raised">
               {/* Video — flat, independently-collapsible peer groups (Frames / Output / Fine-tune / Advanced) */}
               {selected === "video" && (
                 <div className="flex flex-col gap-10 px-6 py-5">
@@ -1049,14 +1073,6 @@ export function VideoGenFocusView({
                     />
                   </VideoGenModelPicker>
                   {(() => {
-                    const paramsPanelProps = {
-                      modelId,
-                      // D98: what the panel shows is what doGenerate posts.
-                      params: effectiveParams,
-                      onParamChange: handleParamChange,
-                      lockedParams: constraints.lockedParams,
-                      lockedParamReasons: constraints.lockedParamReasons,
-                    };
                     return (
                       <>
                         {/* The spine heads the Frames section: it is the summary of exactly what
@@ -1079,23 +1095,51 @@ export function VideoGenFocusView({
                             />
                           </div>
                         </LeftSection>
-                        {/* Advanced is the one collapsible group, so the secondary controls
-                            don't crowd the panel by default. */}
-                        {hasParamsInGroup(modelId, "advanced") && (
-                          <LeftSection
-                            icon={SlidersHorizontal}
-                            label="Advanced"
-                            open={advancedOpen}
-                            onToggle={() => setAdvancedOpen((o) => !o)}
-                          >
-                            {advancedOpen && (
-                              <VideoGenParamsPanel {...paramsPanelProps} group="advanced" />
-                            )}
-                          </LeftSection>
-                        )}
                       </>
                     );
                   })()}
+
+                  {/* Generate closes the column, after every setting it depends on —
+                      it used to sit in the page header, far from the controls that
+                      decide what it will cost and whether it is even legal to run. */}
+                  <div className="border-t border-border pt-4">
+                    <Tooltip>
+                      <TooltipTrigger render={<span className="block w-full" />}>
+                        <Button
+                          size="lg"
+                          className="w-full"
+                          onClick={handleGenerate}
+                          disabled={
+                            isGenerating ||
+                            constraints.disableGenerate ||
+                            !editable ||
+                            (currentModel?.provider === "kling" &&
+                              !Object.values(effectiveImageRoles).includes("start_frame"))
+                          }
+                        >
+                          <Sparkles className="size-4" strokeWidth={1.5} />
+                          {isGenerating
+                            ? "Generating…"
+                            : videoUrl
+                              ? "Re-generate"
+                              : "Generate"}
+                          {!isGenerating && estimatedCredits !== null && (
+                            <EstimatedCreditsLabel credits={estimatedCredits} />
+                          )}
+                        </Button>
+                      </TooltipTrigger>
+                      {(constraints.disableGenerate && constraints.disableGenerateReason) ? (
+                        <TooltipContent side="bottom">
+                          {constraints.disableGenerateReason}
+                        </TooltipContent>
+                      ) : currentModel?.provider === "kling" &&
+                        !Object.values(effectiveImageRoles).includes("start_frame") ? (
+                        <TooltipContent side="bottom">
+                          Kling requires a start frame — connect an image and assign it as Start Frame
+                        </TooltipContent>
+                      ) : null}
+                    </Tooltip>
+                  </div>
                 </div>
               )}
 
@@ -1151,21 +1195,50 @@ export function VideoGenFocusView({
 
               {/* Details — active constraint rules */}
               {selected === "details" && (
-                <div className="px-6 py-5">
+                <div className="flex flex-col gap-6 px-6 py-5">
+                  {/* R10.1. Under Details, in a "Review" section — the same place and the
+                      same shape image-gen uses. Sign-off must sit in one predictable spot
+                      across node types, or a reviewer has to re-learn the layout per
+                      asset. */}
+                  <LeftSection icon={BadgeCheck} label="Review">
+                    {/* Skeleton while the versions request is in flight. Without it this
+                        showed "Generate a video first…" — a definite, wrong answer — and
+                        then snapped to the approval control when the fetch landed. Saying
+                        nothing is loaded yet beats saying the wrong thing confidently. */}
+                    {loadingVersions ? (
+                      <ApprovalSkeleton />
+                    ) : activeVersionId ? (
+                      <InlineApprovalBar
+                        status={approvalStatus}
+                        note={approvalNote}
+                        saving={approvalSaving}
+                        // R7.1/D160: not gated on `editable` — approval writes only to
+                        // node_versions, outside what the D33 lock serialises.
+                        canApprove={identity?.role === "senior"}
+                        onSet={saveApproval}
+                      />
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        Generate a video first to review and approve it.
+                      </p>
+                    )}
+                  </LeftSection>
                   <ActiveRulesCard constraints={constraints} />
                 </div>
               )}
             </div>
 
-            {/* Right column — the video, always visible */}
-            <div className="flex min-h-0 flex-1 flex-col gap-3 px-6 py-5">
+            {/* Right column — the video, always visible. Faintly sunk so the
+                settings column reads as raised against it. */}
+            <div className="flex min-h-0 flex-1 flex-col gap-3 bg-muted/20 px-6 py-5">
               <div className="flex items-center gap-1.5">
                 <Clapperboard className="size-3.5 text-primary" strokeWidth={1.5} />
                 <span className="text-eyebrow">Video</span>
               </div>
               <div className="min-h-0 flex-1">
                 {mode === "skeleton" && (
-                  <div className="size-full animate-pulse rounded-xl bg-muted-foreground/15" />
+                  // 9:16, flush left — the same footprint the result frame will occupy.
+                  <div className="aspect-[9/16] h-full max-w-full animate-pulse rounded-xl bg-muted-foreground/15" />
                 )}
                 {mode === "empty" && (
                   <div className="flex size-full items-center justify-center rounded-xl border border-dashed border-border">
@@ -1184,15 +1257,17 @@ export function VideoGenFocusView({
                   </div>
                 )}
                 {mode === "result" && videoUrl && (
-                  <div className="flex size-full items-center justify-center">
-                    <video
-                      src={videoUrl}
-                      controls
-                      className="w-full max-h-full rounded-xl border border-border shadow-card"
-                    />
-                  </div>
+                  // Height-driven 9:16 frame, flush left — same treatment as the
+                  // image-gen result: the border hugs the video instead of a
+                  // width-forced box painting gutters inside it.
+                  <video
+                    src={videoUrl}
+                    controls
+                    className="aspect-[9/16] h-full max-w-full rounded-xl border border-border bg-muted/20"
+                  />
                 )}
               </div>
+
             </div>
           </div>
         </div>

@@ -459,18 +459,19 @@ export function KBOnboardingReviewStep({
               : "Review the extracted brand knowledge and approve, edit, or reject each field."}
           </p>
         </div>
-        <button
+        <Button
           type="button"
+          variant="ghost"
           onClick={() => setSourceDrawerOpen(true)}
           title="Edit source documents & images"
-          className="relative mt-1 flex shrink-0 items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-muted-foreground shadow-card transition-colors hover:text-foreground"
+          className="relative mt-1 h-auto gap-2 border-border bg-card px-3 py-2 text-muted-foreground shadow-card hover:bg-card hover:text-foreground dark:hover:bg-card"
         >
           <FolderPenIcon className="size-4" />
           <span className="hidden sm:inline">Source files</span>
           {showChangeIndicator && (
             <span className="absolute -right-1 -top-1 size-2.5 rounded-full bg-amber-500 ring-2 ring-background" />
           )}
-        </button>
+        </Button>
       </header>
 
       {/* Source documents & images — side drawer */}

@@ -4,7 +4,6 @@ import { Crop } from "lucide-react";
 import { ShotTileStrip } from "./shot-tile-strip";
 import {
   COMPOSITION_TILES,
-  COMPOSITION_AUTO,
   compositionImage,
   compositionTileLabel,
   compositionCaption,
@@ -27,7 +26,6 @@ export function CompositionSelect({
       icon={Crop}
       label="Composition"
       tiles={COMPOSITION_TILES}
-      autoOption={COMPOSITION_AUTO}
       value={value}
       onChange={onChange}
       tileLabel={compositionTileLabel}

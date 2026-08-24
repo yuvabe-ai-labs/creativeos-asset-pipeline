@@ -1,7 +1,9 @@
 import Link from "next/link";
+import { Settings } from "lucide-react";
 import { redirect } from "next/navigation";
 import { getClientBySlug } from "@/lib/db/clients";
 import { listCanvases } from "@/lib/db/canvases";
+import { getOrgReviewCounts } from "@/lib/db/review";
 import { resolveOrgId } from "@/lib/dal";
 import { NewCanvasDialog } from "@/components/canvases/new-canvas-dialog";
 import { CanvasesTable } from "@/components/canvases/canvases-table";
@@ -61,7 +63,12 @@ export default async function ClientPage({
     redirect(`/clients/${client.slug}/kb`);
   }
 
-  const canvases = await listCanvases(client.id);
+  // R5.2: seeded server-side alongside the canvases, so the first paint carries the right
+  // numbers. Same RPC the client list uses — R5.5 holds at runtime, not just in the schema.
+  const [canvases, reviewCounts] = await Promise.all([
+    listCanvases(client.id),
+    getOrgReviewCounts(effectiveOrgId),
+  ]);
 
   return (
     <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-12">
@@ -77,8 +84,8 @@ export default async function ClientPage({
         </BreadcrumbList>
       </Breadcrumb>
 
-      <header className="animate-rise mb-10 mt-4 flex items-start justify-between gap-4">
-        <div className="flex items-start gap-4">
+      <header className="animate-rise mb-10 mt-4 flex items-end justify-between gap-4">
+        <div className="flex items-end gap-4">
           {client.logo_url ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -91,19 +98,21 @@ export default async function ClientPage({
               {initials(client.name)}
             </span>
           )}
-          <div>
-            <h1 className="font-display text-4xl font-semibold tracking-[-0.02em]">
-              {client.name}
-            </h1>
-          </div>
+          <h1 className="font-display text-4xl font-semibold tracking-[-0.02em]">
+            {client.name}
+          </h1>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex shrink-0 items-end gap-2">
           <Button
             variant="outline"
-            size="sm"
             nativeButton={false}
-            render={<Link href={`/clients/${client.slug}/kb`}>Brand KB</Link>}
+            render={
+              <Link href={`/clients/${client.slug}/kb`}>
+                <Settings className="size-4" strokeWidth={1.5} />
+                Settings
+              </Link>
+            }
           />
           <NewCanvasDialog clientId={client.id} clientSlug={client.slug} />
         </div>
@@ -123,7 +132,11 @@ export default async function ClientPage({
         />
       ) : (
         <div className="animate-rise">
-          <CanvasesTable canvases={canvases} clientSlug={client.slug} />
+          <CanvasesTable
+            canvases={canvases}
+            clientSlug={client.slug}
+            reviewCounts={reviewCounts}
+          />
         </div>
       )}
     </main>

@@ -4,6 +4,7 @@ import { useEffect, useRef, useCallback, useState } from "react";
 import { createPortal } from "react-dom";
 import { ImageIcon, Paperclip, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import type { UpstreamNode } from "./connected-inputs-card";
 
 // ── Segment model ─────────────────────────────────────────────────────────────
@@ -481,15 +482,16 @@ export function MentionInstructionEditor({
             className="min-w-50 max-w-xs rounded-lg border border-border bg-popover shadow-lg overflow-hidden"
           >
             {dropdownState.filtered.map((item, i) => (
-              <button
+              <Button
                 key={item.id}
                 type="button"
+                variant="ghost"
                 onMouseDown={(e) => { e.preventDefault(); insertMention(item); }}
                 className={cn(
-                  "flex w-full items-center gap-2 px-3 py-2 text-xs text-left transition-colors",
+                  "flex h-auto w-full items-center justify-start gap-2 rounded-none border-0 px-3 py-2 text-xs font-normal whitespace-normal text-left transition-colors hover:bg-transparent dark:hover:bg-transparent",
                   i === dropdownState.activeIndex
-                    ? "bg-primary/10 text-primary"
-                    : "hover:bg-muted text-foreground",
+                    ? "bg-primary/10 text-primary hover:bg-primary/10 hover:text-primary dark:hover:bg-primary/10"
+                    : "hover:bg-muted hover:text-foreground text-foreground dark:hover:bg-muted",
                 )}
               >
                 {item.fileUrl && item.fileKind === "image" ? (
@@ -508,7 +510,7 @@ export function MentionInstructionEditor({
                     {nodeTypeLabel(item.type)}
                   </span>
                 </div>
-              </button>
+              </Button>
             ))}
           </div>,
           document.body,

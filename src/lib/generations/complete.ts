@@ -132,6 +132,11 @@ export async function completeGeneration(
   // 2. INSERT node_versions
   const version = await insertVersion({
     nodeId: generation.node_id,
+    // R11.1. There is no session at this boundary — this runs from the Trigger.dev
+    // webhook, so resolveCallerContext() has nothing to resolve. generations.user_id is
+    // who kicked the job off, captured at insertGeneration and (per db/generations.ts)
+    // the REAL operator even while impersonating — exactly the maker we want.
+    operatorUserId: generation.user_id,
     inputsUsed: generation.inputs_snapshot ?? {},
     paramsUsed: {
       ...(generation.params_snapshot ?? {}),

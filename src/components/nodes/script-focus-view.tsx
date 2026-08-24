@@ -169,14 +169,14 @@ export function ScriptFocusView({
         className="gap-0 overflow-hidden rounded-t-2xl bg-background data-[side=bottom]:h-[92vh]"
       >
         <div className="shrink-0 border-b">
-          <div className="mx-auto w-full max-w-5xl px-6 pb-5 pt-3">
-            <button
-              type="button"
+          <div className="mx-auto w-full max-w-7xl px-6 pb-5 pt-3">
+            <Button
+              variant="ghost"
               onClick={requestClose}
-              className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+              className="h-auto p-0 text-muted-foreground hover:bg-transparent hover:text-foreground dark:hover:bg-transparent"
             >
               <ArrowLeft className="size-4" /> Back to canvas
-            </button>
+            </Button>
 
             <header className="mt-4 flex items-start justify-between gap-4">
               <div>
@@ -257,7 +257,7 @@ export function ScriptFocusView({
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="mx-auto w-full max-w-5xl px-6 py-8">
+          <div className="mx-auto w-full max-w-7xl px-6 py-8">
             {mode === "skeleton" && (
               <div className="flex flex-col items-center justify-center gap-3 py-24 text-muted-foreground">
                 <Loader2 className="size-8 animate-spin text-primary" />
