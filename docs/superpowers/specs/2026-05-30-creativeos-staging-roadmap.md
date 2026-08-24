@@ -2968,3 +2968,64 @@ nothing but a second read of the same derivation.
 will legitimately disagree. Each surface therefore states what it counts ("on this canvas" /
 "everywhere"), so a navbar reading of 12 beside a canvas reading of 5 is obviously two
 questions answered rather than a bug.
+
+### D168 — The versions API route resolves real attribution, retiring the dead `approvedBy` field *(recorded 2026-08-24; fixes a gap left by D167; originated → `2026-08-24-approval-audit-trail-design.md`)*
+
+**Decision.** `src/app/api/nodes/[id]/versions/route.ts` resolves `operator_user_id` and
+`approved_by_user_id` through the existing `resolveDisplayNames` (`src/lib/db/profiles.ts`)
+and returns `makerName`/`approvedByName`, replacing the field that read the legacy
+`approved_by` text column.
+
+**Why.** D167 stopped writing `approved_by`, but this route never stopped reading it — every
+version approved since PR #64 merged has shown a null approver in the one place a prop
+already existed to display one. Reusing `resolveDisplayNames` rather than a new helper
+follows the codebase's canonical-sources rule; it's the same function `review/queue.ts`
+already uses for `makerName` in the inbox.
+
+### D169 — Per-version history becomes the approval audit trail; no new surface *(recorded 2026-08-24; originated → `2026-08-24-approval-audit-trail-design.md`)*
+
+**Decision.** `ImageGenVersionHistory` and `VideoGenVersionHistory` render the reviewer and
+decision time per row (approved-by-name-and-time, or the rejection note prefixed with the
+reviewer's name), using the fields D168 adds. Prompt nodes stay excluded, matching R3.2.
+
+**Why.** Both components already list every version in order with a maker-facing "restore"
+affordance; they were the natural home for "who did what, when" rather than a new page or
+panel, since every version they already render carries an approval decision to show.
+
+### D170 — A maker's approval notification is a dismiss-on-view read receipt, not a queue table or timer *(recorded 2026-08-24; extends D150/D162; originated → `2026-08-24-approval-audit-trail-design.md`)*
+
+**Decision.** `node_versions` gains `approved_seen_at timestamptz`. A new server action,
+`markVersionApprovalSeenAction`, sets it when the version's own maker views the node while
+its active version is `approved` and unseen. The navbar inbox filter
+(`inboxFilterFor`/`selectInboxFor`) adds an `approved AND mine AND unseen` clause alongside
+the existing `pending` and `mine-rejected` clauses, for every role.
+
+**Why.** D162 derived the review queue from state with no assignee column, because rejection
+already has a natural exit: regenerating moves the active pointer and the new version reverts
+to `pending` (D159's join). Approval has no equivalent state change — nothing else happens to
+the row once it's approved — so there was no way to know when a maker had seen the outcome
+without adding the one column that records exactly that. This is the smallest addition that
+keeps the "derived, not assigned" property everywhere else already has.
+
+**Rejected.** A queue/notification table (reintroduces the drift D159 was written to avoid).
+A time-based auto-expire (declared and rejected during design — an approval a maker hasn't
+opened yet would silently disappear on a fixed clock, which is worse than never showing it).
+
+### D171 — Self-approval never notifies *(recorded 2026-08-24; originated → `2026-08-24-approval-audit-trail-design.md`)*
+
+**Decision.** The unseen-approved inbox clause requires `approved_by_user_id !=
+operator_user_id`. A senior or owner who approves their own generated asset does not see it
+appear in their own inbox.
+
+**Why.** R2.5 already permits self-approval for one-senior orgs. Notifying someone of a
+decision they just made themselves is noise, not signal.
+
+### D172 — Pre-existing approved rows are backfilled as already-seen *(recorded 2026-08-24; originated → `2026-08-24-approval-audit-trail-design.md`)*
+
+**Decision.** The migration adding `approved_seen_at` backfills it to `approved_at` for every
+row already `approved` at migration time.
+
+**Why.** Without this, every historical approval since PR #64 merged would read as
+"unseen" the moment this ships, flooding every maker's inbox with old news on deploy day. The
+dismiss-on-view mechanism is meant to govern approvals that happen from here forward, not to
+retroactively judge the backlog.
