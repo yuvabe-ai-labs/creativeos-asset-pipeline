@@ -140,6 +140,7 @@ describe("setVersionApprovalAction", () => {
       approval_status: "pending",
       approved_by_user_id: null,
       approved_at: null,
+      approved_seen_at: null,
       note: null,
     });
   });

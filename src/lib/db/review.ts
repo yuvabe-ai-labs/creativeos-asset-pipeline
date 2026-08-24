@@ -82,7 +82,9 @@ async function toInboxItems(orgId: string, rows: QueueRow[]): Promise<InboxItem[
     // R11.3 -> R11.4: the current display name, else the legacy free-text operator, else
     // nothing. Degrades visibly; never blocks the row from rendering.
     makerName: (r.operator_user_id && names.get(r.operator_user_id)) || r.operator || null,
-    // D170: not rendered — read only by selectInboxFor to decide inbox membership.
+    // D170: not rendered — kept in sync with inboxFilterFor's SQL clause via the
+    // selectInboxFor equivalence test in queue.test.ts (selectInboxFor itself has no
+    // runtime caller).
     approvedByUserId: r.approved_by_user_id,
     approvedSeenAt: r.approved_seen_at,
     createdAt: r.created_at,

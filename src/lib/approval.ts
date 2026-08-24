@@ -30,6 +30,10 @@ export type ApprovalUpdate = {
   // back to the old string for pre-migration rows (R11.4).
   approved_by_user_id: string | null;
   approved_at: string | null;
+  // Per-approval read receipt, not permanent-per-row: every status transition clears it
+  // so a fresh approval is always unseen by the maker, even after a prior approval had
+  // already been marked seen.
+  approved_seen_at: string | null;
   note: string | null;
 };
 
@@ -45,6 +49,7 @@ export function buildApprovalUpdate(input: {
       approval_status: "pending",
       approved_by_user_id: null,
       approved_at: null,
+      approved_seen_at: null,
       note: null,
     };
   }
@@ -52,6 +57,7 @@ export function buildApprovalUpdate(input: {
     approval_status: input.status,
     approved_by_user_id: input.by,
     approved_at: input.at,
+    approved_seen_at: null,
     // note is feedback for the maker — only meaningful for changes_requested.
     note: input.status === "changes_requested" ? (input.note ?? null) : null,
   };

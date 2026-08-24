@@ -221,7 +221,10 @@ describe("inboxFilterFor agrees with selectInboxFor", () => {
       const isNull = clause.match(/^([a-z_]+)\.is\.null$/);
       if (isNull) return field(isNull[1]) === null;
       const neq = clause.match(/^([a-z_]+)\.neq\.(.*)$/);
-      if (neq) return field(neq[1]) !== neq[2];
+      if (neq) {
+        const value = field(neq[1]);
+        return value !== null && value !== neq[2];
+      }
       const eq = clause.match(/^([a-z_]+)\.eq\.(.*)$/);
       if (eq) return field(eq[1]) === eq[2];
       throw new Error(`Unparsed filter clause: ${clause}`);
@@ -261,6 +264,13 @@ describe("inboxFilterFor agrees with selectInboxFor", () => {
       approvalStatus: "approved",
       operatorUserId: "someone",
       approvedByUserId: "senior-1",
+      approvedSeenAt: null,
+    }),
+    item({
+      versionId: "au5",
+      approvalStatus: "approved",
+      operatorUserId: "me",
+      approvedByUserId: null,
       approvedSeenAt: null,
     }),
   ];

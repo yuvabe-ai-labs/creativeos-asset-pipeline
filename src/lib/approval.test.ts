@@ -8,22 +8,22 @@ const BY = "user-asha";
 describe("buildApprovalUpdate", () => {
   it("approved: stamps status + who + when, clears note", () => {
     expect(buildApprovalUpdate({ status: "approved", by: BY, at: AT, note: "ignored" }))
-      .toEqual({ approval_status: "approved", approved_by_user_id: BY, approved_at: AT, note: null });
+      .toEqual({ approval_status: "approved", approved_by_user_id: BY, approved_at: AT, approved_seen_at: null, note: null });
   });
 
   it("changes_requested: stamps who + when + keeps note", () => {
     expect(buildApprovalUpdate({ status: "changes_requested", by: BY, at: AT, note: "fix label" }))
-      .toEqual({ approval_status: "changes_requested", approved_by_user_id: BY, approved_at: AT, note: "fix label" });
+      .toEqual({ approval_status: "changes_requested", approved_by_user_id: BY, approved_at: AT, approved_seen_at: null, note: "fix label" });
   });
 
   it("changes_requested with no note stores null", () => {
     expect(buildApprovalUpdate({ status: "changes_requested", by: BY, at: AT }))
-      .toEqual({ approval_status: "changes_requested", approved_by_user_id: BY, approved_at: AT, note: null });
+      .toEqual({ approval_status: "changes_requested", approved_by_user_id: BY, approved_at: AT, approved_seen_at: null, note: null });
   });
 
   it("pending: resets everything (who/when/note cleared)", () => {
     expect(buildApprovalUpdate({ status: "pending", by: BY, at: AT, note: "x" }))
-      .toEqual({ approval_status: "pending", approved_by_user_id: null, approved_at: null, note: null });
+      .toEqual({ approval_status: "pending", approved_by_user_id: null, approved_at: null, approved_seen_at: null, note: null });
   });
 });
 

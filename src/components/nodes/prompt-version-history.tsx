@@ -19,7 +19,6 @@ export type VersionSummary = {
   note: string | null;
   // D29 approval flag (distinct from decision).
   approvalStatus?: "pending" | "approved" | "changes_requested";
-  approvedBy?: string | null;
   approvedAt?: string | null;
   // The exact request this version sent to the model (frozen provenance).
   inputsUsed?: { request?: ModelRequestRecord };

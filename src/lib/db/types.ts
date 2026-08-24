@@ -76,6 +76,7 @@ export type NodeRow = {
 export type NodeVersionRow = {
   id: string;
   node_id: string;
+  // RLS backstop + the realtime postgres_changes filter column (added in migration 0030).
   org_id: string | null;
   inputs_used: Record<string, unknown>;
   params_used: Record<string, unknown>;

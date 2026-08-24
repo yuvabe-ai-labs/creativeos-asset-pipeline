@@ -170,9 +170,9 @@ export function ImageGenVersionHistory({
                       “{v.inputsUsed.instruction}”
                     </p>
                   )}
-                  {v.makerName && (
+                  {v.makerName !== undefined && (
                     <p className="ml-3.5 mt-0.5 text-[0.65rem] leading-snug text-muted-foreground/80">
-                      Made by {v.makerName}
+                      Made by {v.makerName ?? "an unknown maker"}
                       {v.approvalStatus === "approved" && v.approvedByName && (
                         <> · Approved by {v.approvedByName} · {formatRelativeTime(v.approvedAt ?? null)}</>
                       )}
@@ -192,4 +192,3 @@ export function ImageGenVersionHistory({
     </div>
   );
 }
-

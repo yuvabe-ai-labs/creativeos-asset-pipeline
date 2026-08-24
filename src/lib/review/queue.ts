@@ -42,8 +42,9 @@ export type InboxItem = {
   note: string | null;
   operatorUserId: string | null;
   makerName: string | null; // resolved display name, else the legacy string (R11.4)
-  // D170: who approved, and whether the maker has seen it yet. Not rendered anywhere —
-  // read only by selectInboxFor/inboxFilterFor to decide inbox membership.
+  // D170: who approved, and whether the maker has seen it yet. Not rendered — kept in
+  // sync with inboxFilterFor's SQL clause via the selectInboxFor equivalence test in
+  // queue.test.ts (selectInboxFor itself has no runtime caller).
   approvedByUserId: string | null;
   approvedSeenAt: string | null;
   createdAt: string;

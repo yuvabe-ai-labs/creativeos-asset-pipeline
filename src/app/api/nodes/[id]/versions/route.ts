@@ -42,9 +42,13 @@ export async function GET(
         note: typeof v.note === "string" ? v.note : null,
         // D29 approval flag (distinct from decision).
         approvalStatus: v.approval_status as "pending" | "approved" | "changes_requested",
-        // R11.3/R11.4: current display name, else the legacy free-text fallback, else
-        // null. Never the dead `approved_by`/`operator` columns directly (D168) —
-        // those degrade only when there is no user reference to resolve.
+        // R11.3/R11.4: makerName is current display name, else the legacy free-text
+        // `operator` fallback, else null. approvedByName has no legacy fallback — there
+        // is no reliable historical string for the reviewer (`approved_by` was never
+        // meaningfully populated before the real user-reference migration, unlike
+        // `operator`), so it resolves straight to null. Never the dead `approved_by`/
+        // `operator` columns directly (D168) — those degrade only when there is no user
+        // reference to resolve.
         makerName: (v.operator_user_id && names.get(v.operator_user_id)) || v.operator || null,
         approvedByName:
           (v.approved_by_user_id && names.get(v.approved_by_user_id)) || null,
