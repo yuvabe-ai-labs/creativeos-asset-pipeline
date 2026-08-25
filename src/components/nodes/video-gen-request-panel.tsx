@@ -65,15 +65,6 @@ export function VideoGenRequestPanel({ version }: { version: VideoGenVersionSumm
   const params = describeAllVersionParams(model?.params, version.paramsUsed);
   const prompt = version.inputsUsed?.prompt?.trim() ?? "";
 
-  // The provider's real clip length, stamped onto params_used when the generation completed
-  // (lib/generations/complete.ts). Worth surfacing only where it contradicts what was asked for.
-  const requested = Number(version.paramsUsed.duration ?? version.paramsUsed.seconds);
-  const delivered = Number(version.paramsUsed.durationSeconds);
-  const durationNote =
-    Number.isFinite(requested) && Number.isFinite(delivered) && requested !== delivered
-      ? `delivered ${delivered}s`
-      : null;
-
   return (
     <div className="flex flex-col gap-8 px-6 py-5">
       <LeftSection icon={PencilLine} label="Prompt">
@@ -143,12 +134,7 @@ export function VideoGenRequestPanel({ version }: { version: VideoGenVersionSumm
                 </dd>
               </div>
             ) : (
-              <ParamRow
-                key={p.name}
-                label={p.label}
-                value={p.value || "None"}
-                note={p.name === "duration" || p.name === "seconds" ? durationNote : null}
-              />
+              <ParamRow key={p.name} label={p.label} value={p.value || "None"} />
             ),
           )}
         </dl>
