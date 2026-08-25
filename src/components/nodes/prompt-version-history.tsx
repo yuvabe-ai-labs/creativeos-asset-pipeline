@@ -1,9 +1,8 @@
 "use client";
 
-import { History } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
 import type { ModelRequestRecord } from "@/lib/nodes/model-request";
+import type { VersionDecisionSummary } from "@/lib/approval";
+import { VersionHistoryList } from "./version-history-list";
 
 export type VersionSummary = {
   id: string;
@@ -20,6 +19,14 @@ export type VersionSummary = {
   // D29 approval flag (distinct from decision).
   approvalStatus?: "pending" | "approved" | "changes_requested";
   approvedAt?: string | null;
+  // R11.3/R11.4: resolved display names, else the legacy fallback, else null (D168).
+  makerName?: string | null;
+  approvedByName?: string | null;
+  // D173: every decision made on this version, newest first. Prompt versions are excluded
+  // from the review QUEUE (R3.2 — only image/video assets are queued for review), but they
+  // can still be approved or rejected directly on the node, and those decisions are logged
+  // like any other.
+  decisions?: VersionDecisionSummary[];
   // The exact request this version sent to the model (frozen provenance).
   inputsUsed?: { request?: ModelRequestRecord };
   // Real settled credits — null for legacy versions predating the credit system.
@@ -33,111 +40,46 @@ type PromptVersionHistoryProps = {
   restoring: boolean;
 };
 
-function formatRelativeTime(dateStr: string): string {
-  const date = new Date(dateStr);
-  const diffMs = Date.now() - date.getTime();
-  const diffMins = Math.floor(diffMs / 60_000);
-  if (diffMins < 1) return "just now";
-  if (diffMins < 60) return `${diffMins}m ago`;
-  const diffHours = Math.floor(diffMins / 60);
-  if (diffHours < 24) return `${diffHours}h ago`;
-  const diffDays = Math.floor(diffHours / 24);
-  if (diffDays < 7) return `${diffDays}d ago`;
-  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
-
+// D180: was the last node type still on the old flat list — a whole-row restore button, a
+// duplicate local relative-time helper, a plain dot instead of the shared status icon, a
+// nested max-h-52 scroller, and no decision thread. It now renders the same shell as
+// image-gen and video-gen, supplying only the model and instruction lines. A prompt
+// version has no thumbnail.
 export function PromptVersionHistory({
   versions,
   activeVersionId,
   onRestore,
   restoring,
 }: PromptVersionHistoryProps) {
-  const total = versions.length;
+  const rows = versions.map((v) => ({
+    id: v.id,
+    createdAt: v.createdAt,
+    error: v.error,
+    approvalStatus: v.approvalStatus,
+    makerName: v.makerName,
+    decisions: v.decisions,
+    meta: (
+      <>
+        {v.modelUsed && (
+          <p className="line-clamp-1 text-[0.7rem] leading-snug text-muted-foreground">
+            {v.modelUsed}
+          </p>
+        )}
+        {v.paramsUsed.instruction && (
+          <p className="mt-0.5 line-clamp-2 text-[0.7rem] leading-snug text-muted-foreground">
+            {v.paramsUsed.instruction}
+          </p>
+        )}
+      </>
+    ),
+  }));
 
   return (
-    <div>
-      <div className="mb-2 flex items-center justify-between">
-        <div className="flex items-center gap-1.5">
-          <History className="size-3.5 text-primary" strokeWidth={1.5} />
-          <span className="text-eyebrow">History</span>
-        </div>
-        <span className="text-xs text-muted-foreground">
-          {total} generation{total !== 1 ? "s" : ""}
-        </span>
-      </div>
-
-      <div className="max-h-52 overflow-y-auto pb-2">
-      <ul className="space-y-1">
-        {versions.map((v, i) => {
-          const genNumber = total - i;
-          const isActive = v.id === activeVersionId;
-          const hasError = !!v.error;
-          const isDisabled = isActive || restoring || hasError;
-
-          return (
-            <li key={v.id}>
-              <Button
-                variant="ghost"
-                disabled={isDisabled}
-                onClick={() => !isDisabled && onRestore(v.id)}
-                className={cn(
-                  "group h-auto w-full flex-col items-stretch justify-start gap-0 rounded-lg border px-3 py-2 text-left font-normal whitespace-normal disabled:pointer-events-auto disabled:opacity-100",
-                  isActive
-                    ? "border-primary bg-primary/8 cursor-default hover:bg-primary/8 hover:text-inherit dark:hover:bg-primary/8"
-                    : hasError
-                      ? "cursor-not-allowed border-border opacity-60 disabled:opacity-60 hover:bg-transparent hover:text-inherit dark:hover:bg-transparent"
-                      : "cursor-pointer border-border hover:bg-muted",
-                )}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <span
-                      className={cn(
-                        "size-1.5 shrink-0 rounded-full",
-                        hasError
-                          ? "bg-red-500"
-                          : isActive
-                            ? "bg-primary"
-                            : "bg-muted-foreground/40",
-                      )}
-                    />
-                    <span
-                      className={cn(
-                        "truncate text-sm font-medium",
-                        isActive ? "text-primary" : "text-foreground",
-                      )}
-                    >
-                      v{genNumber}
-                    </span>
-                    <span className="shrink-0 text-xs text-muted-foreground">
-                      {formatRelativeTime(v.createdAt)}
-                    </span>
-                  </div>
-
-                  {isActive ? (
-                    <span className="shrink-0 text-[0.65rem] font-semibold uppercase tracking-wide text-primary">
-                      Active
-                    </span>
-                  ) : hasError ? (
-                    <span className="shrink-0 text-xs text-red-500">Error</span>
-                  ) : (
-                    <span className="shrink-0 text-xs text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
-                      Restore
-                    </span>
-                  )}
-                </div>
-
-                {v.paramsUsed.instruction && (
-                  <p className="ml-3.5 mt-0.5 line-clamp-1 text-[0.7rem] leading-snug text-muted-foreground">
-                    {v.paramsUsed.instruction}
-                  </p>
-                )}
-              </Button>
-            </li>
-          );
-        })}
-      </ul>
-      </div>
-    </div>
+    <VersionHistoryList
+      rows={rows}
+      activeVersionId={activeVersionId}
+      onRestore={onRestore}
+      restoring={restoring}
+    />
   );
 }

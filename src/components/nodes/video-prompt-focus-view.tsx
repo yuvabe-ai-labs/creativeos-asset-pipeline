@@ -62,6 +62,7 @@ import { ModelRequestPanel } from "./model-request-panel";
 import { setVersionLabelAction } from "@/lib/actions/eval";
 import { setVersionApprovalAction } from "@/lib/actions/approval";
 import { useIdentity } from "@/hooks/use-identity";
+import { useNodeVersionUpdates } from "@/hooks/use-node-version-updates";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { useFlushAutosave } from "@/components/canvas/autosave-flush-context";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -144,6 +145,8 @@ export function VideoPromptFocusView({
   // D29 approval flag — sibling of the eval signal, distinct field.
   const [approvalStatus, setApprovalStatus] = useState<ApprovalStatus>("pending");
   const [approvalNote, setApprovalNote] = useState("");
+  const [approvedByName, setApprovedByName] = useState<string | null>(null);
+  const [approvedAt, setApprovedAt] = useState<string | null>(null);
   const [approvalSaving, setApprovalSaving] = useState(false);
   const { identity } = useIdentity();
   const editable = useCanvasEditable(); // D33: false when this session is read-only
@@ -226,7 +229,10 @@ export function VideoPromptFocusView({
       ? "result"
       : "empty";
 
-  async function fetchVersions() {
+  // `preserveEvalDraft` exists for the live-refresh path only — see useNodeVersionUpdates
+  // below. Every other caller is reacting to the viewer's OWN action, where re-seeding
+  // from the server is the point.
+  async function fetchVersions(opts?: { preserveEvalDraft?: boolean }) {
     try {
       const res = await fetch(`/api/nodes/${nodeId}/versions`);
       if (!res.ok) return;
@@ -237,13 +243,24 @@ export function VideoPromptFocusView({
       setActiveVersionId(activeVid);
       const active = vs.find((v) => v.id === activeVid);
       setEvalDecision(active?.decision ?? null);
-      setEvalNote(active?.note ?? "");
+      // The eval note is a CONTROLLED draft saved on blur, so re-seeding it mid-keystroke
+      // discards whatever the viewer was typing. Harmless when they triggered the refresh
+      // themselves; a silent loss when someone else's decision triggered it.
+      if (!opts?.preserveEvalDraft) setEvalNote(active?.note ?? "");
       setApprovalStatus(active?.approvalStatus ?? "pending");
       setApprovalNote(active?.note ?? "");
+      setApprovedByName(active?.approvedByName ?? null);
+      setApprovedAt(active?.approvedAt ?? null);
     } catch {
       /* best-effort */
     }
   }
+
+  // D179: keep this panel live while it is open — the same treatment the gen focus views
+  // get, so a prompt node does not silently behave differently from an image one.
+  useNodeVersionUpdates(nodeId, open, () => {
+    void fetchVersions({ preserveEvalDraft: true });
+  });
 
   /**
    * Everything below resolves this node's inputs SERVER-side, from PERSISTED edges
@@ -364,6 +381,9 @@ export function VideoPromptFocusView({
       // Push into the store so the on-canvas badge refreshes immediately — without
       // this the badge stays stale until a full reload re-hydrates from the DB.
       onPatch({ approvalStatus: status });
+      // Re-read so the decision thread, status icons and approver name reflect the
+      // decision on the screen it was made on, not only after a reopen (D173).
+      await fetchVersions();
     } catch {
       toast.error("Failed to save approval");
     } finally {
@@ -809,6 +829,8 @@ export function VideoPromptFocusView({
                         // node_versions, outside what the D33 lock serialises.
                         canApprove={identity?.role === "senior"}
                         onSet={saveApproval}
+                        approvedByName={approvedByName}
+                        approvedAt={approvedAt}
                       />
                     </div>
                   ) : (
