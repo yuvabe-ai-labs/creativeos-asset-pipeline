@@ -5,7 +5,10 @@ import {
   videoGenClientModelMap,
   resolveVideoModelId,
 } from "@/lib/video-gen/client-models";
-import { describeAllVersionParams } from "@/lib/generations/version-params";
+import {
+  describeAllVersionParams,
+  type VersionParamEntry,
+} from "@/lib/generations/version-params";
 import { LeftSection } from "./focus-left-section";
 import type { VideoGenVersionSummary } from "./video-gen-version-history";
 
@@ -46,6 +49,17 @@ function requestImages(
   if (inputs?.endFrameUrl) images.push({ role: "end_frame", url: inputs.endFrameUrl });
   for (const url of inputs?.referenceUrls ?? []) images.push({ role: "reference", url });
   return images;
+}
+
+/**
+ * Duration is stored as a bare count of seconds (Kling's slider stores 6, Veo's select "6"), so
+ * the row appends the unit rather than reporting a naked number. Veo's spec already carries the
+ * unit in its label ("Duration (s)"); that half is dropped here so both models read "Duration 6s".
+ */
+function durationDisplay(p: VersionParamEntry): { label: string; value: string } {
+  const value = p.value || "None";
+  if (p.name !== "duration" || value === "None") return { label: p.label, value };
+  return { label: p.label.replace(/\s*\(s\)$/i, ""), value: `${value}s` };
 }
 
 /**
@@ -134,7 +148,7 @@ export function VideoGenRequestPanel({ version }: { version: VideoGenVersionSumm
                 </dd>
               </div>
             ) : (
-              <ParamRow key={p.name} label={p.label} value={p.value || "None"} />
+              <ParamRow key={p.name} {...durationDisplay(p)} />
             ),
           )}
         </dl>
