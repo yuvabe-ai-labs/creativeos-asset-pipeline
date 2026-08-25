@@ -3,7 +3,10 @@
 
 // TODO: Move VideoGenVersionSummary to lib/types in a future refactor to remove
 // this dependency-inversion (lib importing from UI components).
-import type { VideoGenVersionSummary } from "@/components/nodes/video-gen-version-history";
+import type {
+  VideoGenVersionSummary,
+  VideoGenVersionInputs,
+} from "@/components/nodes/video-gen-version-history";
 
 export type UpstreamImage = {
   id: string;
@@ -54,6 +57,7 @@ export const videoGenApi = {
         error: string | null;
         modelUsed: string | null;
         paramsUsed: Record<string, unknown>;
+        inputsUsed?: VideoGenVersionInputs;
         createdAt: string;
         creditsCharged?: number | null;
       }>;
@@ -66,6 +70,8 @@ export const videoGenApi = {
         error: v.error ?? null,
         modelUsed: v.modelUsed ?? null,
         paramsUsed: v.paramsUsed ?? {},
+        // The prompt and image roles behind the version — what the "Sent to model" pane reads.
+        inputsUsed: v.inputsUsed ?? {},
         createdAt: v.createdAt,
         creditsCharged: v.creditsCharged ?? null,
       })),

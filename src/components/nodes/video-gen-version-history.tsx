@@ -7,12 +7,26 @@ import { Button } from "@/components/ui/button";
 import { describeVersionParams } from "@/lib/generations/version-params";
 import { videoGenClientModelMap } from "@/lib/video-gen/client-models";
 
+/**
+ * The prompt and image roles the generation request was built from, frozen into
+ * `node_versions.inputs_used` at generate time. Every field is optional: a version predating a
+ * field simply lacks it, and the "Sent to model" pane reports what it finds rather than
+ * asserting a default that was never sent.
+ */
+export type VideoGenVersionInputs = {
+  prompt?: string;
+  startFrameUrl?: string | null;
+  endFrameUrl?: string | null;
+  referenceUrls?: string[];
+};
+
 export type VideoGenVersionSummary = {
   id: string;
   output: string | null; // video URL
   error: string | null;
   modelUsed?: string | null;
   paramsUsed: Record<string, unknown>;
+  inputsUsed?: VideoGenVersionInputs;
   createdAt: string;
   // Real settled credits — null for legacy versions predating the credit system.
   creditsCharged?: number | null;

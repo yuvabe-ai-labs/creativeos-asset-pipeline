@@ -34,11 +34,19 @@ export async function GET(
         approvalStatus: v.approval_status as "pending" | "approved" | "changes_requested",
         approvedBy: typeof v.approved_by === "string" ? v.approved_by : null,
         approvedAt: typeof v.approved_at === "string" ? v.approved_at : null,
+        // One column, two shapes: the LLM-backed nodes write the `request` envelope, while
+        // video-gen writes the resolved prompt + image roles its provider call was built from
+        // (src/app/api/nodes/[id]/video-generate/route.ts). Both are frozen at generate time and
+        // both are read here — the video-gen focus view's "Sent to model" pane needs the latter.
         inputsUsed: (v.inputs_used ?? {}) as {
           baseVersionId?: string | null;
           instruction?: string;
           intent?: string;
           request?: ModelRequestRecord;
+          prompt?: string;
+          startFrameUrl?: string | null;
+          endFrameUrl?: string | null;
+          referenceUrls?: string[];
         },
         // Real settled credits (src/lib/db/credit-transactions.ts's ledger) — null for
         // versions that predate the credit system, not backfilled.
