@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { exchangeRefreshToken, fetchDriveFileBuffer } from "@/lib/drive/client";
-import { uploadNodeFile, removeObject } from "@/lib/storage";
+import { uploadNodeFile } from "@/lib/storage";
+import { removeNodeFileObject } from "@/lib/storage/node-file-cleanup";
 import { apiError, apiOk, withNode } from "@/lib/api/route-helpers";
 import {
   FILE_NODE_IMAGE_EXTENSIONS,
@@ -61,13 +62,13 @@ export async function POST(
         return apiError(`File too large. Maximum size is ${sizeLabel}.`, 400);
       }
 
-      // Clean up existing file if present
+      // Clean up existing file if present — only when this node is its sole owner.
       const existingUrl = (node.data as Record<string, unknown>)?.fileUrl as
         | string
         | undefined;
       if (existingUrl) {
         try {
-          await removeObject(existingUrl);
+          await removeNodeFileObject(nodeId, existingUrl);
         } catch {
           // Best-effort cleanup — don't block the new upload.
         }

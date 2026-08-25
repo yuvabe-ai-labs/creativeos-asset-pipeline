@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
-import { uploadNodeFile, removeObject } from "@/lib/storage";
+import { uploadNodeFile } from "@/lib/storage";
+import { removeNodeFileObject } from "@/lib/storage/node-file-cleanup";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { apiError, apiOk, assertImpersonationWriteAllowed } from "@/lib/api/route-helpers";
 import { FILE_NODE_IMAGE_EXTENSIONS, FILE_NODE_IMAGE_SIZE_LIMIT } from "@/lib/nodes/file-constants";
@@ -50,10 +51,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return apiError("Image too large. Maximum size is 10 MB.", 400);
     }
 
-    // Clean up an existing file on the node if present (mirror /file/drive).
+    // Clean up an existing file on the node if present (mirror /file/drive) — but only when
+    // this node is its sole owner; the URL may be shared with other nodes.
     const existingUrl = (nodeRow as { data: Record<string, unknown> }).data?.fileUrl as string | undefined;
     if (existingUrl) {
-      try { await removeObject(existingUrl); } catch { /* best-effort */ }
+      try { await removeNodeFileObject(nodeId, existingUrl); } catch { /* best-effort */ }
     }
 
     const filename = body.filename?.trim() || `reference.${ext === "jpeg" ? "jpg" : ext}`;

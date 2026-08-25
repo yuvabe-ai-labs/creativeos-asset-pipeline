@@ -11,6 +11,10 @@ vi.mock("@/lib/storage", () => ({
   removeObject: vi.fn(),
 }));
 
+vi.mock("@/lib/storage/node-file-cleanup", () => ({
+  removeNodeFileObject: vi.fn(async () => ({ removed: true })),
+}));
+
 vi.mock("server-only", () => ({}));
 
 // withNode() (route-helpers.ts) now gates this route: it resolves the caller's org via
