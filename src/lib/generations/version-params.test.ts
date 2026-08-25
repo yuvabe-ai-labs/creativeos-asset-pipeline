@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { paramsForRestore, describeVersionParams } from "./version-params";
+import {
+  paramsForRestore,
+  describeVersionParams,
+  describeAllVersionParams,
+} from "./version-params";
 import { videoGenClientModelMap, defaultsForVideoModel } from "@/lib/video-gen/client-models";
 import { imageGenClientModelMap } from "@/lib/image-gen/client-models";
 
@@ -134,5 +138,78 @@ describe("describeVersionParams", () => {
 
   it("returns nothing for an empty params record", () => {
     expect(describeVersionParams(videoSpecs("veo:veo-3.1"), {})).toEqual([]);
+  });
+});
+
+// The video-gen focus view's "Sent to model" pane: unlike a History row, it must account for
+// every setting the request carried.
+describe("describeAllVersionParams", () => {
+  it("keeps the negative prompt History drops, flagged as long-form", () => {
+    const entries = describeAllVersionParams(videoSpecs("veo:veo-3.1"), {
+      duration: "8",
+      negative_prompt: "blurry, low quality, distorted",
+    });
+    const negative = entries.find((e) => e.name === "negative_prompt");
+    expect(negative?.value).toBe("blurry, low quality, distorted");
+    expect(negative?.longForm).toBe(true);
+    expect(entries.find((e) => e.name === "duration")?.longForm).toBe(false);
+  });
+
+  it("lists every param the version recorded, in panel order", () => {
+    const entries = describeAllVersionParams(videoSpecs("kling:kling-3-0"), {
+      resolution: "1080p",
+      duration: 7,
+      audio: "native",
+      multi_shot: true,
+      negative_prompt: "warped label",
+    });
+    expect(entries.map((e) => e.name)).toEqual([
+      "resolution",
+      "duration",
+      "negative_prompt",
+      "audio",
+      "multi_shot",
+    ]);
+  });
+
+  it("omits a param the model never had rather than showing it empty", () => {
+    // Kling infers aspect ratio from its input frame — it has no aspect_ratio spec, and a row
+    // reading "Aspect ratio —" would claim a value the request never carried.
+    const entries = describeAllVersionParams(videoSpecs("kling:kling-3-0"), {
+      resolution: "720p",
+      duration: 5,
+    });
+    expect(entries.some((e) => e.name === "aspect_ratio")).toBe(false);
+  });
+
+  it("appends a key the model's current specs no longer declare", () => {
+    // A version outlives the spec that produced it; the setting was still sent.
+    const entries = describeAllVersionParams(videoSpecs("veo:veo-3.1"), {
+      duration: "8",
+      cfg_scale: 0.5,
+    });
+    expect(entries.map((e) => `${e.label}: ${e.value}`)).toEqual([
+      "Duration (s): 8",
+      "Cfg scale: 0.5",
+    ]);
+  });
+
+  it("still excludes the pipeline's own bookkeeping keys", () => {
+    // durationSeconds is the provider's response, not an input — the panel renders it against
+    // the requested duration itself.
+    const entries = describeAllVersionParams(videoSpecs("veo:veo-3.1"), {
+      duration: "8",
+      durationSeconds: 8,
+    });
+    expect(entries.map((e) => e.name)).toEqual(["duration"]);
+  });
+
+  it("falls back to humanized keys for a model it no longer knows", () => {
+    const entries = describeAllVersionParams(videoSpecs("veo:veo-2-retired"), {
+      resolution: "720p",
+      negative_prompt: "a".repeat(120),
+    });
+    expect(entries.map((e) => e.label)).toEqual(["Resolution", "Negative prompt"]);
+    expect(entries.find((e) => e.name === "negative_prompt")?.longForm).toBe(true);
   });
 });
