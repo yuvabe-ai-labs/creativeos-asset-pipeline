@@ -412,6 +412,55 @@ export async function updateMemberRole(
   if (error) throw error;
 }
 
+// D181. Removes a member completely: membership, profile and auth user.
+//
+// Why the whole account and not just the membership: `one_org_per_user` means a member
+// belongs to exactly one org, so detaching alone would leave an auth user who can still
+// sign in but whose every request lands on /login?error=no-membership forever — the same
+// stranded state addOrgMember's own rollback exists to prevent.
+//
+// Their WORK is not deleted. node_versions.operator_user_id / approved_by_user_id and
+// node_version_decisions.decided_by_user_id are all `on delete set null`, so generations
+// and review history survive and attribution degrades to "an unknown maker" (R11.4).
+//
+// Order matters. The membership row goes FIRST, because migration 0012's
+// org_memberships_last_owner trigger vetoes removing an org's final owner — deleting it
+// first means that veto lands before anything irreversible has happened, and its message
+// surfaces verbatim (the same single-source-of-the-rule treatment updateMemberRole gives
+// the demotion case).
+export async function removeOrgMember(orgId: string, userId: string): Promise<void> {
+  const supabase = createServerSupabase();
+
+  const { data: membership, error: readErr } = await supabase
+    .from("org_memberships")
+    .select("user_id, org_role")
+    .eq("org_id", orgId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (readErr) throw readErr;
+  if (!membership) throw new Error("Member not found in this agency.");
+
+  const { org_role: orgRole } = membership as { org_role: string };
+
+  const { error: memErr } = await supabase
+    .from("org_memberships")
+    .delete()
+    .eq("org_id", orgId)
+    .eq("user_id", userId);
+  if (memErr) throw memErr;
+
+  // `profiles.user_id` cascades off auth.users (0012), so this clears the profile too.
+  const { error: userErr } = await supabase.auth.admin.deleteUser(userId);
+  if (userErr) {
+    // Best-effort rollback, mirroring addOrgMember's own cleanup: without the membership
+    // this user is stranded, which is strictly worse than never having removed them.
+    await supabase
+      .from("org_memberships")
+      .insert({ user_id: userId, org_id: orgId, org_role: orgRole });
+    throw userErr;
+  }
+}
+
 export function generateTempPassword(): string {
   // 12 chars, guaranteed a letter + a number — a reasonable default even with no
   // forced-change flow to enforce strength at first login (D84).

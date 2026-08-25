@@ -10,6 +10,7 @@ import {
   generateTempPassword,
   addOrgMember,
   updateMemberRole,
+  removeOrgMember,
 } from "@/lib/db/organizations";
 import {
   CreateOrgSchema,
@@ -180,5 +181,28 @@ export async function updateMemberRoleAction(
     return {};
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Failed to change role." };
+  }
+}
+
+// D181. Super-admin only, same as the rest of seat provisioning (D164) — an org owner
+// cannot remove their own colleagues any more than they can add them.
+//
+// The last-owner rule is enforced by migration 0012's org_memberships_last_owner trigger,
+// which covers DELETE as well as demotion; its message is surfaced verbatim rather than
+// pre-checked here, so the constraint stays the single source of the rule (same treatment
+// as updateMemberRoleAction). Deliberately NOT wrapped in withAction(), for the same
+// reason as this file's other actions: see the note at the top of the file.
+export async function removeOrgMemberAction(
+  orgId: string,
+  userId: string,
+): Promise<{ error?: string }> {
+  await requireSuperAdmin();
+
+  try {
+    await removeOrgMember(orgId, userId);
+    revalidatePath(`/admin/orgs/${orgId}`);
+    return {};
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed to remove member." };
   }
 }

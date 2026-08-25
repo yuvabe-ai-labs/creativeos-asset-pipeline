@@ -3135,3 +3135,45 @@ missed one leaves the panel silently wrong. And because a live refresh can now b
 by *someone else's* action, `fetchVersions` takes `preserveEvalDraft` on that path only —
 the eval note is a controlled draft saved on blur, so re-seeding it mid-keystroke would
 discard what the viewer was typing.
+
+### D180 — One version-history list for every node type *(recorded 2026-08-25; completes D176)*
+
+**Decision.** `components/nodes/version-history-list.tsx` owns the version row: collapse /
+expand, the status icon, the error state, the maker line, the decision thread and the
+restore button. `ImageGenVersionHistory`, `VideoGenVersionHistory` and
+`PromptVersionHistory` become thin mappers supplying only the two things that genuinely
+differ — the thumbnail and the type-specific metadata lines. Prompt focus views also join
+D179's live-update path and pass the approver props to `InlineApprovalBar`.
+
+**Why.** D176 restructured the two *gen* panels and left prompt on the old flat list, so
+the three copies drifted exactly as D178's badge had: prompt kept whole-row-click-to-restore,
+its own duplicate relative-time helper, a plain dot instead of the shared status icon, a
+nested `max-h-52` scroller, and no decision thread at all. The same version therefore read
+differently depending on which node you opened.
+
+**Scope note.** Prompt versions stay OUT of the review queue, inbox and counts — the
+`review_queue_items` view is defined `where n.type in ('image-gen','video-gen')` and
+`db/review.ts` is its only reader, so the exclusion is structural rather than conventional
+(R3.2). What they gain is the on-node record: a prompt approval is still logged to
+`node_version_decisions` and shown in its own history, it just never notifies anyone.
+
+### D181 — Removing a member deletes the account; their work survives, unattributed *(recorded 2026-08-25; extends D164)*
+
+**Decision.** `removeOrgMemberAction` (super-admin only, like the rest of seat
+provisioning) deletes the membership, the profile and the auth user.
+
+**Why the whole account.** `one_org_per_user` means a member belongs to exactly one org, so
+detaching alone would leave an auth user who can still sign in but whose every request
+lands on `/login?error=no-membership` forever — the stranded state `addOrgMember`'s own
+rollback exists to prevent.
+
+**Why the work is safe.** `node_versions.operator_user_id` / `approved_by_user_id` and
+`node_version_decisions.decided_by_user_id` are all `on delete set null`, so generations and
+review history survive and attribution degrades to "an unknown maker" (R11.4) — the same
+fallback a renamed-or-departed user already hit.
+
+**Order matters.** The membership row is deleted FIRST, so migration 0012's
+`org_memberships_last_owner` trigger — which covers DELETE, not just demotion — vetoes
+removing an org's final owner before anything irreversible happens, and its message
+surfaces verbatim. If the auth-user delete then fails, the membership is re-inserted
+best-effort, mirroring `addOrgMember`'s own cleanup.
