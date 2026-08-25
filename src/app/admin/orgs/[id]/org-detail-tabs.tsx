@@ -10,6 +10,7 @@ import { CreditBreakdownList } from "@/components/admin/credit-breakdown-list";
 import { ResetPasswordDialog } from "./reset-password-dialog";
 import { AddMemberDialog } from "./add-member-dialog";
 import { MemberRoleSelect } from "./member-role-select";
+import { RemoveMemberDialog } from "./remove-member-dialog";
 import { ImpersonationAudit } from "@/components/admin/impersonation-audit/impersonation-audit";
 import { formatRelativeTime } from "@/lib/format/relative-time";
 import type {
@@ -121,6 +122,12 @@ export function OrgDetailTabs({
                     orgId={org.id}
                     userId={m.user_id}
                     displayName={m.display_name}
+                  />
+                  <RemoveMemberDialog
+                    orgId={org.id}
+                    userId={m.user_id}
+                    displayName={m.display_name}
+                    email={m.email}
                   />
                 </div>
               </li>

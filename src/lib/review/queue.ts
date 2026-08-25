@@ -42,18 +42,24 @@ export type InboxItem = {
   note: string | null;
   operatorUserId: string | null;
   makerName: string | null; // resolved display name, else the legacy string (R11.4)
+  // D170: who approved, and whether the maker has seen it yet. Not rendered — kept in
+  // sync with inboxFilterFor's SQL clause via the selectInboxFor equivalence test in
+  // queue.test.ts (selectInboxFor itself has no runtime caller).
+  approvedByUserId: string | null;
+  approvedSeenAt: string | null;
   createdAt: string;
 };
 
 // R9.5 — ONE control, one meaning: "things waiting on you."
 //
-//   designer        -> their own rejected work (what they must fix)
-//   senior | owner  -> everything pending review, PLUS their own rejected work
+//   designer        -> their own rejected work, PLUS their own unseen approvals (D170)
+//   senior | owner  -> everything pending review, PLUS their own rejected work,
+//                      PLUS their own unseen approvals
 //
 // The senior case is a union rather than a branch on purpose: a senior whose own asset was
-// rejected still needs to see it. And a senior does NOT see other people's rejections —
-// those are waiting on the maker, not on them, which is the one place this workflow is
-// person-specific (R4.3).
+// rejected — or approved by someone else — still needs to see it. And a senior does NOT
+// see other people's rejections or approvals; those are waiting on the maker, not on them,
+// which is the one place this workflow is person-specific (R4.3).
 export function selectInboxFor(
   role: OrgRole,
   userId: string,
@@ -62,8 +68,19 @@ export function selectInboxFor(
   const mineRejected = (i: InboxItem) =>
     i.approvalStatus === "changes_requested" && i.operatorUserId === userId;
 
-  if (role === "designer") return items.filter(mineRejected);
-  return items.filter((i) => i.approvalStatus === "pending" || mineRejected(i));
+  // D170: a maker's approval notification, dismissed the moment they've seen it.
+  // D171: self-approval never notifies — a senior approving their own work already knows.
+  const mineApprovedUnseen = (i: InboxItem) =>
+    i.approvalStatus === "approved" &&
+    i.operatorUserId === userId &&
+    i.approvedByUserId !== null &&
+    i.approvedByUserId !== userId &&
+    i.approvedSeenAt === null;
+
+  if (role === "designer") return items.filter((i) => mineRejected(i) || mineApprovedUnseen(i));
+  return items.filter(
+    (i) => i.approvalStatus === "pending" || mineRejected(i) || mineApprovedUnseen(i),
+  );
 }
 
 // The SAME rule as selectInboxFor, expressed as a PostgREST `or` filter so the database
@@ -74,6 +91,9 @@ export function selectInboxFor(
 // fixture set. If you change one, the test fails until you change the other.
 export function inboxFilterFor(role: OrgRole, userId: string): string {
   const mineRejected = `and(approval_status.eq.changes_requested,operator_user_id.eq.${userId})`;
-  if (role === "designer") return mineRejected;
-  return `approval_status.eq.pending,${mineRejected}`;
+  const mineApprovedUnseen =
+    `and(approval_status.eq.approved,operator_user_id.eq.${userId},` +
+    `approved_by_user_id.neq.${userId},approved_seen_at.is.null)`;
+  if (role === "designer") return `${mineRejected},${mineApprovedUnseen}`;
+  return `approval_status.eq.pending,${mineRejected},${mineApprovedUnseen}`;
 }

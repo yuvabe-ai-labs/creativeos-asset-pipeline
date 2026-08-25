@@ -1,7 +1,10 @@
 "use client";
 
 import { createBrowserSupabase } from "@/lib/supabase/client";
-import type { RealtimeChannel } from "@supabase/supabase-js";
+import type {
+  RealtimeChannel,
+  RealtimePostgresChangesPayload,
+} from "@supabase/supabase-js";
 
 // One shared Realtime channel per org for `node_versions` changes — the sibling of
 // org-generation-updates.ts, and it inherits both of that file's hard-won lessons:
@@ -19,17 +22,21 @@ import type { RealtimeChannel } from "@supabase/supabase-js";
 // watching sees the count rise as a junior generates), UPDATE drives R8.3 (a junior
 // watching sees their badge change when a senior decides).
 //
-// Subscribers get a bare "something changed" ping rather than the changed row. Every
-// consumer re-derives from the server anyway — a count is a grouped aggregate, not
-// something a single row can be patched into — so handing over the payload would only
-// invite someone to patch state locally and drift away from the one derivation (D159).
+// Subscribers get the changed row's node_id and NOTHING ELSE (D179). The row itself is
+// deliberately still withheld: every consumer re-derives from the server — a count is a
+// grouped aggregate, not something a single row can be patched into — so handing over the
+// payload would invite patching state locally and drifting away from the one derivation
+// (D159). The node id is not payload-for-patching, it is a FILTER: this channel is
+// org-wide, so without it an open focus view would refetch every time anyone in the org
+// generated anything. It is null when the event carries no identifiable row (a DELETE
+// without REPLICA IDENTITY FULL), and consumers must treat null as "might be mine".
 const channels = new Map<string, RealtimeChannel>();
-const listeners = new Map<string, Set<() => void>>();
+const listeners = new Map<string, Set<(nodeId: string | null) => void>>();
 const pendingOrgIds = new Set<string>();
 
 export function subscribeToOrgVersionUpdates(
   orgId: string,
-  onChange: () => void,
+  onChange: (nodeId: string | null) => void,
 ): () => void {
   if (!listeners.has(orgId)) listeners.set(orgId, new Set());
   listeners.get(orgId)!.add(onChange);
@@ -50,8 +57,19 @@ export function subscribeToOrgVersionUpdates(
             table: "node_versions",
             filter: `org_id=eq.${orgId}`,
           },
-          () => {
-            listeners.get(orgId)?.forEach((cb) => cb());
+          (payload: RealtimePostgresChangesPayload<Record<string, unknown>>) => {
+            // INSERT carries only `new`, DELETE only `old`, UPDATE both — and the unused
+            // side arrives as `{}`, not null, so `??` would never fall through. Check each
+            // explicitly and fall back to null rather than guessing.
+            const newRow = payload.new as Record<string, unknown> | null;
+            const oldRow = payload.old as Record<string, unknown> | null;
+            const nodeId =
+              typeof newRow?.node_id === "string"
+                ? newRow.node_id
+                : typeof oldRow?.node_id === "string"
+                  ? oldRow.node_id
+                  : null;
+            listeners.get(orgId)?.forEach((cb) => cb(nodeId));
           },
         )
         .subscribe();

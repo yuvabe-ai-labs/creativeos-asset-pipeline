@@ -50,6 +50,10 @@ const ALLOWLIST: Record<string, string> = {
     "admin.ts: same D85 platform-administration category and same revert rationale as " +
     "createOrgAction — orgId is an explicit caller-supplied parameter, never correlated " +
     "with the impersonation session's target org.",
+  removeOrgMemberAction:
+    "admin.ts: same D85 platform-administration category and same revert rationale as " +
+    "createOrgAction — orgId is an explicit caller-supplied parameter, never correlated " +
+    "with the impersonation session's target org.",
 };
 
 function findActionFiles(dir: string): string[] {

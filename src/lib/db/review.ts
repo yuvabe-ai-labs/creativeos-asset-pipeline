@@ -36,13 +36,15 @@ type QueueRow = {
   note: string | null;
   operator_user_id: string | null;
   operator: string | null;
+  approved_by_user_id: string | null;
+  approved_seen_at: string | null;
   created_at: string;
 };
 
 const QUEUE_COLUMNS =
   "org_id, client_id, client_name, client_slug, canvas_id, canvas_name, canvas_slug, " +
   "node_id, node_type, node_title, version_id, output, approval_status, note, " +
-  "operator_user_id, operator, created_at";
+  "operator_user_id, operator, approved_by_user_id, approved_seen_at, created_at";
 
 // R5.1/R5.2/R5.3 — one RPC call, never one query per row (PRD §8: the client list renders
 // for every org member on every visit).
@@ -80,6 +82,11 @@ async function toInboxItems(orgId: string, rows: QueueRow[]): Promise<InboxItem[
     // R11.3 -> R11.4: the current display name, else the legacy free-text operator, else
     // nothing. Degrades visibly; never blocks the row from rendering.
     makerName: (r.operator_user_id && names.get(r.operator_user_id)) || r.operator || null,
+    // D170: not rendered — kept in sync with inboxFilterFor's SQL clause via the
+    // selectInboxFor equivalence test in queue.test.ts (selectInboxFor itself has no
+    // runtime caller).
+    approvedByUserId: r.approved_by_user_id,
+    approvedSeenAt: r.approved_seen_at,
     createdAt: r.created_at,
   }));
 }

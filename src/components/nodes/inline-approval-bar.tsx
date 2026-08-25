@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import type { ApprovalStatus } from "@/lib/approval";
+import { formatRelativeTime } from "@/lib/format/relative-time";
 
 // Which action is in flight. Only the button you pressed shows progress — passing one
 // `saving` flag to every button made all three spin at once, which read as the whole
@@ -35,6 +36,8 @@ export function InlineApprovalBar({
   saving,
   canApprove,
   onSet,
+  approvedByName = null,
+  approvedAt = null,
 }: {
   status: ApprovalStatus;
   note: string;
@@ -44,6 +47,9 @@ export function InlineApprovalBar({
   // this prop is not, and must never become, the mechanism.
   canApprove: boolean;
   onSet: (status: ApprovalStatus, note: string | null) => void;
+  // Who approved this version, and when — rendered only in the read-only view (D169).
+  approvedByName?: string | null;
+  approvedAt?: string | null;
 }) {
   const [draftNote, setDraftNote] = useState(note);
   const [composing, setComposing] = useState(false);
@@ -57,7 +63,14 @@ export function InlineApprovalBar({
   }
 
   if (!canApprove) {
-    return <ApprovalReadout status={status} note={note} />;
+    return (
+      <ApprovalReadout
+        status={status}
+        note={note}
+        approvedByName={approvedByName}
+        approvedAt={approvedAt}
+      />
+    );
   }
 
   const meta = STATUS_META[status];
@@ -195,7 +208,17 @@ export function InlineApprovalBar({
 // What a designer sees. It used to render the status label and NOTHING else, which meant
 // the reviewer's note — the entire payload of the return path — was invisible to the one
 // person it is written for: they knew they had been rejected, but not why.
-function ApprovalReadout({ status, note }: { status: ApprovalStatus; note: string }) {
+function ApprovalReadout({
+  status,
+  note,
+  approvedByName,
+  approvedAt,
+}: {
+  status: ApprovalStatus;
+  note: string;
+  approvedByName: string | null;
+  approvedAt: string | null;
+}) {
   const meta = STATUS_META[status];
   return (
     <div className="min-w-0">
@@ -207,10 +230,21 @@ function ApprovalReadout({ status, note }: { status: ApprovalStatus; note: strin
         </span>
       </div>
       {/* R9.3: the note is read ON THE NODE, beside the controls that act on it — the
-          place the fix actually happens. */}
+          place the fix actually happens. D177 revises D169's "approval is neutral, no
+          icon" call: both outcomes now get a matching icon, reused from this file's own
+          Approve/Reject buttons above — not a new icon vocabulary. */}
       {status === "changes_requested" && note.trim() && (
-        <p className="mt-2 rounded-r-md border-l-2 border-destructive/40 bg-destructive/5 px-2.5 py-1.5 text-xs leading-relaxed text-destructive">
-          {note}
+        <p className="mt-2 flex items-start gap-1.5 rounded-r-md border-l-2 border-destructive/40 bg-destructive/5 px-2.5 py-1.5 text-xs leading-relaxed text-destructive">
+          <MessageSquareWarning className="mt-0.5 size-3 shrink-0" strokeWidth={1.5} />
+          <span>{note}</span>
+        </p>
+      )}
+      {/* D169/D177: who approved, and when — captured since D167, invisible until D169,
+          neutral-only until D177. */}
+      {status === "approved" && approvedByName && (
+        <p className="mt-1.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Check className="size-3 shrink-0 text-emerald-600 dark:text-emerald-400" strokeWidth={1.5} />
+          Approved by {approvedByName} · {formatRelativeTime(approvedAt)}
         </p>
       )}
     </div>

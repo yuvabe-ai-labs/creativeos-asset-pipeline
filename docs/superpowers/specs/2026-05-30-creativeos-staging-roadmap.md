@@ -2968,3 +2968,212 @@ nothing but a second read of the same derivation.
 will legitimately disagree. Each surface therefore states what it counts ("on this canvas" /
 "everywhere"), so a navbar reading of 12 beside a canvas reading of 5 is obviously two
 questions answered rather than a bug.
+
+### D168 — The versions API route resolves real attribution, retiring the dead `approvedBy` field *(recorded 2026-08-24; fixes a gap left by D167; originated → `2026-08-24-approval-audit-trail-design.md`)*
+
+**Decision.** `src/app/api/nodes/[id]/versions/route.ts` resolves `operator_user_id` and
+`approved_by_user_id` through the existing `resolveDisplayNames` (`src/lib/db/profiles.ts`)
+and returns `makerName`/`approvedByName`, replacing the field that read the legacy
+`approved_by` text column.
+
+**Why.** D167 stopped writing `approved_by`, but this route never stopped reading it — every
+version approved since PR #64 merged has shown a null approver in the one place a prop
+already existed to display one. Reusing `resolveDisplayNames` rather than a new helper
+follows the codebase's canonical-sources rule; it's the same function `review/queue.ts`
+already uses for `makerName` in the inbox.
+
+### D169 — Per-version history becomes the approval audit trail; no new surface *(recorded 2026-08-24; originated → `2026-08-24-approval-audit-trail-design.md`)*
+
+**Decision.** `ImageGenVersionHistory` and `VideoGenVersionHistory` render the reviewer and
+decision time per row (approved-by-name-and-time, or the rejection note prefixed with the
+reviewer's name), using the fields D168 adds. Prompt nodes stay excluded, matching R3.2.
+
+**Why.** Both components already list every version in order with a maker-facing "restore"
+affordance; they were the natural home for "who did what, when" rather than a new page or
+panel, since every version they already render carries an approval decision to show.
+
+### D170 — A maker's approval notification is a dismiss-on-view read receipt, not a queue table or timer *(recorded 2026-08-24; extends D150/D162; originated → `2026-08-24-approval-audit-trail-design.md`)*
+
+**Decision.** `node_versions` gains `approved_seen_at timestamptz`. A new server action,
+`markVersionApprovalSeenAction`, sets it when the version's own maker views the node while
+its active version is `approved` and unseen. The navbar inbox filter
+(`inboxFilterFor`/`selectInboxFor`) adds an `approved AND mine AND unseen` clause alongside
+the existing `pending` and `mine-rejected` clauses, for every role.
+
+**Why.** D162 derived the review queue from state with no assignee column, because rejection
+already has a natural exit: regenerating moves the active pointer and the new version reverts
+to `pending` (D159's join). Approval has no equivalent state change — nothing else happens to
+the row once it's approved — so there was no way to know when a maker had seen the outcome
+without adding the one column that records exactly that. This is the smallest addition that
+keeps the "derived, not assigned" property everywhere else already has.
+
+**Rejected.** A queue/notification table (reintroduces the drift D159 was written to avoid).
+A time-based auto-expire (declared and rejected during design — an approval a maker hasn't
+opened yet would silently disappear on a fixed clock, which is worse than never showing it).
+
+### D171 — Self-approval never notifies *(recorded 2026-08-24; originated → `2026-08-24-approval-audit-trail-design.md`)*
+
+**Decision.** The unseen-approved inbox clause requires `approved_by_user_id !=
+operator_user_id`. A senior or owner who approves their own generated asset does not see it
+appear in their own inbox.
+
+**Why.** R2.5 already permits self-approval for one-senior orgs. Notifying someone of a
+decision they just made themselves is noise, not signal.
+
+### D172 — Pre-existing approved rows are backfilled as already-seen *(recorded 2026-08-24; originated → `2026-08-24-approval-audit-trail-design.md`)*
+
+**Decision.** The migration adding `approved_seen_at` backfills it to `approved_at` for every
+row already `approved` at migration time.
+
+**Why.** Without this, every historical approval since PR #64 merged would read as
+"unseen" the moment this ships, flooding every maker's inbox with old news on deploy day. The
+dismiss-on-view mechanism is meant to govern approvals that happen from here forward, not to
+retroactively judge the backlog.
+
+### D173 — `node_version_decisions` is a new append-only log, kept alongside `node_versions`' current-state columns *(recorded 2026-08-24; originated → `2026-08-24-decision-history-panel-design.md`)*
+
+**Decision.** A new table logs every real approve/reject decision — status, note, reviewer,
+timestamp — one row per decision, never updated or deleted. `node_versions`' own
+`approval_status`/`note`/`approved_by_user_id`/`approved_at` columns are untouched and remain
+the source of truth for the review queue, counts, and navbar inbox (D159's
+`review_queue_items` view reads only those columns).
+
+**Why.** `setVersionApprovalAction` always writes onto the same `node_versions` row via
+`activeVersionId`, and the existing "Undo" control resets a decided version back to
+`pending` so it can be decided again — both reachable in the shipped UI, and both silently
+destroy the prior decision's note. The log exists to keep that history without touching
+anything the review-queue derivation (D159) already depends on.
+
+### D174 — Reset-to-pending writes no log row *(recorded 2026-08-24; originated → `2026-08-24-decision-history-panel-design.md`)*
+
+**Decision.** Only a transition to `approved` or `changes_requested` appends to
+`node_version_decisions`. "Undo" (reset to `pending`) is not itself logged.
+
+**Why.** Undo clears current state so a version can be re-decided — it is not, itself, a
+decision anyone made about the work. Logging it would clutter the history with a
+non-event between every real pair of decisions.
+
+### D175 — The decision-log insert is best-effort, non-transactional with the status update *(recorded 2026-08-24; originated → `2026-08-24-decision-history-panel-design.md`)*
+
+**Decision.** `setVersionApprovalAction` inserts the log row after its `node_versions` UPDATE
+succeeds; if the insert fails, the error is caught and logged server-side, never surfaced to
+the reviewer or allowed to fail the approve/reject action itself.
+
+**Why.** The log is observability, not the source of truth. A reviewer's approve/reject must
+never appear to fail — or actually roll back — because a supplementary audit write had a
+problem. Mirrors D170's `markVersionApprovalSeenAction`, which is best-effort for the same
+reason.
+
+### D176 — Version-history rows collapse by default; restoring becomes an explicit button *(recorded 2026-08-24; originated → `2026-08-24-decision-history-panel-design.md`)*
+
+**Decision.** Every row except the currently-active version starts collapsed (thumbnail,
+label, colored status icon, time only). Row-body click toggles expand/collapse; restoring is
+a separate, always-visible button on an expanded row rather than a whole-row click target.
+
+**Why.** The panel had grown to up to seven stacked lines per row with no way to collapse
+any of it. Whole-row-click-to-restore also meant "look closer at this version" and "revert
+to this version" were the same accidental gesture — separating them fixes both problems at
+once.
+
+### D177 — Revises D169: approval and rejection both get a matching icon, not just rejection *(recorded 2026-08-24; originated → `2026-08-24-decision-history-panel-design.md`)*
+
+**Decision.** `ApprovalReadout`'s "Approved by X" line gains a small emerald `Check` icon;
+the rejection note block gains a small destructive-toned `MessageSquareWarning` icon — the
+same two icons `InlineApprovalBar` already uses for its own Approve/Reject buttons, reused
+rather than introducing new icon vocabulary.
+
+**Why.** D169 deliberately kept approval neutral ("approval isn't an alert"). Explicit
+follow-up instruction overrides that one specific call: both outcomes should be visually
+identifiable at a glance, not just the negative one.
+
+### D178 — One approval-status vocabulary, owned by two shared components *(recorded 2026-08-25; completes D177; retires `describeApprovalPill`)*
+
+**Decision.** `components/review/approval-status-icon.tsx` (`ApprovalStatusIcon`) and
+`components/review/approval-status-badge.tsx` (`ApprovalStatusBadge`) own the approval
+status vocabulary for the whole product: emerald `Check` = approved, destructive
+`MessageSquareWarning` = changes requested, amber dot = pending. Every surface renders one
+of the two — version-history rows and their decision threads, the navbar review inbox
+tags, and the focus-view rail badge. `describeApprovalPill` (`lib/nodes/prompt-focus.ts`)
+is deleted.
+
+**Why.** D177 gave the *node's* approval readout an icon, but three other surfaces still
+hand-rolled their own markup, and one of them disagreed outright: `describeApprovalPill`
+mapped `changes_requested` to an amber "warning" tone and `pending` to neutral grey —
+inverting the amber-means-pending convention every other approval surface uses, so the
+same version read as amber "Changes" on the rail and a red flag in its own history two
+inches away. Its three call sites (image-gen, prompt, video-prompt focus views) each
+re-implemented the tone → class mapping verbatim, which is exactly why the drift went
+unnoticed: there was no single place where the mapping could be seen to be wrong.
+
+**Rejected.** Fixing only the badge in the panel that prompted the report. That would have
+left an image node and a prompt node disagreeing about what amber means, trading one
+inconsistency for another.
+
+### D179 — An open focus view is live, via a node-FILTERED ping on the existing org channel *(recorded 2026-08-25; extends D159's realtime path)*
+
+**Decision.** `subscribeToOrgVersionUpdates` now passes the changed row's `node_id` (and
+nothing else) to its listeners. A new `useNodeVersionUpdates(nodeId, enabled, onChange)`
+hook subscribes an open focus view and refetches **only** when the changed row belongs to
+that node, debounced 400ms. Both gen focus views use it. The row itself is still withheld.
+
+**Why filtered rather than "refetch on any ping".** The channel is org-wide — deliberately,
+because one channel per org keeps the subscription count flat no matter how many nodes are
+open, and Supabase evaluates every `postgres_changes` filter per subscription. But org-wide
+means an unfiltered consumer wakes on every generation anywhere in the org: N people
+generating × M open focus views, all refetching a node that did not change. The node id
+turns that into "refetch only when this node actually changed," which is rare. It is a
+FILTER, not payload-for-patching — the D159 rule that consumers re-derive from the server
+rather than patching a row into local state is unchanged.
+
+**Why not a per-node channel.** Server-side filtering would be more precise, but it costs
+one subscription per open focus view and pushes the filtering into the part of the stack
+that scales worst. Client-side filtering on a shared channel is cheaper on both sides.
+
+**Consequence, stated rather than hidden.** A null `node_id` (a DELETE without REPLICA
+IDENTITY FULL) is treated as "might be mine" and refreshes: a redundant refetch is cheap, a
+missed one leaves the panel silently wrong. And because a live refresh can now be triggered
+by *someone else's* action, `fetchVersions` takes `preserveEvalDraft` on that path only —
+the eval note is a controlled draft saved on blur, so re-seeding it mid-keystroke would
+discard what the viewer was typing.
+
+### D180 — One version-history list for every node type *(recorded 2026-08-25; completes D176)*
+
+**Decision.** `components/nodes/version-history-list.tsx` owns the version row: collapse /
+expand, the status icon, the error state, the maker line, the decision thread and the
+restore button. `ImageGenVersionHistory`, `VideoGenVersionHistory` and
+`PromptVersionHistory` become thin mappers supplying only the two things that genuinely
+differ — the thumbnail and the type-specific metadata lines. Prompt focus views also join
+D179's live-update path and pass the approver props to `InlineApprovalBar`.
+
+**Why.** D176 restructured the two *gen* panels and left prompt on the old flat list, so
+the three copies drifted exactly as D178's badge had: prompt kept whole-row-click-to-restore,
+its own duplicate relative-time helper, a plain dot instead of the shared status icon, a
+nested `max-h-52` scroller, and no decision thread at all. The same version therefore read
+differently depending on which node you opened.
+
+**Scope note.** Prompt versions stay OUT of the review queue, inbox and counts — the
+`review_queue_items` view is defined `where n.type in ('image-gen','video-gen')` and
+`db/review.ts` is its only reader, so the exclusion is structural rather than conventional
+(R3.2). What they gain is the on-node record: a prompt approval is still logged to
+`node_version_decisions` and shown in its own history, it just never notifies anyone.
+
+### D181 — Removing a member deletes the account; their work survives, unattributed *(recorded 2026-08-25; extends D164)*
+
+**Decision.** `removeOrgMemberAction` (super-admin only, like the rest of seat
+provisioning) deletes the membership, the profile and the auth user.
+
+**Why the whole account.** `one_org_per_user` means a member belongs to exactly one org, so
+detaching alone would leave an auth user who can still sign in but whose every request
+lands on `/login?error=no-membership` forever — the stranded state `addOrgMember`'s own
+rollback exists to prevent.
+
+**Why the work is safe.** `node_versions.operator_user_id` / `approved_by_user_id` and
+`node_version_decisions.decided_by_user_id` are all `on delete set null`, so generations and
+review history survive and attribution degrades to "an unknown maker" (R11.4) — the same
+fallback a renamed-or-departed user already hit.
+
+**Order matters.** The membership row is deleted FIRST, so migration 0012's
+`org_memberships_last_owner` trigger — which covers DELETE, not just demotion — vetoes
+removing an org's final owner before anything irreversible happens, and its message
+surfaces verbatim. If the auth-user delete then fails, the membership is re-inserted
+best-effort, mirroring `addOrgMember`'s own cleanup.

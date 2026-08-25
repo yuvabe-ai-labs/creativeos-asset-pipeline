@@ -1,20 +1,9 @@
-import type { ApprovalStatus } from "@/lib/approval";
-
-export type ApprovalPillTone = "neutral" | "positive" | "warning";
-export type ApprovalPill = { label: string; tone: ApprovalPillTone };
-
-// Header status pill (read-only): reflects the active version's approval flag (D29).
-export function describeApprovalPill(status: ApprovalStatus): ApprovalPill {
-  switch (status) {
-    case "approved":
-      return { label: "Approved", tone: "positive" };
-    case "changes_requested":
-      return { label: "Needs changes", tone: "warning" };
-    case "pending":
-    default:
-      return { label: "Pending review", tone: "neutral" };
-  }
-}
+// D178: describeApprovalPill lived here and mapped `changes_requested` to an amber
+// "warning" tone while every other approval surface reserves amber for `pending` and the
+// destructive token for a rejection. Its three call sites each re-implemented the
+// tone -> class mapping verbatim, so the drift was invisible. Replaced by
+// components/review/approval-status-badge.tsx, which owns the labels, the colours and the
+// icon together.
 
 // One beat per sentence for the generated-prompt read view. The boundary requires
 // whitespace AFTER the terminator, so decimals ("f/1.8") and hex codes never split.

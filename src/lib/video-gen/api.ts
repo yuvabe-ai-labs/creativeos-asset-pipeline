@@ -60,6 +60,18 @@ export const videoGenApi = {
         inputsUsed?: VideoGenVersionInputs;
         createdAt: string;
         creditsCharged?: number | null;
+        approvalStatus?: "pending" | "approved" | "changes_requested";
+        note?: string | null;
+        makerName?: string | null;
+        approvedByName?: string | null;
+        approvedAt?: string | null;
+        decisions?: Array<{
+          id: string;
+          status: "approved" | "changes_requested";
+          note: string | null;
+          reviewerName: string | null;
+          decidedAt: string;
+        }>;
       }>;
     };
     return {
@@ -74,6 +86,12 @@ export const videoGenApi = {
         inputsUsed: v.inputsUsed ?? {},
         createdAt: v.createdAt,
         creditsCharged: v.creditsCharged ?? null,
+        approvalStatus: v.approvalStatus,
+        note: v.note ?? null,
+        makerName: v.makerName ?? null,
+        approvedByName: v.approvedByName ?? null,
+        approvedAt: v.approvedAt ?? null,
+        decisions: v.decisions ?? [],
       })),
     };
   },

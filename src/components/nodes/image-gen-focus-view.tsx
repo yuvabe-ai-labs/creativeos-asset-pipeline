@@ -63,8 +63,12 @@ import { InlineApprovalBar } from "./inline-approval-bar";
 import { ApprovalSkeleton } from "./approval-skeleton";
 import { useCanvasStoreApi } from "@/components/canvas/canvas-store-provider";
 import { setVersionLabelAction } from "@/lib/actions/eval";
-import { setVersionApprovalAction } from "@/lib/actions/approval";
+import {
+  setVersionApprovalAction,
+  markVersionApprovalSeenAction,
+} from "@/lib/actions/approval";
 import { useIdentity } from "@/hooks/use-identity";
+import { useNodeVersionUpdates } from "@/hooks/use-node-version-updates";
 import { revalidateCanvasGenerations } from "@/hooks/use-canvas-generations";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import type { ApprovalStatus } from "@/lib/approval";
@@ -80,8 +84,7 @@ import {
   validateReferenceImages,
   type RefImageMeta,
 } from "@/lib/image-gen/validate";
-import { cn } from "@/lib/utils";
-import { describeApprovalPill } from "@/lib/nodes/prompt-focus";
+import { ApprovalStatusBadge } from "@/components/review/approval-status-badge";
 import { CREDIT_LIMIT_TOAST_MESSAGE, usdToFinalCredits } from "@/lib/credits/units";
 import { estimateImageGenerationCostUsd } from "@/lib/image-gen/estimate";
 import { LeftSection } from "./focus-left-section";
@@ -192,6 +195,8 @@ export function ImageGenFocusView({
   const [approvalStatus, setApprovalStatus] =
     useState<ApprovalStatus>("pending");
   const [approvalNote, setApprovalNote] = useState("");
+  const [approvedByName, setApprovedByName] = useState<string | null>(null);
+  const [approvedAt, setApprovedAt] = useState<string | null>(null);
   const [approvalSaving, setApprovalSaving] = useState(false);
   const { identity } = useIdentity();
   const editable = useCanvasEditable(); // D33: false when this session is read-only
@@ -290,6 +295,8 @@ export function ImageGenFocusView({
           setEvalNote(active?.note ?? "");
           setApprovalStatus(active?.approvalStatus ?? "pending");
           setApprovalNote(active?.note ?? "");
+          setApprovedByName(active?.approvedByName ?? null);
+          setApprovedAt(active?.approvedAt ?? null);
         }
       } catch {
         /* best-effort */
@@ -301,6 +308,17 @@ export function ImageGenFocusView({
       cancelled = true;
     };
   }, [open, nodeId]);
+
+  // D170: the maker's mirror of ?review=1 landing a reviewer on the node. Fire-and-forget
+  // — the server no-ops for anyone who isn't the version's own maker, or when there's
+  // nothing to mark, so this is safe to call unconditionally whenever this focus view is
+  // showing an approved active version.
+  useEffect(() => {
+    if (!open || !activeVersionId || approvalStatus !== "approved") return;
+    void markVersionApprovalSeenAction(activeVersionId).catch(() => {
+      /* best-effort */
+    });
+  }, [open, activeVersionId, approvalStatus]);
 
   useEffect(() => {
     if (!open) return;
@@ -591,7 +609,10 @@ export function ImageGenFocusView({
     ? "result"
     : "empty";
 
-  async function fetchVersions() {
+  // `preserveEvalDraft` exists for the live-refresh path only — see useNodeVersionUpdates
+  // below. Every other caller is reacting to the viewer's OWN action (generate, restore,
+  // decide), where re-seeding from the server is the point.
+  async function fetchVersions(opts?: { preserveEvalDraft?: boolean }) {
     try {
       const res = await fetch(`/api/nodes/${nodeId}/versions`);
       if (!res.ok) return;
@@ -605,13 +626,25 @@ export function ImageGenFocusView({
         (v) => v.id === json.activeVersionId
       );
       setEvalDecision(active?.decision ?? null);
-      setEvalNote(active?.note ?? "");
+      // The eval note is a CONTROLLED draft saved on blur, so re-seeding it mid-keystroke
+      // discards whatever the viewer was typing. Harmless when they triggered the refresh
+      // themselves; a silent loss when someone else's decision triggered it.
+      if (!opts?.preserveEvalDraft) setEvalNote(active?.note ?? "");
       setApprovalStatus(active?.approvalStatus ?? "pending");
       setApprovalNote(active?.note ?? "");
+      setApprovedByName(active?.approvedByName ?? null);
+      setApprovedAt(active?.approvedAt ?? null);
     } catch {
       /* best-effort */
     }
   }
+
+  // D179: keep this panel live while it is open. Someone else approving, rejecting or
+  // regenerating THIS node refreshes it in place — the decision thread, the status icons
+  // and the rail badge all read from `versions`, so re-reading it re-syncs every one.
+  useNodeVersionUpdates(nodeId, open, () => {
+    void fetchVersions({ preserveEvalDraft: true });
+  });
 
   async function handleGenerate() {
     // Second line of defence behind the button's disabled state: a run in flight must never
@@ -867,6 +900,11 @@ export function ImageGenFocusView({
       // Push into the store so the on-canvas badge refreshes immediately — without
       // this the badge stays stale until a full reload re-hydrates from the DB.
       onPatch({ approvalStatus: status });
+      // Re-read the versions list: it is the ONLY source of the History panel's decision
+      // thread, its status icons, and the reviewer name/time on the approval readout.
+      // Without this the reviewer's own decision is invisible on the very screen they
+      // made it on until they reopen the focus view (D173).
+      await fetchVersions();
     } catch {
       toast.error("Failed to save approval");
     } finally {
@@ -915,29 +953,8 @@ export function ImageGenFocusView({
     }
   }
 
-  const pill = describeApprovalPill(approvalStatus);
-  const pillTone =
-    pill.tone === "positive"
-      ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-900/20 dark:text-emerald-400"
-      : pill.tone === "warning"
-      ? "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-400"
-      : "border-border bg-muted text-muted-foreground";
-
   const reviewBadge =
-    mode === "result" ? (
-      <span
-        className={cn(
-          "shrink-0 rounded-full border px-1.5 py-0.5 text-[0.6rem] font-semibold",
-          pillTone
-        )}
-      >
-        {pill.tone === "positive"
-          ? "Approved"
-          : pill.tone === "warning"
-          ? "Changes"
-          : "Pending"}
-      </span>
-    ) : undefined;
+    mode === "result" ? <ApprovalStatusBadge status={approvalStatus} /> : undefined;
 
   const outputSettingsBody = (
     <ImageGenOutputSettingsBody
@@ -1232,6 +1249,8 @@ export function ImageGenFocusView({
                         <InlineApprovalBar
                           status={approvalStatus}
                           note={approvalNote}
+                          approvedByName={approvedByName}
+                          approvedAt={approvedAt}
                           saving={approvalSaving}
                           canApprove={identity?.role === "senior"}
                           onSet={saveApproval}

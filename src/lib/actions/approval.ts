@@ -9,6 +9,7 @@ import {
   type ApprovalStatus,
 } from "@/lib/approval";
 import { withAction } from "@/lib/actions/with-action";
+import { insertDecision } from "@/lib/db/decisions";
 
 // D29/D166: set the approval flag on a SPECIFIC version (the caller passes the node's
 // active version id). Annotates an attempt — never a new attempt — so no new version
@@ -56,16 +57,73 @@ export async function setVersionApprovalAction(
       throw new Error("Version not found.");
     }
 
+    const at = new Date().toISOString();
     const update = buildApprovalUpdate({
       status: input.status,
       by: caller.userId,
-      at: new Date().toISOString(),
+      at,
       note,
     });
 
     const { error } = await supabase
       .from("node_versions")
       .update(update)
+      .eq("id", versionId);
+    if (error) throw error;
+
+    // D173/D175: append-only decision history, best-effort. A logging failure must never
+    // block or fail the approve/reject action the reviewer just performed — the status
+    // update above already succeeded and is the source of truth; this is observability.
+    if (input.status === "approved" || input.status === "changes_requested") {
+      try {
+        await insertDecision({
+          versionId,
+          orgId: caller.orgId,
+          status: input.status,
+          note,
+          decidedByUserId: caller.userId,
+          decidedAt: at,
+        });
+      } catch (e) {
+        console.error("Failed to log approval decision history", e);
+      }
+    }
+  });
+}
+
+// D170: a maker's approval notification is a dismiss-on-view read receipt. Called
+// fire-and-forget from the node's own focus view when its active version is approved
+// (Task 9) — the maker's mirror of ?review=1 landing a reviewer on the node (R9.3).
+//
+// Deliberately silent rather than throwing on "not applicable" conditions: wrong caller,
+// wrong status, or already seen are not errors, they are simply "nothing to do here" —
+// this is a read receipt, not a security boundary that should surface failures to a
+// fire-and-forget caller.
+export async function markVersionApprovalSeenAction(versionId: string): Promise<void> {
+  return withAction("markVersionApprovalSeenAction", async () => {
+    const caller = await resolveCallerContext();
+    const supabase = createServerSupabase();
+
+    const { data: version, error: readErr } = await supabase
+      .from("node_versions")
+      .select("id, operator_user_id, approval_status, approved_seen_at")
+      .eq("id", versionId)
+      .maybeSingle();
+    if (readErr) throw readErr;
+    if (!version) return;
+
+    const row = version as {
+      operator_user_id: string | null;
+      approval_status: string;
+      approved_seen_at: string | null;
+    };
+    if (row.operator_user_id !== caller.userId) return;
+    if (row.approval_status !== "approved") return;
+    if (row.approved_seen_at !== null) return;
+
+    const { error } = await supabase
+      .from("node_versions")
+      .update({ approved_seen_at: new Date().toISOString() })
       .eq("id", versionId);
     if (error) throw error;
   });
