@@ -101,13 +101,13 @@ const KLING_O1_IMAGE_INPUTS = {
 
 // ── Kling constraint rules ────────────────────────────────────────────────────
 
-// Both Kling endpoints require a first_frame. Previously this surfaced only as a throw inside
-// the Trigger task — i.e. a generation that failed minutes after the click. As a rule it
-// disables Generate up front instead.
+// K1 — /image-to-video/kling-3.0 is image-to-video in the literal sense: with no `first_frame`
+// there is nothing to animate and the request is rejected. Previously this surfaced only as a
+// throw inside the Trigger task — i.e. a generation that failed minutes after the click. As a
+// rule it disables Generate up front instead.
 //
-// Lifting this for omni text-to-video needs an `aspect_ratio` param, which the omni docs make
-// mandatory when no first frame and no reference video are present — deferred.
-const KLING_REQUIRES_START_FRAME: ConstraintRule = {
+// 3.0 ONLY. The omni endpoint behind Kling O1 does not share this requirement — see below.
+const KLING_30_REQUIRES_START_FRAME: ConstraintRule = {
   id: "kling-requires-start-frame",
   when: { field: "hasStartFrame", op: "eq", value: false },
   effect: { disableGenerate: true },
@@ -115,7 +115,7 @@ const KLING_REQUIRES_START_FRAME: ConstraintRule = {
 };
 
 const KLING_30_RULES: ConstraintRule[] = [
-  KLING_REQUIRES_START_FRAME,
+  KLING_30_REQUIRES_START_FRAME,
   {
     // Multi-shot cuts between shots; an end frame asks for one continuous interpolated path.
     // The two are contradictory, and Kling's API defaults multi_shot to true.
@@ -126,8 +126,48 @@ const KLING_30_RULES: ConstraintRule[] = [
   },
 ];
 
-// O1 exposes no multi_shot param, so it carries only the start-frame rule.
-const KLING_O1_RULES: ConstraintRule[] = [KLING_REQUIRES_START_FRAME];
+// D101 — on the omni endpoint a `refer_image` is a first-class input, not a supplement to a
+// first frame (OM1), so references alone are a legal request and the blanket start-frame gate
+// does not apply here. What O1 still cannot do is start from nothing: with neither a start frame
+// nor a reference there is no subject to animate. Hence "start frame OR at least one reference".
+//
+// The references-only path must send `aspect_ratio` (OM8), which is why lifting this needed a new
+// param in params/kling.ts rather than just deleting a rule.
+const KLING_O1_NEEDS_START_FRAME_OR_REFERENCE: ConstraintRule = {
+  id: "kling-o1-needs-start-frame-or-reference",
+  when: {
+    op: "and",
+    conditions: [
+      { field: "hasStartFrame", op: "eq", value: false },
+      { field: "referenceCount", op: "eq", value: 0 },
+    ],
+  },
+  effect: { disableGenerate: true },
+  reason: "Kling O1 needs a start frame or at least one reference image",
+};
+
+// OM7 — last-frame-only is unsupported. An end frame is the destination of an interpolation that
+// has to start somewhere, and a reference image does not stand in for that origin; only a start
+// frame does. Unreachable while the rule above was a blanket start-frame requirement, reachable
+// now that references can stand alone.
+const KLING_O1_END_FRAME_REQUIRES_START_FRAME: ConstraintRule = {
+  id: "kling-o1-end-frame-requires-start-frame",
+  when: {
+    op: "and",
+    conditions: [
+      { field: "hasEndFrame", op: "eq", value: true },
+      { field: "hasStartFrame", op: "eq", value: false },
+    ],
+  },
+  effect: { disableGenerate: true },
+  reason: "End frame needs a start frame before you can generate",
+};
+
+// O1 exposes no multi_shot param, so it carries no multi-shot rule.
+const KLING_O1_RULES: ConstraintRule[] = [
+  KLING_O1_NEEDS_START_FRAME_OR_REFERENCE,
+  KLING_O1_END_FRAME_REQUIRES_START_FRAME,
+];
 
 // ── Model map ─────────────────────────────────────────────────────────────────
 
