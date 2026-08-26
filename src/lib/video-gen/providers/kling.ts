@@ -63,9 +63,11 @@ export function build3_0Settings(
   };
 }
 
-// O1 rejects every duration but 5 or 10 unless the request carries a `refer_image` — which
-// buildKlingContents never emits, since it only sends first_frame / last_frame:
+// O1 rejects every duration but 5 or 10 unless the request carries a `refer_image`:
 //   400 {"code":1201,"message":"Duration only supports 5 or 10 seconds when no refer_image is provided"}
+// D100 made buildKlingContents emit refer_image, so the wider range is now reachable in principle
+// — but klingO1Params still offers only 5/10 (a static spec cannot narrow itself back when the
+// last reference is removed), so nothing upstream can ask for another value and the clamp holds.
 //
 // NOTE: the published /omni-video/kling-3.0-omni docs enumerate duration 3–15 with no such
 // caveat. That page documents a DIFFERENT path than the one we call (/omni-video/kling-o1), and
@@ -88,11 +90,30 @@ function o1Audio(value: unknown): string {
   return audio === "native" ? "native" : "off";
 }
 
+// OM8: `aspect_ratio` is REQUIRED when the request carries no first frame and no reference video,
+// and rejected/ignored otherwise (Kling derives the ratio from the first frame when there is one).
+// Sent only on the references-only path, so a normal start-frame generation is byte-identical to
+// what it sent before D101.
+const O1_VALID_ASPECT_RATIOS = ["16:9", "9:16", "1:1"];
+
+function o1AspectRatioSetting(
+  params: Record<string, unknown>,
+  hasStartFrame: boolean,
+): Record<string, unknown> {
+  if (hasStartFrame) return {};
+  const ratio = String(params.aspect_ratio ?? "16:9");
+  return { aspect_ratio: O1_VALID_ASPECT_RATIOS.includes(ratio) ? ratio : "16:9" };
+}
+
+// `ctx` defaults to hasStartFrame: true — the shape every caller sent before D101, and the one
+// that omits aspect_ratio. A caller that genuinely has no start frame must say so.
 export function buildO1Settings(
   params: Record<string, unknown>,
+  ctx: { hasStartFrame: boolean } = { hasStartFrame: true },
 ): Record<string, unknown> {
   const duration = Number(params.duration ?? 5);
   return {
+    ...o1AspectRatioSetting(params, ctx.hasStartFrame),
     // Absent → false, matching multiShotParam's declared default. Kling's own server-side
     // default is TRUE, so omitting this field entirely (as this builder used to) silently
     // opted every O1 clip into multi-shot cuts — the exact thing params/kling.ts calls out as
@@ -179,23 +200,49 @@ type KlingEndpointConfig = {
    * sent as an unsupported type.
    */
   supportsReferences: boolean;
+  /**
+   * K1 — /image-to-video/kling-3.0 rejects a request with no `first_frame`; there is nothing to
+   * animate. The omni endpoint does not (OM1), so O1 sets this false and leans on the weaker
+   * "start frame OR a reference" guard below.
+   */
+  requiresStartFrame: boolean;
 };
+
+type KlingSettingsBuilder = (
+  params: Record<string, unknown>,
+  ctx: { hasStartFrame: boolean },
+) => Record<string, unknown>;
 
 async function generateWithKling(
   config: KlingEndpointConfig,
-  buildSettings: (params: Record<string, unknown>) => Record<string, unknown>,
+  buildSettings: KlingSettingsBuilder,
   input: VideoGenInput,
 ): Promise<VideoGenResult> {
-  if (!input.startFrameUrl) {
+  const referenceUrls = config.supportsReferences ? (input.referenceUrls ?? []) : [];
+
+  if (config.requiresStartFrame && !input.startFrameUrl) {
     throw new Error("Kling image-to-video requires a start frame image");
   }
+  // D101 — the omni endpoint animates from references alone, but not from nothing: with neither a
+  // start frame nor a reference there is no subject. Mirrors the client rule in client-models.ts
+  // so a caller that bypasses the UI gets a named error instead of a Kling 400 minutes later.
+  if (!input.startFrameUrl && referenceUrls.length === 0) {
+    throw new Error("Kling needs a start frame or at least one reference image");
+  }
+  // OM7 — last-frame-only is unsupported. Unreachable while a start frame was mandatory.
+  if (!input.startFrameUrl && input.endFrameUrl) {
+    throw new Error("Kling cannot use an end frame without a start frame");
+  }
+
   const contents = buildKlingContents({
     prompt: input.prompt,
     startFrameUrl: input.startFrameUrl,
     endFrameUrl: input.endFrameUrl,
-    referenceUrls: config.supportsReferences ? input.referenceUrls : [],
+    referenceUrls,
   });
-  const settings = buildSettings(input.params);
+  const settings = buildSettings(input.params, {
+    hasStartFrame: Boolean(input.startFrameUrl),
+  });
   const taskId = await createKlingTask(config.endpointPath, contents, settings);
   return pollKlingTask(taskId);
 }
@@ -228,7 +275,11 @@ export const kling30: VideoGenModelSpec = {
   params: kling30Params,
   generate: (input) =>
     generateWithKling(
-      { endpointPath: "/image-to-video/kling-3.0", supportsReferences: false },
+      {
+        endpointPath: "/image-to-video/kling-3.0",
+        supportsReferences: false,
+        requiresStartFrame: true,
+      },
       build3_0Settings,
       input,
     ),
@@ -244,7 +295,11 @@ export const klingO1: VideoGenModelSpec = {
   params: klingO1Params,
   generate: (input) =>
     generateWithKling(
-      { endpointPath: "/omni-video/kling-o1", supportsReferences: true },
+      {
+        endpointPath: "/omni-video/kling-o1",
+        supportsReferences: true,
+        requiresStartFrame: false,
+      },
       buildO1Settings,
       input,
     ),
