@@ -161,7 +161,11 @@ export function ImageGenFocusView({
       base.aspect_ratio = SIZE_TO_RATIO[base.size as string] ?? "1:1";
       delete base.size;
     }
-    return base;
+    // Persisted params can hold a value this model no longer offers — a node saved while an
+    // option was still listed, or one whose model spec has since dropped it (gemini-2.5-flash-image
+    // and 4:1). Spreading it through unchecked leaves the node sending a value the provider
+    // 400s on, with no way out of the Select. Same merge the model-switch effect uses.
+    return smartMergeParams(base, model);
   });
 
   const [generating, setGenerating] = useState(false);

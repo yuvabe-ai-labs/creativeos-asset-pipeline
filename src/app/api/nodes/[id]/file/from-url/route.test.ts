@@ -3,6 +3,9 @@ import { NextRequest } from "next/server";
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/storage", () => ({ uploadNodeFile: vi.fn(), removeObject: vi.fn() }));
+vi.mock("@/lib/storage/node-file-cleanup", () => ({
+  removeNodeFileObject: vi.fn(async () => ({ removed: true })),
+}));
 vi.mock("@/lib/supabase/server", () => ({
   createServerSupabase: vi.fn(() => ({
     from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { data: {} } }) }) }) }),

@@ -1,7 +1,7 @@
 import { createServerSupabase } from "@/lib/supabase/server";
 import { fileKindForExt } from "@/lib/nodes/file-constants";
 import { apiError, apiOk, assertImpersonationWriteAllowed } from "@/lib/api/route-helpers";
-import { removeObject } from "@/lib/storage";
+import { removeNodeFileObject } from "@/lib/storage/node-file-cleanup";
 import { publicUrlFor } from "@/lib/storage/gcs";
 import { resolveOwnership } from "@/lib/storage/ownership";
 
@@ -65,7 +65,10 @@ export async function POST(
     ?.fileUrl as string | undefined;
   if (existingUrl && !body.keepExisting) {
     try {
-      await removeObject(existingUrl);
+      // Sole-owner check inside — `existingUrl` is often a URL this node never uploaded
+      // (gallery/reference picks reuse another node's object), and deleting it here was
+      // silently destroying files other nodes still displayed.
+      await removeNodeFileObject(nodeId, existingUrl);
     } catch {
       // Best-effort cleanup — don't block the new upload.
     }

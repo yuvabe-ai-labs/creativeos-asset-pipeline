@@ -178,6 +178,10 @@ export async function POST(
       inputsUsed = {
         promptVersionId: carriedPromptVersionId,
         baseVersionId: baseVersionId ?? null,
+        // The literal base image sent to the provider. When `baseVersionId` is null this came
+        // straight from the client (`body.baseImageUrl`) and was the ONLY unrecorded input —
+        // a failed run naming a dead URL could not be traced back to what it edited.
+        baseImageUrl: resolvedBaseUrl,
         intent,
         instruction,
         editPrompt: prompt,

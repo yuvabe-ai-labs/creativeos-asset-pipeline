@@ -17,7 +17,8 @@ import {
   isApiError,
   withNode,
 } from "@/lib/api/route-helpers";
-import { uploadNodeFile, removeObject } from "@/lib/storage";
+import { uploadNodeFile } from "@/lib/storage";
+import { removeNodeFileObject } from "@/lib/storage/node-file-cleanup";
 
 // POST /api/nodes/:id/file — upload a file (.txt or image) to this File node.
 export async function POST(
@@ -46,12 +47,14 @@ export async function POST(
     const sizeError = validateFileSize(file.size, 0, sizeLimit, sizeLabel);
     if (sizeError) return sizeError;
 
+    // Only when this node is the object's sole owner — a File node's fileUrl can be a URL
+    // shared with other nodes, or a generation's output.
     const existingUrl = (node.data as Record<string, unknown>)?.fileUrl as
       | string
       | undefined;
     if (existingUrl) {
       try {
-        await removeObject(existingUrl);
+        await removeNodeFileObject(nodeId, existingUrl);
       } catch {
         // Best-effort cleanup — don't block the new upload.
       }
@@ -113,13 +116,15 @@ export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withNode(req, params, async (_nodeId, node) => {
+  return withNode(req, params, async (nodeId, node) => {
     const fileUrl = (node.data as Record<string, unknown>)?.fileUrl as
       | string
       | undefined;
     if (fileUrl) {
       try {
-        await removeObject(fileUrl);
+        // Detaching the file from this node must not destroy bytes another node still
+        // points at — the object survives, only this node's reference goes away.
+        await removeNodeFileObject(nodeId, fileUrl);
       } catch {
         // Best-effort cleanup
       }

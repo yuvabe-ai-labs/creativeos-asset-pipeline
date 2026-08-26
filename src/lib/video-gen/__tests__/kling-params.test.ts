@@ -64,6 +64,25 @@ describe("klingO1Params", () => {
     expect(p.constraints).toEqual({ type: "select", options: ["5", "10"] });
   });
 
+  // OM8: required on the references-only path. It lived in the `advanced` group, which no
+  // component renders since the Advanced accordion was removed from the focus view (7e1c643) —
+  // so the control existed in the spec and nowhere on screen. Primary is the only group that
+  // reaches the UI today, and framing belongs beside resolution/duration anyway.
+  it("exposes aspect_ratio as a PRIMARY param so the UI actually renders it", () => {
+    const p = klingO1Params.find((p) => p.name === "aspect_ratio")!;
+    expect(p).toBeDefined();
+    expect(p.group).toBe("primary");
+    expect(p.visible).toBe(true);
+    expect(p.constraints).toEqual({ type: "select", options: ["16:9", "9:16", "1:1"] });
+    expect(p.defaultValue).toBe("16:9");
+  });
+
+  // 3.0 is first-frame-only, so Kling always derives the ratio from that image — an
+  // aspect_ratio chip group there would be a control that changes nothing.
+  it("is O1-only: 3.0 declares no aspect_ratio", () => {
+    expect(kling30Params.some((p) => p.name === "aspect_ratio")).toBe(false);
+  });
+
   it("offers no duration Kling would reject with code 1201", () => {
     const p = klingO1Params.find((p) => p.name === "duration")!;
     const options = p.constraints.type === "select" ? p.constraints.options : [];
@@ -123,8 +142,9 @@ describe("negative_prompt", () => {
     expect(items).toContain("warped label");
   });
 
-  // Stays out of the Advanced accordion: it is tuned per shot, so it must be visible without
-  // expanding anything. Audio / Multi-Shot are the only params behind Advanced.
+  // Stays out of the Advanced group: it is tuned per shot, so it must be visible without
+  // expanding anything. Audio / Multi-Shot are the only params left in Advanced — and note
+  // that no component renders that group at present (see the aspect_ratio case above).
   it("is a primary param, not hidden behind Advanced", () => {
     for (const params of [kling30Params, klingO1Params]) {
       expect(params.find((p) => p.name === "negative_prompt")!.group).toBe("primary");
