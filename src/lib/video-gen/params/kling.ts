@@ -68,13 +68,18 @@ function audioParam(options: string[], defaultValue: string): ParamSpec {
 // OM8 — the omni endpoint REQUIRES `aspect_ratio` when a request carries no first frame and no
 // reference video, which is exactly the references-only shape D101 unlocked. With a start frame
 // present Kling derives the ratio from that image and buildO1Settings omits the field entirely,
-// so this control governs one specific path rather than every generation. That is why it sits in
-// Advanced instead of beside Resolution — it must be reachable, not prominent.
+// so this control governs one specific path rather than every generation.
+//
+// PRIMARY, not advanced. It was filed under Advanced as "reachable, not prominent" — but the
+// Advanced accordion was deleted from the focus view in 7e1c643, so nothing renders that group
+// and the control was reachable from nowhere. Framing is also a shot decision the eye makes
+// alongside resolution and duration, not a fine-tune. Orders after Duration and before the
+// full-width Negative Prompt.
 const aspectRatioParam: ParamSpec = {
   name: "aspect_ratio",
   label: "Aspect Ratio",
   component: "select",
-  group: "advanced",
+  group: "primary",
   order: 2,
   visible: true,
   defaultValue: "16:9",
@@ -104,13 +109,13 @@ export const KLING_NEGATIVE_DEFAULT =
 
 // PRIMARY, not advanced: it is tuned per shot often enough to belong on the always-visible
 // surface. Orders last within the group so the textarea renders full-width below the paired
-// Resolution + Duration row.
+// Resolution + Duration row (and, on O1, below Aspect Ratio).
 const negativePromptParam: ParamSpec = {
   name: "negative_prompt",
   label: "Negative Prompt",
   component: "textarea",
   group: "primary",
-  order: 2,
+  order: 3,
   visible: true,
   defaultValue: KLING_NEGATIVE_DEFAULT,
   constraints: { type: "textarea", maxLength: 2500 },
