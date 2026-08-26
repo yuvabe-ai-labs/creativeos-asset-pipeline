@@ -60,5 +60,10 @@ export const veoParams: ParamSpec[] = [
   },
 ];
 
-// Lite: same duration options as Quality (4/6/8 all supported)
+// Lite: same param set as Quality — same duration options (4/6/8), and it keeps negative_prompt
+// even though veo-3.1-lite-generate-preview rejects the API field itself:
+//   400 INVALID_ARGUMENT — "`negativePrompt` isn't supported by this model."
+// The suppression list is still worth authoring on Lite, so the provider folds it into the prompt
+// text instead of the config (composeVeoPrompt in providers/veo.ts). The param panel therefore
+// stays identical across the three Veo variants, and only the wire format differs.
 export const veoLiteParams: ParamSpec[] = veoParams;

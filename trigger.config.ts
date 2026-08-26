@@ -21,7 +21,7 @@ for (const envFile of [".env", ".env.local"]) {
 // Staging and production are separate Trigger.dev projects (free-tier accounts don't
 // support multiple environments within one project) — read the ref from whichever
 // .env is currently active (npm run env:staging / env:prod), not hardcoded.
-const projectId = process.env.TRIGGER_PROJECT_ID;
+const projectId = "proj_mlnaizhphqpdqwzctaag";
 if (!projectId) {
   throw new Error(
     "Missing TRIGGER_PROJECT_ID — run npm run env:staging or npm run env:prod first.",

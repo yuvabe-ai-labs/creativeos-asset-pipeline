@@ -3177,3 +3177,57 @@ fallback a renamed-or-departed user already hit.
 removing an org's final owner before anything irreversible happens, and its message
 surfaces verbatim. If the auth-user delete then fails, the membership is re-inserted
 best-effort, mirroring `addOrgMember`'s own cleanup.
+
+### D182 — An upstream image with no assigned role is not an input *(recorded 2026-08-26; corrects the role default introduced with D95/D97)*
+
+**Decision.** `assignImageRoles` (`src/lib/video-gen/assign-image-roles.ts`) resolves the
+video-generate request's images from `imageRoles` alone. An image the operator never assigned is
+dropped, not defaulted. Frames are first-wins: a second `start_frame` assignment is surplus, not a
+demotion to reference.
+
+**Why.** `api/nodes/[id]/video-generate/route.ts` defaulted every unassigned upstream image to
+`"reference"`, which put the server and the focus view on two different pictures of the same node.
+`VideoGenConnectedSection` lights no chip for an unassigned image and `buildConstraintState` counts
+it in nothing, so the client evaluated `referenceCount: 0`, enabled Generate, and the server then
+built a state with references in it. On Veo Fast/Quality that trips
+`refs-lock-duration-disable-frames`, and D97's backstop rejected the request with *"Reference
+images selected → duration locked to 8s, start/end frames unavailable"* — on a shot the operator
+had given nothing but a start frame. The images most often caught were the stills feeding the
+video-prompt node, which the 2-level traversal picks up but which the operator never touches.
+
+**Loud on Veo, silent on Kling O1.** The reference cap runs between assignment and validation, so
+a model declaring `maxReferenceImages: 0` (Veo Lite, Kling 3.0) had its phantom references emptied
+before either the provider or D97's backstop saw them — no symptom, same defect. Kling O1's budget
+of 5 let them through instead: unassigned stills reached `/omni-video/kling-o1` as real
+`refer_image` inputs, changing the generation and its cost with nothing in the panel to show it,
+and no error, because O1 declares no rule that references conflict with anything.
+
+**Rejected.** Mirroring a display default (image-gen → start frame, file → reference) server-side.
+The live UI has no display default — the chips are simply unlit — so there was nothing to mirror;
+the only such default left in the tree is dead code (`video-gen-image-roles.tsx`, unused since the
+2026-06-24 focus-view rework). Also rejected: teaching the client to count unassigned images as
+references, which would make the two sides agree by making both wrong.
+
+**Consequence.** A node with no roles assigned now sends no images. That is what the panel already
+showed, and the model's own rules still say so out loud — Kling disables Generate (D101), and the
+provider throws a named error for callers that bypass the UI.
+
+### D183 — Veo 3.1 Lite has no `negativePrompt` field; the suppression list moves into the prompt *(recorded 2026-08-26; refines D78)*
+
+**Decision.** `veo-3.1-lite-generate-preview` rejects any request carrying `negativePrompt`
+(400 INVALID_ARGUMENT). Lite keeps the `negative_prompt` param, and `generateWithVeo` folds it into
+the prompt text via `composeVeoPrompt` — appended as its own paragraph, `Avoid: <list>.` — instead
+of the config. Fast and Quality keep the native field. The switch is a per-model
+`supportsNegativePrompt` capability, not a check on the model id at the call site.
+
+**Why the param stays.** D78's product-tuned defect list is worth authoring on Lite too; only the
+wire format differs, so the param panel stays identical across the three Veo variants rather than
+one of them quietly losing a control.
+
+**Why this was fatal rather than cosmetic.** The route rebuilds params from the model's own specs,
+filling each declared name with its `defaultValue` when the client omits it. Declaring
+`negative_prompt` for Lite was therefore enough to post `VEO_NEGATIVE_DEFAULT` on every Lite
+generation — including from a panel displaying "None".
+
+**Rejected.** Dropping `negative_prompt` from `veoLiteParams`: it makes the request legal by
+discarding what the operator asked for, and leaves the three Veo variants with different panels.
