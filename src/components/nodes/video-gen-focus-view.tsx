@@ -12,6 +12,7 @@ import {
   BadgeCheck,
   ChevronDown,
   Clapperboard,
+  FileInput,
   History,
   ImageIcon,
   PencilLine,
@@ -71,6 +72,7 @@ import {
   type VideoGenVersionSummary,
 } from "./video-gen-version-history";
 import { VideoGenUsagePopover } from "./video-gen-usage-popover";
+import { VideoGenRequestPanel } from "./video-gen-request-panel";
 import { Skeleton } from "@/components/ui/skeleton";
 import { VideoGenParamsPanel } from "./video-gen-params-panel";
 import { VideoGenConnectedSection } from "./video-gen-connected-section";
@@ -102,6 +104,9 @@ type ImageInputs = { startFrame: boolean; endFrame: boolean; maxReferenceImages:
 // a dialog: every such change is one click to make and one click to undo, and stacking a modal on
 // the focus view's own sheet to ask about it was a nested-modal antipattern.
 type DialogState = null | { type: "no-roles" };
+
+/** Rail sections that are not a connected node — every other `selected` value is a node id. */
+const FIXED_SECTIONS = ["video", "history", "details", "request"];
 
 // Fill in default roles for any unassigned images:
 // - refs available → all images get "reference" (up to the cap)
@@ -707,11 +712,10 @@ export function VideoGenFocusView({
   }
 
   async function handleGenerate() {
-    // C0 (Kling): start frame required — button should be disabled, but guard anyway
-    if (currentModel?.provider === "kling") {
-      const hasStartFrame = Object.values(effectiveImageRoles).includes("start_frame");
-      if (!hasStartFrame) return;
-    }
+    // C0: whatever the model's rules forbid — button should be disabled, but guard anyway. This
+    // used to be a hardcoded "Kling needs a start frame" check; D101 made that false for O1, which
+    // generates from references alone, so the question is asked of the rules instead.
+    if (constraints.disableGenerate) return;
 
     // C2: images connected but none assigned (non-Kling providers)
     if (upstreamImages.length > 0 && Object.keys(effectiveImageRoles).length === 0) {
@@ -914,6 +918,10 @@ export function VideoGenFocusView({
       ? "result"
       : "empty";
 
+  // The version the node currently shows — what "Sent to model" reports on, matching the prompt
+  // focus views. Undefined until the versions fetch lands, or on a node that never generated.
+  const activeVersion = versions.find((v) => v.id === activeVersionId);
+
   // ── Rail: connected items + selection (mirrors image-gen-focus-view) ─────────
   const connectedItems: { id: string; type: "prompt" | "image"; label: string }[] = [
     ...(promptNode ? [{ id: promptNode.id, type: "prompt" as const, label: "Motion prompt" }] : []),
@@ -924,7 +932,10 @@ export function VideoGenFocusView({
     })),
   ];
   const connectedCount = connectedItems.length;
-  const isNodeSelected = !["video", "history", "details"].includes(selected);
+  // Anything not a fixed section is a connected node's id. Kept as a named set because it is a
+  // deny-list: a section missing from it falls through to the connected-node branch and renders
+  // "This input has no preview yet." underneath itself — which is what "request" did on arrival.
+  const isNodeSelected = !FIXED_SECTIONS.includes(selected);
   const selectedDetailItem = isNodeSelected
     ? connectedItems.find((c) => c.id === selected) ?? null
     : null;
@@ -1076,6 +1087,12 @@ export function VideoGenFocusView({
               active={selected === "details"}
               onClick={() => setSelected("details")}
             />
+            <RailItem
+              icon={<FileInput className="size-4 text-primary" />}
+              label="Sent to model"
+              active={selected === "request"}
+              onClick={() => setSelected("request")}
+            />
           </nav>
 
           {/* Detail pane: the middle column swaps with the rail selection; the output column on
@@ -1084,7 +1101,10 @@ export function VideoGenFocusView({
               The columns inside own their scrolling. */}
           <div className="flex min-h-0 flex-1">
             {/* Middle column */}
-            <div className="min-h-0 w-[54%] shrink-0 overflow-y-auto border-x border-primary/25 bg-card panel-raised">
+            {/* min-w-0: without it this flex item's automatic minimum size is its content's
+                min-content width, so one long unbreakable string inside any pane silently
+                overrides w-[54%] and squeezes the video column beside it. */}
+            <div className="min-h-0 w-[54%] min-w-0 shrink-0 overflow-y-auto border-x border-primary/25 bg-card panel-raised">
               {/* Video — flat, independently-collapsible peer groups (Frames / Output / Fine-tune / Advanced) */}
               {selected === "video" && (
                 <div className="flex flex-col gap-10 px-6 py-5">
@@ -1141,11 +1161,7 @@ export function VideoGenFocusView({
                           className="w-full"
                           onClick={handleGenerate}
                           disabled={
-                            isGenerating ||
-                            constraints.disableGenerate ||
-                            !editable ||
-                            (currentModel?.provider === "kling" &&
-                              !Object.values(effectiveImageRoles).includes("start_frame"))
+                            isGenerating || constraints.disableGenerate || !editable
                           }
                         >
                           <Sparkles className="size-4" strokeWidth={1.5} />
@@ -1159,14 +1175,9 @@ export function VideoGenFocusView({
                           )}
                         </Button>
                       </TooltipTrigger>
-                      {(constraints.disableGenerate && constraints.disableGenerateReason) ? (
+                      {constraints.disableGenerate && constraints.disableGenerateReason ? (
                         <TooltipContent side="bottom">
                           {constraints.disableGenerateReason}
-                        </TooltipContent>
-                      ) : currentModel?.provider === "kling" &&
-                        !Object.values(effectiveImageRoles).includes("start_frame") ? (
-                        <TooltipContent side="bottom">
-                          Kling requires a start frame — connect an image and assign it as Start Frame
                         </TooltipContent>
                       ) : null}
                     </Tooltip>
@@ -1258,6 +1269,30 @@ export function VideoGenFocusView({
                   </LeftSection>
                   <ActiveRulesCard constraints={constraints} />
                 </div>
+              )}
+
+              {/* Sent to model — the prompt, images and settings the active version's request
+                  actually carried. Frozen provenance, never the node's current settings: the
+                  operator can retune the panel on the left without changing what this reports. */}
+              {selected === "request" && (
+                loadingVersions ? (
+                  <div className="space-y-2 px-6 py-5">
+                    {Array.from({ length: 4 }).map((_, i) => (
+                      <div
+                        key={i}
+                        className="h-4 animate-pulse rounded bg-muted-foreground/20"
+                        style={{ width: `${70 - i * 8}%` }}
+                      />
+                    ))}
+                  </div>
+                ) : activeVersion ? (
+                  <VideoGenRequestPanel version={activeVersion} />
+                ) : (
+                  <p className="px-6 py-5 text-sm text-muted-foreground">
+                    No request recorded yet — generate a video to capture the prompt, images and
+                    settings sent to the model.
+                  </p>
+                )
               )}
             </div>
 
