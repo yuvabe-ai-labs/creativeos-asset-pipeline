@@ -1,0 +1,303 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+
+const mockCaller = vi.fn();
+const mockFrom = vi.fn();
+
+vi.mock("@/lib/dal", () => ({ resolveCallerContext: () => mockCaller() }));
+vi.mock("@/lib/supabase/server", () => ({
+  createServerSupabase: () => ({ from: mockFrom }),
+}));
+// withAction is Stage 4's impersonation write-gate; pass it through so these tests
+// exercise the approval rules rather than impersonation state.
+vi.mock("@/lib/actions/with-action", () => ({
+  withAction: (_name: string, fn: () => Promise<unknown>) => fn(),
+}));
+
+import { setVersionApprovalAction } from "./approval";
+
+// Stubs the version-row lookup with a given org, and captures whatever update payload
+// the action attempts to write.
+function stubDb(
+  versionOrgId: string | null,
+  options: { decisionInsertError?: Error } = {},
+) {
+  const captured: {
+    update?: Record<string, unknown>;
+    decisionInsert?: Record<string, unknown>;
+  } = {};
+  mockFrom.mockImplementation((table: string) => {
+    if (table === "node_version_decisions") {
+      return {
+        insert: (payload: Record<string, unknown>) => {
+          captured.decisionInsert = payload;
+          return Promise.resolve({
+            error: options.decisionInsertError ?? null,
+          });
+        },
+      };
+    }
+    return {
+      select: () => ({
+        eq: () => ({
+          maybeSingle: async () =>
+            versionOrgId === null
+              ? { data: null, error: null }
+              : { data: { id: "v1", org_id: versionOrgId }, error: null },
+        }),
+      }),
+      update: (payload: Record<string, unknown>) => {
+        captured.update = payload;
+        return { eq: async () => ({ error: null }) };
+      },
+    };
+  });
+  return captured;
+}
+
+function caller(orgRole: string, userId = "u1", orgId = "org-1") {
+  return {
+    userId,
+    email: `${userId}@example.com`,
+    platformRole: "member",
+    orgId,
+    orgRole,
+    mustChangePassword: false,
+  };
+}
+
+beforeEach(() => {
+  mockFrom.mockReset();
+  mockCaller.mockReset();
+});
+
+describe("setVersionApprovalAction", () => {
+  it("rejects a designer — R2.2, even calling the action directly", async () => {
+    mockCaller.mockResolvedValue(caller("designer"));
+    stubDb("org-1");
+    await expect(setVersionApprovalAction("v1", { status: "approved" })).rejects.toThrow(
+      /not permitted/i,
+    );
+  });
+
+  it("does not even read the version for a designer — the role gate is first", async () => {
+    mockCaller.mockResolvedValue(caller("designer"));
+    stubDb("org-1");
+    await expect(
+      setVersionApprovalAction("v1", { status: "approved" }),
+    ).rejects.toThrow();
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it("rejects a version belonging to another org", async () => {
+    mockCaller.mockResolvedValue(caller("senior"));
+    stubDb("org-2");
+    await expect(setVersionApprovalAction("v1", { status: "approved" })).rejects.toThrow(
+      /not found/i,
+    );
+  });
+
+  it("rejects a version that does not exist", async () => {
+    mockCaller.mockResolvedValue(caller("senior"));
+    stubDb(null);
+    await expect(setVersionApprovalAction("v1", { status: "approved" })).rejects.toThrow(
+      /not found/i,
+    );
+  });
+
+  it("rejects changes_requested with a blank note — R6.5 on the server", async () => {
+    mockCaller.mockResolvedValue(caller("senior"));
+    stubDb("org-1");
+    await expect(
+      setVersionApprovalAction("v1", { status: "changes_requested", note: "   " }),
+    ).rejects.toThrow(/note is required/i);
+  });
+
+  it("accepts changes_requested with a real note", async () => {
+    mockCaller.mockResolvedValue(caller("senior", "senior-1"));
+    const captured = stubDb("org-1");
+    await setVersionApprovalAction("v1", {
+      status: "changes_requested",
+      note: "Skin tone reads orange.",
+    });
+    expect(captured.update).toMatchObject({
+      approval_status: "changes_requested",
+      note: "Skin tone reads orange.",
+      approved_by_user_id: "senior-1",
+    });
+  });
+
+  it("writes the CALLER's id as reviewer, never a client-supplied value", async () => {
+    mockCaller.mockResolvedValue(caller("senior", "senior-1"));
+    const captured = stubDb("org-1");
+    await setVersionApprovalAction("v1", { status: "approved" });
+    expect(captured.update).toMatchObject({
+      approval_status: "approved",
+      approved_by_user_id: "senior-1",
+    });
+  });
+
+  it("permits an owner — owner and senior are equivalent for approval", async () => {
+    mockCaller.mockResolvedValue(caller("owner", "owner-1"));
+    const captured = stubDb("org-1");
+    await setVersionApprovalAction("v1", { status: "approved" });
+    expect(captured.update).toMatchObject({ approved_by_user_id: "owner-1" });
+  });
+
+  it("permits self-approval — R2.5, a one-senior agency would otherwise deadlock", async () => {
+    mockCaller.mockResolvedValue(caller("senior", "senior-1"));
+    const captured = stubDb("org-1");
+    await setVersionApprovalAction("v1", { status: "approved" });
+    expect(captured.update).toMatchObject({ approval_status: "approved" });
+  });
+
+  it("reset to pending clears reviewer and note without needing one", async () => {
+    mockCaller.mockResolvedValue(caller("senior", "senior-1"));
+    const captured = stubDb("org-1");
+    await setVersionApprovalAction("v1", { status: "pending" });
+    expect(captured.update).toEqual({
+      approval_status: "pending",
+      approved_by_user_id: null,
+      approved_at: null,
+      approved_seen_at: null,
+      note: null,
+    });
+  });
+});
+
+describe("setVersionApprovalAction — decision history (D173-D175)", () => {
+  it("logs a decision when approving", async () => {
+    mockCaller.mockResolvedValue(caller("senior", "senior-1"));
+    const captured = stubDb("org-1");
+    await setVersionApprovalAction("v1", { status: "approved" });
+    expect(captured.decisionInsert).toMatchObject({
+      version_id: "v1",
+      org_id: "org-1",
+      status: "approved",
+      decided_by_user_id: "senior-1",
+    });
+  });
+
+  it("logs a decision when rejecting, including the note", async () => {
+    mockCaller.mockResolvedValue(caller("senior", "senior-1"));
+    const captured = stubDb("org-1");
+    await setVersionApprovalAction("v1", {
+      status: "changes_requested",
+      note: "fix it",
+    });
+    expect(captured.decisionInsert).toMatchObject({
+      status: "changes_requested",
+      note: "fix it",
+    });
+  });
+
+  it("does NOT log a decision when resetting to pending — D174", async () => {
+    mockCaller.mockResolvedValue(caller("senior", "senior-1"));
+    const captured = stubDb("org-1");
+    await setVersionApprovalAction("v1", { status: "pending" });
+    expect(captured.decisionInsert).toBeUndefined();
+  });
+
+  it("does not fail the action if the decision-log insert fails — D175", async () => {
+    mockCaller.mockResolvedValue(caller("senior", "senior-1"));
+    const captured = stubDb("org-1", {
+      decisionInsertError: new Error("log db down"),
+    });
+    await expect(
+      setVersionApprovalAction("v1", { status: "approved" }),
+    ).resolves.toBeUndefined();
+    // The status update itself still succeeded — a logging failure must never roll it back
+    // or surface as an error to the reviewer.
+    expect(captured.update).toMatchObject({ approval_status: "approved" });
+  });
+});
+
+import { markVersionApprovalSeenAction } from "./approval";
+
+// Stubs the version-row lookup with a given operator/status/seen state, and captures
+// whatever update payload the action attempts to write (or records that none was).
+function stubSeenDb(row: {
+  operatorUserId: string | null;
+  approvalStatus: string;
+  approvedSeenAt: string | null;
+} | null) {
+  const captured: { update?: Record<string, unknown>; updated: boolean } = { updated: false };
+  mockFrom.mockImplementation(() => ({
+    select: () => ({
+      eq: () => ({
+        maybeSingle: async () =>
+          row === null
+            ? { data: null, error: null }
+            : {
+                data: {
+                  id: "v1",
+                  operator_user_id: row.operatorUserId,
+                  approval_status: row.approvalStatus,
+                  approved_seen_at: row.approvedSeenAt,
+                },
+                error: null,
+              },
+      }),
+    }),
+    update: (payload: Record<string, unknown>) => {
+      captured.update = payload;
+      captured.updated = true;
+      return { eq: async () => ({ error: null }) };
+    },
+  }));
+  return captured;
+}
+
+describe("markVersionApprovalSeenAction", () => {
+  it("stamps approved_seen_at when the caller is the maker of an approved, unseen version", async () => {
+    mockCaller.mockResolvedValue(caller("designer", "ruby-1"));
+    const captured = stubSeenDb({
+      operatorUserId: "ruby-1",
+      approvalStatus: "approved",
+      approvedSeenAt: null,
+    });
+    await markVersionApprovalSeenAction("v1");
+    expect(captured.updated).toBe(true);
+    expect(captured.update).toHaveProperty("approved_seen_at");
+    expect(typeof captured.update?.approved_seen_at).toBe("string");
+  });
+
+  it("is a no-op for a version belonging to someone else", async () => {
+    mockCaller.mockResolvedValue(caller("designer", "ruby-1"));
+    const captured = stubSeenDb({
+      operatorUserId: "someone-else",
+      approvalStatus: "approved",
+      approvedSeenAt: null,
+    });
+    await markVersionApprovalSeenAction("v1");
+    expect(captured.updated).toBe(false);
+  });
+
+  it("is a no-op when the version is not approved", async () => {
+    mockCaller.mockResolvedValue(caller("senior", "senior-1"));
+    const captured = stubSeenDb({
+      operatorUserId: "senior-1",
+      approvalStatus: "pending",
+      approvedSeenAt: null,
+    });
+    await markVersionApprovalSeenAction("v1");
+    expect(captured.updated).toBe(false);
+  });
+
+  it("is a no-op when already seen", async () => {
+    mockCaller.mockResolvedValue(caller("designer", "ruby-1"));
+    const captured = stubSeenDb({
+      operatorUserId: "ruby-1",
+      approvalStatus: "approved",
+      approvedSeenAt: "2026-08-24T00:00:00Z",
+    });
+    await markVersionApprovalSeenAction("v1");
+    expect(captured.updated).toBe(false);
+  });
+
+  it("is a no-op for a version that does not exist — never throws (fire-and-forget caller)", async () => {
+    mockCaller.mockResolvedValue(caller("designer", "ruby-1"));
+    const captured = stubSeenDb(null);
+    await expect(markVersionApprovalSeenAction("v1")).resolves.toBeUndefined();
+    expect(captured.updated).toBe(false);
+  });
+});

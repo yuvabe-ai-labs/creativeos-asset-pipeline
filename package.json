@@ -13,7 +13,8 @@
     "test:watch": "vitest",
     "env:check": "node scripts/check-env.mjs",
     "env:staging": "node scripts/check-env.mjs .env.staging && node scripts/use-env.mjs staging && next dev",
-    "env:prod": "node scripts/check-env.mjs .env.production && node scripts/use-env.mjs production && next dev"
+    "env:prod": "node scripts/check-env.mjs .env.production && node scripts/use-env.mjs production && next dev",
+    "report:client": "node scripts/client-canvas-report.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
@@ -21,7 +22,7 @@
     "@google/genai": "^2.9.0",
     "@supabase/ssr": "^0.12.3",
     "@supabase/supabase-js": "^2.106.2",
-    "@trigger.dev/sdk": "4.5.9",
+    "@trigger.dev/sdk": "4.5.12",
     "@xyflow/react": "^12.10.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

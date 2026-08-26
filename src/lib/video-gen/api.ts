@@ -3,7 +3,10 @@
 
 // TODO: Move VideoGenVersionSummary to lib/types in a future refactor to remove
 // this dependency-inversion (lib importing from UI components).
-import type { VideoGenVersionSummary } from "@/components/nodes/video-gen-version-history";
+import type {
+  VideoGenVersionSummary,
+  VideoGenVersionInputs,
+} from "@/components/nodes/video-gen-version-history";
 
 export type UpstreamImage = {
   id: string;
@@ -54,8 +57,21 @@ export const videoGenApi = {
         error: string | null;
         modelUsed: string | null;
         paramsUsed: Record<string, unknown>;
+        inputsUsed?: VideoGenVersionInputs;
         createdAt: string;
         creditsCharged?: number | null;
+        approvalStatus?: "pending" | "approved" | "changes_requested";
+        note?: string | null;
+        makerName?: string | null;
+        approvedByName?: string | null;
+        approvedAt?: string | null;
+        decisions?: Array<{
+          id: string;
+          status: "approved" | "changes_requested";
+          note: string | null;
+          reviewerName: string | null;
+          decidedAt: string;
+        }>;
       }>;
     };
     return {
@@ -66,8 +82,16 @@ export const videoGenApi = {
         error: v.error ?? null,
         modelUsed: v.modelUsed ?? null,
         paramsUsed: v.paramsUsed ?? {},
+        // The prompt and image roles behind the version — what the "Sent to model" pane reads.
+        inputsUsed: v.inputsUsed ?? {},
         createdAt: v.createdAt,
         creditsCharged: v.creditsCharged ?? null,
+        approvalStatus: v.approvalStatus,
+        note: v.note ?? null,
+        makerName: v.makerName ?? null,
+        approvedByName: v.approvedByName ?? null,
+        approvedAt: v.approvedAt ?? null,
+        decisions: v.decisions ?? [],
       })),
     };
   },

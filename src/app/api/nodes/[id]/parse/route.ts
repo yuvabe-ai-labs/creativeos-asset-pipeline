@@ -12,7 +12,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withNode(req, params, async (nodeId) => {
+  return withNode(req, params, async (nodeId, _node, caller) => {
     const body = (await req.json().catch(() => null)) as
       | { source?: unknown; slices?: unknown }
       | null;
@@ -50,6 +50,7 @@ export async function POST(
 
       const version = await insertVersion({
         nodeId,
+        operatorUserId: caller.userId, // R11.1: the maker
         inputsUsed: { kbSlices: ctx.kb ? slices : null, kbVersionId: ctx.kbVersionId },
         paramsUsed: {
           promptId: scriptParsePrompt.id,
@@ -66,6 +67,7 @@ export async function POST(
       // a failed attempt is still a version — the log learns from failures too
       await insertVersion({
         nodeId,
+        operatorUserId: caller.userId, // a failed attempt still has a maker
         paramsUsed: {
           promptId: scriptParsePrompt.id,
           promptVersion: scriptParsePrompt.version,

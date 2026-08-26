@@ -2768,3 +2768,412 @@ range requests for video — and signed-out requests 307 to `/login`.
 **Supersedes.** The "Clips" paragraph of §5 in
 `2026-08-12-onboarding-empty-states-and-help-chapters-design.md`. The muted-autoplay-video
 choice there (over GIFs) stands unchanged.
+
+### D159 — Every review surface is one derived view, not three queries that agree *(recorded 2026-08-21; originated → `2026-08-21-internal-approval-workflow-design.md`)*
+
+**Decision.** Client counts, canvas counts, the review drawer and both roles' navbar lists
+are all filters over a single `review_queue_items` view, which joins `nodes` to its active
+`node_versions` row and keeps only `image-gen` / `video-gen`.
+
+**Why.** The internal-approval PRD's R5.5 requires the three zoom levels to show the same
+underlying number. Three independently written queries can drift apart; one derivation
+cannot. Joining on `active_version_id` also delivers R3.3 and R3.5 for free — a node with
+twenty regenerations exposes exactly one row, and a node that never generated exposes none.
+R5.5 stops being a convention someone has to remember and becomes structurally unavailable
+to violate.
+
+**Rejected.** A materialised queue table with an assignee column. It reintroduces precisely
+the synchronisation problem the derivation avoids, and D150's "review is derived, not
+assigned" had already settled the question for the per-canvas queue.
+
+**Numbering note.** This feature takes **D159–D167**. D149–D158 are claimed by the reel
+editor on the unmerged `feat/video-editor` branch; numbering this work D149 would collide
+the moment either branch merged. The gap is deliberate, not lost history — see
+`2026-08-21-internal-approval-workflow-design.md` §2.1.
+
+### D164 — Seats are provisioned by the super-admin on the existing org-detail surface *(recorded 2026-08-21; originated → `2026-08-21-internal-approval-workflow-design.md`)*
+
+**Decision.** `addOrgMember` / `updateMemberRole` extend the `/admin/orgs/[id]` Members
+card with an add-member dialog and a per-row role `Select`. Org owners cannot provision
+their own seats.
+
+**Why.** `createOrgWithOwner` hardcoded `org_role: 'owner'` and was the only caller of
+`auth.admin.createUser` in the repo, so an organization could contain exactly one person
+holding exactly one role. Maker-checker is meaningless with one seat. The schema always
+permitted more — the unique index is `one_org_per_user`, one *org per user*, not one user
+per org — so this is a provisioning path and a screen, not a data-model change.
+
+**Not re-implemented.** The last-owner rule (R1.4) stays in migration 0012's
+`org_memberships_last_owner` trigger. An invariant that must hold regardless of which code
+path attempts the write belongs in the database; duplicating it in the action would create
+two places to drift.
+
+**Rejected.** Org self-serve invites. Right eventually, but it puts a whole invite/accept
+lifecycle in front of a pilot that needs two seats in one org (PRD §10 Q1 — deferred, not
+rejected on the merits).
+
+### D166 — Approval permission is enforced server-side, and the action stops accepting a caller-supplied reviewer *(recorded 2026-08-21; retires the cosmetic-only gate D29 §3 deferred; originated → `2026-08-21-internal-approval-workflow-design.md`)*
+
+**Decision.** `setVersionApprovalAction` resolves the caller via `resolveCallerContext()`,
+refuses `designer`, verifies the version belongs to the caller's org, requires a note on
+`changes_requested`, and writes the caller's own id as reviewer. The `approvedBy` parameter
+is **removed from the signature**.
+
+**Why.** Removing the parameter matters as much as adding the check. The action previously
+recorded whatever identity the browser sent, and a role check layered on top of a
+caller-supplied identity is not enforcement — it is decoration with an extra step. D29
+deferred this for want of real auth; `resolveCallerContext` now exists, so it is buildable.
+The role gate runs before any database read, so a designer cannot use the action to probe
+which version ids exist.
+
+**Also.** R6.5 (a rejection requires a note) is enforced here too, not merely disabled in
+the UI — a rejection with no explanation is useless to the maker it routes back to.
+
+**Rejected.** Keeping `approvedBy` and validating it against the session. It leaves a
+spoofable parameter in the signature for no benefit: if it must equal the session's user,
+it should not be a parameter at all.
+
+### D167 — `node_versions` gains `org_id` and an org-isolation SELECT policy; attribution becomes real user references *(recorded 2026-08-21; executes D29 §5.2; originated → `2026-08-21-internal-approval-workflow-design.md`)*
+
+**Decision.** Migration `0030_approval_workflow.sql` adds `org_id` to `node_versions`
+(backfilled node→canvas→client→org, maintained by a BEFORE INSERT trigger), an
+`(org_id, approval_status)` index, an `org isolation` SELECT policy, membership of the
+`supabase_realtime` publication, and `operator_user_id` / `approved_by_user_id`. The legacy
+`operator` / `approved_by` text columns are kept and never written again.
+
+**Why the policy is load-bearing, not a backstop.** Migration 0017 enabled RLS on
+`node_versions` with **zero** policies (default-deny). Realtime delivers `postgres_changes`
+rows *through* RLS, so the live updates the approval workflow needs would have received
+nothing at all — silently. This is the same failure 0018 had to fix after 0017 killed the
+Generation Tray. The policy also satisfies R2.4: a designer may read every approval state
+and note, because review is not secret; only *setting* a status is restricted.
+
+**Why a trigger, not an application-layer assignment.** There are eleven `node_versions`
+insert sites and more will follow — including two duplicate routes that bypass
+`insertVersion()` entirely and write the table directly. A path that forgot `org_id` would
+produce versions invisible to every count and every subscription: a bug presenting as "the
+queue is quietly wrong" rather than as an error. The duplicate routes are the concrete proof
+the trigger was the right call.
+
+**On attribution.** The PRD described this as migrating `operator` from MVP-era free-text
+names. It is not — `operator` was only ever written as the literal `"duplicate"`; no
+generation path recorded a maker at all. R11.1 is therefore a *new write on every generation
+path*, which is what makes R4.3 (route a rejection back to the person who made it)
+resolvable. Names resolve on read through `org_memberships`, so a renamed user is never
+shown under a stale name and a reference can never resolve across an org boundary (R11.3,
+R11.5).
+
+**Rejected.** Reusing `operator` for the user id. It holds legacy values and is typed
+`text`; overloading it would make "is this a name or an id?" a per-row guess.
+
+### D160 — Approval is decoupled from the D33 canvas lock *(recorded 2026-08-23; refines D33; executes what D34 asserted; originated → `2026-08-21-internal-approval-workflow-design.md`)*
+
+**Decision.** The approval control in all four focus views drops its `editable &&` guard. A
+senior can approve or reject while another person holds the canvas edit lock.
+
+**Why.** The lock exists to stop two full-snapshot canvas writes clobbering each other.
+Approval writes only to `node_versions`, annotating an existing attempt — it touches no
+canvas, node or edge row, so it was never in the class of writes the lock defends. D34
+already stated this outright (*"D33's 'viewers can't approve' is a canvas-UI gate, not a
+server guard"*); the UI simply never matched the decision, so in practice a senior who
+arrived second could not review at all.
+
+**On staleness.** The obvious worry — approving something regenerated a moment ago — is
+handled by approval targeting a **specific version id**. A stale approval lands on the old
+version; the new one stays `pending` and remains in the queue. Correctness comes from
+version targeting plus the live view (§6.8), not from holding a lock.
+
+**Scope.** Reversed for approval alone. Canvas edits, generation and parse remain
+single-writer under D33 (R7.3).
+
+### D161 — A canvas can be entered in a non-acquiring review mode *(recorded 2026-08-23; refines D33; originated → `2026-08-21-internal-approval-workflow-design.md`)*
+
+**Decision.** `useCanvasLock(canvasId, { acquire })`, with review mode carried in the URL as
+`?review=1` and read server-side. Every count pill and every navbar pointer links with it.
+In review mode the canvas mounts without acquiring the lock and opens the review drawer.
+
+**Why.** `useCanvasLock` acquired on mount unconditionally, so a senior *merely arriving* to
+review flipped a junior who was mid-generation into read-only. Reviewing the work
+interrupted the work — and combined with the D33 gate on approval (see D160), the workflow
+failed in both directions at once: if the junior got there first the senior could not
+review, and if the senior got there first the junior stopped being able to work.
+
+**Why the URL rather than a toggle.** It makes the entry point the thing that carries the
+intent: you are in review mode because you followed a review link, which is exactly the
+journey R5.7 describes. No extra state to keep, and a shared link reproduces the mode.
+
+**Rejected.** Lazy acquisition on first edit intent. It is the more elegant answer and would
+satisfy R7.2 even for a senior who opens a canvas by hand — but it rewrites D33's core
+behaviour for every user on every canvas, while the PRD asks only to decouple *approval*. A
+lock-model rewrite should not ride along inside an approval change. Worth revisiting on its
+own terms.
+
+**Also rejected.** Guarding the heartbeat/release/poll effects too. They key off
+`isEditor`/`isViewer`, which a non-acquiring session never becomes, so they are already
+inert — touching them would widen the blast radius past what R7.2 asks for.
+
+### D162 — Review is derived, not assigned *(recorded 2026-08-23; consistent with D9; originated → `2026-08-21-internal-approval-workflow-design.md`)*
+
+**Decision.** There is no assignee column and no assignment record. Every `senior` and
+`owner` in an organization sees the same queue, derived on read from `approval_status`.
+Rejection is the only person-specific routing, and it resolves through the version's maker
+reference rather than through a stored assignment.
+
+**Why.** An assignment table is state that can disagree with the work it describes — items
+assigned to someone who left, assignments that outlive the asset, a queue that needs
+reconciling. Deriving from approval state means the queue cannot drift, because there is
+nothing to drift from. Small agencies also do not want routing: they want everyone senior to
+see everything outstanding.
+
+**Consequence.** Two seniors may act on the same item; last write wins, and the live updates
+in §6.8 make the collision visible rather than silent (R4.4).
+
+### D163 — Reviewing is item-by-item, never a sequence *(recorded 2026-08-23; originated → `2026-08-21-internal-approval-workflow-design.md`)*
+
+**Decision.** The review drawer is non-modal, takes no backdrop, and **stays mounted beneath
+the focus view**. Each item is clicked, opened and decided on its own. No queue position, no
+approve-and-next, no auto-advance anywhere.
+
+**Why.** A focus view opens as a bottom sheet at 92% of viewport height, so the drawer and
+the node it points at cannot share the screen — but they do not need to. Leaving the drawer
+mounted underneath means the list is waiting when the sheet closes, with the decided item
+already gone (it left because the list is derived, not because anything removed it). That
+buys the benefit of a run — one open of the drawer, not one per item — without moving past
+work the senior has not looked at.
+
+**Rejected.** A queue runner with approve-and-next: it auto-advances past unexamined work,
+which is precisely the failure mode a review step exists to prevent. Also rejected: a drawer
+that closes on row click, which costs one reopen per item and makes reviewing five things
+feel like five separate errands.
+
+**Consequence.** No node type's focus view has to change shape. The drawer routes; it never
+becomes a second approval surface.
+
+### D165 — One navbar control serves both roles, differing from the canvas drawer only in scope *(recorded 2026-08-23; originated → `2026-08-21-internal-approval-workflow-design.md`)*
+
+**Decision.** A single navbar icon with a count badge opens a popover listing "things
+waiting on you" — org-wide. For a `designer` that is their own rejected work; for a
+`senior`/`owner` it is everything pending review plus their own rejections. The role split
+lives in one pure, unit-tested selector, so no component branches on role.
+
+**Why in the chrome.** The work it points at spans canvases and clients. No single canvas
+could host it, which is exactly why the canvas drawer cannot be the only surface.
+
+**Why two surfaces rather than one.** They answer different questions — *"what is waiting on
+me anywhere?"* and *"what is waiting on me here?"* — and the second is the one a senior
+already sitting on a canvas actually asks. Neither auto-advances, so having both costs
+nothing but a second read of the same derivation.
+
+**Consequence, stated rather than hidden.** A senior's two counts are scoped differently and
+will legitimately disagree. Each surface therefore states what it counts ("on this canvas" /
+"everywhere"), so a navbar reading of 12 beside a canvas reading of 5 is obviously two
+questions answered rather than a bug.
+
+### D168 — The versions API route resolves real attribution, retiring the dead `approvedBy` field *(recorded 2026-08-24; fixes a gap left by D167; originated → `2026-08-24-approval-audit-trail-design.md`)*
+
+**Decision.** `src/app/api/nodes/[id]/versions/route.ts` resolves `operator_user_id` and
+`approved_by_user_id` through the existing `resolveDisplayNames` (`src/lib/db/profiles.ts`)
+and returns `makerName`/`approvedByName`, replacing the field that read the legacy
+`approved_by` text column.
+
+**Why.** D167 stopped writing `approved_by`, but this route never stopped reading it — every
+version approved since PR #64 merged has shown a null approver in the one place a prop
+already existed to display one. Reusing `resolveDisplayNames` rather than a new helper
+follows the codebase's canonical-sources rule; it's the same function `review/queue.ts`
+already uses for `makerName` in the inbox.
+
+### D169 — Per-version history becomes the approval audit trail; no new surface *(recorded 2026-08-24; originated → `2026-08-24-approval-audit-trail-design.md`)*
+
+**Decision.** `ImageGenVersionHistory` and `VideoGenVersionHistory` render the reviewer and
+decision time per row (approved-by-name-and-time, or the rejection note prefixed with the
+reviewer's name), using the fields D168 adds. Prompt nodes stay excluded, matching R3.2.
+
+**Why.** Both components already list every version in order with a maker-facing "restore"
+affordance; they were the natural home for "who did what, when" rather than a new page or
+panel, since every version they already render carries an approval decision to show.
+
+### D170 — A maker's approval notification is a dismiss-on-view read receipt, not a queue table or timer *(recorded 2026-08-24; extends D150/D162; originated → `2026-08-24-approval-audit-trail-design.md`)*
+
+**Decision.** `node_versions` gains `approved_seen_at timestamptz`. A new server action,
+`markVersionApprovalSeenAction`, sets it when the version's own maker views the node while
+its active version is `approved` and unseen. The navbar inbox filter
+(`inboxFilterFor`/`selectInboxFor`) adds an `approved AND mine AND unseen` clause alongside
+the existing `pending` and `mine-rejected` clauses, for every role.
+
+**Why.** D162 derived the review queue from state with no assignee column, because rejection
+already has a natural exit: regenerating moves the active pointer and the new version reverts
+to `pending` (D159's join). Approval has no equivalent state change — nothing else happens to
+the row once it's approved — so there was no way to know when a maker had seen the outcome
+without adding the one column that records exactly that. This is the smallest addition that
+keeps the "derived, not assigned" property everywhere else already has.
+
+**Rejected.** A queue/notification table (reintroduces the drift D159 was written to avoid).
+A time-based auto-expire (declared and rejected during design — an approval a maker hasn't
+opened yet would silently disappear on a fixed clock, which is worse than never showing it).
+
+### D171 — Self-approval never notifies *(recorded 2026-08-24; originated → `2026-08-24-approval-audit-trail-design.md`)*
+
+**Decision.** The unseen-approved inbox clause requires `approved_by_user_id !=
+operator_user_id`. A senior or owner who approves their own generated asset does not see it
+appear in their own inbox.
+
+**Why.** R2.5 already permits self-approval for one-senior orgs. Notifying someone of a
+decision they just made themselves is noise, not signal.
+
+### D172 — Pre-existing approved rows are backfilled as already-seen *(recorded 2026-08-24; originated → `2026-08-24-approval-audit-trail-design.md`)*
+
+**Decision.** The migration adding `approved_seen_at` backfills it to `approved_at` for every
+row already `approved` at migration time.
+
+**Why.** Without this, every historical approval since PR #64 merged would read as
+"unseen" the moment this ships, flooding every maker's inbox with old news on deploy day. The
+dismiss-on-view mechanism is meant to govern approvals that happen from here forward, not to
+retroactively judge the backlog.
+
+### D173 — `node_version_decisions` is a new append-only log, kept alongside `node_versions`' current-state columns *(recorded 2026-08-24; originated → `2026-08-24-decision-history-panel-design.md`)*
+
+**Decision.** A new table logs every real approve/reject decision — status, note, reviewer,
+timestamp — one row per decision, never updated or deleted. `node_versions`' own
+`approval_status`/`note`/`approved_by_user_id`/`approved_at` columns are untouched and remain
+the source of truth for the review queue, counts, and navbar inbox (D159's
+`review_queue_items` view reads only those columns).
+
+**Why.** `setVersionApprovalAction` always writes onto the same `node_versions` row via
+`activeVersionId`, and the existing "Undo" control resets a decided version back to
+`pending` so it can be decided again — both reachable in the shipped UI, and both silently
+destroy the prior decision's note. The log exists to keep that history without touching
+anything the review-queue derivation (D159) already depends on.
+
+### D174 — Reset-to-pending writes no log row *(recorded 2026-08-24; originated → `2026-08-24-decision-history-panel-design.md`)*
+
+**Decision.** Only a transition to `approved` or `changes_requested` appends to
+`node_version_decisions`. "Undo" (reset to `pending`) is not itself logged.
+
+**Why.** Undo clears current state so a version can be re-decided — it is not, itself, a
+decision anyone made about the work. Logging it would clutter the history with a
+non-event between every real pair of decisions.
+
+### D175 — The decision-log insert is best-effort, non-transactional with the status update *(recorded 2026-08-24; originated → `2026-08-24-decision-history-panel-design.md`)*
+
+**Decision.** `setVersionApprovalAction` inserts the log row after its `node_versions` UPDATE
+succeeds; if the insert fails, the error is caught and logged server-side, never surfaced to
+the reviewer or allowed to fail the approve/reject action itself.
+
+**Why.** The log is observability, not the source of truth. A reviewer's approve/reject must
+never appear to fail — or actually roll back — because a supplementary audit write had a
+problem. Mirrors D170's `markVersionApprovalSeenAction`, which is best-effort for the same
+reason.
+
+### D176 — Version-history rows collapse by default; restoring becomes an explicit button *(recorded 2026-08-24; originated → `2026-08-24-decision-history-panel-design.md`)*
+
+**Decision.** Every row except the currently-active version starts collapsed (thumbnail,
+label, colored status icon, time only). Row-body click toggles expand/collapse; restoring is
+a separate, always-visible button on an expanded row rather than a whole-row click target.
+
+**Why.** The panel had grown to up to seven stacked lines per row with no way to collapse
+any of it. Whole-row-click-to-restore also meant "look closer at this version" and "revert
+to this version" were the same accidental gesture — separating them fixes both problems at
+once.
+
+### D177 — Revises D169: approval and rejection both get a matching icon, not just rejection *(recorded 2026-08-24; originated → `2026-08-24-decision-history-panel-design.md`)*
+
+**Decision.** `ApprovalReadout`'s "Approved by X" line gains a small emerald `Check` icon;
+the rejection note block gains a small destructive-toned `MessageSquareWarning` icon — the
+same two icons `InlineApprovalBar` already uses for its own Approve/Reject buttons, reused
+rather than introducing new icon vocabulary.
+
+**Why.** D169 deliberately kept approval neutral ("approval isn't an alert"). Explicit
+follow-up instruction overrides that one specific call: both outcomes should be visually
+identifiable at a glance, not just the negative one.
+
+### D178 — One approval-status vocabulary, owned by two shared components *(recorded 2026-08-25; completes D177; retires `describeApprovalPill`)*
+
+**Decision.** `components/review/approval-status-icon.tsx` (`ApprovalStatusIcon`) and
+`components/review/approval-status-badge.tsx` (`ApprovalStatusBadge`) own the approval
+status vocabulary for the whole product: emerald `Check` = approved, destructive
+`MessageSquareWarning` = changes requested, amber dot = pending. Every surface renders one
+of the two — version-history rows and their decision threads, the navbar review inbox
+tags, and the focus-view rail badge. `describeApprovalPill` (`lib/nodes/prompt-focus.ts`)
+is deleted.
+
+**Why.** D177 gave the *node's* approval readout an icon, but three other surfaces still
+hand-rolled their own markup, and one of them disagreed outright: `describeApprovalPill`
+mapped `changes_requested` to an amber "warning" tone and `pending` to neutral grey —
+inverting the amber-means-pending convention every other approval surface uses, so the
+same version read as amber "Changes" on the rail and a red flag in its own history two
+inches away. Its three call sites (image-gen, prompt, video-prompt focus views) each
+re-implemented the tone → class mapping verbatim, which is exactly why the drift went
+unnoticed: there was no single place where the mapping could be seen to be wrong.
+
+**Rejected.** Fixing only the badge in the panel that prompted the report. That would have
+left an image node and a prompt node disagreeing about what amber means, trading one
+inconsistency for another.
+
+### D179 — An open focus view is live, via a node-FILTERED ping on the existing org channel *(recorded 2026-08-25; extends D159's realtime path)*
+
+**Decision.** `subscribeToOrgVersionUpdates` now passes the changed row's `node_id` (and
+nothing else) to its listeners. A new `useNodeVersionUpdates(nodeId, enabled, onChange)`
+hook subscribes an open focus view and refetches **only** when the changed row belongs to
+that node, debounced 400ms. Both gen focus views use it. The row itself is still withheld.
+
+**Why filtered rather than "refetch on any ping".** The channel is org-wide — deliberately,
+because one channel per org keeps the subscription count flat no matter how many nodes are
+open, and Supabase evaluates every `postgres_changes` filter per subscription. But org-wide
+means an unfiltered consumer wakes on every generation anywhere in the org: N people
+generating × M open focus views, all refetching a node that did not change. The node id
+turns that into "refetch only when this node actually changed," which is rare. It is a
+FILTER, not payload-for-patching — the D159 rule that consumers re-derive from the server
+rather than patching a row into local state is unchanged.
+
+**Why not a per-node channel.** Server-side filtering would be more precise, but it costs
+one subscription per open focus view and pushes the filtering into the part of the stack
+that scales worst. Client-side filtering on a shared channel is cheaper on both sides.
+
+**Consequence, stated rather than hidden.** A null `node_id` (a DELETE without REPLICA
+IDENTITY FULL) is treated as "might be mine" and refreshes: a redundant refetch is cheap, a
+missed one leaves the panel silently wrong. And because a live refresh can now be triggered
+by *someone else's* action, `fetchVersions` takes `preserveEvalDraft` on that path only —
+the eval note is a controlled draft saved on blur, so re-seeding it mid-keystroke would
+discard what the viewer was typing.
+
+### D180 — One version-history list for every node type *(recorded 2026-08-25; completes D176)*
+
+**Decision.** `components/nodes/version-history-list.tsx` owns the version row: collapse /
+expand, the status icon, the error state, the maker line, the decision thread and the
+restore button. `ImageGenVersionHistory`, `VideoGenVersionHistory` and
+`PromptVersionHistory` become thin mappers supplying only the two things that genuinely
+differ — the thumbnail and the type-specific metadata lines. Prompt focus views also join
+D179's live-update path and pass the approver props to `InlineApprovalBar`.
+
+**Why.** D176 restructured the two *gen* panels and left prompt on the old flat list, so
+the three copies drifted exactly as D178's badge had: prompt kept whole-row-click-to-restore,
+its own duplicate relative-time helper, a plain dot instead of the shared status icon, a
+nested `max-h-52` scroller, and no decision thread at all. The same version therefore read
+differently depending on which node you opened.
+
+**Scope note.** Prompt versions stay OUT of the review queue, inbox and counts — the
+`review_queue_items` view is defined `where n.type in ('image-gen','video-gen')` and
+`db/review.ts` is its only reader, so the exclusion is structural rather than conventional
+(R3.2). What they gain is the on-node record: a prompt approval is still logged to
+`node_version_decisions` and shown in its own history, it just never notifies anyone.
+
+### D181 — Removing a member deletes the account; their work survives, unattributed *(recorded 2026-08-25; extends D164)*
+
+**Decision.** `removeOrgMemberAction` (super-admin only, like the rest of seat
+provisioning) deletes the membership, the profile and the auth user.
+
+**Why the whole account.** `one_org_per_user` means a member belongs to exactly one org, so
+detaching alone would leave an auth user who can still sign in but whose every request
+lands on `/login?error=no-membership` forever — the stranded state `addOrgMember`'s own
+rollback exists to prevent.
+
+**Why the work is safe.** `node_versions.operator_user_id` / `approved_by_user_id` and
+`node_version_decisions.decided_by_user_id` are all `on delete set null`, so generations and
+review history survive and attribution degrades to "an unknown maker" (R11.4) — the same
+fallback a renamed-or-departed user already hit.
+
+**Order matters.** The membership row is deleted FIRST, so migration 0012's
+`org_memberships_last_owner` trigger — which covers DELETE, not just demotion — vetoes
+removing an org's final owner before anything irreversible happens, and its message
+surfaces verbatim. If the auth-user delete then fails, the membership is re-inserted
+best-effort, mirroring `addOrgMember`'s own cleanup.

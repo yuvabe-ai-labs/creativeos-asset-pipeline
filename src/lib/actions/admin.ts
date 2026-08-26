@@ -1,14 +1,24 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import * as z from "zod";
 import { requireSuperAdmin } from "@/lib/auth/require-super-admin";
 import {
   createOrgWithOwner,
   updateOrgCreditLimit,
   resetMemberPassword,
   generateTempPassword,
+  addOrgMember,
+  updateMemberRole,
+  removeOrgMember,
 } from "@/lib/db/organizations";
-import { CreateOrgSchema, parseCreditLimit, parseResetPassword } from "@/lib/orgs/org-schema";
+import {
+  CreateOrgSchema,
+  AddMemberSchema,
+  ORG_ROLES,
+  parseCreditLimit,
+  parseResetPassword,
+} from "@/lib/orgs/org-schema";
 
 // This file's three actions are deliberately NOT gated by withAction() (Stage 4's
 // impersonation write-gate). They're /admin platform-administration actions
@@ -110,5 +120,89 @@ export async function resetMemberPasswordAction(
     return { result: { tempPassword: password } };
   } catch {
     return { error: "Failed to reset password." };
+  }
+}
+
+export type AddMemberState =
+  | { error?: string; result?: { email: string; tempPassword: string } }
+  | undefined;
+
+// R1.1/R1.2. Super-admin only (PRD §6.12) — org owners provisioning their own seats is
+// deferred, not rejected (PRD §10 Q1). Deliberately NOT wrapped in withAction(), for the
+// same reason as this file's other actions: see the note at the top of the file.
+export async function addOrgMemberAction(
+  orgId: string,
+  formData: FormData,
+): Promise<AddMemberState> {
+  await requireSuperAdmin();
+
+  const parsed = AddMemberSchema.safeParse({
+    email: formData.get("email"),
+    displayName: formData.get("displayName"),
+    orgRole: formData.get("orgRole"),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+  }
+
+  try {
+    const { tempPassword } = await addOrgMember({
+      orgId,
+      email: parsed.data.email,
+      displayName: parsed.data.displayName,
+      orgRole: parsed.data.orgRole,
+    });
+    revalidatePath(`/admin/orgs/${orgId}`);
+    return { result: { email: parsed.data.email, tempPassword } };
+  } catch (e) {
+    // Surface the real message rather than a generic string: "a user with this email
+    // address has already been registered" is the common failure and is actionable — it
+    // usually means the person already belongs to another org (one_org_per_user).
+    return { error: e instanceof Error ? e.message : "Failed to add member." };
+  }
+}
+
+// R1.3. The last-owner rule (R1.4) is enforced by migration 0012's
+// org_memberships_last_owner trigger; its error is surfaced verbatim rather than
+// pre-checked here, so the constraint stays the single source of the rule.
+export async function updateMemberRoleAction(
+  orgId: string,
+  userId: string,
+  orgRole: string,
+): Promise<{ error?: string }> {
+  await requireSuperAdmin();
+
+  const parsed = z.enum(ORG_ROLES).safeParse(orgRole);
+  if (!parsed.success) return { error: "Invalid role." };
+
+  try {
+    await updateMemberRole(orgId, userId, parsed.data);
+    revalidatePath(`/admin/orgs/${orgId}`);
+    return {};
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed to change role." };
+  }
+}
+
+// D181. Super-admin only, same as the rest of seat provisioning (D164) — an org owner
+// cannot remove their own colleagues any more than they can add them.
+//
+// The last-owner rule is enforced by migration 0012's org_memberships_last_owner trigger,
+// which covers DELETE as well as demotion; its message is surfaced verbatim rather than
+// pre-checked here, so the constraint stays the single source of the rule (same treatment
+// as updateMemberRoleAction). Deliberately NOT wrapped in withAction(), for the same
+// reason as this file's other actions: see the note at the top of the file.
+export async function removeOrgMemberAction(
+  orgId: string,
+  userId: string,
+): Promise<{ error?: string }> {
+  await requireSuperAdmin();
+
+  try {
+    await removeOrgMember(orgId, userId);
+    revalidatePath(`/admin/orgs/${orgId}`);
+    return {};
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed to remove member." };
   }
 }

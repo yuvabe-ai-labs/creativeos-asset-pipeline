@@ -62,18 +62,18 @@ import { ModelRequestPanel } from "./model-request-panel";
 import { setVersionLabelAction } from "@/lib/actions/eval";
 import { setVersionApprovalAction } from "@/lib/actions/approval";
 import { useIdentity } from "@/hooks/use-identity";
+import { useNodeVersionUpdates } from "@/hooks/use-node-version-updates";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { useFlushAutosave } from "@/components/canvas/autosave-flush-context";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { ApprovalStatus } from "@/lib/approval";
-import { cn } from "@/lib/utils";
 import { PromptVersionChips } from "./prompt-version-chips";
 import {
-  describeApprovalPill,
   splitSentenceBeats,
   segmentByTerms,
   CAMERA_SPEC_PATTERNS,
 } from "@/lib/nodes/prompt-focus";
+import { ApprovalStatusBadge } from "@/components/review/approval-status-badge";
 import { LeftSection } from "./focus-left-section";
 import { RailItem } from "./focus-rail-item";
 
@@ -145,6 +145,8 @@ export function VideoPromptFocusView({
   // D29 approval flag — sibling of the eval signal, distinct field.
   const [approvalStatus, setApprovalStatus] = useState<ApprovalStatus>("pending");
   const [approvalNote, setApprovalNote] = useState("");
+  const [approvedByName, setApprovedByName] = useState<string | null>(null);
+  const [approvedAt, setApprovedAt] = useState<string | null>(null);
   const [approvalSaving, setApprovalSaving] = useState(false);
   const { identity } = useIdentity();
   const editable = useCanvasEditable(); // D33: false when this session is read-only
@@ -227,7 +229,10 @@ export function VideoPromptFocusView({
       ? "result"
       : "empty";
 
-  async function fetchVersions() {
+  // `preserveEvalDraft` exists for the live-refresh path only — see useNodeVersionUpdates
+  // below. Every other caller is reacting to the viewer's OWN action, where re-seeding
+  // from the server is the point.
+  async function fetchVersions(opts?: { preserveEvalDraft?: boolean }) {
     try {
       const res = await fetch(`/api/nodes/${nodeId}/versions`);
       if (!res.ok) return;
@@ -238,13 +243,24 @@ export function VideoPromptFocusView({
       setActiveVersionId(activeVid);
       const active = vs.find((v) => v.id === activeVid);
       setEvalDecision(active?.decision ?? null);
-      setEvalNote(active?.note ?? "");
+      // The eval note is a CONTROLLED draft saved on blur, so re-seeding it mid-keystroke
+      // discards whatever the viewer was typing. Harmless when they triggered the refresh
+      // themselves; a silent loss when someone else's decision triggered it.
+      if (!opts?.preserveEvalDraft) setEvalNote(active?.note ?? "");
       setApprovalStatus(active?.approvalStatus ?? "pending");
       setApprovalNote(active?.note ?? "");
+      setApprovedByName(active?.approvedByName ?? null);
+      setApprovedAt(active?.approvedAt ?? null);
     } catch {
       /* best-effort */
     }
   }
+
+  // D179: keep this panel live while it is open — the same treatment the gen focus views
+  // get, so a prompt node does not silently behave differently from an image one.
+  useNodeVersionUpdates(nodeId, open, () => {
+    void fetchVersions({ preserveEvalDraft: true });
+  });
 
   /**
    * Everything below resolves this node's inputs SERVER-side, from PERSISTED edges
@@ -359,16 +375,15 @@ export function VideoPromptFocusView({
     if (!activeVersionId) return;
     setApprovalSaving(true);
     try {
-      await setVersionApprovalAction(activeVersionId, {
-        status,
-        approvedBy: identity?.name ?? null,
-        note,
-      });
+      await setVersionApprovalAction(activeVersionId, { status, note });
       setApprovalStatus(status);
       setApprovalNote(note ?? "");
       // Push into the store so the on-canvas badge refreshes immediately — without
       // this the badge stays stale until a full reload re-hydrates from the DB.
       onPatch({ approvalStatus: status });
+      // Re-read so the decision thread, status icons and approver name reflect the
+      // decision on the screen it was made on, not only after a reopen (D173).
+      await fetchVersions();
     } catch {
       toast.error("Failed to save approval");
     } finally {
@@ -465,25 +480,8 @@ export function VideoPromptFocusView({
   const activeRequest =
     versions.find((v) => v.id === activeVersionId)?.inputsUsed?.request ?? null;
 
-  const pill = describeApprovalPill(approvalStatus);
-  const pillTone =
-    pill.tone === "positive"
-      ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-900/20 dark:text-emerald-400"
-      : pill.tone === "warning"
-        ? "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-400"
-        : "border-border bg-muted text-muted-foreground";
-
   const reviewBadge =
-    mode === "result" ? (
-      <span
-        className={cn(
-          "shrink-0 rounded-full border px-1.5 py-0.5 text-[0.6rem] font-semibold",
-          pillTone,
-        )}
-      >
-        {pill.tone === "positive" ? "Approved" : pill.tone === "warning" ? "Changes" : "Pending"}
-      </span>
-    ) : undefined;
+    mode === "result" ? <ApprovalStatusBadge status={approvalStatus} /> : undefined;
 
   return (
     <Sheet
@@ -827,8 +825,12 @@ export function VideoPromptFocusView({
                         status={approvalStatus}
                         note={approvalNote}
                         saving={approvalSaving}
-                        canApprove={editable && identity?.role === "senior"}
+                        // R7.1/D160: not gated on `editable` — approval writes only to
+                        // node_versions, outside what the D33 lock serialises.
+                        canApprove={identity?.role === "senior"}
                         onSet={saveApproval}
+                        approvedByName={approvedByName}
+                        approvedAt={approvedAt}
                       />
                     </div>
                   ) : (

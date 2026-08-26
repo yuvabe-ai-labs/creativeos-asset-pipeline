@@ -1,6 +1,7 @@
 import "server-only";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { uniqueSlug } from "@/lib/slug";
+import type { OrgRole } from "@/lib/dal-logic";
 
 export type OrgRow = {
   id: string;
@@ -316,6 +317,148 @@ export async function createOrgWithOwner(input: {
   }
 
   return { orgId, userId, tempPassword };
+}
+
+// R1.1/R1.2: add a SECOND (third, fourth…) seat to an existing org. Mirrors
+// createOrgWithOwner's create-user -> profile -> membership sequence and its best-effort
+// cleanup, deliberately — these are the same operation, differing only in whether the org
+// already exists. Returns the temp password for out-of-band sharing;
+// must_change_password forces the member to pick their own on first login, exactly as a
+// freshly onboarded owner does.
+//
+// Note the unique index is `one_org_per_user` — one ORG PER USER, not one user per org.
+// Multiple seats have always been legal here (D80); only a provisioning path was missing,
+// because createOrgWithOwner hardcodes org_role: 'owner' and was the repo's only caller of
+// auth.admin.createUser.
+export async function addOrgMember(input: {
+  orgId: string;
+  email: string;
+  displayName: string;
+  orgRole: OrgRole;
+}): Promise<{ userId: string; tempPassword: string }> {
+  const supabase = createServerSupabase();
+
+  // Confirm the org exists before creating an auth user we would then have to clean up.
+  const { data: org, error: orgErr } = await supabase
+    .from("organizations")
+    .select("id")
+    .eq("id", input.orgId)
+    .maybeSingle();
+  if (orgErr) throw orgErr;
+  if (!org) throw new Error("Agency not found.");
+
+  const tempPassword = generateTempPassword();
+  const { data: created, error: userErr } = await supabase.auth.admin.createUser({
+    email: input.email,
+    password: tempPassword,
+    email_confirm: true,
+    app_metadata: { platform_role: "member", must_change_password: true },
+  });
+  if (userErr || !created.user) {
+    throw userErr ?? new Error("Failed to create user.");
+  }
+  const userId = created.user.id;
+
+  const { error: profileErr } = await supabase
+    .from("profiles")
+    .insert({ user_id: userId, display_name: input.displayName });
+  if (profileErr) {
+    await supabase.auth.admin.deleteUser(userId);
+    throw profileErr;
+  }
+
+  const { error: memberErr } = await supabase
+    .from("org_memberships")
+    .insert({ user_id: userId, org_id: input.orgId, org_role: input.orgRole });
+  if (memberErr) {
+    // Leaving an auth user with no membership would strand them: they could sign in but
+    // resolveCallerContext redirects to /login?error=no-membership forever.
+    await supabase.auth.admin.deleteUser(userId);
+    throw memberErr;
+  }
+
+  return { userId, tempPassword };
+}
+
+// R1.3. Verifies the membership belongs to THIS org before touching it — the same
+// defense-in-depth resetMemberPassword applies against a tampered orgId/userId pair.
+//
+// R1.4 (an org must always retain an owner) is deliberately NOT enforced here: migration
+// 0012's `org_memberships_last_owner` trigger already blocks demoting the final owner, and
+// an invariant that must hold regardless of which code path attempts the write belongs in
+// the database. The action surfaces the trigger's error rather than duplicating the rule
+// where the two could drift apart.
+export async function updateMemberRole(
+  orgId: string,
+  userId: string,
+  orgRole: OrgRole,
+): Promise<void> {
+  const supabase = createServerSupabase();
+
+  const { data: membership, error: memErr } = await supabase
+    .from("org_memberships")
+    .select("user_id")
+    .eq("org_id", orgId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (memErr) throw memErr;
+  if (!membership) throw new Error("Member not found in this agency.");
+
+  const { error } = await supabase
+    .from("org_memberships")
+    .update({ org_role: orgRole })
+    .eq("org_id", orgId)
+    .eq("user_id", userId);
+  if (error) throw error;
+}
+
+// D181. Removes a member completely: membership, profile and auth user.
+//
+// Why the whole account and not just the membership: `one_org_per_user` means a member
+// belongs to exactly one org, so detaching alone would leave an auth user who can still
+// sign in but whose every request lands on /login?error=no-membership forever — the same
+// stranded state addOrgMember's own rollback exists to prevent.
+//
+// Their WORK is not deleted. node_versions.operator_user_id / approved_by_user_id and
+// node_version_decisions.decided_by_user_id are all `on delete set null`, so generations
+// and review history survive and attribution degrades to "an unknown maker" (R11.4).
+//
+// Order matters. The membership row goes FIRST, because migration 0012's
+// org_memberships_last_owner trigger vetoes removing an org's final owner — deleting it
+// first means that veto lands before anything irreversible has happened, and its message
+// surfaces verbatim (the same single-source-of-the-rule treatment updateMemberRole gives
+// the demotion case).
+export async function removeOrgMember(orgId: string, userId: string): Promise<void> {
+  const supabase = createServerSupabase();
+
+  const { data: membership, error: readErr } = await supabase
+    .from("org_memberships")
+    .select("user_id, org_role")
+    .eq("org_id", orgId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (readErr) throw readErr;
+  if (!membership) throw new Error("Member not found in this agency.");
+
+  const { org_role: orgRole } = membership as { org_role: string };
+
+  const { error: memErr } = await supabase
+    .from("org_memberships")
+    .delete()
+    .eq("org_id", orgId)
+    .eq("user_id", userId);
+  if (memErr) throw memErr;
+
+  // `profiles.user_id` cascades off auth.users (0012), so this clears the profile too.
+  const { error: userErr } = await supabase.auth.admin.deleteUser(userId);
+  if (userErr) {
+    // Best-effort rollback, mirroring addOrgMember's own cleanup: without the membership
+    // this user is stranded, which is strictly worse than never having removed them.
+    await supabase
+      .from("org_memberships")
+      .insert({ user_id: userId, org_id: orgId, org_role: orgRole });
+    throw userErr;
+  }
 }
 
 export function generateTempPassword(): string {

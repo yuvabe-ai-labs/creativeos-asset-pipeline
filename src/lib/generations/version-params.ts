@@ -54,7 +54,13 @@ export function paramsForRestore(
   );
 }
 
-export type VersionParamEntry = { name: string; label: string; value: string };
+export type VersionParamEntry = {
+  name: string;
+  label: string;
+  value: string;
+  /** A paragraph (a negative prompt), not a one-line value — render as a block, not a row. */
+  longForm?: boolean;
+};
 
 function formatValue(value: unknown): string {
   if (typeof value === "boolean") return value ? "On" : "Off";
@@ -65,6 +71,22 @@ function formatValue(value: unknown): string {
 function humanizeKey(key: string): string {
   const words = key.replace(/_/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
   return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+/** No spec to ask, so judge by the value: a wrapped paragraph rather than a setting. */
+function looksLongForm(value: unknown): boolean {
+  return typeof value === "string" && (value.length > 80 || value.includes("\n"));
+}
+
+function keyEntries(paramsUsed: Record<string, unknown>, skip: (key: string) => boolean) {
+  return Object.entries(paramsUsed)
+    .filter(([key, value]) => !skip(key) && value !== undefined && value !== null)
+    .map(([key, value]) => ({
+      name: key,
+      label: humanizeKey(key),
+      value: formatValue(value),
+      longForm: looksLongForm(value),
+    }));
 }
 
 /**
@@ -80,13 +102,48 @@ export function describeVersionParams(
   specs: ParamSpec[] | undefined,
   paramsUsed: Record<string, unknown>,
 ): VersionParamEntry[] {
-  if (!specs) {
-    return Object.entries(paramsUsed)
-      .filter(([key, value]) => !INTERNAL_PARAM_KEYS.has(key) && value !== undefined && value !== null)
-      .map(([key, value]) => ({ name: key, label: humanizeKey(key), value: formatValue(value) }));
-  }
+  if (!specs) return keyEntries(paramsUsed, (key) => INTERNAL_PARAM_KEYS.has(key));
   return inPanelOrder(specs)
     .filter((p) => p.visible && p.component !== "textarea")
     .filter((p) => paramsUsed[p.name] !== undefined && paramsUsed[p.name] !== null)
     .map((p) => ({ name: p.name, label: p.label, value: formatValue(paramsUsed[p.name]) }));
+}
+
+/**
+ * Every setting a version was run with, for the "Sent to model" panel.
+ *
+ * Differs from describeVersionParams — a one-line History summary — on three counts, all of
+ * them because this panel's claim is "this is what the request carried", not "this is what
+ * distinguishes two versions":
+ *
+ *  - Long-form text params (the negative prompt) are KEPT, flagged `longForm` so the caller can
+ *    give them a block instead of a row.
+ *  - `visible: false` params are KEPT: per ParamSpec they are still sent to the API with their
+ *    default, and a panel that omitted them would under-report the request.
+ *  - Keys the model's current specs no longer declare are appended with humanized labels. A
+ *    version outlives the spec that produced it, and dropping those would silently hide settings
+ *    that really were sent.
+ *
+ * Pipeline bookkeeping (INTERNAL_PARAM_KEYS) stays out — `durationSeconds` is the provider's
+ * response, not an input, and the video panel renders it against `duration` itself.
+ */
+export function describeAllVersionParams(
+  specs: ParamSpec[] | undefined,
+  paramsUsed: Record<string, unknown>,
+): VersionParamEntry[] {
+  if (!specs) return keyEntries(paramsUsed, (key) => INTERNAL_PARAM_KEYS.has(key));
+  const declared = new Set(specs.map((p) => p.name));
+  const fromSpecs = inPanelOrder(specs)
+    .filter((p) => paramsUsed[p.name] !== undefined && paramsUsed[p.name] !== null)
+    .map((p) => ({
+      name: p.name,
+      label: p.label,
+      value: formatValue(paramsUsed[p.name]),
+      longForm: p.component === "textarea",
+    }));
+  const undeclared = keyEntries(
+    paramsUsed,
+    (key) => declared.has(key) || INTERNAL_PARAM_KEYS.has(key),
+  );
+  return [...fromSpecs, ...undeclared];
 }

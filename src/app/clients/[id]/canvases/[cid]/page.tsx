@@ -16,6 +16,9 @@ import { CanvasStoreProvider } from "@/components/canvas/canvas-store-provider";
 import { Canvas } from "@/components/canvas/canvas";
 import { GalleryDrawerProvider } from "@/components/canvas/gallery-drawer-context";
 import { GalleryDrawerTrigger } from "@/components/canvas/gallery-drawer-trigger";
+import { ReviewDrawerProvider } from "@/components/canvas/review-drawer/review-drawer-context";
+import { ReviewDrawerTrigger } from "@/components/canvas/review-drawer/review-drawer-trigger";
+import { getOrgReviewCounts } from "@/lib/db/review";
 import { CanvasCostChip } from "@/components/canvas/canvas-cost-chip";
 import { listNodes } from "@/lib/db/nodes";
 import { listEdges } from "@/lib/db/edges";
@@ -27,10 +30,17 @@ export const dynamic = "force-dynamic";
 
 export default async function CanvasPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string; cid: string }>;
+  searchParams: Promise<{ review?: string; node?: string }>;
 }) {
   const { id, cid } = await params; // client slug, canvas slug
+  // D161: read server-side rather than with useSearchParams — that hook opts its whole
+  // subtree out of static rendering and would need a Suspense boundary around the canvas.
+  const { review, node } = await searchParams;
+  const reviewMode = review === "1";
+  const focusNodeId = typeof node === "string" && node ? node : null;
   const client = await getClientBySlug(id);
   const canvas = client ? await getCanvasBySlug(client.id, cid) : null;
   const effectiveOrgId = await resolveOrgId();
@@ -53,12 +63,15 @@ export default async function CanvasPage({
     );
   }
 
-  const [initialNodes, initialEdges, latestKBJob, activeKBVersion] = await Promise.all([
-    listNodes(canvas.id).then((rows) => rows.map(nodeRowToFlow)),
-    listEdges(canvas.id),
-    getLatestKBJob(client.id),
-    getActiveKBVersion(client.id),
-  ]);
+  const [initialNodes, initialEdges, latestKBJob, activeKBVersion, reviewCounts] =
+    await Promise.all([
+      listNodes(canvas.id).then((rows) => rows.map(nodeRowToFlow)),
+      listEdges(canvas.id),
+      getLatestKBJob(client.id),
+      getActiveKBVersion(client.id),
+      // R5.3: seeds the Review control's count so it is right on first paint.
+      getOrgReviewCounts(effectiveOrgId),
+    ]);
 
   let initialDriveRootFolder: { id: string; name: string } | null = null;
   if (client.drive_root_folder_id) {
@@ -80,6 +93,9 @@ export default async function CanvasPage({
 
   return (
     <GalleryDrawerProvider>
+    {/* D161: opens straight away when arrived at via a review link — the senior followed
+        a count to get here, so the list should already be on screen. */}
+    <ReviewDrawerProvider initialOpen={reviewMode}>
     <main className="flex flex-1 flex-col">
       <header className="flex items-center justify-between border-b border-border/70 bg-background/60 px-6 py-3 backdrop-blur">
         <Breadcrumb>
@@ -105,6 +121,7 @@ export default async function CanvasPage({
         </Breadcrumb>
         <div className="flex items-center gap-3">
           <CanvasCostChip canvasId={canvas.id} />
+          <ReviewDrawerTrigger canvasId={canvas.id} initialCounts={reviewCounts} />
           <GalleryDrawerTrigger />
         </div>
       </header>
@@ -118,10 +135,13 @@ export default async function CanvasPage({
             initialKBJob={latestKBJob}
             hasActiveKB={!!activeKBVersion}
             initialDriveRootFolder={initialDriveRootFolder}
+            reviewMode={reviewMode}
+            focusNodeId={focusNodeId}
           />
         </CanvasStoreProvider>
       </div>
     </main>
+    </ReviewDrawerProvider>
     </GalleryDrawerProvider>
   );
 }

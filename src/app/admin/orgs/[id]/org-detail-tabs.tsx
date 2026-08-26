@@ -8,6 +8,9 @@ import { GenerationsTable } from "@/components/admin/generations-table";
 import { UsageTrendChart } from "@/components/admin/usage-trend-chart";
 import { CreditBreakdownList } from "@/components/admin/credit-breakdown-list";
 import { ResetPasswordDialog } from "./reset-password-dialog";
+import { AddMemberDialog } from "./add-member-dialog";
+import { MemberRoleSelect } from "./member-role-select";
+import { RemoveMemberDialog } from "./remove-member-dialog";
 import { ImpersonationAudit } from "@/components/admin/impersonation-audit/impersonation-audit";
 import { formatRelativeTime } from "@/lib/format/relative-time";
 import type {
@@ -99,7 +102,10 @@ export function OrgDetailTabs({
         </Card>
 
         <Card className="p-6 shadow-card">
-          <h2 className="text-eyebrow mb-3">Members</h2>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-eyebrow">Members</h2>
+            <AddMemberDialog orgId={org.id} />
+          </div>
           <ul className="flex flex-col gap-2">
             {members.map((m) => (
               <li
@@ -111,11 +117,17 @@ export function OrgDetailTabs({
                   <span className="text-xs text-muted-foreground/70">{m.email}</span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="text-muted-foreground">{m.org_role}</span>
+                  <MemberRoleSelect orgId={org.id} userId={m.user_id} role={m.org_role} />
                   <ResetPasswordDialog
                     orgId={org.id}
                     userId={m.user_id}
                     displayName={m.display_name}
+                  />
+                  <RemoveMemberDialog
+                    orgId={org.id}
+                    userId={m.user_id}
+                    displayName={m.display_name}
+                    email={m.email}
                   />
                 </div>
               </li>

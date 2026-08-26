@@ -34,16 +34,23 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { renameCanvasAction, deleteCanvasAction } from "@/lib/actions/canvases";
+import { PendingCountPill } from "@/components/shared/pending-count-pill";
+import { useReviewCounts } from "@/hooks/use-review-counts";
 import type { CanvasRow } from "@/lib/db/types";
+import type { ReviewCounts } from "@/lib/review/queue";
 
 export function CanvasesTable({
   canvases,
   clientSlug,
+  reviewCounts,
 }: {
   canvases: CanvasRow[];
   clientSlug: string;
+  reviewCounts: ReviewCounts;
 }) {
   const router = useRouter();
+  // R8.1: one subscription for the table, seeded from the server-rendered counts.
+  const liveCounts = useReviewCounts(reviewCounts);
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortKey>("recent");
   const [renamingCanvas, setRenamingCanvas] = useState<CanvasRow | null>(null);
@@ -155,7 +162,18 @@ export function CanvasesTable({
                           name to catch hover would swallow the click that opens the
                           canvas. The stretched Link already carries the full name as
                           its aria-label for assistive tech. */}
-                      <span className="min-w-0 flex-3 truncate font-medium">{canvas.name}</span>
+                      <span className="flex min-w-0 flex-3 items-center gap-2">
+                        <span className="truncate font-medium">{canvas.name}</span>
+                        {/* R5.1's count. shrink-0 so a long canvas name truncates instead
+                            of squeezing the pill, and it stays inside the
+                            pointer-events-none overlay so it cannot punch a dead spot in
+                            the stretched link. */}
+                        <PendingCountPill
+                          count={liveCounts.byCanvas[canvas.id] ?? 0}
+                          scope="canvas"
+                          className="shrink-0"
+                        />
+                      </span>
                       <span className="min-w-0 flex-2 truncate text-right text-sm whitespace-nowrap text-muted-foreground">
                         {formatRelativeTime(canvas.updated_at)}
                       </span>

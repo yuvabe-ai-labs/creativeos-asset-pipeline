@@ -3,6 +3,7 @@
 import { Suspense } from "react";
 import { usePathname } from "next/navigation";
 import { AdminNavLink } from "@/components/identity/admin-nav-link";
+import { ReviewInbox } from "@/components/identity/review-inbox";
 import { ProfilePopover } from "@/components/identity/profile-popover";
 import { HelpMenu } from "@/components/help/help-menu";
 
@@ -20,6 +21,9 @@ export function HeaderActions() {
       <Suspense fallback={null}>
         <HelpMenu />
       </Suspense>
+      {/* D165/R9.6: org-wide "waiting on you". Lives in the chrome because the work it
+          points at spans canvases and clients. Renders nothing when the list is empty. */}
+      <ReviewInbox />
       <AdminNavLink />
       <ProfilePopover />
     </div>

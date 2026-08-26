@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
 import {
-  describeApprovalPill,
   buildVersionChips,
   splitSentenceBeats,
   segmentByTerms,
@@ -140,18 +139,6 @@ describe("splitSentenceBeats", () => {
 
   it("splits on question and exclamation marks too", () => {
     expect(splitSentenceBeats("Is it bold? It is! Ship it.")).toEqual(["Is it bold?", "It is!", "Ship it."]);
-  });
-});
-
-describe("describeApprovalPill", () => {
-  it("maps approved to a positive 'Approved' pill", () => {
-    expect(describeApprovalPill("approved")).toEqual({ label: "Approved", tone: "positive" });
-  });
-  it("maps changes_requested to a warning 'Needs changes' pill", () => {
-    expect(describeApprovalPill("changes_requested")).toEqual({ label: "Needs changes", tone: "warning" });
-  });
-  it("maps pending to a neutral 'Pending review' pill", () => {
-    expect(describeApprovalPill("pending")).toEqual({ label: "Pending review", tone: "neutral" });
   });
 });
 
