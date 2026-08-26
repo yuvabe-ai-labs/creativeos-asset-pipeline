@@ -11,6 +11,10 @@ import { videoGenRegistry, DEFAULT_VIDEO_MODEL_ID } from "@/lib/video-gen/regist
 // module has no `server-only` dependency, it is plain param specs and rule data.
 import { videoGenClientModelMap } from "@/lib/video-gen/client-models";
 import { validateAgainstRules } from "@/lib/video-gen/constraints";
+import {
+  assignImageRoles,
+  type UpstreamImageRef,
+} from "@/lib/video-gen/assign-image-roles";
 import { apiError, apiOk, withNode } from "@/lib/api/route-helpers";
 
 const ImageRoleSchema = z.enum(["start_frame", "end_frame", "reference"]);
@@ -72,11 +76,10 @@ export async function POST(
     // image-gen nodes are valid when directly connected; not via the grandparent path.
     const directIds = new Set(upstream.map((u) => u.nodeId));
 
-    // Resolve image roles from upstream nodes
-    let startFrameUrl: string | undefined;
-    let endFrameUrl: string | undefined;
-    const referenceUrls: string[] = [];
-
+    // The upstream images this node could send, in traversal order. Mirrors the filter in
+    // api/nodes/[id]/upstream-images — the focus view and the request must be looking at the
+    // same set for the roles keyed by node id to mean the same thing on both sides.
+    const upstreamImages: UpstreamImageRef[] = [];
     for (const node of allUpstream) {
       let url: string | undefined;
       if (node.type === "file" || node.type === "draw") {
@@ -87,11 +90,14 @@ export async function POST(
         url = typeof node.activeOutput === "string" ? node.activeOutput : undefined;
       }
       if (!url) continue;
-      const role = imageRoles[node.nodeId] ?? "reference";
-      if (role === "start_frame" && !startFrameUrl) startFrameUrl = url;
-      else if (role === "end_frame" && !endFrameUrl) endFrameUrl = url;
-      else if (role === "reference") referenceUrls.push(url);
+      upstreamImages.push({ nodeId: node.nodeId, url });
     }
+
+    // Assignment only — an image with no role assigned is not an input. See assign-image-roles.ts
+    // for why defaulting it to `reference` here made the client and the server disagree.
+    const assigned = assignImageRoles(upstreamImages, imageRoles);
+    const { startFrameUrl, referenceUrls } = assigned;
+    let { endFrameUrl } = assigned;
 
     // Cap reference images at the model's declared limit
     const maxRefs = config.imageInputs.maxReferenceImages;

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildVeoConfig } from "../providers/veo";
+import { buildVeoConfig, composeVeoPrompt } from "../providers/veo";
 
 describe("buildVeoConfig", () => {
   const base = { aspect_ratio: "16:9", duration: "6" };
@@ -17,6 +17,25 @@ describe("buildVeoConfig", () => {
 
   it("never sets enhancePrompt (Veo's built-in rewriter stays at its default)", () => {
     expect("enhancePrompt" in buildVeoConfig({ ...base, negative_prompt: "x" })).toBe(false);
+  });
+
+  // Veo 3.1 Lite answers any request carrying the field with
+  // 400 INVALID_ARGUMENT — "`negativePrompt` isn't supported by this model".
+  // Absent, not empty: an empty string is still the field being present.
+  it("omits negativePrompt entirely when the model does not support it", () => {
+    const cfg = buildVeoConfig(
+      { ...base, negative_prompt: "blurry, watermark" },
+      { supportsNegativePrompt: false },
+    );
+    expect("negativePrompt" in cfg).toBe(false);
+  });
+
+  it("keeps sending negativePrompt for models that do support it", () => {
+    const cfg = buildVeoConfig(
+      { ...base, negative_prompt: "blurry" },
+      { supportsNegativePrompt: true },
+    );
+    expect(cfg.negativePrompt).toBe("blurry");
   });
 
   it("clamps invalid durations to 6 and passes 4/6/8 through", () => {
@@ -37,5 +56,26 @@ describe("buildVeoConfig", () => {
 
   it("passes 1080p through when requested", () => {
     expect(buildVeoConfig({ ...base, resolution: "1080p" }).resolution).toBe("1080p");
+  });
+});
+
+// The suppression list is not discarded on Lite — with no native channel for it, the only place
+// left to state it is the prompt.
+describe("composeVeoPrompt", () => {
+  it("appends the suppression list as its own paragraph", () => {
+    expect(composeVeoPrompt("Slow push-in.", "blurry, watermark")).toBe(
+      "Slow push-in.\n\nAvoid: blurry, watermark.",
+    );
+  });
+
+  it("returns the prompt untouched when there is nothing to suppress", () => {
+    expect(composeVeoPrompt("Slow push-in.", "")).toBe("Slow push-in.");
+    expect(composeVeoPrompt("Slow push-in.", "   ")).toBe("Slow push-in.");
+  });
+
+  it("does not double the terminating period", () => {
+    expect(composeVeoPrompt("Slow push-in.", "blurry, watermark.")).toBe(
+      "Slow push-in.\n\nAvoid: blurry, watermark.",
+    );
   });
 });

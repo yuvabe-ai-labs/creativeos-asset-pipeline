@@ -8,6 +8,7 @@
     "dev:trigger": "trigger dev",
     "build": "next build",
     "start": "next start",
+    "deploy:trigger": "trigger deploy --native-build-server",
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",

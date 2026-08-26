@@ -52,6 +52,10 @@ next-env.d.ts
 
 # git worktrees
 /.worktrees/
+# Claude Code creates worktrees here — full repo checkouts, never committed.
+# Also keeps them out of the `trigger deploy` context archive, which packs the
+# workspace minus .gitignore + its own defaults (and would otherwise blow the 100MB limit).
+/.claude/worktrees/
 
 # office temp lock files
 ~$*

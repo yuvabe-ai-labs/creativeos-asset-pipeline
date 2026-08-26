@@ -47,6 +47,8 @@ describe("veoParams", () => {
     expect(items).not.toContain("logo"); // …or the real logo
   });
 
+  // Lite keeps the param even though its API rejects the negativePrompt FIELD — the provider
+  // folds the list into the prompt text there instead (composeVeoPrompt). See veo-provider.test.
   it("veoLiteParams shares the same param set", () => {
     expect(veoLiteParams).toEqual(veoParams);
   });

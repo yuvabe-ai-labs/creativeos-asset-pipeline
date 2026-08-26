@@ -32,10 +32,42 @@ async function fetchAsBase64(
   return { imageBytes, mimeType };
 }
 
+// Per-model quirks that change the request shape rather than its values.
+type VeoModelCapabilities = {
+  maxRefImages: number;
+  /**
+   * Lite rejects `negativePrompt` outright — 400 INVALID_ARGUMENT, "isn't supported by this
+   * model" — so the field must be absent, not empty. The suppression list is not discarded when
+   * this is false: composeVeoPrompt folds it into the prompt text instead.
+   */
+  supportsNegativePrompt: boolean;
+};
+
+/**
+ * The prompt actually sent, given a model that has no `negativePrompt` field.
+ *
+ * Veo's native negativePrompt is a separate channel; with it unavailable the only place left to
+ * state a suppression list is the prompt itself. "Avoid:" is a plain instruction Veo's text
+ * encoder handles directly, and it is appended as its own paragraph so it cannot be read as a
+ * continuation of the shot description — the list is comma-separated defect names
+ * (VEO_NEGATIVE_DEFAULT), which would otherwise run straight into the last sentence.
+ *
+ * Returns the prompt unchanged when there is nothing to suppress, so a cleared field never
+ * leaves a dangling "Avoid:" on the request.
+ */
+export function composeVeoPrompt(prompt: string, negativePrompt: string): string {
+  const avoid = negativePrompt.trim().replace(/[.\s]+$/, "");
+  if (!avoid) return prompt;
+  return `${prompt.trim()}\n\nAvoid: ${avoid}.`;
+}
+
 // Pure config builder (D78) — scalar Veo GenerateVideosConfig fields, unit-testable.
 // Image fields (image / lastFrame / referenceImages) are added by generateWithVeo after fetch.
 // enhancePrompt is deliberately NOT set — Veo's built-in prompt rewriter stays at its default.
-export function buildVeoConfig(params: Record<string, unknown>): {
+export function buildVeoConfig(
+  params: Record<string, unknown>,
+  opts: { supportsNegativePrompt?: boolean } = {},
+): {
   aspectRatio: string;
   durationSeconds: number;
   numberOfVideos: number;
@@ -47,7 +79,10 @@ export function buildVeoConfig(params: Record<string, unknown>): {
   const durationSeconds = VALID_DURATIONS.includes(parsed) ? parsed : 6;
   const aspectRatio = String(params.aspect_ratio ?? "16:9");
   const resolution = String(params.resolution ?? "720p");
-  const negativePrompt = String(params.negative_prompt ?? "").trim();
+  const supportsNegativePrompt = opts.supportsNegativePrompt ?? true;
+  const negativePrompt = supportsNegativePrompt
+    ? String(params.negative_prompt ?? "").trim()
+    : "";
   return {
     aspectRatio,
     durationSeconds,
@@ -60,10 +95,18 @@ export function buildVeoConfig(params: Record<string, unknown>): {
 async function generateWithVeo(
   modelName: string,
   input: VideoGenInput,
-  maxRefImages = 3,
+  caps: VeoModelCapabilities,
 ): Promise<VideoGenResult> {
+  const { maxRefImages } = caps;
   const ai = createVeoClient();
-  const baseConfig = buildVeoConfig(input.params);
+  const baseConfig = buildVeoConfig(input.params, {
+    supportsNegativePrompt: caps.supportsNegativePrompt,
+  });
+  // buildVeoConfig has already dropped the field for a model that cannot take it; the same
+  // condition decides where the list goes instead.
+  const prompt = caps.supportsNegativePrompt
+    ? input.prompt
+    : composeVeoPrompt(input.prompt, String(input.params.negative_prompt ?? ""));
   const durationSeconds = baseConfig.durationSeconds;
 
   // Fetch start + end frames in parallel
@@ -100,7 +143,7 @@ async function generateWithVeo(
   // Initiate video generation (long-running operation)
   let operation = await ai.models.generateVideos({
     model: modelName,
-    prompt: input.prompt,
+    prompt,
     ...(startImage ? { image: startImage } : {}),
     config,
   });
@@ -145,7 +188,11 @@ export const veoLite: VideoGenModelSpec = {
   maxDurationSeconds: 8,
   imageInputs: VEO_LITE_IMAGE_INPUTS,
   params: veoLiteParams,
-  generate: (input) => generateWithVeo(VEO_MODEL_IDS.lite, input, 0),
+  generate: (input) =>
+    generateWithVeo(VEO_MODEL_IDS.lite, input, {
+      maxRefImages: 0,
+      supportsNegativePrompt: false,
+    }),
 };
 
 export const veoFast: VideoGenModelSpec = {
@@ -156,7 +203,11 @@ export const veoFast: VideoGenModelSpec = {
   maxDurationSeconds: 8,
   imageInputs: VEO_REFS_IMAGE_INPUTS,
   params: veoParams,
-  generate: (input) => generateWithVeo(VEO_MODEL_IDS.fast, input, 3),
+  generate: (input) =>
+    generateWithVeo(VEO_MODEL_IDS.fast, input, {
+      maxRefImages: 3,
+      supportsNegativePrompt: true,
+    }),
 };
 
 export const veoQuality: VideoGenModelSpec = {
@@ -167,5 +218,9 @@ export const veoQuality: VideoGenModelSpec = {
   maxDurationSeconds: 8,
   imageInputs: VEO_REFS_IMAGE_INPUTS,
   params: veoParams,
-  generate: (input) => generateWithVeo(VEO_MODEL_IDS.quality, input, 3),
+  generate: (input) =>
+    generateWithVeo(VEO_MODEL_IDS.quality, input, {
+      maxRefImages: 3,
+      supportsNegativePrompt: true,
+    }),
 };
