@@ -1,8 +1,16 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getClientBySlug } from "@/lib/db/clients";
 import { resolveOrgId } from "@/lib/dal";
 import { MarketView } from "@/components/market/market-view";
-import { ClientSectionNav } from "@/components/clients/client-section-nav";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
 
 export const dynamic = "force-dynamic";
 
@@ -16,8 +24,23 @@ export default async function MarketPage({ params }: { params: Promise<{ id: str
   if (!client || client.org_id !== effectiveOrgId) redirect("/");
 
   return (
-    <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-8">
-      <ClientSectionNav slug={client.slug} active="market" />
+    <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-12">
+      <Breadcrumb className="animate-rise shrink-0">
+        <BreadcrumbList>
+          <BreadcrumbItem>
+            <BreadcrumbLink render={<Link href="/">Clients</Link>} />
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbLink render={<Link href={`/clients/${client.slug}`}>{client.name}</Link>} />
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbPage>Market</BreadcrumbPage>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
+
       <MarketView clientId={client.id} clientName={client.name} clientSlug={client.slug} />
     </main>
   );

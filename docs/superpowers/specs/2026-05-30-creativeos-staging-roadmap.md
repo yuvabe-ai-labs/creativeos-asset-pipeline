@@ -3375,3 +3375,31 @@ Instagram" card, not a player — reels play only through the official blockquot
 (JS-rendered), so a pin page still yields no thumbnail — right-clicking the image itself
 does. Deleted or private posts resolve to nothing by design; both the post and embed
 URLs return an identical generic shell, which is how the backfill detects them.
+
+### D191 — Client knowledge surfaces are reached from a Settings menu, not a section nav *(recorded 2026-08-27; refines D189)*
+
+**Decision.** The client detail page's existing **Settings** button becomes a popover
+listing the client's two knowledge surfaces — **Brand KB** (positioning, products,
+audience) and **Market** (Direct, Adjacent and Signals) — each a labelled row with a
+one-line hint. The `ClientSectionNav` tab strip introduced for D189 is deleted from both
+`/clients/[id]/kb` and `/clients/[id]/market`; each page instead carries the standard
+breadcrumb (Clients → client → section) and an `h1` naming the section, matching the KB
+page's existing shell.
+
+**Why.** D189 said "client nav becomes KB | Market" and the strip was the literal reading
+of it. In use the strip read as tabs, and tabs promise in-place switching that a route
+change does not deliver — each click is a full navigation to a differently-shaped page.
+The Settings button already existed on the client page and already pointed at `/kb`, so
+the menu adds a destination to an affordance users had rather than adding a second
+navigation idiom beside it. Breadcrumbs, already on the KB page, carry the "where am I"
+job the strip was doing, so removing it costs no orientation.
+
+**What is unchanged from D189.** The Market page is still the primary SEE + DISTILL
+surface with the same tabs *inside* it (Direct | Adjacent | Signals — those are genuine
+in-place tabs over one page's data, which is what the pattern is for). Only the
+cross-page navigation changed.
+
+**Rejected.** Keeping the strip (two navigation idioms — strip plus breadcrumb — for one
+hierarchy); promoting Market to a top-level nav item (it is client-scoped knowledge, so
+it belongs behind the client, next to the KB); a dropdown on the breadcrumb's section
+crumb (discoverable only after you have already arrived at a section).

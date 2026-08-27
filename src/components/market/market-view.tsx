@@ -59,9 +59,14 @@ export function MarketView({
 
   return (
     <div className="flex flex-col gap-4">
-      <header className="flex flex-col gap-1">
-        <p className="text-eyebrow">Market</p>
-        <h1 className="font-display text-2xl text-foreground">{clientName}</h1>
+      {/* The breadcrumb already establishes client and section, so the header names
+          the page and says what it is for — matching the Brand KB page. */}
+      <header className="animate-rise mb-2 mt-4">
+        <h1 className="font-display text-3xl font-semibold tracking-tight">Market</h1>
+        <p className="mt-1.5 text-sm text-muted-foreground">
+          What is happening around {clientName} — evidence the team collects, and the
+          patterns designers distil from it.
+        </p>
       </header>
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as MarketTab)}>
