@@ -12,6 +12,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { FullScreenImageZoom } from "@/components/shared/full-screen-image-zoom";
+import { ReferenceLightbox } from "@/components/market/reference-lightbox";
 import { useDriveBrowser } from "@/hooks/use-drive-browser";
 import { useCanvasGenerations } from "@/hooks/use-canvas-generations";
 import { useMoodboards } from "@/hooks/use-moodboards";
@@ -209,12 +210,17 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
     () =>
       moodboards.items.map((it) => ({
         id: it.id,
-        imageUrl: it.image_url,
-        previewUrl: it.image_url,
+        // Grid always gets a renderable image; video/link kinds carry a re-hosted
+        // thumbnail (or fall back to the raw URL, degrading like any dead image).
+        imageUrl: it.thumbnail_url ?? it.image_url,
+        previewUrl: it.thumbnail_url ?? it.image_url,
         filename: filenameFromUrl(it.image_url),
-        subtitle: new Date(it.added_at).toLocaleDateString(),
+        subtitle: it.note ?? new Date(it.added_at).toLocaleDateString(),
         source: "moodboard" as const,
         sourceUrl: it.source_url ?? undefined,
+        kind: it.kind,
+        note: it.note ?? undefined,
+        mediaUrl: it.image_url,
       })),
     [moodboards.items],
   );
@@ -439,7 +445,7 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
                     if (i === 0) moodboards.selectBoard(null);
                   }}
                 />
-                <GalleryAddUrl onAdd={(url) => void moodboards.addItemUrl(url)} />
+                <GalleryAddUrl onAdd={(url, note) => void moodboards.addItemUrl(url, note)} />
                 <GalleryContent
                   loading={moodboards.loading}
                   loadError={null}
@@ -519,13 +525,32 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
         </SheetContent>
       </Sheet>
 
-      {previewImage && (
-        <FullScreenImageZoom
-          imageUrl={previewImage.previewUrl ?? previewImage.imageUrl}
-          title={previewImage.filename}
-          onClose={() => setPreviewId(null)}
-        />
-      )}
+      {previewImage &&
+        (previewImage.kind && previewImage.kind !== "image" && previewImage.kind !== "gif" ? (
+          // A market reference with a playable/link kind opens in the shared player
+          // instead of the image zoomer (which would show only the thumbnail).
+          <ReferenceLightbox
+            item={{
+              id: previewImage.id,
+              moodboard_id: "",
+              image_url: previewImage.mediaUrl ?? previewImage.imageUrl,
+              source_url: previewImage.sourceUrl ?? null,
+              kind: previewImage.kind,
+              note: previewImage.note ?? null,
+              added_by: null,
+              thumbnail_url: previewImage.imageUrl,
+              position: 0,
+              added_at: "",
+            }}
+            onClose={() => setPreviewId(null)}
+          />
+        ) : (
+          <FullScreenImageZoom
+            imageUrl={previewImage.previewUrl ?? previewImage.imageUrl}
+            title={previewImage.filename}
+            onClose={() => setPreviewId(null)}
+          />
+        ))}
 
       <DriveFolderPicker
         open={pickerOpen}
