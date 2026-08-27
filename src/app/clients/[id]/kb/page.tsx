@@ -19,6 +19,7 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import type { TraceableBrandKB } from "@/lib/kb/schema";
+import { ClientSectionNav } from "@/components/clients/client-section-nav";
 
 export const dynamic = "force-dynamic";
 
@@ -77,6 +78,8 @@ export default async function KBPage({
           </BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
+
+      <ClientSectionNav slug={client.slug} active="kb" />
 
       {isReviewOrEdit ? (
         <KBOnboardingReviewStep
