@@ -64,6 +64,21 @@ async function load() {
   showCurrent();
 }
 
+// The note rides exactly one clip: background.js reads pendingNote on a clip,
+// sends it with the reference, then clears it.
+const noteEl = document.getElementById("note");
+noteEl.addEventListener("input", () => {
+  chrome.storage.local.set({ pendingNote: noteEl.value.trim() });
+});
+chrome.storage.local.get("pendingNote").then(({ pendingNote }) => {
+  if (pendingNote) noteEl.value = pendingNote;
+});
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "local" && changes.pendingNote && changes.pendingNote.newValue === undefined) {
+    noteEl.value = ""; // cleared after a successful clip
+  }
+});
+
 clientSel.addEventListener("change", renderBoards);
 document.getElementById("refresh").addEventListener("click", load);
 load();

@@ -8,5 +8,6 @@ select { display: block; width: 100%; margin-top: 4px; padding: 6px; border: 1px
 .board { text-align: left; padding: 8px 10px; border: 1px solid #e5e7eb; border-radius: 8px; background: #fff; cursor: pointer; }
 .board:hover { border-color: #5829c7; background: #faf9ff; }
 .empty { color: #6b7280; }
+textarea { display: block; width: 100%; margin-top: 4px; padding: 6px; border: 1px solid #e5e7eb; border-radius: 8px; font: inherit; resize: vertical; }
 .refresh { margin-top: 12px; padding: 6px 10px; border: 1px solid #e5e7eb; border-radius: 8px; background: #fff; cursor: pointer; }
 .status { color: #6b7280; margin-top: 10px; }

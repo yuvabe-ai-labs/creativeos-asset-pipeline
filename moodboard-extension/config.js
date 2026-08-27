@@ -8,8 +8,8 @@
 // through production is instantly visible to a localhost app reading the same
 // Supabase project. Only revisit this if local dev is ever pointed at a separate
 // database, at which point captures would land in prod and vanish locally.
-// const APP_BASE_URL = "https://creativeos-yuvabe.vercel.app";
+const APP_BASE_URL = "https://creativeos-yuvabe.vercel.app";
 // Local override for testing against a dev server. Both origins are listed in
 // manifest.json "host_permissions", so switching is just moving the comment —
 // no manifest edit needed. Reload the extension at chrome://extensions after.
-const APP_BASE_URL = "http://localhost:3000";
+// const APP_BASE_URL = "http://localhost:3000";
