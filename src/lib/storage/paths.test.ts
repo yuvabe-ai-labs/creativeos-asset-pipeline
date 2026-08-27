@@ -10,6 +10,7 @@ import {
   pathForBrandImage,
   pathForKBDocument,
   pathForBrandAsset,
+  pathForMarketThumb,
 } from "./paths";
 
 describe("sanitizeSlug", () => {
@@ -156,5 +157,13 @@ describe("pathForBrandAsset", () => {
     });
     expect(path.startsWith("clients/c1/brand-kit/logo/a1/")).toBe(true);
     expect(path).not.toContain("..");
+  });
+});
+
+describe("pathForMarketThumb", () => {
+  it("scopes thumbnails under the client's market folder by item id", () => {
+    expect(pathForMarketThumb({ clientId: "c-1", itemId: "i-9", ext: "jpg" })).toBe(
+      "clients/c-1/market/thumbs/i-9.jpg",
+    );
   });
 });
