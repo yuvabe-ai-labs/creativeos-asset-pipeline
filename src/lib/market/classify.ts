@@ -49,6 +49,21 @@ export function youtubeVideoId(url: string): string | null {
 }
 
 /**
+ * True for a YouTube Short. Shorts are vertical (9:16), so a player sized for a
+ * standard 16:9 video would letterbox them into black bars. The embed URL is the
+ * same for both — only the frame differs.
+ */
+export function isYouTubeShort(url: string): boolean {
+  try {
+    const u = new URL(url);
+    const host = u.hostname.replace(/^www\./, "");
+    return (host === "youtube.com" || host === "m.youtube.com") && u.pathname.startsWith("/shorts/");
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Iframe src for the lightbox player, or null when playback isn't derivable —
  * the caller then falls back to "open source in a new tab" (D185's degraded path).
  * Direct iframe endpoints, not the platforms' embed.js, so no third-party script

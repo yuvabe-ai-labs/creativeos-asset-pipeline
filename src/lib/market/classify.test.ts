@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { classifyUrl, youtubeVideoId, embedUrlFor } from "./classify";
+import { classifyUrl, youtubeVideoId, embedUrlFor, isYouTubeShort } from "./classify";
 
 describe("classifyUrl", () => {
   it("classifies YouTube watch, shorts and youtu.be URLs", () => {
@@ -47,6 +47,19 @@ describe("youtubeVideoId", () => {
   });
   it("returns null for non-YouTube URLs", () => {
     expect(youtubeVideoId("https://vimeo.com/123")).toBeNull();
+  });
+});
+
+describe("isYouTubeShort", () => {
+  it("identifies Shorts, which are vertical and need a 9:16 frame", () => {
+    expect(isYouTubeShort("https://youtube.com/shorts/0gSk7f8O7Ik?si=abc")).toBe(true);
+    expect(isYouTubeShort("https://www.youtube.com/shorts/abc123DEF45")).toBe(true);
+  });
+  it("is false for standard videos and non-YouTube URLs", () => {
+    expect(isYouTubeShort("https://www.youtube.com/watch?v=dQw4w9WgXcQ")).toBe(false);
+    expect(isYouTubeShort("https://youtu.be/dQw4w9WgXcQ")).toBe(false);
+    expect(isYouTubeShort("https://www.instagram.com/reel/C8xyz/")).toBe(false);
+    expect(isYouTubeShort("not a url")).toBe(false);
   });
 });
 

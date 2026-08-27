@@ -2,7 +2,7 @@
 
 import { ExternalLink, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { embedUrlFor } from "@/lib/market/classify";
+import { embedUrlFor, isYouTubeShort } from "@/lib/market/classify";
 import type { MoodboardItem } from "@/lib/db/moodboards";
 import { FullScreenImageZoom } from "@/components/shared/full-screen-image-zoom";
 import { InstagramEmbed } from "./instagram-embed";
@@ -38,7 +38,9 @@ export function ReferenceLightbox({ item, onClose }: { item: MoodboardItem; onCl
           <iframe
             src={embed}
             className={
-              item.kind === "youtube"
+              // Shorts, reels and TikToks are vertical; only standard YouTube is 16:9.
+              // Framing a Short as 16:9 would letterbox it into black bars.
+              item.kind === "youtube" && !isYouTubeShort(item.image_url)
                 ? "aspect-video max-h-[70vh] w-full rounded-lg border-0 bg-black"
                 : "aspect-[9/16] max-h-[70vh] w-full rounded-lg border-0 bg-black sm:mx-auto sm:w-auto"
             }
