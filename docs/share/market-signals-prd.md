@@ -1,5 +1,11 @@
 # PRD — Market Signals
 
+> **SUPERSEDED (2026-08-27).** Replaced by `2026-08-27-market-signals-v1-prd.md` and
+> `2026-08-27-market-signals-v1-design.md` (decisions D184-D189). V1 was re-scoped:
+> MR collects evidence, designers distill Signals; the evidence layer extends moodboards.
+> Scopes/resolver, validity windows, the review queue, and generation injection (Mode A)
+> are out of V1 and return reshaped in V1.x/V2.
+
 > *Review copy for comments — the live version is at https://claude.ai/code/artifact/4d7dfa84-0ece-4cc8-a0df-d474062d453c*
 
 **Date:** 2026-08-17

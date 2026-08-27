@@ -3231,3 +3231,101 @@ generation — including from a panel displaying "None".
 
 **Rejected.** Dropping `negative_prompt` from `veoLiteParams`: it makes the request legal by
 discarding what the operator asked for, and leaves the three Veo variants with different panels.
+
+### D184 — Market Signals V1 extends moodboards; it is not a parallel system *(recorded 2026-08-27; originated → spec: 2026-08-27-market-signals-v1-design.md)*
+
+**Decision.** The Market Signals evidence layer is the existing moodboards system: two
+auto-provisioned system boards per client (Direct, Adjacent) plus richer items. One tile
+renderer, one capture extension, one RLS/org story serve moodboards and Market alike.
+
+**Why.** A `market_references` table would be ~90% `moodboard_items` — a duplicate waiting
+to diverge. Moodboards already carry client scoping, URL-first storage, provenance,
+default-deny RLS, and a working clipper extension.
+
+**Rejected.** The 2026-08-17 PRD's standalone `signals` record with scopes
+(global/category/client), a resolver, kind taxonomy, validity windows and a review queue —
+all deferred; V1's re-scoped loop (MR collects, designers distill) needs none of it.
+
+### D185 — References accept any URL and are watchable via embeds; bytes only for thumbnails *(recorded 2026-08-27; bounded exception to D13/D92)*
+
+**Decision.** Ingest classifies the pasted URL (`youtube | instagram | tiktok | image |
+gif | video | link`), fetches a thumbnail best-effort (YouTube derived; IG/TikTok via
+oEmbed — tokenless as of Meta's 2026-06-15 change, verified 2026-08-27), re-hosts the
+thumbnail to GCS at add time, and **never rejects**: unfetchable URLs save as degraded
+link tiles (favicon + domain + note). Playback happens in the lightbox only — platform
+embed / YouTube iframe / native `<video>` — never in the grid.
+
+**Why.** Capture must never fail for MR (the flaky cases — private accounts, dead links —
+are exactly where evidence would otherwise go back to WhatsApp). The GCS thumbnail is the
+moodboard F6 lesson: it is what lets a board survive a deleted post. Grid stays
+cached-images-fast; embeds mount one at a time.
+
+**Rejected.** Downloading platform video to GCS (ToS exposure, breaks D13/D92 wholesale,
+downloader maintenance); rejecting unrecognized URLs (uniformly pretty board, leaky shelf).
+
+### D186 — Direct/Adjacent are system boards; items gain kind, note, added_by, thumbnail *(recorded 2026-08-27)*
+
+**Decision.** `moodboards.board_type ('custom'|'direct'|'adjacent')` with a partial unique
+index per client on the system types; existing boards continue as `custom`, untouched.
+`moodboard_items` gains `kind`, `note` (MR's only voice in the design), `added_by`
+(nullable, `set null` on user deletion — matches D181), `thumbnail_url`. Default
+`kind='image'` makes every existing row already-correct; no backfill.
+
+**Why `added_by` now.** V1's first success question — "does MR maintain the shelf?" — is
+unanswerable without attribution, and the column is near-free at insert but unbackfillable
+later.
+
+**Rejected.** A bucket column on items instead of system boards (fragments the existing
+board-contains-items model the drawer and extension already speak).
+
+### D187 — A Signal is a link-set over evidence, not a container *(recorded 2026-08-27)*
+
+**Decision.** `signals` (client-scoped: name, tags[], description, created_by) +
+`signal_items` join to `moodboard_items`. Grouping links references; they stay in their
+bucket and can back multiple Signals. Deleting a reference cascades it out of every Signal
+visibly; a Signal whose last reference is gone survives as an empty card (interpretation
+outlives evidence; deleting it is a human act).
+
+**Why.** §8 of the PRD requires supporting references to remain visible, and co-membership
+(in Direct *and* in a Signal, or in two Signals) is the load-bearing behaviour. A copy
+model would fork the truth the first time MR cleans the shelf.
+
+**Rejected.** Signal-as-moodboard-with-extra-fields: items belong to exactly one board, so
+containment breaks co-membership, and making boards many-to-many refactors a working
+system to avoid two small tables.
+
+### D188 — No MR role; Signal creation open to every designer *(recorded 2026-08-27)*
+
+**Decision.** MR team members get ordinary `org_role='designer'` accounts; the closed
+three-value check constraint stays. Group-as-Signal is available to owner, senior and
+designer alike.
+
+**Why.** V1 gives MR responsibilities but no exclusive powers — nothing exists for an `mr`
+role to protect — and `added_by` covers the measurement need. Every role branch in the
+code was written against three values; widening the enum is safest done when an actual
+MR-exclusive surface (the V2 review queue) defines what the role must reach. Who actually
+distills is itself a V1 learning; a seniority gate would erase the data.
+
+**Rejected.** Adding `mr` as a fourth org_role now; gating Signal creation to
+senior/owner (the PRD draft's assignment — treated as workflow description, not
+permission rule, per the owner's call 2026-08-27).
+
+### D189 — One shared tile everywhere; the Market page is the distill surface *(recorded 2026-08-27)*
+
+**Decision.** New thin page `/clients/[id]/market` (tabs Direct | Adjacent | Signals;
+masonry, add form, multi-select → Group as Signal, signal cards) is the primary SEE +
+DISTILL surface; client nav becomes KB | Market. The canvas gallery drawer inherits the
+system boards automatically (they are moodboard rows) and is refactored to render the
+same tile component (its `<img>`-only path would show video refs broken). The clipper
+extension gains a page-level "Add this page as reference" menu item (today it fires only
+on `info.srcUrl` of images) plus a note field. Signals are page-only in V1 — no in-canvas
+signal browsing until V1.x reshapes that surface around AI ideation.
+
+**Why the page survives cost-cutting.** Comparing several reels to decide they are one
+pattern is the entire V1 experiment (§16); a ~400px side sheet fighting that activity
+would make "designers don't distill" indistinguishable from "the surface fought them."
+The page is a day's shell — every heavy piece is shared with the drawer.
+
+**Rejected.** Drawer-only V1 (cramped distilling, MR must enter via a canvas);
+generation-injection surfaces (`compilePrompt` untouched — the 2026-08-17 Mode A returns
+at V1.2/V1.3 with a designer in the loop).
