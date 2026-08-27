@@ -41,7 +41,7 @@ describe("/api/clients/[id]/moodboards", () => {
   it("GET lists the client's boards", async () => {
     vi.mocked(getClientById).mockResolvedValue({ id: "client-1", name: "Acme", org_id: "org-1" } as never);
     vi.mocked(listMoodboards).mockResolvedValue([
-      { id: "b1", client_id: "client-1", name: "Face cream", created_at: "t" },
+      { id: "b1", client_id: "client-1", name: "Face cream", board_type: "custom", created_at: "t" },
     ]);
     const { GET } = await import("./route");
     const res = await GET(new NextRequest("http://localhost/api/clients/client-1/moodboards"), { params });
@@ -53,7 +53,7 @@ describe("/api/clients/[id]/moodboards", () => {
 
   it("POST creates a board and returns 201", async () => {
     vi.mocked(getClientById).mockResolvedValue({ id: "client-1", name: "Acme", org_id: "org-1" } as never);
-    vi.mocked(createMoodboard).mockResolvedValue({ id: "b2", client_id: "client-1", name: "Hair oil", created_at: "t" });
+    vi.mocked(createMoodboard).mockResolvedValue({ id: "b2", client_id: "client-1", name: "Hair oil", board_type: "custom", created_at: "t" });
     const { POST } = await import("./route");
     const req = new NextRequest("http://localhost/api/clients/client-1/moodboards", {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: "Hair oil" }),

@@ -57,7 +57,7 @@ describe("/api/moodboards/[id]/items", () => {
 
   it("GET lists items", async () => {
     vi.mocked(listItems).mockResolvedValue([
-      { id: "i1", moodboard_id: "board-1", image_url: "https://x/y.jpg", source_url: null, position: 0, added_at: "t" },
+      { id: "i1", moodboard_id: "board-1", image_url: "https://x/y.jpg", source_url: null, kind: "image", note: null, added_by: null, thumbnail_url: null, position: 0, added_at: "t" },
     ]);
     const { GET } = await import("./route");
     const res = await GET(new NextRequest("http://localhost/api/moodboards/board-1/items"), { params });
@@ -68,7 +68,7 @@ describe("/api/moodboards/[id]/items", () => {
 
   it("POST adds an item and returns 201", async () => {
     vi.mocked(addItem).mockResolvedValue({
-      id: "i2", moodboard_id: "board-1", image_url: "https://x/z.jpg", source_url: "https://pin", position: 0, added_at: "t",
+      id: "i2", moodboard_id: "board-1", image_url: "https://x/z.jpg", source_url: "https://pin", kind: "image", note: null, added_by: null, thumbnail_url: null, position: 0, added_at: "t",
     });
     const { POST } = await import("./route");
     const req = new NextRequest("http://localhost/api/moodboards/board-1/items", {
