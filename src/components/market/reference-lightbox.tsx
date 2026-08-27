@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { embedUrlFor } from "@/lib/market/classify";
 import type { MoodboardItem } from "@/lib/db/moodboards";
 import { FullScreenImageZoom } from "@/components/shared/full-screen-image-zoom";
+import { InstagramEmbed } from "./instagram-embed";
 
 /** Plays a market reference: platform iframe for youtube/instagram/tiktok, native
  *  <video> for direct files, the shared zoom viewer for stills. Falls back to an
@@ -22,7 +23,10 @@ export function ReferenceLightbox({ item, onClose }: { item: MoodboardItem; onCl
       onClick={onClose}
     >
       <div className="flex max-h-full w-full max-w-3xl flex-col gap-3" onClick={(e) => e.stopPropagation()}>
-        {item.kind === "video" ? (
+        {item.kind === "instagram" ? (
+          // Instagram only plays through its own embed.js widget — see instagram-embed.tsx.
+          <InstagramEmbed url={item.source_url ?? item.image_url} />
+        ) : item.kind === "video" ? (
           <video
             src={item.image_url}
             controls

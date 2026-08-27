@@ -28,10 +28,29 @@ import { GalleryFolderTile } from "./gallery-folder-tile";
 import { DriveFolderPicker } from "./drive-folder-picker";
 import { GalleryAddUrl } from "./gallery-add-url";
 import { filenameFromUrl } from "@/lib/moodboards/filename";
+import type { ReferenceKind } from "@/lib/market/constants";
 import type { GalleryImage, GalleryTab, ViewMode } from "./types";
 import type { DriveBrowseItem } from "@/hooks/use-drive-browser";
 
 const MAX_SELECTION = 10;
+
+// Display labels for market references in the drawer. Stills keep their derived
+// filename; everything else is named by what it is, since a permalink has none.
+const KIND_LABEL: Partial<Record<ReferenceKind, string>> = {
+  instagram: "Instagram post",
+  tiktok: "TikTok",
+  youtube: "YouTube",
+  video: "Video",
+  link: "Link",
+};
+
+function hostOfUrl(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return url;
+  }
+}
 export const GALLERY_DRAG_MIME = "application/x-creativeos-gallery-image";
 
 const GHOST_THUMB = 84;
@@ -214,7 +233,13 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
         // thumbnail (or fall back to the raw URL, degrading like any dead image).
         imageUrl: it.thumbnail_url ?? it.image_url,
         previewUrl: it.thumbnail_url ?? it.image_url,
-        filename: filenameFromUrl(it.image_url),
+        // filenameFromUrl only yields something meaningful for direct image URLs; a
+        // post permalink has no extension, so every market reference would read
+        // "reference.jpg". Label those by what they actually are instead.
+        filename:
+          it.kind && it.kind !== "image" && it.kind !== "gif"
+            ? `${KIND_LABEL[it.kind] ?? "Reference"} · ${hostOfUrl(it.image_url)}`
+            : filenameFromUrl(it.image_url),
         subtitle: it.note ?? new Date(it.added_at).toLocaleDateString(),
         source: "moodboard" as const,
         sourceUrl: it.source_url ?? undefined,

@@ -3329,3 +3329,49 @@ The page is a day's shell — every heavy piece is shared with the drawer.
 **Rejected.** Drawer-only V1 (cramped distilling, MR must enter via a canvas);
 generation-injection surfaces (`compilePrompt` untouched — the 2026-08-17 Mode A returns
 at V1.2/V1.3 with a designer in the loop).
+
+### D190 — Thumbnails resolve through a four-layer chain; tokenless Instagram oEmbed has no thumbnail *(recorded 2026-08-27; corrects the oEmbed assumption in 2026-08-27-market-signals-v1-design.md §2)*
+
+**Decision.** `resolveThumbnailSource` tries, in order, stopping at the first hit:
+
+1. **Derived from the URL** — YouTube (`img.youtube.com/vi/<id>/hqdefault.jpg`). Zero
+   network calls; cannot break.
+2. **oEmbed** — the official API. Returns `thumbnail_url` only on the TOKEN tier.
+3. **`og:image`** — Open Graph on the page itself. One fetch, works across the open web.
+4. **`display_url`** — scraped from Instagram's `/embed` page JSON. Last resort.
+
+`kind: "link"` now resolves through step 3, so an article, a brand site or any other
+pasted page gets a preview instead of a bare tile. Direct media files (`video`) skip the
+chain — there is no HTML to read.
+
+**Why the order.** Cost and durability move together: step 1 makes no request and cannot
+break; step 2 is a published contract; step 3 is a published *standard*, so it covers
+sources we never special-cased; step 4 parses Meta's private JSON and will break on
+their schedule. Ordering this way means the fragile path runs only for the few cases
+nothing else covers, and when it does break the failure is one degraded tile.
+
+**The finding that forced this.** The design spec assumed IG/TikTok thumbnails come from
+oEmbed's `thumbnail_url`. Verified against the live endpoint 2026-08-27, tokenless
+Instagram oEmbed returns ONLY `{version, provider_name, provider_url, type, width, html}`
+— no `thumbnail_url` — and requesting the field explicitly (`fields=thumbnail_url`)
+answers `(#200) Provide valid app ID`. Every Instagram reference MR captured would
+therefore have rendered as a link tile, contradicting PRD §10's "primarily visual".
+
+**Why og:image outranks display_url even though both work.** On a live reel they resolve
+to the *same* asset (identical fbcdn image id, verified). But `og:image` is a standard
+that generalises to every other source, while `display_url` is one platform's internals.
+The Instagram post page does publish `og:image`; the `/embed` page does not, and vice
+versa for `display_url` — so keeping step 4 buys the case where the post page is gated
+but the embed endpoint still answers.
+
+**Rejected.** Registering a Meta app for token-tier oEmbed (adds an app + token to
+operate, for a field three other layers already provide); dropping `display_url` once
+og:image landed (it is the only route when the post page is gated); using the bare
+`instagram.com/p/<id>/embed` iframe for playback (renders a "View this post on
+Instagram" card, not a player — reels play only through the official blockquote +
+`embed.js` widget, hence `instagram-embed.tsx`).
+
+**Known limits.** Pinterest publishes neither `og:image` nor `display_url` server-side
+(JS-rendered), so a pin page still yields no thumbnail — right-clicking the image itself
+does. Deleted or private posts resolve to nothing by design; both the post and embed
+URLs return an identical generic shell, which is how the backfill detects them.

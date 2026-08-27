@@ -109,13 +109,16 @@ add path:
 1. **Classify the URL** → `kind`. Host/path patterns: `youtube.com|youtu.be` →
    `youtube`; `instagram.com/(p|reel|tv)/` → `instagram`; `tiktok.com` → `tiktok`;
    content-type / extension `image|gif|mp4…` → `image|gif|video`; anything else → `link`.
-2. **Fetch a thumbnail**, best-effort:
-   * YouTube: derived directly (`img.youtube.com/vi/{id}/hqdefault.jpg`) — no API.
-   * Instagram / TikTok: **oEmbed** `thumbnail_url`. Both endpoints are tokenless as of
-     2026 (Meta re-opened tokenless oEmbed for single public posts/reels on 2026-06-15;
-     TikTok's oEmbed is public). Verified 2026-08-27; primary sources:
-     developers.facebook.com/docs/instagram-platform/oembed,
-     developers.tiktok.com/doc/embed-videos.
+2. **Fetch a thumbnail**, best-effort, through the four-layer chain of **D190**
+   (this supersedes the original single-source oEmbed plan — see that entry for why):
+   * **Derived from the URL** — YouTube (`img.youtube.com/vi/{id}/hqdefault.jpg`), no API,
+     no network call.
+   * **oEmbed** — official, but note the correction: **tokenless Instagram oEmbed returns
+     no `thumbnail_url` at all** (verified against the live endpoint 2026-08-27;
+     `fields=thumbnail_url` answers "Provide valid app ID"). It stays first in the chain
+     only because it becomes correct if a Meta app token is ever configured.
+   * **`og:image`** — the general case, and what makes a plain `link` reference visual.
+   * **`display_url`** — scraped from Instagram's `/embed` page, last resort.
    * The fetched thumbnail is **re-hosted to GCS at add time** and stored in
      `thumbnail_url`. This is the deliberate, bounded exception to the D13/D92 URL-only
      rule: a thumbnail is small, and it is what lets a board survive a deleted post (the
@@ -253,10 +256,13 @@ cold-cache flake, passes warm).
 1. **File upload as a capture fallback** (screen-recorded Story, saved image with no
    public URL). `uploadNodeFile` exists so the path is cheap, but it's another control on
    the add form. Decide at build time with MR's actual first week of use — not blocking.
-2. **Instagram embeds in the lightbox require Meta's `embed.js`** on the page; if CSP or
-   the script's behaviour inside the app proves hostile, the fallback for `instagram`
-   kind is thumbnail + "open on Instagram" (still capture-safe; watchability degrades for
-   that provider only). TikTok same posture. YouTube (plain iframe) carries no such risk.
+2. ~~**Instagram embeds in the lightbox require Meta's `embed.js`**~~ — **RESOLVED
+   2026-08-27 (D190).** They do, and it is now implemented in
+   `src/components/market/instagram-embed.tsx`. The bare `instagram.com/p/<id>/embed`
+   iframe renders a "View this post on Instagram" card rather than a player, so the
+   official blockquote + `embed.js` widget is the only route to inline reel playback.
+   No CSP is configured in `next.config`, so the script loads. YouTube (plain
+   `youtube-nocookie` iframe) needs no third-party script.
 3. **Tokenless oEmbed rate limits** are not published precisely ("may differ" from the
    1,000/hr token tier). If MR's clip volume ever hits limits, the token-based tier is
    the unchanged escape hatch (needs a Meta app + token, no App Review for oEmbed read).
