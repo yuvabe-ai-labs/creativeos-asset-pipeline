@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import type { SignalWithItems } from "@/lib/db/signals";
 
 const MAX_THUMBS = 5;
@@ -9,17 +10,10 @@ export function SignalCard({ signal, onOpen }: { signal: SignalWithItems; onOpen
   const overflow = signal.items.length - shown.length;
 
   return (
-    <div
-      role="button"
-      tabIndex={0}
+    <Button
+      variant="ghost"
       onClick={onOpen}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onOpen();
-        }
-      }}
-      className="flex cursor-pointer flex-col gap-3 rounded-xl border border-border bg-card p-4 shadow-card transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5"
+      className="flex h-auto cursor-pointer flex-col items-stretch gap-3 whitespace-normal rounded-xl border border-border bg-card p-4 text-left shadow-card transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:bg-card"
     >
       <div className="flex flex-col gap-1.5">
         <h3 className="font-medium text-foreground">{signal.name}</h3>
@@ -70,6 +64,6 @@ export function SignalCard({ signal, onOpen }: { signal: SignalWithItems; onOpen
           day: "numeric",
         })}
       </p>
-    </div>
+    </Button>
   );
 }

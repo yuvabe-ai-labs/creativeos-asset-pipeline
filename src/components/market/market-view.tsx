@@ -1,16 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { MasonryPhotoAlbum } from "react-photo-album";
-import "react-photo-album/masonry.css";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { useImageDimensions } from "@/hooks/use-image-dimensions";
 import { useMarket } from "@/hooks/use-market";
 import type { MoodboardItem } from "@/lib/db/moodboards";
 import type { MarketBucket } from "@/lib/market/constants";
-import { AddReferenceForm } from "./add-reference-form";
+import { AddReferenceTile } from "./add-reference-tile";
+import { AddReferenceDialog } from "./add-reference-dialog";
 import { ReferenceTile } from "./reference-tile";
 import { ReferenceLightbox } from "./reference-lightbox";
 import { GroupAsSignalDialog } from "./group-as-signal-dialog";
@@ -19,66 +17,10 @@ import { SignalDetail } from "./signal-detail";
 
 type MarketTab = MarketBucket | "signals";
 
-type AlbumPhoto = {
-  key: string;
-  src: string;
-  width: number;
-  height: number;
-  item: MoodboardItem;
-};
-
-function ReferenceMasonry({
-  items,
-  selectedIds,
-  onToggle,
-  onOpen,
-}: {
-  items: MoodboardItem[];
-  selectedIds: Set<string>;
-  onToggle: (id: string) => void;
-  onOpen: (item: MoodboardItem) => void;
-}) {
-  const urls = useMemo(
-    () => items.map((it) => it.thumbnail_url ?? it.image_url),
-    [items],
-  );
-  const dimensions = useImageDimensions(urls);
-
-  const photos: AlbumPhoto[] = useMemo(
-    () =>
-      items.map((it) => {
-        const src = it.thumbnail_url ?? it.image_url;
-        const dim = dimensions.get(src) ?? { width: 400, height: 400 };
-        return { key: it.id, src, width: dim.width, height: dim.height, item: it };
-      }),
-    [items, dimensions],
-  );
-
-  return (
-    <MasonryPhotoAlbum
-      photos={photos}
-      columns={(width) => (width < 640 ? 2 : width < 1024 ? 3 : 4)}
-      spacing={8}
-      render={{
-        photo: (_, { photo, width, height }) => {
-          const p = photo as AlbumPhoto;
-          return (
-            <ReferenceTile
-              key={p.key}
-              item={p.item}
-              selected={selectedIds.has(p.item.id)}
-              selectable
-              width={width}
-              height={height}
-              onToggle={() => onToggle(p.item.id)}
-              onOpen={() => onOpen(p.item)}
-            />
-          );
-        },
-      }}
-    />
-  );
-}
+// CSS-columns masonry: children keep intrinsic height and flow into balanced columns,
+// so tiles stagger naturally AND non-image children (the dashed add tile) can sit in
+// the same grid — which a photo-album masonry, needing measured dimensions, cannot do.
+const MASONRY = "columns-2 gap-3 md:columns-3 lg:columns-4 [&>*]:mb-3 [&>*]:break-inside-avoid";
 
 export function MarketView({
   clientId,
@@ -92,6 +34,7 @@ export function MarketView({
   const [tab, setTab] = useState<MarketTab>("direct");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [previewItem, setPreviewItem] = useState<MoodboardItem | null>(null);
+  const [addBucket, setAddBucket] = useState<MarketBucket | null>(null);
   const [signalDialogOpen, setSignalDialogOpen] = useState(false);
   const [openSignalId, setOpenSignalId] = useState<string | null>(null);
 
@@ -123,36 +66,49 @@ export function MarketView({
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as MarketTab)}>
         <TabsList>
-          <TabsTrigger value="direct">Direct</TabsTrigger>
-          <TabsTrigger value="adjacent">Adjacent</TabsTrigger>
+          <TabsTrigger value="direct">
+            Direct{market.data?.direct.items.length ? ` (${market.data.direct.items.length})` : ""}
+          </TabsTrigger>
+          <TabsTrigger value="adjacent">
+            Adjacent
+            {market.data?.adjacent.items.length ? ` (${market.data.adjacent.items.length})` : ""}
+          </TabsTrigger>
           <TabsTrigger value="signals">
             Signals{market.data?.signals.length ? ` (${market.data.signals.length})` : ""}
           </TabsTrigger>
         </TabsList>
 
         {(["direct", "adjacent"] as const).map((bucket) => (
-          <TabsContent key={bucket} value={bucket} className="flex flex-col gap-4 pt-3">
-            <AddReferenceForm defaultBucket={bucket} onAdd={market.addReference} />
+          <TabsContent key={bucket} value={bucket} className="flex flex-col gap-3 pt-4">
+            <p className="text-sm text-muted-foreground">
+              {bucket === "direct"
+                ? "What competitors and the category are doing."
+                : "Interesting creative outside the category, worth learning from."}
+            </p>
             {market.loading ? (
               <p className="py-10 text-center text-sm text-muted-foreground">Loading…</p>
-            ) : (market.data?.[bucket].items.length ?? 0) === 0 ? (
-              <p className="py-10 text-center text-sm text-muted-foreground">
-                {bucket === "direct"
-                  ? "No direct references yet — paste a link above or clip one from the browser."
-                  : "No adjacent references yet — interesting creative outside the category lands here."}
-              </p>
             ) : (
-              <ReferenceMasonry
-                items={market.data![bucket].items}
-                selectedIds={selectedIds}
-                onToggle={toggle}
-                onOpen={setPreviewItem}
-              />
+              <div className={MASONRY}>
+                <AddReferenceTile
+                  label={`Add ${bucket === "direct" ? "Direct" : "Adjacent"} reference`}
+                  onClick={() => setAddBucket(bucket)}
+                />
+                {market.data?.[bucket].items.map((it) => (
+                  <ReferenceTile
+                    key={it.id}
+                    item={it}
+                    selected={selectedIds.has(it.id)}
+                    selectable
+                    onToggle={() => toggle(it.id)}
+                    onOpen={() => setPreviewItem(it)}
+                  />
+                ))}
+              </div>
             )}
           </TabsContent>
         ))}
 
-        <TabsContent value="signals" className="pt-3">
+        <TabsContent value="signals" className="pt-4">
           {openSignal ? (
             <SignalDetail
               signal={openSignal}
@@ -195,6 +151,13 @@ export function MarketView({
       )}
 
       {previewItem && <ReferenceLightbox item={previewItem} onClose={() => setPreviewItem(null)} />}
+
+      <AddReferenceDialog
+        open={addBucket !== null}
+        bucket={addBucket ?? "direct"}
+        onClose={() => setAddBucket(null)}
+        onAdd={market.addReference}
+      />
 
       <GroupAsSignalDialog
         open={signalDialogOpen}
