@@ -12,7 +12,21 @@ describe("resolveThumbnailSource", () => {
       "youtube",
       fetchImpl as unknown as typeof fetch,
     );
-    expect(out).toBe("https://img.youtube.com/vi/dQw4w9WgXcQ/hqdefault.jpg");
+    expect(out).toBe("https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg");
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  // Shorts are vertical: the landscape variants pillarbox them into black bars.
+  // `oardefault` is the 1080x1920 original-aspect frame and exists only for Shorts
+  // (404 on standard videos), so the two paths cannot collide.
+  it("uses the vertical oardefault frame for a Short, not the landscape default", async () => {
+    const fetchImpl = vi.fn();
+    const out = await resolveThumbnailSource(
+      "https://youtube.com/shorts/0gSk7f8O7Ik?si=abc",
+      "youtube",
+      fetchImpl as unknown as typeof fetch,
+    );
+    expect(out).toBe("https://i.ytimg.com/vi/0gSk7f8O7Ik/oardefault.jpg");
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 

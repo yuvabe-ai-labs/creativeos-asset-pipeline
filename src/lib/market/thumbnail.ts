@@ -12,7 +12,7 @@
 //
 // Every failure path returns null — capture must never fail on preview problems
 // (D185); a null thumbnail renders as a link tile.
-import { youtubeVideoId, embedUrlFor } from "./classify";
+import { youtubeVideoId, embedUrlFor, isYouTubeShort } from "./classify";
 import type { ReferenceKind } from "./constants";
 
 // Tokenless oEmbed endpoints. TikTok's is long-stable; Meta re-opened tokenless
@@ -118,7 +118,17 @@ export async function resolveThumbnailSource(
   // Derivable with no network call at all.
   if (kind === "youtube") {
     const id = youtubeVideoId(url);
-    return id ? `https://img.youtube.com/vi/${id}/hqdefault.jpg` : null;
+    if (!id) return null;
+    // A Short is vertical, and the standard variants are all landscape — maxresdefault
+    // pillarboxes it into a 16:9 frame with black bars down both sides. `oardefault`
+    // ("original aspect ratio") is the true 1080x1920 frame, and it exists ONLY for
+    // Shorts: verified 200 for a Short and 404 for a standard video, so the two paths
+    // never collide. Note oEmbed is no help here — it returns hq2.jpg, 480x360.
+    // `hqdefault` is the safe pick for standard videos: unlike maxresdefault it is
+    // always generated, so ingest never has to probe for a fallback.
+    return isYouTubeShort(url)
+      ? `https://i.ytimg.com/vi/${id}/oardefault.jpg`
+      : `https://i.ytimg.com/vi/${id}/hqdefault.jpg`;
   }
 
   // A direct media file has no HTML to read a preview from.
