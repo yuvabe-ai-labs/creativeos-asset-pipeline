@@ -3307,7 +3307,12 @@ the same reasoning D183 used to keep `negative_prompt` on Veo Lite after its fie
 `advanced` param group — the Advanced accordion was deleted from the focus view in `7e1c643`, so
 an `advanced` control renders nowhere, the trap `aspect_ratio` already fell into on Kling O1.
 
-### D188 — Script parsing is one parse and two planners, not two parses *(recorded 2026-08-28)*
+### D188 — Script parsing is one parse and two planners, not two parses *(recorded 2026-08-28; **SUPERSEDED same day by D193** — never implemented)*
+
+> **Superseded.** Planning moved off the script entirely. Grouping now happens at fan-out, greedily
+> and consecutively, capped at 10s, and is corrected by hand on the canvas — see D193. Retained
+> because the reasoning against *two parse prompts* still holds and should not be re-litigated: a
+> second parse would cost a call per toggle and discard manual edits to the parsed script.
 
 **Decision.** The parse stays canonical and unchanged. `ScriptNodeData.planMode` selects a
 *planner* that runs over the already-parsed `shots[]`: `per-shot` is an identity planner (one
@@ -3323,7 +3328,7 @@ planning entirely to the model's own `multi_shot` param — a Shot node would al
 shot, so several script beats could never reach one Omni generation, which is the whole reason to
 integrate a multi-shot model.
 
-### D189 — A returned shot plan is validated, never trusted *(recorded 2026-08-28; refines D188)*
+### D189 — A returned shot plan is validated, never trusted *(recorded 2026-08-28; **SUPERSEDED same day by D193** — never implemented)*
 
 **Decision.** `validateShotPlan` (pure, tested) checks every plan: block duration within the
 model's range, beats contiguous from 0 with no gaps or overlaps, final `to` equal to the block
@@ -3356,7 +3361,13 @@ invariant 2 still holding over its combined allocation.
 packer (durations parse out of free-text strings, and packing by arithmetic splits VO sentences
 and continuous camera moves — the user asked specifically for smart grouping).
 
-### D192 — References merge cast-first; frames are block-level tags, not params *(recorded 2026-08-28; refines D186, D190)*
+### D192 — References merge cast-first; frames are block-level tags, not params *(recorded 2026-08-28; **first half SUPERSEDED same day by D194** — never implemented)*
+
+> **Half superseded.** The cast-first merge order is moot: there is no cast, so every reference is a
+> connected File node in canvas order (D194). **The frame half stands** — Omni has no frame param,
+> `<FIRST_FRAME>` / `<LAST_FRAME>` are tags, a frame is per-generation rather than per-beat, an end
+> frame on a cut ladder warns rather than blocks, and continuity chains forward through
+> `derive-end-frame.ts`.
 
 **Decision.** A reference reaches a generation from either the script cast or an image node
 connected directly to the video-prompt / video-gen node. Both land in the same `UpstreamImage[]`
@@ -3387,7 +3398,11 @@ connect). Also rejected: a separate reference channel for direct connections —
 `assignImageRoles`, the role chips and the reference cap for no gain, since the two sources differ
 in provenance, not in kind.
 
-### D190 — The cast lives on Script data, is copied at fork, and reaches generation as tagged upstream images *(recorded 2026-08-28; refines D21)*
+### D190 — The cast lives on Script data, is copied at fork, and reaches generation as tagged upstream images *(recorded 2026-08-28; **SUPERSEDED same day by D194** — never implemented)*
+
+> **Superseded.** There is no cast. A reference is a File node connected downstream with the `+`
+> that `AddConnection` already provides, and the File node's title is the reference's name — see
+> D194.
 
 **Decision.** `ScriptNodeData.cast: CastMember[]` — `{ id, name, kind, description?, imageUrl? }`,
 ordered. `script-parse` (now version 2) proposes names and kinds only; images are operator-uploaded
@@ -3432,3 +3447,121 @@ keeps the generator writing prose, which it is good at, instead of arithmetic, w
 **Rejected.** Per-provider prompt text teaching each convention to the LLM. Also rejected:
 indexing over the whole script cast rather than the sent references — the reference cap and the
 operator's role assignment decide what ships, so a whole-cast index would point past the end.
+
+*(D191 stands. With the cast gone, "the sent references" are the connected File nodes in canvas
+order rather than cast members — the indexing rule is unchanged.)*
+
+### D193 — Multishot is a per-shot flag; fan-out groups greedily to 10s; turning it off splits *(recorded 2026-08-28; supersedes D188, D189; originated → 2026-08-28-gemini-omni-multishot-design.md)*
+
+**Decision.** `ShotNodeData.multishot: boolean`. `fanOutShots` gains a grouping pass that walks the
+parsed shots in order and packs consecutive ones until the next would exceed **10s**, producing a
+hybrid canvas — grouped nodes `multishot: true`, lone nodes `false`. Turning the toggle **off** on a
+grouped node **splits it into N Shot nodes**. There is no merge action. `script-parse` bumps to
+version 2 to emit `duration_seconds` per shot.
+
+**Why grouping moved to fan-out.** A multishot shot needs no new type: `visual_script.shots` is
+already an array, so a grouped node is one holding more than one entry. That collapses the plan
+object, the planner prompt, the validation layer and the block/beat types the superseded design
+needed — into one boolean and a loop.
+
+**Why greedy and consecutive, not seam-aware.** Finding narrative seams was the planner's job and
+its failure modes were invisible: a plan could be internally consistent and still lose footage.
+Greedy packing is legible — the operator sees the groups as nodes and fixes them with a toggle, in
+the place where the work already is. The cap is enforced twice: at fan-out, and again before the
+request.
+
+**Why `duration_seconds` rather than parsing the existing string.** `duration` is free text copied
+out of the script ("22-26 seconds", "3 sec", "0-3s"). Grouping needs arithmetic, and deriving it at
+fan-out would fail silently on the formats it did not anticipate. The model already reads the
+duration; it now also returns an integer. Missing or unparseable falls back to 4s, shown as assumed.
+
+**Why no merge.** Split is the operation that was asked for. A merge has real unanswered questions —
+which half's edits win, what happens to downstream nodes wired to each — and re-running fan-out
+already regroups. Easy to add once the need is real.
+
+**Rejected.** A fan-out dialog for bracketing groups before nodes exist (decides grouping before you
+can see it). Also rejected: 1:1 fan-out with a manual merge (the common case is grouped, so it
+front-loads work onto every script).
+
+### D194 — A reference is a File node; there is no cast *(recorded 2026-08-28; supersedes D190 and the merge-order half of D192)*
+
+**Decision.** References are ordinary File nodes connected to the **motion-prompt or video-gen**
+node with the `+` that `AddConnection` already renders on those focus views. The File node's title
+is the reference's name in the mention editor. No cast array, no script-level inputs, no new
+storage, no new UI.
+
+**Why.** Every piece the cast was going to provide already exists: File nodes hold images, the
+mention editor already lists connected file / draw / image-gen nodes with thumbnails and labels,
+`assignImageRoles` already assigns roles, and `AddConnection` already creates the edge. The cast
+would have added a parallel store for data the canvas already models, plus a copy-at-fork rule and
+a merge-by-name rule on re-parse.
+
+**Why they attach downstream, not to the Shot.** The video-gen route walks two levels — its own
+upstream plus the motion-prompt's. A File on the Shot node is three levels away and would never be
+found. One motion-prompt exists per shot, so attaching there is shot-level in every way that
+matters, and it needs no traversal change.
+
+**Rejected.** Naming connected nodes inline on the Shot panel (the File node's title already is the
+name). Also rejected: extending the traversal a level so refs could hang off the Shot — a change to
+resolution semantics for every node type, to save one edge.
+
+### D195 — Downstream nodes read the upstream multishot flag; video-gen filters the model list *(recorded 2026-08-28)*
+
+**Decision.** The motion-prompt node reads the upstream Shot's `multishot` and writes either a
+timecode ladder (multishot) or today's single-moment prompt plus *"In a single unbroken scene. No
+scene cuts."* (single). The video-gen node reads the same flag: multishot restricts the picker to
+**Gemini Omni** with the reason stated inline, and `duration` defaults to the sum of the node's
+`duration_seconds`, clamped 3–10 and **editable**.
+
+**Consequence — there is no `continuous_take` param.** The Shot's toggle already carries that
+decision. Two controls for one thing is precisely the pair that drifts apart, and the superseded
+draft had both.
+
+**Why the picker filters rather than warns.** Pointing a timecode ladder at Veo returns one
+continuous take with the ladder silently ignored — indistinguishable from a bug, after paying for
+it. A model that cannot honour the prompt should not be selectable for it.
+
+**Why duration is derived but editable.** The ladder in the prompt and `duration` on the request are
+the pair whose drift truncates footage at full price, so they agree by default. Locking it would
+prevent shortening a clip for a cheap test, which is a real thing to want.
+
+**Also decided:** a multishot Shot connects **straight to the motion-prompt node** — no image-gen
+stage. There is no start frame to generate; the generation is `text_to_video` from the shot's
+description plus any connected File references. The image-gen path stays available and unchanged for
+shots that want a still to animate.
+
+### D196 — Omni's real request shape, established by live probing *(recorded 2026-08-28; refines D185; corrects the superseded draft)*
+
+**Decision.** `generation_config.video_config` carries **`task` and nothing else**. `resolution`,
+`aspect_ratio`, `delivery` and `duration` all live in `response_format`, and **`duration` is a
+string** (`"8s"`). **`store: true` is required** whenever `delivery` is `"uri"`. `output_video` does
+not exist on the REST response — the video is read from `steps[]` → the `model_output` step's
+`video` content entry. `response_format.type` is the constant `"video"`, never a param and never
+surfaced in the UI.
+
+**Why this is recorded as a decision and not just a note.** The published Google documentation says
+the opposite on four of these points, and the superseded draft encoded the documentation. Anyone
+reading the docs later will "fix" the code back to a shape that 400s. Full evidence, including the
+zero-cost sentinel-key technique that established it, is in
+`docs/superpowers/specs/2026-08-28-gemini-omni-api-findings.md`.
+
+**Consequence.** `store: true` is forced rather than chosen, which means the interaction is stored
+and `previous_interaction_id` editing is available whenever the edit chain is wanted — no
+request-shape change needed to enable it later. The superseded draft had claimed `store: false`
+forfeited that.
+
+### D197 — Kling's `multi_shot` is hidden, not removed *(recorded 2026-08-28)*
+
+**Decision.** `multiShotParam` gets `visible: false` in both `kling30Params` and `klingO1Params`.
+Gemini Omni becomes the only multi-shot model surfaced in the UI.
+
+**Why hidden rather than deleted.** `visible: false` means "sent with `defaultValue`, never shown"
+— so the request shape is byte-identical, every persisted node keeps resolving, and Kling 3.0's
+end-frame rule that pins `multi_shot` stays valid and untouched. Deleting the param would make the
+route stop resolving a name that saved nodes still carry, and would require unwinding that rule.
+
+**Rejected.** Removing it from both param lists (larger blast radius for no user-visible gain).
+Also rejected: removing it from O1 only, which would leave two models claiming multi-shot.
+
+**Watch-item.** These are dead controls in the spec. If Kling multi-shot is never revisited, delete
+them in a later pass rather than leaving `visible: false` indefinitely.
