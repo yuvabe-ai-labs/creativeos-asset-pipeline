@@ -59,6 +59,7 @@ export function ReferenceLightbox({ item, onClose }: { item: MoodboardItem; onCl
             <Button
               variant="outline"
               size="sm"
+              nativeButton={false}
               render={
                 <a href={item.source_url ?? item.image_url} target="_blank" rel="noreferrer">
                   <ExternalLink className="size-3.5" strokeWidth={1.5} />
