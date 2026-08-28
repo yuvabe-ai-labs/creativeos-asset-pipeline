@@ -2,6 +2,7 @@ import "server-only";
 import type { VideoGenModelSpec } from "./types";
 import { veoLite, veoFast, veoQuality } from "./providers/veo";
 import { kling30, klingO1 } from "./providers/kling";
+import { geminiOmni } from "./providers/gemini-omni";
 
 export const videoGenRegistry: Record<string, VideoGenModelSpec> = {
   [veoLite.id]: veoLite,
@@ -9,6 +10,7 @@ export const videoGenRegistry: Record<string, VideoGenModelSpec> = {
   [veoQuality.id]: veoQuality,
   [kling30.id]: kling30,
   [klingO1.id]: klingO1,
+  [geminiOmni.id]: geminiOmni,
 };
 
 export const DEFAULT_VIDEO_MODEL_ID = "veo:veo-3.1-fast";

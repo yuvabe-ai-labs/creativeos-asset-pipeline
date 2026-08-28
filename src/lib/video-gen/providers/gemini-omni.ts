@@ -1,0 +1,206 @@
+import "server-only";
+import { logger } from "@trigger.dev/sdk/v3";
+import type { VideoGenInput, VideoGenResult, VideoGenModelSpec } from "../types";
+import { geminiOmniParams } from "../params/gemini-omni";
+import { GEMINI_OMNI_IMAGE_INPUTS, GEMINI_OMNI_RULES } from "../gemini-omni-shape";
+import { planOmniInput } from "../plan-omni-input";
+import { composeOmniPrompt } from "../compose-omni-prompt";
+import { fetchAsBase64 } from "./fetch-as-base64";
+
+const API_BASE = "https://generativelanguage.googleapis.com/v1beta";
+const OMNI_MODEL = "gemini-omni-1.1-flash";
+
+function getApiKey(): string {
+  // Deliberately the SAME key Veo uses — Omni is the Gemini API, not a separate product.
+  const key = process.env.GOOGLE_GENAI_API_KEY;
+  if (!key) throw new Error("Missing GOOGLE_GENAI_API_KEY");
+  return key;
+}
+
+const VALID_RESOLUTIONS = ["360p", "720p", "1080p", "4k"];
+const VALID_ASPECT_RATIOS = ["16:9", "9:16"];
+const MIN_DURATION = 3;
+const MAX_DURATION = 10;
+
+/**
+ * The clamped duration in seconds, as a NUMBER.
+ *
+ * Two consumers that must never disagree: the request body (which needs it as a string) and the
+ * `durationSeconds` reported back for costing. Reading the number back off the built request
+ * would yield NaN, since the wire value is "8s" — a zero-cost record for a video that really ran.
+ *
+ * Clamped rather than trusted: params/gemini-omni.ts is a static spec, and a node saved before a
+ * spec change still holds its old value with nothing re-validating it on load.
+ */
+export function omniDurationSeconds(params: Record<string, unknown>): number {
+  const parsed = Number(params.duration);
+  if (!Number.isFinite(parsed)) return 8;
+  return Math.min(MAX_DURATION, Math.max(MIN_DURATION, Math.round(parsed)));
+}
+
+/**
+ * D196 — everything dimensional lives HERE, not in video_config.
+ *
+ * Verified against the live API: `generation_config.video_config` accepts `task` and nothing else.
+ * It rejects `duration`, `resolution` and `aspect_ratio` with "Unknown parameter", contradicting
+ * Google's published documentation on all three. `duration` is a STRING ("8s") — the integer form
+ * returns "Invalid input at 'response_format'".
+ *
+ * `type` is the constant "video". It is never a param and is never surfaced in the UI.
+ *
+ * `delivery` is always "uri", not only above 4MB: completeGeneration already downloads a provider
+ * URI with x-goog-api-key and re-uploads to GCS, so the URI path needs no new machinery, while
+ * inline base64 would carry a whole video through this process's memory for no gain.
+ */
+export function buildOmniResponseFormat(
+  params: Record<string, unknown>,
+): Record<string, unknown> {
+  const resolution = String(params.resolution ?? "720p");
+  const ratio = String(params.aspect_ratio ?? "16:9");
+  return {
+    type: "video",
+    resolution: VALID_RESOLUTIONS.includes(resolution) ? resolution : "720p",
+    aspect_ratio: VALID_ASPECT_RATIOS.includes(ratio) ? ratio : "16:9",
+    delivery: "uri",
+    duration: `${omniDurationSeconds(params)}s`,
+  };
+}
+
+type OmniContent = { type: string; mime_type?: string; uri?: string; data?: string };
+type OmniStep = { type: string; content?: OmniContent[] };
+type OmniInteraction = {
+  id?: string;
+  status?: string;
+  steps?: OmniStep[];
+  error?: { message?: string };
+};
+
+/**
+ * The generated video's URI.
+ *
+ * `output_video` is an SDK-only convenience field — VERIFIED absent from the REST response, as the
+ * docs' own note says. The video lives in the `model_output` step's `video`-typed content entry.
+ */
+export function extractOmniVideoUri(interaction: OmniInteraction): string | undefined {
+  for (const step of interaction.steps ?? []) {
+    if (step.type !== "model_output") continue;
+    for (const content of step.content ?? []) {
+      if (content.type === "video" && content.uri) return content.uri;
+    }
+  }
+  return undefined;
+}
+
+/** `files/abc-123` from a download URI, for the Files API status check. */
+export function fileNameFromUri(uri: string): string | undefined {
+  const match = uri.match(/files\/([a-zA-Z0-9_-]+)/);
+  return match ? `files/${match[1]}` : undefined;
+}
+
+/**
+ * Best-effort readiness check on the returned Files object.
+ *
+ * Whether a delivery:"uri" file needs to reach ACTIVE before it can be downloaded is not verified
+ * — so this FAILS OPEN. A non-OK metadata response logs and returns rather than throwing, because
+ * completeGeneration downloads the URI itself and will surface a real failure there. Blocking a
+ * successful generation on an unverified endpoint would be the worse error.
+ */
+async function waitForFileReady(fileName: string): Promise<void> {
+  try {
+    const res = await fetch(`${API_BASE}/${fileName}`, {
+      headers: { "x-goog-api-key": getApiKey() },
+    });
+    if (!res.ok) {
+      logger.info("Omni file metadata unavailable — continuing", { fileName, status: res.status });
+      return;
+    }
+    const file = (await res.json()) as { state?: string };
+    logger.info("Omni file state", { fileName, state: file.state });
+  } catch (e) {
+    logger.info("Omni file check failed — continuing", {
+      fileName,
+      error: e instanceof Error ? e.message : "unknown",
+    });
+  }
+}
+
+async function generateWithOmni(input: VideoGenInput): Promise<VideoGenResult> {
+  // D186 mirrored server-side. The client evaluates the same rule, so this is the backstop for a
+  // caller that bypasses the UI — a named error now rather than a 400 minutes later.
+  if (input.endFrameUrl && !input.startFrameUrl) {
+    throw new Error("<LAST_FRAME> requires <FIRST_FRAME> — Omni cannot use an end frame alone");
+  }
+
+  const plan = planOmniInput({
+    startFrameUrl: input.startFrameUrl,
+    endFrameUrl: input.endFrameUrl,
+    referenceUrls: input.referenceUrls ?? [],
+  });
+
+  // Images first, in planOmniInput's order, then the text part last. The order IS the contract:
+  // @ImageN in the generated header counts this array from 1.
+  const imageParts = await Promise.all(
+    plan.uploads.map(async (upload) => {
+      const { imageBytes, mimeType } = await fetchAsBase64(upload.url);
+      return { type: "image", data: imageBytes, mime_type: mimeType };
+    }),
+  );
+
+  const text = composeOmniPrompt({ prompt: input.prompt, params: input.params, plan });
+
+  const res = await fetch(`${API_BASE}/interactions`, {
+    method: "POST",
+    headers: { "x-goog-api-key": getApiKey(), "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: OMNI_MODEL,
+      input: [...imageParts, { type: "text", text }],
+      // task and NOTHING else — video_config rejects every other key (D196).
+      generation_config: { video_config: { task: plan.task } },
+      response_format: buildOmniResponseFormat(input.params),
+      // REQUIRED by delivery:"uri" — the API returns 400 "store=true is required when response
+      // format has video delivery set to URI" without it. Not a preference. A useful side effect:
+      // the interaction is stored, so previous_interaction_id editing is available if the edit
+      // chain is ever built, with no request-shape change.
+      store: true,
+      // background:false returns the finished interaction synchronously, so there is no
+      // task-polling loop — verified.
+      background: false,
+      stream: false,
+    }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Omni create failed (${res.status}): ${body}`);
+  }
+
+  const interaction = (await res.json()) as OmniInteraction;
+  logger.info("Omni interaction", { id: interaction.id, status: interaction.status });
+
+  if (interaction.status === "failed") {
+    throw new Error(`Omni generation failed: ${interaction.error?.message ?? "unknown error"}`);
+  }
+
+  const videoUrl = extractOmniVideoUri(interaction);
+  if (!videoUrl) throw new Error("Omni completed but returned no video URI");
+
+  const fileName = fileNameFromUri(videoUrl);
+  if (fileName) await waitForFileReady(fileName);
+
+  // The REQUESTED duration — Omni returns none in its response. Read from the same helper the
+  // request used, never parsed back off the "8s" wire value.
+  return { videoUrl, durationSeconds: omniDurationSeconds(input.params) };
+}
+
+export const geminiOmni: VideoGenModelSpec = {
+  id: "gemini:gemini-omni-1.1-flash",
+  provider: "gemini",
+  label: "Gemini Omni 1.1 Flash",
+  pickerLabel: "Omni 1.1",
+  providerLabel: "Google",
+  maxDurationSeconds: 10,
+  imageInputs: GEMINI_OMNI_IMAGE_INPUTS,
+  params: geminiOmniParams,
+  rules: GEMINI_OMNI_RULES,
+  generate: generateWithOmni,
+};
