@@ -1,0 +1,990 @@
+<title>Omni Multi-Shot Pipeline</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Manrope:wght@400;500;600;700&display=swap">
+
+<style>
+  /* ── tokens: complete light palette on bare :root ─────────────────────── */
+  :root {
+    --ink:      #0b0f19;
+    --ink-2:    #52525b;
+    --ink-3:    #a1a1aa;
+    --line:     #e4e4e7;
+    --line-2:   #f1f1f3;
+    --bg:       #fafafa;
+    --card:     #ffffff;
+    --sunk:     #f7f7f8;
+    --brand:    #5829c7;
+    --brand-in: #ffffff;
+    --brand-t:  rgba(88,41,199,.08);
+    --brand-b:  rgba(88,41,199,.20);
+    --amber-bg: #fffbeb;
+    --amber-ln: #f0e3c4;
+    --amber-in: #92610b;
+    --code-bg:  #f4f4f5;
+    --shadow:   0 1px 2px rgba(11,15,25,.08), 0 6px 14px rgba(11,15,25,.10);
+    --ease:     cubic-bezier(0.22, 1, 0.36, 1);
+    --display:  "Clash Display", "Archivo", ui-sans-serif, system-ui, sans-serif;
+    --body:     "Gilroy", "Manrope", ui-sans-serif, system-ui, -apple-system, sans-serif;
+    --mono:     ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  /* system-dark (no stamp) — an explicit light choice still wins */
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ink:      #eceef4;
+      --ink-2:    #a2a8bb;
+      --ink-3:    #6c7286;
+      --line:     #262b3d;
+      --line-2:   #1d2233;
+      --bg:       #0b0f19;
+      --card:     #131828;
+      --sunk:     #0f1422;
+      --brand:    #9b7cf0;
+      --brand-in: #14091f;
+      --brand-t:  rgba(155,124,240,.13);
+      --brand-b:  rgba(155,124,240,.32);
+      --amber-bg: #241d0d;
+      --amber-ln: #4a3a15;
+      --amber-in: #e6c169;
+      --code-bg:  #1a2032;
+      --shadow:   0 1px 2px rgba(0,0,0,.40), 0 6px 16px rgba(0,0,0,.32);
+    }
+  }
+  /* explicit dark stamp */
+  :root[data-theme="dark"] {
+    --ink:      #eceef4;
+    --ink-2:    #a2a8bb;
+    --ink-3:    #6c7286;
+    --line:     #262b3d;
+    --line-2:   #1d2233;
+    --bg:       #0b0f19;
+    --card:     #131828;
+    --sunk:     #0f1422;
+    --brand:    #9b7cf0;
+    --brand-in: #14091f;
+    --brand-t:  rgba(155,124,240,.13);
+    --brand-b:  rgba(155,124,240,.32);
+    --amber-bg: #241d0d;
+    --amber-ln: #4a3a15;
+    --amber-in: #e6c169;
+    --code-bg:  #1a2032;
+    --shadow:   0 1px 2px rgba(0,0,0,.40), 0 6px 16px rgba(0,0,0,.32);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 15px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 56px 28px 110px; }
+
+  h1, h2, h3 { font-family: var(--display); margin: 0; letter-spacing: -0.015em; text-wrap: balance; }
+  h1 { font-size: 36px; font-weight: 600; line-height: 1.15; }
+  h2 { font-size: 21px; font-weight: 600; }
+  h3 { font-size: 14px; font-weight: 600; }
+  p  { margin: 9px 0; color: var(--ink-2); max-width: 68ch; }
+  .lede { font-size: 16.5px; margin-top: 14px; }
+  strong { color: var(--ink); font-weight: 600; }
+
+  code {
+    font-family: var(--mono); font-size: .86em;
+    background: var(--code-bg); color: var(--ink);
+    padding: 1.5px 5px; border-radius: 4px;
+  }
+
+  .eyebrow {
+    font-size: 10.5px; letter-spacing: .13em; text-transform: uppercase;
+    color: var(--ink-3); font-weight: 600;
+  }
+  .rule { height: 1px; background: var(--line); border: 0; margin: 11px 0 24px; }
+  section { margin-top: 60px; }
+
+  .tags { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 20px; }
+  .tag {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .02em;
+    color: var(--brand); background: var(--brand-t);
+    border: 1px solid var(--brand-b); border-radius: 99px; padding: 4px 11px;
+  }
+  .tag.n { color: var(--ink-2); background: var(--sunk); border-color: var(--line); }
+
+  /* ── card + diagram scaffold ──────────────────────────────────────────── */
+  .card {
+    border: 1px solid var(--line); border-radius: 14px; background: var(--card);
+    box-shadow: var(--shadow); overflow: hidden; margin-top: 22px;
+  }
+  .card-hd {
+    padding: 13px 18px; border-bottom: 1px solid var(--line-2);
+    display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+  }
+  .card-bd { padding: 20px 18px; }
+  .card-bd.scroll { overflow-x: auto; }
+  .card-note {
+    padding: 12px 18px; border-top: 1px solid var(--line-2);
+    background: var(--sunk); font-size: 12.5px; color: var(--ink-2);
+  }
+  .card-note p { margin: 0; max-width: none; font-size: 12.5px; }
+
+  /* ── flow diagram ─────────────────────────────────────────────────────── */
+  .flow { display: flex; align-items: stretch; gap: 0; min-width: 900px; }
+  .node {
+    flex: 1; border: 1px solid var(--line); border-radius: 10px;
+    background: var(--card); padding: 12px 13px; min-width: 0;
+  }
+  .node.hi { border-color: var(--brand-b); background: var(--brand-t); }
+  .node .nm {
+    font-family: var(--display); font-weight: 600; font-size: 12.5px;
+    color: var(--ink); display: block; margin-bottom: 3px;
+  }
+  .node .ds { font-size: 11.5px; line-height: 1.5; color: var(--ink-2); display: block; }
+  .node .tk { font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); display: block; margin-top: 6px; }
+  .arw {
+    flex: 0 0 30px; display: flex; align-items: center; justify-content: center;
+    color: var(--ink-3); font-size: 15px; user-select: none;
+  }
+
+  /* ── planner comparison ───────────────────────────────────────────────── */
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  @media (max-width: 760px) { .split { grid-template-columns: 1fr; } }
+
+  .pane { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--card); }
+  .pane-hd {
+    padding: 11px 14px; border-bottom: 1px solid var(--line-2);
+    display: flex; align-items: center; gap: 9px; justify-content: space-between;
+  }
+  .pane-hd .lbl { font-family: var(--display); font-weight: 600; font-size: 13px; }
+  .pane.on { border-color: var(--brand-b); }
+  .pane.on .pane-hd { background: var(--brand-t); }
+  .pane-bd { padding: 14px; display: grid; gap: 9px; }
+
+  .pill {
+    font-family: var(--mono); font-size: 10px; letter-spacing: .04em;
+    padding: 3px 8px; border-radius: 99px; white-space: nowrap;
+    border: 1px solid var(--line); background: var(--sunk); color: var(--ink-2);
+  }
+  .pill.b { border-color: var(--brand-b); background: var(--brand-t); color: var(--brand); }
+
+  .shotcard {
+    border: 1px solid var(--line); border-radius: 8px; background: var(--sunk);
+    padding: 9px 11px; font-size: 12px; color: var(--ink-2);
+  }
+  .shotcard .hd {
+    font-family: var(--display); font-weight: 600; font-size: 11.5px;
+    color: var(--ink); margin-bottom: 5px; display: flex; gap: 8px; align-items: baseline;
+  }
+  .shotcard .hd .secs { font-family: var(--mono); font-size: 10px; color: var(--ink-3); font-weight: 400; }
+  .beat {
+    display: grid; grid-template-columns: 56px 1fr; gap: 8px;
+    font-size: 11.5px; line-height: 1.55; padding: 2px 0;
+  }
+  .beat .tc { font-family: var(--mono); font-size: 10.5px; color: var(--brand); }
+
+  /* ── index-base comparison ────────────────────────────────────────────── */
+  .castrow { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 4px; }
+  .castchip {
+    display: flex; align-items: center; gap: 8px;
+    border: 1px solid var(--line); border-radius: 8px; padding: 6px 11px 6px 7px; background: var(--sunk);
+  }
+  .swatch { width: 26px; height: 26px; border-radius: 5px; flex: none; }
+  .castchip .cn { font-size: 12px; font-weight: 600; color: var(--ink); line-height: 1.25; }
+  .castchip .ck { font-size: 10px; color: var(--ink-3); text-transform: uppercase; letter-spacing: .08em; }
+
+  .three { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 16px; }
+  @media (max-width: 760px) { .three { grid-template-columns: 1fr; } }
+  .basecol { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .basecol .bh {
+    padding: 9px 12px; border-bottom: 1px solid var(--line-2); background: var(--sunk);
+    display: flex; justify-content: space-between; align-items: baseline; gap: 8px;
+  }
+  .basecol .bh .pv { font-family: var(--display); font-weight: 600; font-size: 12px; }
+  .basecol .bh .bs { font-family: var(--mono); font-size: 10px; color: var(--ink-3); }
+  .basecol .bb { padding: 11px 12px; display: grid; gap: 6px; }
+  .basecol .bb .rendered {
+    font-family: var(--mono); font-size: 11.5px; color: var(--ink);
+    display: flex; align-items: center; gap: 7px;
+  }
+  .dot { width: 12px; height: 12px; border-radius: 3px; flex: none; }
+
+  /* ── prompt preview mockup ────────────────────────────────────────────── */
+  .prose-mock {
+    border: 1px solid var(--line); border-radius: 9px; padding: 13px 14px;
+    background: var(--card); font-size: 12.5px; line-height: 2.1; color: var(--ink-2);
+  }
+  .prose-mock .tc { font-family: var(--mono); font-size: 11px; color: var(--brand); }
+  .raw { font-family: var(--mono); font-size: 11.5px; color: var(--ink-3); }
+  .inline-chip {
+    display: inline-flex; align-items: center; gap: 5px; vertical-align: baseline;
+    background: var(--brand-t); border: 1px solid var(--brand-b); border-radius: 5px;
+    padding: 1px 7px 1px 3px; margin: 0 1px; color: var(--brand);
+    font-size: 11.5px; font-weight: 600; font-family: var(--body);
+  }
+  .inline-chip .swatch { width: 15px; height: 15px; border-radius: 3px; }
+
+  /* ── cast strip mockup ────────────────────────────────────────────────── */
+  .strip { display: flex; gap: 11px; flex-wrap: wrap; }
+  .castcard {
+    width: 132px; border: 1px solid var(--line); border-radius: 10px;
+    overflow: hidden; background: var(--card);
+  }
+  .castcard .thumb { height: 78px; display: block; }
+  .castcard .meta { padding: 8px 10px 9px; }
+  .castcard .nm { font-size: 12.5px; font-weight: 600; color: var(--ink); line-height: 1.3; }
+  .castcard .kd { font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); margin-top: 2px; }
+  .castcard.empty .thumb { background: var(--sunk); border-bottom: 1px dashed var(--line); }
+  .addcard {
+    width: 132px; border: 1px dashed var(--brand-b); border-radius: 10px;
+    background: var(--brand-t); color: var(--brand);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 4px; font-size: 12px; font-weight: 600; min-height: 118px;
+    transition: background 200ms var(--ease);
+  }
+  .addcard .plus { font-size: 19px; line-height: 1; font-weight: 400; }
+
+  /* ── tables ───────────────────────────────────────────────────────────── */
+  table { border-collapse: collapse; width: 100%; font-size: 13px; min-width: 560px; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line-2); vertical-align: top; }
+  th {
+    font-size: 10.5px; letter-spacing: .09em; text-transform: uppercase;
+    color: var(--ink-3); font-weight: 600; border-bottom-color: var(--line);
+  }
+  td { color: var(--ink-2); }
+  td:first-child { color: var(--ink); font-weight: 500; }
+  tbody tr:last-child td { border-bottom: 0; }
+  .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+  /* ── build steps ──────────────────────────────────────────────────────── */
+  .steps { display: grid; gap: 11px; margin-top: 22px; counter-reset: s; }
+  .step {
+    display: grid; grid-template-columns: 34px 1fr; gap: 15px; align-items: start;
+    border: 1px solid var(--line); border-radius: 11px; background: var(--card);
+    padding: 14px 16px; box-shadow: var(--shadow);
+  }
+  .step .idx {
+    width: 34px; height: 34px; border-radius: 9px; background: var(--brand); color: var(--brand-in);
+    font-family: var(--display); font-weight: 600; font-size: 14px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .step .ti { font-family: var(--display); font-weight: 600; font-size: 14px; color: var(--ink); }
+  .step p { margin: 5px 0 0; font-size: 13px; }
+
+  /* ── flags ────────────────────────────────────────────────────────────── */
+  .flag {
+    border: 1px solid var(--amber-ln); background: var(--amber-bg);
+    border-radius: 11px; padding: 14px 16px; margin-top: 18px;
+  }
+  .flag .ft {
+    font-family: var(--display); font-weight: 600; font-size: 13px;
+    color: var(--amber-in); margin-bottom: 4px;
+  }
+  .flag p { color: var(--amber-in); margin: 0; font-size: 13px; opacity: .92; }
+
+  .out { display: grid; gap: 9px; margin-top: 18px; }
+  .outrow {
+    display: grid; grid-template-columns: 190px 1fr; gap: 14px;
+    border: 1px solid var(--line); border-radius: 10px; padding: 11px 14px; background: var(--card);
+    font-size: 13px; color: var(--ink-2);
+  }
+  @media (max-width: 620px) { .outrow { grid-template-columns: 1fr; gap: 4px; } }
+  .outrow .on { font-family: var(--display); font-weight: 600; font-size: 12.5px; color: var(--ink); }
+
+  footer { margin-top: 70px; padding-top: 22px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--ink-3); }
+  footer p { color: var(--ink-3); font-size: 12.5px; }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+
+<div class="wrap">
+
+  <header>
+    <p class="eyebrow">Design spec &middot; ADR D184&ndash;D191 &middot; 28 Aug 2026</p>
+    <h1>Omni Multi-Shot Pipeline</h1>
+    <p class="lede">
+      Integrating <strong>Gemini Omni 1.1 Flash</strong> into the asset pipeline &mdash; a model with
+      no shot-count field, no negative-prompt field, and no audio switch, that <strong>cuts between
+      shots by default</strong>. The prompt <em>is</em> the storyboard. That single property is what
+      reshapes script parsing, the reference model, and three UI surfaces.
+    </p>
+    <div class="tags">
+      <span class="tag">gemini-omni-1.1-flash</span>
+      <span class="tag n">8 decisions</span>
+      <span class="tag n">3&ndash;10s &middot; 24fps</span>
+      <span class="tag n">$0.03&ndash;$0.30 / sec</span>
+      <span class="tag n">16:9 &middot; 9:16</span>
+    </div>
+  </header>
+
+  <!-- ─────────────────────────────────────────────────────────────────── -->
+  <section>
+    <p class="eyebrow">01 &middot; The pipeline</p>
+    <h2>Where the new pieces sit</h2>
+    <hr class="rule">
+    <p>
+      Four additions to an existing chain. The parse stays exactly where it is and keeps producing
+      the same canonical <code>shots[]</code>; everything new hangs off it.
+    </p>
+
+    <div class="card">
+      <div class="card-bd scroll">
+        <div class="flow">
+          <div class="node">
+            <span class="nm">Script</span>
+            <span class="ds">Raw script text, pasted or uploaded</span>
+            <span class="tk">source</span>
+          </div>
+          <div class="arw">&rarr;</div>
+          <div class="node">
+            <span class="nm">Parse</span>
+            <span class="ds">LLM, runs once. Now also proposes the cast.</span>
+            <span class="tk">v2 &middot; shots[] + cast[]</span>
+          </div>
+          <div class="arw">&rarr;</div>
+          <div class="node hi">
+            <span class="nm">Planner</span>
+            <span class="ds">Per-shot or multi-shot. Toggle is free &mdash; no re-parse.</span>
+            <span class="tk">planMode &middot; plan.blocks[]</span>
+          </div>
+          <div class="arw">&rarr;</div>
+          <div class="node">
+            <span class="nm">Shot &times; N</span>
+            <span class="ds">One per block. Carries a copy of script + cast.</span>
+            <span class="tk">shotIndexes[]</span>
+          </div>
+          <div class="arw">&rarr;</div>
+          <div class="node">
+            <span class="nm">Video prompt</span>
+            <span class="ds">Writes the ladder. Emits mention tokens, never indices.</span>
+            <span class="tk">@[Priya](id)</span>
+          </div>
+          <div class="arw">&rarr;</div>
+          <div class="node hi">
+            <span class="nm">Video gen</span>
+            <span class="ds">Roles assigned, indices resolved, request built</span>
+            <span class="tk">&lt;IMAGE_REF_0&gt;</span>
+          </div>
+        </div>
+      </div>
+      <div class="card-note">
+        <p>
+          Purple marks what's new in behaviour rather than in code volume. The cast reaches
+          generation by entering the video-gen node's <strong>existing upstream image list</strong>,
+          tagged with its name &mdash; so role chips, the reference cap, the constraint state and the
+          shot spine all keep working untouched.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────────────────────────────────────────────── -->
+  <section>
+    <p class="eyebrow">02 &middot; D188</p>
+    <h2>One parse, two planners</h2>
+    <hr class="rule">
+    <p>
+      The same parsed script, planned two ways. <strong>Per-shot</strong> is the identity planner &mdash;
+      one block per shot, no LLM call. <strong>Multi-shot</strong> packs shots into &le;10s timecode
+      blocks, because Omni cuts natively and a shot-per-generation wastes the model entirely.
+    </p>
+
+    <div class="card">
+      <div class="card-hd">
+        <span class="eyebrow">Source</span>
+        <span style="font-size:13px;color:var(--ink-2)">
+          5 parsed shots &middot; 22s reel &middot; VO across shots 2&ndash;4
+        </span>
+      </div>
+      <div class="card-bd">
+        <div class="split">
+
+          <div class="pane">
+            <div class="pane-hd">
+              <span class="lbl">Per-shot</span>
+              <span class="pill">5 generations</span>
+            </div>
+            <div class="pane-bd">
+              <div class="shotcard">
+                <div class="hd">Shot 1 <span class="secs">4s</span></div>
+                Hands lift the jar from a linen surface, morning light
+              </div>
+              <div class="shotcard">
+                <div class="hd">Shot 2 <span class="secs">5s</span></div>
+                Macro &mdash; the balm catches light as the lid turns
+              </div>
+              <div class="shotcard">
+                <div class="hd">Shot 3 <span class="secs">4s</span></div>
+                Priya smooths it along her forearm, unhurried
+              </div>
+              <div class="shotcard">
+                <div class="hd">Shot 4 <span class="secs">5s</span></div>
+                She sets the jar down beside a cup of tea
+              </div>
+              <div class="shotcard">
+                <div class="hd">Shot 5 <span class="secs">4s</span></div>
+                Hero hold &mdash; label readable, CTA-safe negative space
+              </div>
+            </div>
+          </div>
+
+          <div class="pane on">
+            <div class="pane-hd">
+              <span class="lbl">Multi-shot</span>
+              <span class="pill b">3 generations</span>
+            </div>
+            <div class="pane-bd">
+              <div class="shotcard">
+                <div class="hd">Block 1 <span class="secs">9s &middot; shots 1&ndash;2</span></div>
+                <div class="beat"><span class="tc">[0&ndash;4s]</span><span>Hands lift the jar from a linen surface, morning light</span></div>
+                <div class="beat"><span class="tc">[4&ndash;9s]</span><span>Macro &mdash; the balm catches light as the lid turns</span></div>
+              </div>
+              <div class="shotcard">
+                <div class="hd">Block 2 <span class="secs">9s &middot; shots 3&ndash;4</span></div>
+                <div class="beat"><span class="tc">[0&ndash;4s]</span><span>Priya smooths it along her forearm, unhurried</span></div>
+                <div class="beat"><span class="tc">[4&ndash;9s]</span><span>She sets the jar down beside a cup of tea</span></div>
+              </div>
+              <div class="shotcard">
+                <div class="hd">Block 3 <span class="secs">4s &middot; shot 5</span></div>
+                <div class="beat"><span class="tc">[0&ndash;4s]</span><span>Hero hold &mdash; label readable, CTA-safe negative space</span></div>
+              </div>
+              <div class="shotcard" style="background:var(--brand-t);border-color:var(--brand-b);color:var(--brand)">
+                <div class="hd" style="color:var(--brand)">22s in &rarr; 22s out</div>
+                Shot 5 gets its own short block rather than being squeezed into
+                Block 2: 4+5+4 is 13s, over the hard 10s ceiling. A block is
+                closed by the ceiling, and the leftover opens the next one.
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+      <div class="card-note">
+        <p>
+          <strong>Toggling costs nothing.</strong> Both planners run over the already-parsed
+          <code>shots[]</code>, so switching never re-runs the parse and never discards manual
+          edits &mdash; the parse is the operator's working document, not a cache.
+          <strong>Fewer generations is not the goal</strong> &mdash; conserving the script is.
+          Packing is bounded by the 10s ceiling, so a 22s reel is three generations, not two.
+        </p>
+      </div>
+    </div>
+
+    <div class="flag">
+      <div class="ft">D189 &mdash; the plan is validated, never trusted</div>
+      <p>
+        Omni's timecodes are a <em>request</em>, not a configuration. A ladder whose beats don't sum
+        to <code>duration</code> returns a truncated ending at full price. Every returned plan is
+        checked, and a failing plan is rejected in favour of a deterministic seam-packer. The LLM
+        supplies judgement about where the seams are; it is not trusted with arithmetic.
+      </p>
+      <p style="margin-top:9px">
+        <strong>Conservation is the guardrail that matters most.</strong>
+        &sum; block durations must equal &sum; shot durations, and each shot's allocated time must
+        equal its parsed duration. The per-block checks alone are not enough: a plan can be
+        internally consistent in every block and still quietly drop four seconds of script, and
+        nothing downstream would ever generate them.
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="card-hd">
+        <span class="eyebrow">Guardrails</span>
+        <span style="font-size:13px;color:var(--ink-2)">Checked on every returned plan</span>
+      </div>
+      <div class="card-bd scroll" style="padding:4px 0 0">
+        <table>
+          <thead><tr><th>Invariant</th><th>Scope</th><th>Catches</th></tr></thead>
+          <tbody>
+            <tr><td>&sum; blocks = &sum; shots</td><td>Whole plan</td><td>Silently dropped footage &mdash; the one that bit this spec</td></tr>
+            <tr><td>Shot time preserved</td><td>Per shot</td><td>A 5s beat quietly compressed to 3s</td></tr>
+            <tr><td>Every index accounted for</td><td>Whole plan</td><td>A shot omitted, duplicated, or reordered</td></tr>
+            <tr><td>Block &le; 10s</td><td>Per block</td><td>A request over the hard ceiling</td></tr>
+            <tr><td>Beats contiguous from 0</td><td>Per block</td><td>Gaps and overlaps in the ladder</td></tr>
+            <tr><td>Final <code>to</code> = duration</td><td>Per block</td><td>A truncated ending at full price</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="card-note">
+        <p>
+          A shot longer than 10s cannot fit one generation, so it may span blocks &mdash; but only at
+          a beat boundary, and its total allocated time must still equal its duration. That is the
+          single exception to &ldquo;a shot belongs to one block&rdquo;.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────────────────────────────────────────────── -->
+  <section>
+    <p class="eyebrow">03 &middot; D190</p>
+    <h2>A cast at the script level</h2>
+    <hr class="rule">
+    <p>
+      Characters, props and style anchors live on the Script node, are proposed by the parse, and
+      are copied into each forked Shot &mdash; the same seed-and-fork the script text already uses.
+      <code>kind</code> is load-bearing, not decoration: Omni assigns a reference's role
+      <strong>by the sentence its tag sits in</strong>, so a <code>style</code> member renders as
+      <em>&ldquo;in the style of&hellip;&rdquo;</em> and a <code>character</code> as
+      <em>&ldquo;the woman&hellip;&rdquo;</em>.
+    </p>
+
+    <div class="card">
+      <div class="card-hd">
+        <span class="eyebrow">Script focus view</span>
+        <span style="font-size:13px;color:var(--ink-2)">Cast strip &mdash; after parsing</span>
+      </div>
+      <div class="card-bd">
+        <div class="strip">
+          <div class="castcard">
+            <div class="thumb" style="background:linear-gradient(150deg,#c8a488,#8a6247)"></div>
+            <div class="meta"><div class="nm">Priya</div><div class="kd">Character</div></div>
+          </div>
+          <div class="castcard">
+            <div class="thumb" style="background:linear-gradient(150deg,#e8e2d4,#b9ad93)"></div>
+            <div class="meta"><div class="nm">The jar</div><div class="kd">Prop</div></div>
+          </div>
+          <div class="castcard">
+            <div class="thumb" style="background:linear-gradient(150deg,#cbd5cf,#7d918a)"></div>
+            <div class="meta"><div class="nm">Morning linen</div><div class="kd">Style</div></div>
+          </div>
+          <div class="castcard empty">
+            <div class="thumb"></div>
+            <div class="meta"><div class="nm" style="color:var(--ink-3)">Tea cup</div><div class="kd">Prop &middot; no image</div></div>
+          </div>
+          <div class="addcard"><span class="plus">+</span><span>Add character</span></div>
+        </div>
+      </div>
+      <div class="card-note">
+        <p>
+          The parse proposes <strong>names and kinds only</strong> &mdash; never images. A re-parse
+          <strong>merges by name and preserves every upload</strong>; a name that disappears from
+          the script is kept rather than deleted, because the operator may have renamed it
+          deliberately. Nothing destroys an upload.
+        </p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-hd">
+        <span class="eyebrow">Two sources, one ordered list</span>
+        <span style="font-size:13px;color:var(--ink-2)">The cast is not the only way in</span>
+      </div>
+      <div class="card-bd">
+        <p style="margin-top:0">
+          A reference can come from the script cast <em>or</em> from an image node connected
+          straight to the motion-prompt or video-gen node. Both land in the
+          <strong>same</strong> <code>UpstreamImage[]</code> list and get identical Start / End / Ref
+          chips &mdash; the cast is reusable across every shot, a direct connection is a one-off for
+          this shot only.
+        </p>
+        <div class="out" style="margin-top:16px">
+          <div class="outrow">
+            <span class="on">1 &middot; Cast members</span>
+            <span>In cast order, from the Script node. Script-level, inherited by every forked Shot.</span>
+          </div>
+          <div class="outrow">
+            <span class="on">2 &middot; Direct connections</span>
+            <span>In canvas connection order, after the cast. One-off, this node only.</span>
+          </div>
+        </div>
+      </div>
+      <div class="card-note">
+        <p>
+          <strong>Order is fixed, and that is the point.</strong> <code>&lt;IMAGE_REF_N&gt;</code> is
+          positional, so a mixed list without a rule would renumber the whole cast the moment you
+          connected a one-off. Cast first means appending a direct ref only ever adds an index at
+          the end. A direct ref has no cast <code>kind</code>, so it defaults to
+          <strong>subject</strong> phrasing, with a kind selector on its role row for the cases where
+          it is really a style anchor.
+        </p>
+      </div>
+    </div>
+
+    <div class="flag">
+      <div class="ft">Accepted cost</div>
+      <p>
+        Editing a cast image at script level <strong>after</strong> forking will not propagate to
+        already-forked Shots. That's the same trade the script text already makes under D21, so the
+        model stays uniform &mdash; but it is a real limitation, and binding cast entries to canvas
+        nodes instead remains available if it bites in practice.
+      </p>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────────────────────────────────────────────── -->
+  <section>
+    <p class="eyebrow">04 &middot; D186 + D191</p>
+    <h2>Three index bases, one renderer</h2>
+    <hr class="rule">
+    <p>
+      This is the subtlest thing in the build and the one that fails silently. The prompt-writing
+      LLM emits <strong>mention tokens only</strong>. Indices are assigned once, in code, per
+      generation &mdash; over just the references actually being sent.
+    </p>
+
+    <div class="card">
+      <div class="card-hd"><span class="eyebrow">One cast, sent as references</span></div>
+      <div class="card-bd">
+        <div class="castrow">
+          <div class="castchip">
+            <span class="swatch" style="background:linear-gradient(150deg,#c8a488,#8a6247)"></span>
+            <span><span class="cn">Priya</span><br><span class="ck">Character</span></span>
+          </div>
+          <div class="castchip">
+            <span class="swatch" style="background:linear-gradient(150deg,#e8e2d4,#b9ad93)"></span>
+            <span><span class="cn">The jar</span><br><span class="ck">Prop</span></span>
+          </div>
+          <div class="castchip">
+            <span class="swatch" style="background:linear-gradient(150deg,#cbd5cf,#7d918a)"></span>
+            <span><span class="cn">Morning linen</span><br><span class="ck">Style</span></span>
+          </div>
+        </div>
+
+        <div class="three">
+          <div class="basecol">
+            <div class="bh"><span class="pv">Veo &middot; Sora</span><span class="bs">ordinal</span></div>
+            <div class="bb">
+              <span class="rendered"><span class="dot" style="background:#8a6247"></span>the first image</span>
+              <span class="rendered"><span class="dot" style="background:#b9ad93"></span>the second image</span>
+              <span class="rendered"><span class="dot" style="background:#7d918a"></span>the third image</span>
+            </div>
+          </div>
+          <div class="basecol">
+            <div class="bh"><span class="pv">Kling</span><span class="bs">1-based</span></div>
+            <div class="bb">
+              <span class="rendered"><span class="dot" style="background:#8a6247"></span>@image_1</span>
+              <span class="rendered"><span class="dot" style="background:#b9ad93"></span>@image_2</span>
+              <span class="rendered"><span class="dot" style="background:#7d918a"></span>@image_3</span>
+            </div>
+          </div>
+          <div class="basecol" style="border-color:var(--brand-b)">
+            <div class="bh" style="background:var(--brand-t)">
+              <span class="pv" style="color:var(--brand)">Gemini Omni</span>
+              <span class="bs" style="color:var(--brand)">0-based</span>
+            </div>
+            <div class="bb">
+              <span class="rendered"><span class="dot" style="background:#8a6247"></span>&lt;IMAGE_REF_0&gt;</span>
+              <span class="rendered"><span class="dot" style="background:#b9ad93"></span>&lt;IMAGE_REF_1&gt;</span>
+              <span class="rendered"><span class="dot" style="background:#7d918a"></span>&lt;IMAGE_REF_2&gt;</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="card-note">
+        <p>
+          Worse, Omni's own declaration header carries <strong>two bases in one line</strong>:
+          <code>@ImageN</code> counts the whole upload array from <strong>1</strong>, while
+          <code>&lt;IMAGE_REF_N&gt;</code> counts the references sub-array from <strong>0</strong>.
+          So the provider always generates the explicit header from
+          <code>assignImageRoles()</code> output &mdash; never simple inline tags, even when roles
+          look unambiguous.
+        </p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-hd"><span class="eyebrow">Generated header &mdash; always, never hand-written</span></div>
+      <div class="card-bd scroll">
+        <div class="prose-mock raw" style="line-height:1.9;white-space:pre">[# Sources &lt;FIRST_FRAME&gt;@Image1] [# References &lt;IMAGE_REF_0&gt;@Image2 &lt;IMAGE_REF_1&gt;@Image3]
+
+[0-4s] Priya &lt;IMAGE_REF_0&gt; lifts the jar &lt;IMAGE_REF_1&gt; from linen, a slow push-in
+       at a constant focal length. Low morning sun from camera-left.
+
+Sound design: ambience and foley only. No dialogue. No extra sound effects.
+Avoid: warped label, drifting text, floating objects.
+
+Use Image1 as the starting frame. Use the given images as references for video
+generation. The images should not be used as literal initial frames.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-hd">
+        <span class="eyebrow">Frames</span>
+        <span style="font-size:13px;color:var(--ink-2)">Tags, not parameters</span>
+      </div>
+      <div class="card-bd">
+        <p style="margin-top:0">
+          There is <strong>no start-frame or end-frame param</strong> on Omni. They are
+          <code>&lt;FIRST_FRAME&gt;</code> and <code>&lt;LAST_FRAME&gt;</code> tags declared in the
+          same generated header, and <code>&lt;LAST_FRAME&gt;</code> requires
+          <code>&lt;FIRST_FRAME&gt;</code> &mdash; the one structural constraint rule. The model's
+          <em>conversational</em> side is <code>previous_interaction_id</code> editing, a different
+          axis entirely, and out of scope here.
+        </p>
+        <div class="out" style="margin-top:16px">
+          <div class="outrow">
+            <span class="on">Block-level, not beat</span>
+            <span><code>&lt;FIRST_FRAME&gt;</code> is the first frame of the whole 9s block &mdash; not of each cut inside it.</span>
+          </div>
+          <div class="outrow">
+            <span class="on">End frame fights a ladder</span>
+            <span>Asking the model to land an exact final frame <em>after</em> inventing cuts is close to incoherent. On a multi-beat block this warns rather than blocks.</span>
+          </div>
+          <div class="outrow">
+            <span class="on">Continuity chains forward</span>
+            <span>Block N's derived end frame becomes block N+1's <code>&lt;FIRST_FRAME&gt;</code>. Real state transfer &mdash; it carries grade, light direction and grain that no adjective will.</span>
+          </div>
+        </div>
+      </div>
+      <div class="card-note">
+        <p>
+          The chaining machinery already exists: <code>derive-end-frame.ts</code> extracts a
+          generated video's last frame into a new image node. Nothing new is needed for continuity
+          across blocks &mdash; only for surfacing it in the storyboard strip.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────────────────────────────────────────────── -->
+  <section>
+    <p class="eyebrow">05 &middot; UI</p>
+    <h2>The prompt reads as pictures</h2>
+    <hr class="rule">
+    <p>
+      The generated prompt currently renders as raw text with literal
+      <code>&lt;IMAGE_REF_0&gt;</code> strings in it. The read-only renderer draws the cast member's
+      thumbnail inline instead &mdash; the twin of the mention editor that already exists, sharing
+      its <code>parseSegments</code> rather than re-declaring it.
+    </p>
+
+    <div class="split">
+      <div class="card" style="margin-top:22px">
+        <div class="card-hd"><span class="eyebrow">Today</span></div>
+        <div class="card-bd">
+          <div class="prose-mock raw">
+            <span class="tc">[0-4s]</span> Priya &lt;IMAGE_REF_0&gt; lifts the jar &lt;IMAGE_REF_1&gt;
+            from linen, a slow push-in at a constant focal length.
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:22px;border-color:var(--brand-b)">
+        <div class="card-hd" style="background:var(--brand-t)"><span class="eyebrow" style="color:var(--brand)">Planned</span></div>
+        <div class="card-bd">
+          <div class="prose-mock">
+            <span class="tc">[0&ndash;4s]</span>
+            <span class="inline-chip"><span class="swatch" style="background:linear-gradient(150deg,#c8a488,#8a6247)"></span>Priya</span>
+            lifts
+            <span class="inline-chip"><span class="swatch" style="background:linear-gradient(150deg,#e8e2d4,#b9ad93)"></span>the jar</span>
+            from linen, a slow push-in at a constant focal length.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="out">
+      <div class="outrow">
+        <span class="on">Cast strip</span>
+        <span>Script focus view &mdash; upload, rename, re-kind, reorder. Dashed primary &ldquo;Add character&rdquo; chip, never a faint text link.</span>
+      </div>
+      <div class="outrow">
+        <span class="on">Prompt preview</span>
+        <span>Inline thumbnails where tokens sit, in the video-prompt node's output.</span>
+      </div>
+      <div class="outrow">
+        <span class="on">Storyboard strip</span>
+        <span>Each planned block as a filmstrip of its beats, with timecodes and the start-frame still.</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────────────────────────────────────────────── -->
+  <section>
+    <p class="eyebrow">06 &middot; D187</p>
+    <h2>Params &mdash; and the three that aren't</h2>
+    <hr class="rule">
+    <p>
+      Omni has no negative-prompt field, no audio switch and no shot-count control. Three controls
+      on the panel render as <strong>sentences appended to the prompt</strong>, and the param file
+      says so loudly.
+    </p>
+
+    <div class="card">
+      <div class="card-bd scroll" style="padding:4px 0 0">
+        <table>
+          <thead>
+            <tr><th>Param</th><th>Control</th><th>Values</th><th>Default</th><th>Channel</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>resolution</td><td>select</td><td class="num">360p &middot; 720p &middot; 1080p &middot; 4k</td><td class="num">720p</td><td>API</td></tr>
+            <tr><td>duration</td><td>slider</td><td class="num">3&ndash;10s, step 1</td><td class="num">8</td><td>API</td></tr>
+            <tr><td>aspect_ratio</td><td>select</td><td class="num">16:9 &middot; 9:16</td><td class="num">16:9</td><td>API</td></tr>
+            <tr><td>continuous_take</td><td>toggle</td><td>on / off</td><td class="num">false</td><td><strong style="color:var(--brand)">Prompt text</strong></td></tr>
+            <tr><td>audio</td><td>select</td><td>ambient &middot; dialogue &middot; music</td><td>ambient</td><td><strong style="color:var(--brand)">Prompt text</strong></td></tr>
+            <tr><td>negative_prompt</td><td>textarea</td><td>defect list</td><td>tuned</td><td><strong style="color:var(--brand)">Prompt text</strong></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="card-note">
+        <p>
+          Every param is in the <code>primary</code> group. The Advanced accordion was deleted from
+          the focus view in <code>7e1c643</code>, so an <code>advanced</code> control renders
+          nowhere &mdash; the trap <code>aspect_ratio</code> already fell into on Kling O1.
+        </p>
+      </div>
+    </div>
+
+    <div class="flag">
+      <div class="ft">The default inverts against Kling &mdash; read this twice</div>
+      <p>
+        Kling's <code>multi_shot</code> defaults to <strong>false</strong>: you opt <em>into</em>
+        cutting. Omni multi-shots by default, so <code>continuous_take</code> defaults to
+        <strong>false</strong> to opt <em>out</em> of suppressing it. Same intent, opposite switch.
+        Anyone reading them as the same toggle gets the reverse of what they asked for.
+      </p>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────────────────────────────────────────────── -->
+  <section>
+    <p class="eyebrow">07 &middot; Cost</p>
+    <h2>Why 360p changes the workflow</h2>
+    <hr class="rule">
+    <p>
+      A 22-second reel fans out to six 8-second generations. At the draft tier that's a
+      <strong>$1.44</strong> exploration; at 720p it's <strong>$4.80</strong> every time you re-roll.
+      That difference is what makes iterating affordable, and it's the main reason this targets the
+      stable 1.1 rather than the 720p-only preview.
+    </p>
+
+    <div class="card">
+      <div class="card-bd scroll" style="padding:4px 0 0">
+        <table>
+          <thead>
+            <tr><th>Resolution</th><th>Per second</th><th>One 8s clip</th><th>Six-shot fan-out</th><th>Note</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>360p</td><td class="num">$0.03</td><td class="num">$0.24</td><td class="num">$1.44</td><td>Draft tier &mdash; ~60% faster</td></tr>
+            <tr><td>720p</td><td class="num">$0.10</td><td class="num">$0.80</td><td class="num">$4.80</td><td>Native, and the default</td></tr>
+            <tr><td>1080p</td><td class="num">$0.15</td><td class="num">$1.20</td><td class="num">$7.20</td><td>Upscaled, not native</td></tr>
+            <tr><td>4k</td><td class="num">$0.30</td><td class="num">$2.40</td><td class="num">$14.40</td><td>Upscaled, not native</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="card-note">
+        <p>
+          Audio is always generated and always included in the rate, so Omni slots into the existing
+          resolution-keyed pricing shape unchanged &mdash;
+          <code>VEO_RESOLUTION_PRICING</code> is renamed <code>RESOLUTION_ONLY_PRICING</code> to stop
+          being a lie about who it serves.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────────────────────────────────────────────── -->
+  <section>
+    <p class="eyebrow">08 &middot; Scope</p>
+    <h2>What's deliberately left out</h2>
+    <hr class="rule">
+    <p>
+      Every open regression on the Google AI Developers Forum is on a <strong>video-input</strong>
+      path. This pipeline sends images only, so none of them are on our path &mdash; and that's also
+      exactly why these three stay out.
+    </p>
+
+    <div class="out">
+      <div class="outrow">
+        <span class="on">Extend chain</span>
+        <span>3&times;10s &rarr; 40s via <code>task:"extend"</code>. Real feature, own spec &mdash; needs interaction-id persistence and a chain UI. Note <code>store:false</code> must flip to <code>true</code> when it lands.</span>
+      </div>
+      <div class="outrow">
+        <span class="on">Stateful edit turns</span>
+        <span>Currently failing during polling with a malformed <code>blobstore://</code> URI. Would need a re-generate fallback for every edit turn.</span>
+      </div>
+      <div class="outrow">
+        <span class="on">Video references</span>
+        <span>Precisely the input path the open 400 regression kills &mdash; and there is no video-input source in this pipeline today.</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────────────────────────────────────────────── -->
+  <section>
+    <p class="eyebrow">09 &middot; Sequence</p>
+    <h2>Build order</h2>
+    <hr class="rule">
+    <p>These are numbered because they genuinely depend on each other. Each step leaves the app working.</p>
+
+    <div class="steps">
+      <div class="step">
+        <span class="idx">1</span>
+        <div>
+          <div class="ti">Settle <code>duration</code>'s wire shape</div>
+          <p>
+            The docs disagree between integer <code>8</code> and string <code>"8s"</code>. It's the one
+            field certain to 400 on a first call, so one live generation settles it before any
+            provider code is written.
+          </p>
+        </div>
+      </div>
+      <div class="step">
+        <span class="idx">2</span>
+        <div>
+          <div class="ti">Provider, params, cost, registry</div>
+          <p>Shippable alone &mdash; usable immediately with hand-written prompts.</p>
+        </div>
+      </div>
+      <div class="step">
+        <span class="idx">3</span>
+        <div>
+          <div class="ti">Cast on the Script node</div>
+          <p>Shippable alone, and it improves references for <em>every</em> provider, not just Omni.</p>
+        </div>
+      </div>
+      <div class="step">
+        <span class="idx">4</span>
+        <div>
+          <div class="ti">Two-way parsing and the planner</div>
+          <p>Identity planner first, then the LLM planner behind its guardrails.</p>
+        </div>
+      </div>
+      <div class="step">
+        <span class="idx">5</span>
+        <div>
+          <div class="ti">The three preview surfaces</div>
+          <p>Cast strip, inline prompt thumbnails, storyboard filmstrip.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────────────────────────────────────────────── -->
+  <section>
+    <p class="eyebrow">10 &middot; Watch-items</p>
+    <h2>Open risks</h2>
+    <hr class="rule">
+
+    <div class="out">
+      <div class="outrow">
+        <span class="on">duration wire shape</span>
+        <span>Unverified. Integer vs string. Step 1 exists to settle it.</span>
+      </div>
+      <div class="outrow">
+        <span class="on">Paid tier only</span>
+        <span><code>GOOGLE_GENAI_API_KEY</code> is already paid-tier for Veo, so access is expected &mdash; but unconfirmed until that first call.</span>
+      </div>
+      <div class="outrow">
+        <span class="on">Safety rejections bill</span>
+        <span>Filtered prompts consume credits without refund at Google, even though our own reservation is refunded. Worth surfacing in the UI once observed.</span>
+      </div>
+      <div class="outrow">
+        <span class="on">Preview-era ref docs</span>
+        <span><code>gemini-omni-flash-system-prompt.md</code> asserts &ldquo;720p only&rdquo;, &ldquo;no end frame&rdquo;, &ldquo;no extension&rdquo; as hard rules. Wrong for 1.1 &mdash; needs a version banner or it misleads the next session.</span>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <p>
+      Full spec: <code>docs/superpowers/specs/2026-08-28-gemini-omni-multishot-design.md</code>
+      &middot; decisions D184&ndash;D191 in &sect;7 of the staging roadmap &middot; commit <code>780e183</code>
+    </p>
+  </footer>
+
+</div>

@@ -3336,9 +3336,56 @@ no per-shot duration. A ladder whose times do not sum to `duration` produces a t
 full price, and the ceiling is a hard 10s. The creative judgement (where the seams are) is worth an
 LLM; the arithmetic is not, and is exactly what a guardrail catches for free.
 
+**Amended before implementation (2026-08-28).** The first version of this decision listed four
+per-block checks and *would have accepted a plan that silently dropped four seconds of script* —
+the design spec's own worked example failed it. Give a block three shots totalling 13s and write a
+9s ladder over them: beats are contiguous, they sum to the block duration, every index is used
+once, and 4s of the reel is simply never generated. **Conservation must be asserted across the
+whole plan, not inside each block**, so two invariants were added ahead of the rest:
+
+1. Σ block durations = Σ shot durations.
+2. Each shot's allocated time = its parsed duration.
+
+The one exception: a shot longer than the ceiling may span blocks, at a beat boundary, with
+invariant 2 still holding over its combined allocation.
+
+**Consequence.** Fewer generations is not the goal; conserving the script is. A 22s reel of
+4+5+4+5+4 shots is three blocks (9s, 9s, 4s), not two.
+
 **Rejected.** Trusting the planner (silent truncation). Also rejected: a purely deterministic
 packer (durations parse out of free-text strings, and packing by arithmetic splits VO sentences
 and continuous camera moves — the user asked specifically for smart grouping).
+
+### D192 — References merge cast-first; frames are block-level tags, not params *(recorded 2026-08-28; refines D186, D190)*
+
+**Decision.** A reference reaches a generation from either the script cast or an image node
+connected directly to the video-prompt / video-gen node. Both land in the same `UpstreamImage[]`
+list, and the order is fixed: **cast members in cast order, then direct connections in canvas
+order.** A direct reference has no cast entry and so no `kind`; it defaults to *subject* phrasing,
+with a kind selector on its role row for the style-anchor case.
+
+Separately: Omni has **no frame parameter**. `<FIRST_FRAME>` / `<LAST_FRAME>` are tags in the
+generated header (D186). A frame is **block-level, never beat-level**, and assigning an end frame
+to a block with more than one beat **warns** rather than blocks.
+
+**Why cast-first.** `<IMAGE_REF_N>` is positional. With no rule, connecting one one-off image
+renumbers every cast member and silently re-points every mention already written against them.
+Cast-first means appending a direct reference only ever adds an index at the end — the mutation
+that cannot break existing prompts.
+
+**Why an end frame warns on a cut ladder.** Asking the model to land an exact final frame *after*
+it has invented cuts is close to incoherent, and the model will honour one or the other. It warns
+rather than blocks because a deliberate operator on a single-beat block still wants it.
+
+**Continuity needs no new machinery.** `derive-end-frame.ts` already extracts a generated video's
+last frame into an image node; block N's derived end frame becomes block N+1's `<FIRST_FRAME>`.
+That is real state transfer — it carries grade, light direction and grain that no repeated
+adjective will. Only the storyboard surfacing is new.
+
+**Rejected.** Ordering direct connections before the cast (breaks every existing mention on
+connect). Also rejected: a separate reference channel for direct connections — it would duplicate
+`assignImageRoles`, the role chips and the reference cap for no gain, since the two sources differ
+in provenance, not in kind.
 
 ### D190 — The cast lives on Script data, is copied at fork, and reaches generation as tagged upstream images *(recorded 2026-08-28; refines D21)*
 

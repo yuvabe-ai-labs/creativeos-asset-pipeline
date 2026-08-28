@@ -1,6 +1,6 @@
 # Gemini Omni 1.1 Flash — multi-shot video generation, script cast, and two-way parsing
 
-*Design spec — 2026-08-28. Decisions land in the ADR log as D184–D191.*
+*Design spec — 2026-08-28. Decisions land in the ADR log as D184–D192.*
 
 ---
 
@@ -43,7 +43,7 @@ Target: **`gemini-omni-1.1-flash`** (stable, August 2026), not `gemini-omni-flas
 
 `ref/multishot-refs/gemini-omni-flash-system-prompt.md` documents the **preview** model and its
 §2 and §11 assert "720p only", "no end frame", "no extension" as hard rules. Against 1.1 those
-are wrong. Updating that file is part of this work (§9, D191).
+are wrong. Updating that file is part of this work (§9d).
 
 ### 2a. Known instability
 
@@ -288,16 +288,32 @@ model's max block seconds. Its rules:
 
 `src/lib/nodes/shot-plan.ts` is pure and unit-tested, and validates every returned plan:
 
-1. Each block's `duration` is within the model's range (3–10 for Omni).
-2. Beats are contiguous — `beats[0].from === 0`, each `from` equals the previous `to`, no gaps,
-   no overlaps.
-3. The final `to` equals the block's `duration` exactly.
-4. Every shot index in the source appears exactly once across all blocks, in order.
+| # | Invariant | Scope | Catches |
+|---|---|---|---|
+| 1 | **Σ block durations = Σ shot durations** | whole plan | silently dropped footage |
+| 2 | **Each shot's allocated time = its parsed duration** | per shot | a 5s beat quietly compressed to 3s |
+| 3 | Every shot index accounted for, in order | whole plan | a shot omitted, duplicated or reordered |
+| 4 | Block `duration` within the model's range (3–10) | per block | a request over the hard ceiling |
+| 5 | Beats contiguous — `beats[0].from === 0`, each `from` equals the previous `to` | per block | gaps and overlaps in the ladder |
+| 6 | Final `to` equals the block's `duration` | per block | a truncated ending at full price |
+
+**Invariants 1 and 2 are the ones that matter most, and they are the ones a per-block check misses.**
+A plan can satisfy 4–6 in every block and still lose four seconds of script: give a block three
+shots totalling 13s, write a 9s ladder over them, and every per-block check passes while nothing
+downstream ever generates the missing 4s. Conservation has to be asserted across the whole plan,
+not inside each block.
+
+**The one exception to "a shot belongs to one block":** a shot longer than the ceiling cannot fit a
+single generation, so it may span blocks — but only at a beat boundary, and invariant 2 still holds
+over its combined allocation.
 
 A plan failing any check is **rejected**, and a deterministic seam-packer runs instead: walk the
-shots in order, accumulate parsed durations, close a block before it would exceed the ceiling.
-A bad ladder is never shipped, and the fallback is legible rather than silent — the UI says the
-planner was overridden.
+shots in order, accumulate parsed durations, close a block before it would exceed the ceiling, and
+open the next one with the leftover. A bad ladder is never shipped, and the fallback is legible
+rather than silent — the UI says the planner was overridden.
+
+**Fewer generations is not the goal; conserving the script is.** A 22s reel of 4+5+4+5+4 shots is
+three blocks (9s, 9s, 4s), not two — shots 3–5 total 13s and cannot share one generation.
 
 ### 7e. Fork
 
@@ -360,6 +376,50 @@ This is the whole point of the choice: `assignImageRoles`, the role chips, `buil
 the reference cap and the shot spine all keep working untouched. **A cast member is just an image
 input that knows its own name** — it gets Start / End / Ref chips like any other, and its chip is
 labelled "Priya" instead of "image-gen".
+
+### 8e. The cast is not the only source — merge order is fixed
+
+A reference may also come from an image node connected **directly** to the video-prompt or
+video-gen node, bypassing the cast entirely. That already works today and keeps working: the cast
+is the reusable, script-level channel; a direct connection is a one-off for this node only. Both
+land in the same list and are indistinguishable to `assignImageRoles`.
+
+Because `<IMAGE_REF_N>` is **positional**, a mixed list needs a fixed order or the indices shift
+underneath the operator. The order is:
+
+1. **Cast members**, in cast order.
+2. **Direct connections**, in canvas connection order, after the cast.
+
+Cast-first is what makes it safe: appending a one-off reference only ever adds an index at the
+end, and can never renumber a cast member that a dozen prompts already mention. The reverse order
+would re-point every existing mention the moment a node was connected.
+
+**`kind` for a direct reference.** A directly-connected image has no cast entry and therefore no
+`kind`, so the Omni renderer cannot choose between style and subject phrasing. It defaults to
+**subject**; the role row carries a small kind selector for the cases where a one-off is really a
+style anchor.
+
+### 8f. Frames are tags, and they are block-level
+
+Omni has **no start-frame or end-frame parameter** — `<FIRST_FRAME>` and `<LAST_FRAME>` are tags
+in the generated declaration header (§4), and `<LAST_FRAME>` requires `<FIRST_FRAME>` (the one
+constraint rule in §3e). The model's *conversational* character is `previous_interaction_id`
+editing, a separate axis, out of scope per §10.
+
+Multi-shot adds two rules:
+
+- **A frame belongs to the block, not the beat.** `<FIRST_FRAME>` is the first frame of the whole
+  9s block, not of each cut inside it. There is no way to pin a frame to beat 2.
+- **An end frame fights a cut ladder.** Asking the model to land an exact final frame *after* it
+  has invented cuts is close to incoherent. When `planMode` is `multi-shot` and a block has more
+  than one beat, assigning an end frame **warns** — it does not block, because a deliberate
+  operator may still want it.
+
+**Continuity across blocks chains forward, with machinery that already exists.**
+`derive-end-frame.ts` already extracts a generated video's last frame into a new image node. Block
+N's derived end frame becomes block N+1's `<FIRST_FRAME>` — real state transfer, carrying grade,
+light direction and grain that no repeated adjective will. Nothing new is needed to make this
+work; only to surface it in the storyboard strip (§9 UI).
 
 ---
 
@@ -430,8 +490,13 @@ Pure units, colocated in `__tests__/` per the existing convention:
   frames-without-references and references-without-frames shapes.
 - `renderMentionsForProvider` — all three providers, asserting `veo` → ordinal, `kling` → 1-based,
   `gemini-omni` → 0-based, over the same fixture.
-- `validateShotPlan` / `packShotsDeterministically` — each guardrail rejects independently;
-  contiguity, sum-to-duration, every-index-once; fallback output is itself valid.
+- `validateShotPlan` / `packShotsDeterministically` — **each of the six invariants rejects
+  independently**, with a dedicated case for the failure this spec itself made: a plan whose blocks
+  are each internally valid but whose totals lose 4s of script must be rejected by invariant 1
+  alone. Plus the over-ceiling shot spanning two blocks, and the fallback packer's own output
+  re-validated against all six.
+- `mergeReferenceSources` — cast-then-direct ordering; appending a direct ref leaves every cast
+  index unchanged; a direct ref defaults to `kind: "character"` phrasing.
 - `mergeCastFromParse` — new name appended, existing image preserved, vanished name kept.
 - `computeVideoCost` — all four Omni resolutions; unpriced combination returns `null`.
 - `composeOmniPrompt` — `continuous_take` appends the suppression line, `audio` appends the right
