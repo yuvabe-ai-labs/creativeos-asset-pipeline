@@ -14,6 +14,18 @@ describe("classifyUrl", () => {
     expect(classifyUrl("https://instagram.com/tv/C8xyz123/")).toBe("instagram");
   });
 
+  // Instagram's newer permalink format prefixes the poster's username.
+  it("classifies username-prefixed Instagram permalinks", () => {
+    expect(classifyUrl("https://www.instagram.com/kamaayurveda/reel/DcBo6ldlIKK/")).toBe("instagram");
+    expect(classifyUrl("https://www.instagram.com/kamaayurveda/p/DcBo6ldlIKK/")).toBe("instagram");
+  });
+
+  // /reels/ (plural) is the browse feed, not a post; /stories/ is not embeddable.
+  it("does not classify instagram browse/stories pages as posts", () => {
+    expect(classifyUrl("https://www.instagram.com/reels/")).toBe("link");
+    expect(classifyUrl("https://www.instagram.com/stories/nike/123/")).toBe("link");
+  });
+
   it("classifies TikTok URLs, including short links", () => {
     expect(classifyUrl("https://www.tiktok.com/@user/video/7301234567890123456")).toBe("tiktok");
     expect(classifyUrl("https://vm.tiktok.com/ZMabcdef/")).toBe("tiktok");
@@ -72,6 +84,11 @@ describe("embedUrlFor", () => {
   it("builds an Instagram /embed URL from the post path", () => {
     expect(embedUrlFor("instagram", "https://www.instagram.com/reel/C8xyz123/")).toBe(
       "https://www.instagram.com/reel/C8xyz123/embed",
+    );
+  });
+  it("builds the Instagram /embed URL from a username-prefixed permalink (username stripped)", () => {
+    expect(embedUrlFor("instagram", "https://www.instagram.com/kamaayurveda/reel/DcBo6ldlIKK/")).toBe(
+      "https://www.instagram.com/reel/DcBo6ldlIKK/embed",
     );
   });
   it("builds a TikTok v2 embed URL from a full video URL", () => {

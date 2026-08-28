@@ -5,6 +5,12 @@ import type { ReferenceKind } from "./constants";
 const IMAGE_EXTS = new Set(["jpg", "jpeg", "png", "webp", "avif"]);
 const VIDEO_EXTS = new Set(["mp4", "webm", "mov", "m4v"]);
 
+// Both Instagram permalink shapes: the classic /reel/<id> and the newer
+// username-prefixed /<username>/reel/<id>. The optional segment cannot
+// false-match /reels/ (browse) or /stories/… — those never have p|reel|tv
+// as the segment before the id.
+const IG_PERMALINK = /^\/(?:[^/]+\/)?(p|reel|tv)\/([^/]+)/;
+
 function ext(pathname: string): string {
   return pathname.split(".").pop()?.toLowerCase() ?? "";
 }
@@ -21,7 +27,7 @@ export function classifyUrl(url: string): ReferenceKind {
   if (host === "youtube.com" || host === "m.youtube.com" || host === "youtu.be") {
     return youtubeVideoId(url) ? "youtube" : "link";
   }
-  if (host === "instagram.com" && /^\/(p|reel|tv)\/[^/]+/.test(u.pathname)) {
+  if (host === "instagram.com" && IG_PERMALINK.test(u.pathname)) {
     return "instagram";
   }
   if (host === "tiktok.com" || host.endsWith(".tiktok.com")) return "tiktok";
@@ -77,7 +83,9 @@ export function embedUrlFor(kind: ReferenceKind, url: string): string | null {
   if (kind === "instagram") {
     try {
       const u = new URL(url);
-      const m = u.pathname.match(/^\/(p|reel|tv)\/([^/]+)/);
+      // The /embed endpoint only exists on the classic shape, so the
+      // username prefix is stripped when present.
+      const m = u.pathname.match(IG_PERMALINK);
       return m ? `https://www.instagram.com/${m[1]}/${m[2]}/embed` : null;
     } catch {
       return null;
