@@ -3274,7 +3274,7 @@ drift instead of surfacing it).
 
 **Decision.** Omni prompts always carry the explicit form —
 `[# Sources <FIRST_FRAME>@Image1] [# References <IMAGE_REF_0>@Image2] … Use Image1 as the starting
-frame.` — built by `buildOmniInput()` from `assignImageRoles()` output. Simple inline tags are
+frame.` — built by `planOmniInput()` from `assignImageRoles()` output. Simple inline tags are
 never used, even when roles look unambiguous. Input order is fixed at
 `[firstFrame?, lastFrame?, ...references]`, text part last.
 

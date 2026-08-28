@@ -79,7 +79,7 @@ fetch-and-poll provider shape in this codebase; this follows it.
   "model": "gemini-omni-1.1-flash",
   "input": [
     { "type": "image", "data": "<base64>", "mime_type": "image/jpeg" },
-    // … more images, in the order buildOmniInput fixes …
+    // … more images, in the order planOmniInput fixes …
     { "type": "text", "text": "<rendered prompt>" }
   ],
   "generation_config": { "video_config": { "task": "…", "resolution": "720p", "duration": 8 } },
@@ -137,13 +137,17 @@ Unlike Veo, frames and references are **not** mutually exclusive — no `refs-lo
 rule. The one rule is structural:
 
 ```ts
-{ id: "last-frame-needs-first-frame",
+{ id: "omni-last-frame-needs-first-frame",
   when: { op: "and", conditions: [
     { field: "hasEndFrame",   op: "eq", value: true },
     { field: "hasStartFrame", op: "eq", value: false } ] },
   effect: { disableGenerate: true },
-  reason: "<LAST_FRAME> requires <FIRST_FRAME> — Omni cannot use an end frame alone." }
+  reason: "End frame needs a start frame — <LAST_FRAME> requires <FIRST_FRAME>" }
 ```
+
+The reason leads with the consequence rather than the tag names, matching the phrasing of the
+existing `end-frame-requires-start-frame` rule on Veo Lite — an operator reads the panel, not the
+API docs.
 
 The provider throws the same condition as a named error, so a caller bypassing the UI gets a clear
 message rather than a 400 minutes later — the pattern `generateWithKling` already uses.
@@ -153,7 +157,7 @@ message rather than a 400 minutes later — the pattern `generateWithKling` alre
 ## 4. Image roles and the two indexing bases
 
 This is the part that silently produces wrong output if it drifts, so it has exactly one owner:
-`buildOmniInput()`, derived from `assignImageRoles()`, unit-tested.
+`planOmniInput()`, derived from `assignImageRoles()`, unit-tested.
 
 The provider **always emits the explicit declaration form**. Simple inline tags are never used,
 even when roles look unambiguous:
@@ -486,7 +490,7 @@ the next session that reads it.
 
 Pure units, colocated in `__tests__/` per the existing convention:
 
-- `buildOmniInput` — input ordering, the declaration header's two index bases, `task` selection,
+- `planOmniInput` — input ordering, the declaration header's two index bases, `task` selection,
   frames-without-references and references-without-frames shapes.
 - `renderMentionsForProvider` — all three providers, asserting `veo` → ordinal, `kling` → 1-based,
   `gemini-omni` → 0-based, over the same fixture.
