@@ -93,9 +93,14 @@ const multiShotParam: ParamSpec = {
   component: "toggle",
   group: "advanced",
   order: 1,
-  visible: true,
-  // Off by default: multi-shot lets Kling cut between shots, which fights the single
-  // continuous moment a product clip wants. Opt in, don't opt out.
+  // D197 — hidden, not deleted. Gemini Omni is the only multi-shot model surfaced in the UI, so
+  // multishot means one thing in one place. `visible: false` still sends the param with its
+  // default, so the request shape is byte-identical, every persisted node keeps resolving, and
+  // Kling 3.0's end-frame rule that pins multi_shot stays valid and untouched. Deleting the param
+  // would make the route stop resolving a name that saved nodes still carry.
+  visible: false,
+  // Off by default: multi-shot lets Kling cut between shots, which fights the single continuous
+  // moment a product clip wants. Opt in, don't opt out.
   defaultValue: false,
   constraints: { type: "toggle" },
 };
