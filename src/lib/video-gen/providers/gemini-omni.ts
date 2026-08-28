@@ -10,6 +10,12 @@ import { fetchAsBase64 } from "./fetch-as-base64";
 const API_BASE = "https://generativelanguage.googleapis.com/v1beta";
 const OMNI_MODEL = "gemini-omni-1.1-flash";
 
+// Omni generates synchronously (background:false), so the whole render happens inside this one
+// request. Node's fetch defaults to a 300s headers timeout, which a 10s 1080p/4k generation can
+// exceed — and on that throw the task refunds a generation Google has already billed. An explicit
+// timeout below the Trigger task's 600s budget makes the failure deliberate rather than incidental.
+const OMNI_REQUEST_TIMEOUT_MS = 540_000;
+
 function getApiKey(): string {
   // Deliberately the SAME key Veo uses — Omni is the Gemini API, not a separate product.
   const key = process.env.GOOGLE_GENAI_API_KEY;
@@ -63,6 +69,33 @@ export function buildOmniResponseFormat(
     aspect_ratio: VALID_ASPECT_RATIOS.includes(ratio) ? ratio : "16:9",
     delivery: "uri",
     duration: `${omniDurationSeconds(params)}s`,
+  };
+}
+
+/**
+ * The complete request body, as a pure function so the facts below are testable.
+ *
+ * Three things here are load-bearing and each was verified against the live API:
+ *   - `input` is images in plan order, then the text part LAST. That order IS the contract:
+ *     the `@ImageN` numbers in the prompt's generated header count this array from 1.
+ *   - `store: true` is REQUIRED by `delivery: "uri"` — without it the API returns 400.
+ *   - `video_config` carries `task` and NOTHING else — any other key returns 400
+ *     `Unknown parameter`, contradicting Google's published docs.
+ */
+export function buildOmniRequestBody(args: {
+  imageParts: Array<Record<string, unknown>>;
+  text: string;
+  task: string;
+  params: Record<string, unknown>;
+}): Record<string, unknown> {
+  return {
+    model: OMNI_MODEL,
+    input: [...args.imageParts, { type: "text", text: args.text }],
+    generation_config: { video_config: { task: args.task } },
+    response_format: buildOmniResponseFormat(args.params),
+    store: true,
+    background: false,
+    stream: false,
   };
 }
 
@@ -148,25 +181,29 @@ async function generateWithOmni(input: VideoGenInput): Promise<VideoGenResult> {
 
   const text = composeOmniPrompt({ prompt: input.prompt, params: input.params, plan });
 
+  // Logged before the await: on a timeout there is no response to log, and store:true means the
+  // interaction exists on Google's side — this line is the only trail back to a billed render.
+  logger.info("Omni request", {
+    task: plan.task,
+    images: plan.uploads.length,
+    resolution: String(input.params.resolution ?? "720p"),
+    durationSeconds: omniDurationSeconds(input.params),
+  });
+
   const res = await fetch(`${API_BASE}/interactions`, {
     method: "POST",
     headers: { "x-goog-api-key": getApiKey(), "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: OMNI_MODEL,
-      input: [...imageParts, { type: "text", text }],
-      // task and NOTHING else — video_config rejects every other key (D196).
-      generation_config: { video_config: { task: plan.task } },
-      response_format: buildOmniResponseFormat(input.params),
-      // REQUIRED by delivery:"uri" — the API returns 400 "store=true is required when response
-      // format has video delivery set to URI" without it. Not a preference. A useful side effect:
-      // the interaction is stored, so previous_interaction_id editing is available if the edit
-      // chain is ever built, with no request-shape change.
-      store: true,
-      // background:false returns the finished interaction synchronously, so there is no
-      // task-polling loop — verified.
-      background: false,
-      stream: false,
-    }),
+    // task and NOTHING else — video_config rejects every other key (D196).
+    // store:true is REQUIRED by delivery:"uri" — the API returns 400 "store=true is required when
+    // response format has video delivery set to URI" without it. Not a preference. A useful side
+    // effect: the interaction is stored, so previous_interaction_id editing is available if the
+    // edit chain is ever built, with no request-shape change.
+    // background:false returns the finished interaction synchronously, so there is no
+    // task-polling loop — verified.
+    body: JSON.stringify(
+      buildOmniRequestBody({ imageParts, text, task: plan.task, params: input.params }),
+    ),
+    signal: AbortSignal.timeout(OMNI_REQUEST_TIMEOUT_MS),
   });
 
   if (!res.ok) {

@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   omniDurationSeconds,
   buildOmniResponseFormat,
+  buildOmniRequestBody,
   extractOmniVideoUri,
   fileNameFromUri,
 } from "../providers/gemini-omni";
@@ -86,5 +87,61 @@ describe("fileNameFromUri", () => {
 
   it("returns undefined for a URI with no file segment", () => {
     expect(fileNameFromUri("https://example.com/video.mp4")).toBeUndefined();
+  });
+});
+
+describe("buildOmniRequestBody", () => {
+  const IMG = (n: string) => ({ type: "image", data: n, mime_type: "image/png" });
+
+  // The image array order IS the contract — the @ImageN numbers in the generated prompt header
+  // count this array from 1. A reorder here silently binds a mention to the wrong image, and
+  // that is only visible in a generation already paid for.
+  it("puts every image first in plan order and the text part last", () => {
+    const body = buildOmniRequestBody({
+      imageParts: [IMG("a"), IMG("b"), IMG("c")],
+      text: "the prompt",
+      task: "image_to_video",
+      params: {},
+    });
+    expect(body.input).toEqual([
+      IMG("a"), IMG("b"), IMG("c"),
+      { type: "text", text: "the prompt" },
+    ]);
+  });
+
+  it("sends only the text part when there are no images", () => {
+    const body = buildOmniRequestBody({
+      imageParts: [], text: "just words", task: "text_to_video", params: {},
+    });
+    expect(body.input).toEqual([{ type: "text", text: "just words" }]);
+  });
+
+  // VERIFIED: the API returns 400 "store=true is required when response format has video
+  // delivery set to URI". Not a preference.
+  it("always sets store true", () => {
+    expect(buildOmniRequestBody({ imageParts: [], text: "x", task: "text_to_video", params: {} }).store)
+      .toBe(true);
+  });
+
+  // VERIFIED: video_config rejects duration, resolution and aspect_ratio with 400
+  // "Unknown parameter" — Google's published docs say otherwise and are wrong.
+  it("puts task and nothing else in video_config", () => {
+    const body = buildOmniRequestBody({
+      imageParts: [], text: "x", task: "reference_to_video",
+      params: { duration: 8, resolution: "1080p", aspect_ratio: "9:16" },
+    });
+    const videoConfig = (body.generation_config as { video_config: Record<string, unknown> }).video_config;
+    expect(Object.keys(videoConfig)).toEqual(["task"]);
+    expect(videoConfig.task).toBe("reference_to_video");
+  });
+
+  it("carries the dimensional params in response_format instead", () => {
+    const body = buildOmniRequestBody({
+      imageParts: [], text: "x", task: "text_to_video",
+      params: { duration: 5, resolution: "1080p", aspect_ratio: "9:16" },
+    });
+    expect(body.response_format).toEqual({
+      type: "video", resolution: "1080p", aspect_ratio: "9:16", delivery: "uri", duration: "5s",
+    });
   });
 });
