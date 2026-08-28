@@ -24,7 +24,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     // pageUrl is the page-level clip (reel/video/article); imageUrl the classic
     // right-click-an-image clip. Either way one ingest path classifies and previews.
     const url = (body.pageUrl ?? body.imageUrl)?.trim();
-    if (!url) return apiError("imageUrl or pageUrl is required", 400);
+    if (!url) {
+      console.log(`[clip] POST board=${moodboardId} rejected: body has neither imageUrl nor pageUrl`);
+      return apiError("imageUrl or pageUrl is required", 400);
+    }
+    console.log(
+      `[clip] POST board=${moodboardId} ${body.pageUrl ? "pageUrl" : "imageUrl"}=${url} note=${body.note ? "yes" : "no"}`,
+    );
 
     return withTryCatch("Could not add the reference.", async () => {
       const clientId = await getMoodboardClientId(moodboardId);
@@ -38,6 +44,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         note: body.note?.trim() || undefined,
         addedBy: userId,
       });
+      console.log(
+        `[clip] added item=${item.id} kind=${item.kind} thumbnail=${item.thumbnail_url ? "yes" : "none"}`,
+      );
       return apiOk({ item }, 201);
     });
   });

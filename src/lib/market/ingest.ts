@@ -30,14 +30,24 @@ export async function ingestReference(args: {
   });
 
   const thumbSource = await resolveThumbnailSource(args.url, kind, fetchImpl);
-  if (!thumbSource) return item;
+  if (!thumbSource) {
+    console.log(`[clip] ingest kind=${kind}: no thumbnail source (every rung returned null) — degraded tile`);
+    return item;
+  }
+  console.log(`[clip] ingest kind=${kind}: thumbnail source ${thumbSource}`);
 
   try {
     const res = await fetchImpl(thumbSource);
-    if (!res.ok) return item;
+    if (!res.ok) {
+      console.log(`[clip] ingest: thumbnail fetch failed HTTP ${res.status} — degraded tile`);
+      return item;
+    }
     const contentType = res.headers.get("content-type")?.split(";")[0].trim() || "image/jpeg";
     const buffer = Buffer.from(await res.arrayBuffer());
-    if (buffer.byteLength === 0 || buffer.byteLength > THUMBNAIL_SIZE_LIMIT) return item;
+    if (buffer.byteLength === 0 || buffer.byteLength > THUMBNAIL_SIZE_LIMIT) {
+      console.log(`[clip] ingest: thumbnail rejected (${buffer.byteLength} bytes) — degraded tile`);
+      return item;
+    }
 
     const { url } = await uploadMarketThumbnail({
       clientId: args.clientId,
@@ -46,8 +56,10 @@ export async function ingestReference(args: {
       contentType,
     });
     await updateItemThumbnail(item.id, url);
+    console.log(`[clip] ingest: thumbnail re-hosted → ${url}`);
     return { ...item, thumbnail_url: url };
-  } catch {
+  } catch (e) {
+    console.log(`[clip] ingest: thumbnail step threw (${e instanceof Error ? e.message : e}) — degraded tile`);
     return item; // degraded tile — by design, not an error
   }
 }
