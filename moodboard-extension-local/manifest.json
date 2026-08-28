@@ -1,11 +1,12 @@
 {
   "manifest_version": 3,
-  "name": "CreativeOS Moodboard Clipper",
+  "name": "CreativeOS Moodboard Clipper (Local)",
   "version": "0.2.0",
-  "description": "Hover an Instagram post or YouTube Short and click + CreativeOS — or right-click any image — to add it to a client moodboard.",
+  "description": "LOCAL DEV build — clips to a CreativeOS dev server on localhost. Do not ship to clients.",
   "permissions": ["contextMenus", "storage", "sidePanel"],
   "host_permissions": [
-    "https://creativeos-yuvabe.vercel.app/*"
+    "http://localhost:3000/*",
+    "http://localhost:3001/*"
   ],
   "background": { "service_worker": "background.js" },
   "content_scripts": [
@@ -24,7 +25,7 @@
   },
   "side_panel": { "default_path": "sidepanel.html" },
   "action": {
-    "default_title": "CreativeOS Moodboard",
+    "default_title": "CreativeOS Moodboard (Local)",
     "default_icon": {
       "16": "assets/icon16.png",
       "32": "assets/icon32.png",
