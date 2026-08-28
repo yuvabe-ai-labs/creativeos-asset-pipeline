@@ -3231,3 +3231,157 @@ generation — including from a panel displaying "None".
 
 **Rejected.** Dropping `negative_prompt` from `veoLiteParams`: it makes the request legal by
 discarding what the operator asked for, and leaves the three Veo variants with different panels.
+
+### D184 — Omni targets the stable `gemini-omni-1.1-flash`, not `gemini-omni-flash-preview` *(recorded 2026-08-28; originated → 2026-08-28-gemini-omni-multishot-design.md)*
+
+**Decision.** The registry entry is `gemini:gemini-omni-1.1-flash`. Resolution becomes a real
+param (`360p`/`720p`/`1080p`/`4k`), `<LAST_FRAME>` is available, and the price tiers are
+$0.03/$0.10/$0.15/$0.30 per second.
+
+**Why.** The preview model is 720p-only at a flat $0.10/s with no end frame. A script fanning out
+to six generations costs $4.80 at 720p/8s and $1.44 on 1.1's 360p draft tier — the difference
+that decides whether iterating is affordable. 1.1 also maps onto the existing start/end/reference
+role model without a special case, where the preview would need `endFrame: false`.
+
+**Rejected.** The preview (matches our local ref docs, but ships onto an endpoint with open
+regressions and no draft tier). Also rejected: registering both as two entries, Veo-style — twice
+the surface and two cost rows to keep honest, for a model we would always pick 1.1 from.
+
+**Consequence.** `ref/multishot-refs/gemini-omni-flash-system-prompt.md` is now partly wrong: its
+§2 and §11 assert "720p only", "no end frame", "no extension" as hard rules. It needs a version
+banner naming which model each section describes; the correction is tracked as §9d of the design
+spec, not as a separate decision.
+
+### D185 — The Omni provider calls REST directly; `@google/genai` does not type the video path *(recorded 2026-08-28; refines D184)*
+
+**Decision.** `providers/gemini-omni.ts` uses raw `fetch` against
+`POST /v1beta/interactions`, following the fetch-and-poll shape `kling.ts` established — not
+`ai.interactions.create`.
+
+**Why.** `@google/genai@2.9.0` exposes `ai.interactions` and types `Interaction.output_video`, but
+its interactions `GenerationConfig` has **no `video_config` member** and `ResponseFormat` degrades
+to `{[k: string]: any}`. Every field this integration actually sets — `task`, `resolution`,
+`duration`, `aspect_ratio`, `delivery` — lands in an untyped hole, so the SDK buys casts and no
+safety while adding a dependency on an SDK shape that is behind the API.
+
+**Rejected.** The SDK with `as` casts at each hole (the casts are the cost, and they hide schema
+drift instead of surfacing it).
+
+**Consequence.** `output_video` is an SDK-only convenience; over REST the video is read out of
+`steps[]` — the `model_output` step's `video`-typed content entry.
+
+### D186 — The image-role declaration header is always explicit and always generated *(recorded 2026-08-28)*
+
+**Decision.** Omni prompts always carry the explicit form —
+`[# Sources <FIRST_FRAME>@Image1] [# References <IMAGE_REF_0>@Image2] … Use Image1 as the starting
+frame.` — built by `buildOmniInput()` from `assignImageRoles()` output. Simple inline tags are
+never used, even when roles look unambiguous. Input order is fixed at
+`[firstFrame?, lastFrame?, ...references]`, text part last.
+
+**Why.** The header carries **two different index bases in one line**: `@ImageN` is 1-based over
+the whole upload array, `<IMAGE_REF_N>` is 0-based over the references sub-array only. Kling's
+`@image_1` is 1-based over its own list, so this codebase now holds three bases at once. Getting
+one wrong does not error — it silently points a mention at the wrong asset, which surfaces only as
+a bad generation someone has already paid for.
+
+**Rejected.** Simple tags when roles are unambiguous (two code paths, and "unambiguous" is a
+judgement the failure mode punishes silently). Also rejected: letting the prompt-generating LLM
+write the header — index arithmetic is exactly what it is worst at and what a unit test is best at.
+
+### D187 — Three Omni "params" are prompt text, and `continuous_take` inverts Kling's `multi_shot` *(recorded 2026-08-28)*
+
+**Decision.** `continuous_take`, `audio` and `negative_prompt` render as sentences appended to the
+prompt, not as API fields. Omni has no negative-prompt field, no audio switch, and no shot-count
+control. `continuous_take` defaults to **`false`**.
+
+**Why the default inverts.** Kling's `multi_shot` defaults to `false` — you opt *into* cutting,
+because cuts fight the single continuous moment a product clip wants. Omni multi-shots **by
+default**; the equivalent control opts *out*. Same intent, opposite switch, and an operator who
+reads them as the same toggle gets the opposite of what they asked for. Both param files say so.
+
+**Why they stay params at all.** They are per-shot creative decisions that belong on the panel
+next to duration and resolution, regardless of which channel carries them to the model —
+the same reasoning D183 used to keep `negative_prompt` on Veo Lite after its field was rejected.
+
+**Rejected.** Omitting them because no field exists (discards real controls). Also rejected: an
+`advanced` param group — the Advanced accordion was deleted from the focus view in `7e1c643`, so
+an `advanced` control renders nowhere, the trap `aspect_ratio` already fell into on Kling O1.
+
+### D188 — Script parsing is one parse and two planners, not two parses *(recorded 2026-08-28)*
+
+**Decision.** The parse stays canonical and unchanged. `ScriptNodeData.planMode` selects a
+*planner* that runs over the already-parsed `shots[]`: `per-shot` is an identity planner (one
+block per shot, **no LLM call**), `multi-shot` is a separate versioned prompt (`shot-plan.ts`)
+that packs shots into ≤10s timecode blocks. Fork creates one Shot node per block.
+
+**Why.** A second parse prompt would make the toggle cost an LLM call and **discard every manual
+edit to the parsed script** — the parse is the operator's working document, not a cache. Planning
+over `shots[]` instead takes a small input, is cheap, and is freely re-runnable in both directions.
+
+**Rejected.** Two parse prompts (destroys edits, costs a call per flip). Also rejected: leaving
+planning entirely to the model's own `multi_shot` param — a Shot node would always be one script
+shot, so several script beats could never reach one Omni generation, which is the whole reason to
+integrate a multi-shot model.
+
+### D189 — A returned shot plan is validated, never trusted *(recorded 2026-08-28; refines D188)*
+
+**Decision.** `validateShotPlan` (pure, tested) checks every plan: block duration within the
+model's range, beats contiguous from 0 with no gaps or overlaps, final `to` equal to the block
+duration, every source shot index used exactly once and in order. A plan failing any check is
+rejected and a deterministic seam-packer runs instead. The UI states that the planner was
+overridden.
+
+**Why.** Omni's timecodes are a *request*, not a configuration — there is no shot-count field and
+no per-shot duration. A ladder whose times do not sum to `duration` produces a truncated ending at
+full price, and the ceiling is a hard 10s. The creative judgement (where the seams are) is worth an
+LLM; the arithmetic is not, and is exactly what a guardrail catches for free.
+
+**Rejected.** Trusting the planner (silent truncation). Also rejected: a purely deterministic
+packer (durations parse out of free-text strings, and packing by arithmetic splits VO sentences
+and continuous camera moves — the user asked specifically for smart grouping).
+
+### D190 — The cast lives on Script data, is copied at fork, and reaches generation as tagged upstream images *(recorded 2026-08-28; refines D21)*
+
+**Decision.** `ScriptNodeData.cast: CastMember[]` — `{ id, name, kind, description?, imageUrl? }`,
+ordered. `script-parse` (now version 2) proposes names and kinds only; images are operator-uploaded
+and a re-parse **merges by name, preserving them**. Fork copies the cast into `ShotNodeData`
+alongside the script. Cast images then enter the video-gen node's **existing upstream image list**,
+each tagged `castId` / `castName`.
+
+**Why copied rather than resolved.** `resolveShotComposeInputs` deliberately never walks the
+Script→Shot edge (D21 seed-and-fork), so a cast living only on the Script node would never reach a
+generation. Copying is the pattern already in force for the script itself.
+
+**Why injected into the image list.** `assignImageRoles`, the role chips, `buildConstraintState`,
+the reference cap and the shot spine then all work untouched — a cast member is just an image input
+that knows its own name, with Start/End/Ref chips like any other, labelled "Priya" instead of
+"image-gen".
+
+**Why `kind` exists.** Omni assigns a reference's role *by the sentence its tag sits in* — the
+vendor's own example splits style and subject across two tags in one prompt. `kind` is what lets
+the renderer write `in the style of <IMAGE_REF_0>` versus `the woman <IMAGE_REF_1>`. Without it
+the tag syntax's most useful property is unreachable.
+
+**Rejected.** Binding cast entries to canvas File/Image-Gen nodes for live propagation (a second,
+live channel beside D21's copied one, plus characters cluttering the canvas). Also rejected: no
+cast concept at all — nothing would tie "Priya" in shot 1 to "Priya" in shot 4, so every
+`<IMAGE_REF_N>` index would be hand-picked per generation.
+
+**Accepted cost.** Editing a cast image at script level after forking does not propagate to
+already-forked Shots — the same trade the script text already makes.
+
+### D191 — Mentions are rendered per provider; the prompt LLM never writes an index *(recorded 2026-08-28; refines D186)*
+
+**Decision.** `videoPromptGenerateOmniPrompt` emits the existing `@[Label](id)` mention tokens and
+never a raw `<IMAGE_REF_N>`. One provider-aware renderer in `resolve-mention-tokens.ts` resolves
+them: `veo`/`sora` → `the first image` (existing `ordinalToEnglish`), `kling` → `@image_1`
+(1-based), `gemini-omni` → `<IMAGE_REF_0>` (0-based) plus the D186 header and closing guiding
+instruction. Indices are computed **per generation**, over only the references actually sent.
+
+**Why.** Three providers with three conventions, two of them off by one from each other. Put in
+one function they cannot drift; spread across three prompt files they certainly will. It also
+keeps the generator writing prose, which it is good at, instead of arithmetic, which it is not.
+
+**Rejected.** Per-provider prompt text teaching each convention to the LLM. Also rejected:
+indexing over the whole script cast rather than the sent references — the reference cap and the
+operator's role assignment decide what ships, so a whole-cast index would point past the end.
