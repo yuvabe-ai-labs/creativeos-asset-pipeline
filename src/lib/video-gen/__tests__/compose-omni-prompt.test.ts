@@ -21,6 +21,17 @@ describe("composeOmniPrompt", () => {
     );
   });
 
+  // The rule is "absent OR unrecognised" — a node saved against a different model can carry an
+  // audio value this model has no clause for, and it must not fall through to no clause at all.
+  it("falls back to the ambient clause for an unrecognised audio value", () => {
+    const out = composeOmniPrompt({
+      prompt: "A cup.", params: { audio: "explosions" }, plan: EMPTY,
+    });
+    expect(out).toContain(
+      "Sound design: ambience and foley only. No dialogue. No extra sound effects.",
+    );
+  });
+
   it("uses the dialogue clause and does not suppress dialogue", () => {
     const out = composeOmniPrompt({ prompt: "A cup.", params: { audio: "dialogue" }, plan: EMPTY });
     expect(out).toContain("Sound design: ambience, foley and natural dialogue.");
