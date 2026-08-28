@@ -1,6 +1,8 @@
 import type { VideoGenClientModelSpec, ConstraintRule } from "./types";
 import { veoParams, veoLiteParams } from "./params/veo";
 import { kling30Params, klingO1Params } from "./params/kling";
+import { geminiOmniParams } from "./params/gemini-omni";
+import { GEMINI_OMNI_IMAGE_INPUTS, GEMINI_OMNI_RULES } from "./gemini-omni-shape";
 
 // ── Shared image input capability shapes ──────────────────────────────────────
 
@@ -221,6 +223,17 @@ export const videoGenClientModelMap: Record<string, VideoGenClientModelSpec> = {
     imageInputs: KLING_O1_IMAGE_INPUTS,
     params: klingO1Params,
     rules: KLING_O1_RULES,
+  },
+  "gemini:gemini-omni-1.1-flash": {
+    id: "gemini:gemini-omni-1.1-flash",
+    provider: "gemini",
+    label: "Gemini Omni 1.1 Flash",
+    pickerLabel: "Omni 1.1",
+    providerLabel: "Google",
+    maxDurationSeconds: 10,
+    imageInputs: GEMINI_OMNI_IMAGE_INPUTS,
+    params: geminiOmniParams,
+    rules: GEMINI_OMNI_RULES,
   },
 };
 

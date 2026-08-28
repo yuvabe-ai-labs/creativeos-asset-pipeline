@@ -22,10 +22,21 @@ const VIDEO_MODEL_PRICING: Record<
 //   Lite:    $0.05/s (720p) → $0.08/s (1080p)
 //   Fast:    $0.10/s (720p) → $0.12/s (1080p)
 //   Quality: $0.40/s (720p and 1080p — same rate)
-const VEO_RESOLUTION_PRICING: Record<string, Record<string, number>> = {
+// Renamed from VEO_RESOLUTION_PRICING: this is the shape for any model priced by resolution where
+// audio does not move the price — now Veo AND Gemini Omni. Omni generates audio on every request
+// and the published rate already includes it, so there is no audio dimension to key on, exactly
+// as with every Veo 3.1 row.
+const RESOLUTION_ONLY_PRICING: Record<string, Record<string, number>> = {
   "veo:veo-3.1-lite":  { "720p": 0.05, "1080p": 0.08 },
   "veo:veo-3.1-fast":  { "720p": 0.10, "1080p": 0.12 },
   "veo:veo-3.1":       { "720p": 0.40, "1080p": 0.40 },
+  // Source: ai.google.dev/gemini-api/docs/pricing + the Omni 1.1 launch post (verified
+  // 2026-08-28). 1080p and 4k are UPSCALED from a 720p generation, not natively rendered — the
+  // price rises 1.5x and 3x for resolution alone, which is why 720p is the default and 360p
+  // ($0.03/s, ~60% faster) is the draft tier.
+  "gemini:gemini-omni-1.1-flash": {
+    "360p": 0.03, "720p": 0.10, "1080p": 0.15, "4k": 0.30,
+  },
 };
 
 // Kling price varies by resolution AND audio (not just audio) — resolution-keyed table.
@@ -122,11 +133,11 @@ export function computeVideoCost(
     return { usd, inr: usd * USD_TO_INR };
   }
 
-  const veoResolutionPricing = VEO_RESOLUTION_PRICING[modelId];
-  if (veoResolutionPricing) {
-    // Strict lookup, same as Kling above — an unreachable resolution (e.g. "4k", which the UI
-    // never offers for Veo) returns null rather than silently substituting the 720p rate.
-    const perSecond = veoResolutionPricing[resolution ?? "720p"];
+  const resolutionOnlyPricing = RESOLUTION_ONLY_PRICING[modelId];
+  if (resolutionOnlyPricing) {
+    // Strict lookup, same as Kling above — an unreachable resolution returns null rather than
+    // silently substituting the 720p rate.
+    const perSecond = resolutionOnlyPricing[resolution ?? "720p"];
     if (perSecond === undefined) return null;
     const usd = durationSeconds * perSecond;
     return { usd, inr: usd * USD_TO_INR };
