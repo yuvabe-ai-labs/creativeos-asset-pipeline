@@ -96,6 +96,22 @@ for a generation.
 
 Reuse this before spending on any new provider's parameter surface.
 
+## 4a. Content-part schema — verified 2026-08-29
+
+`input` accepts a **string** or an **array of content parts**. Both part shapes the provider sends
+are accepted, confirmed by the §4 sentinel technique at zero cost:
+
+| Part | Shape | Result |
+|---|---|---|
+| Text | `{ "type": "text", "text": "…" }` | accepted |
+| Image | `{ "type": "image", "data": "<base64>", "mime_type": "image/png" }` | accepted |
+
+The array form also generated successfully end to end (360p × 3s, $0.09) — the error in each probe
+named only the sentinel key, meaning every real key beside it passed validation.
+
+This closes what was the largest unverified surface in the integration: the provider always sends
+the array form, including on the zero-image path, and its part key names were previously a guess.
+
 ## 5. Still unverified
 
 - Whether the returned Files object needs an `ACTIVE` state poll before download, or is

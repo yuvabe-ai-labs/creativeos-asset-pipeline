@@ -3565,3 +3565,19 @@ Also rejected: removing it from O1 only, which would leave two models claiming m
 
 **Watch-item.** These are dead controls in the spec. If Kling multi-shot is never revisited, delete
 them in a later pass rather than leaving `visible: false` indefinitely.
+
+**Watch-item (added 2026-08-29, on implementation).** The justification above — "Omni is the only
+multi-shot model surfaced" — is not true until Plan 2 ships. Plan 1 registers the Omni provider but
+adds no multishot control anywhere; the Shot node's toggle is Plan 2. **Between the two, multishot
+is surfaced nowhere**: Kling's toggle is hidden and its replacement does not exist yet. If Plan 2
+slips, either revert this decision or accept that gap knowingly.
+
+**Consequence found on implementation.** `describeVersionParams` filters on `visible`, so hiding the
+param also drops it from the version-history summary row for versions that really did run with
+multi-shot on. That is the intended trade — the row answers "what distinguishes two versions", and a
+control nobody can see distinguishes nothing — and provenance survives in the "Sent to model" panel,
+which deliberately keeps invisible params. Two things follow that the decision above did not
+anticipate: **hidden is not off** (the route reads a node's saved value and only falls back to the
+default, so a node toggled on before this change keeps sending `multi_shot: true` with no control
+left to clear it), and the toggle On/Off formatting test had to move to `describeAllVersionParams`,
+now the only place a toggle renders.
