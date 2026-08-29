@@ -3,6 +3,8 @@
 import type { ReactNode } from "react";
 import { Plus, X } from "lucide-react";
 import { looksLikeReelScript, type ReelScript } from "@/lib/nodes/reel-script";
+import { describeShotGrouping } from "@/lib/nodes/group-shots";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { EditableField } from "./editable-field";
 
@@ -52,6 +54,8 @@ export function ScriptDocument({
 
   const set = (path: Path) => (v: string) => onChange?.(path, v);
   const shots = script.visual_script?.shots ?? [];
+  // Indexed to match `shots` — entry i describes shot i.
+  const grouping = describeShotGrouping(shots);
   const body = script.on_screen_text?.body ?? [];
   const qc = script.qc_notes ?? [];
   const links = script.product_links ?? [];
@@ -116,13 +120,35 @@ export function ScriptDocument({
                   multiline
                   placeholder="Shot description…"
                 />
-                <EditableField
-                  value={shot.duration ?? ""}
-                  onCommit={set(["visual_script", "shots", i, "duration"])}
-                  readOnly={readOnly}
-                  placeholder="duration"
-                  className="text-xs text-muted-foreground"
-                />
+                <div className="flex flex-wrap items-center gap-x-2">
+                  <EditableField
+                    value={shot.duration ?? ""}
+                    onCommit={set(["visual_script", "shots", i, "duration"])}
+                    readOnly={readOnly}
+                    placeholder="duration"
+                    className="text-xs text-muted-foreground"
+                  />
+                  {/* D200 — what fan-out will do with this shot, read from the SAME grouping
+                      function fan-out uses, so the list cannot promise something else. Read-only:
+                      the control that changes grouping is the Shot node's toggle, after fan-out. */}
+                  {grouping[i] && (
+                    <span
+                      title={
+                        grouping[i].multishot
+                          ? "Generated as one clip with cuts, together with the other shots in this generation"
+                          : "Generated on its own as a single continuous take"
+                      }
+                      className={cn(
+                        "shrink-0 rounded px-1.5 py-0.5 text-[0.65rem] font-medium",
+                        grouping[i].multishot
+                          ? "bg-primary/10 text-primary"
+                          : "bg-muted text-muted-foreground",
+                      )}
+                    >
+                      {grouping[i].label}
+                    </span>
+                  )}
+                </div>
               </div>
               {!readOnly && (
                 <Button

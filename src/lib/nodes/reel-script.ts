@@ -2,16 +2,37 @@
 // Mirrors the reelSchema in src/prompts/script-parse.ts. All fields optional
 // because a parse may legitimately leave a field empty.
 
+/**
+ * ONE CAMERA SETUP — not one timecoded block (D198).
+ *
+ * A script's timecoded block ("0-3 SEC — THE HOOK") is a BEAT, and a beat usually holds several
+ * shots. The 20s CHUPPS script has 5 blocks and 18 shots.
+ */
 export type ReelShot = {
   description?: string;
-  /** Timing exactly as written in the script — "0-3 sec". Display only. */
+  /** The parent BEAT's timing exactly as written — "0-3 sec". Display only. */
   duration?: string;
   /**
-   * The shot's own LENGTH in seconds — not the end of its timecode range. Grouping needs
-   * arithmetic and `duration` is free text ("0-3 sec", "3 sec", "22-26 seconds"), so the model
-   * returns the number directly rather than the fan-out guessing at prose it did not anticipate.
+   * THIS shot's own length in whole seconds — not the end of its timecode range, and not the
+   * beat's length. Grouping needs arithmetic and `duration` is free text ("0-3 sec", "3 sec",
+   * "22-26 seconds"), so the model returns the number rather than the fan-out guessing at prose
+   * it did not anticipate.
+   *
+   * The shots of one beat may sum to MORE than the beat's scripted length — four 1s shots in a 3s
+   * hook is 4s, generated long and trimmed in the edit on a shot carrying no voiceover. Forcing
+   * the sum to match would push shots under the 1s floor.
    */
   duration_seconds?: number;
+  /**
+   * 0-based index of the timecoded block this shot came from. Consecutive shots of one block
+   * share it, and grouping never splits a beat that fits the cap (D199).
+   *
+   * Absent on scripts parsed before v3 — such a shot is treated as its own beat, so those scripts
+   * group exactly as they did before. Re-extract upgrades them.
+   */
+  beat_index?: number;
+  /** That block's heading as written — "0-3 SEC — THE HOOK". Display only. */
+  beat_label?: string;
 };
 
 export type ReelScript = {
