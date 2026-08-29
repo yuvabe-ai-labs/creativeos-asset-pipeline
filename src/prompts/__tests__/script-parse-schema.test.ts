@@ -27,29 +27,7 @@ describe("script-parse schema", () => {
     expect(scriptParsePrompt.system).toMatch(/length/i);
   });
 
-  it("declares beat_index and beat_label as required on every shot", () => {
-    expect(shotProps.properties.beat_index).toEqual({ type: "integer" });
-    expect(shotProps.properties.beat_label).toEqual({ type: "string" });
-    expect(shotProps.required).toContain("beat_index");
-    expect(shotProps.required).toContain("beat_label");
-  });
-
-  // D198 — the defect this replaced. The old instruction said "split the shot list into
-  // individual shots", but a script's shot list IS its timecoded blocks, so the model split at
-  // block level and stopped: a 20s script with 18 camera setups came back as 5 entries.
-  it("says a timecoded block is a beat containing several shots", () => {
-    expect(scriptParsePrompt.system).toMatch(/beat/i);
-    expect(scriptParsePrompt.system).toMatch(/several shots/i);
-    expect(scriptParsePrompt.system).toMatch(/camera setup/i);
-    expect(scriptParsePrompt.system).toContain("Do NOT return one entry per timecoded block");
-  });
-
-  // A rule alone under-splits; the worked example is what makes the split land.
-  it("carries a worked example showing one block becoming four shots", () => {
-    expect(scriptParsePrompt.system).toContain("FOUR shots, not one");
-  });
-
-  it("is version 3", () => {
-    expect(scriptParsePrompt.version).toBe(3);
+  it("is version 2", () => {
+    expect(scriptParsePrompt.version).toBe(2);
   });
 });

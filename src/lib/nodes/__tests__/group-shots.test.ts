@@ -8,20 +8,6 @@ const shots = (...lengths: number[]): ReelShot[] =>
 const shape = (gs: ReturnType<typeof groupShotsForFanOut>) =>
   gs.map((g) => ({ idx: g.shotIndexes, s: g.seconds }));
 
-/** Shots grouped into beats: `beat(4, 1,1,1,1)` is beat 4 with four 1s shots. */
-const beats = (...spec: number[][]): ReelShot[] =>
-  spec.flatMap(([beatIndex, ...lengths], b) =>
-    lengths.map((n, i) => ({
-      description: `beat ${beatIndex} shot ${i + 1}`,
-      duration_seconds: n,
-      beat_index: beatIndex,
-      beat_label: `beat ${b}`,
-    })),
-  );
-
-const counts = (gs: ReturnType<typeof groupShotsForFanOut>) =>
-  gs.map((g) => ({ shots: g.shotIndexes.length, s: g.seconds }));
-
 describe("shotSeconds", () => {
   it("reads duration_seconds", () => {
     expect(shotSeconds({ duration_seconds: 6 })).toBe(6);
@@ -109,99 +95,25 @@ describe("groupShotsForFanOut", () => {
   });
 });
 
-describe("groupShotsForFanOut — beats (D199)", () => {
-  // THE FIXTURE. The CHUPPS 20s script as it really is: 5 timecoded beats holding 18 camera
-  // setups. The reference decomposition in ref/multishot-refs/chupps-20s-gemini-omni-prompts.md
-  // expects three generations — Hook+Lives, Product, Brand+Close — and this must reproduce them.
-  const chupps = beats(
-    [0, 1, 1, 1, 1],       // Hook: 4 shots, 4s
-    [1, 1, 1, 1, 2],       // Different lives: 4 shots, 5s
-    [2, 1, 1, 1, 1, 1, 1], // Product + style: 6 shots, 6s
-    [3, 1, 1, 1, 1],       // Brand moment: 4 shots, 4s
-    [4, 2],                // Close: 1 shot, 2s
-  );
-
-  it("packs whole beats and reproduces the reference's three generations", () => {
-    // 19 camera setups where the shipped parse returned 5 entries.
-    expect(chupps).toHaveLength(19);
-    // The reference's Gen A / B / C carry 8, 6 and 5 shots. Greedy alone would give
-    // beats 0+1, beats 2+3 (10s) and a stranded 2s close; the rebalance moves beat 3 forward.
-    expect(counts(groupShotsForFanOut(chupps))).toEqual([
-      { shots: 8, s: 9 }, // beats 0+1 — Hook + Different lives
-      { shots: 6, s: 6 }, // beat 2    — Product + style
-      { shots: 5, s: 6 }, // beats 3+4 — Brand moment + close
-    ]);
-  });
-
-  // The point of beat-awareness. A seam is an un-guaranteed transition, so it belongs where the
-  // script already wanted a cut — never inside a beat written as continuous.
-  it("never splits a beat that fits under the cap", () => {
-    const groups = groupShotsForFanOut(chupps);
-    for (const beatIndex of [0, 1, 2, 3, 4]) {
-      const owning = groups.filter((g) =>
-        g.shotIndexes.some((i) => chupps[i].beat_index === beatIndex),
-      );
-      expect(owning).toHaveLength(1);
-    }
-  });
-
-  it("conserves every shot exactly once, in order", () => {
-    const flat = groupShotsForFanOut(chupps).flatMap((g) => g.shotIndexes);
-    expect(flat).toEqual(chupps.map((_, i) => i));
-  });
-
-  // A beat too long for one generation has to be split — but only that beat.
-  it("splits a beat that alone exceeds the cap, and only that one", () => {
-    const long = beats([0, 4, 4, 4, 4], [1, 3]); // 16s beat, then a 3s beat
-    expect(shape(groupShotsForFanOut(long))).toEqual([
-      { idx: [0, 1], s: 8 },
-      { idx: [2, 3], s: 8 },
-      { idx: [4], s: 3 },
-    ]);
-  });
-
-  // Scripts parsed before v3 carry no beat_index. They must group exactly as they did before.
-  it("treats a shot with no beat_index as its own beat", () => {
-    expect(shape(groupShotsForFanOut(shots(3, 5, 6, 4, 2)))).toEqual([
-      { idx: [0, 1], s: 8 },
-      { idx: [2], s: 6 },
-      { idx: [3, 4], s: 6 },
-    ]);
-  });
-
-  it("handles a mix of tagged and untagged shots without dropping any", () => {
-    const mixed: ReelShot[] = [
-      { duration_seconds: 2, beat_index: 0 },
-      { duration_seconds: 2, beat_index: 0 },
-      { duration_seconds: 3 },
-      { duration_seconds: 4, beat_index: 1 },
-    ];
-    const flat = groupShotsForFanOut(mixed).flatMap((g) => g.shotIndexes);
-    expect(flat).toEqual([0, 1, 2, 3]);
-  });
-});
-
 describe("describeShotGrouping (D200)", () => {
-  it("labels every shot with its generation and whether it shares one", () => {
+  it("marks shots that share a generation as multishot", () => {
     // Two 4s shots group; the 6s one cannot join them.
-    expect(describeShotGrouping(shots(4, 4, 6)).map((l) => l.label)).toEqual([
-      "Multishot · Gen 1",
-      "Multishot · Gen 1",
-      "Single · Gen 2",
+    expect(describeShotGrouping(shots(4, 4, 6))).toEqual([
+      { groupIndex: 0, multishot: true },
+      { groupIndex: 0, multishot: true },
+      { groupIndex: 1, multishot: false },
     ]);
   });
 
-  it("marks a lone shot as Single", () => {
-    expect(describeShotGrouping(shots(9))).toEqual([
-      { groupIndex: 0, multishot: false, label: "Single · Gen 1" },
-    ]);
+  it("marks a shot generated on its own as not multishot", () => {
+    expect(describeShotGrouping(shots(9))).toEqual([{ groupIndex: 0, multishot: false }]);
   });
 
   it("returns nothing for an empty script", () => {
     expect(describeShotGrouping([])).toEqual([]);
   });
 
-  // The label must agree with fan-out exactly — it exists to show the plan before committing.
+  // The note must agree with fan-out exactly — it exists to show the plan before committing to it.
   it("agrees with groupShotsForFanOut on every shot", () => {
     const source = shots(3, 5, 6, 4, 2);
     const labels = describeShotGrouping(source);
