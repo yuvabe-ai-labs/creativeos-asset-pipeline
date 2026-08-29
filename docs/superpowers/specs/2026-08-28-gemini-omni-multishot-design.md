@@ -57,6 +57,25 @@ field; it simply also returns an integer. `script-parse` bumps to **version 2**.
 Absent or unparseable `duration_seconds` defaults to **4s** for grouping purposes, and the Shot
 node shows that the value was assumed rather than parsed.
 
+#### `duration_seconds` is a LENGTH, never a timecode
+
+Real scripts write shot timings as **cumulative ranges**, not lengths. A live parse of the CHUPPS
+"Where are you headed?" script returned:
+
+| Shot | `duration` (as parsed today) | Length |
+|---|---|---|
+| 1 | `0–3 sec` | 3 |
+| 2 | `3–8 sec` | 5 |
+| 3 | `8–14 sec` | 6 |
+| 4 | `14–18 sec` | 4 |
+| 5 | `18–20 sec` | 2 |
+
+A parse that returned `3, 8, 14, 18, 20` for `duration_seconds` would look entirely plausible and
+make every group wrong — a 20s reel would blow the 10s cap on its third shot. The prompt must say
+**"the shot's own length in seconds, not the end of its timecode range; for `8–14 sec` return
+`6`"**, and the schema field is named for length. This is the single highest-risk instruction in
+the parse change.
+
 ---
 
 ## 3. Fan-out — hybrid, capped at 10s
@@ -80,6 +99,29 @@ walk shots in order
 Grouping is deliberately **consecutive-only and greedy**. It is not trying to find good seams —
 that was the planner, and the planner is gone. The operator sees the result as nodes and adjusts
 with the toggle.
+
+### The floor matters as much as the ceiling
+
+Omni's duration range is **3–10s**. Greedy packing respects the ceiling but can strand a trailing
+remainder below the floor. The CHUPPS script above (lengths 3, 5, 6, 4, 2) does exactly that:
+
+| Block | Shots | Seconds | |
+|---|---|---|---|
+| 1 | 1–2 | 3+5 = 8 | ok |
+| 2 | 3–4 | 6+4 = 10 | ok, exactly at the cap |
+| 3 | 5 | 2 | **below the 3s floor** |
+
+A 2s block cannot be requested at 2s, and it cannot merge backward either — block 2 is already at
+10. So grouping runs a **trailing rebalance** after the greedy pass:
+
+> While the final block is below the floor and the previous block holds more than one shot, move
+> the previous block's **last** shot into the final block.
+
+On this script that yields block 2 = `[6]` and block 3 = `[4, 2]` = 6s — both legal, nothing
+dropped, nothing padded. If no rebalance is possible (a single block, or a lone sub-3s shot in the
+whole script), the block's requested duration is **clamped up to 3s** and the node is flagged as
+generating longer than scripted. Clamping is the last resort, never the first move: it invents
+video the script did not ask for.
 
 `seededFrom.shotIndex: number` becomes `seededFrom.shotIndexes: number[]`; a single-shot node
 carries a one-element array, so provenance needs no special case.
@@ -263,7 +305,9 @@ Pure units, colocated in `__tests__/` per the existing convention:
 
 - `groupShotsForFanOut` — consecutive greedy packing to the 10s cap; a single over-cap shot gets its
   own node and is flagged; missing `duration_seconds` falls back to 4s; total shot count is
-  conserved across all groups.
+  conserved across all groups. **The CHUPPS case (3, 5, 6, 4, 2) is a fixture**: it must yield
+  `[1,2] [3] [4,5]` after the trailing rebalance, never a 2s final block. Also: a lone sub-3s shot
+  clamps to 3s and is flagged; a rebalance never leaves the previous block empty.
 - `splitMultishotNode` — N shots become N nodes in order, each `multishot: false`, lineage and
   `shotIndexes` preserved.
 - `deriveShotDuration` — sum clamped to 3–10; an over-cap node clamps to 10.

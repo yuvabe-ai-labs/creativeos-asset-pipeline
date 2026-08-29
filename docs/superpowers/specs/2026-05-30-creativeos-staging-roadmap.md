@@ -3483,6 +3483,24 @@ already regroups. Easy to add once the need is real.
 can see it). Also rejected: 1:1 fan-out with a manual merge (the common case is grouped, so it
 front-loads work onto every script).
 
+**Two corrections from a real parse (2026-08-29), before implementation.** Running a live client
+script through the existing parse exposed both:
+
+1. **`duration_seconds` is a LENGTH, not a timecode.** Real scripts write cumulative ranges —
+   `0–3 sec`, `3–8 sec`, `8–14 sec`. A parse returning `3, 8, 14` there looks entirely plausible and
+   makes every group wrong. The prompt must state "the shot's own length, not the end of its range;
+   for `8–14 sec` return `6`."
+2. **The 3s floor strands trailing remainders.** Greedy packing of lengths 3, 5, 6, 4, 2 gives
+   blocks of 8s, 10s and **2s** — and the 2s block is below Omni's minimum and cannot merge backward
+   into a block already at the cap. Grouping therefore runs a **trailing rebalance**: while the
+   final block is under the floor and the previous block holds more than one shot, move the previous
+   block's last shot forward. That yields 8s / 6s / 6s here. Only when no rebalance is possible does
+   the duration clamp up to 3s, flagged — clamping invents video the script did not ask for, so it
+   is the last resort rather than the first.
+
+The original decision named only the ceiling. Both corrections are in the design spec's §3, and the
+CHUPPS lengths are a required test fixture.
+
 ### D194 — A reference is a File node; there is no cast *(recorded 2026-08-28; supersedes D190 and the merge-order half of D192)*
 
 **Decision.** References are ordinary File nodes connected to the **motion-prompt or video-gen**
