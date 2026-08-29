@@ -216,7 +216,11 @@ export function VideoPromptFocusView({
   );
   const locked = downstreamProviders.length >= 1;
   const mixed = downstreamProviders.length > 1;
-  const selectorValue: VideoProvider = targetProvider === "kling" ? "kling" : "veo";
+  // Narrows the persisted value to the union, defaulting anything unrecognised to Veo. Every
+  // member must be listed: a node saved as "gemini-omni" fell back to Veo here while this only
+  // knew "kling", so disconnecting its video node silently changed which prompt variant it wrote.
+  const selectorValue: VideoProvider =
+    targetProvider === "kling" || targetProvider === "gemini-omni" ? targetProvider : "veo";
   const effectiveProvider: VideoProvider = mixed
     ? "veo"
     : locked

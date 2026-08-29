@@ -5,9 +5,14 @@ import { FieldLabel } from "./field-label";
 import { ParamChipGroup } from "./param-chip-group";
 import type { VideoProvider } from "@/prompts/video-prompt-generate";
 
+// Every member of VideoProvider must appear here. The chips match on value, so a provider missing
+// from this list renders the field with NOTHING selected — and because a connected Video Gen node
+// locks the control, the operator cannot correct it. That is what happened when `provider` gained
+// "gemini" and providerOf cast it away; it recurs the moment a fourth model family is added.
 const OPTIONS: { value: VideoProvider; label: string }[] = [
   { value: "veo", label: "Veo" },
   { value: "kling", label: "Kling" },
+  { value: "gemini-omni", label: "Omni" },
 ];
 
 // D77: which video model family this motion prompt is written for. Locks to a connected
