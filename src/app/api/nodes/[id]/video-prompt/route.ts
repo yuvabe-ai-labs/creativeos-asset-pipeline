@@ -41,7 +41,7 @@ export async function POST(
     const instruction = typeof body?.instruction === "string" ? body.instruction : "";
     const controls = normalizeControls(body?.controls);
 
-    const VALID_PROVIDERS: VideoProvider[] = ["veo", "kling"];
+    const VALID_PROVIDERS: VideoProvider[] = ["veo", "kling", "gemini-omni"];
     const targetProvider: VideoProvider = VALID_PROVIDERS.includes(body?.targetProvider as VideoProvider)
       ? (body?.targetProvider as VideoProvider)
       : "veo";

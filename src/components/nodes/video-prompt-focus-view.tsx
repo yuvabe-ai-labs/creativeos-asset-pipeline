@@ -203,14 +203,14 @@ export function VideoPromptFocusView({
   const nodes = useCanvasStore((s) => s.nodes);
   const edges = useCanvasStore((s) => s.edges);
   const downstreamGen = findDescendantsOfType(nodeId, nodes, edges, "video-gen");
-  // A video model's `provider` is a wider union than VideoProvider — it gained "gemini" when
-  // Omni was registered. Map at this boundary rather than casting: Omni is a text-camera model
-  // like Veo, so it writes the Veo motion-prompt shape. Casting instead left the Target model
-  // chips with no match, rendering the field empty and disabled with no way to correct it.
-  const providerOf = (modelId?: string): VideoProvider =>
-    videoGenClientModelMap[modelId ?? DEFAULT_VIDEO_CLIENT_MODEL_ID]?.provider === "kling"
-      ? "kling"
-      : "veo";
+  // D195 — Omni gets its own motion-prompt variant (the timecode ladder), so it maps to
+  // "gemini-omni" rather than folding into Veo as it did before that variant existed.
+  const providerOf = (modelId?: string): VideoProvider => {
+    const provider = videoGenClientModelMap[modelId ?? DEFAULT_VIDEO_CLIENT_MODEL_ID]?.provider;
+    if (provider === "kling") return "kling";
+    if (provider === "gemini") return "gemini-omni";
+    return "veo";
+  };
   const downstreamProviders = Array.from(
     new Set(downstreamGen.map((n) => providerOf((n.data as { modelId?: string })?.modelId))),
   );
