@@ -53,7 +53,7 @@ export function ShotNode({ id, data, selected, positionAbsoluteX, positionAbsolu
   function setDescription(value: string) {
     const base = d.script ?? {};
     const vs = base.visual_script ?? {};
-    const next = (vs.shots ?? [{}]).map((s, i) =>
+    const next = (vs.shots?.length ? vs.shots : [{}]).map((s, i) =>
       i === activeBeat ? { ...s, description: value } : s,
     );
     updateNodeData(id, { script: { ...base, visual_script: { ...vs, shots: next } } });

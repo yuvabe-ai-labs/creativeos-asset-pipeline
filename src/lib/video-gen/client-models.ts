@@ -173,6 +173,9 @@ const KLING_O1_RULES: ConstraintRule[] = [
 
 // ── Model map ─────────────────────────────────────────────────────────────────
 
+/** The only model that cuts between shots natively — a multishot shot must generate on this. */
+export const GEMINI_OMNI_MODEL_ID = "gemini:gemini-omni-1.1-flash";
+
 export const videoGenClientModelMap: Record<string, VideoGenClientModelSpec> = {
   "veo:veo-3.1-lite": {
     id: "veo:veo-3.1-lite",
@@ -224,8 +227,8 @@ export const videoGenClientModelMap: Record<string, VideoGenClientModelSpec> = {
     params: klingO1Params,
     rules: KLING_O1_RULES,
   },
-  "gemini:gemini-omni-1.1-flash": {
-    id: "gemini:gemini-omni-1.1-flash",
+  [GEMINI_OMNI_MODEL_ID]: {
+    id: GEMINI_OMNI_MODEL_ID,
     provider: "gemini",
     label: "Gemini Omni 1.1 Flash",
     pickerLabel: "Omni 1.1",

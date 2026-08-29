@@ -451,12 +451,20 @@ export function createCanvasStore(
         })),
       );
 
+      // Edges touching the replaced node, in BOTH directions — autosave's delete set is built
+      // only from removedEdgeIds, so an edge dropped from `edges` alone resurrects on reload.
+      const cascaded = get().edges.filter(
+        (e) => e.source === shotNodeId || e.target === shotNodeId,
+      );
+
       set({
         nodes: [...get().nodes.filter((n) => n.id !== shotNodeId), ...created],
         edges: [
           ...get().edges.filter((e) => e.target !== shotNodeId && e.source !== shotNodeId),
           ...carried,
         ],
+        removedNodeIds: [...get().removedNodeIds, shotNodeId],
+        removedEdgeIds: [...get().removedEdgeIds, ...cascaded.map((e) => e.id)],
       });
     },
 

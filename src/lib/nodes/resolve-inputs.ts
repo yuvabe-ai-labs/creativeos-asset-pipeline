@@ -105,15 +105,22 @@ export function mapUpstreamForVideo(u: RawUpstream): UpstreamPreview {
   if (u.type === "shot") {
     // D195 — a multishot Shot hands down its beats as a timecode ladder; a single one hands down
     // the action line plus an explicit instruction to hold one take, because Omni cuts by default.
+    //
+    // A ladder needs MORE THAN ONE beat. On a single-shot node multishot means "the model may cut
+    // inside this shot", which a one-line ladder ending "keep these timings exactly" would forbid
+    // — and if that shot runs over the 10s cap, its ladder would outrun the request's duration and
+    // come back truncated at full price.
     const script = (u.data.script ?? null) as ReelScript | null;
+    const beats = script?.visual_script?.shots ?? [];
     const multishot = u.data.multishot === true;
-    const ladder = multishot ? renderShotLadder(script) : "";
-    return {
-      ...base,
-      text: ladder
-        ? `Beats (keep these timings exactly):\n${ladder}`
-        : `${renderShotForVideo(script)}\n${SINGLE_TAKE_LINE}`.trim(),
-    };
+    const action = renderShotForVideo(script);
+    if (multishot && beats.length > 1) {
+      return { ...base, text: `Beats (keep these timings exactly):\n${renderShotLadder(script)}` };
+    }
+    if (multishot) {
+      return { ...base, text: `${action}\nThe model may cut within this shot.`.trim() };
+    }
+    return { ...base, text: action ? `${action}\n${SINGLE_TAKE_LINE}` : "" };
   }
   if (u.type === "file" || u.type === "draw") {
     return {

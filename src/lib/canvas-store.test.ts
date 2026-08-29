@@ -181,6 +181,84 @@ describe("fanOutShots", () => {
   });
 });
 
+describe("splitMultishotNode", () => {
+  const groupedShot: AppNode = {
+    id: "grouped",
+    type: "shot",
+    position: { x: 100, y: 100 },
+    data: {
+      multishot: true,
+      script: {
+        title: "Reel",
+        visual_script: {
+          shots: [
+            { description: "hands lift the jar", duration_seconds: 4 },
+            { description: "macro on the lid", duration_seconds: 5 },
+          ],
+        },
+      },
+      seededFrom: { scriptNodeId: "script-1", shotIndex: 0, shotIndexes: [0, 1], scriptTitle: "Reel" },
+    },
+  } as AppNode;
+
+  it("replaces the grouped node with one node per beat", () => {
+    const store = createCanvasStore([groupedShot], []);
+    store.getState().splitMultishotNode("grouped");
+
+    const { nodes } = store.getState();
+    expect(nodes.some((n) => n.id === "grouped")).toBe(false);
+    const pieces = nodes.filter((n) => n.type === "shot");
+    expect(pieces).toHaveLength(2);
+    expect(
+      pieces.map((n) => (n.data as { script?: { visual_script?: { shots?: { description?: string }[] } } })
+        .script?.visual_script?.shots?.[0]?.description),
+    ).toEqual(["hands lift the jar", "macro on the lid"]);
+  });
+
+  // The bug Fix 1 addresses: without this, the grouped node and its dropped outgoing edge
+  // resurrect on the next load, because autosave's delete set is built ONLY from these lists.
+  it("records the old node id in removedNodeIds and every touching edge in removedEdgeIds", () => {
+    const upstream: AppNode = { id: "script-1", type: "script", position: { x: 0, y: 0 }, data: {} } as AppNode;
+    const downstream: AppNode = { id: "prompt-1", type: "prompt", position: { x: 0, y: 0 }, data: {} } as AppNode;
+    const store = createCanvasStore(
+      [upstream, groupedShot, downstream],
+      [
+        { id: "e-in", source: "script-1", target: "grouped" },
+        { id: "e-out", source: "grouped", target: "prompt-1" },
+      ],
+    );
+    store.getState().splitMultishotNode("grouped");
+
+    expect(store.getState().removedNodeIds).toEqual(["grouped"]);
+    expect(store.getState().removedEdgeIds.sort()).toEqual(["e-in", "e-out"]);
+  });
+
+  it("carries an incoming edge to every piece", () => {
+    const upstream: AppNode = { id: "script-1", type: "script", position: { x: 0, y: 0 }, data: {} } as AppNode;
+    const store = createCanvasStore(
+      [upstream, groupedShot],
+      [{ id: "e-in", source: "script-1", target: "grouped" }],
+    );
+    store.getState().splitMultishotNode("grouped");
+
+    const pieces = store.getState().nodes.filter((n) => n.type === "shot");
+    const incomingEdges = store.getState().edges.filter((e) => e.source === "script-1");
+    expect(incomingEdges).toHaveLength(pieces.length);
+    expect(incomingEdges.map((e) => e.target).sort()).toEqual(pieces.map((p) => p.id).sort());
+  });
+
+  it("does not carry an outgoing edge to any piece", () => {
+    const downstream: AppNode = { id: "prompt-1", type: "prompt", position: { x: 0, y: 0 }, data: {} } as AppNode;
+    const store = createCanvasStore(
+      [groupedShot, downstream],
+      [{ id: "e-out", source: "grouped", target: "prompt-1" }],
+    );
+    store.getState().splitMultishotNode("grouped");
+
+    expect(store.getState().edges).toHaveLength(0);
+  });
+});
+
 describe("promoteIdeasToShots", () => {
   it("creates one sibling Shot per idea (descriptions set, no edges) and leaves the source intact", () => {
     const sourceShot = {
