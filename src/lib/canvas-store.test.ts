@@ -89,8 +89,8 @@ describe("fanOutShots", () => {
         strategic_objective: "Sell calm",
         visual_script: {
           shots: [
-            { description: "Turmeric root", duration: "3s" },
-            { description: "Rose petal", duration: "4s" },
+            { description: "Turmeric root", duration: "3s", duration_seconds: 6 },
+            { description: "Rose petal", duration: "4s", duration_seconds: 6 },
           ],
         },
       },
@@ -134,6 +134,46 @@ describe("fanOutShots", () => {
     const store = createCanvasStore([bare], []);
     store.getState().fanOutShots("s2");
     expect(store.getState().nodes.filter((n) => n.type === "shot")).toHaveLength(0);
+  });
+
+  it("groups consecutive shots into multishot nodes capped at 10s", () => {
+    const reelB: AppNode = {
+      id: "script-b",
+      type: "script",
+      position: { x: 0, y: 0 },
+      data: {
+        title: "Reel B",
+        parsed: {
+          title: "Reel B",
+          visual_script: {
+            shots: [
+              { description: "one", duration_seconds: 3 },
+              { description: "two", duration_seconds: 5 },
+              { description: "three", duration_seconds: 6 },
+              { description: "four", duration_seconds: 4 },
+              { description: "five", duration_seconds: 2 },
+            ],
+          },
+        },
+      },
+    } as AppNode;
+
+    const store = createCanvasStore([reelB], []);
+    store.getState().fanOutShots("script-b");
+    const shotNodes = store.getState().nodes.filter((n) => n.type === "shot");
+
+    // 5 shots -> 3 nodes, after the trailing rebalance: [0,1] [2] [3,4]
+    expect(shotNodes).toHaveLength(3);
+    expect(
+      shotNodes.map((n) => (n.data as { script?: { visual_script?: { shots?: unknown[] } } })
+        .script?.visual_script?.shots?.length),
+    ).toEqual([2, 1, 2]);
+    expect(shotNodes.map((n) => (n.data as { multishot?: boolean }).multishot))
+      .toEqual([true, false, true]);
+    expect(
+      shotNodes.map((n) => (n.data as { seededFrom?: { shotIndexes?: number[] } })
+        .seededFrom?.shotIndexes),
+    ).toEqual([[0, 1], [2], [3, 4]]);
   });
 });
 

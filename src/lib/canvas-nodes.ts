@@ -98,16 +98,24 @@ export type VideoGenNodeData = {
 };
 
 export type ShotNodeData = {
-  // The parent reel script narrowed to a SINGLE shot — "a Script node with one shot"
-  // (D21). Carries the full metadata (objective, on-screen text, voiceover, caption…)
-  // so downstream prompts keep the whole creative context, not just the shot line.
+  // The parent reel script narrowed to the shots THIS node covers — one for a single shot, several
+  // for a multishot group (D193). Carries the full metadata (objective, on-screen text, voiceover,
+  // caption…) so downstream prompts keep the whole creative context, not just the shot line.
   // Editable; this node's output (D19/D20) — rendered via renderScriptAsText.
   script?: ReelScript;
   order?: number; // 1-based position in the script (display + Stage 5 assembly)
   shot_type?: string; // e.g. "Wide Shot", "Close-Up" — user-selected or keyword-derived
+  /**
+   * D193 — this node's shots become ONE generation with cuts between them, rather than one
+   * generation each. True by default on any node fan-out grouped; turning it off SPLITS the node.
+   * On a single-shot node it means "the model may cut inside this shot" rather than holding one
+   * continuous take.
+   */
+  multishot?: boolean;
   seededFrom?: {
     scriptNodeId: string;
-    shotIndex: number; // 0-based index in visual_script.shots at fork time
+    shotIndex: number; // 0-based index of the FIRST shot — kept so pre-D193 nodes still resolve
+    shotIndexes?: number[]; // every shot this node covers, in order
     scriptTitle?: string; // for the provenance label without a lookup
   };
 };

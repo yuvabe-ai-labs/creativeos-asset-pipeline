@@ -20,6 +20,7 @@ import type { AppNode } from "./canvas-nodes";
 import type { ReelScript } from "@/lib/nodes/reel-script";
 import type { ShotComposeIdea } from "@/lib/nodes/shot-compose";
 import { deriveShotType } from "@/lib/nodes/shot-types";
+import { groupShotsForFanOut } from "@/lib/nodes/group-shots";
 import type { GenerationRow } from "@/lib/db/types";
 import type { PlaybookRun } from "@/lib/copilot/runner";
 
@@ -373,18 +374,30 @@ export function createCanvasStore(
 
       const base = script.position;
       const scriptTitle = data.title || parsed?.title || "";
-      const created = shots.map((shot, i) => ({
+      // D193 — hybrid fan-out. Consecutive shots pack into ≤10s groups, so the canvas comes out
+      // mixed: grouped nodes generate as one clip with cuts, lone ones as a single take.
+      const groups = groupShotsForFanOut(shots);
+      const created = groups.map((group, i) => ({
         id: crypto.randomUUID(),
         type: "shot",
         position: { x: base.x + 360, y: base.y + i * 170 },
         data: {
           script: {
             ...parsed,
-            visual_script: { ...parsed?.visual_script, shots: [shot] },
+            visual_script: {
+              ...parsed?.visual_script,
+              shots: group.shotIndexes.map((shotIndex) => shots[shotIndex]),
+            },
           },
           order: i + 1,
-          shot_type: deriveShotType(shot.description ?? ""),
-          seededFrom: { scriptNodeId, shotIndex: i, scriptTitle },
+          multishot: group.shotIndexes.length > 1,
+          shot_type: deriveShotType(shots[group.shotIndexes[0]]?.description ?? ""),
+          seededFrom: {
+            scriptNodeId,
+            shotIndex: group.shotIndexes[0],
+            shotIndexes: group.shotIndexes,
+            scriptTitle,
+          },
         },
       })) as AppNode[];
 
