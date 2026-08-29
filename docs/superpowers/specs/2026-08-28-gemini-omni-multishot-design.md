@@ -114,8 +114,15 @@ remainder below the floor. The CHUPPS script above (lengths 3, 5, 6, 4, 2) does 
 A 2s block cannot be requested at 2s, and it cannot merge backward either — block 2 is already at
 10. So grouping runs a **trailing rebalance** after the greedy pass:
 
-> While the final block is below the floor and the previous block holds more than one shot, move
-> the previous block's **last** shot into the final block.
+> While the final block is below the floor, move the previous block's **last** shot into it —
+> but only while all three hold: the previous block keeps at least one shot, the final block stays
+> under the ceiling, **and the previous block itself stays above the floor**.
+
+That third condition was missing from the first draft of this rule and is not optional. Lengths
+`1, 8, 2` greedily pack to `9s` + `2s`; moving the 8s shot forward to lift the tail orphans a `1s`
+block that then has to be clamped — **two** invented seconds and a wrecked 9s block, where simply
+clamping the tail costs **one** and leaves the healthy block alone. When a move would strand the
+block it steals from, decline it and let the clamp do the cheaper repair.
 
 On this script that yields block 2 = `[6]` and block 3 = `[4, 2]` = 6s — both legal, nothing
 dropped, nothing padded. If no rebalance is possible (a single block, or a lone sub-3s shot in the
