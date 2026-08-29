@@ -2,7 +2,8 @@ import "server-only";
 import { getNodeActiveKB, getNodeData, getUpstreamOutputs } from "@/lib/db/nodes";
 import { buildParseContext, normalizeSlices, type KBSliceKey } from "@/lib/kb/parse-context";
 import { getNodeOutput, renderShotForImage } from "@/lib/nodes/node-output";
-import { renderShotForVideo } from "@/lib/nodes/render-shot-for-video";
+import { renderShotForVideo, renderShotLadder } from "@/lib/nodes/render-shot-for-video";
+import { SINGLE_TAKE_LINE } from "@/prompts/video-prompt-generate";
 import { selectImageUpstreams } from "@/lib/nodes/shot-compose";
 import type { ReelScript } from "@/lib/nodes/reel-script";
 
@@ -102,7 +103,17 @@ export function mapUpstreamForVideo(u: RawUpstream): UpstreamPreview {
     return { ...base, text: "", fileUrl: url, fileKind: "image" };
   }
   if (u.type === "shot") {
-    return { ...base, text: renderShotForVideo((u.data.script ?? null) as ReelScript | null) };
+    // D195 — a multishot Shot hands down its beats as a timecode ladder; a single one hands down
+    // the action line plus an explicit instruction to hold one take, because Omni cuts by default.
+    const script = (u.data.script ?? null) as ReelScript | null;
+    const multishot = u.data.multishot === true;
+    const ladder = multishot ? renderShotLadder(script) : "";
+    return {
+      ...base,
+      text: ladder
+        ? `Beats (keep these timings exactly):\n${ladder}`
+        : `${renderShotForVideo(script)}\n${SINGLE_TAKE_LINE}`.trim(),
+    };
   }
   if (u.type === "file" || u.type === "draw") {
     return {

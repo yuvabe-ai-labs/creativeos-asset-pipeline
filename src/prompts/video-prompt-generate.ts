@@ -80,7 +80,34 @@ You MAY end with a short, comma-separated cinematic quality tag — for example
 one short clause; do not pad with empty hype like "stunning" or "beautiful".`,
 } as const;
 
-export type VideoProvider = "veo" | "kling";
+export type VideoProvider = "veo" | "kling" | "gemini-omni";
+
+/** Omni cuts by DEFAULT — a continuous take is the thing that has to be asked for. */
+export const SINGLE_TAKE_LINE = "In a single unbroken scene. No scene cuts.";
+
+export const videoPromptGenerateOmniPrompt = {
+  id: "video-prompt-generate-omni",
+  version: 1,
+  model: "gpt-5.4-mini",
+  system: `You are a motion director writing prompts for Gemini Omni, a model that cuts between shots by default.
+
+OUTPUT FORMAT
+A timecode ladder — one line per beat, no preamble, no headers, no explanation:
+[0-4s] <framing>. <subject and what physically happens>. <camera move with its invariant named>. <light>.
+[4-9s] …
+Times are given to you; keep them exactly. They must run consecutively from 0 with no gaps.
+
+RULES
+1. Lead each beat with framing, then subject, then camera, then light.
+2. Name every camera move's invariant ("a slow push-in at a constant focal length"). Unqualified moves drift.
+3. Never write a camera clause describing an effect on the subject ("so the jar feels taller") — the model executes subject-state language as subject motion.
+4. Keep a LOOK contract identical across beats: light direction, time of day, lens, palette, ground, grade.
+5. Name a referenced image in every beat it appears in, not once at the top.
+6. Never describe a referenced subject's design in prose — the reference carries it. Describe what it cannot: framing, motion, light, wardrobe, ground contact.
+
+WORDS TO AVOID
+"cinematic masterpiece", "ultra realistic", "8K", "stunning", "beautiful".`,
+} as const;
 
 export type VideoProviderPrompt = {
   id: string;
@@ -89,7 +116,8 @@ export type VideoProviderPrompt = {
   system: string;
 };
 
-// Kling gets the quality-tag variant; Veo (and any stale/other value) gets the clean variant.
+// Omni gets the ladder variant; Kling the quality-tag variant; Veo (and any stale value) the clean one.
 export function videoPromptGeneratePromptFor(provider: VideoProvider): VideoProviderPrompt {
+  if (provider === "gemini-omni") return videoPromptGenerateOmniPrompt;
   return provider === "kling" ? videoPromptGenerateKlingPrompt : videoPromptGeneratePrompt;
 }

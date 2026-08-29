@@ -4,6 +4,7 @@
 // motion driver). Overlay copy (on-screen text, caption, CTA) and audio (voiceover, music)
 // carry zero motion signal and are dropped.
 import type { ReelScript } from "@/lib/nodes/reel-script";
+import { shotSeconds } from "@/lib/nodes/group-shots";
 
 export function renderShotForVideo(script: ReelScript | null): string {
   if (!script) return "";
@@ -16,4 +17,24 @@ export function renderShotForVideo(script: ReelScript | null): string {
     lines.push(`Objective: ${script.strategic_objective.trim()}`);
   }
   return lines.join("\n");
+}
+
+/**
+ * A multishot node's beats as Omni's documented timecode ladder.
+ *
+ * Times are cumulative and derived from each beat's own length, so the ladder always sums to the
+ * node's total — which is what the request's `duration` is derived from. The two agreeing by
+ * construction is the point: a ladder longer than the duration comes back truncated, at full price.
+ */
+export function renderShotLadder(script: ReelScript | null): string {
+  const shots = script?.visual_script?.shots ?? [];
+  if (shots.length === 0) return "";
+  let at = 0;
+  return shots
+    .map((shot) => {
+      const from = at;
+      at += shotSeconds(shot);
+      return `[${from}-${at}s] ${(shot.description ?? "").trim()}`;
+    })
+    .join("\n");
 }
