@@ -3599,3 +3599,59 @@ anticipate: **hidden is not off** (the route reads a node's saved value and only
 default, so a node toggled on before this change keeps sending `multi_shot: true` with no control
 left to clear it), and the toggle On/Off formatting test had to move to `describeAllVersionParams`,
 now the only place a toggle renders.
+
+### D198 — A timecoded block is a BEAT, not a shot; the parse splits it *(recorded 2026-08-29; refines D193)*
+
+**Decision.** `script-parse` goes to **version 3**. A shot is one camera setup, and each carries
+`beat_index` (0-based, which timecoded block it came from) and `beat_label` (that block's heading).
+Shot lengths are integers ≥1 and may sum to MORE than the beat's scripted length.
+
+**Why.** The shipped instruction said "split the shot list into individual shots" — but a script's
+shot list IS its timecoded blocks, so the model split at block level and stopped. A real client
+script (CHUPPS, 20s) parsed to 5 entries; it contains 18 camera setups. Grouping then packed blocks
+rather than shots, and the motion prompt wrote one ladder beat for what should have been four.
+Both reference decompositions of that script agree on 18–19 shots.
+
+**Why lengths may overrun the beat.** Four shots in a 3s hook are 1s each — 4s generated for a 3s
+slot. Both reference plans do this deliberately: generate slightly long, trim a shot carrying no
+voiceover. Forcing the sum to match would push shots under the 1s floor.
+
+**Back-compatibility.** A shot with no `beat_index` is treated as its own beat, so v2 parses group
+exactly as before. Re-extract upgrades them; nothing migrates silently.
+
+**Rejected.** Nesting `visual_script.beats[].shots[]` — structurally truer, but it changes the shape
+every downstream consumer reads for the same result. Also rejected: splitting blocks at fan-out with
+a second LLM pass, which reintroduces the planner D188 removed and would mean the shot list you see
+after parsing is not the one you generate from.
+
+### D199 — Grouping packs whole beats, and only splits a beat that alone exceeds the cap *(recorded 2026-08-29; refines D193)*
+
+**Decision.** `groupShotsForFanOut` partitions by `beat_index`, then fills a group with as many
+consecutive WHOLE beats as fit under the 10s ceiling. A beat is split only when it alone exceeds the
+ceiling. The floor, trailing-rebalance and clamp rules from D193 still apply to the result.
+
+**Why.** Every generation seam is an un-guaranteed transition — the one join the model never sees
+both sides of. A beat boundary is a cut the script already asked for, so that is where a seam
+belongs. Packing shot-by-shot across a seam puts an un-guaranteed transition in the middle of a beat
+the script wrote as continuous.
+
+**Consequence.** CHUPPS yields the reference plan's three generations exactly: Hook+Lives 8s,
+Product 6s, Brand+Close 6s.
+
+**Rejected.** Greedy over shots with beats as a tie-break (fills the cap tighter, at the cost of
+cutting mid-beat). Also rejected: one generation per beat always — simple and always seam-clean, but
+CHUPPS becomes five generations and a 2s close gets clamped, costing more cuts and more money than
+the brief needs.
+
+### D200 — The parsed shot list labels each shot's grouping *(recorded 2026-08-29)*
+
+**Decision.** Each row in the Script focus view's Visual script list shows, beside its duration,
+whether that shot will generate as part of a multishot group and which — `Multishot · Gen 1`, or
+`Single`. Computed with the same `groupShotsForFanOut` the fan-out uses.
+
+**Why the same function.** A label derived independently would drift from what fan-out actually
+does, and the label's whole purpose is to let the operator see the plan before committing to it.
+
+**Why read-only.** It reflects grouping rather than setting it. The control that changes grouping is
+the Shot node's multishot toggle (D193), after fan-out. A second place to change it would be the
+same two-controls-one-decision problem D195 removed `continuous_take` for.
