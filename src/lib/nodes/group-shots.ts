@@ -9,7 +9,7 @@ export const ASSUMED_SHOT_SECONDS = 4;
 export type ShotGroup = {
   shotIndexes: number[];
   seconds: number;
-  /** The group was under the floor and nothing could be moved into it — `seconds` was raised. */
+  /** Under the floor with no safe shot to borrow — `seconds` was raised to the floor. */
   clamped: boolean;
   /** A single shot longer than the ceiling. Kept whole; the request clamps it. */
   overCap: boolean;
@@ -27,8 +27,10 @@ export function shotSeconds(shot: ReelShot): number {
  * to 8 / 10 / 2, and that 2s tail cannot merge backward because the block before it is already at
  * the cap. Pulling the previous group's LAST shot forward fixes both ends at once — 8 / 6 / 6.
  *
- * Stops rather than creating a new problem: never empties the previous group, and never pushes the
- * final group over the ceiling.
+ * Stops rather than creating a new problem: never empties the previous group, never pushes the
+ * final group over the ceiling, and never drops the group it steals from below the floor. When any
+ * of those would happen, the tail is left to the clamp instead — one invented second is cheaper
+ * than two plus a wrecked neighbour.
  */
 function rebalanceTrailing(groups: ShotGroup[], lengths: number[]): void {
   while (groups.length >= 2) {
@@ -41,6 +43,12 @@ function rebalanceTrailing(groups: ShotGroup[], lengths: number[]): void {
     const moved = prev.shotIndexes[prev.shotIndexes.length - 1];
     const movedLength = lengths[moved];
     if (last.seconds + movedLength > OMNI_MAX_SECONDS) return;
+    // ...and never strand the group it steals FROM. Robbing a healthy group to lift the tail can
+    // leave the robbed one under the floor, which is strictly worse than not rebalancing: lengths
+    // [1, 8, 2] would move the 8s shot forward, orphan a 1s group, and clamp it — two invented
+    // seconds instead of the one that simply clamping the tail costs. Stopping here leaves the
+    // tail to the clamp, which is the cheaper repair.
+    if (prev.seconds - movedLength < OMNI_MIN_SECONDS) return;
 
     prev.shotIndexes = prev.shotIndexes.slice(0, -1);
     prev.seconds -= movedLength;

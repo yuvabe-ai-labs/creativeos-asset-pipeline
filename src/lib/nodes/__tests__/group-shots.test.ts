@@ -51,6 +51,22 @@ describe("groupShotsForFanOut", () => {
     }
   });
 
+  // Robbing a healthy group to lift the tail can strand the group it stole from. [1,8,2] greedily
+  // packs to 9s + 2s; moving the 8s shot forward would orphan a 1s group and clamp it — two
+  // invented seconds instead of the one that clamping the tail alone costs. The rebalance must
+  // decline the move.
+  it("declines a move that would strand the group it steals from", () => {
+    expect(shape(groupShotsForFanOut(shots(1, 8, 2)))).toEqual([
+      { idx: [0, 1], s: 9 },
+      { idx: [2], s: 3 },
+    ]);
+  });
+
+  it("flags that stranded-tail clamp rather than hiding it", () => {
+    const groups = groupShotsForFanOut(shots(1, 8, 2));
+    expect(groups.map((g) => g.clamped)).toEqual([false, true]);
+  });
+
   // Nothing to rebalance from — clamp up and say so, rather than request an illegal 2s.
   it("clamps a lone sub-floor shot and flags it", () => {
     expect(groupShotsForFanOut(shots(2))).toEqual([
