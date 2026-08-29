@@ -2,7 +2,17 @@
 // Mirrors the reelSchema in src/prompts/script-parse.ts. All fields optional
 // because a parse may legitimately leave a field empty.
 
-export type ReelShot = { description?: string; duration?: string };
+export type ReelShot = {
+  description?: string;
+  /** Timing exactly as written in the script — "0-3 sec". Display only. */
+  duration?: string;
+  /**
+   * The shot's own LENGTH in seconds — not the end of its timecode range. Grouping needs
+   * arithmetic and `duration` is free text ("0-3 sec", "3 sec", "22-26 seconds"), so the model
+   * returns the number directly rather than the fan-out guessing at prose it did not anticipate.
+   */
+  duration_seconds?: number;
+};
 
 export type ReelScript = {
   title?: string;

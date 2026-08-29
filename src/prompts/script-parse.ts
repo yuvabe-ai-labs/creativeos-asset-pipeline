@@ -58,10 +58,11 @@ const reelSchema = {
           items: {
             type: "object",
             additionalProperties: false,
-            required: ["description", "duration"],
+            required: ["description", "duration", "duration_seconds"],
             properties: {
               description: { type: "string" },
               duration: { type: "string" },
+              duration_seconds: { type: "integer" },
             },
           },
         },
@@ -101,7 +102,9 @@ Fields:
 - schedule: { date, post_time, category, theme }.
 - strategic_objective: the stated goal of the reel.
 - ai_production_type: the production approach stated in the script.
-- visual_script: { shots: [{ description, duration }], execution_refinement } — split the shot list into individual shots with their durations.
+- visual_script: { shots: [{ description, duration, duration_seconds }], execution_refinement } — split the shot list into individual shots.
+  - duration: the timing exactly as the script writes it (e.g. "0-3 sec", "3-8 sec").
+  - duration_seconds: that shot's OWN LENGTH in whole seconds — NOT the end of its timecode range. Scripts usually write cumulative ranges, so "0-3 sec" is 3, "3-8 sec" is 5, and "8-14 sec" is 6. If a shot gives only a single number ("4 sec"), that number IS the length. If the length cannot be determined, use 4.
 - on_screen_text: { intro, body (array of lines), outro }.
 - voiceover: the VO script, or "" / "No voiceover".
 - music_sound: the music & sound design direction.
@@ -113,7 +116,7 @@ Fields:
 
 export const scriptParsePrompt = {
   id: "script-parse",
-  version: 1,
+  version: 2,
   model: "gpt-5.4-mini",
   system,
   schema: reelSchema,
