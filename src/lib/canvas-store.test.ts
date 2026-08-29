@@ -88,9 +88,13 @@ describe("fanOutShots", () => {
         title: "Reel A",
         strategic_objective: "Sell calm",
         visual_script: {
+          // 6+6 exceeds the 10s cap, so these two stay one node each — which is what the
+          // assertions below are about. Two 4s shots would now legitimately group into ONE node
+          // (D193), so the old lengths would have made this fixture test the opposite of its
+          // own name. The display string and the length agree so the data is not misleading.
           shots: [
-            { description: "Turmeric root", duration: "3s", duration_seconds: 6 },
-            { description: "Rose petal", duration: "4s", duration_seconds: 6 },
+            { description: "Turmeric root", duration: "6s", duration_seconds: 6 },
+            { description: "Rose petal", duration: "6s", duration_seconds: 6 },
           ],
         },
       },
