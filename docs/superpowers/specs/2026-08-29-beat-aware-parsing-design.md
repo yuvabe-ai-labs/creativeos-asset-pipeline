@@ -1,6 +1,15 @@
 # Beat-aware parsing and grouping
 
-*Design spec — 2026-08-29. Decisions D198–D200. Refines D193.*
+> **⚠️ §2 and §3 were built and then REVERTED** (implemented `0c64425`, reverted `7a4dfcf`). The
+> parse stays at v2 — one entry per timecoded block — because that is what the operator wants to
+> read, and the finer split changed no generation boundary on the script that motivated it. **§4
+> shipped and stands**: every row of the Visual script list carries a Multishot / Single note.
+>
+> Kept as a record because the finding in §1 is real and the work is recoverable from `0c64425`.
+> Read §7 first if you are thinking of reviving it — the split's quality was never verified against
+> the live model, which is the thing that would decide whether it is worth having.
+
+*Design spec — 2026-08-29. Decisions D198–D200 (D198/D199 reverted). Refines D193.*
 
 Corrects a defect found by running a real client script through the shipped parse: the parse
 treats a timecoded **block** as a shot, when a block is a **beat** containing several shots. The

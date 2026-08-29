@@ -3600,7 +3600,18 @@ default, so a node toggled on before this change keeps sending `multi_shot: true
 left to clear it), and the toggle On/Off formatting test had to move to `describeAllVersionParams`,
 now the only place a toggle renders.
 
-### D198 — A timecoded block is a BEAT, not a shot; the parse splits it *(recorded 2026-08-29; refines D193)*
+### D198 — A timecoded block is a BEAT, not a shot; the parse splits it *(recorded 2026-08-29; **REVERTED same day** — implemented in 0c64425, reverted in 7a4dfcf)*
+
+> **Reverted.** Built, then reverted at the operator's call: the v2 parse — one entry per timecoded
+> block — is what they want to read. The finer split made the Visual script list long without
+> changing the generation boundaries (see D199's revert note), and the per-beat detail is better
+> written in the motion prompt than forced out of the parse. Recoverable from `0c64425` if the
+> one-cut-per-second ladder the reference plans use is ever wanted.
+>
+> Retained because the *finding* stands and should not be rediscovered: the shipped instruction
+> "split the shot list into individual shots" does make the model split at block level, because a
+> script's shot list IS its blocks. Anyone who later wants 19 shots from the CHUPPS script needs a
+> worked example in the prompt, not a stronger rule — the rule alone under-splits.
 
 **Decision.** `script-parse` goes to **version 3**. A shot is one camera setup, and each carries
 `beat_index` (0-based, which timecoded block it came from) and `beat_label` (that block's heading).
@@ -3624,7 +3635,17 @@ every downstream consumer reads for the same result. Also rejected: splitting bl
 a second LLM pass, which reintroduces the planner D188 removed and would mean the shot list you see
 after parsing is not the one you generate from.
 
-### D199 — Grouping packs whole beats, and only splits a beat that alone exceeds the cap *(recorded 2026-08-29; refines D193)*
+### D199 — Grouping packs whole beats, and only splits a beat that alone exceeds the cap *(recorded 2026-08-29; **REVERTED same day** with D198 — implemented in 0c64425, reverted in 7a4dfcf)*
+
+> **Reverted with D198**, since nothing emits beats once the parse returns one entry per block —
+> the beat-packing code became a path no input could reach. D193's shot-level packing stands
+> unchanged.
+>
+> **The revert costs less than it looks.** On the CHUPPS script the two rules agree: 5 blocks at
+> 3/5/6/4/2 sec pack to three generations of 8s, 6s and 6s under *shot* packing, which are the same
+> boundaries whole-beat packing produced and the same ones the reference plan uses. They diverge
+> only when a block's shots would straddle a boundary — which cannot happen while a block IS a
+> shot. The reasoning below becomes live again the moment the parse splits blocks.
 
 **Decision.** `groupShotsForFanOut` partitions by `beat_index`, then fills a group with as many
 consecutive WHOLE beats as fit under the 10s ceiling. A beat is split only when it alone exceeds the
