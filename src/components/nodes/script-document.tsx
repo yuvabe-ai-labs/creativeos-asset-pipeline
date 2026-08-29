@@ -4,7 +4,6 @@ import type { ReactNode } from "react";
 import { Plus, X } from "lucide-react";
 import { looksLikeReelScript, type ReelScript } from "@/lib/nodes/reel-script";
 import { describeShotGrouping } from "@/lib/nodes/group-shots";
-import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { EditableField } from "./editable-field";
 
@@ -128,24 +127,20 @@ export function ScriptDocument({
                     placeholder="duration"
                     className="text-xs text-muted-foreground"
                   />
-                  {/* D200 — what fan-out will do with this shot, read from the SAME grouping
-                      function fan-out uses, so the list cannot promise something else. Read-only:
-                      the control that changes grouping is the Shot node's toggle, after fan-out. */}
+                  {/* D200 — whether fan-out will generate this shot with others or on its own,
+                      read from the SAME grouping function fan-out uses so the list cannot promise
+                      something else. Plain muted text on the duration's own line: it is a note
+                      about the shot, not a control, and a badge here competed with the writing. */}
                   {grouping[i] && (
                     <span
                       title={
                         grouping[i].multishot
-                          ? "Generated as one clip with cuts, together with the other shots in this generation"
+                          ? "Generated as one clip with cuts, together with the other shots in its group"
                           : "Generated on its own as a single continuous take"
                       }
-                      className={cn(
-                        "shrink-0 rounded px-1.5 py-0.5 text-[0.65rem] font-medium",
-                        grouping[i].multishot
-                          ? "bg-primary/10 text-primary"
-                          : "bg-muted text-muted-foreground",
-                      )}
+                      className="shrink-0 text-xs text-muted-foreground"
                     >
-                      {grouping[i].label}
+                      · {grouping[i].multishot ? "Multishot" : "Single"}
                     </span>
                   )}
                 </div>
