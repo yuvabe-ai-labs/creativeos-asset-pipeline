@@ -16,11 +16,12 @@ import { wouldCreateCycle } from "@/lib/canvas/graph";
 import { DEFAULT_CLIENT_MODEL_ID } from "@/lib/image-gen/client-models";
 import { planGuidedNext } from "@/lib/guided-flow";
 import { DEFAULT_VIDEO_CLIENT_MODEL_ID } from "@/lib/video-gen/client-models";
-import type { AppNode } from "./canvas-nodes";
+import type { AppNode, ShotNodeData } from "./canvas-nodes";
 import type { ReelScript } from "@/lib/nodes/reel-script";
 import type { ShotComposeIdea } from "@/lib/nodes/shot-compose";
 import { deriveShotType } from "@/lib/nodes/shot-types";
 import { groupShotsForFanOut } from "@/lib/nodes/group-shots";
+import { splitMultishotData } from "@/lib/nodes/split-multishot";
 import type { GenerationRow } from "@/lib/db/types";
 import type { PlaybookRun } from "@/lib/copilot/runner";
 
@@ -46,6 +47,7 @@ export type CanvasState = {
   duplicateNode: (id: string) => Promise<void>;
   duplicateNodes: (ids: string[], canvasId: string) => Promise<void>;
   fanOutShots: (scriptNodeId: string) => void;
+  splitMultishotNode: (shotNodeId: string) => void;
   promoteIdeasToShots: (shotNodeId: string, ideas: ShotComposeIdea[]) => void;
   // Per-node video generation status — shared between VideoGenNode and VideoGenFocusView
   videoGenStatus: Record<string, { isGenerating: boolean; lastError: string | null }>;
@@ -410,6 +412,51 @@ export function createCanvasStore(
       set({
         nodes: [...get().nodes, ...created],
         edges: [...get().edges, ...createdEdges],
+      });
+    },
+    /**
+     * D193 — turning multishot OFF on a grouped node splits it into one node per shot.
+     *
+     * A structural change, not a display flag: the grouped node is REPLACED by its pieces, stacked
+     * below its old position so nothing lands on top of a neighbour. Incoming edges are re-pointed
+     * to every piece (the dashed Script lineage edge, and any image grounding), because each piece
+     * needs the same inputs the group had. Outgoing edges are dropped — a motion prompt written for
+     * a cut ladder does not describe any single beat of it, and silently re-pointing it at all the
+     * pieces would multiply one prompt across shots it was never written for.
+     */
+    splitMultishotNode: (shotNodeId) => {
+      const node = get().nodes.find((n) => n.id === shotNodeId);
+      if (!node || node.type !== "shot") return;
+
+      const pieces = splitMultishotData(node.data as ShotNodeData);
+      if (pieces.length <= 1) {
+        get().updateNodeData(shotNodeId, { multishot: false });
+        return;
+      }
+
+      const created = pieces.map((data, i) => ({
+        id: crypto.randomUUID(),
+        type: "shot",
+        position: { x: node.position.x, y: node.position.y + i * 170 },
+        data,
+      })) as AppNode[];
+
+      const incoming = get().edges.filter((e) => e.target === shotNodeId);
+      const carried = created.flatMap((piece) =>
+        incoming.map((edge) => ({
+          id: crypto.randomUUID(),
+          source: edge.source,
+          target: piece.id,
+          ...(edge.targetHandle ? { targetHandle: edge.targetHandle } : {}),
+        })),
+      );
+
+      set({
+        nodes: [...get().nodes.filter((n) => n.id !== shotNodeId), ...created],
+        edges: [
+          ...get().edges.filter((e) => e.target !== shotNodeId && e.source !== shotNodeId),
+          ...carried,
+        ],
       });
     },
 
