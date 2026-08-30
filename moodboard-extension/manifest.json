@@ -1,14 +1,35 @@
 {
   "manifest_version": 3,
   "name": "CreativeOS Moodboard Clipper",
-  "version": "0.1.0",
-  "description": "Right-click any image to add it to a CreativeOS client moodboard.",
+  "version": "0.2.0",
+  "description": "Hover an Instagram post or YouTube Short and click + CreativeOS — or right-click any image — to add it to a client moodboard.",
   "permissions": ["contextMenus", "storage", "sidePanel"],
   "host_permissions": [
-    "http://localhost:3000/*",
     "https://creativeos-yuvabe.vercel.app/*"
   ],
   "background": { "service_worker": "background.js" },
+  "content_scripts": [
+    {
+      "matches": ["https://www.instagram.com/*", "https://www.youtube.com/*"],
+      "js": ["clip-button.js"],
+      "css": ["clip-button.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": {
+    "16": "assets/icon16.png",
+    "32": "assets/icon32.png",
+    "48": "assets/icon48.png",
+    "128": "assets/icon128.png"
+  },
   "side_panel": { "default_path": "sidepanel.html" },
-  "action": { "default_title": "CreativeOS Moodboard" }
+  "action": {
+    "default_title": "CreativeOS Moodboard",
+    "default_icon": {
+      "16": "assets/icon16.png",
+      "32": "assets/icon32.png",
+      "48": "assets/icon48.png",
+      "128": "assets/icon128.png"
+    }
+  }
 }

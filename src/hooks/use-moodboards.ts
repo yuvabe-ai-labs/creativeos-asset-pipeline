@@ -48,10 +48,10 @@ export function useMoodboards(clientId: string) {
     if (res.ok) await loadBoards();
   }, [clientId, loadBoards]);
 
-  const addItemUrl = useCallback(async (imageUrl: string) => {
+  const addItemUrl = useCallback(async (imageUrl: string, note?: string) => {
     if (!selectedBoardId) return;
     const res = await fetch(`/api/moodboards/${selectedBoardId}/items`, {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ imageUrl }),
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ imageUrl, note }),
     });
     if (res.ok) await loadItems(selectedBoardId);
   }, [selectedBoardId, loadItems]);

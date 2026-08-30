@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <!-- CreativeOS Moodboard Clipper mark: brand purple squircle, a 2x2 board of
+       tiles with the top-right tile as a "+" — clip something onto the board. -->
+  <rect width="128" height="128" rx="28" fill="#5829c7"/>
+  <rect x="25" y="25" width="34" height="34" rx="9" fill="#ffffff"/>
+  <rect x="25" y="69" width="34" height="34" rx="9" fill="#ffffff"/>
+  <rect x="69" y="69" width="34" height="34" rx="9" fill="#ffffff"/>
+  <rect x="73" y="37.5" width="26" height="9" rx="4.5" fill="#ffffff"/>
+  <rect x="81.5" y="29" width="9" height="26" rx="4.5" fill="#ffffff"/>
+</svg>

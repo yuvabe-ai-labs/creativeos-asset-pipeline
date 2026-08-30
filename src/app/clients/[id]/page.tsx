@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { Settings } from "lucide-react";
 import { redirect } from "next/navigation";
 import { getClientBySlug } from "@/lib/db/clients";
 import { listCanvases } from "@/lib/db/canvases";
@@ -8,6 +7,7 @@ import { resolveOrgId } from "@/lib/dal";
 import { NewCanvasDialog } from "@/components/canvases/new-canvas-dialog";
 import { CanvasesTable } from "@/components/canvases/canvases-table";
 import { EmptyState } from "@/components/shared/empty-state";
+import { ClientSettingsMenu } from "@/components/clients/client-settings-menu";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
@@ -104,16 +104,7 @@ export default async function ClientPage({
         </div>
 
         <div className="flex shrink-0 items-end gap-2">
-          <Button
-            variant="outline"
-            nativeButton={false}
-            render={
-              <Link href={`/clients/${client.slug}/kb`}>
-                <Settings className="size-4" strokeWidth={1.5} />
-                Settings
-              </Link>
-            }
-          />
+          <ClientSettingsMenu slug={client.slug} />
           <NewCanvasDialog clientId={client.id} clientSlug={client.slug} />
         </div>
       </header>

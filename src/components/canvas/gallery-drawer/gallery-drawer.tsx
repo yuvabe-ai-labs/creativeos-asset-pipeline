@@ -12,6 +12,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { FullScreenImageZoom } from "@/components/shared/full-screen-image-zoom";
+import { ReferenceLightbox } from "@/components/market/reference-lightbox";
 import { useDriveBrowser } from "@/hooks/use-drive-browser";
 import { useCanvasGenerations } from "@/hooks/use-canvas-generations";
 import { useMoodboards } from "@/hooks/use-moodboards";
@@ -27,10 +28,29 @@ import { GalleryFolderTile } from "./gallery-folder-tile";
 import { DriveFolderPicker } from "./drive-folder-picker";
 import { GalleryAddUrl } from "./gallery-add-url";
 import { filenameFromUrl } from "@/lib/moodboards/filename";
+import type { ReferenceKind } from "@/lib/market/constants";
 import type { GalleryImage, GalleryTab, ViewMode } from "./types";
 import type { DriveBrowseItem } from "@/hooks/use-drive-browser";
 
 const MAX_SELECTION = 10;
+
+// Display labels for market references in the drawer. Stills keep their derived
+// filename; everything else is named by what it is, since a permalink has none.
+const KIND_LABEL: Partial<Record<ReferenceKind, string>> = {
+  instagram: "Instagram post",
+  tiktok: "TikTok",
+  youtube: "YouTube",
+  video: "Video",
+  link: "Link",
+};
+
+function hostOfUrl(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return url;
+  }
+}
 export const GALLERY_DRAG_MIME = "application/x-creativeos-gallery-image";
 
 const GHOST_THUMB = 84;
@@ -209,12 +229,23 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
     () =>
       moodboards.items.map((it) => ({
         id: it.id,
-        imageUrl: it.image_url,
-        previewUrl: it.image_url,
-        filename: filenameFromUrl(it.image_url),
-        subtitle: new Date(it.added_at).toLocaleDateString(),
+        // Grid always gets a renderable image; video/link kinds carry a re-hosted
+        // thumbnail (or fall back to the raw URL, degrading like any dead image).
+        imageUrl: it.thumbnail_url ?? it.image_url,
+        previewUrl: it.thumbnail_url ?? it.image_url,
+        // filenameFromUrl only yields something meaningful for direct image URLs; a
+        // post permalink has no extension, so every market reference would read
+        // "reference.jpg". Label those by what they actually are instead.
+        filename:
+          it.kind && it.kind !== "image" && it.kind !== "gif"
+            ? `${KIND_LABEL[it.kind] ?? "Reference"} · ${hostOfUrl(it.image_url)}`
+            : filenameFromUrl(it.image_url),
+        subtitle: it.note ?? new Date(it.added_at).toLocaleDateString(),
         source: "moodboard" as const,
         sourceUrl: it.source_url ?? undefined,
+        kind: it.kind,
+        note: it.note ?? undefined,
+        mediaUrl: it.image_url,
       })),
     [moodboards.items],
   );
@@ -439,7 +470,7 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
                     if (i === 0) moodboards.selectBoard(null);
                   }}
                 />
-                <GalleryAddUrl onAdd={(url) => void moodboards.addItemUrl(url)} />
+                <GalleryAddUrl onAdd={(url, note) => void moodboards.addItemUrl(url, note)} />
                 <GalleryContent
                   loading={moodboards.loading}
                   loadError={null}
@@ -519,13 +550,32 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
         </SheetContent>
       </Sheet>
 
-      {previewImage && (
-        <FullScreenImageZoom
-          imageUrl={previewImage.previewUrl ?? previewImage.imageUrl}
-          title={previewImage.filename}
-          onClose={() => setPreviewId(null)}
-        />
-      )}
+      {previewImage &&
+        (previewImage.kind && previewImage.kind !== "image" && previewImage.kind !== "gif" ? (
+          // A market reference with a playable/link kind opens in the shared player
+          // instead of the image zoomer (which would show only the thumbnail).
+          <ReferenceLightbox
+            item={{
+              id: previewImage.id,
+              moodboard_id: "",
+              image_url: previewImage.mediaUrl ?? previewImage.imageUrl,
+              source_url: previewImage.sourceUrl ?? null,
+              kind: previewImage.kind,
+              note: previewImage.note ?? null,
+              added_by: null,
+              thumbnail_url: previewImage.imageUrl,
+              position: 0,
+              added_at: "",
+            }}
+            onClose={() => setPreviewId(null)}
+          />
+        ) : (
+          <FullScreenImageZoom
+            imageUrl={previewImage.previewUrl ?? previewImage.imageUrl}
+            title={previewImage.filename}
+            onClose={() => setPreviewId(null)}
+          />
+        ))}
 
       <DriveFolderPicker
         open={pickerOpen}

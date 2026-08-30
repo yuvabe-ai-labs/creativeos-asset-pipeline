@@ -12,5 +12,8 @@ import { listClientsWithMoodboards } from "@/lib/db/moodboards";
 export async function GET() {
   const orgId = await resolveOrgId();
   const clients = await listClientsWithMoodboards(orgId);
+  console.log(
+    `[clip] GET /api/moodboards org=${orgId} clients=${clients.length} boards=${clients.reduce((n, c) => n + c.boards.length, 0)}`,
+  );
   return apiOk({ clients });
 }

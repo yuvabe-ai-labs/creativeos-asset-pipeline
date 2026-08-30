@@ -6,6 +6,12 @@ export type GridImage = {
   previewUrl?: string;
   filename: string;
   subtitle: string;
+  /**
+   * Market-reference kind, when this tile is a market reference. Present so the tile
+   * can mark a reel as playable — without it a video reference is indistinguishable
+   * from a still, since both render as a thumbnail.
+   */
+  kind?: import("@/lib/market/constants").ReferenceKind;
 };
 
 export type ViewMode = "grid" | "list";
