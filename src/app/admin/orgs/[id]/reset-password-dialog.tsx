@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { resetMemberPasswordAction } from "@/lib/actions/admin";
 import { Button } from "@/components/ui/button";
+import { CopyRow } from "@/components/admin/copy-row";
 import { Input } from "@/components/ui/input";
 import {
   AlertDialog,
@@ -76,9 +77,9 @@ export function ResetPasswordDialog({
                   will not show the password again.
                 </AlertDialogDescription>
               </AlertDialogHeader>
-              <p className="rounded-lg border bg-muted/40 px-3 py-2 font-mono text-sm">
-                {tempPassword}
-              </p>
+              {/* Same shown-once credential handoff as the add-member and new-org dialogs,
+                  so it gets the same copy affordance (TC-002). */}
+              <CopyRow label="Temp password" value={tempPassword} />
               <AlertDialogFooter>
                 <Button type="button" onClick={() => onOpenChange(false)}>
                   Done

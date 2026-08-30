@@ -40,6 +40,7 @@ import { ConnectionBadge } from "./connection-badge";
 import { QuickAddMenu } from "./quick-add-menu";
 import { mnemonicToType, isEditableTarget } from "@/lib/canvas-node-options";
 import { useCanvasLock } from "@/hooks/use-canvas-lock";
+import { useCanvasApprovalSync } from "./use-canvas-approval-sync";
 import { CanvasEditableProvider } from "./canvas-editable-context";
 import { AutosaveFlushProvider } from "./autosave-flush-context";
 import { CanvasIdProvider } from "./canvas-id-context";
@@ -76,7 +77,6 @@ export function Canvas({
   initialKBJob,
   hasActiveKB,
   initialDriveRootFolder,
-  reviewMode = false,
   focusNodeId = null,
 }: {
   canvasId: string;
@@ -84,8 +84,10 @@ export function Canvas({
   initialKBJob: ClientKBJobRow | null;
   hasActiveKB: boolean;
   initialDriveRootFolder: { id: string; name: string } | null;
-  /** D161: arrived via a review link (?review=1) — do not take the edit lock (R7.2). */
-  reviewMode?: boolean;
+  // No `reviewMode` prop: D161's "entering to review does not take the edit lock" is
+  // DEFERRED (see the ADR log), so the canvas no longer needs to know how it was entered —
+  // every entry takes the lock, as before. `?review=1` still opens the review drawer, but
+  // that is wired in the page via ReviewDrawerProvider, not here.
   /** R9.3: `?node=` from a navbar-inbox pointer — fly to it and open its Details. */
   focusNodeId?: string | null;
 }) {
@@ -127,7 +129,11 @@ export function Canvas({
   const anyFocusViewOpen = useAnyFocusViewOpen();
 
   const { canEdit, heldByName, canTakeOver, sessionId, takeOver, reportLockLost } =
-    useCanvasLock(canvasId, { acquire: !reviewMode });
+    useCanvasLock(canvasId);
+
+  // R8.3: keep every node's ApprovalBadge live while the canvas is open, so a senior's
+  // decision made elsewhere lands here without a reload.
+  useCanvasApprovalSync(canvasId);
   // Read the latest canEdit from event handlers/closures without re-subscribing them.
   const canEditRef = useRef(canEdit);
   useLayoutEffect(() => {

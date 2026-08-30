@@ -23,16 +23,14 @@ const POLL_MS = 10_000;
 // D33: acquires a per-tab lock on the canvas, heartbeats while editing, releases on
 // unload, and polls for take-over while read-only.
 //
-// D161: `acquire: false` enters the canvas WITHOUT taking the edit lock — the review mode
-// R7.2 requires. A senior opening a canvas to review must never flip a junior who is
-// mid-generation into read-only; before this, acquisition happened on mount
-// unconditionally, so merely ARRIVING evicted the editor.
-//
-// Scoped deliberately: everything else the lock protects stays single-writer under D33
-// (R7.3). Only *entering to review* is decoupled here, and separately only *approval* no
-// longer requires canEdit (see the focus views' canApprove).
-export function useCanvasLock(canvasId: string, options?: { acquire?: boolean }) {
-  const acquire = options?.acquire ?? true;
+// Acquisition is unconditional. D161 briefly made it opt-out (`acquire: false`) so a senior
+// arriving via a review link would not evict a junior mid-generation, but that left two
+// entry paths into the same canvas obeying different locking rules, which proved hard to
+// reason about in practice — so it is DEFERRED and the single rule is back (see the ADR
+// log). What survives from that work is separate and still stands: *approval* does not
+// require canEdit, so a senior can sign off from a read-only session (D160, and the focus
+// views' canApprove).
+export function useCanvasLock(canvasId: string) {
   const { identity } = useIdentity();
   const [state, dispatch] = useReducer(lockReducer, INITIAL_LOCK_STATE);
 
@@ -45,12 +43,8 @@ export function useCanvasLock(canvasId: string, options?: { acquire?: boolean })
   const nameRef = useRef<string | null>(identity?.name ?? null);
   nameRef.current = identity?.name ?? null;
 
-  // Acquire on mount — unless this session entered to review (D161). The heartbeat,
-  // release and poll effects below need no equivalent guard: they key off isEditor /
-  // isViewer, and a non-acquiring session never becomes either, so they are already inert
-  // in review mode.
+  // Acquire on mount.
   useEffect(() => {
-    if (!acquire) return;
     let cancelled = false;
     void trackConnection(() =>
       acquireCanvasLockAction(canvasId, sessionId, nameRef.current),
@@ -61,7 +55,7 @@ export function useCanvasLock(canvasId: string, options?: { acquire?: boolean })
     return () => {
       cancelled = true;
     };
-  }, [canvasId, sessionId, acquire]);
+  }, [canvasId, sessionId]);
 
   const isEditor = isEditorState(state);
 

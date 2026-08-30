@@ -36,8 +36,12 @@ export default async function CanvasPage({
   searchParams: Promise<{ review?: string; node?: string }>;
 }) {
   const { id, cid } = await params; // client slug, canvas slug
-  // D161: read server-side rather than with useSearchParams — that hook opts its whole
-  // subtree out of static rendering and would need a Suspense boundary around the canvas.
+  // Read server-side rather than with useSearchParams — that hook opts its whole subtree
+  // out of static rendering and would need a Suspense boundary around the canvas.
+  //
+  // `?review=1` now only opens the review drawer (below). It used to also tell <Canvas> to
+  // skip the edit lock (D161); that is DEFERRED — see the ADR log — so entering a canvas
+  // takes the lock again however you arrived.
   const { review, node } = await searchParams;
   const reviewMode = review === "1";
   const focusNodeId = typeof node === "string" && node ? node : null;
@@ -135,7 +139,6 @@ export default async function CanvasPage({
             initialKBJob={latestKBJob}
             hasActiveKB={!!activeKBVersion}
             initialDriveRootFolder={initialDriveRootFolder}
-            reviewMode={reviewMode}
             focusNodeId={focusNodeId}
           />
         </CanvasStoreProvider>

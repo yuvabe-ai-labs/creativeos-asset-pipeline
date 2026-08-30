@@ -448,7 +448,14 @@ export function VideoGenFocusView({
       setVersions(data.versions);
       setActiveVersionId(data.activeVersionId);
       const active = data.versions.find((v) => v.id === data.activeVersionId);
-      if (active?.output) onPatchRef.current({ parsed: active.output });
+      // Unlike the other focus views, this one already mirrors the active version into the
+      // store on every refresh — so the badge's status rides along here rather than at the
+      // restore call site. Covers restore (which refetches) and the D179 live path at once:
+      // the badge follows whichever version is active. TC-106.
+      onPatchRef.current({
+        ...(active?.output ? { parsed: active.output } : {}),
+        approvalStatus: active?.approvalStatus ?? "pending",
+      });
       setApprovalStatus(active?.approvalStatus ?? "pending");
       setApprovalNote(active?.note ?? "");
       setApprovedByName(active?.approvedByName ?? null);
