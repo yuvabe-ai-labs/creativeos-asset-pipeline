@@ -130,31 +130,53 @@ export function fileNameFromUri(uri: string): string | undefined {
   return match ? `files/${match[1]}` : undefined;
 }
 
+const FILE_POLL_INTERVAL_MS = 5_000;
+const FILE_POLL_MAX_ATTEMPTS = 60;
+
 /**
- * Best-effort readiness check on the returned Files object.
+ * Wait for the returned Files object to reach ACTIVE.
  *
- * Whether a delivery:"uri" file needs to reach ACTIVE before it can be downloaded is not verified
- * — so this FAILS OPEN. A non-OK metadata response logs and returns rather than throwing, because
- * completeGeneration downloads the URI itself and will surface a real failure there. Blocking a
- * successful generation on an unverified endpoint would be the worse error.
+ * VERIFIED 2026-08-30: it does NOT start ACTIVE. A real 10s/360p generation returned its URI while
+ * the file was still `PROCESSING`, and only reached `ACTIVE` on the next poll ~5s later. An earlier
+ * version of this checked the state once, logged it and returned — which handed `completeGeneration`
+ * a URI it could try to download before the object was ready.
+ *
+ * Still FAILS OPEN on anything unexpected — a non-OK metadata response, a throw, or running out of
+ * attempts logs and returns rather than throwing. `completeGeneration` downloads the URI itself and
+ * surfaces a real failure there, so blocking a generation that already succeeded (and was already
+ * billed) on a flaky metadata endpoint would be the worse error. FAILED is the one state worth
+ * throwing on: the file will never arrive.
  */
 async function waitForFileReady(fileName: string): Promise<void> {
-  try {
-    const res = await fetch(`${API_BASE}/${fileName}`, {
-      headers: { "x-goog-api-key": getApiKey() },
-    });
-    if (!res.ok) {
-      logger.info("Omni file metadata unavailable — continuing", { fileName, status: res.status });
+  for (let attempt = 0; attempt < FILE_POLL_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      const res = await fetch(`${API_BASE}/${fileName}`, {
+        headers: { "x-goog-api-key": getApiKey() },
+      });
+      if (!res.ok) {
+        logger.info("Omni file metadata unavailable — continuing", {
+          fileName,
+          status: res.status,
+        });
+        return;
+      }
+      const file = (await res.json()) as { state?: string };
+      if (file.state === "ACTIVE") return;
+      if (file.state === "FAILED") {
+        throw new Error(`Omni file processing failed for ${fileName}`);
+      }
+      logger.info("Omni file not ready", { fileName, state: file.state, attempt });
+    } catch (e) {
+      if (e instanceof Error && e.message.startsWith("Omni file processing failed")) throw e;
+      logger.info("Omni file check failed — continuing", {
+        fileName,
+        error: e instanceof Error ? e.message : "unknown",
+      });
       return;
     }
-    const file = (await res.json()) as { state?: string };
-    logger.info("Omni file state", { fileName, state: file.state });
-  } catch (e) {
-    logger.info("Omni file check failed — continuing", {
-      fileName,
-      error: e instanceof Error ? e.message : "unknown",
-    });
+    await new Promise((resolve) => setTimeout(resolve, FILE_POLL_INTERVAL_MS));
   }
+  logger.info("Omni file still not ACTIVE after polling — continuing", { fileName });
 }
 
 async function generateWithOmni(input: VideoGenInput): Promise<VideoGenResult> {

@@ -112,10 +112,20 @@ named only the sentinel key, meaning every real key beside it passed validation.
 This closes what was the largest unverified surface in the integration: the provider always sends
 the array form, including on the zero-image path, and its part key names were previously a guess.
 
-## 5. Still unverified
+## 4b. The Files object is NOT immediately downloadable — verified 2026-08-30
 
-- Whether the returned Files object needs an `ACTIVE` state poll before download, or is
-  immediately downloadable. Probe before relying on either.
+A real 10s / 360p generation returned its URI while the file was still **`PROCESSING`**, and only
+reached **`ACTIVE`** on the next poll about 5 seconds later. `delivery: "uri"` therefore hands back
+a URI that is not yet downloadable, and the provider must poll `GET /v1beta/files/{id}` until
+`ACTIVE` before returning it.
+
+The first implementation checked the state once, logged it and returned — which handed
+`completeGeneration` a URI it could try to download too early. Fixed to poll.
+
+Observed timings for that run: HTTP 200 in **24.6s**, `ACTIVE` about 5s later, 1.24 MB for 10s at
+360p, `content-type: video/mp4`. Total wall clock 31.9s.
+
+## 5. Still unverified
 - Behaviour of `<FIRST_FRAME>` / `<LAST_FRAME>` / `<IMAGE_REF_N>` tags with real image inputs —
   only text-to-video has been exercised.
 - Whether `duration` accepts values outside 3–10s, and what it does with them.
