@@ -510,3 +510,35 @@ select count(*) from review_queue_items where approval_status = 'pending';
 -- R5.5 as a query: the per-canvas rows must sum to the per-client totals
 select client_id, sum(pending) from org_review_counts('<org-uuid>') group by client_id;
 ```
+
+## Migration 0034 — `node_versions.updated_at` (2026-08-31)
+
+`supabase/migrations/0034_node_versions_updated_at.sql`. Paste into the Supabase SQL editor → Run.
+
+> **0032 and 0033 are not documented here.** They shipped to staging without an entry in this
+> file. Confirm both have been applied to production before running 0034 — 0034 itself does not
+> depend on them, but the app code being deployed alongside it does.
+
+Adds one column: `updated_at timestamptz not null default now()`. The default backfills every
+existing row to the run time, which is intended — nothing reads this as history.
+
+It exists so restoring a version emits a Realtime event (D202). The active-version pointer lives
+on `nodes`, but the on-canvas approval badge, the senior's queue counts and the maker's inbox all
+subscribe to `node_versions`; `setActiveVersion` now bumps this column on the newly-active row so
+those surfaces hear about a restore. `node_versions` is already in the `supabase_realtime`
+publication (migration 0030), so there is nothing further to enable.
+
+**Deploy ordering:** apply this BEFORE the app code. `setActiveVersion` writes the column on every
+restore; without it, that write fails and restores stop emitting the event (the restore itself
+still succeeds — the write is best-effort — so the symptom is silently stale badges, not an error).
+
+**Verify after running:**
+
+```sql
+-- column exists, non-null on every row
+select count(*) as rows, count(updated_at) as with_timestamp from node_versions;
+
+-- after restoring a version in the UI, its row should show a fresh timestamp
+select id, updated_at from node_versions
+where node_id = '<node-uuid>' order by updated_at desc limit 3;
+```

@@ -3404,7 +3404,108 @@ hierarchy); promoting Market to a top-level nav item (it is client-scoped knowle
 it belongs behind the client, next to the KB); a dropdown on the breadcrumb's section
 crumb (discoverable only after you have already arrived at a section).
 
-### D192 — Signals reach the canvas as browsable groups and as script-parse flavour, not as a node type *(recorded 2026-08-31; refines D189)*
+### D201 — Entering a canvas always takes the edit lock; D161's review-mode exemption is DEFERRED *(recorded 2026-08-31; defers D161, refines D33)*
+
+> Numbered D201 to clear D184–D200, which are claimed on `feat/gemini-omni-provider` and land
+> in this same section on merge.
+
+**Decision.** `useCanvasLock` acquires unconditionally again — the `{ acquire }` option, the
+`reviewMode` prop on `<Canvas>`, and the `reviewMode={…}` pass-through in the canvas page are all
+removed. `?review=1` keeps its other job: it still opens the review drawer via
+`ReviewDrawerProvider initialOpen`, and `?node=` still flies to a node. What D161 bought that
+STAYS: approval does not require `canEdit` (D160), so a senior can still sign off from a read-only
+session — which is now the ordinary way a second person reviews a canvas someone else holds.
+
+**Why deferred rather than kept.** Two entry paths into the same canvas obeyed different locking
+rules, and which one you were in was invisible once you had arrived. The flow proved hard to reason
+about in QA — whether you held the lock depended on the URL you came through, not on anything
+on screen — so the single rule (arriving takes the lock, exactly as before D161) is back until
+the review-entry experience is designed as a whole rather than as a lock exemption.
+
+**Rejected.** Keeping the `acquire` option and always passing `true`: an option with no call site
+is a claim that the behaviour is configurable, and the next reader would have to discover by
+grep that nothing configures it. Deleting it and recording the reason here is how it comes back
+intact when review-entry is picked up again.
+
+### D202 — A restore emits a `node_versions` event, so the active version's status is live *(recorded 2026-08-31; refines D159/D179)*
+
+**Decision.** `setActiveVersion` bumps `updated_at` (migration 0034) on the version it makes
+active, and the on-canvas `ApprovalBadge` gets a canvas-wide subscription
+(`useCanvasApprovalSync`) alongside D179's focus-view one. That subscription refetches
+`/api/canvases/:cid/approval-statuses` — `listCanvasApprovalStatuses`, a filter over the SAME
+`review_queue_items` view the drawer, the inbox and the counts already read (D159), unfiltered by
+status or role and returning a `nodeId -> status` map.
+
+**Why.** D29 reads the badge off the ACTIVE version, but the active-version POINTER lives on
+`nodes` while every live surface subscribes to `node_versions`. So restoring a version changed
+which status is current and emitted nothing: the senior's queue, the maker's inbox and every other
+client's badge all stayed stale until a reload (TC-106/TC-107). Separately the badge had no live
+path at all — `data.approvalStatus` was written only by server hydration and by the local focus
+view's own `onPatch`, so a junior watching the canvas never saw a senior's decision land
+(TC-070/TC-085).
+
+**Why a column rather than a second channel.** Subscribing to `nodes` would mean a second
+org-wide channel and a second filter column to maintain, to carry an event the existing channel
+can carry. One writable column on the row that already fans out to every subscriber reuses the
+whole D159/D179 path — badge, counts and inbox all refresh through it with no new plumbing.
+
+**Rejected.** A self-assigning no-op UPDATE (`set node_id = node_id`) to emit the WAL record with
+no migration: it works, but it reads as a redundant write and the first person to tidy it away
+silently re-breaks every live surface. Also rejected: patching the badge from the realtime payload
+— consumers still re-derive from the server (D159), and the ping stays a filter, not data.
+
+**Rejected — a per-node refetch for the badge.** The first cut fetched `/api/nodes/:id/versions`
+for each pinged node. It worked, but it scaled with how busy the ORG is (the channel pings on
+every generation anywhere) and, worse, it made the badge a SECOND derivation of "current approval
+status" sitting next to the drawer's — free to disagree with the row pointing at it, which is
+precisely what TC-085 exists to catch. One canvas-scoped read of the existing view costs one
+request per burst regardless of node count, and cannot drift.
+
+**Rejected — driving the badge from the navbar inbox's data.** Tempting, since that fetch is
+already happening on the same channel and `InboxItem` already carries `nodeId` + `approvalStatus`.
+But the inbox is role-filtered and paged (`inboxFilterFor`): a designer's feed omits everyone
+else's work, a senior's omits approvals made by other seniors, and either omits anything past the
+loaded window. Badges driven from it would be right for the maker and quietly wrong for everyone
+else — the same view, queried by canvas instead, costs one more endpoint and is complete.
+
+### D203 — `?review=` and `?node=` are arrival instructions: obeyed once, then spent from the URL *(recorded 2026-08-31; refines D161/D163/D165, corrects part of D201)*
+
+**Decision.** Neither param describes the canvas; each tells the arriving screen to do one thing
+— open the list, open that asset — so the surface that obeys it clears it when it closes, with
+`window.history.replaceState` (`urlWithoutParams` in `src/lib/review/focus-pointer.ts`). The
+focus view closing spends `node`; the drawer closing spends `review`. `ReviewDrawer` reads the
+R9.3 pointer with `useSearchParams()` and latches the pointer's VALUE (`isUnhandledPointer`),
+instead of receiving `focusNodeId` as a prop threaded page → `<Canvas>` → drawer and latching
+"have we run yet"; an empty pointer is what releases the latch. Honouring a pointer also calls
+`openDrawer()`, which is what makes a same-canvas arrival open the list. The `focusNodeId` prop on
+`<Canvas>` and the `node` read in the canvas page are removed. `review` stays server-read — it
+seeds mount-time state (`ReviewDrawerProvider initialOpen`) and nothing re-reads it after.
+
+**Why.** Following a second inbox link to the canvas you are ALREADY on is a soft navigation:
+`CanvasStoreProvider` is keyed on canvas id, so nothing under it remounts. Every part of the old
+design was mount-scoped and all of it failed there — the boolean latch swallowed every pointer
+after the first, so the asset never opened, and neither param was ever cleared, so the URL kept
+describing a sheet and a drawer that were no longer on screen AND re-clicking that same inbox row
+produced a byte-identical href the router drops. Cross-canvas links only looked healthy because
+the remount reset everything.
+
+**Why the URL releases the latch.** Nulling the ref at the moment of clearing leaves a window
+where a live pointer meets an empty latch, and canvas `nodes` churn on every autosave — the
+pointer effect would re-run and re-open the sheet the reviewer just closed. Deriving the release
+from "no pointer in the URL" makes that state unrepresentable.
+
+**Rejected.** `router.replace` for the clear: this page is `force-dynamic`, so a router write
+refetches the whole canvas to change nothing on screen. The native History API is documented to
+sync with `usePathname`/`useSearchParams`, which is the only integration needed here.
+
+**Rejected — keeping the prop and comparing it to the URL.** Two sources for one value, where the
+prop is the one that goes stale. The canvas page's original note (read search params server-side
+to avoid a Suspense boundary) does not apply: the page is `force-dynamic`, so it is never
+prerendered and `next build` reports it as ƒ with no bail-out.
+
+### D204 — Signals reach the canvas as browsable groups and as script-parse flavour, not as a node type *(recorded 2026-08-31; refines D189)*
+
+> Numbered D204 to follow D201–D203 and clear D184–D200, claimed on `feat/gemini-omni-provider`.
 
 **Decision.** Two surfaces deliver the V1.x step D189 deferred. (1) The gallery drawer
 gains a **Signals tab**: a drill-in list of the client's signals (name, tags, thumbnail

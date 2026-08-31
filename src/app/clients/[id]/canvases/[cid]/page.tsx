@@ -33,14 +33,20 @@ export default async function CanvasPage({
   searchParams,
 }: {
   params: Promise<{ id: string; cid: string }>;
-  searchParams: Promise<{ review?: string; node?: string }>;
+  searchParams: Promise<{ review?: string }>;
 }) {
   const { id, cid } = await params; // client slug, canvas slug
-  // D161: read server-side rather than with useSearchParams — that hook opts its whole
-  // subtree out of static rendering and would need a Suspense boundary around the canvas.
-  const { review, node } = await searchParams;
+  // `?review=1` is read here because it seeds mount-time state (the drawer starts open).
+  // `?node=` is NOT — it is a pointer that changes while this page stays mounted, so
+  // ReviewDrawer reads it from the live URL with useSearchParams instead. A server prop is a
+  // snapshot; a second inbox link to the same canvas does not remount the tree, so the
+  // snapshot went stale and the asset it pointed at never opened.
+  //
+  // `?review=1` now only opens the review drawer (below). It used to also tell <Canvas> to
+  // skip the edit lock (D161); that is DEFERRED — see the ADR log — so entering a canvas
+  // takes the lock again however you arrived.
+  const { review } = await searchParams;
   const reviewMode = review === "1";
-  const focusNodeId = typeof node === "string" && node ? node : null;
   const client = await getClientBySlug(id);
   const canvas = client ? await getCanvasBySlug(client.id, cid) : null;
   const effectiveOrgId = await resolveOrgId();
@@ -135,8 +141,6 @@ export default async function CanvasPage({
             initialKBJob={latestKBJob}
             hasActiveKB={!!activeKBVersion}
             initialDriveRootFolder={initialDriveRootFolder}
-            reviewMode={reviewMode}
-            focusNodeId={focusNodeId}
           />
         </CanvasStoreProvider>
       </div>
