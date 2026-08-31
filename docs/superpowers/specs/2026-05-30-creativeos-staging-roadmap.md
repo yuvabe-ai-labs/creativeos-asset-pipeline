@@ -3467,3 +3467,34 @@ But the inbox is role-filtered and paged (`inboxFilterFor`): a designer's feed o
 else's work, a senior's omits approvals made by other seniors, and either omits anything past the
 loaded window. Badges driven from it would be right for the maker and quietly wrong for everyone
 else — the same view, queried by canvas instead, costs one more endpoint and is complete.
+
+### D203 — `?node=` is live client state read from the URL, not a server prop; closing the focus view spends it *(recorded 2026-08-31; refines D163/D165, corrects part of D201)*
+
+**Decision.** `ReviewDrawer` reads the R9.3 pointer with `useSearchParams()` and latches the
+pointer's VALUE (`isUnhandledPointer` in `src/lib/review/focus-pointer.ts`), instead of receiving
+`focusNodeId` as a prop threaded page → `<Canvas>` → drawer and latching "have we run yet". When
+the focus view closes, the drawer drops `node` from the URL with `window.history.replaceState`
+(`urlWithoutFocusPointer`), and an empty pointer is what releases the latch. Honouring a pointer
+also calls `openDrawer()`. The `focusNodeId` prop on `<Canvas>` and the `node` read in the canvas
+page are removed; `?review=1` stays server-read, because it seeds mount-time state.
+
+**Why.** Following a second inbox link to the canvas you are ALREADY on is a soft navigation:
+`CanvasStoreProvider` is keyed on canvas id, so nothing under it remounts. Both halves of the old
+design were mount-scoped and both failed there — the boolean latch swallowed every pointer after
+the first, so the asset never opened, and nothing ever cleared `?node=`, so the URL described a
+sheet that was no longer on screen AND re-clicking that same row produced a byte-identical href
+the router drops. Cross-canvas links only looked healthy because the remount reset both.
+
+**Why the URL releases the latch.** Nulling the ref at the moment of clearing leaves a window
+where a live pointer meets an empty latch, and canvas `nodes` churn on every autosave — the
+pointer effect would re-run and re-open the sheet the reviewer just closed. Deriving the release
+from "no pointer in the URL" makes that state unrepresentable.
+
+**Rejected.** `router.replace` for the clear: this page is `force-dynamic`, so a router write
+refetches the whole canvas to change nothing on screen. The native History API is documented to
+sync with `usePathname`/`useSearchParams`, which is the only integration needed here.
+
+**Rejected — keeping the prop and comparing it to the URL.** Two sources for one value, where the
+prop is the one that goes stale. The canvas page's original note (read search params server-side
+to avoid a Suspense boundary) does not apply: the page is `force-dynamic`, so it is never
+prerendered and `next build` reports it as ƒ with no bail-out.

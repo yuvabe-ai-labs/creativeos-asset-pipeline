@@ -77,7 +77,6 @@ export function Canvas({
   initialKBJob,
   hasActiveKB,
   initialDriveRootFolder,
-  focusNodeId = null,
 }: {
   canvasId: string;
   clientId: string;
@@ -88,8 +87,9 @@ export function Canvas({
   // DEFERRED (see the ADR log), so the canvas no longer needs to know how it was entered —
   // every entry takes the lock, as before. `?review=1` still opens the review drawer, but
   // that is wired in the page via ReviewDrawerProvider, not here.
-  /** R9.3: `?node=` from a navbar-inbox pointer — fly to it and open its Details. */
-  focusNodeId?: string | null;
+  // No `focusNodeId` prop either: R9.3's `?node=` pointer is read from the live URL inside
+  // ReviewDrawer. A prop is a snapshot, and a same-canvas inbox link does not remount this
+  // subtree, so the snapshot went stale and the second asset never opened.
 }) {
   // One subscription, shallow-compared, so the component only re-renders when
   // these slices actually change.
@@ -389,7 +389,7 @@ export function Canvas({
       {/* D163: review drawer. Mounted here (inside ReactFlowProvider and the canvas store)
           because its rows fly the canvas to a node — the same navigation the generation
           tray performs. Non-modal, so it stays put under a focus view (R6.11). */}
-      <ReviewDrawer canvasId={canvasId} initialFocusNodeId={focusNodeId} />
+      <ReviewDrawer canvasId={canvasId} />
 
       {!canEdit && (
         <LockBanner heldByName={heldByName} canTakeOver={canTakeOver} onTakeOver={takeOver} />

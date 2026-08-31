@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { useReactFlow } from "@xyflow/react";
 import { ClipboardCheck } from "lucide-react";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -12,6 +13,7 @@ import { ReviewItemThumb } from "@/components/review/review-item-thumb";
 import { ReviewListSkeleton } from "@/components/review/review-list-skeleton";
 import { InfiniteScrollSentinel } from "@/components/review/infinite-scroll-sentinel";
 import { formatRelativeTime } from "@/lib/format/relative-time";
+import { isUnhandledPointer, urlWithoutFocusPointer } from "@/lib/review/focus-pointer";
 import { useReviewDrawer } from "./review-drawer-context";
 import type { InboxItem } from "@/lib/review/queue";
 
@@ -28,15 +30,8 @@ import type { InboxItem } from "@/lib/review/queue";
 // here and none in the focus view (R6.12) — the absence is the requirement.
 //
 // The drawer ROUTES; it is not a second approval surface (R6.4).
-export function ReviewDrawer({
-  canvasId,
-  initialFocusNodeId,
-}: {
-  canvasId: string;
-  /** From `?node=` on a navbar-inbox link — the specific asset that was clicked. */
-  initialFocusNodeId?: string | null;
-}) {
-  const { open, closeDrawer } = useReviewDrawer();
+export function ReviewDrawer({ canvasId }: { canvasId: string }) {
+  const { open, openDrawer, closeDrawer } = useReviewDrawer();
   const { items, loading, loadingMore, hasMore, loadMore } = useReviewList(
     `/api/canvases/${canvasId}/review`,
     open,
@@ -64,20 +59,56 @@ export function ReviewDrawer({
   // canvas with nothing open — you still had to find the asset yourself, which defeats the
   // point of a pointer.
   //
-  // Keyed on the canvas's NODES, not on the drawer's list: on a fresh page load the nodes
-  // hydrate after this mounts, and an effect that only re-ran when the list changed could
-  // miss the window entirely and never open anything.
+  // The pointer is read from the LIVE URL, not from a server prop threaded down through the
+  // page. Following a second inbox link to the canvas you are already on is a soft navigation
+  // — the store provider is keyed on canvas id, so nothing under it remounts — and a prop
+  // captured at mount went stale there: the second asset never opened, while cross-canvas
+  // links looked healthy only because the remount re-seeded them. `useSearchParams` tracks
+  // both router navigations and the `replaceState` below (Next.js: Native History API).
+  //
+  // Also keyed on the canvas's NODES, not on the drawer's list: on a fresh page load the
+  // nodes hydrate after this mounts, and an effect that only re-ran when the list changed
+  // could miss the window entirely and never open anything.
+  const searchParams = useSearchParams();
+  const pointer = searchParams.get("node");
   const nodes = useCanvasStore((s) => s.nodes);
-  const flownToRef = useRef(false);
+  const handledPointerRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!initialFocusNodeId || flownToRef.current) return;
-    const node = getNode(initialFocusNodeId);
+    // No pointer in the URL means the last one was spent (below) or never existed — release
+    // the latch here rather than at the moment of clearing, so there is never a render where
+    // a live pointer meets an empty latch and a passing `nodes` change re-opens a sheet the
+    // reviewer just closed.
+    if (!pointer) {
+      handledPointerRef.current = null;
+      return;
+    }
+    if (!isUnhandledPointer(pointer, handledPointerRef.current)) return;
+    const node = getNode(pointer);
     if (!node) return; // not hydrated yet — the next nodes change re-runs this
-    flownToRef.current = true;
+    handledPointerRef.current = pointer;
     setCenter(node.position.x + 120, node.position.y + 60, { zoom: 1, duration: 500 });
     setFocusSection("details");
-    setFocusedNodeId(initialFocusNodeId);
-  }, [initialFocusNodeId, getNode, setCenter, setFocusSection, setFocusedNodeId, nodes]);
+    setFocusedNodeId(pointer);
+    // D161 again, for the arrival that does not remount: the senior followed a count to get
+    // here, so the list belongs on screen. The provider's `initialOpen` only fires at mount,
+    // which is exactly what a same-canvas link is not.
+    openDrawer();
+  }, [pointer, getNode, setCenter, setFocusSection, setFocusedNodeId, openDrawer, nodes]);
+
+  // Closing the focus view spends the pointer: drop `?node=` from the URL. Without this the
+  // URL kept describing a sheet that was no longer on screen, and clicking that same inbox
+  // row again produced a byte-identical href — a navigation the router drops — so the asset
+  // could never be reopened.
+  //
+  // Emptying the URL is what releases the latch — see the effect above; this one only writes
+  // the URL. `history.replaceState` rather than `router.replace` because the pointer is spent
+  // client state: this page is force-dynamic, so a router write would refetch the whole
+  // canvas to change nothing on screen.
+  useEffect(() => {
+    if (focusedNodeId !== null || handledPointerRef.current === null) return;
+    const next = urlWithoutFocusPointer(window.location.href);
+    if (next) window.history.replaceState(null, "", next);
+  }, [focusedNodeId]);
 
   return (
     <Sheet open={open} onOpenChange={(next) => !next && closeDrawer()} modal={false}>
