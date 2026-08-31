@@ -112,6 +112,29 @@ named only the sentinel key, meaning every real key beside it passed validation.
 This closes what was the largest unverified surface in the integration: the provider always sends
 the array form, including on the zero-image path, and its part key names were previously a guess.
 
+## 4c. `duration` is honoured across the range — verified 2026-08-31
+
+3s, 5s, 8s and 10s were all generated at 360p / 16:9, text-to-video. **All four succeeded**, which
+settles that the documented 3s floor is real and reachable, not just documented.
+
+| Requested | Generated in | Total incl. poll | File size | KB per second |
+|---|---|---|---|---|
+| 3s | 23.7s | 31.0s | 311 KB | 104 |
+| 5s | 23.1s | 31.0s | 570 KB | 114 |
+| 8s | 32.8s | 41.0s | 854 KB | 107 |
+| 10s | 24.6s | 31.9s | 1,208 KB | 121 |
+
+**The size column is the evidence that matters.** Bitrate is near-constant, so file size tracks
+duration almost linearly. Had `duration` been ignored and everything fallen back to the 8s default,
+all four files would sit near 854 KB — they do not. A 3s request really produces a 3s clip.
+
+Generation time is roughly 23–33s and scales loosely with duration, well inside the provider's 540s
+timeout.
+
+**The `PROCESSING` state is intermittent.** These four runs reached `ACTIVE` on the first poll; the
+10s run in §4b needed a second. Both paths therefore occur, which is exactly why the poll must exist
+rather than being an optimisation.
+
 ## 4b. The Files object is NOT immediately downloadable — verified 2026-08-30
 
 A real 10s / 360p generation returned its URI while the file was still **`PROCESSING`**, and only
