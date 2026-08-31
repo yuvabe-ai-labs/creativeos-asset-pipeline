@@ -3,6 +3,7 @@
 import type { Node } from "@xyflow/react";
 import type { NodeRow } from "@/lib/db/types";
 import type { KBSliceKey } from "@/lib/kb/parse-context";
+import type { SignalMode } from "@/lib/market/constants";
 import type { ReelScript } from "@/lib/nodes/reel-script";
 import type { VideoControls } from "@/lib/nodes/video-controls";
 import type { VideoProvider } from "@/prompts/video-prompt-generate";
@@ -14,6 +15,8 @@ export type ScriptNodeData = {
   source?: string; // raw script text (pasted or uploaded .md/.txt)
   parsed?: unknown; // active parsed output — DISPLAY ONLY, hydrated from the active version (D19); never persisted
   kbSlices?: KBSliceKey[]; // KB slices injected into parse context; undefined = DEFAULT_PARSE_SLICES
+  signalIds?: string[]; // market signals flavouring the parse (D204); undefined = none
+  signalMode?: SignalMode; // tint | rewrite; undefined = "tint"
 };
 
 export type KBNodeData = {
