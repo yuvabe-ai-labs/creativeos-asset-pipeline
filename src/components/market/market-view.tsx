@@ -3,6 +3,14 @@
 import { useMemo, useState } from "react";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useMarket } from "@/hooks/use-market";
 import type { MoodboardItem } from "@/lib/db/moodboards";
@@ -16,6 +24,12 @@ import { SignalCard } from "./signal-card";
 import { SignalDetail } from "./signal-detail";
 
 type MarketTab = MarketBucket | "signals";
+
+// Both removals confirm through one dialog — deletes have no undo (D185 keeps
+// capture cheap, not reversible), so nothing is removed on first click.
+type PendingDelete =
+  | { kind: "reference"; item: MoodboardItem }
+  | { kind: "signal"; id: string; name: string };
 
 // CSS-columns masonry: children keep intrinsic height and flow into balanced columns,
 // so tiles stagger naturally AND non-image children (the dashed add tile) can sit in
@@ -37,6 +51,7 @@ export function MarketView({
   const [addBucket, setAddBucket] = useState<MarketBucket | null>(null);
   const [signalDialogOpen, setSignalDialogOpen] = useState(false);
   const [openSignalId, setOpenSignalId] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
 
   const allItems = useMemo(
     () => [...(market.data?.direct.items ?? []), ...(market.data?.adjacent.items ?? [])],
@@ -55,6 +70,25 @@ export function MarketView({
       else next.add(id);
       return next;
     });
+  }
+
+  async function confirmDelete() {
+    if (!pendingDelete) return;
+    if (pendingDelete.kind === "reference") {
+      const { item } = pendingDelete;
+      await market.removeReference(item);
+      // A removed reference must not linger in the selection tray.
+      setSelectedIds((prev) => {
+        if (!prev.has(item.id)) return prev;
+        const next = new Set(prev);
+        next.delete(item.id);
+        return next;
+      });
+    } else {
+      await market.deleteSignal(pendingDelete.id);
+      if (openSignalId === pendingDelete.id) setOpenSignalId(null);
+    }
+    setPendingDelete(null);
   }
 
   return (
@@ -106,6 +140,7 @@ export function MarketView({
                     selectable
                     onToggle={() => toggle(it.id)}
                     onOpen={() => setPreviewItem(it)}
+                    onRemove={() => setPendingDelete({ kind: "reference", item: it })}
                   />
                 ))}
               </div>
@@ -119,10 +154,9 @@ export function MarketView({
               signal={openSignal}
               onBack={() => setOpenSignalId(null)}
               onOpenItem={setPreviewItem}
-              onDelete={async () => {
-                await market.deleteSignal(openSignal.id);
-                setOpenSignalId(null);
-              }}
+              onDelete={() =>
+                setPendingDelete({ kind: "signal", id: openSignal.id, name: openSignal.name })
+              }
             />
           ) : (market.data?.signals.length ?? 0) === 0 ? (
             <p className="py-10 text-center text-sm text-muted-foreground">
@@ -131,7 +165,12 @@ export function MarketView({
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {market.data!.signals.map((s) => (
-                <SignalCard key={s.id} signal={s} onOpen={() => setOpenSignalId(s.id)} />
+                <SignalCard
+                  key={s.id}
+                  signal={s}
+                  onOpen={() => setOpenSignalId(s.id)}
+                  onDelete={() => setPendingDelete({ kind: "signal", id: s.id, name: s.name })}
+                />
               ))}
             </div>
           )}
@@ -156,6 +195,36 @@ export function MarketView({
       )}
 
       {previewItem && <ReferenceLightbox item={previewItem} onClose={() => setPreviewItem(null)} />}
+
+      <AlertDialog
+        open={pendingDelete !== null}
+        onOpenChange={(next) => {
+          if (!next) setPendingDelete(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {pendingDelete?.kind === "signal"
+                ? `Delete "${pendingDelete.name}"?`
+                : "Remove this reference?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingDelete?.kind === "signal"
+                ? "Its references stay on the Direct and Adjacent shelves."
+                : "It comes off the shelf and out of any signals that include it. This cannot be undone."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <Button variant="outline" onClick={() => setPendingDelete(null)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmDelete}>
+              {pendingDelete?.kind === "signal" ? "Delete signal" : "Remove reference"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AddReferenceDialog
         open={addBucket !== null}

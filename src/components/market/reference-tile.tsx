@@ -1,5 +1,6 @@
 "use client";
 
+import { Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -20,13 +21,15 @@ type Props = {
   selectable: boolean;
   onToggle: () => void;
   onOpen: () => void;
+  /** Present = a remove affordance appears on hover; the caller owns confirmation. */
+  onRemove?: () => void;
 };
 
 /** One market reference in the masonry. The outer element is layout only — the two
  *  affordances are real primitives side by side (never nested): a Button covering the
  *  media opens/plays it, a Checkbox in the corner toggles selection. Heights are
  *  intrinsic (h-auto) so the CSS-columns masonry can stagger them. */
-export function ReferenceTile({ item, selected, selectable, onToggle, onOpen }: Props) {
+export function ReferenceTile({ item, selected, selectable, onToggle, onOpen, onRemove }: Props) {
   const visual =
     item.thumbnail_url ?? (item.kind === "image" || item.kind === "gif" ? item.image_url : null);
 
@@ -76,6 +79,18 @@ export function ReferenceTile({ item, selected, selectable, onToggle, onOpen }: 
         <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-2 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
           <p className="line-clamp-1 text-xs text-white">{item.note}</p>
         </div>
+      )}
+
+      {onRemove && (
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          onClick={onRemove}
+          aria-label="Remove reference"
+          className="absolute bottom-2 right-2 bg-background/90 opacity-0 transition-opacity duration-200 hover:text-destructive group-hover:opacity-100"
+        >
+          <Trash2 className="size-3.5" strokeWidth={1.5} />
+        </Button>
       )}
 
       {selectable && (

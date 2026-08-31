@@ -1,20 +1,33 @@
 "use client";
 
+import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { SignalWithItems } from "@/lib/db/signals";
 
 const MAX_THUMBS = 5;
 
-export function SignalCard({ signal, onOpen }: { signal: SignalWithItems; onOpen: () => void }) {
+/** The wrapper is layout only — the two affordances are sibling primitives (never
+ *  nested): the whole-card Button opens the signal, a corner Button asks to delete
+ *  it (confirmation lives in MarketView). */
+export function SignalCard({
+  signal,
+  onOpen,
+  onDelete,
+}: {
+  signal: SignalWithItems;
+  onOpen: () => void;
+  onDelete?: () => void;
+}) {
   const shown = signal.items.slice(0, MAX_THUMBS);
   const overflow = signal.items.length - shown.length;
 
   return (
-    <Button
-      variant="ghost"
-      onClick={onOpen}
-      className="flex h-auto cursor-pointer flex-col items-stretch gap-3 whitespace-normal rounded-xl border border-border bg-card p-4 text-left shadow-card transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:bg-card"
-    >
+    <div className="group relative">
+      <Button
+        variant="ghost"
+        onClick={onOpen}
+        className="flex h-auto w-full cursor-pointer flex-col items-stretch gap-3 whitespace-normal rounded-xl border border-border bg-card p-4 text-left shadow-card transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:bg-card"
+      >
       <div className="flex flex-col gap-1.5">
         <h3 className="font-medium text-foreground">{signal.name}</h3>
         {signal.tags.length > 0 && (
@@ -57,13 +70,26 @@ export function SignalCard({ signal, onOpen }: { signal: SignalWithItems; onOpen
         )}
       </div>
 
-      <p className="text-xs text-neutral-500">
-        {new Date(signal.created_at).toLocaleDateString(undefined, {
-          year: "numeric",
-          month: "short",
-          day: "numeric",
-        })}
-      </p>
-    </Button>
+        <p className="text-xs text-neutral-500">
+          {new Date(signal.created_at).toLocaleDateString(undefined, {
+            year: "numeric",
+            month: "short",
+            day: "numeric",
+          })}
+        </p>
+      </Button>
+
+      {onDelete && (
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          onClick={onDelete}
+          aria-label={`Delete signal ${signal.name}`}
+          className="absolute right-3 top-3 bg-card/90 opacity-0 transition-opacity duration-200 hover:text-destructive group-hover:opacity-100"
+        >
+          <Trash2 className="size-3.5" strokeWidth={1.5} />
+        </Button>
+      )}
+    </div>
   );
 }

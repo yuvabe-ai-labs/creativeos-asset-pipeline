@@ -55,6 +55,19 @@ export function useMarket(clientId: string) {
     [clientId, refresh],
   );
 
+  // Reuses the extension-era items endpoint — proving board ownership authorizes
+  // the delete there, and the item knows its board. No market-specific route needed.
+  const removeReference = useCallback(
+    async (item: MoodboardItem) => {
+      const res = await fetch(`/api/moodboards/${item.moodboard_id}/items/${item.id}`, {
+        method: "DELETE",
+      });
+      if (res.ok) await refresh();
+      return res.ok;
+    },
+    [refresh],
+  );
+
   const deleteSignal = useCallback(
     async (signalId: string) => {
       const res = await fetch(`/api/clients/${clientId}/market/signals/${signalId}`, {
@@ -65,5 +78,5 @@ export function useMarket(clientId: string) {
     [clientId, refresh],
   );
 
-  return { data, loading, refresh, addReference, createSignal, deleteSignal };
+  return { data, loading, refresh, addReference, removeReference, createSignal, deleteSignal };
 }
