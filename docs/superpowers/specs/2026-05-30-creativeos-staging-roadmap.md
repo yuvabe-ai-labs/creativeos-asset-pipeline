@@ -3468,22 +3468,26 @@ else's work, a senior's omits approvals made by other seniors, and either omits 
 loaded window. Badges driven from it would be right for the maker and quietly wrong for everyone
 else — the same view, queried by canvas instead, costs one more endpoint and is complete.
 
-### D203 — `?node=` is live client state read from the URL, not a server prop; closing the focus view spends it *(recorded 2026-08-31; refines D163/D165, corrects part of D201)*
+### D203 — `?review=` and `?node=` are arrival instructions: obeyed once, then spent from the URL *(recorded 2026-08-31; refines D161/D163/D165, corrects part of D201)*
 
-**Decision.** `ReviewDrawer` reads the R9.3 pointer with `useSearchParams()` and latches the
-pointer's VALUE (`isUnhandledPointer` in `src/lib/review/focus-pointer.ts`), instead of receiving
-`focusNodeId` as a prop threaded page → `<Canvas>` → drawer and latching "have we run yet". When
-the focus view closes, the drawer drops `node` from the URL with `window.history.replaceState`
-(`urlWithoutFocusPointer`), and an empty pointer is what releases the latch. Honouring a pointer
-also calls `openDrawer()`. The `focusNodeId` prop on `<Canvas>` and the `node` read in the canvas
-page are removed; `?review=1` stays server-read, because it seeds mount-time state.
+**Decision.** Neither param describes the canvas; each tells the arriving screen to do one thing
+— open the list, open that asset — so the surface that obeys it clears it when it closes, with
+`window.history.replaceState` (`urlWithoutParams` in `src/lib/review/focus-pointer.ts`). The
+focus view closing spends `node`; the drawer closing spends `review`. `ReviewDrawer` reads the
+R9.3 pointer with `useSearchParams()` and latches the pointer's VALUE (`isUnhandledPointer`),
+instead of receiving `focusNodeId` as a prop threaded page → `<Canvas>` → drawer and latching
+"have we run yet"; an empty pointer is what releases the latch. Honouring a pointer also calls
+`openDrawer()`, which is what makes a same-canvas arrival open the list. The `focusNodeId` prop on
+`<Canvas>` and the `node` read in the canvas page are removed. `review` stays server-read — it
+seeds mount-time state (`ReviewDrawerProvider initialOpen`) and nothing re-reads it after.
 
 **Why.** Following a second inbox link to the canvas you are ALREADY on is a soft navigation:
-`CanvasStoreProvider` is keyed on canvas id, so nothing under it remounts. Both halves of the old
-design were mount-scoped and both failed there — the boolean latch swallowed every pointer after
-the first, so the asset never opened, and nothing ever cleared `?node=`, so the URL described a
-sheet that was no longer on screen AND re-clicking that same row produced a byte-identical href
-the router drops. Cross-canvas links only looked healthy because the remount reset both.
+`CanvasStoreProvider` is keyed on canvas id, so nothing under it remounts. Every part of the old
+design was mount-scoped and all of it failed there — the boolean latch swallowed every pointer
+after the first, so the asset never opened, and neither param was ever cleared, so the URL kept
+describing a sheet and a drawer that were no longer on screen AND re-clicking that same inbox row
+produced a byte-identical href the router drops. Cross-canvas links only looked healthy because
+the remount reset everything.
 
 **Why the URL releases the latch.** Nulling the ref at the moment of clearing leaves a window
 where a live pointer meets an empty latch, and canvas `nodes` churn on every autosave — the

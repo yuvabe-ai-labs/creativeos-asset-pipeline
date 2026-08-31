@@ -11,6 +11,11 @@
 //   - Closing the focus view left `?node=` in the URL. The URL then described a screen that
 //     was no longer on it, and re-clicking that same inbox row produced a byte-identical
 //     href — a navigation the router drops — so that asset could never be reopened at all.
+//
+// `?review=1` is the same kind of param and gets the same treatment: both are ARRIVAL
+// INSTRUCTIONS — open the drawer, open that asset — not a description of the canvas. Once
+// obeyed they are spent, so the surface that obeyed them clears them when it closes, and the
+// URL goes back to naming just the canvas you are on.
 
 /** True when the URL's pointer is one this drawer has not acted on yet. */
 export function isUnhandledPointer(
@@ -21,14 +26,15 @@ export function isUnhandledPointer(
 }
 
 /**
- * The same URL with its `?node=` pointer removed, as a path+query+hash string ready for
- * `history.replaceState`. Returns null when there is no pointer to clear, so the caller can
- * skip the history write entirely rather than replacing an entry with itself.
+ * The same URL with the named query params removed, as a path+query+hash string ready for
+ * `history.replaceState`. Returns null when none of them are present, so the caller can skip
+ * the history write entirely rather than replacing an entry with itself.
  */
-export function urlWithoutFocusPointer(url: string): string | null {
+export function urlWithoutParams(url: string, params: string[]): string | null {
   const parsed = new URL(url);
-  if (!parsed.searchParams.has("node")) return null;
-  parsed.searchParams.delete("node");
+  const present = params.filter((p) => parsed.searchParams.has(p));
+  if (present.length === 0) return null;
+  for (const p of present) parsed.searchParams.delete(p);
   const search = parsed.searchParams.toString();
   return `${parsed.pathname}${search ? `?${search}` : ""}${parsed.hash}`;
 }

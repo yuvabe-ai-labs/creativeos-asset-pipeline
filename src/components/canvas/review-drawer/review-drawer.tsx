@@ -13,7 +13,7 @@ import { ReviewItemThumb } from "@/components/review/review-item-thumb";
 import { ReviewListSkeleton } from "@/components/review/review-list-skeleton";
 import { InfiniteScrollSentinel } from "@/components/review/infinite-scroll-sentinel";
 import { formatRelativeTime } from "@/lib/format/relative-time";
-import { isUnhandledPointer, urlWithoutFocusPointer } from "@/lib/review/focus-pointer";
+import { isUnhandledPointer, urlWithoutParams } from "@/lib/review/focus-pointer";
 import { useReviewDrawer } from "./review-drawer-context";
 import type { InboxItem } from "@/lib/review/queue";
 
@@ -106,9 +106,23 @@ export function ReviewDrawer({ canvasId }: { canvasId: string }) {
   // canvas to change nothing on screen.
   useEffect(() => {
     if (focusedNodeId !== null || handledPointerRef.current === null) return;
-    const next = urlWithoutFocusPointer(window.location.href);
+    const next = urlWithoutParams(window.location.href, ["node"]);
     if (next) window.history.replaceState(null, "", next);
   }, [focusedNodeId]);
+
+  // Closing the DRAWER spends `?review=1` the same way. It is an arrival instruction — "open
+  // the list" — obeyed once at mount by the provider's `initialOpen`, so a URL still carrying
+  // it after the drawer is shut describes a panel that is not on screen, and the same
+  // identical-href problem blocks re-entry from the inbox.
+  //
+  // Safe to run unconditionally on close: the helper returns null when the param is absent,
+  // so the ordinary case (drawer toggled by its own trigger, no `?review=`) writes no history
+  // at all. Nothing re-reads `review` after mount, so clearing it changes nothing on screen.
+  useEffect(() => {
+    if (open) return;
+    const next = urlWithoutParams(window.location.href, ["review"]);
+    if (next) window.history.replaceState(null, "", next);
+  }, [open]);
 
   return (
     <Sheet open={open} onOpenChange={(next) => !next && closeDrawer()} modal={false}>

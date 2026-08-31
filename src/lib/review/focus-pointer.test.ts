@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isUnhandledPointer, urlWithoutFocusPointer } from "./focus-pointer";
+import { isUnhandledPointer, urlWithoutParams } from "./focus-pointer";
 
 describe("isUnhandledPointer", () => {
   it("honours the first pointer of a session", () => {
@@ -23,29 +23,45 @@ describe("isUnhandledPointer", () => {
   });
 });
 
-describe("urlWithoutFocusPointer", () => {
+describe("urlWithoutParams", () => {
+  const canvas = "https://app.test/clients/acme/canvases/spring";
+
   it("drops ?node= and keeps the rest of the query", () => {
-    expect(
-      urlWithoutFocusPointer("https://app.test/clients/acme/canvases/spring?review=1&node=n1"),
-    ).toBe("/clients/acme/canvases/spring?review=1");
+    expect(urlWithoutParams(`${canvas}?review=1&node=n1`, ["node"])).toBe(
+      "/clients/acme/canvases/spring?review=1",
+    );
   });
 
-  it("drops the question mark when node was the only param", () => {
-    expect(urlWithoutFocusPointer("https://app.test/clients/acme/canvases/spring?node=n1")).toBe(
+  // Closing the drawer spends ?review=1 the same way closing the focus view spends ?node=.
+  it("drops ?review= and keeps a live pointer", () => {
+    expect(urlWithoutParams(`${canvas}?review=1&node=n1`, ["review"])).toBe(
+      "/clients/acme/canvases/spring?node=n1",
+    );
+  });
+
+  it("drops the question mark when nothing else is left", () => {
+    expect(urlWithoutParams(`${canvas}?node=n1`, ["node"])).toBe(
+      "/clients/acme/canvases/spring",
+    );
+    expect(urlWithoutParams(`${canvas}?review=1&node=n1`, ["review", "node"])).toBe(
       "/clients/acme/canvases/spring",
     );
   });
 
-  it("returns null when there is no pointer to clear", () => {
-    expect(urlWithoutFocusPointer("https://app.test/clients/acme/canvases/spring?review=1")).toBe(
-      null,
-    );
-    expect(urlWithoutFocusPointer("https://app.test/clients/acme/canvases/spring")).toBe(null);
+  it("returns null when none of the params are present", () => {
+    expect(urlWithoutParams(`${canvas}?review=1`, ["node"])).toBe(null);
+    expect(urlWithoutParams(canvas, ["review", "node"])).toBe(null);
   });
 
-  it("preserves the hash", () => {
-    expect(urlWithoutFocusPointer("https://app.test/c/x?node=n1&review=1#top")).toBe(
-      "/c/x?review=1#top",
+  it("clears the params it finds even when a sibling is absent", () => {
+    expect(urlWithoutParams(`${canvas}?review=1`, ["review", "node"])).toBe(
+      "/clients/acme/canvases/spring",
+    );
+  });
+
+  it("preserves the hash and unrelated params", () => {
+    expect(urlWithoutParams("https://app.test/c/x?node=n1&review=1&tab=a#top", ["node"])).toBe(
+      "/c/x?review=1&tab=a#top",
     );
   });
 });
