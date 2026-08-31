@@ -1,4 +1,4 @@
-export type GalleryTab = "references" | "assets" | "moodboard";
+export type GalleryTab = "references" | "assets" | "moodboard" | "signals";
 export type ViewMode = "grid" | "list";
 
 /** Unified shape rendered by the grid/list — covers both Drive and Assets sources. */
