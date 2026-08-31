@@ -3403,3 +3403,36 @@ cross-page navigation changed.
 hierarchy); promoting Market to a top-level nav item (it is client-scoped knowledge, so
 it belongs behind the client, next to the KB); a dropdown on the breadcrumb's section
 crumb (discoverable only after you have already arrived at a section).
+
+### D192 — Signals reach the canvas as browsable groups and as script-parse flavour, not as a node type *(recorded 2026-08-31; refines D189)*
+
+**Decision.** Two surfaces deliver the V1.x step D189 deferred. (1) The gallery drawer
+gains a **Signals tab**: a drill-in list of the client's signals (name, tags, thumbnail
+strip); inside one, the description leads and the references render in the shared grid,
+draggable onto the canvas as ordinary File nodes (D92 path unchanged). (2) The **Script
+node** gains a signal picker beside its KB slice toggles: multi-select signal chips plus
+a per-parse mode toggle — `tint` (default: voiceover stays faithful, only the visual
+side of shots adapts) or `rewrite` (the whole script may adapt). `signalIds` +
+`signalMode` persist on node data like `kbSlices`; the parse route loads the
+client-scoped signals, silently dropping unknown ids, and injects a brief per signal —
+name, tags, description, and the non-empty per-reference notes (D186's "MR's voice") —
+into `compileScript` between the KB context and the source, with the mode instruction
+versioned in `src/prompts/script-parse.ts`. `inputsUsed` records the post-filter ids and
+mode. Because shots are extracted inside that same call, every shot carries the flavour
+with zero downstream changes.
+
+**Why.** The KB-slices rail already solved "designer picks which ambient context
+flavours this parse, resolved server-side" — signals ride it instead of introducing a
+second context mechanism. Injection at the parse (not at `compilePrompt`) flavours all
+shots in one place; injection with a designer choosing signals and mode honours D189's
+requirement that Mode A only return with a designer in the loop.
+
+**Rejected.** A Signal canvas node type wired by edges (a 12th node type, a
+`VALID_CONNECTIONS` change, and the Script node's first upstream read — all to express
+what two node-data fields express); automatic injection into `compilePrompt`/image/video
+paths (still the designer-out-of-the-loop Mode A that D184/D189 rejected); single-signal
+limit and a fixed flavour depth (the designer chose multi-select and a per-parse
+toggle); rolling reference notes out of the payload (they are the only captured evidence
+voice).
+
+**Originated →** `2026-08-31-signal-flavoured-scripts-design.md`.
