@@ -1,5 +1,12 @@
 import { createOpenAI } from "@/lib/openai/server";
 import { getNodeActiveKB } from "@/lib/db/nodes";
+import { listSignalsWithItems } from "@/lib/db/signals";
+import {
+  buildSignalBrief,
+  normalizeSignalIds,
+  normalizeSignalMode,
+  selectSignalsByIds,
+} from "@/lib/market/signal-brief";
 import { normalizeSlices, buildParseContext } from "@/lib/kb/parse-context";
 import { insertVersion, setActiveVersion } from "@/lib/db/versions";
 import { compileScript } from "@/lib/nodes/script";
@@ -14,19 +21,34 @@ export async function POST(
 ) {
   return withNode(req, params, async (nodeId, _node, caller) => {
     const body = (await req.json().catch(() => null)) as
-      | { source?: unknown; slices?: unknown }
+      | { source?: unknown; slices?: unknown; signalIds?: unknown; signalMode?: unknown }
       | null;
     const source = typeof body?.source === "string" ? body.source : "";
     if (!source.trim()) {
       return apiError("Provide a non-empty script to parse.", 400);
     }
     const slices = normalizeSlices(body?.slices);
+    const requestedSignalIds = normalizeSignalIds(body?.signalIds);
+    const signalMode = normalizeSignalMode(body?.signalMode);
 
     const ctx = await getNodeActiveKB(nodeId);
     if (!ctx) return apiError("Node not found.", 404);
 
     const clientContext = ctx.kb ? buildParseContext(ctx.kb, slices) : "";
-    const { system, user } = compileScript(source, clientContext);
+
+    // D204: client scoping is the authorization boundary — ids not owned by this
+    // node's client (or since deleted) drop silently instead of failing the parse.
+    let signalBrief = "";
+    let usedSignalIds: string[] = [];
+    if (requestedSignalIds.length > 0) {
+      const signals = selectSignalsByIds(
+        await listSignalsWithItems(ctx.clientId),
+        requestedSignalIds,
+      );
+      usedSignalIds = signals.map((s) => s.id);
+      signalBrief = buildSignalBrief(signals);
+    }
+    const { system, user } = compileScript(source, clientContext, signalBrief, signalMode);
 
     try {
       const openai = createOpenAI();
@@ -51,7 +73,12 @@ export async function POST(
       const version = await insertVersion({
         nodeId,
         operatorUserId: caller.userId, // R11.1: the maker
-        inputsUsed: { kbSlices: ctx.kb ? slices : null, kbVersionId: ctx.kbVersionId },
+        inputsUsed: {
+          kbSlices: ctx.kb ? slices : null,
+          kbVersionId: ctx.kbVersionId,
+          signalIds: usedSignalIds.length ? usedSignalIds : null,
+          signalMode: usedSignalIds.length ? signalMode : null,
+        },
         paramsUsed: {
           promptId: scriptParsePrompt.id,
           promptVersion: scriptParsePrompt.version,
