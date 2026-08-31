@@ -16,6 +16,7 @@ type ScriptEmptyStateProps = {
   onTitleChange: (title: string) => void;
   onToggleSlice: (key: KBSliceKey) => void;
   onUpload: (source: string) => void; // sets source + fires extraction
+  signalsSection?: React.ReactNode; // market-signal picker (D204), owned by the focus view
 };
 
 // The focus view's EMPTY state. Upload-first: a dropzone is the main action
@@ -31,6 +32,7 @@ export function ScriptEmptyState({
   onTitleChange,
   onToggleSlice,
   onUpload,
+  signalsSection,
 }: ScriptEmptyStateProps) {
   const [dragOver, setDragOver] = useState(false);
   const [pasted, setPasted] = useState("");
@@ -149,6 +151,8 @@ export function ScriptEmptyState({
           Injected into extraction — adjust before uploading.
         </p>
       </div>
+
+      {signalsSection}
     </div>
   );
 }

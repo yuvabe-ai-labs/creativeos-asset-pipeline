@@ -21,8 +21,10 @@ import {
 import { looksLikeReelScript, type ReelScript } from "@/lib/nodes/reel-script";
 import { setScriptValue, addItem, removeItem } from "@/lib/nodes/script-edit";
 import type { KBSliceKey } from "@/lib/kb/parse-context";
+import type { SignalMode } from "@/lib/market/constants";
 import { ScriptDocument } from "./script-document";
 import { ScriptEmptyState } from "./script-empty-state";
+import { ScriptSignalsPicker } from "./script-signals-picker";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 
 type Path = (string | number)[];
@@ -35,6 +37,8 @@ type ScriptFocusViewProps = {
   source: string;
   parsed: ReelScript | null;
   slices: KBSliceKey[];
+  signalIds: string[];
+  signalMode: SignalMode;
   onPatch: (patch: Record<string, unknown>) => void;
   onSaveOutput: (output: ReelScript) => Promise<void>;
   onFanOut: () => void;
@@ -52,6 +56,8 @@ export function ScriptFocusView({
   source,
   parsed,
   slices,
+  signalIds,
+  signalMode,
   onPatch,
   onSaveOutput,
   onFanOut,
@@ -94,6 +100,18 @@ export function ScriptFocusView({
   const dirty = hasParsed && JSON.stringify(draft) !== JSON.stringify(parsed);
   const shotCount = parsed?.visual_script?.shots?.length ?? 0;
 
+  // One picker, two homes: the empty state (beside the KB slice toggles) and a
+  // strip above the parsed doc — the latter is what lets a designer attach a
+  // signal to an already-parsed script and hit Re-extract (D204).
+  const signalsPicker = (
+    <ScriptSignalsPicker
+      selected={signalIds}
+      mode={signalMode}
+      onChange={(next) => onPatch({ signalIds: next })}
+      onModeChange={(m) => onPatch({ signalMode: m })}
+    />
+  );
+
   async function runParse(src: string) {
     if (!editable) return; // D33: read-only session cannot parse (a write)
     if (!src.trim()) return;
@@ -103,7 +121,7 @@ export function ScriptFocusView({
       const res = await fetch(`/api/nodes/${nodeId}/parse`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ source: src, slices }),
+        body: JSON.stringify({ source: src, slices, signalIds, signalMode }),
       });
       const json = await res.json();
       if (!res.ok) {
@@ -269,6 +287,7 @@ export function ScriptFocusView({
               <ScriptEmptyState
                 title={title}
                 slices={slices}
+                signalsSection={signalsPicker}
                 onTitleChange={(t) => onPatch({ title: t })}
                 onToggleSlice={toggleSlice}
                 onUpload={(s) => {
@@ -280,6 +299,9 @@ export function ScriptFocusView({
 
             {mode === "parsed" && (
               <>
+                <div className="mb-6 rounded-xl border bg-muted/20 p-4">
+                  {signalsPicker}
+                </div>
                 <AnimatePresence initial={false}>
                   {showOriginal && (
                     <motion.div
