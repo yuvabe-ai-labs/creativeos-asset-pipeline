@@ -3676,3 +3676,56 @@ does, and the label's whole purpose is to let the operator see the plan before c
 **Why read-only.** It reflects grouping rather than setting it. The control that changes grouping is
 the Shot node's multishot toggle (D193), after fan-out. A second place to change it would be the
 same two-controls-one-decision problem D195 removed `continuous_take` for.
+
+### D201 — Multishot gets its own authoring surface and its own prompt *(recorded 2026-08-31; refines D195)*
+
+**Decision.** The `multishot` flag drives three things it previously did not:
+- **Controls.** A multishot shot authors a **LOOK contract** (one paragraph, shared) and a **camera
+  per beat**, instead of the single global camera + motion-energy pair a single shot uses.
+- **The motion prompt.** `videoPromptGeneratePromptFor` routes on `{ provider, multishot }`, and
+  the Omni ladder prompt carries the vendor's documented guidance rather than a thin instruction.
+- **The Shot Composer.** A multishot shot composes three alternative **cut sequences**, one beat per
+  beat, from its own prompt and schema.
+
+**Why the controls had to change.** One camera move and one motion energy describe a single
+continuous take. On a node holding five cuts they describe nothing, while the thing that actually
+governs whether those cuts read as one film — a LOOK contract repeated verbatim in every beat — had
+no field at all. D195 gave multishot a different *prompt* and left its *authoring surface*
+identical, which is why a multishot shot looked exactly like a single one apart from a filtered
+model picker.
+
+**Why the prompt routes on multishot, not provider.** A single shot on Omni is a continuous take.
+Handing it the ladder prompt produces a one-line ladder ending "keep these timings exactly", which
+forbids the very cutting a single-beat multishot node is asking for.
+
+**Why the Composer needed a second prompt.** Four alternatives for one shot is the wrong unit for a
+node whose beats have to cut together. Sequences also let a pick write every beat at once, which is
+what the operator wants when the whole point is the rhythm between them.
+
+**Rejected.** Per-beat *everything* (lens, lighting, speed) — the guidance is explicit that a start
+frame already fixes lens and light, and per-beat camera plus a shared LOOK is where the leverage is.
+Also rejected: keeping one prompt and branching inside it on a flag, which buries two genuinely
+different jobs in one string and makes neither evaluable on its own.
+
+### D202 — Dropping one Shot on another merges them *(recorded 2026-08-31; completes D193)*
+
+**Decision.** Dragging a Shot node onto another opens a confirmation and, on accept, merges them
+into one multishot node. Beats order by **script position**, not drop order. Incoming edges union
+onto the result; the consumed node's outgoing edges are dropped. A merge whose combined length
+exceeds the 10s ceiling is **refused with both numbers**, never clamped.
+
+**Why now.** D193 shipped split without merge because three questions had no answer. They do now:
+*which side's edits win* — neither, both beat sets survive and sort by script order; *what happens
+downstream* — the same asymmetry split already uses, since a motion prompt written for one shot
+does not describe the merged sequence; *what stops an illegal merge* — the ceiling check, stated
+rather than silently applied.
+
+**Why script order rather than drop order.** The ladder is a timeline. Dropping shot 3 onto shot 1
+must still generate 1 then 3; ordering by the gesture would silently reverse the reel.
+
+**Why a confirmation.** Merging consumes a node and disconnects what was wired downstream of it —
+the same class of structural change that earned split its dialog.
+
+**Consequence.** The merge action must record `removedNodeIds` and `removedEdgeIds`. Autosave builds
+its delete set only from those, which is the bug the split shipped with: a node removed from `nodes`
+alone reappears on the next load.
