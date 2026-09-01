@@ -4,6 +4,7 @@ import {
   renderVideoControls,
   LOOK_PRESETS,
   DEFAULT_VIDEO_CONTROLS,
+  normalizeVideoControls,
 } from "../video-controls";
 
 describe("beatControlsFor", () => {
@@ -83,5 +84,38 @@ describe("renderVideoControls is unaffected by the multishot fields", () => {
 
   it("still returns empty when everything is auto", () => {
     expect(renderVideoControls(DEFAULT_VIDEO_CONTROLS)).toBe("");
+  });
+});
+
+// The route rebuilt VideoControls from `camera`/`speed` alone, so `look` and `beats` — the entire
+// multishot authoring surface — were dropped at the request boundary. Authored in the UI, saved on
+// the node, then discarded before the resolver saw them. Nothing errored; the ladder just went out
+// with no LOOK line and every beat on "auto".
+describe("normalizeVideoControls", () => {
+  it("carries the LOOK contract through", () => {
+    expect(normalizeVideoControls({ camera: "auto", speed: "auto", look: "Low sun, camera-left." }).look)
+      .toBe("Low sun, camera-left.");
+  });
+
+  it("carries the per-beat cameras through", () => {
+    expect(
+      normalizeVideoControls({ beats: [{ camera: "push-in" }, { camera: "static" }] }).beats,
+    ).toEqual([{ camera: "push-in" }, { camera: "static" }]);
+  });
+
+  it("omits both when absent, so a single shot records no multishot noise", () => {
+    const c = normalizeVideoControls({ camera: "static", speed: "subtle" });
+    expect("look" in c).toBe(false);
+    expect("beats" in c).toBe(false);
+  });
+
+  it("falls back to auto for a malformed beat rather than dropping the row", () => {
+    // Dropping it would shift every later beat's camera onto the wrong beat — silently.
+    expect(normalizeVideoControls({ beats: [{ camera: 7 }, null, { camera: "orbit" }] }).beats)
+      .toEqual([{ camera: "auto" }, { camera: "auto" }, { camera: "orbit" }]);
+  });
+
+  it("defaults camera and speed on garbage input", () => {
+    expect(normalizeVideoControls(null)).toEqual({ camera: "auto", speed: "auto" });
   });
 });

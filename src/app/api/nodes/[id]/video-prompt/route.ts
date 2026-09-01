@@ -3,7 +3,7 @@ import { resolveVideoPromptInputs } from "@/lib/nodes/resolve-inputs";
 import { compileVideoPrompt } from "@/lib/nodes/video-prompt";
 import { buildUserContent, isVisionAttachment } from "@/lib/nodes/compose-message";
 import { videoPromptGeneratePromptFor, type VideoProvider } from "@/prompts/video-prompt-generate";
-import { DEFAULT_VIDEO_CONTROLS, type VideoControls } from "@/lib/nodes/video-controls";
+import { normalizeVideoControls } from "@/lib/nodes/video-controls";
 import { insertVersion, setActiveVersion } from "@/lib/db/versions";
 import { insertGeneration, succeedGeneration, failGeneration } from "@/lib/db/generations";
 import { computeCost } from "@/lib/pricing";
@@ -16,14 +16,6 @@ import {
 } from "@/lib/db/credit-transactions";
 import { describeModelRequest } from "@/lib/nodes/model-request";
 import { apiError, apiOk, withNode } from "@/lib/api/route-helpers";
-
-function normalizeControls(input: unknown): VideoControls {
-  const c = (input ?? {}) as Record<string, unknown>;
-  return {
-    camera: typeof c.camera === "string" ? c.camera : DEFAULT_VIDEO_CONTROLS.camera,
-    speed: typeof c.speed === "string" ? c.speed : DEFAULT_VIDEO_CONTROLS.speed,
-  };
-}
 
 // POST /api/nodes/:id/video-prompt — the Video Prompt node's runAction: resolve inputs
 // (KB + upstream, with the Image Gen still as a vision part), compile, call the text LLM
@@ -39,7 +31,7 @@ export async function POST(
       | { instruction?: unknown; slices?: unknown; controls?: unknown; targetProvider?: unknown }
       | null;
     const instruction = typeof body?.instruction === "string" ? body.instruction : "";
-    const controls = normalizeControls(body?.controls);
+    const controls = normalizeVideoControls(body?.controls);
 
     const VALID_PROVIDERS: VideoProvider[] = ["veo", "kling", "gemini-omni"];
     const targetProvider: VideoProvider = VALID_PROVIDERS.includes(body?.targetProvider as VideoProvider)
@@ -54,14 +46,19 @@ export async function POST(
     // this has to come after resolving. A multishot shot gets the timecode-ladder prompt; a single
     // one gets the continuous-take spine, which describes it better than a one-line ladder would.
     const multishot = resolved.upstreamMultishot === true;
-    const promptSpec = videoPromptGeneratePromptFor({ provider: targetProvider, multishot });
+    // Omni is the only multishot model (D196), so a multishot shot's prompt is an Omni prompt
+    // whatever the node has stored. The UI hides the Target model control in multishot mode for
+    // exactly that reason — which left a node with no Video Gen connected yet still reading "veo",
+    // and every multishot generation silently came back as a single-take Veo prompt.
+    const effectiveProvider: VideoProvider = multishot ? "gemini-omni" : targetProvider;
+    const promptSpec = videoPromptGeneratePromptFor({ provider: effectiveProvider, multishot });
 
     const { system, user, effectiveInstruction } = compileVideoPrompt({
       clientContext: resolved.clientContext,
       upstream: resolved.upstream,
       instruction,
       controls,
-      targetProvider,
+      targetProvider: effectiveProvider,
       multishot,
     });
 
@@ -86,7 +83,7 @@ export async function POST(
         userEmail: caller.email,
         type: "prompt",
         modelUsed: model,
-        paramsSnapshot: { model: promptSpec.model, targetProvider },
+        paramsSnapshot: { model: promptSpec.model, targetProvider: effectiveProvider },
         inputsSnapshot: { instruction: effectiveInstruction },
       });
 
@@ -118,7 +115,7 @@ export async function POST(
         paramsUsed: {
           instruction,
           controls,
-          targetProvider,
+          targetProvider: effectiveProvider,
           promptId: promptSpec.id,
           promptVersion: promptSpec.version,
           tokensUsed: completion.usage ?? null,
@@ -167,7 +164,7 @@ export async function POST(
         inputsUsed: { request },
         paramsUsed: {
           instruction,
-          targetProvider,
+          targetProvider: effectiveProvider,
           promptId: promptSpec.id,
           promptVersion: promptSpec.version,
         },

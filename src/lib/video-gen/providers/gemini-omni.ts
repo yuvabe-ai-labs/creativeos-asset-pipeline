@@ -6,6 +6,7 @@ import { GEMINI_OMNI_IMAGE_INPUTS, GEMINI_OMNI_RULES } from "../gemini-omni-shap
 import { planOmniInput } from "../plan-omni-input";
 import { composeOmniPrompt } from "../compose-omni-prompt";
 import { fetchAsBase64 } from "./fetch-as-base64";
+import { fetchOrThrow } from "./fetch-error";
 
 const API_BASE = "https://generativelanguage.googleapis.com/v1beta";
 const OMNI_MODEL = "gemini-omni-1.1-flash";
@@ -192,6 +193,15 @@ async function generateWithOmni(input: VideoGenInput): Promise<VideoGenResult> {
     referenceUrls: input.referenceUrls ?? [],
   });
 
+  // Logged BEFORE the downloads, not only before the POST. These are the first network calls the
+  // task makes, and a failure in one used to be indistinguishable from a failure in the Omni call
+  // itself — both surfaced as the same bare "TypeError: fetch failed" with nothing logged yet.
+  logger.info("Omni inputs", {
+    task: plan.task,
+    images: plan.uploads.length,
+    roles: plan.uploads.map((u) => u.role),
+  });
+
   // Images first, in planOmniInput's order, then the text part last. The order IS the contract:
   // @ImageN in the generated header counts this array from 1.
   const imageParts = await Promise.all(
@@ -202,17 +212,23 @@ async function generateWithOmni(input: VideoGenInput): Promise<VideoGenResult> {
   );
 
   const text = composeOmniPrompt({ prompt: input.prompt, params: input.params, plan });
+  const body = JSON.stringify(
+    buildOmniRequestBody({ imageParts, text, task: plan.task, params: input.params }),
+  );
 
   // Logged before the await: on a timeout there is no response to log, and store:true means the
   // interaction exists on Google's side — this line is the only trail back to a billed render.
+  // bodyKB is here because the images travel INLINE as base64: a few large references push this
+  // into tens of MB, and a server that drops an oversized body reports only "fetch failed".
   logger.info("Omni request", {
     task: plan.task,
     images: plan.uploads.length,
     resolution: String(input.params.resolution ?? "720p"),
     durationSeconds: omniDurationSeconds(input.params),
+    bodyKB: Math.round(Buffer.byteLength(body) / 1024),
   });
 
-  const res = await fetch(`${API_BASE}/interactions`, {
+  const res = await fetchOrThrow("Omni create", `${API_BASE}/interactions`, {
     method: "POST",
     headers: { "x-goog-api-key": getApiKey(), "Content-Type": "application/json" },
     // task and NOTHING else — video_config rejects every other key (D196).
@@ -222,9 +238,7 @@ async function generateWithOmni(input: VideoGenInput): Promise<VideoGenResult> {
     // edit chain is ever built, with no request-shape change.
     // background:false returns the finished interaction synchronously, so there is no
     // task-polling loop — verified.
-    body: JSON.stringify(
-      buildOmniRequestBody({ imageParts, text, task: plan.task, params: input.params }),
-    ),
+    body,
     signal: AbortSignal.timeout(OMNI_REQUEST_TIMEOUT_MS),
   });
 

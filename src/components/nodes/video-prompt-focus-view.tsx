@@ -236,11 +236,17 @@ export function VideoPromptFocusView({
   // knew "kling", so disconnecting its video node silently changed which prompt variant it wrote.
   const selectorValue: VideoProvider =
     targetProvider === "kling" || targetProvider === "gemini-omni" ? targetProvider : "veo";
-  const effectiveProvider: VideoProvider = mixed
-    ? "veo"
-    : locked
-      ? downstreamProviders[0]
-      : selectorValue;
+  // Omni is the only multishot model (D196) — which is exactly why the multishot surface below
+  // drops the Target model control. That left the stored value governing, and a node with no
+  // Video Gen connected yet still reads "veo", so every multishot generation asked for the
+  // single-take Veo prompt. Multishot decides the provider on its own.
+  const effectiveProvider: VideoProvider = isMultishot
+    ? "gemini-omni"
+    : mixed
+      ? "veo"
+      : locked
+        ? downstreamProviders[0]
+        : selectorValue;
   const lockedLabel = mixed
     ? "Mixed downstream — writing provider-neutral"
     : locked
@@ -616,8 +622,14 @@ export function VideoPromptFocusView({
 
           {/* Detail pane */}
           {/* No overflow-hidden: it would crop the raised column's left shadow.
-              The columns inside own their scrolling. */}
-          <div className="min-h-0 flex-1">
+              The columns inside own their scrolling.
+
+              min-w-0 is load-bearing. As a flex-1 child its automatic minimum size is min-content,
+              and the beat rows below truncate with white-space:nowrap — whose min-content size is
+              the FULL untruncated line. Without this the pane grew to fit a ~900px beat
+              description, blowing past max-w-7xl and pushing the generated prompt off-screen; the
+              left column is sized as a PERCENTAGE of this pane, so it grew with it. */}
+          <div className="min-h-0 min-w-0 flex-1">
             {/* Prompt — the compose editor: compose (left) + generated output (right) */}
             {selected === "prompt" && (
               <div className="flex h-full w-full min-h-0 overflow-hidden">

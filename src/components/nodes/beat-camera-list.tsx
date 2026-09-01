@@ -67,7 +67,11 @@ export function BeatCameraList({
           return (
             <div
               key={i}
-              className="flex min-w-0 items-center gap-2 rounded-md border border-border bg-muted/40 px-2 py-1.5"
+              // overflow-hidden as well as min-w-0: the description truncates with
+              // white-space:nowrap, whose min-content size is the whole untruncated line. Clipping
+              // here keeps that from becoming an intrinsic-width demand on any future ancestor
+              // that forgets its own min-w-0.
+              className="flex min-w-0 items-center gap-2 overflow-hidden rounded-md border border-border bg-muted/40 px-2 py-1.5"
             >
               <span className="w-4 shrink-0 text-center text-[0.7rem] font-medium text-muted-foreground">
                 {i + 1}

@@ -178,9 +178,15 @@ export async function resolveVideoPromptInputs(
 
   // D201 — whether any upstream Shot is multishot. The prompt routes on this, not on the
   // provider: a multishot shot needs the ladder prompt, a single one the continuous-take spine.
-  const upstreamMultishot = ups.some(
-    (u) => u.type === "shot" && (u.data as { multishot?: boolean }).multishot === true,
-  );
+  //
+  // The `> 1` matches mapUpstreamForVideo above and the focus view's own check, and it has to.
+  // A one-beat shot toggled to multishot gets NO ladder in its user turn, so routing it to the
+  // ladder prompt would ask the model to honour timings it was never given.
+  const upstreamMultishot = ups.some((u) => {
+    if (u.type !== "shot") return false;
+    const d = u.data as { multishot?: boolean; script?: ReelScript | null };
+    return d.multishot === true && (d.script?.visual_script?.shots?.length ?? 0) > 1;
+  });
 
   return { clientContext, kbVersionId: kbCtx.kbVersionId, slices, upstream, upstreamMultishot };
 }

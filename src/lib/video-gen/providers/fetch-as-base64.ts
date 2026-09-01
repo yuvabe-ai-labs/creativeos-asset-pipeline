@@ -1,4 +1,5 @@
 import "server-only";
+import { fetchOrThrow } from "./fetch-error";
 
 /**
  * An image URL as base64 bytes plus its mime type.
@@ -10,7 +11,7 @@ import "server-only";
 export async function fetchAsBase64(
   url: string,
 ): Promise<{ imageBytes: string; mimeType: string }> {
-  const res = await fetch(url);
+  const res = await fetchOrThrow(`Image download (${url})`, url);
   if (!res.ok) throw new Error(`Failed to fetch image (${res.status}): ${url}`);
   const mimeType = (res.headers.get("content-type") ?? "image/jpeg").split(";")[0].trim();
   const imageBytes = Buffer.from(await res.arrayBuffer()).toString("base64");

@@ -104,6 +104,34 @@ export function beatControlsFor(controls: VideoControls, beatCount: number): Bea
   );
 }
 
+/**
+ * Parse an untrusted request body into VideoControls.
+ *
+ * Lives here rather than in the route because this is the schema's home and a route file cannot
+ * export a helper for tests. The multishot fields are the reason it is worth testing: an earlier
+ * version rebuilt the object from `camera`/`speed` alone, so the LOOK contract and every per-beat
+ * camera were dropped at the request boundary — authored in the UI, saved on the node, and then
+ * silently discarded before the resolver ever saw them.
+ *
+ * `look` and `beats` are only set when present. A single-shot node has neither, and writing
+ * `undefined` keys would put them in the version's params snapshot as noise.
+ */
+export function normalizeVideoControls(input: unknown): VideoControls {
+  const c = (input ?? {}) as Record<string, unknown>;
+  const controls: VideoControls = {
+    camera: typeof c.camera === "string" ? c.camera : DEFAULT_VIDEO_CONTROLS.camera,
+    speed: typeof c.speed === "string" ? c.speed : DEFAULT_VIDEO_CONTROLS.speed,
+  };
+  if (typeof c.look === "string") controls.look = c.look;
+  if (Array.isArray(c.beats)) {
+    controls.beats = c.beats.map((b) => {
+      const camera = (b as { camera?: unknown } | null)?.camera;
+      return { camera: typeof camera === "string" ? camera : DEFAULT_BEAT_CONTROL.camera };
+    });
+  }
+  return controls;
+}
+
 export type LookPreset = { value: string; label: string; prose: string };
 
 /**

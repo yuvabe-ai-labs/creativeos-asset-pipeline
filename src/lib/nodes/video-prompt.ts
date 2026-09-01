@@ -66,9 +66,23 @@ export function compileVideoPrompt(input: CompileVideoPromptInput): {
   }
 
   // Coerce any stored value (incl. stale "openai") to a supported provider. Camera is always text.
-  const targetProvider: VideoProvider = input.targetProvider === "kling" ? "kling" : "veo";
+  //
+  // Every member of the union must be listed. While this only knew "kling", a node targeting
+  // "gemini-omni" fell through to "veo" HERE — so the system prompt actually sent to the model was
+  // the Veo one even when the route had already selected the Omni ladder prompt for the version
+  // record. The multishot prompt was unreachable, and the recorded promptId disagreed with the
+  // prompt that was really used.
+  const targetProvider: VideoProvider =
+    input.targetProvider === "kling" || input.targetProvider === "gemini-omni"
+      ? input.targetProvider
+      : "veo";
+  const multishot = input.multishot === true;
 
-  const controlsBlock = input.controls ? renderVideoControls(input.controls) : "";
+  // The global camera/speed block describes ONE continuous take. A multishot node carries a camera
+  // per beat inside its ladder instead, so emitting this as well would hand the model two
+  // conflicting camera instructions — and `camera` keeps whatever it held before the node was
+  // switched to multishot, which the operator can no longer even see.
+  const controlsBlock = input.controls && !multishot ? renderVideoControls(input.controls) : "";
   if (controlsBlock) blocks.push(controlsBlock);
 
   const rawInstruction = input.instruction.trim() || DEFAULT_MOTION_INSTRUCTION;
@@ -91,10 +105,7 @@ export function compileVideoPrompt(input: CompileVideoPromptInput): {
   blocks.push(`Instruction:\n${effectiveInstruction}`);
 
   return {
-    system: videoPromptGeneratePromptFor({
-      provider: targetProvider,
-      multishot: input.multishot === true,
-    }).system,
+    system: videoPromptGeneratePromptFor({ provider: targetProvider, multishot }).system,
     user: blocks.join("\n\n"),
     effectiveInstruction,
   };
