@@ -45,7 +45,9 @@ export async function POST(
     const targetProvider: VideoProvider = VALID_PROVIDERS.includes(body?.targetProvider as VideoProvider)
       ? (body?.targetProvider as VideoProvider)
       : "veo";
-    const resolved = await resolveVideoPromptInputs(nodeId, body?.slices);
+    // Controls go in so a multishot Shot's ladder can carry the LOOK contract and each beat's own
+    // camera — they live on THIS node, not on the Shot, so the resolver cannot read them itself.
+    const resolved = await resolveVideoPromptInputs(nodeId, body?.slices, controls);
     if (!resolved) return apiError("Node not found.", 404);
 
     // D201 — the prompt routes on the upstream Shot being multishot, not on the provider alone, so

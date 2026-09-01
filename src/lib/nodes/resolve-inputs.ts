@@ -2,7 +2,12 @@ import "server-only";
 import { getNodeActiveKB, getNodeData, getUpstreamOutputs } from "@/lib/db/nodes";
 import { buildParseContext, normalizeSlices, type KBSliceKey } from "@/lib/kb/parse-context";
 import { getNodeOutput, renderShotForImage } from "@/lib/nodes/node-output";
-import { renderShotForVideo, renderShotLadder } from "@/lib/nodes/render-shot-for-video";
+import {
+  renderShotForVideo,
+  renderShotLadder,
+  renderMultishotBrief,
+} from "@/lib/nodes/render-shot-for-video";
+import type { VideoControls } from "@/lib/nodes/video-controls";
 import { SINGLE_TAKE_LINE } from "@/prompts/video-prompt-generate";
 import { selectImageUpstreams } from "@/lib/nodes/shot-compose";
 import type { ReelScript } from "@/lib/nodes/reel-script";
@@ -92,7 +97,7 @@ export type RawUpstream = {
 // Pure mapping of one upstream node into a video-prompt UpstreamPreview. Differs from the
 // image path in two ways: a Shot renders via renderShotForVideo (action/objective, not the
 // D23 image slice), and an Image Gen still travels as a VISION fileUrl with no text leak.
-export function mapUpstreamForVideo(u: RawUpstream): UpstreamPreview {
+export function mapUpstreamForVideo(u: RawUpstream, controls?: VideoControls): UpstreamPreview {
   const base: UpstreamPreview = {
     nodeId: u.nodeId,
     versionId: u.versionId,
@@ -119,7 +124,15 @@ export function mapUpstreamForVideo(u: RawUpstream): UpstreamPreview {
     const multishot = u.data.multishot === true;
     const action = renderShotForVideo(script);
     if (multishot && beats.length > 1) {
-      return { ...base, text: `Beats (keep these timings exactly):\n${renderShotLadder(script)}` };
+      // D201 — with the node's own controls, the ladder carries the LOOK contract and each beat's
+      // camera. Without them (any caller that has no controls to give) it falls back to the plain
+      // ladder, which is the same text this produced before those controls existed.
+      return {
+        ...base,
+        text: controls
+          ? renderMultishotBrief({ script, controls })
+          : `Beats (keep these timings exactly):\n${renderShotLadder(script)}`,
+      };
     }
     if (multishot) {
       return { ...base, text: `${action}\nThe model may cut within this shot.`.trim() };
@@ -144,6 +157,7 @@ export function mapUpstreamForVideo(u: RawUpstream): UpstreamPreview {
 export async function resolveVideoPromptInputs(
   nodeId: string,
   slicesInput: unknown,
+  controls?: VideoControls,
 ): Promise<ResolvedPromptInputs | null> {
   const kbCtx = await getNodeActiveKB(nodeId);
   if (!kbCtx) return null;
@@ -159,7 +173,7 @@ export async function resolveVideoPromptInputs(
       type: u.type,
       data: u.data,
       activeOutput: u.activeOutput,
-    }),
+    }, controls),
   );
 
   // D201 — whether any upstream Shot is multishot. The prompt routes on this, not on the
