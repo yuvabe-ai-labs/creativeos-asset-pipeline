@@ -48,7 +48,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return;
   }
   if (msg.type === "clip") {
-    postReference({ pageUrl: msg.pageUrl, sourceUrl: msg.sourceUrl }).then(sendResponse);
+    // Permalink pill sends pageUrl; the generic image pill sends imageUrl —
+    // mirror the two context-menu body shapes exactly.
+    const body = msg.imageUrl
+      ? { imageUrl: msg.imageUrl, sourceUrl: msg.sourceUrl }
+      : { pageUrl: msg.pageUrl, sourceUrl: msg.sourceUrl };
+    postReference(body).then(sendResponse);
     return true; // keep sendResponse alive across the async POST
   }
 });

@@ -1,22 +1,31 @@
-// Hover-to-clip pill for Instagram posts and YouTube Shorts.
+// Hover-to-clip pill — permalinks on known sites, plain images everywhere else.
 //
 // One shared <button> lives on document.documentElement, OUTSIDE the host app's
 // DOM tree — React would reconcile away anything we injected inside a post — and
-// is repositioned over whichever post/short is under the cursor. Clicking it
-// messages background.js, which POSTs through the same ingest path as the
-// context-menu clip.
+// is repositioned over whichever post/short/pin/image is under the cursor.
+// Clicking it messages background.js, which POSTs through the same ingest path
+// as the context-menu clip.
 //
-// What gets clipped is always a PERMALINK (never image bytes):
-//   - IG feed post          → the post's timestamp anchor  (a[href*="/p/"], /reel/)
-//   - IG profile grid tile  → the tile itself is that anchor
-//   - IG detail page        → location.href                (/p/…, /reel/…, /tv/…)
-//   - YouTube Short         → location.href                (updates as you scroll)
-// If no permalink is derivable for a hovered element, the pill stays hidden —
-// clipping the wrong post silently would be worse than no pill.
+// Two tiers:
+//   1. Permalink sites (IG, YT, Pinterest) clip the post's canonical URL:
+//      - IG feed post          → the post's timestamp anchor  (a[href*="/p/"], /reel/)
+//      - IG profile grid tile  → the tile itself is that anchor
+//      - IG detail page        → location.href               (/p/…, /reel/…, /tv/…)
+//      - YouTube Short         → location.href               (updates as you scroll)
+//      - Pinterest grid tile   → the tile's a[href*="/pin/"] anchor
+//      - Pinterest closeup     → location.href               (/pin/<id>/)
+//      If no permalink is derivable for a hovered element, the pill stays hidden —
+//      clipping the wrong post silently would be worse than no pill. The generic
+//      tier stays OFF here: IG image URLs carry expiring CDN signatures, so the
+//      permalink is the only clip that survives.
+//   2. Everywhere else, hovering a large-enough <img> clips the image itself
+//      ({imageUrl, sourceUrl}) — the same body the right-click image clip sends.
 
 const HOST = location.hostname;
 const IS_IG = HOST.endsWith("instagram.com");
 const IS_YT = HOST.endsWith("youtube.com");
+const IS_PIN = HOST.endsWith("pinterest.com");
+const IS_PERMALINK_SITE = IS_IG || IS_YT || IS_PIN;
 
 // ── sticky target cache ───────────────────────────────────────────────────────
 // Mirrors the side panel's selection so a click can branch on "no board picked"
@@ -37,7 +46,7 @@ pill.className = "cos-clip-pill";
 pill.textContent = "+ CreativeOS";
 document.documentElement.appendChild(pill);
 
-let clipUrl = null; // permalink the pill will send when clicked
+let clipBody = null; // POST body ({pageUrl}| {imageUrl}, + sourceUrl) the pill sends when clicked
 let anchorEl = null; // element the pill is visually attached to
 let busy = false; // a clip is in flight — freeze position + ignore hovers
 
@@ -46,8 +55,8 @@ function stripQuery(href) {
   return u.origin + u.pathname;
 }
 
-function show(rect, url, topOffset) {
-  clipUrl = url;
+function show(rect, body, topOffset) {
+  clipBody = body;
   pill.style.top = `${Math.max(rect.top + topOffset, 8)}px`;
   pill.style.right = `${Math.max(window.innerWidth - rect.right + 12, 8)}px`;
   pill.classList.add("is-visible");
@@ -56,7 +65,7 @@ function show(rect, url, topOffset) {
 function hide() {
   if (busy) return;
   anchorEl = null;
-  clipUrl = null;
+  clipBody = null;
   pill.classList.remove("is-visible");
 }
 
@@ -117,16 +126,77 @@ function findYouTubeTarget(el) {
   return { container: player, url: stripQuery(location.href) };
 }
 
+const PIN_PERMALINK = /^\/pin\/([^/]+)/;
+
+function pinPermalink(href) {
+  try {
+    const u = new URL(href, location.origin);
+    const m = u.pathname.match(PIN_PERMALINK);
+    return m ? `${u.origin}/pin/${m[1]}/` : null;
+  } catch {
+    return null;
+  }
+}
+
+function findPinterestTarget(el) {
+  // Grid / feed / related-pins tile: the tile's anchor links to the pin.
+  const tile = el.closest('a[href*="/pin/"]');
+  const tileUrl = tile && pinPermalink(tile.getAttribute("href"));
+  if (tileUrl) {
+    // The anchor can be a thin overlay inside the card — anchor to the pin
+    // wrapper when Pinterest's test id is present, else the anchor itself.
+    const container = tile.closest('[data-test-id="pin"]') ?? tile;
+    return { container, url: tileUrl };
+  }
+
+  // Pin closeup page: the address bar IS the permalink. Related pins below the
+  // closeup are anchors, so the tile branch above catches them first.
+  const pageUrl = pinPermalink(location.href);
+  if (pageUrl) {
+    const container = el.closest("main");
+    if (container) return { container, url: pageUrl };
+  }
+  return null;
+}
+
+// ── generic tier: any large-enough image on any other site ──────────────────
+const MIN_IMG_SIZE = 200; // px per rendered side — skips avatars, logos, icons
+
+function findGenericImageTarget(el) {
+  // Only when the image itself is the hovered element — an overlay sitting on
+  // top of an <img> means the site wants clicks for itself; the context menu
+  // still covers those.
+  if (el.tagName !== "IMG") return null;
+  const src = el.currentSrc || el.src;
+  // data:/blob: sources can't be fetched by the server — skip them.
+  if (!src || src.startsWith("data:") || src.startsWith("blob:")) return null;
+  const rect = el.getBoundingClientRect();
+  if (rect.width < MIN_IMG_SIZE || rect.height < MIN_IMG_SIZE) return null;
+  return { container: el, body: { imageUrl: src, sourceUrl: location.href } };
+}
+
 // ── hover wiring (event delegation — survives SPA re-renders) ────────────────
 document.addEventListener(
   "mouseover",
   (e) => {
     if (busy || e.target === pill) return;
-    const found = IS_IG ? findInstagramTarget(e.target) : IS_YT ? findYouTubeTarget(e.target) : null;
-    if (found) {
-      anchorEl = found.container;
-      // YT Shorts stack CC/menu/fullscreen in the top-right corner — sit below them.
-      show(found.container.getBoundingClientRect(), found.url, IS_YT ? 56 : 12);
+    let hit = null; // { container, body }
+    if (IS_PERMALINK_SITE) {
+      const found = IS_IG
+        ? findInstagramTarget(e.target)
+        : IS_YT
+          ? findYouTubeTarget(e.target)
+          : findPinterestTarget(e.target);
+      // The permalink doubles as the source page — same as the old behavior.
+      if (found) hit = { container: found.container, body: { pageUrl: found.url, sourceUrl: found.url } };
+    } else {
+      hit = findGenericImageTarget(e.target);
+    }
+    if (hit) {
+      anchorEl = hit.container;
+      // YT Shorts stack CC/menu/fullscreen in the top-right corner, and Pinterest
+      // puts its red Save button there on hover — sit below both.
+      show(hit.container.getBoundingClientRect(), hit.body, IS_YT || IS_PIN ? 56 : 12);
     } else if (anchorEl && !anchorEl.contains(e.target)) {
       hide();
     }
@@ -140,7 +210,7 @@ window.addEventListener("scroll", hide, { passive: true, capture: true });
 
 // ── click → clip ─────────────────────────────────────────────────────────────
 function onPillClick() {
-  if (busy || !clipUrl) return;
+  if (busy || !clipBody) return;
 
   // Reloading the extension orphans content scripts already injected into open
   // tabs — their chrome.runtime is dead and every sendMessage fails silently.
@@ -160,7 +230,7 @@ function onPillClick() {
 
   busy = true;
   setState("Adding…");
-  chrome.runtime.sendMessage({ type: "clip", pageUrl: clipUrl, sourceUrl: clipUrl }, (res) => {
+  chrome.runtime.sendMessage({ type: "clip", ...clipBody }, (res) => {
     const err = chrome.runtime.lastError;
     const ok = !err && res && res.ok;
     if (!ok) console.warn("[moodboard] clip failed:", err ? err.message : res);

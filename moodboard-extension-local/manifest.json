@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "CreativeOS Moodboard Clipper (Local)",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "LOCAL DEV build — clips to a CreativeOS dev server on localhost. Do not ship to clients.",
   "permissions": ["contextMenus", "storage", "sidePanel"],
   "host_permissions": [
@@ -11,7 +11,7 @@
   "background": { "service_worker": "background.js" },
   "content_scripts": [
     {
-      "matches": ["https://www.instagram.com/*", "https://www.youtube.com/*"],
+      "matches": ["<all_urls>"],
       "js": ["clip-button.js"],
       "css": ["clip-button.css"],
       "run_at": "document_idle"

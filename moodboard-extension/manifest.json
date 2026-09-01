@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "CreativeOS Moodboard Clipper",
-  "version": "0.2.0",
-  "description": "Hover an Instagram post or YouTube Short and click + CreativeOS — or right-click any image — to add it to a client moodboard.",
+  "version": "0.3.0",
+  "description": "Hover any image — or an Instagram post, YouTube Short, or Pinterest pin — and click + CreativeOS, or right-click, to add it to a client moodboard.",
   "permissions": ["contextMenus", "storage", "sidePanel"],
   "host_permissions": [
     "https://creativeos-yuvabe.vercel.app/*"
@@ -10,7 +10,7 @@
   "background": { "service_worker": "background.js" },
   "content_scripts": [
     {
-      "matches": ["https://www.instagram.com/*", "https://www.youtube.com/*"],
+      "matches": ["<all_urls>"],
       "js": ["clip-button.js"],
       "css": ["clip-button.css"],
       "run_at": "document_idle"
