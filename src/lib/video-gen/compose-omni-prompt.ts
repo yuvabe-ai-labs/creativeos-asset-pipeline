@@ -11,10 +11,19 @@ import type { OmniInputPlan } from "./plan-omni-input";
  * continuous VO in the edit instead of asking for speech here.
  */
 export const OMNI_AUDIO_CLAUSES: Record<string, string> = {
-  ambient: "Sound design: ambience and foley only. No dialogue. No extra sound effects.",
-  dialogue: "Sound design: ambience, foley and natural dialogue.",
-  music: "Sound design: ambience and foley, with a music bed. No dialogue.",
+  dialogue: "Sound design: ambience, foley and the spoken line. No background music.",
+  ambient: "Sound design: ambience and foley only. No dialogue. No background music.",
+  music: "Sound design: ambience, foley and a music bed.",
 };
+
+/**
+ * Suppressed on every shot that does not explicitly ask for on-screen text.
+ *
+ * Omni renders screen-space type well, which is the problem: left alone it invents signage,
+ * captions and packaging copy nobody asked for. When `on_screen_text` IS set the operator's copy
+ * is quoted instead and this line is dropped, so the two never contradict each other.
+ */
+export const NO_ON_SCREEN_TEXT_LINE = "No on-screen text.";
 
 /**
  * The complete text part of an Omni request.
@@ -42,8 +51,12 @@ export function composeOmniPrompt(args: {
   const onScreenText = String(params.on_screen_text ?? "").trim();
   if (onScreenText) blocks.push(`On-screen text reads exactly: "${onScreenText}".`);
 
-  const audio = String(params.audio ?? "ambient");
-  blocks.push(OMNI_AUDIO_CLAUSES[audio] ?? OMNI_AUDIO_CLAUSES.ambient);
+  const audio = String(params.audio ?? "dialogue");
+  blocks.push(OMNI_AUDIO_CLAUSES[audio] ?? OMNI_AUDIO_CLAUSES.dialogue);
+
+  // Only when the operator asked for none. With copy set, the quoted line above governs and this
+  // would contradict it.
+  if (!onScreenText) blocks.push(NO_ON_SCREEN_TEXT_LINE);
 
   const avoid = avoidClause(String(params.negative_prompt ?? ""));
   if (avoid) blocks.push(avoid);

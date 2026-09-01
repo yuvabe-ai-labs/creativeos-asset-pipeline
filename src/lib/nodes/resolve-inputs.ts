@@ -34,6 +34,8 @@ export type ResolvedPromptInputs = {
   kbVersionId: string | null;
   slices: KBSliceKey[];
   upstream: UpstreamPreview[];
+  /** D201 — set when any upstream Shot is multishot. Only the video-prompt path populates it. */
+  upstreamMultishot?: boolean;
 };
 
 // resolveInputs for the Prompt node: ambient client KB (walk node->canvas->client,
@@ -74,6 +76,8 @@ export async function resolvePromptInputs(
   // empty-text blocks when building the model payload, and keeping them lets the UI
   // distinguish "connected but no output yet" from "not connected at all".
 
+  // No `upstreamMultishot` here on purpose — this is the IMAGE prompt path, where multishot has
+  // no meaning. Only resolveVideoPromptInputs computes it.
   return { clientContext, kbVersionId: kbCtx.kbVersionId, slices, upstream };
 }
 
@@ -158,7 +162,13 @@ export async function resolveVideoPromptInputs(
     }),
   );
 
-  return { clientContext, kbVersionId: kbCtx.kbVersionId, slices, upstream };
+  // D201 — whether any upstream Shot is multishot. The prompt routes on this, not on the
+  // provider: a multishot shot needs the ladder prompt, a single one the continuous-take spine.
+  const upstreamMultishot = ups.some(
+    (u) => u.type === "shot" && (u.data as { multishot?: boolean }).multishot === true,
+  );
+
+  return { clientContext, kbVersionId: kbCtx.kbVersionId, slices, upstream, upstreamMultishot };
 }
 
 // resolveInputs for the Shot Composer (D28). The seed comes from the Shot's OWN data.script

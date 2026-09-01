@@ -8,12 +8,12 @@ import { renderShotLadder } from "@/lib/nodes/render-shot-for-video";
 
 describe("videoPromptGeneratePromptFor", () => {
   it("routes gemini-omni to the ladder variant", () => {
-    expect(videoPromptGeneratePromptFor("gemini-omni").id).toBe(videoPromptGenerateOmniPrompt.id);
+    expect(videoPromptGeneratePromptFor({ provider: "gemini-omni", multishot: true }).id).toBe(videoPromptGenerateOmniPrompt.id);
   });
 
   it("still routes kling and veo as before", () => {
-    expect(videoPromptGeneratePromptFor("kling").id).toBe("video-prompt-generate-kling");
-    expect(videoPromptGeneratePromptFor("veo").id).toBe("video-prompt-generate");
+    expect(videoPromptGeneratePromptFor({ provider: "kling", multishot: false }).id).toBe("video-prompt-generate-kling");
+    expect(videoPromptGeneratePromptFor({ provider: "veo", multishot: false }).id).toBe("video-prompt-generate");
   });
 
   // Omni cuts by default, so a single take must be REQUESTED — the inverse of every other model.

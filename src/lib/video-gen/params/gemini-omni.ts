@@ -59,11 +59,15 @@ export const geminiOmniParams: ParamSpec[] = [
     group: "primary",
     order: 3,
     visible: true,
-    defaultValue: "ambient",
-    constraints: { type: "select", options: ["ambient", "dialogue", "music"] },
+    // `dialogue` is the default because most reels here carry a voiceover, and the standing
+    // suppressions are background music and on-screen text — not speech.
+    defaultValue: "dialogue",
+    constraints: { type: "select", options: ["dialogue", "ambient", "music"] },
     description:
-      "Audio is always generated and cannot be switched off. There is no voice control of any " +
-      "kind, so a narrator differs between generations — lay one continuous VO in the edit.",
+      "Audio is always generated and cannot be switched off. Background music is suppressed on " +
+      "every setting except Music, since a per-generation score changes character at each cut. " +
+      "The model has no voice control, so a narrator differs between generations — write the " +
+      "line anyway for the synced foley and timing, and lay one continuous VO in the edit.",
   },
   {
     // NOT an API field. Omni renders screen-space type correctly and the docs recommend stating

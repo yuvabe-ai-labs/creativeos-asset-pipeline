@@ -45,10 +45,14 @@ export async function POST(
     const targetProvider: VideoProvider = VALID_PROVIDERS.includes(body?.targetProvider as VideoProvider)
       ? (body?.targetProvider as VideoProvider)
       : "veo";
-    const promptSpec = videoPromptGeneratePromptFor(targetProvider);
-
     const resolved = await resolveVideoPromptInputs(nodeId, body?.slices);
     if (!resolved) return apiError("Node not found.", 404);
+
+    // D201 — the prompt routes on the upstream Shot being multishot, not on the provider alone, so
+    // this has to come after resolving. A multishot shot gets the timecode-ladder prompt; a single
+    // one gets the continuous-take spine, which describes it better than a one-line ladder would.
+    const multishot = resolved.upstreamMultishot === true;
+    const promptSpec = videoPromptGeneratePromptFor({ provider: targetProvider, multishot });
 
     const { system, user, effectiveInstruction } = compileVideoPrompt({
       clientContext: resolved.clientContext,
@@ -56,6 +60,7 @@ export async function POST(
       instruction,
       controls,
       targetProvider,
+      multishot,
     });
 
     const userContent = buildUserContent(user, resolved.upstream);

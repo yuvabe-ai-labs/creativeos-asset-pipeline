@@ -22,6 +22,8 @@ export type CompileVideoPromptInput = {
   instruction: string;
   controls?: VideoControls;
   targetProvider?: VideoProvider; // D77: selects text-camera (veo/sora) vs external-camera (kling)
+  /** D201 — a multishot shot gets the ladder prompt; a single one gets the continuous-take spine. */
+  multishot?: boolean;
 };
 
 function buildCompositionBlock(upstream: CompileVideoPromptUpstream[]): string | null {
@@ -89,7 +91,10 @@ export function compileVideoPrompt(input: CompileVideoPromptInput): {
   blocks.push(`Instruction:\n${effectiveInstruction}`);
 
   return {
-    system: videoPromptGeneratePromptFor(targetProvider).system,
+    system: videoPromptGeneratePromptFor({
+      provider: targetProvider,
+      multishot: input.multishot === true,
+    }).system,
     user: blocks.join("\n\n"),
     effectiveInstruction,
   };
