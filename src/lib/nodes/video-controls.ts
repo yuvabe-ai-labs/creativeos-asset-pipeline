@@ -11,7 +11,31 @@ export type VideoControlOption = {
   prose: string; // injected into the prompt; "" for the Auto (no-constraint) option
 };
 
-export type VideoControls = Record<VideoControlKey, string>;
+/**
+ * Per-beat camera, for a multishot shot (D201).
+ *
+ * `camera` takes a value from the same VIDEO_CONTROLS catalog the single-shot select uses, so the
+ * prose injected per beat is the same vocabulary rather than a second one that could drift.
+ */
+export type BeatControl = { camera: string };
+
+export const DEFAULT_BEAT_CONTROL: BeatControl = { camera: "auto" };
+
+export type VideoControls = Record<VideoControlKey, string> & {
+  /**
+   * The LOOK contract — light direction, time of day, lens feel, palette, ground, grade. Written
+   * once and reproduced VERBATIM at the top of every beat, because paraphrase is drift and this is
+   * the only thing making separate cuts read as one film. Multishot only; absent until authored.
+   */
+  look?: string;
+  /**
+   * Per-beat camera, index-aligned with the shot's beats. Multishot only.
+   *
+   * One camera move describes a single continuous take; a clip holding five cuts needs one per
+   * beat. Read through `beatControlsFor`, never directly — the saved array can be stale.
+   */
+  beats?: BeatControl[];
+};
 
 export const VIDEO_CONTROLS: {
   key: VideoControlKey;
@@ -63,3 +87,60 @@ export function renderVideoControls(controls: VideoControls): string {
   if (lines.length === 0) return "";
   return `Motion controls (use these exactly; do not substitute):\n${lines.join("\n")}`;
 }
+
+/**
+ * The saved per-beat controls, reconciled to the shot's CURRENT beat count.
+ *
+ * Beats can be added or removed on the Shot node long after these were saved, and a stale array
+ * would silently pair beat 3's camera with beat 2's action — wrong, and invisible. Padding and
+ * truncating on read keeps the rows in step with the beats without having to persist on every
+ * edit to the shot.
+ */
+export function beatControlsFor(controls: VideoControls, beatCount: number): BeatControl[] {
+  const saved = controls.beats ?? [];
+  return Array.from(
+    { length: Math.max(0, beatCount) },
+    (_, i) => saved[i] ?? DEFAULT_BEAT_CONTROL,
+  );
+}
+
+export type LookPreset = { value: string; label: string; prose: string };
+
+/**
+ * Starting points for the LOOK contract — a paragraph to edit, not a fixed menu.
+ *
+ * Each one names the repeatable physical facts the guidance asks for: light direction, time of
+ * day, lens feel, palette, ground surface, grade. Deliberately not mood words — "warm cinematic
+ * vibe" cannot be reproduced across generations, while "low sun from camera-left, long shadows
+ * toward the lens, warm grey concrete, 35mm at knee height" can.
+ */
+export const LOOK_PRESETS: LookPreset[] = [
+  {
+    value: "documentary-day",
+    label: "Documentary daylight",
+    prose:
+      "Contemporary city, late afternoon, warm low sun with clean open shade. Handheld " +
+      "documentary energy, shallow depth of field, 35mm and 85mm feel. Natural skin tones; " +
+      "wardrobe palette of off-white, olive, sand and denim. Grounded and unglamorous — no " +
+      "studio lighting, no colour gels, no slow motion. Subjects keep real physical contact " +
+      "with the ground; nothing floats, stretches or deforms.",
+  },
+  {
+    value: "tabletop-soft",
+    label: "Soft tabletop",
+    prose:
+      "Interior tabletop, diffused north light from camera-left, soft falloff into open shade. " +
+      "Locked, deliberate framing at 50mm and 100mm macro. Palette of warm grey concrete, pale " +
+      "linen and clear glass. Matte surfaces, no specular hotspots, no colour gels. Products " +
+      "keep full contact with the surface and never tilt, float or deform.",
+  },
+  {
+    value: "evening-street",
+    label: "Evening street",
+    prose:
+      "City street after sunset, cool ambient sky against warm shopfront light. Handheld at " +
+      "35mm, shallow focus, practical light sources only. Palette of deep blue shadow, amber " +
+      "highlight and wet asphalt. No colour gels, no added lens flares, no slow motion. Feet " +
+      "and props keep real contact with the ground.",
+  },
+];
