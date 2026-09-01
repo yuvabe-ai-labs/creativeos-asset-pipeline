@@ -40,11 +40,11 @@ export function LookContractField({
   }
 
   return (
-    <div className="space-y-2">
+    // min-w-0 so a long preset label or placeholder can never hold this column open.
+    <div className="min-w-0 space-y-1.5">
       <FieldLabel icon={Sun} label="Look contract" />
       <p className="text-xs text-muted-foreground">
-        Repeated word for word at the top of every beat — it is what makes the cuts read as one
-        film. Name light, palette and ground, not a mood.
+        Repeated word for word at the top of every beat. Name light, palette and ground, not a mood.
       </p>
 
       <Textarea
@@ -54,9 +54,9 @@ export function LookContractField({
           if (draft !== value) onChange(draft);
         }}
         disabled={disabled}
-        rows={4}
-        placeholder="Low sun from camera-left, long shadows toward the lens. 35mm at knee height, shallow focus. Palette of warm grey concrete, off-white and denim. No colour gels, no slow motion."
-        className="nodrag resize-none border-border bg-muted/50 text-sm"
+        rows={3}
+        placeholder="Low sun from camera-left, long shadows. 35mm at knee height. Palette of warm grey concrete and denim."
+        className="nodrag w-full resize-none border-border bg-muted/50 text-sm"
       />
 
       <div className="flex flex-wrap items-center gap-1.5">

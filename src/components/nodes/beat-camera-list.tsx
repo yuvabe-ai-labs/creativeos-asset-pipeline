@@ -51,21 +51,23 @@ export function BeatCameraList({
   }
 
   return (
-    <div className="space-y-2">
+    // min-w-0 so a long beat description can never hold this column open — the row truncates,
+    // but only if every ancestor in the flex chain is allowed to shrink.
+    <div className="min-w-0 space-y-1.5">
       <FieldLabel icon={Film} label={`Camera per beat (${beats.length})`} />
       <p className="text-xs text-muted-foreground">
-        Each beat is one cut. Leave a beat on Auto to let the prompt choose its framing.
+        Each beat is one cut. Auto lets the prompt choose that beat's framing.
       </p>
 
       {/* Scrolls in its own box past a handful of beats, so a long ladder cannot push the
           Generate button off the panel. */}
-      <div className="no-scrollbar max-h-64 space-y-1.5 overflow-y-auto pr-1">
+      <div className="no-scrollbar max-h-56 min-w-0 space-y-1.5 overflow-y-auto pr-1">
         {beats.map((beat, i) => {
           const description = (shots[i]?.description ?? "").trim();
           return (
             <div
               key={i}
-              className="flex items-center gap-2 rounded-md border border-border bg-muted/40 px-2 py-1.5"
+              className="flex min-w-0 items-center gap-2 rounded-md border border-border bg-muted/40 px-2 py-1.5"
             >
               <span className="w-4 shrink-0 text-center text-[0.7rem] font-medium text-muted-foreground">
                 {i + 1}
@@ -85,7 +87,7 @@ export function BeatCameraList({
               >
                 <SelectTrigger
                   size="sm"
-                  className="nodrag w-32 shrink-0 text-xs"
+                  className="nodrag w-28 shrink-0 text-xs"
                   aria-label={`Camera for beat ${i + 1}`}
                 >
                   <SelectValue />

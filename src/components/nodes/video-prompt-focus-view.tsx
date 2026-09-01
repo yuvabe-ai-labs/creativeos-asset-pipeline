@@ -731,8 +731,12 @@ export function VideoPromptFocusView({
 
                 {/* Right column — generated motion prompt output. Faintly tinted so the
                     white output card reads as the page's product against it (same
-                    treatment as the image-prompt view). */}
-                <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-6 py-5">
+                    treatment as the image-prompt view).
+
+                    min-w-0 is load-bearing: a flex-1 child cannot shrink below its content's
+                    intrinsic width without it, so the prompt text held this column open, the row
+                    overflowed, and the parent's overflow-hidden cropped the output off-screen. */}
+                <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto px-6 py-5">
                   {/* items-start: the title wraps and the version chips row can wrap
                       too — both anchor to the top instead of drifting vertically. */}
                   <div className="flex items-start justify-between gap-2">
