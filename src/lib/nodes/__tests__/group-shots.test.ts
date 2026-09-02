@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { groupShotsForFanOut, shotSeconds, describeShotGrouping } from "../group-shots";
+import {
+  groupShotsForFanOut,
+  shotSeconds,
+  describeGenerations,
+  generationKey,
+} from "../group-shots";
 import type { ReelShot } from "../reel-script";
 
 const shots = (...lengths: number[]): ReelShot[] =>
@@ -95,33 +100,44 @@ describe("groupShotsForFanOut", () => {
   });
 });
 
-describe("describeShotGrouping (D200)", () => {
-  it("marks shots that share a generation as multishot", () => {
-    // Two 4s shots group; the 6s one cannot join them.
-    expect(describeShotGrouping(shots(4, 4, 6))).toEqual([
-      { groupIndex: 0, multishot: true },
-      { groupIndex: 0, multishot: true },
-      { groupIndex: 1, multishot: false },
-    ]);
-  });
-
-  it("marks a shot generated on its own as not multishot", () => {
-    expect(describeShotGrouping(shots(9))).toEqual([{ groupIndex: 0, multishot: false }]);
-  });
-
+describe("describeGenerations", () => {
   it("returns nothing for an empty script", () => {
-    expect(describeShotGrouping([])).toEqual([]);
+    expect(describeGenerations([])).toEqual([]);
   });
 
-  // The note must agree with fan-out exactly — it exists to show the plan before committing to it.
-  it("agrees with groupShotsForFanOut on every shot", () => {
-    const source = shots(3, 5, 6, 4, 2);
-    const labels = describeShotGrouping(source);
-    groupShotsForFanOut(source).forEach((group, groupIndex) => {
-      for (const shotIndex of group.shotIndexes) {
-        expect(labels[shotIndex].groupIndex).toBe(groupIndex);
-        expect(labels[shotIndex].multishot).toBe(group.shotIndexes.length > 1);
-      }
-    });
+  // The default is the pre-existing rule: a group of more than one shot is multishot.
+  it("defaults a multi-shot group to multishot and a lone shot to single", () => {
+    const gens = describeGenerations(shots(3, 5, 6));
+    expect(gens.map((g) => g.shotIndexes)).toEqual([[0, 1], [2]]);
+    expect(gens.map((g) => g.multishot)).toEqual([true, false]);
+    expect(gens.map((g) => g.seconds)).toEqual([8, 6]);
+    expect(gens.map((g) => g.index)).toEqual([0, 1]);
+  });
+
+  it("keys a generation by its shot indexes", () => {
+    expect(describeGenerations(shots(3, 5, 6)).map((g) => g.key)).toEqual(["0-1", "2"]);
+  });
+
+  it("applies an override to exactly the generation it names", () => {
+    const gens = describeGenerations(shots(3, 5, 6), { "0-1": false });
+    expect(gens.map((g) => g.multishot)).toEqual([false, false]);
+  });
+
+  it("can turn a lone shot into a multishot generation", () => {
+    expect(describeGenerations(shots(3, 5, 6), { "2": true })[1].multishot).toBe(true);
+  });
+
+  // A re-parse shifts group boundaries, so old keys match nothing. The override an operator
+  // set for a group that no longer exists must not leak onto a differently-shaped one.
+  it("ignores an override whose key matches no generation", () => {
+    const gens = describeGenerations(shots(3, 5, 6), { "0-1-2": false, "7": true });
+    expect(gens.map((g) => g.multishot)).toEqual([true, false]);
+  });
+});
+
+describe("generationKey", () => {
+  it("joins indexes with a dash, in order", () => {
+    expect(generationKey([0, 1, 2])).toBe("0-1-2");
+    expect(generationKey([4])).toBe("4");
   });
 });

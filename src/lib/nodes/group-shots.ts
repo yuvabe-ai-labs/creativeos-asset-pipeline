@@ -101,34 +101,54 @@ export function groupShotsForFanOut(shots: ReelShot[]): ShotGroup[] {
   }));
 }
 
-export type ShotGroupingLabel = {
-  /** 0-based index of the generation this shot lands in. */
-  groupIndex: number;
-  /** True when this shot shares its generation with others — a multishot group. */
+export type Generation = {
+  /** 0-based; display as index + 1. */
+  index: number;
+  shotIndexes: number[];
+  /** Packed length, already clamped to the Omni window. */
+  seconds: number;
+  /** The override if one is set for this exact grouping, else the default. */
   multishot: boolean;
+  /** Identity of this grouping, and the key an override is stored under. */
+  key: string;
 };
 
 /**
- * D200 — per-shot grouping, for the note beside each row of the parsed Visual script list.
+ * A generation's identity: the exact set of script rows it covers.
  *
- * Derived from `groupShotsForFanOut`, not from a parallel rule, so what the list says is exactly
- * what fan-out will do. A label computed independently would drift, and its whole purpose is to
- * let the operator see the plan before committing to it.
- *
- * Read-only: it reflects the grouping rather than setting it. The control that changes grouping is
- * the Shot node's multishot toggle, after fan-out.
- *
- * Indexed to match `shots` — entry `i` describes shot `i`.
+ * Deliberately derived from the shot indexes rather than being a minted id. A generation is not
+ * a thing the operator creates — it is what the packing produces from the current parse, so its
+ * identity has to change when the packing does. That is what makes a stale override harmless.
  */
-export function describeShotGrouping(shots: ReelShot[]): ShotGroupingLabel[] {
-  const labels: ShotGroupingLabel[] = [];
+export function generationKey(shotIndexes: number[]): string {
+  return shotIndexes.join("-");
+}
 
-  groupShotsForFanOut(shots).forEach((group, groupIndex) => {
-    const multishot = group.shotIndexes.length > 1;
-    for (const shotIndex of group.shotIndexes) {
-      labels[shotIndex] = { groupIndex, multishot };
-    }
+/**
+ * D206 — the generations the script will fan out to, with each one's mode.
+ *
+ * Derived from `groupShotsForFanOut`, not from a parallel rule, so what the Visual script list
+ * shows is exactly what fan-out will do. A label computed independently would drift, and its
+ * whole purpose is to let the operator see and set the plan before committing to it.
+ *
+ * `overrides` holds ONLY deviations from the default (a group of >1 row is multishot). An
+ * override whose key matches no current generation is ignored: after a re-parse the grouping it
+ * described no longer exists, and applying it to a differently-shaped group would carry an
+ * intent onto rows it was never about.
+ */
+export function describeGenerations(
+  shots: ReelShot[],
+  overrides?: Record<string, boolean>,
+): Generation[] {
+  return groupShotsForFanOut(shots).map((group, index) => {
+    const key = generationKey(group.shotIndexes);
+    const override = overrides?.[key];
+    return {
+      index,
+      shotIndexes: group.shotIndexes,
+      seconds: group.seconds,
+      multishot: typeof override === "boolean" ? override : group.shotIndexes.length > 1,
+      key,
+    };
   });
-
-  return labels;
 }
