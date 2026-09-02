@@ -476,6 +476,46 @@ describe("canvas store — tray slice", () => {
   });
 });
 
+describe("setGenerationMode", () => {
+  const scriptNode = (parsed: unknown): AppNode =>
+    ({ id: "sc", type: "script", position: { x: 0, y: 0 }, data: { parsed } }) as AppNode;
+
+  const parsed = {
+    visual_script: {
+      shots: [
+        { description: "a", duration_seconds: 3 },
+        { description: "b", duration_seconds: 5 },
+        { description: "c", duration_seconds: 6 },
+      ],
+    },
+  };
+
+  it("records an override on the script node", () => {
+    const store = createCanvasStore([scriptNode(parsed)], []);
+    store.getState().setGenerationMode("sc", "0-1", false);
+
+    const data = store.getState().nodes[0].data as { groupModes?: Record<string, boolean> };
+    expect(data.groupModes).toEqual({ "0-1": false });
+  });
+
+  // Only deviations are stored. Writing the default back removes the key rather than pinning
+  // a value that would then survive a re-parse it no longer describes.
+  it("drops the key when the mode returns to the default", () => {
+    const store = createCanvasStore([scriptNode(parsed)], []);
+    store.getState().setGenerationMode("sc", "0-1", false);
+    store.getState().setGenerationMode("sc", "0-1", true);
+
+    const data = store.getState().nodes[0].data as { groupModes?: Record<string, boolean> };
+    expect(data.groupModes).toEqual({});
+  });
+
+  it("is a no-op on a node that is not a script", () => {
+    const store = createCanvasStore([{ id: "t", type: "text", position: { x: 0, y: 0 }, data: {} } as AppNode], []);
+    store.getState().setGenerationMode("t", "0", false);
+    expect(store.getState().nodes[0].data).toEqual({});
+  });
+});
+
 describe("canvas store — focusedNodeId", () => {
   it("starts null and can be set/cleared", () => {
     const store = createCanvasStore();

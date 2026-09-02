@@ -15,6 +15,12 @@ export type ScriptNodeData = {
   source?: string; // raw script text (pasted or uploaded .md/.txt)
   parsed?: unknown; // active parsed output — DISPLAY ONLY, hydrated from the active version (D19); never persisted
   kbSlices?: KBSliceKey[]; // KB slices injected into parse context; undefined = DEFAULT_PARSE_SLICES
+  /**
+   * D206 — per-generation mode OVERRIDES, keyed by `generationKey(shotIndexes)`.
+   * An absent key means the default (a group of more than one row is multishot). Only
+   * deviations are stored, so a re-parse that reshapes the groups drops them harmlessly.
+   */
+  groupModes?: Record<string, boolean>;
 };
 
 export type KBNodeData = {

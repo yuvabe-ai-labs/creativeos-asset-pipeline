@@ -20,7 +20,7 @@ import type { AppNode, ShotNodeData } from "./canvas-nodes";
 import type { ReelScript } from "@/lib/nodes/reel-script";
 import type { ShotComposeIdea } from "@/lib/nodes/shot-compose";
 import { deriveShotType } from "@/lib/nodes/shot-types";
-import { groupShotsForFanOut } from "@/lib/nodes/group-shots";
+import { groupShotsForFanOut, describeGenerations } from "@/lib/nodes/group-shots";
 import { splitMultishotData } from "@/lib/nodes/split-multishot";
 import { mergeShotData, sortForMerge } from "@/lib/nodes/merge-shots";
 import type { GenerationRow } from "@/lib/db/types";
@@ -48,6 +48,8 @@ export type CanvasState = {
   duplicateNode: (id: string) => Promise<void>;
   duplicateNodes: (ids: string[], canvasId: string) => Promise<void>;
   fanOutShots: (scriptNodeId: string) => void;
+  /** D206 — set one generation's mode from the Script's Visual script list. */
+  setGenerationMode: (scriptNodeId: string, key: string, multishot: boolean) => void;
   splitMultishotNode: (shotNodeId: string) => void;
   /** D202 — several selected Shot nodes become one multishot node. Inverse of the split. */
   mergeShotNodes: (shotNodeIds: string[]) => void;
@@ -416,6 +418,25 @@ export function createCanvasStore(
         nodes: [...get().nodes, ...created],
         edges: [...get().edges, ...createdEdges],
       });
+    },
+    setGenerationMode: (scriptNodeId, key, multishot) => {
+      const script = get().nodes.find((n) => n.id === scriptNodeId);
+      if (!script || script.type !== "script") return;
+
+      const data = script.data as { parsed?: ReelScript; groupModes?: Record<string, boolean> };
+      const shots = data.parsed?.visual_script?.shots ?? [];
+      const generation = describeGenerations(shots).find((g) => g.key === key);
+      if (!generation) return;
+
+      // Only DEVIATIONS are stored. Setting a generation back to its default removes the key
+      // instead of pinning the same value — a pinned default would outlive the grouping it
+      // describes and quietly re-apply itself to whatever group later takes the same key.
+      const isDefault = multishot === generation.shotIndexes.length > 1;
+      const next = { ...(data.groupModes ?? {}) };
+      if (isDefault) delete next[key];
+      else next[key] = multishot;
+
+      get().updateNodeData(scriptNodeId, { groupModes: next });
     },
     /**
      * D193 — turning multishot OFF on a grouped node splits it into one node per shot.
