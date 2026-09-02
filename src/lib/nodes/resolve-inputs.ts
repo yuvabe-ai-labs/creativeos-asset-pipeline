@@ -3,10 +3,10 @@ import { getNodeActiveKB, getNodeData, getUpstreamOutputs } from "@/lib/db/nodes
 import { buildParseContext, normalizeSlices, type KBSliceKey } from "@/lib/kb/parse-context";
 import { getNodeOutput, renderShotForImage } from "@/lib/nodes/node-output";
 import { renderShotForVideo } from "@/lib/nodes/render-shot-for-video";
-import type { VideoControls } from "@/lib/nodes/video-controls";
 import { SINGLE_TAKE_LINE } from "@/prompts/video-prompt-generate";
 import { selectImageUpstreams } from "@/lib/nodes/shot-compose";
 import type { ReelScript } from "@/lib/nodes/reel-script";
+import type { MultishotCut } from "@/lib/nodes/multishot-cuts";
 
 const TYPE_LABEL: Record<string, string> = {
   script: "Script",
@@ -17,6 +17,7 @@ const TYPE_LABEL: Record<string, string> = {
   draw: "Sketch",
   "image-gen": "Image",
   "video-prompt": "Motion Prompt",
+  multishot: "Multishot",
 };
 
 export type UpstreamPreview = {
@@ -35,12 +36,6 @@ export type ResolvedPromptInputs = {
   kbVersionId: string | null;
   slices: KBSliceKey[];
   upstream: UpstreamPreview[];
-  /**
-   * D208 — a Shot upstream is always a single continuous take now; the per-node flag this once
-   * read is gone. A multishot GENERATION lives on its own dedicated node type, which does not yet
-   * feed this resolver (Phase 2's renderPlan), so this is always false today.
-   */
-  upstreamMultishot?: boolean;
 };
 
 // resolveInputs for the Prompt node: ambient client KB (walk node->canvas->client,
@@ -81,8 +76,6 @@ export async function resolvePromptInputs(
   // empty-text blocks when building the model payload, and keeping them lets the UI
   // distinguish "connected but no output yet" from "not connected at all".
 
-  // No `upstreamMultishot` here on purpose — this is the IMAGE prompt path, where multishot has
-  // no meaning. Only resolveVideoPromptInputs computes it.
   return { clientContext, kbVersionId: kbCtx.kbVersionId, slices, upstream };
 }
 
@@ -97,7 +90,7 @@ export type RawUpstream = {
 // Pure mapping of one upstream node into a video-prompt UpstreamPreview. Differs from the
 // image path in two ways: a Shot renders via renderShotForVideo (action/objective, not the
 // D23 image slice), and an Image Gen still travels as a VISION fileUrl with no text leak.
-export function mapUpstreamForVideo(u: RawUpstream, controls?: VideoControls): UpstreamPreview {
+export function mapUpstreamForVideo(u: RawUpstream): UpstreamPreview {
   const base: UpstreamPreview = {
     nodeId: u.nodeId,
     versionId: u.versionId,
@@ -137,7 +130,6 @@ export function mapUpstreamForVideo(u: RawUpstream, controls?: VideoControls): U
 export async function resolveVideoPromptInputs(
   nodeId: string,
   slicesInput: unknown,
-  controls?: VideoControls,
 ): Promise<ResolvedPromptInputs | null> {
   const kbCtx = await getNodeActiveKB(nodeId);
   if (!kbCtx) return null;
@@ -153,15 +145,10 @@ export async function resolveVideoPromptInputs(
       type: u.type,
       data: u.data,
       activeOutput: u.activeOutput,
-    }, controls),
+    }),
   );
 
-  // D208 — a Shot upstream is always a single continuous take now; there is no flag left to read.
-  // A multishot GENERATION lives on its own dedicated node type, which does not yet feed this
-  // resolver (Phase 2's renderPlan), so no upstream can make a Video Prompt node multishot today.
-  const upstreamMultishot = false;
-
-  return { clientContext, kbVersionId: kbCtx.kbVersionId, slices, upstream, upstreamMultishot };
+  return { clientContext, kbVersionId: kbCtx.kbVersionId, slices, upstream };
 }
 
 // resolveInputs for the Shot Composer (D28). The seed comes from the Shot's OWN data.script
@@ -202,4 +189,78 @@ export async function resolveShotComposeInputs(
     slices,
     imageUpstream,
   };
+}
+
+export type ResolvedMultishotInputs = {
+  clientContext: string;
+  kbVersionId: string | null;
+  slices: KBSliceKey[];
+  upstream: UpstreamPreview[];
+  /** The upstream Multishot node's cut list — the shots this plan must cover. */
+  cuts: MultishotCut[];
+};
+
+/**
+ * Inputs for the Multishot Prompt node. Sibling of `resolveVideoPromptInputs`, and separate for
+ * the same reason the node types are: the cut list has no analogue on the single-take path, and
+ * threading an optional one through would put a branch in every caller.
+ */
+export async function resolveMultishotPromptInputs(
+  nodeId: string,
+  slicesInput: unknown,
+): Promise<ResolvedMultishotInputs | null> {
+  const kbCtx = await getNodeActiveKB(nodeId);
+  if (!kbCtx) return null;
+
+  const slices = normalizeSlices(slicesInput);
+  const clientContext = kbCtx.kb ? buildParseContext(kbCtx.kb, slices) : "";
+
+  const ups = await getUpstreamOutputs(nodeId);
+  const upstream = ups.map((u) => mapUpstreamForVideo(u));
+  const source = ups.find((u) => u.type === "multishot");
+  const cuts = ((source?.data.cuts ?? []) as MultishotCut[]).filter((c) => c && c.id);
+
+  return { clientContext, kbVersionId: kbCtx.kbVersionId, slices, upstream, cuts };
+}
+
+/**
+ * The user turn. Each cut's own steer sits WITH that cut rather than in a parallel list, so the
+ * writer never has to align two orderings — which is exactly the mistake that produces a beat
+ * written against the wrong shot's instruction.
+ */
+export function buildMultishotUserTurn(args: {
+  clientContext: string;
+  upstream: UpstreamPreview[];
+  cuts: MultishotCut[];
+  instruction: string;
+  cutInstructions: Record<string, string>;
+}): string {
+  const blocks: string[] = [];
+
+  if (args.clientContext.trim()) blocks.push(`Brand context:\n${args.clientContext.trim()}`);
+
+  for (const u of args.upstream) {
+    if (!u.text.trim()) continue;
+    blocks.push(`${u.label}:\n${u.text.trim()}`);
+  }
+
+  if (args.instruction.trim()) {
+    blocks.push(`For the sequence as a whole:\n${args.instruction.trim()}`);
+  }
+
+  const shots = args.cuts
+    .map((cut, i) => {
+      const lines = [
+        `Shot ${i + 1} — cutId: ${cut.id} — ${cut.seconds}s`,
+        `  Shot text: ${cut.text.trim() || "(none — write it from the sequence context)"}`,
+      ];
+      const steer = (args.cutInstructions[cut.id] ?? "").trim();
+      if (steer) lines.push(`  Operator instruction for THIS shot: ${steer}`);
+      return lines.join("\n");
+    })
+    .join("\n\n");
+
+  blocks.push(`Shots (return exactly one beat per shot, echoing each cutId):\n${shots}`);
+
+  return blocks.join("\n\n");
 }

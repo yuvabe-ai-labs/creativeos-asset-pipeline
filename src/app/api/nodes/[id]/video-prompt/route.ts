@@ -30,30 +30,21 @@ export async function POST(
     const targetProvider: VideoProvider = VALID_PROVIDERS.includes(body?.targetProvider as VideoProvider)
       ? (body?.targetProvider as VideoProvider)
       : "veo";
-    // Controls go in so a multishot Shot's ladder can carry the LOOK contract and each beat's own
-    // camera — they live on THIS node, not on the Shot, so the resolver cannot read them itself.
-    const resolved = await resolveVideoPromptInputs(nodeId, body?.slices, controls);
+    // D210 — the multishot ladder prompt now lives entirely on the Multishot Prompt node
+    // (multishotPromptGenerate). A Shot upstream is always a single continuous take (D208), and a
+    // Multishot node cannot connect to this route at all — so this route always gets the
+    // continuous-take spine and the operator's own targetProvider, with no coercion.
+    const resolved = await resolveVideoPromptInputs(nodeId, body?.slices);
     if (!resolved) return apiError("Node not found.", 404);
 
-    // D210 — the multishot ladder prompt now lives entirely on the Multishot Prompt node
-    // (multishotPromptGenerate); this route always gets the continuous-take spine. `multishot` is
-    // still read here (after resolving) to pick the effective provider below and to suppress the
-    // single-take controls block in compileVideoPrompt.
-    const multishot = resolved.upstreamMultishot === true;
-    // Omni is the only multishot model (D196), so a multishot shot's prompt is an Omni prompt
-    // whatever the node has stored. The UI hides the Target model control in multishot mode for
-    // exactly that reason — which left a node with no Video Gen connected yet still reading "veo",
-    // and every multishot generation silently came back as a single-take Veo prompt.
-    const effectiveProvider: VideoProvider = multishot ? "gemini-omni" : targetProvider;
-    const promptSpec = videoPromptGeneratePromptFor({ provider: effectiveProvider });
+    const promptSpec = videoPromptGeneratePromptFor({ provider: targetProvider });
 
     const { system, user, effectiveInstruction } = compileVideoPrompt({
       clientContext: resolved.clientContext,
       upstream: resolved.upstream,
       instruction,
       controls,
-      targetProvider: effectiveProvider,
-      multishot,
+      targetProvider,
     });
 
     const userContent = buildUserContent(user, resolved.upstream);
@@ -79,7 +70,7 @@ export async function POST(
         type: "prompt",
         model,
         estimatedCredits,
-        generationParamsSnapshot: { model: promptSpec.model, targetProvider: effectiveProvider },
+        generationParamsSnapshot: { model: promptSpec.model, targetProvider },
         generationInputsSnapshot: { instruction: effectiveInstruction },
         inputsUsed: {
           upstream: resolved.upstream.map((u) => ({ nodeId: u.nodeId, versionId: u.versionId })),
@@ -90,7 +81,7 @@ export async function POST(
         paramsUsed: {
           instruction,
           controls,
-          targetProvider: effectiveProvider,
+          targetProvider,
           promptId: promptSpec.id,
           promptVersion: promptSpec.version,
         },
@@ -107,7 +98,7 @@ export async function POST(
             inputsUsed: { request },
             paramsUsed: {
               instruction,
-              targetProvider: effectiveProvider,
+              targetProvider,
               promptId: promptSpec.id,
               promptVersion: promptSpec.version,
             },
