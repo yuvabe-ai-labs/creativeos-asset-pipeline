@@ -1,9 +1,15 @@
 import { createOpenAI } from "@/lib/openai/server";
 import { resolveShotComposeInputs } from "@/lib/nodes/resolve-inputs";
-import { renderComposeContext, type ShotComposeIdea } from "@/lib/nodes/shot-compose";
+import {
+  renderComposeContext,
+  renderMultishotComposeContext,
+  type ShotComposeIdea,
+  type ShotComposeSequence,
+} from "@/lib/nodes/shot-compose";
 import { getShotRole } from "@/lib/nodes/shot-roles";
 import { buildUserContent } from "@/lib/nodes/compose-message";
 import { shotComposePrompt } from "@/prompts/shot-compose";
+import { shotComposeMultishotPrompt } from "@/prompts/shot-compose-multishot";
 import { insertVersion, listVersions } from "@/lib/db/versions";
 import { apiError, apiOk, withNode } from "@/lib/api/route-helpers";
 
@@ -16,15 +22,31 @@ export async function GET(
 ) {
   return withNode(req, params, async (nodeId) => {
     const rows = await listVersions(nodeId); // newest first (created_at desc)
+    // Both composers write compose rows onto the same node, so the rehydrate must recognise
+    // EITHER promptId. Matching only the single-shot one left a multishot node's sheet empty
+    // after a reload while its run sat in the version log.
+    const COMPOSE_PROMPT_IDS = [shotComposePrompt.id, shotComposeMultishotPrompt.id] as string[];
     const latest = rows.find(
-      (v) => (v.params_used as { promptId?: string } | null)?.promptId === shotComposePrompt.id && !v.error,
+      (v) =>
+        COMPOSE_PROMPT_IDS.includes((v.params_used as { promptId?: string } | null)?.promptId ?? "") &&
+        !v.error,
     );
-    if (!latest) return apiOk({ ideas: [], role: null, versionId: null, selectedIndex: null });
+    if (!latest) {
+      return apiOk({ ideas: [], sequences: [], role: null, versionId: null, selectedIndex: null });
+    }
 
-    const gen = (latest.generated_output ?? {}) as { ideas?: ShotComposeIdea[] };
-    const out = (latest.output ?? {}) as { ideas?: ShotComposeIdea[]; selectedIndex?: number };
+    const gen = (latest.generated_output ?? {}) as {
+      ideas?: ShotComposeIdea[];
+      sequences?: ShotComposeSequence[];
+    };
+    const out = (latest.output ?? {}) as {
+      ideas?: ShotComposeIdea[];
+      sequences?: ShotComposeSequence[];
+      selectedIndex?: number;
+    };
     return apiOk({
       ideas: gen.ideas ?? out.ideas ?? [],
+      sequences: gen.sequences ?? out.sequences ?? [],
       role: (latest.inputs_used as { role?: string } | null)?.role ?? null,
       versionId: latest.id,
       selectedIndex: typeof out.selectedIndex === "number" ? out.selectedIndex : null,
@@ -49,29 +71,53 @@ export async function POST(
     const resolved = await resolveShotComposeInputs(nodeId, body?.slices);
     if (!resolved) return apiError("Node not found.", 404);
 
-    const user = renderComposeContext({
-      seedText: resolved.seedText,
-      role,
-      clientContext: resolved.clientContext,
-    });
+    // D201 — the composer's UNIT depends on the shot. A multishot shot's beats have to cut
+    // together, so it composes whole SEQUENCES (one beat per beat); a single shot composes
+    // alternative descriptions of itself. Different prompt, different schema, different user turn
+    // — and a distinct promptId recorded below, so the eval flywheel can tell the two apart.
+    const multishot = resolved.multishot;
+    const spec = multishot ? shotComposeMultishotPrompt : shotComposePrompt;
+
+    const user = multishot
+      ? renderMultishotComposeContext({
+          shots: resolved.shots,
+          role,
+          clientContext: resolved.clientContext,
+          objective: resolved.objective,
+        })
+      : renderComposeContext({
+          seedText: resolved.seedText,
+          role,
+          clientContext: resolved.clientContext,
+        });
     const userContent = buildUserContent(user, resolved.imageUpstream);
 
     try {
       const openai = createOpenAI();
       const completion = await openai.chat.completions.create({
-        model: shotComposePrompt.model,
+        model: spec.model,
         response_format: {
           type: "json_schema",
-          json_schema: { name: "shot_ideas", schema: shotComposePrompt.schema, strict: true },
+          json_schema: {
+            name: multishot ? "shot_sequences" : "shot_ideas",
+            schema: spec.schema,
+            strict: true,
+          },
         },
         messages: [
-          { role: "system", content: shotComposePrompt.system },
+          { role: "system", content: spec.system },
           { role: "user", content: userContent },
         ],
       });
       const content = completion.choices[0]?.message?.content ?? "{}";
-      const parsed = JSON.parse(content) as { ideas?: ShotComposeIdea[] };
-      const ideas = (Array.isArray(parsed.ideas) ? parsed.ideas : []).slice(0, 4);
+      const parsed = JSON.parse(content) as {
+        ideas?: ShotComposeIdea[];
+        sequences?: ShotComposeSequence[];
+      };
+      const ideas = multishot ? [] : (Array.isArray(parsed.ideas) ? parsed.ideas : []).slice(0, 4);
+      const sequences = multishot
+        ? (Array.isArray(parsed.sequences) ? parsed.sequences : []).slice(0, 3)
+        : [];
 
       const version = await insertVersion({
         nodeId,
@@ -86,23 +132,26 @@ export async function POST(
         },
         paramsUsed: {
           role: role.key,
-          promptId: shotComposePrompt.id,
-          promptVersion: shotComposePrompt.version,
+          multishot,
+          promptId: spec.id,
+          promptVersion: spec.version,
           tokensUsed: completion.usage ?? null,
         },
-        modelUsed: `openai:${shotComposePrompt.model}`,
-        output: { ideas }, // generated_output frozen = { ideas } (D22)
+        modelUsed: `openai:${spec.model}`,
+        // generated_output frozen (D22) — one key or the other, never both, so a reader can tell
+        // which composer produced the row without consulting promptId.
+        output: multishot ? { sequences } : { ideas },
       });
       // NB: intentionally NO setActiveVersion — capture-only (D28).
 
-      return apiOk({ ideas, versionId: version.id });
+      return apiOk({ ideas, sequences, versionId: version.id });
     } catch (e) {
       const message = e instanceof Error ? e.message : "Compose failed";
       await insertVersion({
         nodeId,
         operatorUserId: caller.userId, // a failed attempt still has a maker
-        paramsUsed: { role: role.key, promptId: shotComposePrompt.id, promptVersion: shotComposePrompt.version },
-        modelUsed: `openai:${shotComposePrompt.model}`,
+        paramsUsed: { role: role.key, multishot, promptId: spec.id, promptVersion: spec.version },
+        modelUsed: `openai:${spec.model}`,
         error: message,
       });
       return apiError(message, 500);
