@@ -51,10 +51,9 @@ import {
   type VideoControls,
 } from "@/lib/nodes/video-controls";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
-import { findDescendantsOfType, findAncestorOfType } from "@/lib/canvas/graph";
+import { findDescendantsOfType } from "@/lib/canvas/graph";
 import { ContractField } from "./contract-field";
 import { ReferenceImageStrip } from "./reference-image-strip";
-import type { ReelShot } from "@/lib/nodes/reel-script";
 import { videoGenClientModelMap, DEFAULT_VIDEO_CLIENT_MODEL_ID } from "@/lib/video-gen/client-models";
 import type { VideoProvider } from "@/prompts/video-prompt-generate";
 import {
@@ -211,17 +210,11 @@ export function VideoPromptFocusView({
   const edges = useCanvasStore((s) => s.edges);
   const downstreamGen = findDescendantsOfType(nodeId, nodes, edges, "video-gen");
 
-  // D201 — the upstream Shot decides which authoring surface this node shows. A multishot shot is
-  // several cuts in one clip, so one camera move and one motion energy describe nothing about it;
-  // it authors a LOOK contract and a camera per beat instead.
-  const upstreamShot = findAncestorOfType(nodeId, nodes, edges, "shot");
-  const upstreamShotData = upstreamShot?.data as
-    | { multishot?: boolean; script?: { visual_script?: { shots?: ReelShot[] } } }
-    | undefined;
-  const upstreamShots = upstreamShotData?.script?.visual_script?.shots ?? [];
-  // A single-beat node toggled to multishot means "the model may cut inside this shot" — there is
-  // no ladder to author, so it keeps the single-shot controls.
-  const isMultishot = upstreamShotData?.multishot === true && upstreamShots.length > 1;
+  // D208 — a Shot upstream is always a single continuous take now; the per-node flag this once
+  // read is gone, and only a Shot can feed a Video Prompt node (a multishot node connects only to
+  // a Multishot Prompt node — canvas-nodes.ts's VALID_CONNECTIONS). So this surface never shows
+  // the multishot authoring controls today; Phase 2 gives the Multishot Prompt node its own view.
+  const isMultishot = false;
 
   // The attached images in `<IMAGE_REF_N>` order. Shared with the strip below and with the chips
   // rendered inside the generated prompt, via one filter — see visionAttachmentsOf.

@@ -144,8 +144,9 @@ export function renderComposeContext(args: {
  * one-second beat is a single gesture, not a scene, and the model writes to the wrong scale
  * without it.
  *
- * Timings are cumulative and derived from each beat's own length, matching `renderShotLadder` — so
- * a composed sequence is described against the same timeline the motion prompt will later use.
+ * Timings are cumulative and derived from each beat's own length, matching the motion ladder's own
+ * timecodes — so a composed sequence is described against the same timeline the motion prompt
+ * will later use.
  */
 export function renderMultishotComposeContext(args: {
   shots: ReelShot[];

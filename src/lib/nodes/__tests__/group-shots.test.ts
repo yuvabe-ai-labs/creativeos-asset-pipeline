@@ -49,10 +49,9 @@ describe("groupShotsForFanOut", () => {
     ]);
   });
 
-  it("never leaves a group below the floor unflagged", () => {
+  it("never leaves a group below the floor", () => {
     for (const g of groupShotsForFanOut(shots(3, 5, 6, 4, 2))) {
       expect(g.seconds).toBeGreaterThanOrEqual(3);
-      expect(g.clamped).toBe(false);
     }
   });
 
@@ -67,22 +66,17 @@ describe("groupShotsForFanOut", () => {
     ]);
   });
 
-  it("flags that stranded-tail clamp rather than hiding it", () => {
-    const groups = groupShotsForFanOut(shots(1, 8, 2));
-    expect(groups.map((g) => g.clamped)).toEqual([false, true]);
-  });
-
-  // Nothing to rebalance from — clamp up and say so, rather than request an illegal 2s.
-  it("clamps a lone sub-floor shot and flags it", () => {
+  // Nothing to rebalance from — clamp up rather than request an illegal 2s.
+  it("clamps a lone sub-floor shot", () => {
     expect(groupShotsForFanOut(shots(2))).toEqual([
-      { shotIndexes: [0], seconds: 3, clamped: true, overCap: false },
+      { shotIndexes: [0], seconds: 3 },
     ]);
   });
 
   // Where to cut a 14s shot is a creative decision, not an arithmetic one — never split silently.
-  it("keeps an over-cap single shot whole and flags it", () => {
+  it("keeps an over-cap single shot whole", () => {
     expect(groupShotsForFanOut(shots(14))).toEqual([
-      { shotIndexes: [0], seconds: 14, clamped: false, overCap: true },
+      { shotIndexes: [0], seconds: 14 },
     ]);
   });
 

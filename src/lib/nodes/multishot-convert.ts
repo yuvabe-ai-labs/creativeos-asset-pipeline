@@ -17,11 +17,7 @@ export function shotDataToMultishot(data: ShotNodeData): MultishotNodeData {
 
   return {
     order: data.order,
-    // TEMPORARY: Cast exists only because `ShotNodeData.seededFrom` still requires `shotIndex`
-    // (a legacy field predating D193). MultishotNodeData uses only `shotIndexes`. This cast must
-    // be DELETED when `shotIndex` is removed from ShotNodeData — at that point both shapes are
-    // identical and the assignment needs no cast.
-    seededFrom: data.seededFrom as MultishotNodeData["seededFrom"],
+    seededFrom: data.seededFrom,
     totalSeconds: clampBudget(totalOf(cuts)),
     cuts,
     script: {
@@ -39,11 +35,7 @@ export function multishotDataToShot(data: MultishotNodeData): ShotNodeData {
 
   return {
     order: data.order,
-    // TEMPORARY: Cast exists only because `ShotNodeData.seededFrom` still requires `shotIndex`
-    // (a legacy field predating D193). MultishotNodeData has no such field. This cast must be
-    // DELETED when `shotIndex` is removed from ShotNodeData — at that point both shapes are
-    // identical and the assignment needs no cast.
-    seededFrom: data.seededFrom as ShotNodeData["seededFrom"],
+    seededFrom: data.seededFrom,
     // Re-derived, not carried — the stored value described one cut, and after the conversion
     // the node is one take covering all of them.
     shot_type: deriveShotType(cuts[0]?.text ?? ""),

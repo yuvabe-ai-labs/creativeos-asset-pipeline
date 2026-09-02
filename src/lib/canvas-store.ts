@@ -23,8 +23,6 @@ import { deriveShotType } from "@/lib/nodes/shot-types";
 import { describeGenerations, generationKey } from "@/lib/nodes/group-shots";
 import { cutsFromShots, totalOf } from "@/lib/nodes/multishot-cuts";
 import { shotDataToMultishot, multishotDataToShot } from "@/lib/nodes/multishot-convert";
-import { splitMultishotData } from "@/lib/nodes/split-multishot";
-import { mergeShotData, sortForMerge } from "@/lib/nodes/merge-shots";
 import type { GenerationRow } from "@/lib/db/types";
 import type { PlaybookRun } from "@/lib/copilot/runner";
 
@@ -52,9 +50,6 @@ export type CanvasState = {
   fanOutShots: (scriptNodeId: string) => void;
   /** D206 — set one generation's mode from the Script's Visual script list. */
   setGenerationMode: (scriptNodeId: string, key: string, multishot: boolean) => void;
-  splitMultishotNode: (shotNodeId: string) => void;
-  /** D202 — several selected Shot nodes become one multishot node. Inverse of the split. */
-  mergeShotNodes: (shotNodeIds: string[]) => void;
   promoteIdeasToShots: (shotNodeId: string, ideas: ShotComposeIdea[]) => void;
   // Per-node video generation status — shared between VideoGenNode and VideoGenFocusView
   videoGenStatus: Record<string, { isGenerating: boolean; lastError: string | null }>;
@@ -540,119 +535,6 @@ export function createCanvasStore(
         removedEdgeIds: [...get().removedEdgeIds, ...outgoing.map((e) => e.id)],
       });
     },
-    /**
-     * D193 — turning multishot OFF on a grouped node splits it into one node per shot.
-     *
-     * A structural change, not a display flag: the grouped node is REPLACED by its pieces, stacked
-     * below its old position so nothing lands on top of a neighbour. Incoming edges are re-pointed
-     * to every piece (the dashed Script lineage edge, and any image grounding), because each piece
-     * needs the same inputs the group had. Outgoing edges are dropped — a motion prompt written for
-     * a cut ladder does not describe any single beat of it, and silently re-pointing it at all the
-     * pieces would multiply one prompt across shots it was never written for.
-     */
-    splitMultishotNode: (shotNodeId) => {
-      const node = get().nodes.find((n) => n.id === shotNodeId);
-      if (!node || node.type !== "shot") return;
-
-      const pieces = splitMultishotData(node.data as ShotNodeData);
-      if (pieces.length <= 1) {
-        get().updateNodeData(shotNodeId, { multishot: false });
-        return;
-      }
-
-      const created = pieces.map((data, i) => ({
-        id: crypto.randomUUID(),
-        type: "shot",
-        position: { x: node.position.x, y: node.position.y + i * 170 },
-        data,
-      })) as AppNode[];
-
-      const incoming = get().edges.filter((e) => e.target === shotNodeId);
-      const carried = created.flatMap((piece) =>
-        incoming.map((edge) => ({
-          id: crypto.randomUUID(),
-          source: edge.source,
-          target: piece.id,
-          ...(edge.targetHandle ? { targetHandle: edge.targetHandle } : {}),
-        })),
-      );
-
-      // Edges touching the replaced node, in BOTH directions — autosave's delete set is built
-      // only from removedEdgeIds, so an edge dropped from `edges` alone resurrects on reload.
-      const cascaded = get().edges.filter(
-        (e) => e.source === shotNodeId || e.target === shotNodeId,
-      );
-
-      set({
-        nodes: [...get().nodes.filter((n) => n.id !== shotNodeId), ...created],
-        edges: [
-          ...get().edges.filter((e) => e.target !== shotNodeId && e.source !== shotNodeId),
-          ...carried,
-        ],
-        removedNodeIds: [...get().removedNodeIds, shotNodeId],
-        removedEdgeIds: [...get().removedEdgeIds, ...cascaded.map((e) => e.id)],
-      });
-    },
-
-    /**
-     * D202 — several Shot nodes become ONE multishot node. The inverse of splitMultishotNode, and
-     * structurally the same move: the selected nodes are REPLACED, not flagged.
-     *
-     * The merged node takes the FIRST (in script order) node's position, so the result lands where
-     * the sequence already started rather than somewhere the operator has to go find.
-     *
-     * Incoming edges are carried and DEDUPED — the pieces of an earlier split all share the same
-     * Script lineage edge and the same grounding images, so carrying them naively would create one
-     * duplicate edge per merged node. Outgoing edges are dropped for the same reason the split
-     * drops them: a motion prompt written for one beat does not describe the sequence it is now
-     * part of, and silently re-pointing it would attach a prompt to shots it never covered.
-     */
-    mergeShotNodes: (shotNodeIds) => {
-      const selected = get().nodes.filter((n) => shotNodeIds.includes(n.id) && n.type === "shot");
-      if (selected.length < 2) return;
-
-      const ordered = sortForMerge(selected as Array<Extract<AppNode, { type: "shot" }>>);
-      const merged = mergeShotData(ordered.map((n) => n.data));
-      const anchor = ordered[0];
-      const ids = new Set(ordered.map((n) => n.id));
-
-      const created = {
-        id: crypto.randomUUID(),
-        type: "shot",
-        position: anchor.position,
-        data: merged,
-      } as AppNode;
-
-      // Deduped by (source, targetHandle): the split's pieces each hold a copy of the same
-      // incoming edge, and one merged node must not end up with N identical inputs.
-      const carried = new Map<string, { id: string; source: string; target: string; targetHandle?: string }>();
-      for (const edge of get().edges) {
-        if (!ids.has(edge.target) || ids.has(edge.source)) continue;
-        const key = `${edge.source}::${edge.targetHandle ?? ""}`;
-        if (carried.has(key)) continue;
-        carried.set(key, {
-          id: crypto.randomUUID(),
-          source: edge.source,
-          target: created.id,
-          ...(edge.targetHandle ? { targetHandle: edge.targetHandle } : {}),
-        });
-      }
-
-      // Both directions, including edges BETWEEN two merged nodes — autosave's delete set is built
-      // only from removedEdgeIds, so an edge dropped from `edges` alone resurrects on reload.
-      const cascaded = get().edges.filter((e) => ids.has(e.source) || ids.has(e.target));
-
-      set({
-        nodes: [...get().nodes.filter((n) => !ids.has(n.id)), created],
-        edges: [
-          ...get().edges.filter((e) => !ids.has(e.source) && !ids.has(e.target)),
-          ...carried.values(),
-        ],
-        removedNodeIds: [...get().removedNodeIds, ...ids],
-        removedEdgeIds: [...get().removedEdgeIds, ...cascaded.map((e) => e.id)],
-      });
-    },
-
     // Promote chosen compose ideas (D28) into sibling Shot nodes — the §15 "duplicate to
     // compare" move, one node per idea. Each sibling copies the SOURCE shot's narrowed
     // script with the idea's description swapped in. No edges (human wires each Shot ->
@@ -663,7 +545,7 @@ export function createCanvasStore(
       const d = src.data as {
         script?: ReelScript;
         order?: number;
-        seededFrom?: { scriptNodeId?: string; shotIndex?: number; scriptTitle?: string };
+        seededFrom?: { scriptNodeId?: string; scriptTitle?: string };
       };
       const baseScript = d.script ?? {};
       const vs = baseScript.visual_script ?? {};

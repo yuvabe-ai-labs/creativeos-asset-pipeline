@@ -2,11 +2,7 @@ import "server-only";
 import { getNodeActiveKB, getNodeData, getUpstreamOutputs } from "@/lib/db/nodes";
 import { buildParseContext, normalizeSlices, type KBSliceKey } from "@/lib/kb/parse-context";
 import { getNodeOutput, renderShotForImage } from "@/lib/nodes/node-output";
-import {
-  renderShotForVideo,
-  renderShotLadder,
-  renderMultishotBrief,
-} from "@/lib/nodes/render-shot-for-video";
+import { renderShotForVideo } from "@/lib/nodes/render-shot-for-video";
 import type { VideoControls } from "@/lib/nodes/video-controls";
 import { SINGLE_TAKE_LINE } from "@/prompts/video-prompt-generate";
 import { selectImageUpstreams } from "@/lib/nodes/shot-compose";
@@ -39,7 +35,11 @@ export type ResolvedPromptInputs = {
   kbVersionId: string | null;
   slices: KBSliceKey[];
   upstream: UpstreamPreview[];
-  /** D201 — set when any upstream Shot is multishot. Only the video-prompt path populates it. */
+  /**
+   * D208 — a Shot upstream is always a single continuous take now; the per-node flag this once
+   * read is gone. A multishot GENERATION lives on its own dedicated node type, which does not yet
+   * feed this resolver (Phase 2's renderPlan), so this is always false today.
+   */
   upstreamMultishot?: boolean;
 };
 
@@ -112,31 +112,11 @@ export function mapUpstreamForVideo(u: RawUpstream, controls?: VideoControls): U
     return { ...base, text: "", fileUrl: url, fileKind: "image" };
   }
   if (u.type === "shot") {
-    // D195 — a multishot Shot hands down its beats as a timecode ladder; a single one hands down
-    // the action line plus an explicit instruction to hold one take, because Omni cuts by default.
-    //
-    // A ladder needs MORE THAN ONE beat. On a single-shot node multishot means "the model may cut
-    // inside this shot", which a one-line ladder ending "keep these timings exactly" would forbid
-    // — and if that shot runs over the 10s cap, its ladder would outrun the request's duration and
-    // come back truncated at full price.
+    // D208 — a Shot is always ONE continuous take now; there is no flag left to branch on. A
+    // multishot GENERATION lives on its own dedicated node type instead (which does not feed this
+    // path — Phase 2's renderPlan). Omni still needs telling explicitly, because it cuts by default.
     const script = (u.data.script ?? null) as ReelScript | null;
-    const beats = script?.visual_script?.shots ?? [];
-    const multishot = u.data.multishot === true;
     const action = renderShotForVideo(script);
-    if (multishot && beats.length > 1) {
-      // D201 — with the node's own controls, the ladder carries the LOOK contract and each beat's
-      // camera. Without them (any caller that has no controls to give) it falls back to the plain
-      // ladder, which is the same text this produced before those controls existed.
-      return {
-        ...base,
-        text: controls
-          ? renderMultishotBrief({ script, controls })
-          : `Beats (keep these timings exactly):\n${renderShotLadder(script)}`,
-      };
-    }
-    if (multishot) {
-      return { ...base, text: `${action}\nThe model may cut within this shot.`.trim() };
-    }
     return { ...base, text: action ? `${action}\n${SINGLE_TAKE_LINE}` : "" };
   }
   if (u.type === "file" || u.type === "draw") {
@@ -176,17 +156,10 @@ export async function resolveVideoPromptInputs(
     }, controls),
   );
 
-  // D201 — whether any upstream Shot is multishot. The prompt routes on this, not on the
-  // provider: a multishot shot needs the ladder prompt, a single one the continuous-take spine.
-  //
-  // The `> 1` matches mapUpstreamForVideo above and the focus view's own check, and it has to.
-  // A one-beat shot toggled to multishot gets NO ladder in its user turn, so routing it to the
-  // ladder prompt would ask the model to honour timings it was never given.
-  const upstreamMultishot = ups.some((u) => {
-    if (u.type !== "shot") return false;
-    const d = u.data as { multishot?: boolean; script?: ReelScript | null };
-    return d.multishot === true && (d.script?.visual_script?.shots?.length ?? 0) > 1;
-  });
+  // D208 — a Shot upstream is always a single continuous take now; there is no flag left to read.
+  // A multishot GENERATION lives on its own dedicated node type, which does not yet feed this
+  // resolver (Phase 2's renderPlan), so no upstream can make a Video Prompt node multishot today.
+  const upstreamMultishot = false;
 
   return { clientContext, kbVersionId: kbCtx.kbVersionId, slices, upstream, upstreamMultishot };
 }

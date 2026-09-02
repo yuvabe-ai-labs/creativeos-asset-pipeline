@@ -16,10 +16,7 @@ const shotData: ShotNodeData = {
       ],
     },
   },
-  // `shotIndex` (the pre-D193 legacy field) is required by ShotNodeData's type; every writer of
-  // seededFrom in this codebase sets it to the first index. Kept here purely so this fixture
-  // type-checks — the conversion functions pass seededFrom through unexamined either way.
-  seededFrom: { scriptNodeId: "sc", shotIndex: 0, shotIndexes: [0, 1], scriptTitle: "CHUPPS" },
+  seededFrom: { scriptNodeId: "sc", shotIndexes: [0, 1], scriptTitle: "CHUPPS" },
 };
 
 describe("shotDataToMultishot", () => {

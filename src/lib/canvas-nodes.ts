@@ -112,17 +112,9 @@ export type ShotNodeData = {
   script?: ReelScript;
   order?: number; // 1-based position in the script (display + Stage 5 assembly)
   shot_type?: string; // e.g. "Wide Shot", "Close-Up" — user-selected or keyword-derived
-  /**
-   * D193 — this node's shots become ONE generation with cuts between them, rather than one
-   * generation each. True by default on any node fan-out grouped; turning it off SPLITS the node.
-   * On a single-shot node it means "the model may cut inside this shot" rather than holding one
-   * continuous take.
-   */
-  multishot?: boolean;
   seededFrom?: {
     scriptNodeId: string;
-    shotIndex: number; // 0-based index of the FIRST shot — kept so pre-D193 nodes still resolve
-    shotIndexes?: number[]; // every shot this node covers, in order
+    shotIndexes: number[]; // every shot this node covers, in order
     scriptTitle?: string; // for the provenance label without a lookup
   };
 };

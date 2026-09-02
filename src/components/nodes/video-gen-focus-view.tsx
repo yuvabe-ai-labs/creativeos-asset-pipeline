@@ -998,8 +998,9 @@ export function VideoGenFocusView({
     ? connectedItems.find((c) => c.id === selected) ?? null
     : null;
 
-  // D195 — a multishot shot's prompt is a timecode ladder. Every other model ignores the timings
-  // and returns one continuous take, which is indistinguishable from a bug after paying for it.
+  // D208 — a Shot is always a single continuous take now; the per-node flag this once read is
+  // gone. A multishot GENERATION lives on its own dedicated node type, which does not yet feed
+  // this walk (Phase 2), so a Shot ancestor can no longer make this multishot.
   const upstreamMultishot = useCanvasStore((s) => {
     const seen = new Set<string>();
     const walk = (id: string, depth: number): boolean => {
@@ -1010,7 +1011,7 @@ export function VideoGenFocusView({
         .some((e) => {
           const source = s.nodes.find((n) => n.id === e.source);
           if (!source) return false;
-          if (source.type === "shot") return (source.data as { multishot?: boolean }).multishot === true;
+          if (source.type === "shot") return false;
           return walk(e.source, depth + 1);
         });
     };

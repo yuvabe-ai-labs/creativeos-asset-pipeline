@@ -5,6 +5,7 @@ import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { Clapperboard, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { useDeleteNode } from "@/hooks/use-delete-node";
 import { useFocusViewRegistration } from "@/hooks/use-focus-view-open";
@@ -14,7 +15,6 @@ import { NodeContextMenu } from "./node-context-menu";
 import { NodeCardHeader } from "./node-card-header";
 import { ShotComposeSheet } from "./shot-compose-sheet";
 import { GuidedNextButton } from "@/components/canvas/guided-next-button";
-import { MultishotToggle } from "./multishot-toggle";
 import type { ReelScript } from "@/lib/nodes/reel-script";
 
 // Shot node — one shot of a reel, forked from a parsed Script (D21). It carries the
@@ -37,24 +37,17 @@ export function ShotNode({ id, data, selected, positionAbsoluteX, positionAbsolu
     script?: ReelScript;
     order?: number;
     shot_type?: string;
-    multishot?: boolean;
     seededFrom?: { scriptTitle?: string };
   };
   const shots = d.script?.visual_script?.shots ?? [];
-  const multishot = d.multishot === true;
-  // A grouped node edits one beat at a time. Reading shots[0] and writing `shots: [one]` — which
-  // is what this did before D193 — showed only the first beat and destroyed the rest on the first
-  // keystroke.
-  const [beatIndex, setBeatIndex] = useState(0);
-  const activeBeat = Math.min(beatIndex, Math.max(0, shots.length - 1));
-  const shot = shots[activeBeat];
+  const shot = shots[0];
   const description = shot?.description ?? "";
 
   function setDescription(value: string) {
     const base = d.script ?? {};
     const vs = base.visual_script ?? {};
     const next = (vs.shots?.length ? vs.shots : [{}]).map((s, i) =>
-      i === activeBeat ? { ...s, description: value } : s,
+      i === 0 ? { ...s, description: value } : s,
     );
     updateNodeData(id, { script: { ...base, visual_script: { ...vs, shots: next } } });
   }
@@ -106,7 +99,7 @@ export function ShotNode({ id, data, selected, positionAbsoluteX, positionAbsolu
           }
         />
         <div className="p-2">
-          <textarea
+          <Textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             onDoubleClick={(e) => e.stopPropagation()}
@@ -114,27 +107,6 @@ export function ShotNode({ id, data, selected, positionAbsoluteX, positionAbsolu
             rows={4}
             className="nodrag w-full resize-none rounded-md bg-transparent px-1.5 py-1 text-sm focus:outline-none"
           />
-          {shots.length > 1 && (
-            <div className="nodrag flex flex-wrap gap-1 px-1.5 pb-1">
-              {shots.map((s, i) => (
-                <Button
-                  key={i}
-                  variant="ghost"
-                  onClick={() => setBeatIndex(i)}
-                  aria-pressed={i === activeBeat}
-                  title={s.description ?? `Beat ${i + 1}`}
-                  className={cn(
-                    "h-auto rounded border px-1.5 py-0.5 text-[0.6rem] font-medium transition-colors duration-200",
-                    i === activeBeat
-                      ? "border-primary/35 bg-primary/10 text-primary hover:bg-primary/10 hover:text-primary"
-                      : "border-border text-muted-foreground hover:bg-muted hover:text-foreground",
-                  )}
-                >
-                  {i + 1}
-                </Button>
-              ))}
-            </div>
-          )}
 
           <p className="px-1.5 pt-1 text-[0.6rem] text-muted-foreground">
             {d.seededFrom?.scriptTitle ? `from "${d.seededFrom.scriptTitle}" · ` : ""}full script context
@@ -149,10 +121,6 @@ export function ShotNode({ id, data, selected, positionAbsoluteX, positionAbsolu
               <Sparkles className="size-3" strokeWidth={1.5} /> Compose
             </Button>
             <GuidedNextButton sourceId={id} variant="chip" />
-          </div>
-
-          <div className="mt-1.5 border-t border-border pt-1.5">
-            <MultishotToggle nodeId={id} multishot={multishot} beatCount={shots.length} />
           </div>
         </div>
         {/* lineage target (dashed Script->Shot edge) */}

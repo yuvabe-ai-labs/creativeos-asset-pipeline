@@ -9,10 +9,6 @@ export const ASSUMED_SHOT_SECONDS = 4;
 export type ShotGroup = {
   shotIndexes: number[];
   seconds: number;
-  /** Under the floor with no safe shot to borrow — `seconds` was raised to the floor. */
-  clamped: boolean;
-  /** A single shot longer than the ceiling. Kept whole; the request clamps it. */
-  overCap: boolean;
 };
 
 export function shotSeconds(shot: ReelShot): number {
@@ -78,7 +74,7 @@ export function groupShotsForFanOut(shots: ReelShot[]): ShotGroup[] {
     // `current.length > 0` keeps a single over-cap shot in its own group rather than looping
     // forever trying to fit it.
     if (current.length > 0 && total + length > OMNI_MAX_SECONDS) {
-      groups.push({ shotIndexes: current, seconds: total, clamped: false, overCap: false });
+      groups.push({ shotIndexes: current, seconds: total });
       current = [];
       total = 0;
     }
@@ -86,7 +82,7 @@ export function groupShotsForFanOut(shots: ReelShot[]): ShotGroup[] {
     total += length;
   });
   if (current.length > 0) {
-    groups.push({ shotIndexes: current, seconds: total, clamped: false, overCap: false });
+    groups.push({ shotIndexes: current, seconds: total });
   }
 
   rebalanceTrailing(groups, lengths);
@@ -96,8 +92,6 @@ export function groupShotsForFanOut(shots: ReelShot[]): ShotGroup[] {
     // Clamping invents video the script did not ask for, so it only ever runs after the
     // rebalance has failed — a lone sub-floor shot with nothing to borrow from.
     seconds: group.seconds < OMNI_MIN_SECONDS ? OMNI_MIN_SECONDS : group.seconds,
-    clamped: group.seconds < OMNI_MIN_SECONDS,
-    overCap: group.seconds > OMNI_MAX_SECONDS,
   }));
 }
 
