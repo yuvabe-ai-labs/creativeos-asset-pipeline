@@ -47,6 +47,7 @@ import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { findDescendantsOfType, findAncestorOfType } from "@/lib/canvas/graph";
 import { LookContractField } from "./look-contract-field";
 import { BeatCameraList } from "./beat-camera-list";
+import { ReferenceImageStrip } from "./reference-image-strip";
 import type { ReelShot } from "@/lib/nodes/reel-script";
 import { videoGenClientModelMap, DEFAULT_VIDEO_CLIENT_MODEL_ID } from "@/lib/video-gen/client-models";
 import type { VideoProvider } from "@/prompts/video-prompt-generate";
@@ -75,6 +76,7 @@ import {
   splitSentenceBeats,
   segmentByTerms,
   CAMERA_SPEC_PATTERNS,
+  OMNI_TOKEN_PATTERNS,
 } from "@/lib/nodes/prompt-focus";
 import { ApprovalStatusBadge } from "@/components/review/approval-status-badge";
 import { LeftSection } from "./focus-left-section";
@@ -657,6 +659,13 @@ export function VideoPromptFocusView({
                     />
                   </div>
 
+                  {/* The attached references, as pictures with the token each answers to. Sits
+                      directly under the instruction because that is where they were mentioned. */}
+                  <ReferenceImageStrip
+                    upstream={upstream}
+                    omni={effectiveProvider === "gemini-omni"}
+                  />
+
                   {isMultishot ? (
                     /* D201 — the multishot surface. No Target model: a multishot shot's
                        downstream Video Gen node is already locked to Omni, so the control has
@@ -806,7 +815,10 @@ export function VideoPromptFocusView({
                           <span className="block space-y-2.5">
                             {splitSentenceBeats(text).map((beat, i) => (
                               <span key={i} className="block">
-                                {segmentByTerms(beat, CAMERA_SPEC_PATTERNS).map((seg, j) =>
+                                {segmentByTerms(beat, [
+                                  ...CAMERA_SPEC_PATTERNS,
+                                  ...OMNI_TOKEN_PATTERNS,
+                                ]).map((seg, j) =>
                                   seg.highlighted ? (
                                     <span key={j} className="rounded bg-primary/10 px-0.5 font-bold">
                                       {seg.text}

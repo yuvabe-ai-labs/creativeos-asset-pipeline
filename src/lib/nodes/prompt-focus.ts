@@ -21,6 +21,15 @@ export type BeatSegment = { text: string; highlighted: boolean };
 // ("f/4", "f/1.8").
 export const CAMERA_SPEC_PATTERNS: RegExp[] = [/\b\d{2,3}\s?mm\b/, /\bf\/\d+(?:\.\d+)?/];
 
+/**
+ * Omni's inline reference tokens, highlighted in the read view.
+ *
+ * `<IMAGE_REF_0>` is load-bearing syntax the model binds to an attached picture, not prose — so it
+ * should read as a chip in the middle of the sentence rather than as stray markup the operator
+ * might "tidy up" out of the prompt. Also `[0-4s]`, which is the cut ladder's timing.
+ */
+export const OMNI_TOKEN_PATTERNS: RegExp[] = [/<IMAGE_REF_\d+>/, /\[\d+(?:\.\d+)?-\d+(?:\.\d+)?s\]/];
+
 const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 // Case-insensitive, non-overlapping matching for the read view's cross-check highlights.

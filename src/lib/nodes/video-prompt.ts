@@ -1,6 +1,11 @@
 import { videoPromptGeneratePromptFor, type VideoProvider } from "@/prompts/video-prompt-generate";
 import { renderVideoControls, type VideoControls } from "./video-controls";
-import { resolveMentionTokens, ordinalToEnglish, type MentionUpstream } from "./resolve-mention-tokens";
+import {
+  resolveMentionTokens,
+  ordinalToEnglish,
+  omniImageRefToken,
+  type MentionUpstream,
+} from "./resolve-mention-tokens";
 import { isVisionAttachment } from "./compose-message";
 
 export const DEFAULT_MOTION_INSTRUCTION =
@@ -26,23 +31,55 @@ export type CompileVideoPromptInput = {
   multishot?: boolean;
 };
 
-function buildCompositionBlock(upstream: CompileVideoPromptUpstream[]): string | null {
-  const visionNodes = upstream.filter((u) =>
+export function visionUpstreams(
+  upstream: CompileVideoPromptUpstream[],
+): CompileVideoPromptUpstream[] {
+  return upstream.filter((u) =>
     isVisionAttachment({ type: u.type ?? "", fileUrl: u.fileUrl, fileKind: u.fileKind, useLlm: u.useLlm }),
   );
-  if (visionNodes.length < 2) return null;
+}
+
+/**
+ * The reference-image roster handed to the prompt writer.
+ *
+ * Omni gets its documented INLINE token, `<IMAGE_REF_N>` (zero-based over the references), because
+ * that is the only form the model actually binds — `planOmniInput` emits a matching
+ * `[# References <IMAGE_REF_0>@Image1 …]` header at request time, and a body written in prose
+ * ("the first image") leaves those declared handles referring to nothing. The vendor docs show
+ * exactly this for a multishot ladder:
+ *
+ *     [0-3s] A studio fashion sequence. Starting with woman <IMAGE_REF_0>, she is holding <IMAGE_REF_1>
+ *
+ * Veo and Kling keep the positional prose form — `<IMAGE_REF_N>` is Omni syntax and would be
+ * literal noise to them.
+ *
+ * Emitted from ONE image upward, not two. A single reference is the common case here and it still
+ * needs naming: without this block the writer described the still without ever pointing at it.
+ */
+function buildCompositionBlock(
+  upstream: CompileVideoPromptUpstream[],
+  omni: boolean,
+): string | null {
+  const visionNodes = visionUpstreams(upstream);
+  if (visionNodes.length === 0) return null;
 
   const lines = visionNodes.map((u, i) => {
     const safeLabel = u.label.replace(/\n/g, " ").slice(0, 80);
-    return `${i + 1}. ${ordinalToEnglish(i + 1)} — ${safeLabel}`;
+    const token = omni ? omniImageRefToken(i + 1) : ordinalToEnglish(i + 1);
+    return `${token} — ${safeLabel}`;
   });
 
   return [
-    "Reference images (attached in order):",
+    "Reference images — these are ATTACHED to this message, in this order:",
     ...lines,
     "",
-    "Write a motion prompt that references these images by their positional names above.",
-    "Describe camera movement and secondary motion for each referenced image.",
+    // The labels are filenames ("Screenshot 2026 08 25 155453"). They identify nothing. The
+    // operator should not have to annotate "this one is the v-strap" — the images are attached as
+    // vision parts, so identifying each one is the model's job.
+    "LOOK AT EACH ATTACHED IMAGE and identify what it actually shows — the product, garment, person or surface. The labels above are filenames and carry no meaning; ignore them for identification and use them only to keep the order straight.",
+    omni
+      ? "Then place each token EXACTLY as written above, inline, in the beat where that thing appears — for example: [0-3s] a college student crosses campus in <IMAGE_REF_0>. Decide for yourself which beat each reference belongs to, from what the image shows. Every reference must appear at least once. Never write \"the first image\", never write @Image1, never invent a token that is not listed."
+      : "Then reference each image by its positional name above, in the part of the prompt where that thing appears, and describe camera movement and secondary motion for each.",
   ].join("\n");
 }
 
@@ -95,12 +132,18 @@ export function compileVideoPrompt(input: CompileVideoPromptInput): {
     fileKind: u.fileKind,
     useLlm: u.useLlm,
   }));
-  const effectiveInstruction = resolveMentionTokens(rawInstruction, mentionUpstream);
+  const omni = targetProvider === "gemini-omni";
+  const effectiveInstruction = resolveMentionTokens(
+    rawInstruction,
+    mentionUpstream,
+    omni ? omniImageRefToken : ordinalToEnglish,
+  );
 
-  if (rawInstruction.includes("@[")) {
-    const compositionBlock = buildCompositionBlock(input.upstream);
-    if (compositionBlock) blocks.push(compositionBlock);
-  }
+  // Emitted whenever images are attached, not only when the operator typed an @-mention. The
+  // roster is how the writer learns the tokens exist at all; gating it on a mention meant an
+  // operator who simply connected two references got a prompt that never pointed at either.
+  const compositionBlock = buildCompositionBlock(input.upstream, omni);
+  if (compositionBlock) blocks.push(compositionBlock);
 
   blocks.push(`Instruction:\n${effectiveInstruction}`);
 
