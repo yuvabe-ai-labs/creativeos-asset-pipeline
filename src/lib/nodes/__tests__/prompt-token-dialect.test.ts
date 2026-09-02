@@ -72,4 +72,30 @@ describe("imageRefDialect", () => {
     expect(d.parse("no tokens")).toEqual([{ kind: "text", text: "no tokens" }]);
     expect(d.parse("")).toEqual([]);
   });
+
+  // The prompt already names the thing in the words right before the chip ("the CHUPPS V-Straps
+  // <IMAGE_REF_1>"), so the chip carries the index. Repeating a filename there crowds the claim
+  // the thumbnail is meant to check.
+  it("labels a chip by index, not by the upstream's filename", () => {
+    expect(d.chipLabel({ kind: "mention", label: "<IMAGE_REF_1>", id: "b" }, "Screenshot 2026 08 25"))
+      .toBe("REF 1");
+  });
+
+  it("falls back to the raw label for a malformed token", () => {
+    expect(d.chipLabel({ kind: "mention", label: "weird", id: "b" }, "x")).toBe("weird");
+  });
+});
+
+describe("mentionDialect chip labels", () => {
+  const d = mentionDialect();
+
+  it("prefers the upstream's own name", () => {
+    expect(d.chipLabel({ kind: "mention", label: "Image: Still", id: "a" }, "Hero still"))
+      .toBe("Hero still");
+  });
+
+  it("strips the type prefix when the upstream is gone", () => {
+    expect(d.chipLabel({ kind: "mention", label: "Image: Still", id: "a" }, undefined))
+      .toBe("Still");
+  });
 });

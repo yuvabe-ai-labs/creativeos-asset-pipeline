@@ -172,12 +172,13 @@ function restoreCaretAt(el: HTMLElement, targetOffset: number, dialect: TokenDia
   window.getSelection()?.addRange(range);
 }
 
-function buildChip(segment: MentionSegment, upstreamMap: Map<string, UpstreamNode>): HTMLElement {
+function buildChip(
+  segment: MentionSegment,
+  upstreamMap: Map<string, UpstreamNode>,
+  dialect: TokenDialect,
+): HTMLElement {
   const upstream = upstreamMap.get(segment.id);
-  // The label is "Type: Name" in the mention dialect and the raw token in the imageRef one. When
-  // the id resolves, the upstream's own name beats both — a chip reading "<IMAGE_REF_0>" next to
-  // its thumbnail says nothing the thumbnail does not.
-  const displayName = upstream?.label ?? segment.label.replace(/^[^:]+:\s*/, "");
+  const displayName = dialect.chipLabel(segment, upstream?.label);
   const typeKey = upstream?.type ?? "";
   // An id no upstream answers to: a deleted node, or a token the model invented past the end of
   // the roster. Marked rather than dropped — it will bind to nothing at generation time.
@@ -234,7 +235,7 @@ function populateEditor(
     if (seg.kind === "text") {
       el.appendChild(document.createTextNode(seg.text));
     } else {
-      el.appendChild(buildChip(seg, upstreamMap));
+      el.appendChild(buildChip(seg, upstreamMap, dialect));
     }
   }
   // Always ensure trailing text node so caret can sit at end

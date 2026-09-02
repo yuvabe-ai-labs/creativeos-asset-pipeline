@@ -78,7 +78,7 @@ function buildCompositionBlock(
     // vision parts, so identifying each one is the model's job.
     "LOOK AT EACH ATTACHED IMAGE and identify what it actually shows — the product, garment, person or surface. The labels above are filenames and carry no meaning; ignore them for identification and use them only to keep the order straight.",
     omni
-      ? "Then place each token EXACTLY as written above, inline, in the beat where that thing appears — for example: [0-3s] a college student crosses campus in <IMAGE_REF_0>. Decide for yourself which beat each reference belongs to, from what the image shows. Every reference must appear at least once. Never write \"the first image\", never write @Image1, never invent a token that is not listed."
+      ? "Then place each token EXACTLY as written above, inline, in the beat where that thing appears. ALWAYS put a short noun phrase naming what you identified IMMEDIATELY BEFORE the token — \"the CHUPPS V-Straps <IMAGE_REF_0>\", \"a young woman <IMAGE_REF_1>\" — never the bare token on its own. That naming is how a wrong identification gets spotted and corrected in the text instead of in a finished video. Decide for yourself which beat each reference belongs to, from what the image shows. Every reference must appear at least once. Never write \"the first image\", never write @Image1, never invent a token that is not listed."
       : "Then reference each image by its positional name above, in the part of the prompt where that thing appears, and describe camera movement and secondary motion for each.",
   ].join("\n");
 }

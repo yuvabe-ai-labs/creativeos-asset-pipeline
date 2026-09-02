@@ -16,6 +16,16 @@ export type TokenDialect = {
   tokenOf(segment: MentionSegment): string;
   /** The token to insert when the operator picks this upstream from the @ menu. */
   tokenForId(id: string, label: string): string | null;
+  /**
+   * What a rendered chip reads, given the upstream's own name when it resolves.
+   *
+   * Differs per dialect because the surrounding text differs. An Instruction mention IS the only
+   * name the reference gets, so the chip carries the node's name. In a generated motion prompt the
+   * model has already written "the CHUPPS V-Straps" immediately before the token, so repeating a
+   * filename there is noise — the compact index plus the thumbnail is the check that the name the
+   * model claimed matches the picture it bound.
+   */
+  chipLabel(segment: MentionSegment, upstreamLabel: string | undefined): string;
 };
 
 export function serializeSegments(segments: Segment[], dialect: TokenDialect): string {
@@ -42,6 +52,8 @@ export function mentionDialect(): TokenDialect {
     },
     tokenOf: (s) => `@[${s.label}](${s.id})`,
     tokenForId: (id, label) => `@[${label}](${id})`,
+    // The stored label is "Type: Name"; the bare name reads better on a chip.
+    chipLabel: (s, upstreamLabel) => upstreamLabel ?? s.label.replace(/^[^:]+:\s*/, ""),
   };
 }
 
@@ -86,6 +98,12 @@ export function imageRefDialect(orderedIds: string[]): TokenDialect {
     tokenForId(id) {
       const i = indexOf.get(id);
       return i === undefined ? null : `<IMAGE_REF_${i}>`;
+    },
+    chipLabel(segment) {
+      // From the token, not the upstream's filename: the model has already named the thing in the
+      // prose right before this chip, so the index is all that is left to show.
+      const n = /^<IMAGE_REF_(\d+)>$/.exec(segment.label)?.[1];
+      return n === undefined ? segment.label : `REF ${n}`;
     },
   };
 }

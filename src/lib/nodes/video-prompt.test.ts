@@ -141,3 +141,24 @@ describe("compileVideoPrompt — Omni reference tokens", () => {
     }
   });
 });
+
+// The model names what it identified immediately before the token — "the CHUPPS V-Straps
+// <IMAGE_REF_1>". That naming is the error check: a misidentification becomes visible in the
+// text, next to the thumbnail, instead of only in a finished video. It also matches the vendor's
+// own example, which writes "Starting with woman <IMAGE_REF_0>".
+describe("compileVideoPrompt — Omni reference naming", () => {
+  it("requires a noun phrase before each token", () => {
+    const { user } = compileVideoPrompt({
+      clientContext: "",
+      upstream: [
+        { nodeId: "a", label: "v-strap shot", type: "file", text: "", fileUrl: "u1", fileKind: "image" },
+      ],
+      instruction: "make it move",
+      targetProvider: "gemini-omni",
+      multishot: true,
+    });
+    expect(user).toMatch(/noun phrase naming what you identified IMMEDIATELY BEFORE the token/i);
+    expect(user).toMatch(/never the bare token on its own/i);
+    expect(user).toMatch(/wrong identification/i);
+  });
+});
