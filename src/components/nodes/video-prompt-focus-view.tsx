@@ -438,6 +438,7 @@ export function VideoPromptFocusView({
   }
 
   function toggleSlice(key: KBSliceKey) {
+    if (!editable) return; // D33: belt-and-braces — SliceToggles is also disabled below
     const next = slices.includes(key) ? slices.filter((k) => k !== key) : [...slices, key];
     onPatch({ kbSlices: next });
   }
@@ -680,7 +681,7 @@ export function VideoPromptFocusView({
                     ) : undefined
                   }
                 >
-                  <SliceToggles selected={slices} onToggle={toggleSlice} />
+                  <SliceToggles selected={slices} onToggle={toggleSlice} disabled={!editable} />
                 </LeftSection>
 
                 <hr className="border-border" />

@@ -9,12 +9,14 @@ type SliceTogglesProps = {
   onToggle: (key: KBSliceKey) => void;
   className?: string;
   allowedKeys?: KBSliceKey[];
+  disabled?: boolean;
 };
 
 // Brand-context chip row. Catalog-driven from KB_PARSE_SLICES; purple only for
 // the active state. Pass allowedKeys to restrict which slices are shown (e.g.
-// script nodes should not see image-specific slices).
-export function SliceToggles({ selected, onToggle, className, allowedKeys }: SliceTogglesProps) {
+// script nodes should not see image-specific slices). Pass disabled under the
+// canvas read-only lock (D33) — this mutates node data like any other control.
+export function SliceToggles({ selected, onToggle, className, allowedKeys, disabled }: SliceTogglesProps) {
   const slices = allowedKeys
     ? KB_PARSE_SLICES.filter((s) => allowedKeys.includes(s.key))
     : KB_PARSE_SLICES;
@@ -29,6 +31,7 @@ export function SliceToggles({ selected, onToggle, className, allowedKeys }: Sli
             variant="ghost"
             aria-pressed={active}
             onClick={() => onToggle(s.key)}
+            disabled={disabled}
             className={cn(
               "nodrag h-auto rounded-full px-2.5 py-1 text-xs transition-colors",
               active

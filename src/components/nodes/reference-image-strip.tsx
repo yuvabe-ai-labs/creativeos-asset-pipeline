@@ -4,7 +4,6 @@ import { Images } from "lucide-react";
 import { FieldLabel } from "./field-label";
 import { visionAttachmentsOf } from "@/lib/nodes/compose-message";
 import { omniImageRefToken, ordinalToEnglish } from "@/lib/nodes/resolve-mention-tokens";
-import { refsCitedIn, type MultishotPlan } from "@/lib/nodes/multishot-plan";
 import type { UpstreamNode } from "./connected-inputs-card";
 
 /**
@@ -23,23 +22,21 @@ import type { UpstreamNode } from "./connected-inputs-card";
 export function ReferenceImageStrip({
   upstream,
   omni,
-  plan,
+  uncitedIndices,
 }: {
   upstream: UpstreamNode[];
   omni: boolean;
   /**
-   * Present only on the Multishot Prompt node, whose plan is checkable against its own
-   * beats. When given, a reference no beat's text cites (via `refsCitedIn`) is marked —
-   * the writer is told to cite only what a shot needs, so an uncited reference is normal,
-   * but a connected image the finished prompt never mentions is otherwise only
-   * discoverable in the rendered video.
+   * Indices (into `visionAttachmentsOf(upstream)`, the same order-preserving filter this
+   * component already applies) of references the caller's content never mentions — e.g. the
+   * Multishot Prompt node passes the references none of its beats cite via `refsCitedIn`. Kept
+   * domain-free here so any node type can mark an uncited reference without this shared
+   * component knowing what a "beat" or a "plan" is.
    */
-  plan?: MultishotPlan | null;
+  uncitedIndices?: Set<number>;
 }) {
   const images = visionAttachmentsOf(upstream);
   if (images.length === 0) return null;
-
-  const cited = plan ? new Set(plan.beats.flatMap((b) => refsCitedIn(b.text))) : null;
 
   return (
     <div className="min-w-0 space-y-1.5">
@@ -58,7 +55,7 @@ export function ReferenceImageStrip({
               alt={image.label}
               className="size-20 rounded-md object-cover"
             />
-            {cited && !cited.has(i) && (
+            {uncitedIndices?.has(i) && (
               <span className="text-[0.6rem] text-muted-foreground">Not cited</span>
             )}
           </figure>

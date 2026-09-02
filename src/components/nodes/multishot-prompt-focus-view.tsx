@@ -42,7 +42,7 @@ import { LeftSection } from "./focus-left-section";
 import { PromptFocusShell } from "./prompt-focus-shell";
 import { MultishotBeatCard } from "./multishot-beat-card";
 import type { MultishotCut } from "@/lib/nodes/multishot-cuts";
-import { renderPlan, type MultishotPlan } from "@/lib/nodes/multishot-plan";
+import { renderPlan, refsCitedIn, type MultishotPlan } from "@/lib/nodes/multishot-plan";
 
 type MultishotPromptFocusViewProps = {
   open: boolean;
@@ -146,6 +146,22 @@ export function MultishotPromptFocusView({
   }));
   const refIdsKey = promptRefImages.map((r) => r.id).join(",");
   const refIds = useMemo(() => (refIdsKey ? refIdsKey.split(",") : []), [refIdsKey]);
+
+  // References no beat's text cites (via `refsCitedIn`), by index into `promptRefImages` —
+  // the same order-preserving `visionAttachmentsOf(upstream)` filter ReferenceImageStrip
+  // applies internally, so the indices line up without a second, independent ordering. The
+  // writer is told to cite only what a shot needs, so an uncited reference is normal, but a
+  // connected image the finished prompt never mentions is otherwise only discoverable in the
+  // rendered video.
+  const uncitedIndices = useMemo(() => {
+    if (!planDraft) return undefined;
+    const cited = new Set(planDraft.beats.flatMap((b) => refsCitedIn(b.text)));
+    const uncited = new Set<number>();
+    promptRefImages.forEach((_, i) => {
+      if (!cited.has(i)) uncited.add(i);
+    });
+    return uncited;
+  }, [planDraft, promptRefImages]);
 
   // The connected inputs that are NOT reference images (the Multishot node, a Script, …) —
   // rendered as a compact list above the reference strip. Images get the strip's bigger
@@ -400,6 +416,7 @@ export function MultishotPromptFocusView({
   }
 
   function toggleSlice(key: KBSliceKey) {
+    if (isReadOnly) return; // D33: belt-and-braces — SliceToggles is also disabled below
     const next = slices.includes(key) ? slices.filter((k) => k !== key) : [...slices, key];
     onPatch({ kbSlices: next });
   }
@@ -500,7 +517,7 @@ export function MultishotPromptFocusView({
                       </ul>
                     )}
                     {promptRefImages.length > 0 ? (
-                      <ReferenceImageStrip upstream={upstream} omni plan={planDraft} />
+                      <ReferenceImageStrip upstream={upstream} omni uncitedIndices={uncitedIndices} />
                     ) : (
                       <p className="text-xs text-muted-foreground">
                         No reference images connected — @-mention one from a cut&apos;s
@@ -664,7 +681,7 @@ export function MultishotPromptFocusView({
                   ) : undefined
                 }
               >
-                <SliceToggles selected={slices} onToggle={toggleSlice} />
+                <SliceToggles selected={slices} onToggle={toggleSlice} disabled={isReadOnly} />
               </LeftSection>
 
               <hr className="border-border" />
