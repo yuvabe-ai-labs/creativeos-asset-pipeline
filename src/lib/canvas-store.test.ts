@@ -4,6 +4,7 @@ import type { AppNode } from "./canvas-nodes";
 import type { Edge } from "@xyflow/react";
 import type { ShotComposeIdea } from "./nodes/shot-compose";
 import type { GenerationRow } from "./db/types";
+import { GEMINI_OMNI_MODEL_ID as OMNI_MODEL_ID } from "./video-gen/client-models";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -577,5 +578,38 @@ describe("setGenerationMode swaps an existing node's type", () => {
     );
     store.getState().setGenerationMode("sc", "0-1", false);
     expect(store.getState().nodes).toHaveLength(1);
+  });
+});
+
+describe("Omni coercion on connect", () => {
+  // The followups doc's recorded lesson: "Filtering a picker is not enforcing a constraint."
+  // D195 hid every other chip but never changed the stored modelId, so a Veo run could still be
+  // billed against a ladder Veo ignores. Assert the STORED value, not which chips render.
+  it("coerces a video-gen node's modelId when a multishot-prompt feeds it", () => {
+    const store = createCanvasStore(
+      [
+        { id: "mp", type: "multishot-prompt", position: { x: 0, y: 0 }, data: {} } as AppNode,
+        { id: "vg", type: "video-gen", position: { x: 0, y: 0 }, data: { modelId: "google:veo-3" } } as AppNode,
+      ],
+      [],
+    );
+    store.getState().onConnect({ source: "mp", target: "vg", sourceHandle: null, targetHandle: null });
+
+    expect((store.getState().nodes.find((n) => n.id === "vg")!.data as { modelId?: string }).modelId)
+      .toBe(OMNI_MODEL_ID);
+  });
+
+  it("leaves a video-gen fed by an ordinary video-prompt alone", () => {
+    const store = createCanvasStore(
+      [
+        { id: "vp", type: "video-prompt", position: { x: 0, y: 0 }, data: {} } as AppNode,
+        { id: "vg", type: "video-gen", position: { x: 0, y: 0 }, data: { modelId: "google:veo-3" } } as AppNode,
+      ],
+      [],
+    );
+    store.getState().onConnect({ source: "vp", target: "vg", sourceHandle: null, targetHandle: null });
+
+    expect((store.getState().nodes.find((n) => n.id === "vg")!.data as { modelId?: string }).modelId)
+      .toBe("google:veo-3");
   });
 });

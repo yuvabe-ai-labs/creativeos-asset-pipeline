@@ -15,7 +15,7 @@ import { toast } from "sonner";
 import { wouldCreateCycle } from "@/lib/canvas/graph";
 import { DEFAULT_CLIENT_MODEL_ID } from "@/lib/image-gen/client-models";
 import { planGuidedNext } from "@/lib/guided-flow";
-import { DEFAULT_VIDEO_CLIENT_MODEL_ID } from "@/lib/video-gen/client-models";
+import { DEFAULT_VIDEO_CLIENT_MODEL_ID, GEMINI_OMNI_MODEL_ID } from "@/lib/video-gen/client-models";
 import type { AppNode, ShotNodeData, MultishotNodeData } from "./canvas-nodes";
 import type { ReelScript } from "@/lib/nodes/reel-script";
 import type { ShotComposeIdea } from "@/lib/nodes/shot-compose";
@@ -168,6 +168,17 @@ export function createCanvasStore(
         toast.error("That connection would create a loop.");
         return;
       }
+      // Omni is the only multishot model (D196). Coerce the target's STORED modelId — filtering
+      // the picker is not enforcing a constraint: D195 hid every other chip but left the node's
+      // saved value alone, so a new node defaulting to Veo would have billed a Veo run against a
+      // ladder Veo ignores. Because the lanes are separate types this is a check on the source
+      // node's type — no traversal, no flag, no upstream to resolve.
+      const sourceNode = get().nodes.find((n) => n.id === connection.source);
+      const targetNode = get().nodes.find((n) => n.id === connection.target);
+      if (sourceNode?.type === "multishot-prompt" && targetNode?.type === "video-gen") {
+        get().updateNodeData(targetNode.id, { modelId: GEMINI_OMNI_MODEL_ID });
+      }
+
       // Mint a uuid id — React Flow would otherwise assign `xy-edge__<src>-<tgt>`,
       // which the edges.id uuid column rejects (failing the whole save batch).
       set({ edges: addEdge({ ...connection, id: crypto.randomUUID() }, get().edges) });
