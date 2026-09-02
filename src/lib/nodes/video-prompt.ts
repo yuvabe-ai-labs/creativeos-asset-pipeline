@@ -78,9 +78,14 @@ function buildCompositionBlock(
     // vision parts, so identifying each one is the model's job.
     "LOOK AT EACH ATTACHED IMAGE and identify what it actually shows — the product, garment, person or surface. The labels above are filenames and carry no meaning; ignore them for identification and use them only to keep the order straight.",
     omni
-      ? "Then place each token EXACTLY as written above, inline, in the beat where that thing appears. ALWAYS put a short noun phrase naming what you identified IMMEDIATELY BEFORE the token — \"the CHUPPS V-Straps <IMAGE_REF_0>\", \"a young woman <IMAGE_REF_1>\" — never the bare token on its own. That naming is how a wrong identification gets spotted and corrected in the text instead of in a finished video. Decide for yourself which beat each reference belongs to, from what the image shows. Every reference must appear at least once. Never write \"the first image\", never write @Image1, never invent a token that is not listed."
-      : "Then reference each image by its positional name above, in the part of the prompt where that thing appears, and describe camera movement and secondary motion for each.",
-  ].join("\n");
+      ? "Then place a token EXACTLY as written above, inline, in the beat where that thing appears. ALWAYS put a short noun phrase naming what you identified IMMEDIATELY BEFORE the token — \"the CHUPPS V-Straps <IMAGE_REF_0>\", \"a young woman <IMAGE_REF_1>\" — never the bare token on its own. That naming is how a wrong identification gets spotted and corrected in the text instead of in a finished video. Never write \"the first image\", never write @Image1, never invent a token that is not listed."
+      : "Then reference the images the shot actually calls for, by their positional names above, in the part of the prompt where that thing appears.",
+    omni
+      ? "USE ONLY THE REFERENCES THE SHOT CALLS FOR. This is a library, not a checklist: cite a reference where the shot's own content asks for it, and leave the rest out. Forcing an unrelated product into a beat in order to \"use\" it is worse than omitting it — the operator adds any others by hand."
+      : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 export function compileVideoPrompt(input: CompileVideoPromptInput): {

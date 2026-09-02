@@ -13,6 +13,8 @@ import { videoGenClientModelMap } from "@/lib/video-gen/client-models";
 import { validateAgainstRules } from "@/lib/video-gen/constraints";
 import {
   assignImageRoles,
+  autoAssignImageRoles,
+  orderImagesForPromptTokens,
   type UpstreamImageRef,
 } from "@/lib/video-gen/assign-image-roles";
 import { apiError, apiOk, withNode } from "@/lib/api/route-helpers";
@@ -90,12 +92,25 @@ export async function POST(
         url = typeof node.activeOutput === "string" ? node.activeOutput : undefined;
       }
       if (!url) continue;
-      upstreamImages.push({ nodeId: node.nodeId, url });
+      upstreamImages.push({ nodeId: node.nodeId, url, type: node.type });
     }
 
-    // Assignment only — an image with no role assigned is not an input. See assign-image-roles.ts
-    // for why defaulting it to `reference` here made the client and the server disagree.
-    const assigned = assignImageRoles(upstreamImages, imageRoles);
+    // Reference ORDER is the prompt's contract: `<IMAGE_REF_N>` was numbered at the video-prompt
+    // node, over ITS upstream in ITS order. The traversal above leads with this node's own direct
+    // upstream, so an image attached straight here would take slot 0 and shift every token in the
+    // prompt onto the wrong picture — silently, in a paid clip.
+    const orderedImages = orderImagesForPromptTokens(
+      upstreamImages,
+      videoPromptUpstream.map((u) => u.nodeId),
+    );
+
+    // An attached image IS an input. Unassigned ones default here the same way the focus view
+    // defaults them, so the constraint state the client evaluated is the one the request uses —
+    // see assign-image-roles.ts for the divergence that made dropping them look like the fix.
+    const effectiveRoles = autoAssignImageRoles(orderedImages, imageRoles, {
+      supportsStartFrame: config.imageInputs.startFrame,
+    });
+    const assigned = assignImageRoles(orderedImages, effectiveRoles);
     const { startFrameUrl, referenceUrls } = assigned;
     let { endFrameUrl } = assigned;
 

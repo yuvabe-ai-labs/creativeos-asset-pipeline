@@ -6,10 +6,13 @@
 // multishot shot gets three alternative SEQUENCES, each with one beat per beat of the shot,
 // because its beats have to cut together — four alternatives for "the shot" is meaningless when
 // the shot is five cuts, and picking one should write all five.
+import { MULTISHOT_AUTHORING_MODEL } from "./video-prompt-generate";
+
 export const shotComposeMultishotPrompt = {
   id: "shot-compose-multishot",
   version: 3,
-  model: "gpt-5.4-mini",
+  // Same model as the Omni motion prompt — both are storyboard-level jobs, not one-shot rewrites.
+  model: MULTISHOT_AUTHORING_MODEL,
   system: `You are a shot composer working in CUT SEQUENCES for a model that generates several shots as one clip.
 
 You are given a shot's current content, a TOTAL DURATION BUDGET in seconds, a target role, brand context, optionally a LOOK contract, and optionally a reference image. Produce complete sequences a designer can shoot.

@@ -85,6 +85,21 @@ export type VideoProvider = "veo" | "kling" | "gemini-omni";
 /** Omni cuts by DEFAULT — a continuous take is the thing that has to be asked for. */
 export const SINGLE_TAKE_LINE = "In a single unbroken scene. No scene cuts.";
 
+/**
+ * The model behind MULTISHOT authoring — the Omni motion prompt and the sequence composer.
+ *
+ * Deliberately larger than the mini the single-shot prompts use, and the two jobs are not
+ * comparable. A single-shot prompt describes one continuous take from a still that already fixes
+ * subject, setting and style. A multishot prompt is a whole storyboard: it must hold a look and a
+ * voice contract verbatim across every beat, keep a cut ladder summing to the exact duration,
+ * apply screen direction and the 30-degree rule between beats, identify attached reference images
+ * by sight and decide which beats they belong in — while writing prose specific enough to be
+ * worth generating. The mini produced fluent output that quietly failed several of those at once.
+ *
+ * One constant so the two multishot prompts cannot drift apart, and so raising it is one edit.
+ */
+export const MULTISHOT_AUTHORING_MODEL = "gpt-5";
+
 // D201 — the MULTISHOT prompt. Omni takes its whole storyboard from the prompt text: there are no
 // shot parameters, so length, cuts, rhythm, audio and what to avoid are all prose. That makes this
 // string the storyboard rather than a hint, which is why it carries the vendor's full guidance
@@ -92,7 +107,7 @@ export const SINGLE_TAKE_LINE = "In a single unbroken scene. No scene cuts.";
 export const videoPromptGenerateOmniPrompt = {
   id: "video-prompt-generate-omni",
   version: 5,
-  model: "gpt-5.4-mini",
+  model: MULTISHOT_AUTHORING_MODEL,
   system: `You are a motion director writing MULTISHOT prompts for Gemini Omni — a model that cuts between shots by default and takes its entire storyboard from the prompt text. There are no shot parameters: length, cuts, rhythm, audio and what to avoid are all prose.
 
 OUTPUT FORMAT
@@ -138,7 +153,7 @@ Rules for these tokens:
 - ALWAYS put a short noun phrase naming the thing immediately BEFORE the token — "the CHUPPS V-Straps <IMAGE_REF_1>", "a young woman <IMAGE_REF_0>". Never a bare token standing alone. Naming it is what lets a wrong identification be caught and corrected in the text rather than in a finished video, and it tells the model what kind of thing it is looking at.
 - Use the exact token from the list. Never write "the first image", never write @Image1, never invent a token that is not listed.
 - Name the reference IN EVERY BEAT it appears in, not once at the top.
-- Every listed reference should appear at least once across the beats.
+- USE ONLY THE REFERENCES THIS SHOT CALLS FOR. The list is a library, not a checklist. Cite a reference where the shot's own content asks for it and leave the rest out — forcing an unrelated product into a beat in order to "use" it is worse than omitting it. The operator adds any others by hand.
 - Never describe a referenced subject's own design in prose beyond that short naming phrase — the reference carries its design, and competing prose produces a hybrid of the two. Describe what the reference cannot: framing, motion, light, wardrobe, ground contact.
 
 CUTS AND RHYTHM

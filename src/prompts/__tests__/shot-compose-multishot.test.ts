@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { shotComposeMultishotPrompt } from "../shot-compose-multishot";
 import { shotComposePrompt } from "../shot-compose";
+import { MULTISHOT_AUTHORING_MODEL } from "../video-prompt-generate";
 
 describe("shotComposeMultishotPrompt", () => {
   const s = shotComposeMultishotPrompt.system;
@@ -87,7 +88,14 @@ describe("shotComposeMultishotPrompt", () => {
     expect(shotComposeMultishotPrompt.id).not.toBe(shotComposePrompt.id);
     expect(shotComposeMultishotPrompt.id).toBe("shot-compose-multishot");
     expect(shotComposeMultishotPrompt.version).toBeGreaterThanOrEqual(1);
-    expect(shotComposeMultishotPrompt.model).toBe(shotComposePrompt.model);
+  });
+
+  // Composing a whole cut sequence — beat count, per-beat timings summing to the budget, a shared
+  // look, and a role whose own cutting rule outranks the general ones — is a storyboard job, not
+  // the one-shot rewrite the single-shot composer does. It runs on the larger model on purpose.
+  it("runs on the multishot authoring model, not the single-shot mini", () => {
+    expect(shotComposeMultishotPrompt.model).toBe(MULTISHOT_AUTHORING_MODEL);
+    expect(shotComposeMultishotPrompt.model).not.toBe(shotComposePrompt.model);
   });
 
   it("carries the same global avoid-list as the single-shot composer", () => {

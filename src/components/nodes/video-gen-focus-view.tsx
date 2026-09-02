@@ -40,6 +40,7 @@ import {
   videoGenClientModelMap,
 } from "@/lib/video-gen/client-models";
 import { smartMergeVideoParams } from "@/lib/video-gen/params/merge";
+import { autoAssignImageRoles } from "@/lib/video-gen/assign-image-roles";
 import { paramsForRestore } from "@/lib/generations/version-params";
 import { deriveShotDuration } from "@/lib/nodes/derive-shot-duration";
 import type { ReelScript } from "@/lib/nodes/reel-script";
@@ -884,6 +885,22 @@ export function VideoGenFocusView({
   // yet", not "nothing connected", and pruning against it would blank every role for a frame
   // (and let a click in that window persist the blank).
   const connectedImageIds = new Set(upstreamImages.map((img) => img.id));
+
+  // An attached image IS an input: fill in a role for every connected image that has none, using
+  // the same rule the server applies. Persisted, not merely displayed — the constraint state below
+  // is computed from these roles, and a client that showed a default it never saved was exactly
+  // the divergence that let Generate run on a state the request would then reject.
+  useEffect(() => {
+    if (loadingConnected || upstreamImages.length === 0) return;
+    const filled = autoAssignImageRoles(
+      upstreamImages.map((img) => ({ nodeId: img.id, url: img.imageUrl, type: img.type })),
+      imageRolesProp,
+      { supportsStartFrame: imageInputs.startFrame },
+    );
+    if (Object.keys(filled).length !== Object.keys(imageRolesProp).length) {
+      onPatch({ imageRoles: filled });
+    }
+  }, [loadingConnected, upstreamImages, imageRolesProp, imageInputs.startFrame, onPatch]);
 
   // Also filter out roles that are invalid for the current model — handles the timing gap
   // between setModelId (local, immediate) and imageRolesProp update (from parent, async).
