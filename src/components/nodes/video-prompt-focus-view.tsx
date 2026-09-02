@@ -12,8 +12,6 @@ import {
   SlidersHorizontal,
   FileInput,
   ExternalLink,
-  Sun,
-  Mic,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -44,15 +42,9 @@ import type { KBSliceKey } from "@/lib/kb/parse-context";
 import { CameraSelect } from "./camera-select";
 import { SpeedSelect } from "./speed-select";
 import { TargetProviderSelect } from "./target-provider-select";
-import {
-  DEFAULT_VIDEO_CONTROLS,
-  LOOK_PRESETS,
-  VOICE_PRESETS,
-  type VideoControls,
-} from "@/lib/nodes/video-controls";
+import { DEFAULT_VIDEO_CONTROLS, type VideoControls } from "@/lib/nodes/video-controls";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { findDescendantsOfType } from "@/lib/canvas/graph";
-import { ContractField } from "./contract-field";
 import { ReferenceImageStrip } from "./reference-image-strip";
 import { videoGenClientModelMap, DEFAULT_VIDEO_CLIENT_MODEL_ID } from "@/lib/video-gen/client-models";
 import type { VideoProvider } from "@/prompts/video-prompt-generate";
@@ -210,12 +202,6 @@ export function VideoPromptFocusView({
   const edges = useCanvasStore((s) => s.edges);
   const downstreamGen = findDescendantsOfType(nodeId, nodes, edges, "video-gen");
 
-  // D208 — a Shot upstream is always a single continuous take now; the per-node flag this once
-  // read is gone, and only a Shot can feed a Video Prompt node (a multishot node connects only to
-  // a Multishot Prompt node — canvas-nodes.ts's VALID_CONNECTIONS). So this surface never shows
-  // the multishot authoring controls today; Phase 2 gives the Multishot Prompt node its own view.
-  const isMultishot = false;
-
   // The attached images in `<IMAGE_REF_N>` order. Shared with the strip below and with the chips
   // rendered inside the generated prompt, via one filter — see visionAttachmentsOf.
   const promptRefImages = visionAttachmentsOf(upstream).map((u) => ({
@@ -241,17 +227,11 @@ export function VideoPromptFocusView({
   // knew "kling", so disconnecting its video node silently changed which prompt variant it wrote.
   const selectorValue: VideoProvider =
     targetProvider === "kling" || targetProvider === "gemini-omni" ? targetProvider : "veo";
-  // Omni is the only multishot model (D196) — which is exactly why the multishot surface below
-  // drops the Target model control. That left the stored value governing, and a node with no
-  // Video Gen connected yet still reads "veo", so every multishot generation asked for the
-  // single-take Veo prompt. Multishot decides the provider on its own.
-  const effectiveProvider: VideoProvider = isMultishot
-    ? "gemini-omni"
-    : mixed
-      ? "veo"
-      : locked
-        ? downstreamProviders[0]
-        : selectorValue;
+  const effectiveProvider: VideoProvider = mixed
+    ? "veo"
+    : locked
+      ? downstreamProviders[0]
+      : selectorValue;
   const lockedLabel = mixed
     ? "Mixed downstream — writing provider-neutral"
     : locked
@@ -678,87 +658,41 @@ export function VideoPromptFocusView({
                     omni={effectiveProvider === "gemini-omni"}
                   />
 
-                  {isMultishot ? (
-                    /* D201 — the multishot surface is the LOOK contract and nothing else.
-                       No Target model: the downstream Video Gen node is already locked to Omni.
-                       No Speed: motion energy describes one continuous take, not a cut sequence.
-                       No per-beat camera either — framing is decided per beat by the prompt
-                       writer, which carries the shot-size, 30-degree and screen-direction rules;
-                       a row of "auto" dropdowns was a control to dismiss, not one to use. The
-                       beats themselves live on the Shot node, and the generated ladder shows
-                       exactly what they became. */
-                    <>
-                      <ContractField
-                        icon={Sun}
-                        label="Look contract"
-                        help="Repeated word for word at the top of every beat. Name light, palette and ground, not a mood."
-                        placeholder="Low sun from camera-left, long shadows. 35mm at knee height. Palette of warm grey concrete and denim."
-                        presets={LOOK_PRESETS}
-                        value={(controls ?? DEFAULT_VIDEO_CONTROLS).look ?? ""}
-                        onChange={(look) =>
-                          onPatch({
-                            controls: { ...(controls ?? DEFAULT_VIDEO_CONTROLS), look },
-                          })
-                        }
-                        disabled={!editable}
+                  {/* Target model + Speed share one row so the column stays short enough
+                      not to scroll. Both hug their own chips and sit left — stretching
+                      Speed across the leftover width is what wrapped its third chip. */}
+                  <div className="flex items-start gap-6">
+                    <div className="shrink-0">
+                      <TargetProviderSelect
+                        value={effectiveProvider}
+                        onChange={(p) => onPatch({ targetProvider: p })}
+                        lockedLabel={lockedLabel}
                       />
-                      {/* D204 — the LOOK's counterpart in sound. Cuts match in picture because of
-                          the LOOK and in sound because of this; a narrator that drifts between
-                          generations is as visible a seam as a light direction that flips. */}
-                      <ContractField
-                        icon={Mic}
-                        label="Voice contract"
-                        help="Repeated word for word too. Who speaks, from where, how — and what is not in the mix."
-                        placeholder="Off-screen narration, male, early thirties, close-mic and unhurried. No hype. Ambience and foley only; no music bed."
-                        presets={VOICE_PRESETS}
-                        value={(controls ?? DEFAULT_VIDEO_CONTROLS).voice ?? ""}
-                        onChange={(voice) =>
-                          onPatch({
-                            controls: { ...(controls ?? DEFAULT_VIDEO_CONTROLS), voice },
-                          })
-                        }
-                        disabled={!editable}
-                      />
-                    </>
-                  ) : (
-                    <>
-                      {/* Target model + Speed share one row so the column stays short enough
-                          not to scroll. Both hug their own chips and sit left — stretching
-                          Speed across the leftover width is what wrapped its third chip. */}
-                      <div className="flex items-start gap-6">
-                        <div className="shrink-0">
-                          <TargetProviderSelect
-                            value={effectiveProvider}
-                            onChange={(p) => onPatch({ targetProvider: p })}
-                            lockedLabel={lockedLabel}
-                          />
-                        </div>
-                        <div className="min-w-0 shrink-0">
-                          <SpeedSelect
-                            value={(controls ?? DEFAULT_VIDEO_CONTROLS).speed}
-                            onChange={(v) =>
-                              onPatch({
-                                controls: { ...(controls ?? DEFAULT_VIDEO_CONTROLS), speed: v },
-                              })
-                            }
-                          />
-                        </div>
-                      </div>
-
-                      {/* Camera owns the full column width. The grounding still used to sit
-                          beside it in a Frame column, but the animated tiles need the room more
-                          than a second copy of the image does — it is still reachable as the
-                          connected Image in the left rail. */}
-                      <CameraSelect
-                        value={(controls ?? DEFAULT_VIDEO_CONTROLS).camera}
+                    </div>
+                    <div className="min-w-0 shrink-0">
+                      <SpeedSelect
+                        value={(controls ?? DEFAULT_VIDEO_CONTROLS).speed}
                         onChange={(v) =>
                           onPatch({
-                            controls: { ...(controls ?? DEFAULT_VIDEO_CONTROLS), camera: v },
+                            controls: { ...(controls ?? DEFAULT_VIDEO_CONTROLS), speed: v },
                           })
                         }
                       />
-                    </>
-                  )}
+                    </div>
+                  </div>
+
+                  {/* Camera owns the full column width. The grounding still used to sit
+                      beside it in a Frame column, but the animated tiles need the room more
+                      than a second copy of the image does — it is still reachable as the
+                      connected Image in the left rail. */}
+                  <CameraSelect
+                    value={(controls ?? DEFAULT_VIDEO_CONTROLS).camera}
+                    onChange={(v) =>
+                      onPatch({
+                        controls: { ...(controls ?? DEFAULT_VIDEO_CONTROLS), camera: v },
+                      })
+                    }
+                  />
 
                   </div>
 

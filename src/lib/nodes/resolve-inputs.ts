@@ -6,7 +6,7 @@ import { renderShotForVideo } from "@/lib/nodes/render-shot-for-video";
 import type { VideoControls } from "@/lib/nodes/video-controls";
 import { SINGLE_TAKE_LINE } from "@/prompts/video-prompt-generate";
 import { selectImageUpstreams } from "@/lib/nodes/shot-compose";
-import type { ReelScript, ReelShot } from "@/lib/nodes/reel-script";
+import type { ReelScript } from "@/lib/nodes/reel-script";
 
 const TYPE_LABEL: Record<string, string> = {
   script: "Script",
@@ -177,11 +177,6 @@ export async function resolveShotComposeInputs(
   kbVersionId: string | null;
   slices: KBSliceKey[];
   imageUpstream: UpstreamPreview[];
-  /** D201 — the shot's own beats, for the multishot composer's ladder. */
-  shots: ReelShot[];
-  /** D201 — true only with a ladder to compose against; a one-beat node composes as a single shot. */
-  multishot: boolean;
-  objective: string;
 } | null> {
   const kbCtx = await getNodeActiveKB(nodeId);
   if (!kbCtx) return null;
@@ -189,10 +184,6 @@ export async function resolveShotComposeInputs(
   const data = await getNodeData(nodeId);
   const script = (data?.script ?? null) as ReelScript | null;
   const seedText = renderShotForImage(script);
-  const shots = script?.visual_script?.shots ?? [];
-  // The same `> 1` the motion path uses: a one-beat shot toggled to multishot has no ladder to
-  // compose against, so it gets the single-shot composer.
-  const multishot = (data as { multishot?: boolean } | null)?.multishot === true && shots.length > 1;
 
   const slices = normalizeSlices(slicesInput);
   const clientContext = kbCtx.kb ? buildParseContext(kbCtx.kb, slices) : "";
@@ -210,8 +201,5 @@ export async function resolveShotComposeInputs(
     kbVersionId: kbCtx.kbVersionId,
     slices,
     imageUpstream,
-    shots,
-    multishot,
-    objective: script?.strategic_objective ?? "",
   };
 }
