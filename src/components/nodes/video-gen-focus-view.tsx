@@ -35,7 +35,6 @@ import { normalizeTitle } from "@/lib/nodes/title";
 import { Button } from "@/components/ui/button";
 import {
   DEFAULT_VIDEO_CLIENT_MODEL_ID,
-  GEMINI_OMNI_MODEL_ID,
   defaultsForVideoModel,
   videoGenClientModelMap,
 } from "@/lib/video-gen/client-models";
@@ -386,10 +385,6 @@ export function VideoGenFocusView({
   // own beats rather than the model spec's flat default. Cleared the instant the operator edits
   // duration directly, so their edit is never silently overwritten by a later re-derivation.
   const [durationIsDerived, setDurationIsDerived] = useState(false);
-  // D195 — set inside handleParamChange the moment the OPERATOR changes duration directly (never
-  // by the derivation effect below, which writes duration+durationIsDerived itself). Once true,
-  // the sync effect stops re-deriving for this node — the operator's own edit wins permanently.
-  const durationTouchedRef = useRef(false);
   // The selected rail item: "video" (settings + preview), "history", "details", or a connected
   // node's id (middle column shows that node's role/detail view). Mirrors image-gen-focus-view.
   const focusStoreApi = useCanvasStoreApi();
@@ -451,13 +446,6 @@ export function VideoGenFocusView({
   // Stable ref for onPatch — breaks the useCallback → useEffect dep cycle
   const onPatchRef = useRef(onPatch);
   useEffect(() => { onPatchRef.current = onPatch; });
-
-  // D195 — handleModelChange is a plain function redefined every render (it closes over params,
-  // imageRolesProp, upstreamImages, derivedDuration…), so wrapping it in useCallback would need a
-  // long, fragile dependency list. This ref lets the coercion effect below call the LATEST
-  // closure without putting the function itself in its dependency array.
-  const handleModelChangeRef = useRef(handleModelChange);
-  useEffect(() => { handleModelChangeRef.current = handleModelChange; });
 
   // ── Data fetching ──────────────────────────────────────────────────────────
 
@@ -605,7 +593,7 @@ export function VideoGenFocusView({
       ? smartMergeVideoParams(params, nextModel)
       : defaultsForVideoModel(nextModelId);
 
-    // D195 — a multishot shot's motion prompt is a timecode ladder; the request's duration
+    // D195 — a multi-beat shot's motion prompt is a timecode ladder; the request's duration
     // should agree with it by default. `paramsProp == null` is the one clean "not already set"
     // signal this node has: every later patch (this one included) writes the WHOLE params
     // object, so from the next render on `duration` reads as "set" whether it came from the
@@ -671,11 +659,9 @@ export function VideoGenFocusView({
     setParams(updated);
     onPatch({ params: updated });
     // D195 — the operator's own edit always wins: touching duration directly retires the
-    // derived-default label immediately, rather than leaving it captioning a value they chose,
-    // and latches durationTouchedRef so the sync effect below never overwrites it again.
+    // derived-default label immediately, rather than leaving it captioning a value they chose.
     if (name === "duration") {
       setDurationIsDerived(false);
-      durationTouchedRef.current = true;
     }
   }
 
@@ -998,28 +984,8 @@ export function VideoGenFocusView({
     ? connectedItems.find((c) => c.id === selected) ?? null
     : null;
 
-  // D208 — a Shot is always a single continuous take now; the per-node flag this once read is
-  // gone. A multishot GENERATION lives on its own dedicated node type, which does not yet feed
-  // this walk (Phase 2), so a Shot ancestor can no longer make this multishot.
-  const upstreamMultishot = useCanvasStore((s) => {
-    const seen = new Set<string>();
-    const walk = (id: string, depth: number): boolean => {
-      if (depth > 2 || seen.has(id)) return false;
-      seen.add(id);
-      return s.edges
-        .filter((e) => e.target === id)
-        .some((e) => {
-          const source = s.nodes.find((n) => n.id === e.source);
-          if (!source) return false;
-          if (source.type === "shot") return false;
-          return walk(e.source, depth + 1);
-        });
-    };
-    return walk(nodeId, 0);
-  });
-
-  // D195 — the upstream Shot's own script, walked the same way as upstreamMultishot above, so
-  // `duration` can default to the sum of ITS beats rather than the model spec's flat number.
+  // D195 — the upstream Shot's own script, walked up the graph, so `duration` can default to
+  // the sum of ITS beats rather than the model spec's flat number.
   const upstreamShotScript = useCanvasStore((s) => {
     const seen = new Set<string>();
     const walk = (id: string, depth: number): ReelScript | null => {
@@ -1037,42 +1003,6 @@ export function VideoGenFocusView({
     return walk(nodeId, 0);
   });
   const derivedDuration = deriveShotDuration(upstreamShotScript);
-
-  // D195 — the picker filter is advisory; this is the enforcement. A node defaults to Veo, and a
-  // filtered picker with no active chip does not stop Generate — it bills a Veo run fed a
-  // timecode ladder Veo ignores. Coercing on connection means the operator never has to notice.
-  //
-  // Cannot loop: the guard is `modelId !== GEMINI_OMNI_MODEL_ID`, and the one thing this effect
-  // does is drive modelId TO GEMINI_OMNI_MODEL_ID. Once handleModelChange's setModelId commits,
-  // the next run of this effect (upstreamMultishot unchanged, modelId now equal) finds the guard
-  // false and does nothing — confirmed by inspection of handleModelChange, which sets modelId to
-  // exactly the id it was passed.
-  useEffect(() => {
-    if (upstreamMultishot && modelId !== GEMINI_OMNI_MODEL_ID) {
-      handleModelChangeRef.current(GEMINI_OMNI_MODEL_ID);
-    }
-  }, [upstreamMultishot, modelId]);
-
-  // The ladder in the prompt and `duration` on the request must agree — a ladder longer than the
-  // duration comes back truncated, at full price. Deriving only inside handleModelChange missed
-  // every case where the node was already on Omni when the shot was connected.
-  //
-  // Gated on modelId === GEMINI_OMNI_MODEL_ID (not just upstreamMultishot) so this cannot run
-  // before the coercion effect above has actually switched the model — writing an Omni-shaped
-  // duration into a Veo/Kling params object would produce a value that model's own params panel
-  // does not expect. Applies params/onPatch directly rather than through handleParamChange:
-  // routing it there would set durationTouchedRef (meant only for a genuine operator edit) and
-  // clear durationIsDerived on the very write that is supposed to turn it on.
-  useEffect(() => {
-    if (modelId !== GEMINI_OMNI_MODEL_ID) return;
-    if (!upstreamMultishot || derivedDuration == null) return;
-    if (durationTouchedRef.current) return;
-    if (Number(params.duration) === derivedDuration) return;
-    const updated = { ...params, duration: derivedDuration };
-    setParams(updated);
-    onPatchRef.current({ params: updated });
-    setDurationIsDerived(true);
-  }, [modelId, upstreamMultishot, derivedDuration, params]);
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -1250,12 +1180,6 @@ export function VideoGenFocusView({
                   <VideoGenModelPicker
                     modelId={modelId}
                     onModelChange={handleModelChange}
-                    restrictToModelId={upstreamMultishot ? GEMINI_OMNI_MODEL_ID : undefined}
-                    restrictionReason={
-                      upstreamMultishot
-                        ? "This shot is multishot — only Gemini Omni cuts between shots natively."
-                        : undefined
-                    }
                   >
                     <VideoGenParamsPanel
                       modelId={modelId}
