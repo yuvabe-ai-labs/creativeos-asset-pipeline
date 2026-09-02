@@ -149,11 +149,16 @@ function findPinterestTarget(el) {
     return { container, url: tileUrl };
   }
 
-  // Pin closeup page: the address bar IS the permalink. Related pins below the
-  // closeup are anchors, so the tile branch above catches them first.
+  // Pin closeup page: the address bar IS the permalink. Related pins in the
+  // side rail are anchors, so the tile branch above catches them first.
+  // Pinterest renders no <main> element — the closeup card is only reachable
+  // through its data-test-id wrappers (innermost first, so the pill hugs the
+  // image when hovering it).
   const pageUrl = pinPermalink(location.href);
   if (pageUrl) {
-    const container = el.closest("main");
+    const container = el.closest(
+      '[data-test-id="pin-closeup-image"], [data-test-id="closeup-container"], [data-test-id="closeup-body-landscape"]',
+    );
     if (container) return { container, url: pageUrl };
   }
   return null;
