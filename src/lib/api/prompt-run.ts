@@ -12,6 +12,14 @@ import type { GenerationRow } from "@/lib/db/types";
 
 export { CreditLimitError };
 
+// The shape a model call hands back: the two canonical fields computeCost reads (typed via
+// TokenUsage), plus whatever else the provider included (e.g. prompt_tokens_details,
+// completion_tokens_details) passed through untouched. Callers must NOT narrow usage down to
+// the three canonical fields before returning it here — the narrow numbers are still all
+// computeCost uses, but the raw object is what gets persisted, and narrowing here would make
+// every model's usage column the same width, dropping fields a future pricing change might need.
+export type ModelUsage = TokenUsage & Record<string, unknown>;
+
 // The credit + version envelope around one text-model call — reserve → insert the generation
 // row → invoke the model → settle (success) or refund (failure) → insert the version → move
 // the active pointer. Moved out of video-prompt/route.ts (Task 12), whose own header comment
@@ -20,11 +28,13 @@ export { CreditLimitError };
 // that route is written against this helper instead of against a second copy of the same
 // reserve/settle/refund flow, where the same defect could reappear.
 //
-// Deliberately NOT here: writing a FAILED version on error. video-prompt/route.ts always logs
-// a failed attempt as a version, but the fields it writes (targetProvider, promptId,
-// promptVersion, the frozen request) are route-specific — the caller's own catch block still
-// does that, using the error this function rethrows. This function's job ends at the credit
-// ledger and the generation row: refund/fail those, then propagate.
+// Deliberately NOT owned here: the shape of the FAILED version written on error.
+// video-prompt/route.ts always logs a failed attempt as a version, but the fields it writes
+// (targetProvider, promptId, promptVersion, the frozen request) are route-specific. The route
+// supplies that write as `onFailure`, which this function calls before its own
+// failGeneration/refundReservation cleanup — preserving the original call order
+// (insertVersion(failed) → failGeneration → refundReservation) across the extraction — and
+// then rethrows the original error regardless of what onFailure does.
 export async function runPromptGeneration<T>(args: {
   nodeId: string;
   orgId: string;
@@ -44,8 +54,15 @@ export async function runPromptGeneration<T>(args: {
   // which this function fills in from the call's own usage figure.
   inputsUsed: Record<string, unknown>;
   paramsUsed: Record<string, unknown>;
-  call: () => Promise<{ output: T; usage: TokenUsage | null }>;
-}): Promise<{ output: T; versionId: string; generationId: string; usage: TokenUsage | null }> {
+  call: () => Promise<{ output: T; usage: ModelUsage | null }>;
+  // Invoked on the error path, before failGeneration/refundReservation — mirrors the call
+  // order this route had before the extraction (insertVersion(failed) → failGeneration →
+  // refundReservation). Route-specific because the failed version's own fields
+  // (targetProvider, promptId, promptVersion, the frozen request) aren't known here. A
+  // throwing onFailure is swallowed so it can never mask the real error, which always
+  // propagates regardless of what onFailure does.
+  onFailure?: (error: unknown) => Promise<void> | void;
+}): Promise<{ output: T; versionId: string; generationId: string; usage: ModelUsage | null }> {
   const generation = await insertGeneration({
     nodeId: args.nodeId,
     orgId: args.orgId,
@@ -98,6 +115,14 @@ export async function runPromptGeneration<T>(args: {
     return { output, versionId: version.id, generationId: generation.id, usage };
   } catch (e) {
     const message = e instanceof Error ? e.message : "Generation failed";
+    if (args.onFailure) {
+      try {
+        await args.onFailure(e);
+      } catch {
+        // A failing onFailure must not mask the original error below — swallow and continue
+        // the same cleanup every other failure path gets.
+      }
+    }
     await failGeneration({ generationId: generation.id, error: message }).catch(() => null);
     await refundReservation({ orgId: args.orgId, generationId: generation.id }).catch(() => null);
     throw e;

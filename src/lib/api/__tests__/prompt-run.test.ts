@@ -127,4 +127,50 @@ describe("runPromptGeneration", () => {
     expect(failGeneration).toHaveBeenCalledWith({ generationId: "gen-3", error: "Monthly credit limit reached" });
     expect(refundReservation).toHaveBeenCalledWith({ orgId: "org-1", generationId: "gen-3" });
   });
+
+  // The pre-extraction route wrote its failed version, THEN failed the generation, THEN
+  // refunded the reservation. onFailure is how a caller restores that order across the
+  // extraction — assert the actual sequence, not just that all three ran.
+  it("runs onFailure before failGeneration and refundReservation on the error path", async () => {
+    insertGeneration.mockResolvedValue({ id: "gen-4" });
+    reserveCredits.mockResolvedValue({ ok: true });
+
+    const order: string[] = [];
+    failGeneration.mockImplementation(async () => {
+      order.push("failGeneration");
+    });
+    refundReservation.mockImplementation(async () => {
+      order.push("refundReservation");
+    });
+    const onFailure = vi.fn(async () => {
+      order.push("onFailure");
+    });
+
+    const call = vi.fn().mockRejectedValue(new Error("model exploded"));
+
+    await expect(runPromptGeneration({ ...baseArgs(call), onFailure })).rejects.toThrow(
+      "model exploded",
+    );
+
+    expect(order).toEqual(["onFailure", "failGeneration", "refundReservation"]);
+  });
+
+  // A route's onFailure write (e.g. its own insertVersion) failing must never swallow the
+  // real error, and cleanup must still happen.
+  it("still propagates the original error and still cleans up when onFailure itself throws", async () => {
+    insertGeneration.mockResolvedValue({ id: "gen-5" });
+    reserveCredits.mockResolvedValue({ ok: true });
+    failGeneration.mockResolvedValue(undefined);
+    refundReservation.mockResolvedValue(undefined);
+
+    const onFailure = vi.fn().mockRejectedValue(new Error("onFailure exploded"));
+    const call = vi.fn().mockRejectedValue(new Error("model exploded"));
+
+    await expect(runPromptGeneration({ ...baseArgs(call), onFailure })).rejects.toThrow(
+      "model exploded",
+    );
+
+    expect(failGeneration).toHaveBeenCalledWith({ generationId: "gen-5", error: "model exploded" });
+    expect(refundReservation).toHaveBeenCalledWith({ orgId: "org-1", generationId: "gen-5" });
+  });
 });

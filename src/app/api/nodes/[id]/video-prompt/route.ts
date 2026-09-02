@@ -6,7 +6,7 @@ import { videoPromptGeneratePromptFor, type VideoProvider } from "@/prompts/vide
 import { normalizeVideoControls } from "@/lib/nodes/video-controls";
 import { insertVersion } from "@/lib/db/versions";
 import { estimatePromptCredits } from "@/lib/credits/prompt-estimate";
-import { runPromptGeneration, CreditLimitError } from "@/lib/api/prompt-run";
+import { runPromptGeneration, CreditLimitError, type ModelUsage } from "@/lib/api/prompt-run";
 import { describeModelRequest } from "@/lib/nodes/model-request";
 import { apiError, apiOk, withNode } from "@/lib/api/route-helpers";
 
@@ -94,6 +94,27 @@ export async function POST(
           promptId: promptSpec.id,
           promptVersion: promptSpec.version,
         },
+        // A failed attempt is still a version — the log learns from failures too. This runs
+        // BEFORE the helper's own failGeneration/refundReservation cleanup, preserving the
+        // original call order (insertVersion(failed) → failGeneration → refundReservation)
+        // across the extraction — the route's own catch below only turns the error into a
+        // response now.
+        onFailure: async (e) => {
+          const message = e instanceof Error ? e.message : "Generation failed";
+          await insertVersion({
+            nodeId,
+            operatorUserId: caller.userId, // a failed attempt still has a maker
+            inputsUsed: { request },
+            paramsUsed: {
+              instruction,
+              targetProvider: effectiveProvider,
+              promptId: promptSpec.id,
+              promptVersion: promptSpec.version,
+            },
+            modelUsed: model,
+            error: message,
+          });
+        },
         call: async () => {
           const openai = createOpenAI();
           const completion = await openai.chat.completions.create({
@@ -104,13 +125,12 @@ export async function POST(
             ],
           });
           const output = completion.choices[0]?.message?.content?.trim() ?? "";
-          const usage = completion.usage
-            ? {
-                prompt_tokens: completion.usage.prompt_tokens,
-                completion_tokens: completion.usage.completion_tokens,
-                total_tokens: completion.usage.total_tokens,
-              }
-            : null;
+          // Raw, un-narrowed — persisted as-is by the helper. Narrowing to the three
+          // canonical fields here would silently drop whatever else the provider returned
+          // (e.g. prompt_tokens_details.cached_tokens) before it ever reached storage. The
+          // cast just tells TS what we already know structurally (OpenAI's CompletionUsage
+          // has the three canonical fields plus extras) — the object itself is untouched.
+          const usage = (completion.usage ?? null) as ModelUsage | null;
           return { output, usage };
         },
       });
@@ -118,20 +138,6 @@ export async function POST(
       return apiOk({ output, versionId, compiled: user });
     } catch (e) {
       const message = e instanceof Error ? e.message : "Generation failed";
-      // a failed attempt is still a version — the log learns from failures too
-      await insertVersion({
-        nodeId,
-        operatorUserId: caller.userId, // a failed attempt still has a maker
-        inputsUsed: { request },
-        paramsUsed: {
-          instruction,
-          targetProvider: effectiveProvider,
-          promptId: promptSpec.id,
-          promptVersion: promptSpec.version,
-        },
-        modelUsed: model,
-        error: message,
-      });
       const status = e instanceof CreditLimitError ? 402 : 500;
       return apiError(message, status);
     }
