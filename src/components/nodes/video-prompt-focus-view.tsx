@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
@@ -73,6 +73,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { ApprovalStatus } from "@/lib/approval";
 import { PromptVersionChips } from "./prompt-version-chips";
 import { GeneratedPromptBody } from "./generated-prompt-body";
+import { imageRefDialect } from "@/lib/nodes/prompt-token-dialect";
 import { ApprovalStatusBadge } from "@/components/review/approval-status-badge";
 import { LeftSection } from "./focus-left-section";
 import { RailItem } from "./focus-rail-item";
@@ -257,6 +258,15 @@ export function VideoPromptFocusView({
     : locked
       ? `${videoGenClientModelMap[(downstreamGen[0].data as { modelId?: string })?.modelId ?? DEFAULT_VIDEO_CLIENT_MODEL_ID]?.label ?? "Video model"} · set by connected video node`
       : undefined;
+
+  // Non-null only for Omni, whose prompt text carries `<IMAGE_REF_N>` inline. Memoized on the id
+  // list rather than the array identity: `upstream` is rebuilt on every render, and a fresh
+  // dialect each time would re-run the editor's population effect and fight the caret.
+  const refIdsKey = promptRefImages.map((r) => r.id).join(",");
+  const omniRefs = useMemo(
+    () => (effectiveProvider === "gemini-omni" ? imageRefDialect(refIdsKey ? refIdsKey.split(",") : []) : null),
+    [effectiveProvider, refIdsKey],
+  );
 
   const dirty = (output ?? "") !== draft && draft.trim() !== "";
   const mode: "skeleton" | "result" | "empty" = generating
@@ -804,24 +814,35 @@ export function VideoPromptFocusView({
 
                   {mode === "result" && (
                     <>
-                      {/* Read view by default, same card treatment as the image-prompt
-                          output: sentence beats, camera specs highlighted (there is no
-                          curated term list for video controls — specs are the meaningful
-                          subset for motion). Clicking swaps to the raw-text editor. */}
-                      <EditableField
-                        multiline
-                        value={draft}
-                        onCommit={setDraft}
-                        readOnly={!editable}
-                        placeholder="Empty — click to edit"
-                        // Reference tokens render as the PICTURE they name, the way a competitor
-                        // shows an @-mention — see GeneratedPromptBody. The raw token stays in the
-                        // edit view and in what ships to the model; only the read view swaps it.
-                        renderDisplay={(text) => (
-                          <GeneratedPromptBody text={text} images={promptRefImages} />
-                        )}
-                        className="min-h-[16rem] max-w-[65ch] flex-1 resize-none overflow-y-auto rounded-xl p-4 text-base leading-7 [field-sizing:fixed]"
-                      />
+                      {omniRefs ? (
+                        /* Omni: the SAME chip editor the Instruction uses, so a reference stays a
+                           picture while it is being edited. A plain textarea turned every chip
+                           back into raw `<IMAGE_REF_0>` the moment the field was focused, which is
+                           where an operator is most likely to break one by hand. */
+                        <MentionInstructionEditor
+                          value={draft}
+                          onChange={setDraft}
+                          upstream={upstream}
+                          disabled={!editable}
+                          dialect={omniRefs}
+                          placeholder="Empty — click to edit"
+                          className="min-h-[16rem] max-w-[65ch] flex-1 text-base"
+                        />
+                      ) : (
+                        /* Veo and Kling have no inline reference token, so their output stays the
+                           read-first field: sentence beats with camera specs highlighted. */
+                        <EditableField
+                          multiline
+                          value={draft}
+                          onCommit={setDraft}
+                          readOnly={!editable}
+                          placeholder="Empty — click to edit"
+                          renderDisplay={(text) => (
+                            <GeneratedPromptBody text={text} images={promptRefImages} />
+                          )}
+                          className="min-h-[16rem] max-w-[65ch] flex-1 resize-none overflow-y-auto rounded-xl p-4 text-base leading-7 [field-sizing:fixed]"
+                        />
+                      )}
                       <div className="flex items-center gap-2 self-start">
                         <Button variant="outline" onClick={handleSave} disabled={!dirty}>
                           Save
