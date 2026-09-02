@@ -4,9 +4,11 @@ import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
+import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { EditableField } from "./editable-field";
 import {
   MIN_CUT_SECONDS,
+  maxSecondsFor,
   removeCut,
   resizeCut,
   totalOf,
@@ -30,6 +32,8 @@ export function MultishotCutStrip({
   onChange: (next: MultishotCut[]) => void;
   readOnly?: boolean;
 }) {
+  const editable = useCanvasEditable();
+  const isReadOnly = readOnly || !editable; // D33: strict read-only under the lock
   const total = totalOf(cuts) || 1;
 
   return (
@@ -42,7 +46,7 @@ export function MultishotCutStrip({
         >
           <div className="flex items-start gap-1">
             <span className="text-[0.6rem] font-medium text-muted-foreground">{i + 1}</span>
-            {!readOnly && cuts.length > 1 && (
+            {!isReadOnly && cuts.length > 1 && (
               <Button
                 variant="ghost"
                 aria-label={`Remove cut ${i + 1}`}
@@ -58,7 +62,7 @@ export function MultishotCutStrip({
           <EditableField
             value={cut.text}
             onCommit={(text) => onChange(cuts.map((c, j) => (j === i ? { ...c, text } : c)))}
-            readOnly={readOnly}
+            readOnly={isReadOnly}
             multiline
             placeholder="Describe this cut…"
             className="text-[0.65rem] leading-snug"
@@ -66,9 +70,9 @@ export function MultishotCutStrip({
           <Slider
             value={[cut.seconds]}
             min={MIN_CUT_SECONDS}
-            max={total}
+            max={maxSecondsFor(cuts, i)}
             step={1}
-            disabled={readOnly || cuts.length < 2}
+            disabled={isReadOnly || cuts.length < 2}
             aria-label={`Cut ${i + 1} length in seconds`}
             onValueChange={(v) => onChange(resizeCut(cuts, i, Array.isArray(v) ? v[0] : v))}
             className="mt-1.5"

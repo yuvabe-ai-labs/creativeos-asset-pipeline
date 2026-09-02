@@ -3,6 +3,7 @@ import {
   MIN_CUT_SECONDS,
   addCut,
   cutsFromShots,
+  maxSecondsFor,
   newCut,
   removeCut,
   resizeCut,
@@ -89,6 +90,29 @@ describe("resizeCut", () => {
 
   it("returns the list unchanged for an index one past the end", () => {
     expect(secondsOf(resizeCut(cuts(2, 2, 4), 3, 3))).toEqual([2, 2, 4]);
+  });
+});
+
+describe("maxSecondsFor", () => {
+  // The Slider uses this to cap its max so the thumb can't be dragged past what resizeCut
+  // will actually clamp to. This prevents dead track (drag past the ceiling, then snap back).
+  it("returns the pair ceiling minus the partner's floor for a middle cut", () => {
+    // [2,2,4]: index 0 pairs with index 1; pair=4, max=4-MIN_CUT_SECONDS=3
+    expect(maxSecondsFor(cuts(2, 2, 4), 0)).toBe(3);
+  });
+
+  it("returns the pair ceiling minus the partner's floor for the last cut", () => {
+    // [2,2,4]: index 2 pairs with index 1; pair=6, max=6-MIN_CUT_SECONDS=5
+    expect(maxSecondsFor(cuts(2, 2, 4), 2)).toBe(5);
+  });
+
+  it("returns the cut's current seconds when there is no valid partner (single cut)", () => {
+    expect(maxSecondsFor(cuts(5), 0)).toBe(5);
+  });
+
+  it("returns 0 for an out-of-range index", () => {
+    expect(maxSecondsFor(cuts(2, 2, 4), -1)).toBe(0);
+    expect(maxSecondsFor(cuts(2, 2, 4), 3)).toBe(0);
   });
 });
 

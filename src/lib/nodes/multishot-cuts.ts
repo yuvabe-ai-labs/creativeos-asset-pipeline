@@ -21,6 +21,18 @@ export type MultishotCut = {
 /** No cut is ever shorter than this. A drag that would go below it stops instead. */
 export const MIN_CUT_SECONDS = 1;
 
+/**
+ * Select the partner cut for resizing at the given index.
+ * Trades with the NEXT cut, or the previous one when resizing the last.
+ * Returns -1 if there is no valid partner (single cut).
+ */
+function getPartnerIndex(cuts: MultishotCut[], index: number): number {
+  if (index < 0 || index >= cuts.length) return -1;
+  const partnerIndex = index + 1 < cuts.length ? index + 1 : index - 1;
+  if (partnerIndex < 0 || partnerIndex >= cuts.length) return -1;
+  return partnerIndex;
+}
+
 export function newCut(text: string, seconds: number): MultishotCut {
   return { id: crypto.randomUUID(), text, seconds };
 }
@@ -53,9 +65,8 @@ export function resizeCut(
   index: number,
   seconds: number,
 ): MultishotCut[] {
-  if (index < 0 || index >= cuts.length) return cuts;
-  const partnerIndex = index + 1 < cuts.length ? index + 1 : index - 1;
-  if (partnerIndex < 0 || partnerIndex >= cuts.length) return cuts;
+  const partnerIndex = getPartnerIndex(cuts, index);
+  if (partnerIndex < 0) return cuts;
 
   const pair = cuts[index].seconds + cuts[partnerIndex].seconds;
   // Both ends clamp: the dragged cut cannot go below the floor, and cannot grow so far that
@@ -68,6 +79,22 @@ export function resizeCut(
     if (i === partnerIndex) return { ...c, seconds: pair - next };
     return c;
   });
+}
+
+/**
+ * The largest `seconds` a call to resizeCut(cuts, index, …) can actually produce.
+ *
+ * The Slider uses this to set its effective max, so the thumb can't be dragged past what
+ * resizeCut will clamp to. This prevents the dead-track feel of dragging past an invisible ceiling.
+ */
+export function maxSecondsFor(cuts: MultishotCut[], index: number): number {
+  const partnerIndex = getPartnerIndex(cuts, index);
+  if (partnerIndex < 0) {
+    // No valid partner — the cut cannot grow.
+    return cuts[index]?.seconds ?? 0;
+  }
+  const pair = cuts[index].seconds + cuts[partnerIndex].seconds;
+  return pair - MIN_CUT_SECONDS;
 }
 
 /** Append a cut, funded by the largest existing one. Refused when nobody can spare a second. */

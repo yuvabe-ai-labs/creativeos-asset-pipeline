@@ -5,6 +5,7 @@ import { Layers, Plus, TriangleAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
+import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { useDeleteNode } from "@/hooks/use-delete-node";
 import { NodeContextMenu } from "./node-context-menu";
 import { NodeCardHeader } from "./node-card-header";
@@ -28,6 +29,8 @@ export function MultishotNode({ id, data, selected }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const deleteNode = useDeleteNode();
   const duplicateNode = useCanvasStore((s) => s.duplicateNode);
+  const editable = useCanvasEditable();
+  const isReadOnly = !editable; // D33: strict read-only under the lock
   const d = data as MultishotNodeData;
 
   const cuts = d.cuts ?? [];
@@ -79,6 +82,7 @@ export function MultishotNode({ id, data, selected }: NodeProps) {
           <div className="mt-1.5 flex items-center gap-1.5">
             <Button
               variant="ghost"
+              disabled={isReadOnly}
               onClick={() => setCuts(addCut(cuts))}
               className="nodrag h-auto gap-1 rounded-md border border-dashed border-primary/40 px-2 py-1 text-[0.65rem] text-primary hover:bg-primary/5 hover:text-primary dark:hover:bg-primary/5"
             >
