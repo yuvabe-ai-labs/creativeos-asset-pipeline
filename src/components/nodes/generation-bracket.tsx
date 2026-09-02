@@ -18,6 +18,7 @@ import {
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import type { Generation } from "@/lib/nodes/group-shots";
+import { generationKey } from "@/lib/nodes/group-shots";
 
 /**
  * D206 — one generation's rows, bracketed, with the single control that sets its mode.
@@ -53,8 +54,8 @@ export function GenerationBracket({
       (n.type === "shot" || n.type === "multishot") &&
       (n.data as { seededFrom?: { scriptNodeId?: string; shotIndexes?: number[] } }).seededFrom
         ?.scriptNodeId === scriptNodeId &&
-      ((n.data as { seededFrom?: { shotIndexes?: number[] } }).seededFrom?.shotIndexes ?? []).join(
-        "-",
+      generationKey(
+        (n.data as { seededFrom?: { shotIndexes?: number[] } }).seededFrom?.shotIndexes ?? [],
       ) === generation.key,
   );
   const downstreamCount = nodeForThisGeneration

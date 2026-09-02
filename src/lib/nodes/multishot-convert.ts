@@ -17,11 +17,10 @@ export function shotDataToMultishot(data: ShotNodeData): MultishotNodeData {
 
   return {
     order: data.order,
-    // Passed straight through, not rebuilt field-by-field: `ShotNodeData.seededFrom` carries a
-    // legacy `shotIndex` that `MultishotNodeData.seededFrom` never declares, and every multishot
-    // node (post-D193) has `shotIndexes` populated, so the shapes agree in practice even though
-    // the two types don't align structurally. Cast to say so explicitly, not to paper over a
-    // shape the data doesn't actually have.
+    // TEMPORARY: Cast exists only because `ShotNodeData.seededFrom` still requires `shotIndex`
+    // (a legacy field predating D193). MultishotNodeData uses only `shotIndexes`. This cast must
+    // be DELETED when `shotIndex` is removed from ShotNodeData — at that point both shapes are
+    // identical and the assignment needs no cast.
     seededFrom: data.seededFrom as MultishotNodeData["seededFrom"],
     totalSeconds: clampBudget(totalOf(cuts)),
     cuts,
@@ -40,9 +39,10 @@ export function multishotDataToShot(data: MultishotNodeData): ShotNodeData {
 
   return {
     order: data.order,
-    // Straight passthrough — see the note in shotDataToMultishot. A multishot node's seededFrom
-    // never carries `shotIndex`, but a Shot node's type declares it required; the cast says the
-    // absence is fine rather than inventing a value the original node never had.
+    // TEMPORARY: Cast exists only because `ShotNodeData.seededFrom` still requires `shotIndex`
+    // (a legacy field predating D193). MultishotNodeData has no such field. This cast must be
+    // DELETED when `shotIndex` is removed from ShotNodeData — at that point both shapes are
+    // identical and the assignment needs no cast.
     seededFrom: data.seededFrom as ShotNodeData["seededFrom"],
     // Re-derived, not carried — the stored value described one cut, and after the conversion
     // the node is one take covering all of them.
