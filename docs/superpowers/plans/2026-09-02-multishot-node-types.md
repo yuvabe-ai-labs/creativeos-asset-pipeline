@@ -2121,10 +2121,12 @@ EOF
 
 The Multishot node has no Composer, so the sequence-role catalog has no consumer.
 
-> **Reversible by design.** `sequence-roles.ts` is 134 lines of researched cutting patterns (Rosenblum's five-shot method, the 30-degree rule per pattern, the graphic-match chain). It is deleted here on the reasoning that D201's authoring surface should return only once the flow it serves is settled. If the catalog should be parked in the tree instead, skip Steps 2–3 and leave the file with its consumers stubbed out.
+> **DECIDED: `sequence-roles.ts` is PARKED, not deleted.** The file and its tests stay in the tree; only its consumers go. It is 134 lines of researched cutting patterns (Rosenblum's five-shot method, the 30-degree rule per pattern, the graphic-match chain) and is expected back once the multishot flow settles.
+>
+> Because a file with no callers rots quietly and misleads the next reader into thinking it is live, it gets a header comment saying so — see Step 2. Do NOT `git rm` it.
 
 **Files:**
-- Delete: `src/lib/nodes/sequence-roles.ts`, `src/lib/nodes/__tests__/sequence-roles.test.ts`
+- Modify: `src/lib/nodes/sequence-roles.ts` (header comment only)
 - Modify: `src/components/nodes/shot-compose-sheet.tsx`, `src/lib/nodes/shot-compose.ts`, `src/app/api/nodes/[id]/compose/route.ts`, `src/lib/nodes/video-controls.ts`, `src/components/nodes/video-prompt-focus-view.tsx`
 
 - [ ] **Step 1: Delete the LOOK and VOICE contracts**
@@ -2133,10 +2135,19 @@ In `src/lib/nodes/video-controls.ts`, delete `look` and `voice` from the `VideoC
 
 In `src/components/nodes/video-prompt-focus-view.tsx`, delete the `ContractField` usages for both contracts and the component file if it has no other consumer (`grep -rn "ContractField" src/`).
 
-- [ ] **Step 2: Delete the sequence-role catalog**
+- [ ] **Step 2: Mark the catalog parked**
 
-```bash
-git rm src/lib/nodes/sequence-roles.ts src/lib/nodes/__tests__/sequence-roles.test.ts
+Keep `src/lib/nodes/sequence-roles.ts` and its tests. Add this above the existing header comment so nobody mistakes it for live code or "fixes" it back into a dead call path:
+
+```ts
+// PARKED — nothing imports this today.
+//
+// The catalog served the Shot Composer's multishot branch, and a Multishot node has no Composer
+// (D209). It is kept rather than deleted because every entry is a documented pattern rather than
+// an invention, and the multishot flow is expected to want them again once it settles.
+//
+// Its tests still run, so the file cannot rot silently. If you are wiring a new consumer, read
+// the design spec's §9 first — the reason there is no Composer is deliberate.
 ```
 
 - [ ] **Step 3: Remove its consumers**
@@ -2149,8 +2160,9 @@ In `src/app/api/nodes/[id]/compose/route.ts`: delete the `getSequenceRole` impor
 
 - [ ] **Step 4: Verify nothing references the deleted names**
 
-Run: `grep -rn "sequence-roles\|SEQUENCE_ROLES\|SequenceRole\|LOOK_PRESETS\|VOICE_PRESETS\|controls.look\|controls.voice" src/`
-Expected: no output.
+Run: `grep -rn "sequence-roles\|SEQUENCE_ROLES\|SequenceRole\|LOOK_PRESETS\|VOICE_PRESETS\|controls\.look\|controls\.voice" src/ | grep -v "sequence-roles.ts\|__tests__/sequence-roles"`
+
+Expected: no output. The parked catalog and its own tests are the only permitted hits, which is what the second `grep -v` filters — every other reference is a consumer that should be gone.
 
 - [ ] **Step 5: Verify compile and suite**
 
@@ -2162,15 +2174,18 @@ Expected: compile clean, tests pass.
 ```bash
 git add -A
 git commit -m "$(cat <<'EOF'
-refactor(multishot): park the sequence roles and the LOOK/VOICE contracts
+refactor(multishot): unwire the sequence roles, delete the LOOK/VOICE controls
 
 D203's catalog served only the Composer's multishot branch, and a Multishot
-node has no Composer. D201's LOOK and D204's VOICE were operator-authored
-fields with preset catalogs; the look returns in phase 2 as MODEL output in
+node has no Composer. The FILE stays — every entry is a documented pattern
+rather than an invention, and the flow is expected to want them back — but
+nothing imports it now, and a header comment says so.
+
+D201's LOOK and D204's VOICE were operator-authored fields with preset
+catalogs, and those go: the look returns in phase 2 as MODEL output inside
 the plan, not as a control.
 
-All three are parked, not superseded — candidates to return once the flow
-they serve is settled. The Composer is untouched for single Shot nodes.
+The Composer is untouched for single Shot nodes.
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 EOF
@@ -2693,7 +2708,120 @@ EOF
 
 ---
 
-### Task 12: Resolve inputs and the route
+### Task 12: Extract the shared prompt-run and focus-view shells
+
+Two prompt nodes now need the same scaffolding. Extract it **before** the second consumer exists, so the multishot route is written against a helper rather than against a copy.
+
+The credit path is the reason this task comes first rather than after: `video-prompt/route.ts`'s own header comment records that it previously logged versions but "never joined the credit ledger at all". A duplicated copy of that flow is a second place for exactly that defect to reappear, and a divergence there costs real money rather than tidiness.
+
+**Files:**
+- Create: `src/lib/api/prompt-run.ts`
+- Create: `src/components/nodes/prompt-focus-shell.tsx`
+- Modify: `src/app/api/nodes/[id]/video-prompt/route.ts`, `src/components/nodes/video-prompt-focus-view.tsx`
+
+**Interfaces:**
+- Produces:
+  ```ts
+  // src/lib/api/prompt-run.ts — the credit + version envelope around one text-model call.
+  export async function runPromptGeneration<T>(args: {
+    nodeId: string;
+    clientId: string;
+    orgId: string;
+    promptId: string;
+    model: string;
+    estimateInput: string;
+    call: () => Promise<{ output: T; usage: { inputTokens: number; outputTokens: number } }>;
+  }): Promise<{ output: T; versionId: string }>;
+  ```
+  It reserves credits, inserts the generation row, invokes `call`, then settles or refunds and writes + activates the version. A thrown error inside `call` refunds the reservation and fails the generation row.
+
+- [ ] **Step 1: Characterise the existing behaviour before moving it**
+
+There is no test covering `video-prompt/route.ts`'s credit flow today, so the extraction has nothing holding it honest. Write one first, in `src/lib/api/__tests__/prompt-run.test.ts`, against the helper you are about to create:
+
+```ts
+import { describe, it, expect, vi } from "vitest";
+import { runPromptGeneration } from "../prompt-run";
+
+// The reservation must be released on BOTH paths. A helper that refunds only on success turns
+// every model error into silently burnt credits — which is the failure mode this extraction
+// exists to stop happening twice.
+describe("runPromptGeneration", () => {
+  it("settles the reservation and writes a version when the call succeeds", async () => {
+    // Mock the db modules the helper imports; assert settleGeneration and insertVersion ran,
+    // refundReservation did not, and the returned versionId is the inserted row's id.
+  });
+
+  it("refunds the reservation and fails the generation when the call throws", async () => {
+    // Assert refundReservation and failGeneration ran, insertVersion did NOT, and the error
+    // propagates to the caller rather than being swallowed.
+  });
+
+  it("propagates a CreditLimitError without reserving anything", async () => {
+    // reserveCredits throws CreditLimitError -> no generation row, no version, error surfaces.
+  });
+});
+```
+
+Mock `@/lib/db/versions`, `@/lib/db/generations` and `@/lib/db/credit-transactions` with `vi.mock`. Read `src/app/api/nodes/[id]/video-prompt/route.ts` first and mirror the exact call order it uses — this task must not change behaviour, only its location.
+
+- [ ] **Step 2: Run the test to verify it fails**
+
+Run: `npx vitest run src/lib/api/__tests__/prompt-run.test.ts`
+Expected: FAIL — `Failed to resolve import "../prompt-run"`
+
+- [ ] **Step 3: Extract the helper**
+
+Create `src/lib/api/prompt-run.ts` by **moving** the reserve → insert-generation → call → settle/refund → insert-version → set-active sequence out of `video-prompt/route.ts`. Move it; do not retype it. The behaviour must be identical.
+
+- [ ] **Step 4: Rewrite video-prompt's route to call it**
+
+`video-prompt/route.ts` keeps its `withNode` wrapper, its body parsing, its `resolveVideoPromptInputs` + `compileVideoPrompt` call, and its response shape. Everything between the reservation and the version write becomes `runPromptGeneration({ … call: () => openai.chat.completions.create(…) })`.
+
+- [ ] **Step 5: Run the test and the video-prompt route's own tests**
+
+Run: `npx vitest run src/lib/api src/app/api`
+Expected: PASS. The video-prompt route's existing tests must pass **unchanged** — if one needed editing, the extraction changed behaviour and is wrong.
+
+- [ ] **Step 6: Extract the focus-view shell**
+
+Create `src/components/nodes/prompt-focus-shell.tsx` holding what both focus views share: the sheet frame, the connected-inputs rail, the version chips, the approval controls, and the `useNodeVersionUpdates` wiring. It takes the node id plus a `children` body, so each view supplies only its own middle.
+
+Rewrite `video-prompt-focus-view.tsx` to use it. That file is 1005 lines; this should take a substantial bite out of it, and the shell is what Task 15 builds the multishot view on.
+
+- [ ] **Step 7: Verify nothing regressed**
+
+Run: `npx tsc --noEmit && npx vitest run src/components && npx vitest run src/lib`
+Expected: clean.
+
+Then `npm run dev:next` and open an existing Video Prompt node: generate, switch versions, approve. All three must behave exactly as before.
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add src/lib/api/prompt-run.ts src/lib/api/__tests__/prompt-run.test.ts src/components/nodes/prompt-focus-shell.tsx src/app/api/nodes/ src/components/nodes/video-prompt-focus-view.tsx
+git commit -m "$(cat <<'EOF'
+refactor(prompt): extract the credit/version envelope and the focus-view shell
+
+Two prompt nodes are about to need both. Extracted before the second
+consumer exists, so the multishot route is written against a helper rather
+than against a copy of one.
+
+The credit path especially: video-prompt/route.ts's own header records that
+it once logged versions without joining the credit ledger at all, and a
+duplicate of that flow is a second place for the same defect to reappear.
+
+Behaviour is unchanged — the video-prompt route's existing tests pass
+untouched, which is the check that the move was a move.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
+### Task 13: Resolve inputs and the route
 
 **Files:**
 - Modify: `src/lib/nodes/resolve-inputs.ts`
@@ -2893,9 +3021,9 @@ Expected: PASS — 4 tests
 
 Create `src/app/api/nodes/[id]/multishot-prompt/route.ts`.
 
-**Read `src/app/api/nodes/[id]/video-prompt/route.ts` in full first and copy its skeleton verbatim** — the `withNode` wrapper (NOT `withClient`; this route is addressed by node id), the credit reservation / settlement / refund flow around the model call, `insertGeneration` / `succeedGeneration` / `failGeneration`, `computeCost`, and `insertVersion` + `setActiveVersion`. That skeleton is load-bearing: a route that skips the credit ledger bills nothing, which is the exact defect the video-prompt route's own header comment records fixing.
+**Use `runPromptGeneration` from Task 12** — do NOT copy video-prompt's credit/version sequence. The envelope (reserve → generation row → call → settle or refund → version → activate) is the helper's job; this route supplies only the `withNode` wrapper (NOT `withClient`; this route is addressed by node id), the body parsing, and the model call itself.
 
-Only the middle differs. Replace the compile-and-call section with:
+Read `src/app/api/nodes/[id]/video-prompt/route.ts` to see how it calls the helper, then write this route the same way. The middle is what differs:
 
 ```ts
     const body = (await req.json().catch(() => null)) as {
@@ -3017,7 +3145,7 @@ EOF
 
 ---
 
-### Task 13: The Multishot Prompt node card and Omni coercion
+### Task 14: The Multishot Prompt node card and Omni coercion
 
 **Files:**
 - Create: `src/components/nodes/multishot-prompt-node.tsx`
@@ -3128,7 +3256,7 @@ EOF
 
 ---
 
-### Task 14: The focus view — three columns
+### Task 15: The focus view — three columns
 
 **Files:**
 - Create: `src/components/nodes/multishot-beat-card.tsx`
@@ -3221,7 +3349,7 @@ export function MultishotBeatCard({
 
 - [ ] **Step 2: Build the focus view**
 
-Create `src/components/nodes/multishot-prompt-focus-view.tsx`, modelled on `src/components/nodes/video-prompt-focus-view.tsx` — read it first and reuse its shell: the sheet, the connected-inputs rail, the version chips, the approval controls, and the `useNodeVersionUpdates` hook.
+Create `src/components/nodes/multishot-prompt-focus-view.tsx` **wrapping `PromptFocusShell` from Task 12** — the sheet, connected-inputs rail, version chips, approval controls and `useNodeVersionUpdates` come from the shell. Do not re-implement or copy them; this file supplies only the body.
 
 The body is three columns:
 
@@ -3304,7 +3432,7 @@ EOF
 
 ---
 
-### Task 15: Verify against the live model
+### Task 16: Verify against the live model
 
 The two assumptions this whole design rests on have never been demonstrated. Neither blocks building; both block trusting.
 
@@ -3344,7 +3472,7 @@ EOF
 
 ---
 
-### Task 16: Final sweep
+### Task 17: Final sweep
 
 **Files:** various
 
@@ -3356,8 +3484,9 @@ Expected: only comments and the `describeGenerations` / `Generation.multishot` f
 
 - [ ] **Step 2: Confirm the deleted names are gone**
 
-Run: `grep -rn "splitMultishot\|mergeShot\|MultishotToggle\|renderShotLadder\|renderMultishotBrief\|SEQUENCE_ROLES\|LOOK_PRESETS\|VOICE_PRESETS\|describeShotGrouping" src/`
-Expected: no output.
+Run: `grep -rn "splitMultishot\|mergeShot\|MultishotToggle\|renderShotLadder\|renderMultishotBrief\|SEQUENCE_ROLES\|LOOK_PRESETS\|VOICE_PRESETS\|describeShotGrouping" src/ | grep -v "sequence-roles.ts\|__tests__/sequence-roles"`
+
+Expected: no output. `sequence-roles.ts` is parked with no consumers (Task 9), so it and its tests are the only permitted hits.
 
 - [ ] **Step 3: Run the full suite**
 
@@ -3409,15 +3538,16 @@ EOF
 
 | Spec section | Task |
 |---|---|
-| §2 two lanes, connections, Omni coercion | 2, 13 |
+| §2 two lanes, connections, Omni coercion | 2, 14 |
 | §3 data types, no migration | 1, 2, 6 |
 | §4 the generation bracket, `groupModes` | 3, 4 |
 | §5 incremental fan-out | 5 |
 | §6 type swap in place, lossless conversion, "off" joins all rows | 6, 8 |
 | §7 the Multishot node, fixed budget, soft cut limit | 1, 7 |
-| §8 the prompt node, chip editors, look block, plan JSON | 10, 11, 12, 13, 14 |
-| §9 deletions | 8, 9, 12, 16 |
-| §10 error handling | 1, 6, 10, 12 |
+| Shared shell extraction (reusability rule) | 12 |
+| §8 the prompt node, chip editors, look block, plan JSON | 10, 11, 12, 13, 14, 15 |
+| §9 deletions | 8, 9, 13, 17 |
+| §10 error handling | 1, 6, 10, 13 |
 | §11 testing | every task |
-| §12 ADR entries | 16 |
+| §12 ADR entries | 17 |
 | §13 phasing | task order |
