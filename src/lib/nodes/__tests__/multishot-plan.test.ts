@@ -70,6 +70,35 @@ describe("parsePlan", () => {
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.plan.beats.map((b) => b.text)).toEqual(["first", "second", "third"]);
   });
+
+  // Duplicate cutId collapses in the map, so a plan with the same length as cuts can still
+  // miss one. This is the case the length-based intuition would miss — coverage, not count.
+  it("rejects a plan with duplicate cutId that leaves a cut uncovered", () => {
+    const result = parsePlan(
+      raw({
+        beats: [
+          { cutId: "c1", text: "first" },
+          { cutId: "c1", text: "duplicate" },
+          { cutId: "c2", text: "second" },
+        ],
+      }),
+      cuts,
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toMatch(/every shot/i);
+  });
+
+  it("rejects a non-string look", () => {
+    expect(parsePlan(raw({ look: 42 }), cuts).ok).toBe(false);
+    expect(parsePlan(raw({ look: null }), cuts).ok).toBe(false);
+    expect(parsePlan(raw({ look: {} }), cuts).ok).toBe(false);
+  });
+
+  it("rejects a beat that is not an object with cutId and text", () => {
+    expect(parsePlan(raw({ beats: [null, { cutId: "c1", text: "a" }] }), cuts).ok).toBe(false);
+    expect(parsePlan(raw({ beats: [{ cutId: "c1", text: "a" }, 42] }), cuts).ok).toBe(false);
+    expect(parsePlan(raw({ beats: ["string", { cutId: "c1", text: "a" }] }), cuts).ok).toBe(false);
+  });
 });
 
 describe("renderPlan", () => {
