@@ -60,8 +60,13 @@ export function renderMultishotBrief(args: {
 
   const blocks: string[] = [];
 
+  // Both contracts pass through untouched, and both sit ABOVE the ladder. The system prompt
+  // reproduces them character-for-character at the top of every beat, and anything done to them
+  // here would be precisely the paraphrase the guidance warns against.
   const look = (args.controls.look ?? "").trim();
   if (look) blocks.push(`LOOK — ${look}`);
+  const voice = (args.controls.voice ?? "").trim();
+  if (voice) blocks.push(`VOICE — ${voice}`);
 
   blocks.push(`Beats (keep these timings exactly):\n${renderShotLadder(args.script)}`);
 

@@ -1,5 +1,6 @@
 // Pure logic for the Shot Composer (D28). No server-only imports — unit-testable.
 import type { ShotRole } from "@/lib/nodes/shot-roles";
+import { renderSequenceRole, type SequenceRole } from "@/lib/nodes/sequence-roles";
 import type { UpstreamPreview } from "@/lib/nodes/resolve-inputs"; // type-only (erased) — safe
 import type { ReelShot } from "@/lib/nodes/reel-script";
 import { shotSeconds, OMNI_MIN_SECONDS, OMNI_MAX_SECONDS } from "@/lib/nodes/group-shots";
@@ -148,7 +149,11 @@ export function renderComposeContext(args: {
  */
 export function renderMultishotComposeContext(args: {
   shots: ReelShot[];
-  role: ShotRole;
+  /**
+   * D203 — a SEQUENCE role, not a shot role. "Product hero" says nothing about how five cuts
+   * relate to each other, which is the only question once a shot is a sequence.
+   */
+  role: SequenceRole;
   clientContext: string;
   objective?: string;
   /** The clip's total length. The composer's beats must sum to this; the COUNT is its own call. */
@@ -173,11 +178,7 @@ export function renderMultishotComposeContext(args: {
 
   if (objective?.trim()) blocks.push(`Objective: ${objective.trim()}`);
 
-  blocks.push(
-    `Role: ${role.label}\n` +
-      `This role must include: ${role.slots.join(", ")}\n` +
-      `Avoid for this role: ${role.avoid.join(", ")}`,
-  );
+  blocks.push(renderSequenceRole(role));
   if (clientContext.trim()) blocks.push(`Brand context:\n${clientContext.trim()}`);
 
   return blocks.join("\n\n");

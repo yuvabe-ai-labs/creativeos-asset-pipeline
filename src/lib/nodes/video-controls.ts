@@ -17,11 +17,23 @@ export type VideoControls = Record<VideoControlKey, string> & {
    * once and reproduced VERBATIM at the top of every beat, because paraphrase is drift and this is
    * the only thing making separate cuts read as one film. Multishot only; absent until authored.
    *
-   * The only multishot control. There was a per-beat camera beside it; it is gone. Framing is
-   * decided per beat by the prompt writer, which carries the shot-size, 30-degree and
-   * screen-direction rules — a row of "auto" dropdowns was a control to dismiss, not one to use.
+   * There was a per-beat camera beside it; it is gone. Framing is decided per beat by the prompt
+   * writer, which carries the shot-size, 30-degree and screen-direction rules — a row of "auto"
+   * dropdowns was a control to dismiss, not one to use.
    */
   look?: string;
+  /**
+   * D204 — the VOICE contract, the LOOK's counterpart in sound. Also reproduced VERBATIM.
+   *
+   * Who is speaking, from where, how, and what is NOT in the mix. `ref/multishot-refs/
+   * chupps-20s-omni-prompts.md` treats it as co-equal with the LOOK: "LOOK and VOICE are
+   * byte-identical in all four. Do not paraphrase them between generations — they are the only
+   * thing making four separate renders cut together, in picture AND in sound."
+   *
+   * Separate from the `audio` param on the Video Gen node, which picks a one-line clause shape
+   * (dialogue / ambient / music). This is the narrator's identity, and one line cannot carry it.
+   */
+  voice?: string;
 };
 
 export const VIDEO_CONTROLS: {
@@ -94,10 +106,49 @@ export function normalizeVideoControls(input: unknown): VideoControls {
     speed: typeof c.speed === "string" ? c.speed : DEFAULT_VIDEO_CONTROLS.speed,
   };
   if (typeof c.look === "string") controls.look = c.look;
+  if (typeof c.voice === "string") controls.voice = c.voice;
   return controls;
 }
 
 export type LookPreset = { value: string; label: string; prose: string };
+
+/**
+ * Starting points for the VOICE contract — a paragraph to edit, not a menu.
+ *
+ * Each names the things that must not drift between generations: who is speaking, whether they are
+ * on screen, the delivery, and what is absent from the mix. "Warm and friendly" cannot be
+ * reproduced; "male, early thirties, close-mic and unhurried, no upward sell inflection" can.
+ *
+ * Every preset states the music rule explicitly, because Omni adds a bed unless told not to.
+ */
+export const VOICE_PRESETS: LookPreset[] = [
+  {
+    value: "narrator-offscreen",
+    label: "Off-screen narrator",
+    prose:
+      "All spoken lines are off-screen narration. Nobody on screen speaks, no lip movement, no " +
+      "character addresses the camera. Narrator is male, early thirties, warm neutral accent, " +
+      "unhurried and low-key confident, close-mic and intimate — a friend, not an announcer. No " +
+      "upward sell inflection, no hype. Ambience and foley only; no music bed.",
+  },
+  {
+    value: "creator-to-camera",
+    label: "Creator to camera",
+    prose:
+      "One person speaks directly to camera, in their own voice, at conversational volume with " +
+      "room tone audible. Female, late twenties, natural and slightly imperfect delivery — a " +
+      "half-laugh and an unpolished cadence are wanted, not smoothed out. No announcer tone, no " +
+      "studio reverb. Ambience and foley only; no music bed.",
+  },
+  {
+    value: "no-speech",
+    label: "No speech",
+    prose:
+      "Nobody speaks. No narration, no dialogue, no lip movement on any subject. The track is " +
+      "diegetic ambience and foley only — footsteps, fabric, handling, room tone — mixed close " +
+      "and dry. No music bed, no risers, no whooshes on the cuts.",
+  },
+];
 
 /**
  * Starting points for the LOOK contract — a paragraph to edit, not a fixed menu.

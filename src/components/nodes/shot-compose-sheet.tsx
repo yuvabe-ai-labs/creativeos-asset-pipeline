@@ -17,6 +17,11 @@ import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { SHOT_ROLES, DEFAULT_SHOT_ROLE } from "@/lib/nodes/shot-roles";
 import {
+  SEQUENCE_ROLES,
+  DEFAULT_SEQUENCE_ROLE,
+  getSequenceRole,
+} from "@/lib/nodes/sequence-roles";
+import {
   retimeSequence,
   sequenceSeconds,
   shotsTotalSeconds,
@@ -122,7 +127,13 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
       .filter(Boolean) as { id: string; label: string; url: string }[];
   }, [nodes, edges, nodeId]);
 
-  const [role, setRole] = useState<string>(DEFAULT_SHOT_ROLE);
+  // Seeded from whichever catalog this shot uses. The two are disjoint, so a node toggled between
+  // single and multishot holds a key the other does not know — each getter falls back to its own
+  // default rather than showing an empty select.
+  const [role, setRole] = useState<string>(
+    nodeMultishot === true ? DEFAULT_SEQUENCE_ROLE : DEFAULT_SHOT_ROLE,
+  );
+  const activeSequenceRole = isMultishot ? getSequenceRole(role) : null;
   const [slices] = useState<KBSliceKey[]>(DEFAULT_PARSE_SLICES);
   const [ideas, setIdeas] = useState<ShotComposeIdea[]>([]);
   const [sequences, setSequences] = useState<ShotComposeSequence[]>([]);
@@ -333,20 +344,32 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
           <div className="flex min-h-0 w-full max-w-5xl overflow-hidden">
             {/* LEFT — inputs */}
             <div className="flex w-[30%] flex-col gap-6 overflow-y-auto border-r border-border px-6 py-6">
-              <div>
-                <SectionLabel icon={Tag} className="mb-2">Role</SectionLabel>
+              {/* D203 — a multishot shot picks a SEQUENCE role: the job a block of cuts does and
+                  what changes across them. "Product hero" describes one frame and says nothing
+                  about how five cuts relate, which is the only question here. */}
+              <div className="min-w-0">
+                <SectionLabel icon={Tag} className="mb-2">
+                  {isMultishot ? "Sequence role" : "Role"}
+                </SectionLabel>
                 <Select value={role} onValueChange={(v) => setRole(v as string)}>
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Role" />
+                    <SelectValue placeholder={isMultishot ? "Sequence role" : "Role"} />
                   </SelectTrigger>
                   <SelectContent>
-                    {SHOT_ROLES.map((r) => (
+                    {(isMultishot ? SEQUENCE_ROLES : SHOT_ROLES).map((r) => (
                       <SelectItem key={r.key} value={r.key}>
                         {r.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                {activeSequenceRole && (
+                  // The arc is what actually distinguishes these from each other, and it is not
+                  // guessable from a two-word label.
+                  <p className="mt-1.5 text-[0.65rem] leading-relaxed text-muted-foreground">
+                    {activeSequenceRole.arc}
+                  </p>
+                )}
               </div>
 
               {/* D201 — the clip's total length. The one number the composer must hit, and the

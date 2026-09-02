@@ -1,30 +1,42 @@
 "use client";
 
 import { useState } from "react";
-import { Sun } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { FieldLabel } from "./field-label";
-import { LOOK_PRESETS } from "@/lib/nodes/video-controls";
+import type { LookPreset } from "@/lib/nodes/video-controls";
 
 /**
- * D201 — the LOOK contract, the one control multishot needs that a single shot does not.
+ * A verbatim contract — the LOOK (D201) or the VOICE (D204).
  *
- * It is reproduced VERBATIM at the top of every beat, which is what makes separate cuts read as
- * one film. That is also why it is a free textarea rather than a set of selects: the useful thing
- * to write is repeatable physical fact ("low sun from camera-left, long shadows toward the lens,
- * warm grey concrete, 35mm at knee height"), and no fixed vocabulary covers that. The presets are
- * a paragraph to start editing, not a menu to pick from.
+ * Both are reproduced WORD FOR WORD at the top of every beat, and that is what makes separate cuts
+ * read as one film: the LOOK in picture, the VOICE in sound. Paraphrase is drift.
+ *
+ * That is also why each is a free textarea rather than a set of selects. The useful thing to write
+ * is repeatable physical fact — "low sun from camera-left, long shadows toward the lens, 35mm at
+ * knee height", "male, early thirties, close-mic, no upward sell inflection" — and no fixed
+ * vocabulary covers it. The presets are a paragraph to start editing, not a menu to pick from.
  *
  * Commits on blur, matching the composition-instructions field on the Draw node — a controlled
  * value that patched on every keystroke would write a version per character.
  */
-export function LookContractField({
+export function ContractField({
+  icon,
+  label,
+  help,
+  placeholder,
+  presets,
   value,
   onChange,
   disabled = false,
 }: {
+  icon: LucideIcon;
+  label: string;
+  help: string;
+  placeholder: string;
+  presets: LookPreset[];
   value: string;
   onChange: (value: string) => void;
   disabled?: boolean;
@@ -42,10 +54,8 @@ export function LookContractField({
   return (
     // min-w-0 so a long preset label or placeholder can never hold this column open.
     <div className="min-w-0 space-y-1.5">
-      <FieldLabel icon={Sun} label="Look contract" />
-      <p className="text-xs text-muted-foreground">
-        Repeated word for word at the top of every beat. Name light, palette and ground, not a mood.
-      </p>
+      <FieldLabel icon={icon} label={label} />
+      <p className="text-xs text-muted-foreground">{help}</p>
 
       <Textarea
         value={draft}
@@ -55,13 +65,13 @@ export function LookContractField({
         }}
         disabled={disabled}
         rows={3}
-        placeholder="Low sun from camera-left, long shadows. 35mm at knee height. Palette of warm grey concrete and denim."
+        placeholder={placeholder}
         className="nodrag w-full resize-none border-border bg-muted/50 text-sm"
       />
 
       <div className="flex flex-wrap items-center gap-1.5">
         <span className="text-[0.7rem] text-muted-foreground">Start from</span>
-        {LOOK_PRESETS.map((preset) => (
+        {presets.map((preset) => (
           <Button
             key={preset.value}
             type="button"

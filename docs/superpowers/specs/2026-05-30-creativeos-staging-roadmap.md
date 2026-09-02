@@ -3746,3 +3746,54 @@ alone reappears on the next load.
 **Rejected.** Drag-and-drop onto a target node (a second interaction model for a canvas that already
 batches by selection); clamping an over-cap merge to 10s (loses beats invisibly); merging in
 selection order (reorders the reel).
+
+### D203 — Multishot composes against SEQUENCE roles, a separate catalog *(recorded 2026-09-02; refines D28, D201)*
+
+**Decision.** A multishot Shot picks from `SEQUENCE_ROLES` (`src/lib/nodes/sequence-roles.ts`), not
+from `SHOT_ROLES`. The two catalogs are **disjoint** — no shared keys — and each getter falls back
+to its own default, so a node toggled between single and multishot never resolves to the wrong one.
+A `SequenceRole` carries three fields a `ShotRole` has no use for: **`beats`** (typical count),
+**`arc`** (what changes from beat to beat), and **`cutRule`** (the continuity constraint governing
+*that* pattern).
+
+**Why a separate catalog.** A `ShotRole` names the job **one frame** does in a funnel — hook, hero,
+texture, application. Once a shot is five cuts, the useful question is what changes *across* them,
+and "product hero" answers nothing about that. Merging the two would give one type two meanings and
+a set of fields half of every entry leaves empty.
+
+**Why `cutRule` is per role.** Each pattern turns on a *different* constraint, and a single shared
+paragraph would be wrong for most of them: a **transformation chain** holds one framing exactly,
+which the 30-degree rule would forbid; a **vignette montage** wants no continuity between beats at
+all; **coverage** is the pattern the 30-degree rule was written for. The composer prompt states that
+the role's own rule outranks the general cutting rules where they conflict.
+
+**Sources.** Rosenblum's five-shot method (coverage); the wide→medium→close progression (establish);
+the act structure in `ref/multishot-refs/chupps-20s-omni-prompts.md` (cold-open, vignette,
+brand-close); commercial convention of 4–8 isolated angles plus a hero (feature-run).
+
+**Rejected.** One merged catalog filtered by `multishot` (two meanings on one type, half the fields
+empty per entry); sequence role *plus* a per-beat shot role (a second control on the sheet and a
+much larger prompt, for a distinction the arc already carries).
+
+### D204 — VOICE is a verbatim contract beside LOOK *(recorded 2026-09-02; refines D201)*
+
+**Decision.** A second free-text contract, `VideoControls.voice`, reproduced **verbatim** at the top
+of every beat exactly as the LOOK is, rendered on its own line directly beneath it. Presets name
+reproducible facts (who speaks, on or off screen, age, mic position, delivery, and what is absent
+from the mix). Omitted entirely when unset — never invented.
+
+**Why.** `ref/multishot-refs/chupps-20s-omni-prompts.md` states it directly: "`LOOK` and `VOICE` are
+byte-identical in all four. Do not paraphrase them between generations — they are the only thing
+making four separate renders cut together, in picture **and in sound**." A narrator that drifts
+between generations is as visible a seam as a light direction that flips, and unlike a light
+direction it cannot be corrected afterwards.
+
+**Distinct from the `audio` param** on the Video Gen node, which picks a one-line clause shape
+(dialogue / ambient / music). That shape cannot carry a narrator's identity. Both exist; the VOICE
+contract governs, and the prompt is told never to contradict it.
+
+**Every preset states the music rule**, because Omni lays a bed unless told not to — silence on the
+point is not neutral.
+
+**Consequence.** `LookContractField` became the shared `ContractField`; the two contracts differ
+only in icon, copy and preset list, and a second near-identical component would have drifted.

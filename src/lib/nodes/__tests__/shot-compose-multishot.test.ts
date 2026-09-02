@@ -6,9 +6,9 @@ import {
   shotsTotalSeconds,
   clampToOmniBudget,
 } from "../shot-compose";
-import { getShotRole } from "../shot-roles";
+import { getSequenceRole } from "../sequence-roles";
 
-const role = getShotRole("");
+const role = getSequenceRole("");
 const seq = (...pairs: Array<[string, number]>) => ({
   title: "t",
   beats: pairs.map(([description, seconds]) => ({ description, seconds })),
@@ -125,11 +125,19 @@ describe("renderMultishotComposeContext", () => {
     expect(ctx()).toContain("1. (4s) hands lift the jar");
   });
 
-  it("includes the role's slots and avoid-list", () => {
+  // D203 — a SEQUENCE role. Its arc and its own cutting rule are the fields with no analogue in
+  // the single-shot catalog, and they are what make the patterns differ from each other.
+  it("includes the sequence role's arc, cut rule, slots and avoid-list", () => {
     const out = ctx();
-    expect(out).toContain(`Role: ${role.label}`);
+    expect(out).toContain(`Sequence role: ${role.label}`);
+    expect(out).toContain(role.arc);
+    expect(out).toContain(role.cutRule);
     expect(out).toContain(role.slots[0]);
     expect(out).toContain(role.avoid[0]);
+  });
+
+  it("states the role's typical beat count", () => {
+    expect(ctx()).toContain(`${role.beats[0]}-${role.beats[1]} beats`);
   });
 
   it("includes the objective and brand context only when present", () => {

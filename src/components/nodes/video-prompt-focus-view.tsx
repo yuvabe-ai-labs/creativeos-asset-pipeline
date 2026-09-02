@@ -12,6 +12,8 @@ import {
   SlidersHorizontal,
   FileInput,
   ExternalLink,
+  Sun,
+  Mic,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -42,10 +44,15 @@ import type { KBSliceKey } from "@/lib/kb/parse-context";
 import { CameraSelect } from "./camera-select";
 import { SpeedSelect } from "./speed-select";
 import { TargetProviderSelect } from "./target-provider-select";
-import { DEFAULT_VIDEO_CONTROLS, type VideoControls } from "@/lib/nodes/video-controls";
+import {
+  DEFAULT_VIDEO_CONTROLS,
+  LOOK_PRESETS,
+  VOICE_PRESETS,
+  type VideoControls,
+} from "@/lib/nodes/video-controls";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { findDescendantsOfType, findAncestorOfType } from "@/lib/canvas/graph";
-import { LookContractField } from "./look-contract-field";
+import { ContractField } from "./contract-field";
 import { ReferenceImageStrip } from "./reference-image-strip";
 import type { ReelShot } from "@/lib/nodes/reel-script";
 import { videoGenClientModelMap, DEFAULT_VIDEO_CLIENT_MODEL_ID } from "@/lib/video-gen/client-models";
@@ -687,15 +694,39 @@ export function VideoPromptFocusView({
                        a row of "auto" dropdowns was a control to dismiss, not one to use. The
                        beats themselves live on the Shot node, and the generated ladder shows
                        exactly what they became. */
-                    <LookContractField
-                      value={(controls ?? DEFAULT_VIDEO_CONTROLS).look ?? ""}
-                      onChange={(look) =>
-                        onPatch({
-                          controls: { ...(controls ?? DEFAULT_VIDEO_CONTROLS), look },
-                        })
-                      }
-                      disabled={!editable}
-                    />
+                    <>
+                      <ContractField
+                        icon={Sun}
+                        label="Look contract"
+                        help="Repeated word for word at the top of every beat. Name light, palette and ground, not a mood."
+                        placeholder="Low sun from camera-left, long shadows. 35mm at knee height. Palette of warm grey concrete and denim."
+                        presets={LOOK_PRESETS}
+                        value={(controls ?? DEFAULT_VIDEO_CONTROLS).look ?? ""}
+                        onChange={(look) =>
+                          onPatch({
+                            controls: { ...(controls ?? DEFAULT_VIDEO_CONTROLS), look },
+                          })
+                        }
+                        disabled={!editable}
+                      />
+                      {/* D204 — the LOOK's counterpart in sound. Cuts match in picture because of
+                          the LOOK and in sound because of this; a narrator that drifts between
+                          generations is as visible a seam as a light direction that flips. */}
+                      <ContractField
+                        icon={Mic}
+                        label="Voice contract"
+                        help="Repeated word for word too. Who speaks, from where, how — and what is not in the mix."
+                        placeholder="Off-screen narration, male, early thirties, close-mic and unhurried. No hype. Ambience and foley only; no music bed."
+                        presets={VOICE_PRESETS}
+                        value={(controls ?? DEFAULT_VIDEO_CONTROLS).voice ?? ""}
+                        onChange={(voice) =>
+                          onPatch({
+                            controls: { ...(controls ?? DEFAULT_VIDEO_CONTROLS), voice },
+                          })
+                        }
+                        disabled={!editable}
+                      />
+                    </>
                   ) : (
                     <>
                       {/* Target model + Speed share one row so the column stays short enough

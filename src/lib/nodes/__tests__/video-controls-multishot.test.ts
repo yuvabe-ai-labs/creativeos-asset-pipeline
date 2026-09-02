@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   renderVideoControls,
   LOOK_PRESETS,
+  VOICE_PRESETS,
   DEFAULT_VIDEO_CONTROLS,
   normalizeVideoControls,
 } from "../video-controls";
@@ -76,5 +77,38 @@ describe("normalizeVideoControls", () => {
 
   it("defaults camera and speed on garbage input", () => {
     expect(normalizeVideoControls(null)).toEqual({ camera: "auto", speed: "auto" });
+  });
+});
+
+describe("VOICE_PRESETS", () => {
+  it("has unique values and states the music rule in every one", () => {
+    expect(new Set(VOICE_PRESETS.map((p) => p.value)).size).toBe(VOICE_PRESETS.length);
+    // Omni lays a music bed unless told not to, so silence on the point is not neutral.
+    for (const preset of VOICE_PRESETS) expect(preset.prose).toMatch(/music/i);
+  });
+
+  // "Warm and friendly" cannot be reproduced across generations; a named age, mic position and
+  // delivery can. That reproducibility is the whole point of a verbatim contract.
+  it("names reproducible facts, not moods", () => {
+    for (const preset of VOICE_PRESETS) {
+      expect(preset.prose).not.toMatch(/cinematic|stunning|ultra realistic|8K/i);
+      expect(preset.prose.length).toBeGreaterThan(120);
+    }
+  });
+
+  it("covers the no-speech case", () => {
+    const silent = VOICE_PRESETS.find((p) => p.value === "no-speech");
+    expect(silent?.prose).toMatch(/Nobody speaks/i);
+  });
+});
+
+describe("normalizeVideoControls — VOICE", () => {
+  it("carries the VOICE contract through", () => {
+    expect(normalizeVideoControls({ voice: "Off-screen narration." }).voice)
+      .toBe("Off-screen narration.");
+  });
+
+  it("omits voice when absent", () => {
+    expect("voice" in normalizeVideoControls({ camera: "auto" })).toBe(false);
   });
 });

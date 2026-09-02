@@ -71,3 +71,50 @@ describe("renderMultishotBrief", () => {
   });
 
 });
+
+// D204 — the VOICE contract, the LOOK's counterpart in sound. The CHUPPS reference is explicit:
+// "LOOK and VOICE are byte-identical in all four. Do not paraphrase them between generations —
+// they are the only thing making four separate renders cut together, in picture AND in sound."
+describe("renderMultishotBrief — VOICE contract", () => {
+  const script = {
+    strategic_objective: "Brand awareness",
+    visual_script: {
+      shots: [
+        { description: "hands lift the jar", duration_seconds: 4 },
+        { description: "macro on the lid", duration_seconds: 5 },
+      ],
+    },
+  };
+  const voice = "Off-screen narration, male, early thirties. No music bed.";
+
+  it("passes the VOICE through untouched", () => {
+    const out = renderMultishotBrief({
+      script,
+      controls: { ...DEFAULT_VIDEO_CONTROLS, voice },
+    });
+    expect(out).toContain(`VOICE — ${voice}`);
+  });
+
+  it("omits the VOICE block entirely when none was authored", () => {
+    expect(renderMultishotBrief({ script, controls: DEFAULT_VIDEO_CONTROLS }))
+      .not.toContain("VOICE");
+  });
+
+  it("puts both contracts above the ladder, LOOK first", () => {
+    const out = renderMultishotBrief({
+      script,
+      controls: { ...DEFAULT_VIDEO_CONTROLS, look: "Low sun, camera-left.", voice },
+    });
+    expect(out.indexOf("LOOK —")).toBeLessThan(out.indexOf("VOICE —"));
+    expect(out.indexOf("VOICE —")).toBeLessThan(out.indexOf("[0-4s]"));
+  });
+
+  it("carries a VOICE with no LOOK", () => {
+    const out = renderMultishotBrief({
+      script,
+      controls: { ...DEFAULT_VIDEO_CONTROLS, voice },
+    });
+    expect(out).toContain("VOICE —");
+    expect(out).not.toContain("LOOK —");
+  });
+});

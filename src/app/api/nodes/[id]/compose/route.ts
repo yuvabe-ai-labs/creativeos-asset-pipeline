@@ -8,7 +8,8 @@ import {
   type ShotComposeIdea,
   type ShotComposeSequence,
 } from "@/lib/nodes/shot-compose";
-import { getShotRole } from "@/lib/nodes/shot-roles";
+import { getShotRole, type ShotRole } from "@/lib/nodes/shot-roles";
+import { getSequenceRole, type SequenceRole } from "@/lib/nodes/sequence-roles";
 import { buildUserContent } from "@/lib/nodes/compose-message";
 import { shotComposePrompt } from "@/prompts/shot-compose";
 import { shotComposeMultishotPrompt } from "@/prompts/shot-compose-multishot";
@@ -68,10 +69,17 @@ export async function POST(
     const body = (await req.json().catch(() => null)) as
       | { role?: unknown; slices?: unknown; budgetSeconds?: unknown }
       | null;
-    const role = getShotRole(typeof body?.role === "string" ? body.role : "");
+    const roleKey = typeof body?.role === "string" ? body.role : "";
 
     const resolved = await resolveShotComposeInputs(nodeId, body?.slices);
     if (!resolved) return apiError("Node not found.", 404);
+
+    // D203 — the two catalogs are disjoint, so the key is resolved against whichever one this
+    // shot uses. A node switched between single and multishot carries a key the other catalog
+    // does not know; both getters fall back to their own default rather than erroring.
+    const role = resolved.multishot
+      ? getSequenceRole(roleKey)
+      : getShotRole(roleKey);
 
     // D201 — the composer's UNIT depends on the shot. A multishot shot's beats have to cut
     // together, so it composes whole SEQUENCES (one beat per beat); a single shot composes
@@ -91,14 +99,14 @@ export async function POST(
     const user = multishot
       ? renderMultishotComposeContext({
           shots: resolved.shots,
-          role,
+          role: role as SequenceRole,
           clientContext: resolved.clientContext,
           objective: resolved.objective,
           budgetSeconds,
         })
       : renderComposeContext({
           seedText: resolved.seedText,
-          role,
+          role: role as ShotRole,
           clientContext: resolved.clientContext,
         });
     const userContent = buildUserContent(user, resolved.imageUpstream);
