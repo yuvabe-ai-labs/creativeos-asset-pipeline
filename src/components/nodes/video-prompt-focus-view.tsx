@@ -46,7 +46,6 @@ import { DEFAULT_VIDEO_CONTROLS, type VideoControls } from "@/lib/nodes/video-co
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { findDescendantsOfType, findAncestorOfType } from "@/lib/canvas/graph";
 import { LookContractField } from "./look-contract-field";
-import { BeatCameraList } from "./beat-camera-list";
 import { ReferenceImageStrip } from "./reference-image-strip";
 import type { ReelShot } from "@/lib/nodes/reel-script";
 import { videoGenClientModelMap, DEFAULT_VIDEO_CLIENT_MODEL_ID } from "@/lib/video-gen/client-models";
@@ -680,31 +679,23 @@ export function VideoPromptFocusView({
                   />
 
                   {isMultishot ? (
-                    /* D201 — the multishot surface. No Target model: a multishot shot's
-                       downstream Video Gen node is already locked to Omni, so the control has
-                       nothing left to offer. No Speed either — motion energy is a property of a
-                       single continuous take, and here each beat sets its own. */
-                    <>
-                      <LookContractField
-                        value={(controls ?? DEFAULT_VIDEO_CONTROLS).look ?? ""}
-                        onChange={(look) =>
-                          onPatch({
-                            controls: { ...(controls ?? DEFAULT_VIDEO_CONTROLS), look },
-                          })
-                        }
-                        disabled={!editable}
-                      />
-                      <BeatCameraList
-                        shots={upstreamShots}
-                        controls={controls ?? DEFAULT_VIDEO_CONTROLS}
-                        onChange={(beats) =>
-                          onPatch({
-                            controls: { ...(controls ?? DEFAULT_VIDEO_CONTROLS), beats },
-                          })
-                        }
-                        disabled={!editable}
-                      />
-                    </>
+                    /* D201 — the multishot surface is the LOOK contract and nothing else.
+                       No Target model: the downstream Video Gen node is already locked to Omni.
+                       No Speed: motion energy describes one continuous take, not a cut sequence.
+                       No per-beat camera either — framing is decided per beat by the prompt
+                       writer, which carries the shot-size, 30-degree and screen-direction rules;
+                       a row of "auto" dropdowns was a control to dismiss, not one to use. The
+                       beats themselves live on the Shot node, and the generated ladder shows
+                       exactly what they became. */
+                    <LookContractField
+                      value={(controls ?? DEFAULT_VIDEO_CONTROLS).look ?? ""}
+                      onChange={(look) =>
+                        onPatch({
+                          controls: { ...(controls ?? DEFAULT_VIDEO_CONTROLS), look },
+                        })
+                      }
+                      disabled={!editable}
+                    />
                   ) : (
                     <>
                       {/* Target model + Speed share one row so the column stays short enough

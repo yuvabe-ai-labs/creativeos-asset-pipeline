@@ -5,11 +5,7 @@
 // carry zero motion signal and are dropped.
 import type { ReelScript } from "@/lib/nodes/reel-script";
 import { shotSeconds } from "@/lib/nodes/group-shots";
-import {
-  VIDEO_CONTROLS,
-  beatControlsFor,
-  type VideoControls,
-} from "@/lib/nodes/video-controls";
+import type { VideoControls } from "@/lib/nodes/video-controls";
 
 export function renderShotForVideo(script: ReelScript | null): string {
   if (!script) return "";
@@ -44,22 +40,16 @@ export function renderShotLadder(script: ReelScript | null): string {
     .join("\n");
 }
 
-const CAMERA_PROSE = new Map(
-  (VIDEO_CONTROLS.find((group) => group.key === "camera")?.options ?? []).map((option) => [
-    option.value,
-    option.prose,
-  ]),
-);
-
 /**
- * D201 — the user turn for a MULTISHOT motion prompt: the LOOK, the ladder with each beat's own
- * camera, and the objective.
+ * D201 — the user turn for a MULTISHOT motion prompt: the LOOK, the timecode ladder, the objective.
  *
  * The LOOK is passed through untouched. The system prompt reproduces it character-for-character,
  * and anything done to it here would be precisely the paraphrase the guidance warns against.
  *
- * A beat left on "auto" gets no camera line at all — "auto" is the no-constraint option, and
- * emitting a sentence for it would put words in the prompt the operator never chose.
+ * No per-beat camera line. There was one; it is gone with the control that set it. Framing is the
+ * prompt writer's call now — it carries the rules that decide framing across a cut (vary shot size,
+ * 30 degrees or a size change between consecutive beats on one subject, one screen direction
+ * throughout), and a fixed camera clause per beat could only fight them.
  */
 export function renderMultishotBrief(args: {
   script: ReelScript | null;
@@ -68,21 +58,12 @@ export function renderMultishotBrief(args: {
   const shots = args.script?.visual_script?.shots ?? [];
   if (shots.length === 0) return "";
 
-  const cameras = beatControlsFor(args.controls, shots.length);
   const blocks: string[] = [];
 
   const look = (args.controls.look ?? "").trim();
   if (look) blocks.push(`LOOK — ${look}`);
 
-  let at = 0;
-  const ladder = shots.map((shot, i) => {
-    const from = at;
-    at += shotSeconds(shot);
-    const line = `[${from}-${at}s] ${(shot.description ?? "").trim()}`;
-    const prose = CAMERA_PROSE.get(cameras[i]?.camera ?? "auto") ?? "";
-    return prose ? `${line}\n    Camera: ${prose}.` : line;
-  });
-  blocks.push(`Beats (keep these timings exactly):\n${ladder.join("\n")}`);
+  blocks.push(`Beats (keep these timings exactly):\n${renderShotLadder(args.script)}`);
 
   const objective = (args.script?.strategic_objective ?? "").trim();
   if (objective) blocks.push(`Objective: ${objective}`);

@@ -36,42 +36,23 @@ describe("renderMultishotBrief", () => {
     expect(out).toContain("[4-9s] macro on the lid");
   });
 
-  it("gives each beat its own camera prose", () => {
+  // The per-beat camera control is gone, and so is the clause it injected. Framing is the prompt
+  // writer's call now — it carries the rules that decide framing across a cut, and a fixed clause
+  // per beat could only fight them.
+  it("emits no camera clause at all", () => {
     const out = renderMultishotBrief({
       script,
-      controls: {
-        ...DEFAULT_VIDEO_CONTROLS,
-        beats: [{ camera: "push-in" }, { camera: "static" }],
-      },
-    });
-    expect(out).toContain("constant focal length");
-    expect(out).toContain("locked-off static frame");
-  });
-
-  // "auto" is the no-constraint option — it must add no camera clause at all, or every beat
-  // would carry a sentence the operator never asked for.
-  it("says nothing about camera for a beat left on auto", () => {
-    const out = renderMultishotBrief({
-      script,
-      controls: {
-        ...DEFAULT_VIDEO_CONTROLS,
-        beats: [{ camera: "auto" }, { camera: "auto" }],
-      },
+      controls: { ...DEFAULT_VIDEO_CONTROLS, camera: "push-in", speed: "dynamic" },
     });
     expect(out).not.toContain("Camera:");
+    expect(out).not.toContain("constant focal length");
   });
 
-  it("pairs a camera with its own beat, not the one before it", () => {
-    const out = renderMultishotBrief({
-      script,
-      controls: {
-        ...DEFAULT_VIDEO_CONTROLS,
-        beats: [{ camera: "auto" }, { camera: "orbit" }],
-      },
-    });
+  it("is one line per beat, with nothing between them", () => {
+    const out = renderMultishotBrief({ script, controls: DEFAULT_VIDEO_CONTROLS });
     const lines = out.split("\n");
-    const secondBeat = lines.findIndex((l) => l.includes("[4-9s]"));
-    expect(lines[secondBeat + 1]).toContain("orbit");
+    const first = lines.findIndex((l) => l.includes("[0-4s]"));
+    expect(lines[first + 1]).toContain("[4-9s]");
   });
 
   it("carries the objective, which is the motion driver", () => {
@@ -89,12 +70,4 @@ describe("renderMultishotBrief", () => {
     ).toBe("");
   });
 
-  // Beats can be added on the Shot node after the cameras were set.
-  it("tolerates fewer saved cameras than beats", () => {
-    const out = renderMultishotBrief({
-      script,
-      controls: { ...DEFAULT_VIDEO_CONTROLS, beats: [{ camera: "push-in" }] },
-    });
-    expect(out).toContain("[4-9s] macro on the lid");
-  });
 });

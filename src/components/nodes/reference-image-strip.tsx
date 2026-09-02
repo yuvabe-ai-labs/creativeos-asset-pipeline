@@ -32,11 +32,7 @@ export function ReferenceImageStrip({
   return (
     <div className="min-w-0 space-y-1.5">
       <FieldLabel icon={Images} label={`Reference images · ${images.length}`} />
-      <p className="text-xs text-muted-foreground">
-        {omni
-          ? "Named in the prompt by these tokens. The model reads the pictures itself — you don't have to label them."
-          : "Referenced in the prompt by position. The model reads the pictures itself."}
-      </p>
+
 
       <div className="flex min-w-0 flex-wrap gap-2">
         {images.map((image, i) => (
@@ -50,9 +46,7 @@ export function ReferenceImageStrip({
               alt={image.label}
               className="size-20 rounded-md object-cover"
             />
-            <figcaption className="max-w-20 truncate text-center text-[0.65rem] font-medium text-primary">
-              {omni ? omniImageRefToken(i + 1) : ordinalToEnglish(i + 1)}
-            </figcaption>
+
           </figure>
         ))}
       </div>

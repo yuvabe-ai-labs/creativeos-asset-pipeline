@@ -11,30 +11,17 @@ export type VideoControlOption = {
   prose: string; // injected into the prompt; "" for the Auto (no-constraint) option
 };
 
-/**
- * Per-beat camera, for a multishot shot (D201).
- *
- * `camera` takes a value from the same VIDEO_CONTROLS catalog the single-shot select uses, so the
- * prose injected per beat is the same vocabulary rather than a second one that could drift.
- */
-export type BeatControl = { camera: string };
-
-export const DEFAULT_BEAT_CONTROL: BeatControl = { camera: "auto" };
-
 export type VideoControls = Record<VideoControlKey, string> & {
   /**
    * The LOOK contract — light direction, time of day, lens feel, palette, ground, grade. Written
    * once and reproduced VERBATIM at the top of every beat, because paraphrase is drift and this is
    * the only thing making separate cuts read as one film. Multishot only; absent until authored.
+   *
+   * The only multishot control. There was a per-beat camera beside it; it is gone. Framing is
+   * decided per beat by the prompt writer, which carries the shot-size, 30-degree and
+   * screen-direction rules — a row of "auto" dropdowns was a control to dismiss, not one to use.
    */
   look?: string;
-  /**
-   * Per-beat camera, index-aligned with the shot's beats. Multishot only.
-   *
-   * One camera move describes a single continuous take; a clip holding five cuts needs one per
-   * beat. Read through `beatControlsFor`, never directly — the saved array can be stale.
-   */
-  beats?: BeatControl[];
 };
 
 export const VIDEO_CONTROLS: {
@@ -89,22 +76,6 @@ export function renderVideoControls(controls: VideoControls): string {
 }
 
 /**
- * The saved per-beat controls, reconciled to the shot's CURRENT beat count.
- *
- * Beats can be added or removed on the Shot node long after these were saved, and a stale array
- * would silently pair beat 3's camera with beat 2's action — wrong, and invisible. Padding and
- * truncating on read keeps the rows in step with the beats without having to persist on every
- * edit to the shot.
- */
-export function beatControlsFor(controls: VideoControls, beatCount: number): BeatControl[] {
-  const saved = controls.beats ?? [];
-  return Array.from(
-    { length: Math.max(0, beatCount) },
-    (_, i) => saved[i] ?? DEFAULT_BEAT_CONTROL,
-  );
-}
-
-/**
  * Parse an untrusted request body into VideoControls.
  *
  * Lives here rather than in the route because this is the schema's home and a route file cannot
@@ -113,8 +84,8 @@ export function beatControlsFor(controls: VideoControls, beatCount: number): Bea
  * camera were dropped at the request boundary — authored in the UI, saved on the node, and then
  * silently discarded before the resolver ever saw them.
  *
- * `look` and `beats` are only set when present. A single-shot node has neither, and writing
- * `undefined` keys would put them in the version's params snapshot as noise.
+ * `look` is only set when present. A single-shot node has none, and writing an `undefined` key
+ * would put it in the version's params snapshot as noise.
  */
 export function normalizeVideoControls(input: unknown): VideoControls {
   const c = (input ?? {}) as Record<string, unknown>;
@@ -123,12 +94,6 @@ export function normalizeVideoControls(input: unknown): VideoControls {
     speed: typeof c.speed === "string" ? c.speed : DEFAULT_VIDEO_CONTROLS.speed,
   };
   if (typeof c.look === "string") controls.look = c.look;
-  if (Array.isArray(c.beats)) {
-    controls.beats = c.beats.map((b) => {
-      const camera = (b as { camera?: unknown } | null)?.camera;
-      return { camera: typeof camera === "string" ? camera : DEFAULT_BEAT_CONTROL.camera };
-    });
-  }
   return controls;
 }
 
