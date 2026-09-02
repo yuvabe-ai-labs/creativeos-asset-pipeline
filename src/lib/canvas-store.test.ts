@@ -690,3 +690,78 @@ describe("playbookRun slice", () => {
     expect(store.getState().playbookRun).toBeNull();
   });
 });
+
+describe("setGenerationMode swaps an existing node's type", () => {
+  const parsed = {
+    visual_script: {
+      shots: [
+        { description: "a", duration_seconds: 3 },
+        { description: "b", duration_seconds: 5 },
+      ],
+    },
+  };
+
+  const seeded = () => {
+    const store = createCanvasStore(
+      [{ id: "sc", type: "script", position: { x: 0, y: 0 }, data: { parsed } } as AppNode],
+      [],
+    );
+    store.getState().fanOutShots("sc");
+    return store;
+  };
+
+  it("converts the node in place, keeping its id and position", () => {
+    const store = seeded();
+    const before = store.getState().nodes.find((n) => n.type === "multishot")!;
+
+    store.getState().setGenerationMode("sc", "0-1", false);
+
+    const after = store.getState().nodes.find((n) => n.id === before.id)!;
+    expect(after.type).toBe("shot");
+    expect(after.position).toEqual(before.position);
+  });
+
+  it("keeps incoming edges and drops outgoing ones", () => {
+    const store = seeded();
+    const ms = store.getState().nodes.find((n) => n.type === "multishot")!;
+    store.setState({
+      nodes: [
+        ...store.getState().nodes,
+        { id: "mp", type: "multishot-prompt", position: { x: 0, y: 0 }, data: {} } as AppNode,
+      ],
+      edges: [...store.getState().edges, { id: "out", source: ms.id, target: "mp" }],
+    });
+
+    store.getState().setGenerationMode("sc", "0-1", false);
+
+    const edges = store.getState().edges;
+    // The Script lineage edge survives; the prompt edge does not — a motion prompt written for
+    // a cut ladder does not describe a continuous take.
+    expect(edges.some((e) => e.source === "sc" && e.target === ms.id)).toBe(true);
+    expect(edges.some((e) => e.id === "out")).toBe(false);
+    // ...and it must be RECORDED as removed, or autosave resurrects it on reload.
+    expect(store.getState().removedEdgeIds).toContain("out");
+  });
+
+  it("round-trips the node's content through a flip and a flip-back", () => {
+    const store = seeded();
+    store.getState().setGenerationMode("sc", "0-1", false);
+    store.getState().setGenerationMode("sc", "0-1", true);
+
+    const node = store.getState().nodes.find((n) => n.type === "multishot")!;
+    const data = node.data as { cuts?: { text: string; seconds: number }[] };
+    expect(data.cuts?.map((c) => [c.text, c.seconds])).toEqual([
+      ["a", 3],
+      ["b", 5],
+    ]);
+  });
+
+  it("still just records the override when no node exists yet", () => {
+    const store = createCanvasStore(
+      [{ id: "sc", type: "script", position: { x: 0, y: 0 }, data: { parsed } } as AppNode],
+      [],
+    );
+    store.getState().setGenerationMode("sc", "0-1", false);
+    expect(store.getState().nodes).toHaveLength(1);
+  });
+});

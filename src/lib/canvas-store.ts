@@ -16,12 +16,13 @@ import { wouldCreateCycle } from "@/lib/canvas/graph";
 import { DEFAULT_CLIENT_MODEL_ID } from "@/lib/image-gen/client-models";
 import { planGuidedNext } from "@/lib/guided-flow";
 import { DEFAULT_VIDEO_CLIENT_MODEL_ID } from "@/lib/video-gen/client-models";
-import type { AppNode, ShotNodeData } from "./canvas-nodes";
+import type { AppNode, ShotNodeData, MultishotNodeData } from "./canvas-nodes";
 import type { ReelScript } from "@/lib/nodes/reel-script";
 import type { ShotComposeIdea } from "@/lib/nodes/shot-compose";
 import { deriveShotType } from "@/lib/nodes/shot-types";
 import { describeGenerations, generationKey } from "@/lib/nodes/group-shots";
 import { cutsFromShots, totalOf } from "@/lib/nodes/multishot-cuts";
+import { shotDataToMultishot, multishotDataToShot } from "@/lib/nodes/multishot-convert";
 import { splitMultishotData } from "@/lib/nodes/split-multishot";
 import { mergeShotData, sortForMerge } from "@/lib/nodes/merge-shots";
 import type { GenerationRow } from "@/lib/db/types";
@@ -503,6 +504,41 @@ export function createCanvasStore(
       else next[key] = multishot;
 
       get().updateNodeData(scriptNodeId, { groupModes: next });
+
+      // D208 — when the generation already has a node, the switch CONVERTS it: same id, same
+      // position, same incoming edges. There is no split and no merge, because the node count is
+      // identical in both modes — only which of two things the node is changes.
+      const node = get().nodes.find(
+        (n) =>
+          (n.type === "shot" || n.type === "multishot") &&
+          (n.data as { seededFrom?: { scriptNodeId?: string } }).seededFrom?.scriptNodeId ===
+            scriptNodeId &&
+          generationKey(
+            (n.data as { seededFrom?: { shotIndexes?: number[] } }).seededFrom?.shotIndexes ?? [],
+          ) === key,
+      );
+      if (!node) return;
+
+      const targetType = multishot ? "multishot" : "shot";
+      if (node.type === targetType) return;
+
+      const converted =
+        targetType === "multishot"
+          ? shotDataToMultishot(node.data as ShotNodeData)
+          : multishotDataToShot(node.data as MultishotNodeData);
+
+      // Outgoing edges are dropped: a prompt written for a cut ladder does not describe a
+      // continuous take, and vice versa. They must be RECORDED as removed — autosave builds its
+      // delete set from removedEdgeIds alone, so an edge merely dropped from `edges` resurrects.
+      const outgoing = get().edges.filter((e) => e.source === node.id);
+
+      set({
+        nodes: get().nodes.map((n) =>
+          n.id === node.id ? ({ ...n, type: targetType, data: converted } as AppNode) : n,
+        ),
+        edges: get().edges.filter((e) => e.source !== node.id),
+        removedEdgeIds: [...get().removedEdgeIds, ...outgoing.map((e) => e.id)],
+      });
     },
     /**
      * D193 — turning multishot OFF on a grouped node splits it into one node per shot.
