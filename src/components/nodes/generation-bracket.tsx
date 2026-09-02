@@ -4,6 +4,7 @@ import { Layers, Film } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
+import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import type { Generation } from "@/lib/nodes/group-shots";
 
 /**
@@ -25,6 +26,8 @@ export function GenerationBracket({
   children: React.ReactNode;
 }) {
   const setGenerationMode = useCanvasStore((s) => s.setGenerationMode);
+  const editable = useCanvasEditable();
+  const isReadOnly = readOnly || !editable; // D33: strict read-only under the lock
   const Icon = generation.multishot ? Layers : Film;
 
   return (
@@ -57,7 +60,7 @@ export function GenerationBracket({
           <Switch
             size="sm"
             checked={generation.multishot}
-            disabled={readOnly}
+            disabled={isReadOnly}
             aria-label={`Multishot for generation ${generation.index + 1}`}
             onCheckedChange={(next) => setGenerationMode(scriptNodeId, generation.key, next)}
           />

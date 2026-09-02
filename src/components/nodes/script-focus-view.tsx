@@ -303,6 +303,7 @@ export function ScriptFocusView({
                   script={draft}
                   scriptNodeId={nodeId}
                   groupModes={groupModes}
+                  readOnly={!editable}
                   onChange={(path: Path, value) =>
                     setDraft((dd) => setScriptValue(dd, path, value))
                   }
