@@ -27,7 +27,14 @@ export type CompileVideoPromptInput = {
   instruction: string;
   controls?: VideoControls;
   targetProvider?: VideoProvider; // D77: selects text-camera (veo/sora) vs external-camera (kling)
-  /** D201 — a multishot shot gets the ladder prompt; a single one gets the continuous-take spine. */
+  /**
+   * D210 — the multishot ladder prompt has moved entirely to the Multishot Prompt node
+   * (src/prompts/multishot-prompt-generate.ts); this function always emits the continuous-take
+   * spine regardless of this flag. Its only remaining effect here is suppressing the controls
+   * block below (see its use around line 127): a multishot node carries a camera per beat inside
+   * its own ladder, so the global camera/speed controls would hand the model two conflicting
+   * camera instructions.
+   */
   multishot?: boolean;
 };
 
