@@ -153,7 +153,7 @@ export function compileVideoPrompt(input: CompileVideoPromptInput): {
   blocks.push(`Instruction:\n${effectiveInstruction}`);
 
   return {
-    system: videoPromptGeneratePromptFor({ provider: targetProvider, multishot }).system,
+    system: videoPromptGeneratePromptFor({ provider: targetProvider }).system,
     user: blocks.join("\n\n"),
     effectiveInstruction,
   };

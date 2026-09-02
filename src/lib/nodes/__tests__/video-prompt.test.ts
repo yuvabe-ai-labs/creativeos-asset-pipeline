@@ -59,9 +59,11 @@ describe("compileVideoPrompt provider awareness", () => {
   });
 });
 
-// D201 regressions. Each of these shipped green: the multishot surface rendered, the controls
-// saved, and the route recorded the Omni promptId — while the model was handed the Veo prompt
-// with none of the multishot controls in it. Nothing failed; the output was just quietly wrong.
+// D201/D210. The multishot ladder prompt now lives entirely on the Multishot Prompt node's own
+// writer (src/prompts/multishot-prompt-generate.ts) — this route (the single-shot Video Prompt
+// node) no longer selects it for any provider, multishot flag included, so gemini-omni always
+// gets the continuous-take spine here. The controls-block suppression below is unrelated to which
+// system prompt is chosen and still applies whenever the upstream Shot is multishot.
 describe("compileVideoPrompt multishot routing", () => {
   const base = {
     clientContext: "",
@@ -69,17 +71,14 @@ describe("compileVideoPrompt multishot routing", () => {
     instruction: "make it move",
   };
 
-  it("keeps gemini-omni instead of collapsing it into veo", () => {
-    // The coercion here listed only "kling", so "gemini-omni" fell through to "veo" and the
-    // ladder prompt was unreachable no matter what the route selected.
+  it("gives a multishot omni node the continuous-take spine too, since the ladder prompt moved off this route", () => {
     const { system } = compileVideoPrompt({
       ...base,
       controls: { camera: "auto", speed: "auto" },
       targetProvider: "gemini-omni",
       multishot: true,
     });
-    expect(system).not.toContain("image-to-video prompts for Veo");
-    expect(system.toLowerCase()).toContain("beat");
+    expect(system).toContain("image-to-video prompts for Veo");
   });
 
   it("still gives a single-shot omni node the continuous-take spine", () => {

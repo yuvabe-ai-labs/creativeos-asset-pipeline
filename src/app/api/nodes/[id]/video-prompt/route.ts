@@ -42,16 +42,17 @@ export async function POST(
     const resolved = await resolveVideoPromptInputs(nodeId, body?.slices, controls);
     if (!resolved) return apiError("Node not found.", 404);
 
-    // D201 — the prompt routes on the upstream Shot being multishot, not on the provider alone, so
-    // this has to come after resolving. A multishot shot gets the timecode-ladder prompt; a single
-    // one gets the continuous-take spine, which describes it better than a one-line ladder would.
+    // D210 — the multishot ladder prompt now lives entirely on the Multishot Prompt node
+    // (multishotPromptGenerate); this route always gets the continuous-take spine. `multishot` is
+    // still read here (after resolving) to pick the effective provider below and to suppress the
+    // single-take controls block in compileVideoPrompt.
     const multishot = resolved.upstreamMultishot === true;
     // Omni is the only multishot model (D196), so a multishot shot's prompt is an Omni prompt
     // whatever the node has stored. The UI hides the Target model control in multishot mode for
     // exactly that reason — which left a node with no Video Gen connected yet still reading "veo",
     // and every multishot generation silently came back as a single-take Veo prompt.
     const effectiveProvider: VideoProvider = multishot ? "gemini-omni" : targetProvider;
-    const promptSpec = videoPromptGeneratePromptFor({ provider: effectiveProvider, multishot });
+    const promptSpec = videoPromptGeneratePromptFor({ provider: effectiveProvider });
 
     const { system, user, effectiveInstruction } = compileVideoPrompt({
       clientContext: resolved.clientContext,

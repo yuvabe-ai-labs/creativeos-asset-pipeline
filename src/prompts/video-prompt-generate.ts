@@ -56,6 +56,35 @@ identity.
 
 If motion controls are provided, honor them exactly.`;
 
+/**
+ * The hype words banned from every motion prompt. Shared verbatim by the Veo record below and the
+ * multishot writer (src/prompts/multishot-prompt-generate.ts) — extracted so raising the list is
+ * one edit rather than two prompts quietly drifting apart.
+ */
+export const MOTION_AVOID_LIST =
+  '"cinematic masterpiece", "ultra realistic", "8K", "stunning", "beautiful".';
+
+/**
+ * How to identify an attached reference image and cite it inline via its `<IMAGE_REF_N>` token.
+ * The multishot writer's beats are matched against this exact token shape by `refsCitedIn`
+ * (src/lib/nodes/multishot-plan.ts), so the instruction lives here once and is imported by
+ * src/prompts/multishot-prompt-generate.ts rather than copied.
+ */
+export const REFERENCE_IDENTIFICATION_BLOCK = `REFERENCES
+When reference images are listed, each one has a token of the form <IMAGE_REF_0>, <IMAGE_REF_1> and so on. WRITE THE TOKEN LITERALLY, inline, at the point in the beat where that subject or product appears — and ALWAYS name what you identified immediately before it:
+
+    [0-3s] A college student crosses a sunlit campus courtyard in the CHUPPS Sliders <IMAGE_REF_0>, bag strap swinging.
+    [3-6s] A young professional steps past a cafe chair in the CHUPPS V-Straps <IMAGE_REF_1>, the strap catching the light.
+
+The reference images are ATTACHED to your message. LOOK AT THEM and identify what each one shows — the product, garment, person or surface. Their labels are filenames and mean nothing; you decide which beat each reference belongs in, from the image itself. The operator does not annotate them for you.
+
+Rules for these tokens:
+- ALWAYS put a short noun phrase naming the thing immediately BEFORE the token — "the CHUPPS V-Straps <IMAGE_REF_1>", "a young woman <IMAGE_REF_0>". Never a bare token standing alone. Naming it is what lets a wrong identification be caught and corrected in the text rather than in a finished video, and it tells the model what kind of thing it is looking at.
+- Use the exact token from the list. Never write "the first image", never write @Image1, never invent a token that is not listed.
+- Name the reference IN EVERY BEAT it appears in, not once at the top.
+- USE ONLY THE REFERENCES THIS SHOT CALLS FOR. The list is a library, not a checklist. Cite a reference where the shot's own content asks for it and leave the rest out — forcing an unrelated product into a beat in order to "use" it is worse than omitting it. The operator adds any others by hand.
+- Never describe a referenced subject's own design in prose beyond that short naming phrase — the reference carries its design, and competing prose produces a hybrid of the two. Describe what the reference cannot: framing, motion, light, wardrobe, ground contact.`;
+
 export const videoPromptGeneratePrompt = {
   id: "video-prompt-generate",
   version: 5,
@@ -64,7 +93,7 @@ export const videoPromptGeneratePrompt = {
 ${SPINE}
 
 WORDS TO AVOID
-Do not use: "cinematic masterpiece", "ultra realistic", "8K", "stunning", "beautiful".`,
+Do not use: ${MOTION_AVOID_LIST}`,
 } as const;
 
 export const videoPromptGenerateKlingPrompt = {
@@ -100,81 +129,6 @@ export const SINGLE_TAKE_LINE = "In a single unbroken scene. No scene cuts.";
  */
 export const MULTISHOT_AUTHORING_MODEL = "gpt-5";
 
-// D201 — the MULTISHOT prompt. Omni takes its whole storyboard from the prompt text: there are no
-// shot parameters, so length, cuts, rhythm, audio and what to avoid are all prose. That makes this
-// string the storyboard rather than a hint, which is why it carries the vendor's full guidance
-// (ref/multishot-refs/gemini-omni-flash-system-prompt.md §3-§8, §10) instead of six bullet points.
-export const videoPromptGenerateOmniPrompt = {
-  id: "video-prompt-generate-omni",
-  version: 5,
-  model: MULTISHOT_AUTHORING_MODEL,
-  system: `You are a motion director writing MULTISHOT prompts for Gemini Omni — a model that cuts between shots by default and takes its entire storyboard from the prompt text. There are no shot parameters: length, cuts, rhythm, audio and what to avoid are all prose.
-
-OUTPUT FORMAT
-Exactly this shape. No preamble, no headers beyond the ones shown, no explanation:
-
-LOOK — <the look contract, one paragraph>
-
-VOICE — <the voice contract, one paragraph — only if one is supplied>
-
-[0-Xs] <framing and angle>. <subject and what physically happens>. <camera move, invariant named>. <light beat>.
-[X-Ys] …
-
-Sound design: <ambience and foley>.
-<inline negatives, one short sentence each>
-
-THE LOOK BLOCK
-You are given a LOOK contract. Reproduce it VERBATIM, character-for-character. Never paraphrase it, shorten it, or "improve" it — it is the only thing making separate cuts read as one film, and paraphrase IS drift. If no LOOK is supplied, write one: light direction, time of day, lens feel, palette, ground surface, grade. Repeatable physical facts, never mood words — "low sun from camera-left, long shadows toward the lens, warm grey concrete, 35mm at knee height" is repeatable; "warm cinematic vibe" is not.
-
-THE VOICE BLOCK
-When a VOICE contract is supplied, reproduce it VERBATIM too, on its own line directly under the LOOK. It does for sound exactly what the LOOK does for picture: who speaks, whether they are on screen, the delivery, and what is absent from the mix. A narrator that drifts between generations is as visible a seam as a light direction that flips, and it cannot be fixed afterwards. Never paraphrase it, and never contradict it later in the prompt — if it says nobody on screen speaks, no beat may show a character talking; if it says no music bed, do not ask for one. When no VOICE is supplied, omit the line entirely rather than inventing one.
-
-THE TIMECODE LADDER
-Beat timings are given to you. Keep them exactly. They run consecutively from 0 with no gaps, and the final time equals the clip length. One line per beat.
-
-EVERY BEAT, IN THIS ORDER
-1. Framing and angle — the shot size and where the camera sits.
-2. Subject and action — what physically happens, grounded in what is actually there. One event per beat, not three chained together.
-3. Camera — one explicit move with its INVARIANT named: "a slow push-in at a constant focal length", "a locked-off static frame", "a small-angle orbit at constant distance, height and focal length". Where a magnitude is implied, give a small specific one.
-4. Light — one clause tying this beat to the LOOK.
-
-CAMERA CLAUSES
-Say only what the CAMERA does. Never describe an effect on the subject — never "so the jar feels taller", never "making the product seem elevated". This model executes subject-state language as subject MOTION, so a crane clause phrased that way lifts the product off the table. When a subject must stay put, say so separately: it keeps contact with the surface it rests on.
-
-REFERENCES
-When reference images are listed, each one has a token of the form <IMAGE_REF_0>, <IMAGE_REF_1> and so on. WRITE THE TOKEN LITERALLY, inline, at the point in the beat where that subject or product appears — and ALWAYS name what you identified immediately before it:
-
-    [0-3s] A college student crosses a sunlit campus courtyard in the CHUPPS Sliders <IMAGE_REF_0>, bag strap swinging.
-    [3-6s] A young professional steps past a cafe chair in the CHUPPS V-Straps <IMAGE_REF_1>, the strap catching the light.
-
-The reference images are ATTACHED to your message. LOOK AT THEM and identify what each one shows — the product, garment, person or surface. Their labels are filenames and mean nothing; you decide which beat each reference belongs in, from the image itself. The operator does not annotate them for you.
-
-Rules for these tokens:
-- ALWAYS put a short noun phrase naming the thing immediately BEFORE the token — "the CHUPPS V-Straps <IMAGE_REF_1>", "a young woman <IMAGE_REF_0>". Never a bare token standing alone. Naming it is what lets a wrong identification be caught and corrected in the text rather than in a finished video, and it tells the model what kind of thing it is looking at.
-- Use the exact token from the list. Never write "the first image", never write @Image1, never invent a token that is not listed.
-- Name the reference IN EVERY BEAT it appears in, not once at the top.
-- USE ONLY THE REFERENCES THIS SHOT CALLS FOR. The list is a library, not a checklist. Cite a reference where the shot's own content asks for it and leave the rest out — forcing an unrelated product into a beat in order to "use" it is worse than omitting it. The operator adds any others by hand.
-- Never describe a referenced subject's own design in prose beyond that short naming phrase — the reference carries its design, and competing prose produces a hybrid of the two. Describe what the reference cannot: framing, motion, light, wardrobe, ground contact.
-
-CUTS AND RHYTHM
-This model cuts by default, so you are shaping cuts rather than requesting them. For a sub-second interval, say it in frames at 24fps — "every half a second, 12 frames at 24fps" — which reads more reliably than a fraction.
-
-When two consecutive beats hold the SAME subject, change the angle by at least 30 degrees or change the shot size outright — two near-identical angles on one subject is a jump cut, not an edit. Keep screen direction consistent: if someone moves left-to-right, they keep moving left-to-right for the whole clip. A match cut lands when consecutive beats share ground plane, light direction or a continued movement; when you intend one, say those are the same — but never at the cost of the 30-degree rule.
-
-AUDIO
-Audio is always generated and there is no off switch. End with a "Sound design:" clause naming ambience and foley.
-
-When the shot carries a voiceover or spoken line, WRITE IT — quote the line exactly and say it is off-screen narration unless a character is meant to speak on camera. Dialogue is wanted; do not strip it out.
-
-One caveat to write around rather than avoid: this model has no voice control of any kind — no reference upload, no cloning, no fixing a voice afterwards — so the narrator will differ between generations. For a deliverable spanning several generations, still write the line (the synced foley and timing are worth having) and expect one continuous voiceover to be laid over it in the edit.
-
-NEGATIVES
-There is no negative-prompt field on this model. Put every negative inline, at the end, each as its own short sentence. The two that belong on almost every shot are "No background music." and "No on-screen text." — the model adds a score and invents signage unasked, and both are composited in post where they can be controlled. Do NOT negate dialogue by default.
-
-WORDS TO AVOID
-"cinematic masterpiece", "ultra realistic", "8K", "stunning", "beautiful". They buy nothing here — specific physical detail is what this model rewards.`,
-} as const;
-
 export type VideoProviderPrompt = {
   id: string;
   version: number;
@@ -182,19 +136,17 @@ export type VideoProviderPrompt = {
   system: string;
 };
 
-export type PromptRouteInput = { provider: VideoProvider; multishot: boolean };
+export type PromptRouteInput = { provider: VideoProvider };
 
 /**
- * D201 — the ladder prompt belongs to a MULTISHOT shot, not to the Omni provider as such.
- *
- * A single shot on Omni is one continuous take, which the shared image-to-video spine describes
- * better than a ladder could: a one-line ladder ending "keep these timings exactly" would forbid
- * the very cutting that turning multishot on for a single beat is asking for.
- *
- * Kling gets the quality-tag variant and Veo (or any stale value) the clean one, both regardless
- * of multishot — neither takes a timecode ladder.
+ * D210 — multishot routing has moved entirely to `multishotPromptGenerate`
+ * (src/prompts/multishot-prompt-generate.ts). Omni is the only multishot model, so there is
+ * nothing left to branch on here: every provider, Omni included, gets one of these two
+ * continuous-take records. A single shot on Omni is one continuous take, which this shared
+ * image-to-video spine describes correctly — a timecode ladder would forbid the very cutting a
+ * multishot node exists to ask for, which is why that prompt lives on its own now instead of as a
+ * branch of this function.
  */
 export function videoPromptGeneratePromptFor(input: PromptRouteInput): VideoProviderPrompt {
-  if (input.provider === "gemini-omni" && input.multishot) return videoPromptGenerateOmniPrompt;
   return input.provider === "kling" ? videoPromptGenerateKlingPrompt : videoPromptGeneratePrompt;
 }
