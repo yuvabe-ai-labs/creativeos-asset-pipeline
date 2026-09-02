@@ -1,19 +1,28 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { ListVideo } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { useDeleteNode } from "@/hooks/use-delete-node";
+import { useFocusViewRegistration } from "@/hooks/use-focus-view-open";
 import { useGalleryDrawer } from "@/components/canvas/gallery-drawer-context";
 import { useGalleryNodeDrop } from "@/hooks/use-gallery-node-drop";
 import { NodeContextMenu } from "./node-context-menu";
 import { NodeCardHeader } from "./node-card-header";
 import { NodeCreditsFooter } from "./node-credits-footer";
 import { useNodeCost } from "@/hooks/use-node-cost";
+import { MultishotPromptFocusView } from "./multishot-prompt-focus-view";
+import { DEFAULT_IMAGE_PROMPT_SLICES } from "@/lib/kb/parse-context";
 import type { MultishotNodeData, MultishotPromptNodeData } from "@/lib/canvas-nodes";
 import type { MultishotPlan } from "@/lib/nodes/multishot-plan";
+
+const TYPE_LABEL: Record<string, string> = {
+  script: "Script", text: "Note", prompt: "Prompt", kb: "Brand KB",
+  file: "File", shot: "Shot", draw: "Sketch", "image-gen": "Image", multishot: "Multishot",
+};
 
 // Multishot Prompt node (D210). Sibling of the Video Prompt node's compact launcher (same
 // NodeCardHeader/NodeContextMenu/handle structure), but its body summarises a structured
@@ -21,10 +30,8 @@ import type { MultishotPlan } from "@/lib/nodes/multishot-plan";
 // budget it wrote against (read from the upstream Multishot node — this node has no budget of
 // its own), and the look block's opening line once a plan exists.
 //
-// This task ships the canvas card only. The three-column input/output editor (§8 of
-// docs/superpowers/specs/2026-09-02-multishot-node-types-design.md) — per-cut instructions, the
-// chip editor, per-beat re-run — is later work; there is no focus view to open yet, so unlike
-// VideoPromptNode this card has no "Open ↗" affordance.
+// Its focus view (Task 15, §8 of docs/superpowers/specs/2026-09-02-multishot-node-types-design.md)
+// is the three-column breakup view: Connected / Input / Output.
 export function MultishotPromptNode({ id, data, selected, positionAbsoluteX, positionAbsoluteY }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const deleteNode = useDeleteNode();
@@ -36,23 +43,70 @@ export function MultishotPromptNode({ id, data, selected, positionAbsoluteX, pos
   });
   const nodes = useCanvasStore((s) => s.nodes);
   const edges = useCanvasStore((s) => s.edges);
+  const focusedNodeId = useCanvasStore((s) => s.focusedNodeId);
+  const setFocusedNodeId = useCanvasStore((s) => s.setFocusedNodeId);
 
-  // The budget comes from the connected Multishot node (D209) — a fixed number of seconds
-  // divided into cuts. This node only ever writes against that budget, never sets it.
-  const budget = useMemo(() => {
+  // The upstream Multishot node (D209) — the sole source of the budget AND the cut list. This
+  // node only ever writes against it, never sets it: the focus view's beat timecodes and the
+  // Input column's per-cut cards both read `cuts` from here, computed once, rather than each
+  // re-deriving its own upstream walk.
+  const multishotSource = useMemo(() => {
     const sourceIds = edges.filter((e) => e.target === id).map((e) => e.source);
-    const multishot = nodes.find((n) => sourceIds.includes(n.id) && n.type === "multishot");
-    return (multishot?.data as MultishotNodeData | undefined)?.totalSeconds;
+    return nodes.find((n) => sourceIds.includes(n.id) && n.type === "multishot");
+  }, [nodes, edges, id]);
+  const budget = (multishotSource?.data as MultishotNodeData | undefined)?.totalSeconds;
+  const cuts = (multishotSource?.data as MultishotNodeData | undefined)?.cuts ?? [];
+
+  // Every connected upstream, mapped the same way VideoPromptNode does — an Image Gen still's
+  // URL lives in its active output (D19), File/Draw carry their own fileUrl directly. This is
+  // the shared reference library every chip editor on the focus view mentions from.
+  const upstream = useMemo(() => {
+    const sourceIds = edges.filter((e) => e.target === id).map((e) => e.source);
+    const directNodes = nodes.filter((n) => sourceIds.includes(n.id));
+    return directNodes.map((n) => {
+      const nd = n.data as Record<string, unknown>;
+      const fileUrl =
+        n.type === "file" || n.type === "draw"
+          ? (nd.fileUrl as string | undefined)
+          : n.type === "image-gen"
+            ? (typeof nd.parsed === "string" ? (nd.parsed as string) : undefined)
+            : undefined;
+      const fileKind =
+        n.type === "file" || n.type === "draw"
+          ? (nd.fileKind as string | undefined)
+          : n.type === "image-gen"
+            ? "image"
+            : undefined;
+      const typeLabel = TYPE_LABEL[n.type ?? ""] ?? String(n.type);
+      return {
+        id: n.id,
+        label: (nd.title as string | undefined)?.trim() || typeLabel,
+        type: n.type ?? "",
+        fileUrl,
+        fileKind,
+        useLlm: n.type === "file" ? (nd.useLlm as boolean | undefined) : undefined,
+      };
+    });
   }, [nodes, edges, id]);
 
   const d = data as MultishotPromptNodeData;
   const title = d.title ?? "";
-  const plan = d.parsed as MultishotPlan | undefined;
+  const plan = (d.parsed ?? null) as MultishotPlan | null;
   const status = plan ? `${plan.beats.length} beats` : "Not written yet";
   const lookFirstLine = plan?.look.split("\n")[0]?.trim();
   const totalCredits = useNodeCost(id);
+  const slices = d.kbSlices ?? DEFAULT_IMAGE_PROMPT_SLICES;
+  const [focusOpen, setFocusOpen] = useState(false);
+  // Open locally (double-click / "Open ↗") OR when the guided flow points here (D35/D36).
+  const focusViewOpen = focusOpen || focusedNodeId === id;
+  const handleFocusOpenChange = (next: boolean) => {
+    setFocusOpen(next);
+    if (!next && focusedNodeId === id) setFocusedNodeId(null);
+  };
+  useFocusViewRegistration(id, focusViewOpen);
 
   return (
+    <>
     <NodeContextMenu
       onDuplicate={() => duplicateNode(id)}
       onDelete={() => deleteNode(id)}
@@ -64,6 +118,10 @@ export function MultishotPromptNode({ id, data, selected, positionAbsoluteX, pos
       }
     >
       <div
+        onDoubleClick={(e) => {
+          e.stopPropagation();
+          setFocusOpen(true);
+        }}
         onDragOver={drop.onDragOver}
         onDrop={drop.onDrop}
         className={cn(
@@ -97,6 +155,13 @@ export function MultishotPromptNode({ id, data, selected, positionAbsoluteX, pos
               {lookFirstLine}
             </p>
           )}
+          <Button
+            variant="ghost"
+            onClick={() => setFocusOpen(true)}
+            className="nodrag -mx-1.5 mt-1.5 h-auto gap-1 rounded-md border-0 px-1.5 py-1 text-xs text-primary transition-colors hover:bg-primary/10 hover:text-primary"
+          >
+            Open ↗
+          </Button>
         </div>
 
         <NodeCreditsFooter totalCredits={totalCredits} hasOutput={Boolean(plan)} />
@@ -113,5 +178,23 @@ export function MultishotPromptNode({ id, data, selected, positionAbsoluteX, pos
         />
       </div>
     </NodeContextMenu>
+
+    {/* Outside NodeContextMenu: the portaled sheet still sits in the node's React tree, so as
+        a child its contextmenu/dblclick/drop events bubbled into the node card. */}
+    <MultishotPromptFocusView
+      open={focusViewOpen}
+      onOpenChange={handleFocusOpenChange}
+      nodeId={id}
+      title={title}
+      instruction={d.instruction ?? ""}
+      cutInstructions={d.cutInstructions ?? {}}
+      plan={plan}
+      slices={slices}
+      cuts={cuts}
+      multishotNodeId={multishotSource?.id ?? null}
+      upstream={upstream}
+      onPatch={(patch) => updateNodeData(id, patch)}
+    />
+    </>
   );
 }

@@ -4,6 +4,7 @@ import { Images } from "lucide-react";
 import { FieldLabel } from "./field-label";
 import { visionAttachmentsOf } from "@/lib/nodes/compose-message";
 import { omniImageRefToken, ordinalToEnglish } from "@/lib/nodes/resolve-mention-tokens";
+import { refsCitedIn, type MultishotPlan } from "@/lib/nodes/multishot-plan";
 import type { UpstreamNode } from "./connected-inputs-card";
 
 /**
@@ -22,12 +23,23 @@ import type { UpstreamNode } from "./connected-inputs-card";
 export function ReferenceImageStrip({
   upstream,
   omni,
+  plan,
 }: {
   upstream: UpstreamNode[];
   omni: boolean;
+  /**
+   * Present only on the Multishot Prompt node, whose plan is checkable against its own
+   * beats. When given, a reference no beat's text cites (via `refsCitedIn`) is marked —
+   * the writer is told to cite only what a shot needs, so an uncited reference is normal,
+   * but a connected image the finished prompt never mentions is otherwise only
+   * discoverable in the rendered video.
+   */
+  plan?: MultishotPlan | null;
 }) {
   const images = visionAttachmentsOf(upstream);
   if (images.length === 0) return null;
+
+  const cited = plan ? new Set(plan.beats.flatMap((b) => refsCitedIn(b.text))) : null;
 
   return (
     <div className="min-w-0 space-y-1.5">
@@ -46,7 +58,9 @@ export function ReferenceImageStrip({
               alt={image.label}
               className="size-20 rounded-md object-cover"
             />
-
+            {cited && !cited.has(i) && (
+              <span className="text-[0.6rem] text-muted-foreground">Not cited</span>
+            )}
           </figure>
         ))}
       </div>
