@@ -31,6 +31,14 @@ describe("cutsFromShots", () => {
   it("falls back to the assumed length when a shot has none", () => {
     expect(secondsOf(cutsFromShots([{ description: "x" }]))).toEqual([4]);
   });
+
+  it("floors a sub-1s shot to the minimum (1s)", () => {
+    expect(secondsOf(cutsFromShots([{ description: "x", duration_seconds: 0.4 }]))).toEqual([1]);
+  });
+
+  it("rounds a fractional shot to an integer", () => {
+    expect(secondsOf(cutsFromShots([{ description: "x", duration_seconds: 2.6 }]))).toEqual([3]);
+  });
 });
 
 describe("shotsFromCuts", () => {
@@ -73,6 +81,14 @@ describe("resizeCut", () => {
 
   it("is a no-op on a single cut — there is nobody to trade with", () => {
     expect(secondsOf(resizeCut(cuts(5), 0, 8))).toEqual([5]);
+  });
+
+  it("returns the list unchanged for a negative index", () => {
+    expect(secondsOf(resizeCut(cuts(2, 2, 4), -1, 3))).toEqual([2, 2, 4]);
+  });
+
+  it("returns the list unchanged for an index one past the end", () => {
+    expect(secondsOf(resizeCut(cuts(2, 2, 4), 3, 3))).toEqual([2, 2, 4]);
   });
 });
 

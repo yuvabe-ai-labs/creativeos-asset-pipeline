@@ -26,7 +26,12 @@ export function newCut(text: string, seconds: number): MultishotCut {
 }
 
 export function cutsFromShots(shots: ReelShot[]): MultishotCut[] {
-  return shots.map((s) => newCut(s.description ?? "", shotSeconds(s)));
+  // This is the one entry point that constructs cuts from external data. Every mutation
+  // downstream assumes cuts already satisfy the invariant (integer, >= MIN_CUT_SECONDS),
+  // so we establish it here rather than leaving it for a validator to catch downstream.
+  return shots.map((s) =>
+    newCut(s.description ?? "", Math.max(MIN_CUT_SECONDS, Math.round(shotSeconds(s))))
+  );
 }
 
 export function shotsFromCuts(cuts: MultishotCut[]): ReelShot[] {
@@ -48,6 +53,7 @@ export function resizeCut(
   index: number,
   seconds: number,
 ): MultishotCut[] {
+  if (index < 0 || index >= cuts.length) return cuts;
   const partnerIndex = index + 1 < cuts.length ? index + 1 : index - 1;
   if (partnerIndex < 0 || partnerIndex >= cuts.length) return cuts;
 
