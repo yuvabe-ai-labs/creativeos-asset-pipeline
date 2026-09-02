@@ -218,7 +218,14 @@ export async function resolveMultishotPromptInputs(
   const ups = await getUpstreamOutputs(nodeId);
   const upstream = ups.map((u) => mapUpstreamForVideo(u));
   const source = ups.find((u) => u.type === "multishot");
-  const cuts = ((source?.data.cuts ?? []) as MultishotCut[]).filter((c) => c && c.id);
+  // Beyond `id` truthiness, also require the two fields buildMultishotUserTurn reads
+  // unconditionally (cut.text.trim(), `${cut.seconds}s`) to actually be the types it assumes —
+  // a malformed cut that slipped past a looser filter throws inside buildMultishotUserTurn,
+  // which runs outside the route's try/catch and would surface as an unhandled 500 instead of
+  // the route's existing 400 "no shots" path.
+  const cuts = ((source?.data.cuts ?? []) as MultishotCut[]).filter(
+    (c) => c && c.id && typeof c.text === "string" && typeof c.seconds === "number",
+  );
 
   return { clientContext, kbVersionId: kbCtx.kbVersionId, slices, upstream, cuts };
 }

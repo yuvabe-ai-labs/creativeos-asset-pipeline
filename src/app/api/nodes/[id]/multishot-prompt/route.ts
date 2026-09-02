@@ -77,6 +77,13 @@ export async function POST(
     const model = `openai:${spec.model}`;
     const estimatedCredits = estimatePromptCredits(resolved.upstream.filter(isVisionAttachment).length);
 
+    // Set inside `call()` as soon as the (real, billed) completion comes back — BEFORE the
+    // parsePlan check below, which can throw. onFailure closes over this too, so a plan that
+    // fails validation still writes the token usage of the call that actually happened, instead
+    // of a refund with no accounting trail. See Finding 1: usage read after the throw meant a
+    // rejected plan cost money nothing recorded.
+    let usage: ModelUsage | null = null;
+
     try {
       const { output, versionId } = await runPromptGeneration({
         nodeId,
@@ -116,7 +123,10 @@ export async function POST(
               cuts: resolved.cuts,
               onlyCutId,
             },
-            paramsUsed: { instruction, cutInstructions, onlyCutId, promptId: spec.id },
+            // Raw, un-narrowed (see prompt-run.ts's ModelUsage contract) — null only when the
+            // call never returned a completion at all (e.g. a network failure before the
+            // response), never when a returned plan simply failed validation.
+            paramsUsed: { instruction, cutInstructions, onlyCutId, promptId: spec.id, tokensUsed: usage },
             modelUsed: model,
             error: message,
           });
@@ -147,6 +157,12 @@ export async function POST(
 
           const raw = JSON.parse(completion.choices[0]?.message?.content ?? "null");
 
+          // Read BEFORE the parsePlan check below — that check throws on a rejected plan, and
+          // the completion above already really happened (and was billed) by this point. Raw,
+          // un-narrowed — persisted as-is by the helper. See prompt-run.ts's ModelUsage
+          // contract: narrowing here would silently drop whatever else the provider returned.
+          usage = (completion.usage ?? null) as ModelUsage | null;
+
           // Validated WHOLE before anything is written. A rejected plan must never become the
           // node's output — a partially applied one leaves a mix of new and stale beats that
           // nothing downstream could tell apart.
@@ -155,9 +171,6 @@ export async function POST(
             throw new PlanValidationError(parsed.reason);
           }
 
-          // Raw, un-narrowed — persisted as-is by the helper. See prompt-run.ts's ModelUsage
-          // contract: narrowing here would silently drop whatever else the provider returned.
-          const usage = (completion.usage ?? null) as ModelUsage | null;
           return { output: parsed.plan, usage };
         },
       });
