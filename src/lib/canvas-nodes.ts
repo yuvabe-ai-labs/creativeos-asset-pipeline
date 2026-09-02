@@ -8,6 +8,7 @@ import type { VideoControls } from "@/lib/nodes/video-controls";
 import type { VideoProvider } from "@/prompts/video-prompt-generate";
 import type { EditIntent } from "@/lib/image-gen/edit-prompt";
 import type { PostFormat, PostLayer } from "@/lib/post/types";
+import type { MultishotCut } from "@/lib/nodes/multishot-cuts";
 
 export type ScriptNodeData = {
   title?: string;
@@ -120,6 +121,44 @@ export type ShotNodeData = {
   };
 };
 
+export type MultishotNodeData = {
+  /**
+   * The envelope ONLY — objective, on-screen text, voiceover, caption, execution notes.
+   * `visual_script.shots` is NOT stored here: `cuts` is the sole shot list. Two copies of
+   * the same list is exactly the drift the separate node type exists to prevent.
+   */
+  script?: ReelScript;
+  order?: number;
+  /** The budget in seconds. Seeded from the group's packed length, clamped to Omni's 3..10. */
+  totalSeconds?: number;
+  /** INVARIANT: sum(cuts.seconds) === totalSeconds. Held by every mutation in multishot-cuts.ts. */
+  cuts?: MultishotCut[];
+  seededFrom?: { scriptNodeId: string; shotIndexes: number[]; scriptTitle?: string };
+  // No `shot_type`: framing is decided per cut by the prompt writer, which carries the
+  // shot-size, 30-degree and screen-direction rules. One stored framing would describe at
+  // most one cut and fight the rest.
+};
+
+/**
+ * The Multishot Prompt node (D210). Sibling of VideoPromptNodeData, deliberately not a superset.
+ *
+ * No `controls` — camera move and motion energy describe ONE continuous take.
+ * No `targetProvider` — Omni is the only multishot model, so there is nothing to pick.
+ */
+export type MultishotPromptNodeData = {
+  title?: string;
+  /**
+   * Per-cut operator steer, keyed by MultishotCut.id. References are @-mentions inside these
+   * strings; there is no separate ref field.
+   */
+  cutInstructions?: Record<string, string>;
+  /** Whole-sequence steer, applied to every cut. */
+  instruction?: string;
+  kbSlices?: KBSliceKey[];
+  /** D19: the active version's output — always a MultishotPlan, never a string. */
+  parsed?: unknown;
+};
+
 export type PostNodeData = {
   title?: string;
   format?: PostFormat;
@@ -158,6 +197,8 @@ export type AppNode =
   | Node<TextNodeData, "text">
   | Node<PromptNodeData, "prompt">
   | Node<ShotNodeData, "shot">
+  | Node<MultishotNodeData, "multishot">
+  | Node<MultishotPromptNodeData, "multishot-prompt">
   | Node<DrawNodeData, "draw">
   | Node<ImageGenNodeData, "image-gen">
   | Node<VideoPromptNodeData, "video-prompt">
@@ -171,17 +212,21 @@ export type AppNode =
 // connected video-prompt node — an (Image) Prompt node connected straight to Video Gen is
 // never read, so `prompt` is deliberately absent from video-gen's source list here.
 export const VALID_CONNECTIONS: Record<string, readonly string[]> = {
-  kb:             ["script"],
-  script:         ["prompt"],
-  shot:           ["prompt", "video-prompt"],
-  file:           ["prompt", "image-gen", "video-prompt", "video-gen", "shot", "post"],
-  draw:           ["prompt", "image-gen", "video-prompt", "video-gen", "shot", "post"],
-  text:           ["prompt", "video-prompt"],
-  prompt:         ["prompt", "image-gen"],
-  "image-gen":    ["prompt", "video-gen", "video-prompt", "shot", "post"],
-  "video-prompt": ["video-gen"],
-  "video-gen":    [],
-  "post":         [],
+  kb:                 ["script"],
+  script:             ["prompt"],
+  shot:               ["prompt", "video-prompt"],
+  // The multishot lane skips the still entirely: a start frame fixes ONE composition and
+  // this node is a sequence of several.
+  multishot:          ["multishot-prompt"],
+  file:               ["prompt", "image-gen", "video-prompt", "multishot-prompt", "video-gen", "shot", "post"],
+  draw:               ["prompt", "image-gen", "video-prompt", "multishot-prompt", "video-gen", "shot", "post"],
+  text:               ["prompt", "video-prompt", "multishot-prompt"],
+  prompt:             ["prompt", "image-gen"],
+  "image-gen":        ["prompt", "video-gen", "video-prompt", "multishot-prompt", "shot", "post"],
+  "video-prompt":     ["video-gen"],
+  "multishot-prompt": ["video-gen"],
+  "video-gen":        [],
+  "post":             [],
 } as const;
 
 // The single ordered connection check: may a `sourceType` node feed a `targetType` node?
