@@ -12,9 +12,22 @@ describe("shotComposeMultishotPrompt", () => {
     expect(s).toMatch(/cut together/i);
   });
 
-  it("requires exactly one beat per beat of the shot, in order", () => {
-    expect(s).toMatch(/EXACTLY one per beat/i);
-    expect(s).toMatch(/in order/i);
+  // Reversed deliberately. A parsed "beat" is often an act holding several real cuts, so forcing
+  // one composed beat per parsed line forced the composer to write the wrong film — and the
+  // client then refused the correct answer as a count mismatch. What is fixed is the TOTAL.
+  it("lets the composer choose the beat count but fixes the total duration", () => {
+    expect(s).toMatch(/beat count is YOURS to choose/i);
+    expect(s).toMatch(/not a quota/i);
+    expect(s).toMatch(/MUST sum to the stated total duration budget/i);
+  });
+
+  it("sets a one-second floor per beat", () => {
+    expect(s).toMatch(/No beat is under 1 second/i);
+  });
+
+  it("asks for varied beat lengths, not an even slideshow", () => {
+    expect(s).toMatch(/DIFFERENT lengths/i);
+    expect(s).toMatch(/slideshow/i);
   });
 
   it("requires a shared look across the beats", () => {
@@ -24,7 +37,28 @@ describe("shotComposeMultishotPrompt", () => {
 
   it("asks for match cuts to be deliberate", () => {
     expect(s).toMatch(/MATCH CUT/i);
-    expect(s).toMatch(/angle, ground and light direction/i);
+    expect(s).toMatch(/shared ground plane, light direction or continued movement/i);
+  });
+
+  // The correction the research forced. The earlier version told the composer to cut consecutive
+  // beats on a SHARED angle, which for one subject is the textbook definition of a jump cut.
+  it("carries the 30-degree rule, and subordinates the match cut to it", () => {
+    expect(s).toMatch(/30-DEGREE RULE/);
+    expect(s).toMatch(/at least 30 degrees or change the shot size/i);
+    expect(s).toMatch(/JUMP CUT/);
+    expect(s).toMatch(/never at the cost of the 30-degree rule/i);
+  });
+
+  it("carries screen direction (the 180-degree rule)", () => {
+    expect(s).toMatch(/SCREEN DIRECTION/);
+    expect(s).toMatch(/180-degree rule/);
+    expect(s).toMatch(/left-to-right/i);
+  });
+
+  it("declares seconds per beat in the schema", () => {
+    const beat = shotComposeMultishotPrompt.schema.properties.sequences.items.properties.beats.items;
+    expect(beat.required).toEqual(["description", "seconds"]);
+    expect(beat.properties.seconds.type).toBe("number");
   });
 
   it("keeps each beat to one physical event", () => {

@@ -3,6 +3,8 @@ import { resolveShotComposeInputs } from "@/lib/nodes/resolve-inputs";
 import {
   renderComposeContext,
   renderMultishotComposeContext,
+  clampToOmniBudget,
+  shotsTotalSeconds,
   type ShotComposeIdea,
   type ShotComposeSequence,
 } from "@/lib/nodes/shot-compose";
@@ -64,7 +66,7 @@ export async function POST(
 ) {
   return withNode(req, params, async (nodeId, _node, caller) => {
     const body = (await req.json().catch(() => null)) as
-      | { role?: unknown; slices?: unknown }
+      | { role?: unknown; slices?: unknown; budgetSeconds?: unknown }
       | null;
     const role = getShotRole(typeof body?.role === "string" ? body.role : "");
 
@@ -78,12 +80,21 @@ export async function POST(
     const multishot = resolved.multishot;
     const spec = multishot ? shotComposeMultishotPrompt : shotComposePrompt;
 
+    // The operator's chosen clip length, falling back to the shot's own total. Clamped to Omni's
+    // range here as well as in the UI — this is what the composer's beats must sum to.
+    const budgetSeconds = clampToOmniBudget(
+      typeof body?.budgetSeconds === "number"
+        ? body.budgetSeconds
+        : shotsTotalSeconds(resolved.shots),
+    );
+
     const user = multishot
       ? renderMultishotComposeContext({
           shots: resolved.shots,
           role,
           clientContext: resolved.clientContext,
           objective: resolved.objective,
+          budgetSeconds,
         })
       : renderComposeContext({
           seedText: resolved.seedText,

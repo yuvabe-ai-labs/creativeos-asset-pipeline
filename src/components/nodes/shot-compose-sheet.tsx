@@ -9,6 +9,7 @@ import {
   Plus,
   Tag,
   Clapperboard,
+  Timer,
   Image as ImageIcon,
   type LucideIcon,
 } from "lucide-react";
@@ -16,10 +17,14 @@ import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { SHOT_ROLES, DEFAULT_SHOT_ROLE } from "@/lib/nodes/shot-roles";
 import {
-  sequenceFits,
+  retimeSequence,
+  sequenceSeconds,
+  shotsTotalSeconds,
+  clampToOmniBudget,
   type ShotComposeIdea,
   type ShotComposeSequence,
 } from "@/lib/nodes/shot-compose";
+import { OMNI_MIN_SECONDS, OMNI_MAX_SECONDS, shotSeconds } from "@/lib/nodes/group-shots";
 import type { ReelScript } from "@/lib/nodes/reel-script";
 import { DEFAULT_PARSE_SLICES, type KBSliceKey } from "@/lib/kb/parse-context";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -84,6 +89,11 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
     (s) => (s.nodes.find((n) => n.id === nodeId)?.data as { multishot?: boolean } | undefined)?.multishot,
   );
   const isMultishot = nodeMultishot === true && beats.length > 1;
+  const shotTotal = shotsTotalSeconds(beats);
+
+  // The clip's total length — the one number the composer must hit, and the one the operator
+  // actually controls. Seeded from the shot's own total, clamped to Omni's 3-10s range.
+  const [budget, setBudget] = useState(() => clampToOmniBudget(shotTotal));
 
   // Connected image references wired into the Shot's image handle — surfaced as
   // "composition references" (the same edges+nodes store derivation other nodes use).
@@ -165,7 +175,7 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
       const res = await fetch(`/api/nodes/${nodeId}/compose`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ role, slices }),
+        body: JSON.stringify({ role, slices, budgetSeconds: budget }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Compose failed");
@@ -206,29 +216,32 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
   }
 
   /**
-   * D201 — apply a whole sequence: EVERY beat's description, index-aligned.
+   * D201 — apply a whole sequence: it REPLACES the shot's beats, descriptions and timings alike.
    *
-   * Writing only the first would leave the rest holding their old descriptions, silently mixing
-   * two directions inside one clip. `sequenceFits` is checked first for the same reason — the
-   * model's beat count is not trusted, and a mismatch is refused with its reason rather than
-   * partially applied.
+   * Deliberately not index-aligned onto the existing beats. A parsed "beat" is frequently an act
+   * holding several real cuts, so a sequence that correctly splits two lines into five beats is
+   * the RIGHT answer, not a mismatch — an earlier version refused exactly that and left every
+   * direction unusable. The count is the composer's call; the total length is the operator's, and
+   * `retimeSequence` reconciles them while preserving the rhythm the composer wrote.
    */
   function applySequence(sequence: ShotComposeSequence, index: number) {
-    const fit = sequenceFits(sequence, beats.length);
-    if (!fit.ok) {
-      setError(fit.reason);
-      return;
-    }
+    const retimed = retimeSequence(sequence, budget);
+    if (retimed.length === 0) return;
 
     const base = (currentScript ?? {}) as ReelScript;
     const vs = base.visual_script ?? {};
+    // Non-timing fields are carried over from the beat in the same position where one exists, so
+    // a re-composed shot keeps whatever on-screen text or notes were already attached to it.
     updateNodeData(nodeId, {
       script: {
         ...base,
         visual_script: {
           ...vs,
-          // Each beat keeps its own timing and every other field — only the description changes.
-          shots: beats.map((shot, i) => ({ ...shot, description: sequence.beats[i] })),
+          shots: retimed.map((beat, i) => ({
+            ...(beats[i] ?? {}),
+            description: beat.description,
+            duration_seconds: beat.seconds,
+          })),
         },
       },
     });
@@ -240,7 +253,7 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
         body: JSON.stringify({
           versionId,
           selectedIndex: index,
-          finalDescription: sequence.beats.join("\n"),
+          finalDescription: retimed.map((b) => `[${b.seconds}s] ${b.description}`).join("\n"),
         }),
       });
     }
@@ -289,7 +302,7 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
                 </SheetTitle>
                 <p className="mt-1.5 text-sm text-muted-foreground">
                   {isMultishot
-                    ? `3 role-aware directions for this ${beats.length}-beat sequence. Using one rewrites every beat.`
+                    ? `3 cut sequences for this ${budget}s clip. Each one sets its own beats and timings.`
                     : "4 role-aware directions for this shot. Use one, or promote several to compare."}
                 </p>
               </div>
@@ -336,9 +349,40 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
                 </Select>
               </div>
 
+              {/* D201 — the clip's total length. The one number the composer must hit, and the
+                  only timing the operator really controls: beat lengths are scaled onto it. */}
+              {isMultishot && (
+                <div className="min-w-0">
+                  <SectionLabel icon={Timer} className="mb-2">Total duration</SectionLabel>
+                  <Select
+                    value={String(budget)}
+                    onValueChange={(v) => setBudget(clampToOmniBudget(Number(v)))}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from(
+                        { length: OMNI_MAX_SECONDS - OMNI_MIN_SECONDS + 1 },
+                        (_, i) => OMNI_MIN_SECONDS + i,
+                      ).map((s) => (
+                        <SelectItem key={s} value={String(s)}>
+                          {s}s
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="mt-1.5 text-[0.65rem] text-muted-foreground">
+                    {shotTotal === budget
+                      ? "The shot's own length."
+                      : `Shot is currently ${shotTotal}s — applying a sequence re-times it to ${budget}s.`}
+                  </p>
+                </div>
+              )}
+
               <div className="min-w-0">
                 <SectionLabel icon={Clapperboard} className="mb-2">
-                  {isMultishot ? `Current beats · ${beats.length}` : "Current shot"}
+                  {isMultishot ? `Current beats · ${beats.length} · ${shotTotal}s` : "Current shot"}
                 </SectionLabel>
                 {isMultishot ? (
                   // Read-only here on purpose: editing one beat in place is the Shot node's job.
@@ -348,6 +392,9 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
                       <li key={i} className="flex min-w-0 gap-2">
                         <span className="w-4 shrink-0 text-right text-[0.7rem] font-medium text-muted-foreground">
                           {i + 1}
+                        </span>
+                        <span className="w-7 shrink-0 text-[0.7rem] tabular-nums text-muted-foreground">
+                          {shotSeconds(beat)}s
                         </span>
                         <span className="min-w-0 flex-1 text-xs leading-relaxed text-foreground/80">
                           {(beat.description ?? "").trim() || (
@@ -432,21 +479,20 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
                       summary would hide the thing being chosen. */}
                   {!loading && !hydrating &&
                     sequences.map((sequence, i) => {
-                      const fit = sequenceFits(sequence, beats.length);
+                      // What the beats will ACTUALLY be once applied — the card shows the result,
+                      // not the model's raw proposal, so the timings on screen are the timings
+                      // that get written.
+                      const retimed = retimeSequence(sequence, budget);
+                      const dropped = (sequence.beats?.length ?? 0) - retimed.length;
                       return (
                         <div
                           key={i}
-                          className={cn(
-                            "min-w-0 rounded-xl border bg-card p-4 shadow-card transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]",
-                            fit.ok
-                              ? "border-border hover:-translate-y-0.5 hover:border-primary/40"
-                              : "border-destructive/40",
-                          )}
+                          className="min-w-0 rounded-xl border border-border bg-card p-4 shadow-card transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:border-primary/40"
                         >
                           <div className="mb-1 flex items-center justify-between gap-2">
                             <span className="text-sm font-medium">{sequence.title}</span>
                             <span className="shrink-0 text-[0.7rem] text-muted-foreground">
-                              {sequence.beats?.length ?? 0} beats
+                              {retimed.length} beats · {budget}s
                             </span>
                           </div>
                           {sequence.bestFor && (
@@ -454,28 +500,34 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
                           )}
 
                           <ol className="space-y-1.5">
-                            {(sequence.beats ?? []).map((beat, b) => (
+                            {retimed.map((beat, b) => (
                               <li key={b} className="flex min-w-0 gap-2">
                                 <span className="w-4 shrink-0 text-right text-[0.7rem] font-medium text-primary/70">
                                   {b + 1}
                                 </span>
+                                <span className="w-7 shrink-0 text-[0.7rem] tabular-nums text-muted-foreground">
+                                  {beat.seconds}s
+                                </span>
                                 <span className="min-w-0 flex-1 text-sm leading-relaxed text-muted-foreground">
-                                  {beat}
+                                  {beat.description}
                                 </span>
                               </li>
                             ))}
                           </ol>
 
                           <div className="mt-3 flex items-center justify-between gap-2">
-                            {/* The refusal reason sits ON the card, next to the disabled button —
-                                it is a fact about this direction, not a transient toast. */}
-                            <span className="min-w-0 flex-1 text-xs text-destructive">
-                              {fit.ok ? "" : fit.reason}
+                            {/* Not a refusal — the sequence still applies. This says what the
+                                budget cost it, so a dropped tail is never silent. */}
+                            <span className="min-w-0 flex-1 text-xs text-muted-foreground">
+                              {dropped > 0
+                                ? `${dropped} beat${dropped === 1 ? "" : "s"} dropped — ${budget}s fits ${budget} at most.`
+                                : sequenceSeconds(sequence) !== budget
+                                  ? `Re-timed from ${sequenceSeconds(sequence)}s to fit ${budget}s.`
+                                  : ""}
                             </span>
                             <Button
                               variant="secondary"
                               size="sm"
-                              disabled={!fit.ok}
                               onClick={() => applySequence(sequence, i)}
                             >
                               Use this sequence

@@ -2,7 +2,7 @@
 import type { ShotRole } from "@/lib/nodes/shot-roles";
 import type { UpstreamPreview } from "@/lib/nodes/resolve-inputs"; // type-only (erased) — safe
 import type { ReelShot } from "@/lib/nodes/reel-script";
-import { shotSeconds } from "@/lib/nodes/group-shots";
+import { shotSeconds, OMNI_MIN_SECONDS, OMNI_MAX_SECONDS } from "@/lib/nodes/group-shots";
 
 // One composed candidate. The Shot's output is still a description string; an idea is a
 // labelled candidate description the designer can pick (-> setDescription) or promote.
@@ -12,36 +12,97 @@ export type ShotComposeIdea = {
   description: string;
 };
 
+/** One beat of a composed sequence: what happens, and how long it holds. */
+export type ShotComposeBeat = { description: string; seconds: number };
+
 /**
- * D201 — the multishot composer's unit: a whole CUT SEQUENCE, one beat per beat of the shot.
+ * D201 — the multishot composer's unit: a whole CUT SEQUENCE.
  *
  * Four alternatives for "the shot" is meaningless when the shot is five cuts, and picking one
- * should write all five. `beats` is index-aligned with the shot's own beats.
+ * should write all five.
+ *
+ * The beat COUNT is the composer's to choose, not the shot's to dictate. A parsed "shot" is often
+ * an act holding several cuts — "A man picks up his keys. A woman steps out of a cab. Someone
+ * grabs a coffee." is one parsed beat and four real ones — so a composer forced to return exactly
+ * as many beats as the shot has would be forced to write the wrong film. What is FIXED is the
+ * total duration, because that is what the request bills and what the cut ladder must sum to.
  */
 export type ShotComposeSequence = {
   title: string;
   bestFor?: string;
-  beats: string[];
+  beats: ShotComposeBeat[];
 };
 
+/** A beat's length, defaulting the way `shotSeconds` does for anything unusable. */
+function beatSeconds(beat: ShotComposeBeat): number {
+  const n = Number(beat?.seconds);
+  return Number.isFinite(n) && n > 0 ? n : 1;
+}
+
+export function sequenceSeconds(sequence: ShotComposeSequence): number {
+  return (sequence.beats ?? []).reduce((sum, b) => sum + beatSeconds(b), 0);
+}
+
+/** The shot's own total, which is what a composed sequence is re-timed to by default. */
+export function shotsTotalSeconds(shots: ReelShot[]): number {
+  return shots.reduce((sum, s) => sum + shotSeconds(s), 0);
+}
+
+/** The usable duration budget for one Omni generation — the shot's own total, held to the caps. */
+export function clampToOmniBudget(seconds: number): number {
+  if (!Number.isFinite(seconds) || seconds <= 0) return OMNI_MAX_SECONDS;
+  return Math.min(OMNI_MAX_SECONDS, Math.max(OMNI_MIN_SECONDS, Math.round(seconds)));
+}
+
 /**
- * Whether a composed sequence can be applied to a shot with `beatCount` beats.
+ * Re-time a composed sequence onto a fixed total, preserving its RHYTHM.
  *
- * Checked on the CLIENT before applying, not only trusted from the model. A sequence one beat
- * short would leave the last beat holding its old description — silently mixing two directions
- * inside one clip, which is exactly the incoherence the LOOK contract exists to prevent. Better
- * to refuse the card and say why.
+ * The composer chooses how many beats the sequence needs; the operator chooses how long the whole
+ * clip runs. Those two have to be reconciled at apply time, and scaling proportionally is what
+ * keeps the director's intent: a sequence written as 1s/1s/1s/3s is three quick cuts and a hold,
+ * and it should stay three quick cuts and a hold at any total.
+ *
+ * Every beat floors at 1 second — below that Omni has nothing to render and the beat is a wasted
+ * line in the ladder. When the floors alone exceed the budget the extra beats are DROPPED from the
+ * tail rather than shrunk into nothing, because a 12-beat sequence in 5 seconds is not a shorter
+ * film, it is a broken one.
+ *
+ * Rounding drift is settled on the LONGEST beat, not the last: taking a second off a 4s hold is
+ * invisible, taking one off a 1s cut deletes it.
  */
-export function sequenceFits(
+export function retimeSequence(
   sequence: ShotComposeSequence,
-  beatCount: number,
-): { ok: true } | { ok: false; reason: string } {
-  const got = sequence.beats?.length ?? 0;
-  if (got === beatCount) return { ok: true };
-  return {
-    ok: false,
-    reason: `This direction has ${got} beat${got === 1 ? "" : "s"} but the shot has ${beatCount}.`,
-  };
+  totalSeconds: number,
+): ShotComposeBeat[] {
+  const budget = clampToOmniBudget(totalSeconds);
+  const beats = (sequence.beats ?? []).filter((b) => (b?.description ?? "").trim() !== "");
+  if (beats.length === 0) return [];
+
+  // More beats than seconds — keep the ones that fit at the 1s floor.
+  const kept = beats.length > budget ? beats.slice(0, budget) : beats;
+  const source = kept.map(beatSeconds);
+  const sourceTotal = source.reduce((a, b) => a + b, 0);
+
+  const scaled = source.map((s) => Math.max(1, Math.round((s / sourceTotal) * budget)));
+
+  // Settle the rounding remainder on the longest beat, one second at a time, never below the floor.
+  let drift = budget - scaled.reduce((a, b) => a + b, 0);
+  while (drift !== 0) {
+    const i = scaled.indexOf(drift > 0 ? Math.max(...scaled) : Math.max(...scaled));
+    if (drift > 0) {
+      scaled[i] += 1;
+      drift -= 1;
+    } else {
+      if (scaled[i] <= 1) break; // cannot shrink further without deleting a beat
+      scaled[i] -= 1;
+      drift += 1;
+    }
+  }
+
+  return kept.map((beat, i) => ({
+    description: beat.description.trim(),
+    seconds: scaled[i],
+  }));
 }
 
 // The shape getUpstreamOutputs returns (mirrored here to avoid a server-only import).
@@ -90,18 +151,24 @@ export function renderMultishotComposeContext(args: {
   role: ShotRole;
   clientContext: string;
   objective?: string;
+  /** The clip's total length. The composer's beats must sum to this; the COUNT is its own call. */
+  budgetSeconds: number;
 }): string {
-  const { shots, role, clientContext, objective } = args;
+  const { shots, role, clientContext, objective, budgetSeconds } = args;
   const blocks: string[] = [];
 
-  let at = 0;
-  const ladder = shots.map((shot, i) => {
-    const from = at;
-    at += shotSeconds(shot);
-    return `${i + 1}. [${from}-${at}s] ${(shot.description ?? "").trim() || "(no description yet)"}`;
-  });
+  const current = shots.map(
+    (shot, i) => `${i + 1}. (${shotSeconds(shot)}s) ${(shot.description ?? "").trim() || "(no description yet)"}`,
+  );
+  // Deliberately NOT framed as a ladder to preserve. A parsed beat is frequently an act holding
+  // several real cuts, and presenting it as fixed timings taught the composer to return one beat
+  // per parsed line — which is how a two-line act came back as a two-beat film.
   blocks.push(
-    `Shot sequence — ${shots.length} beats, ${at}s total (keep these timings):\n${ladder.join("\n")}`,
+    `Current content (${shots.length} line${shots.length === 1 ? "" : "s"} — split any line that holds several cuts):\n${current.join("\n")}`,
+  );
+  blocks.push(
+    `TOTAL DURATION BUDGET: ${budgetSeconds}s. Every sequence's beat lengths must sum to exactly ${budgetSeconds}. ` +
+      `No beat under 1s, so at most ${budgetSeconds} beats.`,
   );
 
   if (objective?.trim()) blocks.push(`Objective: ${objective.trim()}`);
