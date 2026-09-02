@@ -46,10 +46,9 @@ function ImageRefChip({ image, token }: { image: PromptRefImage | undefined; tok
         // eslint-disable-next-line @next/next/no-img-element
         <img src={image.fileUrl} alt="" className="size-3.5 shrink-0 rounded object-cover" />
       )}
-      {/* The index, not the filename: the prompt already names the thing in the words right
-          before this chip ("the CHUPPS V-Straps <IMAGE_REF_1>"), so the thumbnail beside that
-          claim is the check, and a filename repeated here would only crowd it. */}
-      <span>{token.replace(/^<IMAGE_REF_(\d+)>$/, "REF $1")}</span>
+      {/* The reference's name, same as the Instruction's chips — the token itself is in the
+          tooltip. A chip must read the same wherever it appears. */}
+      <span className="max-w-32 truncate">{image.label}</span>
     </span>
   );
 }

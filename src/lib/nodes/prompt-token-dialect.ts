@@ -19,11 +19,10 @@ export type TokenDialect = {
   /**
    * What a rendered chip reads, given the upstream's own name when it resolves.
    *
-   * Differs per dialect because the surrounding text differs. An Instruction mention IS the only
-   * name the reference gets, so the chip carries the node's name. In a generated motion prompt the
-   * model has already written "the CHUPPS V-Straps" immediately before the token, so repeating a
-   * filename there is noise — the compact index plus the thumbnail is the check that the name the
-   * model claimed matches the picture it bound.
+   * Both dialects show the reference's NAME — a chip must look the same wherever it appears, and
+   * the same file picked from the same @ menu should not read one way in the Instruction and
+   * another in the prompt. The dialects differ only in how they recover that name from a stored
+   * token, which is why this is a dialect method rather than one shared function.
    */
   chipLabel(segment: MentionSegment, upstreamLabel: string | undefined): string;
 };
@@ -99,11 +98,8 @@ export function imageRefDialect(orderedIds: string[]): TokenDialect {
       const i = indexOf.get(id);
       return i === undefined ? null : `<IMAGE_REF_${i}>`;
     },
-    chipLabel(segment) {
-      // From the token, not the upstream's filename: the model has already named the thing in the
-      // prose right before this chip, so the index is all that is left to show.
-      const n = /^<IMAGE_REF_(\d+)>$/.exec(segment.label)?.[1];
-      return n === undefined ? segment.label : `REF ${n}`;
-    },
+    // The reference's own name, exactly as the @ menu and the Instruction's chips show it. A chip
+    // must read the same wherever it appears — the index belongs in the tooltip, not on its face.
+    chipLabel: (segment, upstreamLabel) => upstreamLabel ?? segment.label,
   };
 }

@@ -73,16 +73,16 @@ describe("imageRefDialect", () => {
     expect(d.parse("")).toEqual([]);
   });
 
-  // The prompt already names the thing in the words right before the chip ("the CHUPPS V-Straps
-  // <IMAGE_REF_1>"), so the chip carries the index. Repeating a filename there crowds the claim
-  // the thumbnail is meant to check.
-  it("labels a chip by index, not by the upstream's filename", () => {
+  // The same name the @ menu and the Instruction's chips show. A chip reading "REF 1" here and
+  // the file's name there would make one reference look like two different things.
+  it("labels a chip with the reference's name, matching the Instruction's chips", () => {
     expect(d.chipLabel({ kind: "mention", label: "<IMAGE_REF_1>", id: "b" }, "Screenshot 2026 08 25"))
-      .toBe("REF 1");
+      .toBe("Screenshot 2026 08 25");
   });
 
-  it("falls back to the raw label for a malformed token", () => {
-    expect(d.chipLabel({ kind: "mention", label: "weird", id: "b" }, "x")).toBe("weird");
+  it("falls back to the raw token when the upstream is gone", () => {
+    expect(d.chipLabel({ kind: "mention", label: "<IMAGE_REF_7>", id: "x" }, undefined))
+      .toBe("<IMAGE_REF_7>");
   });
 });
 
