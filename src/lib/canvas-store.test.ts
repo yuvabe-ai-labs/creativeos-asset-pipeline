@@ -121,7 +121,7 @@ describe("fanOutShots", () => {
         visual_script?: { shots?: { description?: string; duration?: string }[] };
       };
       order?: number;
-      seededFrom?: { scriptNodeId: string; shotIndex: number; scriptTitle?: string };
+      seededFrom?: { scriptNodeId: string; shotIndexes?: number[]; scriptTitle?: string };
     };
     expect(first.script?.title).toBe("Reel A");
     expect(first.script?.strategic_objective).toBe("Sell calm"); // full metadata carried
@@ -129,7 +129,7 @@ describe("fanOutShots", () => {
     expect(first.script?.visual_script?.shots?.[0].description).toBe("Turmeric root");
     expect(first.order).toBe(1);
     expect(first.seededFrom?.scriptNodeId).toBe("script-1");
-    expect(first.seededFrom?.shotIndex).toBe(0);
+    expect(first.seededFrom?.shotIndexes).toEqual([0]);
     expect(first.seededFrom?.scriptTitle).toBe("Reel A");
   });
 
@@ -164,20 +164,89 @@ describe("fanOutShots", () => {
 
     const store = createCanvasStore([reelB], []);
     store.getState().fanOutShots("script-b");
-    const shotNodes = store.getState().nodes.filter((n) => n.type === "shot");
+    const created = store.getState().nodes.filter((n) => n.id !== "script-b");
 
-    // 5 shots -> 3 nodes, after the trailing rebalance: [0,1] [2] [3,4]
-    expect(shotNodes).toHaveLength(3);
+    // 5 shots -> 3 generations, after the trailing rebalance: [0,1] [2] [3,4]. A group of >1 row
+    // defaults to a `multishot` node; a lone row stays a `shot` (D207).
+    expect(created).toHaveLength(3);
+    expect(created.map((n) => n.type)).toEqual(["multishot", "shot", "multishot"]);
     expect(
-      shotNodes.map((n) => (n.data as { script?: { visual_script?: { shots?: unknown[] } } })
-        .script?.visual_script?.shots?.length),
-    ).toEqual([2, 1, 2]);
-    expect(shotNodes.map((n) => (n.data as { multishot?: boolean }).multishot))
-      .toEqual([true, false, true]);
-    expect(
-      shotNodes.map((n) => (n.data as { seededFrom?: { shotIndexes?: number[] } })
+      created.map((n) => (n.data as { seededFrom?: { shotIndexes?: number[] } })
         .seededFrom?.shotIndexes),
     ).toEqual([[0, 1], [2], [3, 4]]);
+
+    const [first, middle, last] = created;
+    expect((first.data as { cuts?: unknown[] }).cuts).toHaveLength(2);
+    expect((last.data as { cuts?: unknown[] }).cuts).toHaveLength(2);
+    expect(
+      (middle.data as { script?: { visual_script?: { shots?: unknown[] } } })
+        .script?.visual_script?.shots,
+    ).toHaveLength(1);
+  });
+});
+
+describe("fanOutShots is incremental", () => {
+  const parsed = {
+    visual_script: {
+      shots: [
+        { description: "a", duration_seconds: 3 },
+        { description: "b", duration_seconds: 5 },
+        { description: "c", duration_seconds: 6 },
+      ],
+    },
+  };
+  const scriptNode = (data: object = {}): AppNode =>
+    ({ id: "sc", type: "script", position: { x: 0, y: 0 }, data: { parsed, ...data } }) as AppNode;
+
+  it("creates one node per generation, typed by its mode", () => {
+    const store = createCanvasStore([scriptNode()], []);
+    store.getState().fanOutShots("sc");
+
+    const created = store.getState().nodes.filter((n) => n.id !== "sc");
+    expect(created.map((n) => n.type)).toEqual(["multishot", "shot"]);
+  });
+
+  it("gives the multishot node cuts summing to its budget", () => {
+    const store = createCanvasStore([scriptNode()], []);
+    store.getState().fanOutShots("sc");
+
+    const ms = store.getState().nodes.find((n) => n.type === "multishot")!;
+    const data = ms.data as { cuts?: { seconds: number }[]; totalSeconds?: number };
+    expect(data.totalSeconds).toBe(8);
+    expect(data.cuts?.reduce((s, c) => s + c.seconds, 0)).toBe(8);
+    // The envelope keeps the script context but NOT a second copy of the shot list.
+    expect((ms.data as { script?: { visual_script?: { shots?: unknown } } }).script?.visual_script?.shots)
+      .toBeUndefined();
+  });
+
+  // The bug this task fixes: a second press used to duplicate the whole row of nodes.
+  it("creates nothing on a second call with no changes", () => {
+    const store = createCanvasStore([scriptNode()], []);
+    store.getState().fanOutShots("sc");
+    const after = store.getState().nodes.length;
+    store.getState().fanOutShots("sc");
+    expect(store.getState().nodes.length).toBe(after);
+  });
+
+  it("creates only the generation that is missing", () => {
+    const store = createCanvasStore([scriptNode()], []);
+    store.getState().fanOutShots("sc");
+    const doomed = store.getState().nodes.find((n) => n.type === "shot")!;
+    store.getState().deleteNode(doomed.id);
+
+    store.getState().fanOutShots("sc");
+    const shotNodes = store.getState().nodes.filter((n) => n.type === "shot");
+    const multishotNodes = store.getState().nodes.filter((n) => n.type === "multishot");
+    expect(shotNodes).toHaveLength(1);
+    expect(multishotNodes).toHaveLength(1);
+  });
+
+  it("honours an override when choosing the node type", () => {
+    const store = createCanvasStore([scriptNode({ groupModes: { "0-1": false, "2": true } })], []);
+    store.getState().fanOutShots("sc");
+
+    const created = store.getState().nodes.filter((n) => n.id !== "sc");
+    expect(created.map((n) => n.type)).toEqual(["shot", "multishot"]);
   });
 });
 

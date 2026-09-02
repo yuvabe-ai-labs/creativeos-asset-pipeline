@@ -20,7 +20,8 @@ import type { AppNode, ShotNodeData } from "./canvas-nodes";
 import type { ReelScript } from "@/lib/nodes/reel-script";
 import type { ShotComposeIdea } from "@/lib/nodes/shot-compose";
 import { deriveShotType } from "@/lib/nodes/shot-types";
-import { groupShotsForFanOut, describeGenerations } from "@/lib/nodes/group-shots";
+import { describeGenerations, generationKey } from "@/lib/nodes/group-shots";
+import { cutsFromShots, totalOf } from "@/lib/nodes/multishot-cuts";
 import { splitMultishotData } from "@/lib/nodes/split-multishot";
 import { mergeShotData, sortForMerge } from "@/lib/nodes/merge-shots";
 import type { GenerationRow } from "@/lib/db/types";
@@ -365,48 +366,106 @@ export function createCanvasStore(
         toast.error("Couldn't duplicate nodes", { id: toastId });
       }
     },
-    // Materialize each shot of a parsed Script into its own Shot node (seed-and-fork,
-    // D21). Each Shot carries the FULL parent script narrowed to its single shot
-    // ("a Script node with one shot"), so downstream prompts keep the whole creative
-    // context. A dashed Script->Shot lineage edge is added for provenance; it is NOT
-    // a live edge (resolution never traverses it). Reads the script's hydrated parsed
-    // output (data.parsed = the active version, D19).
+    // D207 — materialize each GENERATION of a parsed Script as one node: a `shot` for a
+    // continuous take, a `multishot` for a cut sequence. A dashed Script->node lineage edge is
+    // added for provenance; it is NOT a live edge (resolution never traverses it).
+    //
+    // INCREMENTAL. A generation already on canvas is skipped, so pressing Fan out twice does
+    // nothing the second time instead of duplicating the whole row.
     fanOutShots: (scriptNodeId) => {
       const script = get().nodes.find((n) => n.id === scriptNodeId);
       if (!script) return;
-      const data = script.data as { title?: string; parsed?: ReelScript };
+      const data = script.data as {
+        title?: string;
+        parsed?: ReelScript;
+        groupModes?: Record<string, boolean>;
+      };
       const parsed = data.parsed;
       const shots = parsed?.visual_script?.shots ?? [];
       if (shots.length === 0) return;
 
-      const base = script.position;
       const scriptTitle = data.title || parsed?.title || "";
-      // D193 — hybrid fan-out. Consecutive shots pack into ≤10s groups, so the canvas comes out
-      // mixed: grouped nodes generate as one clip with cuts, lone ones as a single take.
-      const groups = groupShotsForFanOut(shots);
-      const created = groups.map((group, i) => ({
-        id: crypto.randomUUID(),
-        type: "shot",
-        position: { x: base.x + 360, y: base.y + i * 170 },
-        data: {
-          script: {
-            ...parsed,
-            visual_script: {
-              ...parsed?.visual_script,
-              shots: group.shotIndexes.map((shotIndex) => shots[shotIndex]),
+      const generations = describeGenerations(shots, data.groupModes);
+
+      // Matching is on the EXACT index set, not on overlap. A group whose boundaries moved under
+      // a re-parse is genuinely a different generation and correctly gets its own node; the old
+      // one is left alone, because deleting a node with downstream work attached is not a
+      // decision fan-out gets to make silently.
+      const existing = new Set(
+        get()
+          .nodes.filter(
+            (n) =>
+              (n.type === "shot" || n.type === "multishot") &&
+              (n.data as { seededFrom?: { scriptNodeId?: string } }).seededFrom?.scriptNodeId ===
+                scriptNodeId,
+          )
+          .map((n) =>
+            generationKey(
+              (n.data as { seededFrom?: { shotIndexes?: number[] } }).seededFrom?.shotIndexes ?? [],
+            ),
+          ),
+      );
+
+      const missing = generations.filter((g) => !existing.has(g.key));
+      if (missing.length === 0) {
+        toast.info("Every shot is already on the canvas");
+        return;
+      }
+
+      // Stack below the lowest node already seeded from this script, so a second fan-out does
+      // not land on top of the first.
+      const seeded = get().nodes.filter(
+        (n) =>
+          (n.data as { seededFrom?: { scriptNodeId?: string } }).seededFrom?.scriptNodeId ===
+          scriptNodeId,
+      );
+      const baseY =
+        seeded.length > 0
+          ? Math.max(...seeded.map((n) => n.position.y)) + 170
+          : script.position.y;
+      const baseX = script.position.x + 360;
+
+      const created = missing.map((generation, i) => {
+        const seededFrom = {
+          scriptNodeId,
+          shotIndexes: generation.shotIndexes,
+          scriptTitle,
+        };
+        const position = { x: baseX, y: baseY + i * 170 };
+        const groupShots = generation.shotIndexes.map((shotIndex) => shots[shotIndex]);
+
+        if (generation.multishot) {
+          const cuts = cutsFromShots(groupShots);
+          return {
+            id: crypto.randomUUID(),
+            type: "multishot",
+            position,
+            data: {
+              // The envelope only — `cuts` is the sole shot list on this node type.
+              script: { ...parsed, visual_script: { ...parsed?.visual_script, shots: undefined } },
+              order: generation.index + 1,
+              totalSeconds: totalOf(cuts),
+              cuts,
+              seededFrom,
             },
+          };
+        }
+
+        return {
+          id: crypto.randomUUID(),
+          type: "shot",
+          position,
+          data: {
+            script: {
+              ...parsed,
+              visual_script: { ...parsed?.visual_script, shots: groupShots },
+            },
+            order: generation.index + 1,
+            shot_type: deriveShotType(groupShots[0]?.description ?? ""),
+            seededFrom,
           },
-          order: i + 1,
-          multishot: group.shotIndexes.length > 1,
-          shot_type: deriveShotType(shots[group.shotIndexes[0]]?.description ?? ""),
-          seededFrom: {
-            scriptNodeId,
-            shotIndex: group.shotIndexes[0],
-            shotIndexes: group.shotIndexes,
-            scriptTitle,
-          },
-        },
-      })) as AppNode[];
+        };
+      }) as AppNode[];
 
       const createdEdges = created.map((n) => ({
         id: crypto.randomUUID(),
@@ -418,6 +477,13 @@ export function createCanvasStore(
         nodes: [...get().nodes, ...created],
         edges: [...get().edges, ...createdEdges],
       });
+
+      const already = generations.length - missing.length;
+      toast.success(
+        already > 0
+          ? `${created.length} added · ${already} already on canvas`
+          : `${created.length} shots added`,
+      );
     },
     setGenerationMode: (scriptNodeId, key, multishot) => {
       const script = get().nodes.find((n) => n.id === scriptNodeId);
