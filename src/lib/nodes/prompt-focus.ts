@@ -30,6 +30,37 @@ export const CAMERA_SPEC_PATTERNS: RegExp[] = [/\b\d{2,3}\s?mm\b/, /\bf\/\d+(?:\
  */
 export const OMNI_TOKEN_PATTERNS: RegExp[] = [/<IMAGE_REF_\d+>/, /\[\d+(?:\.\d+)?-\d+(?:\.\d+)?s\]/];
 
+/** The cut ladder's timing only — for read views that render image refs as chips instead. */
+export const TIMECODE_PATTERNS: RegExp[] = [/\[\d+(?:\.\d+)?-\d+(?:\.\d+)?s\]/];
+
+/** A run of prompt text, or the position of an `<IMAGE_REF_N>` token standing in for a picture. */
+export type ImageRefSegment = { text: string; refIndex?: number };
+
+const IMAGE_REF_RE = /<IMAGE_REF_(\d+)>/g;
+
+/**
+ * Split prompt text on Omni's `<IMAGE_REF_N>` tokens so the read view can render each as the
+ * PICTURE it refers to, the way every competitor shows an @-mention.
+ *
+ * `refIndex` is the token's own ZERO-based number, not the segment's position — the model may name
+ * the same reference in several beats and skip others entirely, so the index has to come from the
+ * token itself or a chip would show the wrong photograph.
+ */
+export function splitImageRefs(text: string): ImageRefSegment[] {
+  if (!text) return [];
+  const out: ImageRefSegment[] = [];
+  let last = 0;
+
+  for (const match of text.matchAll(IMAGE_REF_RE)) {
+    const at = match.index ?? 0;
+    if (at > last) out.push({ text: text.slice(last, at) });
+    out.push({ text: match[0], refIndex: Number(match[1]) });
+    last = at + match[0].length;
+  }
+  if (last < text.length) out.push({ text: text.slice(last) });
+  return out;
+}
+
 const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 // Case-insensitive, non-overlapping matching for the read view's cross-check highlights.

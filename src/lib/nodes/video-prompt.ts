@@ -6,7 +6,7 @@ import {
   omniImageRefToken,
   type MentionUpstream,
 } from "./resolve-mention-tokens";
-import { isVisionAttachment } from "./compose-message";
+import { visionAttachmentsOf } from "./compose-message";
 
 export const DEFAULT_MOTION_INSTRUCTION =
   "Describe how the still should move over ~8 seconds — camera movement first, then the secondary motion already implied by the frame.";
@@ -34,9 +34,9 @@ export type CompileVideoPromptInput = {
 export function visionUpstreams(
   upstream: CompileVideoPromptUpstream[],
 ): CompileVideoPromptUpstream[] {
-  return upstream.filter((u) =>
-    isVisionAttachment({ type: u.type ?? "", fileUrl: u.fileUrl, fileKind: u.fileKind, useLlm: u.useLlm }),
-  );
+  // `type` is optional on this shape but required by the predicate; default it so the ordering
+  // stays identical to the client's, which is the whole point of sharing one filter.
+  return visionAttachmentsOf(upstream.map((u) => ({ ...u, type: u.type ?? "" })));
 }
 
 /**

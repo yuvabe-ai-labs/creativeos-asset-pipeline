@@ -2,7 +2,7 @@
 
 import { Images } from "lucide-react";
 import { FieldLabel } from "./field-label";
-import { isVisionAttachment } from "@/lib/nodes/compose-message";
+import { visionAttachmentsOf } from "@/lib/nodes/compose-message";
 import { omniImageRefToken, ordinalToEnglish } from "@/lib/nodes/resolve-mention-tokens";
 import type { UpstreamNode } from "./connected-inputs-card";
 
@@ -26,9 +26,7 @@ export function ReferenceImageStrip({
   upstream: UpstreamNode[];
   omni: boolean;
 }) {
-  const images = upstream.filter((u) =>
-    isVisionAttachment({ type: u.type, fileUrl: u.fileUrl, fileKind: u.fileKind, useLlm: u.useLlm }),
-  );
+  const images = visionAttachmentsOf(upstream);
   if (images.length === 0) return null;
 
   return (

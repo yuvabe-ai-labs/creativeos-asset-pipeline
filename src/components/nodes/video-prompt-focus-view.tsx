@@ -37,7 +37,7 @@ import { DEFAULT_MOTION_INSTRUCTION } from "@/lib/nodes/video-prompt";
 import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
 import { EstimatedCreditsLabel } from "./estimated-credits-label";
 import { estimatePromptCredits } from "@/lib/credits/prompt-estimate";
-import { isVisionAttachment } from "@/lib/nodes/compose-message";
+import { isVisionAttachment, visionAttachmentsOf } from "@/lib/nodes/compose-message";
 import type { KBSliceKey } from "@/lib/kb/parse-context";
 import { CameraSelect } from "./camera-select";
 import { SpeedSelect } from "./speed-select";
@@ -72,12 +72,7 @@ import { useFlushAutosave } from "@/components/canvas/autosave-flush-context";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { ApprovalStatus } from "@/lib/approval";
 import { PromptVersionChips } from "./prompt-version-chips";
-import {
-  splitSentenceBeats,
-  segmentByTerms,
-  CAMERA_SPEC_PATTERNS,
-  OMNI_TOKEN_PATTERNS,
-} from "@/lib/nodes/prompt-focus";
+import { GeneratedPromptBody } from "./generated-prompt-body";
 import { ApprovalStatusBadge } from "@/components/review/approval-status-badge";
 import { LeftSection } from "./focus-left-section";
 import { RailItem } from "./focus-rail-item";
@@ -220,6 +215,14 @@ export function VideoPromptFocusView({
   // A single-beat node toggled to multishot means "the model may cut inside this shot" — there is
   // no ladder to author, so it keeps the single-shot controls.
   const isMultishot = upstreamShotData?.multishot === true && upstreamShots.length > 1;
+
+  // The attached images in `<IMAGE_REF_N>` order. Shared with the strip below and with the chips
+  // rendered inside the generated prompt, via one filter — see visionAttachmentsOf.
+  const promptRefImages = visionAttachmentsOf(upstream).map((u) => ({
+    id: u.id,
+    label: u.label,
+    fileUrl: u.fileUrl,
+  }));
   // D195 — Omni gets its own motion-prompt variant (the timecode ladder), so it maps to
   // "gemini-omni" rather than folding into Veo as it did before that variant existed.
   const providerOf = (modelId?: string): VideoProvider => {
@@ -811,25 +814,11 @@ export function VideoPromptFocusView({
                         onCommit={setDraft}
                         readOnly={!editable}
                         placeholder="Empty — click to edit"
+                        // Reference tokens render as the PICTURE they name, the way a competitor
+                        // shows an @-mention — see GeneratedPromptBody. The raw token stays in the
+                        // edit view and in what ships to the model; only the read view swaps it.
                         renderDisplay={(text) => (
-                          <span className="block space-y-2.5">
-                            {splitSentenceBeats(text).map((beat, i) => (
-                              <span key={i} className="block">
-                                {segmentByTerms(beat, [
-                                  ...CAMERA_SPEC_PATTERNS,
-                                  ...OMNI_TOKEN_PATTERNS,
-                                ]).map((seg, j) =>
-                                  seg.highlighted ? (
-                                    <span key={j} className="rounded bg-primary/10 px-0.5 font-bold">
-                                      {seg.text}
-                                    </span>
-                                  ) : (
-                                    <span key={j}>{seg.text}</span>
-                                  ),
-                                )}
-                              </span>
-                            ))}
-                          </span>
+                          <GeneratedPromptBody text={text} images={promptRefImages} />
                         )}
                         className="min-h-[16rem] max-w-[65ch] flex-1 resize-none overflow-y-auto rounded-xl p-4 text-base leading-7 [field-sizing:fixed]"
                       />
