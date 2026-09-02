@@ -3707,25 +3707,42 @@ frame already fixes lens and light, and per-beat camera plus a shared LOOK is wh
 Also rejected: keeping one prompt and branching inside it on a flag, which buries two genuinely
 different jobs in one string and makes neither evaluable on its own.
 
-### D202 — Dropping one Shot on another merges them *(recorded 2026-08-31; completes D193)*
+### D202 — Merging Shots is a third action on the existing selection *(recorded 2026-08-31; revised 2026-09-02; completes D193)*
 
-**Decision.** Dragging a Shot node onto another opens a confirmation and, on accept, merges them
-into one multishot node. Beats order by **script position**, not drop order. Incoming edges union
-onto the result; the consumed node's outgoing edges are dropped. A merge whose combined length
-exceeds the 10s ceiling is **refused with both numbers**, never clamped.
+**Decision.** Selecting several Shot nodes and choosing **Merge** from the selection's context menu
+combines them into one multishot node, behind a confirmation. Beats order by **script position**,
+not selection order. Incoming edges union onto the result and are **deduped**; outgoing edges are
+dropped. A merge is refused — with the reason on the row — when the selection spans two scripts or
+exceeds the 10s ceiling. Never clamped.
+
+**Revised from drag-and-drop.** The original decision was to drop one Shot onto another. Superseded:
+the canvas already has drag-select with batched duplicate and delete, so merge belongs on that same
+selection as a third verb rather than as a second, parallel interaction model. It also generalises
+for free — dropping merges two nodes, a selection merges *n* — and it costs no new drag machinery,
+no intersection testing, and no way to trigger a structural change by fumbling a drag.
 
 **Why now.** D193 shipped split without merge because three questions had no answer. They do now:
 *which side's edits win* — neither, both beat sets survive and sort by script order; *what happens
 downstream* — the same asymmetry split already uses, since a motion prompt written for one shot
-does not describe the merged sequence; *what stops an illegal merge* — the ceiling check, stated
+does not describe the merged sequence; *what stops an illegal merge* — the refusals below, stated
 rather than silently applied.
 
-**Why script order rather than drop order.** The ladder is a timeline. Dropping shot 3 onto shot 1
-must still generate 1 then 3; ordering by the gesture would silently reverse the reel.
+**Why script order rather than selection order.** The ladder is a timeline. Selecting shot 3 before
+shot 1 must still generate 1 then 3; ordering by the gesture would silently reverse the reel.
 
-**Why a confirmation.** Merging consumes a node and disconnects what was wired downstream of it —
+**Why refuse across scripts.** The merged node keeps ONE script envelope — objective, on-screen
+text, voiceover, caption. Merging across scripts would silently drop the other's.
+
+**Why dedupe incoming edges.** The pieces of an earlier split each carry a copy of the same lineage
+and grounding edges. Carrying them naively gives the merged node *n* identical inputs.
+
+**Why a confirmation.** Merging consumes nodes and disconnects what was wired downstream of them —
 the same class of structural change that earned split its dialog.
 
 **Consequence.** The merge action must record `removedNodeIds` and `removedEdgeIds`. Autosave builds
 its delete set only from those, which is the bug the split shipped with: a node removed from `nodes`
 alone reappears on the next load.
+
+**Rejected.** Drag-and-drop onto a target node (a second interaction model for a canvas that already
+batches by selection); clamping an over-cap merge to 10s (loses beats invisibly); merging in
+selection order (reorders the reel).

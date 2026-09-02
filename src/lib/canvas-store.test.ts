@@ -259,6 +259,114 @@ describe("splitMultishotNode", () => {
   });
 });
 
+describe("mergeShotNodes", () => {
+  const piece = (id: string, index: number, description: string, x: number): AppNode =>
+    ({
+      id,
+      type: "shot",
+      position: { x, y: 50 },
+      data: {
+        multishot: false,
+        script: {
+          title: "Reel",
+          visual_script: { shots: [{ description, duration_seconds: 4 }] },
+        },
+        seededFrom: { scriptNodeId: "script-1", shotIndex: index, shotIndexes: [index], scriptTitle: "Reel" },
+      },
+    }) as AppNode;
+
+  const shotsOf = (n: AppNode) =>
+    (n.data as { script?: { visual_script?: { shots?: { description?: string }[] } } })
+      .script?.visual_script?.shots?.map((s) => s.description);
+
+  it("replaces the selected nodes with one multishot node", () => {
+    const store = createCanvasStore([piece("a", 0, "first", 0), piece("b", 1, "second", 300)], []);
+    store.getState().mergeShotNodes(["a", "b"]);
+
+    const { nodes } = store.getState();
+    expect(nodes).toHaveLength(1);
+    expect(shotsOf(nodes[0])).toEqual(["first", "second"]);
+    expect((nodes[0].data as { multishot?: boolean }).multishot).toBe(true);
+  });
+
+  // Selection order is an artifact of the drag box; the ladder's timings are cumulative, so
+  // merging in click order would silently reorder the film.
+  it("orders beats by script position regardless of the id order passed in", () => {
+    const store = createCanvasStore([piece("a", 0, "first", 0), piece("b", 1, "second", 300)], []);
+    store.getState().mergeShotNodes(["b", "a"]);
+    expect(shotsOf(store.getState().nodes[0])).toEqual(["first", "second"]);
+  });
+
+  it("lands on the first shot's position", () => {
+    const store = createCanvasStore([piece("a", 0, "first", 40), piece("b", 1, "second", 900)], []);
+    store.getState().mergeShotNodes(["a", "b"]);
+    expect(store.getState().nodes[0].position).toEqual({ x: 40, y: 50 });
+  });
+
+  // Same defect class as splitMultishotNode's: autosave's delete set is built ONLY from these
+  // lists, so nodes and edges dropped from state alone resurrect on the next load.
+  it("records every replaced node and every touching edge as removed", () => {
+    const script: AppNode = { id: "script-1", type: "script", position: { x: 0, y: 0 }, data: {} } as AppNode;
+    const prompt: AppNode = { id: "vp-1", type: "video-prompt", position: { x: 0, y: 0 }, data: {} } as AppNode;
+    const store = createCanvasStore(
+      [script, piece("a", 0, "first", 0), piece("b", 1, "second", 300), prompt],
+      [
+        { id: "e-a-in", source: "script-1", target: "a" },
+        { id: "e-b-in", source: "script-1", target: "b" },
+        { id: "e-a-out", source: "a", target: "vp-1" },
+      ],
+    );
+    store.getState().mergeShotNodes(["a", "b"]);
+
+    expect(store.getState().removedNodeIds.sort()).toEqual(["a", "b"]);
+    expect(store.getState().removedEdgeIds.sort()).toEqual(["e-a-in", "e-a-out", "e-b-in"]);
+  });
+
+  // The pieces of an earlier split each hold a COPY of the same lineage edge. Carrying them
+  // naively would give the merged node N identical inputs.
+  it("dedupes identical incoming edges into one", () => {
+    const script: AppNode = { id: "script-1", type: "script", position: { x: 0, y: 0 }, data: {} } as AppNode;
+    const store = createCanvasStore(
+      [script, piece("a", 0, "first", 0), piece("b", 1, "second", 300)],
+      [
+        { id: "e-a-in", source: "script-1", target: "a" },
+        { id: "e-b-in", source: "script-1", target: "b" },
+      ],
+    );
+    store.getState().mergeShotNodes(["a", "b"]);
+
+    const edges = store.getState().edges;
+    expect(edges).toHaveLength(1);
+    expect(edges[0].source).toBe("script-1");
+    expect(edges[0].target).toBe(store.getState().nodes.find((n) => n.type === "shot")!.id);
+  });
+
+  it("drops outgoing edges — a prompt for one beat does not describe the sequence", () => {
+    const prompt: AppNode = { id: "vp-1", type: "video-prompt", position: { x: 0, y: 0 }, data: {} } as AppNode;
+    const store = createCanvasStore(
+      [piece("a", 0, "first", 0), piece("b", 1, "second", 300), prompt],
+      [{ id: "e-out", source: "a", target: "vp-1" }],
+    );
+    store.getState().mergeShotNodes(["a", "b"]);
+    expect(store.getState().edges).toHaveLength(0);
+  });
+
+  it("is a no-op for fewer than two shots", () => {
+    const store = createCanvasStore([piece("a", 0, "first", 0)], []);
+    store.getState().mergeShotNodes(["a"]);
+    expect(store.getState().nodes.map((n) => n.id)).toEqual(["a"]);
+    expect(store.getState().removedNodeIds).toEqual([]);
+  });
+
+  it("ignores non-shot ids in the selection", () => {
+    const text: AppNode = { id: "t", type: "text", position: { x: 0, y: 0 }, data: {} } as AppNode;
+    const store = createCanvasStore([piece("a", 0, "first", 0), text], []);
+    store.getState().mergeShotNodes(["a", "t"]);
+    // Only one real shot, so nothing to merge — and the text node is untouched.
+    expect(store.getState().nodes.map((n) => n.id).sort()).toEqual(["a", "t"]);
+  });
+});
+
 describe("promoteIdeasToShots", () => {
   it("creates one sibling Shot per idea (descriptions set, no edges) and leaves the source intact", () => {
     const sourceShot = {

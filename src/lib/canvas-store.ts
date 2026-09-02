@@ -22,6 +22,7 @@ import type { ShotComposeIdea } from "@/lib/nodes/shot-compose";
 import { deriveShotType } from "@/lib/nodes/shot-types";
 import { groupShotsForFanOut } from "@/lib/nodes/group-shots";
 import { splitMultishotData } from "@/lib/nodes/split-multishot";
+import { mergeShotData, sortForMerge } from "@/lib/nodes/merge-shots";
 import type { GenerationRow } from "@/lib/db/types";
 import type { PlaybookRun } from "@/lib/copilot/runner";
 
@@ -48,6 +49,8 @@ export type CanvasState = {
   duplicateNodes: (ids: string[], canvasId: string) => Promise<void>;
   fanOutShots: (scriptNodeId: string) => void;
   splitMultishotNode: (shotNodeId: string) => void;
+  /** D202 — several selected Shot nodes become one multishot node. Inverse of the split. */
+  mergeShotNodes: (shotNodeIds: string[]) => void;
   promoteIdeasToShots: (shotNodeId: string, ideas: ShotComposeIdea[]) => void;
   // Per-node video generation status — shared between VideoGenNode and VideoGenFocusView
   videoGenStatus: Record<string, { isGenerating: boolean; lastError: string | null }>;
@@ -464,6 +467,65 @@ export function createCanvasStore(
           ...carried,
         ],
         removedNodeIds: [...get().removedNodeIds, shotNodeId],
+        removedEdgeIds: [...get().removedEdgeIds, ...cascaded.map((e) => e.id)],
+      });
+    },
+
+    /**
+     * D202 — several Shot nodes become ONE multishot node. The inverse of splitMultishotNode, and
+     * structurally the same move: the selected nodes are REPLACED, not flagged.
+     *
+     * The merged node takes the FIRST (in script order) node's position, so the result lands where
+     * the sequence already started rather than somewhere the operator has to go find.
+     *
+     * Incoming edges are carried and DEDUPED — the pieces of an earlier split all share the same
+     * Script lineage edge and the same grounding images, so carrying them naively would create one
+     * duplicate edge per merged node. Outgoing edges are dropped for the same reason the split
+     * drops them: a motion prompt written for one beat does not describe the sequence it is now
+     * part of, and silently re-pointing it would attach a prompt to shots it never covered.
+     */
+    mergeShotNodes: (shotNodeIds) => {
+      const selected = get().nodes.filter((n) => shotNodeIds.includes(n.id) && n.type === "shot");
+      if (selected.length < 2) return;
+
+      const ordered = sortForMerge(selected as Array<Extract<AppNode, { type: "shot" }>>);
+      const merged = mergeShotData(ordered.map((n) => n.data));
+      const anchor = ordered[0];
+      const ids = new Set(ordered.map((n) => n.id));
+
+      const created = {
+        id: crypto.randomUUID(),
+        type: "shot",
+        position: anchor.position,
+        data: merged,
+      } as AppNode;
+
+      // Deduped by (source, targetHandle): the split's pieces each hold a copy of the same
+      // incoming edge, and one merged node must not end up with N identical inputs.
+      const carried = new Map<string, { id: string; source: string; target: string; targetHandle?: string }>();
+      for (const edge of get().edges) {
+        if (!ids.has(edge.target) || ids.has(edge.source)) continue;
+        const key = `${edge.source}::${edge.targetHandle ?? ""}`;
+        if (carried.has(key)) continue;
+        carried.set(key, {
+          id: crypto.randomUUID(),
+          source: edge.source,
+          target: created.id,
+          ...(edge.targetHandle ? { targetHandle: edge.targetHandle } : {}),
+        });
+      }
+
+      // Both directions, including edges BETWEEN two merged nodes — autosave's delete set is built
+      // only from removedEdgeIds, so an edge dropped from `edges` alone resurrects on reload.
+      const cascaded = get().edges.filter((e) => ids.has(e.source) || ids.has(e.target));
+
+      set({
+        nodes: [...get().nodes.filter((n) => !ids.has(n.id)), created],
+        edges: [
+          ...get().edges.filter((e) => !ids.has(e.source) && !ids.has(e.target)),
+          ...carried.values(),
+        ],
+        removedNodeIds: [...get().removedNodeIds, ...ids],
         removedEdgeIds: [...get().removedEdgeIds, ...cascaded.map((e) => e.id)],
       });
     },
