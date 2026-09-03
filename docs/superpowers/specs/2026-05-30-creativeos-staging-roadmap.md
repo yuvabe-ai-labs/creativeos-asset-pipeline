@@ -3950,3 +3950,37 @@ what they decided. `sequence-roles.ts` (D203) stays in the tree with no consumer
 deleted, and the VOICE contract's *concept* survives in D210's model-written look block even though
 its authoring surface (`ContractField`, `VOICE_PRESETS`) is gone — only the surface is deleted, not
 either decision. Both remain candidates to return once the flow they serve is settled.
+
+### D212 — The multishot writer identifies a reference but never binds one; the operator attaches it by hand *(recorded 2026-09-03; refines D211)*
+
+**Decision.** `REFERENCE_IDENTIFICATION_BLOCK` no longer asks the writer to emit `<IMAGE_REF_N>`
+tokens. It still attaches the reference images, still asks the model to LOOK at them and identify
+what each one shows, and still requires a short identifying phrase in the beat — colour, material,
+product name: "the black CHUPPS V-Straps", "the tan leather sliders". What it forbids is the token
+itself, and any other pointer into the attachment list ("the first image", `@Image1`). Binding a
+picture to a beat is the operator's action, made by `@`-mentioning the reference in the beat after
+reading the draft, through the same `MentionInstructionEditor` / `imageRefDialect` machinery D211
+already specified. `refsCitedIn` is unchanged and still scans beats for the token shape — what it
+finds is now the operator's citations rather than the model's guesses, which also makes the
+"Not cited" marker in `ReferenceImageStrip` mean "you have not attached this yet" instead of "the
+writer skipped this". `MULTISHOT_PROMPT_ID` bumped to `@4`.
+
+**Why.** A token the model assigns itself fails silently. It raises no error, renders no warning,
+and points at a specific photograph — so a misidentification is only discoverable in a clip already
+paid for. The identifying phrase carries the same information in a form a human can check at a
+glance and correct in the text. This keeps the part of auto-identification that was working (the
+model reading the images and naming what it sees, which is what makes a beat specific) and drops
+only the part that could be confidently wrong.
+
+**Refines D211,** which said "a blank instruction means the writer chooses from the connected
+library itself". That clause is withdrawn: a blank instruction now means no reference is bound to
+that beat, and the beat names the product in prose until the operator attaches one. The rest of
+D211 — `@`-mentions as the single binding surface, one chip editor per text box, the dialect split
+between `mentionDialect()` for input and `imageRefDialect()` for beats — stands unchanged.
+
+**Rejected.** Deleting the reference block outright (the model's reading of the images is what
+makes a beat name a real product rather than "a shoe", and it is the operator's only hint as to
+which attachment a beat meant); keeping auto-assignment behind a confidence threshold (the failure
+mode is confident misidentification, so a threshold does not catch it); removing the "Not cited"
+marker (under manual binding it becomes more useful, not less — it is now the operator's checklist
+of unattached references).

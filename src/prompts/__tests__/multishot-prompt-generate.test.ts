@@ -82,13 +82,31 @@ describe("multishotPromptGenerate", () => {
     expect(spec.system).toMatch(/keeps contact/i);
   });
 
+  // D212: the writer identifies a reference but never binds it. It used to assign
+  // `<IMAGE_REF_N>` itself, which fails silently — a token pointing at the wrong photograph
+  // raises no error and is only visible in a clip already paid for. The operator attaches the
+  // reference by hand instead, so the writer must name what it saw in prose and stop there.
+  it("forbids the writer from assigning reference tokens itself", () => {
+    expect(spec.system).toMatch(/do not write reference tokens/i);
+    expect(spec.system).toMatch(/<IMAGE_REF_0>/);
+    expect(spec.system).toMatch(/the operator's decision/i);
+  });
+
+  // The identifying phrase is what survives the loss of the token: it is how the operator knows
+  // which attachment a beat meant, and so which one to attach.
+  it("still asks the writer to look at the images and name what it saw", () => {
+    expect(spec.system).toMatch(/LOOK AT THEM/);
+    expect(spec.system).toMatch(/name what you saw/i);
+    expect(spec.system).toMatch(/black CHUPPS V-Straps/);
+  });
+
   // A CHUPPS logo on white was attached alongside three product shots and the writer cited it as
   // if it were a slipper — the beat then asked the model to animate a wordmark as footwear. The
   // identification list named only "product, garment, person or surface", so a brand mark had no
   // category and fell to the nearest one it knew.
-  it("classifies a brand mark as a graphic, never as a product to cite", () => {
+  it("classifies a brand mark as a graphic, never as a product to name", () => {
     expect(spec.system).toMatch(/brand mark/i);
-    expect(spec.system).toMatch(/never cite its token/i);
+    expect(spec.system).toMatch(/never name it as a product/i);
   });
 
   // The end-card case: a shot saying "...followed by logo" must produce the framing the mark will

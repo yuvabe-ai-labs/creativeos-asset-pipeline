@@ -171,10 +171,12 @@ export function MultishotPromptFocusView({
 
   // References no beat's text cites (via `refsCitedIn`), by index into `promptRefImages` —
   // the same order-preserving `visionAttachmentsOf(upstream)` filter ReferenceImageStrip
-  // applies internally, so the indices line up without a second, independent ordering. The
-  // writer is told to cite only what a shot needs, so an uncited reference is normal, but a
-  // connected image the finished prompt never mentions is otherwise only discoverable in the
-  // rendered video.
+  // applies internally, so the indices line up without a second, independent ordering.
+  //
+  // Since D212 the writer no longer binds references itself, so this reads as the operator's
+  // own checklist: an image marked here is one nothing has been attached to yet. Uncited is
+  // still a legitimate end state — a connected image the sequence never needed — but an
+  // intended reference left unattached is otherwise only discoverable in the rendered video.
   const uncitedIndices = useMemo(() => {
     if (!planDraft) return undefined;
     const cited = new Set(planDraft.beats.flatMap((b) => refsCitedIn(b.text)));
@@ -667,10 +669,10 @@ export function MultishotPromptFocusView({
                     <div className="max-h-72 shrink-0 overflow-y-auto border-b border-border bg-muted/30 px-6 py-4">
                       {openStrip === "connected" ? (
                         // The reference pool every cut mentions from, plus every other connected
-                        // input. A reference no beat cites is marked — the writer only cites what
-                        // a shot needs, so an uncited one is normal, but a connected image the
-                        // finished prompt never mentions is otherwise only discoverable in the
-                        // rendered video.
+                        // input. A reference no beat cites is marked — since D212 the writer
+                        // names a product in prose and leaves the binding to the operator, so
+                        // this marks what has not been attached yet. Uncited stays legitimate for
+                        // an image the sequence never needed.
                         <div className="flex flex-col gap-4">
                           {listedUpstream.length > 0 && (
                             <ul className="space-y-1.5">

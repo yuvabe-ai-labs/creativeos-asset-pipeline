@@ -7,35 +7,39 @@ import {
 } from "@/prompts/video-prompt-generate";
 
 /** Bumped whenever the system text or schema changes; recorded on every version row. */
-export const MULTISHOT_PROMPT_ID = "multishot-prompt-generate@3";
+export const MULTISHOT_PROMPT_ID = "multishot-prompt-generate@4";
 
 /**
- * How to identify an attached reference image and cite it inline via its `<IMAGE_REF_N>` token.
- * The multishot writer's beats are matched against this exact token shape by `refsCitedIn`
- * (src/lib/nodes/multishot-plan.ts). This is the only consumer of this block — it does not belong
- * in video-prompt-generate.ts, which never references it itself (its Omni counterpart was deleted).
+ * How to READ an attached reference image and name what it shows — without binding it to a beat.
+ * Per D212 the writer no longer assigns `<IMAGE_REF_N>` tokens itself; the operator attaches a
+ * reference by `@`-mentioning it in the beat afterwards. `refsCitedIn`
+ * (src/lib/nodes/multishot-plan.ts) still scans beats for that token shape, but what it now finds
+ * is the operator's own citations rather than the model's guesses. This is the only consumer of
+ * this block — it does not belong in video-prompt-generate.ts, which never references it itself
+ * (its Omni counterpart was deleted).
  */
 export const REFERENCE_IDENTIFICATION_BLOCK = `REFERENCES
-When reference images are listed, each one has a token of the form <IMAGE_REF_0>, <IMAGE_REF_1> and so on. WRITE THE TOKEN LITERALLY, inline, at the point in the beat where that subject or product appears — and ALWAYS name what you identified immediately before it:
+The reference images are ATTACHED to your message. LOOK AT THEM and identify what each one shows. Their labels are filenames and mean nothing; what a reference is, you decide from the image itself.
 
-    [0-3s] A college student crosses a sunlit campus courtyard in the CHUPPS Sliders <IMAGE_REF_0>, bag strap swinging.
-    [3-6s] A young professional steps past a cafe chair in the CHUPPS V-Straps <IMAGE_REF_1>, the strap catching the light.
+DO NOT WRITE REFERENCE TOKENS. Never write <IMAGE_REF_0>, "the first image", @Image1, or any other pointer into the attachment list. Which picture binds to which beat is the operator's decision, made by hand after reading your draft. A token you assign yourself binds a specific photograph silently, and a wrong binding raises no error — it is only visible in a clip already paid for.
 
-The reference images are ATTACHED to your message. LOOK AT THEM and identify what each one shows. Their labels are filenames and mean nothing; you decide which beat each reference belongs in, from the image itself. The operator does not annotate them for you.
+Instead, NAME WHAT YOU SAW, in prose, wherever that thing appears in a beat:
 
-NOT EVERY ATTACHMENT IS A THING THAT CAN APPEAR IN A SCENE. Decide which KIND each one is before citing it:
+    [0-3s] A college student crosses a sunlit campus courtyard in the black CHUPPS V-Straps, bag strap swinging.
+    [3-6s] A young professional steps past a cafe chair in the tan CHUPPS Sliders, the strap catching the light.
 
-- A PRODUCT, PERSON, GARMENT or SURFACE — something physical that exists in the world of the shot. Cite it inline, as above, wherever the shot puts it.
-- A BRAND MARK — a logo, wordmark or lock-up, usually alone on a plain white background. This is a GRAPHIC, not an object. It is not footwear, it is not worn, it does not walk, and it cannot be set down on a surface. NEVER cite its token, and never let it stand in for a product: a mark misread as a shoe is the single worst reference error, because the beat then asks the model to animate a logo as if it had feet.
+A short identifying phrase — colour, material, product name — is exactly right: "the black CHUPPS V-Straps", "the tan leather sliders", "a young woman in a loose oatmeal shirt". It tells the operator which attachment you meant, so a misreading is caught in the text rather than in a finished video, and it gives them the anchor to attach the reference to. Do not go further into that product's own design: the reference carries its geometry, stitching and logo placement, and prose competing with it produces a hybrid of the two. Describe instead what the reference cannot — framing, motion, light, wardrobe, ground contact.
+
+Name the thing IN EVERY BEAT it appears in, not once at the top.
+
+NOT EVERY ATTACHMENT IS A THING THAT CAN APPEAR IN A SCENE. Decide which KIND each one is before naming it:
+
+- A PRODUCT, PERSON, GARMENT or SURFACE — something physical that exists in the world of the shot. Name it wherever the shot puts it.
+- A BRAND MARK — a logo, wordmark or lock-up, usually alone on a plain white background. This is a GRAPHIC, not an object. It is not footwear, it is not worn, it does not walk, and it cannot be set down on a surface. NEVER name it as a product and never let it stand in for one: a mark misread as a shoe is the single worst reference error, because the beat then asks the model to animate a logo as if it had feet.
 
   When a shot asks for the logo — "…followed by logo", "end on the brand mark" — write the shot the frame actually needs and stop there: the product arrangement, the final held framing, and clear, uncluttered space where the mark will sit. The lock-up is composited in post, where the type is exact. Generated lettering is not, and this request carries a standing instruction against screen-space type anyway.
 
-Rules for these tokens:
-- ALWAYS put a short noun phrase naming the thing immediately BEFORE the token — "the CHUPPS V-Straps <IMAGE_REF_1>", "a young woman <IMAGE_REF_0>". Never a bare token standing alone. Naming it is what lets a wrong identification be caught and corrected in the text rather than in a finished video, and it tells the model what kind of thing it is looking at.
-- Use the exact token from the list. Never write "the first image", never write @Image1, never invent a token that is not listed.
-- Name the reference IN EVERY BEAT it appears in, not once at the top.
-- USE ONLY THE REFERENCES THIS SHOT CALLS FOR. The list is a library, not a checklist. Cite a reference where the shot's own content asks for it and leave the rest out — forcing an unrelated product into a beat in order to "use" it is worse than omitting it. The operator adds any others by hand.
-- Never describe a referenced subject's own design in prose beyond that short naming phrase — the reference carries its design, and competing prose produces a hybrid of the two. Describe what the reference cannot: framing, motion, light, wardrobe, ground contact.`;
+USE ONLY THE REFERENCES THIS SHOT CALLS FOR. The attachments are a library, not a checklist. Name a product where the shot's own content asks for it and leave the rest out — forcing an unrelated product into a beat in order to "use" it is worse than omitting it. The operator adds any others by hand.`;
 
 const SYSTEM = `You write the shot-by-shot motion plan for a single multi-shot video generation.
 

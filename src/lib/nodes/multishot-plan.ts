@@ -107,6 +107,11 @@ const IMAGE_REF = /<IMAGE_REF_(\d+)>/g;
 /**
  * Which references a beat cites, derived from its own text.
  *
+ * Since D212 these are the OPERATOR's citations, not the writer's: the model is forbidden from
+ * assigning `<IMAGE_REF_N>` itself and names the product in prose instead, so a token in a beat
+ * got there by someone `@`-mentioning a reference in the editor. The shape is unchanged either
+ * way — `imageRefDialect` emits the same token the writer used to.
+ *
  * A regex is exact here because the token is machine-emitted and fixed-shape — unlike splitting
  * prose on `[0-2s]`-shaped headings, which is a drift bug waiting for its first unusual beat.
  */
