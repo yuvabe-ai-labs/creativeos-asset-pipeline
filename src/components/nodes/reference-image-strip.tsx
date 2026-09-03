@@ -23,6 +23,7 @@ export function ReferenceImageStrip({
   upstream,
   omni,
   uncitedIndices,
+  hideLabel = false,
 }: {
   upstream: UpstreamNode[];
   omni: boolean;
@@ -34,13 +35,19 @@ export function ReferenceImageStrip({
    * component knowing what a "beat" or a "plan" is.
    */
   uncitedIndices?: Set<number>;
+  /**
+   * Drops the strip's own "Reference images · N" heading. For callers whose surrounding chrome
+   * already says it — the Multishot Prompt node's accordion chip carries exactly that label, so
+   * rendering it again inside the panel it opens just repeats the thing you clicked.
+   */
+  hideLabel?: boolean;
 }) {
   const images = visionAttachmentsOf(upstream);
   if (images.length === 0) return null;
 
   return (
     <div className="min-w-0 space-y-1.5">
-      <FieldLabel icon={Images} label={`Reference images · ${images.length}`} />
+      {!hideLabel && <FieldLabel icon={Images} label={`Reference images · ${images.length}`} />}
 
 
       <div className="flex min-w-0 flex-wrap gap-2">

@@ -11,7 +11,7 @@ import {
   ExternalLink,
   Sun,
   RefreshCw,
-  Link2,
+  Images,
   ChevronDown,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -590,11 +590,9 @@ export function MultishotPromptFocusView({
                       onClick={() => setOpenStrip((s) => (s === "connected" ? null : "connected"))}
                       className="h-auto gap-2 py-1.5"
                     >
-                      <Link2 className="size-3.5 text-muted-foreground/70" strokeWidth={1.5} />
-                      <span>Connected</span>
-                      <span className="text-muted-foreground">
-                        · {promptRefImages.length} ref{promptRefImages.length === 1 ? "" : "s"}
-                      </span>
+                      <Images className="size-3.5 text-muted-foreground/70" strokeWidth={1.5} />
+                      <span>Reference images</span>
+                      <span className="text-muted-foreground">· {promptRefImages.length}</span>
                       {promptRefImages.length > 0 && (
                         <span className="flex -space-x-1.5">
                           {promptRefImages.slice(0, 3).map((img) => (
@@ -675,8 +673,16 @@ export function MultishotPromptFocusView({
                               ))}
                             </ul>
                           )}
+                          {/* hideLabel: the chip that opens this panel already reads
+                              "Reference images · N" — repeating it inside is just the thing you
+                              clicked, said twice. */}
                           {promptRefImages.length > 0 ? (
-                            <ReferenceImageStrip upstream={upstream} omni uncitedIndices={uncitedIndices} />
+                            <ReferenceImageStrip
+                              upstream={upstream}
+                              omni
+                              uncitedIndices={uncitedIndices}
+                              hideLabel
+                            />
                           ) : (
                             <p className="text-xs text-muted-foreground">
                               No reference images connected. Connect a File, Draw or Image node

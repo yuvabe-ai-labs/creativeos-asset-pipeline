@@ -6,6 +6,7 @@ import { buildUserContent, isVisionAttachment } from "@/lib/nodes/compose-messag
 import { insertVersion } from "@/lib/db/versions";
 import { estimatePromptCredits } from "@/lib/credits/prompt-estimate";
 import { runPromptGeneration, CreditLimitError, type ModelUsage } from "@/lib/api/prompt-run";
+import { describeModelRequest } from "@/lib/nodes/model-request";
 import { apiError, apiOk, withNode } from "@/lib/api/route-helpers";
 
 // A returned plan that fails parsePlan must never become the node's output — it is thrown from
@@ -103,6 +104,16 @@ export async function POST(
           kbSlices: resolved.slices,
           cuts: resolved.cuts,
           onlyCutId,
+          // Frozen provenance — the exact request this generation sent. Was missing, so the focus
+          // view's "Sent to model" tab had nothing to render and always showed its empty state.
+          request: describeModelRequest({
+            system: spec.system,
+            compiledUser: user,
+            // This node has no separate "instruction" the way the Video Prompt node does; the
+            // whole compiled user turn IS what was asked, so the sequence steer stands in.
+            effectiveInstruction: instruction,
+            upstream: resolved.upstream,
+          }),
         },
         paramsUsed: {
           instruction,
