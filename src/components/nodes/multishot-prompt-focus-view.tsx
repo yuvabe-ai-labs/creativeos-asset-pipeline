@@ -553,7 +553,9 @@ export function MultishotPromptFocusView({
       {({ versionChips, approvalControls }) => (
         <>
           {selected === "prompt" && (
-            <div className="flex w-full min-h-0 flex-1 flex-col overflow-hidden">
+            // Grid for the same reason as the body below: `minmax(0, 1fr)` bounds the second row
+            // to the leftover height without depending on a min-h-0 chain holding all the way up.
+            <div className="grid h-full w-full min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden">
               <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-6 py-3">
                 <Tabs value={outputView} onValueChange={(v) => setOutputView(v as "breakup" | "prompt")}>
                   <TabsList>
@@ -579,7 +581,14 @@ export function MultishotPromptFocusView({
                 // Option A (2026-09-03): Connected and Shots demote to a collapsible strip so
                 // the generated output — the primary focus — gets the full width and every
                 // beat is readable at once, instead of being boxed into a third of the screen.
-                <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                // GRID, not a flex column. A flex column only yields a scrollable child if every
+                // ancestor carries min-h-0 to defeat `min-height: auto`, and three levels of that
+                // proved too fragile to keep working. `minmax(0, 1fr)` says the same thing in one
+                // place the browser cannot ignore: this row gets the leftover height and no more.
+                // Exactly two rows — chrome, then output — so the chrome is wrapped below rather
+                // than left as two siblings whose count changes when a panel opens.
+                <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden">
+                  <div className="min-h-0">
                   {/* The strip: two chips (accordion — opening one closes the other, both
                       closed by default) plus Generate, pinned to the right. */}
                   <div className="flex shrink-0 items-center gap-2 border-b border-border px-6 py-3">
@@ -745,11 +754,14 @@ export function MultishotPromptFocusView({
                     </div>
                   )}
 
-                  {/* The output — full width. The look block first (a distinct card, never
-                      numbered — it governs every beat below, and rendering it as "beat 0" would
-                      say a global constraint was local to shot 1), then every beat as a
-                      full-width row inside one bordered container. */}
-                  <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-6 py-5">
+                  </div>
+
+                  {/* The output — full width, and the grid's second row, so it is bounded by the
+                      leftover height and scrolls inside it. The look block first (a distinct
+                      card, never numbered — it governs every beat below, and rendering it as
+                      "beat 0" would say a global constraint was local to shot 1), then every beat
+                      as a full-width row inside one bordered container. */}
+                  <div className="flex min-h-0 flex-col gap-4 overflow-y-auto px-6 py-5">
                     {mode === "skeleton" && (
                       <div className="space-y-2.5 pt-1">
                         {Array.from({ length: 6 }).map((_, i) => (
