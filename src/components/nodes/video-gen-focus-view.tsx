@@ -42,9 +42,8 @@ import {
 import { smartMergeVideoParams } from "@/lib/video-gen/params/merge";
 import { autoAssignImageRoles } from "@/lib/video-gen/assign-image-roles";
 import { paramsForRestore } from "@/lib/generations/version-params";
-import { deriveShotDuration, deriveMultishotDuration } from "@/lib/nodes/derive-shot-duration";
+import { deriveShotDuration } from "@/lib/nodes/derive-shot-duration";
 import type { ReelScript } from "@/lib/nodes/reel-script";
-import type { MultishotCut } from "@/lib/nodes/multishot-cuts";
 import {
   areFramesAndRefsExclusive,
   buildConstraintState,
@@ -449,50 +448,6 @@ export function VideoGenFocusView({
   const onPatchRef = useRef(onPatch);
   useEffect(() => { onPatchRef.current = onPatch; });
 
-  // D195 — the upstream Shot's own script, walked up the graph, so `duration` can default to
-  // the sum of ITS beats rather than the model spec's flat number.
-  //
-  // A Multishot node answers the same question with its cut ladder: the ladder's total IS the
-  // budget the request should ask for, and the two are equal by construction (D209). It was not
-  // in this walk, so arriving from a Multishot node landed on the model spec's flat 8s however
-  // long the ladder was. Whichever kind is found first wins — the two do not co-exist on one
-  // path, since a Multishot Prompt takes its cuts from a Multishot node, not from a Shot.
-  //
-  // Declared up here, above the effects, because the seeding effect below closes over
-  // `derivedDuration` and names it in its dependency array — which is read during render, so a
-  // declaration further down would be a temporal-dead-zone error rather than a stale value.
-  //
-  // The selector returns a NUMBER, not the node or a {kind, …} wrapper. A selector's result is
-  // the snapshot useSyncExternalStore compares by identity, so returning a fresh object literal
-  // means a new snapshot on every read — "The result of getSnapshot should be cached to avoid an
-  // infinite loop". Deriving inside the selector makes the result a primitive, which compares by
-  // value and cannot churn. `walk` still returns a wrapper so that the FIRST matching node wins
-  // even when it derives to null (an empty ladder stops the search rather than letting a
-  // Shot further up answer for a Multishot node); that wrapper never leaves the selector.
-  const derivedDuration = useCanvasStore((s) => {
-    const seen = new Set<string>();
-    const walk = (id: string, depth: number): { value: number | null } | null => {
-      if (depth > 2 || seen.has(id)) return null;
-      seen.add(id);
-      for (const e of s.edges.filter((e) => e.target === id)) {
-        const source = s.nodes.find((n) => n.id === e.source);
-        if (!source) continue;
-        if (source.type === "shot") {
-          const script = (source.data as { script?: ReelScript }).script ?? null;
-          return { value: deriveShotDuration(script) };
-        }
-        if (source.type === "multishot") {
-          const cuts = (source.data as { cuts?: MultishotCut[] }).cuts ?? [];
-          return { value: deriveMultishotDuration(cuts) };
-        }
-        const found = walk(e.source, depth + 1);
-        if (found) return found;
-      }
-      return null;
-    };
-    return walk(nodeId, 0)?.value ?? null;
-  });
-
   // D211 — belt and braces, mirroring canvas-store's onConnect coercion: a multishot-prompt
   // upstream can only generate on Omni, and filtering the picker's list (below) is not enforcing
   // that constraint on its own — a node whose stored modelId predates the connection would sit on
@@ -518,48 +473,6 @@ export function VideoGenFocusView({
       onPatch({ modelId: GEMINI_OMNI_MODEL_ID });
     }
   }, [loadingConnected, editable, isMultishotPromptConnected, modelId, modelIdProp, onPatch]);
-
-  // D195's derived duration only ever applied inside handleModelChange, so it reached a node
-  // whose model the operator happened to switch and no other. Arriving from a Multishot node and
-  // generating straight away — the ordinary path — asked for the spec's flat 8s while the ladder
-  // said something else, and the two disagreeing is the truncated-at-full-price failure D209
-  // exists to make impossible.
-  //
-  // `paramsProp == null` is the same "never set" signal handleModelChange uses, and it is what
-  // makes this fire exactly once: the patch below writes the whole params object, so the next
-  // render reads as set whether the number came from here or from the operator. An operator's
-  // own duration can therefore never be overwritten by a re-derivation.
-  //
-  // Gated to Omni for the reason handleModelChange gives: the clamp targets its 3-10 slider, and
-  // a derived number posted to Veo/Kling's differently-shaped duration control would 400.
-  // `paramsProp == null` is the same "never set" signal handleModelChange uses: every later
-  // patch writes the WHOLE params object, so from the next render on `duration` reads as set
-  // whether the number came from here or from the operator — which is what keeps an operator's
-  // own duration from ever being overwritten by a re-derivation.
-  //
-  // Gated to Omni for the reason handleModelChange gives: the clamp targets its 3-10 slider, and
-  // a derived number posted to Veo/Kling's differently-shaped duration control would 400.
-  const seedDerivedDuration =
-    !loadingConnected &&
-    editable &&
-    paramsProp == null &&
-    derivedDuration != null &&
-    videoGenClientModelMap[modelId]?.provider === "gemini";
-
-  // Local state: the same render-phase "adjust state during render" shape as the modelId
-  // coercion above (setState inside an effect is what this file's lint forbids). It terminates
-  // on its own — writing the derived number makes `params.duration !== derivedDuration` false.
-  if (seedDerivedDuration && params.duration !== derivedDuration) {
-    setParams({ ...params, duration: derivedDuration });
-    setDurationIsDerived(true);
-  }
-
-  // Persisted half: an effect calling only onPatch, mirroring the modelId effect above. Fires
-  // once — the patch lands `paramsProp`, which retires `seedDerivedDuration` immediately.
-  useEffect(() => {
-    if (!seedDerivedDuration) return;
-    onPatchRef.current({ params: { ...params, duration: derivedDuration } });
-  }, [seedDerivedDuration, params, derivedDuration]);
 
   // ── Data fetching ──────────────────────────────────────────────────────────
 
@@ -1098,6 +1011,25 @@ export function VideoGenFocusView({
     ? connectedItems.find((c) => c.id === selected) ?? null
     : null;
 
+  // D195 — the upstream Shot's own script, walked up the graph, so `duration` can default to
+  // the sum of ITS beats rather than the model spec's flat number.
+  const upstreamShotScript = useCanvasStore((s) => {
+    const seen = new Set<string>();
+    const walk = (id: string, depth: number): ReelScript | null => {
+      if (depth > 2 || seen.has(id)) return null;
+      seen.add(id);
+      for (const e of s.edges.filter((e) => e.target === id)) {
+        const source = s.nodes.find((n) => n.id === e.source);
+        if (!source) continue;
+        if (source.type === "shot") return (source.data as { script?: ReelScript }).script ?? null;
+        const found = walk(e.source, depth + 1);
+        if (found) return found;
+      }
+      return null;
+    };
+    return walk(nodeId, 0);
+  });
+  const derivedDuration = deriveShotDuration(upstreamShotScript);
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
