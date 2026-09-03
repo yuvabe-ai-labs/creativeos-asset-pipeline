@@ -1,6 +1,6 @@
 import type { UpstreamOutput } from "@/lib/db/nodes";
 import { renderPlan, type MultishotPlan } from "@/lib/nodes/multishot-plan";
-import { totalOf, type MultishotCut } from "@/lib/nodes/multishot-cuts";
+import type { MultishotCut } from "@/lib/nodes/multishot-cuts";
 
 // Two prompt-node lanes feed Video Gen (see AGENTS.md / the multishot spec):
 //   shot      -> video-prompt      -> video-gen   (activeOutput is a STRING)
@@ -88,22 +88,3 @@ export async function resolveVideoGenPrompt(
   return { ok: true, prompt: renderPlan(plan, cuts), promptNode, promptUpstream, cuts };
 }
 
-/**
- * The multishot lane's duration backstop, mirroring the D97 "reject rather than correct" pattern
- * in constraints.ts: the ladder's timestamps are built cumulatively from the cuts (renderPlan), so
- * a request `duration` that disagrees with `sum(cuts.seconds)` comes back TRUNCATED AT FULL PRICE
- * — see multishot-cuts.ts. Checked before insertGeneration/reserveCredits, same placement reason.
- */
-export function checkMultishotDuration(
-  cuts: MultishotCut[],
-  requestedSeconds: number,
-): string | null {
-  const total = totalOf(cuts);
-  if (requestedSeconds !== total) {
-    return (
-      `Requested duration (${requestedSeconds}s) does not match the connected Multishot node's ` +
-      `cut budget (${total}s). Set duration to ${total}s, or edit the cuts, before generating.`
-    );
-  }
-  return null;
-}

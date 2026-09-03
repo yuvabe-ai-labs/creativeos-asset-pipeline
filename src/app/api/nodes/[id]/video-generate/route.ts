@@ -17,7 +17,7 @@ import {
   orderImagesForPromptTokens,
   type UpstreamImageRef,
 } from "@/lib/video-gen/assign-image-roles";
-import { resolveVideoGenPrompt, checkMultishotDuration } from "@/lib/video-gen/resolve-prompt";
+import { resolveVideoGenPrompt } from "@/lib/video-gen/resolve-prompt";
 import { apiError, apiOk, withNode } from "@/lib/api/route-helpers";
 
 const ImageRoleSchema = z.enum(["start_frame", "end_frame", "reference"]);
@@ -65,17 +65,8 @@ export async function POST(
     // upstream Multishot node's cuts. Never falls through to a stringified object.
     const resolved = await resolveVideoGenPrompt(upstream, getUpstreamOutputs);
     if (!resolved.ok) return apiError(resolved.reason, 400);
-    const { prompt, cuts: multishotCuts } = resolved;
+    const { prompt } = resolved;
     const promptNode = resolved.promptNode;
-
-    // The multishot lane's duration backstop: the ladder's timestamps are cumulative sums of the
-    // cuts, so a request duration that disagrees with the cut budget comes back truncated at full
-    // price (see multishot-cuts.ts). Checked before insertGeneration/reserveCredits, like D97.
-    if (multishotCuts) {
-      const requestedSeconds = Number(resolvedParams.seconds ?? resolvedParams.duration ?? 0);
-      const durationViolation = checkMultishotDuration(multishotCuts, requestedSeconds);
-      if (durationViolation) return apiError(durationViolation, 400);
-    }
 
     // Also collect images upstream of the prompt node so that
     // image → prompt-node → video-gen connections resolve correctly.

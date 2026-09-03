@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { resolveVideoGenPrompt, checkMultishotDuration } from "../resolve-prompt";
+import { resolveVideoGenPrompt } from "../resolve-prompt";
 import type { UpstreamOutput } from "@/lib/db/nodes";
 import type { MultishotPlan } from "@/lib/nodes/multishot-plan";
 import type { MultishotCut } from "@/lib/nodes/multishot-cuts";
@@ -128,14 +128,3 @@ describe("resolveVideoGenPrompt", () => {
   });
 });
 
-describe("checkMultishotDuration", () => {
-  it("returns null when the requested duration matches the cut budget", () => {
-    expect(checkMultishotDuration(cuts, 8)).toBeNull();
-  });
-
-  it("rejects a duration that disagrees with the cut budget, naming both numbers", () => {
-    const reason = checkMultishotDuration(cuts, 6);
-    expect(reason).toMatch(/6s/);
-    expect(reason).toMatch(/8s/);
-  });
-});
