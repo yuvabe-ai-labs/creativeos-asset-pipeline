@@ -82,7 +82,7 @@ const aspectRatioParam: ParamSpec = {
   group: "primary",
   order: 2,
   visible: true,
-  defaultValue: "16:9",
+  defaultValue: "9:16",
   constraints: { type: "select", options: ["16:9", "9:16", "1:1"] },
   description: "Used only when generating from references with no start frame.",
 };

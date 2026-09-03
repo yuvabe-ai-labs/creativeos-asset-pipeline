@@ -74,7 +74,9 @@ describe("klingO1Params", () => {
     expect(p.group).toBe("primary");
     expect(p.visible).toBe(true);
     expect(p.constraints).toEqual({ type: "select", options: ["16:9", "9:16", "1:1"] });
-    expect(p.defaultValue).toBe("16:9");
+    // Vertical by default (operator request 2026-09-04): the work this tool makes is reels.
+    // Landscape stays one click away rather than being the thing you undo every time.
+    expect(p.defaultValue).toBe("9:16");
   });
 
   // 3.0 is first-frame-only, so Kling always derives the ratio from that image — an
