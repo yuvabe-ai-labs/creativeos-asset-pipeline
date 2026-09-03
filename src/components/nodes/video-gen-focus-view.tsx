@@ -1207,10 +1207,10 @@ export function VideoGenFocusView({
                   <VideoGenModelPicker
                     modelId={modelId}
                     onModelChange={handleModelChange}
-                    restrictToModelId={isMultishotPromptConnected ? GEMINI_OMNI_MODEL_ID : undefined}
+                    lockedToModelId={isMultishotPromptConnected ? GEMINI_OMNI_MODEL_ID : undefined}
                     restrictionReason={
                       isMultishotPromptConnected
-                        ? "Connected to a Multishot Prompt — only Omni can generate a multishot plan."
+                        ? "Connected to a Multishot Prompt. Only Omni can generate a multi-shot plan — other models ignore the timecode ladder and return a single take."
                         : undefined
                     }
                   >

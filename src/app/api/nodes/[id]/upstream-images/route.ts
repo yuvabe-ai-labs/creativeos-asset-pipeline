@@ -29,9 +29,20 @@ export async function GET(
       }
       const allUpstream = Array.from(seen.values());
 
-      // image-gen nodes are valid when directly connected to this node,
-      // but not when inherited through the grandparent (prompt-node) path.
+      // image-gen nodes are valid when directly connected to this node, OR when they feed a
+      // connected multishot-prompt node directly. Those two cases are NOT the same rule applied
+      // twice: a video-prompt's own image-gen grandparent is vision context for the WRITER (the
+      // motion-prompt LLM) and is never itself uploaded to the video model — see VALID_CONNECTIONS
+      // in canvas-nodes.ts. A multishot-prompt's image-gen upstream is different in kind: its
+      // `<IMAGE_REF_N>` tokens (resolve-mention-tokens.ts / plan-omni-input.ts) are numbered over
+      // exactly that upstream, so an excluded image-gen reference leaves a token in the rendered
+      // plan with no matching upload — a silent wrong-picture bug in a paid clip. Mirrors the same
+      // distinction in video-generate/route.ts.
       const directIds = new Set(direct.map((u) => u.nodeId));
+      const multishotPromptUpstreamIds = new Set(
+        promptNodes.flatMap((u, i) => (u.type === "multishot-prompt" ? promptUpstreamBatches[i] : []))
+          .map((u) => u.nodeId),
+      );
 
       const images = allUpstream
         .filter((u) => {
@@ -39,7 +50,10 @@ export async function GET(
             const d = u.data as Record<string, unknown>;
             return d.fileKind === "image" && typeof d.fileUrl === "string";
           }
-          if (u.type === "image-gen" && directIds.has(u.nodeId)) {
+          if (
+            u.type === "image-gen" &&
+            (directIds.has(u.nodeId) || multishotPromptUpstreamIds.has(u.nodeId))
+          ) {
             return typeof u.activeOutput === "string";
           }
           return false;

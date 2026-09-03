@@ -612,4 +612,59 @@ describe("Omni coercion on connect", () => {
     expect((store.getState().nodes.find((n) => n.id === "vg")!.data as { modelId?: string }).modelId)
       .toBe("google:veo-3");
   });
+
+  // The multishot lane's sensible defaults: 9:16 (reels are vertical) and 720p (Omni's only
+  // natively rendered tier). Merged into `params`, never a wholesale replace — see the modelId
+  // coercion above for why blind replacement is the exact bug this feature avoids repeating.
+  it("defaults aspect_ratio and resolution for a fresh video-gen node, merged into existing params", () => {
+    const store = createCanvasStore(
+      [
+        { id: "mp", type: "multishot-prompt", position: { x: 0, y: 0 }, data: {} } as AppNode,
+        {
+          id: "vg",
+          type: "video-gen",
+          position: { x: 0, y: 0 },
+          data: { modelId: "google:veo-3", params: { duration: 8 } },
+        } as AppNode,
+      ],
+      [],
+    );
+    store.getState().onConnect({ source: "mp", target: "vg", sourceHandle: null, targetHandle: null });
+
+    const params = (store.getState().nodes.find((n) => n.id === "vg")!.data as { params?: Record<string, unknown> }).params;
+    expect(params).toEqual({ duration: 8, aspect_ratio: "9:16", resolution: "720p" });
+  });
+
+  it("does not clobber an operator's already-chosen aspect_ratio or resolution", () => {
+    const store = createCanvasStore(
+      [
+        { id: "mp", type: "multishot-prompt", position: { x: 0, y: 0 }, data: {} } as AppNode,
+        {
+          id: "vg",
+          type: "video-gen",
+          position: { x: 0, y: 0 },
+          data: { modelId: "google:veo-3", params: { aspect_ratio: "16:9", resolution: "1080p" } },
+        } as AppNode,
+      ],
+      [],
+    );
+    store.getState().onConnect({ source: "mp", target: "vg", sourceHandle: null, targetHandle: null });
+
+    const params = (store.getState().nodes.find((n) => n.id === "vg")!.data as { params?: Record<string, unknown> }).params;
+    expect(params).toEqual({ aspect_ratio: "16:9", resolution: "1080p" });
+  });
+
+  it("sets both defaults on a video-gen node with no params at all", () => {
+    const store = createCanvasStore(
+      [
+        { id: "mp", type: "multishot-prompt", position: { x: 0, y: 0 }, data: {} } as AppNode,
+        { id: "vg", type: "video-gen", position: { x: 0, y: 0 }, data: { modelId: "google:veo-3" } } as AppNode,
+      ],
+      [],
+    );
+    store.getState().onConnect({ source: "mp", target: "vg", sourceHandle: null, targetHandle: null });
+
+    const params = (store.getState().nodes.find((n) => n.id === "vg")!.data as { params?: Record<string, unknown> }).params;
+    expect(params).toEqual({ aspect_ratio: "9:16", resolution: "720p" });
+  });
 });

@@ -176,7 +176,21 @@ export function createCanvasStore(
       const sourceNode = get().nodes.find((n) => n.id === connection.source);
       const targetNode = get().nodes.find((n) => n.id === connection.target);
       if (sourceNode?.type === "multishot-prompt" && targetNode?.type === "video-gen") {
-        get().updateNodeData(targetNode.id, { modelId: GEMINI_OMNI_MODEL_ID });
+        // Sensible defaults for the lane, not an override: 9:16 (reels are vertical) and 720p
+        // (Omni's only natively rendered tier — see params/gemini-omni.ts). Merged into the
+        // EXISTING params object and only where the operator hasn't already chosen a value —
+        // `updateNodeData` itself only shallow-merges top-level data keys, so handing it a bare
+        // `{ aspect_ratio, resolution }` would replace `params` wholesale and wipe every other
+        // param already set on the node.
+        const existingParams = (targetNode.data as { params?: Record<string, unknown> }).params ?? {};
+        get().updateNodeData(targetNode.id, {
+          modelId: GEMINI_OMNI_MODEL_ID,
+          params: {
+            aspect_ratio: "9:16",
+            resolution: "720p",
+            ...existingParams,
+          },
+        });
       }
 
       // Mint a uuid id — React Flow would otherwise assign `xy-edge__<src>-<tgt>`,
