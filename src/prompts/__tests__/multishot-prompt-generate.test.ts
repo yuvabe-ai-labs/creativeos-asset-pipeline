@@ -62,4 +62,23 @@ describe("multishotPromptGenerate", () => {
   it("carries the subject-silent camera guard so per-beat camera movement can't relitigate the levitation bug", () => {
     expect(spec.system).toContain(SUBJECT_SILENT_CAMERA);
   });
+
+  // Added after the operator reported generations "missing even basic things of laws of physics"
+  // and shots that "aren't being got right". Both trace to guidance this prompt did not carry:
+  // nothing told the writer to stay faithful to the operator's shot text, nothing capped a beat at
+  // one action (Omni blends competing actions, and blending is what reads as melting/sliding), and
+  // nothing asked for surface contact. These are the three most likely to be shortened away by
+  // someone trimming a long prompt, so they are pinned.
+  it("holds the writer to the operator's shot text rather than substituting its own", () => {
+    expect(spec.system).toMatch(/shot text is the brief/i);
+  });
+
+  it("caps a beat at one dominant action", () => {
+    expect(spec.system).toMatch(/one dominant action/i);
+  });
+
+  it("asks for named surface contact, the fix for sliding and hovering", () => {
+    expect(spec.system).toMatch(/name the surface and the contact/i);
+    expect(spec.system).toMatch(/keeps contact/i);
+  });
 });

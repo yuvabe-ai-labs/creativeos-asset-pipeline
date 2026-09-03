@@ -7,7 +7,7 @@ import {
 } from "@/prompts/video-prompt-generate";
 
 /** Bumped whenever the system text or schema changes; recorded on every version row. */
-export const MULTISHOT_PROMPT_ID = "multishot-prompt-generate@1";
+export const MULTISHOT_PROMPT_ID = "multishot-prompt-generate@2";
 
 /**
  * How to identify an attached reference image and cite it inline via its `<IMAGE_REF_N>` token.
@@ -47,6 +47,22 @@ THE BEATS
 Return exactly one beat per shot given, echoing that shot's \`cutId\` EXACTLY as provided. Never
 invent an id, never merge two shots into one beat, never split one shot across two.
 
+THE SHOT TEXT IS THE BRIEF
+The operator's shot text is what that shot IS. Your beat RENDERS it; it does not replace it. Do not
+substitute a different subject, setting or action, and do not add people, props or places the shot
+text does not call for.
+
+A shot text often names more than one camera setup — "Rapid close-ups. A man picks up his keys. A
+woman steps out of a cab. Someone grabs a coffee." A beat of a few seconds cannot hold four setups,
+and trying is the single biggest reason a generation comes back as mush. Choose the ONE the shot
+leads with, or the one its length can actually carry, and render that completely. The operator
+splits the rest into their own shots when they want them.
+
+ONE DOMINANT ACTION PER BEAT
+One continuous action, never a chain. "A, then B, then C" inside a few seconds produces none of
+them cleanly: the model resolves competing actions by blending, and blending is what reads as
+melting, sliding and morphing. One subject, one action, one camera move.
+
 Each beat says what HAPPENS in that shot — subject, action, and the camera's framing and movement.
 Decide framing yourself, and cut well:
 - Vary shot size between consecutive beats. Two adjacent beats at the same distance read as a
@@ -56,6 +72,39 @@ Decide framing yourself, and cut well:
 - Where a movement carries across a cut, name it in BOTH beats so the halves join.
 
 ${SUBJECT_SILENT_CAMERA}
+
+PHYSICS
+Generated motion fails in predictable ways: feet skate, subjects hover, limbs merge, things pass
+through each other. The model is not simulating a room — it paints plausible frames — so anything
+you leave unstated it will not enforce. State it:
+
+- NAME THE SURFACE AND THE CONTACT. Not "she walks" but "she walks on wet asphalt, each step
+  landing heel-first and rolling forward". Surface plus contact is what stops a gait sliding.
+- USE FORCE VERBS: plant, push, press, drag, strike, pull taut, sway, settle. Vague motion verbs
+  ("moves", "goes", "floats through") give the model no sense of mass or resistance, and it
+  returns weightless motion.
+- SAY WHAT TAKES THE WEIGHT — "drops onto the bench and lets it take his weight", "the strap pulls
+  taut against her shoulder". Contact between two things has to be said or they interpenetrate.
+- LET MATERIALS BEHAVE: fabric creases and falls, liquid pours and settles, hair lags behind the
+  head that moved it. One such detail per beat is plenty.
+- EVERY SUBJECT KEEPS CONTACT with the ground or the surface it rests on for the whole beat,
+  unless the shot is explicitly a jump or a lift.
+
+DETAIL AND NATURALNESS
+Omni's own guidance is that the model rewards being asked for micro-detail. Be specific about
+people, clothing and objects rather than generic ("a young woman" -> "a young woman in a loose
+oatmeal linen shirt"), and give the background enough real detail to sit in a real place. Attend
+to expression and to the timing of small movements. Richly specified scenes come back natural;
+thin ones come back uncanny.
+
+If text appears anywhere in a beat — a shopfront, a sign, a label in the background — say what it
+reads. Omni renders text correctly when told what it says and invents garbled lettering when not.
+
+PRESERVATION
+A referenced product must survive the beat unchanged: shape, proportions, colour, and any
+lettering or logo held exactly. Say so in the beat whenever the product is on screen — "the strap
+geometry and printed logo hold exactly". Left unsaid, the model drifts the label, changes how many
+of a thing there are, or hybridises two references.
 
 Do NOT write timecodes, durations or shot numbers into the text. The timings are the operator's
 and are added afterwards; anything you write about time will contradict them.

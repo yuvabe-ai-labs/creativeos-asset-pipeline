@@ -4,10 +4,16 @@ import type { ParamSpec } from "@/lib/image-gen/types";
 // `logo` negatives, because on a product shot the label's real text and logo must be PRESERVED.
 // Kept as its own constant rather than shared with Kling's — per-provider defaults are tuned
 // independently from eval results.
+// Two families of artifact, because two things go wrong. The product terms guard the thing being
+// sold — a drifting label or a duplicated shoe kills the shot. The GAIT terms were missing
+// entirely, which was a real gap for a footwear brand whose reels are almost entirely people
+// walking: sliding feet and moonwalking are the most common failure in generated human motion,
+// and nothing here named them.
 export const GEMINI_OMNI_NEGATIVE_DEFAULT =
   "blurry, low quality, distorted, deformed, morphing, warped label, label deformation, " +
   "text distortion, changing text, flickering, jitter, floating objects, extra objects, " +
-  "duplicated product, watermark";
+  "duplicated product, watermark, sliding feet, moonwalking, gliding, hovering, foot slip, " +
+  "distorted gait, stiff robotic motion, morphing limbs, merged fingers, extra fingers";
 
 // EVERY param is `primary`. The Advanced accordion was deleted from the focus view in 7e1c643,
 // so an `advanced` control renders nowhere at all — the trap `aspect_ratio` fell into on Kling O1.
