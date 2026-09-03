@@ -68,3 +68,9 @@ next-env.d.ts
 /public/help-videos/[0-9]*/
 
 ref/omni-samples/
+
+# Design-canvas working files: the .dc.html artboards plus the seeded page they
+# are packed into. That seeded file carries the whole canvas editor inlined (~2MB),
+# so it must never land in a commit. The published canvas is the shareable copy;
+# these are the sources it is re-seeded from.
+.design/
