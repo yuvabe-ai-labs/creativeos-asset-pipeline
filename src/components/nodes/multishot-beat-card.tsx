@@ -27,6 +27,7 @@ export function MultishotBeatCard({
   onChange,
   onRerun,
   rerunning = false,
+  showRerun = false,
   onFocusTimings,
   disabled = false,
 }: {
@@ -39,6 +40,11 @@ export function MultishotBeatCard({
   onChange: (next: string) => void;
   onRerun: () => void;
   rerunning?: boolean;
+  /**
+   * Whether to render the rewrite button. The caller withholds it while the multishot flow
+   * settles; `onRerun` stays wired so turning it back on is one flag, not a rebuild.
+   */
+  showRerun?: boolean;
   onFocusTimings: () => void;
   // D33 — the canvas read-only lock. Disables editing AND both action buttons.
   disabled?: boolean;
@@ -55,15 +61,17 @@ export function MultishotBeatCard({
           [{from}-{to}s]
         </Button>
         <span className="text-eyebrow text-muted-foreground">Shot {index + 1}</span>
-        <Button
-          variant="ghost"
-          onClick={onRerun}
-          disabled={rerunning || disabled}
-          aria-label={`Rewrite shot ${index + 1}`}
-          className="ml-auto h-auto rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground dark:hover:bg-muted"
-        >
-          <RefreshCw className={cn("size-3.5", rerunning && "animate-spin")} strokeWidth={1.5} />
-        </Button>
+        {showRerun && (
+          <Button
+            variant="ghost"
+            onClick={onRerun}
+            disabled={rerunning || disabled}
+            aria-label={`Rewrite shot ${index + 1}`}
+            className="ml-auto h-auto rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground dark:hover:bg-muted"
+          >
+            <RefreshCw className={cn("size-3.5", rerunning && "animate-spin")} strokeWidth={1.5} />
+          </Button>
+        )}
       </div>
       <MentionInstructionEditor
         value={text}

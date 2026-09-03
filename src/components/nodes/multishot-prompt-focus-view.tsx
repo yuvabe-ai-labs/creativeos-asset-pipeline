@@ -62,6 +62,17 @@ type MultishotPromptFocusViewProps = {
   onPatch: (patch: Record<string, unknown>) => void;
 };
 
+/**
+ * Two surfaces are hidden while the multishot flow settles (operator's call, 2026-09-03).
+ *
+ * The wiring behind both is complete and tested — the handlers, the route's `onlyCutId` path and
+ * the `@`-mention dialects all still work. Only the controls are withheld, so bringing either back
+ * is flipping one constant, not rebuilding a feature. Deleting the code instead would have thrown
+ * away working machinery for a display decision.
+ */
+const SHOW_REFERENCE_ATTACHMENT = false; // the sequence + per-cut instruction editors
+const SHOW_PER_BEAT_REGENERATE = false; // the look and per-beat rewrite buttons
+
 // The Multishot Prompt node's focus view (D210, §8). Wraps PromptFocusShell — the sheet frame,
 // connected-inputs rail, version chips, approval controls and the live-update wiring are all the
 // shell's — this file supplies only the "prompt" tab's body: three columns (Connected / Input /
@@ -174,6 +185,10 @@ export function MultishotPromptFocusView({
   // thumbnail treatment; everything else is just a name and an icon.
   const imageIds = new Set(promptRefImages.map((r) => r.id));
   const nonImageUpstream = upstream.filter((u) => !imageIds.has(u.id));
+  // The upstream Multishot node is left out of the Connected list: it is this node's structural
+  // parent and always present, so naming it says nothing the operator does not already know from
+  // having connected it. Everything else non-image (a Script, a Note) still lists.
+  const listedUpstream = nonImageUpstream.filter((u) => u.type !== "multishot");
 
   const estimatedCredits = estimatePromptCredits(upstream.filter(isVisionAttachment).length);
 
@@ -563,9 +578,9 @@ export function MultishotPromptFocusView({
                       discoverable in the rendered video. */}
                   <div className="flex h-full w-60 shrink-0 flex-col gap-4 overflow-y-auto border-r border-border px-4 py-4">
                     <FieldLabel icon={Link2} label="Connected" />
-                    {nonImageUpstream.length > 0 && (
+                    {listedUpstream.length > 0 && (
                       <ul className="space-y-1.5">
-                        {nonImageUpstream.map((u) => (
+                        {listedUpstream.map((u) => (
                           <li key={u.id} className="flex items-center gap-1.5 text-xs text-foreground/80">
                             <NodeIcon type={u.type} />
                             <span className="min-w-0 flex-1 truncate">{u.label}</span>
@@ -577,8 +592,8 @@ export function MultishotPromptFocusView({
                       <ReferenceImageStrip upstream={upstream} omni uncitedIndices={uncitedIndices} />
                     ) : (
                       <p className="text-xs text-muted-foreground">
-                        No reference images connected — @-mention one from a cut&apos;s
-                        instruction once one is.
+                        No reference images connected. Connect a File, Draw or Image node and the
+                        writer will cite the ones each shot calls for.
                       </p>
                     )}
                   </div>
@@ -587,18 +602,20 @@ export function MultishotPromptFocusView({
                       cut's own text (read-only — it belongs to the Multishot node) above the
                       per-cut instruction. */}
                   <div className="flex h-full min-w-0 flex-1 flex-col gap-4 overflow-y-auto border-r border-border px-6 py-4">
-                    <div className="flex flex-col gap-2">
-                      <FieldLabel icon={PencilLine} label="Sequence" />
-                      <MentionInstructionEditor
-                        value={instructionDraft}
-                        onChange={updateInstruction}
-                        upstream={upstream}
-                        dialect={mentionDialect()}
-                        disabled={isReadOnly}
-                        placeholder="e.g. punchy, everyday — applies to every shot"
-                        className="min-h-16"
-                      />
-                    </div>
+                    {SHOW_REFERENCE_ATTACHMENT && (
+                      <div className="flex flex-col gap-2">
+                        <FieldLabel icon={PencilLine} label="Sequence" />
+                        <MentionInstructionEditor
+                          value={instructionDraft}
+                          onChange={updateInstruction}
+                          upstream={upstream}
+                          dialect={mentionDialect()}
+                          disabled={isReadOnly}
+                          placeholder="e.g. punchy, everyday — applies to every shot"
+                          className="min-h-16"
+                        />
+                      </div>
+                    )}
 
                     {cuts.length === 0 && (
                       <p className="text-sm text-muted-foreground">
@@ -616,14 +633,16 @@ export function MultishotPromptFocusView({
                         <p className="mb-2 whitespace-pre-wrap text-xs text-foreground/70">
                           {cut.text.trim() || "No shot description yet — edit the Multishot node."}
                         </p>
-                        <MentionInstructionEditor
-                          value={cutDrafts[cut.id] ?? ""}
-                          onChange={(v) => updateCutInstruction(cut.id, v)}
-                          upstream={upstream}
-                          dialect={mentionDialect()}
-                          disabled={isReadOnly}
-                          placeholder="Blank — the writer picks a reference"
-                        />
+                        {SHOW_REFERENCE_ATTACHMENT && (
+                          <MentionInstructionEditor
+                            value={cutDrafts[cut.id] ?? ""}
+                            onChange={(v) => updateCutInstruction(cut.id, v)}
+                            upstream={upstream}
+                            dialect={mentionDialect()}
+                            disabled={isReadOnly}
+                            placeholder="Blank — the writer picks a reference"
+                          />
+                        )}
                       </div>
                     ))}
 
@@ -676,15 +695,17 @@ export function MultishotPromptFocusView({
                           <div className="mb-2 flex items-center gap-2">
                             <Sun className="size-3.5 text-primary" strokeWidth={1.5} />
                             <span className="text-eyebrow text-primary">Look &amp; atmosphere</span>
-                            <Button
-                              variant="ghost"
-                              onClick={handleRerunLook}
-                              disabled={rerunningLook || isReadOnly}
-                              aria-label="Rewrite the look"
-                              className="ml-auto h-auto rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground dark:hover:bg-muted"
-                            >
-                              <RefreshCw className={cn("size-3.5", rerunningLook && "animate-spin")} strokeWidth={1.5} />
-                            </Button>
+                            {SHOW_PER_BEAT_REGENERATE && (
+                              <Button
+                                variant="ghost"
+                                onClick={handleRerunLook}
+                                disabled={rerunningLook || isReadOnly}
+                                aria-label="Rewrite the look"
+                                className="ml-auto h-auto rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground dark:hover:bg-muted"
+                              >
+                                <RefreshCw className={cn("size-3.5", rerunningLook && "animate-spin")} strokeWidth={1.5} />
+                              </Button>
+                            )}
                           </div>
                           <MentionInstructionEditor
                             value={planDraft.look}
@@ -709,6 +730,7 @@ export function MultishotPromptFocusView({
                             refIds={refIds}
                             onChange={(v) => updateBeat(beat.cutId, v)}
                             onRerun={() => handleRerunBeat(beat.cutId)}
+                            showRerun={SHOW_PER_BEAT_REGENERATE}
                             rerunning={rerunningBeatId === beat.cutId}
                             onFocusTimings={focusTimings}
                             disabled={isReadOnly}
