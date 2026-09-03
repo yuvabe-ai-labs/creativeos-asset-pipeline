@@ -4315,3 +4315,80 @@ versions but show no metadata, no decisions and no restore affordance).
 **Still open.** The image Prompt node (`prompt-focus-view.tsx`) does not use `PromptFocusShell` —
 it carries its own sheet layout — so it still has chips and no History pane. Bringing it onto the
 shell, or giving it the same rail item, is untouched by this decision.
+
+<!-- Renumbered on rebase: these four were authored as D205-D208, but origin/staging had already assigned D205-D234 to the gemini-omni / multishot work. Shifted +30. -->
+
+### D235 — Handle performance: Apify snapshots, the time series is ours *(recorded 2026-09-03; refines D184)*
+
+**Decision.** A fourth Market tab, **Performance**, shows the client's Instagram
+account metrics. Data comes from `apify/instagram-scraper` (`resultsType: "details"`,
+sync `run-sync-get-dataset-items` endpoint, `APIFY_TOKEN` secret), scraped **daily**
+per handle by a Trigger.dev scheduled task into two tables:
+`account_snapshots` (one row per scrape: follower/follows/posts counts + full `raw`
+payload) and `tracked_posts` (upserted by `short_code`, latest metrics + GCS re-hosted
+thumbnail via the existing `src/lib/market/thumbnail.ts` pipeline). Every trend the tab
+shows exists because we snapshot on a schedule — the provider has no history. A manual
+↻ runs the same task for one client, capped at one run/client/hour (pay-per-result).
+
+**Why.** The spike (2026-09-03, `prakritisattva`) proved one ~9s sub-cent call returns
+account counts plus ~12 recent posts with likes/comments/video views — everything the
+V1 tab renders. Daily suits a ~monthly poster; snapshots accrue the history that makes
+the feature compound in value.
+
+**Rejected.** Instagram Graph API (owner-auth only — no path to competitors, the V1.x
+direction); 4-hourly listening cadence (pays to re-read unchanged numbers; alerting is
+out of scope); provider-side history (does not exist).
+
+**Originated →** `2026-09-03-handle-performance-design.md`.
+
+### D236 — `brand_details.instagram` is the only handle source *(recorded 2026-09-03; refines D130)*
+
+**Decision.** The Performance tab and the snapshot task read the client handle from
+`clients.brand_details.instagram` (the Brand panel's existing field), normalized by a
+pure parser (`@handle` / bare / profile URL → canonical). No handle ⇒ tab shows a
+"connect in Brand Kit" CTA; pipeline skips the client. Competitor handles arrive in
+V1.x as a `tracked_handles` table; V1 creates no table for a single handle per client.
+
+**Why.** The field already exists and is already edited in one place; a second entry
+point would be a drifting copy of D130 data — exactly what AGENTS.md's reuse rules
+forbid.
+
+**Rejected.** A handle field on the Market page; a `tracked_handles` table now (YAGNI).
+
+**Originated →** `2026-09-03-handle-performance-design.md`.
+
+### D237 — Raw payload retention; sentinels die at the boundary *(recorded 2026-09-03)*
+
+**Decision.** Each `account_snapshots` row keeps the full Apify item in `raw` jsonb;
+normalized columns hold only what V1 renders. Provider sentinels are converted on
+ingest: `likesCount: -1` (hidden likes) becomes `likes_count = null` and is excluded
+from medians/engagement math; `type` `Image`/`Video`/`Sidecar` maps to
+`image`/`video`/`carousel`.
+
+**Why.** Per-post metric history (a reel's first-week views) stays recoverable from
+raw without re-scraping or schema churn; in-band sentinels left in columns silently
+poison averages.
+
+**Rejected.** Normalizing the full payload now (YAGNI); discarding raw (unrecoverable).
+
+**Originated →** `2026-09-03-handle-performance-design.md`.
+
+### D238 — Performance is a tab, not a listening system *(recorded 2026-09-03)*
+
+**Decision.** V1 scope is: identity strip, stat cards (followers +Δ, engagement rate =
+(median likes + median comments) / followers, posts, cadence), follower trend line
+(inline SVG, no chart dependency), and a recent-posts grid with an over/under-performer
+multiplier pill vs the account's median (Layout A + pill A from the 2026-09-03 visual
+brainstorm). Out: sentiment (no comment volume), share-of-voice/hashtag intelligence,
+alerts, website diffing, AI commentary on metrics, other platforms (schema is
+platform-ready; nothing else is built).
+
+**Why.** Deviation-from-own-baseline is computable from the first scrape and is the
+actionable read for a creative team; the excluded items each need volume, history, or
+pipelines this account/phase does not have.
+
+**Rejected.** LLM sentiment on ~0-comment posts (noise); trailing-window spike alerts
+(needs accrued history — arrives free later); bundling competitor website diffing (a
+different pipeline entirely).
+
+**Originated →** `2026-09-03-handle-performance-design.md`.
