@@ -10,6 +10,10 @@ import {
 } from "@/lib/approval";
 import { withAction } from "@/lib/actions/with-action";
 import { insertDecision } from "@/lib/db/decisions";
+import { randomUUID } from "crypto";
+import { validateAnnotations, type AnnotationPayload } from "@/lib/review-annotations/payload";
+import { uploadAnnotationAssets } from "@/lib/review-annotations/storage";
+import { insertAnnotations } from "@/lib/db/annotations";
 
 // D29/D166: set the approval flag on a SPECIFIC version (the caller passes the node's
 // active version id). Annotates an attempt — never a new attempt — so no new version
@@ -22,7 +26,13 @@ import { insertDecision } from "@/lib/db/decisions";
 // the session, and the parameter no longer exists to be spoofed (R2.1, D166).
 export async function setVersionApprovalAction(
   versionId: string,
-  input: { status: ApprovalStatus; note?: string | null },
+  input: {
+    status: ApprovalStatus;
+    note?: string | null;
+    // D211/D212: region+note pairs, only with changes_requested. Validated and
+    // uploaded BEFORE any DB write — a failure aborts the whole action (D214).
+    annotations?: AnnotationPayload[];
+  },
 ) {
   return withAction("setVersionApprovalAction", async () => {
     const caller = await resolveCallerContext();
@@ -40,6 +50,15 @@ export async function setVersionApprovalAction(
     const note = input.note?.trim() || null;
     if (requiresNote(input.status) && !note) {
       throw new Error("A note is required when requesting changes.");
+    }
+
+    const annotations = input.annotations ?? [];
+    if (annotations.length > 0 && input.status !== "changes_requested") {
+      throw new Error("Annotations can only be attached when you request changes.");
+    }
+    if (annotations.length > 0) {
+      const invalid = validateAnnotations(annotations);
+      if (invalid) throw new Error(invalid);
     }
 
     const supabase = createServerSupabase();
@@ -65,6 +84,18 @@ export async function setVersionApprovalAction(
       note,
     });
 
+    // The decision id is pre-generated so asset paths can reference it (D214).
+    const decisionId = randomUUID();
+    let uploaded: { seq: number; maskPath: string; framePath: string | null }[] = [];
+    if (annotations.length > 0) {
+      uploaded = await uploadAnnotationAssets(
+        supabase.storage,
+        caller.orgId,
+        decisionId,
+        annotations,
+      );
+    }
+
     const { error } = await supabase
       .from("node_versions")
       .update(update)
@@ -75,17 +106,43 @@ export async function setVersionApprovalAction(
     // block or fail the approve/reject action the reviewer just performed — the status
     // update above already succeeded and is the source of truth; this is observability.
     if (input.status === "approved" || input.status === "changes_requested") {
-      try {
-        await insertDecision({
+      const writeDecision = () =>
+        insertDecision({
+          id: decisionId,
           versionId,
           orgId: caller.orgId,
-          status: input.status,
+          status: input.status as "approved" | "changes_requested",
           note,
           decidedByUserId: caller.userId,
           decidedAt: at,
         });
-      } catch (e) {
-        console.error("Failed to log approval decision history", e);
+      if (annotations.length > 0) {
+        // Strict: the annotation rows reference this decision id — losing the decision
+        // row would orphan the feedback the senior just wrote (D214).
+        await writeDecision();
+        await insertAnnotations(
+          annotations.map((a) => {
+            const stored = uploaded.find((u) => u.seq === a.seq);
+            if (!stored) throw new Error(`No uploaded asset for annotation ${a.seq}.`);
+            return {
+              decision_id: decisionId,
+              org_id: caller.orgId,
+              seq: a.seq,
+              kind: a.kind,
+              timecode_ms: a.timecodeMs,
+              frame_path: stored.framePath,
+              mask_path: stored.maskPath,
+              note: a.note.trim(),
+            };
+          }),
+        );
+      } else {
+        // D173/D175: history logging stays best-effort when it is pure observability.
+        try {
+          await writeDecision();
+        } catch (e) {
+          console.error("Failed to log approval decision history", e);
+        }
       }
     }
   });

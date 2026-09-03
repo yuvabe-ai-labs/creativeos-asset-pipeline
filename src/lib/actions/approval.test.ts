@@ -2,56 +2,42 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const mockCaller = vi.fn();
 const mockFrom = vi.fn();
+const mockStorageFrom = vi.fn();
 
 vi.mock("@/lib/dal", () => ({ resolveCallerContext: () => mockCaller() }));
 vi.mock("@/lib/supabase/server", () => ({
-  createServerSupabase: () => ({ from: mockFrom }),
+  createServerSupabase: () => ({ from: mockFrom, storage: { from: mockStorageFrom } }),
 }));
 // withAction is Stage 4's impersonation write-gate; pass it through so these tests
 // exercise the approval rules rather than impersonation state.
 vi.mock("@/lib/actions/with-action", () => ({
   withAction: (_name: string, fn: () => Promise<unknown>) => fn(),
 }));
+// D211-D214: annotations ride this action, but their DB writes are exercised as unit
+// tests of insertDecision/insertAnnotations themselves (decisions.test.ts,
+// annotations.test.ts) — here we only assert THIS action calls them correctly.
+const mockInsertDecision = vi.fn(async (input: unknown) => void input);
+vi.mock("@/lib/db/decisions", () => ({
+  insertDecision: (input: unknown) => mockInsertDecision(input),
+}));
+const mockInsertAnnotations = vi.fn(async (rows: unknown) => void rows);
+vi.mock("@/lib/db/annotations", () => ({
+  insertAnnotations: (rows: unknown) => mockInsertAnnotations(rows),
+}));
 
-import { setVersionApprovalAction } from "./approval";
+import { setVersionApprovalAction, markVersionApprovalSeenAction } from "./approval";
+import type { AnnotationPayload } from "@/lib/review-annotations/payload";
 
-// Stubs the version-row lookup with a given org, and captures whatever update payload
-// the action attempts to write.
-function stubDb(
-  versionOrgId: string | null,
-  options: { decisionInsertError?: Error } = {},
-) {
-  const captured: {
-    update?: Record<string, unknown>;
-    decisionInsert?: Record<string, unknown>;
-  } = {};
-  mockFrom.mockImplementation((table: string) => {
-    if (table === "node_version_decisions") {
-      return {
-        insert: (payload: Record<string, unknown>) => {
-          captured.decisionInsert = payload;
-          return Promise.resolve({
-            error: options.decisionInsertError ?? null,
-          });
-        },
-      };
-    }
-    return {
-      select: () => ({
-        eq: () => ({
-          maybeSingle: async () =>
-            versionOrgId === null
-              ? { data: null, error: null }
-              : { data: { id: "v1", org_id: versionOrgId }, error: null },
-        }),
-      }),
-      update: (payload: Record<string, unknown>) => {
-        captured.update = payload;
-        return { eq: async () => ({ error: null }) };
-      },
-    };
-  });
-  return captured;
+function ann(over: Partial<AnnotationPayload> = {}): AnnotationPayload {
+  return {
+    seq: 1,
+    kind: "image",
+    timecodeMs: null,
+    overlayBase64: "aGVsbG8=",
+    frameBase64: null,
+    note: "logo too small",
+    ...over,
+  };
 }
 
 function caller(orgRole: string, userId = "u1", orgId = "org-1") {
@@ -65,9 +51,44 @@ function caller(orgRole: string, userId = "u1", orgId = "org-1") {
   };
 }
 
+let updateSpy: ReturnType<typeof vi.fn>;
+
+// Stubs the version-row lookup with a given org, and captures whatever update payload
+// the action attempts to write. `uploadError` stubs the annotation-storage upload path
+// (only reached when a test attaches annotations).
+function stubDb(
+  versionOrgId: string | null = "org-1",
+  options: { uploadError?: { message: string } | null } = {},
+) {
+  const captured: { update?: Record<string, unknown> } = {};
+  updateSpy = vi.fn((payload: Record<string, unknown>) => {
+    captured.update = payload;
+    return { eq: async () => ({ error: null }) };
+  });
+  mockFrom.mockImplementation(() => ({
+    select: () => ({
+      eq: () => ({
+        maybeSingle: async () =>
+          versionOrgId === null
+            ? { data: null, error: null }
+            : { data: { id: "v1", org_id: versionOrgId }, error: null },
+      }),
+    }),
+    update: updateSpy,
+  }));
+  mockStorageFrom.mockImplementation(() => ({
+    upload: async () => ({ error: options.uploadError ?? null }),
+  }));
+  return captured;
+}
+
 beforeEach(() => {
   mockFrom.mockReset();
+  mockStorageFrom.mockReset();
+  mockInsertDecision.mockClear();
+  mockInsertAnnotations.mockClear();
   mockCaller.mockReset();
+  mockCaller.mockResolvedValue(caller("senior"));
 });
 
 describe("setVersionApprovalAction", () => {
@@ -167,41 +188,41 @@ describe("setVersionApprovalAction", () => {
 describe("setVersionApprovalAction — decision history (D173-D175)", () => {
   it("logs a decision when approving", async () => {
     mockCaller.mockResolvedValue(caller("senior", "senior-1"));
-    const captured = stubDb("org-1");
+    stubDb("org-1");
     await setVersionApprovalAction("v1", { status: "approved" });
-    expect(captured.decisionInsert).toMatchObject({
-      version_id: "v1",
-      org_id: "org-1",
-      status: "approved",
-      decided_by_user_id: "senior-1",
-    });
+    expect(mockInsertDecision).toHaveBeenCalledWith(
+      expect.objectContaining({
+        versionId: "v1",
+        orgId: "org-1",
+        status: "approved",
+        decidedByUserId: "senior-1",
+      }),
+    );
   });
 
   it("logs a decision when rejecting, including the note", async () => {
     mockCaller.mockResolvedValue(caller("senior", "senior-1"));
-    const captured = stubDb("org-1");
+    stubDb("org-1");
     await setVersionApprovalAction("v1", {
       status: "changes_requested",
       note: "fix it",
     });
-    expect(captured.decisionInsert).toMatchObject({
-      status: "changes_requested",
-      note: "fix it",
-    });
+    expect(mockInsertDecision).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "changes_requested", note: "fix it" }),
+    );
   });
 
   it("does NOT log a decision when resetting to pending — D174", async () => {
     mockCaller.mockResolvedValue(caller("senior", "senior-1"));
-    const captured = stubDb("org-1");
+    stubDb("org-1");
     await setVersionApprovalAction("v1", { status: "pending" });
-    expect(captured.decisionInsert).toBeUndefined();
+    expect(mockInsertDecision).not.toHaveBeenCalled();
   });
 
   it("does not fail the action if the decision-log insert fails — D175", async () => {
     mockCaller.mockResolvedValue(caller("senior", "senior-1"));
-    const captured = stubDb("org-1", {
-      decisionInsertError: new Error("log db down"),
-    });
+    const captured = stubDb("org-1");
+    mockInsertDecision.mockRejectedValueOnce(new Error("log db down"));
     await expect(
       setVersionApprovalAction("v1", { status: "approved" }),
     ).resolves.toBeUndefined();
@@ -211,7 +232,89 @@ describe("setVersionApprovalAction — decision history (D173-D175)", () => {
   });
 });
 
-import { markVersionApprovalSeenAction } from "./approval";
+describe("setVersionApprovalAction with annotations", () => {
+  it("rejects annotations on any status except changes_requested", async () => {
+    stubDb();
+    await expect(
+      setVersionApprovalAction("v1", { status: "approved", annotations: [ann()] }),
+    ).rejects.toThrow(/request changes/i);
+  });
+
+  it("rejects an invalid batch before touching storage or the DB", async () => {
+    stubDb();
+    await expect(
+      setVersionApprovalAction("v1", {
+        status: "changes_requested",
+        note: "fix it",
+        annotations: [ann({ note: " " })],
+      }),
+    ).rejects.toThrow(/note/i);
+    expect(mockStorageFrom).not.toHaveBeenCalled();
+    expect(updateSpy).not.toHaveBeenCalled();
+  });
+
+  it("aborts the whole action when an upload fails — no status update, no decision", async () => {
+    stubDb("org-1", { uploadError: { message: "quota" } });
+    await expect(
+      setVersionApprovalAction("v1", {
+        status: "changes_requested",
+        note: "fix it",
+        annotations: [ann()],
+      }),
+    ).rejects.toThrow(/quota/);
+    expect(updateSpy).not.toHaveBeenCalled();
+    expect(mockInsertDecision).not.toHaveBeenCalled();
+    expect(mockInsertAnnotations).not.toHaveBeenCalled();
+  });
+
+  it("uploads, updates status, then writes decision + annotation rows sharing one decision id", async () => {
+    stubDb();
+    await setVersionApprovalAction("v1", {
+      status: "changes_requested",
+      note: "fix it",
+      annotations: [ann()],
+    });
+    expect(updateSpy).toHaveBeenCalled();
+    const decision = mockInsertDecision.mock.calls[0][0] as { id?: string };
+    const rows = mockInsertAnnotations.mock.calls[0][0] as { decision_id: string }[];
+    expect(decision.id).toBeTruthy();
+    expect(rows[0].decision_id).toBe(decision.id);
+    expect(rows[0]).toMatchObject({
+      org_id: "org-1",
+      seq: 1,
+      kind: "image",
+      mask_path: "org-1/" + decision.id + "/1-mask.png",
+      note: "logo too small",
+    });
+  });
+
+  it("a decision-log failure is best-effort WITHOUT annotations but strict WITH them", async () => {
+    stubDb();
+    mockInsertDecision.mockRejectedValueOnce(new Error("log down"));
+    // Without annotations: swallowed (existing D175 behavior).
+    await expect(
+      setVersionApprovalAction("v1", { status: "changes_requested", note: "fix it" }),
+    ).resolves.toBeUndefined();
+
+    mockInsertDecision.mockRejectedValueOnce(new Error("log down"));
+    // With annotations: the decision row is load-bearing (annotations reference it) — strict.
+    await expect(
+      setVersionApprovalAction("v1", {
+        status: "changes_requested",
+        note: "fix it",
+        annotations: [ann()],
+      }),
+    ).rejects.toThrow(/log down/);
+  });
+
+  it("still enforces the role gate", async () => {
+    stubDb();
+    mockCaller.mockResolvedValue(caller("designer", "u2"));
+    await expect(
+      setVersionApprovalAction("v1", { status: "approved" }),
+    ).rejects.toThrow(/not permitted/i);
+  });
+});
 
 // Stubs the version-row lookup with a given operator/status/seen state, and captures
 // whatever update payload the action attempts to write (or records that none was).
