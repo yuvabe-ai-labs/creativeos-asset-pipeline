@@ -4392,3 +4392,93 @@ pipelines this account/phase does not have.
 different pipeline entirely).
 
 **Originated →** `2026-09-03-handle-performance-design.md`.
+
+<!-- D205–D208 (handle performance) were recorded on staging after this worktree
+     branched; on merge they slot in above this block. Numbering continues from D208. -->
+
+### D209 — Review annotations are feedback now, AI later *(recorded 2026-09-03; refines D168, builds on D27/D91)*
+
+**Decision.** A senior's review annotation (painted region + note) is persisted feedback
+attached to the `changes_requested` decision. The mask is stored in the edit-pipeline's
+own alpha convention (`EDIT_ALPHA`/`KEEP_ALPHA`) so a later V2 can replay a pair as an
+OpenAI image edit, but V1 triggers no generation from review.
+
+**Why.** The routing loop (D159–D167) needs positional feedback more than it needs
+automated fixes; storing replay-ready costs nothing extra.
+
+**Rejected.** Driving an AI edit directly from review (premature — approval flow is not a
+generation surface yet); text-only feedback (loses the region the note is about).
+
+**Originated →** `2026-09-03-review-annotations-design.md`.
+
+### D210 — Annotation scope is images plus paused video frames *(recorded 2026-09-03)*
+
+**Decision.** Video annotations capture the paused frame client-side and record
+`timecode_ms`; the stored still — not a live seek — is ground truth. Image annotations
+are the degenerate case (no timecode, no frame).
+
+**Why.** The review queue is image-gen and video-gen (0031); video seeking is not
+frame-accurate across browsers and media URLs expire, so the captured still is the only
+faithful record of what the senior saw. It doubles as the future AI-replay base image.
+
+**Rejected.** Image-only V1 (half the queue unserved); timeline-aware/range video review
+(a subsystem of its own); filmstrip frame pickers (fights the player).
+
+**Originated →** `2026-09-03-review-annotations-design.md`.
+
+### D211 — Granularity is a list of region+note pairs per decision *(recorded 2026-09-03; refines D168)*
+
+**Decision.** One decision carries N annotations, each `{seq, region mask, note[,
+timecode]}` with one continuous pin numbering. The existing mandatory decision note stays
+as the overall summary.
+
+**Why.** Independent pairs keep "which words go with which pixels" intact — for the maker
+and for per-pair AI replay.
+
+**Rejected.** One mask + one note per decision (issues blur together); pins without
+painted regions (throws away the mask replay needs).
+
+**Originated →** `2026-09-03-review-annotations-design.md`.
+
+### D212 — Annotations attach to "Request changes" only *(recorded 2026-09-03; refines D168/D170)*
+
+**Decision.** Approve stays one click; painted drafts are discarded on approve behind a
+confirm. No annotated approvals in V1.
+
+**Why.** Annotations exist to route work back; annotated approvals blur the done signal
+and complicate the D170 read-receipt model.
+
+**Rejected.** Annotations on any decision.
+
+**Originated →** `2026-09-03-review-annotations-design.md`.
+
+### D213 — Compose with anchored popovers on the media; the Review column lists pairs *(recorded 2026-09-03; refines R6.4)*
+
+**Decision.** Paint a region → a note popover opens anchored to it → commit clears the
+brush. Committed pairs render as numbered pins on the media and as a live list in the
+focus view's Review column (video: grouped under seekable timecode chips). No new
+surface; the focus view remains the one approval surface.
+
+**Why.** Region–note adjacency at the moment of writing; the empty Review column is the
+natural index. A dedicated annotator would be a second approval surface, against R6.4.
+
+**Rejected.** Side-rail list (narrows the media); docked note bar (breaks adjacency);
+dedicated full-screen review annotator.
+
+**Originated →** `2026-09-03-review-annotations-design.md`.
+
+### D214 — The maker reads the same surface, read-only *(recorded 2026-09-03; refines D165/D203, D173)*
+
+**Decision.** The sent-back route lands the maker on the identical pins + Review-column
+rendering, auto-on and toggleable; video timecodes seek the player. The decision thread
+shows counts; history stays the audit trail (D173). Uploads happen before the decision
+write and any failure aborts the whole action — unlike `insertDecision`'s best-effort
+append, annotations are the feedback itself.
+
+**Why.** One rendering path, no drift between what the senior wrote and what the maker
+sees; lossless retry because drafts remain client-side until the action succeeds.
+
+**Rejected.** Baked snapshot in the thread only (maker glances between thread and
+image); best-effort annotation writes (silently dropped feedback).
+
+**Originated →** `2026-09-03-review-annotations-design.md`.
