@@ -29,6 +29,10 @@ Apply through the Supabase SQL editor (paste + Run), in this order. There is no
       Verify queries: `docs/auth-production-migration.md` § "Migration 0031".
       **Blocks:** every pending count, the review drawer, the navbar inbox.
 
+- [ ] **`0035_review_annotations.sql`** — D209–D214
+      `node_version_annotations` table + RLS + `review-annotations` storage bucket.
+      Feature: review annotations (region + note feedback on approval changes_requested decision).
+
 ---
 
 ## Status: all three milestones are code-complete (2026-08-23)

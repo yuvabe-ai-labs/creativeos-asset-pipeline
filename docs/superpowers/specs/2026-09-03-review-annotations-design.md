@@ -134,7 +134,12 @@ create table node_version_annotations (
   mask_path     text not null,                           -- storage path of region PNG
   note          text not null,
   created_at    timestamptz not null default now(),
-  unique (decision_id, seq)
+  unique (decision_id, seq),
+  -- video-frame rows always carry a timecode and a captured still; image rows never do.
+  check (
+    (kind = 'image' and timecode_ms is null and frame_path is null)
+    or (kind = 'video-frame' and timecode_ms is not null and frame_path is not null)
+  )
 );
 ```
 
@@ -142,9 +147,11 @@ Same posture as `0033_node_version_decisions.sql`: RLS org-isolation SELECT
 policy; writes via service role only; index on `(decision_id)`. Masks and
 frames go to a `review-annotations` storage bucket
 (`{org_id}/{decision_id}/{seq}-mask.png`, `…-frame.png`) — never inline in rows,
-so decision queries and Realtime stay light. The mask PNG uses the existing
-`EDIT_ALPHA`/`KEEP_ALPHA` convention from `mask.ts` so V2 replay needs no
-translation.
+so decision queries and Realtime stay light. `mask_path` stores the painted
+overlay PNG (alpha > 0 = region) — it renders directly as the read-only region
+layer, and `overlayToMaskRGBA` converts it to the OpenAI `EDIT_ALPHA`/`KEEP_ALPHA`
+convention at replay time, so one stored asset serves display now and replay
+later.
 
 ### 5.3 Server action
 
