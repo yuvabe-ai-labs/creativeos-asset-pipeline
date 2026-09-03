@@ -303,9 +303,14 @@ export function PromptFocusShell({
           </nav>
 
           {/* Detail pane */}
-          {/* No overflow-hidden: it would crop the raised column's left shadow.
-              The columns inside own their scrolling. */}
-          <div className="min-h-0 min-w-0 flex-1">
+          {/* A flex COLUMN, so panes inside size with `flex-1` instead of `h-full`. As a plain
+              block it worked only while every descendant's height resolved as a percentage
+              chain, and one extra level of nesting was enough to break it — the Multishot
+              Prompt's breakup view grew past the sheet instead of scrolling inside it.
+
+              Still no overflow-hidden: it would crop the raised column's left shadow. The panes
+              inside own their scrolling. */}
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             {children({ versionChips, approvalControls })}
 
             {/* Connected node — read-only detail. While the inputs are still being resolved,
@@ -314,12 +319,12 @@ export function PromptFocusShell({
               (selectedNode ? (
                 <ConnectedDetailView node={selectedNode} />
               ) : loadingPreview ? (
-                <div className="flex h-full flex-col gap-4 px-6 py-6">
+                <div className="flex min-h-0 flex-1 flex-col gap-4 px-6 py-6">
                   <Skeleton className="h-3 w-28" />
                   <Skeleton className="min-h-0 flex-1 rounded-xl" />
                 </div>
               ) : (
-                <div className="flex h-full items-center justify-center px-6 py-6">
+                <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-6">
                   <p className="text-sm text-muted-foreground">This input has no preview yet.</p>
                 </div>
               ))}

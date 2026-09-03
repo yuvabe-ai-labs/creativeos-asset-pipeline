@@ -553,7 +553,7 @@ export function MultishotPromptFocusView({
       {({ versionChips, approvalControls }) => (
         <>
           {selected === "prompt" && (
-            <div className="flex h-full w-full min-h-0 flex-col overflow-hidden">
+            <div className="flex w-full min-h-0 flex-1 flex-col overflow-hidden">
               <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-6 py-3">
                 <Tabs value={outputView} onValueChange={(v) => setOutputView(v as "breakup" | "prompt")}>
                   <TabsList>
@@ -833,7 +833,7 @@ export function MultishotPromptFocusView({
           )}
 
           {selected === "details" && (
-            <div className="flex h-full w-full max-w-3xl min-h-0 flex-col gap-6 overflow-y-auto px-6 py-6">
+            <div className="flex w-full max-w-3xl min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-6 py-6">
               <LeftSection
                 icon={Palette}
                 label="Brand KB"
@@ -878,7 +878,7 @@ export function MultishotPromptFocusView({
           )}
 
           {selected === "request" && (
-            <div className="flex h-full w-full max-w-3xl min-h-0 flex-col overflow-y-auto px-6 py-6">
+            <div className="flex w-full max-w-3xl min-h-0 flex-1 flex-col overflow-y-auto px-6 py-6">
               {activeRequest ? (
                 <ModelRequestPanel request={activeRequest} />
               ) : (

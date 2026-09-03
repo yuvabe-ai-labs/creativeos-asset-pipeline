@@ -486,7 +486,7 @@ export function VideoPromptFocusView({
         <>
           {/* Prompt — the compose editor: compose (left) + generated output (right) */}
           {selected === "prompt" && (
-              <div className="flex h-full w-full min-h-0 overflow-hidden">
+              <div className="flex w-full min-h-0 flex-1 overflow-hidden">
                 {/* Left column — compose. Instruction first (consistent with the
                     image-prompt view), then the compact control rows; the column is
                     capped so the generated prompt on the right owns the width.
@@ -665,7 +665,7 @@ export function VideoPromptFocusView({
 
             {/* Details — Brand KB + Review (eval, approval) */}
             {selected === "details" && (
-              <div className="flex h-full w-full max-w-3xl min-h-0 flex-col gap-6 overflow-y-auto px-6 py-6">
+              <div className="flex w-full max-w-3xl min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-6 py-6">
                 <LeftSection
                   icon={Palette}
                   label="Brand KB"
@@ -711,7 +711,7 @@ export function VideoPromptFocusView({
 
             {/* Sent to model — the exact request the active version sent (standalone) */}
             {selected === "request" && (
-              <div className="flex h-full w-full max-w-3xl min-h-0 flex-col overflow-y-auto px-6 py-6">
+              <div className="flex w-full max-w-3xl min-h-0 flex-1 flex-col overflow-y-auto px-6 py-6">
                 {activeRequest ? (
                   <ModelRequestPanel request={activeRequest} />
                 ) : (
