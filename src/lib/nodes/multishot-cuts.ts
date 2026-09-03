@@ -132,6 +132,10 @@ export function addCut(cuts: MultishotCut[]): MultishotCut[] {
  * Remove a cut. The ladder shortens by exactly its seconds — nobody inherits them, for the same
  * reason resizing takes from nobody: the operator sees the change they asked for and nothing
  * else. Those seconds become headroom another cut can grow into. The last cut cannot be removed.
+ *
+ * DEFERRED — nothing calls this today, for the same reason and on the same terms as `addCut`
+ * above. The operator asked for the per-cut "X" to come out of the Multishot focus view
+ * (2026-09-04); the affordance is gone, the logic is kept ready, and its tests still run.
  */
 export function removeCut(cuts: MultishotCut[], index: number): MultishotCut[] {
   if (cuts.length <= 1 || index < 0 || index >= cuts.length) return cuts;

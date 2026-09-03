@@ -1,7 +1,6 @@
 "use client";
 
-import { ArrowLeft, TriangleAlert, X } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { ArrowLeft, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -10,7 +9,6 @@ import { EditableField } from "./editable-field";
 import {
   MIN_CUT_SECONDS,
   headroomOf,
-  removeCut,
   resizeCut,
   totalOf,
   type MultishotCut,
@@ -157,19 +155,6 @@ export function MultishotFocusView({
                       </span>
                     </div>
                   </div>
-                  {!isReadOnly && cuts.length > 1 && (
-                    <Button
-                      variant="ghost"
-                      aria-label={`Remove cut ${i + 1}`}
-                      onClick={() => onChange(removeCut(cuts, i))}
-                      className={cn(
-                        "h-auto shrink-0 rounded p-1 text-muted-foreground transition-colors",
-                        "hover:bg-muted hover:text-foreground dark:hover:bg-muted",
-                      )}
-                    >
-                      <X className="size-4" strokeWidth={1.5} />
-                    </Button>
-                  )}
                 </div>
               </div>
             ))}

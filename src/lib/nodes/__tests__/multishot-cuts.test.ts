@@ -184,6 +184,8 @@ describe("addCut", () => {
   });
 });
 
+// DEFERRED alongside addCut: the per-cut "X" is out of the UI, the logic is kept ready. These
+// run so it cannot rot silently while nothing calls it.
 describe("removeCut", () => {
   it("shortens the ladder and leaves the other cuts alone", () => {
     const original = cuts(2, 2, 4);
