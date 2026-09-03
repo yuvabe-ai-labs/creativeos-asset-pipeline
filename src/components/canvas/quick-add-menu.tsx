@@ -9,6 +9,7 @@ import {
   Pencil,
   ImageIcon,
   Clapperboard,
+  Layers,
   ClipboardPaste,
   Images,
   LayoutTemplate,
@@ -39,14 +40,17 @@ const ICONS: Record<AddNodeType, LucideIcon> = {
   draw: Pencil,
   "image-gen": ImageIcon,
   "video-prompt": Clapperboard,
+  // Layers, matching the Multishot node's own icon — the two share a lane.
+  "multishot-prompt": Layers,
   "video-gen": Clapperboard,
   post: LayoutTemplate,
 };
 
 const MENU_W = 240;
-// Tall enough to show the input + all 8 node rows (+ the optional paste row)
-// without the list scrolling. Kept in sync with CommandList's max-h below.
-const MENU_H = 420;
+// Tall enough to show the input + every row of ADD_NODE_OPTIONS (+ the optional paste row)
+// without the list scrolling. Kept in sync with CommandList's max-h below — raise BOTH when
+// a node type is added, or the last row falls below the fold and reads as missing.
+const MENU_H = 468;
 
 interface QuickAddMenuProps {
   screenX: number;
@@ -104,9 +108,9 @@ export function QuickAddMenu({
           which accepts standard InputHTMLAttributes — autoFocus is valid.
         */}
         <CommandInput autoFocus placeholder="Add node…" />
-        {/* Override shadcn's default max-h-72 (288px) so all 8 node types fit
+        {/* Override shadcn's default max-h-72 (288px) so every node type fits
             without the list scrolling; still caps height on short viewports. */}
-        <CommandList className="max-h-[420px]">
+        <CommandList className="max-h-[468px]">
           <CommandEmpty>No node type found.</CommandEmpty>
           <CommandGroup>
             {canPasteImage && onPasteImage && (
