@@ -8,6 +8,48 @@ const cuts: MultishotCut[] = [
 ];
 
 describe("buildMultishotUserTurn", () => {
+  // getNodeOutput renders a Multishot node's cut ladder as text so the connected-input panels
+  // stop showing "No content yet.". That text must NOT also arrive here as a generic upstream
+  // block: the shots already have their own block below, carrying the cutIds and per-shot
+  // steers the writer has to echo. Stated twice, in two formats, only one of which has ids,
+  // the writer can answer the wrong one.
+  it("does not restate the multishot upstream, whose cuts already have their own block", () => {
+    const turn = buildMultishotUserTurn({
+      clientContext: "",
+      upstream: [
+        {
+          nodeId: "n1",
+          versionId: null,
+          label: "Multishot",
+          type: "multishot",
+          text: "Shot 1 (2s): close on keys\nShot 2 (3s): cab door",
+        },
+      ],
+      cuts,
+      instruction: "",
+      cutInstructions: {},
+    });
+    expect(turn).not.toContain("Multishot:");
+    expect(turn).not.toContain("Shot 1 (2s):");
+    // The shots survive exactly once, in the block that carries their cutIds.
+    expect(turn.match(/close on keys/g)).toHaveLength(1);
+    expect(turn).toContain("cutId: c1");
+  });
+
+  it("still carries other upstream nodes' text", () => {
+    const turn = buildMultishotUserTurn({
+      clientContext: "",
+      upstream: [
+        { nodeId: "n2", versionId: null, label: "Script", type: "script", text: "the reel brief" },
+      ],
+      cuts,
+      instruction: "",
+      cutInstructions: {},
+    });
+    expect(turn).toContain("Script:");
+    expect(turn).toContain("the reel brief");
+  });
+
   it("lists every shot with its id, text and seconds", () => {
     const turn = buildMultishotUserTurn({
       clientContext: "",

@@ -44,7 +44,7 @@ import { GeneratedPromptBody } from "./generated-prompt-body";
 import { imageRefDialect } from "@/lib/nodes/prompt-token-dialect";
 import { ApprovalStatusBadge } from "@/components/review/approval-status-badge";
 import { LeftSection } from "./focus-left-section";
-import { PromptFocusShell } from "./prompt-focus-shell";
+import { PromptFocusShell, RESERVED_RAIL_KEYS } from "./prompt-focus-shell";
 
 type VideoPromptFocusViewProps = {
   open: boolean;
@@ -148,7 +148,7 @@ export function VideoPromptFocusView({
   }
 
   // A connected node is selected when `selected` isn't one of the fixed rail keys.
-  const isNodeSelected = !["prompt", "details", "request"].includes(selected);
+  const isNodeSelected = !RESERVED_RAIL_KEYS.includes(selected as (typeof RESERVED_RAIL_KEYS)[number]);
   const selectedNode = isNodeSelected
     ? preview.connected.find((c) => c.nodeId === selected) ?? null
     : null;

@@ -3984,3 +3984,28 @@ which attachment a beat meant); keeping auto-assignment behind a confidence thre
 mode is confident misidentification, so a threshold does not catch it); removing the "Not cited"
 marker (under manual binding it becomes more useful, not less — it is now the operator's checklist
 of unattached references).
+
+### D213 — History is a rail item on `PromptFocusShell`, not a per-view pane *(recorded 2026-09-04; completes D180)*
+
+**Decision.** The shell owns a `History` rail item and renders `PromptVersionHistory` itself, so
+every shell-based prompt view (Video Prompt, Multishot Prompt) gets version history without
+wiring it twice. The shell already holds `versions`, `activeVersionId`, `restoring` and
+`onRestoreVersion` — the panel needs nothing per-prompt-type, which is what makes it the shell's
+to render rather than each view's. The rail keys the shell owns are exported as
+`RESERVED_RAIL_KEYS`; both views compute `isNodeSelected` from that list rather than their own
+copy of it.
+
+**Why.** D180 rebuilt `PromptVersionHistory` on the shared `VersionHistoryList` — the same shell
+image-gen and video-gen use — and then nothing rendered it. The prompt nodes were left with only
+the v1/v2 chips while every other versioned node type carried a full History pane, so a prompt
+version's model, instruction, maker and decision thread were unreachable. The duplicated
+`["prompt", "details", "request"]` literal is why this could go unnoticed in one view and not the
+other, and is now one exported constant.
+
+**Rejected.** Rendering the panel in each focus view (two copies of identical wiring, and the
+next view added starts with none); leaving history to the version chips alone (they switch
+versions but show no metadata, no decisions and no restore affordance).
+
+**Still open.** The image Prompt node (`prompt-focus-view.tsx`) does not use `PromptFocusShell` —
+it carries its own sheet layout — so it still has chips and no History pane. Bringing it onto the
+shell, or giving it the same rail item, is untouched by this decision.

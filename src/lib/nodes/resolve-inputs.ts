@@ -248,6 +248,11 @@ export function buildMultishotUserTurn(args: {
 
   for (const u of args.upstream) {
     if (!u.text.trim()) continue;
+    // The Multishot node is the source of `args.cuts`, which get their own block below with the
+    // cutIds and per-shot steers the writer must echo. Since getNodeOutput learned to render a
+    // cut ladder as text, this loop would otherwise state every shot a second time, in a second
+    // format, with no cutIds — inviting the writer to answer the wrong one.
+    if (u.type === "multishot") continue;
     blocks.push(`${u.label}:\n${u.text.trim()}`);
   }
 

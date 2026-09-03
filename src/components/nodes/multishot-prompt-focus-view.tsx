@@ -41,7 +41,7 @@ import type { ApprovalStatus } from "@/lib/approval";
 import { GeneratedPromptBody } from "./generated-prompt-body";
 import { ApprovalStatusBadge } from "@/components/review/approval-status-badge";
 import { LeftSection } from "./focus-left-section";
-import { PromptFocusShell } from "./prompt-focus-shell";
+import { PromptFocusShell, RESERVED_RAIL_KEYS } from "./prompt-focus-shell";
 import { MultishotBeatCard } from "./multishot-beat-card";
 import type { MultishotCut } from "@/lib/nodes/multishot-cuts";
 import { renderPlan, refsCitedIn, type MultishotPlan } from "@/lib/nodes/multishot-plan";
@@ -153,7 +153,7 @@ export function MultishotPromptFocusView({
     }
   }
 
-  const isNodeSelected = !["prompt", "details", "request"].includes(selected);
+  const isNodeSelected = !RESERVED_RAIL_KEYS.includes(selected as (typeof RESERVED_RAIL_KEYS)[number]);
   const selectedNode = isNodeSelected
     ? preview.connected.find((c) => c.nodeId === selected) ?? null
     : null;

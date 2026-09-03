@@ -1,4 +1,5 @@
 import type { ReelScript } from "@/lib/nodes/reel-script";
+import type { MultishotCut } from "@/lib/nodes/multishot-cuts";
 
 export type NodeOutputInput = {
   type: string;
@@ -36,6 +37,17 @@ export function getNodeOutput(node: NodeOutputInput): string {
       return typeof node.activeOutput === "string" ? node.activeOutput.trim() : "";
     case "script":
       return renderScriptAsText(node.activeOutput as ReelScript | null);
+    case "multishot": {
+      // A Multishot node has no version system and no activeOutput — its content IS the cut
+      // ladder on node.data (D209). Without this case it fell to `default`, which reads
+      // activeOutput, so every surface asking a Multishot node what it holds got "" and
+      // rendered "No content yet." beside a node full of shots.
+      const cuts = (node.data.cuts ?? []) as MultishotCut[];
+      return cuts
+        .filter((c) => c && typeof c.text === "string")
+        .map((c, i) => `Shot ${i + 1} (${c.seconds}s): ${c.text.trim() || "(no description yet)"}`)
+        .join("\n");
+    }
     case "file": {
       // File nodes have no version system — content lives in node.data.
       //

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { ArrowLeft, SlidersHorizontal, FileInput } from "lucide-react";
+import { ArrowLeft, SlidersHorizontal, FileInput, History } from "lucide-react";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import {
   AlertDialog,
@@ -30,7 +30,7 @@ import {
 import { UsagePopover } from "./prompt-usage-popover";
 import { PromptVersionChips } from "./prompt-version-chips";
 import { InlineApprovalBar } from "./inline-approval-bar";
-import type { VersionSummary } from "./prompt-version-history";
+import { PromptVersionHistory, type VersionSummary } from "./prompt-version-history";
 import type { ApprovalStatus } from "@/lib/approval";
 import { useIdentity } from "@/hooks/use-identity";
 import { useNodeVersionUpdates } from "@/hooks/use-node-version-updates";
@@ -80,11 +80,22 @@ export type PromptFocusShellProps = {
   // Fired by the live-refresh subscription below — the caller's own re-fetch (still its own
   // versions/eval/approval state) runs here, exactly as it did before the wiring moved.
   onLiveVersionUpdate: () => void;
-  // The three fixed tabs ("prompt" / "details" / "request") switch on `selected` internally —
-  // everything about their content is per-prompt-type. Only the connected-node detail pane
-  // (rendered when a connected input is selected instead) is generic enough to live here.
+  // The fixed tabs ("prompt" / "details" / "request") switch on `selected` internally —
+  // everything about their content is per-prompt-type. The two panes generic enough to live
+  // here are rendered by the shell itself: the connected-node detail (when a connected input is
+  // selected) and "history", which needs nothing the shell was not already given.
   children: (slots: PromptFocusShellSlots) => ReactNode;
 };
+
+/**
+ * Rail keys the shell owns. Anything else in `selected` is a connected node's id — which is how
+ * each view computes `isNodeSelected`, so a key added here without being added there would make
+ * the shell hunt for a connected node by that name and render an empty detail pane.
+ *
+ * Exported because both consumers need the identical list; two hand-maintained copies is exactly
+ * how "history" would go missing from one view and not the other.
+ */
+export const RESERVED_RAIL_KEYS = ["prompt", "history", "details", "request"] as const;
 
 // The scaffolding every prompt-type focus view shares: the bottom-sheet frame (back button,
 // editable title, usage popover, guided-next button, error badge, discard-unsaved-changes
@@ -287,6 +298,18 @@ export function PromptFocusShell({
             )}
 
             <div className="mx-2.5 my-2 h-px bg-border" />
+            {/* Every other versioned node type (Image Gen, Video Gen) carries History in its
+                rail; the prompt nodes had only the v1/v2 chips, and PromptVersionHistory —
+                built for exactly this in D180, on the same VersionHistoryList shell — was
+                rendered nowhere. It lives on the shell rather than in each view because it
+                needs nothing per-prompt-type: the shell already holds versions, the active id,
+                and the restore handler. */}
+            <RailItem
+              icon={<History className="size-4 text-primary" />}
+              label="History"
+              active={selected === "history"}
+              onClick={() => onSelectedChange("history")}
+            />
             <RailItem
               icon={<SlidersHorizontal className="size-4 text-primary" />}
               label="Details"
@@ -312,6 +335,26 @@ export function PromptFocusShell({
               inside own their scrolling. */}
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             {children({ versionChips, approvalControls })}
+
+            {/* A plain block, not a flex column: its one child is a list that sizes itself, and
+                a flex child with `overflow-hidden` would be squashed to fit instead of
+                overflowing, leaving the scroller with nothing to scroll. */}
+            {selected === "history" && (
+              <div className="min-h-0 w-full max-w-3xl flex-1 overflow-y-auto px-6 py-6">
+                {versions.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    No versions yet — generate once and every run is kept here.
+                  </p>
+                ) : (
+                  <PromptVersionHistory
+                    versions={versions}
+                    activeVersionId={activeVersionId}
+                    onRestore={onRestoreVersion}
+                    restoring={restoring}
+                  />
+                )}
+              </div>
+            )}
 
             {/* Connected node — read-only detail. While the inputs are still being resolved,
                 this shows the SHAPE of the panel rather than a centred "Loading…". */}
