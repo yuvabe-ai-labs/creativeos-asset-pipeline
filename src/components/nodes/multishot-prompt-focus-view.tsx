@@ -12,6 +12,7 @@ import {
   Sun,
   RefreshCw,
   Link2,
+  ChevronDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -105,6 +106,9 @@ export function MultishotPromptFocusView({
   const [cutDrafts, setCutDrafts] = useState<Record<string, string>>(cutInstructions);
   const [planDraft, setPlanDraft] = useState<MultishotPlan | null>(plan);
   const [outputView, setOutputView] = useState<"breakup" | "prompt">("breakup");
+  // Which strip chip (Connected / Shots) has its panel open, if any — accordion behaviour,
+  // both closed by default so the generated output owns the screen on open (Option A, D-log).
+  const [openStrip, setOpenStrip] = useState<"connected" | "shots" | null>(null);
 
   const [generating, setGenerating] = useState(false);
   const [lastError, setLastError] = useState<string | null>(null);
@@ -139,6 +143,7 @@ export function MultishotPromptFocusView({
     setSeed({ open, nodeId });
     setSelected("prompt");
     setOutputView("breakup");
+    setOpenStrip(null);
     if (opening || nodeChanged) {
       setInstructionDraft(instruction);
       setCutDrafts(cutInstructions);
@@ -191,6 +196,7 @@ export function MultishotPromptFocusView({
   const listedUpstream = nonImageUpstream.filter((u) => u.type !== "multishot");
 
   const estimatedCredits = estimatePromptCredits(upstream.filter(isVisionAttachment).length);
+  const totalCutSeconds = cuts.reduce((sum, c) => sum + c.seconds, 0);
 
   const mode: "skeleton" | "result" | "empty" = generating
     ? "skeleton"
@@ -570,94 +576,70 @@ export function MultishotPromptFocusView({
                   )}
                 </div>
               ) : (
-                // Three columns in a row. Generate is pinned to the bottom of the Input column
-                // rather than spanning the whole body — stretched across Output it looked like it
-                // acted on the written beats, which it does not.
-                <div className="flex min-h-0 flex-1 overflow-hidden">
-                  {/* Column 1 — Connected: the reference pool every cut mentions from, plus
-                      every other connected input. A reference no beat cites is marked — the
-                      writer only cites what a shot needs, so an uncited one is normal, but a
-                      connected image the finished prompt never mentions is otherwise only
-                      discoverable in the rendered video. */}
-                  <div className="flex h-full w-60 shrink-0 flex-col gap-4 overflow-y-auto border-r border-border px-4 py-4">
-                    <FieldLabel icon={Link2} label="Connected" />
-
-                    {listedUpstream.length > 0 && (
-                      <ul className="space-y-1.5">
-                        {listedUpstream.map((u) => (
-                          <li key={u.id} className="flex items-center gap-1.5 text-xs text-foreground/80">
-                            <NodeIcon type={u.type} />
-                            <span className="min-w-0 flex-1 truncate">{u.label}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                    {promptRefImages.length > 0 ? (
-                      <ReferenceImageStrip upstream={upstream} omni uncitedIndices={uncitedIndices} />
-                    ) : (
-                      <p className="text-xs text-muted-foreground">
-                        No reference images connected. Connect a File, Draw or Image node and the
-                        writer will cite the ones each shot calls for.
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Column 2 — Input: the whole-sequence steer, then one card per cut with the
-                      cut's own text (read-only — it belongs to the Multishot node) above the
-                      per-cut instruction. Generate is pinned to the bottom of THIS column: it
-                      acts on the input, so it should not stretch across the Output column as
-                      though it acted on that too. */}
-                  <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden border-r border-border">
-                  <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-6 py-4">
-                    {SHOW_REFERENCE_ATTACHMENT && (
-                      <div className="flex flex-col gap-2">
-                        <FieldLabel icon={PencilLine} label="Sequence" />
-                        <MentionInstructionEditor
-                          value={instructionDraft}
-                          onChange={updateInstruction}
-                          upstream={upstream}
-                          dialect={mentionDialect()}
-                          disabled={isReadOnly}
-                          placeholder="e.g. punchy, everyday — applies to every shot"
-                          className="min-h-16"
-                        />
-                      </div>
-                    )}
-
-                    {cuts.length === 0 && (
-                      <p className="text-sm text-muted-foreground">
-                        Connect a Multishot node with at least one shot to write against.
-                      </p>
-                    )}
-
-                    {cuts.map((cut, i) => (
-                      <div key={cut.id} className="rounded-xl border border-border bg-card p-3 shadow-card">
-                        <div className="mb-2 flex items-center gap-2">
-                          <span className="text-eyebrow text-muted-foreground">
-                            Shot {i + 1} · {cut.seconds}s
-                          </span>
-                        </div>
-                        <p className="mb-2 whitespace-pre-wrap text-xs text-foreground/70">
-                          {cut.text.trim() || "No shot description yet — edit the Multishot node."}
-                        </p>
-                        {SHOW_REFERENCE_ATTACHMENT && (
-                          <MentionInstructionEditor
-                            value={cutDrafts[cut.id] ?? ""}
-                            onChange={(v) => updateCutInstruction(cut.id, v)}
-                            upstream={upstream}
-                            dialect={mentionDialect()}
-                            disabled={isReadOnly}
-                            placeholder="Blank — the writer picks a reference"
-                          />
+                // Option A (2026-09-03): Connected and Shots demote to a collapsible strip so
+                // the generated output — the primary focus — gets the full width and every
+                // beat is readable at once, instead of being boxed into a third of the screen.
+                <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                  {/* The strip: two chips (accordion — opening one closes the other, both
+                      closed by default) plus Generate, pinned to the right. */}
+                  <div className="flex shrink-0 items-center gap-2 border-b border-border px-6 py-3">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      aria-expanded={openStrip === "connected"}
+                      onClick={() => setOpenStrip((s) => (s === "connected" ? null : "connected"))}
+                      className="h-auto gap-2 py-1.5"
+                    >
+                      <Link2 className="size-3.5 text-muted-foreground/70" strokeWidth={1.5} />
+                      <span>Connected</span>
+                      <span className="text-muted-foreground">
+                        · {promptRefImages.length} ref{promptRefImages.length === 1 ? "" : "s"}
+                      </span>
+                      {promptRefImages.length > 0 && (
+                        <span className="flex -space-x-1.5">
+                          {promptRefImages.slice(0, 3).map((img) => (
+                            /* eslint-disable-next-line @next/next/no-img-element */
+                            <img
+                              key={img.id}
+                              src={img.fileUrl}
+                              alt=""
+                              className="size-4 rounded-full border border-card object-cover"
+                            />
+                          ))}
+                        </span>
+                      )}
+                      <ChevronDown
+                        className={cn(
+                          "size-3.5 text-muted-foreground transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]",
+                          openStrip === "connected" && "rotate-180",
                         )}
-                      </div>
-                    ))}
+                        strokeWidth={1.5}
+                      />
+                    </Button>
 
-                  </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      aria-expanded={openStrip === "shots"}
+                      onClick={() => setOpenStrip((s) => (s === "shots" ? null : "shots"))}
+                      className="h-auto gap-2 py-1.5"
+                    >
+                      <ListVideo className="size-3.5 text-muted-foreground/70" strokeWidth={1.5} />
+                      <span>Shots</span>
+                      <span className="text-muted-foreground">
+                        · {cuts.length} · {totalCutSeconds}s
+                      </span>
+                      <ChevronDown
+                        className={cn(
+                          "size-3.5 text-muted-foreground transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]",
+                          openStrip === "shots" && "rotate-180",
+                        )}
+                        strokeWidth={1.5}
+                      />
+                    </Button>
 
-                    <div className="shrink-0 border-t border-border px-6 py-3">
+                    <div className="ml-auto">
                       <Button
-                        className="w-full"
                         onClick={runGenerate}
                         disabled={generating || isReadOnly || cuts.length === 0}
                       >
@@ -672,12 +654,96 @@ export function MultishotPromptFocusView({
                     </div>
                   </div>
 
-                  {/* Column 3 — Output: the look block first (a distinct card, never numbered —
-                      it governs every beat below, and rendering it as "beat 0" would say a
-                      global constraint was local to shot 1), then one beat card per cut. */}
-                  <div className="flex h-full min-w-0 flex-1 flex-col gap-3 overflow-y-auto px-6 py-4">
-                    <FieldLabel icon={ListVideo} label="Output" />
+                  {/* The expanded panel — whichever chip is open, rendered full width below
+                      the strip so it never competes with the output for horizontal space. */}
+                  {openStrip && (
+                    <div className="max-h-72 shrink-0 overflow-y-auto border-b border-border bg-muted/30 px-6 py-4">
+                      {openStrip === "connected" ? (
+                        // The reference pool every cut mentions from, plus every other connected
+                        // input. A reference no beat cites is marked — the writer only cites what
+                        // a shot needs, so an uncited one is normal, but a connected image the
+                        // finished prompt never mentions is otherwise only discoverable in the
+                        // rendered video.
+                        <div className="flex flex-col gap-4">
+                          {listedUpstream.length > 0 && (
+                            <ul className="space-y-1.5">
+                              {listedUpstream.map((u) => (
+                                <li key={u.id} className="flex items-center gap-1.5 text-xs text-foreground/80">
+                                  <NodeIcon type={u.type} />
+                                  <span className="min-w-0 flex-1 truncate">{u.label}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                          {promptRefImages.length > 0 ? (
+                            <ReferenceImageStrip upstream={upstream} omni uncitedIndices={uncitedIndices} />
+                          ) : (
+                            <p className="text-xs text-muted-foreground">
+                              No reference images connected. Connect a File, Draw or Image node
+                              and the writer will cite the ones each shot calls for.
+                            </p>
+                          )}
+                        </div>
+                      ) : (
+                        // The whole-sequence steer, then one read-only card per cut with the
+                        // cut's own text (it belongs to the Multishot node) above the per-cut
+                        // instruction.
+                        <div className="flex flex-col gap-4">
+                          {SHOW_REFERENCE_ATTACHMENT && (
+                            <div className="flex flex-col gap-2">
+                              <FieldLabel icon={PencilLine} label="Sequence" />
+                              <MentionInstructionEditor
+                                value={instructionDraft}
+                                onChange={updateInstruction}
+                                upstream={upstream}
+                                dialect={mentionDialect()}
+                                disabled={isReadOnly}
+                                placeholder="e.g. punchy, everyday — applies to every shot"
+                                className="min-h-16"
+                              />
+                            </div>
+                          )}
 
+                          {cuts.length === 0 && (
+                            <p className="text-sm text-muted-foreground">
+                              Connect a Multishot node with at least one shot to write against.
+                            </p>
+                          )}
+
+                          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                            {cuts.map((cut, i) => (
+                              <div key={cut.id} className="rounded-xl border border-border bg-card p-3 shadow-card">
+                                <div className="mb-2 flex items-center gap-2">
+                                  <span className="text-eyebrow text-muted-foreground">
+                                    Shot {i + 1} · {cut.seconds}s
+                                  </span>
+                                </div>
+                                <p className="mb-2 whitespace-pre-wrap text-xs text-foreground/70">
+                                  {cut.text.trim() || "No shot description yet — edit the Multishot node."}
+                                </p>
+                                {SHOW_REFERENCE_ATTACHMENT && (
+                                  <MentionInstructionEditor
+                                    value={cutDrafts[cut.id] ?? ""}
+                                    onChange={(v) => updateCutInstruction(cut.id, v)}
+                                    upstream={upstream}
+                                    dialect={mentionDialect()}
+                                    disabled={isReadOnly}
+                                    placeholder="Blank — the writer picks a reference"
+                                  />
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* The output — full width. The look block first (a distinct card, never
+                      numbered — it governs every beat below, and rendering it as "beat 0" would
+                      say a global constraint was local to shot 1), then every beat as a
+                      full-width row inside one bordered container. */}
+                  <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-6 py-5">
                     {mode === "skeleton" && (
                       <div className="space-y-2.5 pt-1">
                         {Array.from({ length: 6 }).map((_, i) => (
@@ -732,23 +798,26 @@ export function MultishotPromptFocusView({
                           </p>
                         </div>
 
-                        {beatRows.map((beat, i) => (
-                          <MultishotBeatCard
-                            key={beat.cutId}
-                            index={i}
-                            from={beat.from}
-                            to={beat.to}
-                            text={beat.text}
-                            upstream={upstream}
-                            refIds={refIds}
-                            onChange={(v) => updateBeat(beat.cutId, v)}
-                            onRerun={() => handleRerunBeat(beat.cutId)}
-                            showRerun={SHOW_PER_BEAT_REGENERATE}
-                            rerunning={rerunningBeatId === beat.cutId}
-                            onFocusTimings={focusTimings}
-                            disabled={isReadOnly}
-                          />
-                        ))}
+                        <div className="overflow-hidden rounded-xl border border-border bg-card shadow-card">
+                          {beatRows.map((beat, i) => (
+                            <MultishotBeatCard
+                              key={beat.cutId}
+                              index={i}
+                              from={beat.from}
+                              to={beat.to}
+                              text={beat.text}
+                              upstream={upstream}
+                              refIds={refIds}
+                              onChange={(v) => updateBeat(beat.cutId, v)}
+                              onRerun={() => handleRerunBeat(beat.cutId)}
+                              showRerun={SHOW_PER_BEAT_REGENERATE}
+                              rerunning={rerunningBeatId === beat.cutId}
+                              onFocusTimings={focusTimings}
+                              disabled={isReadOnly}
+                              isLast={i === beatRows.length - 1}
+                            />
+                          ))}
+                        </div>
                       </>
                     )}
                   </div>
