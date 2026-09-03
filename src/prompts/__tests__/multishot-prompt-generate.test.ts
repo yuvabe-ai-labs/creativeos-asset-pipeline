@@ -81,4 +81,20 @@ describe("multishotPromptGenerate", () => {
     expect(spec.system).toMatch(/name the surface and the contact/i);
     expect(spec.system).toMatch(/keeps contact/i);
   });
+
+  // A CHUPPS logo on white was attached alongside three product shots and the writer cited it as
+  // if it were a slipper — the beat then asked the model to animate a wordmark as footwear. The
+  // identification list named only "product, garment, person or surface", so a brand mark had no
+  // category and fell to the nearest one it knew.
+  it("classifies a brand mark as a graphic, never as a product to cite", () => {
+    expect(spec.system).toMatch(/brand mark/i);
+    expect(spec.system).toMatch(/never cite its token/i);
+  });
+
+  // The end-card case: a shot saying "...followed by logo" must produce the framing the mark will
+  // sit in, not an attempt to render the mark. This codebase's standing position is that a brand
+  // lock-up is composited in post, because generated lettering is not typographically exact.
+  it("sends a logo end-card to post rather than asking the model to render it", () => {
+    expect(spec.system).toMatch(/composited in post/i);
+  });
 });

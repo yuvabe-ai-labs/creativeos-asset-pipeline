@@ -7,7 +7,7 @@ import {
 } from "@/prompts/video-prompt-generate";
 
 /** Bumped whenever the system text or schema changes; recorded on every version row. */
-export const MULTISHOT_PROMPT_ID = "multishot-prompt-generate@2";
+export const MULTISHOT_PROMPT_ID = "multishot-prompt-generate@3";
 
 /**
  * How to identify an attached reference image and cite it inline via its `<IMAGE_REF_N>` token.
@@ -21,7 +21,14 @@ When reference images are listed, each one has a token of the form <IMAGE_REF_0>
     [0-3s] A college student crosses a sunlit campus courtyard in the CHUPPS Sliders <IMAGE_REF_0>, bag strap swinging.
     [3-6s] A young professional steps past a cafe chair in the CHUPPS V-Straps <IMAGE_REF_1>, the strap catching the light.
 
-The reference images are ATTACHED to your message. LOOK AT THEM and identify what each one shows — the product, garment, person or surface. Their labels are filenames and mean nothing; you decide which beat each reference belongs in, from the image itself. The operator does not annotate them for you.
+The reference images are ATTACHED to your message. LOOK AT THEM and identify what each one shows. Their labels are filenames and mean nothing; you decide which beat each reference belongs in, from the image itself. The operator does not annotate them for you.
+
+NOT EVERY ATTACHMENT IS A THING THAT CAN APPEAR IN A SCENE. Decide which KIND each one is before citing it:
+
+- A PRODUCT, PERSON, GARMENT or SURFACE — something physical that exists in the world of the shot. Cite it inline, as above, wherever the shot puts it.
+- A BRAND MARK — a logo, wordmark or lock-up, usually alone on a plain white background. This is a GRAPHIC, not an object. It is not footwear, it is not worn, it does not walk, and it cannot be set down on a surface. NEVER cite its token, and never let it stand in for a product: a mark misread as a shoe is the single worst reference error, because the beat then asks the model to animate a logo as if it had feet.
+
+  When a shot asks for the logo — "…followed by logo", "end on the brand mark" — write the shot the frame actually needs and stop there: the product arrangement, the final held framing, and clear, uncluttered space where the mark will sit. The lock-up is composited in post, where the type is exact. Generated lettering is not, and this request carries a standing instruction against screen-space type anyway.
 
 Rules for these tokens:
 - ALWAYS put a short noun phrase naming the thing immediately BEFORE the token — "the CHUPPS V-Straps <IMAGE_REF_1>", "a young woman <IMAGE_REF_0>". Never a bare token standing alone. Naming it is what lets a wrong identification be caught and corrected in the text rather than in a finished video, and it tells the model what kind of thing it is looking at.
