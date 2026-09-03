@@ -40,12 +40,15 @@ export function validateAnnotations(anns: AnnotationPayload[]): string | null {
     }
     seen.add(a.seq);
     if (!a.note.trim()) return `Annotation ${a.seq} has an empty note.`;
-    if (a.kind === "image" && (a.timecodeMs !== null || a.frameBase64 !== null)) {
-      return `Annotation ${a.seq}: image annotations carry no timecode or frame.`;
-    }
-    if (a.kind === "video-frame") {
-      if (a.timecodeMs === null) return `Annotation ${a.seq} is missing its timecode.`;
-      if (a.frameBase64 === null) return `Annotation ${a.seq} is missing its captured frame.`;
+    if (a.kind === "image") {
+      if (a.timecodeMs != null || a.frameBase64 != null) {
+        return `Annotation ${a.seq}: image annotations carry no timecode or frame.`;
+      }
+    } else if (a.kind === "video-frame") {
+      if (a.timecodeMs == null) return `Annotation ${a.seq} is missing its timecode.`;
+      if (a.frameBase64 == null) return `Annotation ${a.seq} is missing its captured frame.`;
+    } else {
+      return `Annotation ${a.seq} has an unknown kind.`;
     }
     const maskBytes = base64Bytes(a.overlayBase64);
     const frameBytes = base64Bytes(a.frameBase64 ?? "");

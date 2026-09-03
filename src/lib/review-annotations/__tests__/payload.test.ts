@@ -76,4 +76,40 @@ describe("validateAnnotations", () => {
     const big = "A".repeat(Math.ceil((MAX_MASK_BYTES + 3) / 3) * 4);
     expect(validateAnnotations([ann({ overlayBase64: big })])).toMatch(/mask/i);
   });
+
+  it("rejects unknown kind values", () => {
+    const unknown = {
+      seq: 1,
+      kind: "something-else",
+      timecodeMs: null,
+      overlayBase64: "aGVsbG8=",
+      frameBase64: null,
+      note: "test",
+    } as unknown as AnnotationPayload;
+    expect(validateAnnotations([unknown])).toMatch(/kind/i);
+  });
+
+  it("rejects video-frame with omitted frameBase64 (undefined)", () => {
+    const noFrame = {
+      seq: 1,
+      kind: "video-frame",
+      timecodeMs: 4000,
+      overlayBase64: "aGVsbG8=",
+      frameBase64: undefined,
+      note: "test",
+    } as unknown as AnnotationPayload;
+    expect(validateAnnotations([noFrame])).toMatch(/frame/i);
+  });
+
+  it("rejects video-frame with omitted timecodeMs (undefined)", () => {
+    const noTimecode = {
+      seq: 1,
+      kind: "video-frame",
+      timecodeMs: undefined,
+      overlayBase64: "aGVsbG8=",
+      frameBase64: "aGVsbG8=",
+      note: "test",
+    } as unknown as AnnotationPayload;
+    expect(validateAnnotations([noTimecode])).toMatch(/timecode/i);
+  });
 });
