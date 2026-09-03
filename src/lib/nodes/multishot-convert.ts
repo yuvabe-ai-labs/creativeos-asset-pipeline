@@ -4,22 +4,26 @@
 // what makes the switch a real undo is that a flip and a flip-back cost the operator nothing.
 // That property only holds if the two functions are written against each other.
 import type { ShotNodeData, MultishotNodeData } from "@/lib/canvas-nodes";
-import { cutsFromShots, shotsFromCuts, totalOf } from "./multishot-cuts";
+import { clampTotal, cutsFromShots, fitToTotal, shotsFromCuts, totalOf } from "./multishot-cuts";
 import { deriveShotType } from "./shot-types";
 
 export function shotDataToMultishot(data: ShotNodeData): MultishotNodeData {
   const shots = data.script?.visual_script?.shots ?? [];
-  const cuts = cutsFromShots(shots);
+  const rawCuts = cutsFromShots(shots);
+
+  // Kling-allocation rework (operator request 2026-09-03): totalSeconds is now the operator's
+  // INDEPENDENT target, not a mirror of totalOf(cuts) (see multishot-cuts.ts's header) — but a
+  // freshly-converted node must never open already unbalanced. Seed the Total from the Shot's
+  // packed seconds, clamped into Omni's window (a Shot's parsed duration can land outside it —
+  // see group-shots.ts's lone over-cap shot), then fit the cuts to land exactly on it, so
+  // allocated === total on creation.
+  const totalSeconds = clampTotal(totalOf(rawCuts));
+  const cuts = fitToTotal(rawCuts, totalSeconds);
 
   return {
     order: data.order,
     seededFrom: data.seededFrom,
-    // totalOf(cuts), not an independently clamped number — the field must never be able to
-    // disagree with the ladder it describes (multishot-cuts.ts). A Shot's parsed duration can
-    // land outside Omni's 3-10s window (rare, but see group-shots.ts's lone over-cap shot); that
-    // shows up as the focus view's out-of-window warning, same as any other cut list that starts
-    // or ends up outside the window, rather than being silently mislabeled here.
-    totalSeconds: totalOf(cuts),
+    totalSeconds,
     cuts,
     script: {
       ...data.script,

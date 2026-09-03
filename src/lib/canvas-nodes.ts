@@ -127,13 +127,17 @@ export type MultishotNodeData = {
    */
   script?: ReelScript;
   order?: number;
-  /** The budget in seconds — the sum of `cuts`, not an independent number. Free to move within
-   *  Omni's 3..10s window (and, rarely, outside it — see multishot-convert.ts); the only hard
-   *  ceiling is OMNI_MAX_SECONDS, enforced per-cut by multishot-cuts.ts's resizeCut/addCut. */
+  /** The operator's independent Total in seconds (Kling's advanced multi-shot model, operator
+   *  request 2026-09-03) — kept inside Omni's 3-10s window by `clampTotal` (multishot-cuts.ts)
+   *  wherever it is set. NOT derived from `cuts`: it changes only when the operator moves the
+   *  Total control, or when a fresh node is seeded (multishot-convert.ts / canvas-store.ts's
+   *  fanOutShots both seed cuts to match it, via fitToTotal, so a new node opens balanced). */
   totalSeconds?: number;
-  /** INVARIANT: totalSeconds === totalOf(cuts). Every writer of `cuts` must set both together in
-   *  the same update (see multishot-node.tsx's setCuts) — totalSeconds is a cache of totalOf(cuts),
-   *  never a second source of truth. */
+  /** The cut ladder. `totalOf(cuts)` (what is ALLOCATED) and `totalSeconds` (the Total) are
+   *  independent and allowed to differ — see multishot-cuts.ts's header for the full model.
+   *  Writers of `cuts` (multishot-node.tsx's setCuts) must NOT also write totalSeconds; that
+   *  coupling was reverted (commit e2f3be8a) because it moved the Total on every drag, which is
+   *  exactly the coupling the operator asked to remove. */
   cuts?: MultishotCut[];
   seededFrom?: { scriptNodeId: string; shotIndexes: number[]; scriptTitle?: string };
   // No `shot_type`: framing is decided per cut by the prompt writer, which carries the

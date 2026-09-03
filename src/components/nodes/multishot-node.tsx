@@ -12,20 +12,22 @@ import { NodeContextMenu } from "./node-context-menu";
 import { NodeCardHeader } from "./node-card-header";
 import { MultishotFocusView } from "./multishot-focus-view";
 import { GuidedNextButton } from "@/components/canvas/guided-next-button";
-import { totalOf, type MultishotCut } from "@/lib/nodes/multishot-cuts";
-import { OMNI_MAX_SECONDS, OMNI_MIN_SECONDS } from "@/lib/nodes/group-shots";
+import { clampTotal, totalOf, type MultishotCut } from "@/lib/nodes/multishot-cuts";
 import type { MultishotNodeData } from "@/lib/canvas-nodes";
 
 /** Where Kling caps its own Custom Multi-Shot. A quality signal, not a hard limit. */
 const SOFT_CUT_LIMIT = 6;
 
 /**
- * D209 — a Multishot node is a fixed budget of seconds divided into cuts.
+ * D209 — a Multishot node is an operator-set Total (Kling's advanced multi-shot model,
+ * operator request 2026-09-03) divided into cuts that ALLOCATE against it. The Total and the
+ * cuts' sum are independent — see multishot-cuts.ts's header — so the card shows both
+ * `allocated/total` and flags visibly when they disagree, rather than a single "budget" number.
  *
- * The card is a read-only preview (operator request 2026-09-03): the per-cut sliders and text
- * editing moved to `MultishotFocusView`, opened via "Open ↗" or a double-click — the same
- * pattern every other node's focus view uses. "Add cut" is deferred, not just hidden here: see
- * `addCut` in multishot-cuts.ts for why it is kept despite having no caller today.
+ * The card is a read-only preview: the Total slider, per-cut sliders and text editing all live
+ * in `MultishotFocusView`, opened via "Open ↗" or a double-click — the same pattern every other
+ * node's focus view uses. "Add cut" is deferred, not just hidden here: see `addCut` in
+ * multishot-cuts.ts for why it is kept despite having no caller today.
  *
  * Deliberately bare otherwise: no multishot toggle (that lives in the Script now), no beat
  * switcher, and no Composer. The Shot node's four conditional controls on a 224px card are
@@ -41,15 +43,19 @@ export function MultishotNode({ id, data, selected }: NodeProps) {
   const d = data as MultishotNodeData;
 
   const cuts = d.cuts ?? [];
-  const budget = d.totalSeconds ?? totalOf(cuts);
-  const outOfWindow = budget < OMNI_MIN_SECONDS || budget > OMNI_MAX_SECONDS;
+  // The operator's independent Total (Kling-allocation rework, operator request 2026-09-03) —
+  // NOT derived from `cuts`. Falls back to the current allocation only for data seeded before
+  // this field existed; every fresh node seeds the two equal (see multishot-convert.ts /
+  // canvas-store.ts's fanOutShots).
+  const allocated = totalOf(cuts);
+  const total = d.totalSeconds ?? allocated;
+  const balanced = allocated === total;
 
-  // totalOf(next) is written in the SAME call as cuts so the stored budget can never disagree
-  // with the ladder it describes — the total is free to move now (Change: the cap is Omni's
-  // OMNI_MAX_SECONDS, not the fixed sum the script happened to parse), so totalSeconds has to be
-  // re-derived on every write instead of being set once and trusted forever.
-  const setCuts = (next: MultishotCut[]) =>
-    updateNodeData(id, { cuts: next, totalSeconds: totalOf(next) });
+  // `cuts` and `totalSeconds` are now independent fields (multishot-cuts.ts) — this writes ONLY
+  // `cuts`. Never re-derive totalSeconds from the ladder here; that coupling is exactly what the
+  // operator asked to remove (dragging one shot must never move the Total).
+  const setCuts = (next: MultishotCut[]) => updateNodeData(id, { cuts: next });
+  const setTotal = (next: number) => updateNodeData(id, { totalSeconds: clampTotal(next) });
 
   // Open locally (double-click / "Open ↗") OR when a shared signal points here — the
   // Generation Tray, guided flow, or the copilot's open_node (setFocusedNodeId).
@@ -83,10 +89,10 @@ export function MultishotNode({ id, data, selected }: NodeProps) {
             <span
               className={cn(
                 "text-[0.6rem] tabular-nums",
-                outOfWindow ? "text-destructive" : "text-muted-foreground",
+                balanced ? "text-muted-foreground" : "text-destructive",
               )}
             >
-              {budget}s · {cuts.length} cuts
+              {allocated}/{total}s · {cuts.length} cuts
             </span>
           }
         />
@@ -106,10 +112,19 @@ export function MultishotNode({ id, data, selected }: NodeProps) {
             ))}
           </div>
 
+          {!balanced && (
+            <p className="mt-1.5 flex items-center gap-1 px-1.5 text-[0.6rem] text-destructive">
+              <TriangleAlert className="size-3 shrink-0" strokeWidth={1.5} />
+              {allocated < total
+                ? `${total - allocated}s unallocated — balance before generating.`
+                : `${allocated - total}s over the total — balance before generating.`}
+            </p>
+          )}
+
           {cuts.length > SOFT_CUT_LIMIT && (
             <p className="mt-1.5 flex items-center gap-1 px-1.5 text-[0.6rem] text-muted-foreground">
               <TriangleAlert className="size-3 shrink-0" strokeWidth={1.5} />
-              {cuts.length} cuts in {budget}s — past about {SOFT_CUT_LIMIT} the cuts stop reading.
+              {cuts.length} cuts in {total}s — past about {SOFT_CUT_LIMIT} the cuts stop reading.
             </p>
           )}
 
@@ -152,8 +167,10 @@ export function MultishotNode({ id, data, selected }: NodeProps) {
       onOpenChange={handleFocusOpenChange}
       order={d.order}
       cuts={cuts}
+      totalSeconds={total}
       scriptTitle={d.seededFrom?.scriptTitle}
       onChange={setCuts}
+      onChangeTotal={setTotal}
     />
     </>
   );
