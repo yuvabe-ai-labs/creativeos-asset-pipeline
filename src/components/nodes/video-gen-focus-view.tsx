@@ -461,36 +461,37 @@ export function VideoGenFocusView({
   // Declared up here, above the effects, because the seeding effect below closes over
   // `derivedDuration` and names it in its dependency array — which is read during render, so a
   // declaration further down would be a temporal-dead-zone error rather than a stale value.
-  const upstreamDurationSource = useCanvasStore((s) => {
+  //
+  // The selector returns a NUMBER, not the node or a {kind, …} wrapper. A selector's result is
+  // the snapshot useSyncExternalStore compares by identity, so returning a fresh object literal
+  // means a new snapshot on every read — "The result of getSnapshot should be cached to avoid an
+  // infinite loop". Deriving inside the selector makes the result a primitive, which compares by
+  // value and cannot churn. `walk` still returns a wrapper so that the FIRST matching node wins
+  // even when it derives to null (an empty ladder stops the search rather than letting a
+  // Shot further up answer for a Multishot node); that wrapper never leaves the selector.
+  const derivedDuration = useCanvasStore((s) => {
     const seen = new Set<string>();
-    type Source =
-      | { kind: "shot"; script: ReelScript | null }
-      | { kind: "multishot"; cuts: MultishotCut[] };
-    const walk = (id: string, depth: number): Source | null => {
+    const walk = (id: string, depth: number): { value: number | null } | null => {
       if (depth > 2 || seen.has(id)) return null;
       seen.add(id);
       for (const e of s.edges.filter((e) => e.target === id)) {
         const source = s.nodes.find((n) => n.id === e.source);
         if (!source) continue;
         if (source.type === "shot") {
-          return { kind: "shot", script: (source.data as { script?: ReelScript }).script ?? null };
+          const script = (source.data as { script?: ReelScript }).script ?? null;
+          return { value: deriveShotDuration(script) };
         }
         if (source.type === "multishot") {
-          return { kind: "multishot", cuts: (source.data as { cuts?: MultishotCut[] }).cuts ?? [] };
+          const cuts = (source.data as { cuts?: MultishotCut[] }).cuts ?? [];
+          return { value: deriveMultishotDuration(cuts) };
         }
         const found = walk(e.source, depth + 1);
         if (found) return found;
       }
       return null;
     };
-    return walk(nodeId, 0);
+    return walk(nodeId, 0)?.value ?? null;
   });
-  const derivedDuration =
-    upstreamDurationSource == null
-      ? null
-      : upstreamDurationSource.kind === "multishot"
-        ? deriveMultishotDuration(upstreamDurationSource.cuts)
-        : deriveShotDuration(upstreamDurationSource.script);
 
   // D211 — belt and braces, mirroring canvas-store's onConnect coercion: a multishot-prompt
   // upstream can only generate on Omni, and filtering the picker's list (below) is not enforcing
