@@ -4,12 +4,7 @@ import type { ReactNode } from "react";
 import { Cpu } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import {
   videoGenClientModelGroups,
   modelPickerLabel,
@@ -37,11 +32,16 @@ export function VideoGenModelPicker({
   modelId: string;
   onModelChange: (modelId: string) => void;
   /**
-   * D195/D211 — when set, every OTHER model is still rendered but disabled (muted, with a
-   * tooltip explaining why), rather than removed from the list. A multishot plan can only
-   * generate on Omni, but hiding the other chips hid the restriction along with them — the
-   * operator saw a shorter list and had no idea a lock was in effect. Disabling keeps the
-   * restriction visible.
+   * D195/D211 — when set, ONLY this model is offered; every other chip is removed from the list.
+   *
+   * A multishot plan can only generate on Omni, so the others are not choices. They were briefly
+   * rendered-but-disabled so the lock would be visible, but a row of dead chips is clutter on a
+   * decision that has already been made — `restrictionReason` below carries the explanation
+   * instead, which is what keeps the restriction from being silent.
+   *
+   * NOTE this is display only. The constraint is ENFORCED by coercing the node's stored `modelId`
+   * on connect (canvas-store's onConnect); filtering a picker is not enforcing anything, and a
+   * previous version of this restriction shipped exactly that mistake.
    */
   lockedToModelId?: string;
   restrictionReason?: string;
@@ -50,9 +50,20 @@ export function VideoGenModelPicker({
 }) {
   const editable = useCanvasEditable(); // D33: false when this session is read-only
 
+  // Drop the models this node cannot use, and any provider group left with none.
+  const shownGroups =
+    lockedToModelId === undefined
+      ? videoGenClientModelGroups
+      : videoGenClientModelGroups
+          .map((g) => ({ ...g, models: g.models.filter((m) => m.id === lockedToModelId) }))
+          .filter((g) => g.models.length > 0);
+
   return (
     // Flat, like the image-gen output settings: the controls are the page's work,
     // and a card around them competes with the generated video for emphasis.
+    // The provider is here for `children` — the model's own settings render inside this card and
+    // may carry tooltips. The picker itself no longer has any: the tooltip existed to explain a
+    // disabled chip, and unusable models are not rendered at all now.
     <TooltipProvider delay={200}>
       <div>
         <div className="mb-3 flex items-center gap-1.5">
@@ -61,7 +72,7 @@ export function VideoGenModelPicker({
         </div>
 
         <div className="flex flex-wrap items-center gap-x-7 gap-y-2.5">
-          {videoGenClientModelGroups.map((providerGroup) => (
+          {shownGroups.map((providerGroup) => (
             <div key={providerGroup.label} className="flex items-center gap-2.5">
               <span className="shrink-0 text-[0.7rem] font-medium uppercase tracking-wide text-foreground/70">
                 {providerGroup.label}
@@ -69,47 +80,24 @@ export function VideoGenModelPicker({
               <div className="flex flex-wrap items-center gap-1.5">
                 {providerGroup.models.map((m) => {
                   const active = m.id === modelId;
-                  // Locked BY THE MULTISHOT CONNECTION — gets a tooltip explaining why. A
-                  // read-only session (D33) also disables every chip, but carries no tooltip:
-                  // that's the standing state of the whole node, not a per-chip reason.
-                  const locked = lockedToModelId !== undefined && m.id !== lockedToModelId;
-                  const chip = (
+                  return (
                     <Button
+                      key={m.id}
                       type="button"
                       variant="ghost"
                       size="xs"
                       aria-pressed={active}
-                      disabled={locked || !editable}
+                      disabled={!editable} // D33 only — unusable models are no longer rendered
                       onClick={() => onModelChange(m.id)}
                       className={cn(
                         "h-auto rounded-md border px-3 py-1.5 text-[0.8rem] font-semibold transition-colors",
                         active
                           ? "border-primary/35 bg-primary/8 text-primary hover:bg-primary/8"
                           : "border-border bg-transparent text-foreground/70 hover:bg-muted hover:text-foreground",
-                        locked && "opacity-40",
                       )}
                     >
                       {modelPickerLabel(m)}
                     </Button>
-                  );
-
-                  if (!locked) {
-                    return <div key={m.id}>{chip}</div>;
-                  }
-
-                  // A disabled Button carries `disabled:pointer-events-none`, so a Tooltip
-                  // whose trigger IS that button never sees a hover. Make the trigger a
-                  // focusable/hoverable span WRAPPING the disabled chip instead — the span
-                  // still receives the pointer/focus events the disabled child can't.
-                  return (
-                    <Tooltip key={m.id}>
-                      <TooltipTrigger
-                        render={<span tabIndex={0} className="inline-flex cursor-not-allowed" />}
-                      >
-                        {chip}
-                      </TooltipTrigger>
-                      <TooltipContent>{restrictionReason}</TooltipContent>
-                    </Tooltip>
                   );
                 })}
               </div>
