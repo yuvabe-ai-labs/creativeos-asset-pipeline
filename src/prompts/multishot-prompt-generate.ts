@@ -97,8 +97,8 @@ oatmeal linen shirt"), and give the background enough real detail to sit in a re
 to expression and to the timing of small movements. Richly specified scenes come back natural;
 thin ones come back uncanny.
 
-If text appears anywhere in a beat — a shopfront, a sign, a label in the background — say what it
-reads. Omni renders text correctly when told what it says and invents garbled lettering when not.
+Do not write on-screen text, captions, titles or signage copy into a beat. The request carries a
+standing instruction against screen-space type, and asking for lettering here would contradict it.
 
 PRESERVATION
 A referenced product must survive the beat unchanged: shape, proportions, colour, and any

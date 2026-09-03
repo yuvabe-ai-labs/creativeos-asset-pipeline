@@ -10,18 +10,25 @@ import type { OmniInputPlan } from "./plan-omni-input";
  * and cannot be corrected, so any deliverable spanning more than one generation lays a single
  * continuous VO in the edit instead of asking for speech here.
  */
-export const OMNI_AUDIO_CLAUSES: Record<string, string> = {
-  dialogue: "Sound design: ambience, foley and the spoken line. No background music.",
-  ambient: "Sound design: ambience and foley only. No dialogue. No background music.",
-  music: "Sound design: ambience, foley and a music bed.",
-};
+/**
+ * The single sound-design clause, emitted on every shot.
+ *
+ * Was a three-way map keyed by an `audio` param (dialogue / ambient / music) until that control
+ * was removed. Only this arm survives, because it is the one that suppresses a background score —
+ * Omni's audio cannot be switched off, and a per-generation music bed changes character at every
+ * cut, so a multi-generation deliverable needs it gone. The other two arms are recoverable from
+ * git if the control ever returns; an unreachable map keyed by a param nothing sets is not.
+ */
+export const OMNI_AUDIO_CLAUSE =
+  "Sound design: ambience, foley and the spoken line. No background music.";
 
 /**
- * Suppressed on every shot that does not explicitly ask for on-screen text.
+ * Emitted on EVERY shot.
  *
  * Omni renders screen-space type well, which is the problem: left alone it invents signage,
- * captions and packaging copy nobody asked for. When `on_screen_text` IS set the operator's copy
- * is quoted instead and this line is dropped, so the two never contradict each other.
+ * captions and packaging copy nobody asked for. There used to be an `on_screen_text` param whose
+ * copy would be quoted instead, and this line was dropped in that case so the two could not
+ * contradict each other; that control is gone, so the suppression is now unconditional.
  */
 export const NO_ON_SCREEN_TEXT_LINE = "No on-screen text.";
 
@@ -48,15 +55,17 @@ export function composeOmniPrompt(args: {
   if (plan.header) blocks.push(plan.header);
   blocks.push(prompt.trim());
 
-  const onScreenText = String(params.on_screen_text ?? "").trim();
-  if (onScreenText) blocks.push(`On-screen text reads exactly: "${onScreenText}".`);
-
-  const audio = String(params.audio ?? "dialogue");
-  blocks.push(OMNI_AUDIO_CLAUSES[audio] ?? OMNI_AUDIO_CLAUSES.dialogue);
-
-  // Only when the operator asked for none. With copy set, the quoted line above governs and this
-  // would contradict it.
-  if (!onScreenText) blocks.push(NO_ON_SCREEN_TEXT_LINE);
+  // Both clauses are now FIXED — the Audio select and the On-screen Text box were removed from the
+  // node (operator request 2026-09-03). Removing the controls must not remove the behaviour they
+  // governed, and in both cases the default was doing real work:
+  //
+  //  - Omni ALWAYS generates audio and it cannot be switched off. Dropping the clause does not
+  //    give silence, it gives whatever Omni decides — including the music bed this clause exists
+  //    to suppress, which changes character at every cut.
+  //  - Omni renders screen-space type well, which is the problem: unprompted it invents signage,
+  //    captions and packaging copy. With no opt-in left, the suppression is unconditional.
+  blocks.push(OMNI_AUDIO_CLAUSE);
+  blocks.push(NO_ON_SCREEN_TEXT_LINE);
 
   const avoid = avoidClause(String(params.negative_prompt ?? ""));
   if (avoid) blocks.push(avoid);

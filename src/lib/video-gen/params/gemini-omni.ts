@@ -4,6 +4,7 @@ import type { ParamSpec } from "@/lib/image-gen/types";
 // `logo` negatives, because on a product shot the label's real text and logo must be PRESERVED.
 // Kept as its own constant rather than shared with Kling's — per-provider defaults are tuned
 // independently from eval results.
+//
 // Two families of artifact, because two things go wrong. The product terms guard the thing being
 // sold — a drifting label or a duplicated shoe kills the shot. The GAIT terms were missing
 // entirely, which was a real gap for a footwear brand whose reels are almost entirely people
@@ -58,46 +59,13 @@ export const geminiOmniParams: ParamSpec[] = [
     constraints: { type: "select", options: ["16:9", "9:16"] },
   },
   {
-    // NOT an API field. Omni always generates audio; this steers it (D187).
-    name: "audio",
-    label: "Audio",
-    component: "select",
-    group: "primary",
-    order: 3,
-    visible: true,
-    // `dialogue` is the default because most reels here carry a voiceover, and the standing
-    // suppressions are background music and on-screen text — not speech.
-    defaultValue: "dialogue",
-    constraints: { type: "select", options: ["dialogue", "ambient", "music"] },
-    description:
-      "Audio is always generated and cannot be switched off. Background music is suppressed on " +
-      "every setting except Music, since a per-generation score changes character at each cut. " +
-      "The model has no voice control, so a narrator differs between generations — write the " +
-      "line anyway for the synced foley and timing, and lay one continuous VO in the edit.",
-  },
-  {
-    // NOT an API field. Omni renders screen-space type correctly and the docs recommend stating
-    // it explicitly, so the copy is quoted verbatim into the prompt.
-    name: "on_screen_text",
-    label: "On-screen Text",
-    component: "textarea",
-    group: "primary",
-    order: 4,
-    visible: true,
-    defaultValue: "",
-    constraints: { type: "textarea", maxLength: 500 },
-    description:
-      "Rendered as screen-space type. A brand lock-up should still be composited in post — " +
-      "rendered-correctly is not typographically exact.",
-  },
-  {
     // NOT an API field — Omni has no negative-prompt parameter at all. Folded into the prompt as
     // an `Avoid:` paragraph by composeOmniPrompt, the shape composeVeoPrompt uses on Lite (D183).
     name: "negative_prompt",
     label: "Negative Prompt",
     component: "textarea",
     group: "primary",
-    order: 5,
+    order: 3,
     visible: true,
     defaultValue: GEMINI_OMNI_NEGATIVE_DEFAULT,
     constraints: { type: "textarea", maxLength: 2500 },

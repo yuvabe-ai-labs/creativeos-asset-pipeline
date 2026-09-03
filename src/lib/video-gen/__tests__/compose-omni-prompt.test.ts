@@ -31,46 +31,38 @@ describe("composeOmniPrompt", () => {
     expect(out).toContain("Sound design: ambience, foley and the spoken line. No background music.");
   });
 
-  // Ambient is the deliberate no-speech choice, not the default.
-  it("suppresses dialogue only when ambient is chosen", () => {
-    const out = composeOmniPrompt({ prompt: "A cup.", params: { audio: "ambient" }, plan: EMPTY });
-    expect(out).toContain("Sound design: ambience and foley only. No dialogue. No background music.");
+  // The Audio select and the On-screen Text box were removed from the node (operator request
+  // 2026-09-03), so both clauses are now FIXED. These four cases replace the ones that exercised
+  // the choices — the point of each is that removing a CONTROL did not remove the BEHAVIOUR it
+  // governed, and that a param saved before the removal can no longer resurrect it.
+
+  it("always requests the dialogue mix, whatever params carry", () => {
+    const out = composeOmniPrompt({ prompt: "A cup.", params: {}, plan: EMPTY });
+    expect(out).toContain("Sound design: ambience, foley and the spoken line. No background music.");
   });
 
-  it("allows a music bed only when music is chosen", () => {
+  // The one that would actually cost money: Omni cannot be silenced, so dropping the clause would
+  // hand every generation a music bed that changes character at each cut. A node saved while the
+  // control still existed still carries `audio: "music"` in its params — it must be inert now.
+  it("ignores a stale saved audio choice rather than letting it reinstate a music bed", () => {
     const out = composeOmniPrompt({ prompt: "A cup.", params: { audio: "music" }, plan: EMPTY });
-    expect(out).toContain("Sound design: ambience, foley and a music bed.");
-    expect(out).not.toContain("No background music.");
+    expect(out).toContain("No background music.");
+    expect(out).not.toContain("a music bed");
   });
 
-  // Omni invents signage and captions unasked, so silence is requested explicitly — but only
-  // when the operator has not supplied copy, or the two lines would contradict each other.
-  it("suppresses on-screen text when none was asked for", () => {
+  // Omni invents signage and captions unasked, so silence is requested explicitly — on every shot
+  // now that there is no opt-in left.
+  it("suppresses on-screen text unconditionally", () => {
     const out = composeOmniPrompt({ prompt: "A cup.", params: {}, plan: EMPTY });
     expect(out).toContain("No on-screen text.");
   });
 
-  it("does not suppress on-screen text when copy was supplied", () => {
+  it("ignores stale saved on-screen copy rather than quoting it", () => {
     const out = composeOmniPrompt({
       prompt: "A cup.", params: { on_screen_text: "Pure by nature" }, plan: EMPTY,
     });
-    expect(out).toContain('On-screen text reads exactly: "Pure by nature".');
-    expect(out).not.toContain("No on-screen text.");
-  });
-
-  // Omni renders screen-space type legibly and the docs recommend quoting it exactly.
-  it("quotes on-screen text when given", () => {
-    const out = composeOmniPrompt({
-      prompt: "A cup.", params: { on_screen_text: "Pure by nature" }, plan: EMPTY,
-    });
-    expect(out).toContain('On-screen text reads exactly: "Pure by nature".');
-  });
-
-  it("omits the on-screen text sentence when the field is blank", () => {
-    const out = composeOmniPrompt({
-      prompt: "A cup.", params: { on_screen_text: "   " }, plan: EMPTY,
-    });
-    expect(out).not.toContain("On-screen text");
+    expect(out).toContain("No on-screen text.");
+    expect(out).not.toContain("Pure by nature");
   });
 
   // No negative-prompt field exists on this model, so the list is a sentence.
