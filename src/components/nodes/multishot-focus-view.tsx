@@ -112,7 +112,7 @@ export function MultishotFocusView({
             {atCeiling && (
               <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <TriangleAlert className="size-3.5 shrink-0" strokeWidth={1.5} />
-                {OMNI_MAX_SECONDS}s maximum reached — shorten another cut to grow this one.
+                {OMNI_MAX_SECONDS}s maximum reached.
               </p>
             )}
             {cuts.map((cut, i) => (
