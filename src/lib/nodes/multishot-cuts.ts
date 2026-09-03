@@ -79,10 +79,13 @@ export function headroomOf(cuts: MultishotCut[]): number {
  *
  * The ceiling is shared across the whole ladder rather than owned per cut, so a cut can grow only
  * as far as the free seconds allow. When the ladder is already full this returns the cut's current
- * length — the slider simply stops, and the view tells the operator to shorten another cut.
+ * length, so `resizeCut` refuses to grow it and the view tells the operator to shorten another cut.
  *
- * The Slider takes its `max` from here, so the thumb can never be dragged past what `resizeCut`
- * would clamp to — no dead track that springs back.
+ * NOT the Slider's `max`. The focus view runs every cut's slider on a fixed 1-`OMNI_MAX_SECONDS`
+ * scale instead, because a max derived from live headroom made an untouched cut's thumb jump when
+ * a different cut grew — the track shrank under a value that had not changed, which reads as one
+ * slider having moved another. The view accepts a short over-drag that this clamps, in exchange
+ * for a scale that means the same thing on every row.
  */
 export function maxSecondsFor(cuts: MultishotCut[], index: number): number {
   if (index < 0 || index >= cuts.length) return 0;

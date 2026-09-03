@@ -10,7 +10,6 @@ import { EditableField } from "./editable-field";
 import {
   MIN_CUT_SECONDS,
   headroomOf,
-  maxSecondsFor,
   removeCut,
   resizeCut,
   totalOf,
@@ -134,10 +133,17 @@ export function MultishotFocusView({
                       className="text-sm leading-relaxed"
                     />
                     <div className="mt-3 flex items-center gap-3">
+                      {/* Every cut's slider runs the SAME 1-10s scale, so a 2s cut sits at the
+                          same place on every row and two cuts can be compared at a glance.
+                          Deriving each max from the remaining headroom instead made an untouched
+                          cut's thumb jump the moment another cut grew — its seconds were
+                          unchanged, but its track had shrunk under it, which reads as the other
+                          slider having moved it. A stable scale is worth more than avoiding the
+                          short over-drag that resizeCut clamps. */}
                       <Slider
                         value={[cut.seconds]}
                         min={MIN_CUT_SECONDS}
-                        max={maxSecondsFor(cuts, i)}
+                        max={OMNI_MAX_SECONDS}
                         step={1}
                         disabled={isReadOnly}
                         aria-label={`Cut ${i + 1} length in seconds`}
