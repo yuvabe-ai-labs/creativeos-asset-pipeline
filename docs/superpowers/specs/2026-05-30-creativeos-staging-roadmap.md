@@ -3797,3 +3797,156 @@ point is not neutral.
 
 **Consequence.** `LookContractField` became the shared `ContractField`; the two contracts differ
 only in icon, copy and preset list, and a second near-identical component would have drifted.
+
+### D205 — Multishot is a node type, not a flag — and so is its prompt *(recorded 2026-09-02; supersedes the flag half of D193 and D195; originated → 2026-09-02-multishot-node-types-design.md)*
+
+**Decision.** `ShotNodeData.multishot: boolean` is deleted. Multishot becomes two new node
+types, siblings rather than branches: `multishot` (a budget of cuts — `totalSeconds`,
+`cuts: MultishotCut[]`, no `shot_type`, no still to compose) and `multishot-prompt` (a genuine
+sibling of `VideoPromptNodeData`, not a superset — no `controls`, no `targetProvider`, since Omni
+is the only multishot model). `video-prompt` loses its multishot branch entirely:
+`resolve-inputs.ts` drops `upstreamMultishot`, `compileVideoPrompt` drops its `multishot` param,
+`videoPromptGeneratePromptFor` drops its multishot routing key. A `video-gen` node's stored
+`modelId` is **coerced** to Omni at the moment it connects to a `multishot-prompt` — a check on
+the source node's type, no traversal, no flag to read.
+
+**Why.** A flag makes one component render two products: `shot-node.tsx` carried a description
+textarea, a beat-chip strip, a Compose button that itself branched, and a toggle whose meaning
+changed with beat count — four controls on one card, three conditional. Splitting into real types
+makes each pair what it always was, two different products, and lets the connection graph
+(`VALID_CONNECTIONS`) enforce the lane separation instead of a runtime check.
+
+**Rejected.** Filtering the video-gen model picker to only Omni chips (D195's mechanism) —
+*"filtering a picker is not enforcing a constraint"*: it hid every other chip but left the stored
+`modelId` untouched, so a new node still defaulted to Veo and Generate billed a Veo run fed a
+ladder Veo ignores. Also rejected: keeping one motion-prompt node and branching its whole body —
+input column, output column, return type — on a flag.
+
+### D206 — The mode switch lives on a generation bracket in the Script *(recorded 2026-09-02; supersedes D200; originated → 2026-09-02-multishot-node-types-design.md)*
+
+**Decision.** D200's per-row `· Multishot · Gen 1` label is replaced by a bracket enclosing every
+row in one generation, headed by the generation's number, its packed total seconds, and **one**
+switch. `describeShotGrouping` becomes `describeGenerations`, returning
+`Generation { index, shotIndexes, seconds, multishot, key }`. `ScriptNodeData.groupModes` stores
+only deviations from the default (a group of more than one row is multishot, a lone row is not),
+keyed by `shotIndexes.join("-")`; a re-parse that shifts group boundaries orphans the old key and
+that generation silently reverts to default, dropped rather than accumulated.
+
+**Why.** A generation spans several rows, so a per-row control reaches rows the operator did not
+touch — the bracket draws the switch's reach as a fact on screen. D200 let the operator see the
+plan but forced a trip to the canvas and a different control to change it; this closes that gap.
+
+**Rejected.** Carrying a stale `groupModes` override onto a differently shaped group after
+re-parse — the grouping it described no longer exists, and applying its intent to the new rows
+would be silently wrong rather than merely stale.
+
+### D207 — Fan-out is incremental, matched on exact `shotIndexes` *(recorded 2026-09-02; originated → 2026-09-02-multishot-node-types-design.md)*
+
+**Decision.** `fanOutShots` now creates only what is missing. For each generation it looks for an
+existing `shot` or `multishot` node whose `seededFrom.scriptNodeId` and `seededFrom.shotIndexes`
+**exactly** match; if found, skip, otherwise create a node of the type the generation's `multishot`
+selects. Matching is on the exact array, not overlap — a group whose boundaries moved under a
+re-parse is a different generation and gets a new node, and the old one is left for the operator to
+delete. New nodes are positioned below the lowest existing node seeded from this script. The toast
+reports both counts (e.g. "2 shots added · 3 already on canvas"), including when nothing is added.
+
+**Why.** Today's fan-out recreates every group on every press, duplicating the entire row of
+nodes — a second press was destructive to any downstream work already wired to the first. Exact
+matching keeps the decision to delete a node with downstream work attached in the operator's
+hands, not fan-out's.
+
+**Rejected.** Matching by overlap or best-effort proximity of `shotIndexes` (would silently reuse
+a node whose content changed underneath it); deleting the orphaned old node automatically on a
+shape change (destroys downstream work fan-out cannot see).
+
+### D208 — Flipping the mode swaps the node type in place; there is no split and no merge *(recorded 2026-09-02; supersedes D202; originated → 2026-09-02-multishot-node-types-design.md)*
+
+**Decision.** Flipping a generation's switch, when it already has a node, **converts that node**:
+same `id`, `position`, and all incoming edges kept; all outgoing edges dropped. A confirm dialog
+appears only when outgoing edges exist — flipping a freshly fanned-out node is silent.
+`shotDataToMultishot` / `multishotDataToShot` convert **losslessly** in both directions: shots ↔
+cuts, `totalSeconds` computed or dropped, `visual_script.shots` removed or restored, `shot_type`
+dropped or re-derived from the first cut. "Off" means one continuous take covering the whole
+span — `renderShotForVideo` now joins **every** row's description into one `Action:` paragraph
+instead of reading only `visual_script.shots[0]`.
+
+**Why.** The node count is identical in both modes — a generation is one node either way — so a
+flip only changes which of two things that node is; there is nothing left to split or merge.
+Losslessness in both directions is what makes the flip the script-level undo: an accidental flip
+and flip-back costs the operator nothing, a guarantee a structural split/merge pair could not make.
+
+**Rejected.** Keeping split and merge as the only way to change mode (D193's split, D202's
+merge) — ~250 lines of graph surgery and a confirm dialog to explain irreversibility, for a
+decision that should be "which of two things does fan-out make here". `splitMultishotNode`,
+`mergeShots`, `multishot-toggle.tsx` and the merge action in `node-context-menu.tsx` are deleted
+with their tests.
+
+### D209 — A Multishot node is a fixed budget divided into cuts *(recorded 2026-09-02; supersedes D201's controls and brief, with D210; originated → 2026-09-02-multishot-node-types-design.md)*
+
+**Decision.** `MultishotNodeData` carries `totalSeconds` and `cuts: MultishotCut[]`
+(`{ id, text, seconds }`), with `sum(cuts.map(c => c.seconds)) === totalSeconds` enforced by every
+mutation. No composer, no toggle, no shot switcher: cards are proportional to their seconds, text
+is inline-editable with the design system's dotted-underline affordance, and handles sit *between*
+cards so dragging one moves seconds between neighbours without changing the total. Delete
+redistributes a cut's seconds to its neighbour; add takes from the largest cut; every cut stays
+≥ 1s. Past 6 cuts, a soft warning (Kling's own Custom Multi-Shot cap), not a hard limit. No
+`shot_type` — framing is decided per cut by the prompt writer.
+
+**Why a fixed budget rather than independent sliders.** Omni's request `duration` is derived from
+the ladder, and a ladder longer than the duration comes back truncated at full price. Under a
+fixed budget that failure is structurally impossible instead of validated after the fact.
+
+**Rejected.** Independent per-cut duration fields validated against the total after entry (the
+truncation failure is only caught after a paid generation); a hard cap on cut count enforced in
+code (the 6-cut ceiling is a quality signal, not a verified hard limit).
+
+### D210 — The multishot prompt returns JSON — a model-written look block plus beats keyed by `cutId` — and the compiled prompt is rendered from it *(recorded 2026-09-02; supersedes D201's controls and brief, with D209; originated → 2026-09-02-multishot-node-types-design.md)*
+
+**Decision.** `multishotPromptGenerate()` asks for structured output —
+`MultishotPlan { version: 1, look: string, beats: Array<{ cutId, text }> }` — rather than a prose
+ladder. `look` is one paragraph of repeatable physical facts (light, time of day, lens, palette,
+ground, grade) governing every beat, rendered as its own visually distinct card above the ladder,
+never folded into beat one. The schema carries no `seconds` (joined from the cut on `cutId`, so
+the writer cannot break the budget) and no `refs` (`refsCitedIn` scans each beat for
+`<IMAGE_REF_N>`). `renderPlan(plan, cuts)` is the single function producing both the compiled
+prompt and the breakup view, so the two cannot disagree. A returned plan is validated whole and
+rejected entirely — never partially applied — on an unknown or missing `cutId`, or a missing/empty
+`look`; beats out of cut order are reordered, not rejected. A per-beat re-run rewrites one beat
+with the full plan as context; the look block has its own separate re-run touching only the look,
+never the beats.
+
+**Why.** Two representations a model produces independently will eventually diverge, and the one
+the operator reads must be the one that gets billed. Deriving `seconds` and `refs` rather than
+asking the model for them makes the budget and the reference list correct by construction.
+
+**Rejected.** An operator-authored LOOK/VOICE contract with a preset catalog (D201's
+`ContractField`, `LOOK_PRESETS`, `VOICE_PRESETS`) — the look itself is not deleted, it is now
+model-written into the plan and shown in the breakup view; only the field, the preset catalog and
+the verbatim-reproduction machinery are gone. Also rejected: asking the model to name `seconds` or
+`refs` directly, either of which could disagree with the operator's budget or the text's actual
+citations.
+
+### D211 — Per-cut references are `@`-mentions, not a second picker *(recorded 2026-09-02; originated → 2026-09-02-multishot-node-types-design.md)*
+
+**Decision.** A reference reaches a specific cut by being `@`-mentioned inside that cut's own
+instruction text, using the `MentionInstructionEditor` / `resolve-mention-tokens.ts` /
+`omniImageRefToken` machinery every other prompt node already uses; a blank instruction means the
+writer chooses from the connected library itself. Every text box on the Multishot Prompt node —
+the whole-sequence steer, each per-cut instruction, each output beat — is the same chip editor,
+differing only in which dialect it stores per `prompt-token-dialect.ts`: `mentionDialect()`'s
+`@[Label](id)` for input, `imageRefDialect(orderedIds)`'s `<IMAGE_REF_N>` for the model-written
+beats.
+
+**Why.** This is Kling's own `@input` model, and the mechanism was already built and shipped for
+the single Video Prompt node. A dedicated per-cut pin row would be a second binding surface beside
+a working one, and the operator would have to learn which one wins.
+
+**Rejected.** A dedicated per-cut reference-picker UI (a second, competing way to bind the same
+thing); letting output beats fall back to plain text when they mention a reference (breaks the "a
+chip survives editing" property every other prompt node in the app already guarantees).
+
+**A note on D203/D204.** Both are **parked, not superseded** by D205–D211 — nothing here replaces
+what they decided. `sequence-roles.ts` (D203) stays in the tree with no consumers rather than being
+deleted, and the VOICE contract's *concept* survives in D210's model-written look block even though
+its authoring surface (`ContractField`, `VOICE_PRESETS`) is gone — only the surface is deleted, not
+either decision. Both remain candidates to return once the flow they serve is settled.

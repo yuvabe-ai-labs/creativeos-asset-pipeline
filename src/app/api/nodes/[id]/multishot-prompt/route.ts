@@ -137,12 +137,9 @@ export async function POST(
             model: spec.model,
             response_format: {
               type: "json_schema",
-              // spec.schema is typed `object` (multishotPromptGenerate's declared return type,
-              // Task 11) — the OpenAI SDK's json_schema wants an indexable
-              // Record<string, unknown>, which `object` structurally is but isn't assignable to.
               json_schema: {
                 name: "multishot_plan",
-                schema: spec.schema as Record<string, unknown>,
+                schema: spec.schema,
                 strict: true,
               },
             },

@@ -105,7 +105,6 @@ describe("compileVideoPrompt — Omni reference tokens", () => {
       upstream: twoImages,
       instruction: "the student wears @[v-strap](a), the traveller wears @[sandal](b)",
       targetProvider: "gemini-omni",
-      multishot: true,
     });
     expect(user).toContain("the student wears <IMAGE_REF_0>");
     expect(user).toContain("the traveller wears <IMAGE_REF_1>");
@@ -120,7 +119,6 @@ describe("compileVideoPrompt — Omni reference tokens", () => {
       upstream: twoImages,
       instruction: "make it move",
       targetProvider: "gemini-omni",
-      multishot: true,
     });
     expect(user).toContain("<IMAGE_REF_0> — v-strap shot");
     expect(user).toContain("<IMAGE_REF_1> — sandal shot");
@@ -155,7 +153,6 @@ describe("compileVideoPrompt — Omni reference naming", () => {
       ],
       instruction: "make it move",
       targetProvider: "gemini-omni",
-      multishot: true,
     });
     expect(user).toMatch(/noun phrase naming what you identified IMMEDIATELY BEFORE the token/i);
     expect(user).toMatch(/never the bare token on its own/i);

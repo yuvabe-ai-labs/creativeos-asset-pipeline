@@ -59,58 +59,29 @@ describe("compileVideoPrompt provider awareness", () => {
   });
 });
 
-// D201/D210. The multishot ladder prompt now lives entirely on the Multishot Prompt node's own
-// writer (src/prompts/multishot-prompt-generate.ts) — this route (the single-shot Video Prompt
-// node) no longer selects it for any provider, multishot flag included, so gemini-omni always
-// gets the continuous-take spine here. The controls-block suppression below is unrelated to which
-// system prompt is chosen and still applies whenever the upstream Shot is multishot.
-describe("compileVideoPrompt multishot routing", () => {
-  const base = {
-    clientContext: "",
-    upstream: [],
-    instruction: "make it move",
-  };
-
-  it("gives a multishot omni node the continuous-take spine too, since the ladder prompt moved off this route", () => {
+// D208/D210. A Shot upstream is always a single continuous take — the Multishot ladder prompt
+// lives entirely on the Multishot Prompt node's own writer (src/prompts/multishot-prompt-generate.ts),
+// and a Multishot node cannot connect to this route at all. So this route always emits the
+// continuous-take spine and the global camera/speed block, for every provider including Omni.
+describe("compileVideoPrompt continuous-take spine", () => {
+  it("gives an omni node the continuous-take spine", () => {
     const { system } = compileVideoPrompt({
-      ...base,
+      clientContext: "",
+      upstream: [],
+      instruction: "make it move",
       controls: { camera: "auto", speed: "auto" },
       targetProvider: "gemini-omni",
-      multishot: true,
     });
     expect(system).toContain("image-to-video prompts for Veo");
   });
 
-  it("still gives a single-shot omni node the continuous-take spine", () => {
-    const { system } = compileVideoPrompt({
-      ...base,
-      controls: { camera: "auto", speed: "auto" },
-      targetProvider: "gemini-omni",
-      multishot: false,
-    });
-    expect(system).toContain("image-to-video prompts for Veo");
-  });
-
-  it("drops the global camera/speed block on a multishot node", () => {
-    // A multishot node carries a camera PER BEAT inside its ladder. Emitting the global block
-    // too would contradict it — with a value the operator can no longer see, since the multishot
-    // surface hides the camera select and `camera` keeps whatever it held before the toggle.
+  it("keeps the global camera/speed block on an omni node", () => {
     const { user } = compileVideoPrompt({
-      ...base,
+      clientContext: "",
+      upstream: [],
+      instruction: "make it move",
       controls: { camera: "push-in", speed: "dynamic" },
       targetProvider: "gemini-omni",
-      multishot: true,
-    });
-    expect(user).not.toContain("Motion controls");
-    expect(user).not.toContain("push-in");
-  });
-
-  it("keeps the global block on a single shot", () => {
-    const { user } = compileVideoPrompt({
-      ...base,
-      controls: { camera: "push-in", speed: "dynamic" },
-      targetProvider: "veo",
-      multishot: false,
     });
     expect(user).toContain("Motion controls");
   });

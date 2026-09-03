@@ -27,15 +27,6 @@ export type CompileVideoPromptInput = {
   instruction: string;
   controls?: VideoControls;
   targetProvider?: VideoProvider; // D77: selects text-camera (veo/sora) vs external-camera (kling)
-  /**
-   * D210 — the multishot ladder prompt has moved entirely to the Multishot Prompt node
-   * (src/prompts/multishot-prompt-generate.ts); this function always emits the continuous-take
-   * spine regardless of this flag. Its only remaining effect here is suppressing the controls
-   * block below (see its use around line 127): a multishot node carries a camera per beat inside
-   * its own ladder, so the global camera/speed controls would hand the model two conflicting
-   * camera instructions.
-   */
-  multishot?: boolean;
 };
 
 export function visionUpstreams(
@@ -125,13 +116,9 @@ export function compileVideoPrompt(input: CompileVideoPromptInput): {
     input.targetProvider === "kling" || input.targetProvider === "gemini-omni"
       ? input.targetProvider
       : "veo";
-  const multishot = input.multishot === true;
-
-  // The global camera/speed block describes ONE continuous take. A multishot node carries a camera
-  // per beat inside its ladder instead, so emitting this as well would hand the model two
-  // conflicting camera instructions — and `camera` keeps whatever it held before the node was
-  // switched to multishot, which the operator can no longer even see.
-  const controlsBlock = input.controls && !multishot ? renderVideoControls(input.controls) : "";
+  // A Shot upstream is always a single continuous take (D208) — a Multishot node cannot reach
+  // this route at all, so the global camera/speed block always applies here.
+  const controlsBlock = input.controls ? renderVideoControls(input.controls) : "";
   if (controlsBlock) blocks.push(controlsBlock);
 
   const rawInstruction = input.instruction.trim() || DEFAULT_MOTION_INSTRUCTION;

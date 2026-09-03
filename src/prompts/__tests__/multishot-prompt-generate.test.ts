@@ -22,37 +22,28 @@ describe("multishotPromptGenerate", () => {
   // The schema is the contract parsePlan validates against. If they disagree, every generation
   // is rejected at full price.
   it("asks for a look and beats keyed by cutId, and nothing else", () => {
-    const props = (spec.schema as { properties: Record<string, unknown> }).properties;
+    const props = spec.schema.properties;
     expect(Object.keys(props).sort()).toEqual(["beats", "look"]);
 
-    const beat = (props.beats as { items: { properties: Record<string, unknown>; required: string[] } })
-      .items;
+    const beat = props.beats.items;
     expect(Object.keys(beat.properties).sort()).toEqual(["cutId", "text"]);
     // Durations are the operator's, taken from the cuts. Offering the writer a `seconds` field
     // would let it break the budget the whole design protects.
     expect(Object.keys(beat.properties)).not.toContain("seconds");
-    expect(beat.required.sort()).toEqual(["cutId", "text"]);
+    expect([...beat.required].sort()).toEqual(["cutId", "text"]);
   });
 
   // OpenAI structured outputs with strict: true REQUIRE additionalProperties: false and a complete
   // `required` array at EVERY level of the schema. Missing either breaks generation at full price,
   // and the property-name assertions above wouldn't catch it.
   it("is a valid strict-mode schema at both the root and the beat item", () => {
-    const root = spec.schema as {
-      additionalProperties: boolean;
-      required: string[];
-      properties: Record<string, unknown>;
-    };
+    const root = spec.schema;
     expect(root.additionalProperties).toBe(false);
-    expect(root.required.sort()).toEqual(["beats", "look"]);
+    expect([...root.required].sort()).toEqual(["beats", "look"]);
 
-    const beat = (
-      root.properties.beats as {
-        items: { additionalProperties: boolean; required: string[]; properties: Record<string, unknown> };
-      }
-    ).items;
+    const beat = root.properties.beats.items;
     expect(beat.additionalProperties).toBe(false);
-    expect(beat.required.sort()).toEqual(["cutId", "text"]);
+    expect([...beat.required].sort()).toEqual(["cutId", "text"]);
   });
 
   it("reuses the canonical reference-identification block rather than a copy", () => {

@@ -102,7 +102,7 @@ export function multishotPromptGenerate(): {
   id: string;
   model: string;
   system: string;
-  schema: object;
+  schema: typeof SCHEMA;
 } {
   return {
     id: MULTISHOT_PROMPT_ID,
