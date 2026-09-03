@@ -788,7 +788,16 @@ export function MultishotPromptFocusView({
 
                     {mode === "result" && planDraft && (
                       <>
-                        <div className="rounded-xl border-2 border-primary/20 bg-primary/[0.03] p-3">
+                        {/* shrink-0 on both children, or the scroller above never scrolls. Flex
+                            items shrink by default, and `min-height: auto` only refuses to shrink
+                            an item whose overflow is `visible` — the beat container below sets
+                            `overflow-hidden` for its rounded corners, which drops its automatic
+                            minimum to 0. So the column squeezed the beats into whatever the look
+                            block left over (428px of beats into 184px) and clipped the rest
+                            inside their own rounded box. Nothing ever overflowed the scroller,
+                            so `overflow-y-auto` had nothing to scroll: measured scrollHeight ===
+                            clientHeight with six beats present. */}
+                        <div className="shrink-0 rounded-xl border-2 border-primary/20 bg-primary/[0.03] p-3">
                           <div className="mb-2 flex items-center gap-2">
                             <Sun className="size-3.5 text-primary" strokeWidth={1.5} />
                             <span className="text-eyebrow text-primary">Look &amp; atmosphere</span>
@@ -816,7 +825,7 @@ export function MultishotPromptFocusView({
                           </p>
                         </div>
 
-                        <div className="overflow-hidden rounded-xl border border-border bg-card shadow-card">
+                        <div className="shrink-0 overflow-hidden rounded-xl border border-border bg-card shadow-card">
                           {beatRows.map((beat, i) => (
                             <MultishotBeatCard
                               key={beat.cutId}
