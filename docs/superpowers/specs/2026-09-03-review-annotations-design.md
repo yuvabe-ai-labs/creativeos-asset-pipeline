@@ -126,7 +126,7 @@ implementation time; 0034 is the latest on staging):
 create table node_version_annotations (
   id            uuid primary key default gen_random_uuid(),
   decision_id   uuid not null references node_version_decisions(id) on delete cascade,
-  org_id        uuid not null,
+  org_id        uuid not null references organizations(id),
   seq           int  not null,                          -- pin number within the decision
   kind          text not null check (kind in ('image','video-frame')),
   timecode_ms   int,                                     -- null for kind='image'
@@ -144,7 +144,7 @@ create table node_version_annotations (
 ```
 
 Same posture as `0033_node_version_decisions.sql`: RLS org-isolation SELECT
-policy; writes via service role only; index on `(decision_id)`. Masks and
+policy; writes via service role only; index on `(decision_id, seq)`. Masks and
 frames go to a `review-annotations` storage bucket
 (`{org_id}/{decision_id}/{seq}-mask.png`, `…-frame.png`) — never inline in rows,
 so decision queries and Realtime stay light. `mask_path` stores the painted
