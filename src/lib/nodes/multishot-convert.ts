@@ -5,11 +5,7 @@
 // That property only holds if the two functions are written against each other.
 import type { ShotNodeData, MultishotNodeData } from "@/lib/canvas-nodes";
 import { cutsFromShots, shotsFromCuts, totalOf } from "./multishot-cuts";
-import { OMNI_MIN_SECONDS, OMNI_MAX_SECONDS } from "./group-shots";
 import { deriveShotType } from "./shot-types";
-
-const clampBudget = (seconds: number): number =>
-  Math.min(OMNI_MAX_SECONDS, Math.max(OMNI_MIN_SECONDS, seconds));
 
 export function shotDataToMultishot(data: ShotNodeData): MultishotNodeData {
   const shots = data.script?.visual_script?.shots ?? [];
@@ -18,7 +14,12 @@ export function shotDataToMultishot(data: ShotNodeData): MultishotNodeData {
   return {
     order: data.order,
     seededFrom: data.seededFrom,
-    totalSeconds: clampBudget(totalOf(cuts)),
+    // totalOf(cuts), not an independently clamped number — the field must never be able to
+    // disagree with the ladder it describes (multishot-cuts.ts). A Shot's parsed duration can
+    // land outside Omni's 3-10s window (rare, but see group-shots.ts's lone over-cap shot); that
+    // shows up as the focus view's out-of-window warning, same as any other cut list that starts
+    // or ends up outside the window, rather than being silently mislabeled here.
+    totalSeconds: totalOf(cuts),
     cuts,
     script: {
       ...data.script,

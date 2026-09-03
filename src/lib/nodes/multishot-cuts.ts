@@ -1,11 +1,20 @@
-// The Multishot node's cut list (D209). A FIXED budget of seconds divided among cuts.
+// The Multishot node's cut list (D209). Independent cuts sharing one ceiling.
 //
-// Every mutation here preserves `sum(seconds)`. That is not tidiness: the Omni request's
-// `duration` is derived from the ladder, and a ladder longer than the duration comes back
-// TRUNCATED AT FULL PRICE. Holding the total by construction makes that failure unreachable
-// instead of something a validator has to catch.
+// Every mutation here holds two invariants: `totalOf(cuts) <= OMNI_MAX_SECONDS` (Omni's real
+// maximum — see group-shots.ts) and every cut's `seconds >= MIN_CUT_SECONDS`. That is DIFFERENT
+// from the old rule. Previously the total was a FIXED budget — resizing traded seconds between a
+// pair, removing handed them to a neighbour — because the total, once set, was never allowed to
+// move. Now the total is free to move anywhere inside the window: growing one cut spends shared
+// headroom under the ceiling instead of taking it from a designated partner, and removing a cut
+// simply shrinks the total instead of redistributing what it freed.
+//
+// The truncation risk that motivated the old invariant is still covered, just by a different
+// mechanism. The Omni request's `duration` is derived from `totalOf(cuts)` at generation time
+// (checkMultishotDuration in resolve-prompt.ts rejects a request whose `duration` disagrees with
+// it), so the request and the ladder can never come apart — the duration IS the sum, not a
+// separately-typed number that a ladder longer than it could silently outrun.
 import type { ReelShot } from "./reel-script";
-import { shotSeconds } from "./group-shots";
+import { shotSeconds, OMNI_MAX_SECONDS } from "./group-shots";
 
 export type MultishotCut = {
   /**
@@ -20,18 +29,6 @@ export type MultishotCut = {
 
 /** No cut is ever shorter than this. A drag that would go below it stops instead. */
 export const MIN_CUT_SECONDS = 1;
-
-/**
- * Select the partner cut for resizing at the given index.
- * Trades with the NEXT cut, or the previous one when resizing the last.
- * Returns -1 if there is no valid partner (single cut).
- */
-function getPartnerIndex(cuts: MultishotCut[], index: number): number {
-  if (index < 0 || index >= cuts.length) return -1;
-  const partnerIndex = index + 1 < cuts.length ? index + 1 : index - 1;
-  if (partnerIndex < 0 || partnerIndex >= cuts.length) return -1;
-  return partnerIndex;
-}
 
 export function newCut(text: string, seconds: number): MultishotCut {
   return { id: crypto.randomUUID(), text, seconds };
@@ -55,78 +52,66 @@ export function totalOf(cuts: MultishotCut[]): number {
 }
 
 /**
- * Set one cut's length, funding the change from a neighbour so the total never moves.
+ * The largest `seconds` a call to resizeCut(cuts, index, …) can actually produce.
  *
- * Trades with the NEXT cut, or the previous one when resizing the last — which is what makes a
- * handle drawn *between* two cards behave the way it looks like it should.
+ * Headroom is shared across the whole list now, not paired with one designated neighbour: this
+ * cut's own current length plus whatever room is left before the total hits OMNI_MAX_SECONDS.
+ * Floored at MIN_CUT_SECONDS so a list that is already over the ceiling (a lone shot longer than
+ * Omni's max — see group-shots.ts) still returns something the Slider can use, rather than a
+ * negative or zero max.
+ *
+ * The Slider uses this to set its effective max, so the thumb can't be dragged past what
+ * resizeCut will clamp to. This prevents the dead-track feel of dragging past an invisible ceiling.
+ */
+export function maxSecondsFor(cuts: MultishotCut[], index: number): number {
+  if (index < 0 || index >= cuts.length) return 0;
+  const headroom = cuts[index].seconds + (OMNI_MAX_SECONDS - totalOf(cuts));
+  return Math.min(OMNI_MAX_SECONDS, Math.max(MIN_CUT_SECONDS, headroom));
+}
+
+/**
+ * Set one cut's length. No neighbour changes — growing this cut spends headroom under the shared
+ * ceiling (see maxSecondsFor), it does not take seconds from anyone. Clamped to at least
+ * MIN_CUT_SECONDS and at most maxSecondsFor(cuts, index).
  */
 export function resizeCut(
   cuts: MultishotCut[],
   index: number,
   seconds: number,
 ): MultishotCut[] {
-  const partnerIndex = getPartnerIndex(cuts, index);
-  if (partnerIndex < 0) return cuts;
+  if (index < 0 || index >= cuts.length) return cuts;
 
-  const pair = cuts[index].seconds + cuts[partnerIndex].seconds;
-  // Both ends clamp: the dragged cut cannot go below the floor, and cannot grow so far that
-  // its partner does.
-  const next = Math.max(MIN_CUT_SECONDS, Math.min(Math.round(seconds), pair - MIN_CUT_SECONDS));
+  const next = Math.max(
+    MIN_CUT_SECONDS,
+    Math.min(Math.round(seconds), maxSecondsFor(cuts, index)),
+  );
   if (next === cuts[index].seconds) return cuts;
 
-  return cuts.map((c, i) => {
-    if (i === index) return { ...c, seconds: next };
-    if (i === partnerIndex) return { ...c, seconds: pair - next };
-    return c;
-  });
+  return cuts.map((c, i) => (i === index ? { ...c, seconds: next } : c));
 }
 
 /**
- * The largest `seconds` a call to resizeCut(cuts, index, …) can actually produce.
- *
- * The Slider uses this to set its effective max, so the thumb can't be dragged past what
- * resizeCut will clamp to. This prevents the dead-track feel of dragging past an invisible ceiling.
- */
-export function maxSecondsFor(cuts: MultishotCut[], index: number): number {
-  const partnerIndex = getPartnerIndex(cuts, index);
-  if (partnerIndex < 0) {
-    // No valid partner — the cut cannot grow.
-    return cuts[index]?.seconds ?? 0;
-  }
-  const pair = cuts[index].seconds + cuts[partnerIndex].seconds;
-  return pair - MIN_CUT_SECONDS;
-}
-
-/**
- * Append a cut, funded by the largest existing one. Refused when nobody can spare a second.
+ * Append a 1s cut, funded by unused headroom under the ceiling — not by taking seconds from the
+ * largest existing cut, which was the old fixed-budget behaviour. Refused when there isn't a
+ * full MIN_CUT_SECONDS of headroom left under OMNI_MAX_SECONDS.
  *
  * DEFERRED — nothing calls this today. The operator asked for "Add cut" to come out of the UI
  * (2026-09-03): the Multishot node's card and focus view both dropped the affordance, but the
- * budget-preserving logic is exactly the kind of thing worth keeping ready rather than
- * reinventing once the flow wants it again. Its tests still run, so it cannot rot silently.
+ * logic is exactly the kind of thing worth keeping ready rather than reinventing once the flow
+ * wants it again. Its tests still run, so it cannot rot silently.
  */
 export function addCut(cuts: MultishotCut[]): MultishotCut[] {
-  let donor = -1;
-  for (let i = 0; i < cuts.length; i++) {
-    if (cuts[i].seconds >= MIN_CUT_SECONDS * 2 && (donor === -1 || cuts[i].seconds > cuts[donor].seconds)) {
-      donor = i;
-    }
-  }
-  if (donor === -1) return cuts;
-
-  return [
-    ...cuts.map((c, i) => (i === donor ? { ...c, seconds: c.seconds - MIN_CUT_SECONDS } : c)),
-    newCut("", MIN_CUT_SECONDS),
-  ];
+  const headroom = OMNI_MAX_SECONDS - totalOf(cuts);
+  if (headroom < MIN_CUT_SECONDS) return cuts;
+  return [...cuts, newCut("", MIN_CUT_SECONDS)];
 }
 
-/** Remove a cut, handing its seconds to a neighbour. The last remaining cut cannot be removed. */
+/**
+ * Remove a cut. The total shrinks by exactly its seconds — nobody inherits them, which is the
+ * point: the total is free to move now, so there is nothing to preserve by redistributing. The
+ * last remaining cut cannot be removed.
+ */
 export function removeCut(cuts: MultishotCut[], index: number): MultishotCut[] {
   if (cuts.length <= 1 || index < 0 || index >= cuts.length) return cuts;
-
-  const heirIndex = index + 1 < cuts.length ? index + 1 : index - 1;
-  const freed = cuts[index].seconds;
-  return cuts
-    .map((c, i) => (i === heirIndex ? { ...c, seconds: c.seconds + freed } : c))
-    .filter((_, i) => i !== index);
+  return cuts.filter((_, i) => i !== index);
 }

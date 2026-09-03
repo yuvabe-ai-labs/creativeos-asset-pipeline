@@ -33,6 +33,11 @@ type MultishotFocusViewProps = {
  * what let a proportional bar read at a glance on a 320px card — exactly the wrong shape once
  * every row needs a full-width slider and room for multi-line text. This is a plain vertical
  * list instead, one roomy card per cut. The card stays the glance; this is the workspace.
+ *
+ * UI-consistency pass (operator request 2026-09-03): `max-w-7xl` and the eyebrow-rail section
+ * layout (label in a left column, content on the right) match `script-focus-view.tsx` /
+ * `script-document.tsx` and `file-focus-view.tsx`, so this view reads as the same app rather
+ * than a bespoke one. No new layout ideas beyond that — see those two files for the pattern.
  */
 export function MultishotFocusView({
   open,
@@ -56,7 +61,7 @@ export function MultishotFocusView({
         className="gap-0 overflow-hidden rounded-t-2xl bg-background data-[side=bottom]:h-[92vh]"
       >
         <div className="shrink-0 border-b border-border">
-          <div className="mx-auto w-full max-w-3xl px-6 pb-5 pt-3">
+          <div className="mx-auto w-full max-w-7xl px-6 pb-5 pt-3">
             <Button
               type="button"
               variant="ghost"
@@ -100,7 +105,15 @@ export function MultishotFocusView({
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 px-6 py-6">
+          <div className="mx-auto w-full max-w-7xl px-6 py-6">
+          {/* Eyebrow-rail section — same pattern as script-document.tsx's Section: a label in a
+              sticky left column, content on the right. Adopted for consistency, not redesigned. */}
+          <section className="grid gap-2.5 sm:grid-cols-[160px_1fr] sm:gap-x-10">
+            <div className="self-start sm:sticky sm:top-2">
+              <div className="mb-2 h-0.5 w-6 rounded-full bg-primary/70" aria-hidden />
+              <span className="text-eyebrow">Cuts</span>
+            </div>
+            <div className="flex flex-col gap-3">
             {cuts.map((cut, i) => (
               <div key={cut.id} className="rounded-xl border border-border bg-card p-4 shadow-card">
                 <div className="flex items-start gap-3">
@@ -124,7 +137,7 @@ export function MultishotFocusView({
                         min={MIN_CUT_SECONDS}
                         max={maxSecondsFor(cuts, i)}
                         step={1}
-                        disabled={isReadOnly || cuts.length < 2}
+                        disabled={isReadOnly}
                         aria-label={`Cut ${i + 1} length in seconds`}
                         onValueChange={(v) =>
                           onChange(resizeCut(cuts, i, Array.isArray(v) ? v[0] : v))
@@ -152,6 +165,8 @@ export function MultishotFocusView({
                 </div>
               </div>
             ))}
+            </div>
+          </section>
           </div>
         </div>
       </SheetContent>

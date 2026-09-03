@@ -44,7 +44,12 @@ export function MultishotNode({ id, data, selected }: NodeProps) {
   const budget = d.totalSeconds ?? totalOf(cuts);
   const outOfWindow = budget < OMNI_MIN_SECONDS || budget > OMNI_MAX_SECONDS;
 
-  const setCuts = (next: MultishotCut[]) => updateNodeData(id, { cuts: next });
+  // totalOf(next) is written in the SAME call as cuts so the stored budget can never disagree
+  // with the ladder it describes — the total is free to move now (Change: the cap is Omni's
+  // OMNI_MAX_SECONDS, not the fixed sum the script happened to parse), so totalSeconds has to be
+  // re-derived on every write instead of being set once and trusted forever.
+  const setCuts = (next: MultishotCut[]) =>
+    updateNodeData(id, { cuts: next, totalSeconds: totalOf(next) });
 
   // Open locally (double-click / "Open ↗") OR when a shared signal points here — the
   // Generation Tray, guided flow, or the copilot's open_node (setFocusedNodeId).

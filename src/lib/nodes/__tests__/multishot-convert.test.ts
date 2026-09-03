@@ -49,16 +49,23 @@ describe("shotDataToMultishot", () => {
     expect(result.order).toBe(2);
   });
 
-  // Omni will not accept a request outside its window, so the budget is clamped on the way in.
-  it("clamps the budget into the Omni window", () => {
+  // totalSeconds must never be able to disagree with totalOf(cuts) (multishot-cuts.ts's
+  // invariant) — so a Shot whose parsed duration lands outside Omni's 3-10s window is carried
+  // through as-is here, not silently relabeled to a number the cuts don't actually sum to. The
+  // focus view's out-of-window warning is what surfaces this to the operator, and the new
+  // per-cut ceiling (maxSecondsFor) lets them pull a too-long cut back down from there.
+  it("sets the budget to the true sum of the cuts, even outside the Omni window", () => {
     const long = shotDataToMultishot({
       script: { visual_script: { shots: [{ description: "x", duration_seconds: 30 }] } },
     });
-    expect(long.totalSeconds).toBe(10);
+    expect(long.totalSeconds).toBe(30);
+    expect(long.cuts?.[0]?.seconds).toBe(30);
+
     const short = shotDataToMultishot({
       script: { visual_script: { shots: [{ description: "x", duration_seconds: 1 }] } },
     });
-    expect(short.totalSeconds).toBe(3);
+    expect(short.totalSeconds).toBe(1);
+    expect(short.cuts?.[0]?.seconds).toBe(1);
   });
 });
 

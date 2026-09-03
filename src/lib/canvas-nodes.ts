@@ -127,9 +127,13 @@ export type MultishotNodeData = {
    */
   script?: ReelScript;
   order?: number;
-  /** The budget in seconds. Seeded from the group's packed length, clamped to Omni's 3..10. */
+  /** The budget in seconds — the sum of `cuts`, not an independent number. Free to move within
+   *  Omni's 3..10s window (and, rarely, outside it — see multishot-convert.ts); the only hard
+   *  ceiling is OMNI_MAX_SECONDS, enforced per-cut by multishot-cuts.ts's resizeCut/addCut. */
   totalSeconds?: number;
-  /** INVARIANT: sum(cuts.seconds) === totalSeconds. Held by every mutation in multishot-cuts.ts. */
+  /** INVARIANT: totalSeconds === totalOf(cuts). Every writer of `cuts` must set both together in
+   *  the same update (see multishot-node.tsx's setCuts) — totalSeconds is a cache of totalOf(cuts),
+   *  never a second source of truth. */
   cuts?: MultishotCut[];
   seededFrom?: { scriptNodeId: string; shotIndexes: number[]; scriptTitle?: string };
   // No `shot_type`: framing is decided per cut by the prompt writer, which carries the
