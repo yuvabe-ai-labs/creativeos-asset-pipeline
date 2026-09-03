@@ -17,6 +17,7 @@ import {
   orderImagesForPromptTokens,
   type UpstreamImageRef,
 } from "@/lib/video-gen/assign-image-roles";
+import { resolveVideoGenPrompt, checkMultishotDuration } from "@/lib/video-gen/resolve-prompt";
 import { apiError, apiOk, withNode } from "@/lib/api/route-helpers";
 
 const ImageRoleSchema = z.enum(["start_frame", "end_frame", "reference"]);
@@ -59,20 +60,30 @@ export async function POST(
     // Resolve upstream nodes — same 2-level traversal as upstream-images route
     const upstream = await getUpstreamOutputs(nodeId);
 
-    // Find video-prompt node
-    const videoPromptNode = upstream.find((u) => u.type === "video-prompt");
-    if (!videoPromptNode?.activeOutput) {
-      return apiError("No connected video-prompt node with output found.", 400);
-    }
-    const prompt = String(videoPromptNode.activeOutput);
+    // Two prompt-node lanes can feed this node (see resolve-prompt.ts): a video-prompt node's
+    // STRING output, or a multishot-prompt node's MultishotPlan OBJECT rendered against its
+    // upstream Multishot node's cuts. Never falls through to a stringified object.
+    const resolved = await resolveVideoGenPrompt(upstream, getUpstreamOutputs);
+    if (!resolved.ok) return apiError(resolved.reason, 400);
+    const { prompt, cuts: multishotCuts } = resolved;
+    const promptNode = resolved.promptNode;
 
-    // Also collect images upstream of the video-prompt node so that
-    // image → video-prompt → video-gen connections resolve correctly.
-    const videoPromptUpstream = await getUpstreamOutputs(videoPromptNode.nodeId);
+    // The multishot lane's duration backstop: the ladder's timestamps are cumulative sums of the
+    // cuts, so a request duration that disagrees with the cut budget comes back truncated at full
+    // price (see multishot-cuts.ts). Checked before insertGeneration/reserveCredits, like D97.
+    if (multishotCuts) {
+      const requestedSeconds = Number(resolvedParams.seconds ?? resolvedParams.duration ?? 0);
+      const durationViolation = checkMultishotDuration(multishotCuts, requestedSeconds);
+      if (durationViolation) return apiError(durationViolation, 400);
+    }
+
+    // Also collect images upstream of the prompt node so that
+    // image → prompt-node → video-gen connections resolve correctly.
+    const promptUpstream = resolved.promptUpstream;
     const seenIds = new Set(upstream.map((u) => u.nodeId));
     const allUpstream = [
       ...upstream,
-      ...videoPromptUpstream.filter((u) => !seenIds.has(u.nodeId)),
+      ...promptUpstream.filter((u) => !seenIds.has(u.nodeId)),
     ];
 
     // image-gen nodes are valid when directly connected; not via the grandparent path.
@@ -95,13 +106,14 @@ export async function POST(
       upstreamImages.push({ nodeId: node.nodeId, url, type: node.type });
     }
 
-    // Reference ORDER is the prompt's contract: `<IMAGE_REF_N>` was numbered at the video-prompt
-    // node, over ITS upstream in ITS order. The traversal above leads with this node's own direct
-    // upstream, so an image attached straight here would take slot 0 and shift every token in the
-    // prompt onto the wrong picture — silently, in a paid clip.
+    // Reference ORDER is the prompt's contract: `<IMAGE_REF_N>` was numbered at the prompt node
+    // (video-prompt OR multishot-prompt — same reasoning applies to both lanes), over ITS upstream
+    // in ITS order. The traversal above leads with this node's own direct upstream, so an image
+    // attached straight here would take slot 0 and shift every token in the prompt onto the wrong
+    // picture — silently, in a paid clip.
     const orderedImages = orderImagesForPromptTokens(
       upstreamImages,
-      videoPromptUpstream.map((u) => u.nodeId),
+      promptUpstream.map((u) => u.nodeId),
     );
 
     // An attached image IS an input. Unassigned ones default here the same way the focus view
@@ -149,8 +161,9 @@ export async function POST(
       modelUsed: modelId,
       paramsSnapshot: resolvedParams,
       inputsSnapshot: {
-        videoPromptNodeId: videoPromptNode.nodeId,
-        videoPromptVersionId: videoPromptNode.versionId,
+        promptNodeId: promptNode.nodeId,
+        promptNodeType: promptNode.type,
+        promptVersionId: promptNode.versionId,
         prompt,
         startFrameUrl,
         endFrameUrl,

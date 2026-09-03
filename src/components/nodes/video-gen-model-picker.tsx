@@ -23,13 +23,24 @@ import {
 export function VideoGenModelPicker({
   modelId,
   onModelChange,
+  restrictToModelId,
+  restrictionReason,
   children,
 }: {
   modelId: string;
   onModelChange: (modelId: string) => void;
+  /** D195/D211 — when set, only this model is offered. A multishot plan can only generate on Omni. */
+  restrictToModelId?: string;
+  restrictionReason?: string;
   /** Settings that belong to the chosen model (resolution, duration) and share its card. */
   children?: ReactNode;
 }) {
+  const groups = restrictToModelId
+    ? videoGenClientModelGroups
+        .map((g) => ({ ...g, models: g.models.filter((m) => m.id === restrictToModelId) }))
+        .filter((g) => g.models.length > 0)
+    : videoGenClientModelGroups;
+
   return (
     // Flat, like the image-gen output settings: the controls are the page's work,
     // and a card around them competes with the generated video for emphasis.
@@ -40,7 +51,7 @@ export function VideoGenModelPicker({
       </div>
 
       <div className="flex flex-wrap items-center gap-x-7 gap-y-2.5">
-        {videoGenClientModelGroups.map((providerGroup) => (
+        {groups.map((providerGroup) => (
           <div key={providerGroup.label} className="flex items-center gap-2.5">
             <span className="shrink-0 text-[0.7rem] font-medium uppercase tracking-wide text-foreground/70">
               {providerGroup.label}
@@ -71,6 +82,10 @@ export function VideoGenModelPicker({
           </div>
         ))}
       </div>
+
+      {restrictionReason && (
+        <p className="mt-2 text-[0.7rem] text-muted-foreground">{restrictionReason}</p>
+      )}
 
       {children && (
         <>

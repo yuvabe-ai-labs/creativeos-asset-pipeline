@@ -35,6 +35,7 @@ import { normalizeTitle } from "@/lib/nodes/title";
 import { Button } from "@/components/ui/button";
 import {
   DEFAULT_VIDEO_CLIENT_MODEL_ID,
+  GEMINI_OMNI_MODEL_ID,
   defaultsForVideoModel,
   videoGenClientModelMap,
 } from "@/lib/video-gen/client-models";
@@ -446,6 +447,32 @@ export function VideoGenFocusView({
   // Stable ref for onPatch — breaks the useCallback → useEffect dep cycle
   const onPatchRef = useRef(onPatch);
   useEffect(() => { onPatchRef.current = onPatch; });
+
+  // D211 — belt and braces, mirroring canvas-store's onConnect coercion: a multishot-prompt
+  // upstream can only generate on Omni, and filtering the picker's list (below) is not enforcing
+  // that constraint on its own — a node whose stored modelId predates the connection would sit on
+  // a model the restricted picker no longer offers a chip for, and doGenerate reads local `modelId`
+  // state directly. A node-type check on the direct upstream, no traversal — see
+  // UpstreamPromptNode.type.
+  //
+  // Local state: React's documented "adjust state during render" pattern (same shape as
+  // `openNodeSeed` above) rather than an effect — calling a setState setter directly in the
+  // render body, gated so it only fires once per divergence and terminates immediately (coercing
+  // `modelId` flips the very condition being checked, same as the seed check above it).
+  const isMultishotPromptConnected = promptNode?.type === "multishot-prompt";
+  if (!loadingConnected && editable && isMultishotPromptConnected && modelId !== GEMINI_OMNI_MODEL_ID) {
+    setModelId(GEMINI_OMNI_MODEL_ID);
+  }
+
+  // Persisted state: mirrors the auto-assign-roles effect below it — an effect that calls only
+  // `onPatch` (a prop callback, not a local setState setter) is the established safe shape in
+  // this file. Fires once the render-phase fix above has already landed `modelId` on Omni.
+  useEffect(() => {
+    if (loadingConnected || !editable) return;
+    if (isMultishotPromptConnected && modelId === GEMINI_OMNI_MODEL_ID && modelIdProp !== GEMINI_OMNI_MODEL_ID) {
+      onPatch({ modelId: GEMINI_OMNI_MODEL_ID });
+    }
+  }, [loadingConnected, editable, isMultishotPromptConnected, modelId, modelIdProp, onPatch]);
 
   // ── Data fetching ──────────────────────────────────────────────────────────
 
@@ -1180,6 +1207,12 @@ export function VideoGenFocusView({
                   <VideoGenModelPicker
                     modelId={modelId}
                     onModelChange={handleModelChange}
+                    restrictToModelId={isMultishotPromptConnected ? GEMINI_OMNI_MODEL_ID : undefined}
+                    restrictionReason={
+                      isMultishotPromptConnected
+                        ? "Connected to a Multishot Prompt — only Omni can generate a multishot plan."
+                        : undefined
+                    }
                   >
                     <VideoGenParamsPanel
                       modelId={modelId}
