@@ -1,17 +1,18 @@
 "use client";
 
+import { useState } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import { Layers, Plus, TriangleAlert } from "lucide-react";
+import { Layers, TriangleAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
-import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { useDeleteNode } from "@/hooks/use-delete-node";
+import { useFocusViewRegistration } from "@/hooks/use-focus-view-open";
 import { NodeContextMenu } from "./node-context-menu";
 import { NodeCardHeader } from "./node-card-header";
-import { MultishotCutStrip } from "./multishot-cut-strip";
+import { MultishotFocusView } from "./multishot-focus-view";
 import { GuidedNextButton } from "@/components/canvas/guided-next-button";
-import { addCut, totalOf, type MultishotCut } from "@/lib/nodes/multishot-cuts";
+import { totalOf, type MultishotCut } from "@/lib/nodes/multishot-cuts";
 import { OMNI_MAX_SECONDS, OMNI_MIN_SECONDS } from "@/lib/nodes/group-shots";
 import type { MultishotNodeData } from "@/lib/canvas-nodes";
 
@@ -21,16 +22,22 @@ const SOFT_CUT_LIMIT = 6;
 /**
  * D209 — a Multishot node is a fixed budget of seconds divided into cuts.
  *
- * Deliberately bare: no multishot toggle (that lives in the Script now), no beat switcher, and
- * no Composer. The Shot node's four conditional controls on a 224px card are exactly what
- * splitting the node type was meant to end.
+ * The card is a read-only preview (operator request 2026-09-03): the per-cut sliders and text
+ * editing moved to `MultishotFocusView`, opened via "Open ↗" or a double-click — the same
+ * pattern every other node's focus view uses. "Add cut" is deferred, not just hidden here: see
+ * `addCut` in multishot-cuts.ts for why it is kept despite having no caller today.
+ *
+ * Deliberately bare otherwise: no multishot toggle (that lives in the Script now), no beat
+ * switcher, and no Composer. The Shot node's four conditional controls on a 224px card are
+ * exactly what splitting the node type was meant to end.
  */
 export function MultishotNode({ id, data, selected }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const deleteNode = useDeleteNode();
   const duplicateNode = useCanvasStore((s) => s.duplicateNode);
-  const editable = useCanvasEditable();
-  const isReadOnly = !editable; // D33: strict read-only under the lock
+  const focusedNodeId = useCanvasStore((s) => s.focusedNodeId);
+  const setFocusedNodeId = useCanvasStore((s) => s.setFocusedNodeId);
+  const [focusOpen, setFocusOpen] = useState(false);
   const d = data as MultishotNodeData;
 
   const cuts = d.cuts ?? [];
@@ -39,9 +46,23 @@ export function MultishotNode({ id, data, selected }: NodeProps) {
 
   const setCuts = (next: MultishotCut[]) => updateNodeData(id, { cuts: next });
 
+  // Open locally (double-click / "Open ↗") OR when a shared signal points here — the
+  // Generation Tray, guided flow, or the copilot's open_node (setFocusedNodeId).
+  const focusViewOpen = focusOpen || focusedNodeId === id;
+  const handleFocusOpenChange = (next: boolean) => {
+    setFocusOpen(next);
+    if (!next && focusedNodeId === id) setFocusedNodeId(null); // consume the signal
+  };
+  useFocusViewRegistration(id, focusViewOpen);
+
   return (
+    <>
     <NodeContextMenu onDuplicate={() => duplicateNode(id)} onDelete={() => deleteNode(id)}>
       <div
+        onDoubleClick={(e) => {
+          e.stopPropagation();
+          setFocusOpen(true);
+        }}
         className={cn(
           "w-80 rounded-lg border border-border bg-card shadow-card",
           "transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:scale-[1.006]",
@@ -65,7 +86,20 @@ export function MultishotNode({ id, data, selected }: NodeProps) {
           }
         />
         <div className="p-2">
-          <MultishotCutStrip cuts={cuts} onChange={setCuts} />
+          {/* Read-only preview — numbered lines, no editing. Editing lives in the focus view. */}
+          <div className="nodrag max-h-28 space-y-0.5 overflow-y-auto">
+            {cuts.map((cut, i) => (
+              <div key={cut.id} className="flex items-center gap-1.5 rounded px-1.5 py-0.5">
+                <span className="w-3 shrink-0 text-[0.6rem] text-muted-foreground">{i + 1}</span>
+                <span className="min-w-0 flex-1 truncate text-[0.65rem] text-foreground/80">
+                  {cut.text.trim() || "Untitled cut"}
+                </span>
+                <span className="shrink-0 text-[0.6rem] tabular-nums text-muted-foreground">
+                  {cut.seconds}s
+                </span>
+              </div>
+            ))}
+          </div>
 
           {cuts.length > SOFT_CUT_LIMIT && (
             <p className="mt-1.5 flex items-center gap-1 px-1.5 text-[0.6rem] text-muted-foreground">
@@ -82,11 +116,10 @@ export function MultishotNode({ id, data, selected }: NodeProps) {
           <div className="mt-1.5 flex items-center gap-1.5">
             <Button
               variant="ghost"
-              disabled={isReadOnly}
-              onClick={() => setCuts(addCut(cuts))}
-              className="nodrag h-auto gap-1 rounded-md border border-dashed border-primary/40 px-2 py-1 text-[0.65rem] text-primary hover:bg-primary/5 hover:text-primary dark:hover:bg-primary/5"
+              onClick={() => setFocusOpen(true)}
+              className="nodrag -mx-1.5 h-auto gap-1 rounded-md border-0 px-1.5 py-1 text-xs text-primary transition-colors hover:bg-primary/10 hover:text-primary"
             >
-              <Plus className="size-3" strokeWidth={1.5} /> Add cut
+              Open ↗
             </Button>
             <GuidedNextButton sourceId={id} variant="chip" />
           </div>
@@ -106,5 +139,17 @@ export function MultishotNode({ id, data, selected }: NodeProps) {
         />
       </div>
     </NodeContextMenu>
+
+    {/* Outside NodeContextMenu: the portaled sheet still sits in the node's React tree,
+        so as a child its contextmenu/dblclick/drop events bubbled into the node card. */}
+    <MultishotFocusView
+      open={focusViewOpen}
+      onOpenChange={handleFocusOpenChange}
+      order={d.order}
+      cuts={cuts}
+      scriptTitle={d.seededFrom?.scriptTitle}
+      onChange={setCuts}
+    />
+    </>
   );
 }

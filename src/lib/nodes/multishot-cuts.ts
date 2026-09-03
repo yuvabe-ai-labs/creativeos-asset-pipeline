@@ -97,7 +97,14 @@ export function maxSecondsFor(cuts: MultishotCut[], index: number): number {
   return pair - MIN_CUT_SECONDS;
 }
 
-/** Append a cut, funded by the largest existing one. Refused when nobody can spare a second. */
+/**
+ * Append a cut, funded by the largest existing one. Refused when nobody can spare a second.
+ *
+ * DEFERRED — nothing calls this today. The operator asked for "Add cut" to come out of the UI
+ * (2026-09-03): the Multishot node's card and focus view both dropped the affordance, but the
+ * budget-preserving logic is exactly the kind of thing worth keeping ready rather than
+ * reinventing once the flow wants it again. Its tests still run, so it cannot rot silently.
+ */
 export function addCut(cuts: MultishotCut[]): MultishotCut[] {
   let donor = -1;
   for (let i = 0; i < cuts.length; i++) {
