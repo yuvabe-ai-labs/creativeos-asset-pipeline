@@ -14,6 +14,7 @@ import {
   Link2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MentionInstructionEditor } from "./mention-instruction-editor";
@@ -96,6 +97,11 @@ export function MultishotPromptFocusView({
 
   const [generating, setGenerating] = useState(false);
   const [lastError, setLastError] = useState<string | null>(null);
+  // Per-control busy states (Task 15b) — deliberately NOT one shared "busy" flag: the design
+  // intent is that re-running one beat, or the look, never blocks the others (LTX Studio's
+  // "regenerate the shot that missed the brief without disturbing the rest of the storyboard").
+  const [rerunningBeatId, setRerunningBeatId] = useState<string | null>(null);
+  const [rerunningLook, setRerunningLook] = useState(false);
   const [seed, setSeed] = useState<{ open: boolean; nodeId: string }>({ open, nodeId });
   const [versions, setVersions] = useState<VersionSummary[]>([]);
   const [activeVersionId, setActiveVersionId] = useState<string | null>(null);
@@ -323,26 +329,36 @@ export function MultishotPromptFocusView({
     }
   }
 
+  // Shared POST helper for every call to this node's runAction — a full generate, a per-beat
+  // re-run (`onlyCutId` + `plan`), or a look re-run (a plain full generate whose beats the
+  // caller then discards, see handleRerunLook). One fetch/parse path so the three callers below
+  // cannot drift on error handling.
+  async function postMultishotPrompt(extra?: { onlyCutId?: string; plan?: MultishotPlan }) {
+    const res = await fetch(`/api/nodes/${nodeId}/multishot-prompt`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        instruction: instructionDraft,
+        slices,
+        cutInstructions: cutDrafts,
+        ...extra,
+      }),
+    });
+    const json = await res.json();
+    if (!res.ok) {
+      throw new Error(res.status === 402 ? CREDIT_LIMIT_TOAST_MESSAGE : json.error ?? "Generation failed");
+    }
+    return json as { plan: MultishotPlan; versionId: string | null };
+  }
+
   async function runGenerate() {
     setGenerating(true);
     setLastError(null);
     setEvalDecision(null);
     setEvalNote("");
     try {
-      const res = await fetch(`/api/nodes/${nodeId}/multishot-prompt`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          instruction: instructionDraft,
-          slices,
-          cutInstructions: cutDrafts,
-        }),
-      });
-      const json = await res.json();
-      if (!res.ok) {
-        throw new Error(res.status === 402 ? CREDIT_LIMIT_TOAST_MESSAGE : json.error ?? "Generation failed");
-      }
-      setPlanDraft(json.plan as MultishotPlan);
+      const json = await postMultishotPrompt();
+      setPlanDraft(json.plan);
       onPatch({ parsed: json.plan });
       setActiveVersionId(json.versionId ?? null);
       await fetchVersions();
@@ -354,6 +370,54 @@ export function MultishotPromptFocusView({
       await fetchVersions();
     } finally {
       setGenerating(false);
+    }
+  }
+
+  // Per-beat re-run (Task 15b): rewrites ONLY this beat, cutting against its neighbours — the
+  // route appends the current plan as context and instructs the model to touch just this
+  // cutId. The response is the whole new plan (the others are meant to come back unchanged),
+  // so it replaces planDraft wholesale rather than being spliced beat-by-beat.
+  async function handleRerunBeat(cutId: string) {
+    if (isReadOnly || !planDraft) return; // D33 — belt-and-braces, the button is disabled too
+    setRerunningBeatId(cutId);
+    try {
+      const json = await postMultishotPrompt({ onlyCutId: cutId, plan: planDraft });
+      setPlanDraft(json.plan);
+      onPatch({ parsed: json.plan });
+      setActiveVersionId(json.versionId ?? null);
+      await fetchVersions();
+      toast.success("Shot rewritten");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Rewrite failed");
+    } finally {
+      setRerunningBeatId(null);
+    }
+  }
+
+  // Look re-run (Task 15b): the ONE re-run that is not local — rewriting the look changes what
+  // every beat is supposed to obey. The route has no "look only" mode, so this is a plain full
+  // generate; the difference from `runGenerate` is entirely in what happens to the response.
+  //
+  // The returned `beats` are thrown away ON PURPOSE — this is not a bug. Taking them would
+  // silently regenerate every beat just because the look changed, discarding any hand-edits the
+  // operator already made to beats that still read fine under the new look. So only `look` is
+  // kept; the operator's current beats carry over verbatim, and they re-run individually
+  // whichever beats no longer fit.
+  async function handleRerunLook() {
+    if (isReadOnly || !planDraft) return; // D33 — belt-and-braces, the button is disabled too
+    setRerunningLook(true);
+    try {
+      const json = await postMultishotPrompt();
+      const next: MultishotPlan = { ...planDraft, look: json.plan.look };
+      setPlanDraft(next);
+      onPatch({ parsed: next });
+      setActiveVersionId(json.versionId ?? null);
+      await fetchVersions();
+      toast.success("Look rewritten");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Rewrite failed");
+    } finally {
+      setRerunningLook(false);
     }
   }
 
@@ -406,13 +470,6 @@ export function MultishotPromptFocusView({
     };
     setPlanDraft(next);
     onPatch({ parsed: next });
-  }
-
-  // Both re-runs (the look block's, and each beat's) are wired to the control but not the
-  // request — Task 16 owns the actual per-cut/per-look regenerate call. Left as an honest,
-  // visible no-op (a toast) rather than a silently dead button.
-  function rerunInert() {
-    toast.info("Per-shot and look rewrites land in a later task.");
   }
 
   function toggleSlice(key: KBSliceKey) {
@@ -621,12 +678,12 @@ export function MultishotPromptFocusView({
                             <span className="text-eyebrow text-primary">Look &amp; atmosphere</span>
                             <Button
                               variant="ghost"
-                              onClick={rerunInert}
-                              disabled={isReadOnly}
+                              onClick={handleRerunLook}
+                              disabled={rerunningLook || isReadOnly}
                               aria-label="Rewrite the look"
                               className="ml-auto h-auto rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground dark:hover:bg-muted"
                             >
-                              <RefreshCw className="size-3.5" strokeWidth={1.5} />
+                              <RefreshCw className={cn("size-3.5", rerunningLook && "animate-spin")} strokeWidth={1.5} />
                             </Button>
                           </div>
                           <MentionInstructionEditor
@@ -651,7 +708,8 @@ export function MultishotPromptFocusView({
                             upstream={upstream}
                             refIds={refIds}
                             onChange={(v) => updateBeat(beat.cutId, v)}
-                            onRerun={rerunInert}
+                            onRerun={() => handleRerunBeat(beat.cutId)}
+                            rerunning={rerunningBeatId === beat.cutId}
                             onFocusTimings={focusTimings}
                             disabled={isReadOnly}
                           />
