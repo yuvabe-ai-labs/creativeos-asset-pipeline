@@ -4,21 +4,19 @@
 // what makes the switch a real undo is that a flip and a flip-back cost the operator nothing.
 // That property only holds if the two functions are written against each other.
 import type { ShotNodeData, MultishotNodeData } from "@/lib/canvas-nodes";
-import { clampTotal, cutsFromShots, fitToTotal, shotsFromCuts, totalOf } from "./multishot-cuts";
+import { clampTotal, cutsFromShots, shotsFromCuts, totalOf } from "./multishot-cuts";
 import { deriveShotType } from "./shot-types";
 
 export function shotDataToMultishot(data: ShotNodeData): MultishotNodeData {
   const shots = data.script?.visual_script?.shots ?? [];
-  const rawCuts = cutsFromShots(shots);
+  const cuts = cutsFromShots(shots);
 
-  // Kling-allocation rework (operator request 2026-09-03): totalSeconds is now the operator's
-  // INDEPENDENT target, not a mirror of totalOf(cuts) (see multishot-cuts.ts's header) — but a
-  // freshly-converted node must never open already unbalanced. Seed the Total from the Shot's
-  // packed seconds, clamped into Omni's window (a Shot's parsed duration can land outside it —
-  // see group-shots.ts's lone over-cap shot), then fit the cuts to land exactly on it, so
-  // allocated === total on creation.
-  const totalSeconds = clampTotal(totalOf(rawCuts));
-  const cuts = fitToTotal(rawCuts, totalSeconds);
+  // No Total control any more (multishot-cuts.ts's header) — `totalSeconds` is just the stored
+  // mirror of the ladder's own length, clamped into Omni's window for the field that seeds a
+  // request's duration. `clampTotal` only clamps the NUMBER; it never reshapes `cuts` to match,
+  // so the two can disagree here only in the pre-existing edge case group-shots.ts documents (a
+  // single shot longer than OMNI_MAX_SECONDS forced into its own over-cap group).
+  const totalSeconds = clampTotal(totalOf(cuts));
 
   return {
     order: data.order,

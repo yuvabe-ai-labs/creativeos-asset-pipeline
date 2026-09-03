@@ -21,7 +21,7 @@ import type { ReelScript } from "@/lib/nodes/reel-script";
 import type { ShotComposeIdea } from "@/lib/nodes/shot-compose";
 import { deriveShotType } from "@/lib/nodes/shot-types";
 import { describeGenerations, generationKey } from "@/lib/nodes/group-shots";
-import { clampTotal, cutsFromShots, fitToTotal, totalOf } from "@/lib/nodes/multishot-cuts";
+import { clampTotal, cutsFromShots, totalOf } from "@/lib/nodes/multishot-cuts";
 import { shotDataToMultishot, multishotDataToShot } from "@/lib/nodes/multishot-convert";
 import type { GenerationRow } from "@/lib/db/types";
 import type { PlaybookRun } from "@/lib/copilot/runner";
@@ -456,13 +456,11 @@ export function createCanvasStore(
         const groupShots = generation.shotIndexes.map((shotIndex) => shots[shotIndex]);
 
         if (generation.multishot) {
-          // Kling-allocation rework (operator request 2026-09-03): totalSeconds is the
-          // operator's independent Total (multishot-cuts.ts's header), so a fresh node must be
-          // seeded balanced rather than trusting the script's raw packed seconds — clamp into
-          // Omni's window, then fit the cuts to it, so allocated === total on creation.
-          const rawCuts = cutsFromShots(groupShots);
-          const totalSeconds = clampTotal(totalOf(rawCuts));
-          const cuts = fitToTotal(rawCuts, totalSeconds);
+          // No Total control any more (multishot-cuts.ts's header) — `totalSeconds` is just the
+          // stored mirror of the ladder's own length, clamped into Omni's window. They start
+          // equal and stay equal, because there is no independent field left to drift.
+          const cuts = cutsFromShots(groupShots);
+          const totalSeconds = clampTotal(totalOf(cuts));
           return {
             id: crypto.randomUUID(),
             type: "multishot",

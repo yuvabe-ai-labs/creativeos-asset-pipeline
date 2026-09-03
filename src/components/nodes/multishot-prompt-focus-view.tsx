@@ -42,7 +42,7 @@ import { ApprovalStatusBadge } from "@/components/review/approval-status-badge";
 import { LeftSection } from "./focus-left-section";
 import { PromptFocusShell } from "./prompt-focus-shell";
 import { MultishotBeatCard } from "./multishot-beat-card";
-import { totalOf, type MultishotCut } from "@/lib/nodes/multishot-cuts";
+import type { MultishotCut } from "@/lib/nodes/multishot-cuts";
 import { renderPlan, refsCitedIn, type MultishotPlan } from "@/lib/nodes/multishot-plan";
 
 type MultishotPromptFocusViewProps = {
@@ -57,11 +57,6 @@ type MultishotPromptFocusViewProps = {
   // The upstream Multishot node's cut list (READ-ONLY here) and its own id, so a beat's
   // timecode click can hand focus back to the node that actually owns the budget.
   cuts: MultishotCut[];
-  // The upstream Multishot node's Total (Kling-allocation rework, operator request 2026-09-03).
-  // Generation is gated on `totalOf(cuts) === totalSeconds` — this node has no Total of its
-  // own, so an unbalanced upstream ladder is caught here rather than left for the route to
-  // reject after the operator has already clicked Generate.
-  totalSeconds: number | null;
   multishotNodeId: string | null;
   upstream: UpstreamNode[];
   onPatch: (patch: Record<string, unknown>) => void;
@@ -93,7 +88,6 @@ export function MultishotPromptFocusView({
   plan,
   slices,
   cuts,
-  totalSeconds,
   multishotNodeId,
   upstream,
   onPatch,
@@ -197,14 +191,6 @@ export function MultishotPromptFocusView({
   const listedUpstream = nonImageUpstream.filter((u) => u.type !== "multishot");
 
   const estimatedCredits = estimatePromptCredits(upstream.filter(isVisionAttachment).length);
-
-  // Generation gate (Kling-allocation rework, operator request 2026-09-03): the ladder and the
-  // request duration must agree by construction at generation time (checkMultishotDuration in
-  // resolve-prompt.ts enforces the same thing server-side) — block the button here so the
-  // operator gets an actionable reason instead of a rejected request after spending the click.
-  const allocatedSeconds = totalOf(cuts);
-  const unbalanced =
-    cuts.length > 0 && (totalSeconds == null || allocatedSeconds !== totalSeconds);
 
   const mode: "skeleton" | "result" | "empty" = generating
     ? "skeleton"
@@ -753,18 +739,12 @@ export function MultishotPromptFocusView({
                     <Button
                       className="w-full"
                       onClick={runGenerate}
-                      disabled={generating || isReadOnly || cuts.length === 0 || unbalanced}
+                      disabled={generating || isReadOnly || cuts.length === 0}
                     >
                       <ListVideo className="size-4" />
                       {generating ? "Generating…" : planDraft ? "Re-generate" : "Generate multishot prompt"}
                       {!generating && <EstimatedCreditsLabel credits={estimatedCredits} />}
                     </Button>
-                    {unbalanced && (
-                      <p className="mt-1.5 text-center text-[0.7rem] text-destructive">
-                        {allocatedSeconds} of {totalSeconds ?? "?"}s allocated — balance the cuts
-                        on the Multishot node before generating.
-                      </p>
-                    )}
                   </div>
                 </div>
               )}

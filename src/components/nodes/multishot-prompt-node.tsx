@@ -191,7 +191,6 @@ export function MultishotPromptNode({ id, data, selected, positionAbsoluteX, pos
       plan={plan}
       slices={slices}
       cuts={cuts}
-      totalSeconds={budget ?? null}
       multishotNodeId={multishotSource?.id ?? null}
       upstream={upstream}
       onPatch={(patch) => updateNodeData(id, patch)}

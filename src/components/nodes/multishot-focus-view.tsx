@@ -9,8 +9,7 @@ import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { EditableField } from "./editable-field";
 import {
   MIN_CUT_SECONDS,
-  clampTotal,
-  fitToTotal,
+  headroomOf,
   maxSecondsFor,
   removeCut,
   resizeCut,
@@ -24,13 +23,8 @@ type MultishotFocusViewProps = {
   onOpenChange: (open: boolean) => void;
   order?: number;
   cuts: MultishotCut[];
-  /** The operator's independent Total (Kling-style allocation, operator request 2026-09-03) —
-   *  NOT derived from `cuts`. See multishot-cuts.ts's header for why the two are allowed to
-   *  differ; the gap is the remainder this view shows live. */
-  totalSeconds: number;
   scriptTitle?: string;
   onChange: (next: MultishotCut[]) => void;
-  onChangeTotal: (next: number) => void;
 };
 
 /**
@@ -46,27 +40,25 @@ type MultishotFocusViewProps = {
  * `script-document.tsx` and `file-focus-view.tsx`, so this view reads as the same app rather
  * than a bespoke one. No new layout ideas beyond that — see those two files for the pattern.
  *
- * Kling-allocation rework (operator request 2026-09-03): a Total section sits above Cuts —
- * its own slider plus an allocation readout and a "Fit to total" action. Dragging a per-cut
- * slider NEVER moves the Total or a neighbour; the two can disagree until the operator either
- * drags Total back in range or presses Fit to total.
+ * No-Total rework (operator request 2026-09-03): there is no Total control any more — the clip's
+ * length simply IS `totalOf(cuts)`, so the header just states it against Omni's ceiling. A cut's
+ * slider spends headroom under that shared ceiling and NEVER moves a neighbour; when the ladder
+ * is full a cut just stops growing and the line under Cuts says so.
  */
 export function MultishotFocusView({
   open,
   onOpenChange,
   order,
   cuts,
-  totalSeconds,
   scriptTitle,
   onChange,
-  onChangeTotal,
 }: MultishotFocusViewProps) {
   const editable = useCanvasEditable();
   const isReadOnly = !editable; // D33: strict read-only under the lock
 
-  const allocated = totalOf(cuts);
-  const remainder = totalSeconds - allocated;
-  const balanced = remainder === 0;
+  const total = totalOf(cuts);
+  const outsideOmniWindow = total < OMNI_MIN_SECONDS || total > OMNI_MAX_SECONDS;
+  const atCeiling = headroomOf(cuts) === 0;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -97,10 +89,10 @@ export function MultishotFocusView({
               </div>
               <div className="shrink-0 text-right">
                 <p className="text-sm font-medium tabular-nums">
-                  <span className={balanced ? "text-foreground" : "text-destructive"}>
-                    {allocated}
+                  <span className={outsideOmniWindow ? "text-destructive" : "text-foreground"}>
+                    {total}s
                   </span>
-                  <span className="text-muted-foreground"> of {totalSeconds}s</span>
+                  <span className="text-muted-foreground"> / {OMNI_MAX_SECONDS}s max</span>
                 </p>
                 <p className="text-eyebrow mt-0.5 text-muted-foreground">{cuts.length} cuts</p>
               </div>
@@ -115,65 +107,15 @@ export function MultishotFocusView({
           <section className="grid gap-2.5 sm:grid-cols-[160px_1fr] sm:gap-x-10">
             <div className="self-start sm:sticky sm:top-2">
               <div className="mb-2 h-0.5 w-6 rounded-full bg-primary/70" aria-hidden />
-              <span className="text-eyebrow">Total</span>
-            </div>
-            <div className="flex flex-col gap-3">
-              <div className="rounded-xl border border-border bg-card p-4 shadow-card">
-                <div className="flex items-center gap-3">
-                  <Slider
-                    value={[totalSeconds]}
-                    min={OMNI_MIN_SECONDS}
-                    max={OMNI_MAX_SECONDS}
-                    step={1}
-                    disabled={isReadOnly}
-                    aria-label="Total clip length in seconds"
-                    onValueChange={(v) =>
-                      onChangeTotal(clampTotal(Array.isArray(v) ? v[0] : v))
-                    }
-                    className="max-w-sm"
-                  />
-                  <span className="w-9 shrink-0 text-xs tabular-nums text-muted-foreground">
-                    {totalSeconds}s
-                  </span>
-                </div>
-
-                <div className="mt-3 flex items-center justify-between gap-3">
-                  <p
-                    className={cn(
-                      "flex items-center gap-1.5 text-xs tabular-nums",
-                      balanced ? "text-muted-foreground" : "text-destructive",
-                    )}
-                  >
-                    {!balanced && <TriangleAlert className="size-3.5 shrink-0" strokeWidth={1.5} />}
-                    {allocated} of {totalSeconds}s ·{" "}
-                    {balanced
-                      ? "balanced"
-                      : remainder > 0
-                        ? `${remainder}s left`
-                        : `${Math.abs(remainder)}s over`}
-                  </p>
-                  {!isReadOnly && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled={balanced}
-                      onClick={() => onChange(fitToTotal(cuts, totalSeconds))}
-                      className="h-auto shrink-0 px-2.5 py-1 text-xs"
-                    >
-                      Fit to total
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <section className="mt-8 grid gap-2.5 sm:grid-cols-[160px_1fr] sm:gap-x-10">
-            <div className="self-start sm:sticky sm:top-2">
-              <div className="mb-2 h-0.5 w-6 rounded-full bg-primary/70" aria-hidden />
               <span className="text-eyebrow">Cuts</span>
             </div>
             <div className="flex flex-col gap-3">
+            {atCeiling && (
+              <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <TriangleAlert className="size-3.5 shrink-0" strokeWidth={1.5} />
+                {OMNI_MAX_SECONDS}s maximum reached — shorten another cut to grow this one.
+              </p>
+            )}
             {cuts.map((cut, i) => (
               <div key={cut.id} className="rounded-xl border border-border bg-card p-4 shadow-card">
                 <div className="flex items-start gap-3">
@@ -195,14 +137,12 @@ export function MultishotFocusView({
                       <Slider
                         value={[cut.seconds]}
                         min={MIN_CUT_SECONDS}
-                        max={maxSecondsFor(cuts, i, totalSeconds)}
+                        max={maxSecondsFor(cuts, i)}
                         step={1}
                         disabled={isReadOnly}
                         aria-label={`Cut ${i + 1} length in seconds`}
                         onValueChange={(v) =>
-                          onChange(
-                            resizeCut(cuts, i, Array.isArray(v) ? v[0] : v, totalSeconds),
-                          )
+                          onChange(resizeCut(cuts, i, Array.isArray(v) ? v[0] : v))
                         }
                         className="max-w-sm"
                       />

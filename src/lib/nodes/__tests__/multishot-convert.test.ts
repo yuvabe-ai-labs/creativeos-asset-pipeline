@@ -49,24 +49,26 @@ describe("shotDataToMultishot", () => {
     expect(result.order).toBe(2);
   });
 
-  // Kling-allocation rework (operator request 2026-09-03): totalSeconds (the Total) and
-  // totalOf(cuts) (allocated) are now independent — see multishot-cuts.ts's header — but a
-  // freshly-converted node must never open already unbalanced. A Shot whose parsed duration
-  // lands outside Omni's 3-10s window gets its Total clamped INTO the window, and its cuts
-  // fitted to match, rather than carrying an out-of-window budget through as-is (the old
-  // behaviour, reverted here).
-  it("clamps the budget into Omni's window and fits the cuts to match, even for an out-of-window shot", () => {
+  // No-Total rework (operator request 2026-09-03): `totalSeconds` is just the stored mirror of
+  // `totalOf(cuts)`, clamped into Omni's window (multishot-cuts.ts's header) — there is no
+  // fitting step any more, so `cuts` is carried through exactly as `cutsFromShots` built it.
+  // A single shot whose own parsed duration falls outside Omni's 3-10s window is the one case
+  // where the clamped `totalSeconds` and the ladder's real length can disagree (see
+  // multishot-convert.ts's comment) — that's a pre-existing group-shots.ts edge case
+  // (a shot longer than OMNI_MAX_SECONDS forced into its own group), not something this
+  // rework needs to reconcile.
+  it("clamps totalSeconds into Omni's window without reshaping an out-of-window shot's cut", () => {
     const long = shotDataToMultishot({
       script: { visual_script: { shots: [{ description: "x", duration_seconds: 30 }] } },
     });
     expect(long.totalSeconds).toBe(10); // clamped down from 30 to OMNI_MAX_SECONDS
-    expect(long.cuts?.[0]?.seconds).toBe(10); // fitted to match — allocated === total
+    expect(long.cuts?.[0]?.seconds).toBe(30); // the cut itself is untouched
 
     const short = shotDataToMultishot({
       script: { visual_script: { shots: [{ description: "x", duration_seconds: 1 }] } },
     });
     expect(short.totalSeconds).toBe(3); // clamped up from 1 to OMNI_MIN_SECONDS
-    expect(short.cuts?.[0]?.seconds).toBe(3); // fitted to match — allocated === total
+    expect(short.cuts?.[0]?.seconds).toBe(1); // the cut itself is untouched
   });
 });
 

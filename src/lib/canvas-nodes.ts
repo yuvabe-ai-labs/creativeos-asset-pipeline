@@ -127,17 +127,13 @@ export type MultishotNodeData = {
    */
   script?: ReelScript;
   order?: number;
-  /** The operator's independent Total in seconds (Kling's advanced multi-shot model, operator
-   *  request 2026-09-03) — kept inside Omni's 3-10s window by `clampTotal` (multishot-cuts.ts)
-   *  wherever it is set. NOT derived from `cuts`: it changes only when the operator moves the
-   *  Total control, or when a fresh node is seeded (multishot-convert.ts / canvas-store.ts's
-   *  fanOutShots both seed cuts to match it, via fitToTotal, so a new node opens balanced). */
+  /** There is no Total control (operator request 2026-09-03, multishot-cuts.ts's header) —
+   *  `totalSeconds` is just the stored mirror of the ladder's own length, `clampTotal(totalOf(
+   *  cuts))`. Every writer of `cuts` MUST write this in the same `updateNodeData` call, so the
+   *  two never drift; there is no code path that sets one without the other. */
   totalSeconds?: number;
-  /** The cut ladder. `totalOf(cuts)` (what is ALLOCATED) and `totalSeconds` (the Total) are
-   *  independent and allowed to differ — see multishot-cuts.ts's header for the full model.
-   *  Writers of `cuts` (multishot-node.tsx's setCuts) must NOT also write totalSeconds; that
-   *  coupling was reverted (commit e2f3be8a) because it moved the Total on every drag, which is
-   *  exactly the coupling the operator asked to remove. */
+  /** The cut ladder. `totalOf(cuts)` and `totalSeconds` are kept equal by construction — see
+   *  multishot-cuts.ts's header for the full model. */
   cuts?: MultishotCut[];
   seededFrom?: { scriptNodeId: string; shotIndexes: number[]; scriptTitle?: string };
   // No `shot_type`: framing is decided per cut by the prompt writer, which carries the

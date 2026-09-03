@@ -4,7 +4,7 @@ import {
   addCut,
   clampTotal,
   cutsFromShots,
-  fitToTotal,
+  headroomOf,
   maxSecondsFor,
   newCut,
   removeCut,
@@ -21,8 +21,8 @@ const cuts = (...seconds: number[]): MultishotCut[] =>
 const secondsOf = (cs: MultishotCut[]) => cs.map((c) => c.seconds);
 
 describe("cutsFromShots", () => {
-  // Unchanged by the Kling-allocation rework — this is the one place cuts are constructed from
-  // external data, unrelated to how totalSeconds and totalOf(cuts) relate afterward.
+  // Unaffected by the no-Total rework — this is the one place cuts are constructed from
+  // external data, unrelated to how the ladder relates to the ceiling afterward.
   it("gives every cut a distinct id and reads duration_seconds", () => {
     const result = cutsFromShots([
       { description: "keys", duration_seconds: 2 },
@@ -57,116 +57,141 @@ describe("shotsFromCuts", () => {
   });
 });
 
-describe("resizeCut", () => {
-  // The Kling-allocation model: `totalSeconds` is the operator's independent Total, now an
-  // explicit argument. Growing one cut spends headroom under THAT total, never a neighbour's
-  // seconds — neighbours must come back byte-for-byte unchanged.
-  it("changes only the targeted cut, leaving neighbours untouched", () => {
-    // [2,2,4] allocated=8, total=10, headroom=2 -> cut 0 can grow to 4.
-    expect(secondsOf(resizeCut(cuts(2, 2, 4), 0, 4, 10))).toEqual([4, 2, 4]);
+describe("totalOf", () => {
+  it("sums the cuts' seconds", () => {
+    expect(totalOf(cuts(2, 3, 4))).toBe(9);
   });
 
-  it("cannot be dragged past the point where allocated would exceed the given total", () => {
-    // [2,2,4] allocated=8; total=10 -> cut 0's ceiling is 2 + (10-8) = 4. Asking for 9 clamps to 4.
-    expect(secondsOf(resizeCut(cuts(2, 2, 4), 0, 9, 10))).toEqual([4, 2, 4]);
-    expect(totalOf(resizeCut(cuts(2, 2, 4), 0, 9, 10))).toBe(10);
+  it("is 0 for an empty ladder", () => {
+    expect(totalOf([])).toBe(0);
+  });
+});
+
+describe("headroomOf", () => {
+  it("is the unspent seconds under OMNI_MAX_SECONDS", () => {
+    expect(headroomOf(cuts(2, 2, 4))).toBe(OMNI_MAX_SECONDS - 8);
   });
 
-  // Demonstrates the whole point of decoupling: the ceiling now tracks the OPERATOR'S total, not
-  // OMNI_MAX_SECONDS. The same [2,2,4] list allows a much smaller reach when total is 6 — and
-  // since [2,2,4] (sum 8) is already OVER a total of 6, the ceiling for cut 0 is actually below
-  // its current value (2 + (6-8) = 0, floored to 1), so even a request to GROW it clamps it down.
-  it("the ceiling tracks the operator's total, not OMNI_MAX_SECONDS", () => {
-    expect(secondsOf(resizeCut(cuts(2, 2, 4), 0, 9, 6))).toEqual([1, 2, 4]);
-    expect(secondsOf(resizeCut(cuts(2, 2, 2), 0, 9, 6))).toEqual([2, 2, 2]); // exactly balanced already
+  it("is 0 exactly at the ceiling", () => {
+    expect(headroomOf(cuts(OMNI_MAX_SECONDS))).toBe(0);
   });
 
-  it("cannot go below MIN_CUT_SECONDS (1)", () => {
-    expect(secondsOf(resizeCut(cuts(3, 2, 3), 0, 0, 10))).toEqual([1, 2, 3]);
-  });
-
-  it("lets a single cut grow all the way to the given total, not past it", () => {
-    expect(secondsOf(resizeCut(cuts(5), 0, 8, 10))).toEqual([8]);
-    expect(secondsOf(resizeCut(cuts(5), 0, 20, 10))).toEqual([10]);
-    expect(secondsOf(resizeCut(cuts(5), 0, 20, 7))).toEqual([7]);
-  });
-
-  it("resizing the last cut leaves every earlier cut untouched", () => {
-    // [2,2,4] allocated=8; total=10 -> cut 2's ceiling is 4 + (10-8) = 6.
-    expect(secondsOf(resizeCut(cuts(2, 2, 4), 2, 6, 10))).toEqual([2, 2, 6]);
-  });
-
-  it("returns the list unchanged for a negative index", () => {
-    expect(secondsOf(resizeCut(cuts(2, 2, 4), -1, 3, 10))).toEqual([2, 2, 4]);
-  });
-
-  it("returns the list unchanged for an index one past the end", () => {
-    expect(secondsOf(resizeCut(cuts(2, 2, 4), 3, 3, 10))).toEqual([2, 2, 4]);
-  });
-
-  it("is a no-op when asked for the seconds it already has", () => {
-    const original = cuts(2, 2, 4);
-    expect(resizeCut(original, 0, 2, 10)).toBe(original);
+  it("never goes negative when the ladder is somehow over the ceiling", () => {
+    expect(headroomOf(cuts(OMNI_MAX_SECONDS + 5))).toBe(0);
   });
 });
 
 describe("maxSecondsFor", () => {
-  // Headroom is shared across the whole list against the given total, not OMNI_MAX_SECONDS: a
-  // cut's ceiling is its own current length plus however much room is left under that total.
-  it("returns the cut's own seconds plus the list's headroom under the given total", () => {
-    // [2,2,4]: allocated=8, headroom under 10 is 2. index 0 -> 2+2=4. index 2 -> 4+2=6.
-    expect(maxSecondsFor(cuts(2, 2, 4), 0, 10)).toBe(4);
-    expect(maxSecondsFor(cuts(2, 2, 4), 2, 10)).toBe(6);
+  it("returns the cut's own seconds plus the ladder's headroom", () => {
+    // [2,2,4] total=8, headroom under 10 is 2. index 0 -> 2+2=4. index 2 -> 4+2=6.
+    expect(maxSecondsFor(cuts(2, 2, 4), 0)).toBe(4);
+    expect(maxSecondsFor(cuts(2, 2, 4), 2)).toBe(6);
   });
 
-  it("lets a single cut's ceiling reach the given total", () => {
-    expect(maxSecondsFor(cuts(5), 0, 10)).toBe(10);
-    expect(maxSecondsFor(cuts(5), 0, 7)).toBe(7);
+  it("lets a single cut's ceiling reach OMNI_MAX_SECONDS", () => {
+    expect(maxSecondsFor(cuts(5), 0)).toBe(OMNI_MAX_SECONDS);
   });
 
-  it("floors at MIN_CUT_SECONDS when the list is already over the given total", () => {
-    // [1,14] allocated=15, total=10 -> index 0's raw headroom is 1+(10-15) = -4, floored at 1.
-    expect(maxSecondsFor(cuts(1, 14), 0, 10)).toBe(MIN_CUT_SECONDS);
+  // The key "stops growing" behavior: when the ladder is already full, a cut's ceiling is
+  // exactly its own current length — the slider has nowhere left to go.
+  it("returns the cut's own length when the ladder is already full", () => {
+    expect(maxSecondsFor(cuts(6, 4), 0)).toBe(6);
+    expect(maxSecondsFor(cuts(6, 4), 1)).toBe(4);
+  });
+
+  it("floors at MIN_CUT_SECONDS when the list is somehow already over the ceiling", () => {
+    // [1,14]: index 0's raw headroom is 1+(10-15) = -4, floored at 1.
+    expect(maxSecondsFor(cuts(1, 14), 0)).toBe(MIN_CUT_SECONDS);
   });
 
   it("returns 0 for an out-of-range index", () => {
-    expect(maxSecondsFor(cuts(2, 2, 4), -1, 10)).toBe(0);
-    expect(maxSecondsFor(cuts(2, 2, 4), 3, 10)).toBe(0);
+    expect(maxSecondsFor(cuts(2, 2, 4), -1)).toBe(0);
+    expect(maxSecondsFor(cuts(2, 2, 4), 3)).toBe(0);
+  });
+});
+
+describe("resizeCut", () => {
+  // The operator's explicit, hardest requirement: growing or shrinking one cut must never touch
+  // another. See the "mutation check" in the report — this test was confirmed to actually fail
+  // when a neighbour is touched, not just written to look thorough.
+  it("changes only the targeted cut, leaving every other cut byte-identical", () => {
+    const original = cuts(2, 2, 4);
+    const result = resizeCut(original, 0, 4);
+    expect(secondsOf(result)).toEqual([4, 2, 4]);
+    expect(result[1]).toBe(original[1]); // same object reference — untouched, not just equal
+    expect(result[2]).toBe(original[2]);
+  });
+
+  it("resizing the last cut leaves every earlier cut untouched (same references)", () => {
+    const original = cuts(2, 2, 4);
+    const result = resizeCut(original, 2, 6);
+    expect(secondsOf(result)).toEqual([2, 2, 6]);
+    expect(result[0]).toBe(original[0]);
+    expect(result[1]).toBe(original[1]);
+  });
+
+  it("grows only into available headroom, stopping at the 10s ceiling", () => {
+    // [2,2,4] total=8, headroom=2 -> cut 0 can reach 4, and a request for more clamps there.
+    expect(secondsOf(resizeCut(cuts(2, 2, 4), 0, 4))).toEqual([4, 2, 4]);
+    expect(secondsOf(resizeCut(cuts(2, 2, 4), 0, 9))).toEqual([4, 2, 4]);
+    expect(totalOf(resizeCut(cuts(2, 2, 4), 0, 9))).toBe(OMNI_MAX_SECONDS);
+  });
+
+  it("lets a single cut grow all the way to OMNI_MAX_SECONDS, not past it", () => {
+    expect(secondsOf(resizeCut(cuts(5), 0, 8))).toEqual([8]);
+    expect(secondsOf(resizeCut(cuts(5), 0, 20))).toEqual([OMNI_MAX_SECONDS]);
+  });
+
+  it("cannot go below MIN_CUT_SECONDS (1)", () => {
+    expect(secondsOf(resizeCut(cuts(3, 2, 3), 0, 0))).toEqual([1, 2, 3]);
+  });
+
+  it("returns the list unchanged for a negative index", () => {
+    expect(resizeCut(cuts(2, 2, 4), -1, 3)).toEqual(cuts(2, 2, 4));
+  });
+
+  it("returns the list unchanged for an index one past the end", () => {
+    expect(resizeCut(cuts(2, 2, 4), 3, 3)).toEqual(cuts(2, 2, 4));
+  });
+
+  it("is a no-op (same reference) when asked for the seconds it already has", () => {
+    const original = cuts(2, 2, 4);
+    expect(resizeCut(original, 0, 2)).toBe(original);
   });
 });
 
 describe("addCut", () => {
-  // DEFERRED — unused today, but kept honest against the new model: a new cut is funded by
-  // headroom under the operator's TOTAL (now an explicit argument), not OMNI_MAX_SECONDS.
-  it("appends a 1s cut when there is headroom under the total, growing allocated", () => {
-    const result = addCut(cuts(2, 2, 4), 10);
+  // DEFERRED — unused today (see the module header), but kept honest against the new model: a
+  // new cut is funded by headroom under OMNI_MAX_SECONDS.
+  it("appends a 1s cut when there is headroom, growing the total", () => {
+    const result = addCut(cuts(2, 2, 4));
     expect(secondsOf(result)).toEqual([2, 2, 4, 1]);
     expect(totalOf(result)).toBe(9);
   });
 
   it("gives the new cut a distinct id and empty text", () => {
-    const result = addCut(cuts(4), 10);
+    const result = addCut(cuts(4));
     expect(result[1].text).toBe("");
     expect(result[1].id).not.toBe(result[0].id);
   });
 
-  it("refuses when allocated is already at the given total", () => {
-    expect(addCut(cuts(10), 10)).toEqual(cuts(10));
+  it("refuses when the ladder is already at OMNI_MAX_SECONDS", () => {
+    expect(addCut(cuts(OMNI_MAX_SECONDS))).toEqual(cuts(OMNI_MAX_SECONDS));
   });
 
-  it("succeeds at the boundary — exactly 1s of headroom under the total is enough", () => {
-    expect(totalOf(addCut(cuts(9), 10))).toBe(10);
+  it("succeeds at the boundary — exactly 1s of headroom is enough", () => {
+    expect(totalOf(addCut(cuts(OMNI_MAX_SECONDS - 1)))).toBe(OMNI_MAX_SECONDS);
   });
 });
 
 describe("removeCut", () => {
-  // Unchanged: removing a cut shrinks ALLOCATED (totalOf) by exactly its seconds — the Total is
-  // an operator-owned field this function never touches, and there is no `totalSeconds` argument
-  // to touch it with.
-  it("shrinks allocated and leaves the other cuts alone", () => {
-    const result = removeCut(cuts(2, 2, 4), 0);
+  it("shortens the ladder and leaves the other cuts alone", () => {
+    const original = cuts(2, 2, 4);
+    const result = removeCut(original, 0);
     expect(secondsOf(result)).toEqual([2, 4]);
     expect(totalOf(result)).toBe(6);
+    expect(result[0]).toBe(original[1]);
+    expect(result[1]).toBe(original[2]);
   });
 
   it("leaves earlier cuts alone when removing the last one", () => {
@@ -200,60 +225,6 @@ describe("clampTotal", () => {
 
   it("leaves an in-window integer untouched", () => {
     expect(clampTotal(7)).toBe(7);
-  });
-});
-
-describe("fitToTotal", () => {
-  // The remainder-elimination step: makes allocated == total in one explicit, operator-triggered
-  // move. Growth and shrink both distribute proportionally to current size, with a deterministic
-  // largest-remainder rounding so the sum lands EXACTLY on target, never one second short or over.
-
-  it("is a no-op when already balanced (same reference)", () => {
-    const original = cuts(3, 3, 4);
-    expect(fitToTotal(original, 10)).toBe(original);
-  });
-
-  it("distributes an under-allocation proportionally, landing exactly on the target", () => {
-    // [2,2,4] sum=8, target=10, diff=+2. Raw shares: 0.5, 0.5, 1.0 -> floors [0,0,1], remainder 1
-    // goes to the largest fractional share; ties break toward the lower index.
-    const result = fitToTotal(cuts(2, 2, 4), 10);
-    expect(secondsOf(result)).toEqual([3, 2, 5]);
-    expect(totalOf(result)).toBe(10);
-  });
-
-  it("distributes an over-allocation proportionally to slack, landing exactly on the target", () => {
-    // [2,2,4] sum=8, target=6, amount=2. Slack above MIN_CUT_SECONDS is [1,1,3] -> raw shares
-    // 0.4, 0.4, 1.2 -> floors [0,0,1], remainder 1 goes to the largest fractional share (tie -> index 0).
-    const result = fitToTotal(cuts(2, 2, 4), 6);
-    expect(secondsOf(result)).toEqual([1, 2, 3]);
-    expect(totalOf(result)).toBe(6);
-    for (const c of result) expect(c.seconds).toBeGreaterThanOrEqual(MIN_CUT_SECONDS);
-  });
-
-  it("shrinks every cut down to exactly MIN_CUT_SECONDS when the target equals the floor", () => {
-    const result = fitToTotal(cuts(5, 5), 2);
-    expect(secondsOf(result)).toEqual([1, 1]);
-    expect(totalOf(result)).toBe(2);
-  });
-
-  // The pathological case: more cuts than the requested total allows even at MIN_CUT_SECONDS
-  // each. fitToTotal cannot satisfy both "sum == target" and "every cut >= MIN_CUT_SECONDS" here,
-  // and the min-cut invariant wins — it holds at the achievable floor (cuts.length * MIN_CUT_SECONDS)
-  // instead of manufacturing a sub-1s cut.
-  it("holds at the achievable floor when the target is below cuts.length * MIN_CUT_SECONDS", () => {
-    const original = cuts(1, 1, 1, 1, 1); // already at the floor (sum 5)
-    const result = fitToTotal(original, 3);
-    expect(result).toBe(original);
-    expect(totalOf(result)).toBe(5);
-  });
-
-  it("rounds a three-way split that does not divide evenly", () => {
-    // [1,1,1] sum=3, target=10, diff=+7. Equal raw shares (7/3 each = 2.333...) -> floors [2,2,2]
-    // sum=6, remainder=1 -> ties broken toward the lowest index.
-    const result = fitToTotal(cuts(1, 1, 1), 10);
-    expect(totalOf(result)).toBe(10);
-    for (const c of result) expect(c.seconds).toBeGreaterThanOrEqual(MIN_CUT_SECONDS);
-    expect(secondsOf(result)).toEqual([4, 3, 3]);
   });
 });
 
