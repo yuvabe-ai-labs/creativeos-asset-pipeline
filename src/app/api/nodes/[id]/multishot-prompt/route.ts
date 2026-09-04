@@ -1,6 +1,7 @@
 import { createOpenAI } from "@/lib/openai/server";
 import { resolveMultishotPromptInputs, buildMultishotUserTurn } from "@/lib/nodes/resolve-inputs";
 import { parsePlan, renderPlan, mergeRefinedPlan } from "@/lib/nodes/multishot-plan";
+import { resolvePlanMentions } from "@/lib/nodes/plan-mentions";
 import {
   multishotPromptGenerate,
   MULTISHOT_LOOK_SCHEMA,
@@ -101,7 +102,11 @@ export async function POST(
       refineInstruction({
         scope,
         cutId,
-        note,
+        // The note is authored in the chip editor, so it may carry `@[Shot 2](c2)` tokens. The
+        // model has never seen that syntax — resolved here into "Shot 2 (cutId: c2)", which names
+        // the same shot the turn's own shot list already names. Unresolved, it would reach the
+        // writer as literal markup and be read as prose.
+        note: resolvePlanMentions(note, resolved.cuts),
         plan: previousPlan ?? { look: "", beats: [] },
       });
 
