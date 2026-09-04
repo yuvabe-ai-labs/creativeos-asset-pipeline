@@ -21,6 +21,10 @@ create table node_version_annotations (
   mask_path    text not null,
   note         text not null,
   created_at   timestamptz not null default now(),
+  -- Doubles as THE read index: every read asks "all annotations for these decision
+  -- ids, in pin order", which this unique btree already serves. A separate index on
+  -- (decision_id, seq) would be an exact duplicate — a second write per insert for
+  -- nothing. (0033 needs its own index because no constraint covers its sort order.)
   unique (decision_id, seq),
   -- video-frame rows always carry a timecode and a captured still; image rows never do.
   check (
@@ -28,10 +32,6 @@ create table node_version_annotations (
     or (kind = 'video-frame' and timecode_ms is not null and frame_path is not null)
   )
 );
-
--- Every read asks "all annotations for these decision ids, in pin order".
-create index node_version_annotations_decision_idx
-  on node_version_annotations (decision_id, seq);
 
 -- Same posture as 0033: org-isolation SELECT, writes via service role only.
 alter table node_version_annotations enable row level security;
