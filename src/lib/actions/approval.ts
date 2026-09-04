@@ -136,6 +136,7 @@ export async function setVersionApprovalAction(
               frame_path: stored.framePath,
               mask_path: stored.maskPath,
               note: a.note.trim(),
+              bounds: a.bounds,
             };
           }),
         );

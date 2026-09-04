@@ -19,6 +19,7 @@ function ann(over: Partial<AnnotationPayload> = {}): AnnotationPayload {
     overlayBase64: "aGVsbG8=", // "hello"
     frameBase64: null,
     note: "n",
+    bounds: null,
     ...over,
   };
 }
@@ -34,6 +35,7 @@ function row(over: Partial<AnnotationRow> = {}): AnnotationRow {
     frame_path: null,
     mask_path: "clients/c1/canvases/cv1/nodes/n1/review-annotations/d1/1-mask.png",
     note: "n",
+    bounds: null,
     created_at: "t",
     ...over,
   };

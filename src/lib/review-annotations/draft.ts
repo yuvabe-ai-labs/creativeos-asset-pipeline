@@ -1,10 +1,11 @@
 import type { AnnotationPayload } from "./payload";
 
-// Bounding box of the painted stroke in FRACTIONS of the media's natural size —
-// resolution-independent, so the pin renders correctly at any display scale.
-export type RegionBounds = { x: number; y: number; w: number; h: number };
+// Re-exported from its canonical home in payload.ts — bounds became part of the wire
+// shape in D218, so every importer of RegionBounds keeps working unchanged.
+export type { RegionBounds } from "./payload";
 
-export type AnnotationDraft = AnnotationPayload & { bounds: RegionBounds | null };
+// A draft is now exactly the payload: nothing is stripped at submit any more.
+export type AnnotationDraft = AnnotationPayload;
 
 const renumber = (list: AnnotationDraft[]): AnnotationDraft[] =>
   list.map((d, i) => ({ ...d, seq: i + 1 }));

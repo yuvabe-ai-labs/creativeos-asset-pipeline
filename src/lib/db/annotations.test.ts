@@ -22,6 +22,7 @@ function row(over: Partial<AnnotationRow>): AnnotationRow {
     frame_path: null,
     mask_path: "org-1/d1/1-mask.png",
     note: "logo too small",
+    bounds: null,
     created_at: "2026-09-03T10:00:00Z",
     ...over,
   };

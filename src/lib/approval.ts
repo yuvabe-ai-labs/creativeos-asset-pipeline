@@ -48,6 +48,9 @@ export type DecisionAnnotationSummary = {
   kind: "image" | "video-frame";
   timecodeMs: number | null;
   note: string;
+  // D218: where the region sits, as fractions of the media's natural size. Null on rows
+  // written before D218 — the reader falls back to a left-edge pin stack.
+  bounds: { x: number; y: number; w: number; h: number } | null;
   maskUrl: string | null;
   frameUrl: string | null;
 };

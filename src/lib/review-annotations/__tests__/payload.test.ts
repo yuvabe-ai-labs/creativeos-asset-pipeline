@@ -14,6 +14,7 @@ function ann(over: Partial<AnnotationPayload> = {}): AnnotationPayload {
     overlayBase64: "aGVsbG8=", // "hello"
     frameBase64: null,
     note: "logo too small",
+    bounds: null,
     ...over,
   };
 }
@@ -111,5 +112,37 @@ describe("validateAnnotations", () => {
       note: "test",
     } as unknown as AnnotationPayload;
     expect(validateAnnotations([noTimecode])).toMatch(/timecode/i);
+  });
+});
+
+// D218: bounds are part of the wire shape now — the client used to strip them, which is
+// what left stored pins with no position and stacked them down the left edge.
+describe("validateAnnotations — region bounds", () => {
+  it("accepts fractions inside [0,1], including a zero-area point annotation", () => {
+    expect(
+      validateAnnotations([ann({ bounds: { x: 0.1, y: 0.2, w: 0.3, h: 0.4 } })]),
+    ).toBeNull();
+    expect(
+      validateAnnotations([ann({ bounds: { x: 0.5, y: 0.5, w: 0, h: 0 } })]),
+    ).toBeNull();
+  });
+
+  it("accepts a null bounds (pre-D218 shape, and a defensive no-stroke commit)", () => {
+    expect(validateAnnotations([ann({ bounds: null })])).toBeNull();
+  });
+
+  it("rejects a fraction outside [0,1] — it would render the pin off the media", () => {
+    expect(
+      validateAnnotations([ann({ bounds: { x: 1.4, y: 0.2, w: 0.3, h: 0.4 } })]),
+    ).toMatch(/fractions between 0 and 1/);
+    expect(
+      validateAnnotations([ann({ bounds: { x: -0.1, y: 0.2, w: 0.3, h: 0.4 } })]),
+    ).toMatch(/fractions between 0 and 1/);
+  });
+
+  it("rejects a non-finite bound", () => {
+    expect(
+      validateAnnotations([ann({ bounds: { x: NaN, y: 0.2, w: 0.3, h: 0.4 } })]),
+    ).toMatch(/fractions between 0 and 1/);
   });
 });

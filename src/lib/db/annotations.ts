@@ -1,5 +1,6 @@
 import "server-only";
 import { createServerSupabase } from "@/lib/supabase/server";
+import type { RegionBounds } from "@/lib/review-annotations/payload";
 
 export type AnnotationRow = {
   id: string;
@@ -11,6 +12,8 @@ export type AnnotationRow = {
   frame_path: string | null;
   mask_path: string;
   note: string;
+  // D218: painted bbox in natural-size fractions. Null for pre-D218 rows.
+  bounds: RegionBounds | null;
   created_at: string;
 };
 
@@ -35,7 +38,7 @@ export async function getAnnotationsByDecisionIds(
   const { data, error } = await supabase
     .from("node_version_annotations")
     .select(
-      "id, decision_id, org_id, seq, kind, timecode_ms, frame_path, mask_path, note, created_at",
+      "id, decision_id, org_id, seq, kind, timecode_ms, frame_path, mask_path, note, bounds, created_at",
     )
     .in("decision_id", decisionIds)
     .order("decision_id", { ascending: true })

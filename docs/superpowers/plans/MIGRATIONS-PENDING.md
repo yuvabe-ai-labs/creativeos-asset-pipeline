@@ -35,6 +35,12 @@ Apply through the Supabase SQL editor (paste + Run), in this order. There is no
       generated asset, so `mask_path`/`frame_path` are GCS object paths.
       Feature: review annotations (region + note feedback on a changes_requested decision).
 
+- [ ] **`0036_annotation_bounds.sql`** — D218 (supersedes D216)
+      Adds nullable `bounds jsonb` to `node_version_annotations`. **Depends on 0035.**
+      Without it, stored pins stack at the media's left edge instead of sitting on the
+      region they label. Pure additive `alter table` — safe to run on live data; rows
+      written before it keep the stack fallback.
+
 ---
 
 ## Status: all three milestones are code-complete (2026-08-23)

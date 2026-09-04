@@ -89,6 +89,7 @@ export async function GET(
             kind: a.kind,
             timecodeMs: a.timecode_ms,
             note: a.note,
+            bounds: a.bounds,
             maskUrl: urlsByAnnotation.get(a.id)?.maskUrl ?? null,
             frameUrl: urlsByAnnotation.get(a.id)?.frameUrl ?? null,
           })),

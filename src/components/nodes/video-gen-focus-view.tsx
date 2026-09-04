@@ -847,10 +847,10 @@ export function VideoGenFocusView({
     setApprovalSaving(true);
     try {
       // D211/D212: the frame stills + painted regions ride along with the rejection
-      // they belong to. `bounds` is client-only pin geometry, stripped here.
+      // they belong to, D218: bounds included so stored pins land on their regions.
       const annotations =
         status === "changes_requested" && reviewDrafts.drafts.length > 0
-          ? reviewDrafts.drafts.map(({ bounds: _bounds, ...payload }) => payload)
+          ? reviewDrafts.drafts
           : undefined;
       await setVersionApprovalAction(activeVersionId, { status, note, annotations });
       reviewDrafts.clear();
@@ -1743,8 +1743,8 @@ export function VideoGenFocusView({
                             <AnnotationPin
                               key={a.id}
                               seq={a.seq}
-                              x={0.04}
-                              y={0.06 + i * 0.08}
+                              x={a.bounds ? a.bounds.x + a.bounds.w / 2 : 0.04}
+                              y={a.bounds ? a.bounds.y + a.bounds.h / 2 : 0.06 + i * 0.08}
                             />
                           ))}
                           <div className="absolute bottom-2 left-1/2 -translate-x-1/2">

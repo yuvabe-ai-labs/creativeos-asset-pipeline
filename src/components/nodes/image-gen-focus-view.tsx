@@ -944,11 +944,11 @@ export function ImageGenFocusView({
     setApprovalSaving(true);
     try {
       // D211/D212: drafts ride along with the rejection they belong to - one action, so
-      // there is no window where a decision exists without its annotations. `bounds` is
-      // client-only geometry for the pin; the server stores the overlay, not the box.
+      // there is no window where a decision exists without its annotations. D218: bounds
+      // go WITH them - stripping them here is what left stored pins with nowhere to sit.
       const annotations =
         status === "changes_requested" && reviewDrafts.drafts.length > 0
-          ? reviewDrafts.drafts.map(({ bounds: _bounds, ...payload }) => payload)
+          ? reviewDrafts.drafts
           : undefined;
       await setVersionApprovalAction(activeVersionId, { status, note, annotations });
       reviewDrafts.clear();
@@ -1544,6 +1544,7 @@ export function ImageGenFocusView({
                               seq: a.seq,
                               note: a.note,
                               maskUrl: a.maskUrl,
+                              bounds: a.bounds,
                               authorLine: latestChangeRequest
                                 ? `${latestChangeRequest.reviewerName ?? "Reviewer"} · ${formatRelativeTime(latestChangeRequest.decidedAt)}`
                                 : null,

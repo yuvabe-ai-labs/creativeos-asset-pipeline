@@ -4502,7 +4502,7 @@ server-side frame extraction (a video decode pipeline for a note).
 
 **Originated →** `2026-09-03-review-annotations-design.md`.
 
-### D216 — Stored annotations index by pin stack, not by stored bounds *(recorded 2026-09-04; refines D213)*
+### D216 — Stored annotations index by pin stack, not by stored bounds *(recorded 2026-09-04; refines D213; **SUPERSEDED by D218** on 2026-09-04 — the contingency was taken)*
 
 **Decision.** Annotation rows persist the painted overlay and the note, not the stroke's
 bounding box. On the read side the overlay image *is* the region locator and pins stack
@@ -4542,5 +4542,31 @@ signed-read helper `gcs.ts` does not have, to protect something already public).
 **Consequence.** `ANNOTATION_BUCKET` and `SIGNED_URL_TTL_SECONDS` are gone; migration 0035
 inserts no `storage.buckets` row; `setVersionApprovalAction` reads `node_id` off the
 version row so ownership resolves once per batch.
+
+**Originated →** `2026-09-03-review-annotations-design.md`.
+
+### D218 — Annotation bounds are persisted; pins sit on their own region *(recorded 2026-09-04; supersedes D216, refines D213/D214)*
+
+**Decision.** `node_version_annotations` gains a nullable `bounds jsonb` column (migration
+0036) holding the painted bounding box as fractions of the media's natural size. The
+client stops stripping `bounds` at submit — it is part of the wire shape — and the
+read-only overlay places each pin at the centre of its own region, the same anchor compose
+mode uses. Rows written before this keep the left-edge stack fallback.
+
+**Why.** D216 reasoned that the mask image is the region locator, so a pin only needs to
+be an index into the notes. On real screens that reads as a bug: the regions land
+correctly and the numbered pins sit in a stack at the left edge, visually detached from
+the things they label, so a reviewer's ② appears to have "moved" between writing it and
+reading it. The bounds already exist in compose mode to anchor the note card — the old
+design computed them, used them, then threw them away one function call before the write.
+
+**Rejected.** Recovering a centroid client-side by scanning mask pixels (an image decode
+per annotation per render, to recompute a number we already had); rendering pins only in
+compose mode (the maker is the reader who most needs to know which note is which region).
+
+**Consequence.** `RegionBounds` moves to `payload.ts` as part of the wire shape,
+re-exported from `draft.ts`; `AnnotationDraft` is now exactly `AnnotationPayload`;
+`validateAnnotations` rejects any fraction outside [0,1] so a bad box cannot render a pin
+off the media.
 
 **Originated →** `2026-09-03-review-annotations-design.md`.

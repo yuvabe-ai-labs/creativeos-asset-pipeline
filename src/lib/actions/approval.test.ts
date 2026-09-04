@@ -42,6 +42,7 @@ function ann(over: Partial<AnnotationPayload> = {}): AnnotationPayload {
     overlayBase64: "aGVsbG8=",
     frameBase64: null,
     note: "logo too small",
+    bounds: null,
     ...over,
   };
 }

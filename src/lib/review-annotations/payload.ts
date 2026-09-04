@@ -7,6 +7,11 @@ import {
 
 export type AnnotationKind = "image" | "video-frame";
 
+// Bounding box of the painted stroke in FRACTIONS of the media's natural size —
+// resolution-independent, so the pin renders correctly at any display scale. Lives here
+// rather than in draft.ts because it is part of the WIRE shape now (D218): the client
+// used to strip it at submit, which left stored rows with no geometry for their pins.
+
 // The wire shape a senior's client sends with "Request changes" (D211/D213).
 // overlayBase64 is the PAINTED OVERLAY png (alpha > 0 = region) — display-ready,
 // and convertible to the OpenAI mask by overlayToMaskRGBA at replay time (D209).
@@ -17,7 +22,18 @@ export type AnnotationPayload = {
   overlayBase64: string;
   frameBase64: string | null;
   note: string;
+  // Null when the stroke produced no measurable box (defensive — the composer only
+  // commits after a stroke), and on rows written before D218.
+  bounds: RegionBounds | null;
 };
+
+export type RegionBounds = { x: number; y: number; w: number; h: number };
+
+// Fractions, so anything outside [0,1] would render a pin off the media. Width/height of
+// 0 is allowed: a single tap is a legitimate point annotation.
+function boundsInvalid(b: RegionBounds): boolean {
+  return [b.x, b.y, b.w, b.h].some((n) => !Number.isFinite(n) || n < 0 || n > 1);
+}
 
 export function base64Bytes(b64: string): number {
   if (!b64) return 0;
@@ -49,6 +65,9 @@ export function validateAnnotations(anns: AnnotationPayload[]): string | null {
       if (a.frameBase64 == null) return `Annotation ${a.seq} is missing its captured frame.`;
     } else {
       return `Annotation ${a.seq} has an unknown kind.`;
+    }
+    if (a.bounds && boundsInvalid(a.bounds)) {
+      return `Annotation ${a.seq}: region bounds must be fractions between 0 and 1.`;
     }
     const maskBytes = base64Bytes(a.overlayBase64);
     const frameBytes = base64Bytes(a.frameBase64 ?? "");
