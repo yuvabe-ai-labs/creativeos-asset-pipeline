@@ -117,9 +117,13 @@ export function RefineWithAI({
 
         <div className="mt-2 flex items-center justify-between">
           <span className="text-[0.6rem] text-muted-foreground">⌘↵ to submit</span>
+          {/* Gate on busy and disabled too, not just empty note. The trigger's gate only stops a
+              popover from being opened; this one stops a submit from an already-open popover once
+              a rewrite is in flight. This matters because the parent shares one in-flight flag
+              across every card on the node. */}
           <Button
             onClick={submit}
-            disabled={!note.trim()}
+            disabled={!note.trim() || busy || disabled}
             className="h-auto gap-1 rounded-md px-2.5 py-1 text-xs disabled:opacity-40"
           >
             <Sparkles className="size-3" strokeWidth={1.5} />
