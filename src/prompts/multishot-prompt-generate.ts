@@ -212,11 +212,35 @@ export function refineInstruction(args: {
 
   if (scope === "all") {
     const trimmed = note.trim();
-    // A full generate has no plan to preserve, so it gets the note WITHOUT the narrow scopes'
-    // "everything else stays as it is" framing and without the plan JSON — but it must still get
-    // the note. Returning "" here meant the header's whole-sequence refine billed a plain
-    // regenerate while its version row recorded a steer that never reached the model.
-    return trimmed ? `\n\nFor this generation in particular: ${trimmed}` : "";
+    // No note is a plain Generate — nothing to preserve and nothing to steer, so the turn is left
+    // exactly as it was. Deliberately NOT sending the old plan here: a regenerate should write
+    // fresh, and handing it the previous output would anchor it to what it just replaced.
+    if (!trimmed) return "";
+
+    const blocks: string[] = [];
+
+    // With a note AND an existing plan, the operator can steer part of the sequence — "change
+    // shots 5 and 6". That only works if the writer can SEE the beats it is meant to leave alone,
+    // so the plan travels and the instruction below asks for them back verbatim.
+    //
+    // Honest about the limit: this is an instruction, not a guarantee. The per-shot ✦ uses a
+    // schema that cannot contain another beat, so nothing else CAN change; here the model is
+    // being asked to copy, and a model asked to copy sometimes tidies. Use the per-shot control
+    // when a beat must not move.
+    if (plan.beats.length > 0) {
+      blocks.push(`The current plan is below.\n\n${JSON.stringify(plan, null, 2)}`);
+      blocks.push(
+        "If the change above names particular shots, rewrite ONLY those. Reproduce every other " +
+          "beat EXACTLY as it appears in that plan — the same sentence, word for word, character " +
+          "for character. Do not reword it, do not tidy it, do not improve it, do not restate it " +
+          "in your own phrasing. A beat you were not asked to change must come back byte-identical. " +
+          "The same applies to the look block: leave it exactly as it is unless the change asks " +
+          "for it. If the change names no shot in particular, rewrite the whole sequence.",
+      );
+    }
+
+    blocks.push(`For this generation in particular: ${trimmed}`);
+    return `\n\n${blocks.join("\n\n")}`;
   }
 
   if (scope === "cut" && !cutId) {

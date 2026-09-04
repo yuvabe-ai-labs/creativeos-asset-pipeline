@@ -412,7 +412,11 @@ export function MultishotPromptFocusView({
     try {
       const json = await postMultishotPrompt(
         scope === "all"
-          ? { note: opts.note }
+          ? // The plan rides along on a whole-sequence refine too, but only as CONTEXT: it is what
+            // lets a note like "change shots 5 and 6" name beats the writer can then copy back
+            // verbatim. Omitted when there is none (the first generate) and ignored by the route
+            // when there is no note, so a plain Generate still writes fresh.
+            { note: opts.note, ...(planDraft ? { plan: planDraft } : {}) }
           : { scope, cutId: opts.cutId, note: opts.note, plan: planDraft! },
       );
       setPlanDraft(json.plan);
