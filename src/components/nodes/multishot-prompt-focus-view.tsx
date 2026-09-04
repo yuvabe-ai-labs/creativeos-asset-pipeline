@@ -649,7 +649,7 @@ export function MultishotPromptFocusView({
                     <div className="ml-auto">
                       <Button
                         onClick={runGenerate}
-                        disabled={generating || isReadOnly || cuts.length === 0}
+                        disabled={generating || isReadOnly || cuts.length === 0 || !!refining}
                       >
                         <ListVideo className="size-4" />
                         {generating
@@ -826,12 +826,17 @@ export function MultishotPromptFocusView({
                               </div>
                             )}
                           </div>
+                          {/* Locked for the duration of ANY refine, not just a look-scoped one — a
+                              keystroke here during a beat or whole-plan refine still gets persisted
+                              to planDraft, and then silently discarded the instant the refine
+                              resolves and overwrites the whole plan with the snapshot it captured
+                              before the edit. */}
                           <MentionInstructionEditor
                             value={planDraft.look}
                             onChange={updateLook}
                             upstream={upstream}
                             dialect={imageRefDialect(refIds)}
-                            disabled={isReadOnly}
+                            disabled={isReadOnly || !!refining}
                           />
                           <p className="mt-2 text-[0.65rem] text-muted-foreground">
                             Governs every beat below.
