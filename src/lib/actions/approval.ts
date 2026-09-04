@@ -87,7 +87,7 @@ export async function setVersionApprovalAction(
 
     // The decision id is pre-generated so asset paths can reference it (D214).
     const decisionId = randomUUID();
-    let uploaded: { seq: number; maskPath: string; framePath: string | null }[] = [];
+    let uploaded: { seq: number; maskPath: string }[] = [];
     if (annotations.length > 0) {
       if (!versionRow.node_id) throw new Error("Version not found.");
       // Assets land in GCS under the node they annotate, via the same lib/storage module
@@ -133,7 +133,8 @@ export async function setVersionApprovalAction(
               seq: a.seq,
               kind: a.kind,
               timecode_ms: a.timecodeMs,
-              frame_path: stored.framePath,
+              // D219: no captured still is stored; the reader seeks to timecode_ms.
+              frame_path: null,
               mask_path: stored.maskPath,
               note: a.note.trim(),
               bounds: a.bounds,

@@ -8,7 +8,6 @@ function draft(over: Partial<AnnotationDraft> = {}): AnnotationDraft {
     kind: "image",
     timecodeMs: null,
     overlayBase64: "aGVsbG8=",
-    frameBase64: null,
     note: "n",
     bounds: { x: 0.1, y: 0.1, w: 0.2, h: 0.2 },
     ...over,

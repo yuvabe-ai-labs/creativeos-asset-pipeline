@@ -19,7 +19,7 @@ export function useAnnotationDrafts() {
       bounds: RegionBounds | null,
       overlayBase64: string,
       note: string,
-      extra?: { kind: "video-frame"; timecodeMs: number; frameBase64: string },
+      extra?: { kind: "video-frame"; timecodeMs: number },
     ) => {
       setDrafts((prev) =>
         commitDraft(prev, {
@@ -27,7 +27,6 @@ export function useAnnotationDrafts() {
           kind: extra?.kind ?? "image",
           timecodeMs: extra?.timecodeMs ?? null,
           overlayBase64,
-          frameBase64: extra?.frameBase64 ?? null,
           note,
           bounds,
         }),

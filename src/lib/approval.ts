@@ -52,7 +52,6 @@ export type DecisionAnnotationSummary = {
   // written before D218 — the reader falls back to a left-edge pin stack.
   bounds: { x: number; y: number; w: number; h: number } | null;
   maskUrl: string | null;
-  frameUrl: string | null;
 };
 
 export type VersionDecisionSummary = {

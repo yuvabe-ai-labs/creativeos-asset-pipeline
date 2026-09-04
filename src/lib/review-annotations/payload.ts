@@ -1,6 +1,5 @@
 import {
   MAX_ANNOTATIONS_PER_DECISION,
-  MAX_FRAME_BYTES,
   MAX_MASK_BYTES,
   MAX_TOTAL_BYTES,
 } from "./constants";
@@ -20,7 +19,6 @@ export type AnnotationPayload = {
   kind: AnnotationKind;
   timecodeMs: number | null;
   overlayBase64: string;
-  frameBase64: string | null;
   note: string;
   // Null when the stroke produced no measurable box (defensive — the composer only
   // commits after a stroke), and on rows written before D218.
@@ -57,12 +55,13 @@ export function validateAnnotations(anns: AnnotationPayload[]): string | null {
     seen.add(a.seq);
     if (!a.note.trim()) return `Annotation ${a.seq} has an empty note.`;
     if (a.kind === "image") {
-      if (a.timecodeMs != null || a.frameBase64 != null) {
-        return `Annotation ${a.seq}: image annotations carry no timecode or frame.`;
+      if (a.timecodeMs != null) {
+        return `Annotation ${a.seq}: image annotations carry no timecode.`;
       }
     } else if (a.kind === "video-frame") {
+      // D219: no captured still travels any more — the reader seeks the video to this
+      // timecode, so the timecode IS the frame reference.
       if (a.timecodeMs == null) return `Annotation ${a.seq} is missing its timecode.`;
-      if (a.frameBase64 == null) return `Annotation ${a.seq} is missing its captured frame.`;
     } else {
       return `Annotation ${a.seq} has an unknown kind.`;
     }
@@ -70,12 +69,10 @@ export function validateAnnotations(anns: AnnotationPayload[]): string | null {
       return `Annotation ${a.seq}: region bounds must be fractions between 0 and 1.`;
     }
     const maskBytes = base64Bytes(a.overlayBase64);
-    const frameBytes = base64Bytes(a.frameBase64 ?? "");
     if (maskBytes === 0) return `Annotation ${a.seq} has an empty mask.`;
     if (maskBytes > MAX_MASK_BYTES) return `Annotation ${a.seq}: mask exceeds 1 MB.`;
-    if (frameBytes > MAX_FRAME_BYTES) return `Annotation ${a.seq}: frame exceeds 2 MB.`;
-    total += maskBytes + frameBytes;
+    total += maskBytes;
   }
-  if (total > MAX_TOTAL_BYTES) return "Annotations exceed the 8 MB payload limit.";
+  if (total > MAX_TOTAL_BYTES) return "Annotations exceed the 3 MB payload limit.";
   return null;
 }

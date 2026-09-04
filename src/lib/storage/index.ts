@@ -217,28 +217,23 @@ export async function signClientBrandAssetUpload(args: {
 export async function uploadReviewAnnotationAssets(args: {
   nodeId: string;
   decisionId: string;
-  assets: { seq: number; mask: Buffer; frame: Buffer | null }[];
-}): Promise<{ seq: number; maskPath: string; framePath: string | null }[]> {
+  assets: { seq: number; mask: Buffer }[];
+}): Promise<{ seq: number; maskPath: string }[]> {
   if (args.assets.length === 0) return [];
   const { clientId, canvasId } = await resolveOwnership(args.nodeId);
-  const pathFor = (seq: number, asset: "mask" | "frame") =>
+  const pathFor = (seq: number) =>
     pathForReviewAnnotation({
       clientId,
       canvasId,
       nodeId: args.nodeId,
       decisionId: args.decisionId,
       seq,
-      asset,
     });
 
-  const out: { seq: number; maskPath: string; framePath: string | null }[] = [];
+  const out: { seq: number; maskPath: string }[] = [];
   for (const a of args.assets) {
-    const mask = await _upload(pathFor(a.seq, "mask"), a.mask, "image/png");
-    let framePath: string | null = null;
-    if (a.frame) {
-      framePath = (await _upload(pathFor(a.seq, "frame"), a.frame, "image/png")).path;
-    }
-    out.push({ seq: a.seq, maskPath: mask.path, framePath });
+    const mask = await _upload(pathFor(a.seq), a.mask, "image/png");
+    out.push({ seq: a.seq, maskPath: mask.path });
   }
   return out;
 }

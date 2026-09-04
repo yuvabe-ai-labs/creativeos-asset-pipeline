@@ -90,8 +90,7 @@ export async function GET(
             timecodeMs: a.timecode_ms,
             note: a.note,
             bounds: a.bounds,
-            maskUrl: urlsByAnnotation.get(a.id)?.maskUrl ?? null,
-            frameUrl: urlsByAnnotation.get(a.id)?.frameUrl ?? null,
+            maskUrl: urlsByAnnotation.get(a.id) ?? null,
           })),
         })),
         // One column, two shapes: the LLM-backed nodes write the `request` envelope, while

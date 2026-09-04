@@ -12,7 +12,6 @@ function ann(over: Partial<AnnotationPayload> = {}): AnnotationPayload {
     kind: "image",
     timecodeMs: null,
     overlayBase64: "aGVsbG8=", // "hello"
-    frameBase64: null,
     note: "logo too small",
     bounds: null,
     ...over,
@@ -32,11 +31,9 @@ describe("validateAnnotations", () => {
     expect(validateAnnotations([ann()])).toBeNull();
   });
 
-  it("accepts a well-formed video-frame annotation", () => {
+  it("accepts a well-formed video-frame annotation — timecode, no stored frame", () => {
     expect(
-      validateAnnotations([
-        ann({ kind: "video-frame", timecodeMs: 4000, frameBase64: "aGVsbG8=" }),
-      ]),
+      validateAnnotations([ann({ kind: "video-frame", timecodeMs: 4000 })]),
     ).toBeNull();
   });
 
@@ -44,18 +41,16 @@ describe("validateAnnotations", () => {
     expect(validateAnnotations([ann({ note: "  " })])).toMatch(/note/i);
   });
 
-  it("rejects image annotations carrying video fields", () => {
+  it("rejects an image annotation carrying a timecode", () => {
     expect(validateAnnotations([ann({ timecodeMs: 1000 })])).toMatch(/image/i);
-    expect(validateAnnotations([ann({ frameBase64: "aGVsbG8=" })])).toMatch(/image/i);
   });
 
-  it("rejects video-frame annotations missing timecode or frame", () => {
+  // D219: the timecode is the ONLY frame reference now — a video annotation without one
+  // points at nothing, so this is the check that keeps the reader able to seek.
+  it("rejects a video-frame annotation missing its timecode", () => {
     expect(
-      validateAnnotations([ann({ kind: "video-frame", frameBase64: "aGVsbG8=" })]),
+      validateAnnotations([ann({ kind: "video-frame", timecodeMs: null })]),
     ).toMatch(/timecode/i);
-    expect(
-      validateAnnotations([ann({ kind: "video-frame", timecodeMs: 4000 })]),
-    ).toMatch(/frame/i);
   });
 
   it("rejects non-contiguous or duplicate seq", () => {
@@ -84,22 +79,9 @@ describe("validateAnnotations", () => {
       kind: "something-else",
       timecodeMs: null,
       overlayBase64: "aGVsbG8=",
-      frameBase64: null,
       note: "test",
     } as unknown as AnnotationPayload;
     expect(validateAnnotations([unknown])).toMatch(/kind/i);
-  });
-
-  it("rejects video-frame with omitted frameBase64 (undefined)", () => {
-    const noFrame = {
-      seq: 1,
-      kind: "video-frame",
-      timecodeMs: 4000,
-      overlayBase64: "aGVsbG8=",
-      frameBase64: undefined,
-      note: "test",
-    } as unknown as AnnotationPayload;
-    expect(validateAnnotations([noFrame])).toMatch(/frame/i);
   });
 
   it("rejects video-frame with omitted timecodeMs (undefined)", () => {

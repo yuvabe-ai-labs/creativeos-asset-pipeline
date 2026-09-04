@@ -1615,7 +1615,6 @@ export function VideoGenFocusView({
                                     reviewDrafts.commit(pendingBounds, overlay, noteText, {
                                       kind: "video-frame",
                                       timecodeMs: capturedFrame.timecodeMs,
-                                      frameBase64: capturedFrame.base64,
                                     });
                                     reviewCanvasRef.current?.clear();
                                   }
@@ -1712,22 +1711,17 @@ export function VideoGenFocusView({
                         </div>
                       )}
 
-                      {/* Read path: the stored still for the chosen timecode, with its
-                          regions painted back on. Sits over the paused player so the
-                          maker never has to hunt for the frame the note is about. */}
+                      {/* Read path (D219): the regions painted straight onto the PLAYER,
+                          which the chip has already seeked and paused at this timecode.
+                          No stored still — a full-res frame could not ride the action body
+                          in the first place, and the version's video is immutable, so the
+                          timecode always resolves to the same picture.
+
+                          pointer-events-none: this layer must not swallow clicks on the
+                          native controls underneath, so dismissal is the button below and
+                          pressing play (onPlay clears openTimecode). */}
                       {openGroup.length > 0 && (
-                        <div
-                          className="absolute inset-0 z-30 rounded-xl bg-background/95"
-                          onClick={() => setOpenTimecode(null)}
-                        >
-                          {openGroup[0].frameUrl && (
-                            /* eslint-disable-next-line @next/next/no-img-element */
-                            <img
-                              src={openGroup[0].frameUrl}
-                              alt={`Frame at ${formatTimecode(openTimecode as number)}`}
-                              className="absolute inset-0 size-full rounded-xl object-contain"
-                            />
-                          )}
+                        <div className="pointer-events-none absolute inset-0 z-30 rounded-xl">
                           {openGroup.map((a) =>
                             a.maskUrl ? (
                               /* eslint-disable-next-line @next/next/no-img-element */
@@ -1747,7 +1741,7 @@ export function VideoGenFocusView({
                               y={a.bounds ? a.bounds.y + a.bounds.h / 2 : 0.06 + i * 0.08}
                             />
                           ))}
-                          <div className="absolute bottom-2 left-1/2 -translate-x-1/2">
+                          <div className="pointer-events-auto absolute bottom-12 left-1/2 -translate-x-1/2">
                             <Button
                               type="button"
                               variant="outline"
@@ -1755,8 +1749,7 @@ export function VideoGenFocusView({
                               className="bg-background/80 backdrop-blur-sm"
                               onClick={() => setOpenTimecode(null)}
                             >
-                              Back to video ·{" "}
-                              {formatTimecode(openTimecode as number)}
+                              Hide regions · {formatTimecode(openTimecode as number)}
                             </Button>
                           </div>
                         </div>

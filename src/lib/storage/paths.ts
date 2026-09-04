@@ -124,11 +124,13 @@ export function pathForBrandAsset(args: {
 }
 
 /**
- * Where a review annotation's painted overlay (and, for video, its captured frame) lives.
- * Under the node it annotates, so the assets sit beside the image or video they mark up.
+ * Where a review annotation's painted overlay lives — under the node it annotates, so the
+ * mask sits beside the image or video it marks up.
  *
  * No timestamp suffix, unlike the upload paths: an annotation asset is immutable and
- * uniquely named by (decision, seq, asset), the same reasoning as pathForMarketThumb.
+ * uniquely named by (decision, seq), the same reasoning as pathForMarketThumb.
+ *
+ * D219: video annotations store no captured still, so the mask is the only asset.
  */
 export function pathForReviewAnnotation(args: {
   clientId: string;
@@ -136,9 +138,8 @@ export function pathForReviewAnnotation(args: {
   nodeId: string;
   decisionId: string;
   seq: number;
-  asset: "mask" | "frame";
 }): string {
-  return `clients/${args.clientId}/canvases/${args.canvasId}/nodes/${args.nodeId}/review-annotations/${args.decisionId}/${args.seq}-${args.asset}.png`;
+  return `clients/${args.clientId}/canvases/${args.canvasId}/nodes/${args.nodeId}/review-annotations/${args.decisionId}/${args.seq}-mask.png`;
 }
 
 export function pathForMarketThumb(args: {

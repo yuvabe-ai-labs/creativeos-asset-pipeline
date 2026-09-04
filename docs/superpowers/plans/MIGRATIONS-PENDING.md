@@ -41,6 +41,13 @@ Apply through the Supabase SQL editor (paste + Run), in this order. There is no
       region they label. Pure additive `alter table` — safe to run on live data; rows
       written before it keep the stack fallback.
 
+- [ ] **`0037_annotation_no_stored_frame.sql`** — D219
+      Relaxes 0035's CHECK so `kind='video-frame'` no longer requires `frame_path`.
+      **Depends on 0035.** Without it, EVERY video annotation insert fails the constraint.
+      Drops and recreates one named constraint — verify the name is
+      `node_version_annotations_check` first (`\d node_version_annotations`); it is the
+      auto-generated name for 0035's single table-level check.
+
 ---
 
 ## Status: all three milestones are code-complete (2026-08-23)

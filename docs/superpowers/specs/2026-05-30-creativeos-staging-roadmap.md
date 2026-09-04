@@ -4570,3 +4570,33 @@ re-exported from `draft.ts`; `AnnotationDraft` is now exactly `AnnotationPayload
 off the media.
 
 **Originated →** `2026-09-03-review-annotations-design.md`.
+
+### D219 — Video annotations store no captured frame; the reader seeks the timecode *(recorded 2026-09-04; supersedes the stored-still half of D210, refines D211/D214)*
+
+**Decision.** A video annotation persists its mask and `timecode_ms` only. The captured
+still stays a compose-time canvas base that never leaves the browser; on read, the chip
+seeks the player to the timecode and the mask is painted over the live video. Migration
+0037 relaxes 0035's CHECK so `frame_path` is no longer required for `kind='video-frame'`.
+`next.config.ts` sets `serverActions.bodySizeLimit: "4mb"` and `MAX_TOTAL_BYTES` drops
+8 MB → 3 MB; `MAX_FRAME_BYTES` is gone.
+
+**Why.** Video annotation could never have worked as designed. The still was a
+full-resolution PNG riding the Server Action body: a 1080×1920 photographic frame is
+2–4 MB before base64 adds a third, so **one** annotation exceeded both Next's 1 MB
+`serverActions.bodySizeLimit` and Vercel's hard 4.5 MB function request-body cap. The
+spec's §5.3 caps (2 MB/frame, 8 MB total, 20 annotations) were written without checking
+either limit — the same unverified-premise failure as D215/D217. The still was also
+redundant: the row already carries the timecode, and a version's video URL is immutable,
+so the frame is reproducible by seeking.
+
+**Trade-off accepted.** `video.currentTime = X` is frame-accurate in practice but can
+drift a frame or two across codecs/browsers. For region-level feedback on short reels
+that is acceptable; it would not be for frame-exact work.
+
+**Rejected.** Raising `bodySizeLimit` alone (would convert a clear dev error into a
+production 413 — one frame exceeds even Vercel's ceiling); direct-to-GCS signed upload of
+frames via `uploadViaSignedUrl` (correct, and the repo's documented pattern for large
+uploads — but it adds a sign endpoint, a finalize hop and a way to mint the storage path
+before `decisionId` exists, all to keep data we can regenerate by seeking).
+
+**Originated →** `2026-09-03-review-annotations-design.md`.
