@@ -11,11 +11,11 @@ const CARD_W = "14rem"; // w-56
 const HALF_CARD_W = "7rem";
 const EDGE = "0.5rem"; // breathing room from the media's edge
 
-// Anchored note card (D213). This is a positioned card, not a Popover primitive — it
+// Anchored note card (D243). This is a positioned card, not a Popover primitive — it
 // anchors to painted pixels, not to a trigger element.
 //
 // It lives INSIDE the media's overflow-hidden frame, so anything that escapes is clipped
-// rather than merely overflowing (D221). Staying inside is therefore not cosmetic, and
+// rather than merely overflowing (D251). Staying inside is therefore not cosmetic, and
 // fraction math cannot do it: the card is a fixed 224px while the frame's width varies
 // with the image's aspect and the panel size, so "never past 62%" is wrong at every size
 // but one.

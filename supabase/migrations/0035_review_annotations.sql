@@ -1,14 +1,14 @@
--- D209–D214: region + note feedback attached to a changes_requested decision.
+-- D239–D244: region + note feedback attached to a changes_requested decision.
 -- Child of node_version_decisions (0033); one row per painted region ("pin").
 --
 -- mask_path/frame_path are GCS object paths under the node the annotation marks up —
--- the same bucket and lib/storage module the generated image or video itself uses (D217).
+-- the same bucket and lib/storage module the generated image or video itself uses (D247).
 --
 -- mask_path stores the PAINTED OVERLAY png (alpha > 0 = the region), NOT the
 -- OpenAI edit mask. The overlay renders directly as the read-only region layer,
 -- and overlayToMaskRGBA (src/lib/image-gen/mask.ts) converts it to the OpenAI
 -- alpha convention at replay time — one stored asset serves display now and
--- AI replay later (D209).
+-- AI replay later (D239).
 
 create table node_version_annotations (
   id           uuid primary key default gen_random_uuid(),
@@ -43,4 +43,4 @@ create policy "org isolation" on node_version_annotations for select
 
 -- No bucket row: overlay + frame PNGs live in GCS alongside every other generated asset
 -- (see src/lib/storage), so mask_path/frame_path are GCS object paths, not Supabase
--- Storage keys. D217.
+-- Storage keys. D247.

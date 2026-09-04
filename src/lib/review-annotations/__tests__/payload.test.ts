@@ -45,7 +45,7 @@ describe("validateAnnotations", () => {
     expect(validateAnnotations([ann({ timecodeMs: 1000 })])).toMatch(/image/i);
   });
 
-  // D219: the timecode is the ONLY frame reference now — a video annotation without one
+  // D249: the timecode is the ONLY frame reference now — a video annotation without one
   // points at nothing, so this is the check that keeps the reader able to seek.
   it("rejects a video-frame annotation missing its timecode", () => {
     expect(
@@ -97,7 +97,7 @@ describe("validateAnnotations", () => {
   });
 });
 
-// D218: bounds are part of the wire shape now — the client used to strip them, which is
+// D248: bounds are part of the wire shape now — the client used to strip them, which is
 // what left stored pins with no position and stacked them down the left edge.
 describe("validateAnnotations — region bounds", () => {
   it("accepts fractions inside [0,1], including a zero-area point annotation", () => {
@@ -109,7 +109,7 @@ describe("validateAnnotations — region bounds", () => {
     ).toBeNull();
   });
 
-  it("accepts a null bounds (pre-D218 shape, and a defensive no-stroke commit)", () => {
+  it("accepts a null bounds (pre-D248 shape, and a defensive no-stroke commit)", () => {
     expect(validateAnnotations([ann({ bounds: null })])).toBeNull();
   });
 

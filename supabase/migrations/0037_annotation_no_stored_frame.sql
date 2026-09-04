@@ -1,4 +1,4 @@
--- D219 (supersedes the stored-still half of D210 / spec §4.2): video annotations no
+-- D249 (supersedes the stored-still half of D240 / spec §4.2): video annotations no
 -- longer store a captured frame.
 --
 -- The frame was a full-resolution PNG riding the Server Action body. A 1080x1920
@@ -24,4 +24,4 @@ alter table node_version_annotations
   );
 
 comment on column node_version_annotations.frame_path is
-  'Unused since D219 — always null. The reader seeks the video to timecode_ms instead of loading a stored still.';
+  'Unused since D249 — always null. The reader seeks the video to timecode_ms instead of loading a stored still.';

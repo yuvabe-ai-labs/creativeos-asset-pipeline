@@ -29,19 +29,19 @@ Apply through the Supabase SQL editor (paste + Run), in this order. There is no
       Verify queries: `docs/auth-production-migration.md` § "Migration 0031".
       **Blocks:** every pending count, the review drawer, the navbar inbox.
 
-- [x] **`0035_review_annotations.sql`** — D209–D217 — **APPLIED 2026-09-04**
-      `node_version_annotations` table + org-isolation RLS. **No storage bucket** (D217):
+- [x] **`0035_review_annotations.sql`** — D239–D247 — **APPLIED 2026-09-04**
+      `node_version_annotations` table + org-isolation RLS. **No storage bucket** (D247):
       overlay and frame PNGs go to GCS through `src/lib/storage`, like every other
       generated asset, so `mask_path`/`frame_path` are GCS object paths.
       Feature: review annotations (region + note feedback on a changes_requested decision).
 
-- [x] **`0036_annotation_bounds.sql`** — D218 (supersedes D216) — **APPLIED 2026-09-04**
+- [x] **`0036_annotation_bounds.sql`** — D248 (supersedes D246) — **APPLIED 2026-09-04**
       Adds nullable `bounds jsonb` to `node_version_annotations`. **Depends on 0035.**
       Without it, stored pins stack at the media's left edge instead of sitting on the
       region they label. Pure additive `alter table` — safe to run on live data; rows
       written before it keep the stack fallback.
 
-- [x] **`0037_annotation_no_stored_frame.sql`** — D219 — **APPLIED 2026-09-04**
+- [x] **`0037_annotation_no_stored_frame.sql`** — D249 — **APPLIED 2026-09-04**
       Relaxes 0035's CHECK so `kind='video-frame'` no longer requires `frame_path`.
       **Depends on 0035.** Without it, EVERY video annotation insert fails the constraint.
       Drops and recreates one named constraint — verify the name is

@@ -12,13 +12,13 @@ export type AnnotationRow = {
   frame_path: string | null;
   mask_path: string;
   note: string;
-  // D218: painted bbox in natural-size fractions. Null for pre-D218 rows.
+  // D248: painted bbox in natural-size fractions. Null for pre-D248 rows.
   bounds: RegionBounds | null;
   created_at: string;
 };
 
 // STRICT, unlike insertDecision's best-effort posture: annotations ARE the feedback,
-// not observability, so the caller (setVersionApprovalAction) lets this throw (D214).
+// not observability, so the caller (setVersionApprovalAction) lets this throw (D244).
 export async function insertAnnotations(
   rows: Omit<AnnotationRow, "id" | "created_at">[],
 ): Promise<void> {

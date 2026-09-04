@@ -391,7 +391,7 @@ export function VideoGenFocusView({
   const [promptNode, setPromptNode] = useState<UpstreamPromptNode | null>(null);
   const [versions, setVersions] = useState<VideoGenVersionSummary[]>([]);
   const [activeVersionId, setActiveVersionId] = useState<string | null>(null);
-  // ── D213 review annotations (video): paint on a PAUSED FRAME, not the player ──
+  // ── D243 review annotations (video): paint on a PAUSED FRAME, not the player ──
   const videoRef = useRef<HTMLVideoElement>(null);
   const [videoPaused, setVideoPaused] = useState(true);
   const [videoDurationMs, setVideoDurationMs] = useState(0);
@@ -402,7 +402,7 @@ export function VideoGenFocusView({
   } | null>(null);
   const [pendingBounds, setPendingBounds] = useState<RegionBounds | null>(null);
   const [openTimecode, setOpenTimecode] = useState<number | null>(null);
-  // D220: which stored annotation's note is open, shared by the list and the player
+  // D250: which stored annotation's note is open, shared by the list and the player
   // overlay — the same contract the image view uses, so both surfaces behave alike.
   const [openAnnotationSeq, setOpenAnnotationSeq] = useState<number | null>(null);
   const reviewCanvasRef = useRef<AnnotationHandle>(null);
@@ -850,8 +850,8 @@ export function VideoGenFocusView({
     if (!activeVersionId) return;
     setApprovalSaving(true);
     try {
-      // D211/D212: the frame stills + painted regions ride along with the rejection
-      // they belong to, D218: bounds included so stored pins land on their regions.
+      // D241/D242: the frame stills + painted regions ride along with the rejection
+      // they belong to, D248: bounds included so stored pins land on their regions.
       const annotations =
         status === "changes_requested" && reviewDrafts.drafts.length > 0
           ? reviewDrafts.drafts
@@ -1044,7 +1044,7 @@ export function VideoGenFocusView({
   // focus views. Undefined until the versions fetch lands, or on a node that never generated.
   const activeVersion = versions.find((v) => v.id === activeVersionId);
 
-  // D214 read path: the standing change request on the active version and its stored
+  // D244 read path: the standing change request on the active version and its stored
   // frame annotations — derived from the versions list the history panel already has.
   const latestChangeRequest =
     activeVersion?.decisions?.find((d) => d.status === "changes_requested") ?? null;
@@ -1730,7 +1730,7 @@ export function VideoGenFocusView({
                         </div>
                       )}
 
-                      {/* Read path (D219): the regions painted straight onto the PLAYER,
+                      {/* Read path (D249): the regions painted straight onto the PLAYER,
                           which the chip has already seeked and paused at this timecode.
                           No stored still — a full-res frame could not ride the action body
                           in the first place, and the version's video is immutable, so the
@@ -1766,7 +1766,7 @@ export function VideoGenFocusView({
                               }
                             />
                           ))}
-                          {/* The note itself, on the frame it belongs to (D220). */}
+                          {/* The note itself, on the frame it belongs to (D250). */}
                           {openGroup
                             .filter((a) => a.seq === openAnnotationSeq)
                             .map((a, i) => (

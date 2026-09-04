@@ -15,7 +15,7 @@ export type DecisionRow = {
 // setVersionApprovalAction catches and logs any error this throws rather than letting a
 // logging failure block or fail the approve/reject action itself.
 export async function insertDecision(input: {
-  id?: string; // pre-generated when annotations must reference the decision before it exists (D214)
+  id?: string; // pre-generated when annotations must reference the decision before it exists (D244)
   versionId: string;
   orgId: string;
   status: "approved" | "changes_requested";

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const mockCaller = vi.fn();
 const mockFrom = vi.fn();
-// D217: annotation assets go to GCS through lib/storage, like every other generated
+// D247: annotation assets go to GCS through lib/storage, like every other generated
 // asset — there is no Supabase Storage client in this action any more.
 const mockUploadAssets = vi.fn();
 vi.mock("@/lib/review-annotations/storage", () => ({
@@ -19,7 +19,7 @@ vi.mock("@/lib/supabase/server", () => ({
 vi.mock("@/lib/actions/with-action", () => ({
   withAction: (_name: string, fn: () => Promise<unknown>) => fn(),
 }));
-// D211-D214: annotations ride this action, but their DB writes are exercised as unit
+// D241-D244: annotations ride this action, but their DB writes are exercised as unit
 // tests of insertDecision/insertAnnotations themselves (decisions.test.ts,
 // annotations.test.ts) — here we only assert THIS action calls them correctly.
 const mockInsertDecision = vi.fn(async (input: unknown) => void input);

@@ -8,7 +8,7 @@
 
 **Tech Stack:** Next.js server actions, Supabase (Postgres + Storage, service-role writes), React 19, vitest. No new dependencies.
 
-**Spec:** `docs/superpowers/specs/2026-09-03-review-annotations-design.md` (ADRs D209–D214 in the roadmap §7 log). Read it before starting.
+**Spec:** `docs/superpowers/specs/2026-09-03-review-annotations-design.md` (ADRs D239–D244 in the roadmap §7 log). Read it before starting.
 
 ## Global Constraints
 
@@ -17,7 +17,7 @@
 - Motion: CSS/`motion` easing `cubic-bezier(0.22,1,0.36,1)` only; durations 200/320/500ms; no springs.
 - Import, don't redefine: constants live in `src/lib/review-annotations/constants.ts`; nothing is re-declared locally.
 - Caps (verbatim from spec §5.3): mask ≤ 1 MB, frame ≤ 2 MB each, ≤ 20 annotations per decision, total action payload ≤ 8 MB.
-- Annotations attach **only** to `changes_requested` (D212). Uploads happen **before** any DB write; any upload failure fails the whole action (D214).
+- Annotations attach **only** to `changes_requested` (D242). Uploads happen **before** any DB write; any upload failure fails the whole action (D244).
 - Roles: annotate affordances follow `canSetApproval(orgRole)` (owner/senior); enforcement is server-side (D166). UI hiding is a courtesy, never the mechanism.
 - Repo test convention: lib-level vitest with a mocked `createServerSupabase` (see `src/lib/db/decisions.test.ts`). There is no React component test infra — UI tasks end with typecheck + full suite + a manual verification checklist instead.
 - Run tests with `npx vitest run <file>`; full suite `npm test`; typecheck `npx tsc --noEmit`. The Kling provider test can flake with a 5s cold-cache timeout — re-run once before investigating.
@@ -72,14 +72,14 @@ Expected: `0034_node_versions_updated_at.sql` is the highest. If a 0035 now exis
 - [x] **Step 2: Write the migration**
 
 ```sql
--- D209–D214: region + note feedback attached to a changes_requested decision.
+-- D239–D244: region + note feedback attached to a changes_requested decision.
 -- Child of node_version_decisions (0033); one row per painted region ("pin").
 --
 -- mask_path stores the PAINTED OVERLAY png (alpha > 0 = the region), NOT the
 -- OpenAI edit mask. The overlay renders directly as the read-only region layer,
 -- and overlayToMaskRGBA (src/lib/image-gen/mask.ts) converts it to the OpenAI
 -- alpha convention at replay time — one stored asset serves display now and
--- AI replay later (D209).
+-- AI replay later (D239).
 
 create table node_version_annotations (
   id           uuid primary key default gen_random_uuid(),
@@ -120,7 +120,7 @@ on conflict (id) do nothing;
 
 - [x] **Step 3: Append to MIGRATIONS-PENDING.md**
 
-Open `docs/superpowers/plans/MIGRATIONS-PENDING.md`, copy the format of the newest entry, and add `0035_review_annotations.sql` — table + RLS + `review-annotations` bucket, feature: review annotations (D209–D214).
+Open `docs/superpowers/plans/MIGRATIONS-PENDING.md`, copy the format of the newest entry, and add `0035_review_annotations.sql` — table + RLS + `review-annotations` bucket, feature: review annotations (D239–D244).
 
 - [x] **Step 4: Update spec §5.2 wording**
 
@@ -134,7 +134,7 @@ Also add the two check constraints to the spec's SQL block so spec and migration
 
 ```bash
 git add supabase/migrations/0035_review_annotations.sql docs/superpowers/plans/MIGRATIONS-PENDING.md docs/superpowers/specs/2026-09-03-review-annotations-design.md
-git commit -m "feat(db): node_version_annotations table + review-annotations bucket (D209-D214)
+git commit -m "feat(db): node_version_annotations table + review-annotations bucket (D239-D244)
 
 Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 ```
@@ -353,9 +353,9 @@ import {
 
 export type AnnotationKind = "image" | "video-frame";
 
-// The wire shape a senior's client sends with "Request changes" (D211/D213).
+// The wire shape a senior's client sends with "Request changes" (D241/D243).
 // overlayBase64 is the PAINTED OVERLAY png (alpha > 0 = region) — display-ready,
-// and convertible to the OpenAI mask by overlayToMaskRGBA at replay time (D209).
+// and convertible to the OpenAI mask by overlayToMaskRGBA at replay time (D239).
 export type AnnotationPayload = {
   seq: number;
   kind: AnnotationKind;
@@ -609,7 +609,7 @@ export type AnnotationRow = {
 };
 
 // STRICT, unlike insertDecision's best-effort posture: annotations ARE the feedback,
-// not observability, so the caller (setVersionApprovalAction) lets this throw (D214).
+// not observability, so the caller (setVersionApprovalAction) lets this throw (D244).
 export async function insertAnnotations(
   rows: Omit<AnnotationRow, "id" | "created_at">[],
 ): Promise<void> {
@@ -671,7 +671,7 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 - Consumes: `AnnotationPayload` (Task 2), `AnnotationRow` (Task 3), `ANNOTATION_BUCKET` / `SIGNED_URL_TTL_SECONDS` (Task 2).
 - Produces (used by Tasks 5–6):
   - `annotationAssetPaths(orgId: string, decisionId: string, seq: number): { maskPath: string; framePath: string }`
-  - `uploadAnnotationAssets(storage: SupabaseStorage, orgId: string, decisionId: string, anns: AnnotationPayload[]): Promise<{ seq: number; maskPath: string; framePath: string | null }[]>` — throws on the FIRST failure (nothing DB-side has happened yet, D214)
+  - `uploadAnnotationAssets(storage: SupabaseStorage, orgId: string, decisionId: string, anns: AnnotationPayload[]): Promise<{ seq: number; maskPath: string; framePath: string | null }[]>` — throws on the FIRST failure (nothing DB-side has happened yet, D244)
   - `signAnnotationAssets(storage: SupabaseStorage, rows: AnnotationRow[]): Promise<Map<string, { maskUrl: string | null; frameUrl: string | null }>>` — keyed by row id
   - `type SupabaseStorage = { from(bucket: string): { upload(path: string, body: Buffer | Blob, opts?: object): Promise<{ error: { message: string } | null }>; createSignedUrl(path: string, ttl: number): Promise<{ data: { signedUrl: string } | null; error: object | null }> } }` — structural type so tests stub it without the real client
 
@@ -817,7 +817,7 @@ export function annotationAssetPaths(orgId: string, decisionId: string, seq: num
 }
 
 // Upload BEFORE any DB write; the first failure throws and the whole action aborts —
-// the senior's drafts are still client-side, so retry is lossless (D214).
+// the senior's drafts are still client-side, so retry is lossless (D244).
 export async function uploadAnnotationAssets(
   storage: SupabaseStorage,
   orgId: string,
@@ -901,7 +901,7 @@ In `src/lib/db/decisions.ts`, change `insertDecision`'s input type to add `id?: 
 
 ```ts
 export async function insertDecision(input: {
-  id?: string; // pre-generated when annotations must reference the decision before it exists (D214)
+  id?: string; // pre-generated when annotations must reference the decision before it exists (D244)
   versionId: string;
   orgId: string;
   status: "approved" | "changes_requested";
@@ -1097,8 +1097,8 @@ export async function setVersionApprovalAction(
   input: {
     status: ApprovalStatus;
     note?: string | null;
-    // D211/D212: region+note pairs, only with changes_requested. Validated and
-    // uploaded BEFORE any DB write — a failure aborts the whole action (D214).
+    // D241/D242: region+note pairs, only with changes_requested. Validated and
+    // uploaded BEFORE any DB write — a failure aborts the whole action (D244).
     annotations?: AnnotationPayload[];
   },
 )
@@ -1117,7 +1117,7 @@ Inside the handler, after the existing note check and before `createServerSupaba
     }
 ```
 
-After the tenancy check and before the `node_versions` update, add the upload phase (the decision id is pre-generated so asset paths can reference it, D214):
+After the tenancy check and before the `node_versions` update, add the upload phase (the decision id is pre-generated so asset paths can reference it, D244):
 
 ```ts
     const decisionId = randomUUID();
@@ -1148,7 +1148,7 @@ Replace the existing best-effort decision block with:
         });
       if (annotations.length > 0) {
         // Strict: the annotation rows reference this decision id — losing the decision
-        // row would orphan the feedback the senior just wrote (D214).
+        // row would orphan the feedback the senior just wrote (D244).
         await writeDecision();
         await insertAnnotations(
           annotations.map((a) => {
@@ -1227,7 +1227,7 @@ Extend the `decisions:` mapping:
           note: d.note,
           reviewerName: (d.decided_by_user_id && names.get(d.decided_by_user_id)) || null,
           decidedAt: d.decided_at,
-          // D213/D214: region+note pairs with short-lived signed asset URLs.
+          // D243/D244: region+note pairs with short-lived signed asset URLs.
           annotations: (annotationsByDecision.get(d.id) ?? []).map((a) => ({
             id: a.id,
             seq: a.seq,
@@ -1318,7 +1318,7 @@ Add to the imperative handle:
 
 ```ts
         // The painted overlay itself (purple strokes on transparency) — what gets stored
-        // as mask_path. overlayToMaskRGBA converts it to the OpenAI mask at replay (D209).
+        // as mask_path. overlayToMaskRGBA converts it to the OpenAI mask at replay (D239).
         toOverlayBase64: () => {
           const overlay = canvasRef.current;
           if (!overlay || !dirtyRef.current) return null;
@@ -1334,7 +1334,7 @@ Add the `hintText` prop with the current string as default, and `RegionBounds` i
 Replace the entire content of `src/components/nodes/image-gen-annotation-canvas.tsx` with:
 
 ```ts
-// Extraction (D213): the annotation canvas now serves review annotations too, so it
+// Extraction (D243): the annotation canvas now serves review annotations too, so it
 // lives in src/components/review-annotations/. Edit mode keeps its import path.
 export {
   ReviewAnnotationCanvas as ImageGenAnnotationCanvas,
@@ -1444,7 +1444,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { RegionBounds } from "@/lib/review-annotations/draft";
 
-// Anchored note card (D213). Positioned just below the region's bounding box and
+// Anchored note card (D243). Positioned just below the region's bounding box and
 // clamped so it never leaves the media container. This is a positioned card, not a
 // Popover primitive — it anchors to painted pixels, not to a trigger element.
 export function AnnotationNotePopover({
@@ -1580,7 +1580,7 @@ export function formatTimecode(ms: number): string {
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
 }
 
-// The Review-column index of a decision's annotations (D213): flat for images,
+// The Review-column index of a decision's annotations (D243): flat for images,
 // timecode-grouped for video. Compose mode shows a remove control per row.
 export function AnnotationList({
   groups,
@@ -1754,7 +1754,7 @@ export type OverlayAnnotation = {
   authorLine: string | null;
 };
 
-// Read-only annotation layer (D214): the stored painted overlays render directly
+// Read-only annotation layer (D244): the stored painted overlays render directly
 // (they ARE the purple strokes), pins open note popovers, one toggle hides it all.
 // Pins have no stored bounds — they anchor to the mask image's visual weight is
 // unknowable client-side without pixel reads, so pins stack along the top-left
@@ -1992,7 +1992,7 @@ The full senior→maker loop on one image node and one video node, per the check
 
 - Spec §5.2 matches the shipped migration (Task 1's wording change).
 - `MIGRATIONS-PENDING.md` lists 0035.
-- ADRs D209–D214 need no correction from implementation discoveries; if the bounds-column contingency in Task 9 was taken, append that refinement to D213's entry.
+- ADRs D239–D244 need no correction from implementation discoveries; if the bounds-column contingency in Task 9 was taken, append that refinement to D243's entry.
 
 - [x] **Step 4: Final commit (if anything changed)**
 
@@ -2029,10 +2029,10 @@ Three deviations from the plan as written, each committed with its reasoning:
 3. **Annotate mode reads the video through `/api/image-proxy`** (Task 10) instead of setting
    `crossOrigin="anonymous"` on the player unconditionally. GCS objects send no CORS
    headers, so the plan's version would have failed the media load outright and broken
-   playback for everyone. Recorded as **D215**.
+   playback for everyone. Recorded as **D245**.
 
 Task 9's bounds-column contingency was **not** taken — pins stack down the left edge and the
-mask image is the locator. Recorded as **D216** so it is a decision, not an omission.
+mask image is the locator. Recorded as **D246** so it is a decision, not an omission.
 
 One pre-existing defect was fixed on the way through: Task 4's `storage.test.ts` typed its
 stub overrides as `ReturnType<typeof vi.fn>`, which is `Mock<Procedure | Constructable>` and

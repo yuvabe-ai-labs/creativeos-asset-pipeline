@@ -25,7 +25,7 @@ const MASK_COLOR = "#5829c7";
 export type AnnotationHandle = {
   hasMarks: () => boolean;
   toMaskBase64: () => Promise<{ base64: string; mime: string } | null>;
-  // D213: the painted overlay itself, plus where it landed — what review annotations
+  // D243: the painted overlay itself, plus where it landed — what review annotations
   // store. Edit mode ignores both and keeps using toMaskBase64.
   toOverlayBase64: () => string | null;
   getStrokeBounds: () => RegionBounds | null;
@@ -235,7 +235,7 @@ export const ReviewAnnotationCanvas = forwardRef<AnnotationHandle, Props>(
           return { base64: dataUrl.split(",")[1] ?? "", mime: "image/png" };
         },
         // The painted overlay itself (purple strokes on transparency) — what gets stored
-        // as mask_path. overlayToMaskRGBA converts it to the OpenAI mask at replay (D209).
+        // as mask_path. overlayToMaskRGBA converts it to the OpenAI mask at replay (D239).
         toOverlayBase64: () => {
           const overlay = canvasRef.current;
           if (!overlay || !dirtyRef.current) return null;

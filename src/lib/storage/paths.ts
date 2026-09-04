@@ -130,7 +130,7 @@ export function pathForBrandAsset(args: {
  * No timestamp suffix, unlike the upload paths: an annotation asset is immutable and
  * uniquely named by (decision, seq), the same reasoning as pathForMarketThumb.
  *
- * D219: video annotations store no captured still, so the mask is the only asset.
+ * D249: video annotations store no captured still, so the mask is the only asset.
  */
 export function pathForReviewAnnotation(args: {
   clientId: string;

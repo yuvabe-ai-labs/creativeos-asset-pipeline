@@ -8,12 +8,12 @@ export type AnnotationKind = "image" | "video-frame";
 
 // Bounding box of the painted stroke in FRACTIONS of the media's natural size —
 // resolution-independent, so the pin renders correctly at any display scale. Lives here
-// rather than in draft.ts because it is part of the WIRE shape now (D218): the client
+// rather than in draft.ts because it is part of the WIRE shape now (D248): the client
 // used to strip it at submit, which left stored rows with no geometry for their pins.
 
-// The wire shape a senior's client sends with "Request changes" (D211/D213).
+// The wire shape a senior's client sends with "Request changes" (D241/D243).
 // overlayBase64 is the PAINTED OVERLAY png (alpha > 0 = region) — display-ready,
-// and convertible to the OpenAI mask by overlayToMaskRGBA at replay time (D209).
+// and convertible to the OpenAI mask by overlayToMaskRGBA at replay time (D239).
 export type AnnotationPayload = {
   seq: number;
   kind: AnnotationKind;
@@ -21,7 +21,7 @@ export type AnnotationPayload = {
   overlayBase64: string;
   note: string;
   // Null when the stroke produced no measurable box (defensive — the composer only
-  // commits after a stroke), and on rows written before D218.
+  // commits after a stroke), and on rows written before D248.
   bounds: RegionBounds | null;
 };
 
@@ -59,7 +59,7 @@ export function validateAnnotations(anns: AnnotationPayload[]): string | null {
         return `Annotation ${a.seq}: image annotations carry no timecode.`;
       }
     } else if (a.kind === "video-frame") {
-      // D219: no captured still travels any more — the reader seeks the video to this
+      // D249: no captured still travels any more — the reader seeks the video to this
       // timecode, so the timecode IS the frame reference.
       if (a.timecodeMs == null) return `Annotation ${a.seq} is missing its timecode.`;
     } else {

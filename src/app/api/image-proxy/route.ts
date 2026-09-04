@@ -7,7 +7,7 @@ import { apiError } from "@/lib/api/route-helpers";
 //
 // Named for its first consumer, but it serves VIDEO too now: the review-annotation flow
 // points the player here while a senior is annotating, so a paused frame can be captured
-// (D215). That is why Range requests matter — see below.
+// (D245). That is why Range requests matter — see below.
 //
 // Locked to the storage host so this is not an open relay (SSRF).
 const ALLOWED_PREFIX = "https://storage.googleapis.com/";

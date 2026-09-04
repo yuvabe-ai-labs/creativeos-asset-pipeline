@@ -210,10 +210,10 @@ export async function signClientBrandAssetUpload(args: {
   return _sign(path, args.contentType);
 }
 
-// Review annotation assets (D209-D214). Ownership resolves ONCE for the whole batch —
+// Review annotation assets (D239-D244). Ownership resolves ONCE for the whole batch —
 // every asset in a decision belongs to the same node, so a per-asset resolve would be the
 // same query N times. Uploads run before any DB write and the first failure throws, which
-// aborts the caller's whole action (D214).
+// aborts the caller's whole action (D244).
 export async function uploadReviewAnnotationAssets(args: {
   nodeId: string;
   decisionId: string;

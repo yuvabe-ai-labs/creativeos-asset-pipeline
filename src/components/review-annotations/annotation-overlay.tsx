@@ -15,21 +15,21 @@ export type OverlayAnnotation = {
   authorLine: string | null;
 };
 
-// Where annotation n's pin goes. D218: on its own region, at the centre of the painted
+// Where annotation n's pin goes. D248: on its own region, at the centre of the painted
 // bounding box — the same anchor compose mode uses, so a pin does not move between
 // writing the note and reading it.
 //
-// Pre-D218 rows have no bounds. Those fall back to the original left-edge stack: the mask
+// Pre-D248 rows have no bounds. Those fall back to the original left-edge stack: the mask
 // is still the locator, the pin is just an index into the notes.
 function pinPosition(bounds: RegionBounds | null, index: number) {
   if (!bounds) return { x: 0.04, y: 0.06 + index * 0.08 };
   return { x: bounds.x + bounds.w / 2, y: bounds.y + bounds.h / 2 };
 }
 
-// Read-only annotation layer (D214): the stored painted overlays render directly — they
+// Read-only annotation layer (D244): the stored painted overlays render directly — they
 // ARE the purple strokes the senior drew — pins open note popovers, one toggle hides it
 // all so the maker can see the untouched picture underneath.
-// D220: `openSeq` is CONTROLLED by the focus view, because the Review-column list opens
+// D250: `openSeq` is CONTROLLED by the focus view, because the Review-column list opens
 // notes too — two independent "which note is open" states would let the list highlight
 // one annotation while the media showed another.
 export function AnnotationOverlay({

@@ -55,7 +55,7 @@ export function InlineApprovalBar({
   // Who approved this version, and when — rendered only in the read-only view (D169).
   approvedByName?: string | null;
   approvedAt?: string | null;
-  // D213: annotation compose entry point. Absent (the default) on every consumer that
+  // D243: annotation compose entry point. Absent (the default) on every consumer that
   // has no media to paint on, which is what keeps the chip out of those bars.
   annotationCount?: number;
   annotating?: boolean;

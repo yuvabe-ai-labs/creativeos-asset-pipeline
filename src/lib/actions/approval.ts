@@ -29,8 +29,8 @@ export async function setVersionApprovalAction(
   input: {
     status: ApprovalStatus;
     note?: string | null;
-    // D211/D212: region+note pairs, only with changes_requested. Validated and
-    // uploaded BEFORE any DB write — a failure aborts the whole action (D214).
+    // D241/D242: region+note pairs, only with changes_requested. Validated and
+    // uploaded BEFORE any DB write — a failure aborts the whole action (D244).
     annotations?: AnnotationPayload[];
   },
 ) {
@@ -85,13 +85,13 @@ export async function setVersionApprovalAction(
       note,
     });
 
-    // The decision id is pre-generated so asset paths can reference it (D214).
+    // The decision id is pre-generated so asset paths can reference it (D244).
     const decisionId = randomUUID();
     let uploaded: { seq: number; maskPath: string }[] = [];
     if (annotations.length > 0) {
       if (!versionRow.node_id) throw new Error("Version not found.");
       // Assets land in GCS under the node they annotate, via the same lib/storage module
-      // every generated asset uses (D217) — not a separate Supabase bucket.
+      // every generated asset uses (D247) — not a separate Supabase bucket.
       uploaded = await uploadAnnotationAssets(
         versionRow.node_id,
         decisionId,
@@ -121,7 +121,7 @@ export async function setVersionApprovalAction(
         });
       if (annotations.length > 0) {
         // Strict: the annotation rows reference this decision id — losing the decision
-        // row would orphan the feedback the senior just wrote (D214).
+        // row would orphan the feedback the senior just wrote (D244).
         await writeDecision();
         await insertAnnotations(
           annotations.map((a) => {
@@ -133,7 +133,7 @@ export async function setVersionApprovalAction(
               seq: a.seq,
               kind: a.kind,
               timecode_ms: a.timecodeMs,
-              // D219: no captured still is stored; the reader seeks to timecode_ms.
+              // D249: no captured still is stored; the reader seeks to timecode_ms.
               frame_path: null,
               mask_path: stored.maskPath,
               note: a.note.trim(),

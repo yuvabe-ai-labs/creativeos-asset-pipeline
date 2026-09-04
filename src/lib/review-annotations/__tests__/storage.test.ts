@@ -75,7 +75,7 @@ describe("uploadAnnotationAssets", () => {
     expect(arg.nodeId).toBe("n1");
     expect(arg.decisionId).toBe("d1");
     expect(arg.assets[0].mask.toString("utf8")).toBe("hello");
-    // D219: a video annotation uploads exactly what an image one does — the mask. No
+    // D249: a video annotation uploads exactly what an image one does — the mask. No
     // captured still, which is what used to blow the Server Action body limit.
     expect(arg.assets).toHaveLength(2);
     expect(Object.keys(arg.assets[1])).toEqual(["seq", "mask"]);
@@ -95,7 +95,7 @@ describe("annotationAssetUrls", () => {
     );
   });
 
-  it("gives a video-frame row the same single mask URL — no stored still (D219)", () => {
+  it("gives a video-frame row the same single mask URL — no stored still (D249)", () => {
     const out = annotationAssetUrls([
       row({ id: "a2", kind: "video-frame", timecode_ms: 4000 }),
     ]);

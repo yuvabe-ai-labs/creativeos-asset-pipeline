@@ -34,9 +34,9 @@ export async function GET(
     ].filter((id): id is string => !!id);
     const names = await resolveDisplayNames(effectiveOrgId, userIds);
 
-    // D213/D214: every annotation on every decision of this node, one batched query —
+    // D243/D244: every annotation on every decision of this node, one batched query —
     // the sibling of the decisions fetch above, never a per-decision round trip. Asset
-    // URLs are a pure path→URL map (D217), so this adds no round trips at all.
+    // URLs are a pure path→URL map (D247), so this adds no round trips at all.
     const allDecisionIds = [...decisionsByVersion.values()].flat().map((d) => d.id);
     const annotationsByDecision = await getAnnotationsByDecisionIds(allDecisionIds);
     const urlsByAnnotation = annotationAssetUrls(
@@ -81,8 +81,8 @@ export async function GET(
           note: d.note,
           reviewerName: (d.decided_by_user_id && names.get(d.decided_by_user_id)) || null,
           decidedAt: d.decided_at,
-          // D213/D214: region+note pairs, assets addressed exactly like a generated
-          // image — the same bucket, the same public URL shape (D217).
+          // D243/D244: region+note pairs, assets addressed exactly like a generated
+          // image — the same bucket, the same public URL shape (D247).
           annotations: (annotationsByDecision.get(d.id) ?? []).map((a) => ({
             id: a.id,
             seq: a.seq,

@@ -3,7 +3,7 @@
 **Date:** 2026-09-03 · **Status:** Draft for review · **Author:** brainstormed with Claude
 **Visual companion:** https://claude.ai/code/artifact/4775fc80-3716-4d16-b0ae-124f0be67a9c (wireframes of both focus views, decisions ledger)
 **Builds on:** `2026-08-21-internal-approval-workflow-design.md` (D159–D167), `2026-08-24-approval-audit-trail-design.md` (D168–D172), `2026-08-24-decision-history-panel-design.md` (D173–D175)
-**ADRs introduced:** D209–D214 (appended to the §7 log in `2026-05-30-creativeos-staging-roadmap.md`)
+**ADRs introduced:** D239–D244 (appended to the §7 log in `2026-05-30-creativeos-staging-roadmap.md`)
 
 ## 1. Problem
 
@@ -33,16 +33,16 @@ maker reads them in place — pins on the media, notes a click away.
 triggering AI edits from review; timeline-range video marks; editing an
 annotation after the decision is sent; filmstrip frame pickers.
 
-## 3. Decisions (summary — full rationale in §7 ADRs D209–D214)
+## 3. Decisions (summary — full rationale in §7 ADRs D239–D244)
 
 | # | Decision | Rejected |
 |---|---|---|
-| D209 | Annotations are **feedback now, AI later**: persisted with the decision, stored replay-ready, no generation from review in V1 | Driving an edit directly; text-only feedback |
-| D210 | Scope is **images + paused video frames** (captured still + timecode); image is the degenerate case | Image-only V1; timeline-aware video review |
-| D211 | Granularity is a **list of region + note pairs** per decision; the existing mandatory note remains the summary | One mask + one note; pins without regions |
-| D212 | Annotations attach to **"Request changes" only**; Approve discards drafts behind a confirm | Annotated approvals |
-| D213 | Composing UI is **anchored popover** (paint → note beside the region → commit); the Review column lists committed pairs live | Side-rail list; docked note bar |
-| D214 | The maker reads **the same surface read-only**; video timecodes seek the player; the captured frame (not the live seek) is ground truth | Baked thread snapshot; dedicated review viewer |
+| D239 | Annotations are **feedback now, AI later**: persisted with the decision, stored replay-ready, no generation from review in V1 | Driving an edit directly; text-only feedback |
+| D240 | Scope is **images + paused video frames** (captured still + timecode); image is the degenerate case | Image-only V1; timeline-aware video review |
+| D241 | Granularity is a **list of region + note pairs** per decision; the existing mandatory note remains the summary | One mask + one note; pins without regions |
+| D242 | Annotations attach to **"Request changes" only**; Approve discards drafts behind a confirm | Annotated approvals |
+| D243 | Composing UI is **anchored popover** (paint → note beside the region → commit); the Review column lists committed pairs live | Side-rail list; docked note bar |
+| D244 | The maker reads **the same surface read-only**; video timecodes seek the player; the captured frame (not the live seek) is ground truth | Baked thread snapshot; dedicated review viewer |
 
 ## 4. UX
 
@@ -73,7 +73,7 @@ Multiple pairs on one frame are allowed (one capture, several regions).
 The Review column groups pairs under timecode chips; clicking a chip (or a
 numbered timeline dot) seeks the player. CORS note: capture requires
 `crossOrigin="anonymous"` on the `<video>` and CORS-permissive storage URLs.
-**Corrected at implementation (D215/D217):** generated media is on GCS, not
+**Corrected at implementation (D245/D247):** generated media is on GCS, not
 Supabase, and GCS public objects send no CORS headers — so nothing "already
 qualifies". The player switches to the same-origin `/api/image-proxy` and sets
 `crossOrigin` ONLY while annotating; setting it unconditionally does not degrade,
@@ -182,7 +182,7 @@ guardrails, not targets.
 Reading rides the existing derivations: `getDecisionsByVersionIds`
 (`src/lib/db/decisions.ts`) gains a sibling
 `getAnnotationsByDecisionIds`, and the focus-view review payload includes the
-annotation rows with their asset URLs. **Corrected at implementation (D217):**
+annotation rows with their asset URLs. **Corrected at implementation (D247):**
 those are plain `publicUrlFor` paths, exactly like a generated image's — a pure
 map with no round trip per asset, not short-lived signed URLs.
 
@@ -200,7 +200,7 @@ pick up annotations with the decision. The maker's "Sent back" badge flow
 - **Frame capture failure** (CORS/decoder) → toast; no annotation row is
   created for that frame (§4.2) — the senior's recourse is the overall
   decision note. Every stored row therefore always has a real mask.
-- **Asset URL expiry** — not applicable (D217): annotation assets are public GCS
+- **Asset URL expiry** — not applicable (D247): annotation assets are public GCS
   URLs with the same lifetime as the image or video they annotate, so there is no
   403-refetch path to get wrong.
 - **Version mismatch** — annotations render only on the version whose decision

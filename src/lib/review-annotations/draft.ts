@@ -1,7 +1,7 @@
 import type { AnnotationPayload } from "./payload";
 
 // Re-exported from its canonical home in payload.ts — bounds became part of the wire
-// shape in D218, so every importer of RegionBounds keeps working unchanged.
+// shape in D248, so every importer of RegionBounds keeps working unchanged.
 export type { RegionBounds } from "./payload";
 
 // A draft is now exactly the payload: nothing is stripped at submit any more.

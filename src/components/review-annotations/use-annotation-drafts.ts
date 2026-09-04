@@ -9,7 +9,7 @@ import {
 } from "@/lib/review-annotations/draft";
 
 // Client-side draft list for the compose flow. Nothing here touches the server —
-// drafts ride along with "Request changes" (D211), so an abandoned review costs
+// drafts ride along with "Request changes" (D241), so an abandoned review costs
 // nothing and a failed submit is losslessly retryable.
 export function useAnnotationDrafts() {
   const [drafts, setDrafts] = useState<AnnotationDraft[]>([]);

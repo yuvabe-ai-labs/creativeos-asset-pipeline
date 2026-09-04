@@ -35,7 +35,7 @@ export function VersionDecisionThread({
               {formatRelativeTime(d.decidedAt)}
               {d.note && <>: {d.note}</>}
             </p>
-            {/* D213: the thread says a decision CARRIES regions without rendering them —
+            {/* D243: the thread says a decision CARRIES regions without rendering them —
                 the pictures live on the media pane, this is the count that sends you there. */}
             {d.annotations && d.annotations.length > 0 && (
               <p className="mt-0.5 text-[0.6rem] text-muted-foreground">

@@ -15,10 +15,10 @@ export function formatTimecode(ms: number): string {
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
 }
 
-// The Review-column index of a decision's annotations (D213): flat for images,
+// The Review-column index of a decision's annotations (D243): flat for images,
 // timecode-grouped for video. Compose mode shows a remove control per row.
 //
-// D220: when `onSelect` is given the whole row is the control — click it and the note
+// D250: when `onSelect` is given the whole row is the control — click it and the note
 // opens on the media (video also seeks there first). The list is the reliable target;
 // a pin is a 20px circle sitting on top of the artwork, so it is an accelerator, never
 // the only way in. Both surfaces behave identically.

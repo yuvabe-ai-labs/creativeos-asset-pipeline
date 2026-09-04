@@ -197,11 +197,11 @@ export function ImageGenFocusView({
   );
   const [hasMaskRegion, setHasMaskRegion] = useState(false);
   const annotationRef = useRef<AnnotationHandle>(null);
-  // D213 review annotations - a separate canvas from edit mode's (`annotationRef`),
+  // D243 review annotations - a separate canvas from edit mode's (`annotationRef`),
   // living on the RESULT image rather than the edit base, with its own drafts.
   const [reviewAnnotating, setReviewAnnotating] = useState(false);
   const [pendingBounds, setPendingBounds] = useState<RegionBounds | null>(null);
-  // D220: which stored annotation's note is open. Shared by the Review-column list and
+  // D250: which stored annotation's note is open. Shared by the Review-column list and
   // the on-image overlay so clicking either keeps them in agreement.
   const [openAnnotationSeq, setOpenAnnotationSeq] = useState<number | null>(null);
   const reviewCanvasRef = useRef<AnnotationHandle>(null);
@@ -636,7 +636,7 @@ export function ImageGenFocusView({
     ? "result"
     : "empty";
 
-  // D214 read path: the standing change request on the ACTIVE version, and the
+  // D244 read path: the standing change request on the ACTIVE version, and the
   // annotations attached to it. Derived from the versions list the history panel
   // already fetched — no second request, and it re-derives whenever fetchVersions
   // lands (including right after the senior's own Send back).
@@ -946,8 +946,8 @@ export function ImageGenFocusView({
     if (!activeVersionId) return;
     setApprovalSaving(true);
     try {
-      // D211/D212: drafts ride along with the rejection they belong to - one action, so
-      // there is no window where a decision exists without its annotations. D218: bounds
+      // D241/D242: drafts ride along with the rejection they belong to - one action, so
+      // there is no window where a decision exists without its annotations. D248: bounds
       // go WITH them - stripping them here is what left stored pins with nowhere to sit.
       const annotations =
         status === "changes_requested" && reviewDrafts.drafts.length > 0
