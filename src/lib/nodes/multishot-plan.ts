@@ -122,3 +122,44 @@ export function refsCitedIn(text: string): number[] {
   }
   return [...seen];
 }
+
+/** What a narrow refine returns: one of the two, never both. */
+export type PlanFragment = { look?: string; text?: string };
+
+/**
+ * Merge a narrowly-scoped rewrite into an existing plan, then validate the whole.
+ *
+ * A `"look"` or `"cut"` refine asks the model for ONLY the fragment being rewritten, so the beats
+ * it did not touch are untouched by CONSTRUCTION — there is nothing to drift. This replaces asking
+ * for the whole plan with "leave the rest unchanged", which is an instruction models drift on, and
+ * whose drift silently overwrote beats the operator had hand-edited.
+ *
+ * Returns `PlanParseResult` rather than a plan so a merge that cannot be validated is refused
+ * through the same path a bad generation already takes — and so the merged whole is checked against
+ * the cuts, which is what keeps a narrow edit from producing a plan that disagrees with the budget.
+ */
+export function mergeRefinedPlan(
+  plan: MultishotPlan,
+  scope: "look" | "cut",
+  fragment: PlanFragment,
+  cutId: string | undefined,
+  cuts: MultishotCut[],
+): PlanParseResult {
+  if (scope === "look") {
+    const look = (fragment.look ?? "").trim();
+    if (!look) return { ok: false, reason: "The writer returned an empty look." };
+    return parsePlan({ ...plan, look }, cuts);
+  }
+
+  if (!cutId) return { ok: false, reason: "No shot was named for this rewrite." };
+  const text = (fragment.text ?? "").trim();
+  if (!text) return { ok: false, reason: "The writer returned an empty shot." };
+  if (!plan.beats.some((b) => b.cutId === cutId)) {
+    return { ok: false, reason: "That shot is not in this plan." };
+  }
+
+  return parsePlan(
+    { ...plan, beats: plan.beats.map((b) => (b.cutId === cutId ? { ...b, text } : b)) },
+    cuts,
+  );
+}
