@@ -5,6 +5,7 @@ import {
   MULTISHOT_AUTHORING_MODEL,
   SUBJECT_SILENT_CAMERA,
 } from "@/prompts/video-prompt-generate";
+import type { RefineScope } from "@/lib/nodes/refine-suggestions";
 
 /** Bumped whenever the system text or schema changes; recorded on every version row. */
 export const MULTISHOT_PROMPT_ID = "multishot-prompt-generate@4";
@@ -202,22 +203,31 @@ export const MULTISHOT_BEAT_SCHEMA = {
  * treats "try it darker" as part of the shot's definition forever after.
  */
 export function refineInstruction(args: {
-  scope: "all" | "look" | "cut";
+  scope: RefineScope;
   cutId: string | null;
   note: string;
   plan: { look: string; beats: Array<{ cutId: string; text: string }> };
 }): string {
   const { scope, cutId, note, plan } = args;
-  if (scope === "all") return "";
 
-  const blocks: string[] = [`The current plan is below.\n\n${JSON.stringify(plan, null, 2)}`];
+  if (scope === "all") {
+    const trimmed = note.trim();
+    // A full generate has no plan to preserve, so it gets the note WITHOUT the narrow scopes'
+    // "everything else stays as it is" framing and without the plan JSON — but it must still get
+    // the note. Returning "" here meant the header's whole-sequence refine billed a plain
+    // regenerate while its version row recorded a steer that never reached the model.
+    return trimmed ? `\n\nFor this generation in particular: ${trimmed}` : "";
+  }
 
   if (scope === "cut" && !cutId) {
     // A programmer error, not an operator one: the route rejects a cut refine with no shot long
     // before here. Throwing beats emitting "the beat whose cutId is null" into the prompt, which
-    // the model would answer as best it could and nothing would flag.
+    // the model would answer as best it could and nothing would flag. Checked BEFORE `blocks` is
+    // built (and the plan JSON.stringify'd) so a doomed request fails without doing that work.
     throw new Error("refineInstruction: a cut refine needs a cutId.");
   }
+
+  const blocks: string[] = [`The current plan is below.\n\n${JSON.stringify(plan, null, 2)}`];
 
   blocks.push(
     scope === "look"

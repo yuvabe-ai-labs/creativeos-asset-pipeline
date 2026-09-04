@@ -94,12 +94,19 @@ export function MultishotBeatCard({
             </Button>
           </div>
         )}
+        {/* `pointer-events-none` alone only blocks the mouse — the editor is a contenteditable,
+            so Tab focus or a caret already sitting in the field lets a keystroke write straight
+            through while THIS beat's own refine is in flight, and the refine then overwrites it
+            on resolve. `disabled` (not just the parent's cross-beat `disabled` prop, which is
+            false for the beat actually being refined) closes that gap by also disabling on
+            `rerunning`. Mirrors the look block's equivalent guard above in
+            multishot-prompt-focus-view.tsx. */}
         <div className={cn(rerunning && "pointer-events-none opacity-50")}>
           <MentionInstructionEditor
             value={text}
             onChange={onChange}
             upstream={upstream}
-            disabled={disabled}
+            disabled={disabled || rerunning}
             dialect={imageRefDialect(refIds)}
             placeholder="Not written yet…"
           />

@@ -46,6 +46,7 @@ import { MultishotBeatCard } from "./multishot-beat-card";
 import { RefineWithAI } from "./refine-with-ai";
 import type { MultishotCut } from "@/lib/nodes/multishot-cuts";
 import { renderPlan, refsCitedIn, type MultishotPlan } from "@/lib/nodes/multishot-plan";
+import type { RefineScope } from "@/lib/nodes/refine-suggestions";
 
 type MultishotPromptFocusViewProps = {
   open: boolean;
@@ -117,9 +118,9 @@ export function MultishotPromptFocusView({
   // ONE in flight at a time. Two concurrent refines each resolve against the planDraft they
   // captured at submit time, so the second to return would discard the first's result with no
   // error at all. This drives every button's disabled state, not just its own.
-  const [refining, setRefining] = useState<
-    { scope: "all" | "look" | "cut"; cutId: string | null } | null
-  >(null);
+  const [refining, setRefining] = useState<{ scope: RefineScope; cutId: string | null } | null>(
+    null,
+  );
   const [seed, setSeed] = useState<{ open: boolean; nodeId: string }>({ open, nodeId });
   const [versions, setVersions] = useState<VersionSummary[]>([]);
   const [activeVersionId, setActiveVersionId] = useState<string | null>(null);
@@ -387,11 +388,13 @@ export function MultishotPromptFocusView({
    * the plan we sent before it validates or records anything. So this assigns it wholesale and
    * there is nothing to splice: the beats we did not ask about came back exactly as we sent them.
    */
-  async function runRefine(
-    scope: "all" | "look" | "cut",
-    opts: { cutId?: string; note?: string } = {},
-  ) {
+  async function runRefine(scope: RefineScope, opts: { cutId?: string; note?: string } = {}) {
     if (isReadOnly || refining) return; // D33, and one in flight at a time
+    // A restore in flight must win outright: it replaces planDraft wholesale from a version the
+    // operator explicitly chose, and a refine that started against the pre-restore plan would
+    // resolve afterward and silently discard that choice, stamping its own activeVersionId over
+    // it. See the matching `restoring={restoring || !!refining}` gate on the version chips above.
+    if (restoring) return;
     if (scope !== "all" && !planDraft) return;
 
     setRefining({ scope, cutId: opts.cutId ?? null });
@@ -520,7 +523,11 @@ export function MultishotPromptFocusView({
       generating={generating}
       versions={versions}
       activeVersionId={activeVersionId}
-      restoring={restoring}
+      // Also gated on `refining`: a version chip switch used to race an in-flight refine —
+      // click an older chip while a beat refine is in flight, and the refine's resolve would
+      // overwrite planDraft with a merge computed against the pre-restore snapshot, silently
+      // discarding the restore the operator just asked for. See runRefine's matching guard.
+      restoring={restoring || !!refining}
       onRestoreVersion={handleRestoreVersion}
       upstream={upstream}
       targetType="multishot-prompt"

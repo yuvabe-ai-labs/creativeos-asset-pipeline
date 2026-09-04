@@ -159,8 +159,19 @@ describe("refineInstruction", () => {
     expect(without).not.toContain("Apply this change");
   });
 
-  it("returns nothing for a full generate", () => {
-    expect(refineInstruction({ scope: "all", cutId: null, note: "punchier", plan })).toBe("");
+  // Regression test for the Critical: scope "all" used to return "" unconditionally, so the
+  // header's "Refine the whole sequence with AI" note was validated, capped and recorded on the
+  // version row, but never reached the model — it billed a plain regenerate while claiming a
+  // steer was applied.
+  it("carries the note on a full generate, without the narrow scopes' framing or the plan JSON", () => {
+    const out = refineInstruction({ scope: "all", cutId: null, note: "punchier", plan });
+    expect(out).toContain("punchier");
+    expect(out).not.toContain(JSON.stringify(plan, null, 2));
+    expect(out).not.toMatch(/everything else stays as it is/i);
+  });
+
+  it("returns nothing for a full generate with a blank note", () => {
+    expect(refineInstruction({ scope: "all", cutId: null, note: "   ", plan })).toBe("");
   });
 
   // The signature allows scope: "cut" with cutId: null even though the route should never send

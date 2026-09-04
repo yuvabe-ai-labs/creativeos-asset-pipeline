@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { MultishotPlan } from "@/lib/nodes/multishot-plan";
+import {
+  multishotPromptGenerate,
+  MULTISHOT_LOOK_SCHEMA,
+  MULTISHOT_BEAT_SCHEMA,
+} from "@/prompts/multishot-prompt-generate";
 
 vi.mock("server-only", () => ({}));
 
@@ -76,6 +81,19 @@ const post = (body: unknown) =>
 const returns = (obj: unknown) =>
   create.mockResolvedValue({ choices: [{ message: { content: JSON.stringify(obj) } }], usage: null });
 
+// messages[1].content goes through buildUserContent — a plain string when there are no vision
+// attachments (always true here, since resolveMultishotPromptInputs is mocked with upstream: []),
+// but asserting against the actual shape rather than assuming it keeps this honest if that mock
+// ever grows an image.
+function userText(call: { messages: Array<{ role: string; content: unknown }> }): string {
+  const content = call.messages[1].content;
+  if (typeof content === "string") return content;
+  return (content as Array<{ type: string; text?: string }>)
+    .filter((p) => p.type === "text")
+    .map((p) => p.text ?? "")
+    .join("\n");
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
 });
@@ -143,5 +161,54 @@ describe("POST multishot-prompt — refine scopes", () => {
     const res = await post({ instruction: "punchy" });
     expect(res.status).toBe(200);
     expect(runPromptGeneration.mock.calls[0][0].paramsUsed).toMatchObject({ scope: "all" });
+    const json = (await res.json()) as { plan: MultishotPlan };
+    expect(json.plan).toEqual(PLAN);
+  });
+
+  // Nothing previously inspected what the route actually sent the model — which is why the
+  // Critical (scope "all" silently dropping the operator's note) shipped through per-task review.
+  describe("what gets sent to the model", () => {
+    it("sends the beat schema for a cut refine", async () => {
+      returns({ text: "Rewritten." });
+      await post({ scope: "cut", cutId: "c1", plan: PLAN, note: "tighter" });
+      expect(create.mock.calls[0][0].response_format.json_schema.schema).toBe(MULTISHOT_BEAT_SCHEMA);
+    });
+
+    it("sends the look schema for a look refine", async () => {
+      returns({ look: "Overcast." });
+      await post({ scope: "look", plan: PLAN, note: "colder" });
+      expect(create.mock.calls[0][0].response_format.json_schema.schema).toBe(MULTISHOT_LOOK_SCHEMA);
+    });
+
+    it("sends the full plan schema for a full generate", async () => {
+      returns(PLAN);
+      await post({ scope: "all", note: "punchier" });
+      expect(create.mock.calls[0][0].response_format.json_schema.schema).toBe(
+        multishotPromptGenerate().schema,
+      );
+    });
+
+    // Regression test for the Critical: refineInstruction used to return "" unconditionally for
+    // scope "all", so the header's whole-sequence note was validated, capped and recorded on the
+    // version row, but never put in front of the model — it billed a plain regenerate while the
+    // version claimed a steer was applied. Asserted for all three scopes so no scope can regress
+    // the same way silently again.
+    it("puts the note in the user content on a cut refine", async () => {
+      returns({ text: "Rewritten." });
+      await post({ scope: "cut", cutId: "c1", plan: PLAN, note: "make it tighter" });
+      expect(userText(create.mock.calls[0][0])).toContain("make it tighter");
+    });
+
+    it("puts the note in the user content on a look refine", async () => {
+      returns({ look: "Overcast." });
+      await post({ scope: "look", plan: PLAN, note: "colder light" });
+      expect(userText(create.mock.calls[0][0])).toContain("colder light");
+    });
+
+    it("puts the note in the user content on a full generate", async () => {
+      returns(PLAN);
+      await post({ scope: "all", note: "punchier overall" });
+      expect(userText(create.mock.calls[0][0])).toContain("punchier overall");
+    });
   });
 });
