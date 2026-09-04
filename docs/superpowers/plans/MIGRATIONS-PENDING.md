@@ -35,13 +35,13 @@ Apply through the Supabase SQL editor (paste + Run), in this order. There is no
       generated asset, so `mask_path`/`frame_path` are GCS object paths.
       Feature: review annotations (region + note feedback on a changes_requested decision).
 
-- [ ] **`0036_annotation_bounds.sql`** — D218 (supersedes D216)
+- [x] **`0036_annotation_bounds.sql`** — D218 (supersedes D216) — **APPLIED 2026-09-04**
       Adds nullable `bounds jsonb` to `node_version_annotations`. **Depends on 0035.**
       Without it, stored pins stack at the media's left edge instead of sitting on the
       region they label. Pure additive `alter table` — safe to run on live data; rows
       written before it keep the stack fallback.
 
-- [ ] **`0037_annotation_no_stored_frame.sql`** — D219
+- [x] **`0037_annotation_no_stored_frame.sql`** — D219 — **APPLIED 2026-09-04**
       Relaxes 0035's CHECK so `kind='video-frame'` no longer requires `frame_path`.
       **Depends on 0035.** Without it, EVERY video annotation insert fails the constraint.
       Drops and recreates one named constraint — verify the name is
