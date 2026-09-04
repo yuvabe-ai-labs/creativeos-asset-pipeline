@@ -4,11 +4,26 @@ import { useState } from "react";
 import { Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import type { RegionBounds } from "@/lib/review-annotations/draft";
+import type { RegionBounds } from "@/lib/review-annotations/payload";
 
-// Anchored note card (D213). Positioned just below the region's bounding box and
-// clamped so it never leaves the media container. This is a positioned card, not a
-// Popover primitive — it anchors to painted pixels, not to a trigger element.
+// Card width, in one place: the horizontal clamp below has to know it.
+const CARD_W = "14rem"; // w-56
+const HALF_CARD_W = "7rem";
+const EDGE = "0.5rem"; // breathing room from the media's edge
+
+// Anchored note card (D213). This is a positioned card, not a Popover primitive — it
+// anchors to painted pixels, not to a trigger element.
+//
+// It lives INSIDE the media's overflow-hidden frame, so anything that escapes is clipped
+// rather than merely overflowing (D221). Staying inside is therefore not cosmetic, and
+// fraction math cannot do it: the card is a fixed 224px while the frame's width varies
+// with the image's aspect and the panel size, so "never past 62%" is wrong at every size
+// but one.
+//
+// So: CSS clamp() does the horizontal work in the browser's own layout units, mixing the
+// region's percentage with the card's rem width — correct at any container size, no
+// measurement, no layout effect. Vertically the card FLIPS above the region when the
+// region sits low, which is what a popover would do anyway.
 export function AnnotationNotePopover({
   bounds,
   mode,
@@ -27,14 +42,22 @@ export function AnnotationNotePopover({
   onCancel?: () => void;
 }) {
   const [draft, setDraft] = useState(note);
-  // Below the region; clamp: never past 62% left (the card is ~w-56) or 80% top, so it
-  // stays inside the media box no matter where the senior painted.
-  const left = Math.min(bounds.x, 0.62);
-  const top = Math.min(bounds.y + bounds.h + 0.02, 0.8);
+
+  // Centre on the region, then clamp both edges inside the frame.
+  const centreX = (bounds.x + bounds.w / 2) * 100;
+  const left = `clamp(${EDGE}, calc(${centreX}% - ${HALF_CARD_W}), calc(100% - ${CARD_W} - ${EDGE}))`;
+
+  // Flip above once the region's bottom passes 55% — below that there is not reliably
+  // room beneath it, and a clamped-to-the-floor card would cover its own region.
+  const flipAbove = bounds.y + bounds.h > 0.55;
+  const vertical = flipAbove
+    ? { bottom: `calc(${(1 - bounds.y) * 100}% + ${EDGE})` }
+    : { top: `calc(${(bounds.y + bounds.h) * 100}% + ${EDGE})` };
+
   return (
     <div
       className="absolute z-20 w-56 rounded-lg border border-border bg-background p-2.5 shadow-lg"
-      style={{ left: `${left * 100}%`, top: `${top * 100}%` }}
+      style={{ left, ...vertical }}
     >
       <p className="text-eyebrow mb-1.5">Annotation {seq}</p>
       {mode === "compose" ? (
@@ -65,7 +88,11 @@ export function AnnotationNotePopover({
         </>
       ) : (
         <>
-          <p className="text-xs leading-relaxed text-foreground">{note}</p>
+          {/* A long note scrolls inside the card rather than growing it past the frame,
+              which the flip alone cannot prevent. */}
+          <p className="max-h-40 overflow-y-auto text-xs leading-relaxed text-foreground">
+            {note}
+          </p>
           {authorLine && (
             <p className="mt-1 text-[10px] text-muted-foreground">{authorLine}</p>
           )}

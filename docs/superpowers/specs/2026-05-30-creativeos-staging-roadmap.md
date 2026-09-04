@@ -4623,3 +4623,27 @@ one annotation while the media showed another); making the row a `div` with `onC
 dropping pin clicks entirely (they are a fine accelerator once they sit on their region).
 
 **Originated →** `2026-09-03-review-annotations-design.md`.
+
+### D221 — The note card positions with CSS clamp + vertical flip, not fraction math *(recorded 2026-09-04; refines D213)*
+
+**Decision.** `AnnotationNotePopover` centres on its region horizontally, then clamps both
+edges inside the media frame with a CSS `clamp()` that mixes the region's percentage with
+the card's own rem width. Vertically it sits below the region, flipping above once the
+region's bottom passes 55%. A long note scrolls inside the card.
+
+**Why.** The card renders inside the media's `overflow-hidden` frame, so anything that
+escapes is *clipped*, not merely overflowing — staying inside is a correctness
+requirement, not polish. The original clamp was pure fraction math (`Math.min(bounds.x,
+0.62)`), which cannot work: the card is a fixed 224px while the frame's width varies with
+the image's aspect ratio and the panel size, so a single percentage cut-off is right at
+exactly one width and wrong everywhere else. `clamp()` does the arithmetic in the
+browser's own layout units, so it is correct at every size with no measurement, no ref and
+no layout effect.
+
+**Rejected.** Measuring the card and container in a `useLayoutEffect` (a resize-observer's
+worth of machinery for something CSS expresses in one line, and it flashes at the wrong
+position on first paint); portalling the card outside the `overflow-hidden` frame (it
+would then need the frame's geometry re-derived to stay anchored to painted pixels);
+removing `overflow-hidden` (the frame's rounded corners exist to clip the canvas).
+
+**Originated →** `2026-09-03-review-annotations-design.md`.
