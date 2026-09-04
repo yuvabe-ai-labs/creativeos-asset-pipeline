@@ -190,9 +190,11 @@ describe("mergeRefinedPlan", () => {
     expect(out).toEqual({ ok: false, reason: "No shot was named for this rewrite." });
   });
 
-  it("rejects a cutId that is not in the cuts", () => {
+  // Caught by mergeRefinedPlan's own pre-check (the `plan.beats.some(...)` guard), not by
+  // parsePlan's cuts-membership check — the merged whole never reaches parsePlan for this case.
+  it("rejects a cutId that is not in the plan", () => {
     const out = mergeRefinedPlan(plan, "cut", { text: "x" }, "nope", cuts);
-    expect(out.ok).toBe(false);
+    expect(out).toEqual({ ok: false, reason: "That shot is not in this plan." });
   });
 
   it("rejects an empty fragment", () => {

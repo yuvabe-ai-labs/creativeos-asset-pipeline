@@ -69,7 +69,9 @@ export async function POST(
     if (scope === "cut" && !cutId) {
       return apiError("No shot was named for this rewrite", 400);
     }
-    if (cutId && !resolved.cuts.some((c) => c.id === cutId)) {
+    // Scoped to "cut" only — a stale cutId riding along on a scope: "all" or "look" request is
+    // irrelevant to that request and should not 400 it.
+    if (scope === "cut" && !resolved.cuts.some((c) => c.id === cutId)) {
       return apiError("That shot is not on this node", 400);
     }
 
@@ -79,6 +81,11 @@ export async function POST(
     if (scope !== "all" && !previous?.ok) {
       return apiError("Generate the whole sequence first", 400);
     }
+    // Narrowed once, right after the guard above proves it: whenever scope !== "all", `previous`
+    // is guaranteed `{ ok: true }` — anything else already 400ed. Everything downstream (the
+    // refineInstruction call and the merge inside call()) reads this instead of re-deriving
+    // `previous?.ok` a second time.
+    const previousPlan = previous?.ok ? previous.plan : null;
 
     // One prompt, no provider routing — Omni is the only multishot model.
     const spec = multishotPromptGenerate();
@@ -95,7 +102,7 @@ export async function POST(
         scope,
         cutId,
         note,
-        plan: previous?.ok ? previous.plan : { look: "", beats: [] },
+        plan: previousPlan ?? { look: "", beats: [] },
       });
 
     const model = `openai:${spec.model}`;
@@ -202,11 +209,16 @@ export async function POST(
           // row equal the plan the node ends up holding — the look re-run used to record a full
           // returned plan while the client kept only its `look`, so restoring that version
           // resurrected beats the operator never accepted.
+          // `!previous?.ok` is unreachable here for a non-"all" scope: line ~79 already 400s that
+          // case before `call()` ever runs. Checking only `scope === "all"` says that plainly,
+          // instead of reading as if a narrow refine could fall back to a full-plan parse. The `!`
+          // on previousPlan is a TS-only assertion (TS cannot correlate `scope` and
+          // `previousPlan`'s nullability across two separate bindings) — not a re-check of `.ok`.
           const parsed =
-            scope === "all" || !previous?.ok
+            scope === "all"
               ? parsePlan(raw, resolved.cuts)
               : mergeRefinedPlan(
-                  previous.plan,
+                  previousPlan!,
                   scope,
                   (raw ?? {}) as { look?: string; text?: string },
                   cutId ?? undefined,

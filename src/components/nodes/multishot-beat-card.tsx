@@ -53,7 +53,9 @@ export function MultishotBeatCard({
    */
   showRerun?: boolean;
   onFocusTimings: () => void;
-  // D33 — the canvas read-only lock. Disables editing AND both action buttons.
+  // D33 — the canvas read-only lock. Disables editing AND both action buttons. The parent also
+  // sets this true for every OTHER beat while one is being refined (`refining.cutId !==
+  // beat.cutId`), so a rewrite of one beat cannot be interleaved with a hand-edit of another.
   disabled?: boolean;
   // Suppresses the row's bottom border — the container draws borders BETWEEN rows, not under
   // the last one.
