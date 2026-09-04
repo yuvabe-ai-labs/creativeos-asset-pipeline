@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { MentionInstructionEditor } from "./mention-instruction-editor";
 import { imageRefDialect } from "@/lib/nodes/prompt-token-dialect";
+import { RefineWithAI } from "./refine-with-ai";
 import type { UpstreamNode } from "./connected-inputs-card";
 
 /**
@@ -28,6 +29,7 @@ export function MultishotBeatCard({
   refIds,
   onChange,
   onRerun,
+  onRefine,
   rerunning = false,
   showRerun = false,
   onFocusTimings,
@@ -42,6 +44,8 @@ export function MultishotBeatCard({
   refIds: string[];
   onChange: (next: string) => void;
   onRerun: () => void;
+  /** Rewrite this beat with an operator note. Same call as onRerun, with a steer attached. */
+  onRefine: (note: string) => void;
   rerunning?: boolean;
   /**
    * Whether to render the rewrite button. The caller withholds it while the multishot flow
@@ -71,7 +75,14 @@ export function MultishotBeatCard({
 
       <div className="min-w-0 flex-1">
         {showRerun && (
-          <div className="mb-1.5 flex justify-end">
+          <div className="mb-1.5 flex items-center justify-end gap-0.5">
+            <RefineWithAI
+              scope="cut"
+              busy={rerunning}
+              disabled={disabled}
+              onSubmit={onRefine}
+              label={`Refine shot ${index + 1} with AI`}
+            />
             <Button
               variant="ghost"
               onClick={onRerun}
@@ -83,14 +94,16 @@ export function MultishotBeatCard({
             </Button>
           </div>
         )}
-        <MentionInstructionEditor
-          value={text}
-          onChange={onChange}
-          upstream={upstream}
-          disabled={disabled}
-          dialect={imageRefDialect(refIds)}
-          placeholder="Not written yet…"
-        />
+        <div className={cn(rerunning && "pointer-events-none opacity-50")}>
+          <MentionInstructionEditor
+            value={text}
+            onChange={onChange}
+            upstream={upstream}
+            disabled={disabled}
+            dialect={imageRefDialect(refIds)}
+            placeholder="Not written yet…"
+          />
+        </div>
       </div>
     </div>
   );
