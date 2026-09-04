@@ -70,9 +70,14 @@ export function mergeRefinedPlan(
   plan: MultishotPlan,
   scope: "look" | "cut",
   fragment: { look?: string; text?: string },
-  cutId?: string,
+  cutId: string | undefined,
+  cuts: MultishotCut[],
 ): PlanParseResult;   // same shape as parsePlan — merge and validation are one step
 ```
+
+It takes the cut list because validating the merged whole means running `parsePlan` against it —
+merge and validation are deliberately one step, so there is no window in which an unvalidated
+merged plan exists.
 
 Returning `PlanParseResult` rather than a plan means a merge that cannot be validated is refused the
 same way a bad generation is, through one code path the route already handles.
