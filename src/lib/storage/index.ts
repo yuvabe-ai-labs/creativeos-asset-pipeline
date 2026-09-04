@@ -10,6 +10,7 @@ import {
   pathForKBDocument,
   pathForMarketThumb,
   pathForNodeFile,
+  pathForReviewAnnotation,
   pathForVideoGen,
 } from "./paths";
 import type { BrandAssetCategory } from "@/lib/brand-kit/types";
@@ -208,6 +209,38 @@ export async function signClientBrandAssetUpload(args: {
   });
   return _sign(path, args.contentType);
 }
+
+// Review annotation assets (D239-D244). Ownership resolves ONCE for the whole batch —
+// every asset in a decision belongs to the same node, so a per-asset resolve would be the
+// same query N times. Uploads run before any DB write and the first failure throws, which
+// aborts the caller's whole action (D244).
+export async function uploadReviewAnnotationAssets(args: {
+  nodeId: string;
+  decisionId: string;
+  assets: { seq: number; mask: Buffer }[];
+}): Promise<{ seq: number; maskPath: string }[]> {
+  if (args.assets.length === 0) return [];
+  const { clientId, canvasId } = await resolveOwnership(args.nodeId);
+  const pathFor = (seq: number) =>
+    pathForReviewAnnotation({
+      clientId,
+      canvasId,
+      nodeId: args.nodeId,
+      decisionId: args.decisionId,
+      seq,
+    });
+
+  const out: { seq: number; maskPath: string }[] = [];
+  for (const a of args.assets) {
+    const mask = await _upload(pathFor(a.seq), a.mask, "image/png");
+    out.push({ seq: a.seq, maskPath: mask.path });
+  }
+  return out;
+}
+
+// The public URL of a stored object. Annotation assets are read back through this, the
+// same way a generated image or video is — see reviewAnnotationUrl's callers.
+export { publicUrlFor };
 
 export function parsePathFromUrl(url: string): string | null {
   const prefix = `https://storage.googleapis.com/${getBucketName()}/`;

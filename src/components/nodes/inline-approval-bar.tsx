@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, MessageSquareWarning, RotateCcw, Loader2 } from "lucide-react";
+import { Check, MessageSquareWarning, Paintbrush, RotateCcw, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -38,6 +38,11 @@ export function InlineApprovalBar({
   onSet,
   approvedByName = null,
   approvedAt = null,
+  annotationCount = 0,
+  annotating = false,
+  annotateLabel = "Annotate the image",
+  onToggleAnnotate,
+  onConfirmDiscardDrafts,
 }: {
   status: ApprovalStatus;
   note: string;
@@ -50,6 +55,15 @@ export function InlineApprovalBar({
   // Who approved this version, and when — rendered only in the read-only view (D169).
   approvedByName?: string | null;
   approvedAt?: string | null;
+  // D243: annotation compose entry point. Absent (the default) on every consumer that
+  // has no media to paint on, which is what keeps the chip out of those bars.
+  annotationCount?: number;
+  annotating?: boolean;
+  // Video says "frame", image says "image" — one prop, not a forked component.
+  annotateLabel?: string;
+  onToggleAnnotate?: () => void;
+  // Resolves false to abort — the caller confirms before drafts are thrown away.
+  onConfirmDiscardDrafts?: () => Promise<boolean>;
 }) {
   const [draftNote, setDraftNote] = useState(note);
   const [composing, setComposing] = useState(false);
@@ -76,9 +90,11 @@ export function InlineApprovalBar({
   const meta = STATUS_META[status];
   const canSubmitRejection = draftNote.trim().length > 0;
 
-  function act(next: Pending, run: () => void) {
+  // Fire-and-forget by design: the parent's `saving` prop drives the spinner, so the
+  // async variant (Approve, which may await a discard confirm first) is not awaited here.
+  function act(next: Pending, run: () => void | Promise<void>) {
     setPending(next);
-    run();
+    void run();
   }
 
   return (
@@ -104,13 +120,37 @@ export function InlineApprovalBar({
             disabled={saving}
             className="resize-none border-border bg-background text-xs leading-relaxed"
           />
+          {onToggleAnnotate && (
+            <Button
+              type="button"
+              variant="outline"
+              size="xs"
+              disabled={saving}
+              onClick={onToggleAnnotate}
+              className={cn(
+                "mt-2 border-dashed border-primary/40 text-primary hover:bg-primary/5",
+                annotating && "bg-primary/10",
+              )}
+            >
+              <Paintbrush className="size-3" strokeWidth={1.5} />
+              {annotating
+                ? "Done annotating"
+                : annotationCount
+                  ? `Annotate · ${annotationCount}`
+                  : annotateLabel}
+            </Button>
+          )}
           <div className="mt-2 flex items-center justify-end gap-1.5">
             <Button
               type="button"
               variant="ghost"
               size="xs"
               disabled={saving}
-              onClick={() => {
+              onClick={async () => {
+                if (annotationCount && onConfirmDiscardDrafts) {
+                  const ok = await onConfirmDiscardDrafts();
+                  if (!ok) return;
+                }
                 setComposing(false);
                 setDraftNote(note);
               }}
@@ -145,7 +185,18 @@ export function InlineApprovalBar({
               type="button"
               size="xs"
               disabled={saving}
-              onClick={() => act("approve", () => onSet("approved", null))}
+              onClick={() =>
+                act("approve", async () => {
+                  if (annotationCount && onConfirmDiscardDrafts) {
+                    const ok = await onConfirmDiscardDrafts();
+                    if (!ok) {
+                      setPending(null);
+                      return;
+                    }
+                  }
+                  onSet("approved", null);
+                })
+              }
               className="border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-950/70"
             >
               {pending === "approve" ? (
