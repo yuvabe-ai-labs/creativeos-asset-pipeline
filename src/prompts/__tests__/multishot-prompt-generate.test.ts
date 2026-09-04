@@ -162,4 +162,15 @@ describe("refineInstruction", () => {
   it("returns nothing for a full generate", () => {
     expect(refineInstruction({ scope: "all", cutId: null, note: "punchier", plan })).toBe("");
   });
+
+  // The signature allows scope: "cut" with cutId: null even though the route should never send
+  // that combination. Left unguarded, this falls through to a broken instruction — "Rewrite ONLY
+  // the beat whose cutId is null" — sent straight to the model. The model answers it as best it
+  // can and nothing flags the mistake; it's only visible in a beat rewritten against the wrong
+  // (or no) cut. Throwing here turns a silent bad prompt into a loud programmer error instead.
+  it("throws rather than emit a broken instruction for a cut refine with no cutId", () => {
+    expect(() => refineInstruction({ scope: "cut", cutId: null, note: "", plan })).toThrow(
+      /cutId/,
+    );
+  });
 });

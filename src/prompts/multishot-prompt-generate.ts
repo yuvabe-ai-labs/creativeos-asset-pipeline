@@ -125,6 +125,10 @@ ${REFERENCE_IDENTIFICATION_BLOCK}
 AVOID
 ${MOTION_AVOID_LIST}`;
 
+/** Shared verbatim across SCHEMA and MULTISHOT_LOOK_SCHEMA — see the reuse rule in AGENTS.md. */
+const LOOK_DESCRIPTION =
+  "One paragraph of look and atmosphere governing every beat: light direction, time of day, lens feel, palette, ground, grade. Repeatable physical facts only.";
+
 const SCHEMA = {
   type: "object",
   additionalProperties: false,
@@ -132,8 +136,7 @@ const SCHEMA = {
   properties: {
     look: {
       type: "string",
-      description:
-        "One paragraph of look and atmosphere governing every beat: light direction, time of day, lens feel, palette, ground, grade. Repeatable physical facts only.",
+      description: LOOK_DESCRIPTION,
     },
     beats: {
       type: "array",
@@ -172,8 +175,7 @@ export const MULTISHOT_LOOK_SCHEMA = {
   properties: {
     look: {
       type: "string",
-      description:
-        "One paragraph of look and atmosphere governing every beat: light direction, time of day, lens feel, palette, ground, grade. Repeatable physical facts only.",
+      description: LOOK_DESCRIPTION,
     },
   },
 } as const;
@@ -209,6 +211,13 @@ export function refineInstruction(args: {
   if (scope === "all") return "";
 
   const blocks: string[] = [`The current plan is below.\n\n${JSON.stringify(plan, null, 2)}`];
+
+  if (scope === "cut" && !cutId) {
+    // A programmer error, not an operator one: the route rejects a cut refine with no shot long
+    // before here. Throwing beats emitting "the beat whose cutId is null" into the prompt, which
+    // the model would answer as best it could and nothing would flag.
+    throw new Error("refineInstruction: a cut refine needs a cutId.");
+  }
 
   blocks.push(
     scope === "look"
