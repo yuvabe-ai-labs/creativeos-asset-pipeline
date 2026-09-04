@@ -12,7 +12,7 @@
 
 - Spec: `docs/superpowers/specs/2026-08-28-gemini-omni-multishot-design.md` §8 and §9
 - **Verified API facts: `docs/superpowers/specs/2026-08-28-gemini-omni-api-findings.md`** — read this before writing the provider. Where it and Google's published docs disagree, it is right.
-- Decisions: D184, D185, D186, D187, D196, D197
+- Decisions: D205, D206, D207, D208, D217, D218
 
 ---
 
@@ -128,7 +128,7 @@ Create `src/lib/video-gen/providers/avoid-clause.ts`:
  * A suppression list as a plain sentence, for models with no negative-prompt field.
  *
  * Veo 3.1 Lite rejects `negativePrompt` outright (D183) and Gemini Omni has no such field at all
- * (D187), so both state their negatives in the prompt text. Returns "" when there is nothing to
+ * (D208), so both state their negatives in the prompt text. Returns "" when there is nothing to
  * suppress, so a cleared field never leaves a dangling "Avoid:" on the request.
  */
 export function avoidClause(negativePrompt: string): string {
@@ -314,7 +314,7 @@ export type OmniInputPlan = {
 };
 
 /**
- * D186 — the sole owner of Omni's two index bases.
+ * D207 — the sole owner of Omni's two index bases.
  *
  * The declaration header carries two simultaneous numbering schemes:
  *   `@ImageN`       — 1-based, over the WHOLE upload array
@@ -392,7 +392,7 @@ Expected: PASS, 7 tests.
 
 ```bash
 git add src/lib/video-gen/plan-omni-input.ts src/lib/video-gen/__tests__/plan-omni-input.test.ts
-git commit -m "feat(video-gen): planOmniInput owns Omni's two reference index bases (D186)"
+git commit -m "feat(video-gen): planOmniInput owns Omni's two reference index bases (D207)"
 ```
 
 ---
@@ -514,7 +514,7 @@ import { avoidClause } from "./providers/avoid-clause";
 import type { OmniInputPlan } from "./plan-omni-input";
 
 /**
- * D187 — Omni generates an audio track ALWAYS. There is no off switch anywhere in the API, so
+ * D208 — Omni generates an audio track ALWAYS. There is no off switch anywhere in the API, so
  * this steers the track rather than enabling it. Each value is a documented clause shape.
  *
  * `ambient` is the default because Omni has no voice control of any kind — no reference upload,
@@ -578,7 +578,7 @@ Expected: PASS, 9 tests.
 
 ```bash
 git add src/lib/video-gen/compose-omni-prompt.ts src/lib/video-gen/__tests__/compose-omni-prompt.test.ts
-git commit -m "feat(video-gen): composeOmniPrompt folds Omni's sentence-controls into the prompt (D187)"
+git commit -m "feat(video-gen): composeOmniPrompt folds Omni's sentence-controls into the prompt (D208)"
 ```
 
 ---
@@ -652,7 +652,7 @@ export const geminiOmniParams: ParamSpec[] = [
     constraints: { type: "select", options: ["16:9", "9:16"] },
   },
   {
-    // NOT an API field. Omni always generates audio; this steers it (D187).
+    // NOT an API field. Omni always generates audio; this steers it (D208).
     name: "audio",
     label: "Audio",
     component: "select",
@@ -754,7 +754,7 @@ Expected: no errors from either new file. Pre-existing errors elsewhere in the r
 
 ```bash
 git add src/lib/video-gen/params/gemini-omni.ts src/lib/video-gen/gemini-omni-shape.ts
-git commit -m "feat(video-gen): Gemini Omni param specs and shared client/server shape (D187)"
+git commit -m "feat(video-gen): Gemini Omni param specs and shared client/server shape (D208)"
 ```
 
 ---
@@ -938,7 +938,7 @@ export function omniDurationSeconds(params: Record<string, unknown>): number {
 }
 
 /**
- * D196 — everything dimensional lives HERE, not in video_config.
+ * D217 — everything dimensional lives HERE, not in video_config.
  *
  * Verified against the live API: `generation_config.video_config` accepts `task` and nothing else.
  * It rejects `duration`, `resolution` and `aspect_ratio` with "Unknown parameter", contradicting
@@ -1024,7 +1024,7 @@ async function waitForFileReady(fileName: string): Promise<void> {
 }
 
 async function generateWithOmni(input: VideoGenInput): Promise<VideoGenResult> {
-  // D186 mirrored server-side. The client evaluates the same rule, so this is the backstop for a
+  // D207 mirrored server-side. The client evaluates the same rule, so this is the backstop for a
   // caller that bypasses the UI — a named error now rather than a 400 minutes later.
   if (input.endFrameUrl && !input.startFrameUrl) {
     throw new Error("<LAST_FRAME> requires <FIRST_FRAME> — Omni cannot use an end frame alone");
@@ -1053,7 +1053,7 @@ async function generateWithOmni(input: VideoGenInput): Promise<VideoGenResult> {
     body: JSON.stringify({
       model: OMNI_MODEL,
       input: [...imageParts, { type: "text", text }],
-      // task and NOTHING else — video_config rejects every other key (D196).
+      // task and NOTHING else — video_config rejects every other key (D217).
       generation_config: { video_config: { task: plan.task } },
       response_format: buildOmniResponseFormat(input.params),
       // REQUIRED by delivery:"uri" — the API returns 400 "store=true is required when response
@@ -1140,7 +1140,7 @@ Expected: PASS, 14 new tests, no new type errors.
 
 ```bash
 git add src/lib/video-gen/providers/gemini-omni.ts src/lib/video-gen/registry.ts src/lib/video-gen/types.ts src/lib/video-gen/__tests__/gemini-omni-request.test.ts
-git commit -m "feat(video-gen): Gemini Omni provider with the verified request shape (D184, D185, D196)"
+git commit -m "feat(video-gen): Gemini Omni provider with the verified request shape (D205, D206, D217)"
 ```
 
 ---
@@ -1344,7 +1344,7 @@ Expected: tests PASS across both directories; the `grep` returns no output.
 
 ```bash
 git add src/lib/video-gen/cost.ts src/lib/video-gen/client-models.ts src/lib/generations/complete.ts src/lib/video-gen/__tests__/gemini-omni-registration.test.ts
-git commit -m "feat(video-gen): price, register and download Gemini Omni (D184)"
+git commit -m "feat(video-gen): price, register and download Gemini Omni (D205)"
 ```
 
 ---
@@ -1367,7 +1367,7 @@ In `src/lib/video-gen/__tests__/kling-params.test.ts`, add this block at the end
 
 ```ts
 describe("multi_shot is hidden on both Kling models", () => {
-  // D197 — Omni is the only multi-shot model surfaced. Hidden rather than deleted: visible:false
+  // D218 — Omni is the only multi-shot model surfaced. Hidden rather than deleted: visible:false
   // still sends the param with its default, so the request shape is byte-identical, every
   // persisted node keeps resolving, and Kling 3.0's end-frame rule that pins multi_shot stays
   // valid. Deleting it would make the route stop resolving a name saved nodes still carry.
@@ -1403,7 +1403,7 @@ const multiShotParam: ParamSpec = {
   component: "toggle",
   group: "advanced",
   order: 1,
-  // D197 — hidden, not deleted. Gemini Omni is the only multi-shot model surfaced in the UI, so
+  // D218 — hidden, not deleted. Gemini Omni is the only multi-shot model surfaced in the UI, so
   // multishot means one thing in one place. `visible: false` still sends the param with its
   // default, so the request shape is byte-identical, every persisted node keeps resolving, and
   // Kling 3.0's end-frame rule that pins multi_shot stays valid and untouched. Deleting the param
@@ -1432,7 +1432,7 @@ Expected: PASS. The existing `version-params.test.ts` cases that read `multi_sho
 
 ```bash
 git add src/lib/video-gen/params/kling.ts src/lib/video-gen/__tests__/kling-params.test.ts
-git commit -m "feat(video-gen): hide Kling multi_shot so Omni is the only multishot model (D197)"
+git commit -m "feat(video-gen): hide Kling multi_shot so Omni is the only multishot model (D218)"
 ```
 
 ---

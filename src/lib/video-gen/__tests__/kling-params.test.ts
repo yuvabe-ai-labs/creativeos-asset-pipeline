@@ -180,7 +180,7 @@ describe("all model param sets", () => {
 });
 
 describe("multi_shot is hidden on both Kling models", () => {
-  // D197 — Omni is the only multi-shot model surfaced. Hidden rather than deleted: visible:false
+  // D218 — Omni is the only multi-shot model surfaced. Hidden rather than deleted: visible:false
   // still sends the param with its default, so the request shape is byte-identical, every
   // persisted node keeps resolving, and Kling 3.0's end-frame rule that pins multi_shot stays
   // valid. Deleting it would make the route stop resolving a name saved nodes still carry.

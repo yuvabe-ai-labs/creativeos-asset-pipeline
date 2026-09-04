@@ -41,7 +41,7 @@ export async function POST(
         // Every prior caller's output IS a string (image/video/text prompts), so this widening
         // is additive: `v.output` decodes straight off the JSONB column, a JSON string decodes
         // back to a JS string same as before. The Multishot Prompt node's output is a
-        // MultishotPlan OBJECT (D210) — the old `typeof === "string"` guard silently returned
+        // MultishotPlan OBJECT (D231) — the old `typeof === "string"` guard silently returned
         // null for it, so restoring a version replaced the node's plan with nothing instead of
         // the version being restored.
         output: v.output ?? null,

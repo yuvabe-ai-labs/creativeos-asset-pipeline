@@ -81,8 +81,8 @@ than the rule breach. Worth its own pass.
 ### Kling's `multi_shot` is hidden but not off
 
 `visible: false` stops it rendering, but the route reads a node's saved value and only falls back to
-the default — so a Kling node an operator toggled on before D197 keeps sending `multi_shot: true`
-with no control left to clear it. Recorded on D197 as a watch-item.
+the default — so a Kling node an operator toggled on before D218 keeps sending `multi_shot: true`
+with no control left to clear it. Recorded on D218 as a watch-item.
 
 ---
 

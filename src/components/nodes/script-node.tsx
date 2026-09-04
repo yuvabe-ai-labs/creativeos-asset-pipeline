@@ -16,6 +16,7 @@ import { NodeCardHeader } from "./node-card-header";
 import { ProcessingPill } from "./processing-pill";
 import type { ReelScript } from "@/lib/nodes/reel-script";
 import { DEFAULT_PARSE_SLICES, type KBSliceKey } from "@/lib/kb/parse-context";
+import { DEFAULT_SIGNAL_MODE, type SignalMode } from "@/lib/market/constants";
 import { useNodeConnectionState } from "./use-node-connection-state";
 
 export function ScriptNode({ id, data, selected }: NodeProps) {
@@ -31,6 +32,8 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
     parsed?: unknown;
     kbSlices?: KBSliceKey[];
     groupModes?: Record<string, boolean>;
+    signalIds?: string[];
+    signalMode?: SignalMode;
   };
   const parsed = (d.parsed ?? null) as ReelScript | null;
   const title = d.title || parsed?.title || "";
@@ -135,6 +138,8 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
       parsed={parsed}
       groupModes={groupModes}
       slices={slices}
+      signalIds={d.signalIds ?? []}
+      signalMode={d.signalMode ?? DEFAULT_SIGNAL_MODE}
       onPatch={(patch) => updateNodeData(id, patch)}
       onParsingChange={setIsParsing}
       onSaveOutput={(output) => saveScriptOutputAction(id, output)}

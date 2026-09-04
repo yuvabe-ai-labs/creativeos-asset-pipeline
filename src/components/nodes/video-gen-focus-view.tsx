@@ -382,7 +382,7 @@ export function VideoGenFocusView({
   const [approvedAt, setApprovedAt] = useState<string | null>(null);
   const [approvalSaving, setApprovalSaving] = useState(false);
   const [restoring, setRestoring] = useState(false);
-  // D195 — true while the `duration` param is showing a value derived from the upstream Shot's
+  // D216 — true while the `duration` param is showing a value derived from the upstream Shot's
   // own beats rather than the model spec's flat default. Cleared the instant the operator edits
   // duration directly, so their edit is never silently overwritten by a later re-derivation.
   const [durationIsDerived, setDurationIsDerived] = useState(false);
@@ -448,7 +448,7 @@ export function VideoGenFocusView({
   const onPatchRef = useRef(onPatch);
   useEffect(() => { onPatchRef.current = onPatch; });
 
-  // D211 — belt and braces, mirroring canvas-store's onConnect coercion: a multishot-prompt
+  // D232 — belt and braces, mirroring canvas-store's onConnect coercion: a multishot-prompt
   // upstream can only generate on Omni, and filtering the picker's list (below) is not enforcing
   // that constraint on its own — a node whose stored modelId predates the connection would sit on
   // a model the restricted picker no longer offers a chip for, and doGenerate reads local `modelId`
@@ -482,7 +482,14 @@ export function VideoGenFocusView({
       setVersions(data.versions);
       setActiveVersionId(data.activeVersionId);
       const active = data.versions.find((v) => v.id === data.activeVersionId);
-      if (active?.output) onPatchRef.current({ parsed: active.output });
+      // Unlike the other focus views, this one already mirrors the active version into the
+      // store on every refresh — so the badge's status rides along here rather than at the
+      // restore call site. Covers restore (which refetches) and the D179 live path at once:
+      // the badge follows whichever version is active. TC-106.
+      onPatchRef.current({
+        ...(active?.output ? { parsed: active.output } : {}),
+        approvalStatus: active?.approvalStatus ?? "pending",
+      });
       setApprovalStatus(active?.approvalStatus ?? "pending");
       setApprovalNote(active?.note ?? "");
       setApprovedByName(active?.approvedByName ?? null);
@@ -620,7 +627,7 @@ export function VideoGenFocusView({
       ? smartMergeVideoParams(params, nextModel)
       : defaultsForVideoModel(nextModelId);
 
-    // D195 — a multi-beat shot's motion prompt is a timecode ladder; the request's duration
+    // D216 — a multi-beat shot's motion prompt is a timecode ladder; the request's duration
     // should agree with it by default. `paramsProp == null` is the one clean "not already set"
     // signal this node has: every later patch (this one included) writes the WHOLE params
     // object, so from the next render on `duration` reads as "set" whether it came from the
@@ -685,7 +692,7 @@ export function VideoGenFocusView({
     const updated = { ...params, [name]: value };
     setParams(updated);
     onPatch({ params: updated });
-    // D195 — the operator's own edit always wins: touching duration directly retires the
+    // D216 — the operator's own edit always wins: touching duration directly retires the
     // derived-default label immediately, rather than leaving it captioning a value they chose.
     if (name === "duration") {
       setDurationIsDerived(false);
@@ -859,7 +866,7 @@ export function VideoGenFocusView({
       if (modelUsed && restoredParams) {
         setModelId(modelUsed);
         setParams(restoredParams);
-        // D195 — a restored version is an authoritative recorded snapshot, not a fresh
+        // D216 — a restored version is an authoritative recorded snapshot, not a fresh
         // derivation, so its duration is never labelled "derived from this shot".
         setDurationIsDerived(false);
         onPatch({ parsed: output, modelId: modelUsed, params: restoredParams });
@@ -1011,7 +1018,7 @@ export function VideoGenFocusView({
     ? connectedItems.find((c) => c.id === selected) ?? null
     : null;
 
-  // D195 — the upstream Shot's own script, walked up the graph, so `duration` can default to
+  // D216 — the upstream Shot's own script, walked up the graph, so `duration` can default to
   // the sum of ITS beats rather than the model spec's flat number.
   const upstreamShotScript = useCanvasStore((s) => {
     const seen = new Set<string>();
@@ -1222,7 +1229,7 @@ export function VideoGenFocusView({
                       lockedParamReasons={constraints.lockedParamReasons}
                       group="primary"
                     />
-                    {/* D195 — duration defaulted to the upstream shot's own total rather than the
+                    {/* D216 — duration defaulted to the upstream shot's own total rather than the
                         model spec's flat number; say so, and say where the number came from. Sits
                         outside VideoGenParamsPanel (whose param rows carry no helper-text slot)
                         rather than adding one there for a single param on a single model. Cleared

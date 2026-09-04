@@ -1,7 +1,7 @@
 # Multishot becomes a node type
 
-*Design spec — 2026-09-02. Decisions D205–D211. Supersedes D193's flag, D201's controls and D202.
-Refines D195, D200. Parks D203, D204.*
+*Design spec — 2026-09-02. Decisions D226–D232. Supersedes D214's flag, D222's controls and D223.
+Refines D216, D221. Parks D224, D225.*
 
 Multishot is currently a **boolean on `ShotNodeData`**. One node type renders two different things
 depending on that flag, one prompt branches on it, one Composer branches on it, and turning it off
@@ -24,11 +24,11 @@ card, three of which are conditional.
 
 **Turning it off was a graph rewrite.** `splitMultishotNode` replaced one node with N, re-pointed
 every incoming edge N times, dropped the outgoing ones, and needed a confirm dialog to explain that
-it could not be undone. `mergeShots` (D202) existed to undo it, with three refusal cases of its own.
+it could not be undone. `mergeShots` (D223) existed to undo it, with three refusal cases of its own.
 Two structural operations, ~250 lines, and a class of edge cases — both for a decision that should
 have been "which of two things does fan-out make here".
 
-**The decision was in the wrong place.** D200 put a read-only `· Multishot · Gen 1` label on each row
+**The decision was in the wrong place.** D221 put a read-only `· Multishot · Gen 1` label on each row
 of the parsed Visual script — the operator can *see* the plan there but must go to the canvas, find
 the node, and use a different control to change it.
 
@@ -90,7 +90,7 @@ VALID_CONNECTIONS = {
 
 ### Omni is coerced on connect, not filtered
 
-Omni is the only multishot model (D196). When a `video-gen` node is connected to a
+Omni is the only multishot model (D217). When a `video-gen` node is connected to a
 `multishot-prompt`, its `modelId` is **coerced** to the Omni model at connect time. The model chips
 are not merely filtered.
 
@@ -98,7 +98,7 @@ Because the lanes are separate types, this is a check on the **source node's typ
 no flag to read, no upstream to resolve. That is the practical payoff of not sharing the prompt node.
 
 This is the followups doc's own recorded lesson: *"Filtering a picker is not enforcing a
-constraint."* The D195 restriction hid every other chip but never changed the node's stored
+constraint."* The D216 restriction hid every other chip but never changed the node's stored
 `modelId`, and a new node defaults to Veo — so Generate would have billed a Veo run fed a ladder Veo
 ignores, which is exactly what the restriction existed to prevent.
 
@@ -181,7 +181,7 @@ built for nobody.
 
 ### The list gains a bracket
 
-D200's per-row label is replaced. Rows belonging to one generation are enclosed by a thin left rule
+D221's per-row label is replaced. Rows belonging to one generation are enclosed by a thin left rule
 with a header carrying the generation's number, its total seconds, and **one** switch:
 
 ```
@@ -231,7 +231,7 @@ export function describeGenerations(shots: ReelShot[], overrides?: Record<string
 ```
 
 Still derived from `groupShotsForFanOut`, so the list continues to show exactly what fan-out will do
-— the property D200 was built for.
+— the property D221 was built for.
 
 ---
 
@@ -385,7 +385,7 @@ timecode, a different border treatment, and a line saying it governs every beat.
 happens if the plan is a flat list of beats — would make the operator think a global constraint was
 local to shot 1.
 
-**This is not D201's LOOK returning.** That was an operator-authored field with a preset catalog, and
+**This is not D222's LOOK returning.** That was an operator-authored field with a preset catalog, and
 it stays deleted (§9). This is model-written output, steered by the sequence-level instruction the
 node already has, and editable afterwards like any other beat. No new control, no preset list.
 
@@ -523,7 +523,7 @@ coercion, and `video-prompt-generate.ts` loses its `multishot` routing key.
 - `compileVideoPrompt`'s `multishot` param, and `videoPromptGeneratePromptFor`'s `multishot` routing key
 - `video-prompt/route.ts`'s Omni coercion — coercion now happens on the `multishot-prompt → video-gen` connection
 - `renderMultishotBrief` and `renderShotLadder` — replaced by `renderPlan`, which walks cuts rather than `visual_script.shots`
-- `VideoControls.look`, `.voice`, `LOOK_PRESETS`, `VOICE_PRESETS`, `ContractField` — D201/D204, deferred until the flow is settled. **The operator-authored control goes; the look itself does not** — the model now writes it into the plan and the breakup view shows it (§8). What is deleted is the field, the preset catalog and the verbatim-reproduction machinery, not the concept
+- `VideoControls.look`, `.voice`, `LOOK_PRESETS`, `VOICE_PRESETS`, `ContractField` — D222/D225, deferred until the flow is settled. **The operator-authored control goes; the look itself does not** — the model now writes it into the plan and the breakup view shows it (§8). What is deleted is the field, the preset catalog and the verbatim-reproduction machinery, not the concept
 
 **Flagged:**
 
@@ -531,11 +531,11 @@ coercion, and `video-prompt-generate.ts` loses its `multishot` routing key.
 
 ### `sequence-roles.ts` — flagged for review
 
-D203's SEQUENCE_ROLES catalog exists only to serve the **multishot branch of the Shot Composer**,
+D224's SEQUENCE_ROLES catalog exists only to serve the **multishot branch of the Shot Composer**,
 and the Multishot node has no Composer. Its consumers — `shot-compose-sheet.tsx`, `shot-compose.ts`,
 `compose/route.ts` — all lose their multishot path with it.
 
-**It is deleted here by default**, with the rest of D201's authoring surface, on the same reasoning:
+**It is deleted here by default**, with the rest of D222's authoring surface, on the same reasoning:
 the multishot flow is being rebuilt and its controls should return only once the flow they serve is
 settled. But it is 134 lines of documented cutting patterns (Rosenblum's five-shot method, the
 30-degree rule per pattern, the graphic-match chain) that were researched rather than invented, and
@@ -602,7 +602,7 @@ in a state neither the model nor the operator authored:
 
 - `multishot → multishot-prompt` and `multishot-prompt → video-gen` connect; `multishot → video-prompt`, `multishot → prompt` and `shot → multishot-prompt` **do not**.
 - Connecting `video-gen` to a `multishot-prompt` coerces its `modelId` to Omni — asserted on the
-  node's stored value, not on which chips render. That distinction is the whole D195 lesson.
+  node's stored value, not on which chips render. That distinction is the whole D216 lesson.
 
 **Store-level:**
 
@@ -628,17 +628,17 @@ Neither blocks building this. Both block trusting it.
 
 ## 12. ADR entries to append to §7
 
-- **D205** — Multishot is a node type, not a flag — and so is its prompt
-- **D206** — The mode switch lives on a generation bracket in the Script
-- **D207** — Fan-out is incremental, matched on exact `shotIndexes`
-- **D208** — Flipping the mode swaps the node type in place; there is no split and no merge
-- **D209** — A Multishot node is a fixed budget divided into cuts
-- **D210** — The multishot prompt returns JSON — a model-written look block plus beats keyed by `cutId` — and the compiled prompt is rendered from it
-- **D211** — Per-cut references are `@`-mentions, not a second picker
+- **D226** — Multishot is a node type, not a flag — and so is its prompt
+- **D227** — The mode switch lives on a generation bracket in the Script
+- **D228** — Fan-out is incremental, matched on exact `shotIndexes`
+- **D229** — Flipping the mode swaps the node type in place; there is no split and no merge
+- **D230** — A Multishot node is a fixed budget divided into cuts
+- **D231** — The multishot prompt returns JSON — a model-written look block plus beats keyed by `cutId` — and the compiled prompt is rendered from it
+- **D232** — Per-cut references are `@`-mentions, not a second picker
 
-Each supersedes or refines: D205 supersedes the flag half of D193 and D195; D206 supersedes D200;
-D208 supersedes D202; D209 and D210 supersede D201's controls and brief. D203 (sequence roles) and
-D204 (the VOICE contract) are **parked, not superseded** — nothing here replaces what they decided,
+Each supersedes or refines: D226 supersedes the flag half of D214 and D216; D227 supersedes D221;
+D229 supersedes D223; D230 and D231 supersede D222's controls and brief. D224 (sequence roles) and
+D225 (the VOICE contract) are **parked, not superseded** — nothing here replaces what they decided,
 and both are candidates to return once the flow they serve is settled.
 
 ---
@@ -666,7 +666,7 @@ which is also the last convenient moment to reverse that call.
 
 ## 14. What this does not change
 
-The Script node's parse (still v2 — one entry per timecoded block, per the D198/D199 revert),
+The Script node's parse (still v2 — one entry per timecoded block, per the D219/D220 revert),
 `groupShotsForFanOut`'s packing arithmetic, the Shot Composer for single shots, `SHOT_ROLES`,
 `renderShotForImage`, the Video Gen node, the generation tray, versioning, approvals, and every
 non-video node type.

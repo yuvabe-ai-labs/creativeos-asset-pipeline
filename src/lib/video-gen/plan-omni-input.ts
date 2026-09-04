@@ -14,7 +14,7 @@ export type OmniInputPlan = {
 };
 
 /**
- * D186 — the sole owner of Omni's two index bases.
+ * D207 — the sole owner of Omni's two index bases.
  *
  * The declaration header carries two simultaneous numbering schemes:
  *   `@ImageN`       — 1-based, over the WHOLE upload array

@@ -54,7 +54,7 @@ function rebalanceTrailing(groups: ShotGroup[], lengths: number[]): void {
 }
 
 /**
- * D193 — consecutive, greedy, then rebalanced. Deliberately not seam-aware.
+ * D214 — consecutive, greedy, then rebalanced. Deliberately not seam-aware.
  *
  * Finding good narrative seams was a planner's job, and its failures were invisible: a plan could
  * be internally consistent and still lose footage. Packing by arithmetic is legible instead — the
@@ -119,7 +119,7 @@ export function generationKey(shotIndexes: number[]): string {
 }
 
 /**
- * D206 — the generations the script will fan out to, with each one's mode.
+ * D227 — the generations the script will fan out to, with each one's mode.
  *
  * Derived from `groupShotsForFanOut`, not from a parallel rule, so what the Visual script list
  * shows is exactly what fan-out will do. A label computed independently would drift, and its

@@ -39,7 +39,7 @@ export function getNodeOutput(node: NodeOutputInput): string {
       return renderScriptAsText(node.activeOutput as ReelScript | null);
     case "multishot": {
       // A Multishot node has no version system and no activeOutput — its content IS the cut
-      // ladder on node.data (D209). Without this case it fell to `default`, which reads
+      // ladder on node.data (D230). Without this case it fell to `default`, which reads
       // activeOutput, so every surface asking a Multishot node what it holds got "" and
       // rendered "No content yet." beside a node full of shots.
       const cuts = (node.data.cuts ?? []) as MultishotCut[];

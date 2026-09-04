@@ -43,9 +43,12 @@ vi.mock("@/lib/supabase/server", () => ({
 vi.mock("@/lib/db/moodboards", () => ({
   listItems: vi.fn(),
   addItem: vi.fn(),
+  getMoodboardClientId: vi.fn(),
 }));
+vi.mock("@/lib/market/ingest", () => ({ ingestReference: vi.fn() }));
 
-import { listItems, addItem } from "@/lib/db/moodboards";
+import { listItems, addItem, getMoodboardClientId } from "@/lib/db/moodboards";
+import { ingestReference } from "@/lib/market/ingest";
 
 const params = Promise.resolve({ id: "board-1" });
 
@@ -57,7 +60,7 @@ describe("/api/moodboards/[id]/items", () => {
 
   it("GET lists items", async () => {
     vi.mocked(listItems).mockResolvedValue([
-      { id: "i1", moodboard_id: "board-1", image_url: "https://x/y.jpg", source_url: null, position: 0, added_at: "t" },
+      { id: "i1", moodboard_id: "board-1", image_url: "https://x/y.jpg", source_url: null, kind: "image", note: null, added_by: null, thumbnail_url: null, position: 0, added_at: "t" },
     ]);
     const { GET } = await import("./route");
     const res = await GET(new NextRequest("http://localhost/api/moodboards/board-1/items"), { params });
@@ -66,9 +69,10 @@ describe("/api/moodboards/[id]/items", () => {
     expect(vi.mocked(listItems)).toHaveBeenCalledWith("board-1");
   });
 
-  it("POST adds an item and returns 201", async () => {
-    vi.mocked(addItem).mockResolvedValue({
-      id: "i2", moodboard_id: "board-1", image_url: "https://x/z.jpg", source_url: "https://pin", position: 0, added_at: "t",
+  it("POST routes an imageUrl clip through ingest (backward-compatible extension payload)", async () => {
+    vi.mocked(getMoodboardClientId).mockResolvedValue("client-1");
+    vi.mocked(ingestReference).mockResolvedValue({
+      id: "i2", moodboard_id: "board-1", image_url: "https://x/z.jpg", source_url: "https://pin", kind: "image", note: null, added_by: null, thumbnail_url: null, position: 0, added_at: "t",
     });
     const { POST } = await import("./route");
     const req = new NextRequest("http://localhost/api/moodboards/board-1/items", {
@@ -78,7 +82,26 @@ describe("/api/moodboards/[id]/items", () => {
     const res = await POST(req, { params });
     expect(res.status).toBe(201);
     expect((await res.json()).item.image_url).toBe("https://x/z.jpg");
-    expect(vi.mocked(addItem)).toHaveBeenCalledWith("board-1", { imageUrl: "https://x/z.jpg", sourceUrl: "https://pin" });
+    expect(vi.mocked(ingestReference)).toHaveBeenCalledWith(expect.objectContaining({
+      boardId: "board-1", clientId: "client-1", url: "https://x/z.jpg", sourceUrl: "https://pin", addedBy: "user-1",
+    }));
+  });
+
+  it("POST routes a pageUrl clip (page-level context menu) through ingest with note", async () => {
+    vi.mocked(getMoodboardClientId).mockResolvedValue("client-1");
+    vi.mocked(ingestReference).mockResolvedValue({
+      id: "i3", moodboard_id: "board-1", image_url: "https://www.instagram.com/reel/C8x/", source_url: "https://www.instagram.com/reel/C8x/", kind: "instagram", note: "opening hook", added_by: "user-1", thumbnail_url: null, position: 0, added_at: "t",
+    });
+    const { POST } = await import("./route");
+    const req = new NextRequest("http://localhost/api/moodboards/board-1/items", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pageUrl: "https://www.instagram.com/reel/C8x/", note: "opening hook" }),
+    });
+    const res = await POST(req, { params });
+    expect(res.status).toBe(201);
+    expect(vi.mocked(ingestReference)).toHaveBeenCalledWith(expect.objectContaining({
+      url: "https://www.instagram.com/reel/C8x/", sourceUrl: "https://www.instagram.com/reel/C8x/", note: "opening hook",
+    }));
   });
 
   it("POST returns 400 when imageUrl is missing", async () => {
@@ -108,5 +131,6 @@ describe("/api/moodboards/[id]/items", () => {
     const res = await POST(req, { params });
     expect(res.status).toBe(404);
     expect(vi.mocked(addItem)).not.toHaveBeenCalled();
+    expect(vi.mocked(ingestReference)).not.toHaveBeenCalled();
   });
 });

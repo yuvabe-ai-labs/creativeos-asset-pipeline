@@ -4,6 +4,7 @@ import { Check, Expand, ImageIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import type { GridImage } from "./types";
+import { KindBadge } from "@/components/market/kind-badge";
 
 type Props = {
   image: GridImage;
@@ -56,6 +57,7 @@ export function ImageRow({ image, selected, onToggle, onPreview, size = "sm" }: 
             strokeWidth={1.5}
           />
         )}
+        {image.kind && <KindBadge kind={image.kind} className="left-0.5 top-0.5 p-0.5" />}
       </div>
 
       <div className="min-w-0 flex-1">

@@ -20,7 +20,7 @@ import type { MultishotNodeData } from "@/lib/canvas-nodes";
 const SOFT_CUT_LIMIT = 6;
 
 /**
- * D209 — a Multishot node's clip length simply IS the sum of its cuts (operator request
+ * D230 — a Multishot node's clip length simply IS the sum of its cuts (operator request
  * 2026-09-03; see multishot-cuts.ts's header). There is no Total control, so the card just
  * shows the ladder's length and cut count — no "allocated/total" ratio, because there is
  * nothing separate left for the ladder to disagree with.

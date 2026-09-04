@@ -9,7 +9,7 @@
 > Read §7 first if you are thinking of reviving it — the split's quality was never verified against
 > the live model, which is the thing that would decide whether it is worth having.
 
-*Design spec — 2026-08-29. Decisions D198–D200 (D198/D199 reverted). Refines D193.*
+*Design spec — 2026-08-29. Decisions D219–D221 (D219/D220 reverted). Refines D214.*
 
 Corrects a defect found by running a real client script through the shipped parse: the parse
 treats a timecoded **block** as a shot, when a block is a **beat** containing several shots. The

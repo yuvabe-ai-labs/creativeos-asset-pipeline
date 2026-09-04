@@ -1,4 +1,4 @@
-// The Multishot node's cut list (D209). One shared ceiling, no separate "total" to reconcile
+// The Multishot node's cut list (D230). One shared ceiling, no separate "total" to reconcile
 // (operator request 2026-09-03).
 //
 // The model, in one line: **the ladder may run up to OMNI_MAX_SECONDS, and each cut grows into

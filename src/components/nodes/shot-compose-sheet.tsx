@@ -63,7 +63,7 @@ function SectionLabel({
 // The Shot Composer sheet (D28). Pick a role -> Compose -> 4 idea cards -> "Use this" rewrites
 // the shot description (edit-at-source) + captures the pick; multi-select promotes to siblings.
 //
-// A Shot node is always a single continuous take (D208) — the multishot branch this sheet once
+// A Shot node is always a single continuous take (D229) — the multishot branch this sheet once
 // had (sequence roles, a duration budget, whole cut-sequence cards) is retired; a Multishot node
 // has no Composer at all now.
 export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {

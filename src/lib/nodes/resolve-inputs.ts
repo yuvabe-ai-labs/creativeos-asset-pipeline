@@ -105,7 +105,7 @@ export function mapUpstreamForVideo(u: RawUpstream): UpstreamPreview {
     return { ...base, text: "", fileUrl: url, fileKind: "image" };
   }
   if (u.type === "shot") {
-    // D208 — a Shot is always ONE continuous take now; there is no flag left to branch on. A
+    // D229 — a Shot is always ONE continuous take now; there is no flag left to branch on. A
     // multishot GENERATION lives on its own dedicated node type instead (which does not feed this
     // path — Phase 2's renderPlan). Omni still needs telling explicitly, because it cuts by default.
     const script = (u.data.script ?? null) as ReelScript | null;

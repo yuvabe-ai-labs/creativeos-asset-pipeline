@@ -8,6 +8,7 @@ import {
   pathForClientLogo,
   pathForImageGen,
   pathForKBDocument,
+  pathForMarketThumb,
   pathForNodeFile,
   pathForVideoGen,
 } from "./paths";
@@ -235,4 +236,18 @@ export async function removeObject(urlOrPath: string): Promise<void> {
     return;
   }
   throw new Error(`Unrecognized storage URL: ${urlOrPath}`);
+}
+
+// Re-hosted preview for a market reference (D185's bounded exception to URL-only
+// storage): small, immutable per item, and what lets a board survive a deleted post.
+export async function uploadMarketThumbnail(args: {
+  clientId: string;
+  itemId: string;
+  body: Buffer | ArrayBuffer | Uint8Array;
+  contentType: string;
+}): Promise<UploadResult> {
+  const ext =
+    args.contentType === "image/png" ? "png" : args.contentType === "image/webp" ? "webp" : "jpg";
+  const path = pathForMarketThumb({ clientId: args.clientId, itemId: args.itemId, ext });
+  return _upload(path, args.body, args.contentType);
 }

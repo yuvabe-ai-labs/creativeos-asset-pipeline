@@ -21,7 +21,7 @@ import type { Generation } from "@/lib/nodes/group-shots";
 import { generationKey } from "@/lib/nodes/group-shots";
 
 /**
- * D206 — one generation's rows, bracketed, with the single control that sets its mode.
+ * D227 — one generation's rows, bracketed, with the single control that sets its mode.
  *
  * The bracket exists because a generation spans several rows: a switch sitting on ONE row would
  * reach rows the operator did not touch. Drawing the scope makes the switch's reach a fact on

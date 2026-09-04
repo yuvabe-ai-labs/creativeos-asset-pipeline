@@ -48,7 +48,7 @@ export type CanvasState = {
   duplicateNode: (id: string) => Promise<void>;
   duplicateNodes: (ids: string[], canvasId: string) => Promise<void>;
   fanOutShots: (scriptNodeId: string) => void;
-  /** D206 — set one generation's mode from the Script's Visual script list. */
+  /** D227 — set one generation's mode from the Script's Visual script list. */
   setGenerationMode: (scriptNodeId: string, key: string, multishot: boolean) => void;
   promoteIdeasToShots: (shotNodeId: string, ideas: ShotComposeIdea[]) => void;
   // Per-node video generation status — shared between VideoGenNode and VideoGenFocusView
@@ -168,8 +168,8 @@ export function createCanvasStore(
         toast.error("That connection would create a loop.");
         return;
       }
-      // Omni is the only multishot model (D196). Coerce the target's STORED modelId — filtering
-      // the picker is not enforcing a constraint: D195 hid every other chip but left the node's
+      // Omni is the only multishot model (D217). Coerce the target's STORED modelId — filtering
+      // the picker is not enforcing a constraint: D216 hid every other chip but left the node's
       // saved value alone, so a new node defaulting to Veo would have billed a Veo run against a
       // ladder Veo ignores. Because the lanes are separate types this is a check on the source
       // node's type — no traversal, no flag, no upstream to resolve.
@@ -387,7 +387,7 @@ export function createCanvasStore(
         toast.error("Couldn't duplicate nodes", { id: toastId });
       }
     },
-    // D207 — materialize each GENERATION of a parsed Script as one node: a `shot` for a
+    // D228 — materialize each GENERATION of a parsed Script as one node: a `shot` for a
     // continuous take, a `multishot` for a cut sequence. A dashed Script->node lineage edge is
     // added for provenance; it is NOT a live edge (resolution never traverses it).
     //
@@ -529,7 +529,7 @@ export function createCanvasStore(
 
       get().updateNodeData(scriptNodeId, { groupModes: next });
 
-      // D208 — when the generation already has a node, the switch CONVERTS it: same id, same
+      // D229 — when the generation already has a node, the switch CONVERTS it: same id, same
       // position, same incoming edges. There is no split and no merge, because the node count is
       // identical in both modes — only which of two things the node is changes.
       const node = get().nodes.find(

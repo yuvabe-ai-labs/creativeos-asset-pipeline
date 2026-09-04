@@ -1,4 +1,4 @@
-// D210 — what the Multishot Prompt node's writer returns, and how it becomes a prompt.
+// D231 — what the Multishot Prompt node's writer returns, and how it becomes a prompt.
 //
 // The model returns JSON ONLY. The flat prompt is rendered from that JSON by `renderPlan`, so the
 // breakup view the operator reads and the string that gets billed cannot disagree — they are the
@@ -107,7 +107,7 @@ const IMAGE_REF = /<IMAGE_REF_(\d+)>/g;
 /**
  * Which references a beat cites, derived from its own text.
  *
- * Since D212 these are the OPERATOR's citations, not the writer's: the model is forbidden from
+ * Since D233 these are the OPERATOR's citations, not the writer's: the model is forbidden from
  * assigning `<IMAGE_REF_N>` itself and names the product in prose instead, so a token in a beat
  * got there by someone `@`-mentioning a reference in the editor. The shape is unchanged either
  * way — `imageRefDialect` emits the same token the writer used to.

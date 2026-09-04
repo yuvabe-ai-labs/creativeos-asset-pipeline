@@ -4,6 +4,7 @@ import { Check, Expand } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import type { GridImage } from "./types";
+import { KindBadge } from "@/components/market/kind-badge";
 
 type Props = {
   image: GridImage;
@@ -57,6 +58,7 @@ export function ImageTile({
           selected ? "opacity-100" : "opacity-0 group-hover:opacity-100",
         )}
       />
+      {image.kind && <KindBadge kind={image.kind} />}
       <SelectionBadge selected={selected} />
       <PreviewButton
         onClick={(e) => {

@@ -59,7 +59,7 @@ describe("compileVideoPrompt provider awareness", () => {
   });
 });
 
-// D208/D210. A Shot upstream is always a single continuous take — the Multishot ladder prompt
+// D229/D231. A Shot upstream is always a single continuous take — the Multishot ladder prompt
 // lives entirely on the Multishot Prompt node's own writer (src/prompts/multishot-prompt-generate.ts),
 // and a Multishot node cannot connect to this route at all. So this route always emits the
 // continuous-take spine and the global camera/speed block, for every provider including Omni.

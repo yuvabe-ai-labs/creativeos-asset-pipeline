@@ -122,3 +122,11 @@ export function pathForBrandAsset(args: {
   const name = buildStoredName(args.filename);
   return `clients/${args.clientId}/brand-kit/${args.category}/${args.assetId}/${name}`;
 }
+
+export function pathForMarketThumb(args: {
+  clientId: string;
+  itemId: string;
+  ext: string;
+}): string {
+  return `clients/${args.clientId}/market/thumbs/${args.itemId}.${args.ext}`;
+}

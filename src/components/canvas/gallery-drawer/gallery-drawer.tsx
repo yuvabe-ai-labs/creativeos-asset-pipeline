@@ -12,9 +12,11 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { FullScreenImageZoom } from "@/components/shared/full-screen-image-zoom";
+import { ReferenceLightbox } from "@/components/market/reference-lightbox";
 import { useDriveBrowser } from "@/hooks/use-drive-browser";
 import { useCanvasGenerations } from "@/hooks/use-canvas-generations";
 import { useMoodboards } from "@/hooks/use-moodboards";
+import { useMarket } from "@/hooks/use-market";
 import { useGalleryDrawer as useGalleryCommit } from "@/hooks/use-gallery-drawer";
 import { useGalleryDrawer as useDrawerCtx } from "../gallery-drawer-context";
 import { GalleryHeader } from "./gallery-header";
@@ -24,13 +26,15 @@ import { GalleryContent } from "./gallery-content";
 import { GalleryFooter } from "./gallery-footer";
 import { GalleryBreadcrumb } from "./gallery-breadcrumb";
 import { GalleryFolderTile } from "./gallery-folder-tile";
+import { GallerySignalsTab } from "./gallery-signals-tab";
 import { DriveFolderPicker } from "./drive-folder-picker";
 import { GalleryAddUrl } from "./gallery-add-url";
-import { filenameFromUrl } from "@/lib/moodboards/filename";
+import { moodboardItemToGalleryImage } from "./moodboard-image";
 import type { GalleryImage, GalleryTab, ViewMode } from "./types";
 import type { DriveBrowseItem } from "@/hooks/use-drive-browser";
 
 const MAX_SELECTION = 10;
+
 export const GALLERY_DRAG_MIME = "application/x-creativeos-gallery-image";
 
 const GHOST_THUMB = 84;
@@ -118,6 +122,7 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [imageMap, setImageMap] = useState<Map<string, GalleryImage>>(new Map());
   const [previewId, setPreviewId] = useState<string | null>(null);
+  const [selectedSignalId, setSelectedSignalId] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [folderPopoverOpen, setFolderPopoverOpen] = useState(false);
   const [rootFolder, setRootFolder] = useState(initialDriveRootFolder);
@@ -127,6 +132,7 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
   const browser = useDriveBrowser(rootFolder);
   const generations = useCanvasGenerations(canvasId);
   const moodboards = useMoodboards(clientId);
+  const market = useMarket(clientId);
 
   // Reset transient state on drawer close.
   const [wasOpen, setWasOpen] = useState(false);
@@ -136,6 +142,7 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
       setSelectedIds(new Set());
       setImageMap(new Map());
       setPreviewId(null);
+      setSelectedSignalId(null);
     }
   }
 
@@ -206,24 +213,26 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
   }, [assets, browser.search]);
 
   const moodboardImages: GalleryImage[] = useMemo(
-    () =>
-      moodboards.items.map((it) => ({
-        id: it.id,
-        imageUrl: it.image_url,
-        previewUrl: it.image_url,
-        filename: filenameFromUrl(it.image_url),
-        subtitle: new Date(it.added_at).toLocaleDateString(),
-        source: "moodboard" as const,
-        sourceUrl: it.source_url ?? undefined,
-      })),
+    () => moodboards.items.map(moodboardItemToGalleryImage),
     [moodboards.items],
   );
 
+  const signalImages: GalleryImage[] = useMemo(() => {
+    const signal = market.data?.signals.find((s) => s.id === selectedSignalId);
+    return (signal?.items ?? []).map(moodboardItemToGalleryImage);
+  }, [market.data, selectedSignalId]);
+
   const activeImages =
-    tab === "references" ? references : tab === "assets" ? filteredAssets : moodboardImages;
+    tab === "references"
+      ? references
+      : tab === "assets"
+        ? filteredAssets
+        : tab === "signals"
+          ? signalImages
+          : moodboardImages;
 
   function toggleSelect(id: string) {
-    const allImages = [...references, ...assets, ...moodboardImages];
+    const allImages = [...references, ...assets, ...moodboardImages, ...signalImages];
     const image = allImages.find((i) => i.id === id);
     if (!image) return;
     setSelectedIds((prev) => {
@@ -260,6 +269,7 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
   function handleRefresh() {
     if (tab === "references") browser.refresh();
     else if (tab === "moodboard") moodboards.refresh();
+    else if (tab === "signals") void market.refresh();
     else void generations.refresh();
   }
 
@@ -305,7 +315,9 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
   }
 
   const previewImage = previewId
-    ? [...references, ...assets, ...moodboardImages].find((i) => i.id === previewId)
+    ? [...references, ...assets, ...moodboardImages, ...signalImages].find(
+        (i) => i.id === previewId,
+      )
     : null;
 
   const folderItems = browser.items.filter(
@@ -342,7 +354,7 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
           />
           <GalleryTabs value={tab} onChange={setTab} />
 
-          {!noFolderLinked && tab !== "moodboard" && (
+          {!noFolderLinked && tab !== "moodboard" && tab !== "signals" && (
             <GalleryToolbar
               searchQuery={browser.search}
               onSearchChange={browser.setSearch}
@@ -439,7 +451,7 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
                     if (i === 0) moodboards.selectBoard(null);
                   }}
                 />
-                <GalleryAddUrl onAdd={(url) => void moodboards.addItemUrl(url)} />
+                <GalleryAddUrl onAdd={(url, note) => void moodboards.addItemUrl(url, note)} />
                 <GalleryContent
                   loading={moodboards.loading}
                   loadError={null}
@@ -458,7 +470,24 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
               </>
             ) : null}
 
+            {tab === "signals" && (
+              <GallerySignalsTab
+                signals={market.data?.signals ?? []}
+                loading={market.loading}
+                selectedSignalId={selectedSignalId}
+                onSelectSignal={setSelectedSignalId}
+                images={signalImages}
+                viewMode={viewMode}
+                selectedIds={selectedIds}
+                onToggle={toggleSelect}
+                onPreview={setPreviewId}
+                onDragStartImage={handleDragStartImage}
+                onRetry={() => void market.refresh()}
+              />
+            )}
+
             {tab !== "moodboard" &&
+              tab !== "signals" &&
               (noFolderLinked ? (
               <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
                 <FolderOpen className="size-10 text-muted-foreground/40" strokeWidth={1.5} />
@@ -519,13 +548,32 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
         </SheetContent>
       </Sheet>
 
-      {previewImage && (
-        <FullScreenImageZoom
-          imageUrl={previewImage.previewUrl ?? previewImage.imageUrl}
-          title={previewImage.filename}
-          onClose={() => setPreviewId(null)}
-        />
-      )}
+      {previewImage &&
+        (previewImage.kind && previewImage.kind !== "image" && previewImage.kind !== "gif" ? (
+          // A market reference with a playable/link kind opens in the shared player
+          // instead of the image zoomer (which would show only the thumbnail).
+          <ReferenceLightbox
+            item={{
+              id: previewImage.id,
+              moodboard_id: "",
+              image_url: previewImage.mediaUrl ?? previewImage.imageUrl,
+              source_url: previewImage.sourceUrl ?? null,
+              kind: previewImage.kind,
+              note: previewImage.note ?? null,
+              added_by: null,
+              thumbnail_url: previewImage.imageUrl,
+              position: 0,
+              added_at: "",
+            }}
+            onClose={() => setPreviewId(null)}
+          />
+        ) : (
+          <FullScreenImageZoom
+            imageUrl={previewImage.previewUrl ?? previewImage.imageUrl}
+            title={previewImage.filename}
+            onClose={() => setPreviewId(null)}
+          />
+        ))}
 
       <DriveFolderPicker
         open={pickerOpen}

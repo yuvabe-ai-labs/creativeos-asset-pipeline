@@ -1,6 +1,6 @@
 # Multishot shots — per-shot toggle, hybrid fan-out, Gemini Omni
 
-*Design spec — 2026-08-28. Decisions D193–D197. Replaces an earlier draft of this file that
+*Design spec — 2026-08-28. Decisions D214–D218. Replaces an earlier draft of this file that
 put planning and a reference cast at the script level; that approach is superseded (see §10).*
 
 Verified API facts live in a separate, design-independent file:
@@ -273,7 +273,7 @@ Corrected against live probing — the draft this replaces had the request shape
 - `task` is `text_to_video` with no images, `image_to_video` with a start frame,
   `reference_to_video` with references only.
 
-Image roles keep the generated explicit declaration header from D186 — `@ImageN` is 1-based over
+Image roles keep the generated explicit declaration header from D207 — `@ImageN` is 1-based over
 the whole upload array while `<IMAGE_REF_N>` is 0-based over references only, and no prompt or LLM
 ever writes that line by hand.
 
@@ -290,18 +290,18 @@ from 720p, not natively rendered.
 
 | Superseded | Replaced by |
 |---|---|
-| **D188** one parse, two planners | Parse unchanged plus `duration_seconds`; grouping happens at fan-out (§3) |
-| **D189** validated shot plan | No plan object to validate. The 10s cap is enforced at fan-out and again before the request |
-| **D190** cast on Script data, copied at fork | References are File nodes connected downstream (§5) |
-| **D192** cast-first reference merge order | No cast, so no merge. The frame semantics half of D192 stands |
+| **D209** one parse, two planners | Parse unchanged plus `duration_seconds`; grouping happens at fan-out (§3) |
+| **D210** validated shot plan | No plan object to validate. The 10s cap is enforced at fan-out and again before the request |
+| **D211** cast on Script data, copied at fork | References are File nodes connected downstream (§5) |
+| **D213** cast-first reference merge order | No cast, so no merge. The frame semantics half of D213 stands |
 
 The draft was built around a planner that grouped shots by narrative seam and a cast that lived on
 the script. Both solved problems this design does not have: grouping is greedy and visible on the
 canvas where it can be corrected by hand, and a reference is a node that already exists.
 
-**D184** (target stable 1.1), **D185** (raw REST — the SDK does not type the video path),
-**D186** (the generated declaration header and its two index bases) and **D187** (controls whose
-channel is prompt text rather than an API field) all stand. D185 and D187 were confirmed by the
+**D205** (target stable 1.1), **D206** (raw REST — the SDK does not type the video path),
+**D207** (the generated declaration header and its two index bases) and **D208** (controls whose
+channel is prompt text rather than an API field) all stand. D206 and D208 were confirmed by the
 live probing that produced the API findings file.
 
 ---

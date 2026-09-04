@@ -42,6 +42,7 @@ import { ConnectionBadge } from "./connection-badge";
 import { QuickAddMenu } from "./quick-add-menu";
 import { mnemonicToType, isEditableTarget } from "@/lib/canvas-node-options";
 import { useCanvasLock } from "@/hooks/use-canvas-lock";
+import { useCanvasApprovalSync } from "./use-canvas-approval-sync";
 import { CanvasEditableProvider } from "./canvas-editable-context";
 import { AutosaveFlushProvider } from "./autosave-flush-context";
 import { CanvasIdProvider } from "./canvas-id-context";
@@ -80,18 +81,19 @@ export function Canvas({
   initialKBJob,
   hasActiveKB,
   initialDriveRootFolder,
-  reviewMode = false,
-  focusNodeId = null,
 }: {
   canvasId: string;
   clientId: string;
   initialKBJob: ClientKBJobRow | null;
   hasActiveKB: boolean;
   initialDriveRootFolder: { id: string; name: string } | null;
-  /** D161: arrived via a review link (?review=1) — do not take the edit lock (R7.2). */
-  reviewMode?: boolean;
-  /** R9.3: `?node=` from a navbar-inbox pointer — fly to it and open its Details. */
-  focusNodeId?: string | null;
+  // No `reviewMode` prop: D161's "entering to review does not take the edit lock" is
+  // DEFERRED (see the ADR log), so the canvas no longer needs to know how it was entered —
+  // every entry takes the lock, as before. `?review=1` still opens the review drawer, but
+  // that is wired in the page via ReviewDrawerProvider, not here.
+  // No `focusNodeId` prop either: R9.3's `?node=` pointer is read from the live URL inside
+  // ReviewDrawer. A prop is a snapshot, and a same-canvas inbox link does not remount this
+  // subtree, so the snapshot went stale and the second asset never opened.
 }) {
   // One subscription, shallow-compared, so the component only re-renders when
   // these slices actually change.
@@ -131,7 +133,11 @@ export function Canvas({
   const anyFocusViewOpen = useAnyFocusViewOpen();
 
   const { canEdit, heldByName, canTakeOver, sessionId, takeOver, reportLockLost } =
-    useCanvasLock(canvasId, { acquire: !reviewMode });
+    useCanvasLock(canvasId);
+
+  // R8.3: keep every node's ApprovalBadge live while the canvas is open, so a senior's
+  // decision made elsewhere lands here without a reload.
+  useCanvasApprovalSync(canvasId);
   // Read the latest canEdit from event handlers/closures without re-subscribing them.
   const canEditRef = useRef(canEdit);
   useLayoutEffect(() => {
@@ -387,7 +393,7 @@ export function Canvas({
       {/* D163: review drawer. Mounted here (inside ReactFlowProvider and the canvas store)
           because its rows fly the canvas to a node — the same navigation the generation
           tray performs. Non-modal, so it stays put under a focus view (R6.11). */}
-      <ReviewDrawer canvasId={canvasId} initialFocusNodeId={focusNodeId} />
+      <ReviewDrawer canvasId={canvasId} />
 
       {!canEdit && (
         <LockBanner heldByName={heldByName} canTakeOver={canTakeOver} onTakeOver={takeOver} />

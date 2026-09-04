@@ -45,6 +45,13 @@ export async function insertVersion(input: {
 }
 
 // Move the node's "current output" pointer (never mutates the log).
+//
+// The `updated_at` bump is NOT bookkeeping — it is how a restore becomes visible to
+// anyone else (migration 0034). The pointer itself lives on `nodes`, but every live
+// surface — the on-canvas ApprovalBadge, the senior's queue counts, the maker's inbox —
+// subscribes to `node_versions` (D159/D179). Without touching the version row, a restore
+// silently changed which status is current and no subscriber ever heard about it.
+// Removing this write re-breaks TC-106/TC-107.
 export async function setActiveVersion(
   nodeId: string,
   versionId: string,
@@ -55,6 +62,14 @@ export async function setActiveVersion(
     .update({ active_version_id: versionId })
     .eq("id", nodeId);
   if (error) throw error;
+
+  // Best-effort: the pointer has already moved, so a failure here costs liveness (others
+  // see the change on their next load), never correctness. Throwing would turn a
+  // succeeded restore into a reported failure.
+  await supabase
+    .from("node_versions")
+    .update({ updated_at: new Date().toISOString() })
+    .eq("id", versionId);
 }
 
 // D18/D19: a manual edit folds into the ACTIVE version's output (no new row).

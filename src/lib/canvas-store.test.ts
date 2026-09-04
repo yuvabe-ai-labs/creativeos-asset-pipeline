@@ -91,7 +91,7 @@ describe("fanOutShots", () => {
         visual_script: {
           // 6+6 exceeds the 10s cap, so these two stay one node each — which is what the
           // assertions below are about. Two 4s shots would now legitimately group into ONE node
-          // (D193), so the old lengths would have made this fixture test the opposite of its
+          // (D214), so the old lengths would have made this fixture test the opposite of its
           // own name. The display string and the length agree so the data is not misleading.
           shots: [
             { description: "Turmeric root", duration: "6s", duration_seconds: 6 },
@@ -168,7 +168,7 @@ describe("fanOutShots", () => {
     const created = store.getState().nodes.filter((n) => n.id !== "script-b");
 
     // 5 shots -> 3 generations, after the trailing rebalance: [0,1] [2] [3,4]. A group of >1 row
-    // defaults to a `multishot` node; a lone row stays a `shot` (D207).
+    // defaults to a `multishot` node; a lone row stays a `shot` (D228).
     expect(created).toHaveLength(3);
     expect(created.map((n) => n.type)).toEqual(["multishot", "shot", "multishot"]);
     expect(
@@ -583,7 +583,7 @@ describe("setGenerationMode swaps an existing node's type", () => {
 
 describe("Omni coercion on connect", () => {
   // The followups doc's recorded lesson: "Filtering a picker is not enforcing a constraint."
-  // D195 hid every other chip but never changed the stored modelId, so a Veo run could still be
+  // D216 hid every other chip but never changed the stored modelId, so a Veo run could still be
   // billed against a ladder Veo ignores. Assert the STORED value, not which chips render.
   it("coerces a video-gen node's modelId when a multishot-prompt feeds it", () => {
     const store = createCanvasStore(

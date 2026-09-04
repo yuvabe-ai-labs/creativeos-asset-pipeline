@@ -4,6 +4,7 @@ import { useState } from "react";
 import { addOrgMemberAction } from "@/lib/actions/admin";
 import { ORG_ROLES } from "@/lib/orgs/org-schema";
 import { Button } from "@/components/ui/button";
+import { CopyRow } from "@/components/admin/copy-row";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -81,13 +82,17 @@ export function AddMemberDialog({ orgId }: { orgId: string }) {
               <AlertDialogHeader>
                 <AlertDialogTitle>Added {result.email}</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Share this password with them out-of-band (Slack, email). Shown once —
-                  they&apos;ll be asked to choose their own on first login.
+                  Share these credentials with them out-of-band (Slack, email). Shown once —
+                  they&apos;ll be asked to choose their own password on first login.
                 </AlertDialogDescription>
               </AlertDialogHeader>
-              <p className="rounded-lg border bg-muted/40 px-3 py-2 font-mono text-sm">
-                {result.tempPassword}
-              </p>
+              {/* Same CopyRow pair new-org-dialog.tsx uses for an org's first seat — this
+                  is the same shown-once credential handoff, so it gets the same affordance
+                  rather than a bare unselectable <p> (TC-002). */}
+              <div className="flex flex-col gap-2">
+                <CopyRow label="Email" value={result.email} />
+                <CopyRow label="Temp password" value={result.tempPassword} />
+              </div>
               <AlertDialogFooter>
                 <Button type="button" onClick={() => onOpenChange(false)}>
                   Done

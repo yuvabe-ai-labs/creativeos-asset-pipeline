@@ -3232,7 +3232,313 @@ generation — including from a panel displaying "None".
 **Rejected.** Dropping `negative_prompt` from `veoLiteParams`: it makes the request legal by
 discarding what the operator asked for, and leaves the three Veo variants with different panels.
 
-### D184 — Omni targets the stable `gemini-omni-1.1-flash`, not `gemini-omni-flash-preview` *(recorded 2026-08-28; originated → 2026-08-28-gemini-omni-multishot-design.md)*
+### D184 — Market Signals V1 extends moodboards; it is not a parallel system *(recorded 2026-08-27; originated → spec: 2026-08-27-market-signals-v1-design.md)*
+
+**Decision.** The Market Signals evidence layer is the existing moodboards system: two
+auto-provisioned system boards per client (Direct, Adjacent) plus richer items. One tile
+renderer, one capture extension, one RLS/org story serve moodboards and Market alike.
+
+**Why.** A `market_references` table would be ~90% `moodboard_items` — a duplicate waiting
+to diverge. Moodboards already carry client scoping, URL-first storage, provenance,
+default-deny RLS, and a working clipper extension.
+
+**Rejected.** The 2026-08-17 PRD's standalone `signals` record with scopes
+(global/category/client), a resolver, kind taxonomy, validity windows and a review queue —
+all deferred; V1's re-scoped loop (MR collects, designers distill) needs none of it.
+
+### D185 — References accept any URL and are watchable via embeds; bytes only for thumbnails *(recorded 2026-08-27; bounded exception to D13/D92)*
+
+**Decision.** Ingest classifies the pasted URL (`youtube | instagram | tiktok | image |
+gif | video | link`), fetches a thumbnail best-effort (YouTube derived; IG/TikTok via
+oEmbed — tokenless as of Meta's 2026-06-15 change, verified 2026-08-27), re-hosts the
+thumbnail to GCS at add time, and **never rejects**: unfetchable URLs save as degraded
+link tiles (favicon + domain + note). Playback happens in the lightbox only — platform
+embed / YouTube iframe / native `<video>` — never in the grid.
+
+**Why.** Capture must never fail for MR (the flaky cases — private accounts, dead links —
+are exactly where evidence would otherwise go back to WhatsApp). The GCS thumbnail is the
+moodboard F6 lesson: it is what lets a board survive a deleted post. Grid stays
+cached-images-fast; embeds mount one at a time.
+
+**Rejected.** Downloading platform video to GCS (ToS exposure, breaks D13/D92 wholesale,
+downloader maintenance); rejecting unrecognized URLs (uniformly pretty board, leaky shelf).
+
+### D186 — Direct/Adjacent are system boards; items gain kind, note, added_by, thumbnail *(recorded 2026-08-27)*
+
+**Decision.** `moodboards.board_type ('custom'|'direct'|'adjacent')` with a partial unique
+index per client on the system types; existing boards continue as `custom`, untouched.
+`moodboard_items` gains `kind`, `note` (MR's only voice in the design), `added_by`
+(nullable, `set null` on user deletion — matches D181), `thumbnail_url`. Default
+`kind='image'` makes every existing row already-correct; no backfill.
+
+**Why `added_by` now.** V1's first success question — "does MR maintain the shelf?" — is
+unanswerable without attribution, and the column is near-free at insert but unbackfillable
+later.
+
+**Rejected.** A bucket column on items instead of system boards (fragments the existing
+board-contains-items model the drawer and extension already speak).
+
+### D187 — A Signal is a link-set over evidence, not a container *(recorded 2026-08-27)*
+
+**Decision.** `signals` (client-scoped: name, tags[], description, created_by) +
+`signal_items` join to `moodboard_items`. Grouping links references; they stay in their
+bucket and can back multiple Signals. Deleting a reference cascades it out of every Signal
+visibly; a Signal whose last reference is gone survives as an empty card (interpretation
+outlives evidence; deleting it is a human act).
+
+**Why.** §8 of the PRD requires supporting references to remain visible, and co-membership
+(in Direct *and* in a Signal, or in two Signals) is the load-bearing behaviour. A copy
+model would fork the truth the first time MR cleans the shelf.
+
+**Rejected.** Signal-as-moodboard-with-extra-fields: items belong to exactly one board, so
+containment breaks co-membership, and making boards many-to-many refactors a working
+system to avoid two small tables.
+
+### D188 — No MR role; Signal creation open to every designer *(recorded 2026-08-27)*
+
+**Decision.** MR team members get ordinary `org_role='designer'` accounts; the closed
+three-value check constraint stays. Group-as-Signal is available to owner, senior and
+designer alike.
+
+**Why.** V1 gives MR responsibilities but no exclusive powers — nothing exists for an `mr`
+role to protect — and `added_by` covers the measurement need. Every role branch in the
+code was written against three values; widening the enum is safest done when an actual
+MR-exclusive surface (the V2 review queue) defines what the role must reach. Who actually
+distills is itself a V1 learning; a seniority gate would erase the data.
+
+**Rejected.** Adding `mr` as a fourth org_role now; gating Signal creation to
+senior/owner (the PRD draft's assignment — treated as workflow description, not
+permission rule, per the owner's call 2026-08-27).
+
+### D189 — One shared tile everywhere; the Market page is the distill surface *(recorded 2026-08-27)*
+
+**Decision.** New thin page `/clients/[id]/market` (tabs Direct | Adjacent | Signals;
+masonry, add form, multi-select → Group as Signal, signal cards) is the primary SEE +
+DISTILL surface; client nav becomes KB | Market. The canvas gallery drawer inherits the
+system boards automatically (they are moodboard rows) and is refactored to render the
+same tile component (its `<img>`-only path would show video refs broken). The clipper
+extension gains a page-level "Add this page as reference" menu item (today it fires only
+on `info.srcUrl` of images) plus a note field. Signals are page-only in V1 — no in-canvas
+signal browsing until V1.x reshapes that surface around AI ideation.
+
+**Why the page survives cost-cutting.** Comparing several reels to decide they are one
+pattern is the entire V1 experiment (§16); a ~400px side sheet fighting that activity
+would make "designers don't distill" indistinguishable from "the surface fought them."
+The page is a day's shell — every heavy piece is shared with the drawer.
+
+**Rejected.** Drawer-only V1 (cramped distilling, MR must enter via a canvas);
+generation-injection surfaces (`compilePrompt` untouched — the 2026-08-17 Mode A returns
+at V1.2/V1.3 with a designer in the loop).
+
+### D190 — Thumbnails resolve through a four-layer chain; tokenless Instagram oEmbed has no thumbnail *(recorded 2026-08-27; corrects the oEmbed assumption in 2026-08-27-market-signals-v1-design.md §2)*
+
+**Decision.** `resolveThumbnailSource` tries, in order, stopping at the first hit:
+
+1. **Derived from the URL** — YouTube (`img.youtube.com/vi/<id>/hqdefault.jpg`). Zero
+   network calls; cannot break.
+2. **oEmbed** — the official API. Returns `thumbnail_url` only on the TOKEN tier.
+3. **`og:image`** — Open Graph on the page itself. One fetch, works across the open web.
+4. **`display_url`** — scraped from Instagram's `/embed` page JSON. Last resort.
+
+`kind: "link"` now resolves through step 3, so an article, a brand site or any other
+pasted page gets a preview instead of a bare tile. Direct media files (`video`) skip the
+chain — there is no HTML to read.
+
+**Why the order.** Cost and durability move together: step 1 makes no request and cannot
+break; step 2 is a published contract; step 3 is a published *standard*, so it covers
+sources we never special-cased; step 4 parses Meta's private JSON and will break on
+their schedule. Ordering this way means the fragile path runs only for the few cases
+nothing else covers, and when it does break the failure is one degraded tile.
+
+**The finding that forced this.** The design spec assumed IG/TikTok thumbnails come from
+oEmbed's `thumbnail_url`. Verified against the live endpoint 2026-08-27, tokenless
+Instagram oEmbed returns ONLY `{version, provider_name, provider_url, type, width, html}`
+— no `thumbnail_url` — and requesting the field explicitly (`fields=thumbnail_url`)
+answers `(#200) Provide valid app ID`. Every Instagram reference MR captured would
+therefore have rendered as a link tile, contradicting PRD §10's "primarily visual".
+
+**Why og:image outranks display_url even though both work.** On a live reel they resolve
+to the *same* asset (identical fbcdn image id, verified). But `og:image` is a standard
+that generalises to every other source, while `display_url` is one platform's internals.
+The Instagram post page does publish `og:image`; the `/embed` page does not, and vice
+versa for `display_url` — so keeping step 4 buys the case where the post page is gated
+but the embed endpoint still answers.
+
+**Rejected.** Registering a Meta app for token-tier oEmbed (adds an app + token to
+operate, for a field three other layers already provide); dropping `display_url` once
+og:image landed (it is the only route when the post page is gated); using the bare
+`instagram.com/p/<id>/embed` iframe for playback (renders a "View this post on
+Instagram" card, not a player — reels play only through the official blockquote +
+`embed.js` widget, hence `instagram-embed.tsx`).
+
+**Known limits.** Pinterest publishes neither `og:image` nor `display_url` server-side
+(JS-rendered), so a pin page still yields no thumbnail — right-clicking the image itself
+does. Deleted or private posts resolve to nothing by design; both the post and embed
+URLs return an identical generic shell, which is how the backfill detects them.
+
+### D191 — Client knowledge surfaces are reached from a Settings menu, not a section nav *(recorded 2026-08-27; refines D189)*
+
+**Decision.** The client detail page's existing **Settings** button becomes a popover
+listing the client's two knowledge surfaces — **Brand KB** (positioning, products,
+audience) and **Market** (Direct, Adjacent and Signals) — each a labelled row with a
+one-line hint. The `ClientSectionNav` tab strip introduced for D189 is deleted from both
+`/clients/[id]/kb` and `/clients/[id]/market`; each page instead carries the standard
+breadcrumb (Clients → client → section) and an `h1` naming the section, matching the KB
+page's existing shell.
+
+**Why.** D189 said "client nav becomes KB | Market" and the strip was the literal reading
+of it. In use the strip read as tabs, and tabs promise in-place switching that a route
+change does not deliver — each click is a full navigation to a differently-shaped page.
+The Settings button already existed on the client page and already pointed at `/kb`, so
+the menu adds a destination to an affordance users had rather than adding a second
+navigation idiom beside it. Breadcrumbs, already on the KB page, carry the "where am I"
+job the strip was doing, so removing it costs no orientation.
+
+**What is unchanged from D189.** The Market page is still the primary SEE + DISTILL
+surface with the same tabs *inside* it (Direct | Adjacent | Signals — those are genuine
+in-place tabs over one page's data, which is what the pattern is for). Only the
+cross-page navigation changed.
+
+**Rejected.** Keeping the strip (two navigation idioms — strip plus breadcrumb — for one
+hierarchy); promoting Market to a top-level nav item (it is client-scoped knowledge, so
+it belongs behind the client, next to the KB); a dropdown on the breadcrumb's section
+crumb (discoverable only after you have already arrived at a section).
+
+### D201 — Entering a canvas always takes the edit lock; D161's review-mode exemption is DEFERRED *(recorded 2026-08-31; defers D161, refines D33)*
+
+> Numbered D201 to clear D184–D200, which are claimed on `feat/gemini-omni-provider` and land
+> in this same section on merge.
+
+**Decision.** `useCanvasLock` acquires unconditionally again — the `{ acquire }` option, the
+`reviewMode` prop on `<Canvas>`, and the `reviewMode={…}` pass-through in the canvas page are all
+removed. `?review=1` keeps its other job: it still opens the review drawer via
+`ReviewDrawerProvider initialOpen`, and `?node=` still flies to a node. What D161 bought that
+STAYS: approval does not require `canEdit` (D160), so a senior can still sign off from a read-only
+session — which is now the ordinary way a second person reviews a canvas someone else holds.
+
+**Why deferred rather than kept.** Two entry paths into the same canvas obeyed different locking
+rules, and which one you were in was invisible once you had arrived. The flow proved hard to reason
+about in QA — whether you held the lock depended on the URL you came through, not on anything
+on screen — so the single rule (arriving takes the lock, exactly as before D161) is back until
+the review-entry experience is designed as a whole rather than as a lock exemption.
+
+**Rejected.** Keeping the `acquire` option and always passing `true`: an option with no call site
+is a claim that the behaviour is configurable, and the next reader would have to discover by
+grep that nothing configures it. Deleting it and recording the reason here is how it comes back
+intact when review-entry is picked up again.
+
+### D202 — A restore emits a `node_versions` event, so the active version's status is live *(recorded 2026-08-31; refines D159/D179)*
+
+**Decision.** `setActiveVersion` bumps `updated_at` (migration 0034) on the version it makes
+active, and the on-canvas `ApprovalBadge` gets a canvas-wide subscription
+(`useCanvasApprovalSync`) alongside D179's focus-view one. That subscription refetches
+`/api/canvases/:cid/approval-statuses` — `listCanvasApprovalStatuses`, a filter over the SAME
+`review_queue_items` view the drawer, the inbox and the counts already read (D159), unfiltered by
+status or role and returning a `nodeId -> status` map.
+
+**Why.** D29 reads the badge off the ACTIVE version, but the active-version POINTER lives on
+`nodes` while every live surface subscribes to `node_versions`. So restoring a version changed
+which status is current and emitted nothing: the senior's queue, the maker's inbox and every other
+client's badge all stayed stale until a reload (TC-106/TC-107). Separately the badge had no live
+path at all — `data.approvalStatus` was written only by server hydration and by the local focus
+view's own `onPatch`, so a junior watching the canvas never saw a senior's decision land
+(TC-070/TC-085).
+
+**Why a column rather than a second channel.** Subscribing to `nodes` would mean a second
+org-wide channel and a second filter column to maintain, to carry an event the existing channel
+can carry. One writable column on the row that already fans out to every subscriber reuses the
+whole D159/D179 path — badge, counts and inbox all refresh through it with no new plumbing.
+
+**Rejected.** A self-assigning no-op UPDATE (`set node_id = node_id`) to emit the WAL record with
+no migration: it works, but it reads as a redundant write and the first person to tidy it away
+silently re-breaks every live surface. Also rejected: patching the badge from the realtime payload
+— consumers still re-derive from the server (D159), and the ping stays a filter, not data.
+
+**Rejected — a per-node refetch for the badge.** The first cut fetched `/api/nodes/:id/versions`
+for each pinged node. It worked, but it scaled with how busy the ORG is (the channel pings on
+every generation anywhere) and, worse, it made the badge a SECOND derivation of "current approval
+status" sitting next to the drawer's — free to disagree with the row pointing at it, which is
+precisely what TC-085 exists to catch. One canvas-scoped read of the existing view costs one
+request per burst regardless of node count, and cannot drift.
+
+**Rejected — driving the badge from the navbar inbox's data.** Tempting, since that fetch is
+already happening on the same channel and `InboxItem` already carries `nodeId` + `approvalStatus`.
+But the inbox is role-filtered and paged (`inboxFilterFor`): a designer's feed omits everyone
+else's work, a senior's omits approvals made by other seniors, and either omits anything past the
+loaded window. Badges driven from it would be right for the maker and quietly wrong for everyone
+else — the same view, queried by canvas instead, costs one more endpoint and is complete.
+
+### D203 — `?review=` and `?node=` are arrival instructions: obeyed once, then spent from the URL *(recorded 2026-08-31; refines D161/D163/D165, corrects part of D201)*
+
+**Decision.** Neither param describes the canvas; each tells the arriving screen to do one thing
+— open the list, open that asset — so the surface that obeys it clears it when it closes, with
+`window.history.replaceState` (`urlWithoutParams` in `src/lib/review/focus-pointer.ts`). The
+focus view closing spends `node`; the drawer closing spends `review`. `ReviewDrawer` reads the
+R9.3 pointer with `useSearchParams()` and latches the pointer's VALUE (`isUnhandledPointer`),
+instead of receiving `focusNodeId` as a prop threaded page → `<Canvas>` → drawer and latching
+"have we run yet"; an empty pointer is what releases the latch. Honouring a pointer also calls
+`openDrawer()`, which is what makes a same-canvas arrival open the list. The `focusNodeId` prop on
+`<Canvas>` and the `node` read in the canvas page are removed. `review` stays server-read — it
+seeds mount-time state (`ReviewDrawerProvider initialOpen`) and nothing re-reads it after.
+
+**Why.** Following a second inbox link to the canvas you are ALREADY on is a soft navigation:
+`CanvasStoreProvider` is keyed on canvas id, so nothing under it remounts. Every part of the old
+design was mount-scoped and all of it failed there — the boolean latch swallowed every pointer
+after the first, so the asset never opened, and neither param was ever cleared, so the URL kept
+describing a sheet and a drawer that were no longer on screen AND re-clicking that same inbox row
+produced a byte-identical href the router drops. Cross-canvas links only looked healthy because
+the remount reset everything.
+
+**Why the URL releases the latch.** Nulling the ref at the moment of clearing leaves a window
+where a live pointer meets an empty latch, and canvas `nodes` churn on every autosave — the
+pointer effect would re-run and re-open the sheet the reviewer just closed. Deriving the release
+from "no pointer in the URL" makes that state unrepresentable.
+
+**Rejected.** `router.replace` for the clear: this page is `force-dynamic`, so a router write
+refetches the whole canvas to change nothing on screen. The native History API is documented to
+sync with `usePathname`/`useSearchParams`, which is the only integration needed here.
+
+**Rejected — keeping the prop and comparing it to the URL.** Two sources for one value, where the
+prop is the one that goes stale. The canvas page's original note (read search params server-side
+to avoid a Suspense boundary) does not apply: the page is `force-dynamic`, so it is never
+prerendered and `next build` reports it as ƒ with no bail-out.
+
+### D204 — Signals reach the canvas as browsable groups and as script-parse flavour, not as a node type *(recorded 2026-08-31; refines D189)*
+
+> Numbered D204 to follow D201–D203 and clear D184–D200, claimed on `feat/gemini-omni-provider`.
+
+**Decision.** Two surfaces deliver the V1.x step D189 deferred. (1) The gallery drawer
+gains a **Signals tab**: a drill-in list of the client's signals (name, tags, thumbnail
+strip); inside one, the description leads and the references render in the shared grid,
+draggable onto the canvas as ordinary File nodes (D92 path unchanged). (2) The **Script
+node** gains a signal picker beside its KB slice toggles: multi-select signal chips plus
+a per-parse mode toggle — `tint` (default: voiceover stays faithful, only the visual
+side of shots adapts) or `rewrite` (the whole script may adapt). `signalIds` +
+`signalMode` persist on node data like `kbSlices`; the parse route loads the
+client-scoped signals, silently dropping unknown ids, and injects a brief per signal —
+name, tags, description, and the non-empty per-reference notes (D186's "MR's voice") —
+into `compileScript` between the KB context and the source, with the mode instruction
+versioned in `src/prompts/script-parse.ts`. `inputsUsed` records the post-filter ids and
+mode. Because shots are extracted inside that same call, every shot carries the flavour
+with zero downstream changes.
+
+**Why.** The KB-slices rail already solved "designer picks which ambient context
+flavours this parse, resolved server-side" — signals ride it instead of introducing a
+second context mechanism. Injection at the parse (not at `compilePrompt`) flavours all
+shots in one place; injection with a designer choosing signals and mode honours D189's
+requirement that Mode A only return with a designer in the loop.
+
+**Rejected.** A Signal canvas node type wired by edges (a 12th node type, a
+`VALID_CONNECTIONS` change, and the Script node's first upstream read — all to express
+what two node-data fields express); automatic injection into `compilePrompt`/image/video
+paths (still the designer-out-of-the-loop Mode A that D184/D189 rejected); single-signal
+limit and a fixed flavour depth (the designer chose multi-select and a per-parse
+toggle); rolling reference notes out of the payload (they are the only captured evidence
+voice).
+
+**Originated →** `2026-08-31-signal-flavoured-scripts-design.md`.
+
+### D205 — Omni targets the stable `gemini-omni-1.1-flash`, not `gemini-omni-flash-preview` *(recorded 2026-08-28; originated → 2026-08-28-gemini-omni-multishot-design.md)*
 
 **Decision.** The registry entry is `gemini:gemini-omni-1.1-flash`. Resolution becomes a real
 param (`360p`/`720p`/`1080p`/`4k`), `<LAST_FRAME>` is available, and the price tiers are
@@ -3252,7 +3558,7 @@ the surface and two cost rows to keep honest, for a model we would always pick 1
 banner naming which model each section describes; the correction is tracked as §9d of the design
 spec, not as a separate decision.
 
-### D185 — The Omni provider calls REST directly; `@google/genai` does not type the video path *(recorded 2026-08-28; refines D184)*
+### D206 — The Omni provider calls REST directly; `@google/genai` does not type the video path *(recorded 2026-08-28; refines D205)*
 
 **Decision.** `providers/gemini-omni.ts` uses raw `fetch` against
 `POST /v1beta/interactions`, following the fetch-and-poll shape `kling.ts` established — not
@@ -3270,7 +3576,7 @@ drift instead of surfacing it).
 **Consequence.** `output_video` is an SDK-only convenience; over REST the video is read out of
 `steps[]` — the `model_output` step's `video`-typed content entry.
 
-### D186 — The image-role declaration header is always explicit and always generated *(recorded 2026-08-28)*
+### D207 — The image-role declaration header is always explicit and always generated *(recorded 2026-08-28)*
 
 **Decision.** Omni prompts always carry the explicit form —
 `[# Sources <FIRST_FRAME>@Image1] [# References <IMAGE_REF_0>@Image2] … Use Image1 as the starting
@@ -3288,7 +3594,7 @@ a bad generation someone has already paid for.
 judgement the failure mode punishes silently). Also rejected: letting the prompt-generating LLM
 write the header — index arithmetic is exactly what it is worst at and what a unit test is best at.
 
-### D187 — Three Omni "params" are prompt text, and `continuous_take` inverts Kling's `multi_shot` *(recorded 2026-08-28)*
+### D208 — Three Omni "params" are prompt text, and `continuous_take` inverts Kling's `multi_shot` *(recorded 2026-08-28)*
 
 **Decision.** `continuous_take`, `audio` and `negative_prompt` render as sentences appended to the
 prompt, not as API fields. Omni has no negative-prompt field, no audio switch, and no shot-count
@@ -3307,10 +3613,10 @@ the same reasoning D183 used to keep `negative_prompt` on Veo Lite after its fie
 `advanced` param group — the Advanced accordion was deleted from the focus view in `7e1c643`, so
 an `advanced` control renders nowhere, the trap `aspect_ratio` already fell into on Kling O1.
 
-### D188 — Script parsing is one parse and two planners, not two parses *(recorded 2026-08-28; **SUPERSEDED same day by D193** — never implemented)*
+### D209 — Script parsing is one parse and two planners, not two parses *(recorded 2026-08-28; **SUPERSEDED same day by D214** — never implemented)*
 
 > **Superseded.** Planning moved off the script entirely. Grouping now happens at fan-out, greedily
-> and consecutively, capped at 10s, and is corrected by hand on the canvas — see D193. Retained
+> and consecutively, capped at 10s, and is corrected by hand on the canvas — see D214. Retained
 > because the reasoning against *two parse prompts* still holds and should not be re-litigated: a
 > second parse would cost a call per toggle and discard manual edits to the parsed script.
 
@@ -3328,7 +3634,7 @@ planning entirely to the model's own `multi_shot` param — a Shot node would al
 shot, so several script beats could never reach one Omni generation, which is the whole reason to
 integrate a multi-shot model.
 
-### D189 — A returned shot plan is validated, never trusted *(recorded 2026-08-28; **SUPERSEDED same day by D193** — never implemented)*
+### D210 — A returned shot plan is validated, never trusted *(recorded 2026-08-28; **SUPERSEDED same day by D214** — never implemented)*
 
 **Decision.** `validateShotPlan` (pure, tested) checks every plan: block duration within the
 model's range, beats contiguous from 0 with no gaps or overlaps, final `to` equal to the block
@@ -3361,10 +3667,10 @@ invariant 2 still holding over its combined allocation.
 packer (durations parse out of free-text strings, and packing by arithmetic splits VO sentences
 and continuous camera moves — the user asked specifically for smart grouping).
 
-### D192 — References merge cast-first; frames are block-level tags, not params *(recorded 2026-08-28; **first half SUPERSEDED same day by D194** — never implemented)*
+### D213 — References merge cast-first; frames are block-level tags, not params *(recorded 2026-08-28; **first half SUPERSEDED same day by D215** — never implemented)*
 
 > **Half superseded.** The cast-first merge order is moot: there is no cast, so every reference is a
-> connected File node in canvas order (D194). **The frame half stands** — Omni has no frame param,
+> connected File node in canvas order (D215). **The frame half stands** — Omni has no frame param,
 > `<FIRST_FRAME>` / `<LAST_FRAME>` are tags, a frame is per-generation rather than per-beat, an end
 > frame on a cut ladder warns rather than blocks, and continuity chains forward through
 > `derive-end-frame.ts`.
@@ -3376,7 +3682,7 @@ order.** A direct reference has no cast entry and so no `kind`; it defaults to *
 with a kind selector on its role row for the style-anchor case.
 
 Separately: Omni has **no frame parameter**. `<FIRST_FRAME>` / `<LAST_FRAME>` are tags in the
-generated header (D186). A frame is **block-level, never beat-level**, and assigning an end frame
+generated header (D207). A frame is **block-level, never beat-level**, and assigning an end frame
 to a block with more than one beat **warns** rather than blocks.
 
 **Why cast-first.** `<IMAGE_REF_N>` is positional. With no rule, connecting one one-off image
@@ -3398,11 +3704,11 @@ connect). Also rejected: a separate reference channel for direct connections —
 `assignImageRoles`, the role chips and the reference cap for no gain, since the two sources differ
 in provenance, not in kind.
 
-### D190 — The cast lives on Script data, is copied at fork, and reaches generation as tagged upstream images *(recorded 2026-08-28; **SUPERSEDED same day by D194** — never implemented)*
+### D211 — The cast lives on Script data, is copied at fork, and reaches generation as tagged upstream images *(recorded 2026-08-28; **SUPERSEDED same day by D215** — never implemented)*
 
 > **Superseded.** There is no cast. A reference is a File node connected downstream with the `+`
 > that `AddConnection` already provides, and the File node's title is the reference's name — see
-> D194.
+> D215.
 
 **Decision.** `ScriptNodeData.cast: CastMember[]` — `{ id, name, kind, description?, imageUrl? }`,
 ordered. `script-parse` (now version 2) proposes names and kinds only; images are operator-uploaded
@@ -3432,12 +3738,12 @@ cast concept at all — nothing would tie "Priya" in shot 1 to "Priya" in shot 4
 **Accepted cost.** Editing a cast image at script level after forking does not propagate to
 already-forked Shots — the same trade the script text already makes.
 
-### D191 — Mentions are rendered per provider; the prompt LLM never writes an index *(recorded 2026-08-28; refines D186)*
+### D212 — Mentions are rendered per provider; the prompt LLM never writes an index *(recorded 2026-08-28; refines D207)*
 
 **Decision.** `videoPromptGenerateOmniPrompt` emits the existing `@[Label](id)` mention tokens and
 never a raw `<IMAGE_REF_N>`. One provider-aware renderer in `resolve-mention-tokens.ts` resolves
 them: `veo`/`sora` → `the first image` (existing `ordinalToEnglish`), `kling` → `@image_1`
-(1-based), `gemini-omni` → `<IMAGE_REF_0>` (0-based) plus the D186 header and closing guiding
+(1-based), `gemini-omni` → `<IMAGE_REF_0>` (0-based) plus the D207 header and closing guiding
 instruction. Indices are computed **per generation**, over only the references actually sent.
 
 **Why.** Three providers with three conventions, two of them off by one from each other. Put in
@@ -3448,10 +3754,10 @@ keeps the generator writing prose, which it is good at, instead of arithmetic, w
 indexing over the whole script cast rather than the sent references — the reference cap and the
 operator's role assignment decide what ships, so a whole-cast index would point past the end.
 
-*(D191 stands. With the cast gone, "the sent references" are the connected File nodes in canvas
+*(D212 stands. With the cast gone, "the sent references" are the connected File nodes in canvas
 order rather than cast members — the indexing rule is unchanged.)*
 
-### D193 — Multishot is a per-shot flag; fan-out groups greedily to 10s; turning it off splits *(recorded 2026-08-28; supersedes D188, D189; originated → 2026-08-28-gemini-omni-multishot-design.md)*
+### D214 — Multishot is a per-shot flag; fan-out groups greedily to 10s; turning it off splits *(recorded 2026-08-28; supersedes D209, D210; originated → 2026-08-28-gemini-omni-multishot-design.md)*
 
 **Decision.** `ShotNodeData.multishot: boolean`. `fanOutShots` gains a grouping pass that walks the
 parsed shots in order and packs consecutive ones until the next would exceed **10s**, producing a
@@ -3501,7 +3807,7 @@ script through the existing parse exposed both:
 The original decision named only the ceiling. Both corrections are in the design spec's §3, and the
 CHUPPS lengths are a required test fixture.
 
-### D194 — A reference is a File node; there is no cast *(recorded 2026-08-28; supersedes D190 and the merge-order half of D192)*
+### D215 — A reference is a File node; there is no cast *(recorded 2026-08-28; supersedes D211 and the merge-order half of D213)*
 
 **Decision.** References are ordinary File nodes connected to the **motion-prompt or video-gen**
 node with the `+` that `AddConnection` already renders on those focus views. The File node's title
@@ -3523,7 +3829,7 @@ matters, and it needs no traversal change.
 name). Also rejected: extending the traversal a level so refs could hang off the Shot — a change to
 resolution semantics for every node type, to save one edge.
 
-### D195 — Downstream nodes read the upstream multishot flag; video-gen filters the model list *(recorded 2026-08-28)*
+### D216 — Downstream nodes read the upstream multishot flag; video-gen filters the model list *(recorded 2026-08-28)*
 
 **Decision.** The motion-prompt node reads the upstream Shot's `multishot` and writes either a
 timecode ladder (multishot) or today's single-moment prompt plus *"In a single unbroken scene. No
@@ -3548,7 +3854,7 @@ stage. There is no start frame to generate; the generation is `text_to_video` fr
 description plus any connected File references. The image-gen path stays available and unchanged for
 shots that want a still to animate.
 
-### D196 — Omni's real request shape, established by live probing *(recorded 2026-08-28; refines D185; corrects the superseded draft)*
+### D217 — Omni's real request shape, established by live probing *(recorded 2026-08-28; refines D206; corrects the superseded draft)*
 
 **Decision.** `generation_config.video_config` carries **`task` and nothing else**. `resolution`,
 `aspect_ratio`, `delivery` and `duration` all live in `response_format`, and **`duration` is a
@@ -3568,7 +3874,7 @@ and `previous_interaction_id` editing is available whenever the edit chain is wa
 request-shape change needed to enable it later. The superseded draft had claimed `store: false`
 forfeited that.
 
-### D197 — Kling's `multi_shot` is hidden, not removed *(recorded 2026-08-28)*
+### D218 — Kling's `multi_shot` is hidden, not removed *(recorded 2026-08-28)*
 
 **Decision.** `multiShotParam` gets `visible: false` in both `kling30Params` and `klingO1Params`.
 Gemini Omni becomes the only multi-shot model surfaced in the UI.
@@ -3600,11 +3906,11 @@ default, so a node toggled on before this change keeps sending `multi_shot: true
 left to clear it), and the toggle On/Off formatting test had to move to `describeAllVersionParams`,
 now the only place a toggle renders.
 
-### D198 — A timecoded block is a BEAT, not a shot; the parse splits it *(recorded 2026-08-29; **REVERTED same day** — implemented in 0c64425, reverted in 7a4dfcf)*
+### D219 — A timecoded block is a BEAT, not a shot; the parse splits it *(recorded 2026-08-29; **REVERTED same day** — implemented in 0c64425, reverted in 7a4dfcf)*
 
 > **Reverted.** Built, then reverted at the operator's call: the v2 parse — one entry per timecoded
 > block — is what they want to read. The finer split made the Visual script list long without
-> changing the generation boundaries (see D199's revert note), and the per-beat detail is better
+> changing the generation boundaries (see D220's revert note), and the per-beat detail is better
 > written in the motion prompt than forced out of the parse. Recoverable from `0c64425` if the
 > one-cut-per-second ladder the reference plans use is ever wanted.
 >
@@ -3632,13 +3938,13 @@ exactly as before. Re-extract upgrades them; nothing migrates silently.
 
 **Rejected.** Nesting `visual_script.beats[].shots[]` — structurally truer, but it changes the shape
 every downstream consumer reads for the same result. Also rejected: splitting blocks at fan-out with
-a second LLM pass, which reintroduces the planner D188 removed and would mean the shot list you see
+a second LLM pass, which reintroduces the planner D209 removed and would mean the shot list you see
 after parsing is not the one you generate from.
 
-### D199 — Grouping packs whole beats, and only splits a beat that alone exceeds the cap *(recorded 2026-08-29; **REVERTED same day** with D198 — implemented in 0c64425, reverted in 7a4dfcf)*
+### D220 — Grouping packs whole beats, and only splits a beat that alone exceeds the cap *(recorded 2026-08-29; **REVERTED same day** with D219 — implemented in 0c64425, reverted in 7a4dfcf)*
 
-> **Reverted with D198**, since nothing emits beats once the parse returns one entry per block —
-> the beat-packing code became a path no input could reach. D193's shot-level packing stands
+> **Reverted with D219**, since nothing emits beats once the parse returns one entry per block —
+> the beat-packing code became a path no input could reach. D214's shot-level packing stands
 > unchanged.
 >
 > **The revert costs less than it looks.** On the CHUPPS script the two rules agree: 5 blocks at
@@ -3649,7 +3955,7 @@ after parsing is not the one you generate from.
 
 **Decision.** `groupShotsForFanOut` partitions by `beat_index`, then fills a group with as many
 consecutive WHOLE beats as fit under the 10s ceiling. A beat is split only when it alone exceeds the
-ceiling. The floor, trailing-rebalance and clamp rules from D193 still apply to the result.
+ceiling. The floor, trailing-rebalance and clamp rules from D214 still apply to the result.
 
 **Why.** Every generation seam is an un-guaranteed transition — the one join the model never sees
 both sides of. A beat boundary is a cut the script already asked for, so that is where a seam
@@ -3664,7 +3970,7 @@ cutting mid-beat). Also rejected: one generation per beat always — simple and 
 CHUPPS becomes five generations and a 2s close gets clamped, costing more cuts and more money than
 the brief needs.
 
-### D200 — The parsed shot list labels each shot's grouping *(recorded 2026-08-29)*
+### D221 — The parsed shot list labels each shot's grouping *(recorded 2026-08-29)*
 
 **Decision.** Each row in the Script focus view's Visual script list shows, beside its duration,
 whether that shot will generate as part of a multishot group and which — `Multishot · Gen 1`, or
@@ -3674,10 +3980,10 @@ whether that shot will generate as part of a multishot group and which — `Mult
 does, and the label's whole purpose is to let the operator see the plan before committing to it.
 
 **Why read-only.** It reflects grouping rather than setting it. The control that changes grouping is
-the Shot node's multishot toggle (D193), after fan-out. A second place to change it would be the
-same two-controls-one-decision problem D195 removed `continuous_take` for.
+the Shot node's multishot toggle (D214), after fan-out. A second place to change it would be the
+same two-controls-one-decision problem D216 removed `continuous_take` for.
 
-### D201 — Multishot gets its own authoring surface and its own prompt *(recorded 2026-08-31; refines D195)*
+### D222 — Multishot gets its own authoring surface and its own prompt *(recorded 2026-08-31; refines D216)*
 
 **Decision.** The `multishot` flag drives three things it previously did not:
 - **Controls.** A multishot shot authors a **LOOK contract** (one paragraph, shared) and a **camera
@@ -3690,7 +3996,7 @@ same two-controls-one-decision problem D195 removed `continuous_take` for.
 **Why the controls had to change.** One camera move and one motion energy describe a single
 continuous take. On a node holding five cuts they describe nothing, while the thing that actually
 governs whether those cuts read as one film — a LOOK contract repeated verbatim in every beat — had
-no field at all. D195 gave multishot a different *prompt* and left its *authoring surface*
+no field at all. D216 gave multishot a different *prompt* and left its *authoring surface*
 identical, which is why a multishot shot looked exactly like a single one apart from a filtered
 model picker.
 
@@ -3707,7 +4013,7 @@ frame already fixes lens and light, and per-beat camera plus a shared LOOK is wh
 Also rejected: keeping one prompt and branching inside it on a flag, which buries two genuinely
 different jobs in one string and makes neither evaluable on its own.
 
-### D202 — Merging Shots is a third action on the existing selection *(recorded 2026-08-31; revised 2026-09-02; completes D193)*
+### D223 — Merging Shots is a third action on the existing selection *(recorded 2026-08-31; revised 2026-09-02; completes D214)*
 
 **Decision.** Selecting several Shot nodes and choosing **Merge** from the selection's context menu
 combines them into one multishot node, behind a confirmation. Beats order by **script position**,
@@ -3721,7 +4027,7 @@ selection as a third verb rather than as a second, parallel interaction model. I
 for free — dropping merges two nodes, a selection merges *n* — and it costs no new drag machinery,
 no intersection testing, and no way to trigger a structural change by fumbling a drag.
 
-**Why now.** D193 shipped split without merge because three questions had no answer. They do now:
+**Why now.** D214 shipped split without merge because three questions had no answer. They do now:
 *which side's edits win* — neither, both beat sets survive and sort by script order; *what happens
 downstream* — the same asymmetry split already uses, since a motion prompt written for one shot
 does not describe the merged sequence; *what stops an illegal merge* — the refusals below, stated
@@ -3747,7 +4053,7 @@ alone reappears on the next load.
 batches by selection); clamping an over-cap merge to 10s (loses beats invisibly); merging in
 selection order (reorders the reel).
 
-### D203 — Multishot composes against SEQUENCE roles, a separate catalog *(recorded 2026-09-02; refines D28, D201)*
+### D224 — Multishot composes against SEQUENCE roles, a separate catalog *(recorded 2026-09-02; refines D28, D222)*
 
 **Decision.** A multishot Shot picks from `SEQUENCE_ROLES` (`src/lib/nodes/sequence-roles.ts`), not
 from `SHOT_ROLES`. The two catalogs are **disjoint** — no shared keys — and each getter falls back
@@ -3775,7 +4081,7 @@ brand-close); commercial convention of 4–8 isolated angles plus a hero (featur
 empty per entry); sequence role *plus* a per-beat shot role (a second control on the sheet and a
 much larger prompt, for a distinction the arc already carries).
 
-### D204 — VOICE is a verbatim contract beside LOOK *(recorded 2026-09-02; refines D201)*
+### D225 — VOICE is a verbatim contract beside LOOK *(recorded 2026-09-02; refines D222)*
 
 **Decision.** A second free-text contract, `VideoControls.voice`, reproduced **verbatim** at the top
 of every beat exactly as the LOOK is, rendered on its own line directly beneath it. Presets name
@@ -3798,7 +4104,7 @@ point is not neutral.
 **Consequence.** `LookContractField` became the shared `ContractField`; the two contracts differ
 only in icon, copy and preset list, and a second near-identical component would have drifted.
 
-### D205 — Multishot is a node type, not a flag — and so is its prompt *(recorded 2026-09-02; supersedes the flag half of D193 and D195; originated → 2026-09-02-multishot-node-types-design.md)*
+### D226 — Multishot is a node type, not a flag — and so is its prompt *(recorded 2026-09-02; supersedes the flag half of D214 and D216; originated → 2026-09-02-multishot-node-types-design.md)*
 
 **Decision.** `ShotNodeData.multishot: boolean` is deleted. Multishot becomes two new node
 types, siblings rather than branches: `multishot` (a budget of cuts — `totalSeconds`,
@@ -3816,15 +4122,15 @@ changed with beat count — four controls on one card, three conditional. Splitt
 makes each pair what it always was, two different products, and lets the connection graph
 (`VALID_CONNECTIONS`) enforce the lane separation instead of a runtime check.
 
-**Rejected.** Filtering the video-gen model picker to only Omni chips (D195's mechanism) —
+**Rejected.** Filtering the video-gen model picker to only Omni chips (D216's mechanism) —
 *"filtering a picker is not enforcing a constraint"*: it hid every other chip but left the stored
 `modelId` untouched, so a new node still defaulted to Veo and Generate billed a Veo run fed a
 ladder Veo ignores. Also rejected: keeping one motion-prompt node and branching its whole body —
 input column, output column, return type — on a flag.
 
-### D206 — The mode switch lives on a generation bracket in the Script *(recorded 2026-09-02; supersedes D200; originated → 2026-09-02-multishot-node-types-design.md)*
+### D227 — The mode switch lives on a generation bracket in the Script *(recorded 2026-09-02; supersedes D221; originated → 2026-09-02-multishot-node-types-design.md)*
 
-**Decision.** D200's per-row `· Multishot · Gen 1` label is replaced by a bracket enclosing every
+**Decision.** D221's per-row `· Multishot · Gen 1` label is replaced by a bracket enclosing every
 row in one generation, headed by the generation's number, its packed total seconds, and **one**
 switch. `describeShotGrouping` becomes `describeGenerations`, returning
 `Generation { index, shotIndexes, seconds, multishot, key }`. `ScriptNodeData.groupModes` stores
@@ -3833,14 +4139,14 @@ keyed by `shotIndexes.join("-")`; a re-parse that shifts group boundaries orphan
 that generation silently reverts to default, dropped rather than accumulated.
 
 **Why.** A generation spans several rows, so a per-row control reaches rows the operator did not
-touch — the bracket draws the switch's reach as a fact on screen. D200 let the operator see the
+touch — the bracket draws the switch's reach as a fact on screen. D221 let the operator see the
 plan but forced a trip to the canvas and a different control to change it; this closes that gap.
 
 **Rejected.** Carrying a stale `groupModes` override onto a differently shaped group after
 re-parse — the grouping it described no longer exists, and applying its intent to the new rows
 would be silently wrong rather than merely stale.
 
-### D207 — Fan-out is incremental, matched on exact `shotIndexes` *(recorded 2026-09-02; originated → 2026-09-02-multishot-node-types-design.md)*
+### D228 — Fan-out is incremental, matched on exact `shotIndexes` *(recorded 2026-09-02; originated → 2026-09-02-multishot-node-types-design.md)*
 
 **Decision.** `fanOutShots` now creates only what is missing. For each generation it looks for an
 existing `shot` or `multishot` node whose `seededFrom.scriptNodeId` and `seededFrom.shotIndexes`
@@ -3859,7 +4165,7 @@ hands, not fan-out's.
 a node whose content changed underneath it); deleting the orphaned old node automatically on a
 shape change (destroys downstream work fan-out cannot see).
 
-### D208 — Flipping the mode swaps the node type in place; there is no split and no merge *(recorded 2026-09-02; supersedes D202; originated → 2026-09-02-multishot-node-types-design.md)*
+### D229 — Flipping the mode swaps the node type in place; there is no split and no merge *(recorded 2026-09-02; supersedes D223; originated → 2026-09-02-multishot-node-types-design.md)*
 
 **Decision.** Flipping a generation's switch, when it already has a node, **converts that node**:
 same `id`, `position`, and all incoming edges kept; all outgoing edges dropped. A confirm dialog
@@ -3875,13 +4181,13 @@ flip only changes which of two things that node is; there is nothing left to spl
 Losslessness in both directions is what makes the flip the script-level undo: an accidental flip
 and flip-back costs the operator nothing, a guarantee a structural split/merge pair could not make.
 
-**Rejected.** Keeping split and merge as the only way to change mode (D193's split, D202's
+**Rejected.** Keeping split and merge as the only way to change mode (D214's split, D223's
 merge) — ~250 lines of graph surgery and a confirm dialog to explain irreversibility, for a
 decision that should be "which of two things does fan-out make here". `splitMultishotNode`,
 `mergeShots`, `multishot-toggle.tsx` and the merge action in `node-context-menu.tsx` are deleted
 with their tests.
 
-### D209 — A Multishot node is a fixed budget divided into cuts *(recorded 2026-09-02; supersedes D201's controls and brief, with D210; originated → 2026-09-02-multishot-node-types-design.md)*
+### D230 — A Multishot node is a fixed budget divided into cuts *(recorded 2026-09-02; supersedes D222's controls and brief, with D231; originated → 2026-09-02-multishot-node-types-design.md)*
 
 **Decision.** `MultishotNodeData` carries `totalSeconds` and `cuts: MultishotCut[]`
 (`{ id, text, seconds }`), with `sum(cuts.map(c => c.seconds)) === totalSeconds` enforced by every
@@ -3900,7 +4206,7 @@ fixed budget that failure is structurally impossible instead of validated after 
 truncation failure is only caught after a paid generation); a hard cap on cut count enforced in
 code (the 6-cut ceiling is a quality signal, not a verified hard limit).
 
-### D210 — The multishot prompt returns JSON — a model-written look block plus beats keyed by `cutId` — and the compiled prompt is rendered from it *(recorded 2026-09-02; supersedes D201's controls and brief, with D209; originated → 2026-09-02-multishot-node-types-design.md)*
+### D231 — The multishot prompt returns JSON — a model-written look block plus beats keyed by `cutId` — and the compiled prompt is rendered from it *(recorded 2026-09-02; supersedes D222's controls and brief, with D230; originated → 2026-09-02-multishot-node-types-design.md)*
 
 **Decision.** `multishotPromptGenerate()` asks for structured output —
 `MultishotPlan { version: 1, look: string, beats: Array<{ cutId, text }> }` — rather than a prose
@@ -3919,14 +4225,14 @@ never the beats.
 the operator reads must be the one that gets billed. Deriving `seconds` and `refs` rather than
 asking the model for them makes the budget and the reference list correct by construction.
 
-**Rejected.** An operator-authored LOOK/VOICE contract with a preset catalog (D201's
+**Rejected.** An operator-authored LOOK/VOICE contract with a preset catalog (D222's
 `ContractField`, `LOOK_PRESETS`, `VOICE_PRESETS`) — the look itself is not deleted, it is now
 model-written into the plan and shown in the breakup view; only the field, the preset catalog and
 the verbatim-reproduction machinery are gone. Also rejected: asking the model to name `seconds` or
 `refs` directly, either of which could disagree with the operator's budget or the text's actual
 citations.
 
-### D211 — Per-cut references are `@`-mentions, not a second picker *(recorded 2026-09-02; originated → 2026-09-02-multishot-node-types-design.md)*
+### D232 — Per-cut references are `@`-mentions, not a second picker *(recorded 2026-09-02; originated → 2026-09-02-multishot-node-types-design.md)*
 
 **Decision.** A reference reaches a specific cut by being `@`-mentioned inside that cut's own
 instruction text, using the `MentionInstructionEditor` / `resolve-mention-tokens.ts` /
@@ -3945,13 +4251,13 @@ a working one, and the operator would have to learn which one wins.
 thing); letting output beats fall back to plain text when they mention a reference (breaks the "a
 chip survives editing" property every other prompt node in the app already guarantees).
 
-**A note on D203/D204.** Both are **parked, not superseded** by D205–D211 — nothing here replaces
-what they decided. `sequence-roles.ts` (D203) stays in the tree with no consumers rather than being
-deleted, and the VOICE contract's *concept* survives in D210's model-written look block even though
+**A note on D224/D225.** Both are **parked, not superseded** by D226–D232 — nothing here replaces
+what they decided. `sequence-roles.ts` (D224) stays in the tree with no consumers rather than being
+deleted, and the VOICE contract's *concept* survives in D231's model-written look block even though
 its authoring surface (`ContractField`, `VOICE_PRESETS`) is gone — only the surface is deleted, not
 either decision. Both remain candidates to return once the flow they serve is settled.
 
-### D212 — The multishot writer identifies a reference but never binds one; the operator attaches it by hand *(recorded 2026-09-03; refines D211)*
+### D233 — The multishot writer identifies a reference but never binds one; the operator attaches it by hand *(recorded 2026-09-03; refines D232)*
 
 **Decision.** `REFERENCE_IDENTIFICATION_BLOCK` no longer asks the writer to emit `<IMAGE_REF_N>`
 tokens. It still attaches the reference images, still asks the model to LOOK at them and identify
@@ -3959,7 +4265,7 @@ what each one shows, and still requires a short identifying phrase in the beat �
 product name: "the black CHUPPS V-Straps", "the tan leather sliders". What it forbids is the token
 itself, and any other pointer into the attachment list ("the first image", `@Image1`). Binding a
 picture to a beat is the operator's action, made by `@`-mentioning the reference in the beat after
-reading the draft, through the same `MentionInstructionEditor` / `imageRefDialect` machinery D211
+reading the draft, through the same `MentionInstructionEditor` / `imageRefDialect` machinery D232
 already specified. `refsCitedIn` is unchanged and still scans beats for the token shape — what it
 finds is now the operator's citations rather than the model's guesses, which also makes the
 "Not cited" marker in `ReferenceImageStrip` mean "you have not attached this yet" instead of "the
@@ -3972,10 +4278,10 @@ glance and correct in the text. This keeps the part of auto-identification that 
 model reading the images and naming what it sees, which is what makes a beat specific) and drops
 only the part that could be confidently wrong.
 
-**Refines D211,** which said "a blank instruction means the writer chooses from the connected
+**Refines D232,** which said "a blank instruction means the writer chooses from the connected
 library itself". That clause is withdrawn: a blank instruction now means no reference is bound to
 that beat, and the beat names the product in prose until the operator attaches one. The rest of
-D211 — `@`-mentions as the single binding surface, one chip editor per text box, the dialect split
+D232 — `@`-mentions as the single binding surface, one chip editor per text box, the dialect split
 between `mentionDialect()` for input and `imageRefDialect()` for beats — stands unchanged.
 
 **Rejected.** Deleting the reference block outright (the model's reading of the images is what
@@ -3985,7 +4291,7 @@ mode is confident misidentification, so a threshold does not catch it); removing
 marker (under manual binding it becomes more useful, not less — it is now the operator's checklist
 of unattached references).
 
-### D213 — History is a rail item on `PromptFocusShell`, not a per-view pane *(recorded 2026-09-04; completes D180)*
+### D234 — History is a rail item on `PromptFocusShell`, not a per-view pane *(recorded 2026-09-04; completes D180)*
 
 **Decision.** The shell owns a `History` rail item and renders `PromptVersionHistory` itself, so
 every shell-based prompt view (Video Prompt, Multishot Prompt) gets version history without

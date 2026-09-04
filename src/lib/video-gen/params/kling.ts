@@ -93,7 +93,7 @@ const multiShotParam: ParamSpec = {
   component: "toggle",
   group: "advanced",
   order: 1,
-  // D197 — hidden, not deleted. Gemini Omni is the only multi-shot model surfaced in the UI, so
+  // D218 — hidden, not deleted. Gemini Omni is the only multi-shot model surfaced in the UI, so
   // multishot means one thing in one place. Hiding rather than deleting keeps the request shape
   // byte-identical, keeps every persisted node resolving, and leaves Kling 3.0's end-frame rule
   // that pins multi_shot valid and untouched; deleting would make the route stop resolving a name

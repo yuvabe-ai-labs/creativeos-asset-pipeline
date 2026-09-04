@@ -119,6 +119,41 @@ export async function listCanvasPendingItems(
   return toInboxItems(orgId, (data ?? []) as unknown as QueueRow[]);
 }
 
+// R8.3 — every asset node's CURRENT approval status on one canvas, as a nodeId -> status
+// map, for keeping the on-canvas badges live (D202).
+//
+// A filter over the same review_queue_items view as everything above, which is the point:
+// the badge shows the ACTIVE version's status, and that join is what the view already is
+// (D159). Deriving it any other way would be a second definition of "current status" that
+// could disagree with the drawer and the inbox sitting next to it on screen.
+//
+// Three deliberate differences from the two list functions:
+//   * No status filter. The drawer holds what is outstanding; a BADGE has to show
+//     approved and changes_requested too, or it could never leave 'pending'.
+//   * No role filter. The badge is on the canvas for whoever is looking at it — unlike
+//     the inbox, it is not a claim about what is waiting on YOU (R9.5).
+//   * No paging. It is two small columns for one canvas's asset nodes, fetched as a whole
+//     because a half-synced canvas is worse than an unsynced one: the badges that fell
+//     outside the window would be silently, invisibly stale.
+export async function listCanvasApprovalStatuses(
+  orgId: string,
+  canvasId: string,
+): Promise<Record<string, ApprovalStatus>> {
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("review_queue_items")
+    .select("node_id, approval_status")
+    .eq("org_id", orgId)
+    .eq("canvas_id", canvasId);
+  if (error) throw error;
+
+  // Cast explained at listCanvasPendingItems below (view absent from generated types).
+  const rows = (data ?? []) as unknown as Pick<QueueRow, "node_id" | "approval_status">[];
+  const out: Record<string, ApprovalStatus> = {};
+  for (const r of rows) out[r.node_id] = r.approval_status;
+  return out;
+}
+
 // R9.1/R9.5 — the org-wide navbar popover. Fetches both actionable states and lets the
 // pure selector decide, so the role rule lives in exactly one tested place rather than
 // being re-expressed as a SQL filter that could disagree with it.

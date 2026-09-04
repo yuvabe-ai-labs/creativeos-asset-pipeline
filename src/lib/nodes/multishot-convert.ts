@@ -1,4 +1,4 @@
-// D208 — the lossless pair behind the Script's mode switch.
+// D229 — the lossless pair behind the Script's mode switch.
 //
 // Specified as one file with both directions in it, rather than left to each call site, because
 // what makes the switch a real undo is that a flip and a flip-back cost the operator nothing.

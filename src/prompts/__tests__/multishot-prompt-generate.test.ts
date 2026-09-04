@@ -82,7 +82,7 @@ describe("multishotPromptGenerate", () => {
     expect(spec.system).toMatch(/keeps contact/i);
   });
 
-  // D212: the writer identifies a reference but never binds it. It used to assign
+  // D233: the writer identifies a reference but never binds it. It used to assign
   // `<IMAGE_REF_N>` itself, which fails silently — a token pointing at the wrong photograph
   // raises no error and is only visible in a clip already paid for. The operator attaches the
   // reference by hand instead, so the writer must name what it saw in prose and stop there.

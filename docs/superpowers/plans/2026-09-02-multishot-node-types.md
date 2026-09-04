@@ -232,7 +232,7 @@ Expected: FAIL — `Failed to resolve import "../multishot-cuts"`
 Create `src/lib/nodes/multishot-cuts.ts`:
 
 ```ts
-// The Multishot node's cut list (D209). A FIXED budget of seconds divided among cuts.
+// The Multishot node's cut list (D230). A FIXED budget of seconds divided among cuts.
 //
 // Every mutation here preserves `sum(seconds)`. That is not tidiness: the Omni request's
 // `duration` is derived from the ladder, and a ladder longer than the duration comes back
@@ -449,7 +449,7 @@ export type MultishotNodeData = {
 };
 
 /**
- * The Multishot Prompt node (D210). Sibling of VideoPromptNodeData, deliberately not a superset.
+ * The Multishot Prompt node (D231). Sibling of VideoPromptNodeData, deliberately not a superset.
  *
  * No `controls` — camera move and motion energy describe ONE continuous take.
  * No `targetProvider` — Omni is the only multishot model, so there is nothing to pick.
@@ -636,7 +636,7 @@ export function generationKey(shotIndexes: number[]): string {
 }
 
 /**
- * D206 — the generations the script will fan out to, with each one's mode.
+ * D227 — the generations the script will fan out to, with each one's mode.
  *
  * Derived from `groupShotsForFanOut`, not from a parallel rule, so what the Visual script list
  * shows is exactly what fan-out will do. A label computed independently would drift, and its
@@ -774,7 +774,7 @@ In `src/lib/canvas-nodes.ts`, add to `ScriptNodeData`:
 
 ```ts
   /**
-   * D206 — per-generation mode OVERRIDES, keyed by `generationKey(shotIndexes)`.
+   * D227 — per-generation mode OVERRIDES, keyed by `generationKey(shotIndexes)`.
    * An absent key means the default (a group of more than one row is multishot). Only
    * deviations are stored, so a re-parse that reshapes the groups drops them harmlessly.
    */
@@ -786,7 +786,7 @@ In `src/lib/canvas-nodes.ts`, add to `ScriptNodeData`:
 In `src/lib/canvas-store.ts`, add to the `CanvasState` type beside `fanOutShots`:
 
 ```ts
-  /** D206 — set one generation's mode from the Script's Visual script list. */
+  /** D227 — set one generation's mode from the Script's Visual script list. */
   setGenerationMode: (scriptNodeId: string, key: string, multishot: boolean) => void;
 ```
 
@@ -839,7 +839,7 @@ import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import type { Generation } from "@/lib/nodes/group-shots";
 
 /**
- * D206 — one generation's rows, bracketed, with the single control that sets its mode.
+ * D227 — one generation's rows, bracketed, with the single control that sets its mode.
  *
  * The bracket exists because a generation spans several rows: a switch sitting on ONE row would
  * reach rows the operator did not touch. Drawing the scope makes the switch's reach a fact on
@@ -992,7 +992,7 @@ git add src/components/nodes/generation-bracket.tsx src/components/nodes/script-
 git commit -m "$(cat <<'EOF'
 feat(multishot): the mode switch moves into the script, on a generation bracket
 
-D200's read-only per-row label becomes one switch per generation, with the
+D221's read-only per-row label becomes one switch per generation, with the
 rows it governs bracketed by a left rule. A switch on a single row would
 reach rows the operator did not touch; drawing the scope makes its reach a
 fact on screen.
@@ -1105,7 +1105,7 @@ import { cutsFromShots, totalOf } from "@/lib/nodes/multishot-cuts";
 Replace the whole `fanOutShots` implementation with:
 
 ```ts
-    // D207 — materialize each GENERATION of a parsed Script as one node: a `shot` for a
+    // D228 — materialize each GENERATION of a parsed Script as one node: a `shot` for a
     // continuous take, a `multishot` for a cut sequence. A dashed Script->node lineage edge is
     // added for provenance; it is NOT a live edge (resolution never traverses it).
     //
@@ -1401,7 +1401,7 @@ Expected: FAIL — `Failed to resolve import "../multishot-convert"`
 Create `src/lib/nodes/multishot-convert.ts`:
 
 ```ts
-// D208 — the lossless pair behind the Script's mode switch.
+// D229 — the lossless pair behind the Script's mode switch.
 //
 // Specified as one file with both directions in it, rather than left to each call site, because
 // what makes the switch a real undo is that a flip and a flip-back cost the operator nothing.
@@ -1554,7 +1554,7 @@ Replace the final line of `setGenerationMode` (`get().updateNodeData(scriptNodeI
 ```ts
       get().updateNodeData(scriptNodeId, { groupModes: next });
 
-      // D208 — when the generation already has a node, the switch CONVERTS it: same id, same
+      // D229 — when the generation already has a node, the switch CONVERTS it: same id, same
       // position, same incoming edges. There is no split and no merge, because the node count is
       // identical in both modes — only which of two things the node is changes.
       const node = get().nodes.find(
@@ -1739,7 +1739,7 @@ import {
 } from "@/lib/nodes/multishot-cuts";
 
 /**
- * The cut list as a proportional strip (D209).
+ * The cut list as a proportional strip (D230).
  *
  * Cards are sized by their share of the budget, so a bad rhythm is visible before it is
  * generated. Each slider resizes ONE cut and its neighbour funds the change — the total is fixed,
@@ -1833,7 +1833,7 @@ import type { MultishotNodeData } from "@/lib/canvas-nodes";
 const SOFT_CUT_LIMIT = 6;
 
 /**
- * D209 — a Multishot node is a fixed budget of seconds divided into cuts.
+ * D230 — a Multishot node is a fixed budget of seconds divided into cuts.
  *
  * Deliberately bare: no multishot toggle (that lives in the Script now), no beat switcher, and
  * no Composer. The Shot node's four conditional controls on a 224px card are exactly what
@@ -2086,7 +2086,7 @@ In `src/components/nodes/shot-node.tsx`:
 
 - [ ] **Step 7: Delete `ShotNodeData.multishot` and the unread flags**
 
-In `src/lib/canvas-nodes.ts`, delete the `multishot?: boolean` field and its doc comment from `ShotNodeData`, and tighten `seededFrom` to `{ scriptNodeId: string; shotIndexes: number[]; scriptTitle?: string }` (drop `shotIndex` — it exists only so pre-D193 nodes resolve, and there is no backward compatibility to keep).
+In `src/lib/canvas-nodes.ts`, delete the `multishot?: boolean` field and its doc comment from `ShotNodeData`, and tighten `seededFrom` to `{ scriptNodeId: string; shotIndexes: number[]; scriptTitle?: string }` (drop `shotIndex` — it exists only so pre-D214 nodes resolve, and there is no backward compatibility to keep).
 
 In `src/lib/nodes/group-shots.ts`, delete `clamped` and `overCap` from `ShotGroup` and from the `groupShotsForFanOut` return mapping — they were computed and never read. Delete their assertions from `src/lib/nodes/__tests__/group-shots.test.ts`.
 
@@ -2116,7 +2116,7 @@ Shot node's beat-chip strip.
 Fixes renderShotForVideo, which read shots[0] and silently dropped the rest
 of the generation it covers — recorded in the followups doc.
 
-Also drops seededFrom.shotIndex (a pre-D193 fallback), group-shots' unread
+Also drops seededFrom.shotIndex (a pre-D214 fallback), group-shots' unread
 clamped/overCap flags, and the Shot node's raw textarea.
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
@@ -2152,7 +2152,7 @@ Keep `src/lib/nodes/sequence-roles.ts` and its tests. Add this above the existin
 // PARKED — nothing imports this today.
 //
 // The catalog served the Shot Composer's multishot branch, and a Multishot node has no Composer
-// (D209). It is kept rather than deleted because every entry is a documented pattern rather than
+// (D230). It is kept rather than deleted because every entry is a documented pattern rather than
 // an invention, and the multishot flow is expected to want them again once it settles.
 //
 // Its tests still run, so the file cannot rot silently. If you are wiring a new consumer, read
@@ -2185,12 +2185,12 @@ git add -A
 git commit -m "$(cat <<'EOF'
 refactor(multishot): unwire the sequence roles, delete the LOOK/VOICE controls
 
-D203's catalog served only the Composer's multishot branch, and a Multishot
+D224's catalog served only the Composer's multishot branch, and a Multishot
 node has no Composer. The FILE stays — every entry is a documented pattern
 rather than an invention, and the flow is expected to want them back — but
 nothing imports it now, and a header comment says so.
 
-D201's LOOK and D204's VOICE were operator-authored fields with preset
+D222's LOOK and D225's VOICE were operator-authored fields with preset
 catalogs, and those go: the look returns in phase 2 as MODEL output inside
 the plan, not as a control.
 
@@ -2367,7 +2367,7 @@ Expected: FAIL — `Failed to resolve import "../multishot-plan"`
 Create `src/lib/nodes/multishot-plan.ts`:
 
 ```ts
-// D210 — what the Multishot Prompt node's writer returns, and how it becomes a prompt.
+// D231 — what the Multishot Prompt node's writer returns, and how it becomes a prompt.
 //
 // The model returns JSON ONLY. The flat prompt is rendered from that JSON by `renderPlan`, so the
 // breakup view the operator reads and the string that gets billed cannot disagree — they are the
@@ -2599,7 +2599,7 @@ Expected: FAIL — `Failed to resolve import "../multishot-prompt-generate"`
 Create `src/prompts/multishot-prompt-generate.ts`:
 
 ```ts
-// D210 — the Multishot Prompt node's writer. A single prompt with NO provider routing: Omni is
+// D231 — the Multishot Prompt node's writer. A single prompt with NO provider routing: Omni is
 // the only multishot model, so there is nothing to branch on.
 import {
   REFERENCE_IDENTIFICATION_BLOCK,
@@ -3168,7 +3168,7 @@ Append to `src/lib/canvas-store.test.ts`:
 ```ts
 describe("Omni coercion on connect", () => {
   // The followups doc's recorded lesson: "Filtering a picker is not enforcing a constraint."
-  // D195 hid every other chip but never changed the stored modelId, so a Veo run could still be
+  // D216 hid every other chip but never changed the stored modelId, so a Veo run could still be
   // billed against a ladder Veo ignores. Assert the STORED value, not which chips render.
   it("coerces a video-gen node's modelId when a multishot-prompt feeds it", () => {
     const store = createCanvasStore(
@@ -3212,8 +3212,8 @@ Expected: FAIL — modelId is still `google:veo-3`
 In `src/lib/canvas-store.ts`, inside `onConnect`, after the edge is validated and before `set(...)`:
 
 ```ts
-      // Omni is the only multishot model (D196). Coerce the target's STORED modelId — filtering
-      // the picker is not enforcing a constraint: D195 hid every other chip but left the node's
+      // Omni is the only multishot model (D217). Coerce the target's STORED modelId — filtering
+      // the picker is not enforcing a constraint: D216 hid every other chip but left the node's
       // saved value alone, so a new node defaulting to Veo would have billed a Veo run against a
       // ladder Veo ignores. Because the lanes are separate types this is a check on the source
       // node's type — no traversal, no flag, no upstream to resolve.
@@ -3252,7 +3252,7 @@ git commit -m "$(cat <<'EOF'
 feat(multishot): the Multishot Prompt node, with Omni coerced on connect
 
 Coerces the target's STORED modelId rather than filtering its picker —
-filtering is not enforcing, which is how D195's restriction would still have
+filtering is not enforcing, which is how D216's restriction would still have
 billed a Veo run against a ladder Veo ignores.
 
 Because the lanes are separate node types this is a check on the source
@@ -3527,14 +3527,14 @@ Run `npm run dev:next` and confirm end to end:
 
 - [ ] **Step 6: Append the ADR entries**
 
-Add D205–D211 to §7 of `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md`, in the log's existing format (Decision / Why / Rejected / Refines / Originated →), taking the wording from §12 of the design spec. Keep one ADR log — append in place, do not scatter entries into this plan's spec.
+Add D226–D232 to §7 of `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md`, in the log's existing format (Decision / Why / Rejected / Refines / Originated →), taking the wording from §12 of the design spec. Keep one ADR log — append in place, do not scatter entries into this plan's spec.
 
 - [ ] **Step 7: Commit**
 
 ```bash
 git add -A
 git commit -m "$(cat <<'EOF'
-docs(multishot): record D205-D211 in the ADR log
+docs(multishot): record D226-D232 in the ADR log
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 EOF

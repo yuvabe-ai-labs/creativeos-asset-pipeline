@@ -132,7 +132,7 @@ export type VideoProviderPrompt = {
 export type PromptRouteInput = { provider: VideoProvider };
 
 /**
- * D210 — multishot routing has moved entirely to `multishotPromptGenerate`
+ * D231 — multishot routing has moved entirely to `multishotPromptGenerate`
  * (src/prompts/multishot-prompt-generate.ts). Omni is the only multishot model, so there is
  * nothing left to branch on here: every provider, Omni included, gets one of these two
  * continuous-take records. A single shot on Omni is one continuous take, which this shared

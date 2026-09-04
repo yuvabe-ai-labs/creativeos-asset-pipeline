@@ -11,7 +11,7 @@
 **This is Plan 2 of 2.** Plan 1 (`2026-08-28-gemini-omni-provider.md`) is complete and merged on this branch: the Gemini Omni provider is registered and generates video from hand-written prompts.
 
 - Spec: `docs/superpowers/specs/2026-08-28-gemini-omni-multishot-design.md`
-- Decisions: D193, D194, D195
+- Decisions: D214, D215, D216
 
 ---
 
@@ -175,7 +175,7 @@ Expected: PASS.
 
 ```bash
 git add src/prompts/script-parse.ts src/lib/nodes/reel-script.ts src/prompts/__tests__/script-parse-schema.test.ts
-git commit -m "feat(script): parse each shot's length in seconds (D193)
+git commit -m "feat(script): parse each shot's length in seconds (D214)
 
 Grouping to a 10s cap needs arithmetic, and \`duration\` is free text the
 model copies out of the script. The instruction is explicit that scripts
@@ -357,7 +357,7 @@ function rebalanceTrailing(groups: ShotGroup[], lengths: number[]): void {
 }
 
 /**
- * D193 — consecutive, greedy, then rebalanced. Deliberately not seam-aware.
+ * D214 — consecutive, greedy, then rebalanced. Deliberately not seam-aware.
  *
  * Finding good narrative seams was a planner's job, and its failures were invisible: a plan could
  * be internally consistent and still lose footage. Packing by arithmetic is legible instead — the
@@ -411,7 +411,7 @@ Expected: PASS, 10 tests.
 
 ```bash
 git add src/lib/nodes/group-shots.ts src/lib/nodes/__tests__/group-shots.test.ts
-git commit -m "feat(shots): group consecutive shots to a 10s cap with a trailing rebalance (D193)
+git commit -m "feat(shots): group consecutive shots to a 10s cap with a trailing rebalance (D214)
 
 Greedy packing alone strands a remainder under Omni's 3s floor -- a real
 client script (3,5,6,4,2) packs to 8/10/2, and the 2s tail cannot merge
@@ -442,14 +442,14 @@ In `src/lib/canvas-nodes.ts`, replace the `ShotNodeData` type with:
 ```ts
 export type ShotNodeData = {
   // The parent reel script narrowed to the shots THIS node covers — one for a single shot, several
-  // for a multishot group (D193). Carries the full metadata (objective, on-screen text, voiceover,
+  // for a multishot group (D214). Carries the full metadata (objective, on-screen text, voiceover,
   // caption…) so downstream prompts keep the whole creative context, not just the shot line.
   // Editable; this node's output (D19/D20) — rendered via renderScriptAsText.
   script?: ReelScript;
   order?: number; // 1-based position in the script (display + Stage 5 assembly)
   shot_type?: string; // e.g. "Wide Shot", "Close-Up" — user-selected or keyword-derived
   /**
-   * D193 — this node's shots become ONE generation with cuts between them, rather than one
+   * D214 — this node's shots become ONE generation with cuts between them, rather than one
    * generation each. True by default on any node fan-out grouped; turning it off SPLITS the node.
    * On a single-shot node it means "the model may cut inside this shot" rather than holding one
    * continuous take.
@@ -457,7 +457,7 @@ export type ShotNodeData = {
   multishot?: boolean;
   seededFrom?: {
     scriptNodeId: string;
-    shotIndex: number; // 0-based index of the FIRST shot — kept so pre-D193 nodes still resolve
+    shotIndex: number; // 0-based index of the FIRST shot — kept so pre-D214 nodes still resolve
     shotIndexes?: number[]; // every shot this node covers, in order
     scriptTitle?: string; // for the provenance label without a lookup
   };
@@ -528,7 +528,7 @@ import { groupShotsForFanOut } from "@/lib/nodes/group-shots";
 Replace the `created` assignment inside `fanOutShots` (currently `const created = shots.map((shot, i) => ({...}))`) with:
 
 ```ts
-      // D193 — hybrid fan-out. Consecutive shots pack into ≤10s groups, so the canvas comes out
+      // D214 — hybrid fan-out. Consecutive shots pack into ≤10s groups, so the canvas comes out
       // mixed: grouped nodes generate as one clip with cuts, lone ones as a single take.
       const groups = groupShotsForFanOut(shots);
       const created = groups.map((group, i) => ({
@@ -566,11 +566,11 @@ Expected: PASS.
 
 ```bash
 git add src/lib/canvas-nodes.ts src/lib/canvas-store.ts src/lib/canvas-store.test.ts
-git commit -m "feat(shots): fan out into hybrid multishot groups (D193)
+git commit -m "feat(shots): fan out into hybrid multishot groups (D214)
 
 A grouped node is just a Shot whose visual_script.shots holds more than one
 entry -- the field was already an array, so this needs no new node type.
-seededFrom keeps shotIndex as the first index so pre-D193 nodes still
+seededFrom keeps shotIndex as the first index so pre-D214 nodes still
 resolve, and gains shotIndexes for the whole group.
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
@@ -693,7 +693,7 @@ import type { ShotNodeData } from "@/lib/canvas-nodes";
 import { deriveShotType } from "./shot-types";
 
 /**
- * D193 — one grouped Shot's data becomes one single-shot Shot per beat.
+ * D214 — one grouped Shot's data becomes one single-shot Shot per beat.
  *
  * Each piece keeps the FULL parent script narrowed to its own shot, which is what makes a Shot
  * "a Script node with one shot" (D21): the objective, on-screen text, voiceover and execution
@@ -746,7 +746,7 @@ And add this action immediately after `fanOutShots`:
 
 ```ts
     /**
-     * D193 — turning multishot OFF on a grouped node splits it into one node per shot.
+     * D214 — turning multishot OFF on a grouped node splits it into one node per shot.
      *
      * A structural change, not a display flag: the grouped node is REPLACED by its pieces, stacked
      * below its old position so nothing lands on top of a neighbour. Incoming edges are re-pointed
@@ -805,7 +805,7 @@ Expected: PASS; no new type errors.
 
 ```bash
 git add src/lib/nodes/split-multishot.ts src/lib/nodes/__tests__/split-multishot.test.ts src/lib/canvas-store.ts
-git commit -m "feat(shots): splitting a multishot node replaces it with one node per shot (D193)
+git commit -m "feat(shots): splitting a multishot node replaces it with one node per shot (D214)
 
 Each piece keeps the full parent script narrowed to its own shot, so a
 downstream prompt has the same context it had before. Incoming edges are
@@ -854,7 +854,7 @@ import {
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 
 /**
- * D193 — the only multishot control there is.
+ * D214 — the only multishot control there is.
  *
  * On a grouped node, turning it OFF is a structural change: the node is replaced by one node per
  * beat. That earns a confirm, because it is not undoable by flipping the switch back — there is
@@ -961,7 +961,7 @@ Replace the `d` destructuring, `shot`, `description` and `setDescription` block 
   const shots = d.script?.visual_script?.shots ?? [];
   const multishot = d.multishot === true;
   // A grouped node edits one beat at a time. Reading shots[0] and writing `shots: [one]` — which
-  // is what this did before D193 — showed only the first beat and destroyed the rest on the first
+  // is what this did before D214 — showed only the first beat and destroyed the rest on the first
   // keystroke.
   const [beatIndex, setBeatIndex] = useState(0);
   const activeBeat = Math.min(beatIndex, Math.max(0, shots.length - 1));
@@ -1037,7 +1037,7 @@ Parse a script whose shots total more than 10s, fan out, and confirm: grouped no
 
 ```bash
 git add src/components/nodes/multishot-toggle.tsx src/components/nodes/shot-node.tsx
-git commit -m "feat(shots): edit any beat of a multishot node, and split from the node itself (D193)
+git commit -m "feat(shots): edit any beat of a multishot node, and split from the node itself (D214)
 
 The node read shots[0] and wrote shots: [one], so a grouped node would have
 shown one beat and destroyed the rest on the first keystroke. Beats are now
@@ -1207,7 +1207,7 @@ In `src/lib/nodes/resolve-inputs.ts`, replace the `shot` branch of `mapUpstreamF
 
 ```ts
   if (u.type === "shot") {
-    // D195 — a multishot Shot hands down its beats as a timecode ladder; a single one hands down
+    // D216 — a multishot Shot hands down its beats as a timecode ladder; a single one hands down
     // the action line plus an explicit instruction to hold one take, because Omni cuts by default.
     const script = (u.data.script ?? null) as ReelScript | null;
     const multishot = u.data.multishot === true;
@@ -1241,7 +1241,7 @@ Expected: PASS; no new type errors. If `providerOf` in `video-prompt-focus-view.
 
 ```bash
 git add src/prompts/video-prompt-generate.ts src/lib/nodes/render-shot-for-video.ts src/lib/nodes/resolve-inputs.ts src/prompts/__tests__/video-prompt-omni.test.ts
-git commit -m "feat(video-prompt): write a timecode ladder for a multishot shot (D195)
+git commit -m "feat(video-prompt): write a timecode ladder for a multishot shot (D216)
 
 Times are derived from each beat's own length so the ladder always sums to
 the node total, which is what the request duration is derived from -- a
@@ -1278,7 +1278,7 @@ export function VideoGenModelPicker({
 }: {
   modelId: string;
   onModelChange: (modelId: string) => void;
-  /** D195 — when set, only this model is offered. A multishot shot needs a model that cuts. */
+  /** D216 — when set, only this model is offered. A multishot shot needs a model that cuts. */
   restrictToModelId?: string;
   restrictionReason?: string;
   children?: ReactNode;
@@ -1303,7 +1303,7 @@ Then replace `videoGenClientModelGroups.map((providerGroup) =>` with `groups.map
 In `src/components/nodes/video-gen-focus-view.tsx`, find where `<VideoGenModelPicker` is rendered (around line 1018 in the Connected section area — search for `VideoGenModelPicker`). Above the component's return, add:
 
 ```tsx
-  // D195 — a multishot shot's prompt is a timecode ladder. Every other model ignores the timings
+  // D216 — a multishot shot's prompt is a timecode ladder. Every other model ignores the timings
   // and returns one continuous take, which is indistinguishable from a bug after paying for it.
   const upstreamMultishot = useCanvasStore((s) => {
     const seen = new Set<string>();
@@ -1394,7 +1394,7 @@ Then in `src/components/nodes/video-gen-focus-view.tsx`, alongside the `upstream
 In `src/components/nodes/video-prompt-focus-view.tsx`, replace the `providerOf` added in Plan 1:
 
 ```tsx
-  // D195 — Omni gets its own motion-prompt variant (the timecode ladder), so it maps to
+  // D216 — Omni gets its own motion-prompt variant (the timecode ladder), so it maps to
   // "gemini-omni" rather than folding into Veo as it did before that variant existed.
   const providerOf = (modelId?: string): VideoProvider => {
     const provider = videoGenClientModelMap[modelId ?? DEFAULT_VIDEO_CLIENT_MODEL_ID]?.provider;
@@ -1418,7 +1418,7 @@ In the app: connect a multishot Shot → motion prompt → video-gen. Confirm th
 
 ```bash
 git add src/components/nodes/video-gen-model-picker.tsx src/components/nodes/video-gen-focus-view.tsx src/components/nodes/video-prompt-focus-view.tsx src/app/api/nodes/[id]/video-prompt/route.ts src/lib/nodes/derive-shot-duration.ts src/lib/nodes/__tests__/derive-shot-duration.test.ts
-git commit -m "feat(video-gen): restrict a multishot shot to Omni and route its motion prompt (D195)
+git commit -m "feat(video-gen): restrict a multishot shot to Omni and route its motion prompt (D216)
 
 Pointing a timecode ladder at any other model returns one continuous take
 with the timings silently ignored, which reads as a bug after paying for it.

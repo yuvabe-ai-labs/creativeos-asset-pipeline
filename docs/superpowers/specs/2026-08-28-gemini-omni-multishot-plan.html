@@ -172,7 +172,7 @@
 <div class="wrap">
 
   <header>
-    <p class="eyebrow">Design spec &middot; ADR D193&ndash;D197 &middot; 28 Aug 2026</p>
+    <p class="eyebrow">Design spec &middot; ADR D214&ndash;D218 &middot; 28 Aug 2026</p>
     <h1>Omni Multi-Shot Pipeline</h1>
     <p class="lede">
       Multishot is a property of <strong>one shot</strong> &mdash; not of a script, not of a model
@@ -248,7 +248,7 @@
 
   <!-- 02 ───────────────────────────────────────────────────────────────── -->
   <section>
-    <p class="eyebrow">02 &middot; D193</p>
+    <p class="eyebrow">02 &middot; D214</p>
     <h2>Hybrid fan-out, and the toggle</h2>
     <hr class="rule">
     <p>
@@ -337,7 +337,7 @@
 
   <!-- 03 ───────────────────────────────────────────────────────────────── -->
   <section>
-    <p class="eyebrow">03 &middot; D194</p>
+    <p class="eyebrow">03 &middot; D215</p>
     <h2>A reference is a File node</h2>
     <hr class="rule">
     <p>
@@ -381,7 +381,7 @@
 
   <!-- 04 ───────────────────────────────────────────────────────────────── -->
   <section>
-    <p class="eyebrow">04 &middot; D195</p>
+    <p class="eyebrow">04 &middot; D216</p>
     <h2>Two upstream checks</h2>
     <hr class="rule">
 
@@ -437,7 +437,7 @@
 
   <!-- 05 ───────────────────────────────────────────────────────────────── -->
   <section>
-    <p class="eyebrow">05 &middot; D196</p>
+    <p class="eyebrow">05 &middot; D217</p>
     <h2>The docs are wrong about the request</h2>
     <hr class="rule">
     <p>
@@ -498,7 +498,7 @@
 
   <!-- 06 ───────────────────────────────────────────────────────────────── -->
   <section>
-    <p class="eyebrow">06 &middot; D186 + D191</p>
+    <p class="eyebrow">06 &middot; D207 + D212</p>
     <h2>Three index bases, one renderer</h2>
     <hr class="rule">
     <p>
@@ -679,26 +679,26 @@
     <hr class="rule">
     <div class="out">
       <div class="outrow dead">
-        <span class="on"><del>D188</del> two planners</span>
+        <span class="on"><del>D209</del> two planners</span>
         <span>Parse unchanged plus <code>duration_seconds</code>; grouping happens at fan-out, greedily, visible on the canvas.</span>
       </div>
       <div class="outrow dead">
-        <span class="on"><del>D189</del> validated plan</span>
+        <span class="on"><del>D210</del> validated plan</span>
         <span>No plan object to validate. The 10s cap is enforced at fan-out and again before the request.</span>
       </div>
       <div class="outrow dead">
-        <span class="on"><del>D190</del> script cast</span>
+        <span class="on"><del>D211</del> script cast</span>
         <span>References are File nodes connected downstream.</span>
       </div>
       <div class="outrow dead">
-        <span class="on"><del>D192</del> merge order</span>
-        <span>No cast, so no merge. The <em>frame semantics</em> half of D192 stands.</span>
+        <span class="on"><del>D213</del> merge order</span>
+        <span>No cast, so no merge. The <em>frame semantics</em> half of D213 stands.</span>
       </div>
     </div>
     <p style="margin-top:18px">
-      <strong>D184</strong> (target stable 1.1), <strong>D185</strong> (raw REST &mdash; the SDK
-      doesn't type the video path), <strong>D186</strong> (the generated declaration header) and
-      <strong>D187</strong> (controls whose channel is prompt text) all stand. D185 and D187 were
+      <strong>D205</strong> (target stable 1.1), <strong>D206</strong> (raw REST &mdash; the SDK
+      doesn't type the video path), <strong>D207</strong> (the generated declaration header) and
+      <strong>D208</strong> (controls whose channel is prompt text) all stand. D206 and D208 were
       confirmed by the same live probing that produced &sect;05.
     </p>
   </section>
@@ -707,7 +707,7 @@
     <p>
       Spec: <code>docs/superpowers/specs/2026-08-28-gemini-omni-multishot-design.md</code> &middot;
       verified API facts: <code>2026-08-28-gemini-omni-api-findings.md</code> &middot;
-      decisions D193&ndash;D197 in &sect;7 of the staging roadmap
+      decisions D214&ndash;D218 in &sect;7 of the staging roadmap
     </p>
   </footer>
 

@@ -25,7 +25,7 @@ type MultishotFocusViewProps = {
 };
 
 /**
- * The Multishot node's focus view (D209 follow-up, operator request 2026-09-03).
+ * The Multishot node's focus view (D230 follow-up, operator request 2026-09-03).
  *
  * A new layout, not `MultishotCutStrip` reused: the strip's flex-grow-by-seconds sizing is
  * what let a proportional bar read at a glance on a 320px card — exactly the wrong shape once

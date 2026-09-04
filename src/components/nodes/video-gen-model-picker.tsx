@@ -32,7 +32,7 @@ export function VideoGenModelPicker({
   modelId: string;
   onModelChange: (modelId: string) => void;
   /**
-   * D195/D211 — when set, ONLY this model is offered; every other chip is removed from the list.
+   * D216/D232 — when set, ONLY this model is offered; every other chip is removed from the list.
    *
    * A multishot plan can only generate on Omni, so the others are not choices. They were briefly
    * rendered-but-disabled so the lock would be visible, but a row of dead chips is clutter on a

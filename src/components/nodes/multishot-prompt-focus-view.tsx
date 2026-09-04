@@ -74,7 +74,7 @@ type MultishotPromptFocusViewProps = {
 const SHOW_REFERENCE_ATTACHMENT = false; // the sequence + per-cut instruction editors
 const SHOW_PER_BEAT_REGENERATE = false; // the look and per-beat rewrite buttons
 
-// The Multishot Prompt node's focus view (D210, §8). Wraps PromptFocusShell — the sheet frame,
+// The Multishot Prompt node's focus view (D231, §8). Wraps PromptFocusShell — the sheet frame,
 // connected-inputs rail, version chips, approval controls and the live-update wiring are all the
 // shell's — this file supplies only the "prompt" tab's body: three columns (Connected / Input /
 // Output) plus a read-only Prompt sub-tab, and the "Details" / "Sent to model" tabs every other
@@ -173,7 +173,7 @@ export function MultishotPromptFocusView({
   // the same order-preserving `visionAttachmentsOf(upstream)` filter ReferenceImageStrip
   // applies internally, so the indices line up without a second, independent ordering.
   //
-  // Since D212 the writer no longer binds references itself, so this reads as the operator's
+  // Since D233 the writer no longer binds references itself, so this reads as the operator's
   // own checklist: an image marked here is one nothing has been attached to yet. Uncited is
   // still a legitimate end state — a connected image the sequence never needed — but an
   // intended reference left unattached is otherwise only discoverable in the rendered video.
@@ -669,7 +669,7 @@ export function MultishotPromptFocusView({
                     <div className="max-h-72 shrink-0 overflow-y-auto border-b border-border bg-muted/30 px-6 py-4">
                       {openStrip === "connected" ? (
                         // The reference pool every cut mentions from, plus every other connected
-                        // input. A reference no beat cites is marked — since D212 the writer
+                        // input. A reference no beat cites is marked — since D233 the writer
                         // names a product in prose and leaves the binding to the operator, so
                         // this marks what has not been attached yet. Uncited stays legitimate for
                         // an image the sequence never needed.

@@ -116,7 +116,7 @@ export function compileVideoPrompt(input: CompileVideoPromptInput): {
     input.targetProvider === "kling" || input.targetProvider === "gemini-omni"
       ? input.targetProvider
       : "veo";
-  // A Shot upstream is always a single continuous take (D208) — a Multishot node cannot reach
+  // A Shot upstream is always a single continuous take (D229) — a Multishot node cannot reach
   // this route at all, so the global camera/speed block always applies here.
   const controlsBlock = input.controls ? renderVideoControls(input.controls) : "";
   if (controlsBlock) blocks.push(controlsBlock);

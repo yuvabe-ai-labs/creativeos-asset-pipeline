@@ -121,7 +121,7 @@ Append to `src/lib/nodes/video-controls.ts`:
 
 ```ts
 /**
- * Per-beat camera, for a multishot shot (D201).
+ * Per-beat camera, for a multishot shot (D222).
  *
  * A multishot generation is several cuts in one clip, so ONE camera move for the whole thing is
  * meaningless — the guidance has every beat leading framing, then subject, then camera, then
@@ -207,7 +207,7 @@ export type VideoControls = Record<VideoControlKey, string> & {
 ```bash
 npx vitest run src/lib/nodes && npx tsc --noEmit
 git add src/lib/nodes/video-controls.ts src/lib/nodes/__tests__/video-controls-multishot.test.ts
-git commit -m "feat(video-prompt): a LOOK contract and per-beat cameras for multishot (D201)
+git commit -m "feat(video-prompt): a LOOK contract and per-beat cameras for multishot (D222)
 
 One camera move for a clip holding five cuts is meaningless. Per-beat camera
 reuses the existing control catalog, and the LOOK contract is the field the
@@ -366,7 +366,7 @@ Replace the router:
 export type PromptRouteInput = { provider: VideoProvider; multishot: boolean };
 
 /**
- * D201 — the ladder prompt is for a MULTISHOT shot, not for the Omni provider as such.
+ * D222 — the ladder prompt is for a MULTISHOT shot, not for the Omni provider as such.
  *
  * A single shot on Omni is one continuous take, which the shared image-to-video spine already
  * describes better than a ladder prompt could — a one-line ladder ending "keep these timings
@@ -391,7 +391,7 @@ Update each to pass `{ provider, multishot }`. The API route at `src/app/api/nod
 ```bash
 npx vitest run src/prompts src/lib/nodes && npx tsc --noEmit
 git add src/prompts/video-prompt-generate.ts src/prompts/__tests__/video-prompt-multishot.test.ts src/app/api/nodes/\[id\]/video-prompt/route.ts
-git commit -m "feat(video-prompt): Omni multishot prompt carries the prompting guidance (D201)
+git commit -m "feat(video-prompt): Omni multishot prompt carries the prompting guidance (D222)
 
 Was a thin ladder instruction. Now carries what the guidance actually asks
 for: a verbatim LOOK contract, per-beat framing/subject/camera/light, camera
@@ -456,7 +456,7 @@ In the app: a multishot Shot's motion prompt shows Look contract + per-beat came
 
 ```bash
 git add src/components/nodes/look-contract-field.tsx src/components/nodes/beat-camera-list.tsx src/components/nodes/video-prompt-focus-view.tsx
-git commit -m "feat(video-prompt): multishot gets its own controls (D201)
+git commit -m "feat(video-prompt): multishot gets its own controls (D222)
 
 One camera move and one motion energy describe a single take, not a clip
 holding five cuts. A multishot shot now authors the LOOK contract once and a
@@ -591,7 +591,7 @@ In `resolve-inputs.ts`'s `shot` branch, use `renderMultishotBrief` when the upst
 ```bash
 npx vitest run src/lib/nodes src/prompts && npx tsc --noEmit
 git add src/lib/nodes/render-shot-for-video.ts src/lib/nodes/resolve-inputs.ts src/lib/nodes/__tests__/render-multishot-brief.test.ts
-git commit -m "feat(video-prompt): the LOOK and per-beat cameras reach the compiled prompt (D201)
+git commit -m "feat(video-prompt): the LOOK and per-beat cameras reach the compiled prompt (D222)
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 ```
@@ -690,7 +690,7 @@ In `shot-compose-sheet.tsx`, a sequence card lists its beats numbered. "Use this
 ```bash
 npx vitest run src/prompts src/lib/nodes && npx tsc --noEmit
 git add src/prompts/shot-compose-multishot.ts src/prompts/__tests__/shot-compose-multishot.test.ts src/lib/nodes/shot-compose.ts src/app/api/nodes/\[id\]/compose/route.ts src/components/nodes/shot-compose-sheet.tsx
-git commit -m "feat(compose): the Shot Composer composes a cut sequence for a multishot shot (D201)
+git commit -m "feat(compose): the Shot Composer composes a cut sequence for a multishot shot (D222)
 
 Four alternatives for one shot is the wrong unit for a node holding five
 beats that have to cut together. Multishot now gets three alternative
@@ -703,7 +703,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 
 ## Task 6: Drop one Shot on another to merge them
 
-The counterpart to split. It was left out of D193 because three questions had no answer — which side's edits win, what happens to downstream nodes, and what stops an illegal merge. All three are answerable now, so it goes in.
+The counterpart to split. It was left out of D214 because three questions had no answer — which side's edits win, what happens to downstream nodes, and what stops an illegal merge. All three are answerable now, so it goes in.
 
 **Files:**
 - Create: `src/lib/nodes/merge-shots.ts`
@@ -846,9 +846,9 @@ In the canvas component, add `onNodeDragStop`: if the dragged node is a `shot` a
 ```bash
 npx vitest run src/lib/nodes src/lib/canvas-store.test.ts && npx tsc --noEmit
 git add src/lib/nodes/merge-shots.ts src/lib/nodes/__tests__/merge-shots.test.ts src/components/nodes/merge-shots-dialog.tsx src/lib/canvas-store.ts src/lib/canvas-store.test.ts
-git commit -m "feat(shots): drop one Shot on another to merge them into a multishot (D202)
+git commit -m "feat(shots): drop one Shot on another to merge them into a multishot (D223)
 
-The counterpart to split, left out of D193 because three questions had no
+The counterpart to split, left out of D214 because three questions had no
 answer. They do now: beats order by SCRIPT position rather than drop order,
 so dropping shot 3 onto shot 1 still generates 1 then 3; incoming edges union
 and outgoing ones drop, the same asymmetry split uses; and a merge over the

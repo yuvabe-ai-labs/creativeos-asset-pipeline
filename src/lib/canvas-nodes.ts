@@ -3,6 +3,7 @@
 import type { Node } from "@xyflow/react";
 import type { NodeRow } from "@/lib/db/types";
 import type { KBSliceKey } from "@/lib/kb/parse-context";
+import type { SignalMode } from "@/lib/market/constants";
 import type { ReelScript } from "@/lib/nodes/reel-script";
 import type { VideoControls } from "@/lib/nodes/video-controls";
 import type { VideoProvider } from "@/prompts/video-prompt-generate";
@@ -16,11 +17,13 @@ export type ScriptNodeData = {
   parsed?: unknown; // active parsed output — DISPLAY ONLY, hydrated from the active version (D19); never persisted
   kbSlices?: KBSliceKey[]; // KB slices injected into parse context; undefined = DEFAULT_PARSE_SLICES
   /**
-   * D206 — per-generation mode OVERRIDES, keyed by `generationKey(shotIndexes)`.
+   * D227 — per-generation mode OVERRIDES, keyed by `generationKey(shotIndexes)`.
    * An absent key means the default (a group of more than one row is multishot). Only
    * deviations are stored, so a re-parse that reshapes the groups drops them harmlessly.
    */
   groupModes?: Record<string, boolean>;
+  signalIds?: string[]; // market signals flavouring the parse (D204); undefined = none
+  signalMode?: SignalMode; // tint | rewrite; undefined = "tint"
 };
 
 export type KBNodeData = {
@@ -106,7 +109,7 @@ export type VideoGenNodeData = {
 
 export type ShotNodeData = {
   // The parent reel script narrowed to the shots THIS node covers — one for a single shot, several
-  // for a multishot group (D193). Carries the full metadata (objective, on-screen text, voiceover,
+  // for a multishot group (D214). Carries the full metadata (objective, on-screen text, voiceover,
   // caption…) so downstream prompts keep the whole creative context, not just the shot line.
   // Editable; this node's output (D19/D20) — rendered via renderScriptAsText.
   script?: ReelScript;
@@ -142,7 +145,7 @@ export type MultishotNodeData = {
 };
 
 /**
- * The Multishot Prompt node (D210). Sibling of VideoPromptNodeData, deliberately not a superset.
+ * The Multishot Prompt node (D231). Sibling of VideoPromptNodeData, deliberately not a superset.
  *
  * No `controls` — camera move and motion energy describe ONE continuous take.
  * No `targetProvider` — Omni is the only multishot model, so there is nothing to pick.

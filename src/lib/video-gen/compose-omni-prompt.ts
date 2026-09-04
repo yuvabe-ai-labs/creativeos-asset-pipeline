@@ -2,7 +2,7 @@ import { avoidClause } from "./providers/avoid-clause";
 import type { OmniInputPlan } from "./plan-omni-input";
 
 /**
- * D187 — Omni generates an audio track ALWAYS. There is no off switch anywhere in the API, so
+ * D208 — Omni generates an audio track ALWAYS. There is no off switch anywhere in the API, so
  * this steers the track rather than enabling it. Each value is a documented clause shape.
  *
  * `ambient` is the default because Omni has no voice control of any kind — no reference upload,

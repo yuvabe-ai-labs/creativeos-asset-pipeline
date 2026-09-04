@@ -1,4 +1,4 @@
-// D210 — the Multishot Prompt node's writer. A single prompt with NO provider routing: Omni is
+// D231 — the Multishot Prompt node's writer. A single prompt with NO provider routing: Omni is
 // the only multishot model, so there is nothing to branch on.
 import {
   MOTION_AVOID_LIST,
@@ -11,7 +11,7 @@ export const MULTISHOT_PROMPT_ID = "multishot-prompt-generate@4";
 
 /**
  * How to READ an attached reference image and name what it shows — without binding it to a beat.
- * Per D212 the writer no longer assigns `<IMAGE_REF_N>` tokens itself; the operator attaches a
+ * Per D233 the writer no longer assigns `<IMAGE_REF_N>` tokens itself; the operator attaches a
  * reference by `@`-mentioning it in the beat afterwards. `refsCitedIn`
  * (src/lib/nodes/multishot-plan.ts) still scans beats for that token shape, but what it now finds
  * is the operator's own citations rather than the model's guesses. This is the only consumer of

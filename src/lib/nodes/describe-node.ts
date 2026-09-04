@@ -21,7 +21,7 @@ export function describeNode(node: { type?: string; data: Record<string, unknown
         (typeof d.order === "number" ? `shot ${d.order}` : "shot")
       );
     case "multishot":
-      // D209 — a Multishot node's identity: one generation with the cuts inside it. Unlike a
+      // D230 — a Multishot node's identity: one generation with the cuts inside it. Unlike a
       // Shot, which promotes its own visual description, there is no single cut to surface here
       // (`cuts` is a whole ladder), so the label stays generic like image-gen/video-gen below.
       return typeof d.order === "number" ? `multishot ${d.order}` : "multishot";

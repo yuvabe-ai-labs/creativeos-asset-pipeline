@@ -27,7 +27,7 @@ describe("script-parse schema", () => {
     expect(scriptParsePrompt.system).toMatch(/length/i);
   });
 
-  it("is version 2", () => {
-    expect(scriptParsePrompt.version).toBe(2);
+  it("is version 3", () => {
+    expect(scriptParsePrompt.version).toBe(3);
   });
 });

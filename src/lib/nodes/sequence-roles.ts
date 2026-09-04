@@ -1,13 +1,13 @@
 // PARKED — nothing imports this today.
 //
 // The catalog served the Shot Composer's multishot branch, and a Multishot node has no Composer
-// (D209). It is kept rather than deleted because every entry is a documented pattern rather than
+// (D230). It is kept rather than deleted because every entry is a documented pattern rather than
 // an invention, and the multishot flow is expected to want them again once it settles.
 //
 // Its tests still run, so the file cannot rot silently. If you are wiring a new consumer, read
 // the design spec's §9 first — the reason there is no Composer is deliberate.
 
-// Curated SEQUENCE-role catalog for multishot shots (D203), sibling of shot-roles.ts.
+// Curated SEQUENCE-role catalog for multishot shots (D224), sibling of shot-roles.ts.
 //
 // The two catalogs answer different questions and cannot be merged. A ShotRole names the job ONE
 // FRAME does in a funnel — hook, hero, texture, application. A SequenceRole names the job a BLOCK

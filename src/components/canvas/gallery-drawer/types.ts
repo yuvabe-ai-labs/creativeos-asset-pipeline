@@ -1,4 +1,4 @@
-export type GalleryTab = "references" | "assets" | "moodboard";
+export type GalleryTab = "references" | "assets" | "moodboard" | "signals";
 export type ViewMode = "grid" | "list";
 
 /** Unified shape rendered by the grid/list — covers both Drive and Assets sources. */
@@ -16,6 +16,12 @@ export type GalleryImage = {
   /** Provenance page URL — set when source === "moodboard". */
   sourceUrl?: string;
   generationId?: string;
+  /** Reference kind — set when source === "moodboard"; absent elsewhere. */
+  kind?: import("@/lib/market/constants").ReferenceKind;
+  /** MR's note on a market reference. */
+  note?: string;
+  /** The original reference URL (image_url) — what the lightbox plays. */
+  mediaUrl?: string;
 };
 
 export type OpenDrawerOptions = {

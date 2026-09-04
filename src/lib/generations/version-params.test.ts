@@ -90,7 +90,7 @@ describe("describeVersionParams", () => {
     ]);
   });
 
-  // D197 hid Kling's multi_shot, and this row filters on `visible` — so a version that really did
+  // D218 hid Kling's multi_shot, and this row filters on `visible` — so a version that really did
   // run with multi-shot on no longer reports it in the one-line History summary. That is the
   // intended trade: the row answers "what distinguishes two versions", and a control the operator
   // can no longer see or change distinguishes nothing. Provenance is not lost — the "Sent to
@@ -177,7 +177,7 @@ describe("describeAllVersionParams", () => {
     ]);
   });
 
-  // Moved here from the describeVersionParams suite when D197 hid multi_shot: this panel is now
+  // Moved here from the describeVersionParams suite when D218 hid multi_shot: this panel is now
   // the only place a toggle still renders, so it is the only place the On/Off formatting can be
   // pinned. The formatter is shared, so the coverage is not narrowed by the move.
   it("renders a toggle as On / Off rather than true / false", () => {

@@ -114,11 +114,22 @@ Fields:
 - qc_notes: array of QC / compliance notes.
 - product_links: array of product URLs in the script.`;
 
+// D204: how attached market signals reshape the parse. Composed into the USER
+// message by compileScript (after the signal briefs, before the source script).
+const signalModes = {
+  tint: `Market-signal instruction (TINT VISUALS): keep the voiceover, on-screen text, caption and CTA faithful to the source script. Adapt ONLY the visual side — shot descriptions, settings, props, wardrobe and moods — so every shot reflects the market signal(s) above.`,
+  rewrite: `Market-signal instruction (FULL REWRITE): adapt the whole script — hooks, voiceover, on-screen text, caption AND visuals — to the market signal(s) above, while keeping the product message and the client compliance rules intact.`,
+} as const;
+
 export const scriptParsePrompt = {
   id: "script-parse",
-  version: 2,
+  // v2 was bumped twice in parallel — for per-shot duration_seconds (D214) on one
+  // branch, for market-signal briefs (D204) on the other. The merged prompt carries
+  // both, so it is neither v2 and gets its own number.
+  version: 3,
   model: "gpt-5.4-mini",
   system,
+  signalModes,
   schema: reelSchema,
   notes:
     "Reel schema = structure of a finished reel script (Prakriti Sattva 53-reel scripts). " +

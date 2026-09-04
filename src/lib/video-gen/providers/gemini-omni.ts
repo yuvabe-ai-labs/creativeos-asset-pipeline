@@ -46,7 +46,7 @@ export function omniDurationSeconds(params: Record<string, unknown>): number {
 }
 
 /**
- * D196 — everything dimensional lives HERE, not in video_config.
+ * D217 — everything dimensional lives HERE, not in video_config.
  *
  * Verified against the live API: `generation_config.video_config` accepts `task` and nothing else.
  * It rejects `duration`, `resolution` and `aspect_ratio` with "Unknown parameter", contradicting
@@ -181,7 +181,7 @@ async function waitForFileReady(fileName: string): Promise<void> {
 }
 
 async function generateWithOmni(input: VideoGenInput): Promise<VideoGenResult> {
-  // D186 mirrored server-side. The client evaluates the same rule, so this is the backstop for a
+  // D207 mirrored server-side. The client evaluates the same rule, so this is the backstop for a
   // caller that bypasses the UI — a named error now rather than a 400 minutes later.
   if (input.endFrameUrl && !input.startFrameUrl) {
     throw new Error("<LAST_FRAME> requires <FIRST_FRAME> — Omni cannot use an end frame alone");
@@ -231,7 +231,7 @@ async function generateWithOmni(input: VideoGenInput): Promise<VideoGenResult> {
   const res = await fetchOrThrow("Omni create", `${API_BASE}/interactions`, {
     method: "POST",
     headers: { "x-goog-api-key": getApiKey(), "Content-Type": "application/json" },
-    // task and NOTHING else — video_config rejects every other key (D196).
+    // task and NOTHING else — video_config rejects every other key (D217).
     // store:true is REQUIRED by delivery:"uri" — the API returns 400 "store=true is required when
     // response format has video delivery set to URI" without it. Not a preference. A useful side
     // effect: the interaction is stored, so previous_interaction_id editing is available if the

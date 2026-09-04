@@ -24,7 +24,7 @@ const TYPE_LABEL: Record<string, string> = {
   file: "File", shot: "Shot", draw: "Sketch", "image-gen": "Image", multishot: "Multishot",
 };
 
-// Multishot Prompt node (D210). Sibling of the Video Prompt node's compact launcher (same
+// Multishot Prompt node (D231). Sibling of the Video Prompt node's compact launcher (same
 // NodeCardHeader/NodeContextMenu/handle structure), but its body summarises a structured
 // MultishotPlan instead of a single prompt string: how many beats the writer produced, the
 // budget it wrote against (read from the upstream Multishot node — this node has no budget of
@@ -46,7 +46,7 @@ export function MultishotPromptNode({ id, data, selected, positionAbsoluteX, pos
   const focusedNodeId = useCanvasStore((s) => s.focusedNodeId);
   const setFocusedNodeId = useCanvasStore((s) => s.setFocusedNodeId);
 
-  // The upstream Multishot node (D209) — the sole source of the budget AND the cut list. This
+  // The upstream Multishot node (D230) — the sole source of the budget AND the cut list. This
   // node only ever writes against it, never sets it: the focus view's beat timecodes and the
   // Input column's per-cut cards both read `cuts` from here, computed once, rather than each
   // re-deriving its own upstream walk.

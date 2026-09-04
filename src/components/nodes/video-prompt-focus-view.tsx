@@ -171,7 +171,7 @@ export function VideoPromptFocusView({
     label: u.label,
     fileUrl: u.fileUrl,
   }));
-  // D195 — Omni gets its own motion-prompt variant (the timecode ladder), so it maps to
+  // D216 — Omni gets its own motion-prompt variant (the timecode ladder), so it maps to
   // "gemini-omni" rather than folding into Veo as it did before that variant existed.
   const providerOf = (modelId?: string): VideoProvider => {
     const provider = videoGenClientModelMap[modelId ?? DEFAULT_VIDEO_CLIENT_MODEL_ID]?.provider;
@@ -219,7 +219,11 @@ export function VideoPromptFocusView({
   // `preserveEvalDraft` exists for the live-refresh path only — see useNodeVersionUpdates
   // below. Every other caller is reacting to the viewer's OWN action, where re-seeding
   // from the server is the point.
-  async function fetchVersions(opts?: { preserveEvalDraft?: boolean }) {
+  // Returns the now-active version's approval status so callers that changed WHICH version
+  // is active (restore) can push it into the store — see handleRestoreVersion.
+  async function fetchVersions(opts?: {
+    preserveEvalDraft?: boolean;
+  }): Promise<ApprovalStatus | undefined> {
     try {
       const res = await fetch(`/api/nodes/${nodeId}/versions`);
       if (!res.ok) return;
@@ -238,6 +242,7 @@ export function VideoPromptFocusView({
       setApprovalNote(active?.note ?? "");
       setApprovedByName(active?.approvedByName ?? null);
       setApprovedAt(active?.approvedAt ?? null);
+      return active?.approvalStatus ?? "pending";
     } catch {
       /* best-effort */
     }
@@ -418,7 +423,10 @@ export function VideoPromptFocusView({
       if (!res.ok) throw new Error(json.error ?? "Restore failed");
       onPatch({ parsed: json.output });
       setActiveVersionId(versionId);
-      await fetchVersions();
+      // The restored version carries its OWN approval state (D29 reads the badge off the
+      // ACTIVE version), so the on-canvas badge has to move with the pointer — TC-106.
+      const restoredStatus = await fetchVersions();
+      onPatch({ approvalStatus: restoredStatus ?? "pending" });
       toast.success("Version restored");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Restore failed");

@@ -30,8 +30,8 @@ export async function POST(
     const targetProvider: VideoProvider = VALID_PROVIDERS.includes(body?.targetProvider as VideoProvider)
       ? (body?.targetProvider as VideoProvider)
       : "veo";
-    // D210 — the multishot ladder prompt now lives entirely on the Multishot Prompt node
-    // (multishotPromptGenerate). A Shot upstream is always a single continuous take (D208), and a
+    // D231 — the multishot ladder prompt now lives entirely on the Multishot Prompt node
+    // (multishotPromptGenerate). A Shot upstream is always a single continuous take (D229), and a
     // Multishot node cannot connect to this route at all — so this route always gets the
     // continuous-take spine and the operator's own targetProvider, with no coercion.
     const resolved = await resolveVideoPromptInputs(nodeId, body?.slices);

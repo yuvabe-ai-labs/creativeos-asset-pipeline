@@ -21,7 +21,9 @@ export type PersistedNode = {
 // redirects to /kb unless kb_status === 'ready'.
 export async function getNodeActiveKB(
   nodeId: string,
-): Promise<{ kb: TraceableBrandKB | null; kbVersionId: string | null } | null> {
+): Promise<
+  { kb: TraceableBrandKB | null; kbVersionId: string | null; clientId: string } | null
+> {
   const supabase = createServerSupabase();
 
   const { data: node, error: nodeErr } = await supabase
@@ -40,13 +42,14 @@ export async function getNodeActiveKB(
   if (canvasErr) throw canvasErr;
   if (!canvas) return null; // dangling node (no canvas row) — treat as not found
 
-  const versionRow = await getActiveKBVersion(
-    (canvas as { client_id: string }).client_id,
-  );
-  if (!versionRow) return { kb: null, kbVersionId: null };
+  const clientId = (canvas as { client_id: string }).client_id;
+
+  const versionRow = await getActiveKBVersion(clientId);
+  if (!versionRow) return { kb: null, kbVersionId: null, clientId };
   return {
     kb: versionRow.output as unknown as TraceableBrandKB,
     kbVersionId: versionRow.id,
+    clientId,
   };
 }
 
