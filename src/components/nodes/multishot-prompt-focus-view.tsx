@@ -44,6 +44,7 @@ import { LeftSection } from "./focus-left-section";
 import { PromptFocusShell, RESERVED_RAIL_KEYS } from "./prompt-focus-shell";
 import { MultishotBeatCard } from "./multishot-beat-card";
 import { RefineWithAI } from "./refine-with-ai";
+import { RefineProgress } from "./refine-progress";
 import type { MultishotCut } from "@/lib/nodes/multishot-cuts";
 import { renderPlan, refsCitedIn, type MultishotPlan } from "@/lib/nodes/multishot-plan";
 import type { RefineScope } from "@/lib/nodes/refine-suggestions";
@@ -805,6 +806,16 @@ export function MultishotPromptFocusView({
                             inside their own rounded box. Nothing ever overflowed the scroller,
                             so `overflow-y-auto` had nothing to scroll: measured scrollHeight ===
                             clientHeight with six beats present. */}
+                        {/* A whole-sequence refine keeps `mode === "result"` — unlike Generate, it
+                            does not raise `generating`, so without this the only sign anything was
+                            happening was a pulsing icon in the header, while every card sat greyed
+                            out for no visible reason. */}
+                        {refining?.scope === "all" && (
+                          <div className="shrink-0">
+                            <RefineProgress label="Rewriting the whole sequence…" />
+                          </div>
+                        )}
+
                         <div className="shrink-0 rounded-xl border-2 border-primary/20 bg-primary/[0.03] p-3">
                           <div className="mb-2 flex items-center gap-2">
                             <Sun className="size-3.5 text-primary" strokeWidth={1.5} />
@@ -833,6 +844,9 @@ export function MultishotPromptFocusView({
                               </div>
                             )}
                           </div>
+                          {refining?.scope === "look" && (
+                            <RefineProgress label="Rewriting the look…" hint="beats untouched" />
+                          )}
                           {/* Locked for the duration of ANY refine, not just a look-scoped one — a
                               keystroke here during a beat or whole-plan refine still gets persisted
                               to planDraft, and then silently discarded the instant the refine

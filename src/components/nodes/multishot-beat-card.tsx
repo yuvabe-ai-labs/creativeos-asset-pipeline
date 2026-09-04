@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { MentionInstructionEditor } from "./mention-instruction-editor";
 import { imageRefDialect } from "@/lib/nodes/prompt-token-dialect";
 import { RefineWithAI } from "./refine-with-ai";
+import { RefineProgress } from "./refine-progress";
 import type { UpstreamNode } from "./connected-inputs-card";
 
 /**
@@ -62,7 +63,15 @@ export function MultishotBeatCard({
   isLast?: boolean;
 }) {
   return (
-    <div className={cn("flex gap-4 p-4", !isLast && "border-b border-border")}>
+    // The row being rewritten is tinted, not dimmed. Every other row is disabled at the same
+    // moment, so dimming alone made the working one indistinguishable from the six waiting on it.
+    <div
+      className={cn(
+        "flex gap-4 p-4 transition-colors duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]",
+        !isLast && "border-b border-border",
+        rerunning && "bg-primary/[0.04]",
+      )}
+    >
       <div className="flex w-[92px] shrink-0 flex-col gap-1">
         <Button
           variant="ghost"
@@ -103,7 +112,8 @@ export function MultishotBeatCard({
             false for the beat actually being refined) closes that gap by also disabling on
             `rerunning`. Mirrors the look block's equivalent guard above in
             multishot-prompt-focus-view.tsx. */}
-        <div className={cn(rerunning && "pointer-events-none opacity-50")}>
+        {rerunning && <RefineProgress label={`Rewriting shot ${index + 1}…`} hint="other shots untouched" />}
+        <div className={cn(rerunning && "pointer-events-none opacity-60")}>
           <MentionInstructionEditor
             value={text}
             onChange={onChange}
