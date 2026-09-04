@@ -4,8 +4,15 @@ import {
   uploadAnnotationAssets,
   signAnnotationAssets,
 } from "../storage";
+import type { SupabaseStorage } from "../storage";
 import type { AnnotationPayload } from "../payload";
 import type { AnnotationRow } from "@/lib/db/annotations";
+
+// The stub is typed against the real bucket signature, not `ReturnType<typeof vi.fn>`:
+// a bare `vi.fn()` is `Mock<Procedure | Constructable>`, whose call/construct union is
+// not assignable to a concrete signature, so overriding widened `upload` past what
+// `SupabaseStorage` accepts and broke `tsc` while vitest stayed green.
+type StorageBucket = ReturnType<SupabaseStorage["from"]>;
 
 function ann(over: Partial<AnnotationPayload> = {}): AnnotationPayload {
   return {
@@ -20,8 +27,8 @@ function ann(over: Partial<AnnotationPayload> = {}): AnnotationPayload {
 }
 
 function stubStorage(overrides: {
-  upload?: ReturnType<typeof vi.fn>;
-  createSignedUrl?: ReturnType<typeof vi.fn>;
+  upload?: StorageBucket["upload"];
+  createSignedUrl?: StorageBucket["createSignedUrl"];
 } = {}) {
   const upload = overrides.upload ?? vi.fn(async () => ({ error: null }));
   const createSignedUrl =
