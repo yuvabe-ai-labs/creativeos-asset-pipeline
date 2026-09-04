@@ -35,11 +35,15 @@ import { normalizeTitle } from "@/lib/nodes/title";
 import { Button } from "@/components/ui/button";
 import {
   DEFAULT_VIDEO_CLIENT_MODEL_ID,
+  GEMINI_OMNI_MODEL_ID,
   defaultsForVideoModel,
   videoGenClientModelMap,
 } from "@/lib/video-gen/client-models";
 import { smartMergeVideoParams } from "@/lib/video-gen/params/merge";
+import { autoAssignImageRoles } from "@/lib/video-gen/assign-image-roles";
 import { paramsForRestore } from "@/lib/generations/version-params";
+import { deriveShotDuration } from "@/lib/nodes/derive-shot-duration";
+import type { ReelScript } from "@/lib/nodes/reel-script";
 import {
   areFramesAndRefsExclusive,
   buildConstraintState,
@@ -378,6 +382,10 @@ export function VideoGenFocusView({
   const [approvedAt, setApprovedAt] = useState<string | null>(null);
   const [approvalSaving, setApprovalSaving] = useState(false);
   const [restoring, setRestoring] = useState(false);
+  // D216 — true while the `duration` param is showing a value derived from the upstream Shot's
+  // own beats rather than the model spec's flat default. Cleared the instant the operator edits
+  // duration directly, so their edit is never silently overwritten by a later re-derivation.
+  const [durationIsDerived, setDurationIsDerived] = useState(false);
   // The selected rail item: "video" (settings + preview), "history", "details", or a connected
   // node's id (middle column shows that node's role/detail view). Mirrors image-gen-focus-view.
   const focusStoreApi = useCanvasStoreApi();
@@ -439,6 +447,32 @@ export function VideoGenFocusView({
   // Stable ref for onPatch — breaks the useCallback → useEffect dep cycle
   const onPatchRef = useRef(onPatch);
   useEffect(() => { onPatchRef.current = onPatch; });
+
+  // D232 — belt and braces, mirroring canvas-store's onConnect coercion: a multishot-prompt
+  // upstream can only generate on Omni, and filtering the picker's list (below) is not enforcing
+  // that constraint on its own — a node whose stored modelId predates the connection would sit on
+  // a model the restricted picker no longer offers a chip for, and doGenerate reads local `modelId`
+  // state directly. A node-type check on the direct upstream, no traversal — see
+  // UpstreamPromptNode.type.
+  //
+  // Local state: React's documented "adjust state during render" pattern (same shape as
+  // `openNodeSeed` above) rather than an effect — calling a setState setter directly in the
+  // render body, gated so it only fires once per divergence and terminates immediately (coercing
+  // `modelId` flips the very condition being checked, same as the seed check above it).
+  const isMultishotPromptConnected = promptNode?.type === "multishot-prompt";
+  if (!loadingConnected && editable && isMultishotPromptConnected && modelId !== GEMINI_OMNI_MODEL_ID) {
+    setModelId(GEMINI_OMNI_MODEL_ID);
+  }
+
+  // Persisted state: mirrors the auto-assign-roles effect below it — an effect that calls only
+  // `onPatch` (a prop callback, not a local setState setter) is the established safe shape in
+  // this file. Fires once the render-phase fix above has already landed `modelId` on Omni.
+  useEffect(() => {
+    if (loadingConnected || !editable) return;
+    if (isMultishotPromptConnected && modelId === GEMINI_OMNI_MODEL_ID && modelIdProp !== GEMINI_OMNI_MODEL_ID) {
+      onPatch({ modelId: GEMINI_OMNI_MODEL_ID });
+    }
+  }, [loadingConnected, editable, isMultishotPromptConnected, modelId, modelIdProp, onPatch]);
 
   // ── Data fetching ──────────────────────────────────────────────────────────
 
@@ -593,6 +627,19 @@ export function VideoGenFocusView({
       ? smartMergeVideoParams(params, nextModel)
       : defaultsForVideoModel(nextModelId);
 
+    // D216 — a multi-beat shot's motion prompt is a timecode ladder; the request's duration
+    // should agree with it by default. `paramsProp == null` is the one clean "not already set"
+    // signal this node has: every later patch (this one included) writes the WHOLE params
+    // object, so from the next render on `duration` reads as "set" whether it came from the
+    // operator or from this same derivation — smartMergeVideoParams then carries it forward
+    // untouched, which is exactly what keeps an operator's own edit from ever being overwritten.
+    // Gated to the Omni provider — its duration param is the 3–10 slider this clamp targets;
+    // applying a derived number to Veo/Kling's differently-shaped duration control would 400.
+    const applyDerivedDuration =
+      paramsProp == null && nextModel?.provider === "gemini" && derivedDuration != null;
+    if (applyDerivedDuration && derivedDuration != null) defaults.duration = derivedDuration;
+    setDurationIsDerived(applyDerivedDuration);
+
     // Migrate image roles — remove roles the new model doesn't support
     const nextInputs = videoGenClientModelMap[nextModelId]?.imageInputs;
     const currentRoles = { ...imageRolesProp };
@@ -645,6 +692,11 @@ export function VideoGenFocusView({
     const updated = { ...params, [name]: value };
     setParams(updated);
     onPatch({ params: updated });
+    // D216 — the operator's own edit always wins: touching duration directly retires the
+    // derived-default label immediately, rather than leaving it captioning a value they chose.
+    if (name === "duration") {
+      setDurationIsDerived(false);
+    }
   }
 
   function handleRoleChange(imageId: string, newRole: ImageRole) {
@@ -814,6 +866,9 @@ export function VideoGenFocusView({
       if (modelUsed && restoredParams) {
         setModelId(modelUsed);
         setParams(restoredParams);
+        // D216 — a restored version is an authoritative recorded snapshot, not a fresh
+        // derivation, so its duration is never labelled "derived from this shot".
+        setDurationIsDerived(false);
         onPatch({ parsed: output, modelId: modelUsed, params: restoredParams });
       } else {
         onPatch({ parsed: output });
@@ -850,6 +905,22 @@ export function VideoGenFocusView({
   // yet", not "nothing connected", and pruning against it would blank every role for a frame
   // (and let a click in that window persist the blank).
   const connectedImageIds = new Set(upstreamImages.map((img) => img.id));
+
+  // An attached image IS an input: fill in a role for every connected image that has none, using
+  // the same rule the server applies. Persisted, not merely displayed — the constraint state below
+  // is computed from these roles, and a client that showed a default it never saved was exactly
+  // the divergence that let Generate run on a state the request would then reject.
+  useEffect(() => {
+    if (loadingConnected || upstreamImages.length === 0) return;
+    const filled = autoAssignImageRoles(
+      upstreamImages.map((img) => ({ nodeId: img.id, url: img.imageUrl, type: img.type })),
+      imageRolesProp,
+      { supportsStartFrame: imageInputs.startFrame },
+    );
+    if (Object.keys(filled).length !== Object.keys(imageRolesProp).length) {
+      onPatch({ imageRoles: filled });
+    }
+  }, [loadingConnected, upstreamImages, imageRolesProp, imageInputs.startFrame, onPatch]);
 
   // Also filter out roles that are invalid for the current model — handles the timing gap
   // between setModelId (local, immediate) and imageRolesProp update (from parent, async).
@@ -946,6 +1017,26 @@ export function VideoGenFocusView({
   const selectedDetailItem = isNodeSelected
     ? connectedItems.find((c) => c.id === selected) ?? null
     : null;
+
+  // D216 — the upstream Shot's own script, walked up the graph, so `duration` can default to
+  // the sum of ITS beats rather than the model spec's flat number.
+  const upstreamShotScript = useCanvasStore((s) => {
+    const seen = new Set<string>();
+    const walk = (id: string, depth: number): ReelScript | null => {
+      if (depth > 2 || seen.has(id)) return null;
+      seen.add(id);
+      for (const e of s.edges.filter((e) => e.target === id)) {
+        const source = s.nodes.find((n) => n.id === e.source);
+        if (!source) continue;
+        if (source.type === "shot") return (source.data as { script?: ReelScript }).script ?? null;
+        const found = walk(e.source, depth + 1);
+        if (found) return found;
+      }
+      return null;
+    };
+    return walk(nodeId, 0);
+  });
+  const derivedDuration = deriveShotDuration(upstreamShotScript);
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -1120,7 +1211,16 @@ export function VideoGenFocusView({
                   {/* Output settings share the model's card: resolution and duration are
                       properties OF the chosen model — its options, its locks — so a separate
                       "Output settings" heading split one decision across two places. */}
-                  <VideoGenModelPicker modelId={modelId} onModelChange={handleModelChange}>
+                  <VideoGenModelPicker
+                    modelId={modelId}
+                    onModelChange={handleModelChange}
+                    lockedToModelId={isMultishotPromptConnected ? GEMINI_OMNI_MODEL_ID : undefined}
+                    restrictionReason={
+                      isMultishotPromptConnected
+                        ? "Connected to a Multishot Prompt. Only Omni can generate a multi-shot plan — other models ignore the timecode ladder and return a single take."
+                        : undefined
+                    }
+                  >
                     <VideoGenParamsPanel
                       modelId={modelId}
                       params={effectiveParams}
@@ -1129,6 +1229,16 @@ export function VideoGenFocusView({
                       lockedParamReasons={constraints.lockedParamReasons}
                       group="primary"
                     />
+                    {/* D216 — duration defaulted to the upstream shot's own total rather than the
+                        model spec's flat number; say so, and say where the number came from. Sits
+                        outside VideoGenParamsPanel (whose param rows carry no helper-text slot)
+                        rather than adding one there for a single param on a single model. Cleared
+                        the instant the operator edits duration themselves — see handleParamChange. */}
+                    {durationIsDerived && (
+                      <p className="mt-2 text-[0.7rem] text-muted-foreground">
+                        Derived from this shot ({String(effectiveParams.duration)}s)
+                      </p>
+                    )}
                   </VideoGenModelPicker>
                   {(() => {
                     return (

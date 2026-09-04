@@ -45,9 +45,8 @@ export function NodeContextMenu({ children, onDuplicate, onDelete, onAddReferenc
     // a deselect change on right-click before the node component re-renders,
     // so reading at render time gives the wrong count. getState() is always fresh.
     const { nodes, duplicateNodes } = storeApi.getState();
-    const selected = nodes
-      .filter((n) => n.selected && n.type !== "kb")
-      .map((n) => n.id);
+    const selectedNodes = nodes.filter((n) => n.selected && n.type !== "kb");
+    const selected = selectedNodes.map((n) => n.id);
 
     setSnapshotCount(selected.length);
 

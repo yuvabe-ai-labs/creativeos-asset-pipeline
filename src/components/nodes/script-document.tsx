@@ -3,13 +3,17 @@
 import type { ReactNode } from "react";
 import { Plus, X } from "lucide-react";
 import { looksLikeReelScript, type ReelScript } from "@/lib/nodes/reel-script";
+import { describeGenerations } from "@/lib/nodes/group-shots";
 import { Button } from "@/components/ui/button";
 import { EditableField } from "./editable-field";
+import { GenerationBracket } from "./generation-bracket";
 
 type Path = (string | number)[];
 
 type ScriptDocumentProps = {
   script: ReelScript;
+  scriptNodeId: string;
+  groupModes?: Record<string, boolean>;
   readOnly?: boolean;
   onChange?: (path: Path, value: unknown) => void;
   onAddItem?: (path: Path, item: unknown) => void;
@@ -37,6 +41,8 @@ function Section({ label, children }: { label: string; children: ReactNode }) {
 // falls back to read-only raw JSON.
 export function ScriptDocument({
   script,
+  scriptNodeId,
+  groupModes,
   readOnly = false,
   onChange,
   onAddItem,
@@ -52,6 +58,7 @@ export function ScriptDocument({
 
   const set = (path: Path) => (v: string) => onChange?.(path, v);
   const shots = script.visual_script?.shots ?? [];
+  const generations = describeGenerations(shots, groupModes);
   const body = script.on_screen_text?.body ?? [];
   const qc = script.qc_notes ?? [];
   const links = script.product_links ?? [];
@@ -104,39 +111,50 @@ export function ScriptDocument({
       </Section>
 
       <Section label="Visual script">
-        <ol className="grid gap-3">
-          {shots.map((shot, i) => (
-            <li key={i} className="flex items-start gap-2">
-              <span className="pt-1 text-muted-foreground">{i + 1}.</span>
-              <div className="flex-1">
-                <EditableField
-                  value={shot.description ?? ""}
-                  onCommit={set(["visual_script", "shots", i, "description"])}
-                  readOnly={readOnly}
-                  multiline
-                  placeholder="Shot description…"
-                />
-                <EditableField
-                  value={shot.duration ?? ""}
-                  onCommit={set(["visual_script", "shots", i, "duration"])}
-                  readOnly={readOnly}
-                  placeholder="duration"
-                  className="text-xs text-muted-foreground"
-                />
-              </div>
-              {!readOnly && (
-                <Button
-                  variant="ghost"
-                  aria-label="Remove shot"
-                  onClick={() => onRemoveItem?.(["visual_script", "shots"], i)}
-                  className="nodrag h-auto rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-muted-foreground dark:hover:bg-muted"
-                >
-                  <X className="size-3.5" />
-                </Button>
-              )}
-            </li>
+        <div className="grid gap-5">
+          {generations.map((generation) => (
+            <GenerationBracket
+              key={generation.key}
+              generation={generation}
+              scriptNodeId={scriptNodeId}
+              readOnly={readOnly}
+            >
+              <ol className="grid gap-3">
+                {generation.shotIndexes.map((i) => (
+                  <li key={i} className="flex items-start gap-2">
+                    <span className="pt-1 text-muted-foreground">{i + 1}.</span>
+                    <div className="flex-1">
+                      <EditableField
+                        value={shots[i]?.description ?? ""}
+                        onCommit={set(["visual_script", "shots", i, "description"])}
+                        readOnly={readOnly}
+                        multiline
+                        placeholder="Shot description…"
+                      />
+                      <EditableField
+                        value={shots[i]?.duration ?? ""}
+                        onCommit={set(["visual_script", "shots", i, "duration"])}
+                        readOnly={readOnly}
+                        placeholder="duration"
+                        className="text-xs text-muted-foreground"
+                      />
+                    </div>
+                    {!readOnly && (
+                      <Button
+                        variant="ghost"
+                        aria-label="Remove shot"
+                        onClick={() => onRemoveItem?.(["visual_script", "shots"], i)}
+                        className="nodrag h-auto rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-muted-foreground dark:hover:bg-muted"
+                      >
+                        <X className="size-3.5" />
+                      </Button>
+                    )}
+                  </li>
+                ))}
+              </ol>
+            </GenerationBracket>
           ))}
-        </ol>
+        </div>
         {!readOnly && (
           <Button
             variant="ghost"

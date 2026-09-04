@@ -9,28 +9,23 @@ import type { UpstreamNode } from "./connected-inputs-card";
 
 // ── Segment model ─────────────────────────────────────────────────────────────
 
-export type TextSegment = { kind: "text"; text: string };
-export type MentionSegment = { kind: "mention"; label: string; id: string };
-export type Segment = TextSegment | MentionSegment;
+import {
+  mentionDialect,
+  serializeSegments as serializeWith,
+  type Segment,
+  type MentionSegment,
+  type TokenDialect,
+} from "@/lib/nodes/prompt-token-dialect";
 
-const TOKEN_RE = /@\[([^\]]+)\]\(([^)]+)\)/g;
+export type { Segment, MentionSegment, TextSegment } from "@/lib/nodes/prompt-token-dialect";
 
-export function parseSegments(value: string): Segment[] {
-  if (!value) return [];
-  const segments: Segment[] = [];
-  let last = 0;
-  for (const m of value.matchAll(TOKEN_RE)) {
-    if (m.index! > last) segments.push({ kind: "text", text: value.slice(last, m.index) });
-    segments.push({ kind: "mention", label: m[1], id: m[2] });
-    last = m.index! + m[0].length;
-  }
-  if (last < value.length) segments.push({ kind: "text", text: value.slice(last) });
-  return segments;
-}
+/** Stable identity so it can be a default prop value without re-running effects each render. */
+const DEFAULT_DIALECT = mentionDialect();
 
-export function serializeSegments(segments: Segment[]): string {
-  return segments.map((s) => (s.kind === "text" ? s.text : `@[${s.label}](${s.id})`)).join("");
-}
+/** Back-compat for callers that only ever meant the `@[Label](id)` format. */
+export const parseSegments = (value: string): Segment[] => DEFAULT_DIALECT.parse(value);
+export const serializeSegments = (segments: Segment[]): string =>
+  serializeWith(segments, DEFAULT_DIALECT);
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -49,6 +44,12 @@ export type MentionInstructionEditorProps = {
   upstream: UpstreamNode[];
   className?: string;
   disabled?: boolean;
+  /**
+   * How a reference is written in THIS field's text. Defaults to the Instruction's own
+   * `@[Label](id)`. The generated motion prompt passes `imageRefDialect`, because what it stores
+   * has to be Omni's `<IMAGE_REF_N>` — same editor, same chips, different source syntax.
+   */
+  dialect?: TokenDialect;
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -78,7 +79,19 @@ function getAtQuery(text: string, caretPos: number): string | null {
 
 // ── DOM helpers ───────────────────────────────────────────────────────────────
 
-function readEditorState(el: HTMLElement): { text: string; caretOffset: number } {
+/** The source text a rendered chip stands for — read back off the DOM through the dialect. */
+function chipToken(node: HTMLElement, dialect: TokenDialect): string {
+  return dialect.tokenOf({
+    kind: "mention",
+    label: node.dataset.mentionLabel ?? "",
+    id: node.dataset.mentionId ?? "",
+  });
+}
+
+function readEditorState(
+  el: HTMLElement,
+  dialect: TokenDialect,
+): { text: string; caretOffset: number } {
   const sel = window.getSelection();
   let caretOffset = 0;
   let foundCaret = false;
@@ -101,20 +114,19 @@ function readEditorState(el: HTMLElement): { text: string; caretOffset: number }
     if (node.nodeType === Node.TEXT_NODE) {
       text += node.textContent ?? "";
     } else if (node instanceof HTMLElement && node.dataset.mentionId) {
-      const label = node.dataset.mentionLabel ?? "";
-      const id = node.dataset.mentionId;
+      const token = chipToken(node, dialect);
       // Check if caret is positioned after this chip (startOffset = nodeIndex + 1 in parent)
       if (sel && sel.rangeCount > 0 && !foundCaret) {
         const range = sel.getRangeAt(0);
         if (range.startContainer === el) {
           const nodeIndex = childNodes.indexOf(node as ChildNode);
           if (range.startOffset === nodeIndex + 1) {
-            caretOffset = text.length + `@[${label}](${id})`.length;
+            caretOffset = text.length + token.length;
             foundCaret = true;
           }
         }
       }
-      text += `@[${label}](${id})`;
+      text += token;
     }
   }
 
@@ -122,7 +134,7 @@ function readEditorState(el: HTMLElement): { text: string; caretOffset: number }
   return { text, caretOffset };
 }
 
-function restoreCaretAt(el: HTMLElement, targetOffset: number) {
+function restoreCaretAt(el: HTMLElement, targetOffset: number, dialect: TokenDialect) {
   let remaining = targetOffset;
   for (const node of Array.from(el.childNodes)) {
     if (node.nodeType === Node.TEXT_NODE) {
@@ -138,9 +150,7 @@ function restoreCaretAt(el: HTMLElement, targetOffset: number) {
       }
       remaining -= len;
     } else if (node instanceof HTMLElement && node.dataset.mentionId) {
-      const label = node.dataset.mentionLabel ?? "";
-      const id = node.dataset.mentionId;
-      const tokenLen = `@[${label}](${id})`.length;
+      const tokenLen = chipToken(node, dialect).length;
       if (remaining < tokenLen) {
         const range = document.createRange();
         const nodeIndex = Array.from(el.childNodes).indexOf(node as ChildNode);
@@ -162,19 +172,32 @@ function restoreCaretAt(el: HTMLElement, targetOffset: number) {
   window.getSelection()?.addRange(range);
 }
 
-function buildChip(segment: MentionSegment, upstreamMap: Map<string, UpstreamNode>): HTMLElement {
+function buildChip(
+  segment: MentionSegment,
+  upstreamMap: Map<string, UpstreamNode>,
+  dialect: TokenDialect,
+): HTMLElement {
   const upstream = upstreamMap.get(segment.id);
-  const displayName = segment.label.replace(/^[^:]+:\s*/, "");
+  const displayName = dialect.chipLabel(segment, upstream?.label);
   const typeKey = upstream?.type ?? "";
+  // An id no upstream answers to: a deleted node, or a token the model invented past the end of
+  // the roster. Marked rather than dropped — it will bind to nothing at generation time.
+  const orphan = !upstream;
 
   const chip = document.createElement("span");
   chip.contentEditable = "false";
   chip.dataset.mentionId = segment.id;
   chip.dataset.mentionLabel = segment.label;
-  chip.className =
-    "inline-flex items-center gap-1 align-middle mx-0.5 px-1.5 py-0.5 rounded text-xs font-medium bg-primary/10 text-primary select-none cursor-default hover:bg-primary/20 transition-colors";
+  chip.title = orphan
+    ? `${segment.label} — no attached reference at this position`
+    : `${segment.label} — ${upstream.label}`;
+  chip.className = orphan
+    ? "inline-flex items-center gap-1 align-middle mx-0.5 px-1.5 py-0.5 rounded text-xs font-medium bg-destructive/10 text-destructive select-none cursor-default"
+    : "inline-flex items-center gap-1 align-middle mx-0.5 px-1.5 py-0.5 rounded text-xs font-medium bg-primary/10 text-primary select-none cursor-default hover:bg-primary/20 transition-colors";
 
-  if (upstream?.fileUrl && upstream?.fileKind === "image") {
+  // An Image Gen still carries no fileKind on this shape — its output IS the image — so it would
+  // otherwise fall through to the generic icon and lose its thumbnail.
+  if (upstream?.fileUrl && (upstream.fileKind === "image" || upstream.type === "image-gen")) {
     const img = document.createElement("img");
     img.src = upstream.fileUrl;
     img.alt = "";
@@ -200,14 +223,19 @@ function buildChip(segment: MentionSegment, upstreamMap: Map<string, UpstreamNod
   return chip;
 }
 
-function populateEditor(el: HTMLElement, value: string, upstreamMap: Map<string, UpstreamNode>) {
-  const segments = parseSegments(value);
+function populateEditor(
+  el: HTMLElement,
+  value: string,
+  upstreamMap: Map<string, UpstreamNode>,
+  dialect: TokenDialect,
+) {
+  const segments = dialect.parse(value);
   el.innerHTML = "";
   for (const seg of segments) {
     if (seg.kind === "text") {
       el.appendChild(document.createTextNode(seg.text));
     } else {
-      el.appendChild(buildChip(seg, upstreamMap));
+      el.appendChild(buildChip(seg, upstreamMap, dialect));
     }
   }
   // Always ensure trailing text node so caret can sit at end
@@ -235,6 +263,7 @@ export function MentionInstructionEditor({
   upstream,
   className,
   disabled = false,
+  dialect = DEFAULT_DIALECT,
 }: MentionInstructionEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -269,7 +298,7 @@ export function MentionInstructionEditor({
   useEffect(() => {
     const el = editorRef.current;
     if (!el) return;
-    populateEditor(el, value, upstreamMapRef.current);
+    populateEditor(el, value, upstreamMapRef.current, dialect);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -279,9 +308,9 @@ export function MentionInstructionEditor({
     if (!el) return;
     if (value === lastEmittedRef.current) return;
     lastEmittedRef.current = value;
-    const { caretOffset } = readEditorState(el);
-    populateEditor(el, value, upstreamMapRef.current);
-    restoreCaretAt(el, caretOffset);
+    const { caretOffset } = readEditorState(el, dialect);
+    populateEditor(el, value, upstreamMapRef.current, dialect);
+    restoreCaretAt(el, caretOffset, dialect);
   }, [value]);
 
   function closeDropdown() {
@@ -300,12 +329,16 @@ export function MentionInstructionEditor({
   function insertMention(item: DropdownItem) {
     const el = editorRef.current;
     if (!el) return;
-    const { text, caretOffset } = readEditorState(el);
+    const { text, caretOffset } = readEditorState(el, dialect);
     const slice = text.slice(Math.max(0, caretOffset - 40), caretOffset);
     const atIdx = slice.lastIndexOf("@");
     if (atIdx === -1) return;
     const absoluteAt = Math.max(0, caretOffset - 40) + atIdx;
-    const token = `@[${item.label}](${item.id})`;
+    // Null when this dialect cannot express the chosen upstream — an image that is not among the
+    // attached references has no <IMAGE_REF_N> to be. Leave the typed "@" alone rather than
+    // inserting a token that binds to nothing.
+    const token = dialect.tokenForId(item.id, item.label);
+    if (token === null) { closeDropdown(); return; }
     const newValue = text.slice(0, absoluteAt) + token + " " + text.slice(caretOffset);
     closeDropdown();
     lastEmittedRef.current = newValue;
@@ -313,8 +346,8 @@ export function MentionInstructionEditor({
     requestAnimationFrame(() => {
       const rafEl = editorRef.current;
       if (!rafEl) return;
-      populateEditor(rafEl, newValue, upstreamMapRef.current);
-      restoreCaretAt(rafEl, absoluteAt + token.length + 1);
+      populateEditor(rafEl, newValue, upstreamMapRef.current, dialect);
+      restoreCaretAt(rafEl, absoluteAt + token.length + 1, dialect);
       rafEl.focus();
     });
   }
@@ -323,7 +356,7 @@ export function MentionInstructionEditor({
     if (isComposingRef.current) return;
     const el = editorRef.current;
     if (!el) return;
-    const { text, caretOffset } = readEditorState(el);
+    const { text, caretOffset } = readEditorState(el, dialect);
     lastEmittedRef.current = text;
     onChange(text);
     const q = getAtQuery(text, caretOffset);
@@ -393,7 +426,7 @@ export function MentionInstructionEditor({
         if (chipToRemove) {
           e.preventDefault();
           el.removeChild(chipToRemove);
-          const { text } = readEditorState(el);
+          const { text } = readEditorState(el, dialect);
           lastEmittedRef.current = text;
           onChange(text);
           return;

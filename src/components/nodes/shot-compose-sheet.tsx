@@ -15,7 +15,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { SHOT_ROLES, DEFAULT_SHOT_ROLE } from "@/lib/nodes/shot-roles";
-import type { ShotComposeIdea } from "@/lib/nodes/shot-compose";
+import { type ShotComposeIdea } from "@/lib/nodes/shot-compose";
 import type { ReelScript } from "@/lib/nodes/reel-script";
 import { DEFAULT_PARSE_SLICES, type KBSliceKey } from "@/lib/kb/parse-context";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -62,6 +62,10 @@ function SectionLabel({
 
 // The Shot Composer sheet (D28). Pick a role -> Compose -> 4 idea cards -> "Use this" rewrites
 // the shot description (edit-at-source) + captures the pick; multi-select promotes to siblings.
+//
+// A Shot node is always a single continuous take (D229) — the multishot branch this sheet once
+// had (sequence roles, a duration budget, whole cut-sequence cards) is retired; a Multishot node
+// has no Composer at all now.
 export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const promoteIdeasToShots = useCanvasStore((s) => s.promoteIdeasToShots);
@@ -122,7 +126,7 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
         const json = await res.json();
         if (cancelled || !res.ok) return;
         if (json.ideas?.length) {
-          setIdeas(json.ideas);
+          setIdeas(json.ideas ?? []);
           setVersionId(json.versionId ?? null);
           if (json.role) {
             setRole(json.role);
@@ -257,8 +261,10 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
           <div className="flex min-h-0 w-full max-w-5xl overflow-hidden">
             {/* LEFT — inputs */}
             <div className="flex w-[30%] flex-col gap-6 overflow-y-auto border-r border-border px-6 py-6">
-              <div>
-                <SectionLabel icon={Tag} className="mb-2">Role</SectionLabel>
+              <div className="min-w-0">
+                <SectionLabel icon={Tag} className="mb-2">
+                  Role
+                </SectionLabel>
                 <Select value={role} onValueChange={(v) => setRole(v as string)}>
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Role" />
@@ -273,8 +279,10 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
                 </Select>
               </div>
 
-              <div>
-                <SectionLabel icon={Clapperboard} className="mb-2">Current shot</SectionLabel>
+              <div className="min-w-0">
+                <SectionLabel icon={Clapperboard} className="mb-2">
+                  Current shot
+                </SectionLabel>
                 <EditableField
                   value={seedDescription}
                   onCommit={setShotDescription}

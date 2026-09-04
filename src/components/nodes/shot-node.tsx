@@ -5,6 +5,7 @@ import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { Clapperboard, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { useDeleteNode } from "@/hooks/use-delete-node";
 import { useFocusViewRegistration } from "@/hooks/use-focus-view-open";
@@ -38,16 +39,17 @@ export function ShotNode({ id, data, selected, positionAbsoluteX, positionAbsolu
     shot_type?: string;
     seededFrom?: { scriptTitle?: string };
   };
-  const shot = d.script?.visual_script?.shots?.[0];
+  const shots = d.script?.visual_script?.shots ?? [];
+  const shot = shots[0];
   const description = shot?.description ?? "";
 
   function setDescription(value: string) {
     const base = d.script ?? {};
     const vs = base.visual_script ?? {};
-    const first = vs.shots?.[0] ?? {};
-    updateNodeData(id, {
-      script: { ...base, visual_script: { ...vs, shots: [{ ...first, description: value }] } },
-    });
+    const next = (vs.shots?.length ? vs.shots : [{}]).map((s, i) =>
+      i === 0 ? { ...s, description: value } : s,
+    );
+    updateNodeData(id, { script: { ...base, visual_script: { ...vs, shots: next } } });
   }
 
   // Open the Composer when opened locally (double-click / Compose) OR when something points
@@ -97,7 +99,7 @@ export function ShotNode({ id, data, selected, positionAbsoluteX, positionAbsolu
           }
         />
         <div className="p-2">
-          <textarea
+          <Textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             onDoubleClick={(e) => e.stopPropagation()}
@@ -105,6 +107,7 @@ export function ShotNode({ id, data, selected, positionAbsoluteX, positionAbsolu
             rows={4}
             className="nodrag w-full resize-none rounded-md bg-transparent px-1.5 py-1 text-sm focus:outline-none"
           />
+
           <p className="px-1.5 pt-1 text-[0.6rem] text-muted-foreground">
             {d.seededFrom?.scriptTitle ? `from "${d.seededFrom.scriptTitle}" · ` : ""}full script context
           </p>

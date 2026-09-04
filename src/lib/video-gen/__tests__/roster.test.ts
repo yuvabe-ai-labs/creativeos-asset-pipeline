@@ -2,8 +2,9 @@ import { describe, it, expect } from "vitest";
 import { videoGenClientModelMap, videoGenClientModelGroups } from "../client-models";
 
 describe("video model roster", () => {
-  it("contains the consolidated roster: Veo x3 + Kling 3.0 + Kling O1", () => {
+  it("contains the consolidated roster: Veo x3 + Kling 3.0 + Kling O1 + Gemini Omni", () => {
     expect(Object.keys(videoGenClientModelMap).sort()).toEqual([
+      "gemini:gemini-omni-1.1-flash",
       "kling:kling-3-0",
       "kling:kling-o1",
       "veo:veo-3.1",
@@ -27,8 +28,8 @@ describe("video model roster", () => {
 });
 
 describe("picker groups", () => {
-  it("groups under Veo and Kling only — no Google/OpenAI headers", () => {
-    expect(videoGenClientModelGroups.map((g) => g.label)).toEqual(["Veo", "Kling"]);
+  it("groups under Veo, Kling, and Google — no OpenAI headers", () => {
+    expect(videoGenClientModelGroups.map((g) => g.label)).toEqual(["Veo", "Kling", "Google"]);
   });
 
   it("puts Lite/Fast/Quality under the Veo group", () => {

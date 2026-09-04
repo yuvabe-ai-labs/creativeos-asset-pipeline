@@ -3,27 +3,12 @@ import { resolveVideoPromptInputs } from "@/lib/nodes/resolve-inputs";
 import { compileVideoPrompt } from "@/lib/nodes/video-prompt";
 import { buildUserContent, isVisionAttachment } from "@/lib/nodes/compose-message";
 import { videoPromptGeneratePromptFor, type VideoProvider } from "@/prompts/video-prompt-generate";
-import { DEFAULT_VIDEO_CONTROLS, type VideoControls } from "@/lib/nodes/video-controls";
-import { insertVersion, setActiveVersion } from "@/lib/db/versions";
-import { insertGeneration, succeedGeneration, failGeneration } from "@/lib/db/generations";
-import { computeCost } from "@/lib/pricing";
+import { normalizeVideoControls } from "@/lib/nodes/video-controls";
+import { insertVersion } from "@/lib/db/versions";
 import { estimatePromptCredits } from "@/lib/credits/prompt-estimate";
-import {
-  reserveCredits,
-  settleGeneration,
-  refundReservation,
-  CreditLimitError,
-} from "@/lib/db/credit-transactions";
+import { runPromptGeneration, CreditLimitError, type ModelUsage } from "@/lib/api/prompt-run";
 import { describeModelRequest } from "@/lib/nodes/model-request";
 import { apiError, apiOk, withNode } from "@/lib/api/route-helpers";
-
-function normalizeControls(input: unknown): VideoControls {
-  const c = (input ?? {}) as Record<string, unknown>;
-  return {
-    camera: typeof c.camera === "string" ? c.camera : DEFAULT_VIDEO_CONTROLS.camera,
-    speed: typeof c.speed === "string" ? c.speed : DEFAULT_VIDEO_CONTROLS.speed,
-  };
-}
 
 // POST /api/nodes/:id/video-prompt — the Video Prompt node's runAction: resolve inputs
 // (KB + upstream, with the Image Gen still as a vision part), compile, call the text LLM
@@ -39,16 +24,20 @@ export async function POST(
       | { instruction?: unknown; slices?: unknown; controls?: unknown; targetProvider?: unknown }
       | null;
     const instruction = typeof body?.instruction === "string" ? body.instruction : "";
-    const controls = normalizeControls(body?.controls);
+    const controls = normalizeVideoControls(body?.controls);
 
-    const VALID_PROVIDERS: VideoProvider[] = ["veo", "kling"];
+    const VALID_PROVIDERS: VideoProvider[] = ["veo", "kling", "gemini-omni"];
     const targetProvider: VideoProvider = VALID_PROVIDERS.includes(body?.targetProvider as VideoProvider)
       ? (body?.targetProvider as VideoProvider)
       : "veo";
-    const promptSpec = videoPromptGeneratePromptFor(targetProvider);
-
+    // D231 — the multishot ladder prompt now lives entirely on the Multishot Prompt node
+    // (multishotPromptGenerate). A Shot upstream is always a single continuous take (D229), and a
+    // Multishot node cannot connect to this route at all — so this route always gets the
+    // continuous-take spine and the operator's own targetProvider, with no coercion.
     const resolved = await resolveVideoPromptInputs(nodeId, body?.slices);
     if (!resolved) return apiError("Node not found.", 404);
+
+    const promptSpec = videoPromptGeneratePromptFor({ provider: targetProvider });
 
     const { system, user, effectiveInstruction } = compileVideoPrompt({
       clientContext: resolved.clientContext,
@@ -68,40 +57,21 @@ export async function POST(
     });
 
     const model = `openai:${promptSpec.model}`;
-    let generation: Awaited<ReturnType<typeof insertGeneration>> | null = null;
+    const estimatedCredits = estimatePromptCredits(resolved.upstream.filter(isVisionAttachment).length);
 
     try {
-      generation = await insertGeneration({
+      const { output, versionId } = await runPromptGeneration({
         nodeId,
         orgId: effectiveOrgId,
         clientId,
         userId: caller.userId,
         userEmail: caller.email,
-        type: "prompt",
-        modelUsed: model,
-        paramsSnapshot: { model: promptSpec.model, targetProvider },
-        inputsSnapshot: { instruction: effectiveInstruction },
-      });
-
-      const estimatedCredits = estimatePromptCredits(resolved.upstream.filter(isVisionAttachment).length);
-      const reservation = await reserveCredits(effectiveOrgId, generation.id, estimatedCredits);
-      if (!reservation.ok) {
-        throw new CreditLimitError("Monthly credit limit reached");
-      }
-
-      const openai = createOpenAI();
-      const completion = await openai.chat.completions.create({
-        model: promptSpec.model,
-        messages: [
-          { role: "system", content: system },
-          { role: "user", content: userContent },
-        ],
-      });
-      const output = completion.choices[0]?.message?.content?.trim() ?? "";
-
-      const version = await insertVersion({
-        nodeId,
         operatorUserId: caller.userId, // R11.1: the maker
+        type: "prompt",
+        model,
+        estimatedCredits,
+        generationParamsSnapshot: { model: promptSpec.model, targetProvider },
+        generationInputsSnapshot: { instruction: effectiveInstruction },
         inputsUsed: {
           upstream: resolved.upstream.map((u) => ({ nodeId: u.nodeId, versionId: u.versionId })),
           kbVersionId: resolved.kbVersionId,
@@ -114,63 +84,51 @@ export async function POST(
           targetProvider,
           promptId: promptSpec.id,
           promptVersion: promptSpec.version,
-          tokensUsed: completion.usage ?? null,
         },
-        modelUsed: model,
-        output,
+        // A failed attempt is still a version — the log learns from failures too. This runs
+        // BEFORE the helper's own failGeneration/refundReservation cleanup, preserving the
+        // original call order (insertVersion(failed) → failGeneration → refundReservation)
+        // across the extraction — the route's own catch below only turns the error into a
+        // response now.
+        onFailure: async (e) => {
+          const message = e instanceof Error ? e.message : "Generation failed";
+          await insertVersion({
+            nodeId,
+            operatorUserId: caller.userId, // a failed attempt still has a maker
+            inputsUsed: { request },
+            paramsUsed: {
+              instruction,
+              targetProvider,
+              promptId: promptSpec.id,
+              promptVersion: promptSpec.version,
+            },
+            modelUsed: model,
+            error: message,
+          });
+        },
+        call: async () => {
+          const openai = createOpenAI();
+          const completion = await openai.chat.completions.create({
+            model: promptSpec.model,
+            messages: [
+              { role: "system", content: system },
+              { role: "user", content: userContent },
+            ],
+          });
+          const output = completion.choices[0]?.message?.content?.trim() ?? "";
+          // Raw, un-narrowed — persisted as-is by the helper. Narrowing to the three
+          // canonical fields here would silently drop whatever else the provider returned
+          // (e.g. prompt_tokens_details.cached_tokens) before it ever reached storage. The
+          // cast just tells TS what we already know structurally (OpenAI's CompletionUsage
+          // has the three canonical fields plus extras) — the object itself is untouched.
+          const usage = (completion.usage ?? null) as ModelUsage | null;
+          return { output, usage };
+        },
       });
-      await setActiveVersion(nodeId, version.id);
 
-      const usage = completion.usage;
-      const cost = usage
-        ? computeCost(model, {
-            prompt_tokens: usage.prompt_tokens,
-            completion_tokens: usage.completion_tokens,
-            total_tokens: usage.total_tokens,
-          })
-        : null;
-      // Prompt-type generations settle on the same flat estimate used for the reservation
-      // (5 base + 2.5/attachment), not real OpenAI token cost — unlike image/video, whose
-      // real vendor $ cost IS the charge. Real cost is still recorded via costUsd below for
-      // admin visibility; it no longer drives credits_charged. Settling on real cost here
-      // silently dropped the attachment premium: a short completion's real cost never clears
-      // usdToFinalCredits' 5-credit rounding step, so every prompt generation — regardless
-      // of attachment count — settled at the same 5-credit floor.
-      await settleGeneration({
-        orgId: effectiveOrgId,
-        generationId: generation.id,
-        actualAmount: estimatedCredits,
-      });
-      await succeedGeneration({
-        generationId: generation.id,
-        versionId: version.id,
-        costUsd: cost?.usd,
-        creditsCharged: estimatedCredits,
-        tokensUsed: usage ? { ...usage } : null,
-        outputSnapshot: output,
-      });
-
-      return apiOk({ output, versionId: version.id, compiled: user });
+      return apiOk({ output, versionId, compiled: user });
     } catch (e) {
       const message = e instanceof Error ? e.message : "Generation failed";
-      // a failed attempt is still a version — the log learns from failures too
-      await insertVersion({
-        nodeId,
-        operatorUserId: caller.userId, // a failed attempt still has a maker
-        inputsUsed: { request },
-        paramsUsed: {
-          instruction,
-          targetProvider,
-          promptId: promptSpec.id,
-          promptVersion: promptSpec.version,
-        },
-        modelUsed: model,
-        error: message,
-      });
-      if (generation?.id) {
-        await failGeneration({ generationId: generation.id, error: message }).catch(() => null);
-        await refundReservation({ orgId: effectiveOrgId, generationId: generation.id }).catch(() => null);
-      }
       const status = e instanceof CreditLimitError ? 402 : 500;
       return apiError(message, status);
     }

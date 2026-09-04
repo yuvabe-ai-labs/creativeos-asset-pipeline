@@ -1,43 +1,26 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
-  ArrowLeft,
   Clapperboard,
   Palette,
   PencilLine,
   BadgeCheck,
-  SlidersHorizontal,
-  FileInput,
   ExternalLink,
 } from "lucide-react";
 import { toast } from "sonner";
-import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { EditableField } from "./editable-field";
-import { GenerationErrorBadge } from "./generation-error-badge";
 import { MentionInstructionEditor } from "./mention-instruction-editor";
-import { normalizeTitle } from "@/lib/nodes/title";
 import { Button } from "@/components/ui/button";
 import { FieldLabel } from "./field-label";
-import { GuidedNextButton } from "@/components/canvas/guided-next-button";
 import { SliceToggles } from "./slice-toggles";
 import { DEFAULT_MOTION_INSTRUCTION } from "@/lib/nodes/video-prompt";
 import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
 import { EstimatedCreditsLabel } from "./estimated-credits-label";
 import { estimatePromptCredits } from "@/lib/credits/prompt-estimate";
-import { isVisionAttachment } from "@/lib/nodes/compose-message";
+import { isVisionAttachment, visionAttachmentsOf } from "@/lib/nodes/compose-message";
 import type { KBSliceKey } from "@/lib/kb/parse-context";
 import { CameraSelect } from "./camera-select";
 import { SpeedSelect } from "./speed-select";
@@ -45,37 +28,23 @@ import { TargetProviderSelect } from "./target-provider-select";
 import { DEFAULT_VIDEO_CONTROLS, type VideoControls } from "@/lib/nodes/video-controls";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { findDescendantsOfType } from "@/lib/canvas/graph";
+import { ReferenceImageStrip } from "./reference-image-strip";
 import { videoGenClientModelMap, DEFAULT_VIDEO_CLIENT_MODEL_ID } from "@/lib/video-gen/client-models";
 import type { VideoProvider } from "@/prompts/video-prompt-generate";
-import {
-  ConnectedDetailView,
-  NodeIcon,
-  type UpstreamNode,
-  type ConnectedPreview,
-} from "./connected-inputs-card";
-import { AddConnection } from "./add-connection";
+import { type UpstreamNode, type ConnectedPreview } from "./connected-inputs-card";
 import type { VersionSummary } from "./prompt-version-history";
-import { UsagePopover } from "./prompt-usage-popover";
 import { InlineEvalBar } from "./inline-eval-bar";
-import { InlineApprovalBar } from "./inline-approval-bar";
 import { ModelRequestPanel } from "./model-request-panel";
 import { setVersionLabelAction } from "@/lib/actions/eval";
 import { setVersionApprovalAction } from "@/lib/actions/approval";
-import { useIdentity } from "@/hooks/use-identity";
-import { useNodeVersionUpdates } from "@/hooks/use-node-version-updates";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { useFlushAutosave } from "@/components/canvas/autosave-flush-context";
-import { Skeleton } from "@/components/ui/skeleton";
 import type { ApprovalStatus } from "@/lib/approval";
-import { PromptVersionChips } from "./prompt-version-chips";
-import {
-  splitSentenceBeats,
-  segmentByTerms,
-  CAMERA_SPEC_PATTERNS,
-} from "@/lib/nodes/prompt-focus";
+import { GeneratedPromptBody } from "./generated-prompt-body";
+import { imageRefDialect } from "@/lib/nodes/prompt-token-dialect";
 import { ApprovalStatusBadge } from "@/components/review/approval-status-badge";
 import { LeftSection } from "./focus-left-section";
-import { RailItem } from "./focus-rail-item";
+import { PromptFocusShell, RESERVED_RAIL_KEYS } from "./prompt-focus-shell";
 
 type VideoPromptFocusViewProps = {
   open: boolean;
@@ -148,18 +117,9 @@ export function VideoPromptFocusView({
   const [approvedByName, setApprovedByName] = useState<string | null>(null);
   const [approvedAt, setApprovedAt] = useState<string | null>(null);
   const [approvalSaving, setApprovalSaving] = useState(false);
-  const { identity } = useIdentity();
   const editable = useCanvasEditable(); // D33: false when this session is read-only
   const flushAutosave = useFlushAutosave();
   const [evalSaving, setEvalSaving] = useState(false);
-  // A pending destructive action awaiting confirmation. Replaces window.confirm
-  // so the prompt stays inside the design system instead of native OS chrome.
-  const [confirm, setConfirm] = useState<{
-    title: string;
-    description: string;
-    actionLabel: string;
-    onConfirm: () => void;
-  } | null>(null);
 
   if (seed.open !== open || seed.output !== output || seed.nodeId !== nodeId) {
     const opening = open && !seed.open; // sheet just opened (false → true)
@@ -188,7 +148,7 @@ export function VideoPromptFocusView({
   }
 
   // A connected node is selected when `selected` isn't one of the fixed rail keys.
-  const isNodeSelected = !["prompt", "details", "request"].includes(selected);
+  const isNodeSelected = !RESERVED_RAIL_KEYS.includes(selected as (typeof RESERVED_RAIL_KEYS)[number]);
   const selectedNode = isNodeSelected
     ? preview.connected.find((c) => c.nodeId === selected) ?? null
     : null;
@@ -203,14 +163,32 @@ export function VideoPromptFocusView({
   const nodes = useCanvasStore((s) => s.nodes);
   const edges = useCanvasStore((s) => s.edges);
   const downstreamGen = findDescendantsOfType(nodeId, nodes, edges, "video-gen");
-  const providerOf = (modelId?: string): VideoProvider =>
-    (videoGenClientModelMap[modelId ?? DEFAULT_VIDEO_CLIENT_MODEL_ID]?.provider ?? "veo") as VideoProvider;
+
+  // The attached images in `<IMAGE_REF_N>` order. Shared with the strip below and with the chips
+  // rendered inside the generated prompt, via one filter — see visionAttachmentsOf.
+  const promptRefImages = visionAttachmentsOf(upstream).map((u) => ({
+    id: u.id,
+    label: u.label,
+    fileUrl: u.fileUrl,
+  }));
+  // D216 — Omni gets its own motion-prompt variant (the timecode ladder), so it maps to
+  // "gemini-omni" rather than folding into Veo as it did before that variant existed.
+  const providerOf = (modelId?: string): VideoProvider => {
+    const provider = videoGenClientModelMap[modelId ?? DEFAULT_VIDEO_CLIENT_MODEL_ID]?.provider;
+    if (provider === "kling") return "kling";
+    if (provider === "gemini") return "gemini-omni";
+    return "veo";
+  };
   const downstreamProviders = Array.from(
     new Set(downstreamGen.map((n) => providerOf((n.data as { modelId?: string })?.modelId))),
   );
   const locked = downstreamProviders.length >= 1;
   const mixed = downstreamProviders.length > 1;
-  const selectorValue: VideoProvider = targetProvider === "kling" ? "kling" : "veo";
+  // Narrows the persisted value to the union, defaulting anything unrecognised to Veo. Every
+  // member must be listed: a node saved as "gemini-omni" fell back to Veo here while this only
+  // knew "kling", so disconnecting its video node silently changed which prompt variant it wrote.
+  const selectorValue: VideoProvider =
+    targetProvider === "kling" || targetProvider === "gemini-omni" ? targetProvider : "veo";
   const effectiveProvider: VideoProvider = mixed
     ? "veo"
     : locked
@@ -221,6 +199,15 @@ export function VideoPromptFocusView({
     : locked
       ? `${videoGenClientModelMap[(downstreamGen[0].data as { modelId?: string })?.modelId ?? DEFAULT_VIDEO_CLIENT_MODEL_ID]?.label ?? "Video model"} · set by connected video node`
       : undefined;
+
+  // Non-null only for Omni, whose prompt text carries `<IMAGE_REF_N>` inline. Memoized on the id
+  // list rather than the array identity: `upstream` is rebuilt on every render, and a fresh
+  // dialect each time would re-run the editor's population effect and fight the caret.
+  const refIdsKey = promptRefImages.map((r) => r.id).join(",");
+  const omniRefs = useMemo(
+    () => (effectiveProvider === "gemini-omni" ? imageRefDialect(refIdsKey ? refIdsKey.split(",") : []) : null),
+    [effectiveProvider, refIdsKey],
+  );
 
   const dirty = (output ?? "") !== draft && draft.trim() !== "";
   const mode: "skeleton" | "result" | "empty" = generating
@@ -260,12 +247,6 @@ export function VideoPromptFocusView({
       /* best-effort */
     }
   }
-
-  // D179: keep this panel live while it is open — the same treatment the gen focus views
-  // get, so a prompt node does not silently behave differently from an image one.
-  useNodeVersionUpdates(nodeId, open, () => {
-    void fetchVersions({ preserveEvalDraft: true });
-  });
 
   /**
    * Everything below resolves this node's inputs SERVER-side, from PERSISTED edges
@@ -464,23 +445,8 @@ export function VideoPromptFocusView({
     }
   }
 
-  // YUV-288: navigating away must not silently drop an unsaved manual edit to the
-  // generated prompt — same guard script-focus-view.tsx already applies to its draft.
-  function requestClose() {
-    if (dirty) {
-      setConfirm({
-        title: "Discard unsaved changes?",
-        description:
-          "You have edits that haven't been saved. Closing now will discard them.",
-        actionLabel: "Discard",
-        onConfirm: () => onOpenChange(false),
-      });
-      return;
-    }
-    onOpenChange(false);
-  }
-
   function toggleSlice(key: KBSliceKey) {
+    if (!editable) return; // D33: belt-and-braces — SliceToggles is also disabled below
     const next = slices.includes(key) ? slices.filter((k) => k !== key) : [...slices, key];
     onPatch({ kbSlices: next });
   }
@@ -492,118 +458,43 @@ export function VideoPromptFocusView({
     mode === "result" ? <ApprovalStatusBadge status={approvalStatus} /> : undefined;
 
   return (
-    <Sheet
+    <PromptFocusShell
       open={open}
-      onOpenChange={(next) => {
-        if (next) onOpenChange(true);
-        else requestClose();
-      }}
+      onOpenChange={onOpenChange}
+      nodeId={nodeId}
+      title={title}
+      titlePlaceholder="Motion prompt"
+      onTitleCommit={(t) => onPatch({ title: t })}
+      dirty={dirty}
+      lastError={lastError}
+      generating={generating}
+      versions={versions}
+      activeVersionId={activeVersionId}
+      restoring={restoring}
+      onRestoreVersion={handleRestoreVersion}
+      upstream={upstream}
+      targetType="video-prompt"
+      primaryRailIcon={<Clapperboard className="size-4 text-primary" />}
+      primaryRailLabel="Prompt"
+      selected={selected}
+      onSelectedChange={setSelected}
+      reviewBadge={reviewBadge}
+      selectedNode={selectedNode}
+      isNodeSelected={isNodeSelected}
+      loadingPreview={loadingPreview}
+      approvalStatus={approvalStatus}
+      approvalNote={approvalNote}
+      approvedByName={approvedByName}
+      approvedAt={approvedAt}
+      approvalSaving={approvalSaving}
+      onSetApproval={saveApproval}
+      onLiveVersionUpdate={() => void fetchVersions({ preserveEvalDraft: true })}
     >
-      <SheetContent
-        side="bottom"
-        showCloseButton={false}
-        className="gap-0 overflow-hidden rounded-t-2xl bg-background data-[side=bottom]:h-[92vh]"
-      >
-        {/* Header */}
-        <div className="shrink-0 border-b">
-          <div className="mx-auto w-full max-w-7xl px-6 pb-5 pt-3">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={requestClose}
-              className="-ml-2.5 gap-1.5 font-medium text-muted-foreground hover:text-foreground"
-            >
-              <ArrowLeft className="size-4" /> Back to canvas
-            </Button>
-
-            <header className="mt-4 flex items-start justify-between gap-4">
-              <div>
-                <SheetTitle className="p-0 font-display text-3xl font-semibold tracking-tight">
-                  <EditableField
-                    value={title || ""}
-                    onCommit={(t) => onPatch({ title: normalizeTitle(t) })}
-                    placeholder="Motion prompt"
-                    className="font-display text-3xl font-semibold tracking-tight"
-                  />
-                </SheetTitle>
-              </div>
-
-              <div className="flex shrink-0 items-center gap-2">
-                {/* Always rendered — pre-generation it reads "0 credits used". */}
-                <UsagePopover versions={versions} />
-                <GuidedNextButton
-                  sourceId={nodeId}
-                  variant="button"
-                  onNavigate={() => onOpenChange(false)}
-                />
-              </div>
-            </header>
-            {lastError && !generating && (
-              <div className="mt-2">
-                <GenerationErrorBadge error={lastError} />
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Body: left rail + detail pane */}
-        <div className="mx-auto flex w-full max-w-7xl min-h-0 flex-1 overflow-hidden">
-          {/* Rail */}
-          <nav className="flex w-56 shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-border px-3 py-4">
-            <RailItem
-              icon={<Clapperboard className="size-4 text-primary" />}
-              label="Prompt"
-              active={selected === "prompt"}
-              onClick={() => setSelected("prompt")}
-            />
-
-            <div className="flex items-center justify-between px-2.5 pb-1 pt-3">
-              <span className="text-[0.65rem] font-semibold uppercase tracking-wider text-foreground/70">
-                Connected · {upstream.length}
-              </span>
-              <AddConnection
-                targetId={nodeId}
-                targetType="video-prompt"
-                connectedIds={upstream.map((u) => u.id)}
-              />
-            </div>
-            {upstream.length === 0 ? (
-              <p className="px-2.5 text-xs text-muted-foreground">No inputs connected.</p>
-            ) : (
-              upstream.map((u) => (
-                <RailItem
-                  key={u.id}
-                  icon={<NodeIcon type={u.type} />}
-                  label={u.label}
-                  active={selected === u.id}
-                  onClick={() => setSelected(u.id)}
-                />
-              ))
-            )}
-
-            <div className="mx-2.5 my-2 h-px bg-border" />
-            <RailItem
-              icon={<SlidersHorizontal className="size-4 text-primary" />}
-              label="Details"
-              active={selected === "details"}
-              onClick={() => setSelected("details")}
-              badge={reviewBadge}
-            />
-            <RailItem
-              icon={<FileInput className="size-4 text-primary" />}
-              label="Sent to model"
-              active={selected === "request"}
-              onClick={() => setSelected("request")}
-            />
-          </nav>
-
-          {/* Detail pane */}
-          {/* No overflow-hidden: it would crop the raised column's left shadow.
-              The columns inside own their scrolling. */}
-          <div className="min-h-0 flex-1">
-            {/* Prompt — the compose editor: compose (left) + generated output (right) */}
-            {selected === "prompt" && (
-              <div className="flex h-full w-full min-h-0 overflow-hidden">
+      {({ versionChips, approvalControls }) => (
+        <>
+          {/* Prompt — the compose editor: compose (left) + generated output (right) */}
+          {selected === "prompt" && (
+              <div className="flex w-full min-h-0 flex-1 overflow-hidden">
                 {/* Left column — compose. Instruction first (consistent with the
                     image-prompt view), then the compact control rows; the column is
                     capped so the generated prompt on the right owns the width.
@@ -627,6 +518,13 @@ export function VideoPromptFocusView({
                       className="min-h-16"
                     />
                   </div>
+
+                  {/* The attached references, as pictures with the token each answers to. Sits
+                      directly under the instruction because that is where they were mentioned. */}
+                  <ReferenceImageStrip
+                    upstream={upstream}
+                    omni={effectiveProvider === "gemini-omni"}
+                  />
 
                   {/* Target model + Speed share one row so the column stays short enough
                       not to scroll. Both hug their own chips and sit left — stretching
@@ -684,8 +582,12 @@ export function VideoPromptFocusView({
 
                 {/* Right column — generated motion prompt output. Faintly tinted so the
                     white output card reads as the page's product against it (same
-                    treatment as the image-prompt view). */}
-                <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-6 py-5">
+                    treatment as the image-prompt view).
+
+                    min-w-0 is load-bearing: a flex-1 child cannot shrink below its content's
+                    intrinsic width without it, so the prompt text held this column open, the row
+                    overflowed, and the parent's overflow-hidden cropped the output off-screen. */}
+                <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto px-6 py-5">
                   {/* items-start: the title wraps and the version chips row can wrap
                       too — both anchor to the top instead of drifting vertically. */}
                   <div className="flex items-start justify-between gap-2">
@@ -693,12 +595,7 @@ export function VideoPromptFocusView({
                       <Clapperboard className="size-3.5 text-primary" />
                       <span className="text-eyebrow">Generated motion prompt</span>
                     </div>
-                    <PromptVersionChips
-                      versions={versions}
-                      activeVersionId={activeVersionId}
-                      restoring={restoring}
-                      onSwitch={handleRestoreVersion}
-                    />
+                    {versionChips}
                   </div>
 
                   {mode === "skeleton" && (
@@ -729,35 +626,35 @@ export function VideoPromptFocusView({
 
                   {mode === "result" && (
                     <>
-                      {/* Read view by default, same card treatment as the image-prompt
-                          output: sentence beats, camera specs highlighted (there is no
-                          curated term list for video controls — specs are the meaningful
-                          subset for motion). Clicking swaps to the raw-text editor. */}
-                      <EditableField
-                        multiline
-                        value={draft}
-                        onCommit={setDraft}
-                        readOnly={!editable}
-                        placeholder="Empty — click to edit"
-                        renderDisplay={(text) => (
-                          <span className="block space-y-2.5">
-                            {splitSentenceBeats(text).map((beat, i) => (
-                              <span key={i} className="block">
-                                {segmentByTerms(beat, CAMERA_SPEC_PATTERNS).map((seg, j) =>
-                                  seg.highlighted ? (
-                                    <span key={j} className="rounded bg-primary/10 px-0.5 font-bold">
-                                      {seg.text}
-                                    </span>
-                                  ) : (
-                                    <span key={j}>{seg.text}</span>
-                                  ),
-                                )}
-                              </span>
-                            ))}
-                          </span>
-                        )}
-                        className="min-h-[16rem] max-w-[65ch] flex-1 resize-none overflow-y-auto rounded-xl p-4 text-base leading-7 [field-sizing:fixed]"
-                      />
+                      {omniRefs ? (
+                        /* Omni: the SAME chip editor the Instruction uses, so a reference stays a
+                           picture while it is being edited. A plain textarea turned every chip
+                           back into raw `<IMAGE_REF_0>` the moment the field was focused, which is
+                           where an operator is most likely to break one by hand. */
+                        <MentionInstructionEditor
+                          value={draft}
+                          onChange={setDraft}
+                          upstream={upstream}
+                          disabled={!editable}
+                          dialect={omniRefs}
+                          placeholder="Empty — click to edit"
+                          className="min-h-[16rem] max-w-[65ch] flex-1 text-base"
+                        />
+                      ) : (
+                        /* Veo and Kling have no inline reference token, so their output stays the
+                           read-first field: sentence beats with camera specs highlighted. */
+                        <EditableField
+                          multiline
+                          value={draft}
+                          onCommit={setDraft}
+                          readOnly={!editable}
+                          placeholder="Empty — click to edit"
+                          renderDisplay={(text) => (
+                            <GeneratedPromptBody text={text} images={promptRefImages} />
+                          )}
+                          className="min-h-[16rem] max-w-[65ch] flex-1 resize-none overflow-y-auto rounded-xl p-4 text-base leading-7 [field-sizing:fixed]"
+                        />
+                      )}
                       <div className="flex items-center gap-2 self-start">
                         <Button variant="outline" onClick={handleSave} disabled={!dirty}>
                           Save
@@ -774,29 +671,9 @@ export function VideoPromptFocusView({
               </div>
             )}
 
-            {/* Connected node — read-only detail. While the inputs are still being resolved
-                (the autosave flush plus the compile-preview call behind it), this shows the
-                SHAPE of the panel rather than a centred "Loading…" — a brand-new node reached
-                from the guided button lands here first, and a line of text in the middle of an
-                empty pane reads like "nothing is connected", which is exactly the wrong
-                impression while its inputs are on their way. */}
-            {isNodeSelected &&
-              (selectedNode ? (
-                <ConnectedDetailView node={selectedNode} />
-              ) : loadingPreview ? (
-                <div className="flex h-full flex-col gap-4 px-6 py-6">
-                  <Skeleton className="h-3 w-28" />
-                  <Skeleton className="min-h-0 flex-1 rounded-xl" />
-                </div>
-              ) : (
-                <div className="flex h-full items-center justify-center px-6 py-6">
-                  <p className="text-sm text-muted-foreground">This input has no preview yet.</p>
-                </div>
-              ))}
-
             {/* Details — Brand KB + Review (eval, approval) */}
             {selected === "details" && (
-              <div className="flex h-full w-full max-w-3xl min-h-0 flex-col gap-6 overflow-y-auto px-6 py-6">
+              <div className="flex w-full max-w-3xl min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-6 py-6">
                 <LeftSection
                   icon={Palette}
                   label="Brand KB"
@@ -812,7 +689,7 @@ export function VideoPromptFocusView({
                     ) : undefined
                   }
                 >
-                  <SliceToggles selected={slices} onToggle={toggleSlice} />
+                  <SliceToggles selected={slices} onToggle={toggleSlice} disabled={!editable} />
                 </LeftSection>
 
                 <hr className="border-border" />
@@ -829,17 +706,7 @@ export function VideoPromptFocusView({
                         onNote={setEvalNote}
                         onNoteBlur={handleEvalNoteBlur}
                       />
-                      <InlineApprovalBar
-                        status={approvalStatus}
-                        note={approvalNote}
-                        saving={approvalSaving}
-                        // R7.1/D160: not gated on `editable` — approval writes only to
-                        // node_versions, outside what the D33 lock serialises.
-                        canApprove={identity?.role === "senior"}
-                        onSet={saveApproval}
-                        approvedByName={approvedByName}
-                        approvedAt={approvedAt}
-                      />
+                      {approvalControls}
                     </div>
                   ) : (
                     <p className="text-sm text-muted-foreground">
@@ -852,7 +719,7 @@ export function VideoPromptFocusView({
 
             {/* Sent to model — the exact request the active version sent (standalone) */}
             {selected === "request" && (
-              <div className="flex h-full w-full max-w-3xl min-h-0 flex-col overflow-y-auto px-6 py-6">
+              <div className="flex w-full max-w-3xl min-h-0 flex-1 flex-col overflow-y-auto px-6 py-6">
                 {activeRequest ? (
                   <ModelRequestPanel request={activeRequest} />
                 ) : (
@@ -863,36 +730,8 @@ export function VideoPromptFocusView({
                 )}
               </div>
             )}
-          </div>
-        </div>
-      </SheetContent>
-
-      <AlertDialog
-        open={!!confirm}
-        onOpenChange={(next) => {
-          if (!next) setConfirm(null);
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{confirm?.title}</AlertDialogTitle>
-            <AlertDialogDescription>{confirm?.description}</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setConfirm(null)}>
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                confirm?.onConfirm();
-                setConfirm(null);
-              }}
-            >
-              {confirm?.actionLabel}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </Sheet>
+        </>
+      )}
+    </PromptFocusShell>
   );
 }

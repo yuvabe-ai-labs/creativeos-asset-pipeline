@@ -27,10 +27,10 @@ describe("videoPromptGeneratePrompt (Veo)", () => {
 
 describe("videoPromptGeneratePromptFor", () => {
   it("returns the Veo record for veo", () => {
-    expect(videoPromptGeneratePromptFor("veo").id).toBe("video-prompt-generate");
+    expect(videoPromptGeneratePromptFor({ provider: "veo" }).id).toBe("video-prompt-generate");
   });
   it("returns the Kling record for kling", () => {
-    expect(videoPromptGeneratePromptFor("kling").id).toBe("video-prompt-generate-kling");
+    expect(videoPromptGeneratePromptFor({ provider: "kling" }).id).toBe("video-prompt-generate-kling");
   });
 });
 

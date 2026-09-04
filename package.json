@@ -23,7 +23,7 @@
     "@google/genai": "^2.9.0",
     "@supabase/ssr": "^0.12.3",
     "@supabase/supabase-js": "^2.106.2",
-    "@trigger.dev/sdk": "4.5.12",
+    "@trigger.dev/sdk": "4.5.16",
     "@xyflow/react": "^12.10.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -62,7 +62,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
     "tailwindcss": "^4",
-    "trigger.dev": "4.5.9",
+    "trigger.dev": "4.5.14",
     "typescript": "^5",
     "vitest": "^4.1.8"
   }

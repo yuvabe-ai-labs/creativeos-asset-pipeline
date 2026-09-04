@@ -90,9 +90,14 @@ describe("describeVersionParams", () => {
     ]);
   });
 
-  it("renders a toggle as On / Off rather than true / false", () => {
+  // D218 hid Kling's multi_shot, and this row filters on `visible` — so a version that really did
+  // run with multi-shot on no longer reports it in the one-line History summary. That is the
+  // intended trade: the row answers "what distinguishes two versions", and a control the operator
+  // can no longer see or change distinguishes nothing. Provenance is not lost — the "Sent to
+  // model" panel still carries it, which the describeAllVersionParams suite below pins.
+  it("drops a hidden param from the summary even when the version recorded it", () => {
     const entries = describeVersionParams(videoSpecs("kling:kling-3-0"), { multi_shot: true });
-    expect(entries.find((e) => e.name === "multi_shot")?.value).toBe("On");
+    expect(entries.find((e) => e.name === "multi_shot")).toBeUndefined();
   });
 
   it("omits long-form text params — a negative prompt is a paragraph, not a chip", () => {
@@ -170,6 +175,19 @@ describe("describeAllVersionParams", () => {
       "audio",
       "multi_shot",
     ]);
+  });
+
+  // Moved here from the describeVersionParams suite when D218 hid multi_shot: this panel is now
+  // the only place a toggle still renders, so it is the only place the On/Off formatting can be
+  // pinned. The formatter is shared, so the coverage is not narrowed by the move.
+  it("renders a toggle as On / Off rather than true / false", () => {
+    const entries = describeAllVersionParams(videoSpecs("kling:kling-3-0"), { multi_shot: true });
+    expect(entries.find((e) => e.name === "multi_shot")?.value).toBe("On");
+  });
+
+  it("renders a false toggle as Off", () => {
+    const entries = describeAllVersionParams(videoSpecs("kling:kling-3-0"), { multi_shot: false });
+    expect(entries.find((e) => e.name === "multi_shot")?.value).toBe("Off");
   });
 
   it("omits a param the model never had rather than showing it empty", () => {

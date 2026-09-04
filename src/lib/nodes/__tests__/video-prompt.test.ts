@@ -58,3 +58,31 @@ describe("compileVideoPrompt provider awareness", () => {
     expect(user).toContain("Speed:");
   });
 });
+
+// D229/D231. A Shot upstream is always a single continuous take — the Multishot ladder prompt
+// lives entirely on the Multishot Prompt node's own writer (src/prompts/multishot-prompt-generate.ts),
+// and a Multishot node cannot connect to this route at all. So this route always emits the
+// continuous-take spine and the global camera/speed block, for every provider including Omni.
+describe("compileVideoPrompt continuous-take spine", () => {
+  it("gives an omni node the continuous-take spine", () => {
+    const { system } = compileVideoPrompt({
+      clientContext: "",
+      upstream: [],
+      instruction: "make it move",
+      controls: { camera: "auto", speed: "auto" },
+      targetProvider: "gemini-omni",
+    });
+    expect(system).toContain("image-to-video prompts for Veo");
+  });
+
+  it("keeps the global camera/speed block on an omni node", () => {
+    const { user } = compileVideoPrompt({
+      clientContext: "",
+      upstream: [],
+      instruction: "make it move",
+      controls: { camera: "push-in", speed: "dynamic" },
+      targetProvider: "gemini-omni",
+    });
+    expect(user).toContain("Motion controls");
+  });
+});

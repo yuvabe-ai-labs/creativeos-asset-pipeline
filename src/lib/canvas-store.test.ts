@@ -4,6 +4,7 @@ import type { AppNode } from "./canvas-nodes";
 import type { Edge } from "@xyflow/react";
 import type { ShotComposeIdea } from "./nodes/shot-compose";
 import type { GenerationRow } from "./db/types";
+import { GEMINI_OMNI_MODEL_ID as OMNI_MODEL_ID } from "./video-gen/client-models";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -88,9 +89,13 @@ describe("fanOutShots", () => {
         title: "Reel A",
         strategic_objective: "Sell calm",
         visual_script: {
+          // 6+6 exceeds the 10s cap, so these two stay one node each — which is what the
+          // assertions below are about. Two 4s shots would now legitimately group into ONE node
+          // (D214), so the old lengths would have made this fixture test the opposite of its
+          // own name. The display string and the length agree so the data is not misleading.
           shots: [
-            { description: "Turmeric root", duration: "3s" },
-            { description: "Rose petal", duration: "4s" },
+            { description: "Turmeric root", duration: "6s", duration_seconds: 6 },
+            { description: "Rose petal", duration: "6s", duration_seconds: 6 },
           ],
         },
       },
@@ -117,7 +122,7 @@ describe("fanOutShots", () => {
         visual_script?: { shots?: { description?: string; duration?: string }[] };
       };
       order?: number;
-      seededFrom?: { scriptNodeId: string; shotIndex: number; scriptTitle?: string };
+      seededFrom?: { scriptNodeId: string; shotIndexes?: number[]; scriptTitle?: string };
     };
     expect(first.script?.title).toBe("Reel A");
     expect(first.script?.strategic_objective).toBe("Sell calm"); // full metadata carried
@@ -125,7 +130,7 @@ describe("fanOutShots", () => {
     expect(first.script?.visual_script?.shots?.[0].description).toBe("Turmeric root");
     expect(first.order).toBe(1);
     expect(first.seededFrom?.scriptNodeId).toBe("script-1");
-    expect(first.seededFrom?.shotIndex).toBe(0);
+    expect(first.seededFrom?.shotIndexes).toEqual([0]);
     expect(first.seededFrom?.scriptTitle).toBe("Reel A");
   });
 
@@ -134,6 +139,115 @@ describe("fanOutShots", () => {
     const store = createCanvasStore([bare], []);
     store.getState().fanOutShots("s2");
     expect(store.getState().nodes.filter((n) => n.type === "shot")).toHaveLength(0);
+  });
+
+  it("groups consecutive shots into multishot nodes capped at 10s", () => {
+    const reelB: AppNode = {
+      id: "script-b",
+      type: "script",
+      position: { x: 0, y: 0 },
+      data: {
+        title: "Reel B",
+        parsed: {
+          title: "Reel B",
+          visual_script: {
+            shots: [
+              { description: "one", duration_seconds: 3 },
+              { description: "two", duration_seconds: 5 },
+              { description: "three", duration_seconds: 6 },
+              { description: "four", duration_seconds: 4 },
+              { description: "five", duration_seconds: 2 },
+            ],
+          },
+        },
+      },
+    } as AppNode;
+
+    const store = createCanvasStore([reelB], []);
+    store.getState().fanOutShots("script-b");
+    const created = store.getState().nodes.filter((n) => n.id !== "script-b");
+
+    // 5 shots -> 3 generations, after the trailing rebalance: [0,1] [2] [3,4]. A group of >1 row
+    // defaults to a `multishot` node; a lone row stays a `shot` (D228).
+    expect(created).toHaveLength(3);
+    expect(created.map((n) => n.type)).toEqual(["multishot", "shot", "multishot"]);
+    expect(
+      created.map((n) => (n.data as { seededFrom?: { shotIndexes?: number[] } })
+        .seededFrom?.shotIndexes),
+    ).toEqual([[0, 1], [2], [3, 4]]);
+
+    const [first, middle, last] = created;
+    expect((first.data as { cuts?: unknown[] }).cuts).toHaveLength(2);
+    expect((last.data as { cuts?: unknown[] }).cuts).toHaveLength(2);
+    expect(
+      (middle.data as { script?: { visual_script?: { shots?: unknown[] } } })
+        .script?.visual_script?.shots,
+    ).toHaveLength(1);
+  });
+});
+
+describe("fanOutShots is incremental", () => {
+  const parsed = {
+    visual_script: {
+      shots: [
+        { description: "a", duration_seconds: 3 },
+        { description: "b", duration_seconds: 5 },
+        { description: "c", duration_seconds: 6 },
+      ],
+    },
+  };
+  const scriptNode = (data: object = {}): AppNode =>
+    ({ id: "sc", type: "script", position: { x: 0, y: 0 }, data: { parsed, ...data } }) as AppNode;
+
+  it("creates one node per generation, typed by its mode", () => {
+    const store = createCanvasStore([scriptNode()], []);
+    store.getState().fanOutShots("sc");
+
+    const created = store.getState().nodes.filter((n) => n.id !== "sc");
+    expect(created.map((n) => n.type)).toEqual(["multishot", "shot"]);
+  });
+
+  it("gives the multishot node cuts summing to its budget", () => {
+    const store = createCanvasStore([scriptNode()], []);
+    store.getState().fanOutShots("sc");
+
+    const ms = store.getState().nodes.find((n) => n.type === "multishot")!;
+    const data = ms.data as { cuts?: { seconds: number }[]; totalSeconds?: number };
+    expect(data.totalSeconds).toBe(8);
+    expect(data.cuts?.reduce((s, c) => s + c.seconds, 0)).toBe(8);
+    // The envelope keeps the script context but NOT a second copy of the shot list.
+    expect((ms.data as { script?: { visual_script?: { shots?: unknown } } }).script?.visual_script?.shots)
+      .toBeUndefined();
+  });
+
+  // The bug this task fixes: a second press used to duplicate the whole row of nodes.
+  it("creates nothing on a second call with no changes", () => {
+    const store = createCanvasStore([scriptNode()], []);
+    store.getState().fanOutShots("sc");
+    const after = store.getState().nodes.length;
+    store.getState().fanOutShots("sc");
+    expect(store.getState().nodes.length).toBe(after);
+  });
+
+  it("creates only the generation that is missing", () => {
+    const store = createCanvasStore([scriptNode()], []);
+    store.getState().fanOutShots("sc");
+    const doomed = store.getState().nodes.find((n) => n.type === "shot")!;
+    store.getState().deleteNode(doomed.id);
+
+    store.getState().fanOutShots("sc");
+    const shotNodes = store.getState().nodes.filter((n) => n.type === "shot");
+    const multishotNodes = store.getState().nodes.filter((n) => n.type === "multishot");
+    expect(shotNodes).toHaveLength(1);
+    expect(multishotNodes).toHaveLength(1);
+  });
+
+  it("honours an override when choosing the node type", () => {
+    const store = createCanvasStore([scriptNode({ groupModes: { "0-1": false, "2": true } })], []);
+    store.getState().fanOutShots("sc");
+
+    const created = store.getState().nodes.filter((n) => n.id !== "sc");
+    expect(created.map((n) => n.type)).toEqual(["shot", "multishot"]);
   });
 });
 
@@ -246,6 +360,46 @@ describe("canvas store — tray slice", () => {
   });
 });
 
+describe("setGenerationMode", () => {
+  const scriptNode = (parsed: unknown): AppNode =>
+    ({ id: "sc", type: "script", position: { x: 0, y: 0 }, data: { parsed } }) as AppNode;
+
+  const parsed = {
+    visual_script: {
+      shots: [
+        { description: "a", duration_seconds: 3 },
+        { description: "b", duration_seconds: 5 },
+        { description: "c", duration_seconds: 6 },
+      ],
+    },
+  };
+
+  it("records an override on the script node", () => {
+    const store = createCanvasStore([scriptNode(parsed)], []);
+    store.getState().setGenerationMode("sc", "0-1", false);
+
+    const data = store.getState().nodes[0].data as { groupModes?: Record<string, boolean> };
+    expect(data.groupModes).toEqual({ "0-1": false });
+  });
+
+  // Only deviations are stored. Writing the default back removes the key rather than pinning
+  // a value that would then survive a re-parse it no longer describes.
+  it("drops the key when the mode returns to the default", () => {
+    const store = createCanvasStore([scriptNode(parsed)], []);
+    store.getState().setGenerationMode("sc", "0-1", false);
+    store.getState().setGenerationMode("sc", "0-1", true);
+
+    const data = store.getState().nodes[0].data as { groupModes?: Record<string, boolean> };
+    expect(data.groupModes).toEqual({});
+  });
+
+  it("is a no-op on a node that is not a script", () => {
+    const store = createCanvasStore([{ id: "t", type: "text", position: { x: 0, y: 0 }, data: {} } as AppNode], []);
+    store.getState().setGenerationMode("t", "0", false);
+    expect(store.getState().nodes[0].data).toEqual({});
+  });
+});
+
 describe("canvas store — focusedNodeId", () => {
   it("starts null and can be set/cleared", () => {
     const store = createCanvasStore();
@@ -349,5 +503,168 @@ describe("playbookRun slice", () => {
     const store = createCanvasStore([], []);
     store.getState().patchPlaybookRun({ status: "cancelled" });
     expect(store.getState().playbookRun).toBeNull();
+  });
+});
+
+describe("setGenerationMode swaps an existing node's type", () => {
+  const parsed = {
+    visual_script: {
+      shots: [
+        { description: "a", duration_seconds: 3 },
+        { description: "b", duration_seconds: 5 },
+      ],
+    },
+  };
+
+  const seeded = () => {
+    const store = createCanvasStore(
+      [{ id: "sc", type: "script", position: { x: 0, y: 0 }, data: { parsed } } as AppNode],
+      [],
+    );
+    store.getState().fanOutShots("sc");
+    return store;
+  };
+
+  it("converts the node in place, keeping its id and position", () => {
+    const store = seeded();
+    const before = store.getState().nodes.find((n) => n.type === "multishot")!;
+
+    store.getState().setGenerationMode("sc", "0-1", false);
+
+    const after = store.getState().nodes.find((n) => n.id === before.id)!;
+    expect(after.type).toBe("shot");
+    expect(after.position).toEqual(before.position);
+  });
+
+  it("keeps incoming edges and drops outgoing ones", () => {
+    const store = seeded();
+    const ms = store.getState().nodes.find((n) => n.type === "multishot")!;
+    store.setState({
+      nodes: [
+        ...store.getState().nodes,
+        { id: "mp", type: "multishot-prompt", position: { x: 0, y: 0 }, data: {} } as AppNode,
+      ],
+      edges: [...store.getState().edges, { id: "out", source: ms.id, target: "mp" }],
+    });
+
+    store.getState().setGenerationMode("sc", "0-1", false);
+
+    const edges = store.getState().edges;
+    // The Script lineage edge survives; the prompt edge does not — a motion prompt written for
+    // a cut ladder does not describe a continuous take.
+    expect(edges.some((e) => e.source === "sc" && e.target === ms.id)).toBe(true);
+    expect(edges.some((e) => e.id === "out")).toBe(false);
+    // ...and it must be RECORDED as removed, or autosave resurrects it on reload.
+    expect(store.getState().removedEdgeIds).toContain("out");
+  });
+
+  it("round-trips the node's content through a flip and a flip-back", () => {
+    const store = seeded();
+    store.getState().setGenerationMode("sc", "0-1", false);
+    store.getState().setGenerationMode("sc", "0-1", true);
+
+    const node = store.getState().nodes.find((n) => n.type === "multishot")!;
+    const data = node.data as { cuts?: { text: string; seconds: number }[] };
+    expect(data.cuts?.map((c) => [c.text, c.seconds])).toEqual([
+      ["a", 3],
+      ["b", 5],
+    ]);
+  });
+
+  it("still just records the override when no node exists yet", () => {
+    const store = createCanvasStore(
+      [{ id: "sc", type: "script", position: { x: 0, y: 0 }, data: { parsed } } as AppNode],
+      [],
+    );
+    store.getState().setGenerationMode("sc", "0-1", false);
+    expect(store.getState().nodes).toHaveLength(1);
+  });
+});
+
+describe("Omni coercion on connect", () => {
+  // The followups doc's recorded lesson: "Filtering a picker is not enforcing a constraint."
+  // D216 hid every other chip but never changed the stored modelId, so a Veo run could still be
+  // billed against a ladder Veo ignores. Assert the STORED value, not which chips render.
+  it("coerces a video-gen node's modelId when a multishot-prompt feeds it", () => {
+    const store = createCanvasStore(
+      [
+        { id: "mp", type: "multishot-prompt", position: { x: 0, y: 0 }, data: {} } as AppNode,
+        { id: "vg", type: "video-gen", position: { x: 0, y: 0 }, data: { modelId: "google:veo-3" } } as AppNode,
+      ],
+      [],
+    );
+    store.getState().onConnect({ source: "mp", target: "vg", sourceHandle: null, targetHandle: null });
+
+    expect((store.getState().nodes.find((n) => n.id === "vg")!.data as { modelId?: string }).modelId)
+      .toBe(OMNI_MODEL_ID);
+  });
+
+  it("leaves a video-gen fed by an ordinary video-prompt alone", () => {
+    const store = createCanvasStore(
+      [
+        { id: "vp", type: "video-prompt", position: { x: 0, y: 0 }, data: {} } as AppNode,
+        { id: "vg", type: "video-gen", position: { x: 0, y: 0 }, data: { modelId: "google:veo-3" } } as AppNode,
+      ],
+      [],
+    );
+    store.getState().onConnect({ source: "vp", target: "vg", sourceHandle: null, targetHandle: null });
+
+    expect((store.getState().nodes.find((n) => n.id === "vg")!.data as { modelId?: string }).modelId)
+      .toBe("google:veo-3");
+  });
+
+  // The multishot lane's sensible defaults: 9:16 (reels are vertical) and 720p (Omni's only
+  // natively rendered tier). Merged into `params`, never a wholesale replace — see the modelId
+  // coercion above for why blind replacement is the exact bug this feature avoids repeating.
+  it("defaults aspect_ratio and resolution for a fresh video-gen node, merged into existing params", () => {
+    const store = createCanvasStore(
+      [
+        { id: "mp", type: "multishot-prompt", position: { x: 0, y: 0 }, data: {} } as AppNode,
+        {
+          id: "vg",
+          type: "video-gen",
+          position: { x: 0, y: 0 },
+          data: { modelId: "google:veo-3", params: { duration: 8 } },
+        } as AppNode,
+      ],
+      [],
+    );
+    store.getState().onConnect({ source: "mp", target: "vg", sourceHandle: null, targetHandle: null });
+
+    const params = (store.getState().nodes.find((n) => n.id === "vg")!.data as { params?: Record<string, unknown> }).params;
+    expect(params).toEqual({ duration: 8, aspect_ratio: "9:16", resolution: "720p" });
+  });
+
+  it("does not clobber an operator's already-chosen aspect_ratio or resolution", () => {
+    const store = createCanvasStore(
+      [
+        { id: "mp", type: "multishot-prompt", position: { x: 0, y: 0 }, data: {} } as AppNode,
+        {
+          id: "vg",
+          type: "video-gen",
+          position: { x: 0, y: 0 },
+          data: { modelId: "google:veo-3", params: { aspect_ratio: "16:9", resolution: "1080p" } },
+        } as AppNode,
+      ],
+      [],
+    );
+    store.getState().onConnect({ source: "mp", target: "vg", sourceHandle: null, targetHandle: null });
+
+    const params = (store.getState().nodes.find((n) => n.id === "vg")!.data as { params?: Record<string, unknown> }).params;
+    expect(params).toEqual({ aspect_ratio: "16:9", resolution: "1080p" });
+  });
+
+  it("sets both defaults on a video-gen node with no params at all", () => {
+    const store = createCanvasStore(
+      [
+        { id: "mp", type: "multishot-prompt", position: { x: 0, y: 0 }, data: {} } as AppNode,
+        { id: "vg", type: "video-gen", position: { x: 0, y: 0 }, data: { modelId: "google:veo-3" } } as AppNode,
+      ],
+      [],
+    );
+    store.getState().onConnect({ source: "mp", target: "vg", sourceHandle: null, targetHandle: null });
+
+    const params = (store.getState().nodes.find((n) => n.id === "vg")!.data as { params?: Record<string, unknown> }).params;
+    expect(params).toEqual({ aspect_ratio: "9:16", resolution: "720p" });
   });
 });

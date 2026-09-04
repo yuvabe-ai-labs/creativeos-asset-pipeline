@@ -3,8 +3,10 @@ import { getNodeActiveKB, getNodeData, getUpstreamOutputs } from "@/lib/db/nodes
 import { buildParseContext, normalizeSlices, type KBSliceKey } from "@/lib/kb/parse-context";
 import { getNodeOutput, renderShotForImage } from "@/lib/nodes/node-output";
 import { renderShotForVideo } from "@/lib/nodes/render-shot-for-video";
+import { SINGLE_TAKE_LINE } from "@/prompts/video-prompt-generate";
 import { selectImageUpstreams } from "@/lib/nodes/shot-compose";
 import type { ReelScript } from "@/lib/nodes/reel-script";
+import type { MultishotCut } from "@/lib/nodes/multishot-cuts";
 
 const TYPE_LABEL: Record<string, string> = {
   script: "Script",
@@ -15,6 +17,7 @@ const TYPE_LABEL: Record<string, string> = {
   draw: "Sketch",
   "image-gen": "Image",
   "video-prompt": "Motion Prompt",
+  multishot: "Multishot",
 };
 
 export type UpstreamPreview = {
@@ -102,7 +105,12 @@ export function mapUpstreamForVideo(u: RawUpstream): UpstreamPreview {
     return { ...base, text: "", fileUrl: url, fileKind: "image" };
   }
   if (u.type === "shot") {
-    return { ...base, text: renderShotForVideo((u.data.script ?? null) as ReelScript | null) };
+    // D229 — a Shot is always ONE continuous take now; there is no flag left to branch on. A
+    // multishot GENERATION lives on its own dedicated node type instead (which does not feed this
+    // path — Phase 2's renderPlan). Omni still needs telling explicitly, because it cuts by default.
+    const script = (u.data.script ?? null) as ReelScript | null;
+    const action = renderShotForVideo(script);
+    return { ...base, text: action ? `${action}\n${SINGLE_TAKE_LINE}` : "" };
   }
   if (u.type === "file" || u.type === "draw") {
     return {
@@ -174,5 +182,97 @@ export async function resolveShotComposeInputs(
     })),
   );
 
-  return { seedText, clientContext, kbVersionId: kbCtx.kbVersionId, slices, imageUpstream };
+  return {
+    seedText,
+    clientContext,
+    kbVersionId: kbCtx.kbVersionId,
+    slices,
+    imageUpstream,
+  };
+}
+
+export type ResolvedMultishotInputs = {
+  clientContext: string;
+  kbVersionId: string | null;
+  slices: KBSliceKey[];
+  upstream: UpstreamPreview[];
+  /** The upstream Multishot node's cut list — the shots this plan must cover. */
+  cuts: MultishotCut[];
+};
+
+/**
+ * Inputs for the Multishot Prompt node. Sibling of `resolveVideoPromptInputs`, and separate for
+ * the same reason the node types are: the cut list has no analogue on the single-take path, and
+ * threading an optional one through would put a branch in every caller.
+ */
+export async function resolveMultishotPromptInputs(
+  nodeId: string,
+  slicesInput: unknown,
+): Promise<ResolvedMultishotInputs | null> {
+  const kbCtx = await getNodeActiveKB(nodeId);
+  if (!kbCtx) return null;
+
+  const slices = normalizeSlices(slicesInput);
+  const clientContext = kbCtx.kb ? buildParseContext(kbCtx.kb, slices) : "";
+
+  const ups = await getUpstreamOutputs(nodeId);
+  const upstream = ups.map((u) => mapUpstreamForVideo(u));
+  const source = ups.find((u) => u.type === "multishot");
+  // Beyond `id` truthiness, also require the two fields buildMultishotUserTurn reads
+  // unconditionally (cut.text.trim(), `${cut.seconds}s`) to actually be the types it assumes —
+  // a malformed cut that slipped past a looser filter throws inside buildMultishotUserTurn,
+  // which runs outside the route's try/catch and would surface as an unhandled 500 instead of
+  // the route's existing 400 "no shots" path.
+  const cuts = ((source?.data.cuts ?? []) as MultishotCut[]).filter(
+    (c) => c && c.id && typeof c.text === "string" && typeof c.seconds === "number",
+  );
+
+  return { clientContext, kbVersionId: kbCtx.kbVersionId, slices, upstream, cuts };
+}
+
+/**
+ * The user turn. Each cut's own steer sits WITH that cut rather than in a parallel list, so the
+ * writer never has to align two orderings — which is exactly the mistake that produces a beat
+ * written against the wrong shot's instruction.
+ */
+export function buildMultishotUserTurn(args: {
+  clientContext: string;
+  upstream: UpstreamPreview[];
+  cuts: MultishotCut[];
+  instruction: string;
+  cutInstructions: Record<string, string>;
+}): string {
+  const blocks: string[] = [];
+
+  if (args.clientContext.trim()) blocks.push(`Brand context:\n${args.clientContext.trim()}`);
+
+  for (const u of args.upstream) {
+    if (!u.text.trim()) continue;
+    // The Multishot node is the source of `args.cuts`, which get their own block below with the
+    // cutIds and per-shot steers the writer must echo. Since getNodeOutput learned to render a
+    // cut ladder as text, this loop would otherwise state every shot a second time, in a second
+    // format, with no cutIds — inviting the writer to answer the wrong one.
+    if (u.type === "multishot") continue;
+    blocks.push(`${u.label}:\n${u.text.trim()}`);
+  }
+
+  if (args.instruction.trim()) {
+    blocks.push(`For the sequence as a whole:\n${args.instruction.trim()}`);
+  }
+
+  const shots = args.cuts
+    .map((cut, i) => {
+      const lines = [
+        `Shot ${i + 1} — cutId: ${cut.id} — ${cut.seconds}s`,
+        `  Shot text: ${cut.text.trim() || "(none — write it from the sequence context)"}`,
+      ];
+      const steer = (args.cutInstructions[cut.id] ?? "").trim();
+      if (steer) lines.push(`  Operator instruction for THIS shot: ${steer}`);
+      return lines.join("\n");
+    })
+    .join("\n\n");
+
+  blocks.push(`Shots (return exactly one beat per shot, echoing each cutId):\n${shots}`);
+
+  return blocks.join("\n\n");
 }

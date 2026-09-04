@@ -28,6 +28,8 @@ import { FileNode } from "@/components/nodes/file-node";
 import { TextNode } from "@/components/nodes/text-node";
 import { PromptNode } from "@/components/nodes/prompt-node";
 import { ShotNode } from "@/components/nodes/shot-node";
+import { MultishotNode } from "@/components/nodes/multishot-node";
+import { MultishotPromptNode } from "@/components/nodes/multishot-prompt-node";
 import { DrawNode } from "@/components/nodes/draw-node";
 import { ImageGenNode } from "@/components/nodes/image-gen-node";
 import { VideoPromptNode } from "@/components/nodes/video-prompt-node";
@@ -64,6 +66,8 @@ const nodeTypes: NodeTypes = {
   text: TextNode,
   prompt: PromptNode,
   shot: ShotNode,
+  multishot: MultishotNode,
+  "multishot-prompt": MultishotPromptNode,
   draw: DrawNode,
   "image-gen": ImageGenNode,
   "video-prompt": VideoPromptNode,

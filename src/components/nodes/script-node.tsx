@@ -31,6 +31,7 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
     source?: string;
     parsed?: unknown;
     kbSlices?: KBSliceKey[];
+    groupModes?: Record<string, boolean>;
     signalIds?: string[];
     signalMode?: SignalMode;
   };
@@ -38,6 +39,7 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
   const title = d.title || parsed?.title || "";
   const source = d.source ?? "";
   const slices = d.kbSlices ?? DEFAULT_PARSE_SLICES;
+  const groupModes = d.groupModes;
   const [focusOpen, setFocusOpen] = useState(false);
   const [isParsing, setIsParsing] = useState(false);
   const connState = useNodeConnectionState(id, "script");
@@ -134,6 +136,7 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
       title={title}
       source={source}
       parsed={parsed}
+      groupModes={groupModes}
       slices={slices}
       signalIds={d.signalIds ?? []}
       signalMode={d.signalMode ?? DEFAULT_SIGNAL_MODE}

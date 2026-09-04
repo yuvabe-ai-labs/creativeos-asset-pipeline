@@ -3537,3 +3537,781 @@ toggle); rolling reference notes out of the payload (they are the only captured 
 voice).
 
 **Originated →** `2026-08-31-signal-flavoured-scripts-design.md`.
+
+### D205 — Omni targets the stable `gemini-omni-1.1-flash`, not `gemini-omni-flash-preview` *(recorded 2026-08-28; originated → 2026-08-28-gemini-omni-multishot-design.md)*
+
+**Decision.** The registry entry is `gemini:gemini-omni-1.1-flash`. Resolution becomes a real
+param (`360p`/`720p`/`1080p`/`4k`), `<LAST_FRAME>` is available, and the price tiers are
+$0.03/$0.10/$0.15/$0.30 per second.
+
+**Why.** The preview model is 720p-only at a flat $0.10/s with no end frame. A script fanning out
+to six generations costs $4.80 at 720p/8s and $1.44 on 1.1's 360p draft tier — the difference
+that decides whether iterating is affordable. 1.1 also maps onto the existing start/end/reference
+role model without a special case, where the preview would need `endFrame: false`.
+
+**Rejected.** The preview (matches our local ref docs, but ships onto an endpoint with open
+regressions and no draft tier). Also rejected: registering both as two entries, Veo-style — twice
+the surface and two cost rows to keep honest, for a model we would always pick 1.1 from.
+
+**Consequence.** `ref/multishot-refs/gemini-omni-flash-system-prompt.md` is now partly wrong: its
+§2 and §11 assert "720p only", "no end frame", "no extension" as hard rules. It needs a version
+banner naming which model each section describes; the correction is tracked as §9d of the design
+spec, not as a separate decision.
+
+### D206 — The Omni provider calls REST directly; `@google/genai` does not type the video path *(recorded 2026-08-28; refines D205)*
+
+**Decision.** `providers/gemini-omni.ts` uses raw `fetch` against
+`POST /v1beta/interactions`, following the fetch-and-poll shape `kling.ts` established — not
+`ai.interactions.create`.
+
+**Why.** `@google/genai@2.9.0` exposes `ai.interactions` and types `Interaction.output_video`, but
+its interactions `GenerationConfig` has **no `video_config` member** and `ResponseFormat` degrades
+to `{[k: string]: any}`. Every field this integration actually sets — `task`, `resolution`,
+`duration`, `aspect_ratio`, `delivery` — lands in an untyped hole, so the SDK buys casts and no
+safety while adding a dependency on an SDK shape that is behind the API.
+
+**Rejected.** The SDK with `as` casts at each hole (the casts are the cost, and they hide schema
+drift instead of surfacing it).
+
+**Consequence.** `output_video` is an SDK-only convenience; over REST the video is read out of
+`steps[]` — the `model_output` step's `video`-typed content entry.
+
+### D207 — The image-role declaration header is always explicit and always generated *(recorded 2026-08-28)*
+
+**Decision.** Omni prompts always carry the explicit form —
+`[# Sources <FIRST_FRAME>@Image1] [# References <IMAGE_REF_0>@Image2] … Use Image1 as the starting
+frame.` — built by `planOmniInput()` from `assignImageRoles()` output. Simple inline tags are
+never used, even when roles look unambiguous. Input order is fixed at
+`[firstFrame?, lastFrame?, ...references]`, text part last.
+
+**Why.** The header carries **two different index bases in one line**: `@ImageN` is 1-based over
+the whole upload array, `<IMAGE_REF_N>` is 0-based over the references sub-array only. Kling's
+`@image_1` is 1-based over its own list, so this codebase now holds three bases at once. Getting
+one wrong does not error — it silently points a mention at the wrong asset, which surfaces only as
+a bad generation someone has already paid for.
+
+**Rejected.** Simple tags when roles are unambiguous (two code paths, and "unambiguous" is a
+judgement the failure mode punishes silently). Also rejected: letting the prompt-generating LLM
+write the header — index arithmetic is exactly what it is worst at and what a unit test is best at.
+
+### D208 — Three Omni "params" are prompt text, and `continuous_take` inverts Kling's `multi_shot` *(recorded 2026-08-28)*
+
+**Decision.** `continuous_take`, `audio` and `negative_prompt` render as sentences appended to the
+prompt, not as API fields. Omni has no negative-prompt field, no audio switch, and no shot-count
+control. `continuous_take` defaults to **`false`**.
+
+**Why the default inverts.** Kling's `multi_shot` defaults to `false` — you opt *into* cutting,
+because cuts fight the single continuous moment a product clip wants. Omni multi-shots **by
+default**; the equivalent control opts *out*. Same intent, opposite switch, and an operator who
+reads them as the same toggle gets the opposite of what they asked for. Both param files say so.
+
+**Why they stay params at all.** They are per-shot creative decisions that belong on the panel
+next to duration and resolution, regardless of which channel carries them to the model —
+the same reasoning D183 used to keep `negative_prompt` on Veo Lite after its field was rejected.
+
+**Rejected.** Omitting them because no field exists (discards real controls). Also rejected: an
+`advanced` param group — the Advanced accordion was deleted from the focus view in `7e1c643`, so
+an `advanced` control renders nowhere, the trap `aspect_ratio` already fell into on Kling O1.
+
+### D209 — Script parsing is one parse and two planners, not two parses *(recorded 2026-08-28; **SUPERSEDED same day by D214** — never implemented)*
+
+> **Superseded.** Planning moved off the script entirely. Grouping now happens at fan-out, greedily
+> and consecutively, capped at 10s, and is corrected by hand on the canvas — see D214. Retained
+> because the reasoning against *two parse prompts* still holds and should not be re-litigated: a
+> second parse would cost a call per toggle and discard manual edits to the parsed script.
+
+**Decision.** The parse stays canonical and unchanged. `ScriptNodeData.planMode` selects a
+*planner* that runs over the already-parsed `shots[]`: `per-shot` is an identity planner (one
+block per shot, **no LLM call**), `multi-shot` is a separate versioned prompt (`shot-plan.ts`)
+that packs shots into ≤10s timecode blocks. Fork creates one Shot node per block.
+
+**Why.** A second parse prompt would make the toggle cost an LLM call and **discard every manual
+edit to the parsed script** — the parse is the operator's working document, not a cache. Planning
+over `shots[]` instead takes a small input, is cheap, and is freely re-runnable in both directions.
+
+**Rejected.** Two parse prompts (destroys edits, costs a call per flip). Also rejected: leaving
+planning entirely to the model's own `multi_shot` param — a Shot node would always be one script
+shot, so several script beats could never reach one Omni generation, which is the whole reason to
+integrate a multi-shot model.
+
+### D210 — A returned shot plan is validated, never trusted *(recorded 2026-08-28; **SUPERSEDED same day by D214** — never implemented)*
+
+**Decision.** `validateShotPlan` (pure, tested) checks every plan: block duration within the
+model's range, beats contiguous from 0 with no gaps or overlaps, final `to` equal to the block
+duration, every source shot index used exactly once and in order. A plan failing any check is
+rejected and a deterministic seam-packer runs instead. The UI states that the planner was
+overridden.
+
+**Why.** Omni's timecodes are a *request*, not a configuration — there is no shot-count field and
+no per-shot duration. A ladder whose times do not sum to `duration` produces a truncated ending at
+full price, and the ceiling is a hard 10s. The creative judgement (where the seams are) is worth an
+LLM; the arithmetic is not, and is exactly what a guardrail catches for free.
+
+**Amended before implementation (2026-08-28).** The first version of this decision listed four
+per-block checks and *would have accepted a plan that silently dropped four seconds of script* —
+the design spec's own worked example failed it. Give a block three shots totalling 13s and write a
+9s ladder over them: beats are contiguous, they sum to the block duration, every index is used
+once, and 4s of the reel is simply never generated. **Conservation must be asserted across the
+whole plan, not inside each block**, so two invariants were added ahead of the rest:
+
+1. Σ block durations = Σ shot durations.
+2. Each shot's allocated time = its parsed duration.
+
+The one exception: a shot longer than the ceiling may span blocks, at a beat boundary, with
+invariant 2 still holding over its combined allocation.
+
+**Consequence.** Fewer generations is not the goal; conserving the script is. A 22s reel of
+4+5+4+5+4 shots is three blocks (9s, 9s, 4s), not two.
+
+**Rejected.** Trusting the planner (silent truncation). Also rejected: a purely deterministic
+packer (durations parse out of free-text strings, and packing by arithmetic splits VO sentences
+and continuous camera moves — the user asked specifically for smart grouping).
+
+### D213 — References merge cast-first; frames are block-level tags, not params *(recorded 2026-08-28; **first half SUPERSEDED same day by D215** — never implemented)*
+
+> **Half superseded.** The cast-first merge order is moot: there is no cast, so every reference is a
+> connected File node in canvas order (D215). **The frame half stands** — Omni has no frame param,
+> `<FIRST_FRAME>` / `<LAST_FRAME>` are tags, a frame is per-generation rather than per-beat, an end
+> frame on a cut ladder warns rather than blocks, and continuity chains forward through
+> `derive-end-frame.ts`.
+
+**Decision.** A reference reaches a generation from either the script cast or an image node
+connected directly to the video-prompt / video-gen node. Both land in the same `UpstreamImage[]`
+list, and the order is fixed: **cast members in cast order, then direct connections in canvas
+order.** A direct reference has no cast entry and so no `kind`; it defaults to *subject* phrasing,
+with a kind selector on its role row for the style-anchor case.
+
+Separately: Omni has **no frame parameter**. `<FIRST_FRAME>` / `<LAST_FRAME>` are tags in the
+generated header (D207). A frame is **block-level, never beat-level**, and assigning an end frame
+to a block with more than one beat **warns** rather than blocks.
+
+**Why cast-first.** `<IMAGE_REF_N>` is positional. With no rule, connecting one one-off image
+renumbers every cast member and silently re-points every mention already written against them.
+Cast-first means appending a direct reference only ever adds an index at the end — the mutation
+that cannot break existing prompts.
+
+**Why an end frame warns on a cut ladder.** Asking the model to land an exact final frame *after*
+it has invented cuts is close to incoherent, and the model will honour one or the other. It warns
+rather than blocks because a deliberate operator on a single-beat block still wants it.
+
+**Continuity needs no new machinery.** `derive-end-frame.ts` already extracts a generated video's
+last frame into an image node; block N's derived end frame becomes block N+1's `<FIRST_FRAME>`.
+That is real state transfer — it carries grade, light direction and grain that no repeated
+adjective will. Only the storyboard surfacing is new.
+
+**Rejected.** Ordering direct connections before the cast (breaks every existing mention on
+connect). Also rejected: a separate reference channel for direct connections — it would duplicate
+`assignImageRoles`, the role chips and the reference cap for no gain, since the two sources differ
+in provenance, not in kind.
+
+### D211 — The cast lives on Script data, is copied at fork, and reaches generation as tagged upstream images *(recorded 2026-08-28; **SUPERSEDED same day by D215** — never implemented)*
+
+> **Superseded.** There is no cast. A reference is a File node connected downstream with the `+`
+> that `AddConnection` already provides, and the File node's title is the reference's name — see
+> D215.
+
+**Decision.** `ScriptNodeData.cast: CastMember[]` — `{ id, name, kind, description?, imageUrl? }`,
+ordered. `script-parse` (now version 2) proposes names and kinds only; images are operator-uploaded
+and a re-parse **merges by name, preserving them**. Fork copies the cast into `ShotNodeData`
+alongside the script. Cast images then enter the video-gen node's **existing upstream image list**,
+each tagged `castId` / `castName`.
+
+**Why copied rather than resolved.** `resolveShotComposeInputs` deliberately never walks the
+Script→Shot edge (D21 seed-and-fork), so a cast living only on the Script node would never reach a
+generation. Copying is the pattern already in force for the script itself.
+
+**Why injected into the image list.** `assignImageRoles`, the role chips, `buildConstraintState`,
+the reference cap and the shot spine then all work untouched — a cast member is just an image input
+that knows its own name, with Start/End/Ref chips like any other, labelled "Priya" instead of
+"image-gen".
+
+**Why `kind` exists.** Omni assigns a reference's role *by the sentence its tag sits in* — the
+vendor's own example splits style and subject across two tags in one prompt. `kind` is what lets
+the renderer write `in the style of <IMAGE_REF_0>` versus `the woman <IMAGE_REF_1>`. Without it
+the tag syntax's most useful property is unreachable.
+
+**Rejected.** Binding cast entries to canvas File/Image-Gen nodes for live propagation (a second,
+live channel beside D21's copied one, plus characters cluttering the canvas). Also rejected: no
+cast concept at all — nothing would tie "Priya" in shot 1 to "Priya" in shot 4, so every
+`<IMAGE_REF_N>` index would be hand-picked per generation.
+
+**Accepted cost.** Editing a cast image at script level after forking does not propagate to
+already-forked Shots — the same trade the script text already makes.
+
+### D212 — Mentions are rendered per provider; the prompt LLM never writes an index *(recorded 2026-08-28; refines D207)*
+
+**Decision.** `videoPromptGenerateOmniPrompt` emits the existing `@[Label](id)` mention tokens and
+never a raw `<IMAGE_REF_N>`. One provider-aware renderer in `resolve-mention-tokens.ts` resolves
+them: `veo`/`sora` → `the first image` (existing `ordinalToEnglish`), `kling` → `@image_1`
+(1-based), `gemini-omni` → `<IMAGE_REF_0>` (0-based) plus the D207 header and closing guiding
+instruction. Indices are computed **per generation**, over only the references actually sent.
+
+**Why.** Three providers with three conventions, two of them off by one from each other. Put in
+one function they cannot drift; spread across three prompt files they certainly will. It also
+keeps the generator writing prose, which it is good at, instead of arithmetic, which it is not.
+
+**Rejected.** Per-provider prompt text teaching each convention to the LLM. Also rejected:
+indexing over the whole script cast rather than the sent references — the reference cap and the
+operator's role assignment decide what ships, so a whole-cast index would point past the end.
+
+*(D212 stands. With the cast gone, "the sent references" are the connected File nodes in canvas
+order rather than cast members — the indexing rule is unchanged.)*
+
+### D214 — Multishot is a per-shot flag; fan-out groups greedily to 10s; turning it off splits *(recorded 2026-08-28; supersedes D209, D210; originated → 2026-08-28-gemini-omni-multishot-design.md)*
+
+**Decision.** `ShotNodeData.multishot: boolean`. `fanOutShots` gains a grouping pass that walks the
+parsed shots in order and packs consecutive ones until the next would exceed **10s**, producing a
+hybrid canvas — grouped nodes `multishot: true`, lone nodes `false`. Turning the toggle **off** on a
+grouped node **splits it into N Shot nodes**. There is no merge action. `script-parse` bumps to
+version 2 to emit `duration_seconds` per shot.
+
+**Why grouping moved to fan-out.** A multishot shot needs no new type: `visual_script.shots` is
+already an array, so a grouped node is one holding more than one entry. That collapses the plan
+object, the planner prompt, the validation layer and the block/beat types the superseded design
+needed — into one boolean and a loop.
+
+**Why greedy and consecutive, not seam-aware.** Finding narrative seams was the planner's job and
+its failure modes were invisible: a plan could be internally consistent and still lose footage.
+Greedy packing is legible — the operator sees the groups as nodes and fixes them with a toggle, in
+the place where the work already is. The cap is enforced twice: at fan-out, and again before the
+request.
+
+**Why `duration_seconds` rather than parsing the existing string.** `duration` is free text copied
+out of the script ("22-26 seconds", "3 sec", "0-3s"). Grouping needs arithmetic, and deriving it at
+fan-out would fail silently on the formats it did not anticipate. The model already reads the
+duration; it now also returns an integer. Missing or unparseable falls back to 4s, shown as assumed.
+
+**Why no merge.** Split is the operation that was asked for. A merge has real unanswered questions —
+which half's edits win, what happens to downstream nodes wired to each — and re-running fan-out
+already regroups. Easy to add once the need is real.
+
+**Rejected.** A fan-out dialog for bracketing groups before nodes exist (decides grouping before you
+can see it). Also rejected: 1:1 fan-out with a manual merge (the common case is grouped, so it
+front-loads work onto every script).
+
+**Two corrections from a real parse (2026-08-29), before implementation.** Running a live client
+script through the existing parse exposed both:
+
+1. **`duration_seconds` is a LENGTH, not a timecode.** Real scripts write cumulative ranges —
+   `0–3 sec`, `3–8 sec`, `8–14 sec`. A parse returning `3, 8, 14` there looks entirely plausible and
+   makes every group wrong. The prompt must state "the shot's own length, not the end of its range;
+   for `8–14 sec` return `6`."
+2. **The 3s floor strands trailing remainders.** Greedy packing of lengths 3, 5, 6, 4, 2 gives
+   blocks of 8s, 10s and **2s** — and the 2s block is below Omni's minimum and cannot merge backward
+   into a block already at the cap. Grouping therefore runs a **trailing rebalance**: while the
+   final block is under the floor and the previous block holds more than one shot, move the previous
+   block's last shot forward. That yields 8s / 6s / 6s here. Only when no rebalance is possible does
+   the duration clamp up to 3s, flagged — clamping invents video the script did not ask for, so it
+   is the last resort rather than the first.
+
+The original decision named only the ceiling. Both corrections are in the design spec's §3, and the
+CHUPPS lengths are a required test fixture.
+
+### D215 — A reference is a File node; there is no cast *(recorded 2026-08-28; supersedes D211 and the merge-order half of D213)*
+
+**Decision.** References are ordinary File nodes connected to the **motion-prompt or video-gen**
+node with the `+` that `AddConnection` already renders on those focus views. The File node's title
+is the reference's name in the mention editor. No cast array, no script-level inputs, no new
+storage, no new UI.
+
+**Why.** Every piece the cast was going to provide already exists: File nodes hold images, the
+mention editor already lists connected file / draw / image-gen nodes with thumbnails and labels,
+`assignImageRoles` already assigns roles, and `AddConnection` already creates the edge. The cast
+would have added a parallel store for data the canvas already models, plus a copy-at-fork rule and
+a merge-by-name rule on re-parse.
+
+**Why they attach downstream, not to the Shot.** The video-gen route walks two levels — its own
+upstream plus the motion-prompt's. A File on the Shot node is three levels away and would never be
+found. One motion-prompt exists per shot, so attaching there is shot-level in every way that
+matters, and it needs no traversal change.
+
+**Rejected.** Naming connected nodes inline on the Shot panel (the File node's title already is the
+name). Also rejected: extending the traversal a level so refs could hang off the Shot — a change to
+resolution semantics for every node type, to save one edge.
+
+### D216 — Downstream nodes read the upstream multishot flag; video-gen filters the model list *(recorded 2026-08-28)*
+
+**Decision.** The motion-prompt node reads the upstream Shot's `multishot` and writes either a
+timecode ladder (multishot) or today's single-moment prompt plus *"In a single unbroken scene. No
+scene cuts."* (single). The video-gen node reads the same flag: multishot restricts the picker to
+**Gemini Omni** with the reason stated inline, and `duration` defaults to the sum of the node's
+`duration_seconds`, clamped 3–10 and **editable**.
+
+**Consequence — there is no `continuous_take` param.** The Shot's toggle already carries that
+decision. Two controls for one thing is precisely the pair that drifts apart, and the superseded
+draft had both.
+
+**Why the picker filters rather than warns.** Pointing a timecode ladder at Veo returns one
+continuous take with the ladder silently ignored — indistinguishable from a bug, after paying for
+it. A model that cannot honour the prompt should not be selectable for it.
+
+**Why duration is derived but editable.** The ladder in the prompt and `duration` on the request are
+the pair whose drift truncates footage at full price, so they agree by default. Locking it would
+prevent shortening a clip for a cheap test, which is a real thing to want.
+
+**Also decided:** a multishot Shot connects **straight to the motion-prompt node** — no image-gen
+stage. There is no start frame to generate; the generation is `text_to_video` from the shot's
+description plus any connected File references. The image-gen path stays available and unchanged for
+shots that want a still to animate.
+
+### D217 — Omni's real request shape, established by live probing *(recorded 2026-08-28; refines D206; corrects the superseded draft)*
+
+**Decision.** `generation_config.video_config` carries **`task` and nothing else**. `resolution`,
+`aspect_ratio`, `delivery` and `duration` all live in `response_format`, and **`duration` is a
+string** (`"8s"`). **`store: true` is required** whenever `delivery` is `"uri"`. `output_video` does
+not exist on the REST response — the video is read from `steps[]` → the `model_output` step's
+`video` content entry. `response_format.type` is the constant `"video"`, never a param and never
+surfaced in the UI.
+
+**Why this is recorded as a decision and not just a note.** The published Google documentation says
+the opposite on four of these points, and the superseded draft encoded the documentation. Anyone
+reading the docs later will "fix" the code back to a shape that 400s. Full evidence, including the
+zero-cost sentinel-key technique that established it, is in
+`docs/superpowers/specs/2026-08-28-gemini-omni-api-findings.md`.
+
+**Consequence.** `store: true` is forced rather than chosen, which means the interaction is stored
+and `previous_interaction_id` editing is available whenever the edit chain is wanted — no
+request-shape change needed to enable it later. The superseded draft had claimed `store: false`
+forfeited that.
+
+### D218 — Kling's `multi_shot` is hidden, not removed *(recorded 2026-08-28)*
+
+**Decision.** `multiShotParam` gets `visible: false` in both `kling30Params` and `klingO1Params`.
+Gemini Omni becomes the only multi-shot model surfaced in the UI.
+
+**Why hidden rather than deleted.** `visible: false` means "sent with `defaultValue`, never shown"
+— so the request shape is byte-identical, every persisted node keeps resolving, and Kling 3.0's
+end-frame rule that pins `multi_shot` stays valid and untouched. Deleting the param would make the
+route stop resolving a name that saved nodes still carry, and would require unwinding that rule.
+
+**Rejected.** Removing it from both param lists (larger blast radius for no user-visible gain).
+Also rejected: removing it from O1 only, which would leave two models claiming multi-shot.
+
+**Watch-item.** These are dead controls in the spec. If Kling multi-shot is never revisited, delete
+them in a later pass rather than leaving `visible: false` indefinitely.
+
+**Watch-item (added 2026-08-29, on implementation).** The justification above — "Omni is the only
+multi-shot model surfaced" — is not true until Plan 2 ships. Plan 1 registers the Omni provider but
+adds no multishot control anywhere; the Shot node's toggle is Plan 2. **Between the two, multishot
+is surfaced nowhere**: Kling's toggle is hidden and its replacement does not exist yet. If Plan 2
+slips, either revert this decision or accept that gap knowingly.
+
+**Consequence found on implementation.** `describeVersionParams` filters on `visible`, so hiding the
+param also drops it from the version-history summary row for versions that really did run with
+multi-shot on. That is the intended trade — the row answers "what distinguishes two versions", and a
+control nobody can see distinguishes nothing — and provenance survives in the "Sent to model" panel,
+which deliberately keeps invisible params. Two things follow that the decision above did not
+anticipate: **hidden is not off** (the route reads a node's saved value and only falls back to the
+default, so a node toggled on before this change keeps sending `multi_shot: true` with no control
+left to clear it), and the toggle On/Off formatting test had to move to `describeAllVersionParams`,
+now the only place a toggle renders.
+
+### D219 — A timecoded block is a BEAT, not a shot; the parse splits it *(recorded 2026-08-29; **REVERTED same day** — implemented in 0c64425, reverted in 7a4dfcf)*
+
+> **Reverted.** Built, then reverted at the operator's call: the v2 parse — one entry per timecoded
+> block — is what they want to read. The finer split made the Visual script list long without
+> changing the generation boundaries (see D220's revert note), and the per-beat detail is better
+> written in the motion prompt than forced out of the parse. Recoverable from `0c64425` if the
+> one-cut-per-second ladder the reference plans use is ever wanted.
+>
+> Retained because the *finding* stands and should not be rediscovered: the shipped instruction
+> "split the shot list into individual shots" does make the model split at block level, because a
+> script's shot list IS its blocks. Anyone who later wants 19 shots from the CHUPPS script needs a
+> worked example in the prompt, not a stronger rule — the rule alone under-splits.
+
+**Decision.** `script-parse` goes to **version 3**. A shot is one camera setup, and each carries
+`beat_index` (0-based, which timecoded block it came from) and `beat_label` (that block's heading).
+Shot lengths are integers ≥1 and may sum to MORE than the beat's scripted length.
+
+**Why.** The shipped instruction said "split the shot list into individual shots" — but a script's
+shot list IS its timecoded blocks, so the model split at block level and stopped. A real client
+script (CHUPPS, 20s) parsed to 5 entries; it contains 18 camera setups. Grouping then packed blocks
+rather than shots, and the motion prompt wrote one ladder beat for what should have been four.
+Both reference decompositions of that script agree on 18–19 shots.
+
+**Why lengths may overrun the beat.** Four shots in a 3s hook are 1s each — 4s generated for a 3s
+slot. Both reference plans do this deliberately: generate slightly long, trim a shot carrying no
+voiceover. Forcing the sum to match would push shots under the 1s floor.
+
+**Back-compatibility.** A shot with no `beat_index` is treated as its own beat, so v2 parses group
+exactly as before. Re-extract upgrades them; nothing migrates silently.
+
+**Rejected.** Nesting `visual_script.beats[].shots[]` — structurally truer, but it changes the shape
+every downstream consumer reads for the same result. Also rejected: splitting blocks at fan-out with
+a second LLM pass, which reintroduces the planner D209 removed and would mean the shot list you see
+after parsing is not the one you generate from.
+
+### D220 — Grouping packs whole beats, and only splits a beat that alone exceeds the cap *(recorded 2026-08-29; **REVERTED same day** with D219 — implemented in 0c64425, reverted in 7a4dfcf)*
+
+> **Reverted with D219**, since nothing emits beats once the parse returns one entry per block —
+> the beat-packing code became a path no input could reach. D214's shot-level packing stands
+> unchanged.
+>
+> **The revert costs less than it looks.** On the CHUPPS script the two rules agree: 5 blocks at
+> 3/5/6/4/2 sec pack to three generations of 8s, 6s and 6s under *shot* packing, which are the same
+> boundaries whole-beat packing produced and the same ones the reference plan uses. They diverge
+> only when a block's shots would straddle a boundary — which cannot happen while a block IS a
+> shot. The reasoning below becomes live again the moment the parse splits blocks.
+
+**Decision.** `groupShotsForFanOut` partitions by `beat_index`, then fills a group with as many
+consecutive WHOLE beats as fit under the 10s ceiling. A beat is split only when it alone exceeds the
+ceiling. The floor, trailing-rebalance and clamp rules from D214 still apply to the result.
+
+**Why.** Every generation seam is an un-guaranteed transition — the one join the model never sees
+both sides of. A beat boundary is a cut the script already asked for, so that is where a seam
+belongs. Packing shot-by-shot across a seam puts an un-guaranteed transition in the middle of a beat
+the script wrote as continuous.
+
+**Consequence.** CHUPPS yields the reference plan's three generations exactly: Hook+Lives 8s,
+Product 6s, Brand+Close 6s.
+
+**Rejected.** Greedy over shots with beats as a tie-break (fills the cap tighter, at the cost of
+cutting mid-beat). Also rejected: one generation per beat always — simple and always seam-clean, but
+CHUPPS becomes five generations and a 2s close gets clamped, costing more cuts and more money than
+the brief needs.
+
+### D221 — The parsed shot list labels each shot's grouping *(recorded 2026-08-29)*
+
+**Decision.** Each row in the Script focus view's Visual script list shows, beside its duration,
+whether that shot will generate as part of a multishot group and which — `Multishot · Gen 1`, or
+`Single`. Computed with the same `groupShotsForFanOut` the fan-out uses.
+
+**Why the same function.** A label derived independently would drift from what fan-out actually
+does, and the label's whole purpose is to let the operator see the plan before committing to it.
+
+**Why read-only.** It reflects grouping rather than setting it. The control that changes grouping is
+the Shot node's multishot toggle (D214), after fan-out. A second place to change it would be the
+same two-controls-one-decision problem D216 removed `continuous_take` for.
+
+### D222 — Multishot gets its own authoring surface and its own prompt *(recorded 2026-08-31; refines D216)*
+
+**Decision.** The `multishot` flag drives three things it previously did not:
+- **Controls.** A multishot shot authors a **LOOK contract** (one paragraph, shared) and a **camera
+  per beat**, instead of the single global camera + motion-energy pair a single shot uses.
+- **The motion prompt.** `videoPromptGeneratePromptFor` routes on `{ provider, multishot }`, and
+  the Omni ladder prompt carries the vendor's documented guidance rather than a thin instruction.
+- **The Shot Composer.** A multishot shot composes three alternative **cut sequences**, one beat per
+  beat, from its own prompt and schema.
+
+**Why the controls had to change.** One camera move and one motion energy describe a single
+continuous take. On a node holding five cuts they describe nothing, while the thing that actually
+governs whether those cuts read as one film — a LOOK contract repeated verbatim in every beat — had
+no field at all. D216 gave multishot a different *prompt* and left its *authoring surface*
+identical, which is why a multishot shot looked exactly like a single one apart from a filtered
+model picker.
+
+**Why the prompt routes on multishot, not provider.** A single shot on Omni is a continuous take.
+Handing it the ladder prompt produces a one-line ladder ending "keep these timings exactly", which
+forbids the very cutting a single-beat multishot node is asking for.
+
+**Why the Composer needed a second prompt.** Four alternatives for one shot is the wrong unit for a
+node whose beats have to cut together. Sequences also let a pick write every beat at once, which is
+what the operator wants when the whole point is the rhythm between them.
+
+**Rejected.** Per-beat *everything* (lens, lighting, speed) — the guidance is explicit that a start
+frame already fixes lens and light, and per-beat camera plus a shared LOOK is where the leverage is.
+Also rejected: keeping one prompt and branching inside it on a flag, which buries two genuinely
+different jobs in one string and makes neither evaluable on its own.
+
+### D223 — Merging Shots is a third action on the existing selection *(recorded 2026-08-31; revised 2026-09-02; completes D214)*
+
+**Decision.** Selecting several Shot nodes and choosing **Merge** from the selection's context menu
+combines them into one multishot node, behind a confirmation. Beats order by **script position**,
+not selection order. Incoming edges union onto the result and are **deduped**; outgoing edges are
+dropped. A merge is refused — with the reason on the row — when the selection spans two scripts or
+exceeds the 10s ceiling. Never clamped.
+
+**Revised from drag-and-drop.** The original decision was to drop one Shot onto another. Superseded:
+the canvas already has drag-select with batched duplicate and delete, so merge belongs on that same
+selection as a third verb rather than as a second, parallel interaction model. It also generalises
+for free — dropping merges two nodes, a selection merges *n* — and it costs no new drag machinery,
+no intersection testing, and no way to trigger a structural change by fumbling a drag.
+
+**Why now.** D214 shipped split without merge because three questions had no answer. They do now:
+*which side's edits win* — neither, both beat sets survive and sort by script order; *what happens
+downstream* — the same asymmetry split already uses, since a motion prompt written for one shot
+does not describe the merged sequence; *what stops an illegal merge* — the refusals below, stated
+rather than silently applied.
+
+**Why script order rather than selection order.** The ladder is a timeline. Selecting shot 3 before
+shot 1 must still generate 1 then 3; ordering by the gesture would silently reverse the reel.
+
+**Why refuse across scripts.** The merged node keeps ONE script envelope — objective, on-screen
+text, voiceover, caption. Merging across scripts would silently drop the other's.
+
+**Why dedupe incoming edges.** The pieces of an earlier split each carry a copy of the same lineage
+and grounding edges. Carrying them naively gives the merged node *n* identical inputs.
+
+**Why a confirmation.** Merging consumes nodes and disconnects what was wired downstream of them —
+the same class of structural change that earned split its dialog.
+
+**Consequence.** The merge action must record `removedNodeIds` and `removedEdgeIds`. Autosave builds
+its delete set only from those, which is the bug the split shipped with: a node removed from `nodes`
+alone reappears on the next load.
+
+**Rejected.** Drag-and-drop onto a target node (a second interaction model for a canvas that already
+batches by selection); clamping an over-cap merge to 10s (loses beats invisibly); merging in
+selection order (reorders the reel).
+
+### D224 — Multishot composes against SEQUENCE roles, a separate catalog *(recorded 2026-09-02; refines D28, D222)*
+
+**Decision.** A multishot Shot picks from `SEQUENCE_ROLES` (`src/lib/nodes/sequence-roles.ts`), not
+from `SHOT_ROLES`. The two catalogs are **disjoint** — no shared keys — and each getter falls back
+to its own default, so a node toggled between single and multishot never resolves to the wrong one.
+A `SequenceRole` carries three fields a `ShotRole` has no use for: **`beats`** (typical count),
+**`arc`** (what changes from beat to beat), and **`cutRule`** (the continuity constraint governing
+*that* pattern).
+
+**Why a separate catalog.** A `ShotRole` names the job **one frame** does in a funnel — hook, hero,
+texture, application. Once a shot is five cuts, the useful question is what changes *across* them,
+and "product hero" answers nothing about that. Merging the two would give one type two meanings and
+a set of fields half of every entry leaves empty.
+
+**Why `cutRule` is per role.** Each pattern turns on a *different* constraint, and a single shared
+paragraph would be wrong for most of them: a **transformation chain** holds one framing exactly,
+which the 30-degree rule would forbid; a **vignette montage** wants no continuity between beats at
+all; **coverage** is the pattern the 30-degree rule was written for. The composer prompt states that
+the role's own rule outranks the general cutting rules where they conflict.
+
+**Sources.** Rosenblum's five-shot method (coverage); the wide→medium→close progression (establish);
+the act structure in `ref/multishot-refs/chupps-20s-omni-prompts.md` (cold-open, vignette,
+brand-close); commercial convention of 4–8 isolated angles plus a hero (feature-run).
+
+**Rejected.** One merged catalog filtered by `multishot` (two meanings on one type, half the fields
+empty per entry); sequence role *plus* a per-beat shot role (a second control on the sheet and a
+much larger prompt, for a distinction the arc already carries).
+
+### D225 — VOICE is a verbatim contract beside LOOK *(recorded 2026-09-02; refines D222)*
+
+**Decision.** A second free-text contract, `VideoControls.voice`, reproduced **verbatim** at the top
+of every beat exactly as the LOOK is, rendered on its own line directly beneath it. Presets name
+reproducible facts (who speaks, on or off screen, age, mic position, delivery, and what is absent
+from the mix). Omitted entirely when unset — never invented.
+
+**Why.** `ref/multishot-refs/chupps-20s-omni-prompts.md` states it directly: "`LOOK` and `VOICE` are
+byte-identical in all four. Do not paraphrase them between generations — they are the only thing
+making four separate renders cut together, in picture **and in sound**." A narrator that drifts
+between generations is as visible a seam as a light direction that flips, and unlike a light
+direction it cannot be corrected afterwards.
+
+**Distinct from the `audio` param** on the Video Gen node, which picks a one-line clause shape
+(dialogue / ambient / music). That shape cannot carry a narrator's identity. Both exist; the VOICE
+contract governs, and the prompt is told never to contradict it.
+
+**Every preset states the music rule**, because Omni lays a bed unless told not to — silence on the
+point is not neutral.
+
+**Consequence.** `LookContractField` became the shared `ContractField`; the two contracts differ
+only in icon, copy and preset list, and a second near-identical component would have drifted.
+
+### D226 — Multishot is a node type, not a flag — and so is its prompt *(recorded 2026-09-02; supersedes the flag half of D214 and D216; originated → 2026-09-02-multishot-node-types-design.md)*
+
+**Decision.** `ShotNodeData.multishot: boolean` is deleted. Multishot becomes two new node
+types, siblings rather than branches: `multishot` (a budget of cuts — `totalSeconds`,
+`cuts: MultishotCut[]`, no `shot_type`, no still to compose) and `multishot-prompt` (a genuine
+sibling of `VideoPromptNodeData`, not a superset — no `controls`, no `targetProvider`, since Omni
+is the only multishot model). `video-prompt` loses its multishot branch entirely:
+`resolve-inputs.ts` drops `upstreamMultishot`, `compileVideoPrompt` drops its `multishot` param,
+`videoPromptGeneratePromptFor` drops its multishot routing key. A `video-gen` node's stored
+`modelId` is **coerced** to Omni at the moment it connects to a `multishot-prompt` — a check on
+the source node's type, no traversal, no flag to read.
+
+**Why.** A flag makes one component render two products: `shot-node.tsx` carried a description
+textarea, a beat-chip strip, a Compose button that itself branched, and a toggle whose meaning
+changed with beat count — four controls on one card, three conditional. Splitting into real types
+makes each pair what it always was, two different products, and lets the connection graph
+(`VALID_CONNECTIONS`) enforce the lane separation instead of a runtime check.
+
+**Rejected.** Filtering the video-gen model picker to only Omni chips (D216's mechanism) —
+*"filtering a picker is not enforcing a constraint"*: it hid every other chip but left the stored
+`modelId` untouched, so a new node still defaulted to Veo and Generate billed a Veo run fed a
+ladder Veo ignores. Also rejected: keeping one motion-prompt node and branching its whole body —
+input column, output column, return type — on a flag.
+
+### D227 — The mode switch lives on a generation bracket in the Script *(recorded 2026-09-02; supersedes D221; originated → 2026-09-02-multishot-node-types-design.md)*
+
+**Decision.** D221's per-row `· Multishot · Gen 1` label is replaced by a bracket enclosing every
+row in one generation, headed by the generation's number, its packed total seconds, and **one**
+switch. `describeShotGrouping` becomes `describeGenerations`, returning
+`Generation { index, shotIndexes, seconds, multishot, key }`. `ScriptNodeData.groupModes` stores
+only deviations from the default (a group of more than one row is multishot, a lone row is not),
+keyed by `shotIndexes.join("-")`; a re-parse that shifts group boundaries orphans the old key and
+that generation silently reverts to default, dropped rather than accumulated.
+
+**Why.** A generation spans several rows, so a per-row control reaches rows the operator did not
+touch — the bracket draws the switch's reach as a fact on screen. D221 let the operator see the
+plan but forced a trip to the canvas and a different control to change it; this closes that gap.
+
+**Rejected.** Carrying a stale `groupModes` override onto a differently shaped group after
+re-parse — the grouping it described no longer exists, and applying its intent to the new rows
+would be silently wrong rather than merely stale.
+
+### D228 — Fan-out is incremental, matched on exact `shotIndexes` *(recorded 2026-09-02; originated → 2026-09-02-multishot-node-types-design.md)*
+
+**Decision.** `fanOutShots` now creates only what is missing. For each generation it looks for an
+existing `shot` or `multishot` node whose `seededFrom.scriptNodeId` and `seededFrom.shotIndexes`
+**exactly** match; if found, skip, otherwise create a node of the type the generation's `multishot`
+selects. Matching is on the exact array, not overlap — a group whose boundaries moved under a
+re-parse is a different generation and gets a new node, and the old one is left for the operator to
+delete. New nodes are positioned below the lowest existing node seeded from this script. The toast
+reports both counts (e.g. "2 shots added · 3 already on canvas"), including when nothing is added.
+
+**Why.** Today's fan-out recreates every group on every press, duplicating the entire row of
+nodes — a second press was destructive to any downstream work already wired to the first. Exact
+matching keeps the decision to delete a node with downstream work attached in the operator's
+hands, not fan-out's.
+
+**Rejected.** Matching by overlap or best-effort proximity of `shotIndexes` (would silently reuse
+a node whose content changed underneath it); deleting the orphaned old node automatically on a
+shape change (destroys downstream work fan-out cannot see).
+
+### D229 — Flipping the mode swaps the node type in place; there is no split and no merge *(recorded 2026-09-02; supersedes D223; originated → 2026-09-02-multishot-node-types-design.md)*
+
+**Decision.** Flipping a generation's switch, when it already has a node, **converts that node**:
+same `id`, `position`, and all incoming edges kept; all outgoing edges dropped. A confirm dialog
+appears only when outgoing edges exist — flipping a freshly fanned-out node is silent.
+`shotDataToMultishot` / `multishotDataToShot` convert **losslessly** in both directions: shots ↔
+cuts, `totalSeconds` computed or dropped, `visual_script.shots` removed or restored, `shot_type`
+dropped or re-derived from the first cut. "Off" means one continuous take covering the whole
+span — `renderShotForVideo` now joins **every** row's description into one `Action:` paragraph
+instead of reading only `visual_script.shots[0]`.
+
+**Why.** The node count is identical in both modes — a generation is one node either way — so a
+flip only changes which of two things that node is; there is nothing left to split or merge.
+Losslessness in both directions is what makes the flip the script-level undo: an accidental flip
+and flip-back costs the operator nothing, a guarantee a structural split/merge pair could not make.
+
+**Rejected.** Keeping split and merge as the only way to change mode (D214's split, D223's
+merge) — ~250 lines of graph surgery and a confirm dialog to explain irreversibility, for a
+decision that should be "which of two things does fan-out make here". `splitMultishotNode`,
+`mergeShots`, `multishot-toggle.tsx` and the merge action in `node-context-menu.tsx` are deleted
+with their tests.
+
+### D230 — A Multishot node is a fixed budget divided into cuts *(recorded 2026-09-02; supersedes D222's controls and brief, with D231; originated → 2026-09-02-multishot-node-types-design.md)*
+
+**Decision.** `MultishotNodeData` carries `totalSeconds` and `cuts: MultishotCut[]`
+(`{ id, text, seconds }`), with `sum(cuts.map(c => c.seconds)) === totalSeconds` enforced by every
+mutation. No composer, no toggle, no shot switcher: cards are proportional to their seconds, text
+is inline-editable with the design system's dotted-underline affordance, and handles sit *between*
+cards so dragging one moves seconds between neighbours without changing the total. Delete
+redistributes a cut's seconds to its neighbour; add takes from the largest cut; every cut stays
+≥ 1s. Past 6 cuts, a soft warning (Kling's own Custom Multi-Shot cap), not a hard limit. No
+`shot_type` — framing is decided per cut by the prompt writer.
+
+**Why a fixed budget rather than independent sliders.** Omni's request `duration` is derived from
+the ladder, and a ladder longer than the duration comes back truncated at full price. Under a
+fixed budget that failure is structurally impossible instead of validated after the fact.
+
+**Rejected.** Independent per-cut duration fields validated against the total after entry (the
+truncation failure is only caught after a paid generation); a hard cap on cut count enforced in
+code (the 6-cut ceiling is a quality signal, not a verified hard limit).
+
+### D231 — The multishot prompt returns JSON — a model-written look block plus beats keyed by `cutId` — and the compiled prompt is rendered from it *(recorded 2026-09-02; supersedes D222's controls and brief, with D230; originated → 2026-09-02-multishot-node-types-design.md)*
+
+**Decision.** `multishotPromptGenerate()` asks for structured output —
+`MultishotPlan { version: 1, look: string, beats: Array<{ cutId, text }> }` — rather than a prose
+ladder. `look` is one paragraph of repeatable physical facts (light, time of day, lens, palette,
+ground, grade) governing every beat, rendered as its own visually distinct card above the ladder,
+never folded into beat one. The schema carries no `seconds` (joined from the cut on `cutId`, so
+the writer cannot break the budget) and no `refs` (`refsCitedIn` scans each beat for
+`<IMAGE_REF_N>`). `renderPlan(plan, cuts)` is the single function producing both the compiled
+prompt and the breakup view, so the two cannot disagree. A returned plan is validated whole and
+rejected entirely — never partially applied — on an unknown or missing `cutId`, or a missing/empty
+`look`; beats out of cut order are reordered, not rejected. A per-beat re-run rewrites one beat
+with the full plan as context; the look block has its own separate re-run touching only the look,
+never the beats.
+
+**Why.** Two representations a model produces independently will eventually diverge, and the one
+the operator reads must be the one that gets billed. Deriving `seconds` and `refs` rather than
+asking the model for them makes the budget and the reference list correct by construction.
+
+**Rejected.** An operator-authored LOOK/VOICE contract with a preset catalog (D222's
+`ContractField`, `LOOK_PRESETS`, `VOICE_PRESETS`) — the look itself is not deleted, it is now
+model-written into the plan and shown in the breakup view; only the field, the preset catalog and
+the verbatim-reproduction machinery are gone. Also rejected: asking the model to name `seconds` or
+`refs` directly, either of which could disagree with the operator's budget or the text's actual
+citations.
+
+### D232 — Per-cut references are `@`-mentions, not a second picker *(recorded 2026-09-02; originated → 2026-09-02-multishot-node-types-design.md)*
+
+**Decision.** A reference reaches a specific cut by being `@`-mentioned inside that cut's own
+instruction text, using the `MentionInstructionEditor` / `resolve-mention-tokens.ts` /
+`omniImageRefToken` machinery every other prompt node already uses; a blank instruction means the
+writer chooses from the connected library itself. Every text box on the Multishot Prompt node —
+the whole-sequence steer, each per-cut instruction, each output beat — is the same chip editor,
+differing only in which dialect it stores per `prompt-token-dialect.ts`: `mentionDialect()`'s
+`@[Label](id)` for input, `imageRefDialect(orderedIds)`'s `<IMAGE_REF_N>` for the model-written
+beats.
+
+**Why.** This is Kling's own `@input` model, and the mechanism was already built and shipped for
+the single Video Prompt node. A dedicated per-cut pin row would be a second binding surface beside
+a working one, and the operator would have to learn which one wins.
+
+**Rejected.** A dedicated per-cut reference-picker UI (a second, competing way to bind the same
+thing); letting output beats fall back to plain text when they mention a reference (breaks the "a
+chip survives editing" property every other prompt node in the app already guarantees).
+
+**A note on D224/D225.** Both are **parked, not superseded** by D226–D232 — nothing here replaces
+what they decided. `sequence-roles.ts` (D224) stays in the tree with no consumers rather than being
+deleted, and the VOICE contract's *concept* survives in D231's model-written look block even though
+its authoring surface (`ContractField`, `VOICE_PRESETS`) is gone — only the surface is deleted, not
+either decision. Both remain candidates to return once the flow they serve is settled.
+
+### D233 — The multishot writer identifies a reference but never binds one; the operator attaches it by hand *(recorded 2026-09-03; refines D232)*
+
+**Decision.** `REFERENCE_IDENTIFICATION_BLOCK` no longer asks the writer to emit `<IMAGE_REF_N>`
+tokens. It still attaches the reference images, still asks the model to LOOK at them and identify
+what each one shows, and still requires a short identifying phrase in the beat — colour, material,
+product name: "the black CHUPPS V-Straps", "the tan leather sliders". What it forbids is the token
+itself, and any other pointer into the attachment list ("the first image", `@Image1`). Binding a
+picture to a beat is the operator's action, made by `@`-mentioning the reference in the beat after
+reading the draft, through the same `MentionInstructionEditor` / `imageRefDialect` machinery D232
+already specified. `refsCitedIn` is unchanged and still scans beats for the token shape — what it
+finds is now the operator's citations rather than the model's guesses, which also makes the
+"Not cited" marker in `ReferenceImageStrip` mean "you have not attached this yet" instead of "the
+writer skipped this". `MULTISHOT_PROMPT_ID` bumped to `@4`.
+
+**Why.** A token the model assigns itself fails silently. It raises no error, renders no warning,
+and points at a specific photograph — so a misidentification is only discoverable in a clip already
+paid for. The identifying phrase carries the same information in a form a human can check at a
+glance and correct in the text. This keeps the part of auto-identification that was working (the
+model reading the images and naming what it sees, which is what makes a beat specific) and drops
+only the part that could be confidently wrong.
+
+**Refines D232,** which said "a blank instruction means the writer chooses from the connected
+library itself". That clause is withdrawn: a blank instruction now means no reference is bound to
+that beat, and the beat names the product in prose until the operator attaches one. The rest of
+D232 — `@`-mentions as the single binding surface, one chip editor per text box, the dialect split
+between `mentionDialect()` for input and `imageRefDialect()` for beats — stands unchanged.
+
+**Rejected.** Deleting the reference block outright (the model's reading of the images is what
+makes a beat name a real product rather than "a shoe", and it is the operator's only hint as to
+which attachment a beat meant); keeping auto-assignment behind a confidence threshold (the failure
+mode is confident misidentification, so a threshold does not catch it); removing the "Not cited"
+marker (under manual binding it becomes more useful, not less — it is now the operator's checklist
+of unattached references).
+
+### D234 — History is a rail item on `PromptFocusShell`, not a per-view pane *(recorded 2026-09-04; completes D180)*
+
+**Decision.** The shell owns a `History` rail item and renders `PromptVersionHistory` itself, so
+every shell-based prompt view (Video Prompt, Multishot Prompt) gets version history without
+wiring it twice. The shell already holds `versions`, `activeVersionId`, `restoring` and
+`onRestoreVersion` — the panel needs nothing per-prompt-type, which is what makes it the shell's
+to render rather than each view's. The rail keys the shell owns are exported as
+`RESERVED_RAIL_KEYS`; both views compute `isNodeSelected` from that list rather than their own
+copy of it.
+
+**Why.** D180 rebuilt `PromptVersionHistory` on the shared `VersionHistoryList` — the same shell
+image-gen and video-gen use — and then nothing rendered it. The prompt nodes were left with only
+the v1/v2 chips while every other versioned node type carried a full History pane, so a prompt
+version's model, instruction, maker and decision thread were unreachable. The duplicated
+`["prompt", "details", "request"]` literal is why this could go unnoticed in one view and not the
+other, and is now one exported constant.
+
+**Rejected.** Rendering the panel in each focus view (two copies of identical wiring, and the
+next view added starts with none); leaving history to the version chips alone (they switch
+versions but show no metadata, no decisions and no restore affordance).
+
+**Still open.** The image Prompt node (`prompt-focus-view.tsx`) does not use `PromptFocusShell` —
+it carries its own sheet layout — so it still has chips and no History pane. Bringing it onto the
+shell, or giving it the same rail item, is untouched by this decision.

@@ -63,3 +63,19 @@ export function renderVideoControls(controls: VideoControls): string {
   if (lines.length === 0) return "";
   return `Motion controls (use these exactly; do not substitute):\n${lines.join("\n")}`;
 }
+
+/**
+ * Parse an untrusted request body into VideoControls.
+ *
+ * Lives here rather than in the route because this is the schema's home and a route file cannot
+ * export a helper for tests.
+ *
+ * A single-shot node's controls are just `camera`/`speed` — anything else on the input is ignored.
+ */
+export function normalizeVideoControls(input: unknown): VideoControls {
+  const c = (input ?? {}) as Record<string, unknown>;
+  return {
+    camera: typeof c.camera === "string" ? c.camera : DEFAULT_VIDEO_CONTROLS.camera,
+    speed: typeof c.speed === "string" ? c.speed : DEFAULT_VIDEO_CONTROLS.speed,
+  };
+}

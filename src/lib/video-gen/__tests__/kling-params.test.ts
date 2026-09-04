@@ -74,7 +74,9 @@ describe("klingO1Params", () => {
     expect(p.group).toBe("primary");
     expect(p.visible).toBe(true);
     expect(p.constraints).toEqual({ type: "select", options: ["16:9", "9:16", "1:1"] });
-    expect(p.defaultValue).toBe("16:9");
+    // Vertical by default (operator request 2026-09-04): the work this tool makes is reels.
+    // Landscape stays one click away rather than being the thing you undo every time.
+    expect(p.defaultValue).toBe("9:16");
   });
 
   // 3.0 is first-frame-only, so Kling always derives the ratio from that image — an
@@ -172,7 +174,22 @@ describe("negative_prompt", () => {
 describe("all model param sets", () => {
   it("are all visible", () => {
     for (const params of [kling30Params, klingO1Params]) {
-      expect(params.every((p) => p.visible)).toBe(true);
+      expect(params.filter((p) => p.name !== "multi_shot").every((p) => p.visible)).toBe(true);
+    }
+  });
+});
+
+describe("multi_shot is hidden on both Kling models", () => {
+  // D218 — Omni is the only multi-shot model surfaced. Hidden rather than deleted: visible:false
+  // still sends the param with its default, so the request shape is byte-identical, every
+  // persisted node keeps resolving, and Kling 3.0's end-frame rule that pins multi_shot stays
+  // valid. Deleting it would make the route stop resolving a name saved nodes still carry.
+  it("keeps the param present, defaulted false, and invisible", () => {
+    for (const params of [kling30Params, klingO1Params]) {
+      const multiShot = params.find((p) => p.name === "multi_shot");
+      expect(multiShot).toBeDefined();
+      expect(multiShot!.visible).toBe(false);
+      expect(multiShot!.defaultValue).toBe(false);
     }
   });
 });

@@ -1,6 +1,8 @@
 import type { VideoGenClientModelSpec, ConstraintRule } from "./types";
 import { veoParams, veoLiteParams } from "./params/veo";
 import { kling30Params, klingO1Params } from "./params/kling";
+import { geminiOmniParams } from "./params/gemini-omni";
+import { GEMINI_OMNI_IMAGE_INPUTS, GEMINI_OMNI_RULES } from "./gemini-omni-shape";
 
 // ── Shared image input capability shapes ──────────────────────────────────────
 
@@ -171,6 +173,9 @@ const KLING_O1_RULES: ConstraintRule[] = [
 
 // ── Model map ─────────────────────────────────────────────────────────────────
 
+/** The only model that cuts between shots natively — a multishot shot must generate on this. */
+export const GEMINI_OMNI_MODEL_ID = "gemini:gemini-omni-1.1-flash";
+
 export const videoGenClientModelMap: Record<string, VideoGenClientModelSpec> = {
   "veo:veo-3.1-lite": {
     id: "veo:veo-3.1-lite",
@@ -221,6 +226,17 @@ export const videoGenClientModelMap: Record<string, VideoGenClientModelSpec> = {
     imageInputs: KLING_O1_IMAGE_INPUTS,
     params: klingO1Params,
     rules: KLING_O1_RULES,
+  },
+  [GEMINI_OMNI_MODEL_ID]: {
+    id: GEMINI_OMNI_MODEL_ID,
+    provider: "gemini",
+    label: "Gemini Omni 1.1 Flash",
+    pickerLabel: "Omni 1.1",
+    providerLabel: "Google",
+    maxDurationSeconds: 10,
+    imageInputs: GEMINI_OMNI_IMAGE_INPUTS,
+    params: geminiOmniParams,
+    rules: GEMINI_OMNI_RULES,
   },
 };
 

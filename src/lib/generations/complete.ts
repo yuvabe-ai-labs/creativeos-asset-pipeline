@@ -20,7 +20,9 @@ async function failAndRefund(
 
 function buildVideoDownloadHeaders(modelUsed: string | null): HeadersInit {
   const base = { "User-Agent": "Mozilla/5.0 (compatible; CreativeOS/1.0)" };
-  if (modelUsed?.startsWith("veo:")) {
+  // Veo and Gemini Omni both return a Google Files API URI that needs the API key to download.
+  // Same key, same header — they are the same API.
+  if (modelUsed?.startsWith("veo:") || modelUsed?.startsWith("gemini:")) {
     const key = process.env.GOOGLE_GENAI_API_KEY ?? "";
     return { ...base, "x-goog-api-key": key };
   }

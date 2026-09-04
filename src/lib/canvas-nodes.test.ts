@@ -167,3 +167,31 @@ describe("canConnect", () => {
     expect(canConnect("prompt", "video-gen")).toBe(false);
   });
 });
+
+describe("the two lanes never cross", () => {
+  it("routes multishot through its own prompt node", () => {
+    expect(canConnect("multishot", "multishot-prompt")).toBe(true);
+    expect(canConnect("multishot-prompt", "video-gen")).toBe(true);
+  });
+
+  // The whole point of two node types. A cut sequence has no still to compose and its prompt
+  // is not a motion paragraph, so neither crossing is meaningful.
+  it("refuses every crossing between the lanes", () => {
+    expect(canConnect("multishot", "video-prompt")).toBe(false);
+    expect(canConnect("multishot", "prompt")).toBe(false);
+    expect(canConnect("shot", "multishot-prompt")).toBe(false);
+    expect(canConnect("multishot", "video-gen")).toBe(false);
+  });
+
+  it("leaves the shot lane exactly as it was", () => {
+    expect(canConnect("shot", "video-prompt")).toBe(true);
+    expect(canConnect("shot", "prompt")).toBe(true);
+  });
+
+  // Same connected-references model every prompt node uses.
+  it("lets references reach the multishot prompt", () => {
+    for (const source of ["file", "draw", "image-gen", "text"]) {
+      expect(canConnect(source, "multishot-prompt")).toBe(true);
+    }
+  });
+});

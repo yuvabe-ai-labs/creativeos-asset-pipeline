@@ -82,7 +82,7 @@ const aspectRatioParam: ParamSpec = {
   group: "primary",
   order: 2,
   visible: true,
-  defaultValue: "16:9",
+  defaultValue: "9:16",
   constraints: { type: "select", options: ["16:9", "9:16", "1:1"] },
   description: "Used only when generating from references with no start frame.",
 };
@@ -93,9 +93,19 @@ const multiShotParam: ParamSpec = {
   component: "toggle",
   group: "advanced",
   order: 1,
-  visible: true,
-  // Off by default: multi-shot lets Kling cut between shots, which fights the single
-  // continuous moment a product clip wants. Opt in, don't opt out.
+  // D218 — hidden, not deleted. Gemini Omni is the only multi-shot model surfaced in the UI, so
+  // multishot means one thing in one place. Hiding rather than deleting keeps the request shape
+  // byte-identical, keeps every persisted node resolving, and leaves Kling 3.0's end-frame rule
+  // that pins multi_shot valid and untouched; deleting would make the route stop resolving a name
+  // saved nodes still carry.
+  //
+  // NOTE: hidden is not the same as off. The route reads the node's saved value and only falls
+  // back to this default, so a node an operator toggled ON before this change keeps sending
+  // multi_shot: true with no control left to clear it. Locking it off would need a rule, which is
+  // deliberately not done here — that would silently change what an existing node generates.
+  visible: false,
+  // Off by default: multi-shot lets Kling cut between shots, which fights the single continuous
+  // moment a product clip wants. Opt in, don't opt out.
   defaultValue: false,
   constraints: { type: "toggle" },
 };

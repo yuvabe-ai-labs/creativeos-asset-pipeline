@@ -36,6 +36,7 @@ type ScriptFocusViewProps = {
   title: string;
   source: string;
   parsed: ReelScript | null;
+  groupModes?: Record<string, boolean>;
   slices: KBSliceKey[];
   signalIds: string[];
   signalMode: SignalMode;
@@ -55,6 +56,7 @@ export function ScriptFocusView({
   title,
   source,
   parsed,
+  groupModes,
   slices,
   signalIds,
   signalMode,
@@ -321,6 +323,9 @@ export function ScriptFocusView({
                 </AnimatePresence>
                 <ScriptDocument
                   script={draft}
+                  scriptNodeId={nodeId}
+                  groupModes={groupModes}
+                  readOnly={!editable}
                   onChange={(path: Path, value) =>
                     setDraft((dd) => setScriptValue(dd, path, value))
                   }

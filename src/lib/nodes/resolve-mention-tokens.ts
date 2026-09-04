@@ -32,11 +32,30 @@ export function ordinalToEnglish(n: number): string {
   return `image ${n}`;
 }
 
+/**
+ * Omni's INLINE reference token, verbatim from the vendor docs.
+ *
+ * `<IMAGE_REF_N>` is what goes in the prompt BODY — "in the style of <IMAGE_REF_0> a woman
+ * <IMAGE_REF_1> is walking" — and it is ZERO-based over the references sub-array. `@ImageN` is a
+ * different scheme that appears ONLY inside the declaration header (`[# References
+ * <IMAGE_REF_0>@Image1]`), which planOmniInput owns. Writing `@ImageN` in the body, or prose like
+ * "the first image", binds to nothing: the model gets a header declaring handles the text never
+ * uses. Omni-specific — Veo and Kling have their own conventions and must keep the prose form.
+ */
+export function omniImageRefToken(n: number): string {
+  return `<IMAGE_REF_${n - 1}>`;
+}
+
 const TOKEN_RE = /@\[([^\]]+)\]\(([^)]+)\)/g;
 
 export function resolveMentionTokens(
   instruction: string,
   upstream: MentionUpstream[],
+  /**
+   * How a vision mention renders. Defaults to positional English prose, which is what the
+   * multipart-image convention wants for Veo and Kling. Omni passes `omniImageRefToken`.
+   */
+  imageToken: (ordinal: number) => string = ordinalToEnglish,
 ): string {
   if (!instruction.includes("@[")) return instruction;
 
@@ -56,7 +75,7 @@ export function resolveMentionTokens(
   return instruction.replace(TOKEN_RE, (_match, label: string, nodeId: string) => {
     // Vision attachment → positional reference
     const pos = visionOrder.get(nodeId);
-    if (pos !== undefined) return ordinalToEnglish(pos);
+    if (pos !== undefined) return imageToken(pos);
 
     // File with extracted text → inline
     const node = byId.get(nodeId);

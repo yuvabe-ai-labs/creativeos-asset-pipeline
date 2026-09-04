@@ -15,6 +15,13 @@ const GENERATION_ROUTES = [
   "src/app/api/nodes/[id]/image-generate/route.ts",
   "src/app/api/nodes/[id]/video-generate/route.ts",
   "src/app/api/nodes/[id]/video-prompt/route.ts",
+  // Task 12 extracted video-prompt/route.ts's reserve/insert/settle/refund calls into this
+  // helper — the route itself no longer contains any of ORG_SCOPED_WRITE_FUNCTIONS, so
+  // scanning the route alone would find zero call sites and pass vacuously. Scan the helper
+  // too, since that's where the real calls (and the real regression risk) now live. The
+  // Multishot Prompt route is about to be built on this same helper, doubling the surface
+  // this guards.
+  "src/lib/api/prompt-run.ts",
 ];
 
 const ORG_SCOPED_WRITE_FUNCTIONS = [
@@ -25,9 +32,15 @@ const ORG_SCOPED_WRITE_FUNCTIONS = [
 ];
 
 describe("generation routes attribute org-scoped writes to the effective org, not the caller's own org", () => {
+  // Populated by each per-route test below; checked afterward so a future extraction that
+  // hollows out every scanned file's call sites fails loudly instead of leaving this whole
+  // suite green while asserting nothing (see the empty-scan note next to each per-route it()).
+  const callSitesFoundByRoute = new Map<string, number>();
+
   for (const relPath of GENERATION_ROUTES) {
     it(`${relPath} never passes caller.orgId into a credit/generation write`, () => {
       const source = readFileSync(join(process.cwd(), relPath), "utf8");
+      let totalCallSites = 0;
       for (const fnName of ORG_SCOPED_WRITE_FUNCTIONS) {
         // Look at each call site of fnName and confirm none of its nearby argument
         // text contains the literal "caller.orgId" — deliberately blunt (source-text,
@@ -35,6 +48,7 @@ describe("generation routes attribute org-scoped writes to the effective org, no
         // cheap, fails loudly on the exact regression pattern, not a general-purpose
         // static analyzer.
         const callSites = [...source.matchAll(new RegExp(`${fnName}\\(([^;]*?)\\)`, "gs"))];
+        totalCallSites += callSites.length;
         for (const [, args] of callSites) {
           expect(
             args.includes("caller.orgId"),
@@ -43,6 +57,18 @@ describe("generation routes attribute org-scoped writes to the effective org, no
           ).toBe(false);
         }
       }
+      callSitesFoundByRoute.set(relPath, totalCallSites);
     });
   }
+
+  it("scanned at least one real call site overall (an empty scan protects nothing)", () => {
+    const total = [...callSitesFoundByRoute.values()].reduce((a, b) => a + b, 0);
+    expect(
+      total,
+      "every per-route test above passed, but zero calls to insertGeneration/reserveCredits/" +
+        "settleGeneration/refundReservation were found across all of GENERATION_ROUTES — the " +
+        "scan is vacuous, not clean. A route was likely refactored to call these through a " +
+        "helper that isn't in GENERATION_ROUTES yet; add it.",
+    ).toBeGreaterThan(0);
+  });
 });

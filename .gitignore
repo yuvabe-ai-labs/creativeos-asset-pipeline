@@ -67,6 +67,14 @@ next-env.d.ts
 # outside the repo: re-encoding from an already-compressed copy compounds the loss.
 /public/help-videos/[0-9]*/
 
+ref/omni-samples/
+
+# Design-canvas working files: the .dc.html artboards plus the seeded page they
+# are packed into. That seeded file carries the whole canvas editor inlined (~2MB),
+# so it must never land in a commit. The published canvas is the shareable copy;
+# these are the sources it is re-seeded from.
+.design/
+
 # Raw MR workbook exports — extract-mr-workbook.mjs distills these into seed/
 Copy of MR _ Content Creative OS.xlsx
 MR _ Content Creative OS/

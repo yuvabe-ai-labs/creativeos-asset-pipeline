@@ -1,4 +1,6 @@
 import { getUpstreamOutputs } from "@/lib/db/nodes";
+import { renderPlan, type MultishotPlan } from "@/lib/nodes/multishot-plan";
+import type { MultishotCut } from "@/lib/nodes/multishot-cuts";
 import { apiError, apiOk, withNode } from "@/lib/api/route-helpers";
 
 export async function GET(
@@ -9,26 +11,38 @@ export async function GET(
     try {
       const direct = await getUpstreamOutputs(nodeId);
 
-      // Also collect upstream of any video-prompt nodes (2-level traversal).
-      // Surfaces file/draw nodes in pattern: node → video-prompt → video-gen.
-      const videoPromptUpstream = await Promise.all(
-        direct
-          .filter((u) => u.type === "video-prompt")
-          .map((u) => getUpstreamOutputs(u.nodeId)),
+      // Also collect upstream of any prompt nodes (2-level traversal) — video-prompt OR
+      // multishot-prompt. Surfaces file/draw nodes in pattern: node → prompt-node → video-gen.
+      const promptNodes = direct.filter(
+        (u) => u.type === "video-prompt" || u.type === "multishot-prompt",
+      );
+      const promptUpstreamBatches = await Promise.all(
+        promptNodes.map((u) => getUpstreamOutputs(u.nodeId)),
       );
 
       // Merge and deduplicate; direct edges take precedence.
       const seen = new Map(direct.map((u) => [u.nodeId, u]));
-      for (const batch of videoPromptUpstream) {
+      for (const batch of promptUpstreamBatches) {
         for (const u of batch) {
           if (!seen.has(u.nodeId)) seen.set(u.nodeId, u);
         }
       }
       const allUpstream = Array.from(seen.values());
 
-      // image-gen nodes are valid when directly connected to this node,
-      // but not when inherited through the grandparent (video-prompt) path.
+      // image-gen nodes are valid when directly connected to this node, OR when they feed a
+      // connected multishot-prompt node directly. Those two cases are NOT the same rule applied
+      // twice: a video-prompt's own image-gen grandparent is vision context for the WRITER (the
+      // motion-prompt LLM) and is never itself uploaded to the video model — see VALID_CONNECTIONS
+      // in canvas-nodes.ts. A multishot-prompt's image-gen upstream is different in kind: its
+      // `<IMAGE_REF_N>` tokens (resolve-mention-tokens.ts / plan-omni-input.ts) are numbered over
+      // exactly that upstream, so an excluded image-gen reference leaves a token in the rendered
+      // plan with no matching upload — a silent wrong-picture bug in a paid clip. Mirrors the same
+      // distinction in video-generate/route.ts.
       const directIds = new Set(direct.map((u) => u.nodeId));
+      const multishotPromptUpstreamIds = new Set(
+        promptNodes.flatMap((u, i) => (u.type === "multishot-prompt" ? promptUpstreamBatches[i] : []))
+          .map((u) => u.nodeId),
+      );
 
       const images = allUpstream
         .filter((u) => {
@@ -36,7 +50,10 @@ export async function GET(
             const d = u.data as Record<string, unknown>;
             return d.fileKind === "image" && typeof d.fileUrl === "string";
           }
-          if (u.type === "image-gen" && directIds.has(u.nodeId)) {
+          if (
+            u.type === "image-gen" &&
+            (directIds.has(u.nodeId) || multishotPromptUpstreamIds.has(u.nodeId))
+          ) {
             return typeof u.activeOutput === "string";
           }
           return false;
@@ -56,13 +73,34 @@ export async function GET(
           };
         });
 
-      // Surface the connected video-prompt node so the focus view can display the motion prompt text.
-      const videoPromptNode = direct.find((u) => u.type === "video-prompt");
-      const promptNode = videoPromptNode
-        ? {
-            id: videoPromptNode.nodeId,
-            text: typeof videoPromptNode.activeOutput === "string" ? videoPromptNode.activeOutput : null,
-          }
+      // Surface the connected prompt node so the focus view can display its motion prompt text —
+      // a video-prompt node's string output directly, or a multishot-prompt node's MultishotPlan
+      // rendered against its own upstream Multishot node's cuts (same renderPlan the money path
+      // uses in resolve-prompt.ts). Never the raw object — that would print "[object Object]".
+      const connectedPromptNode = direct.find(
+        (u) => u.type === "video-prompt" || u.type === "multishot-prompt",
+      );
+      const promptNodeIndex = connectedPromptNode ? promptNodes.indexOf(connectedPromptNode) : -1;
+
+      let promptText: string | null = null;
+      if (connectedPromptNode?.type === "video-prompt") {
+        promptText = typeof connectedPromptNode.activeOutput === "string"
+          ? connectedPromptNode.activeOutput
+          : null;
+      } else if (connectedPromptNode?.type === "multishot-prompt") {
+        const plan = connectedPromptNode.activeOutput as MultishotPlan | null | undefined;
+        const ownUpstream = promptNodeIndex >= 0 ? promptUpstreamBatches[promptNodeIndex] : [];
+        const multishotNode = ownUpstream.find((u) => u.type === "multishot");
+        const cuts = ((multishotNode?.data.cuts as MultishotCut[] | undefined) ?? []).filter(
+          (c) => c && c.id && typeof c.text === "string" && typeof c.seconds === "number",
+        );
+        if (plan && typeof plan === "object" && Array.isArray(plan.beats) && cuts.length > 0) {
+          promptText = renderPlan(plan, cuts);
+        }
+      }
+
+      const promptNode = connectedPromptNode
+        ? { id: connectedPromptNode.nodeId, type: connectedPromptNode.type, text: promptText }
         : null;
 
       return apiOk({ images, promptNode });
