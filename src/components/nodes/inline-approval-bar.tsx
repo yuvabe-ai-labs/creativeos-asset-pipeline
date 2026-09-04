@@ -40,6 +40,7 @@ export function InlineApprovalBar({
   approvedAt = null,
   annotationCount = 0,
   annotating = false,
+  annotateLabel = "Annotate the image",
   onToggleAnnotate,
   onConfirmDiscardDrafts,
 }: {
@@ -58,6 +59,8 @@ export function InlineApprovalBar({
   // has no media to paint on, which is what keeps the chip out of those bars.
   annotationCount?: number;
   annotating?: boolean;
+  // Video says "frame", image says "image" — one prop, not a forked component.
+  annotateLabel?: string;
   onToggleAnnotate?: () => void;
   // Resolves false to abort — the caller confirms before drafts are thrown away.
   onConfirmDiscardDrafts?: () => Promise<boolean>;
@@ -134,7 +137,7 @@ export function InlineApprovalBar({
                 ? "Done annotating"
                 : annotationCount
                   ? `Annotate · ${annotationCount}`
-                  : "Annotate the image"}
+                  : annotateLabel}
             </Button>
           )}
           <div className="mt-2 flex items-center justify-end gap-1.5">

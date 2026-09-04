@@ -63,6 +63,22 @@ import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { useIdentity } from "@/hooks/use-identity";
 import { useNodeVersionUpdates } from "@/hooks/use-node-version-updates";
 import { InlineApprovalBar } from "./inline-approval-bar";
+import { ReviewAnnotationCanvas } from "@/components/review-annotations/review-annotation-canvas";
+import { AnnotationPin } from "@/components/review-annotations/annotation-pin";
+import { AnnotationNotePopover } from "@/components/review-annotations/annotation-note-popover";
+import {
+  AnnotationList,
+  formatTimecode,
+} from "@/components/review-annotations/annotation-list";
+import { useAnnotationDrafts } from "@/components/review-annotations/use-annotation-drafts";
+import {
+  DiscardAnnotationsDialog,
+  useDiscardAnnotationsConfirm,
+} from "@/components/review-annotations/discard-annotations-dialog";
+import { captureFrame, FrameCaptureError } from "@/components/review-annotations/use-frame-capture";
+import { groupByTimecode } from "@/lib/review-annotations/group";
+import type { AnnotationHandle } from "@/components/review-annotations/review-annotation-canvas";
+import type { RegionBounds } from "@/lib/review-annotations/draft";
 import { ApprovalSkeleton } from "./approval-skeleton";
 import {
   setVersionApprovalAction,
@@ -374,6 +390,20 @@ export function VideoGenFocusView({
   const [promptNode, setPromptNode] = useState<UpstreamPromptNode | null>(null);
   const [versions, setVersions] = useState<VideoGenVersionSummary[]>([]);
   const [activeVersionId, setActiveVersionId] = useState<string | null>(null);
+  // ── D213 review annotations (video): paint on a PAUSED FRAME, not the player ──
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [videoPaused, setVideoPaused] = useState(true);
+  const [videoDurationMs, setVideoDurationMs] = useState(0);
+  const [reviewAnnotating, setReviewAnnotating] = useState(false);
+  const [capturedFrame, setCapturedFrame] = useState<{
+    base64: string;
+    timecodeMs: number;
+  } | null>(null);
+  const [pendingBounds, setPendingBounds] = useState<RegionBounds | null>(null);
+  const [openTimecode, setOpenTimecode] = useState<number | null>(null);
+  const reviewCanvasRef = useRef<AnnotationHandle>(null);
+  const reviewDrafts = useAnnotationDrafts();
+  const discardConfirm = useDiscardAnnotationsConfirm();
   // D29 approval flag — R10.1. video-gen-node.tsx has always rendered ApprovalBadge, but
   // this focus view had no control able to change it, so a video read "Pending" forever.
   const [approvalStatus, setApprovalStatus] = useState<ApprovalStatus>("pending");
@@ -816,7 +846,17 @@ export function VideoGenFocusView({
     if (!activeVersionId) return;
     setApprovalSaving(true);
     try {
-      await setVersionApprovalAction(activeVersionId, { status, note });
+      // D211/D212: the frame stills + painted regions ride along with the rejection
+      // they belong to. `bounds` is client-only pin geometry, stripped here.
+      const annotations =
+        status === "changes_requested" && reviewDrafts.drafts.length > 0
+          ? reviewDrafts.drafts.map(({ bounds: _bounds, ...payload }) => payload)
+          : undefined;
+      await setVersionApprovalAction(activeVersionId, { status, note, annotations });
+      reviewDrafts.clear();
+      setReviewAnnotating(false);
+      setCapturedFrame(null);
+      setPendingBounds(null);
       setApprovalStatus(status);
       setApprovalNote(note ?? "");
       // Push into the store so the on-canvas badge refreshes immediately — without this
@@ -999,6 +1039,35 @@ export function VideoGenFocusView({
   // The version the node currently shows — what "Sent to model" reports on, matching the prompt
   // focus views. Undefined until the versions fetch lands, or on a node that never generated.
   const activeVersion = versions.find((v) => v.id === activeVersionId);
+
+  // D214 read path: the standing change request on the active version and its stored
+  // frame annotations — derived from the versions list the history panel already has.
+  const latestChangeRequest =
+    activeVersion?.decisions?.find((d) => d.status === "changes_requested") ?? null;
+  const reviewAnnotations = latestChangeRequest?.annotations ?? [];
+  const showStoredAnnotations =
+    approvalStatus === "changes_requested" && reviewAnnotations.length > 0;
+  // The marker strip mirrors whichever set is live: your unsent drafts while composing,
+  // the sent ones otherwise. Native controls can't be overlaid deterministically, so the
+  // strip is its own row above the player.
+  const markerTimecodes = [
+    ...new Set(
+      (reviewAnnotating ? reviewDrafts.drafts : reviewAnnotations)
+        .map((a) => a.timecodeMs)
+        .filter((ms): ms is number => ms !== null),
+    ),
+  ].sort((a, b) => a - b);
+  const openGroup =
+    openTimecode === null
+      ? []
+      : reviewAnnotations.filter((a) => a.timecodeMs === openTimecode);
+
+  function seekTo(ms: number) {
+    const v = videoRef.current;
+    if (!v) return;
+    v.currentTime = ms / 1000;
+    v.pause();
+  }
 
   // ── Rail: connected items + selection (mirrors image-gen-focus-view) ─────────
   const connectedItems: { id: string; type: "prompt" | "image"; label: string }[] = [
@@ -1367,17 +1436,67 @@ export function VideoGenFocusView({
                     {loadingVersions ? (
                       <ApprovalSkeleton />
                     ) : activeVersionId ? (
-                      <InlineApprovalBar
-                        status={approvalStatus}
-                        note={approvalNote}
-                        approvedByName={approvedByName}
-                        approvedAt={approvedAt}
-                        saving={approvalSaving}
-                        // R7.1/D160: not gated on `editable` — approval writes only to
-                        // node_versions, outside what the D33 lock serialises.
-                        canApprove={identity?.role === "senior"}
-                        onSet={saveApproval}
-                      />
+                      <div className="flex flex-col gap-3">
+                        <InlineApprovalBar
+                          status={approvalStatus}
+                          note={approvalNote}
+                          approvedByName={approvedByName}
+                          approvedAt={approvedAt}
+                          saving={approvalSaving}
+                          // R7.1/D160: not gated on `editable` — approval writes only to
+                          // node_versions, outside what the D33 lock serialises.
+                          canApprove={identity?.role === "senior"}
+                          onSet={saveApproval}
+                          annotationCount={reviewDrafts.drafts.length}
+                          annotating={reviewAnnotating}
+                          annotateLabel="Annotate a frame"
+                          onToggleAnnotate={
+                            videoUrl
+                              ? () => {
+                                  setReviewAnnotating((v) => !v);
+                                  setCapturedFrame(null);
+                                  setOpenTimecode(null);
+                                }
+                              : undefined
+                          }
+                          onConfirmDiscardDrafts={async () => {
+                            const ok = await discardConfirm.confirm(
+                              reviewDrafts.drafts.length,
+                            );
+                            if (ok) {
+                              reviewDrafts.clear();
+                              setReviewAnnotating(false);
+                              setCapturedFrame(null);
+                              setPendingBounds(null);
+                            }
+                            return ok;
+                          }}
+                        />
+                        <AnnotationList
+                          readOnly={false}
+                          groups={groupByTimecode(reviewDrafts.drafts)}
+                          onSeek={seekTo}
+                          onRemove={reviewDrafts.remove}
+                        />
+                        {/* What was sent, for both roles. A timecode chip seeks the
+                            player AND opens that frame's stored still. */}
+                        {showStoredAnnotations && (
+                          <AnnotationList
+                            readOnly
+                            groups={groupByTimecode(
+                              reviewAnnotations.map((a) => ({
+                                seq: a.seq,
+                                note: a.note,
+                                timecodeMs: a.timecodeMs,
+                              })),
+                            )}
+                            onSeek={(ms) => {
+                              seekTo(ms);
+                              setOpenTimecode(ms);
+                            }}
+                          />
+                        )}
+                      </div>
                     ) : (
                       <p className="text-sm text-muted-foreground">
                         Generate a video first to review and approve it.
@@ -1441,21 +1560,217 @@ export function VideoGenFocusView({
                     </div>
                   </div>
                 )}
-                {mode === "result" && videoUrl && (
+                {mode === "result" && videoUrl && capturedFrame && (
+                  // The captured still IS the canvas base — painting on a moving picture
+                  // would annotate whichever frame happened to be showing at commit.
+                  <div className="flex h-full min-h-0 flex-col gap-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-medium text-muted-foreground">
+                        Frame at {formatTimecode(capturedFrame.timecodeMs)}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="xs"
+                        onClick={() => {
+                          reviewCanvasRef.current?.clear();
+                          setPendingBounds(null);
+                          setCapturedFrame(null);
+                        }}
+                      >
+                        <ArrowLeft className="size-3" strokeWidth={1.5} />
+                        Back to video
+                      </Button>
+                    </div>
+                    <div className="min-h-0 flex-1">
+                      <ReviewAnnotationCanvas
+                        ref={reviewCanvasRef}
+                        baseUrl={`data:image/png;base64,${capturedFrame.base64}`}
+                        alt={`Frame at ${formatTimecode(capturedFrame.timecodeMs)}`}
+                        hintText="Paint a region on this frame, then write its note."
+                        onStrokeEnd={(b) => setPendingBounds(b)}
+                        overlay={
+                          <>
+                            {reviewDrafts.drafts
+                              .filter(
+                                (d) => d.timecodeMs === capturedFrame.timecodeMs && d.bounds,
+                              )
+                              .map((d) => (
+                                <AnnotationPin
+                                  key={d.seq}
+                                  seq={d.seq}
+                                  x={d.bounds!.x + d.bounds!.w / 2}
+                                  y={d.bounds!.y + d.bounds!.h / 2}
+                                />
+                              ))}
+                            {pendingBounds && (
+                              <AnnotationNotePopover
+                                mode="compose"
+                                seq={reviewDrafts.drafts.length + 1}
+                                bounds={pendingBounds}
+                                onCommit={(noteText) => {
+                                  const overlay =
+                                    reviewCanvasRef.current?.toOverlayBase64();
+                                  if (overlay) {
+                                    reviewDrafts.commit(pendingBounds, overlay, noteText, {
+                                      kind: "video-frame",
+                                      timecodeMs: capturedFrame.timecodeMs,
+                                      frameBase64: capturedFrame.base64,
+                                    });
+                                    reviewCanvasRef.current?.clear();
+                                  }
+                                  setPendingBounds(null);
+                                }}
+                                onCancel={() => {
+                                  reviewCanvasRef.current?.clear();
+                                  setPendingBounds(null);
+                                }}
+                              />
+                            )}
+                          </>
+                        }
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {mode === "result" && videoUrl && !capturedFrame && (
                   // Height-driven 9:16 frame, flush left — same treatment as the
                   // image-gen result: the border hugs the video instead of a
                   // width-forced box painting gutters inside it.
-                  <video
-                    src={videoUrl}
-                    controls
-                    className="aspect-[9/16] h-full max-w-full rounded-xl border border-border bg-muted/20"
-                  />
+                  <div className="flex h-full min-h-0 flex-col">
+                    {markerTimecodes.length > 0 && videoDurationMs > 0 && (
+                      <div className="relative mb-1 h-2 w-full rounded-full bg-muted">
+                        {markerTimecodes.map((ms, i) => (
+                          <span
+                            key={ms}
+                            className="absolute top-1/2 flex size-3.5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-primary text-[8px] font-bold text-primary-foreground"
+                            style={{
+                              left: `${Math.min(99, (ms / videoDurationMs) * 100)}%`,
+                            }}
+                          >
+                            {i + 1}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    <div className="relative min-h-0 w-fit max-w-full flex-1">
+                      <video
+                        // While annotating, the frame has to be readable back out of a
+                        // canvas — and GCS public objects send no CORS headers (see
+                        // api/image-proxy, D37 §8), so a bare crossOrigin load would fail
+                        // outright. Same-origin proxy ONLY in that mode: normal playback
+                        // keeps the direct URL and is untouched by this feature. The key
+                        // forces the remount that a crossOrigin change requires.
+                        key={reviewAnnotating ? "annotate" : "play"}
+                        ref={videoRef}
+                        src={
+                          reviewAnnotating
+                            ? `/api/image-proxy?url=${encodeURIComponent(videoUrl)}`
+                            : videoUrl
+                        }
+                        crossOrigin={reviewAnnotating ? "anonymous" : undefined}
+                        controls
+                        onPause={() => setVideoPaused(true)}
+                        onPlay={() => {
+                          setVideoPaused(false);
+                          setOpenTimecode(null);
+                        }}
+                        onLoadedMetadata={(e) =>
+                          setVideoDurationMs(
+                            Number.isFinite(e.currentTarget.duration)
+                              ? e.currentTarget.duration * 1000
+                              : 0,
+                          )
+                        }
+                        className="aspect-[9/16] h-full max-w-full rounded-xl border border-border bg-muted/20"
+                      />
+
+                      {reviewAnnotating && videoPaused && (
+                        <div className="absolute right-2 top-2 z-20">
+                          <Button
+                            type="button"
+                            size="xs"
+                            onClick={() => {
+                              const v = videoRef.current;
+                              if (!v) return;
+                              try {
+                                setCapturedFrame(captureFrame(v));
+                                setPendingBounds(null);
+                              } catch (e) {
+                                toast.error(
+                                  e instanceof FrameCaptureError
+                                    ? e.message
+                                    : "This frame can't be captured.",
+                                );
+                              }
+                            }}
+                          >
+                            <PencilLine className="size-3" strokeWidth={1.5} />
+                            Annotate frame
+                          </Button>
+                        </div>
+                      )}
+
+                      {/* Read path: the stored still for the chosen timecode, with its
+                          regions painted back on. Sits over the paused player so the
+                          maker never has to hunt for the frame the note is about. */}
+                      {openGroup.length > 0 && (
+                        <div
+                          className="absolute inset-0 z-30 rounded-xl bg-background/95"
+                          onClick={() => setOpenTimecode(null)}
+                        >
+                          {openGroup[0].frameUrl && (
+                            /* eslint-disable-next-line @next/next/no-img-element */
+                            <img
+                              src={openGroup[0].frameUrl}
+                              alt={`Frame at ${formatTimecode(openTimecode as number)}`}
+                              className="absolute inset-0 size-full rounded-xl object-contain"
+                            />
+                          )}
+                          {openGroup.map((a) =>
+                            a.maskUrl ? (
+                              /* eslint-disable-next-line @next/next/no-img-element */
+                              <img
+                                key={a.id}
+                                src={a.maskUrl}
+                                alt=""
+                                className="pointer-events-none absolute inset-0 size-full object-contain opacity-40"
+                              />
+                            ) : null,
+                          )}
+                          {openGroup.map((a, i) => (
+                            <AnnotationPin
+                              key={a.id}
+                              seq={a.seq}
+                              x={0.04}
+                              y={0.06 + i * 0.08}
+                            />
+                          ))}
+                          <div className="absolute bottom-2 left-1/2 -translate-x-1/2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="xs"
+                              className="bg-background/80 backdrop-blur-sm"
+                              onClick={() => setOpenTimecode(null)}
+                            >
+                              Back to video ·{" "}
+                              {formatTimecode(openTimecode as number)}
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 )}
               </div>
 
             </div>
           </div>
         </div>
+
+        <DiscardAnnotationsDialog {...discardConfirm.dialogProps} />
 
         {/* ── Dialog hub — all dialogs driven by pendingDialog state ── */}
         <AlertDialog
