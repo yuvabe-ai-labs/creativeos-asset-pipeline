@@ -72,8 +72,12 @@ the image flow above runs against that still. The pair records `timecode_ms`.
 Multiple pairs on one frame are allowed (one capture, several regions).
 The Review column groups pairs under timecode chips; clicking a chip (or a
 numbered timeline dot) seeks the player. CORS note: capture requires
-`crossOrigin="anonymous"` on the `<video>` and CORS-permissive storage URLs —
-same-origin Supabase storage already qualifies. If capture fails (CORS,
+`crossOrigin="anonymous"` on the `<video>` and CORS-permissive storage URLs.
+**Corrected at implementation (D215/D217):** generated media is on GCS, not
+Supabase, and GCS public objects send no CORS headers — so nothing "already
+qualifies". The player switches to the same-origin `/api/image-proxy` and sets
+`crossOrigin` ONLY while annotating; setting it unconditionally does not degrade,
+it fails the media load outright. If capture fails (CORS,
 decoder), a toast explains that this frame can't be annotated and the senior
 falls back to the overall decision note — no partial row shapes.
 
@@ -145,8 +149,10 @@ create table node_version_annotations (
 
 Same posture as `0033_node_version_decisions.sql`: RLS org-isolation SELECT
 policy; writes via service role only; index on `(decision_id, seq)`. Masks and
-frames go to a `review-annotations` storage bucket
-(`{org_id}/{decision_id}/{seq}-mask.png`, `…-frame.png`) — never inline in rows,
+frames go to **GCS through `src/lib/storage`, the same bucket and module every
+other generated asset uses** (`clients/{clientId}/canvases/{canvasId}/nodes/
+{nodeId}/review-annotations/{decisionId}/{seq}-mask.png`, `…-frame.png`) — never
+inline in rows,
 so decision queries and Realtime stay light. `mask_path` stores the painted
 overlay PNG (alpha > 0 = region) — it renders directly as the read-only region
 layer, and `overlayToMaskRGBA` converts it to the OpenAI `EDIT_ALPHA`/`KEEP_ALPHA`
@@ -176,7 +182,9 @@ guardrails, not targets.
 Reading rides the existing derivations: `getDecisionsByVersionIds`
 (`src/lib/db/decisions.ts`) gains a sibling
 `getAnnotationsByDecisionIds`, and the focus-view review payload includes the
-annotation rows with short-lived signed URLs for mask/frame assets.
+annotation rows with their asset URLs. **Corrected at implementation (D217):**
+those are plain `publicUrlFor` paths, exactly like a generated image's — a pure
+map with no round trip per asset, not short-lived signed URLs.
 
 ### 5.4 Liveness
 
@@ -192,8 +200,9 @@ pick up annotations with the decision. The maker's "Sent back" badge flow
 - **Frame capture failure** (CORS/decoder) → toast; no annotation row is
   created for that frame (§4.2) — the senior's recourse is the overall
   decision note. Every stored row therefore always has a real mask.
-- **Signed-URL expiry** on read → refetch on 403, matching existing media
-  handling.
+- **Asset URL expiry** — not applicable (D217): annotation assets are public GCS
+  URLs with the same lifetime as the image or video they annotate, so there is no
+  403-refetch path to get wrong.
 - **Version mismatch** — annotations render only on the version whose decision
   carries them; restores/regenerations show them in history, never overlaid on
   newer output.
@@ -213,4 +222,4 @@ pick up annotations with the decision. The maker's "Sent back" badge flow
 1. **M1 — Extraction + image compose/read** (canvas extraction, pins/popovers,
    table + storage + action, image focus view end-to-end).
 2. **M2 — Video** (frame capture, timecode grouping, seek wiring).
-3. **M3 — Polish** (discard confirms, thread counts, signed-URL refresh, caps).
+3. **M3 — Polish** (discard confirms, thread counts, caps).

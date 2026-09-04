@@ -10,6 +10,7 @@ import {
   pathForKBDocument,
   pathForMarketThumb,
   pathForNodeFile,
+  pathForReviewAnnotation,
   pathForVideoGen,
 } from "./paths";
 import type { BrandAssetCategory } from "@/lib/brand-kit/types";
@@ -208,6 +209,43 @@ export async function signClientBrandAssetUpload(args: {
   });
   return _sign(path, args.contentType);
 }
+
+// Review annotation assets (D209-D214). Ownership resolves ONCE for the whole batch —
+// every asset in a decision belongs to the same node, so a per-asset resolve would be the
+// same query N times. Uploads run before any DB write and the first failure throws, which
+// aborts the caller's whole action (D214).
+export async function uploadReviewAnnotationAssets(args: {
+  nodeId: string;
+  decisionId: string;
+  assets: { seq: number; mask: Buffer; frame: Buffer | null }[];
+}): Promise<{ seq: number; maskPath: string; framePath: string | null }[]> {
+  if (args.assets.length === 0) return [];
+  const { clientId, canvasId } = await resolveOwnership(args.nodeId);
+  const pathFor = (seq: number, asset: "mask" | "frame") =>
+    pathForReviewAnnotation({
+      clientId,
+      canvasId,
+      nodeId: args.nodeId,
+      decisionId: args.decisionId,
+      seq,
+      asset,
+    });
+
+  const out: { seq: number; maskPath: string; framePath: string | null }[] = [];
+  for (const a of args.assets) {
+    const mask = await _upload(pathFor(a.seq, "mask"), a.mask, "image/png");
+    let framePath: string | null = null;
+    if (a.frame) {
+      framePath = (await _upload(pathFor(a.seq, "frame"), a.frame, "image/png")).path;
+    }
+    out.push({ seq: a.seq, maskPath: mask.path, framePath });
+  }
+  return out;
+}
+
+// The public URL of a stored object. Annotation assets are read back through this, the
+// same way a generated image or video is — see reviewAnnotationUrl's callers.
+export { publicUrlFor };
 
 export function parsePathFromUrl(url: string): string | null {
   const prefix = `https://storage.googleapis.com/${getBucketName()}/`;

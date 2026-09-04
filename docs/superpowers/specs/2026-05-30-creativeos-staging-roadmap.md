@@ -4517,3 +4517,30 @@ pixels. The contingency stays open if real screens read poorly.
 client-side mask pixel scanning to recover a centroid (a decode per annotation per render).
 
 **Originated →** `2026-09-03-review-annotations-design.md`.
+
+### D217 — Annotation assets go to GCS via lib/storage, not a Supabase bucket *(recorded 2026-09-04; supersedes the storage half of D214, refines D215)*
+
+**Decision.** Review annotation overlays and captured frames are stored in the one GCS
+bucket through `src/lib/storage`, under the node they annotate
+(`clients/{clientId}/canvases/{canvasId}/nodes/{nodeId}/review-annotations/{decisionId}/{seq}-mask.png`),
+and read back with `publicUrlFor`. No `review-annotations` Supabase Storage bucket, no
+signed URLs, no per-asset signing round trip.
+
+**Why.** Every other asset in the system — image-gen and video-gen output, node files,
+client logos, brand images, KB documents, market thumbnails — already goes through
+`lib/storage` to GCS. The design's Supabase bucket would have been the *only* Supabase
+Storage consumer in the codebase: a second backend with its own lifecycle, URL shape,
+cleanup story and failure modes, for the least sensitive asset in the product. Signed
+reads were also incoherent — a mask is strictly less sensitive than the image it is
+painted on, and that image is already served from a public URL. The read path gets
+simpler as a side effect: a pure path→URL map instead of 2N signing calls per decision.
+
+**Rejected.** Supabase Storage bucket with 1h signed URLs (a second storage backend, and
+a stricter posture than the asset being annotated); GCS with V4 signed reads (needs a
+signed-read helper `gcs.ts` does not have, to protect something already public).
+
+**Consequence.** `ANNOTATION_BUCKET` and `SIGNED_URL_TTL_SECONDS` are gone; migration 0035
+inserts no `storage.buckets` row; `setVersionApprovalAction` reads `node_id` off the
+version row so ownership resolves once per batch.
+
+**Originated →** `2026-09-03-review-annotations-design.md`.

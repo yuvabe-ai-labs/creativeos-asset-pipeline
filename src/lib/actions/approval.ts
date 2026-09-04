@@ -68,11 +68,12 @@ export async function setVersionApprovalAction(
     // the withClient/withNode 404-not-403 convention in route-helpers.ts.
     const { data: version, error: readErr } = await supabase
       .from("node_versions")
-      .select("id, org_id")
+      .select("id, org_id, node_id")
       .eq("id", versionId)
       .maybeSingle();
     if (readErr) throw readErr;
-    if (!version || (version as { org_id: string | null }).org_id !== caller.orgId) {
+    const versionRow = version as { org_id: string | null; node_id: string | null } | null;
+    if (!versionRow || versionRow.org_id !== caller.orgId) {
       throw new Error("Version not found.");
     }
 
@@ -88,9 +89,11 @@ export async function setVersionApprovalAction(
     const decisionId = randomUUID();
     let uploaded: { seq: number; maskPath: string; framePath: string | null }[] = [];
     if (annotations.length > 0) {
+      if (!versionRow.node_id) throw new Error("Version not found.");
+      // Assets land in GCS under the node they annotate, via the same lib/storage module
+      // every generated asset uses (D217) — not a separate Supabase bucket.
       uploaded = await uploadAnnotationAssets(
-        supabase.storage,
-        caller.orgId,
+        versionRow.node_id,
         decisionId,
         annotations,
       );

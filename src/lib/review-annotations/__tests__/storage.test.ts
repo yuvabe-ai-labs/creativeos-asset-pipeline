@@ -1,102 +1,114 @@
-import { describe, it, expect, vi } from "vitest";
-import {
-  annotationAssetPaths,
-  uploadAnnotationAssets,
-  signAnnotationAssets,
-} from "../storage";
-import type { SupabaseStorage } from "../storage";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+
+const mockUpload = vi.fn();
+vi.mock("@/lib/storage", () => ({
+  uploadReviewAnnotationAssets: (args: unknown) => mockUpload(args),
+  publicUrlFor: (path: string) => `https://storage.googleapis.com/test-bucket/${path}`,
+}));
+
+import { uploadAnnotationAssets, annotationAssetUrls } from "../storage";
+import { pathForReviewAnnotation } from "@/lib/storage/paths";
 import type { AnnotationPayload } from "../payload";
 import type { AnnotationRow } from "@/lib/db/annotations";
-
-// The stub is typed against the real bucket signature, not `ReturnType<typeof vi.fn>`:
-// a bare `vi.fn()` is `Mock<Procedure | Constructable>`, whose call/construct union is
-// not assignable to a concrete signature, so overriding widened `upload` past what
-// `SupabaseStorage` accepts and broke `tsc` while vitest stayed green.
-type StorageBucket = ReturnType<SupabaseStorage["from"]>;
 
 function ann(over: Partial<AnnotationPayload> = {}): AnnotationPayload {
   return {
     seq: 1,
     kind: "image",
     timecodeMs: null,
-    overlayBase64: "aGVsbG8=",
+    overlayBase64: "aGVsbG8=", // "hello"
     frameBase64: null,
     note: "n",
     ...over,
   };
 }
 
-function stubStorage(overrides: {
-  upload?: StorageBucket["upload"];
-  createSignedUrl?: StorageBucket["createSignedUrl"];
-} = {}) {
-  const upload = overrides.upload ?? vi.fn(async () => ({ error: null }));
-  const createSignedUrl =
-    overrides.createSignedUrl ??
-    vi.fn(async (path: string) => ({ data: { signedUrl: `https://signed/${path}` }, error: null }));
-  return { storage: { from: () => ({ upload, createSignedUrl }) }, upload, createSignedUrl };
+function row(over: Partial<AnnotationRow> = {}): AnnotationRow {
+  return {
+    id: "a1",
+    decision_id: "d1",
+    org_id: "org-1",
+    seq: 1,
+    kind: "image",
+    timecode_ms: null,
+    frame_path: null,
+    mask_path: "clients/c1/canvases/cv1/nodes/n1/review-annotations/d1/1-mask.png",
+    note: "n",
+    created_at: "t",
+    ...over,
+  };
 }
 
-describe("annotationAssetPaths", () => {
-  it("builds spec §5.2 paths", () => {
-    expect(annotationAssetPaths("org-1", "d1", 2)).toEqual({
-      maskPath: "org-1/d1/2-mask.png",
-      framePath: "org-1/d1/2-frame.png",
-    });
+beforeEach(() => {
+  mockUpload.mockReset();
+  mockUpload.mockResolvedValue([]);
+});
+
+describe("pathForReviewAnnotation", () => {
+  it("puts assets under the node they annotate, keyed by decision and seq", () => {
+    const args = {
+      clientId: "c1",
+      canvasId: "cv1",
+      nodeId: "n1",
+      decisionId: "d1",
+      seq: 2,
+    } as const;
+    expect(pathForReviewAnnotation({ ...args, asset: "mask" })).toBe(
+      "clients/c1/canvases/cv1/nodes/n1/review-annotations/d1/2-mask.png",
+    );
+    expect(pathForReviewAnnotation({ ...args, asset: "frame" })).toBe(
+      "clients/c1/canvases/cv1/nodes/n1/review-annotations/d1/2-frame.png",
+    );
   });
 });
 
 describe("uploadAnnotationAssets", () => {
-  it("uploads mask (and frame when present) and returns stored paths", async () => {
-    const { storage, upload } = stubStorage();
-    const out = await uploadAnnotationAssets(storage, "org-1", "d1", [
+  it("decodes base64 to buffers and hands the batch to lib/storage once", async () => {
+    await uploadAnnotationAssets("n1", "d1", [
       ann({ seq: 1 }),
       ann({ seq: 2, kind: "video-frame", timecodeMs: 4000, frameBase64: "aGVsbG8=" }),
     ]);
-    expect(out).toEqual([
-      { seq: 1, maskPath: "org-1/d1/1-mask.png", framePath: null },
-      { seq: 2, maskPath: "org-1/d1/2-mask.png", framePath: "org-1/d1/2-frame.png" },
-    ]);
-    expect(upload).toHaveBeenCalledTimes(3); // 2 masks + 1 frame
+    // One call for the whole batch: ownership must not be re-resolved per asset.
+    expect(mockUpload).toHaveBeenCalledTimes(1);
+    const arg = mockUpload.mock.calls[0][0] as {
+      nodeId: string;
+      decisionId: string;
+      assets: { seq: number; mask: Buffer; frame: Buffer | null }[];
+    };
+    expect(arg.nodeId).toBe("n1");
+    expect(arg.decisionId).toBe("d1");
+    expect(arg.assets[0].mask.toString("utf8")).toBe("hello");
+    expect(arg.assets[0].frame).toBeNull();
+    expect(arg.assets[1].frame?.toString("utf8")).toBe("hello");
   });
 
-  it("throws on the first upload failure", async () => {
-    const upload = vi.fn(async () => ({ error: { message: "quota" } }));
-    const { storage } = stubStorage({ upload });
-    await expect(
-      uploadAnnotationAssets(storage, "org-1", "d1", [ann()]),
-    ).rejects.toThrow(/quota/);
+  it("propagates an upload failure so the caller's whole action aborts", async () => {
+    mockUpload.mockRejectedValueOnce(new Error("quota"));
+    await expect(uploadAnnotationAssets("n1", "d1", [ann()])).rejects.toThrow(/quota/);
   });
 });
 
-describe("signAnnotationAssets", () => {
-  it("signs mask and frame per row, keyed by row id", async () => {
-    const { storage } = stubStorage();
-    const rows = [
-      {
-        id: "a1", decision_id: "d1", org_id: "org-1", seq: 1, kind: "image",
-        timecode_ms: null, frame_path: null, mask_path: "org-1/d1/1-mask.png",
-        note: "n", created_at: "t",
-      } as AnnotationRow,
-    ];
-    const out = await signAnnotationAssets(storage, rows);
+describe("annotationAssetUrls", () => {
+  it("maps stored paths to public URLs, keyed by row id", () => {
+    const out = annotationAssetUrls([row()]);
     expect(out.get("a1")).toEqual({
-      maskUrl: "https://signed/org-1/d1/1-mask.png",
+      maskUrl:
+        "https://storage.googleapis.com/test-bucket/clients/c1/canvases/cv1/nodes/n1/review-annotations/d1/1-mask.png",
       frameUrl: null,
     });
   });
 
-  it("yields null for a URL that fails to sign rather than throwing", async () => {
-    const createSignedUrl = vi.fn(async () => ({ data: null, error: { message: "gone" } }));
-    const { storage } = stubStorage({ createSignedUrl });
-    const rows = [
-      {
-        id: "a1", decision_id: "d1", org_id: "org-1", seq: 1, kind: "image",
-        timecode_ms: null, frame_path: null, mask_path: "p",
-        note: "n", created_at: "t",
-      } as AnnotationRow,
-    ];
-    const out = await signAnnotationAssets(storage, rows);
-    expect(out.get("a1")).toEqual({ maskUrl: null, frameUrl: null });
+  it("carries the frame URL for a video-frame row", () => {
+    const out = annotationAssetUrls([
+      row({
+        id: "a2",
+        kind: "video-frame",
+        timecode_ms: 4000,
+        frame_path: "clients/c1/canvases/cv1/nodes/n1/review-annotations/d1/1-frame.png",
+      }),
+    ]);
+    expect(out.get("a2")?.frameUrl).toBe(
+      "https://storage.googleapis.com/test-bucket/clients/c1/canvases/cv1/nodes/n1/review-annotations/d1/1-frame.png",
+    );
   });
 });

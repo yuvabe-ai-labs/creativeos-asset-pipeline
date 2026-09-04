@@ -2,11 +2,17 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const mockCaller = vi.fn();
 const mockFrom = vi.fn();
-const mockStorageFrom = vi.fn();
+// D217: annotation assets go to GCS through lib/storage, like every other generated
+// asset — there is no Supabase Storage client in this action any more.
+const mockUploadAssets = vi.fn();
+vi.mock("@/lib/review-annotations/storage", () => ({
+  uploadAnnotationAssets: (nodeId: string, decisionId: string, anns: unknown) =>
+    mockUploadAssets(nodeId, decisionId, anns),
+}));
 
 vi.mock("@/lib/dal", () => ({ resolveCallerContext: () => mockCaller() }));
 vi.mock("@/lib/supabase/server", () => ({
-  createServerSupabase: () => ({ from: mockFrom, storage: { from: mockStorageFrom } }),
+  createServerSupabase: () => ({ from: mockFrom }),
 }));
 // withAction is Stage 4's impersonation write-gate; pass it through so these tests
 // exercise the approval rules rather than impersonation state.
@@ -71,20 +77,27 @@ function stubDb(
         maybeSingle: async () =>
           versionOrgId === null
             ? { data: null, error: null }
-            : { data: { id: "v1", org_id: versionOrgId }, error: null },
+            : { data: { id: "v1", org_id: versionOrgId, node_id: "n1" }, error: null },
       }),
     }),
     update: updateSpy,
   }));
-  mockStorageFrom.mockImplementation(() => ({
-    upload: async () => ({ error: options.uploadError ?? null }),
-  }));
+  mockUploadAssets.mockImplementation(
+    async (_nodeId: string, _decisionId: string, anns: { seq: number }[]) => {
+      if (options.uploadError) throw new Error(options.uploadError.message);
+      return anns.map((a) => ({
+        seq: a.seq,
+        maskPath: `clients/c1/canvases/cv1/nodes/n1/review-annotations/${_decisionId}/${a.seq}-mask.png`,
+        framePath: null,
+      }));
+    },
+  );
   return captured;
 }
 
 beforeEach(() => {
   mockFrom.mockReset();
-  mockStorageFrom.mockReset();
+  mockUploadAssets.mockReset();
   mockInsertDecision.mockClear();
   mockInsertAnnotations.mockClear();
   mockCaller.mockReset();
@@ -249,7 +262,7 @@ describe("setVersionApprovalAction with annotations", () => {
         annotations: [ann({ note: " " })],
       }),
     ).rejects.toThrow(/note/i);
-    expect(mockStorageFrom).not.toHaveBeenCalled();
+    expect(mockUploadAssets).not.toHaveBeenCalled();
     expect(updateSpy).not.toHaveBeenCalled();
   });
 
@@ -283,7 +296,8 @@ describe("setVersionApprovalAction with annotations", () => {
       org_id: "org-1",
       seq: 1,
       kind: "image",
-      mask_path: "org-1/" + decision.id + "/1-mask.png",
+      mask_path:
+        "clients/c1/canvases/cv1/nodes/n1/review-annotations/" + decision.id + "/1-mask.png",
       note: "logo too small",
     });
   });
