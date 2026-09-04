@@ -31,6 +31,7 @@ export function MultishotBeatCard({
   onChange,
   onRerun,
   onRefine,
+  mentionables,
   rerunning = false,
   showRerun = false,
   onFocusTimings,
@@ -47,6 +48,12 @@ export function MultishotBeatCard({
   onRerun: () => void;
   /** Rewrite this beat with an operator note. Same call as onRerun, with a steer attached. */
   onRefine: (note: string) => void;
+  /**
+   * What `@` offers inside this shot's refine note — the look block and every shot, including the
+   * ones this card is not. Naming a neighbour is how the operator asks for continuity across a
+   * cut ("match the ground plane in @Shot 3"), which is the whole reason it is not just this one.
+   */
+  mentionables?: { id: string; label: string; type: string }[];
   rerunning?: boolean;
   /**
    * Whether to render the rewrite button. The caller withholds it while the multishot flow
@@ -92,6 +99,7 @@ export function MultishotBeatCard({
               busy={rerunning}
               disabled={disabled}
               onSubmit={onRefine}
+              mentionables={mentionables}
               label={`Refine shot ${index + 1} with AI`}
             />
             <Button

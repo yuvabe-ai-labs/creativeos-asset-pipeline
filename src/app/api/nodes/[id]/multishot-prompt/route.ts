@@ -1,6 +1,7 @@
 import { createOpenAI } from "@/lib/openai/server";
 import { resolveMultishotPromptInputs, buildMultishotUserTurn } from "@/lib/nodes/resolve-inputs";
 import { parsePlan, renderPlan, mergeRefinedPlan } from "@/lib/nodes/multishot-plan";
+import { resolvePlanMentions } from "@/lib/nodes/plan-mentions";
 import {
   multishotPromptGenerate,
   MULTISHOT_LOOK_SCHEMA,
@@ -75,9 +76,12 @@ export async function POST(
       return apiError("That shot is not on this node", 400);
     }
 
-    // A narrow refine edits an existing plan, so there has to BE one. Parsed here rather than
-    // trusted: the merge below writes it back out as the node's plan.
-    const previous = scope === "all" ? null : parsePlan(body?.plan, resolved.cuts);
+    // Parsed whenever the client sends one, for every scope. A narrow refine REQUIRES it — the
+    // merge below writes it back out as the node's plan. A whole-sequence refine only wants it as
+    // context, so the writer can see the beats a note like "change shots 5 and 6" is meant to
+    // leave alone; without it there is nothing to copy from. Optional there, because the first
+    // generate on a node has no plan yet.
+    const previous = body?.plan === undefined ? null : parsePlan(body.plan, resolved.cuts);
     if (scope !== "all" && !previous?.ok) {
       return apiError("Generate the whole sequence first", 400);
     }
@@ -101,7 +105,11 @@ export async function POST(
       refineInstruction({
         scope,
         cutId,
-        note,
+        // The note is authored in the chip editor, so it may carry `@[Shot 2](c2)` tokens. The
+        // model has never seen that syntax — resolved here into "Shot 2 (cutId: c2)", which names
+        // the same shot the turn's own shot list already names. Unresolved, it would reach the
+        // writer as literal markup and be read as prose.
+        note: resolvePlanMentions(note, resolved.cuts),
         plan: previousPlan ?? { look: "", beats: [] },
       });
 

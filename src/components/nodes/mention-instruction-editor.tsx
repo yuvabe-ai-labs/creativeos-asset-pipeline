@@ -45,6 +45,12 @@ export type MentionInstructionEditorProps = {
   className?: string;
   disabled?: boolean;
   /**
+   * Replaces what the `@` menu offers. Given for a field that points at something other than the
+   * connected upstreams — a refine note points at parts of the PLAN (the look, each shot), which
+   * are not nodes and have no thumbnail. Omit for the normal connected-references behaviour.
+   */
+  mentionables?: DropdownItem[];
+  /**
    * How a reference is written in THIS field's text. Defaults to the Instruction's own
    * `@[Label](id)`. The generated motion prompt passes `imageRefDialect`, because what it stores
    * has to be Omni's `<IMAGE_REF_N>` — same editor, same chips, different source syntax.
@@ -263,6 +269,7 @@ export function MentionInstructionEditor({
   upstream,
   className,
   disabled = false,
+  mentionables,
   dialect = DEFAULT_DIALECT,
 }: MentionInstructionEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null);
@@ -279,20 +286,31 @@ export function MentionInstructionEditor({
     activeIndex: number;
   }>({ open: false, pos: null, filtered: [], activeIndex: 0 });
 
-  // Keep upstream map in sync
+  // Keep the chip lookup in sync. `mentionables` go in too, or a chip pointing at one would find
+  // no entry and render as an orphan — the red "this points at nothing" treatment, on a mention
+  // the operator just picked from the menu.
   useEffect(() => {
-    upstreamMapRef.current = new Map(upstream.map((u) => [u.id, u]));
-  }, [upstream]);
+    const map = new Map<string, UpstreamNode>(upstream.map((u) => [u.id, u]));
+    for (const m of mentionables ?? []) {
+      map.set(m.id, { id: m.id, label: m.label, type: m.type });
+    }
+    upstreamMapRef.current = map;
+  }, [upstream, mentionables]);
 
-  const eligible = upstream
-    .filter((u) => u.type === "image-gen" || u.type === "draw" || u.type === "file")
-    .map((u) => ({
-      id: u.id,
-      label: `${nodeTypeLabel(u.type)}: ${u.label}`,
-      type: u.type,
-      fileUrl: u.fileUrl,
-      fileKind: u.fileKind,
-    }));
+  // What `@` offers. Defaults to the connected image-ish upstreams; `mentionables` replaces that
+  // wholesale for a field that points at something else entirely — a refine note points at parts
+  // of the PLAN ("Shot 2"), which are not upstream nodes and have no thumbnail.
+  const eligible =
+    mentionables ??
+    upstream
+      .filter((u) => u.type === "image-gen" || u.type === "draw" || u.type === "file")
+      .map((u) => ({
+        id: u.id,
+        label: `${nodeTypeLabel(u.type)}: ${u.label}`,
+        type: u.type,
+        fileUrl: u.fileUrl,
+        fileKind: u.fileKind,
+      }));
 
   // Initial population
   useEffect(() => {

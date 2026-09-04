@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+import { MentionInstructionEditor } from "./mention-instruction-editor";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { REFINE_SUGGESTIONS, type RefineScope } from "@/lib/nodes/refine-suggestions";
 
@@ -27,7 +27,9 @@ const PLACEHOLDER: Record<RefineScope, string> = {
  * standing brief stays the standing brief, so a throwaway "try it darker" never silently becomes
  * part of a shot's definition.
  *
- * Uses shadcn `Textarea`, not a raw `<textarea>` — the KB's own popover predates that rule.
+ * The note itself is the chip editor, not a plain textarea, so `@` points at parts of the plan —
+ * "@Shot 2 tighter, @Look & atmosphere colder". Prose about a shot ladder is ambiguous ("the
+ * second one" — shot, reference, or sentence?); a mention carries a cutId instead.
  */
 export function RefineWithAI({
   scope,
@@ -35,12 +37,15 @@ export function RefineWithAI({
   disabled = false,
   onSubmit,
   label,
+  mentionables = [],
 }: {
   scope: RefineScope;
   busy?: boolean;
   disabled?: boolean;
   onSubmit: (note: string) => void;
   label: string;
+  /** What `@` offers in the note — the look block and each shot. Empty disables mentions. */
+  mentionables?: { id: string; label: string; type: string }[];
 }) {
   const [open, setOpen] = useState(false);
   const [note, setNote] = useState("");
@@ -51,6 +56,15 @@ export function RefineWithAI({
     setOpen(false);
     setNote("");
     onSubmit(trimmed);
+  }
+
+  // On the wrapper rather than the editor: the chip editor owns its own keydown handling for the
+  // `@` menu and atomic chip deletion, so this rides the bubble instead of competing for the prop.
+  function onKeyDown(e: React.KeyboardEvent) {
+    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+      e.preventDefault();
+      submit();
+    }
   }
 
   return (
@@ -100,20 +114,27 @@ export function RefineWithAI({
           ))}
         </div>
 
-        <Textarea
-          autoFocus
-          rows={3}
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          onKeyDown={(e) => {
-            if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-              e.preventDefault();
-              submit();
-            }
-          }}
-          placeholder={PLACEHOLDER[scope]}
-          className="w-full resize-none border-border bg-background text-sm"
-        />
+        {/* The same chip editor every other field on this node uses, so `@` means the same gesture
+            here as it does upstream. What it points AT differs — parts of the plan, not attached
+            pictures — which is exactly what `mentionables` is for. `@Shot 2` beats "the second
+            one": prose about a shot ladder is ambiguous, and the token carries a cutId the writer
+            and the plan both agree on. */}
+        <div onKeyDown={onKeyDown}>
+          <MentionInstructionEditor
+            value={note}
+            onChange={setNote}
+            upstream={[]}
+            mentionables={mentionables}
+            placeholder={PLACEHOLDER[scope]}
+            className="min-h-16 text-sm"
+          />
+        </div>
+        {mentionables.length > 0 && (
+          <p className="mt-1.5 text-[0.65rem] text-muted-foreground">
+            Type <span className="font-medium text-foreground">@</span> to point at the look or a
+            shot.
+          </p>
+        )}
 
         <div className="mt-2 flex items-center justify-between">
           <span className="text-[0.6rem] text-muted-foreground">⌘↵ to submit</span>

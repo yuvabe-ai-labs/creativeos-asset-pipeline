@@ -163,11 +163,37 @@ describe("refineInstruction", () => {
   // header's "Refine the whole sequence with AI" note was validated, capped and recorded on the
   // version row, but never reached the model — it billed a plain regenerate while claiming a
   // steer was applied.
-  it("carries the note on a full generate, without the narrow scopes' framing or the plan JSON", () => {
+  it("carries the note on a whole-sequence refine, without the narrow scopes' framing", () => {
     const out = refineInstruction({ scope: "all", cutId: null, note: "punchier", plan });
     expect(out).toContain("punchier");
-    expect(out).not.toContain(JSON.stringify(plan, null, 2));
     expect(out).not.toMatch(/everything else stays as it is/i);
+  });
+
+  // "Change shots 5 and 6" is only answerable if the writer can SEE the beats it is meant to
+  // leave alone. Without the plan there is nothing to copy from, so it rewrote everything.
+  it("sends the current plan and asks for untouched beats back verbatim", () => {
+    const out = refineInstruction({ scope: "all", cutId: null, note: "change shot 2", plan });
+    expect(out).toContain(JSON.stringify(plan, null, 2));
+    expect(out).toMatch(/rewrite ONLY those/);
+    expect(out).toMatch(/character for character/i);
+    expect(out).toMatch(/If the change names no shot in particular, rewrite the whole sequence/i);
+  });
+
+  // A plain Generate must still write fresh. Handing it the previous output would anchor it to
+  // the very thing it is replacing.
+  it("does not send the plan when there is no note", () => {
+    expect(refineInstruction({ scope: "all", cutId: null, note: "  ", plan })).toBe("");
+  });
+
+  it("omits the preservation block on a first generate, which has no plan", () => {
+    const out = refineInstruction({
+      scope: "all",
+      cutId: null,
+      note: "punchier",
+      plan: { look: "", beats: [] },
+    });
+    expect(out).toContain("punchier");
+    expect(out).not.toMatch(/character for character/i);
   });
 
   it("returns nothing for a full generate with a blank note", () => {

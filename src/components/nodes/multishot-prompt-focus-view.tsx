@@ -45,6 +45,7 @@ import { PromptFocusShell, RESERVED_RAIL_KEYS } from "./prompt-focus-shell";
 import { MultishotBeatCard } from "./multishot-beat-card";
 import { RefineWithAI } from "./refine-with-ai";
 import { RefineProgress } from "./refine-progress";
+import { planMentionables } from "@/lib/nodes/plan-mentions";
 import type { MultishotCut } from "@/lib/nodes/multishot-cuts";
 import { renderPlan, refsCitedIn, type MultishotPlan } from "@/lib/nodes/multishot-plan";
 import type { RefineScope } from "@/lib/nodes/refine-suggestions";
@@ -140,6 +141,10 @@ export function MultishotPromptFocusView({
   const [evalSaving, setEvalSaving] = useState(false);
   const editable = useCanvasEditable(); // D33: false when this session is read-only
   const isReadOnly = !editable;
+  // What `@` offers inside a refine note: the look block, then every shot by position. Derived
+  // from the CUTS rather than the plan's beats — the ladder is what the operator sees, and it
+  // exists before a plan does.
+  const planMentions = useMemo(() => planMentionables(cuts), [cuts]);
   const flushAutosave = useFlushAutosave();
 
   if (seed.open !== open || seed.nodeId !== nodeId) {
@@ -407,7 +412,11 @@ export function MultishotPromptFocusView({
     try {
       const json = await postMultishotPrompt(
         scope === "all"
-          ? { note: opts.note }
+          ? // The plan rides along on a whole-sequence refine too, but only as CONTEXT: it is what
+            // lets a note like "change shots 5 and 6" name beats the writer can then copy back
+            // verbatim. Omitted when there is none (the first generate) and ignored by the route
+            // when there is no note, so a plain Generate still writes fresh.
+            { note: opts.note, ...(planDraft ? { plan: planDraft } : {}) }
           : { scope, cutId: opts.cutId, note: opts.note, plan: planDraft! },
       );
       setPlanDraft(json.plan);
@@ -569,6 +578,7 @@ export function MultishotPromptFocusView({
                       busy={refining?.scope === "all"}
                       disabled={isReadOnly || !!refining}
                       onSubmit={(note) => runRefine("all", { note })}
+                      mentionables={planMentions}
                       label="Refine the whole sequence with AI"
                     />
                   </div>
@@ -827,6 +837,7 @@ export function MultishotPromptFocusView({
                                   busy={refining?.scope === "look"}
                                   disabled={isReadOnly || !!refining}
                                   onSubmit={(note) => runRefine("look", { note })}
+                                  mentionables={planMentions}
                                   label="Refine the look with AI"
                                 />
                                 <Button
@@ -877,6 +888,7 @@ export function MultishotPromptFocusView({
                               onChange={(v) => updateBeat(beat.cutId, v)}
                               onRerun={() => runRefine("cut", { cutId: beat.cutId })}
                               onRefine={(note) => runRefine("cut", { cutId: beat.cutId, note })}
+                              mentionables={planMentions}
                               showRerun={SHOW_PER_BEAT_REGENERATE}
                               rerunning={refining?.cutId === beat.cutId}
                               onFocusTimings={focusTimings}
