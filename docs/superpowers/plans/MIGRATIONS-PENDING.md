@@ -29,9 +29,11 @@ Apply through the Supabase SQL editor (paste + Run), in this order. There is no
       Verify queries: `docs/auth-production-migration.md` § "Migration 0031".
       **Blocks:** every pending count, the review drawer, the navbar inbox.
 
-- [ ] **`0035_review_annotations.sql`** — D209–D214
-      `node_version_annotations` table + RLS + `review-annotations` storage bucket.
-      Feature: review annotations (region + note feedback on approval changes_requested decision).
+- [x] **`0035_review_annotations.sql`** — D209–D217 — **APPLIED 2026-09-04**
+      `node_version_annotations` table + org-isolation RLS. **No storage bucket** (D217):
+      overlay and frame PNGs go to GCS through `src/lib/storage`, like every other
+      generated asset, so `mask_path`/`frame_path` are GCS object paths.
+      Feature: review annotations (region + note feedback on a changes_requested decision).
 
 ---
 
