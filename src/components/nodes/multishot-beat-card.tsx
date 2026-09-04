@@ -5,6 +5,8 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { MentionInstructionEditor } from "./mention-instruction-editor";
 import { imageRefDialect } from "@/lib/nodes/prompt-token-dialect";
+import { RefineWithAI } from "./refine-with-ai";
+import { RefineProgress } from "./refine-progress";
 import type { UpstreamNode } from "./connected-inputs-card";
 
 /**
@@ -28,6 +30,7 @@ export function MultishotBeatCard({
   refIds,
   onChange,
   onRerun,
+  onRefine,
   rerunning = false,
   showRerun = false,
   onFocusTimings,
@@ -42,6 +45,8 @@ export function MultishotBeatCard({
   refIds: string[];
   onChange: (next: string) => void;
   onRerun: () => void;
+  /** Rewrite this beat with an operator note. Same call as onRerun, with a steer attached. */
+  onRefine: (note: string) => void;
   rerunning?: boolean;
   /**
    * Whether to render the rewrite button. The caller withholds it while the multishot flow
@@ -49,14 +54,24 @@ export function MultishotBeatCard({
    */
   showRerun?: boolean;
   onFocusTimings: () => void;
-  // D33 — the canvas read-only lock. Disables editing AND both action buttons.
+  // D33 — the canvas read-only lock. Disables editing AND both action buttons. The parent also
+  // sets this true for every OTHER beat while one is being refined (`refining.cutId !==
+  // beat.cutId`), so a rewrite of one beat cannot be interleaved with a hand-edit of another.
   disabled?: boolean;
   // Suppresses the row's bottom border — the container draws borders BETWEEN rows, not under
   // the last one.
   isLast?: boolean;
 }) {
   return (
-    <div className={cn("flex gap-4 p-4", !isLast && "border-b border-border")}>
+    // The row being rewritten is tinted, not dimmed. Every other row is disabled at the same
+    // moment, so dimming alone made the working one indistinguishable from the six waiting on it.
+    <div
+      className={cn(
+        "flex gap-4 p-4 transition-colors duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]",
+        !isLast && "border-b border-border",
+        rerunning && "bg-primary/[0.04]",
+      )}
+    >
       <div className="flex w-[92px] shrink-0 flex-col gap-1">
         <Button
           variant="ghost"
@@ -71,7 +86,14 @@ export function MultishotBeatCard({
 
       <div className="min-w-0 flex-1">
         {showRerun && (
-          <div className="mb-1.5 flex justify-end">
+          <div className="mb-1.5 flex items-center justify-end gap-0.5">
+            <RefineWithAI
+              scope="cut"
+              busy={rerunning}
+              disabled={disabled}
+              onSubmit={onRefine}
+              label={`Refine shot ${index + 1} with AI`}
+            />
             <Button
               variant="ghost"
               onClick={onRerun}
@@ -83,14 +105,24 @@ export function MultishotBeatCard({
             </Button>
           </div>
         )}
-        <MentionInstructionEditor
-          value={text}
-          onChange={onChange}
-          upstream={upstream}
-          disabled={disabled}
-          dialect={imageRefDialect(refIds)}
-          placeholder="Not written yet…"
-        />
+        {/* `pointer-events-none` alone only blocks the mouse — the editor is a contenteditable,
+            so Tab focus or a caret already sitting in the field lets a keystroke write straight
+            through while THIS beat's own refine is in flight, and the refine then overwrites it
+            on resolve. `disabled` (not just the parent's cross-beat `disabled` prop, which is
+            false for the beat actually being refined) closes that gap by also disabling on
+            `rerunning`. Mirrors the look block's equivalent guard above in
+            multishot-prompt-focus-view.tsx. */}
+        {rerunning && <RefineProgress label={`Rewriting shot ${index + 1}…`} hint="other shots untouched" />}
+        <div className={cn(rerunning && "pointer-events-none opacity-60")}>
+          <MentionInstructionEditor
+            value={text}
+            onChange={onChange}
+            upstream={upstream}
+            disabled={disabled || rerunning}
+            dialect={imageRefDialect(refIds)}
+            placeholder="Not written yet…"
+          />
+        </div>
       </div>
     </div>
   );

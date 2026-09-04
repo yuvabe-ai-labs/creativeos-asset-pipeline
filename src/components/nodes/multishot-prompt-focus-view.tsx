@@ -43,8 +43,11 @@ import { ApprovalStatusBadge } from "@/components/review/approval-status-badge";
 import { LeftSection } from "./focus-left-section";
 import { PromptFocusShell, RESERVED_RAIL_KEYS } from "./prompt-focus-shell";
 import { MultishotBeatCard } from "./multishot-beat-card";
+import { RefineWithAI } from "./refine-with-ai";
+import { RefineProgress } from "./refine-progress";
 import type { MultishotCut } from "@/lib/nodes/multishot-cuts";
 import { renderPlan, refsCitedIn, type MultishotPlan } from "@/lib/nodes/multishot-plan";
+import type { RefineScope } from "@/lib/nodes/refine-suggestions";
 
 type MultishotPromptFocusViewProps = {
   open: boolean;
@@ -64,15 +67,16 @@ type MultishotPromptFocusViewProps = {
 };
 
 /**
- * Two surfaces are hidden while the multishot flow settles (operator's call, 2026-09-03).
+ * The reference-attachment surface is hidden while the multishot flow settles (operator's call,
+ * 2026-09-03).
  *
- * The wiring behind both is complete and tested — the handlers, the route's `onlyCutId` path and
- * the `@`-mention dialects all still work. Only the controls are withheld, so bringing either back
- * is flipping one constant, not rebuilding a feature. Deleting the code instead would have thrown
- * away working machinery for a display decision.
+ * The wiring behind it is complete and tested — the handlers and the `@`-mention dialects all
+ * still work. Only the controls are withheld, so bringing it back is flipping one constant, not
+ * rebuilding a feature. Deleting the code instead would have thrown away working machinery for a
+ * display decision.
  */
 const SHOW_REFERENCE_ATTACHMENT = false; // the sequence + per-cut instruction editors
-const SHOW_PER_BEAT_REGENERATE = false; // the look and per-beat rewrite buttons
+const SHOW_PER_BEAT_REGENERATE = true; // the look and per-beat rewrite + refine buttons
 
 // The Multishot Prompt node's focus view (D231, §8). Wraps PromptFocusShell — the sheet frame,
 // connected-inputs rail, version chips, approval controls and the live-update wiring are all the
@@ -112,11 +116,12 @@ export function MultishotPromptFocusView({
 
   const [generating, setGenerating] = useState(false);
   const [lastError, setLastError] = useState<string | null>(null);
-  // Per-control busy states (Task 15b) — deliberately NOT one shared "busy" flag: the design
-  // intent is that re-running one beat, or the look, never blocks the others (LTX Studio's
-  // "regenerate the shot that missed the brief without disturbing the rest of the storyboard").
-  const [rerunningBeatId, setRerunningBeatId] = useState<string | null>(null);
-  const [rerunningLook, setRerunningLook] = useState(false);
+  // ONE in flight at a time. Two concurrent refines each resolve against the planDraft they
+  // captured at submit time, so the second to return would discard the first's result with no
+  // error at all. This drives every button's disabled state, not just its own.
+  const [refining, setRefining] = useState<{ scope: RefineScope; cutId: string | null } | null>(
+    null,
+  );
   const [seed, setSeed] = useState<{ open: boolean; nodeId: string }>({ open, nodeId });
   const [versions, setVersions] = useState<VersionSummary[]>([]);
   const [activeVersionId, setActiveVersionId] = useState<string | null>(null);
@@ -352,11 +357,14 @@ export function MultishotPromptFocusView({
     }
   }
 
-  // Shared POST helper for every call to this node's runAction — a full generate, a per-beat
-  // re-run (`onlyCutId` + `plan`), or a look re-run (a plain full generate whose beats the
-  // caller then discards, see handleRerunLook). One fetch/parse path so the three callers below
-  // cannot drift on error handling.
-  async function postMultishotPrompt(extra?: { onlyCutId?: string; plan?: MultishotPlan }) {
+  // Shared POST helper for every call to this node's runAction — a full generate, or a scoped
+  // refine. One fetch/parse path so the callers below cannot drift on error handling.
+  async function postMultishotPrompt(extra?: {
+    scope?: "look" | "cut";
+    cutId?: string;
+    note?: string;
+    plan?: MultishotPlan;
+  }) {
     const res = await fetch(`/api/nodes/${nodeId}/multishot-prompt`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -374,73 +382,57 @@ export function MultishotPromptFocusView({
     return json as { plan: MultishotPlan; versionId: string | null };
   }
 
-  async function runGenerate() {
-    setGenerating(true);
-    setLastError(null);
-    setEvalDecision(null);
-    setEvalNote("");
+  /**
+   * A scoped rewrite: the look, one beat, or the whole plan, optionally steered by a note.
+   *
+   * The response is ALREADY the merged whole — the route merges the model's narrow fragment into
+   * the plan we sent before it validates or records anything. So this assigns it wholesale and
+   * there is nothing to splice: the beats we did not ask about came back exactly as we sent them.
+   */
+  async function runRefine(scope: RefineScope, opts: { cutId?: string; note?: string } = {}) {
+    if (isReadOnly || refining) return; // D33, and one in flight at a time
+    // A restore in flight must win outright: it replaces planDraft wholesale from a version the
+    // operator explicitly chose, and a refine that started against the pre-restore plan would
+    // resolve afterward and silently discard that choice, stamping its own activeVersionId over
+    // it. See the matching `restoring={restoring || !!refining}` gate on the version chips above.
+    if (restoring) return;
+    if (scope !== "all" && !planDraft) return;
+
+    setRefining({ scope, cutId: opts.cutId ?? null });
+    if (scope === "all") {
+      setLastError(null);
+      setEvalDecision(null);
+      setEvalNote("");
+    }
     try {
-      const json = await postMultishotPrompt();
+      const json = await postMultishotPrompt(
+        scope === "all"
+          ? { note: opts.note }
+          : { scope, cutId: opts.cutId, note: opts.note, plan: planDraft! },
+      );
       setPlanDraft(json.plan);
       onPatch({ parsed: json.plan });
       setActiveVersionId(json.versionId ?? null);
       await fetchVersions();
-      toast.success("Multishot prompt generated");
+      toast.success(
+        scope === "look" ? "Look rewritten" : scope === "cut" ? "Shot rewritten" : "Multishot prompt generated",
+      );
     } catch (e) {
-      const message = e instanceof Error ? e.message : "Generation failed";
-      setLastError(message);
+      const message = e instanceof Error ? e.message : "Rewrite failed";
+      if (scope === "all") setLastError(message);
       toast.error(message);
       await fetchVersions();
     } finally {
+      setRefining(null);
+    }
+  }
+
+  async function runGenerate() {
+    setGenerating(true);
+    try {
+      await runRefine("all");
+    } finally {
       setGenerating(false);
-    }
-  }
-
-  // Per-beat re-run (Task 15b): rewrites ONLY this beat, cutting against its neighbours — the
-  // route appends the current plan as context and instructs the model to touch just this
-  // cutId. The response is the whole new plan (the others are meant to come back unchanged),
-  // so it replaces planDraft wholesale rather than being spliced beat-by-beat.
-  async function handleRerunBeat(cutId: string) {
-    if (isReadOnly || !planDraft) return; // D33 — belt-and-braces, the button is disabled too
-    setRerunningBeatId(cutId);
-    try {
-      const json = await postMultishotPrompt({ onlyCutId: cutId, plan: planDraft });
-      setPlanDraft(json.plan);
-      onPatch({ parsed: json.plan });
-      setActiveVersionId(json.versionId ?? null);
-      await fetchVersions();
-      toast.success("Shot rewritten");
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Rewrite failed");
-    } finally {
-      setRerunningBeatId(null);
-    }
-  }
-
-  // Look re-run (Task 15b): the ONE re-run that is not local — rewriting the look changes what
-  // every beat is supposed to obey. The route has no "look only" mode, so this is a plain full
-  // generate; the difference from `runGenerate` is entirely in what happens to the response.
-  //
-  // The returned `beats` are thrown away ON PURPOSE — this is not a bug. Taking them would
-  // silently regenerate every beat just because the look changed, discarding any hand-edits the
-  // operator already made to beats that still read fine under the new look. So only `look` is
-  // kept; the operator's current beats carry over verbatim, and they re-run individually
-  // whichever beats no longer fit.
-  async function handleRerunLook() {
-    if (isReadOnly || !planDraft) return; // D33 — belt-and-braces, the button is disabled too
-    setRerunningLook(true);
-    try {
-      const json = await postMultishotPrompt();
-      const next: MultishotPlan = { ...planDraft, look: json.plan.look };
-      setPlanDraft(next);
-      onPatch({ parsed: next });
-      setActiveVersionId(json.versionId ?? null);
-      await fetchVersions();
-      toast.success("Look rewritten");
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Rewrite failed");
-    } finally {
-      setRerunningLook(false);
     }
   }
 
@@ -532,7 +524,11 @@ export function MultishotPromptFocusView({
       generating={generating}
       versions={versions}
       activeVersionId={activeVersionId}
-      restoring={restoring}
+      // Also gated on `refining`: a version chip switch used to race an in-flight refine —
+      // click an older chip while a beat refine is in flight, and the refine's resolve would
+      // overwrite planDraft with a merge computed against the pre-restore snapshot, silently
+      // discarding the restore the operator just asked for. See runRefine's matching guard.
+      restoring={restoring || !!refining}
       onRestoreVersion={handleRestoreVersion}
       upstream={upstream}
       targetType="multishot-prompt"
@@ -566,6 +562,17 @@ export function MultishotPromptFocusView({
                   </TabsList>
                 </Tabs>
                 {versionChips}
+                {SHOW_PER_BEAT_REGENERATE && mode === "result" && (
+                  <div className="ml-auto">
+                    <RefineWithAI
+                      scope="all"
+                      busy={refining?.scope === "all"}
+                      disabled={isReadOnly || !!refining}
+                      onSubmit={(note) => runRefine("all", { note })}
+                      label="Refine the whole sequence with AI"
+                    />
+                  </div>
+                )}
               </div>
 
               {outputView === "prompt" ? (
@@ -650,7 +657,7 @@ export function MultishotPromptFocusView({
                     <div className="ml-auto">
                       <Button
                         onClick={runGenerate}
-                        disabled={generating || isReadOnly || cuts.length === 0}
+                        disabled={generating || isReadOnly || cuts.length === 0 || !!refining}
                       >
                         <ListVideo className="size-4" />
                         {generating
@@ -799,28 +806,58 @@ export function MultishotPromptFocusView({
                             inside their own rounded box. Nothing ever overflowed the scroller,
                             so `overflow-y-auto` had nothing to scroll: measured scrollHeight ===
                             clientHeight with six beats present. */}
+                        {/* A whole-sequence refine keeps `mode === "result"` — unlike Generate, it
+                            does not raise `generating`, so without this the only sign anything was
+                            happening was a pulsing icon in the header, while every card sat greyed
+                            out for no visible reason. */}
+                        {refining?.scope === "all" && (
+                          <div className="shrink-0">
+                            <RefineProgress label="Rewriting the whole sequence…" />
+                          </div>
+                        )}
+
                         <div className="shrink-0 rounded-xl border-2 border-primary/20 bg-primary/[0.03] p-3">
                           <div className="mb-2 flex items-center gap-2">
                             <Sun className="size-3.5 text-primary" strokeWidth={1.5} />
                             <span className="text-eyebrow text-primary">Look &amp; atmosphere</span>
                             {SHOW_PER_BEAT_REGENERATE && (
-                              <Button
-                                variant="ghost"
-                                onClick={handleRerunLook}
-                                disabled={rerunningLook || isReadOnly}
-                                aria-label="Rewrite the look"
-                                className="ml-auto h-auto rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground dark:hover:bg-muted"
-                              >
-                                <RefreshCw className={cn("size-3.5", rerunningLook && "animate-spin")} strokeWidth={1.5} />
-                              </Button>
+                              <div className="ml-auto flex items-center gap-0.5">
+                                <RefineWithAI
+                                  scope="look"
+                                  busy={refining?.scope === "look"}
+                                  disabled={isReadOnly || !!refining}
+                                  onSubmit={(note) => runRefine("look", { note })}
+                                  label="Refine the look with AI"
+                                />
+                                <Button
+                                  variant="ghost"
+                                  onClick={() => runRefine("look")}
+                                  disabled={!!refining || isReadOnly}
+                                  aria-label="Rewrite the look"
+                                  className="h-auto rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground dark:hover:bg-muted"
+                                >
+                                  <RefreshCw
+                                    className={cn("size-3.5", refining?.scope === "look" && "animate-spin")}
+                                    strokeWidth={1.5}
+                                  />
+                                </Button>
+                              </div>
                             )}
                           </div>
+                          {refining?.scope === "look" && (
+                            <RefineProgress label="Rewriting the look…" hint="beats untouched" />
+                          )}
+                          {/* Locked for the duration of ANY refine, not just a look-scoped one — a
+                              keystroke here during a beat or whole-plan refine still gets persisted
+                              to planDraft, and then silently discarded the instant the refine
+                              resolves and overwrites the whole plan with the snapshot it captured
+                              before the edit. */}
                           <MentionInstructionEditor
                             value={planDraft.look}
                             onChange={updateLook}
                             upstream={upstream}
                             dialect={imageRefDialect(refIds)}
-                            disabled={isReadOnly}
+                            disabled={isReadOnly || !!refining}
                           />
                           <p className="mt-2 text-[0.65rem] text-muted-foreground">
                             Governs every beat below.
@@ -838,11 +875,12 @@ export function MultishotPromptFocusView({
                               upstream={upstream}
                               refIds={refIds}
                               onChange={(v) => updateBeat(beat.cutId, v)}
-                              onRerun={() => handleRerunBeat(beat.cutId)}
+                              onRerun={() => runRefine("cut", { cutId: beat.cutId })}
+                              onRefine={(note) => runRefine("cut", { cutId: beat.cutId, note })}
                               showRerun={SHOW_PER_BEAT_REGENERATE}
-                              rerunning={rerunningBeatId === beat.cutId}
+                              rerunning={refining?.cutId === beat.cutId}
                               onFocusTimings={focusTimings}
-                              disabled={isReadOnly}
+                              disabled={isReadOnly || (!!refining && refining.cutId !== beat.cutId)}
                               isLast={i === beatRows.length - 1}
                             />
                           ))}

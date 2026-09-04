@@ -5,6 +5,7 @@ import {
   MULTISHOT_AUTHORING_MODEL,
   SUBJECT_SILENT_CAMERA,
 } from "@/prompts/video-prompt-generate";
+import type { RefineScope } from "@/lib/nodes/refine-suggestions";
 
 /** Bumped whenever the system text or schema changes; recorded on every version row. */
 export const MULTISHOT_PROMPT_ID = "multishot-prompt-generate@4";
@@ -125,6 +126,10 @@ ${REFERENCE_IDENTIFICATION_BLOCK}
 AVOID
 ${MOTION_AVOID_LIST}`;
 
+/** Shared verbatim across SCHEMA and MULTISHOT_LOOK_SCHEMA — see the reuse rule in AGENTS.md. */
+const LOOK_DESCRIPTION =
+  "One paragraph of look and atmosphere governing every beat: light direction, time of day, lens feel, palette, ground, grade. Repeatable physical facts only.";
+
 const SCHEMA = {
   type: "object",
   additionalProperties: false,
@@ -132,8 +137,7 @@ const SCHEMA = {
   properties: {
     look: {
       type: "string",
-      description:
-        "One paragraph of look and atmosphere governing every beat: light direction, time of day, lens feel, palette, ground, grade. Repeatable physical facts only.",
+      description: LOOK_DESCRIPTION,
     },
     beats: {
       type: "array",
@@ -157,6 +161,89 @@ const SCHEMA = {
     },
   },
 } as const;
+
+/**
+ * The narrow schemas a REFINE asks against.
+ *
+ * A refine rewrites one thing, so it asks for one thing. The system prompt is shared and unchanged
+ * — the writer needs the same ladder guidance, physics, avoid-list and reference rules whatever it
+ * is rewriting; only the shape of the answer differs.
+ */
+export const MULTISHOT_LOOK_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["look"],
+  properties: {
+    look: {
+      type: "string",
+      description: LOOK_DESCRIPTION,
+    },
+  },
+} as const;
+
+export const MULTISHOT_BEAT_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["text"],
+  properties: {
+    text: {
+      type: "string",
+      description:
+        "What happens in this one shot: subject, action, framing and camera movement. No timecodes, no durations, no shot numbers.",
+    },
+  },
+} as const;
+
+/**
+ * The closing block appended to the user turn on a refine.
+ *
+ * The current plan travels as context so a rewritten beat still cuts against its neighbours, and
+ * a rewritten look is still recognisably this film. The operator's note is its OWN block: a
+ * one-off steer and a standing brief are different things, and a model that cannot tell them apart
+ * treats "try it darker" as part of the shot's definition forever after.
+ */
+export function refineInstruction(args: {
+  scope: RefineScope;
+  cutId: string | null;
+  note: string;
+  plan: { look: string; beats: Array<{ cutId: string; text: string }> };
+}): string {
+  const { scope, cutId, note, plan } = args;
+
+  if (scope === "all") {
+    const trimmed = note.trim();
+    // A full generate has no plan to preserve, so it gets the note WITHOUT the narrow scopes'
+    // "everything else stays as it is" framing and without the plan JSON — but it must still get
+    // the note. Returning "" here meant the header's whole-sequence refine billed a plain
+    // regenerate while its version row recorded a steer that never reached the model.
+    return trimmed ? `\n\nFor this generation in particular: ${trimmed}` : "";
+  }
+
+  if (scope === "cut" && !cutId) {
+    // A programmer error, not an operator one: the route rejects a cut refine with no shot long
+    // before here. Throwing beats emitting "the beat whose cutId is null" into the prompt, which
+    // the model would answer as best it could and nothing would flag. Checked BEFORE `blocks` is
+    // built (and the plan JSON.stringify'd) so a doomed request fails without doing that work.
+    throw new Error("refineInstruction: a cut refine needs a cutId.");
+  }
+
+  const blocks: string[] = [`The current plan is below.\n\n${JSON.stringify(plan, null, 2)}`];
+
+  blocks.push(
+    scope === "look"
+      ? "Rewrite ONLY the look block, so the beats below it still make sense under it. Return only the look."
+      : `Rewrite ONLY the beat whose cutId is ${cutId}, so it still cuts against the beats either side of it. Return only the text for that shot.`,
+  );
+
+  const trimmed = note.trim();
+  if (trimmed) {
+    blocks.push(
+      `Apply this change, and only this change: ${trimmed}\n\nEverything else stays as it is.`,
+    );
+  }
+
+  return `\n\n${blocks.join("\n\n")}`;
+}
 
 export function multishotPromptGenerate(): {
   id: string;

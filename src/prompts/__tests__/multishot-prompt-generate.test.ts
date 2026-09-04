@@ -3,6 +3,9 @@ import {
   multishotPromptGenerate,
   MULTISHOT_PROMPT_ID,
   REFERENCE_IDENTIFICATION_BLOCK,
+  MULTISHOT_LOOK_SCHEMA,
+  MULTISHOT_BEAT_SCHEMA,
+  refineInstruction,
 } from "../multishot-prompt-generate";
 import { MULTISHOT_AUTHORING_MODEL, SUBJECT_SILENT_CAMERA } from "../video-prompt-generate";
 
@@ -114,5 +117,71 @@ describe("multishotPromptGenerate", () => {
   // lock-up is composited in post, because generated lettering is not typographically exact.
   it("sends a logo end-card to post rather than asking the model to render it", () => {
     expect(spec.system).toMatch(/composited in post/i);
+  });
+});
+
+describe("narrow refine schemas", () => {
+  it("the look schema asks for the look alone", () => {
+    expect(MULTISHOT_LOOK_SCHEMA.required).toEqual(["look"]);
+    expect(MULTISHOT_LOOK_SCHEMA.additionalProperties).toBe(false);
+    expect(Object.keys(MULTISHOT_LOOK_SCHEMA.properties)).toEqual(["look"]);
+  });
+
+  it("the beat schema asks for the text alone", () => {
+    expect(MULTISHOT_BEAT_SCHEMA.required).toEqual(["text"]);
+    expect(MULTISHOT_BEAT_SCHEMA.additionalProperties).toBe(false);
+    expect(Object.keys(MULTISHOT_BEAT_SCHEMA.properties)).toEqual(["text"]);
+  });
+});
+
+describe("refineInstruction", () => {
+  const plan = { version: 1 as const, look: "Warm low sun.", beats: [{ cutId: "c1", text: "Keys." }] };
+
+  it("names the beat being rewritten and carries the plan as context", () => {
+    const out = refineInstruction({ scope: "cut", cutId: "c1", note: "", plan });
+    expect(out).toContain("c1");
+    expect(out).toContain("Warm low sun.");
+    expect(out).toMatch(/only the text for that shot/i);
+  });
+
+  it("asks for the look alone on a look refine", () => {
+    const out = refineInstruction({ scope: "look", cutId: null, note: "", plan });
+    expect(out).toMatch(/only the look/i);
+  });
+
+  // A one-off steer and a permanent brief are different things. Folding the note into the standing
+  // instruction would make "try it darker" part of the shot's definition on every later generate.
+  it("puts the note in its own block, only when there is one", () => {
+    const withNote = refineInstruction({ scope: "look", cutId: null, note: "colder", plan });
+    expect(withNote).toContain("Apply this change, and only this change: colder");
+
+    const without = refineInstruction({ scope: "look", cutId: null, note: "   ", plan });
+    expect(without).not.toContain("Apply this change");
+  });
+
+  // Regression test for the Critical: scope "all" used to return "" unconditionally, so the
+  // header's "Refine the whole sequence with AI" note was validated, capped and recorded on the
+  // version row, but never reached the model — it billed a plain regenerate while claiming a
+  // steer was applied.
+  it("carries the note on a full generate, without the narrow scopes' framing or the plan JSON", () => {
+    const out = refineInstruction({ scope: "all", cutId: null, note: "punchier", plan });
+    expect(out).toContain("punchier");
+    expect(out).not.toContain(JSON.stringify(plan, null, 2));
+    expect(out).not.toMatch(/everything else stays as it is/i);
+  });
+
+  it("returns nothing for a full generate with a blank note", () => {
+    expect(refineInstruction({ scope: "all", cutId: null, note: "   ", plan })).toBe("");
+  });
+
+  // The signature allows scope: "cut" with cutId: null even though the route should never send
+  // that combination. Left unguarded, this falls through to a broken instruction — "Rewrite ONLY
+  // the beat whose cutId is null" — sent straight to the model. The model answers it as best it
+  // can and nothing flags the mistake; it's only visible in a beat rewritten against the wrong
+  // (or no) cut. Throwing here turns a silent bad prompt into a loud programmer error instead.
+  it("throws rather than emit a broken instruction for a cut refine with no cutId", () => {
+    expect(() => refineInstruction({ scope: "cut", cutId: null, note: "", plan })).toThrow(
+      /cutId/,
+    );
   });
 });
