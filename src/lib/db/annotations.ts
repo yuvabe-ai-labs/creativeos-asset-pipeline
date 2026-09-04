@@ -25,7 +25,10 @@ export async function insertAnnotations(
   if (rows.length === 0) return;
   const supabase = createServerSupabase();
   const { error } = await supabase.from("node_version_annotations").insert(rows);
-  if (error) throw error;
+  // Wrap rather than rethrow: a bare PostgrestError is a plain object, not an Error, so it
+  // reaches the reviewer's toast as `{code: "23514", details: ..., hint: ...}` — the raw
+  // shape of a constraint violation, which tells them nothing about what to do.
+  if (error) throw new Error(`Could not save annotations: ${error.message}`);
 }
 
 // Batched over every decision on a node in one query — the sibling of

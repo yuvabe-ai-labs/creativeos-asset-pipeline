@@ -964,8 +964,11 @@ export function ImageGenFocusView({
       // Without this the reviewer's own decision is invisible on the very screen they
       // made it on until they reopen the focus view (D173).
       await fetchVersions();
-    } catch {
-      toast.error("Failed to save approval");
+    } catch (e) {
+      // Surface the server's own message, as the video view already does: the useful
+      // failures here are "you are not permitted...", "a note is required..." and
+      // annotation validation, all of which the reviewer needs to actually read.
+      toast.error(e instanceof Error ? e.message : "Failed to save approval");
     } finally {
       setApprovalSaving(false);
     }
