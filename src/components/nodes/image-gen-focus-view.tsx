@@ -89,12 +89,14 @@ import { ReviewAnnotationCanvas } from "@/components/review-annotations/review-a
 import { AnnotationPin } from "@/components/review-annotations/annotation-pin";
 import { AnnotationNotePopover } from "@/components/review-annotations/annotation-note-popover";
 import { AnnotationList } from "@/components/review-annotations/annotation-list";
+import { AnnotationOverlay } from "@/components/review-annotations/annotation-overlay";
 import { useAnnotationDrafts } from "@/components/review-annotations/use-annotation-drafts";
 import {
   DiscardAnnotationsDialog,
   useDiscardAnnotationsConfirm,
 } from "@/components/review-annotations/discard-annotations-dialog";
 import { groupByTimecode } from "@/lib/review-annotations/group";
+import { formatRelativeTime } from "@/lib/format/relative-time";
 import type { RegionBounds } from "@/lib/review-annotations/draft";
 import { CREDIT_LIMIT_TOAST_MESSAGE, usdToFinalCredits } from "@/lib/credits/units";
 import { estimateImageGenerationCostUsd } from "@/lib/image-gen/estimate";
@@ -630,6 +632,22 @@ export function ImageGenFocusView({
     : imageUrl
     ? "result"
     : "empty";
+
+  // D214 read path: the standing change request on the ACTIVE version, and the
+  // annotations attached to it. Derived from the versions list the history panel
+  // already fetched — no second request, and it re-derives whenever fetchVersions
+  // lands (including right after the senior's own Send back).
+  const latestChangeRequest = useMemo(
+    () =>
+      versions
+        .find((v) => v.id === activeVersionId)
+        ?.decisions?.find((d) => d.status === "changes_requested") ?? null,
+    [versions, activeVersionId],
+  );
+  const reviewAnnotations = useMemo(
+    () => latestChangeRequest?.annotations ?? [],
+    [latestChangeRequest],
+  );
 
   // `preserveEvalDraft` exists for the live-refresh path only — see useNodeVersionUpdates
   // below. Every other caller is reacting to the viewer's OWN action (generate, restore,
@@ -1317,6 +1335,21 @@ export function ImageGenFocusView({
                           groups={groupByTimecode(reviewDrafts.drafts)}
                           onRemove={reviewDrafts.remove}
                         />
+                        {/* What the senior sent, as the maker reads it. Rendered for
+                            both roles: the reviewer returning to the node needs to see
+                            their own standing request, not just the note. */}
+                        {approvalStatus === "changes_requested" && (
+                          <AnnotationList
+                            readOnly
+                            groups={groupByTimecode(
+                              reviewAnnotations.map((a) => ({
+                                seq: a.seq,
+                                note: a.note,
+                                timecodeMs: a.timecodeMs,
+                              })),
+                            )}
+                          />
+                        )}
                       </div>
                     ) : (
                       <p className="text-sm text-muted-foreground">
@@ -1503,6 +1536,19 @@ export function ImageGenFocusView({
                               Editing image…
                             </div>
                           </div>
+                        )}
+                        {approvalStatus === "changes_requested" && (
+                          <AnnotationOverlay
+                            annotations={reviewAnnotations.map((a) => ({
+                              id: a.id,
+                              seq: a.seq,
+                              note: a.note,
+                              maskUrl: a.maskUrl,
+                              authorLine: latestChangeRequest
+                                ? `${latestChangeRequest.reviewerName ?? "Reviewer"} · ${formatRelativeTime(latestChangeRequest.decidedAt)}`
+                                : null,
+                            }))}
+                          />
                         )}
                         <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                           <Button

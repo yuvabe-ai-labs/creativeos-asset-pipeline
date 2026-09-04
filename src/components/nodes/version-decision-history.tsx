@@ -23,17 +23,27 @@ export function VersionDecisionThread({
       {decisions.map((d) => (
         <div key={d.id} className="flex items-start gap-1.5">
           <ApprovalStatusIcon status={d.status} className="mt-0.5" />
-          <p
-            className={cn(
-              "text-[0.65rem] leading-snug",
-              d.status === "approved" ? "text-muted-foreground" : "text-destructive/80",
+          <div className="min-w-0">
+            <p
+              className={cn(
+                "text-[0.65rem] leading-snug",
+                d.status === "approved" ? "text-muted-foreground" : "text-destructive/80",
+              )}
+            >
+              <span className="font-medium">{d.reviewerName ?? "Someone"}</span>{" "}
+              {d.status === "approved" ? "approved" : "requested changes"} ·{" "}
+              {formatRelativeTime(d.decidedAt)}
+              {d.note && <>: {d.note}</>}
+            </p>
+            {/* D213: the thread says a decision CARRIES regions without rendering them —
+                the pictures live on the media pane, this is the count that sends you there. */}
+            {d.annotations && d.annotations.length > 0 && (
+              <p className="mt-0.5 text-[0.6rem] text-muted-foreground">
+                {d.annotations.length} annotation
+                {d.annotations.length === 1 ? "" : "s"}
+              </p>
             )}
-          >
-            <span className="font-medium">{d.reviewerName ?? "Someone"}</span>{" "}
-            {d.status === "approved" ? "approved" : "requested changes"} ·{" "}
-            {formatRelativeTime(d.decidedAt)}
-            {d.note && <>: {d.note}</>}
-          </p>
+          </div>
         </div>
       ))}
     </div>
