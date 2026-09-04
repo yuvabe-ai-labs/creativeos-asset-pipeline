@@ -4600,3 +4600,26 @@ uploads — but it adds a sign endpoint, a finalize hop and a way to mint the st
 before `decisionId` exists, all to keep data we can regenerate by seeking).
 
 **Originated →** `2026-09-03-review-annotations-design.md`.
+
+### D220 — The Review-column list is the primary way into a note; the pin is an accelerator *(recorded 2026-09-04; refines D213/D214)*
+
+**Decision.** Every annotation row in the Review column is itself a control. Clicking one
+opens that note on the media — and on video, seeks the player to its frame first. Image
+and video behave identically. The selection is a single piece of focus-view state shared
+by the list and the media overlay, so `AnnotationOverlay` takes `openSeq` /
+`onOpenSeqChange` as controlled props instead of owning them. Pins stay clickable as an
+accelerator.
+
+**Why.** The pin was the only way to read a note, and it is a 20px circle sitting on top
+of artwork — small, easy to miss, and it moves with the region so it can land somewhere
+awkward. The list is already the index of what was said; making it the target means the
+reviewer never has to hit a pin to read their own feedback. It also removed a real
+asymmetry: video rows were clickable (the timecode chip seeked) while image rows were
+inert, so the two surfaces taught different interactions for the same object.
+
+**Rejected.** Two independent open-note states, one per surface (the list could highlight
+one annotation while the media showed another); making the row a `div` with `onClick`
+(unfocusable, not keyboard-operable — it is a `Button` with `h-auto` so long notes wrap);
+dropping pin clicks entirely (they are a fine accelerator once they sit on their region).
+
+**Originated →** `2026-09-03-review-annotations-design.md`.

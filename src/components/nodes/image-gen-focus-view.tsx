@@ -201,6 +201,9 @@ export function ImageGenFocusView({
   // living on the RESULT image rather than the edit base, with its own drafts.
   const [reviewAnnotating, setReviewAnnotating] = useState(false);
   const [pendingBounds, setPendingBounds] = useState<RegionBounds | null>(null);
+  // D220: which stored annotation's note is open. Shared by the Review-column list and
+  // the on-image overlay so clicking either keeps them in agreement.
+  const [openAnnotationSeq, setOpenAnnotationSeq] = useState<number | null>(null);
   const reviewCanvasRef = useRef<AnnotationHandle>(null);
   const reviewDrafts = useAnnotationDrafts();
   const discardConfirm = useDiscardAnnotationsConfirm();
@@ -1351,6 +1354,12 @@ export function ImageGenFocusView({
                                 timecodeMs: a.timecodeMs,
                               })),
                             )}
+                            activeSeq={openAnnotationSeq}
+                            onSelect={(item) =>
+                              setOpenAnnotationSeq((cur) =>
+                                cur === item.seq ? null : item.seq,
+                              )
+                            }
                           />
                         )}
                       </div>
@@ -1552,6 +1561,8 @@ export function ImageGenFocusView({
                                 ? `${latestChangeRequest.reviewerName ?? "Reviewer"} · ${formatRelativeTime(latestChangeRequest.decidedAt)}`
                                 : null,
                             }))}
+                            openSeq={openAnnotationSeq}
+                            onOpenSeqChange={setOpenAnnotationSeq}
                           />
                         )}
                         <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">

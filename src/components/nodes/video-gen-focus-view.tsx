@@ -77,6 +77,7 @@ import {
 } from "@/components/review-annotations/discard-annotations-dialog";
 import { captureFrame, FrameCaptureError } from "@/components/review-annotations/use-frame-capture";
 import { groupByTimecode } from "@/lib/review-annotations/group";
+import { formatRelativeTime } from "@/lib/format/relative-time";
 import type { AnnotationHandle } from "@/components/review-annotations/review-annotation-canvas";
 import type { RegionBounds } from "@/lib/review-annotations/draft";
 import { ApprovalSkeleton } from "./approval-skeleton";
@@ -401,6 +402,9 @@ export function VideoGenFocusView({
   } | null>(null);
   const [pendingBounds, setPendingBounds] = useState<RegionBounds | null>(null);
   const [openTimecode, setOpenTimecode] = useState<number | null>(null);
+  // D220: which stored annotation's note is open, shared by the list and the player
+  // overlay — the same contract the image view uses, so both surfaces behave alike.
+  const [openAnnotationSeq, setOpenAnnotationSeq] = useState<number | null>(null);
   const reviewCanvasRef = useRef<AnnotationHandle>(null);
   const reviewDrafts = useAnnotationDrafts();
   const discardConfirm = useDiscardAnnotationsConfirm();
@@ -1490,9 +1494,23 @@ export function VideoGenFocusView({
                                 timecodeMs: a.timecodeMs,
                               })),
                             )}
+                            activeSeq={openAnnotationSeq}
                             onSeek={(ms) => {
                               seekTo(ms);
                               setOpenTimecode(ms);
+                              setOpenAnnotationSeq(null);
+                            }}
+                            onSelect={(item) => {
+                              // Row click does the whole gesture: seek the player to the
+                              // frame the note is about, reveal that frame's regions, and
+                              // open this note. Toggling it off leaves the regions up.
+                              if (item.timecodeMs !== null) {
+                                seekTo(item.timecodeMs);
+                                setOpenTimecode(item.timecodeMs);
+                              }
+                              setOpenAnnotationSeq((cur) =>
+                                cur === item.seq ? null : item.seq,
+                              );
                             }}
                           />
                         )}
@@ -1674,6 +1692,7 @@ export function VideoGenFocusView({
                         onPlay={() => {
                           setVideoPaused(false);
                           setOpenTimecode(null);
+                          setOpenAnnotationSeq(null);
                         }}
                         onLoadedMetadata={(e) =>
                           setVideoDurationMs(
@@ -1721,7 +1740,7 @@ export function VideoGenFocusView({
                           native controls underneath, so dismissal is the button below and
                           pressing play (onPlay clears openTimecode). */}
                       {openGroup.length > 0 && (
-                        <div className="pointer-events-none absolute inset-0 z-30 rounded-xl">
+                        <div className="pointer-events-none absolute inset-0 z-30 rounded-xl [&_button]:pointer-events-auto">
                           {openGroup.map((a) =>
                             a.maskUrl ? (
                               /* eslint-disable-next-line @next/next/no-img-element */
@@ -1739,15 +1758,43 @@ export function VideoGenFocusView({
                               seq={a.seq}
                               x={a.bounds ? a.bounds.x + a.bounds.w / 2 : 0.04}
                               y={a.bounds ? a.bounds.y + a.bounds.h / 2 : 0.06 + i * 0.08}
+                              active={openAnnotationSeq === a.seq}
+                              onClick={() =>
+                                setOpenAnnotationSeq((cur) =>
+                                  cur === a.seq ? null : a.seq,
+                                )
+                              }
                             />
                           ))}
+                          {/* The note itself, on the frame it belongs to (D220). */}
+                          {openGroup
+                            .filter((a) => a.seq === openAnnotationSeq)
+                            .map((a, i) => (
+                              <AnnotationNotePopover
+                                key={a.id}
+                                mode="read"
+                                seq={a.seq}
+                                note={a.note}
+                                authorLine={
+                                  latestChangeRequest
+                                    ? `${latestChangeRequest.reviewerName ?? "Reviewer"} \u00b7 ${formatRelativeTime(latestChangeRequest.decidedAt)}`
+                                    : null
+                                }
+                                bounds={
+                                  a.bounds ?? { x: 0.08, y: 0.06 + i * 0.08, w: 0, h: 0 }
+                                }
+                              />
+                            ))}
                           <div className="pointer-events-auto absolute bottom-12 left-1/2 -translate-x-1/2">
                             <Button
                               type="button"
                               variant="outline"
                               size="xs"
                               className="bg-background/80 backdrop-blur-sm"
-                              onClick={() => setOpenTimecode(null)}
+                              onClick={() => {
+                                setOpenTimecode(null);
+                                setOpenAnnotationSeq(null);
+                              }}
                             >
                               Hide regions · {formatTimecode(openTimecode as number)}
                             </Button>

@@ -29,13 +29,19 @@ function pinPosition(bounds: RegionBounds | null, index: number) {
 // Read-only annotation layer (D214): the stored painted overlays render directly — they
 // ARE the purple strokes the senior drew — pins open note popovers, one toggle hides it
 // all so the maker can see the untouched picture underneath.
+// D220: `openSeq` is CONTROLLED by the focus view, because the Review-column list opens
+// notes too — two independent "which note is open" states would let the list highlight
+// one annotation while the media showed another.
 export function AnnotationOverlay({
   annotations,
+  openSeq,
+  onOpenSeqChange,
 }: {
   annotations: OverlayAnnotation[];
+  openSeq: number | null;
+  onOpenSeqChange: (seq: number | null) => void;
 }) {
   const [visible, setVisible] = useState(true);
-  const [openSeq, setOpenSeq] = useState<number | null>(null);
   if (annotations.length === 0) return null;
   const openIndex = annotations.findIndex((a) => a.seq === openSeq);
   const open = openIndex === -1 ? null : annotations[openIndex];
@@ -46,7 +52,11 @@ export function AnnotationOverlay({
           type="button"
           variant="outline"
           size="xs"
-          onClick={() => setVisible((v) => !v)}
+          onClick={() => {
+            const next = !visible;
+            setVisible(next);
+            if (!next) onOpenSeqChange(null); // hiding the layer closes the open note
+          }}
           className="bg-background/80 backdrop-blur-sm"
           aria-pressed={visible}
         >
@@ -75,7 +85,7 @@ export function AnnotationOverlay({
                 x={x}
                 y={y}
                 active={openSeq === a.seq}
-                onClick={() => setOpenSeq(openSeq === a.seq ? null : a.seq)}
+                onClick={() => onOpenSeqChange(openSeq === a.seq ? null : a.seq)}
               />
             );
           })}
