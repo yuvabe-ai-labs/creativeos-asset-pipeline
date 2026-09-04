@@ -40,6 +40,10 @@ type Props = {
   // can anchor its note popover without polling the handle.
   onStrokeEnd?: (bounds: RegionBounds | null) => void;
   hintText?: string;
+  // Rendered INSIDE the aspect-ratio box that hugs the image — pins and the note card
+  // position in fractions of the picture, so they must not sit in an outer wrapper
+  // that also contains the tool rail.
+  overlay?: React.ReactNode;
 };
 
 // Brush is measured in the base image's NATURAL pixels (the buffer is full-res), so the range is
@@ -57,6 +61,7 @@ export const ReviewAnnotationCanvas = forwardRef<AnnotationHandle, Props>(
       onMarksChange,
       onStrokeEnd,
       hintText = "Paint over the area you want to change.",
+      overlay,
     },
     ref,
   ) {
@@ -287,6 +292,7 @@ export const ReviewAnnotationCanvas = forwardRef<AnnotationHandle, Props>(
               <p className="pointer-events-none absolute inset-x-0 bottom-0 bg-background/80 px-3 py-1.5 text-center text-xs text-muted-foreground backdrop-blur-sm">
                 {hintText}
               </p>
+              {overlay}
             </div>
           </div>
         </div>
