@@ -4482,3 +4482,38 @@ sees; lossless retry because drafts remain client-side until the action succeeds
 image); best-effort annotation writes (silently dropped feedback).
 
 **Originated →** `2026-09-03-review-annotations-design.md`.
+
+### D215 — Annotate mode reads video through the same-origin proxy *(recorded 2026-09-04; refines D210/D213, builds on D37 §8)*
+
+**Decision.** Capturing a paused frame needs canvas readback, which needs a same-origin
+or CORS-enabled source. GCS public objects send no CORS headers, so the video player
+switches its `src` to `/api/image-proxy` and sets `crossOrigin="anonymous"` **only while
+the senior is annotating** (a keyed remount). Ordinary playback keeps the direct GCS URL.
+
+**Why.** Setting `crossOrigin` unconditionally does not degrade — it fails the media load
+outright, so every viewer loses playback to enable a senior-only feature. Scoping the
+proxy to annotate mode confines both the cost (no Range support, so no progressive seek)
+and any failure to the one mode that needs it. The proxy already exists for exactly this
+reason on the image side, and is SSRF-locked to the storage host.
+
+**Rejected.** `crossOrigin` on every load (breaks playback everywhere); adding a bucket
+CORS policy (infra change outside the feature, and the proxy already solves it);
+server-side frame extraction (a video decode pipeline for a note).
+
+**Originated →** `2026-09-03-review-annotations-design.md`.
+
+### D216 — Stored annotations index by pin stack, not by stored bounds *(recorded 2026-09-04; refines D213)*
+
+**Decision.** Annotation rows persist the painted overlay and the note, not the stroke's
+bounding box. On the read side the overlay image *is* the region locator and pins stack
+down the left edge in seq order as an index into the notes. Compose mode still anchors
+its popover to live stroke bounds, which are client-side only.
+
+**Why.** The mask already shows the maker exactly where to look; a `bounds` column would
+have to be threaded through payload → action → row → route to move a pin a few hundred
+pixels. The contingency stays open if real screens read poorly.
+
+**Rejected.** A `bounds jsonb` column (schema + four-layer plumbing for pin placement);
+client-side mask pixel scanning to recover a centroid (a decode per annotation per render).
+
+**Originated →** `2026-09-03-review-annotations-design.md`.

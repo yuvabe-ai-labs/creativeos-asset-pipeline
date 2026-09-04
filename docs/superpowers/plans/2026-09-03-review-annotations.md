@@ -64,12 +64,12 @@ src/components/nodes/version-decision-history.tsx        "n annotations" per dec
 **Interfaces:**
 - Produces: table `node_version_annotations`, storage bucket `review-annotations`. Later tasks rely on the exact column names below.
 
-- [ ] **Step 1: Confirm 0035 is free**
+- [x] **Step 1: Confirm 0035 is free**
 
 Run: `ls supabase/migrations | sort | tail -3`
 Expected: `0034_node_versions_updated_at.sql` is the highest. If a 0035 now exists (staging moved), renumber this file to the next free number everywhere it appears.
 
-- [ ] **Step 2: Write the migration**
+- [x] **Step 2: Write the migration**
 
 ```sql
 -- D209–D214: region + note feedback attached to a changes_requested decision.
@@ -118,11 +118,11 @@ values ('review-annotations', 'review-annotations', false)
 on conflict (id) do nothing;
 ```
 
-- [ ] **Step 3: Append to MIGRATIONS-PENDING.md**
+- [x] **Step 3: Append to MIGRATIONS-PENDING.md**
 
 Open `docs/superpowers/plans/MIGRATIONS-PENDING.md`, copy the format of the newest entry, and add `0035_review_annotations.sql` — table + RLS + `review-annotations` bucket, feature: review annotations (D209–D214).
 
-- [ ] **Step 4: Update spec §5.2 wording**
+- [x] **Step 4: Update spec §5.2 wording**
 
 In the spec, replace the sentence "The mask PNG uses the existing `EDIT_ALPHA`/`KEEP_ALPHA` convention from `mask.ts` so V2 replay needs no translation." with:
 
@@ -130,7 +130,7 @@ In the spec, replace the sentence "The mask PNG uses the existing `EDIT_ALPHA`/`
 
 Also add the two check constraints to the spec's SQL block so spec and migration agree.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add supabase/migrations/0035_review_annotations.sql docs/superpowers/plans/MIGRATIONS-PENDING.md docs/superpowers/specs/2026-09-03-review-annotations-design.md
@@ -162,7 +162,7 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
   - `groupByTimecode(items: { timecodeMs: number | null }[] & T[]): { timecodeMs: number | null; items: T[] }[]`
   - Constants: `MAX_ANNOTATIONS_PER_DECISION = 20`, `MAX_MASK_BYTES = 1_048_576`, `MAX_FRAME_BYTES = 2_097_152`, `MAX_TOTAL_BYTES = 8_388_608`, `ANNOTATION_BUCKET = "review-annotations"`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `src/lib/review-annotations/__tests__/payload.test.ts`:
 
@@ -322,12 +322,12 @@ describe("groupByTimecode", () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `npx vitest run src/lib/review-annotations`
 Expected: FAIL — modules not found.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `src/lib/review-annotations/constants.ts`:
 
@@ -451,12 +451,12 @@ export function groupByTimecode<T extends { timecodeMs: number | null }>(
 }
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `npx vitest run src/lib/review-annotations`
 Expected: PASS (all three files).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/lib/review-annotations
@@ -480,7 +480,7 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
   - `insertAnnotations(rows: Omit<AnnotationRow, "id" | "created_at">[]): Promise<void>` — one batched insert, throws on error, no-op on empty
   - `getAnnotationsByDecisionIds(decisionIds: string[]): Promise<Map<string, AnnotationRow[]>>` — batched, ordered by `(decision_id, seq)`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `src/lib/db/annotations.test.ts`:
 
@@ -582,12 +582,12 @@ describe("getAnnotationsByDecisionIds", () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `npx vitest run src/lib/db/annotations.test.ts`
 Expected: FAIL — `./annotations` not found.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `src/lib/db/annotations.ts`:
 
@@ -645,12 +645,12 @@ export async function getAnnotationsByDecisionIds(
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `npx vitest run src/lib/db/annotations.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/lib/db/annotations.ts src/lib/db/annotations.test.ts
@@ -675,7 +675,7 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
   - `signAnnotationAssets(storage: SupabaseStorage, rows: AnnotationRow[]): Promise<Map<string, { maskUrl: string | null; frameUrl: string | null }>>` — keyed by row id
   - `type SupabaseStorage = { from(bucket: string): { upload(path: string, body: Buffer | Blob, opts?: object): Promise<{ error: { message: string } | null }>; createSignedUrl(path: string, ttl: number): Promise<{ data: { signedUrl: string } | null; error: object | null }> } }` — structural type so tests stub it without the real client
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `src/lib/review-annotations/__tests__/storage.test.ts`:
 
@@ -777,12 +777,12 @@ describe("signAnnotationAssets", () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `npx vitest run src/lib/review-annotations/__tests__/storage.test.ts`
 Expected: FAIL — `../storage` not found.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `src/lib/review-annotations/storage.ts`:
 
@@ -868,12 +868,12 @@ export async function signAnnotationAssets(
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `npx vitest run src/lib/review-annotations/__tests__/storage.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/lib/review-annotations/storage.ts src/lib/review-annotations/__tests__/storage.test.ts
@@ -895,7 +895,7 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 - Consumes: `validateAnnotations`, `AnnotationPayload` (Task 2); `uploadAnnotationAssets` (Task 4); `insertAnnotations` (Task 3).
 - Produces: `setVersionApprovalAction(versionId, { status, note, annotations? })` — the only new client-facing surface. `insertDecision` accepts `id?: string`.
 
-- [ ] **Step 1: Extend insertDecision with an optional pre-generated id**
+- [x] **Step 1: Extend insertDecision with an optional pre-generated id**
 
 In `src/lib/db/decisions.ts`, change `insertDecision`'s input type to add `id?: string` and spread it into the insert:
 
@@ -925,7 +925,7 @@ export async function insertDecision(input: {
 
 Run: `npx vitest run src/lib/db/decisions.test.ts` — Expected: PASS (existing tests unaffected).
 
-- [ ] **Step 2: Write the failing action test**
+- [x] **Step 2: Write the failing action test**
 
 `src/lib/actions/approval.test.ts`:
 
@@ -1073,12 +1073,12 @@ describe("setVersionApprovalAction with annotations", () => {
 });
 ```
 
-- [ ] **Step 3: Run test to verify it fails**
+- [x] **Step 3: Run test to verify it fails**
 
 Run: `npx vitest run src/lib/actions/approval.test.ts`
 Expected: FAIL — annotations parameter not accepted / behaviors missing.
 
-- [ ] **Step 4: Implement in `src/lib/actions/approval.ts`**
+- [x] **Step 4: Implement in `src/lib/actions/approval.ts`**
 
 Add imports:
 
@@ -1177,12 +1177,12 @@ Replace the existing best-effort decision block with:
     }
 ```
 
-- [ ] **Step 5: Run tests to verify they pass**
+- [x] **Step 5: Run tests to verify they pass**
 
 Run: `npx vitest run src/lib/actions/approval.test.ts src/lib/db/decisions.test.ts`
 Expected: PASS (both files).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/lib/actions/approval.ts src/lib/actions/approval.test.ts src/lib/db/decisions.ts
@@ -1202,7 +1202,7 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 - Consumes: `getAnnotationsByDecisionIds` (Task 3), `signAnnotationAssets` (Task 4).
 - Produces: each entry in `decisions[]` gains `annotations: { id: string; seq: number; kind: "image" | "video-frame"; timecodeMs: number | null; note: string; maskUrl: string | null; frameUrl: string | null }[]`. Client tasks (7–10) consume exactly this shape.
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 In the route's handler, after `getDecisionsByVersionIds`:
 
@@ -1240,12 +1240,12 @@ Extend the `decisions:` mapping:
         })),
 ```
 
-- [ ] **Step 2: Typecheck and run the suite**
+- [x] **Step 2: Typecheck and run the suite**
 
 Run: `npx tsc --noEmit && npm test`
 Expected: clean typecheck; suite green (re-run the Kling file once if it hits its known cold-cache flake).
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add "src/app/api/nodes/[id]/versions/route.ts"
@@ -1269,11 +1269,11 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
   - `AnnotationHandle` gains `toOverlayBase64(): string | null` and `getStrokeBounds(): RegionBounds | null`
   - `image-gen-annotation-canvas.tsx` re-exports `{ ReviewAnnotationCanvas as ImageGenAnnotationCanvas, type AnnotationHandle }` so the edit-mode consumer (`image-gen-focus-view.tsx`) is untouched by this task.
 
-- [ ] **Step 1: Move the component**
+- [x] **Step 1: Move the component**
 
 Copy the full content of `src/components/nodes/image-gen-annotation-canvas.tsx` to `src/components/review-annotations/review-annotation-canvas.tsx`. Rename the exported component to `ReviewAnnotationCanvas`. Fix the one relative import: `./use-drawing-canvas` becomes `@/components/nodes/use-drawing-canvas` (the brush engine stays where the Draw node also uses it).
 
-- [ ] **Step 2: Add stroke-bounds tracking + overlay export**
+- [x] **Step 2: Add stroke-bounds tracking + overlay export**
 
 Inside the component add a bounds ref and extend the pointer handlers (natural-pixel coords → fractions):
 
@@ -1329,7 +1329,7 @@ Add to the imperative handle:
 
 Add the `hintText` prop with the current string as default, and `RegionBounds` import from `@/lib/review-annotations/draft`.
 
-- [ ] **Step 3: Make the old path a re-export**
+- [x] **Step 3: Make the old path a re-export**
 
 Replace the entire content of `src/components/nodes/image-gen-annotation-canvas.tsx` with:
 
@@ -1342,12 +1342,12 @@ export {
 } from "@/components/review-annotations/review-annotation-canvas";
 ```
 
-- [ ] **Step 4: Verify**
+- [x] **Step 4: Verify**
 
 Run: `npx tsc --noEmit && npm test`
 Expected: clean; no behavioral change anywhere (edit mode renders the same component).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/components/review-annotations/review-annotation-canvas.tsx src/components/nodes/image-gen-annotation-canvas.tsx
@@ -1377,7 +1377,7 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
   - `AnnotationList({ groups, onSeek?, onRemove?, readOnly })` — Review-column list; `groups` from `groupByTimecode`.
   - `InlineApprovalBar` new optional props: `annotationCount?: number`, `annotating?: boolean`, `onToggleAnnotate?: () => void`, `onConfirmDiscardDrafts?: () => Promise<boolean>`.
 
-- [ ] **Step 1: Build the shared pieces**
+- [x] **Step 1: Build the shared pieces**
 
 `src/components/review-annotations/annotation-pin.tsx`:
 
@@ -1643,7 +1643,7 @@ export function AnnotationList({
 }
 ```
 
-- [ ] **Step 2: Extend InlineApprovalBar**
+- [x] **Step 2: Extend InlineApprovalBar**
 
 In `src/components/nodes/inline-approval-bar.tsx`, add the four optional props from the Interfaces block to the component signature. Inside the `composing` block, after the `Textarea` and before the Cancel/Send-back row, add:
 
@@ -1688,7 +1688,7 @@ In the Approve `onClick`, guard with the discard confirm:
 
 Also guard Cancel in the composer: if `annotationCount` is set, call `onConfirmDiscardDrafts` the same way before closing.
 
-- [ ] **Step 3: Wire the image focus view**
+- [x] **Step 3: Wire the image focus view**
 
 In `src/components/nodes/image-gen-focus-view.tsx` (search for `InlineApprovalBar` to find the Review `LeftSection`, and for the `mode === "result" && imageUrl` block for the media pane):
 
@@ -1702,7 +1702,7 @@ In `src/components/nodes/image-gen-focus-view.tsx` (search for `InlineApprovalBa
 6. In the handler that calls `setVersionApprovalAction` (search for it in the file), pass `annotations: reviewDrafts.drafts.map(({ bounds: _b, ...payload }) => payload)` when status is `changes_requested` and drafts exist; on success, `reviewDrafts.clear(); setReviewAnnotating(false);`.
 7. Confirm dialog: use `Dialog`/`DialogContent` from `src/components/ui/dialog.tsx` — body "Discard N annotations?", buttons "Keep annotating" (ghost) / "Discard" (destructive). If the file doesn't exist, add the shadcn dialog primitive to `src/components/ui/` first (Global Constraints).
 
-- [ ] **Step 4: Verify**
+- [x] **Step 4: Verify** — automated only; the manual checklist below is still owed
 
 Run: `npx tsc --noEmit && npm test`
 Expected: clean. Then manual check (`npm run dev`, or the `run` skill):
@@ -1712,7 +1712,7 @@ Expected: clean. Then manual check (`npm run dev`, or the `run` skill):
 - As a designer: no Annotate button anywhere.
 - Edit mode (Edit switch) still paints and submits masked edits exactly as before.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/components/review-annotations src/components/nodes/inline-approval-bar.tsx src/components/nodes/image-gen-focus-view.tsx
@@ -1734,7 +1734,7 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 - Consumes: the versions-route `decisions[].annotations` shape (Task 6), `AnnotationPin` / `AnnotationNotePopover` (Task 8).
 - Produces: `AnnotationOverlay({ annotations, showToggle?: boolean })` where `annotations: { id: string; seq: number; note: string; maskUrl: string | null; authorLine: string | null }[]` — mask images rendered at 40% opacity over the media, pins clickable to open read popovers, an "Annotations ✓" toggle chip top-right.
 
-- [ ] **Step 1: Build the overlay**
+- [x] **Step 1: Build the overlay**
 
 `src/components/review-annotations/annotation-overlay.tsx`:
 
@@ -1822,7 +1822,7 @@ export function AnnotationOverlay({
 
 **Note on pin placement:** stored rows carry no bounds — the mask image *is* the region locator. If during manual verification the top-left pin stack reads poorly, extend Task 1's schema with a `bounds jsonb` column, thread `bounds` through payload → action → row → route (Tasks 2/5/6 all touch one field each), and position pins at the draft bounds like compose mode does. Prefer shipping the simple version first and deciding on real screens.
 
-- [ ] **Step 2: Wire the image focus view (read path)**
+- [x] **Step 2: Wire the image focus view (read path)**
 
 In `image-gen-focus-view.tsx`, the versions data (route from Task 6) is already fetched for the history/decision panels — locate where `decisions` for the ACTIVE version are available (search `approvalStatus` / `decisions`). Derive:
 
@@ -1849,7 +1849,7 @@ When `approvalStatus === "changes_requested" && reviewAnnotations.length > 0 && 
 
 And render the read-only `AnnotationList` (`readOnly groups={groupByTimecode(reviewAnnotations.map(a => ({ seq: a.seq, note: a.note, timecodeMs: a.timecodeMs })))}`) in the Review column, below the approval bar / readout — both roles see it.
 
-- [ ] **Step 3: Thread counts**
+- [x] **Step 3: Thread counts**
 
 In `src/components/nodes/version-decision-history.tsx` (`VersionDecisionThread`), where each decision row renders its note, add after it:
 
@@ -1863,13 +1863,13 @@ In `src/components/nodes/version-decision-history.tsx` (`VersionDecisionThread`)
 
 (Extend the component's decision prop type with `annotations?: { id: string }[]` — match the actual prop shape used in the file.)
 
-- [ ] **Step 4: Verify**
+- [x] **Step 4: Verify**
 
 Run: `npx tsc --noEmit && npm test`. Then manual:
 - Send back an image with 2 annotations as senior; open the node as the maker (designer): regions render purple at 40%, pins open notes with author line, toggle hides the layer, list shows in the Review column, thread row says "2 annotations".
 - Regenerate: the new pending version shows NO overlay (annotations stay in history).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/components/review-annotations/annotation-overlay.tsx src/components/nodes/image-gen-focus-view.tsx src/components/nodes/version-decision-history.tsx
@@ -1890,7 +1890,7 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 - Consumes: everything from Tasks 7–9; `groupByTimecode`, `formatTimecode`.
 - Produces: `captureFrame(video: HTMLVideoElement): { base64: string; timecodeMs: number }` — throws `FrameCaptureError` on CORS/decoder failure.
 
-- [ ] **Step 1: Implement the capture hook**
+- [x] **Step 1: Implement the capture hook**
 
 `src/components/review-annotations/use-frame-capture.ts`:
 
@@ -1926,7 +1926,7 @@ export function captureFrame(video: HTMLVideoElement): {
 }
 ```
 
-- [ ] **Step 2: Wire the video focus view**
+- [x] **Step 2: Wire the video focus view**
 
 In `src/components/nodes/video-gen-focus-view.tsx` (search `InlineApprovalBar` and the `mode === "result" && videoUrl` block):
 
@@ -1955,7 +1955,7 @@ In `src/components/nodes/video-gen-focus-view.tsx` (search `InlineApprovalBar` a
    where `markerTimecodes` is the sorted unique timecodes of drafts (compose) or stored annotations (read), and `videoDurationMs` comes from the video's `onLoadedMetadata` (`duration * 1000`).
 6. **Read path:** as Task 9, but the overlay renders on the CAPTURED FRAME context: clicking a timecode chip or marker seeks + pauses the video, and renders that group's `frameUrl` still + mask overlays + pins in place of nothing (an `absolute inset-0` layer over the paused video showing the stored `frameUrl` image with its masks at 40%). Clicking anywhere outside or pressing play dismisses the layer.
 
-- [ ] **Step 3: Verify**
+- [x] **Step 3: Verify**
 
 Run: `npx tsc --noEmit && npm test`. Then manual, on a video node **on the remote/staging environment if local video-gen has no completed versions** (local video generation never completes — known constraint; a previously generated version with a playable URL is enough locally):
 - Pause at ~2s → Annotate frame → paint + note → pair lands under `0:02` with the frame thumb behavior; player returns.
@@ -1963,7 +1963,7 @@ Run: `npx tsc --noEmit && npm test`. Then manual, on a video node **on the remot
 - Send back; as maker: chips seek the video, marker strip shows dots, stored frame + regions render on chip click.
 - A cross-origin test video (if any) fails capture with the toast, not a crash.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/components/review-annotations/use-frame-capture.ts src/components/nodes/video-gen-focus-view.tsx
@@ -1979,22 +1979,22 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 **Files:**
 - Modify: none expected (fixes only if verification finds them)
 
-- [ ] **Step 1: Full suite, typecheck, lint**
+- [x] **Step 1: Full suite, typecheck, lint**
 
 Run: `npm test && npx tsc --noEmit && npm run lint`
 Expected: green (Kling flake: re-run once; pre-existing lint failures unrelated to this feature are out of scope — compare against a stash-free `git stash`-less baseline by checking they exist on the base commit too).
 
-- [ ] **Step 2: End-to-end manual pass**
+- [ ] **Step 2: End-to-end manual pass** — NOT RUN (needs two logged-in browsers, senior + maker)
 
 The full senior→maker loop on one image node and one video node, per the checklists in Tasks 8–10. Verify the org Realtime path: with two browsers (senior + maker), the maker's badge flips to "Sent back" without a reload when the annotated decision lands.
 
-- [ ] **Step 3: Confirm docs are true**
+- [x] **Step 3: Confirm docs are true**
 
 - Spec §5.2 matches the shipped migration (Task 1's wording change).
 - `MIGRATIONS-PENDING.md` lists 0035.
 - ADRs D209–D214 need no correction from implementation discoveries; if the bounds-column contingency in Task 9 was taken, append that refinement to D213's entry.
 
-- [ ] **Step 4: Final commit (if anything changed)**
+- [x] **Step 4: Final commit (if anything changed)**
 
 ```bash
 git add -A
@@ -2004,6 +2004,39 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 ```
 
 ---
+
+## Execution notes (2026-09-04)
+
+Tasks 1-11 are implemented and committed. Automated verification is green on every task:
+`npm test` 1498/1498, `npx tsc --noEmit` clean, and `npx eslint` over every file this
+branch touches reports **0 errors** (9 warnings, all intentional `_`-prefixed unused vars
+plus one pre-existing `<img>` notice). The repo-wide lint has 28 errors, none of them in a
+file this branch touched.
+
+**Still owed: the manual passes in Tasks 8, 9, 10 and 11 Step 2.** They need two logged-in
+browsers (senior + maker) against a canvas with a generated image and a playable video, so
+they could not be run here. Nothing below has been observed on a real screen.
+
+Three deviations from the plan as written, each committed with its reasoning:
+
+1. **Pins render through an `overlay` slot inside the canvas's aspect-ratio box** (Task 8),
+   not layered in an outer wrapper. The outer wrapper also contains the 64px tool rail, so
+   every fractional position would land right of the region it marks.
+2. **The discard confirm is `AlertDialog`, extracted as `DiscardAnnotationsDialog` +
+   `useDiscardAnnotationsConfirm`** (Task 8), not an inline `Dialog`. AlertDialog is what
+   every other destructive confirm in the repo uses; the promise/resolver shape mirrors
+   `useDeleteConfirmation`; video was a real second consumer.
+3. **Annotate mode reads the video through `/api/image-proxy`** (Task 10) instead of setting
+   `crossOrigin="anonymous"` on the player unconditionally. GCS objects send no CORS
+   headers, so the plan's version would have failed the media load outright and broken
+   playback for everyone. Recorded as **D215**.
+
+Task 9's bounds-column contingency was **not** taken — pins stack down the left edge and the
+mask image is the locator. Recorded as **D216** so it is a decision, not an omission.
+
+One pre-existing defect was fixed on the way through: Task 4's `storage.test.ts` typed its
+stub overrides as `ReturnType<typeof vi.fn>`, which is `Mock<Procedure | Constructable>` and
+not assignable to a concrete signature — it failed `tsc --noEmit` while vitest stayed green.
 
 ## Self-review notes (already applied)
 
