@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
+import { GuidedNextButton } from "@/components/canvas/guided-next-button";
 import { EditableField } from "./editable-field";
 import {
   MIN_CUT_SECONDS,
@@ -18,6 +19,8 @@ import { OMNI_MAX_SECONDS, OMNI_MIN_SECONDS } from "@/lib/nodes/group-shots";
 type MultishotFocusViewProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** This node's id — the guided "Create multishot prompt" action needs a source to wire from. */
+  nodeId: string;
   order?: number;
   cuts: MultishotCut[];
   scriptTitle?: string;
@@ -45,6 +48,7 @@ type MultishotFocusViewProps = {
 export function MultishotFocusView({
   open,
   onOpenChange,
+  nodeId,
   order,
   cuts,
   scriptTitle,
@@ -106,20 +110,25 @@ export function MultishotFocusView({
               <div className="mb-2 h-0.5 w-6 rounded-full bg-primary/70" aria-hidden />
               <span className="text-eyebrow">Cuts</span>
             </div>
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-4">
             {atCeiling && (
               <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <TriangleAlert className="size-3.5 shrink-0" strokeWidth={1.5} />
                 {OMNI_MAX_SECONDS}s maximum reached.
               </p>
             )}
-            {cuts.map((cut, i) => (
-              <div key={cut.id} className="rounded-xl border border-border bg-card p-4 shadow-card">
-                <div className="flex items-start gap-3">
-                  <span className="mt-1 flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium text-muted-foreground">
-                    {i + 1}
-                  </span>
-                  <div className="min-w-0 flex-1">
+
+            {/* Cuts run ACROSS, not down (operator sketch, 2026-09-04). A ladder is a filmstrip,
+                and side-by-side is how the order and the relative lengths read at a glance —
+                stacked rows made a 6-cut clip look like a form to fill in. Each cut owns its own
+                column: the text on top, then its slider, then its length. The slider sits UNDER
+                its card rather than inside it so the timings line up as one row across the strip
+                and can be compared without reading each card. */}
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4">
+              {cuts.map((cut, i) => (
+                <div key={cut.id} className="flex min-w-0 flex-col gap-2">
+                  <div className="flex min-h-40 flex-col gap-2 rounded-xl border border-border bg-card p-4 shadow-card">
+                    <span className="text-eyebrow text-muted-foreground">Shot {i + 1}</span>
                     <EditableField
                       value={cut.text}
                       onCommit={(text) =>
@@ -128,38 +137,50 @@ export function MultishotFocusView({
                       readOnly={isReadOnly}
                       multiline
                       placeholder="Describe this cut…"
-                      className="text-sm leading-relaxed"
+                      className="flex-1 text-sm leading-relaxed"
                     />
-                    <div className="mt-3 flex items-center gap-3">
-                      {/* Every cut's slider runs the SAME 1-10s scale, so a 2s cut sits at the
-                          same place on every row and two cuts can be compared at a glance.
-                          Deriving each max from the remaining headroom instead made an untouched
-                          cut's thumb jump the moment another cut grew — its seconds were
-                          unchanged, but its track had shrunk under it, which reads as the other
-                          slider having moved it. A stable scale is worth more than avoiding the
-                          short over-drag that resizeCut clamps. */}
-                      <Slider
-                        value={[cut.seconds]}
-                        min={MIN_CUT_SECONDS}
-                        max={OMNI_MAX_SECONDS}
-                        step={1}
-                        disabled={isReadOnly}
-                        aria-label={`Cut ${i + 1} length in seconds`}
-                        onValueChange={(v) =>
-                          onChange(resizeCut(cuts, i, Array.isArray(v) ? v[0] : v))
-                        }
-                        className="max-w-sm"
-                      />
-                      <span className="w-9 shrink-0 text-xs tabular-nums text-muted-foreground">
-                        {cut.seconds}s
-                      </span>
-                    </div>
+                  </div>
+
+                  <div className="flex flex-col items-center gap-1 px-1">
+                    {/* Every cut's slider runs the SAME 1-10s scale, so a 2s cut sits at the
+                        same place on every row and two cuts can be compared at a glance.
+                        Deriving each max from the remaining headroom instead made an untouched
+                        cut's thumb jump the moment another cut grew — its seconds were
+                        unchanged, but its track had shrunk under it, which reads as the other
+                        slider having moved it. A stable scale is worth more than avoiding the
+                        short over-drag that resizeCut clamps. */}
+                    <Slider
+                      value={[cut.seconds]}
+                      min={MIN_CUT_SECONDS}
+                      max={OMNI_MAX_SECONDS}
+                      step={1}
+                      disabled={isReadOnly}
+                      aria-label={`Cut ${i + 1} length in seconds`}
+                      onValueChange={(v) =>
+                        onChange(resizeCut(cuts, i, Array.isArray(v) ? v[0] : v))
+                      }
+                      className="w-full"
+                    />
+                    <span className="text-xs tabular-nums text-muted-foreground">
+                      {cut.seconds}s
+                    </span>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
             </div>
           </section>
+
+          {/* The lane's next step, where the sketch put it: bottom-right, after the strip it acts
+              on. The card carries the same control as a chip; this is the one you reach for once
+              the timings are set, which is the point at which you actually want it. */}
+          <div className="mt-8 flex justify-end border-t border-border pt-5">
+            <GuidedNextButton
+              sourceId={nodeId}
+              variant="button"
+              onNavigate={() => onOpenChange(false)}
+            />
+          </div>
           </div>
         </div>
       </SheetContent>
