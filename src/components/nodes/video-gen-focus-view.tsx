@@ -1214,6 +1214,7 @@ export function VideoGenFocusView({
                   <VideoGenModelPicker
                     modelId={modelId}
                     onModelChange={handleModelChange}
+                    loading={loadingConnected}
                     lockedToModelId={isMultishotPromptConnected ? GEMINI_OMNI_MODEL_ID : undefined}
                     restrictionReason={
                       isMultishotPromptConnected

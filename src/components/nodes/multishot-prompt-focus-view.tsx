@@ -6,18 +6,18 @@ import { useParams } from "next/navigation";
 import {
   ListVideo,
   Palette,
-  PencilLine,
   BadgeCheck,
   ExternalLink,
   Sun,
   RefreshCw,
+  ChevronDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MentionInstructionEditor } from "./mention-instruction-editor";
-import { mentionDialect, imageRefDialect } from "@/lib/nodes/prompt-token-dialect";
+import { imageRefDialect } from "@/lib/nodes/prompt-token-dialect";
 import { FieldLabel } from "./field-label";
 import { SliceToggles } from "./slice-toggles";
 import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
@@ -99,6 +99,9 @@ export function MultishotPromptFocusView({
   const [cutDrafts, setCutDrafts] = useState<Record<string, string>>(cutInstructions);
   const [planDraft, setPlanDraft] = useState<MultishotPlan | null>(plan);
   const [outputView, setOutputView] = useState<"breakup" | "prompt">("breakup");
+  // The look accordion. Open by default — it governs every beat, so it is never hidden on
+  // arrival; collapsing it hands its height to the ladder, which is the working surface.
+  const [lookOpen, setLookOpen] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [lastError, setLastError] = useState<string | null>(null);
   // ONE in flight at a time. Two concurrent refines each resolve against the planDraft they
@@ -441,16 +444,10 @@ export function MultishotPromptFocusView({
     }
   }
 
-  function updateInstruction(v: string) {
-    setInstructionDraft(v);
-    onPatch({ instruction: v });
-  }
-
-  function updateCutInstruction(cutId: string, v: string) {
-    const next = { ...cutDrafts, [cutId]: v };
-    setCutDrafts(next);
-    onPatch({ cutInstructions: next });
-  }
+  // No editors for `instruction` / `cutInstructions` any longer (operator request 2026-09-08 —
+  // they were added on 2026-09-04 and this node never had them before that). The values are still
+  // READ from the node and still travel in every request, so a node that has them keeps its steer;
+  // there is simply no longer a surface for typing new ones.
 
   function updateLook(v: string) {
     if (!planDraft) return;
@@ -543,7 +540,6 @@ export function MultishotPromptFocusView({
                     <TabsTrigger value="prompt">Prompt</TabsTrigger>
                   </TabsList>
                 </Tabs>
-                {versionChips}
                 {SHOW_PER_BEAT_REGENERATE && mode === "result" && (
                   <div className="ml-auto">
                     <RefineWithAI
@@ -602,19 +598,6 @@ export function MultishotPromptFocusView({
                         </p>
                       )}
 
-                      <div className="flex flex-col gap-2">
-                        <FieldLabel icon={PencilLine} label="Sequence" />
-                        <MentionInstructionEditor
-                          value={instructionDraft}
-                          onChange={updateInstruction}
-                          upstream={upstream}
-                          dialect={mentionDialect()}
-                          disabled={isReadOnly}
-                          placeholder="e.g. punchy, everyday — applies to every shot"
-                          className="min-h-16"
-                        />
-                      </div>
-
                       {cuts.length === 0 ? (
                         <p className="text-sm text-muted-foreground">
                           Connect a Multishot node with at least one shot to write against.
@@ -643,17 +626,9 @@ export function MultishotPromptFocusView({
                                     {cut.seconds}s
                                   </span>
                                 </div>
-                                <p className="mb-2 whitespace-pre-wrap text-xs leading-relaxed text-foreground/70">
+                                <p className="whitespace-pre-wrap text-xs leading-relaxed text-foreground/70">
                                   {cut.text.trim() || "No shot description yet — edit the Multishot node."}
                                 </p>
-                                <MentionInstructionEditor
-                                  value={cutDrafts[cut.id] ?? ""}
-                                  onChange={(v) => updateCutInstruction(cut.id, v)}
-                                  upstream={upstream}
-                                  dialect={mentionDialect()}
-                                  disabled={isReadOnly}
-                                  placeholder="Blank — the writer picks a reference"
-                                />
                               </div>
                             ))}
                           </div>
@@ -687,6 +662,20 @@ export function MultishotPromptFocusView({
                       shrink below its content's intrinsic width, the row overflows, and the
                       parent's overflow-hidden crops the output off-screen. */}
                   <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-y-auto px-6 py-5">
+                    {/* The output's own eyebrow with the version chips beside it — the same row,
+                        in the same place, that prompt-focus-view.tsx and video-prompt-focus-view.tsx
+                        put them in. They were up in the tab strip, which is this node's chrome and
+                        not where any other view keeps them.
+                        items-start: the chips row can wrap, and should anchor to the top rather
+                        than drift down beside a one-line label. */}
+                    <div className="flex shrink-0 items-start justify-between gap-2">
+                      <div className="flex items-center gap-1.5">
+                        <ListVideo className="size-3.5 text-primary" strokeWidth={1.5} />
+                        <span className="text-eyebrow">Generated plan</span>
+                      </div>
+                      {versionChips}
+                    </div>
+
                     {mode === "skeleton" && (
                       <div className="space-y-2.5 pt-1">
                         {Array.from({ length: 6 }).map((_, i) => (
@@ -732,10 +721,34 @@ export function MultishotPromptFocusView({
                           </div>
                         )}
 
+                        {/* Collapsible (operator request 2026-09-08). The look governs every beat
+                            and has to be readable, but it is written once and then mostly left
+                            alone — while the beats below it are the working surface. Open by
+                            default so it is never hidden on arrival; collapsing it hands its
+                            height to the ladder. */}
                         <div className="shrink-0 rounded-xl border-2 border-primary/20 bg-primary/[0.03] p-3">
-                          <div className="mb-2 flex items-center gap-2">
-                            <Sun className="size-3.5 text-primary" strokeWidth={1.5} />
-                            <span className="text-eyebrow text-primary">Look &amp; atmosphere</span>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="ghost"
+                              onClick={() => setLookOpen((v) => !v)}
+                              aria-expanded={lookOpen}
+                              className="h-auto gap-1.5 rounded p-0 hover:bg-transparent dark:hover:bg-transparent"
+                            >
+                              <ChevronDown
+                                className={cn(
+                                  "size-3.5 text-primary transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]",
+                                  !lookOpen && "-rotate-90",
+                                )}
+                                strokeWidth={1.5}
+                              />
+                              <Sun className="size-3.5 text-primary" strokeWidth={1.5} />
+                              <span className="text-eyebrow text-primary">Look &amp; atmosphere</span>
+                            </Button>
+                            {!lookOpen && (
+                              <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+                                {planDraft.look}
+                              </span>
+                            )}
                             {SHOW_PER_BEAT_REGENERATE && (
                               <div className="ml-auto flex items-center gap-0.5">
                                 <RefineWithAI
@@ -761,8 +774,12 @@ export function MultishotPromptFocusView({
                               </div>
                             )}
                           </div>
+                          {lookOpen && (
+                            <>
                           {refining?.scope === "look" && (
-                            <RefineProgress label="Rewriting the look…" hint="beats untouched" />
+                            <div className="mt-2">
+                              <RefineProgress label="Rewriting the look…" hint="beats untouched" />
+                            </div>
                           )}
                           {/* Locked for the duration of ANY refine, not just a look-scoped one — a
                               keystroke here during a beat or whole-plan refine still gets persisted
@@ -779,6 +796,8 @@ export function MultishotPromptFocusView({
                           <p className="mt-2 text-[0.65rem] text-muted-foreground">
                             Governs every beat below.
                           </p>
+                            </>
+                          )}
                         </div>
 
                         <div className="shrink-0 overflow-hidden rounded-xl border border-border bg-card shadow-card">
