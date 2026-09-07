@@ -99,9 +99,11 @@ export function MultishotPromptFocusView({
   const [cutDrafts, setCutDrafts] = useState<Record<string, string>>(cutInstructions);
   const [planDraft, setPlanDraft] = useState<MultishotPlan | null>(plan);
   const [outputView, setOutputView] = useState<"breakup" | "prompt">("breakup");
-  // The look accordion. Open by default — it governs every beat, so it is never hidden on
-  // arrival; collapsing it hands its height to the ladder, which is the working surface.
-  const [lookOpen, setLookOpen] = useState(true);
+  // The look accordion, CLOSED by default (operator request 2026-09-08). The ladder is the
+  // working surface and should own the column on arrival; the look is written once and then
+  // mostly left alone. Collapsed it still shows a one-line preview, so it is summarised rather
+  // than hidden — which is what makes closing it safe for a block that governs every beat.
+  const [lookOpen, setLookOpen] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [lastError, setLastError] = useState<string | null>(null);
   // ONE in flight at a time. Two concurrent refines each resolve against the planDraft they
@@ -721,11 +723,11 @@ export function MultishotPromptFocusView({
                           </div>
                         )}
 
-                        {/* Collapsible (operator request 2026-09-08). The look governs every beat
-                            and has to be readable, but it is written once and then mostly left
-                            alone — while the beats below it are the working surface. Open by
-                            default so it is never hidden on arrival; collapsing it hands its
-                            height to the ladder. */}
+                        {/* Collapsible, closed by default (operator request 2026-09-08). The look
+                            governs every beat, but it is written once and then mostly left alone
+                            while the ladder below is the working surface — so the ladder gets the
+                            column on arrival. The collapsed header carries a one-line preview, so
+                            the look is summarised rather than hidden. */}
                         <div className="shrink-0 rounded-xl border-2 border-primary/20 bg-primary/[0.03] p-3">
                           <div className="flex items-center gap-2">
                             <Button
