@@ -32,13 +32,23 @@ type MultishotFocusViewProps = {
  *
  * A new layout, not `MultishotCutStrip` reused: the strip's flex-grow-by-seconds sizing is
  * what let a proportional bar read at a glance on a 320px card — exactly the wrong shape once
- * every row needs a full-width slider and room for multi-line text. This is a plain vertical
- * list instead, one roomy card per cut. The card stays the glance; this is the workspace.
+ * every row needs a full-width slider and room for multi-line text. The card stays the glance;
+ * this is the workspace.
  *
- * UI-consistency pass (operator request 2026-09-03): `max-w-7xl` and the eyebrow-rail section
- * layout (label in a left column, content on the right) match `script-focus-view.tsx` /
- * `script-document.tsx` and `file-focus-view.tsx`, so this view reads as the same app rather
- * than a bespoke one. No new layout ideas beyond that — see those two files for the pattern.
+ * UNIFORMITY PASS (operator request 2026-09-08). This view is assembled from the app's existing
+ * parts and adds no layout ideas of its own:
+ *
+ *   - the sheet frame, `max-w-7xl` and the eyebrow-rail section come from `script-focus-view.tsx`
+ *     and `file-focus-view.tsx`;
+ *   - the cut list is the same numbered `ol` on the same 78ch measure that `script-document.tsx`
+ *     uses for "Visual script" — the closest analogue in the app, an ordered set of shots;
+ *   - the header's right slot is the one every prompt focus view uses: a status readout, then
+ *     `GuidedNextButton variant="button"`, in one `flex shrink-0 items-center gap-2`.
+ *
+ * Two earlier passes were bespoke and both read as a different app: a card per cut (border and
+ * shadow on every row, where the house style spends those on genuinely separate objects), then a
+ * horizontal filmstrip with the sliders underneath. Both are gone. The only thing here the other
+ * views do not have is the per-cut slider, which is what this node is for.
  *
  * No-Total rework (operator request 2026-09-03): there is no Total control any more — the clip's
  * length simply IS `totalOf(cuts)`, so the header just states it against Omni's ceiling. A cut's
@@ -88,14 +98,27 @@ export function MultishotFocusView({
                   {scriptTitle ? `from "${scriptTitle}" · ` : ""}full script context
                 </p>
               </div>
-              <div className="shrink-0 text-right">
-                <p className="text-sm font-medium tabular-nums">
-                  <span className={outsideOmniWindow ? "text-destructive" : "text-foreground"}>
-                    {total}s
-                  </span>
-                  <span className="text-muted-foreground"> / {OMNI_MAX_SECONDS}s max</span>
-                </p>
-                <p className="text-eyebrow mt-0.5 text-muted-foreground">{cuts.length} cuts</p>
+              {/* The header's right slot, laid out exactly as every prompt focus view lays it
+                  out (prompt-focus-shell.tsx, prompt-focus-view.tsx): a status readout, then the
+                  guided next step, in one `flex shrink-0 items-center gap-2`. There the readout
+                  is credits used; here it is the clip's length against Omni's ceiling. Same slot,
+                  same order, same spacing — so moving between nodes, the button is always in the
+                  place the hand already went. */}
+              <div className="flex shrink-0 items-center gap-2">
+                <div className="text-right">
+                  <p className="text-sm font-medium tabular-nums">
+                    <span className={outsideOmniWindow ? "text-destructive" : "text-foreground"}>
+                      {total}s
+                    </span>
+                    <span className="text-muted-foreground"> / {OMNI_MAX_SECONDS}s max</span>
+                  </p>
+                  <p className="text-eyebrow mt-0.5 text-muted-foreground">{cuts.length} cuts</p>
+                </div>
+                <GuidedNextButton
+                  sourceId={nodeId}
+                  variant="button"
+                  onNavigate={() => onOpenChange(false)}
+                />
               </div>
             </header>
           </div>
@@ -110,7 +133,7 @@ export function MultishotFocusView({
               <div className="mb-2 h-0.5 w-6 rounded-full bg-primary/70" aria-hidden />
               <span className="text-eyebrow">Cuts</span>
             </div>
-            <div className="flex flex-col gap-4">
+            <div className="grid max-w-[78ch] gap-3 text-sm">
             {atCeiling && (
               <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <TriangleAlert className="size-3.5 shrink-0" strokeWidth={1.5} />
@@ -118,17 +141,20 @@ export function MultishotFocusView({
               </p>
             )}
 
-            {/* Cuts run ACROSS, not down (operator sketch, 2026-09-04). A ladder is a filmstrip,
-                and side-by-side is how the order and the relative lengths read at a glance —
-                stacked rows made a 6-cut clip look like a form to fill in. Each cut owns its own
-                column: the text on top, then its slider, then its length. The slider sits UNDER
-                its card rather than inside it so the timings line up as one row across the strip
-                and can be compared without reading each card. */}
-            <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4">
+            {/* Deliberately the SAME shape as the Script's "Visual script" list
+                (script-document.tsx): a numbered `ol`, one plain row per shot, inside the same
+                eyebrow-rail section, on the same 78ch measure.
+
+                Two earlier attempts were bespoke and both read as a different app: a card per cut
+                (border + shadow on every row, when the house style reserves those for genuinely
+                separate objects), then a horizontal filmstrip. This list IS the same kind of thing
+                the Script already shows — an ordered set of shots — so it looks like it. The only
+                addition is the slider, which is what this node exists for. */}
+            <ol className="grid gap-3">
               {cuts.map((cut, i) => (
-                <div key={cut.id} className="flex min-w-0 flex-col gap-2">
-                  <div className="flex min-h-40 flex-col gap-2 rounded-xl border border-border bg-card p-4 shadow-card">
-                    <span className="text-eyebrow text-muted-foreground">Shot {i + 1}</span>
+                <li key={cut.id} className="flex items-start gap-2">
+                  <span className="pt-1 tabular-nums text-muted-foreground">{i + 1}.</span>
+                  <div className="min-w-0 flex-1">
                     <EditableField
                       value={cut.text}
                       onCommit={(text) =>
@@ -137,50 +163,38 @@ export function MultishotFocusView({
                       readOnly={isReadOnly}
                       multiline
                       placeholder="Describe this cut…"
-                      className="flex-1 text-sm leading-relaxed"
+                      className="leading-relaxed"
                     />
+                    <div className="mt-2 flex items-center gap-3">
+                      {/* Every cut's slider runs the SAME 1-10s scale, so a 2s cut sits at the
+                          same place on every row and two cuts can be compared at a glance.
+                          Deriving each max from the remaining headroom instead made an untouched
+                          cut's thumb jump the moment another cut grew — its seconds were
+                          unchanged, but its track had shrunk under it, which reads as the other
+                          slider having moved it. A stable scale is worth more than avoiding the
+                          short over-drag that resizeCut clamps. */}
+                      <Slider
+                        value={[cut.seconds]}
+                        min={MIN_CUT_SECONDS}
+                        max={OMNI_MAX_SECONDS}
+                        step={1}
+                        disabled={isReadOnly}
+                        aria-label={`Cut ${i + 1} length in seconds`}
+                        onValueChange={(v) =>
+                          onChange(resizeCut(cuts, i, Array.isArray(v) ? v[0] : v))
+                        }
+                        className="max-w-xs"
+                      />
+                      <span className="w-9 shrink-0 text-xs tabular-nums text-muted-foreground">
+                        {cut.seconds}s
+                      </span>
+                    </div>
                   </div>
-
-                  <div className="flex flex-col items-center gap-1 px-1">
-                    {/* Every cut's slider runs the SAME 1-10s scale, so a 2s cut sits at the
-                        same place on every row and two cuts can be compared at a glance.
-                        Deriving each max from the remaining headroom instead made an untouched
-                        cut's thumb jump the moment another cut grew — its seconds were
-                        unchanged, but its track had shrunk under it, which reads as the other
-                        slider having moved it. A stable scale is worth more than avoiding the
-                        short over-drag that resizeCut clamps. */}
-                    <Slider
-                      value={[cut.seconds]}
-                      min={MIN_CUT_SECONDS}
-                      max={OMNI_MAX_SECONDS}
-                      step={1}
-                      disabled={isReadOnly}
-                      aria-label={`Cut ${i + 1} length in seconds`}
-                      onValueChange={(v) =>
-                        onChange(resizeCut(cuts, i, Array.isArray(v) ? v[0] : v))
-                      }
-                      className="w-full"
-                    />
-                    <span className="text-xs tabular-nums text-muted-foreground">
-                      {cut.seconds}s
-                    </span>
-                  </div>
-                </div>
+                </li>
               ))}
-            </div>
+            </ol>
             </div>
           </section>
-
-          {/* The lane's next step, where the sketch put it: bottom-right, after the strip it acts
-              on. The card carries the same control as a chip; this is the one you reach for once
-              the timings are set, which is the point at which you actually want it. */}
-          <div className="mt-8 flex justify-end border-t border-border pt-5">
-            <GuidedNextButton
-              sourceId={nodeId}
-              variant="button"
-              onNavigate={() => onOpenChange(false)}
-            />
-          </div>
           </div>
         </div>
       </SheetContent>
