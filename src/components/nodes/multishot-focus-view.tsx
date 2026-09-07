@@ -40,15 +40,13 @@ type MultishotFocusViewProps = {
  *
  *   - the sheet frame, `max-w-7xl` and the eyebrow-rail section come from `script-focus-view.tsx`
  *     and `file-focus-view.tsx`;
- *   - the cut list is the same numbered `ol` on the same 78ch measure that `script-document.tsx`
- *     uses for "Visual script" — the closest analogue in the app, an ordered set of shots;
  *   - the header's right slot is the one every prompt focus view uses: a status readout, then
  *     `GuidedNextButton variant="button"`, in one `flex shrink-0 items-center gap-2`.
  *
- * Two earlier passes were bespoke and both read as a different app: a card per cut (border and
- * shadow on every row, where the house style spends those on genuinely separate objects), then a
- * horizontal filmstrip with the sliders underneath. Both are gone. The only thing here the other
- * views do not have is the per-cut slider, which is what this node is for.
+ * The cut strip itself is the operator's own design (sketch 2026-09-04, restored 2026-09-08):
+ * cards across, each a fixed height with its text scrolling inside, and its slider directly
+ * beneath. Equal heights are the point — the sliders then line up as one row across the strip,
+ * which is what makes six cuts comparable at a glance.
  *
  * No-Total rework (operator request 2026-09-03): there is no Total control any more — the clip's
  * length simply IS `totalOf(cuts)`, so the header just states it against Omni's ceiling. A cut's
@@ -133,7 +131,7 @@ export function MultishotFocusView({
               <div className="mb-2 h-0.5 w-6 rounded-full bg-primary/70" aria-hidden />
               <span className="text-eyebrow">Cuts</span>
             </div>
-            <div className="grid max-w-[78ch] gap-3 text-sm">
+            <div className="flex flex-col gap-4">
             {atCeiling && (
               <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <TriangleAlert className="size-3.5 shrink-0" strokeWidth={1.5} />
@@ -141,54 +139,61 @@ export function MultishotFocusView({
               </p>
             )}
 
-            {/* Deliberately the SAME shape as the Script's "Visual script" list
-                (script-document.tsx): a numbered `ol`, one plain row per shot, inside the same
-                eyebrow-rail section, on the same 78ch measure.
+            {/* Cuts run ACROSS as a filmstrip (operator sketch, 2026-09-04). Side by side is how
+                the order and the relative lengths read at a glance; stacked rows made a six-cut
+                clip look like a form to fill in.
 
-                Two earlier attempts were bespoke and both read as a different app: a card per cut
-                (border + shadow on every row, when the house style reserves those for genuinely
-                separate objects), then a horizontal filmstrip. This list IS the same kind of thing
-                the Script already shows — an ordered set of shots — so it looks like it. The only
-                addition is the slider, which is what this node exists for. */}
-            <ol className="grid gap-3">
+                Every card is the SAME height, whatever its text — a strip whose cards each
+                stretched to their own content had the sliders landing at six different heights,
+                which is the one thing the layout exists to let you compare. Longer text scrolls
+                inside its card, and the scrollbar is left visible on purpose: it is the only
+                signal that a card is holding more than it shows. */}
+            <ol className="grid grid-cols-[repeat(auto-fit,minmax(210px,1fr))] gap-x-4 gap-y-5">
               {cuts.map((cut, i) => (
-                <li key={cut.id} className="flex items-start gap-2">
-                  <span className="pt-1 tabular-nums text-muted-foreground">{i + 1}.</span>
-                  <div className="min-w-0 flex-1">
-                    <EditableField
-                      value={cut.text}
-                      onCommit={(text) =>
-                        onChange(cuts.map((c, j) => (j === i ? { ...c, text } : c)))
-                      }
-                      readOnly={isReadOnly}
-                      multiline
-                      placeholder="Describe this cut…"
-                      className="leading-relaxed"
-                    />
-                    <div className="mt-2 flex items-center gap-3">
-                      {/* Every cut's slider runs the SAME 1-10s scale, so a 2s cut sits at the
-                          same place on every row and two cuts can be compared at a glance.
-                          Deriving each max from the remaining headroom instead made an untouched
-                          cut's thumb jump the moment another cut grew — its seconds were
-                          unchanged, but its track had shrunk under it, which reads as the other
-                          slider having moved it. A stable scale is worth more than avoiding the
-                          short over-drag that resizeCut clamps. */}
-                      <Slider
-                        value={[cut.seconds]}
-                        min={MIN_CUT_SECONDS}
-                        max={OMNI_MAX_SECONDS}
-                        step={1}
-                        disabled={isReadOnly}
-                        aria-label={`Cut ${i + 1} length in seconds`}
-                        onValueChange={(v) =>
-                          onChange(resizeCut(cuts, i, Array.isArray(v) ? v[0] : v))
+                <li key={cut.id} className="flex min-w-0 flex-col gap-2">
+                  <div className="flex h-44 flex-col gap-1.5 rounded-xl border border-border bg-card p-3.5 shadow-card">
+                    <span className="text-eyebrow shrink-0 text-muted-foreground">
+                      Shot {i + 1}
+                    </span>
+                    {/* min-h-0 is load-bearing: without it this flex child refuses to shrink
+                        below its content and the card grows instead of scrolling. */}
+                    <div className="min-h-0 flex-1 overflow-y-auto pr-0.5">
+                      <EditableField
+                        value={cut.text}
+                        onCommit={(text) =>
+                          onChange(cuts.map((c, j) => (j === i ? { ...c, text } : c)))
                         }
-                        className="max-w-xs"
+                        readOnly={isReadOnly}
+                        multiline
+                        placeholder="Describe this cut…"
+                        className="text-sm leading-relaxed"
                       />
-                      <span className="w-9 shrink-0 text-xs tabular-nums text-muted-foreground">
-                        {cut.seconds}s
-                      </span>
                     </div>
+                  </div>
+
+                  <div className="flex flex-col items-center gap-1">
+                    {/* Every cut's slider runs the SAME 1-10s scale, so a 2s cut sits at the
+                        same place on every row and two cuts can be compared at a glance.
+                        Deriving each max from the remaining headroom instead made an untouched
+                        cut's thumb jump the moment another cut grew — its seconds were
+                        unchanged, but its track had shrunk under it, which reads as the other
+                        slider having moved it. A stable scale is worth more than avoiding the
+                        short over-drag that resizeCut clamps. */}
+                    <Slider
+                      value={[cut.seconds]}
+                      min={MIN_CUT_SECONDS}
+                      max={OMNI_MAX_SECONDS}
+                      step={1}
+                      disabled={isReadOnly}
+                      aria-label={`Cut ${i + 1} length in seconds`}
+                      onValueChange={(v) =>
+                        onChange(resizeCut(cuts, i, Array.isArray(v) ? v[0] : v))
+                      }
+                      className="w-full"
+                    />
+                    <span className="text-xs tabular-nums text-muted-foreground">
+                      {cut.seconds}s
+                    </span>
                   </div>
                 </li>
               ))}
