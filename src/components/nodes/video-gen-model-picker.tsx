@@ -9,6 +9,7 @@ import {
   videoGenClientModelGroups,
   modelPickerLabel,
 } from "@/lib/video-gen/client-models";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 
 /**
@@ -27,6 +28,7 @@ export function VideoGenModelPicker({
   onModelChange,
   lockedToModelId,
   restrictionReason,
+  loading = false,
   children,
 }: {
   modelId: string;
@@ -45,6 +47,15 @@ export function VideoGenModelPicker({
    */
   lockedToModelId?: string;
   restrictionReason?: string;
+  /**
+   * True while the connected upstream is still being resolved.
+   *
+   * Until that lands, `lockedToModelId` is `undefined` because the caller cannot yet know what is
+   * connected — so the picker would render EVERY model, and a multishot node then watched the
+   * list collapse to a single chip a second later. Chips appearing and then vanishing reads as a
+   * bug whichever way round it happens, so the list is withheld until it is known to be right.
+   */
+  loading?: boolean;
   /** Settings that belong to the chosen model (resolution, duration) and share its card. */
   children?: ReactNode;
 }) {
@@ -71,6 +82,19 @@ export function VideoGenModelPicker({
           <span className="text-eyebrow">Model</span>
         </div>
 
+        {loading ? (
+          // Placeholders the same height and rough width as the chips they stand in for, so the
+          // panel does not jump when the real list arrives.
+          <div className="flex flex-wrap items-center gap-x-7 gap-y-2.5" aria-busy="true">
+            <div className="flex items-center gap-2.5">
+              <Skeleton className="h-3 w-12" />
+              <div className="flex gap-1.5">
+                <Skeleton className="h-7 w-24 rounded-md" />
+                <Skeleton className="h-7 w-20 rounded-md" />
+              </div>
+            </div>
+          </div>
+        ) : (
         <div className="flex flex-wrap items-center gap-x-7 gap-y-2.5">
           {shownGroups.map((providerGroup) => (
             <div key={providerGroup.label} className="flex items-center gap-2.5">
@@ -104,8 +128,9 @@ export function VideoGenModelPicker({
             </div>
           ))}
         </div>
+        )}
 
-        {restrictionReason && (
+        {!loading && restrictionReason && (
           <p className="mt-2 text-[0.7rem] text-muted-foreground">{restrictionReason}</p>
         )}
 

@@ -48,6 +48,14 @@ export const GUIDED_CHAIN: Record<string, GuidedStep> = {
                     alsoWireAncestors: ["shot"], gate: imageGenGate },
   "video-prompt": { nextType: "video-gen",    createLabel: "Create video generation", openLabel: "Open video generation",
                     alsoWireAncestors: ["image-gen"] },
+  // The multishot lane. It skips the still and the image prompt entirely (D230): a start frame
+  // fixes one composition, which is the wrong input for a clip that cuts between several. Without
+  // this entry GuidedNextButton returned null on a Multishot node, so the card's own chip rendered
+  // nothing and the lane had no guided step at all.
+  multishot:      { nextType: "multishot-prompt", createLabel: "Create multishot prompt",
+                    openLabel: "Open multishot prompt" },
+  "multishot-prompt": { nextType: "video-gen", createLabel: "Create video generation",
+                        openLabel: "Open video generation" },
   // video-gen is terminal — no entry.
 };
 

@@ -155,6 +155,7 @@ export function MultishotNode({ id, data, selected }: NodeProps) {
     <MultishotFocusView
       open={focusViewOpen}
       onOpenChange={handleFocusOpenChange}
+      nodeId={id}
       order={d.order}
       cuts={cuts}
       scriptTitle={d.seededFrom?.scriptTitle}
