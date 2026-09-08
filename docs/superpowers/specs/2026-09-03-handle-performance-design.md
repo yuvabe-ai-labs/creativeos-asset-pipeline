@@ -222,10 +222,16 @@ A handle is added through the Performance tab's **+ Add handle** affordance, par
 the same pure normalizer used everywhere else — `@prakritisattva`, `prakritisattva`,
 `https://www.instagram.com/prakritisattva/` all canonicalize to `prakritisattva`.
 
-`clients.brand_details.instagram` (D130) is **no longer the source of truth**, because a
-contact field on the client cannot express "and these three competitors". It survives as
-a **prefill suggestion**: when the client has one and it is not yet tracked, the add
-dialog offers it pre-filled. Brand Kit stays contact info; Market owns tracking.
+**Performance does not read Brand Kit at all.** `clients.brand_details.instagram` (D130)
+is not the source of truth and is not consulted, not even as a prefill — see D252.
+A contact field on the client record cannot express "and these three competitors", and
+on staging it is empty for all 63 clients, so reading it buys nothing and couples
+Performance to a field maintained inside a Post node's design palette.
+
+The two values may therefore diverge, and that is correct: Brand Kit's field answers
+"what handle do we print on this client's poster", while `tracked_handles` answers "whose
+accounts are we measuring" — a set that includes competitors nobody would ever print.
+Nothing reconciles them because they are not the same value.
 
 ## 3. Ingestion — Trigger.dev scheduled task
 
@@ -252,8 +258,8 @@ a deliberate act with a visible list, not an automatic side effect of some other
 
 ## 4. Read path & computation
 
-* `GET /api/clients/[id]/performance/handles` → `{ handles: TrackedHandle[]; suggestion: string | null }`
-  — the sub-tab strip, plus the Brand Kit prefill when untracked.
+* `GET /api/clients/[id]/performance/handles` → `{ handles: TrackedHandle[] }`
+  — the sub-tab strip. Nothing else; no Brand Kit read.
 * `POST /api/clients/[id]/performance/handles` `{ handle }` → parses, dedupes, inserts.
 * `DELETE /api/clients/[id]/performance/handles/[handle]` → unenrols (history retained).
 * `GET /api/clients/[id]/performance?handle=x` → one handle's payload:
@@ -316,8 +322,8 @@ New components, `src/components/market/`:
 * **`performance-post-tile.tsx`** — thumbnail (+ kind badge), likes/comments/views row,
   **multiplier pill** ("3.5× median" green / "below median" neutral / "likes hidden"
   dashed neutral), clamped caption, date.
-* **`add-handle-dialog.tsx`** — shadcn `Dialog` + `Input`; prefilled with the Brand Kit
-  suggestion when there is one; rejects unparseable input inline.
+* **`add-handle-dialog.tsx`** — shadcn `Dialog` + `Input`, one empty field; rejects
+  unparseable input inline. No prefill, so the dialog has one state rather than two.
 
 **Empty states:** no handles at all → the Performance tab is just the dashed
 `+ Add handle` chip and a line of copy. Handle tracked but no snapshot → "First snapshot
@@ -334,10 +340,13 @@ refresh focus ring); semantic green appears only in delta + over-performer pill.
   load-bearing: the identity strip reads category/externalUrl/avatar back out of `raw`.)*
 * **D238 — Performance is a tab, not a listening system.** *(holds; its "competitors are
   V1.x" clause is superseded by D253.)*
-* **D252 — Handles are entered on Market, not read from Brand Kit.** `tracked_handles`
-  is the source of truth; `brand_details.instagram` degrades to a prefill suggestion.
+* **D252 — Handles are entered on Market; Brand Kit is not read at all.**
+  `tracked_handles` is the source of truth. Performance holds **no reference to
+  `brand_details`, to the Brand panel, or to the Post node** — not even a prefill.
   *Rejected:* keeping D236 (a contact field cannot express a competitor set); syncing
-  both ways (two writers, guaranteed drift).
+  both ways (two writers, guaranteed drift); a prefill suggestion (0 of 63 staging
+  clients have the field set, so it buys a second dialog state for a case that never
+  arises).
 * **D253 — Multi-handle sub-tabs in V1.** Each tracked handle is a sub-tab under
   Performance; the client's own account is simply the first one added. *Rejected:*
   handles as top-level Market tabs (crowds a nav that is about evidence *kinds*);

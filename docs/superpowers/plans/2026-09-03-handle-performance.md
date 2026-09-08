@@ -21,7 +21,8 @@
 - API routes use `apiError(message, status)` / `apiOk(data)` / `withClient(req, params, handler)` / `withTryCatch(fallbackMessage, handler)` from `src/lib/api/route-helpers.ts` — never `NextResponse.json` directly.
 - Design system: purple `#5829c7` scarce, drive colors through the shadcn CSS variables in `globals.css`, `shadow-card` for resting cards, Lucide icons at 1.5 stroke, easing `cubic-bezier(0.22,1,0.36,1)`.
 - One component per file, named exports, split at ~200 lines, no prop drilling (`docs/component-structure.md`).
-- Import, don't redefine: `uploadMarketThumbnail` from `@/lib/storage`, `THUMBNAIL_SIZE_LIMIT` from `@/lib/market/constants`, `authFetch` from `@/lib/supabase/session-ready`, `getBrandDetails` from `@/lib/db/brand-kit` (prefill only).
+- Import, don't redefine: `uploadMarketThumbnail` from `@/lib/storage`, `THUMBNAIL_SIZE_LIMIT` from `@/lib/market/constants`, `authFetch` from `@/lib/supabase/session-ready`.
+- **Nothing in this feature imports from `@/lib/db/brand-kit`, `@/lib/brand-kit/*`, or `src/components/nodes/*` (D252).** Performance is self-contained: `tracked_handles` is the only enrolment source. If a task seems to need a Brand Kit read, it is a design regression, not a shortcut.
 - Trigger task files: `@/lib` imports must be **dynamic** (`await import(...)`) because those modules carry `import "server-only"`. Import the SDK from `@trigger.dev/sdk` — **not** `@trigger.dev/sdk/v3`, which the installed SDK's own authoring skill calls a deprecated alias.
 - `APIFY_TOKEN` env var: never commit it; it goes in `.env.local` (dev) and the Trigger.dev project env (deployed). **Not currently set in this worktree** — live verification steps are blocked until it is.
 - Vitest timeouts on first cold run can be flakes (see kling-test-flake memory) — re-run before investigating.
@@ -131,11 +132,11 @@ The `"no-handle"` reason disappears: the caller now supplies the handle, and whe
 - Create: `src/app/api/clients/[id]/performance/handles/[handle]/route.ts` (DELETE)
 
 **Interfaces:**
-- `GET` → `apiOk({ handles: TrackedHandleRow[], suggestion: string | null })`. `suggestion` is `parseInstagramHandle(brandDetails.instagram)` **only when that handle is not already tracked** — otherwise `null`, so the dialog never offers something already in the list.
+- `GET` → `apiOk({ handles: TrackedHandleRow[] })`. Nothing else — **no Brand Kit read** (D252).
 - `POST {handle}` → 201 with the row; `apiError("That doesn't look like an Instagram handle.", 400)` when the parser returns null; idempotent on re-add.
 - `DELETE` → `apiOk({ ok: true })`. Unenrols only; snapshot history is retained by design (D253).
 
-- [ ] **Step 1: Write the failing tests** — reuse the mock preamble from `src/app/api/clients/[id]/market/route.test.ts` (dal / impersonation / impersonation-audit / clients). Cover: list returns handles + suggestion; suggestion suppressed when already tracked; POST canonicalizes `@Foo` → `foo`; POST rejects garbage with 400; DELETE returns ok.
+- [ ] **Step 1: Write the failing tests** — reuse the mock preamble from `src/app/api/clients/[id]/market/route.test.ts` (dal / impersonation / impersonation-audit / clients). Cover: list returns handles; POST canonicalizes `@Foo` → `foo`; POST rejects garbage with 400; POST is idempotent on re-add; DELETE returns ok.
 - [ ] **Step 2: Run to verify failure**
 - [ ] **Step 3: Implement both route files**
 - [ ] **Step 4: Run to verify pass**
@@ -187,9 +188,9 @@ The hour guard moving from per-client to per-handle matters: with several handle
 - Modify: `src/components/market/market-view.tsx` (tab union + fourth tab)
 - Already written, carry over unchanged: `src/components/market/performance-post-tile.tsx`
 
-- [ ] **Step 1: `use-tracked-handles.ts`** — `{ handles, suggestion, loading, add(handle), remove(handle) }` over the Task 7 routes, all through `authFetch`. `add` returns an error string or null so the dialog can render a field-level message.
+- [ ] **Step 1: `use-tracked-handles.ts`** — `{ handles, loading, add(handle), remove(handle) }` over the Task 7 routes, all through `authFetch`. `add` returns an error string or null so the dialog can render a field-level message.
 - [ ] **Step 2: `use-performance.ts`** — signature becomes `usePerformance(clientId: string, handle: string | null)`; when `handle` is null it holds `data: null, loading: false` and fetches nothing. `refresh` posts `{ handle }`. Keep `authFetch` for the POST (not bare `fetch`) — Refresh can be clicked long after page load, which is exactly the stale-token race `authFetch` exists to close.
-- [ ] **Step 3: `add-handle-dialog.tsx`** — shadcn `Dialog` + `Input`; prefilled from `suggestion`; inline error on a 400; closes and selects the new handle on success.
+- [ ] **Step 3: `add-handle-dialog.tsx`** — shadcn `Dialog` + `Input`, one empty field; inline error on a 400; closes and selects the new handle on success.
 - [ ] **Step 4: `handle-identity-strip.tsx`** — avatar (fall back to initials on a purple gradient when `avatarUrl` is absent or fails to load), `@handle`, `category · externalUrl`. Includes the handle's remove affordance.
 - [ ] **Step 5: `handle-performance.tsx`** — identity strip → four stat cards → chart card → posts grid → "Last updated · ↻ Refresh". This is the body of the old single-handle `performance-view.tsx`; lift it wholesale and add the identity strip on top.
 - [ ] **Step 6: `performance-view.tsx`** — the handle sub-tab strip (`Tabs` from `src/components/ui/tabs`), a dashed-border primary `+ Add handle` chip, and the no-handles empty state (just the chip plus one line of copy — **no Brand Kit link**; the Post node's Brand panel has no route, and D252 removed the dependency anyway). Selected handle lives in local state, defaulting to the first.

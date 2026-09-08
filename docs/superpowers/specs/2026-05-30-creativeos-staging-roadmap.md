@@ -4650,8 +4650,11 @@ removing `overflow-hidden` (the frame's rounded corners exist to clip the canvas
 **Decision.** `tracked_handles` (client_id, platform, handle, added_at) is the source of
 truth for what the performance pipeline scrapes. A handle is added through the Performance
 tab's "+ Add handle" affordance and parsed by the same canonicalizer used everywhere else.
-`clients.brand_details.instagram` (D130) degrades to a **prefill suggestion**: when the
-client has one and it is not yet tracked, the add dialog offers it pre-filled.
+**Performance does not read `clients.brand_details.instagram` (D130) at all** — not as a
+source, not as a prefill. Nothing in the feature imports from the Brand panel or the Post
+node, and the two values are free to diverge because they answer different questions:
+Brand Kit's field is the handle printed on a client's poster, `tracked_handles` is the set
+of accounts being measured, competitors included.
 
 **Why.** D236 chose the Brand Kit field to avoid a second copy of the handle, which was
 right while performance tracked exactly one account — the client's own. It stops working
@@ -4665,7 +4668,11 @@ per-handle cost visible in a list the user controls.
 two parsers, two failure modes); two-way sync between `tracked_handles` and
 `brand_details` (two writers on one value — guaranteed drift, and the exact objection
 D236 itself raised); a per-client "enable tracking" toggle (enrolment is already implied
-by the presence of a handle row).
+by the presence of a handle row); **a Brand Kit prefill suggestion** — measured on
+staging, 0 of 63 clients have `brand_details.instagram` set at all, so it would add a
+second dialog state and a cross-surface import to save one keystroke in a case that has
+never once occurred. Its absence is also what makes D236's original failure visible in
+hindsight: under D236 the tab would have shown its empty state for every client, forever.
 
 **Refines.** D130 (brand details), D236 (superseded).
 
