@@ -14,22 +14,46 @@ connect.
 
 This makes the model a choice, made once on the Multishot node and inherited down the lane.
 
-## 2. The transport already exists — this is a prompt-and-routing job
+## 2. The model is Kling 3.0 Omni, and we now have its real contract
 
-Worth stating plainly, because it sets the size of the work. Kling's multi-shot is **not a new
-endpoint**. It is `/omni-video/kling-o1` with `settings.multi_shot: true`, and the shots are
-expressed in the prompt TEXT rather than as structured fields.
+`ref/multishot-refs/kling-omni-docs.md` was updated on 2026-09-09 with the vendor's own API
+reference, which settles what third-party sources could not.
 
-`src/lib/video-gen/providers/kling.ts` already sends `multi_shot`, already sends `audio:
-native|off`, already caps references at 5 and addresses them `@image_1…` 1-based. None of that
-changes.
+```
+POST https://api-singapore.klingai.com/omni-video/kling-3.0-omni
+{ contents: [...], settings: {...}, options: {...} }
+```
 
-**One contradiction, resolved deliberately.** `ref/multishot-refs/kling-omni-docs.md` (the vendor's
-user guide) says VIDEO O1 has "No Native Audio, No Multi-shot", while
-`ref/multishot-refs/kling-omni-api-system-prompt.md` sets both on that exact endpoint. We follow the
-API file: the repo's own provider already sends those fields, which is stronger evidence than a
-capability table in a marketing-shaped guide. **If the first Kling multishot generation comes back
-as a single take, this is the assumption that was wrong** — not the prompt.
+**The envelope is exactly the one `providers/kling.ts` already sends.** `buildContents` — which
+emits `{type:"prompt"|"first_frame"|"last_frame"|"refer_image", url, id}` — is reusable as written.
+This is a new model entry (`kling:kling-3-0-omni`) on an existing provider, not new transport.
+
+Every third-party source was wrong, and predictably so: they documented their own wrapper APIs
+(`multi_prompt`, `multi_shots`, `image_urls`) rather than Kling's native shape. None of those field
+names appear in the vendor reference.
+
+The earlier draft of this spec targeted `/omni-video/kling-o1` with `multi_shot: true`, on the
+strength of `kling-omni-api-system-prompt.md`. **That was wrong.** The vendor guide is right that O1
+has no multi-shot; 3.0 Omni is the flagship and the only correct target. The O1 file describes a
+different endpoint's contract and is left alone.
+
+### The constraints that bind
+
+| | Value | Source |
+|---|---|---|
+| `settings.duration` | integer, 3–15 | enum in the reference |
+| `settings.multi_shot` | boolean, **defaults to `true`** | must be sent explicitly either way |
+| `settings.audio` | `native` \| `original` \| `off` | `original` needs a reference video |
+| `settings.resolution` | `720p` \| `1080p` \| `4k` | 4k is new — Kling O1 has no 4k |
+| `settings.aspect_ratio` | `16:9` \| `9:16` \| `1:1` | |
+| Shots | **1–6**, each ≥1s, summing to `duration` exactly | |
+| Per-shot text | ≤512 characters | |
+| Whole prompt | ≤3072, recommended ≤2500 | |
+| `refer_image` | ≤7 with no reference video | matches the repo's existing D100 cap |
+
+`multi_shot` defaulting to `true` is worth flagging: a single-shot Kling request that omits it
+silently gets cuts. The existing provider already sends it explicitly, which is the right habit and
+stays.
 
 ## 3. Capabilities, not constants
 
@@ -46,24 +70,31 @@ export type MultishotCapability = {
   minCutSeconds: number;
   /** Hard cap on cuts per generation. `null` = no limit the vendor states. */
   maxCuts: number | null;
+  /** Per-beat and whole-prompt character ceilings. `null` = none stated. */
+  maxCutChars: number | null;
+  maxPromptChars: number | null;
 };
 
 export const MULTISHOT_MODELS: MultishotCapability[] = [
   { id: GEMINI_OMNI_MODEL_ID, label: "Gemini Omni 1.1",
-    minTotalSeconds: 3, maxTotalSeconds: 10, minCutSeconds: 1, maxCuts: null },
-  { id: "kling:kling-o1",     label: "Kling O1",
-    minTotalSeconds: 3, maxTotalSeconds: 15, minCutSeconds: 1, maxCuts: 6 },
+    minTotalSeconds: 3, maxTotalSeconds: 10, minCutSeconds: 1, maxCuts: null,
+    maxCutChars: null, maxPromptChars: null },
+  { id: "kling:kling-3-0-omni", label: "Kling 3.0 Omni",
+    minTotalSeconds: 3, maxTotalSeconds: 15, minCutSeconds: 1, maxCuts: 6,
+    maxCutChars: 512, maxPromptChars: 3072 },
 ];
 
 export const DEFAULT_MULTISHOT_MODEL = GEMINI_OMNI_MODEL_ID;
 export function multishotCapabilityFor(targetModel: string | undefined): MultishotCapability;
 ```
 
-| | Omni | Kling O1 |
+| | Omni | Kling 3.0 Omni |
 |---|---|---|
 | Total | 3–10s | 3–15s |
 | Per cut | ≥1s | ≥1s |
 | Cuts per generation | no stated limit | **6, hard** |
+| Per-beat characters | none stated | **512** |
+| Whole prompt | none stated | **3072** |
 
 The 6-cut cap is genuinely new. The repo currently treats 6 as a *soft* quality hint
 (`SOFT_CUT_LIMIT` in `multishot-node.tsx`, commented "a quality signal, not a hard limit"). On
@@ -124,17 +155,24 @@ system prompt, routed the way `video-prompt-generate.ts` already routes:
 export function multishotPromptFor(targetModel: string): MultishotPromptSpec;
 ```
 
-`src/prompts/multishot-prompt-kling.ts` is written from
-`ref/multishot-refs/kling-omni-api-system-prompt.md`, which already states Kling's rules in the
-form this repo wants:
+`src/prompts/multishot-prompt-kling.ts` draws its craft rules from
+`ref/multishot-refs/kling-omni-api-system-prompt.md` and the CHUPPS reference — but **not their
+output format**, which is the console's. The writer still returns the same JSON plan; the shot
+triples are `renderPlan`'s job, not the model's.
 
-- `Shot N (Xs):` lines, not a timecode ladder
-- framing → subject → camera → light, 1–2 sentences
+Rules worth carrying over, all of them Kling-specific:
+
 - `@image_N` handles, 1-based, mentioned in **every** shot they appear in
 - never describe a referenced object's own design — competing prose yields a hybrid
-- the LOOK and VOICE contracts, byte-identical across generations
-- two visually similar references may not share a shot without a separator clause
-- never give two un-referenced characters the same broad description
+- two visually similar references may not share a shot without an explicit separator clause
+- never give two un-referenced characters the same broad description; the model merges them
+- reference subjects must occupy >5% of frame, unoccluded
+- **keep each beat under 512 characters** — the API's own ceiling, so the writer is told the budget
+  rather than having its prose truncated after the fact
+- element names must not be substrings of one another, nor collide with words in the prompt (the
+  reference's own example: do not name an element `@gmail` in a prompt containing an email address)
+
+The LOOK and VOICE contracts stay, reproduced verbatim — but as leading prose, per §6.
 
 Per the reusability rule, what is genuinely shared with the Omni prompt — the physics block, the
 avoid-list, the "no on-screen type" rule — is exported from the canonical file and imported, not
@@ -145,12 +183,41 @@ the merge path depends on it; only the system prompt and the renderer differ.
 
 ## 6. Rendering and reference tokens
 
-`renderPlan(plan, cuts)` gains the capability and branches:
+`renderPlan(plan, cuts)` gains the capability and branches. **Kling's API format is not the one the
+console uses**, and this is the single most correctable mistake in this work:
 
 ```
-Omni    [0-2s] A hand sweeps keys off oak, the <IMAGE_REF_0> just visible.
-Kling   Shot 1 (2s): A hand sweeps keys off oak, the @image_1 just visible.
+Omni     [0-2s] A hand sweeps keys off oak, the <IMAGE_REF_0> just visible.
+         [2-5s] A cab door swings open onto sunlit paving.
+
+Kling    shot 1, 2, A hand sweeps keys off oak, the @image_1 just visible;
+         shot 2, 3, A cab door swings open onto sunlit paving;
 ```
+
+Lowercase `shot`, comma-separated triple of *number, seconds, text*, semicolon between shots. The
+`Shot 1 (2s):` form in `kling-omni-system-prompt.md` and the CHUPPS reference is the **console's**
+syntax, written for the web app — those files are prompt-craft references, not the API contract,
+and following them here would send prose the API does not parse as shots.
+
+Two consequences the renderer must honour:
+
+- **Durations come from the cuts and must sum to `settings.duration` exactly.** Same construction
+  as Omni's cumulative ladder, so the prompt and the request agree by construction rather than by
+  check.
+- **A beat's text cannot exceed 512 characters, and the whole prompt 3072.** The writer prompt
+  states both; `renderPlan` is where a violation becomes visible, so it returns them as a
+  validation failure rather than sending an over-long prompt to be truncated server-side.
+
+### Where the LOOK block goes — the one open question
+
+Omni's plan opens with a look paragraph above the ladder. Kling's format has no slot for it: the
+prompt is shot triples, and repeating a ~300-character look inside every beat would consume most of
+the 512-character budget six times over.
+
+**Decision: the look is emitted as leading prose before `shot 1,`.** The reference says the prompt
+"can be templated" and does not forbid leading text, and this keeps one plan shape across models.
+
+This is the assumption most likely to be wrong, and §10 tests it first.
 
 Both are rendered from the same `beats`, with timings taken from the cuts — so the ladder and the
 request's `duration` still agree by construction.
@@ -201,8 +268,9 @@ Pure logic:
   end, and nothing else would catch it).
 - `resizeCut` / `clampTotal` against both capabilities: a 15s ladder is legal on Kling and illegal
   on Omni; the cut floor holds on both.
-- `renderPlan` per model — Kling emits `Shot N (Xs):` with per-shot durations summing to the
-  request duration; Omni emits cumulative `[a-bs]`. Both from the same plan.
+- `renderPlan` per model — Kling emits lowercase `shot n, m, words;` triples whose durations sum to
+  the request duration; Omni emits cumulative `[a-bs]`. Both from the same plan. Also: a beat over
+  512 characters, or a prompt over 3072, is returned as a validation failure rather than truncated.
 - `klingImageDialect` — round-trips byte-exact, 1-based, and does not collide with
   `imageRefDialect`'s 0-based tokens.
 - `refsCitedIn` finds `@image_1` on Kling and `<IMAGE_REF_0>` on Omni, and neither finds the other's.
@@ -218,17 +286,28 @@ generation to settle — see §10.
 
 ## 10. First thing to do after implementing
 
-Generate one real Kling multishot clip and confirm it actually cuts. §2 rests on the API file over
-the vendor guide, and a single-take result would mean the guide was right and the model needs to be
-`/omni-video/kling-3.0-omni` instead — a provider change, not a prompt change. Cheapest possible
-check, and it invalidates the largest assumption in this spec.
+Generate one real Kling clip and read the returned video against three things, in this order —
+each is an assumption this spec makes that the reference does not settle:
+
+1. **Does it cut where the triples say?** The `shot n, m, words;` format is quoted verbatim from
+   the reference, so this should hold. If the clip is a single take, `multi_shot` was not sent or
+   the triples did not parse — check the compiled prompt in the Sent-to-model tab first.
+2. **Did the leading LOOK prose survive?** §6's one genuine guess. If the look is ignored, or worse
+   if it is read as part of shot 1, the fix is to fold a compressed look into each beat's 512
+   characters and drop the leading block.
+3. **Do the `@image_N` handles bind?** They must match `contents[].id`, which `buildContents`
+   already emits 1-based.
+
+Cheap, and it settles everything the docs left open. Write the result up as
+`2026-09-XX-kling-omni-api-findings.md` beside the Gemini Omni one, whichever way it goes — a
+confirmation is worth as much as a correction to whoever reads this next.
 
 ## 11. ADR entries to append to §7
 
 **D235 — Multishot capability is a table, not a constant.** `OMNI_MAX_SECONDS` stops being the cut
-ladder's ceiling; each multishot model declares its own window, cut floor and cut cap. *Why:* Kling
-allows 15s where Omni allows 10, and caps cuts at 6 where Omni states no limit — one constant cannot
-be both. *Rejected:* keeping the 10s floor for both (buys Kling nothing); a 15s ceiling with a
+ladder's ceiling; each multishot model declares its own window, cut floor and cut cap. *Why:* Kling 3.0 Omni
+allows 15s where Omni allows 10, caps cuts at 6 where Omni states no limit, and caps a beat at 512
+characters where Omni states nothing — one constant cannot be all of that. *Rejected:* keeping the 10s floor for both (buys Kling nothing); a 15s ceiling with a
 generate-time rejection on Omni (moves the failure past the point the prompt was written and paid
 for). *Note:* `group-shots.ts` stays on Omni's 10s because fan-out runs before a model exists.
 
@@ -241,3 +320,11 @@ after the fact. *Refines:* D232, whose hard Omni coercion this replaces.
 the same reason redistribution was rejected in `multishot-cuts.ts` — a control that silently moves
 numbers the operator did not touch is a surprise, and this one decides what gets billed. *Rejected:*
 refusing the switch (strands the operator with no way to see what a model would allow).
+
+**D238 — Kling renders as API shot triples, never the console syntax.** `renderPlan` emits
+`shot n, m, words;` for Kling, not the `Shot N (Xs):` form used in
+`kling-omni-system-prompt.md` and the CHUPPS reference. *Why:* those files are prompt-craft
+references written for the web console; the API parses shots only from the comma/semicolon triple
+form given in the vendor reference. Following the console files would have sent prose the API reads
+as one shot — a wrong-but-accepted payload, which is the failure mode that does not announce
+itself. *Consequence:* the writer keeps returning plan JSON and never formats shots itself.
