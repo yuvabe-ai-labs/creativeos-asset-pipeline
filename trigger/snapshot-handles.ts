@@ -12,20 +12,25 @@ export const snapshotHandlesTask = schedules.task({
   id: "snapshot-handles",
   cron: "0 5 * * *",
   run: async () => {
-    const { listClientsWithInstagramHandle } = await import("@/lib/db/performance");
-    const { snapshotClientHandle } = await import("@/lib/market/snapshot");
+    const { listAllTrackedHandles } = await import("@/lib/db/performance");
+    const { snapshotHandle } = await import("@/lib/market/snapshot");
 
-    const clients = await listClientsWithInstagramHandle();
-    logger.info("Handle sweep starting", { count: clients.length });
+    // The work list IS the enrolment table (D252) — no Brand Kit read, no per-client
+    // toggle. Adding a handle on the Market page is what enrols it here.
+    const tracked = await listAllTrackedHandles();
+    logger.info("Handle sweep starting", { count: tracked.length });
 
-    for (const client of clients) {
+    for (const row of tracked) {
       try {
-        const result = await snapshotClientHandle(client.id);
-        logger.info("Snapshot done", { clientId: client.id, ...result });
+        const result = await snapshotHandle(row.clientId, row.handle);
+        logger.info("Snapshot done", { clientId: row.clientId, handle: row.handle, ...result });
       } catch (e) {
-        // One bad handle must not starve the rest — log and continue (spec §3).
+        // One bad handle must not starve the rest — log and continue (spec §3). This
+        // matters more now that handles include competitors: one can go private or
+        // vanish without anyone on the team noticing.
         logger.error("Snapshot failed", {
-          clientId: client.id,
+          clientId: row.clientId,
+          handle: row.handle,
           error: e instanceof Error ? e.message : String(e),
         });
       }
