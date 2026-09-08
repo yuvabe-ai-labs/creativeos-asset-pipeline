@@ -4644,3 +4644,58 @@ would then need the frame's geometry re-derived to stay anchored to painted pixe
 removing `overflow-hidden` (the frame's rounded corners exist to clip the canvas).
 
 **Originated →** `2026-09-03-review-annotations-design.md`.
+
+### D252 — Handles are entered on Market, not read from Brand Kit *(recorded 2026-09-08; supersedes D236)*
+
+**Decision.** `tracked_handles` (client_id, platform, handle, added_at) is the source of
+truth for what the performance pipeline scrapes. A handle is added through the Performance
+tab's "+ Add handle" affordance and parsed by the same canonicalizer used everywhere else.
+`clients.brand_details.instagram` (D130) degrades to a **prefill suggestion**: when the
+client has one and it is not yet tracked, the add dialog offers it pre-filled.
+
+**Why.** D236 chose the Brand Kit field to avoid a second copy of the handle, which was
+right while performance tracked exactly one account — the client's own. It stops working
+the moment competitors are in scope: a contact field on the client record cannot express
+"and these three competitors", and the field is a free-text contact box (`@yourhandle`,
+sitting beside Phone and WhatsApp) whose purpose is to be printed on a poster, not to
+enrol an account in a paid scraping schedule. Making enrolment explicit also makes the
+per-handle cost visible in a list the user controls.
+
+**Rejected.** Keeping D236 and bolting competitors onto a second mechanism (two sources,
+two parsers, two failure modes); two-way sync between `tracked_handles` and
+`brand_details` (two writers on one value — guaranteed drift, and the exact objection
+D236 itself raised); a per-client "enable tracking" toggle (enrolment is already implied
+by the presence of a handle row).
+
+**Refines.** D130 (brand details), D236 (superseded).
+
+**Originated →** `2026-09-03-handle-performance-design.md`.
+
+### D253 — Multi-handle sub-tabs in V1 *(recorded 2026-09-08; supersedes D238's V1.x deferral)*
+
+**Decision.** Performance stays a single top-level Market tab (D238 holds) and contains a
+**sub-tab per tracked handle**, ordered by `added_at`, plus a dashed "+ Add handle" chip.
+The client's own account is simply the first handle added — there is no primary/competitor
+distinction in the schema or the UI. Each sub-tab renders the same three states
+(no snapshot / accruing / populated) independently.
+
+**Why.** Nothing in the Apify payload is owner-scoped, so a competitor handle costs
+exactly what the client's own handle costs and returns exactly the same fields. Once that
+is true, "our account" and "their account" are the same kind of object, and a design that
+distinguishes them adds a special case the data does not have. The storage layer already
+supported this: `platform` and `handle` were first-class columns from day one, and
+`account_snapshots_series_idx` is keyed `(client_id, platform, handle, captured_at desc)`
+— written for the deferred competitor case, and exactly the index the sub-tab read path
+needs. V1.x was deferring a feature the schema was already paying for.
+
+**Rejected.** Handles as top-level Market tabs (the Market nav distinguishes *kinds* of
+evidence — Direct, Adjacent, Signals — and handle names are not a kind); an
+`is_primary`/`label` column (nothing in V1 reads it; tab order is `added_at`); cascading
+snapshot history on unenrolment (an accidental removal would destroy a time series that
+cannot be re-scraped — history survives, and is picked up again if the handle returns);
+cross-handle comparison views in V1 (each sub-tab stands alone until there is history
+worth comparing).
+
+**Refines.** D235, D238.
+
+**Originated →** `2026-09-03-handle-performance-design.md`.
