@@ -4315,3 +4315,95 @@ versions but show no metadata, no decisions and no restore affordance).
 **Still open.** The image Prompt node (`prompt-focus-view.tsx`) does not use `PromptFocusShell` —
 it carries its own sheet layout — so it still has chips and no History pane. Bringing it onto the
 shell, or giving it the same rail item, is untouched by this decision.
+
+---
+
+**D235–D239 are decided but not yet implemented** *(recorded 2026-09-09; originated →
+2026-09-08-kling-multishot-design.md)*. They describe the multishot lane once Kling 3.0 Omni is a
+second model. Until that ships, the code still matches D230–D232: one model, `OMNI_MAX_SECONDS` as
+the ladder's ceiling, hard Omni coercion at Video Gen. Read the five together — separately they
+describe a lane that does not exist either way.
+
+### D235 — Multishot capability is a table, not a constant *(recorded 2026-09-09; refines D230)*
+
+**Decision.** `OMNI_MIN_SECONDS` / `OMNI_MAX_SECONDS` stop being the cut ladder's ceiling. Each
+multishot model declares its own entry in `MULTISHOT_MODELS` — total window, cut floor, cut cap,
+per-beat and whole-prompt character ceilings — and `multishot-cuts.ts` takes a capability where it
+currently imports constants. `SOFT_CUT_LIMIT` is deleted rather than left beside its hard twin.
+
+**Why.** Kling 3.0 Omni allows 15s where Omni allows 10, caps cuts at 6 where Omni states no limit,
+and caps a beat at 512 characters where Omni states nothing. One constant cannot be all of that.
+The 6-cut cap in particular changes kind: today it is a soft quality hint, on Kling it is a
+rejection.
+
+**Rejected.** Keeping the 10s floor for both (buys Kling nothing); a 15s ceiling with a
+generate-time rejection on Omni (moves the failure past the point the prompt was written and paid
+for).
+
+**Note.** `group-shots.ts` is deliberately *not* parameterised — fan-out packing runs when a script
+is parsed, before any Multishot node exists and so before a model is chosen. It stays on Omni's 10s,
+the safe floor: a group that fits Omni also fits Kling.
+
+### D236 — The multishot model is chosen on the Multishot node and inherited down the lane *(recorded 2026-09-09; refines D232)*
+
+**Decision.** `targetModel` on `MultishotNodeData`, set by a `Select` in the Multishot focus view's
+header. Video Gen and the generate route both resolve it from the upstream Multishot node rather
+than deciding for themselves. Absent = Gemini Omni, so nothing is migrated.
+
+**Why.** The cut ladder needs its ceiling *while it is being built*, which is upstream of where a
+model is otherwise picked. Choosing at Video Gen would mean building a ladder against one model's
+limits and generating against another's.
+
+**Refines D232,** whose hard Omni coercion on connect this replaces: a Kling ladder now opens its
+Video Gen node already on Kling instead of opening on Omni and being coerced.
+
+### D237 — Switching to a tighter model states the violation rather than clamping the ladder *(recorded 2026-09-09; refines D235)*
+
+**Decision.** Switch a 14s Kling ladder to Omni and the cuts are left exactly as they are. The
+header states the violation (`14s / 10s max`, destructive colour) and Video Gen's Generate is
+disabled carrying that reason. The Multishot **Prompt** node's own Generate stays enabled.
+
+**Why.** The same reason redistribution was rejected in `multishot-cuts.ts` — a control that
+silently moves numbers the operator did not touch is a surprise, and this one decides what gets
+billed. Only the Video Gen generate is blocked because that is the request the ladder is illegal
+for; writing a plan for an out-of-window ladder costs a text generation, and blocking it would
+strand the operator with no way to see what the sequence reads like while deciding how to fix the
+timings.
+
+**Rejected.** Refusing the switch (strands the operator with no way to explore what a model would
+allow); silent clamping (see above).
+
+### D238 — Kling renders as API shot triples, never the console syntax *(recorded 2026-09-09; refines D231)*
+
+**Decision.** `renderPlan` emits `shot n, m, words;` for Kling — lowercase, comma-separated triple
+of number/seconds/text, semicolon between shots — not the `Shot N (Xs):` form in
+`kling-omni-system-prompt.md` and the CHUPPS reference.
+
+**Why.** Those files are prompt-craft references written for the web console; the API parses shots
+only from the comma/semicolon triple form given in the vendor reference. Following the console files
+would have sent prose the API reads as a single shot — a wrong-but-accepted payload, which is the
+failure mode that does not announce itself.
+
+**Consequence.** The writer keeps returning plan JSON (D231 stands unchanged) and never formats
+shots itself. Only the system prompt and the renderer differ per model.
+
+### D239 — Video Gen offers no multishot model switch; the restriction text points upstream *(recorded 2026-09-09; refines D236)*
+
+**Decision.** The picker shows the one model the connected plan was written for. Its reason line
+names the alternative and the action that reaches it: *"Connected to a Multishot Prompt written for
+Kling 3.0 Omni. The shot format is model-specific — to generate on Gemini Omni 1.1, switch the
+Multishot node's model and regenerate the prompt."* Parameterised on `MULTISHOT_MODELS`, so it reads
+correctly whichever way round the choice went and does not name only one alternative once there is a
+third.
+
+**Why.** A chip for the other model would be an offer the lane cannot honour — the plan's beats
+carry the first model's reference tokens (`<IMAGE_REF_0>` vs `@image_1`) and its ladder may exceed
+the other's window, so "switching" here would mean generating from the wrong contract. The
+regenerate is not ceremony standing in front of the switch; it *is* the switch.
+
+**Rejected.** A disabled chip with a tooltip (a dead control whose reason is discoverable only on
+hover); a switch here that silently regenerates upstream (spends a text generation and rewrites the
+operator's citations from a node they are not looking at).
+
+**Supersedes** D232's restriction copy, which explained a capability — "only Omni can generate a
+multi-shot plan" — a sentence that stops being true the moment there are two multishot models.

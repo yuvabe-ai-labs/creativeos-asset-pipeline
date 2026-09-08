@@ -246,6 +246,32 @@ already walks to the Multishot node's data for `cuts`, and reads `targetModel` f
 The `loading` gate added on 2026-09-08 stays and matters more here: until the upstream resolves the
 picker shows placeholders, so the lock lands before any chips are drawn rather than after.
 
+### The restriction text names the way out
+
+The picker still shows one chip. What changes is `restrictionReason`, which today explains a
+*capability* ("only Omni can generate a multi-shot plan") — a sentence that stops being true the
+moment there are two multishot models. It becomes a statement about *this plan*, and about the one
+action that changes it:
+
+> Connected to a Multishot Prompt written for **Kling 3.0 Omni**. The shot format is model-specific —
+> to generate on Gemini Omni 1.1, switch the Multishot node's model and regenerate the prompt.
+
+Parameterised on the two capability labels, so it reads correctly whichever way round the choice
+went, and built from `MULTISHOT_MODELS` rather than a hardcoded pair — a third model must not
+silently produce a sentence naming only one alternative. With more than two, the clause names the
+node rather than enumerating: *"…switch the Multishot node's model and regenerate the prompt."*
+
+This is the whole of the operator-facing story for model choice at Video Gen, and it is deliberately
+one sentence rather than a control. **Video Gen does not offer the other model at all** — not
+disabled, not present. Choosing it here would mean generating a Kling payload from a plan whose
+beats carry Omni's `<IMAGE_REF_0>` tokens and whose ladder may exceed 10s, so the chip would be an
+offer the lane cannot honour. The regenerate is not a formality standing between the operator and a
+model switch; it is the work that actually makes the switch valid (§6).
+
+Placement: the existing `restrictionReason` line under the chip, not a hover tooltip. It is a
+one-line explanation of a visible restriction, and a restriction whose reason is only discoverable
+by hovering is one most operators will read as a bug instead.
+
 ## 8. Error handling
 
 - **Ladder outside the model's window** — Video Gen's Generate disabled with the reason; the
@@ -281,8 +307,14 @@ Route:
   it used in `paramsUsed`.
 - Generate is refused when the ladder violates the target model's capability.
 
-Not tested: whether Kling honours `multi_shot` on O1. That is §2's assumption and it needs one real
-generation to settle — see §10.
+View:
+
+- The restriction text names the *plan's* model and offers the other one by name, both ways round —
+  a Kling plan must not produce a sentence telling the operator to regenerate for Kling. Cheap to
+  test and exactly the kind of parameterisation that reads correct while being backwards.
+
+Not tested: whether the leading LOOK prose survives Kling's parser. That is §6's one genuine guess
+and no unit test can settle it — it needs one real generation, which is §10.
 
 ## 10. First thing to do after implementing
 
@@ -328,3 +360,14 @@ references written for the web console; the API parses shots only from the comma
 form given in the vendor reference. Following the console files would have sent prose the API reads
 as one shot — a wrong-but-accepted payload, which is the failure mode that does not announce
 itself. *Consequence:* the writer keeps returning plan JSON and never formats shots itself.
+
+**D239 — Video Gen offers no multishot model switch; the restriction text points upstream.** The
+picker shows the one model the connected plan was written for, and its reason line names the
+alternative plus the action that reaches it (switch on the Multishot node, regenerate). *Why:* a
+chip for the other model would be an offer the lane cannot honour — the plan's beats carry the
+first model's reference tokens and its ladder may exceed the other's window, so "switching" here
+would mean sending a payload built from the wrong contract. The regenerate is not ceremony in front
+of the switch; per §6 it *is* the switch. *Rejected:* a disabled chip with a tooltip (a dead control
+whose reason is discoverable only on hover); a switch here that silently regenerates upstream
+(spends a text generation and rewrites the operator's citations from a node they are not looking
+at). *Refines:* D236.
