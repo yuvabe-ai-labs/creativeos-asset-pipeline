@@ -1,8 +1,11 @@
-// The one snapshot path both callers use (daily trigger sweep + manual refresh route),
-// mirroring ingestReference's contract: the SNAPSHOT always saves; thumbnails are
-// best-effort decoration (D185's spirit). Only a DB/provider failure propagates.
+// The one snapshot path all three callers use (daily trigger sweep, manual refresh
+// route, and a newly added handle's first fetch), mirroring ingestReference's contract:
+// the SNAPSHOT always saves; thumbnails are best-effort decoration (D185's spirit).
+// Only a DB/provider failure propagates.
+//
+// It takes the handle rather than looking one up (D252): whether a handle is tracked is
+// the route's business, not this module's.
 import "server-only";
-import { getBrandDetails } from "@/lib/db/brand-kit";
 import {
   insertAccountSnapshot,
   upsertTrackedPost,
@@ -11,21 +14,18 @@ import {
 import { uploadMarketThumbnail } from "@/lib/storage";
 import { THUMBNAIL_SIZE_LIMIT } from "./constants";
 import { fetchProfileDetails } from "./apify";
-import { parseInstagramHandle, normalizeProfileItem } from "./performance";
+import { normalizeProfileItem } from "./performance";
 
 export type SnapshotResult =
   | { ok: true; handle: string; postCount: number }
-  | { ok: false; reason: "no-handle" | "no-data" };
+  | { ok: false; reason: "no-data" };
 
-export async function snapshotClientHandle(
+export async function snapshotHandle(
   clientId: string,
+  handle: string,
   opts?: { fetchImpl?: typeof fetch },
 ): Promise<SnapshotResult> {
   const fetchImpl = opts?.fetchImpl ?? fetch;
-
-  const details = await getBrandDetails(clientId);
-  const handle = parseInstagramHandle(details.instagram);
-  if (!handle) return { ok: false, reason: "no-handle" };
 
   const token = process.env.APIFY_TOKEN;
   if (!token) throw new Error("Missing APIFY_TOKEN env var");
@@ -34,7 +34,11 @@ export async function snapshotClientHandle(
   if (!item) return { ok: false, reason: "no-data" };
 
   const { snapshot, posts } = normalizeProfileItem(item);
-  await insertAccountSnapshot(clientId, snapshot);
+
+  // Key every row to the handle we TRACK, not the `username` the payload echoes back.
+  // A renamed account returns its new name (spec §1.2); trusting it would silently
+  // split one account's series into two under different handles.
+  await insertAccountSnapshot(clientId, { ...snapshot, handle });
 
   for (const post of posts) {
     const row = await upsertTrackedPost(clientId, handle, post);

@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("server-only", () => ({}));
-vi.mock("@/lib/db/brand-kit", () => ({ getBrandDetails: vi.fn() }));
 vi.mock("@/lib/db/performance", () => ({
   insertAccountSnapshot: vi.fn(async () => ({ id: "snap-1" })),
   upsertTrackedPost: vi.fn(async () => ({ id: "post-1", thumbnail_url: null })),
@@ -12,7 +11,6 @@ vi.mock("@/lib/storage", () => ({
   uploadMarketThumbnail: vi.fn(async () => ({ url: "https://gcs/thumb.jpg" })),
 }));
 
-import { getBrandDetails } from "@/lib/db/brand-kit";
 import { fetchProfileDetails } from "@/lib/market/apify";
 import {
   insertAccountSnapshot,
@@ -20,7 +18,7 @@ import {
   updateTrackedPostThumbnail,
 } from "@/lib/db/performance";
 import { uploadMarketThumbnail } from "@/lib/storage";
-import { snapshotClientHandle } from "./snapshot";
+import { snapshotHandle } from "./snapshot";
 
 const PROFILE = {
   username: "prakritisattva",
@@ -46,25 +44,25 @@ beforeEach(() => {
   process.env.APIFY_TOKEN = "test-token";
 });
 
-describe("snapshotClientHandle", () => {
-  it("returns no-handle when brand_details has no parseable handle", async () => {
-    vi.mocked(getBrandDetails).mockResolvedValue({});
-    const r = await snapshotClientHandle("client-1");
-    expect(r).toEqual({ ok: false, reason: "no-handle" });
-    expect(vi.mocked(fetchProfileDetails)).not.toHaveBeenCalled();
+describe("snapshotHandle", () => {
+  it("scrapes the handle it is given, not one it looks up", async () => {
+    vi.mocked(fetchProfileDetails).mockResolvedValue(PROFILE as never);
+    await snapshotHandle("client-1", "prakritisattva", { fetchImpl: imageFetch });
+    expect(vi.mocked(fetchProfileDetails)).toHaveBeenCalledWith(
+      "prakritisattva",
+      expect.objectContaining({ token: "test-token" }),
+    );
   });
 
   it("returns no-data when the actor finds nothing", async () => {
-    vi.mocked(getBrandDetails).mockResolvedValue({ instagram: "@prakritisattva" });
     vi.mocked(fetchProfileDetails).mockResolvedValue(null);
-    const r = await snapshotClientHandle("client-1");
+    const r = await snapshotHandle("client-1", "nobody");
     expect(r).toEqual({ ok: false, reason: "no-data" });
   });
 
   it("inserts a snapshot, upserts posts, re-hosts missing thumbnails", async () => {
-    vi.mocked(getBrandDetails).mockResolvedValue({ instagram: "@prakritisattva" });
     vi.mocked(fetchProfileDetails).mockResolvedValue(PROFILE as never);
-    const r = await snapshotClientHandle("client-1", { fetchImpl: imageFetch });
+    const r = await snapshotHandle("client-1", "prakritisattva", { fetchImpl: imageFetch });
     expect(r).toEqual({ ok: true, handle: "prakritisattva", postCount: 1 });
     expect(vi.mocked(insertAccountSnapshot)).toHaveBeenCalledWith(
       "client-1",
@@ -76,19 +74,30 @@ describe("snapshotClientHandle", () => {
   });
 
   it("keeps the snapshot even when the thumbnail step throws", async () => {
-    vi.mocked(getBrandDetails).mockResolvedValue({ instagram: "@prakritisattva" });
     vi.mocked(fetchProfileDetails).mockResolvedValue(PROFILE as never);
     const failingFetch = vi.fn(async () => { throw new Error("network"); }) as unknown as typeof fetch;
-    const r = await snapshotClientHandle("client-1", { fetchImpl: failingFetch });
+    const r = await snapshotHandle("client-1", "prakritisattva", { fetchImpl: failingFetch });
     expect(r).toEqual({ ok: true, handle: "prakritisattva", postCount: 1 });
     expect(vi.mocked(updateTrackedPostThumbnail)).not.toHaveBeenCalled();
   });
 
   it("skips re-hosting when the row already has a thumbnail", async () => {
-    vi.mocked(getBrandDetails).mockResolvedValue({ instagram: "@prakritisattva" });
     vi.mocked(fetchProfileDetails).mockResolvedValue(PROFILE as never);
     vi.mocked(upsertTrackedPost).mockResolvedValue({ id: "post-1", thumbnail_url: "https://gcs/old.jpg" } as never);
-    await snapshotClientHandle("client-1", { fetchImpl: imageFetch });
+    await snapshotHandle("client-1", "prakritisattva", { fetchImpl: imageFetch });
     expect(vi.mocked(uploadMarketThumbnail)).not.toHaveBeenCalled();
+  });
+
+  it("stores the handle we asked for, not the one the payload echoes back", async () => {
+    // The provider echoes `username`, and a renamed account can return a different
+    // one than we requested (spec §1.2). The row must stay keyed to the tracked
+    // handle, or its series silently splits in two.
+    vi.mocked(fetchProfileDetails).mockResolvedValue({ ...PROFILE, username: "renamed" } as never);
+    await snapshotHandle("client-1", "prakritisattva", { fetchImpl: imageFetch });
+    expect(vi.mocked(upsertTrackedPost)).toHaveBeenCalledWith(
+      "client-1",
+      "prakritisattva",
+      expect.anything(),
+    );
   });
 });
