@@ -55,6 +55,34 @@ export type PerformanceStats = {
   followerDelta7d: number | null;
 };
 
+export type HandleIdentity = {
+  category: string | null;
+  externalUrl: string | null;
+  avatarUrl: string | null;
+};
+
+/** Reads the identity strip's fields back out of a stored snapshot payload (D237).
+ *
+ *  `raw` is whatever the provider returned on the day of that snapshot — possibly
+ *  months ago, possibly a shape the actor no longer emits — so it is narrowed rather
+ *  than cast. Anything missing or not a string becomes null and the strip renders
+ *  without it, which is why no re-scrape is ever needed to add a field here.
+ *
+ *  Note the provider also returns `externalUrls`, an ARRAY of titled links (see spec
+ *  §1.2). V1 shows the single `externalUrl`, which is the first of them; the array
+ *  stays in `raw` for whenever the strip wants to list them all. */
+export function extractIdentity(raw: unknown): HandleIdentity | null {
+  if (typeof raw !== "object" || raw === null) return null;
+  const item = raw as Record<string, unknown>;
+  const str = (value: unknown): string | null =>
+    typeof value === "string" && value !== "" ? value : null;
+  return {
+    category: str(item.businessCategoryName),
+    externalUrl: str(item.externalUrl),
+    avatarUrl: str(item.profilePicUrlHD),
+  };
+}
+
 const HANDLE_RE = /^[a-z0-9._]{1,30}$/;
 
 export function parseInstagramHandle(raw: string | null | undefined): string | null {

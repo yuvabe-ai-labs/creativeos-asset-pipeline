@@ -4,6 +4,7 @@ import {
   normalizeProfileItem,
   computeStats,
   postMultiplier,
+  extractIdentity,
   type ApifyProfileItem,
 } from "./performance";
 
@@ -107,6 +108,37 @@ describe("computeStats", () => {
   it("returns nulls when there is nothing to compute from", () => {
     const s = computeStats({ posts: [], followers: null, series: [] });
     expect(s).toEqual({ engagementRate: null, medianLikes: null, cadencePerMonth: null, followerDelta7d: null });
+  });
+});
+
+describe("extractIdentity", () => {
+  it("pulls category, external url and avatar out of a raw payload", () => {
+    expect(extractIdentity(FIXTURE)).toEqual({
+      category: "Health/beauty",
+      externalUrl: "https://prakritisattva.etsy.com",
+      avatarUrl: "https://cdn.example/avatar.jpg",
+    });
+  });
+  it("returns nulls for a payload missing those fields", () => {
+    expect(extractIdentity({ username: "x", followersCount: 1 })).toEqual({
+      category: null,
+      externalUrl: null,
+      avatarUrl: null,
+    });
+  });
+  it("returns null for a non-object raw", () => {
+    expect(extractIdentity(null)).toBeNull();
+    expect(extractIdentity(undefined)).toBeNull();
+    expect(extractIdentity("nope")).toBeNull();
+  });
+  it("ignores non-string values rather than trusting the shape", () => {
+    // raw is provider data of unknown vintage — a number where a string belongs
+    // must not reach the identity strip as a rendered value.
+    expect(extractIdentity({ businessCategoryName: 42, externalUrl: [], profilePicUrlHD: null })).toEqual({
+      category: null,
+      externalUrl: null,
+      avatarUrl: null,
+    });
   });
 });
 
