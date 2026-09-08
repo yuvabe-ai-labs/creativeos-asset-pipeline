@@ -41,6 +41,33 @@ One `apify/instagram-scraper` call (`resultsType: "details"`,
 Nothing in the payload is owner-scoped, which is *why* a competitor handle costs exactly
 what the client's own handle costs. That symmetry is the basis of D253.
 
+### 1.1 Re-verified live, 2026-09-08 (`scripts/spike-instagram.mjs`)
+
+Every claim above was re-checked against a live call, because a fixture freezes an
+assumption about the provider and stays green even when the provider moves:
+
+* **Billing settled: one `details` scrape = 1 dataset item**, with the 12 posts embedded
+  inside it, *not* billed individually. The actor's API page and its store listing
+  contradicted each other on this (a 13× difference); the run resolved it. At $2.70/1k
+  on the free plan that is **~$0.081/month per handle** at daily cadence — the free $5
+  credit covers ~61 handles. Cost scales with handles (D253), but not bindingly.
+* **Every rendered field present:** `businessCategoryName`, `externalUrl`,
+  `profilePicUrlHD`, all three stat-card counts, and `shortCode`/`type`/`url`/`timestamp`
+  on all 12 posts. `displayUrl` on 12/12 (so every tile gets a re-hosted thumbnail);
+  `videoViewCount` on 1/12 (videos only, as the normalizer assumes).
+* **All three provider `type` values appeared** (`Video`, `Sidecar`, `Image`) and all map
+  — no unmapped value silently falling back to `image`.
+* **The `-1` hidden-likes sentinel is real live data**, not a spike artifact: 1 of 12
+  posts. Its post is exactly why medians exclude hidden-likes posts.
+* **`reach` / `impressions` / `saves` / `shares` absent**, confirming the owner-auth
+  ceiling. No future design should plan around them.
+* **`followersCount` read 146, against 144 on 2026-09-03.** The fixture stays at 144 by
+  design. The +2 is the premise in miniature: that movement is already unrecoverable, and
+  is only ever drawable because we snapshot.
+
+Re-run the spike before any change that leans on a provider field the tab does not
+already render.
+
 ## 2. Data model — migration `0038_handle_performance.sql`
 
 Filenames, not numbers, are migration identity; 0038 is the next free number
