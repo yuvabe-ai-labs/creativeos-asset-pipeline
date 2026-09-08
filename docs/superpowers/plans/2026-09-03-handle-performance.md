@@ -76,6 +76,8 @@ describe("extractIdentity", () => {
 - [ ] **Step 4: Run to verify pass**
 - [ ] **Step 5: Commit** — `feat(market): extract identity fields from snapshot raw (D237)`
 
+> **Note on `externalUrl`.** The live payload (spec §1.2) also returns `externalUrls` — an *array* of titled links; this account has two ("Etsy", "Website"). V1 renders the single `externalUrl`, which is the first of them. Keep `HandleIdentity` returning one link so the strip stays simple, but do not reshape `raw` on the way in: the array is retained, so showing all of them later is a read-path change with no re-scrape.
+
 ---
 
 ### Task 5: DB module — handle CRUD + handle-scoped reads
@@ -213,4 +215,6 @@ The hour guard moving from per-client to per-handle matters: with several handle
 - **Spec coverage:** §2.1 → Task 1 (built); §2.2/2.3 → Task 1 (built); §2.4 → Tasks 5/7; §3 → Tasks 6/9; §4 → Tasks 4/5/7/8; §5 → Task 10; §7 testing → Tasks 4, 6, 7, 8.
 - **What D252/D253 did *not* touch:** the migration's two metric tables, the whole pure module, and the Apify client. `platform`/`handle` were first-class columns and `fetchProfileDetails` already took a handle, so the multi-handle model cost nothing at those layers — the change is concentrated in the DB accessors, the route surface, and the UI.
 - **Known checks for the executor:** `getLatestSnapshot` must start selecting `raw` or the identity strip renders empty; the refresh hour-guard must key on handle, not client; `addTrackedHandle` must upsert rather than insert, or a double-submit 500s.
-- **Deliberately deferred:** cross-handle comparison, `is_primary`, cascade-on-unenrol, TikTok. All recorded in spec §8.
+- **Verified against live data, 2026-09-08** (spec §1.1): every field these tasks read is present in the real payload, all three provider `type` values map cleanly, and one `details` scrape bills as a single dataset item (~$0.081/month per handle). Re-run `scripts/spike-instagram.mjs` before any task that starts reading a provider field the tab does not already render.
+- **Deliberately deferred:** cross-handle comparison, `is_primary`, cascade-on-unenrol, TikTok, plus everything inventoried in spec §1.2 as captured-but-unused (hashtags, carousel `childPosts`, `paidPartnership`, true-Reel detection via `productType`, multiple `externalUrls`). All are retained in `raw`, so each is a read-path change later, never a re-scrape.
+- **Known limitation, accepted for V1:** the keys are `(client_id, platform, handle)`, but `id`/`fbid` are the account's stable identity. A tracked account that renames itself starts a fresh, disconnected series rather than continuing its own. Recorded in spec §1.2; the fix, if it ever bites, is storing `id` on `tracked_handles` and reconciling by it.

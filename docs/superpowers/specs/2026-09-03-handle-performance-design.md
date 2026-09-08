@@ -68,6 +68,60 @@ assumption about the provider and stays green even when the provider moves:
 Re-run the spike before any change that leans on a provider field the tab does not
 already render.
 
+### 1.2 Full field inventory — what the payload makes possible
+
+Every field below is **already captured and retained in `account_snapshots.raw`** (D237) at
+no extra cost. "V1" marks what the tab renders today; everything else is available with a
+read-path change and **no re-scrape**. Recorded so future scope conversations start from
+evidence rather than guesses.
+
+**Account level** — 21 fields returned:
+
+| Field | V1 | What it is / could power |
+|---|---|---|
+| `username`, `followersCount`, `followsCount`, `postsCount` | ✅ | Identity strip + all four stat cards |
+| `businessCategoryName`, `profilePicUrlHD` | ✅ | Identity strip |
+| `externalUrl` | ✅ | First link only — see `externalUrls` below |
+| `externalUrls` | — | **An array of titled links** (this account has 2: "Etsy" and "Website" → a Labor Day sale page). The identity strip could show all of them, with their titles. |
+| `biography` | — | Full bio text, emoji included. Positioning evidence. |
+| `id`, `fbid` | — | **Stable account ids that survive a handle rename.** See the caveat below. |
+| `isBusinessAccount`, `verified`, `private` | — | Account-type badges; `private` explains an empty scrape. |
+| `fullName`, `url`, `profilePicUrl`, `inputUrl`, `externalUrlShimmed` | — | Display name, canonical URL, low-res avatar, echoes of our own input. |
+| `latestIgtvVideos` | — | Empty for this account. |
+
+**Post level** — 23 fields per post, 12 posts spanning **343 days**:
+
+| Field | V1 | What it is / could power |
+|---|---|---|
+| `shortCode`, `type`, `url`, `timestamp` | ✅ | Tile identity, ordering, cadence |
+| `likesCount`, `commentsCount`, `videoViewCount` | ✅ | Metrics row + multiplier pill |
+| `displayUrl` | ✅ | GCS re-host source (12/12 present) |
+| `caption` | ✅ | Clamped tile caption |
+| `hashtags` | — | **86 unique tags across 12 posts**, every post tagged, max 16 on one. The densest unused field by far. |
+| `childPosts` | — | **Carousel slides, fully populated** — 2/2/6/4/2 across the five Sidecars. 12 posts really means **28 images**. |
+| `productType` | — | `"clips"` on the one Video, `null` elsewhere — the field that identifies a *true Reel* rather than a plain video. |
+| `paidPartnership` | — | `false` throughout here; the tell for a **competitor running sponsored content**. |
+| `videoUrl`, `images`, `dimensionsWidth/Height` | — | Playable video file, media variants, aspect ratio. |
+| `mentions` | — | Empty on all 12 posts for this account. |
+| `isCommentsDisabled`, `id`, `ownerId`, `ownerUsername` | — | Housekeeping. |
+
+Carousel children carry their own `likesCount`, `caption`, `hashtags`, **`alt`** (accessibility
+text) and `latestComments`.
+
+**Three findings that constrain design, not just enable it:**
+
+* **`latestComments` is absent from top-level posts in `details` mode**, and total comment
+  volume across all 12 posts is **1**. D238's exclusion of sentiment is confirmed by data,
+  not assumed — there is nothing to analyse.
+* **Hashtag case is not normalized by the provider.** `#prakritisattva` (7) and
+  `#PrakritiSattva` (4) are returned as distinct tags but are one tag used 11 times. Any
+  future tag feature needs the same lowercasing `parseInstagramHandle` applies to handles.
+* **A handle rename silently starts a new series.** Our keys are
+  `(client_id, platform, handle)`, but `id`/`fbid` are the account's stable identity. If a
+  tracked account renames, the sweep either 404s or begins a fresh, disconnected history.
+  V1 accepts this; the fix, if it ever bites, is to store `id` on `tracked_handles` and
+  reconcile by it. Recorded rather than solved — nothing has hit it yet.
+
 ## 2. Data model — migration `0038_handle_performance.sql`
 
 Filenames, not numbers, are migration identity; 0038 is the next free number
@@ -301,7 +355,27 @@ refresh focus ring); semantic green appears only in delta + over-performer pill.
 
 ## 8. Out of scope (recorded)
 
-TikTok/other platforms (schema-ready, not built), comments/sentiment, hashtag/share-of-
-voice, alerts, website diffing, cross-handle comparison views (each sub-tab stands
-alone in V1), AI commentary on metrics (D204 flavour hook exists when history makes it
-worth interpreting).
+TikTok/other platforms (schema-ready, not built), alerts, website diffing, cross-handle
+comparison views (each sub-tab stands alone in V1), AI commentary on metrics (D204 flavour
+hook exists when history makes it worth interpreting).
+
+**Deferred but already captured.** §1.2 inventories every field the payload returns; the
+ones below are retained in `raw` today and need only a read-path change — never a
+re-scrape — if they are ever wanted:
+
+* **Hashtag intelligence / share-of-voice** — the densest unused data we hold (86 tags
+  across 12 posts). Still out of V1 per D238; the point is that deferring costs nothing.
+* **Carousel slides** — `childPosts` is fully populated, so a tile could open all 28
+  images rather than showing one frame under a "Carousel" badge.
+* **Multiple external links** — `externalUrls` is an array of titled links; V1's identity
+  strip shows only the first.
+* **`paidPartnership`** — the most interesting of these for *competitor* handles, since it
+  flags a rival running sponsored content.
+* **True-Reel detection** — `productType: "clips"` distinguishes a real Reel from a plain
+  video, which V1's `TYPE_MAP` currently collapses.
+
+**Genuinely unavailable, at any price:** follower history (no public source — the whole
+premise of D235), per-post metrics *as they were at the time* (only cumulative totals come
+back, though our own snapshots build this going forward), and reach/impressions/saves/
+shares (owner-auth only, confirmed absent in §1.1). Comment sentiment is excluded for a
+different reason: the data is not there to analyse — 1 comment across 12 posts.
