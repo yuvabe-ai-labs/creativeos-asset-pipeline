@@ -25,7 +25,10 @@ export function HandleIdentityStrip({
 
   return (
     <div className="flex items-center gap-3.5">
-      <div className="flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[radial-gradient(circle_at_30%_30%,var(--color-primary)/0.45,var(--color-primary))] font-display text-sm font-semibold text-primary-foreground">
+      {/* color-mix, not `var(--color-primary)/0.45` — a slash-alpha on a var() inside a
+          gradient is invalid CSS, so the whole declaration drops and the initials render
+          white-on-white. */}
+      <div className="flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[radial-gradient(circle_at_30%_30%,color-mix(in_srgb,var(--color-primary)_55%,white),var(--color-primary))] font-display text-sm font-semibold text-primary-foreground">
         {showAvatar ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
