@@ -78,3 +78,6 @@ ref/omni-samples/
 # Raw MR workbook exports — extract-mr-workbook.mjs distills these into seed/
 Copy of MR _ Content Creative OS.xlsx
 MR _ Content Creative OS/
+
+# Raw provider payloads dumped by scripts/spike-instagram.mjs — evidence, not source
+spike-*.json
