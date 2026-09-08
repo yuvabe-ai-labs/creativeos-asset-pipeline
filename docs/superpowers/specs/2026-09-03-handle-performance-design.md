@@ -1,7 +1,7 @@
 # Design: Handle Performance — Market tab
 
 **Date:** 2026-09-03
-**Status:** Approved shape, pre-plan. Decisions recorded as **D205–D208** in the ADR log
+**Status:** Approved shape, pre-plan. Decisions recorded as **D235–D238** in the ADR log
 (`2026-05-30-creativeos-staging-roadmap.md` §7).
 **Extends:** Market Signals V1 (`2026-08-27-market-signals-v1-design.md`, D184–D189).
 **Branch:** new worktree from `main` (created at plan-execution time).
@@ -30,9 +30,10 @@ One `apify/instagram-scraper` call (`resultsType: "details"`,
   count); `displayUrl` is an expiring Instagram CDN link; no reach/impressions/saves
   (owner-auth only — permanent ceiling for public scraping); no history — snapshots only.
 
-## 2. Data model — migration `0035_handle_performance.sql`
+## 2. Data model — migration `0038_handle_performance.sql`
 
-Filenames, not numbers, are migration identity; 0035 is the next free number.
+Filenames, not numbers, are migration identity; 0038 is the next free number
+(0035–0037 went to review annotations while this design was in flight).
 Both tables get default-deny RLS (enable, zero policies) per 0017's pattern.
 
 ### 2.1 `account_snapshots` — the time series
@@ -56,7 +57,7 @@ create index account_snapshots_series_idx
 
 * `platform` is a check-constrained column from day one so TikTok/competitor expansion
   is an `alter … drop constraint`, not a migration of shape.
-* `raw` keeps the full Apify item (D207). V1 normalizes only what it renders; per-post
+* `raw` keeps the full Apify item (D237). V1 normalizes only what it renders; per-post
   metric *history* (e.g. a reel's views over its first week) stays recoverable from raw
   without re-scraping.
 * Follower trend = `select followers_count, captured_at … order by captured_at`.
@@ -92,7 +93,7 @@ create table tracked_posts (
 * Provider `type` values (`Image`/`Video`/`Sidecar`) normalize to
   `image`/`video`/`carousel`.
 
-### 2.3 Handle source — no new registration UI (D206)
+### 2.3 Handle source — no new registration UI (D236)
 
 The client's handle is **`clients.brand_details.instagram`** (D130), the field the Brand
 panel already edits. A pure parser normalizes what humans type — `@prakritisattva`,
@@ -172,18 +173,18 @@ focus ring); semantic green appears only in delta + over-performer pill.
 
 ## 6. Decisions (ADR log §7)
 
-* **D205 — Apify snapshots, series owned by us.** `apify/instagram-scraper`
+* **D235 — Apify snapshots, series owned by us.** `apify/instagram-scraper`
   (`details` mode, sync endpoint) scraped daily per handle into `account_snapshots` /
   `tracked_posts`. *Rejected:* Instagram Graph API (owner-auth only, no competitors);
   4-hourly listening cadence (pays to re-read a ~monthly poster); provider-side
   history (none exists — snapshots are the product).
-* **D206 — `brand_details.instagram` is the only handle source.** Normalized at read.
+* **D236 — `brand_details.instagram` is the only handle source.** Normalized at read.
   *Rejected:* a handle field on the Market page (second copy of D130 data, drift).
-* **D207 — Raw payload retention, normalize at the boundary.** Full Apify item in
+* **D237 — Raw payload retention, normalize at the boundary.** Full Apify item in
   `account_snapshots.raw`; sentinels (`-1` likes) become nulls in columns.
   *Rejected:* normalizing everything now (YAGNI), discarding raw (unrecoverable
   per-post history).
-* **D208 — Performance is a tab, not a listening system.** Sentiment (no comment
+* **D238 — Performance is a tab, not a listening system.** Sentiment (no comment
   volume on this account), share-of-voice/hashtag intelligence, website diffing, and
   alerting are explicitly out of V1. Competitor handles are V1.x via a
   `tracked_handles` table over the same pipeline.

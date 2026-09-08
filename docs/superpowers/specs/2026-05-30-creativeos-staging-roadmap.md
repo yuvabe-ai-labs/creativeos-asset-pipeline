@@ -4393,9 +4393,6 @@ different pipeline entirely).
 
 **Originated →** `2026-09-03-handle-performance-design.md`.
 
-<!-- D205–D208 (handle performance) were recorded on staging after this worktree
-     branched; on merge they slot in above this block. Numbering continues from D208. -->
-
 ### D239 — Review annotations are feedback now, AI later *(recorded 2026-09-03; refines D168, builds on D27/D91)*
 
 **Decision.** A senior's review annotation (painted region + note) is persisted feedback

@@ -2,13 +2,13 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** A fourth Market tab, **Performance**, showing the client's Instagram account metrics from a daily Apify snapshot pipeline we own (D205–D208).
+**Goal:** A fourth Market tab, **Performance**, showing the client's Instagram account metrics from a daily Apify snapshot pipeline we own (D235–D238).
 
 **Architecture:** A Trigger.dev scheduled task calls `apify/instagram-scraper` (`resultsType: "details"`, sync endpoint) daily per client handle, normalizes the payload through a pure module, and writes `account_snapshots` (time series + raw payload) and `tracked_posts` (latest metrics, upserted by shortcode, GCS-re-hosted thumbnails). A `withClient` GET route serves the tab; a POST refresh route runs the same orchestrator on demand with a 1-hour guard.
 
 **Tech Stack:** Next.js (this repo's version — read `node_modules/next/dist/docs/` before route work), Supabase (service-role via `createServerSupabase`), Trigger.dev v3 (`schedules.task`), Vitest, shadcn/Base UI primitives, Tailwind v4.
 
-**Spec:** `docs/superpowers/specs/2026-09-03-handle-performance-design.md` (decisions D205–D208 in `2026-05-30-creativeos-staging-roadmap.md` §7).
+**Spec:** `docs/superpowers/specs/2026-09-03-handle-performance-design.md` (decisions D235–D238 in `2026-05-30-creativeos-staging-roadmap.md` §7).
 
 ## Global Constraints
 
@@ -25,10 +25,10 @@
 
 ---
 
-### Task 1: Migration `0035_handle_performance.sql`
+### Task 1: Migration `0038_handle_performance.sql`
 
 **Files:**
-- Create: `supabase/migrations/0035_handle_performance.sql`
+- Create: `supabase/migrations/0038_handle_performance.sql`
 
 **Interfaces:**
 - Consumes: existing `clients(id)` table; RLS convention from `0027_brand_kit.sql` (enable RLS, zero policies — service-role bypasses).
@@ -37,9 +37,9 @@
 - [ ] **Step 1: Write the migration**
 
 ```sql
--- Handle Performance (D205, D207): daily Apify snapshots of the client's Instagram
+-- Handle Performance (D235, D237): daily Apify snapshots of the client's Instagram
 -- account. account_snapshots is the time series (one row per scrape, full provider
--- payload kept in raw — normalize-at-boundary, D207); tracked_posts holds the LATEST
+-- payload kept in raw — normalize-at-boundary, D237); tracked_posts holds the LATEST
 -- metrics per post, upserted by shortcode. platform is check-constrained single-value
 -- today so competitor/TikTok expansion (V1.x) is a constraint change, not a reshape.
 
@@ -100,8 +100,8 @@ Expected: both return 0 rows, no error.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add supabase/migrations/0035_handle_performance.sql
-git commit -m "feat(db): account_snapshots + tracked_posts for handle performance (D205)"
+git add supabase/migrations/0038_handle_performance.sql
+git commit -m "feat(db): account_snapshots + tracked_posts for handle performance (D235)"
 ```
 
 ---
@@ -257,7 +257,7 @@ Expected: FAIL — module `./performance` not found.
 - [ ] **Step 3: Implement `src/lib/market/performance.ts`**
 
 ```ts
-// Pure normalization + derivation for the Performance tab (D205, D207). No I/O here:
+// Pure normalization + derivation for the Performance tab (D235, D237). No I/O here:
 // the Apify payload comes in, nulls and numbers come out, so every rule (the -1
 // hidden-likes sentinel, median-vs-hidden exclusion, engagement math) is unit-testable
 // against the real spike fixture.
@@ -355,7 +355,7 @@ export function normalizeProfileItem(item: ApifyProfileItem): {
       postType,
       caption: p.caption ?? "",
       postUrl: p.url,
-      // -1 is the provider's in-band "the platform hid this count" sentinel (D207);
+      // -1 is the provider's in-band "the platform hid this count" sentinel (D237);
       // it must become null HERE so it can never poison a median downstream.
       likesCount: p.likesCount == null || p.likesCount < 0 ? null : p.likesCount,
       commentsCount: p.commentsCount ?? 0,
@@ -432,7 +432,7 @@ Expected: PASS (all).
 
 ```bash
 git add src/lib/market/performance.ts src/lib/market/performance.test.ts
-git commit -m "feat(market): pure handle-performance normalizer + stats (D207)"
+git commit -m "feat(market): pure handle-performance normalizer + stats (D237)"
 ```
 
 ---
@@ -493,7 +493,7 @@ Expected: FAIL — module `./apify` not found.
 - [ ] **Step 3: Implement `src/lib/market/apify.ts`**
 
 ```ts
-// Thin client for the one Apify call the performance pipeline makes (D205).
+// Thin client for the one Apify call the performance pipeline makes (D235).
 // run-sync-get-dataset-items runs the actor and returns dataset items in one request
 // (~9s for a profile in the 2026-09-03 spike; server-side cap via ?timeout=).
 import type { ApifyProfileItem } from "./performance";
@@ -561,7 +561,7 @@ No unit test — thin Supabase wrappers, matching `src/lib/db/moodboards.ts` con
 - [ ] **Step 1: Implement `src/lib/db/performance.ts`**
 
 ```ts
-// DB access for the Performance tab (D205). Thin wrappers over the service-role
+// DB access for the Performance tab (D235). Thin wrappers over the service-role
 // client, like the other src/lib/db modules — derivation lives in
 // src/lib/market/performance.ts, not here.
 import "server-only";
@@ -921,7 +921,7 @@ Expected: PASS.
 
 ```bash
 git add src/lib/market/snapshot.ts src/lib/market/snapshot.test.ts
-git commit -m "feat(market): snapshotClientHandle orchestrator (D205)"
+git commit -m "feat(market): snapshotClientHandle orchestrator (D235)"
 ```
 
 ---
@@ -1221,7 +1221,7 @@ No unit test — matches the convention of the other three trigger tasks (thin s
 
 ```ts
 // trigger/snapshot-handles.ts
-// Daily Instagram performance sweep (D205). Every @/lib import is dynamic — those
+// Daily Instagram performance sweep (D235). Every @/lib import is dynamic — those
 // modules carry `import "server-only"`, a Next.js sentinel Trigger.dev's separate
 // build must not evaluate statically (see reconcile-stuck-generations.ts).
 import { schedules, logger } from "@trigger.dev/sdk/v3";
@@ -1265,7 +1265,7 @@ Run: `npx trigger.dev@latest dev` briefly — expected: `snapshot-handles` appea
 
 ```bash
 git add trigger/snapshot-handles.ts
-git commit -m "feat(trigger): daily snapshot-handles sweep (D205)"
+git commit -m "feat(trigger): daily snapshot-handles sweep (D235)"
 ```
 
 ---
@@ -1350,7 +1350,7 @@ export function usePerformance(clientId: string) {
 ```tsx
 "use client";
 
-// One-series follower trend. Inline SVG on purpose (D208): a charting dependency
+// One-series follower trend. Inline SVG on purpose (D238): a charting dependency
 // for a single line would be the heaviest thing on the page.
 export function PerformanceChart({
   series,
@@ -1532,7 +1532,7 @@ export function PerformanceView({ clientId, clientSlug }: { clientId: string; cl
 
   if (loading) return <p className="py-10 text-sm text-muted-foreground">Loading performance…</p>;
 
-  // Empty state 1: no handle registered (D206 — the Brand Kit owns the field).
+  // Empty state 1: no handle registered (D236 — the Brand Kit owns the field).
   if (!data?.handle) {
     return (
       <div className="py-10">
@@ -1662,7 +1662,7 @@ Expected: no NEW failures (pre-existing registry-test/trigger.dev/lint failures 
 
 ```bash
 git add src/hooks/use-performance.ts src/components/market/performance-view.tsx src/components/market/performance-chart.tsx src/components/market/performance-post-tile.tsx src/components/market/market-view.tsx
-git commit -m "feat(market): Performance tab — stats, trend, post grid (D208)"
+git commit -m "feat(market): Performance tab — stats, trend, post grid (D238)"
 ```
 
 ---
