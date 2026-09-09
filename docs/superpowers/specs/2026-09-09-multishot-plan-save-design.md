@@ -149,9 +149,28 @@ Every path that replaces the plan wholesale is disabled while `dirty`:
 
 - whole-sequence `RefineWithAI`
 - the look's `RefineWithAI` and its rewrite (`⟳`) button
-- each `MultishotBeatCard` (its own refine and rewrite)
+- each `MultishotBeatCard`'s refine and rewrite buttons
 - the Generate / Re-generate button
 - the version chips — `restoring={restoring || !!refining || dirty}`
+
+**The editors themselves stay live.** `dirty` must gate the AI actions *only* — a beat that froze
+the moment it was typed into would be unfixable and unsavable. This is a real trap in the current
+code: `MultishotBeatCard`'s single `disabled` prop drives its refine button, its rewrite button
+**and** its `MentionInstructionEditor` (`multishot-beat-card.tsx:104,112,133`), so routing `dirty`
+through it would deadlock the card.
+
+So the card gains a second, narrower prop:
+
+```ts
+/** Gates the two AI actions only — the editor stays live. Set while the plan has
+ *  unsaved edits, which a rewrite would overwrite on resolve. */
+aiDisabled?: boolean;
+```
+
+`disabled` keeps its existing meaning (the D33 read-only lock, and the cross-beat refine guard).
+The look block needs the same split inline in the focus view: its `RefineWithAI` and `⟳` gain
+`|| dirty`, while its `MentionInstructionEditor` keeps `disabled={isReadOnly || !!refining}`
+unchanged.
 
 While `dirty`, the Save bar carries the reason in place of nothing — a muted line reading
 **"Save or discard your edits to rewrite with AI."** — so the dimming is never unexplained. It
