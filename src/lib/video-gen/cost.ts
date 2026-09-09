@@ -97,30 +97,24 @@ const KLING_RESOLUTION_PRICING: Record<string, KlingResolutionRates> = {
     "720p": { off: 0.084, on: 0.084 },
     "1080p": { off: 0.112, on: 0.112 },
   },
-  // ⚠️ PROVISIONAL (added 2026-09-09) — these are Kling 3.0's published rates, NOT 3.0 Omni's.
+  // Source: kling.ai/document-api/pricing/base/video, the real table supplied by the operator
+  // 2026-09-09. These REPLACE a provisional row that borrowed Kling 3.0's rates while the page
+  // was unavailable.
   //
-  // Kling's own API reference for /omni-video/kling-3.0-omni
-  // (ref/multishot-refs/kling-omni-docs.md) documents the request and response shapes but
-  // carries no per-second rate table, and the pricing page was not available when this model
-  // was wired. 3.0's row is the closest real data: same flagship generation, same three
-  // resolution tiers, same +50% audio delta.
+  // The "No Video Input" rows are the only reachable ones: buildKlingContents never sends a
+  // base_video or feature_video, so the "With Video Input" tier ($0.126 / $0.168 / $0.42) cannot
+  // be produced by this app. Same reasoning that restricts every other Kling row above.
   //
-  // This violates the "no invented prices" rule the header states, and does so KNOWINGLY,
-  // because the alternative is worse: an absent row makes computeVideoCost return null, which
-  // makes video-generate throw "No cost estimate available" — the model would be registered and
-  // unable to generate at all. Registered-and-priced-approximately beats registered-and-dead.
+  // The provisional row had the OFF column right and the audio column wrong in both lower tiers
+  // — it assumed 3.0's +50% audio delta, where 3.0 Omni's is +33% at 720p and +25% at 1080p. It
+  // overcharged an audio-enabled 720p second by $0.014 and a 1080p second by $0.028. Recorded
+  // because it is the third time on this table that a guessed audio delta has been the error,
+  // and the guess has been high every time.
   //
-  // What being wrong costs: the reserve AND the settle both read this table, so an error here
-  // does not self-correct — it consistently mis-states the internal credit ledger for every 3.0
-  // Omni generation. It does not change what Kling actually bills.
-  //
-  // TO FIX: replace with the real "No Video Input" row from kling.ai/document-api/pricing/base/
-  // video and delete this comment. Do NOT leave it provisional once real generations are
-  // running — the two corrections above this line are both cases where a guessed rate billed
-  // real work at the wrong tier for weeks.
+  // 4k does not move with audio, matching every other Kling model that offers it.
   "kling:kling-3-0-omni": {
-    "720p": { off: 0.084, on: 0.126 },
-    "1080p": { off: 0.112, on: 0.168 },
+    "720p": { off: 0.084, on: 0.112 },
+    "1080p": { off: 0.112, on: 0.14 },
     "4k": { off: 0.42, on: 0.42 },
   },
 };

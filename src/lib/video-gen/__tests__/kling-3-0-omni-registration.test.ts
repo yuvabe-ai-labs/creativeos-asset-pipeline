@@ -117,12 +117,38 @@ describe("build30OmniSettings — duration policy", () => {
 describe("computeVideoCost — Kling 3.0 Omni", () => {
   // Without a row here computeVideoCost returns null and video-generate throws "No cost estimate
   // available" before ever reaching the provider — an unpriced model looks registered and cannot
-  // generate. NOTE: these figures are PROVISIONAL (Kling 3.0's published rates); see cost.ts.
+  // generate.
   it("prices every resolution the model offers, with and without audio", () => {
     for (const resolution of ["720p", "1080p", "4k"]) {
       expect(computeVideoCost(OMNI, 5, false, resolution)).not.toBeNull();
       expect(computeVideoCost(OMNI, 5, true, resolution)).not.toBeNull();
     }
+  });
+
+  // The exact published per-second rates (kling.ai/document-api/pricing/base/video, "No Video
+  // Input" — the only tier this app can produce, since buildKlingContents never sends a video).
+  //
+  // Pinned as VALUES, not merely as "not null". The row shipped provisionally with 3.0's rates
+  // borrowed, and a not-null assertion is exactly what let a wrong audio delta sit there
+  // overcharging: 0.126 where the real figure is 0.112, and 0.168 where it is 0.14. A test that
+  // only asks whether a price exists cannot catch a price that is wrong.
+  it("matches the published per-second rates exactly", () => {
+    expect(computeVideoCost(OMNI, 1, false, "720p")?.usd).toBeCloseTo(0.084, 5);
+    expect(computeVideoCost(OMNI, 1, true, "720p")?.usd).toBeCloseTo(0.112, 5);
+    expect(computeVideoCost(OMNI, 1, false, "1080p")?.usd).toBeCloseTo(0.112, 5);
+    expect(computeVideoCost(OMNI, 1, true, "1080p")?.usd).toBeCloseTo(0.14, 5);
+    expect(computeVideoCost(OMNI, 1, false, "4k")?.usd).toBeCloseTo(0.42, 5);
+    expect(computeVideoCost(OMNI, 1, true, "4k")?.usd).toBeCloseTo(0.42, 5);
+  });
+
+  // The audio delta is +33% at 720p and +25% at 1080p — NOT the +50% Kling 3.0 carries, which is
+  // what the provisional row assumed. Stated as its own case because that assumption is the one
+  // that was wrong, and a future edit that "restores consistency" with 3.0 would reintroduce it.
+  it("does not charge Kling 3.0's +50% audio delta", () => {
+    const off720 = computeVideoCost(OMNI, 1, false, "720p")!.usd;
+    const on720 = computeVideoCost(OMNI, 1, true, "720p")!.usd;
+    expect(on720).toBeLessThan(off720 * 1.5);
+    expect(on720 / off720).toBeCloseTo(4 / 3, 3);
   });
 
   it("scales linearly with duration", () => {
