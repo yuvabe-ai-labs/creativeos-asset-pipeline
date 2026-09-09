@@ -5,7 +5,11 @@ import {
   MULTISHOT_LOOK_SCHEMA,
   MULTISHOT_BEAT_SCHEMA,
 } from "@/prompts/multishot-prompt-generate";
-import { KLING_OMNI_MODEL_ID, GEMINI_OMNI_MODEL_ID } from "@/lib/video-gen/client-models";
+import {
+  KLING_OMNI_MODEL_ID,
+  GEMINI_OMNI_MODEL_ID,
+  SEEDANCE_MODEL_ID,
+} from "@/lib/video-gen/client-models";
 
 vi.mock("server-only", () => ({}));
 
@@ -239,6 +243,24 @@ describe("POST multishot-prompt — per-model writer routing", () => {
     const systemSent = create.mock.calls[0][0].messages[0].content;
     expect(systemSent).toContain("Kling 3.0 Omni");
     expect(systemSent).toContain("512 CHARACTERS");
+  });
+
+  // D236 — the third writer, keyed on the same capability id as the other two branches.
+  it("writes with Seedance's prompt when the Multishot node targets Seedance", async () => {
+    vi.mocked(resolveMultishotPromptInputs).mockResolvedValueOnce({
+      clientContext: "",
+      kbVersionId: null,
+      slices: [],
+      upstream: [],
+      cuts: CUTS,
+      targetModel: SEEDANCE_MODEL_ID,
+    });
+    returns(PLAN);
+    const res = await post({ instruction: "punchy" });
+    expect(res.status).toBe(200);
+    const systemSent = create.mock.calls[0][0].messages[0].content;
+    expect(systemSent).toContain("Seedance");
+    expect(systemSent).not.toContain("512 CHARACTERS");
   });
 
   it("writes with Omni's prompt when targetModel is absent", async () => {
