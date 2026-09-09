@@ -15,6 +15,7 @@ export type DecisionRow = {
 // setVersionApprovalAction catches and logs any error this throws rather than letting a
 // logging failure block or fail the approve/reject action itself.
 export async function insertDecision(input: {
+  id?: string; // pre-generated when annotations must reference the decision before it exists (D244)
   versionId: string;
   orgId: string;
   status: "approved" | "changes_requested";
@@ -24,6 +25,7 @@ export async function insertDecision(input: {
 }): Promise<void> {
   const supabase = createServerSupabase();
   const { error } = await supabase.from("node_version_decisions").insert({
+    ...(input.id ? { id: input.id } : {}),
     version_id: input.versionId,
     org_id: input.orgId,
     status: input.status,

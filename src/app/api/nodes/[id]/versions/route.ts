@@ -1,6 +1,8 @@
 import { listVersions } from "@/lib/db/versions";
 import { getCreditsChargedByVersionIds } from "@/lib/db/generations";
 import { getDecisionsByVersionIds } from "@/lib/db/decisions";
+import { getAnnotationsByDecisionIds } from "@/lib/db/annotations";
+import { annotationAssetUrls } from "@/lib/review-annotations/storage";
 import { resolveDisplayNames } from "@/lib/db/profiles";
 import type { ModelRequestRecord } from "@/lib/nodes/model-request";
 import { apiOk, withNode } from "@/lib/api/route-helpers";
@@ -31,6 +33,15 @@ export async function GET(
       ...decisionReviewerIds,
     ].filter((id): id is string => !!id);
     const names = await resolveDisplayNames(effectiveOrgId, userIds);
+
+    // D243/D244: every annotation on every decision of this node, one batched query —
+    // the sibling of the decisions fetch above, never a per-decision round trip. Asset
+    // URLs are a pure path→URL map (D247), so this adds no round trips at all.
+    const allDecisionIds = [...decisionsByVersion.values()].flat().map((d) => d.id);
+    const annotationsByDecision = await getAnnotationsByDecisionIds(allDecisionIds);
+    const urlsByAnnotation = annotationAssetUrls(
+      [...annotationsByDecision.values()].flat(),
+    );
 
     return apiOk({
       activeVersionId: node.active_version_id,
@@ -70,6 +81,17 @@ export async function GET(
           note: d.note,
           reviewerName: (d.decided_by_user_id && names.get(d.decided_by_user_id)) || null,
           decidedAt: d.decided_at,
+          // D243/D244: region+note pairs, assets addressed exactly like a generated
+          // image — the same bucket, the same public URL shape (D247).
+          annotations: (annotationsByDecision.get(d.id) ?? []).map((a) => ({
+            id: a.id,
+            seq: a.seq,
+            kind: a.kind,
+            timecodeMs: a.timecode_ms,
+            note: a.note,
+            bounds: a.bounds,
+            maskUrl: urlsByAnnotation.get(a.id) ?? null,
+          })),
         })),
         // One column, two shapes: the LLM-backed nodes write the `request` envelope, while
         // video-gen writes the resolved prompt + image roles its provider call was built from

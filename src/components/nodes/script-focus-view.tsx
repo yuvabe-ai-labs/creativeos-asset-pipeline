@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { ArrowLeft, Eye, EyeOff, RefreshCw, FileUp, Clapperboard, Loader2 } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, RefreshCw, FileUp, Clapperboard } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { ScriptDocumentSkeleton } from "./script-document-skeleton";
 import { toast } from "sonner";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { EditableField } from "./editable-field";
@@ -21,7 +23,7 @@ import {
 import { looksLikeReelScript, type ReelScript } from "@/lib/nodes/reel-script";
 import { setScriptValue, addItem, removeItem } from "@/lib/nodes/script-edit";
 import type { KBSliceKey } from "@/lib/kb/parse-context";
-import type { SignalMode } from "@/lib/market/constants";
+import { DEFAULT_SIGNAL_MODE, type SignalMode } from "@/lib/market/constants";
 import { ScriptDocument } from "./script-document";
 import { ScriptEmptyState } from "./script-empty-state";
 import { ScriptSignalsPicker } from "./script-signals-picker";
@@ -111,6 +113,9 @@ export function ScriptFocusView({
       mode={signalMode}
       onChange={(next) => onPatch({ signalIds: next })}
       onModeChange={(m) => onPatch({ signalMode: m })}
+      // One patch, not two — clearing ids and the mode separately would put two
+      // writes through the autosave path back to back for a single user action.
+      onReset={() => onPatch({ signalIds: [], signalMode: DEFAULT_SIGNAL_MODE })}
     />
   );
 
@@ -210,11 +215,21 @@ export function ScriptFocusView({
                 </SheetTitle>
               </div>
 
+              {/* Three tiers, and exactly ONE filled button at any time:
+                    · view      — Show original, a toggle rather than an action
+                    · edit      — Re-extract / Replace script, both re-runnable
+                    · forward   — Fan out, or Save while edits are pending
+                  Save was the only filled button before, and it is disabled
+                  whenever there is nothing to save — so the footer spent most of
+                  its life with no live primary and three identical outlines.
+                  Purple also sat on all four icons; the design system wants it
+                  spent sparingly, so it now marks only the primary. */}
               {mode === "parsed" && (
                 <div className="flex shrink-0 items-center gap-2">
                   <Button
                     variant="ghost"
                     size="lg"
+                    className="text-muted-foreground hover:text-foreground"
                     onClick={() => setShowOriginal((v) => !v)}
                   >
                     {showOriginal ? (
@@ -227,6 +242,7 @@ export function ScriptFocusView({
                       </>
                     )}
                   </Button>
+                  <div className="mx-1 h-6 w-px bg-border" aria-hidden />
                   <Button
                     variant="outline"
                     size="lg"
@@ -244,24 +260,38 @@ export function ScriptFocusView({
                       });
                     }}
                   >
-                    <RefreshCw className="size-4 text-primary" /> Re-extract
+                    <RefreshCw className="size-4 text-muted-foreground" /> Re-extract
                   </Button>
                   <Button variant="outline" size="lg" onClick={() => setReplacing(true)}>
-                    <FileUp className="size-4 text-primary" /> Replace script
+                    <FileUp className="size-4 text-muted-foreground" /> Replace script
                   </Button>
-                  {shotCount > 0 && (
-                    <Button variant="outline" size="lg" onClick={onFanOut}>
-                      <Clapperboard className="size-4 text-primary" /> Fan out {shotCount} shot
-                      {shotCount === 1 ? "" : "s"}
-                    </Button>
-                  )}
                   <div className="mx-1 h-6 w-px bg-border" aria-hidden />
                   {dirty && (
                     <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[0.65rem] font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-400">
                       Unsaved changes
                     </span>
                   )}
-                  <Button size="lg" onClick={handleSave} disabled={!dirty}>
+                  {/* Pending edits make Save the primary; with nothing to save,
+                      fanning out is the real next step and takes the fill. */}
+                  {shotCount > 0 && (
+                    <Button
+                      variant={dirty ? "outline" : "default"}
+                      size="lg"
+                      onClick={onFanOut}
+                    >
+                      <Clapperboard
+                        className={cn("size-4", dirty && "text-muted-foreground")}
+                      />{" "}
+                      Fan out {shotCount} shot
+                      {shotCount === 1 ? "" : "s"}
+                    </Button>
+                  )}
+                  <Button
+                    variant={dirty ? "default" : "outline"}
+                    size="lg"
+                    onClick={handleSave}
+                    disabled={!dirty}
+                  >
                     Save
                   </Button>
                 </div>
@@ -279,10 +309,11 @@ export function ScriptFocusView({
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className="mx-auto w-full max-w-7xl px-6 py-8">
             {mode === "skeleton" && (
-              <div className="flex flex-col items-center justify-center gap-3 py-24 text-muted-foreground">
-                <Loader2 className="size-8 animate-spin text-primary" />
-                <p className="text-sm">Extracting the script…</p>
-              </div>
+              // Re-extraction replaces a document already on screen, so hold its
+              // shape. `shotCount` is the outgoing parse's, which makes the
+              // placeholder the right height on a re-extract and a sane default
+              // (0 → 4 rows) on a first parse.
+              <ScriptDocumentSkeleton shots={shotCount || 4} reextracting={hasParsed} />
             )}
 
             {mode === "empty" && (
