@@ -98,6 +98,8 @@ export type LadderCheck = { ok: true } | { ok: false; reason: string };
  *
  * Reports the FIRST violation only. An operator fixes one thing at a time, and a stacked list of
  * everything wrong with a ladder reads as a failure rather than as an instruction.
+ *
+ * A ladder that is legal on one model and not another is not silently rewritten (D237).
  */
 export function checkLadder(
   cuts: { seconds: number }[],
@@ -127,6 +129,25 @@ export function checkLadder(
 }
 
 /**
+ * The sentence itself, given a capability and its alternatives.
+ *
+ * Split out from `multishotRestrictionReason` so the multi-alternative branch below can be
+ * exercised before a third model exists — otherwise it is unreachable code that first runs in
+ * front of an operator. The public function is the one callers use; this takes its alternatives
+ * as an argument so a test can supply a third.
+ */
+export function restrictionSentenceFor(
+  cap: MultishotCapability,
+  others: MultishotCapability[],
+): string {
+  const route =
+    others.length === 1
+      ? `to generate on ${others[0].label}, switch the Multishot node's model and regenerate the prompt`
+      : "to use another model, switch the Multishot node's model and regenerate the prompt";
+  return `Connected to a Multishot Prompt written for ${cap.label}. The shot format is model-specific — ${route}.`;
+}
+
+/**
  * D239 — the sentence under Video Gen's locked model chip.
  *
  * It states which model THIS PLAN was written for and names the one action that changes it. The
@@ -140,9 +161,5 @@ export function checkLadder(
 export function multishotRestrictionReason(targetModel: string | undefined | null): string {
   const cap = multishotCapabilityFor(targetModel);
   const others = MULTISHOT_MODELS.filter((m) => m.id !== cap.id);
-  const route =
-    others.length === 1
-      ? `to generate on ${others[0].label}, switch the Multishot node's model and regenerate the prompt`
-      : "to use another model, switch the Multishot node's model and regenerate the prompt";
-  return `Connected to a Multishot Prompt written for ${cap.label}. The shot format is model-specific — ${route}.`;
+  return restrictionSentenceFor(cap, others);
 }

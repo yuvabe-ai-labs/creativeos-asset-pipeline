@@ -5,6 +5,8 @@ import {
   multishotCapabilityFor,
   checkLadder,
   multishotRestrictionReason,
+  restrictionSentenceFor,
+  MultishotCapability,
 } from "../multishot-models";
 import { videoGenClientModelMap, GEMINI_OMNI_MODEL_ID, KLING_OMNI_MODEL_ID } from "@/lib/video-gen/client-models";
 
@@ -112,9 +114,21 @@ describe("multishotRestrictionReason", () => {
   });
 
   // With a third model the sentence must not name only one alternative as if it were the only one.
-  it("does not enumerate alternatives when there is more than one", () => {
-    if (MULTISHOT_MODELS.length > 2) {
-      expect(multishotRestrictionReason(KLING_OMNI_MODEL_ID)).toContain("Multishot node");
-    }
+  // This is tested via restrictionSentenceFor with a synthetic third model, exercising the
+  // multi-alternative branch before it actually exists in production.
+  it("points at the Multishot node when there are more than two models", () => {
+    const syntheticThird: MultishotCapability = {
+      ...multishotCapabilityFor(GEMINI_OMNI_MODEL_ID),
+      id: "test:third-model",
+      label: "Test Third Model",
+    };
+    const cap = multishotCapabilityFor(KLING_OMNI_MODEL_ID);
+    const others = [multishotCapabilityFor(GEMINI_OMNI_MODEL_ID), syntheticThird];
+
+    const sentence = restrictionSentenceFor(cap, others);
+
+    expect(sentence).toContain("Multishot node");
+    expect(sentence).not.toContain("Gemini Omni 1.1");
+    expect(sentence).not.toContain("Test Third Model");
   });
 });
