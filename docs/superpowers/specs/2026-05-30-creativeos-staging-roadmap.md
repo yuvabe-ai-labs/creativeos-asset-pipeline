@@ -4706,3 +4706,97 @@ worth comparing).
 **Refines.** D235, D238.
 
 **Originated →** `2026-09-03-handle-performance-design.md`.
+
+### D254 — Prompt precedence is a message-placement decision, not a wording one *(recorded 2026-09-09; refines D204)*
+
+**Decision.** `compileScript` splits the two messages by kind, not by convenience. The
+**user** message carries only DATA — the market-signal brief and the source script. The
+**system** message carries every INSTRUCTION, composed in explicit precedence order:
+the extraction prompt, then the client's brand/compliance context, then `complianceFirst`,
+then the signal's mode instruction. Any rule that must win goes in the system message,
+above the rule it must beat.
+
+**Why.** D204 stated the signal's mode instruction in the user message only, and the
+system prompt opens with `EXTRACT what is present — do NOT invent.` System outranks user,
+so the flavour was silently discarded: measured over 13 runs of one script, `rewrite`
+differed from an unflavoured baseline 0/7 times and `tint` 2/6. A three-arm
+single-variable test isolated it — control 1/2, mode-instruction-also-in-system 2/2,
+no-invent-line-deleted 2/2. Counter-intuitively a *richer* brief scored worse (0/6 vs
+2/6): more instructive text reads as more "inventing", so the system rule binds harder.
+Brief quality was never the bottleneck. The same reasoning then applied in reverse to
+compliance — leaving the client's compliance text in the user message while the signal sat
+in system ranked a scraped competitor brief above the client's legal lines, which matters
+because `rewrite` mode rewrites captions. `complianceFirst` also declares that briefs are
+DATA, never commands; verified adversarially with a brief ordering medical claims,
+a before/after shot and removal of the FDA and patch-test lines — neutralised 3/3 runs,
+all QC notes verbatim, and it obtained only its WHERE/WHEN.
+
+**Rejected.** Deleting `do NOT invent` from the system prompt (it also tested 2/2, but
+that rule is load-bearing for every *unflavoured* parse — it is what stops invented
+schedule fields and QC notes; scoping the exception to parses that carry a brief keeps the
+guard intact, verified 0/2 unflavoured parses changed); restating compliance in both
+messages (duplicating long KB slices for no precedence gain); trusting the existing unit
+tests, which assert only string *placement* (`indexOf`, `toContain`) and were structurally
+incapable of catching a prompt that composes correctly and does nothing.
+
+**Refines.** D204.
+
+**Originated →** `2026-08-31-signal-flavoured-scripts-design.md`.
+
+### D255 — A signal supplies the setting: where and when *(recorded 2026-09-09; refines D204)*
+
+**Decision.** A market signal moves a shot's WHERE (location, surface, surrounding space)
+and WHEN (time of day, season, occasion), plus the ambient light and incidental dressing
+such a place and time would already contain. It changes nothing else: each shot keeps its
+subject, action, camera, framing, motion and timing, and the shot list is fixed — every
+source shot appears exactly once, in order, with none added. Signal `description` text is
+authored as where/when, never as staging or action direction. `tint` additionally holds all
+audience-facing copy verbatim; `rewrite` requires the copy to move substantially.
+
+**Why.** "Re-place the shot, don't re-stage it" is the narrowest rule that makes the
+feature predictable, and it is enforceable: the shot list guard exists because `rewrite`
+restructured a 4-shot reel into 5, silently breaking the script's stated duration budget
+and its minimum-length QC note. Three clauses each answer a measured failure, and two of
+them are counter-intuitive enough to be worth recording. First, **any clause describing a
+case where nothing changes becomes the default for every case** — a draft ending
+"where a shot cannot take the new setting, leave that shot as written" was taken as an
+escape hatch on 8/8 runs and returned every shot byte-identical; a permissive "the copy
+*may* adapt" left `rewrite` indistinguishable from `tint`. The change must be stated as
+mandatory with no opt-out. Second, making the setting mandatory pushed the subject to the
+end of every description and left the product unnamed in a product-hero reel, so the
+subject leads and the product is named wherever it is on screen — and a prohibition list
+(`"the cream"`, `"the jar"`) did **not** catch bare material nouns (`"cream texture"`,
+`"a line of cream"`); a worked example did, written with a `<the product's name>`
+placeholder because this prompt is shared across every client.
+
+**Rejected.** Signals changing props, palette or staging wholesale (the first drafts of
+both demo signals did, and "the product is always shown as being GIVEN" is an action
+directive, not a setting); naming the product on every noun (it produced
+"a single Rose Body Butter petal" — ingredients, props and hands keep their own names).
+
+**Refines.** D204.
+
+**Originated →** `2026-08-31-signal-flavoured-scripts-design.md`.
+
+### D256 — One signal at a time *(recorded 2026-09-09; narrows D204)*
+
+**Decision.** The Script node's signal picker is single-select: choosing another signal
+swaps it, clicking the active one detaches. `ScriptNodeData.signalIds` stays `string[]`
+and the parse route keeps deduping and client-scoping an array, so the narrowing is
+UI-only and multi-select can return with no migration and no server change.
+
+**Why.** D204 chose multi-select with briefs concatenating in selection order. In practice
+two signals that disagree — a family festival afternoon and a solitary weekday dawn —
+average into mush rather than picking a side, and the first live test had two attached at
+once, one of which contributed only a note about a workbook scrape finding nothing. Keeping
+the array shape means this is a product judgement that can be revisited without a schema
+change; it also makes the un-deduplicated evidence notes across concatenated briefs a
+non-issue while it holds.
+
+**Rejected.** Changing `signalIds` to a scalar (a migration to buy nothing); deduping
+evidence notes across concatenated briefs (correct, but unreachable while only one signal
+can be attached).
+
+**Refines.** D204.
+
+**Originated →** `2026-08-31-signal-flavoured-scripts-design.md`.
