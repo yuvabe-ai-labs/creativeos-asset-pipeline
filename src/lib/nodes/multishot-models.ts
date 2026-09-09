@@ -47,7 +47,14 @@ export type MultishotCapability = {
    * the wrong image silently, in a clip already paid for.
    */
   refTokenDialect: "image-ref" | "kling-image" | "seedance-image";
-  /** First index a reference token carries: `<IMAGE_REF_0>` vs `@image_1`. */
+  /**
+   * First index a reference token carries: `<IMAGE_REF_0>` vs `@image_1`.
+   *
+   * Currently retained for context but has no production reader — `refsCitedIn` hardcodes the
+   * offset per dialect branch and does not consult this field. Retained for now because removing
+   * it is a wider change across the type, three entries and their tests, and is the final
+   * whole-branch review's call.
+   */
   refTokenBase: 0 | 1;
 };
 

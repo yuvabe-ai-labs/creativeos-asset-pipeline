@@ -206,8 +206,10 @@ const SEEDANCE_IMAGE_REF = /@Image (\d+)/g;
  */
 export function refsCitedIn(text: string, cap: MultishotCapability): number[] {
   const seen = new Set<number>();
-  // Exhaustive switch, no default: a new dialect is a COMPILE error here rather than a silent
-  // fall back to Omni's tokens (D245).
+  // Exhaustive switch: a new dialect is a COMPILE error here rather than a silent fall back
+  // to returning an empty set (D245). Without this default, adding a fourth refTokenDialect
+  // literal would compile cleanly and silently return "cites nothing" — exactly the silent
+  // failure D245 exists to prevent.
   switch (cap.refTokenDialect) {
     case "kling-image":
       for (const match of text.matchAll(KLING_IMAGE_REF)) seen.add(Number(match[1]) - 1);
@@ -218,6 +220,13 @@ export function refsCitedIn(text: string, cap: MultishotCapability): number[] {
     case "image-ref":
       for (const match of text.matchAll(IMAGE_REF)) seen.add(Number(match[1]));
       break;
+    default: {
+      // A dialect with no case here would otherwise return "cites nothing" silently. Assigning
+      // to `never` makes it a compile error instead — the same guarantee dialectForCapability
+      // gets for free by returning from every branch (D245).
+      const unhandled: never = cap.refTokenDialect;
+      throw new Error(`refsCitedIn: unhandled reference dialect ${String(unhandled)}`);
+    }
   }
   return [...seen];
 }
