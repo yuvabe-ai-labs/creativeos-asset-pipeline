@@ -53,9 +53,28 @@ export function omniImageRefToken(n: number): string {
  * handles in the body, so the Instruction field's `@`-mentions must resolve to the same shape or
  * the writer is told to use handles the user turn never establishes.
  *
- * The capital `I` and the space are load-bearing: Kling's own dialect writes `@image_1` (lowercase,
- * underscore, no space) for the identical one-based scheme, and that is the ONLY difference between
- * the two (D245). Do not lowercase this or drop the space — either would collide with Kling's shape.
+ * The capital `I` is load-bearing: Kling's own dialect writes `@image_1` (lowercase, underscore)
+ * for the identical one-based scheme (D245). Do not lowercase this.
+ *
+ * THE SPACE IS DELIBERATE, AND THE VENDOR'S DOCS CONTRADICT THEMSELVES ABOUT IT — do not "fix" it
+ * to `@Image1` on a raw grep count. A review did exactly that, counting 12 no-space hits against 3
+ * spaced ones in the tutorial and concluding no-space was the demonstrated form. The counts are
+ * real; the conclusion is not:
+ *
+ *   - Those 12 `@Image1` hits are ONE prompt string, duplicated verbatim across the tutorial's
+ *     Python / JavaScript / Go / Java / REST language tabs for a single worked example.
+ *   - The spaced form is what the normative "Prompt rules" section uses
+ *     (`Dreamina Seedance 2.5 tutorial.md:2871`), and what both "Prompt examples:" lines use
+ *     (:76, :91).
+ *   - `One-take CreationFlexibleReferencing_Introducing_Seedance 2_5.md` uses the spaced form 13
+ *     times across several complete R2V prompts, up to `@Image 18`, and never the no-space form.
+ *
+ * So the spaced form carries the authoritative guidance and the bulk of the worked prompts. It is
+ * also not required by the Kling collision — `@Image1` would already be distinct from `@image_1` —
+ * which is why that argument alone should not decide this either way.
+ *
+ * Genuinely settled only by a real generation: attach two references, cite both, and see which
+ * spelling binds. Until then this follows the vendor's own stated rule.
  */
 export function seedanceImageRefToken(n: number): string {
   return `@Image ${n}`;

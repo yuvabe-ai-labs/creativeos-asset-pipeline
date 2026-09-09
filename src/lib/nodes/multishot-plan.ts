@@ -158,9 +158,17 @@ export function renderPlan(
   }
 
   if (cap.shotFormat === "bare-timecode") {
-    // D244 — Seedance 2.5's own format, used throughout its tutorial: a bare `0-2s:` prefix, no
-    // brackets. Cumulative from the CUTS like Omni's ladder, so the final timestamp equals the
-    // request's duration by construction.
+    // D244 — Seedance 2.5's bare `0-2s:` prefix, no brackets. Cumulative from the CUTS like
+    // Omni's ladder, so the final timestamp equals the request's duration by construction.
+    //
+    // NOT the only form the vendor uses, and the original comment here overstated that. Its
+    // tutorial writes bare `N-Ms:` ranges about as often as `0:00-0:03` MM:SS ones, plus a few
+    // `Shot N [0:00-0:03]`. Unlike Kling — whose API genuinely parses one comma/semicolon grammar
+    // and reads anything else as a single shot (D238) — Seedance appears to read timing from
+    // prose rather than a strict format, so this is a choice among forms it understands, not the
+    // one form it accepts. Bare seconds were chosen because they need no minute arithmetic from a
+    // cut ladder already measured in seconds. If a real generation shows it cutting more reliably
+    // on MM:SS, switching is a one-branch change and nothing downstream depends on this shape.
     //
     // No text rewrite. Kling's branch replaces semicolons because a stray `;` terminates a shot
     // in its comma/semicolon triple grammar; nothing here is delimited that way, so the
