@@ -46,6 +46,21 @@ export function omniImageRefToken(n: number): string {
   return `<IMAGE_REF_${n - 1}>`;
 }
 
+/**
+ * Seedance 2.5's own inline handle, verbatim from the vendor docs — ONE-based over the
+ * references, unlike `omniImageRefToken` which subtracts 1. Seedance's own system prompt
+ * (`src/prompts/video-prompt-seedance.ts`) separately instructs the model to write `@Image N`
+ * handles in the body, so the Instruction field's `@`-mentions must resolve to the same shape or
+ * the writer is told to use handles the user turn never establishes.
+ *
+ * The capital `I` and the space are load-bearing: Kling's own dialect writes `@image_1` (lowercase,
+ * underscore, no space) for the identical one-based scheme, and that is the ONLY difference between
+ * the two (D245). Do not lowercase this or drop the space — either would collide with Kling's shape.
+ */
+export function seedanceImageRefToken(n: number): string {
+  return `@Image ${n}`;
+}
+
 const TOKEN_RE = /@\[([^\]]+)\]\(([^)]+)\)/g;
 
 export function resolveMentionTokens(

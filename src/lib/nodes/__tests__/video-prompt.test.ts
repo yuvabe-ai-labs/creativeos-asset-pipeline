@@ -105,3 +105,87 @@ describe("compileVideoPrompt continuous-take spine", () => {
     expect(user).toContain("Motion controls");
   });
 });
+
+// D243/D245 — the gap the Task 7 implementer flagged: `omni` was a boolean, so Seedance (a third
+// target) fell to the non-omni branch and got English prose, while Seedance's OWN system prompt
+// separately instructs the writer to emit `@Image N` handles. These pin the three-way behaviour.
+describe("compileVideoPrompt reference-token dialect per target", () => {
+  const imageUpstream = [
+    {
+      nodeId: "img1",
+      label: "Image: Hero shot",
+      text: "",
+      type: "image-gen",
+      fileUrl: "https://example.com/hero.png",
+      fileKind: "image",
+    },
+    {
+      nodeId: "img2",
+      label: "Image: Detail shot",
+      text: "",
+      type: "image-gen",
+      fileUrl: "https://example.com/detail.png",
+      fileKind: "image",
+    },
+  ];
+
+  it("resolves a Seedance @-mention to the one-based @Image N token, not prose and not <IMAGE_REF_N>", () => {
+    const { effectiveInstruction } = compileVideoPrompt({
+      clientContext: "",
+      upstream: imageUpstream,
+      instruction: "show @[Image: Hero shot](img1) first",
+      controls: { camera: "auto", speed: "auto" },
+      targetProvider: "seedance",
+    });
+    expect(effectiveInstruction).toBe("show @Image 1 first");
+    expect(effectiveInstruction).not.toContain("the first image");
+    expect(effectiveInstruction).not.toContain("IMAGE_REF");
+  });
+
+  it("lists @Image 1 / @Image 2 in the Seedance composition roster and never ships Omni's forbidding sentence", () => {
+    const { user } = compileVideoPrompt({
+      clientContext: "",
+      upstream: imageUpstream,
+      instruction: "make it move",
+      controls: { camera: "auto", speed: "auto" },
+      targetProvider: "seedance",
+    });
+    expect(user).toContain("@Image 1 —");
+    expect(user).toContain("@Image 2 —");
+    // Omni's own text forbids the exact string Seedance is supposed to write — shipping it
+    // verbatim would tell Seedance's writer not to use its own correct handle.
+    expect(user).not.toContain("never write @Image1");
+    expect(user).not.toContain("<IMAGE_REF");
+  });
+
+  it("keeps Gemini Omni's roster and resolution zero-based and unchanged", () => {
+    const { user, effectiveInstruction } = compileVideoPrompt({
+      clientContext: "",
+      upstream: imageUpstream,
+      instruction: "show @[Image: Hero shot](img1) first",
+      controls: { camera: "auto", speed: "auto" },
+      targetProvider: "gemini-omni",
+    });
+    expect(effectiveInstruction).toBe("show <IMAGE_REF_0> first");
+    expect(user).toContain("<IMAGE_REF_0> —");
+    expect(user).toContain("<IMAGE_REF_1> —");
+    expect(user).toContain("never write @Image1");
+  });
+
+  it("still resolves Veo and Kling mentions to English prose, not any inline token", () => {
+    for (const targetProvider of ["veo", "kling"] as const) {
+      const { effectiveInstruction, user } = compileVideoPrompt({
+        clientContext: "",
+        upstream: imageUpstream,
+        instruction: "show @[Image: Hero shot](img1) first",
+        controls: { camera: "auto", speed: "auto" },
+        targetProvider,
+      });
+      expect(effectiveInstruction).toBe("show the first image first");
+      expect(user).toContain("the first image —");
+      expect(user).toContain("the second image —");
+      expect(user).not.toContain("IMAGE_REF");
+      expect(user).not.toContain("@Image");
+    }
+  });
+});

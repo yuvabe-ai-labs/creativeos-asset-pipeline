@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { resolveMentionTokens } from "./resolve-mention-tokens";
+import {
+  resolveMentionTokens,
+  omniImageRefToken,
+  seedanceImageRefToken,
+} from "./resolve-mention-tokens";
 import type { MentionUpstream } from "./resolve-mention-tokens";
 
 function img(nodeId: string, fileKind: "image" = "image"): MentionUpstream {
@@ -129,5 +133,36 @@ describe("resolveMentionTokens", () => {
     const upstream = Array.from({ length: 11 }, (_, i) => img(`n${i}`));
     const result = resolveMentionTokens("@[Image: K](n10)", upstream);
     expect(result).toBe("image 11");
+  });
+
+  // D245 — Seedance's own system prompt independently instructs the model to write `@Image N`
+  // handles, so a mention here must resolve to that same ONE-based shape, not English prose and
+  // not Omni's ZERO-based `<IMAGE_REF_N>`.
+  it("resolves to Seedance's one-based @Image N token when given seedanceImageRefToken", () => {
+    const upstream = [imgGen("hero")];
+    const result = resolveMentionTokens(
+      "show @[Image: Hero](hero) first",
+      upstream,
+      seedanceImageRefToken,
+    );
+    expect(result).toBe("show @Image 1 first");
+  });
+
+  it("resolves to Omni's zero-based <IMAGE_REF_N> token when given omniImageRefToken", () => {
+    const upstream = [imgGen("hero")];
+    const result = resolveMentionTokens(
+      "show @[Image: Hero](hero) first",
+      upstream,
+      omniImageRefToken,
+    );
+    expect(result).toBe("show <IMAGE_REF_0> first");
+  });
+});
+
+describe("seedanceImageRefToken", () => {
+  it("is one-based, unlike omniImageRefToken's zero-based scheme", () => {
+    expect(seedanceImageRefToken(1)).toBe("@Image 1");
+    expect(seedanceImageRefToken(2)).toBe("@Image 2");
+    expect(omniImageRefToken(1)).toBe("<IMAGE_REF_0>");
   });
 });
