@@ -37,6 +37,19 @@ const RESOLUTION_ONLY_PRICING: Record<string, Record<string, number>> = {
   "gemini:gemini-omni-1.1-flash": {
     "360p": 0.03, "720p": 0.10, "1080p": 0.15, "4k": 0.30,
   },
+  // Source: ref/byteplus-docs/seedance_2.5_PRICING.md, the vendor's own worked examples
+  // ("input without video", which is the only shape this app produces — we never send a
+  // reference video).
+  //
+  // AN APPROXIMATION, STATED: Seedance's real billing is token-based with a per-resolution rate
+  // and a minimum, and token count scales with pixel count — so these figures are exact only at
+  // the 16:9 the examples use, and drift at other ratios. computeVideoCost is per-second and
+  // cannot express the real formula. An absent row would make the model registered and unable to
+  // generate at all (computeVideoCost returns null -> video-generate throws), so the
+  // approximation is the lesser evil, flagged rather than silent.
+  //
+  // EXPENSIVE: 720p is 2.3x Gemini Omni and 2.75x Kling 3.0 Omni. A 30s clip is ~$6.93.
+  "seedance:seedance-2-5": { "480p": 0.103, "720p": 0.231, "1080p": 0.569 },
 };
 
 // Kling price varies by resolution AND audio (not just audio) — resolution-keyed table.
