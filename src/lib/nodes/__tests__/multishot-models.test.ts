@@ -8,7 +8,7 @@ import {
   restrictionSentenceFor,
   MultishotCapability,
 } from "../multishot-models";
-import { videoGenClientModelMap, GEMINI_OMNI_MODEL_ID, KLING_OMNI_MODEL_ID } from "@/lib/video-gen/client-models";
+import { videoGenClientModelMap, GEMINI_OMNI_MODEL_ID, KLING_OMNI_MODEL_ID, SEEDANCE_MODEL_ID } from "@/lib/video-gen/client-models";
 
 const cuts = (...secs: number[]) => secs.map((seconds, i) => ({ id: `c${i}`, text: "", seconds }));
 
@@ -50,6 +50,19 @@ describe("multishotCapabilityFor", () => {
     expect(omni.maxPromptChars).toBeNull();
     expect(omni.shotFormat).toBe("timecode");
     expect(omni.refTokenBase).toBe(0);
+  });
+
+  it("declares Seedance's 4-30s window — the first floor that is not 3", () => {
+    const sd = multishotCapabilityFor(SEEDANCE_MODEL_ID);
+    expect(sd.minTotalSeconds).toBe(4);
+    expect(sd.maxTotalSeconds).toBe(30);
+    expect(sd.shotFormat).toBe("bare-timecode");
+    expect(sd.refTokenDialect).toBe("seedance-image");
+  });
+
+  it("gives every capability a distinct reference dialect", () => {
+    const dialects = MULTISHOT_MODELS.map((m) => m.refTokenDialect);
+    expect(new Set(dialects).size).toBe(MULTISHOT_MODELS.length);
   });
 });
 
@@ -94,29 +107,41 @@ describe("checkLadder", () => {
   it("refuses an empty ladder rather than calling it 0s", () => {
     expect(checkLadder([], omni).ok).toBe(false);
   });
+
+  it("refuses a 3s ladder on Seedance that Omni accepts", () => {
+    const cuts = [{ seconds: 3 }];
+    expect(checkLadder(cuts, multishotCapabilityFor(GEMINI_OMNI_MODEL_ID))).toEqual({ ok: true });
+    expect(checkLadder(cuts, multishotCapabilityFor(SEEDANCE_MODEL_ID)).ok).toBe(false);
+  });
+
+  it("accepts a 30s ladder only on Seedance", () => {
+    const cuts = Array.from({ length: 6 }, () => ({ seconds: 5 }));
+    expect(checkLadder(cuts, multishotCapabilityFor(SEEDANCE_MODEL_ID))).toEqual({ ok: true });
+    expect(checkLadder(cuts, multishotCapabilityFor(KLING_OMNI_MODEL_ID)).ok).toBe(false);
+  });
 });
 
 describe("multishotRestrictionReason", () => {
-  it("names the plan's model and offers the other one", () => {
+  // With three models, the sentence uses the multi-alternative branch and points at the node
+  // rather than naming a specific alternative.
+  it("points at the Multishot node when there are more than two models", () => {
     const forKling = multishotRestrictionReason(KLING_OMNI_MODEL_ID);
     expect(forKling).toContain("Kling 3.0 Omni");
-    expect(forKling).toContain("Gemini Omni 1.1");
+    expect(forKling).toContain("Multishot node");
     expect(forKling).toContain("regenerate");
   });
 
-  // Reads correctly BOTH ways round. A sentence built by hand for one direction reads as correct
-  // while being exactly backwards in the other, and nothing but this test would catch it.
-  it("swaps the two names when the plan is for Omni", () => {
+  // Reads correctly with Seedance as the third model.
+  it("names the plan's model with three models in the system", () => {
     const forOmni = multishotRestrictionReason(GEMINI_OMNI_MODEL_ID);
     expect(forOmni).toContain("written for Gemini Omni 1.1");
-    expect(forOmni).toContain("Kling 3.0 Omni");
+    expect(forOmni).toContain("Multishot node");
     expect(forOmni).not.toContain("written for Kling");
   });
 
-  // With a third model the sentence must not name only one alternative as if it were the only one.
-  // This is tested via restrictionSentenceFor with a synthetic third model, exercising the
-  // multi-alternative branch before it actually exists in production.
-  it("points at the Multishot node when there are more than two models", () => {
+  // With a synthetic third model passed explicitly, this tests the multi-alternative branch
+  // behavior in isolation.
+  it("points at the Multishot node in the multi-alternative case", () => {
     const syntheticThird: MultishotCapability = {
       ...multishotCapabilityFor(GEMINI_OMNI_MODEL_ID),
       id: "test:third-model",

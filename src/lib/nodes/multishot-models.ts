@@ -15,6 +15,7 @@
 import {
   GEMINI_OMNI_MODEL_ID,
   KLING_OMNI_MODEL_ID,
+  SEEDANCE_MODEL_ID,
 } from "@/lib/video-gen/client-models";
 
 export type MultishotCapability = {
@@ -31,11 +32,21 @@ export type MultishotCapability = {
   maxCutChars: number | null;
   maxPromptChars: number | null;
   /**
-   * How `renderPlan` lays the beats out (D238).
-   *   timecode — `[0-2s] …` cumulative ladder, one line per beat (Omni)
-   *   triple   — `shot n, m, words;` (Kling's API format — NOT its console syntax)
+   * How `renderPlan` lays the beats out (D238, D244).
+   *   timecode      — `[0-2s] …` cumulative ladder (Gemini Omni)
+   *   triple        — `shot n, m, words;` (Kling's API format, NOT its console syntax)
+   *   bare-timecode — `0-2s: …` (Seedance 2.5's own tutorial format)
    */
-  shotFormat: "timecode" | "triple";
+  shotFormat: "timecode" | "triple" | "bare-timecode";
+  /**
+   * Which reference-token dialect a beat's citations are stored in (D245).
+   *
+   * NAMED, not derived from `refTokenBase`. Kling's `@image_1` and Seedance's `@Image 1` are BOTH
+   * 1-based, so the numeric base no longer identifies a dialect — and those two shapes differ by
+   * one character's case and a space, which is exactly the near-collision that binds a citation to
+   * the wrong image silently, in a clip already paid for.
+   */
+  refTokenDialect: "image-ref" | "kling-image" | "seedance-image";
   /** First index a reference token carries: `<IMAGE_REF_0>` vs `@image_1`. */
   refTokenBase: 0 | 1;
 };
@@ -51,6 +62,7 @@ export const MULTISHOT_MODELS: MultishotCapability[] = [
     maxCutChars: null,
     maxPromptChars: null,
     shotFormat: "timecode",
+    refTokenDialect: "image-ref",
     refTokenBase: 0,
   },
   {
@@ -64,6 +76,24 @@ export const MULTISHOT_MODELS: MultishotCapability[] = [
     maxCutChars: 512,
     maxPromptChars: 3072,
     shotFormat: "triple",
+    refTokenDialect: "kling-image",
+    refTokenBase: 1,
+  },
+  {
+    id: SEEDANCE_MODEL_ID,
+    label: "Seedance 2.5",
+    // The first capability whose floor is not 3. `checkLadder` already reads
+    // `cap.minTotalSeconds`, so nothing needed changing to support it.
+    minTotalSeconds: 4,
+    maxTotalSeconds: 30,
+    minCutSeconds: 1,
+    // The vendor states no cut cap and no character ceilings. `null` means exactly that — it is
+    // not "unknown, so guess a number".
+    maxCuts: null,
+    maxCutChars: null,
+    maxPromptChars: null,
+    shotFormat: "bare-timecode",
+    refTokenDialect: "seedance-image",
     refTokenBase: 1,
   },
 ];
