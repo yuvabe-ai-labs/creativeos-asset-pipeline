@@ -131,9 +131,15 @@ export type MultishotNodeData = {
   script?: ReelScript;
   order?: number;
   /** There is no Total control (operator request 2026-09-03, multishot-cuts.ts's header) —
-   *  `totalSeconds` is just the stored mirror of the ladder's own length, `clampTotal(totalOf(
-   *  cuts))`. Every writer of `cuts` MUST write this in the same `updateNodeData` call, so the
-   *  two never drift; there is no code path that sets one without the other. */
+   *  `totalSeconds` is just the stored mirror of the ladder's own length, `totalOf(cuts)`. Every
+   *  writer of `cuts` MUST write this in the same `updateNodeData` call, so the two never drift;
+   *  there is no code path that sets one without the other.
+   *
+   *  A MIRROR, NOT A CORRECTION — it is deliberately NOT clamped into the model's window. It was
+   *  `clampTotal(totalOf(cuts))` until D236/D237, which rounded a 2s ladder up to 3 and so
+   *  displayed a too-short ladder as legal while `checkLadder` called it illegal. A ladder outside
+   *  the target model's window keeps its real length here and the violation is STATED by
+   *  `checkLadder` (multishot-models.ts), never silently corrected. */
   totalSeconds?: number;
   /** The cut ladder. `totalOf(cuts)` and `totalSeconds` are kept equal by construction — see
    *  multishot-cuts.ts's header for the full model. */
