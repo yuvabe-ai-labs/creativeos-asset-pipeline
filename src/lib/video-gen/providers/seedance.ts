@@ -12,6 +12,9 @@ const ARK_BASE = "https://ark.ap-southeast.bytepluses.com/api/v3";
 // loop giving up on its own.
 const POLL_INTERVAL_MS = 5_000;
 
+/** Marks a poll failure worth retrying, so the catch below can tell it from a real error. */
+class RetryablePollError extends Error {}
+
 // The vendor's model string lives HERE and nowhere else. Its dated suffix changes when BytePlus
 // revises the model; our own id (`seedance:seedance-2-5`, client-models.ts) is what persists on
 // nodes and version rows. Keeping them separate makes a vendor bump a one-line edit rather than a
@@ -173,17 +176,80 @@ type SeedanceTask = {
 
 // `cancelled` is terminal. Treating it as pending would spin the loop until timeout on a task
 // that is never coming back.
+/**
+ * How many CONSECUTIVE failed polls to tolerate before giving up (~50s at a 5s interval).
+ *
+ * The generation this exists for really happened: a task was created, accepted and left `running`
+ * at the vendor, and one `TypeError: fetch failed` on a single poll threw straight out of the loop
+ * and abandoned it. BytePlus kept generating and kept billing; the operator got a stack trace and
+ * no video. A transient network blip must not be able to do that — the task id is the valuable
+ * thing and it survives the blip.
+ *
+ * Reset to zero on every successful poll, so this bounds a RUN of failures, not their lifetime
+ * total. A genuinely unreachable API still fails, just after ~50 seconds instead of instantly.
+ */
+const MAX_CONSECUTIVE_POLL_FAILURES = 10;
+
+/** Poll for at most this long before giving up on a task the vendor never finishes. */
+const POLL_DEADLINE_MS = 30 * 60_000;
+
+/** A 429 or 5xx is the server asking us to come back; a 4xx is us being wrong. Only retry the former. */
+function isRetryableStatus(status: number): boolean {
+  return status === 429 || status >= 500;
+}
+
 async function pollSeedanceTask(taskId: string): Promise<VideoGenResult> {
   const apiKey = getApiKey();
+  const deadline = Date.now() + POLL_DEADLINE_MS;
+  let consecutiveFailures = 0;
+
   for (;;) {
     await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
 
-    const res = await fetch(`${ARK_BASE}/contents/generations/tasks/${taskId}`, {
-      headers: { Authorization: `Bearer ${apiKey}` },
-    });
-    if (!res.ok) throw new Error(`Seedance poll failed (${res.status})`);
-    const task = (await res.json()) as SeedanceTask;
+    if (Date.now() > deadline) {
+      throw new Error(
+        `Seedance task ${taskId} did not finish within ${POLL_DEADLINE_MS / 60_000} minutes. ` +
+          `The task may still be running — it is queryable at the vendor for 7 days.`,
+      );
+    }
 
+    let task: SeedanceTask;
+    try {
+      const res = await fetch(`${ARK_BASE}/contents/generations/tasks/${taskId}`, {
+        headers: { Authorization: `Bearer ${apiKey}` },
+      });
+      // A non-retryable status is a real error and should fail now rather than after ten more
+      // pointless round trips.
+      if (!res.ok && !isRetryableStatus(res.status)) {
+        throw new Error(`Seedance poll failed (${res.status})`);
+      }
+      if (!res.ok) throw new RetryablePollError(`HTTP ${res.status}`);
+      task = (await res.json()) as SeedanceTask;
+    } catch (e) {
+      // `fetch` throws a bare TypeError("fetch failed") on a network-level failure — DNS, a reset
+      // connection, a dropped socket — with no status to inspect. Treated as retryable, alongside
+      // the explicit 429/5xx above.
+      const retryable = e instanceof RetryablePollError || e instanceof TypeError;
+      if (!retryable) throw e;
+
+      consecutiveFailures += 1;
+      logger.warn("Seedance poll failed, retrying", {
+        taskId,
+        consecutiveFailures,
+        max: MAX_CONSECUTIVE_POLL_FAILURES,
+        error: e instanceof Error ? e.message : String(e),
+      });
+      if (consecutiveFailures >= MAX_CONSECUTIVE_POLL_FAILURES) {
+        throw new Error(
+          `Seedance polling failed ${consecutiveFailures} times in a row for task ${taskId} ` +
+            `(last: ${e instanceof Error ? e.message : String(e)}). The task may still be ` +
+            `running at the vendor — task records stay queryable for 7 days.`,
+        );
+      }
+      continue;
+    }
+
+    consecutiveFailures = 0;
     logger.info("Seedance task status", { taskId, status: task.status });
 
     if (task.status === "succeeded") {

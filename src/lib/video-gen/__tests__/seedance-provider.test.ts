@@ -132,3 +132,81 @@ describe("explainSeedanceError — real-person references", () => {
     expect(explainSeedanceError(502, "<html>gateway timeout</html>")).toContain("502");
   });
 });
+
+// The exact failure from a real run: the task was CREATED and left `running` at the vendor, then
+// one `TypeError: fetch failed` on a poll threw out of the loop and abandoned it. BytePlus kept
+// generating and kept billing; the operator got a stack trace and no video.
+describe("pollSeedanceTask — transient network failures", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    vi.useFakeTimers();
+    process.env.BYTEPLUS_API_KEY = "test-key";
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const created = { ok: true, text: async () => JSON.stringify({ id: "cgt-abc" }) };
+  const succeeded = {
+    ok: true,
+    json: async () => ({ status: "succeeded", content: { video_url: "https://v/out.mp4" }, duration: 8 }),
+  };
+
+  it("retries a bare `fetch failed` and still returns the video", async () => {
+    mockFetch
+      .mockResolvedValueOnce(created)
+      .mockRejectedValueOnce(new TypeError("fetch failed")) // the blip that used to be fatal
+      .mockRejectedValueOnce(new TypeError("fetch failed"))
+      .mockResolvedValueOnce(succeeded);
+
+    const { seedance25 } = await import("../providers/seedance");
+    const p = seedance25.generate({
+      prompt: "a cat", referenceUrls: [], params: { duration: 8, resolution: "480p", ratio: "9:16" },
+    });
+    await vi.runAllTimersAsync();
+    await expect(p).resolves.toMatchObject({ videoUrl: "https://v/out.mp4" });
+  });
+
+  it("retries a 429 and a 502, which are the server asking us to come back", async () => {
+    mockFetch
+      .mockResolvedValueOnce(created)
+      .mockResolvedValueOnce({ ok: false, status: 429 })
+      .mockResolvedValueOnce({ ok: false, status: 502 })
+      .mockResolvedValueOnce(succeeded);
+
+    const { seedance25 } = await import("../providers/seedance");
+    const p = seedance25.generate({
+      prompt: "a cat", referenceUrls: [], params: { duration: 8, resolution: "480p", ratio: "9:16" },
+    });
+    await vi.runAllTimersAsync();
+    await expect(p).resolves.toMatchObject({ videoUrl: "https://v/out.mp4" });
+  });
+
+  // A 4xx is us being wrong, not the server being busy — retrying ten times would just delay a
+  // failure that is never going to resolve itself.
+  it("does NOT retry a 404", async () => {
+    mockFetch.mockResolvedValueOnce(created).mockResolvedValue({ ok: false, status: 404 });
+
+    const { seedance25 } = await import("../providers/seedance");
+    const p = seedance25.generate({
+      prompt: "a cat", referenceUrls: [], params: { duration: 8, resolution: "480p", ratio: "9:16" },
+    });
+    const assertion = expect(p).rejects.toThrow(/404/);
+    await vi.runAllTimersAsync();
+    await assertion;
+  });
+
+  // Giving up eventually still has to happen — and the message must say the task may still be
+  // running, because it usually is.
+  it("gives up after a run of failures and says the task may still be running", async () => {
+    mockFetch.mockResolvedValueOnce(created).mockRejectedValue(new TypeError("fetch failed"));
+
+    const { seedance25 } = await import("../providers/seedance");
+    const p = seedance25.generate({
+      prompt: "a cat", referenceUrls: [], params: { duration: 8, resolution: "480p", ratio: "9:16" },
+    });
+    const assertion = expect(p).rejects.toThrow(/may still be running/i);
+    await vi.runAllTimersAsync();
+    await assertion;
+  });
+});
