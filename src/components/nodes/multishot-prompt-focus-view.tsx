@@ -17,7 +17,8 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MentionInstructionEditor } from "./mention-instruction-editor";
-import { imageRefDialect } from "@/lib/nodes/prompt-token-dialect";
+import { dialectForCapability } from "@/lib/nodes/prompt-token-dialect";
+import { multishotCapabilityFor } from "@/lib/nodes/multishot-models";
 import { FieldLabel } from "./field-label";
 import { SliceToggles } from "./slice-toggles";
 import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
@@ -60,6 +61,8 @@ type MultishotPromptFocusViewProps = {
   // The upstream Multishot node's cut list (READ-ONLY here) and its own id, so a beat's
   // timecode click can hand focus back to the node that actually owns the budget.
   cuts: MultishotCut[];
+  /** D236 — read from the upstream Multishot node. Absent = the default (Gemini Omni). */
+  targetModel?: string;
   multishotNodeId: string | null;
   upstream: UpstreamNode[];
   onPatch: (patch: Record<string, unknown>) => void;
@@ -82,12 +85,18 @@ export function MultishotPromptFocusView({
   plan,
   slices,
   cuts,
+  targetModel,
   multishotNodeId,
   upstream,
   onPatch,
 }: MultishotPromptFocusViewProps) {
   const params = useParams<{ id: string }>();
   const setFocusedNodeId = useCanvasStore((s) => s.setFocusedNodeId);
+  // One capability for the whole view: the dialect the beats are stored in, the format the prompt
+  // renders in, and the token shape `refsCitedIn` scans for must all be the SAME model's. Deriving
+  // them separately is how a view ends up editing @image_1 chips into a prompt rendered as a
+  // timecode ladder.
+  const cap = multishotCapabilityFor(targetModel);
 
   // Local mirrors of the instruction / per-cut-instruction / plan props — same reasoning as
   // video-prompt-focus-view's `instructionDraft`: these round-trip through zustand + React
@@ -177,13 +186,13 @@ export function MultishotPromptFocusView({
   // intended reference left unattached is otherwise only discoverable in the rendered video.
   const uncitedIndices = useMemo(() => {
     if (!planDraft) return undefined;
-    const cited = new Set(planDraft.beats.flatMap((b) => refsCitedIn(b.text)));
+    const cited = new Set(planDraft.beats.flatMap((b) => refsCitedIn(b.text, cap)));
     const uncited = new Set<number>();
     promptRefImages.forEach((_, i) => {
       if (!cited.has(i)) uncited.add(i);
     });
     return uncited;
-  }, [planDraft, promptRefImages]);
+  }, [planDraft, promptRefImages, cap]);
 
   const estimatedCredits = estimatePromptCredits(upstream.filter(isVisionAttachment).length);
   const totalCutSeconds = cuts.reduce((sum, c) => sum + c.seconds, 0);
@@ -559,7 +568,7 @@ export function MultishotPromptFocusView({
               {outputView === "prompt" ? (
                 <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
                   {planDraft ? (
-                    <GeneratedPromptBody text={renderPlan(planDraft, cuts)} images={promptRefImages} />
+                    <GeneratedPromptBody text={renderPlan(planDraft, cuts, cap)} images={promptRefImages} />
                   ) : (
                     <p className="text-sm text-muted-foreground">
                       Generate a multishot prompt first — this shows the exact compiled string,
@@ -792,7 +801,7 @@ export function MultishotPromptFocusView({
                             value={planDraft.look}
                             onChange={updateLook}
                             upstream={upstream}
-                            dialect={imageRefDialect(refIds)}
+                            dialect={dialectForCapability(cap, refIds)}
                             disabled={isReadOnly || !!refining}
                           />
                           <p className="mt-2 text-[0.65rem] text-muted-foreground">
@@ -812,6 +821,7 @@ export function MultishotPromptFocusView({
                               text={beat.text}
                               upstream={upstream}
                               refIds={refIds}
+                              cap={cap}
                               onChange={(v) => updateBeat(beat.cutId, v)}
                               onRerun={() => runRefine("cut", { cutId: beat.cutId })}
                               onRefine={(note) => runRefine("cut", { cutId: beat.cutId, note })}

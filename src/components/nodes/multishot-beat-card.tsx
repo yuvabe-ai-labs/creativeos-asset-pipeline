@@ -4,10 +4,11 @@ import { RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { MentionInstructionEditor } from "./mention-instruction-editor";
-import { imageRefDialect } from "@/lib/nodes/prompt-token-dialect";
+import { dialectForCapability } from "@/lib/nodes/prompt-token-dialect";
 import { RefineWithAI } from "./refine-with-ai";
 import { RefineProgress } from "./refine-progress";
 import type { UpstreamNode } from "./connected-inputs-card";
+import type { MultishotCapability } from "@/lib/nodes/multishot-models";
 
 /**
  * One full-width row of the breakup view's output (Option A, 2026-09-03) — a fixed-width
@@ -17,9 +18,9 @@ import type { UpstreamNode } from "./connected-inputs-card";
  * The timecode is READ-ONLY: durations live on the Multishot node and have exactly one home.
  * Clicking it focuses that node, which is where the budget is.
  *
- * The text is the SAME chip editor the instruction uses, in the `<IMAGE_REF_N>` dialect — so a
- * reference is a picture here as well as upstream, and editing the prose around it never exposes
- * the raw token.
+ * The text is the SAME chip editor the instruction uses, in the target model's reference dialect —
+ * so a reference is a picture here as well as upstream, and editing the prose around it never
+ * exposes the raw token.
  */
 export function MultishotBeatCard({
   index,
@@ -28,6 +29,7 @@ export function MultishotBeatCard({
   text,
   upstream,
   refIds,
+  cap,
   onChange,
   onRerun,
   onRefine,
@@ -44,6 +46,8 @@ export function MultishotBeatCard({
   text: string;
   upstream: UpstreamNode[];
   refIds: string[];
+  /** The target model's capability — decides whether a chip stores `<IMAGE_REF_0>` or `@image_1`. */
+  cap: MultishotCapability;
   onChange: (next: string) => void;
   onRerun: () => void;
   /** Rewrite this beat with an operator note. Same call as onRerun, with a steer attached. */
@@ -127,7 +131,7 @@ export function MultishotBeatCard({
             onChange={onChange}
             upstream={upstream}
             disabled={disabled || rerunning}
-            dialect={imageRefDialect(refIds)}
+            dialect={dialectForCapability(cap, refIds)}
             placeholder="Not written yet…"
           />
         </div>
