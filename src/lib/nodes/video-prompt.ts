@@ -111,9 +111,12 @@ export function compileVideoPrompt(input: CompileVideoPromptInput): {
   // "gemini-omni" fell through to "veo" HERE — so the system prompt actually sent to the model was
   // the Veo one even when the route had already selected the Omni ladder prompt for the version
   // record. The multishot prompt was unreachable, and the recorded promptId disagreed with the
-  // prompt that was really used.
+  // prompt that was really used. This is an independent copy of the same narrowing in
+  // src/app/api/nodes/[id]/video-prompt/route.ts's VALID_PROVIDERS — both must list every member.
   const targetProvider: VideoProvider =
-    input.targetProvider === "kling" || input.targetProvider === "gemini-omni"
+    input.targetProvider === "kling" ||
+    input.targetProvider === "gemini-omni" ||
+    input.targetProvider === "seedance"
       ? input.targetProvider
       : "veo";
   // A Shot upstream is always a single continuous take (D229) — a Multishot node cannot reach

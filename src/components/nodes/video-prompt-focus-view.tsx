@@ -41,10 +41,20 @@ import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { useFlushAutosave } from "@/components/canvas/autosave-flush-context";
 import type { ApprovalStatus } from "@/lib/approval";
 import { GeneratedPromptBody } from "./generated-prompt-body";
-import { imageRefDialect } from "@/lib/nodes/prompt-token-dialect";
+import { imageRefDialect, seedanceImageDialect, type TokenDialect } from "@/lib/nodes/prompt-token-dialect";
 import { ApprovalStatusBadge } from "@/components/review/approval-status-badge";
 import { LeftSection } from "./focus-left-section";
 import { PromptFocusShell, RESERVED_RAIL_KEYS } from "./prompt-focus-shell";
+
+// Only Omni and Seedance carry an inline reference handle in the model's own syntax (`<IMAGE_REF_N>`
+// / `@Image N`) — Veo and Kling stay positional prose (buildCompositionBlock in video-prompt.ts), so
+// they get no dialect and the field renders as plain text. Looked up by variant rather than a
+// per-provider conditional so a future inline-handle model is a one-line addition here, not a new
+// branch. Module-level: the map itself never changes, only which entry the memo below picks.
+const REF_DIALECT_FOR_PROVIDER: Partial<Record<VideoProvider, (ids: string[]) => TokenDialect>> = {
+  "gemini-omni": imageRefDialect,
+  seedance: seedanceImageDialect,
+};
 
 type VideoPromptFocusViewProps = {
   open: boolean;
@@ -177,6 +187,7 @@ export function VideoPromptFocusView({
     const provider = videoGenClientModelMap[modelId ?? DEFAULT_VIDEO_CLIENT_MODEL_ID]?.provider;
     if (provider === "kling") return "kling";
     if (provider === "gemini") return "gemini-omni";
+    if (provider === "seedance") return "seedance";
     return "veo";
   };
   const downstreamProviders = Array.from(
@@ -188,7 +199,9 @@ export function VideoPromptFocusView({
   // member must be listed: a node saved as "gemini-omni" fell back to Veo here while this only
   // knew "kling", so disconnecting its video node silently changed which prompt variant it wrote.
   const selectorValue: VideoProvider =
-    targetProvider === "kling" || targetProvider === "gemini-omni" ? targetProvider : "veo";
+    targetProvider === "kling" || targetProvider === "gemini-omni" || targetProvider === "seedance"
+      ? targetProvider
+      : "veo";
   const effectiveProvider: VideoProvider = mixed
     ? "veo"
     : locked
@@ -200,14 +213,13 @@ export function VideoPromptFocusView({
       ? `${videoGenClientModelMap[(downstreamGen[0].data as { modelId?: string })?.modelId ?? DEFAULT_VIDEO_CLIENT_MODEL_ID]?.label ?? "Video model"} · set by connected video node`
       : undefined;
 
-  // Non-null only for Omni, whose prompt text carries `<IMAGE_REF_N>` inline. Memoized on the id
-  // list rather than the array identity: `upstream` is rebuilt on every render, and a fresh
-  // dialect each time would re-run the editor's population effect and fight the caret.
+  // Memoized on the id list rather than the array identity: `upstream` is rebuilt on every render,
+  // and a fresh dialect each time would re-run the editor's population effect and fight the caret.
   const refIdsKey = promptRefImages.map((r) => r.id).join(",");
-  const omniRefs = useMemo(
-    () => (effectiveProvider === "gemini-omni" ? imageRefDialect(refIdsKey ? refIdsKey.split(",") : []) : null),
-    [effectiveProvider, refIdsKey],
-  );
+  const omniRefs = useMemo(() => {
+    const dialectFor = REF_DIALECT_FOR_PROVIDER[effectiveProvider];
+    return dialectFor ? dialectFor(refIdsKey ? refIdsKey.split(",") : []) : null;
+  }, [effectiveProvider, refIdsKey]);
 
   const dirty = (output ?? "") !== draft && draft.trim() !== "";
   const mode: "skeleton" | "result" | "empty" = generating
