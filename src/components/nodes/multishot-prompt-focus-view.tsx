@@ -711,7 +711,8 @@ export function MultishotPromptFocusView({
                       `min-w-0` is load-bearing on a flex-1 column: without it the column cannot
                       shrink below its content's intrinsic width, the row overflows, and the
                       parent's overflow-hidden crops the output off-screen. */}
-                  <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-y-auto px-6 py-5">
+                  <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+                    <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-6 py-5">
                     {/* The output's own eyebrow with the version chips beside it — the same row,
                         in the same place, that prompt-focus-view.tsx and video-prompt-focus-view.tsx
                         put them in. They were up in the tab strip, which is this node's chrome and
@@ -895,6 +896,32 @@ export function MultishotPromptFocusView({
                           ))}
                         </div>
                       </>
+                    )}
+                    </div>
+
+                    {/* Save, at the foot of the column it acts on — the same placement rule the
+                        Generate button follows at the foot of the Input column. Rendered only
+                        with a plan on screen, which is also the only state that can be dirty. */}
+                    {mode === "result" && (
+                      <div className="shrink-0 border-t border-border px-6 py-3">
+                        <div className="flex items-center gap-2">
+                          <Button variant="outline" onClick={handleSavePlan} disabled={!dirty}>
+                            Save
+                          </Button>
+                          {dirty && (
+                            <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[0.65rem] font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                              Unsaved changes
+                            </span>
+                          )}
+                        </div>
+                        {/* Says why every rewrite button just dimmed. Only rendered while dirty,
+                            which is the only state in which they are. */}
+                        {dirty && (
+                          <p className="mt-1.5 text-[0.65rem] text-muted-foreground">
+                            Save or discard your edits to rewrite with AI.
+                          </p>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>

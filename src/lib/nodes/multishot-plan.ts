@@ -284,9 +284,10 @@ export function mergeRefinedPlan(
  *
  * Compared FIELD-WISE rather than by `JSON.stringify`: stringify is key-order dependent, so a plan
  * the server happened to serialise `beats`-before-`look` would read as edited; it would also
- * silently start comparing any field later added to MultishotPlan, editable or not. `version` is
- * deliberately excluded for exactly that reason — it is a schema literal, and a bump to it is not
- * an unsaved edit.
+ * silently start comparing any field later added to MultishotPlan, editable or not. `version` and
+ * `targetModel` are deliberately excluded for exactly that reason — a schema literal and a
+ * generation stamp (D236), neither of which the operator can type into, so a difference in either
+ * is not an unsaved edit.
  *
  * A null draft is never dirty: there is nothing to save. A draft with nothing saved is.
  */
