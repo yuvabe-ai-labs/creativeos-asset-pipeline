@@ -13,7 +13,13 @@ import {
   totalOf,
 } from "../multishot-cuts";
 import type { MultishotCut } from "../multishot-cuts";
-import { OMNI_MAX_SECONDS, OMNI_MIN_SECONDS } from "../group-shots";
+import { multishotCapabilityFor } from "../multishot-models";
+import { GEMINI_OMNI_MODEL_ID, KLING_OMNI_MODEL_ID } from "@/lib/video-gen/client-models";
+
+const OMNI = multishotCapabilityFor(GEMINI_OMNI_MODEL_ID);
+const KLING = multishotCapabilityFor(KLING_OMNI_MODEL_ID);
+const OMNI_MAX_SECONDS = OMNI.maxTotalSeconds;
+const OMNI_MIN_SECONDS = OMNI.minTotalSeconds;
 
 const cuts = (...seconds: number[]): MultishotCut[] =>
   seconds.map((s, i) => ({ id: `c${i}`, text: `cut ${i + 1}`, seconds: s }));
@@ -69,44 +75,44 @@ describe("totalOf", () => {
 
 describe("headroomOf", () => {
   it("is the unspent seconds under OMNI_MAX_SECONDS", () => {
-    expect(headroomOf(cuts(2, 2, 4))).toBe(OMNI_MAX_SECONDS - 8);
+    expect(headroomOf(cuts(2, 2, 4), OMNI)).toBe(OMNI_MAX_SECONDS - 8);
   });
 
   it("is 0 exactly at the ceiling", () => {
-    expect(headroomOf(cuts(OMNI_MAX_SECONDS))).toBe(0);
+    expect(headroomOf(cuts(OMNI_MAX_SECONDS), OMNI)).toBe(0);
   });
 
   it("never goes negative when the ladder is somehow over the ceiling", () => {
-    expect(headroomOf(cuts(OMNI_MAX_SECONDS + 5))).toBe(0);
+    expect(headroomOf(cuts(OMNI_MAX_SECONDS + 5), OMNI)).toBe(0);
   });
 });
 
 describe("maxSecondsFor", () => {
   it("returns the cut's own seconds plus the ladder's headroom", () => {
     // [2,2,4] total=8, headroom under 10 is 2. index 0 -> 2+2=4. index 2 -> 4+2=6.
-    expect(maxSecondsFor(cuts(2, 2, 4), 0)).toBe(4);
-    expect(maxSecondsFor(cuts(2, 2, 4), 2)).toBe(6);
+    expect(maxSecondsFor(cuts(2, 2, 4), 0, OMNI)).toBe(4);
+    expect(maxSecondsFor(cuts(2, 2, 4), 2, OMNI)).toBe(6);
   });
 
   it("lets a single cut's ceiling reach OMNI_MAX_SECONDS", () => {
-    expect(maxSecondsFor(cuts(5), 0)).toBe(OMNI_MAX_SECONDS);
+    expect(maxSecondsFor(cuts(5), 0, OMNI)).toBe(OMNI_MAX_SECONDS);
   });
 
   // The key "stops growing" behavior: when the ladder is already full, a cut's ceiling is
   // exactly its own current length — the slider has nowhere left to go.
   it("returns the cut's own length when the ladder is already full", () => {
-    expect(maxSecondsFor(cuts(6, 4), 0)).toBe(6);
-    expect(maxSecondsFor(cuts(6, 4), 1)).toBe(4);
+    expect(maxSecondsFor(cuts(6, 4), 0, OMNI)).toBe(6);
+    expect(maxSecondsFor(cuts(6, 4), 1, OMNI)).toBe(4);
   });
 
   it("floors at MIN_CUT_SECONDS when the list is somehow already over the ceiling", () => {
     // [1,14]: index 0's raw headroom is 1+(10-15) = -4, floored at 1.
-    expect(maxSecondsFor(cuts(1, 14), 0)).toBe(MIN_CUT_SECONDS);
+    expect(maxSecondsFor(cuts(1, 14), 0, OMNI)).toBe(MIN_CUT_SECONDS);
   });
 
   it("returns 0 for an out-of-range index", () => {
-    expect(maxSecondsFor(cuts(2, 2, 4), -1)).toBe(0);
-    expect(maxSecondsFor(cuts(2, 2, 4), 3)).toBe(0);
+    expect(maxSecondsFor(cuts(2, 2, 4), -1, OMNI)).toBe(0);
+    expect(maxSecondsFor(cuts(2, 2, 4), 3, OMNI)).toBe(0);
   });
 });
 
@@ -116,7 +122,7 @@ describe("resizeCut", () => {
   // when a neighbour is touched, not just written to look thorough.
   it("changes only the targeted cut, leaving every other cut byte-identical", () => {
     const original = cuts(2, 2, 4);
-    const result = resizeCut(original, 0, 4);
+    const result = resizeCut(original, 0, 4, OMNI);
     expect(secondsOf(result)).toEqual([4, 2, 4]);
     expect(result[1]).toBe(original[1]); // same object reference — untouched, not just equal
     expect(result[2]).toBe(original[2]);
@@ -124,7 +130,7 @@ describe("resizeCut", () => {
 
   it("resizing the last cut leaves every earlier cut untouched (same references)", () => {
     const original = cuts(2, 2, 4);
-    const result = resizeCut(original, 2, 6);
+    const result = resizeCut(original, 2, 6, OMNI);
     expect(secondsOf(result)).toEqual([2, 2, 6]);
     expect(result[0]).toBe(original[0]);
     expect(result[1]).toBe(original[1]);
@@ -132,31 +138,31 @@ describe("resizeCut", () => {
 
   it("grows only into available headroom, stopping at the 10s ceiling", () => {
     // [2,2,4] total=8, headroom=2 -> cut 0 can reach 4, and a request for more clamps there.
-    expect(secondsOf(resizeCut(cuts(2, 2, 4), 0, 4))).toEqual([4, 2, 4]);
-    expect(secondsOf(resizeCut(cuts(2, 2, 4), 0, 9))).toEqual([4, 2, 4]);
-    expect(totalOf(resizeCut(cuts(2, 2, 4), 0, 9))).toBe(OMNI_MAX_SECONDS);
+    expect(secondsOf(resizeCut(cuts(2, 2, 4), 0, 4, OMNI))).toEqual([4, 2, 4]);
+    expect(secondsOf(resizeCut(cuts(2, 2, 4), 0, 9, OMNI))).toEqual([4, 2, 4]);
+    expect(totalOf(resizeCut(cuts(2, 2, 4), 0, 9, OMNI))).toBe(OMNI_MAX_SECONDS);
   });
 
   it("lets a single cut grow all the way to OMNI_MAX_SECONDS, not past it", () => {
-    expect(secondsOf(resizeCut(cuts(5), 0, 8))).toEqual([8]);
-    expect(secondsOf(resizeCut(cuts(5), 0, 20))).toEqual([OMNI_MAX_SECONDS]);
+    expect(secondsOf(resizeCut(cuts(5), 0, 8, OMNI))).toEqual([8]);
+    expect(secondsOf(resizeCut(cuts(5), 0, 20, OMNI))).toEqual([OMNI_MAX_SECONDS]);
   });
 
   it("cannot go below MIN_CUT_SECONDS (1)", () => {
-    expect(secondsOf(resizeCut(cuts(3, 2, 3), 0, 0))).toEqual([1, 2, 3]);
+    expect(secondsOf(resizeCut(cuts(3, 2, 3), 0, 0, OMNI))).toEqual([1, 2, 3]);
   });
 
   it("returns the list unchanged for a negative index", () => {
-    expect(resizeCut(cuts(2, 2, 4), -1, 3)).toEqual(cuts(2, 2, 4));
+    expect(resizeCut(cuts(2, 2, 4), -1, 3, OMNI)).toEqual(cuts(2, 2, 4));
   });
 
   it("returns the list unchanged for an index one past the end", () => {
-    expect(resizeCut(cuts(2, 2, 4), 3, 3)).toEqual(cuts(2, 2, 4));
+    expect(resizeCut(cuts(2, 2, 4), 3, 3, OMNI)).toEqual(cuts(2, 2, 4));
   });
 
   it("is a no-op (same reference) when asked for the seconds it already has", () => {
     const original = cuts(2, 2, 4);
-    expect(resizeCut(original, 0, 2)).toBe(original);
+    expect(resizeCut(original, 0, 2, OMNI)).toBe(original);
   });
 });
 
@@ -164,23 +170,23 @@ describe("addCut", () => {
   // DEFERRED — unused today (see the module header), but kept honest against the new model: a
   // new cut is funded by headroom under OMNI_MAX_SECONDS.
   it("appends a 1s cut when there is headroom, growing the total", () => {
-    const result = addCut(cuts(2, 2, 4));
+    const result = addCut(cuts(2, 2, 4), OMNI);
     expect(secondsOf(result)).toEqual([2, 2, 4, 1]);
     expect(totalOf(result)).toBe(9);
   });
 
   it("gives the new cut a distinct id and empty text", () => {
-    const result = addCut(cuts(4));
+    const result = addCut(cuts(4), OMNI);
     expect(result[1].text).toBe("");
     expect(result[1].id).not.toBe(result[0].id);
   });
 
   it("refuses when the ladder is already at OMNI_MAX_SECONDS", () => {
-    expect(addCut(cuts(OMNI_MAX_SECONDS))).toEqual(cuts(OMNI_MAX_SECONDS));
+    expect(addCut(cuts(OMNI_MAX_SECONDS), OMNI)).toEqual(cuts(OMNI_MAX_SECONDS));
   });
 
   it("succeeds at the boundary — exactly 1s of headroom is enough", () => {
-    expect(totalOf(addCut(cuts(OMNI_MAX_SECONDS - 1)))).toBe(OMNI_MAX_SECONDS);
+    expect(totalOf(addCut(cuts(OMNI_MAX_SECONDS - 1), OMNI))).toBe(OMNI_MAX_SECONDS);
   });
 });
 
@@ -212,21 +218,21 @@ describe("removeCut", () => {
 
 describe("clampTotal", () => {
   it("clamps below OMNI_MIN_SECONDS up to it", () => {
-    expect(clampTotal(1)).toBe(OMNI_MIN_SECONDS);
-    expect(clampTotal(0)).toBe(OMNI_MIN_SECONDS);
+    expect(clampTotal(1, OMNI)).toBe(OMNI_MIN_SECONDS);
+    expect(clampTotal(0, OMNI)).toBe(OMNI_MIN_SECONDS);
   });
 
   it("clamps above OMNI_MAX_SECONDS down to it", () => {
-    expect(clampTotal(99)).toBe(OMNI_MAX_SECONDS);
+    expect(clampTotal(99, OMNI)).toBe(OMNI_MAX_SECONDS);
   });
 
   it("rounds a fractional value inside the window", () => {
-    expect(clampTotal(6.4)).toBe(6);
-    expect(clampTotal(6.6)).toBe(7);
+    expect(clampTotal(6.4, OMNI)).toBe(6);
+    expect(clampTotal(6.6, OMNI)).toBe(7);
   });
 
   it("leaves an in-window integer untouched", () => {
-    expect(clampTotal(7)).toBe(7);
+    expect(clampTotal(7, OMNI)).toBe(7);
   });
 });
 
@@ -235,5 +241,37 @@ describe("newCut", () => {
     expect(newCut("x", 2).id).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     );
+  });
+});
+
+describe("the ceiling is the model's, not a constant", () => {
+  it("lets a cut grow to 15s on Kling and stops at 10s on Omni", () => {
+    expect(secondsOf(resizeCut(cuts(5), 0, 20, KLING))).toEqual([15]);
+    expect(secondsOf(resizeCut(cuts(5), 0, 20, OMNI))).toEqual([10]);
+  });
+
+  it("reports Kling's larger headroom for the same ladder", () => {
+    expect(headroomOf(cuts(4, 4), OMNI)).toBe(2);
+    expect(headroomOf(cuts(4, 4), KLING)).toBe(7);
+  });
+
+  it("clamps a stored total into each model's own window", () => {
+    expect(clampTotal(99, OMNI)).toBe(10);
+    expect(clampTotal(99, KLING)).toBe(15);
+    expect(clampTotal(0, KLING)).toBe(3);
+  });
+
+  // D237 — a ladder built on the wider model is LEFT ALONE by the narrower one's functions.
+  // Nothing here re-clamps on switch; only checkLadder reports it.
+  it("does not shrink an over-window ladder just because it was read with a tighter capability", () => {
+    const wide = cuts(7, 7);
+    expect(secondsOf(resizeCut(wide, 0, 7, OMNI))).toEqual([7, 7]);
+    expect(headroomOf(wide, OMNI)).toBe(0);
+  });
+
+  it("refuses a 7th cut on Kling and allows it on Omni", () => {
+    const six = cuts(1, 1, 1, 1, 1, 1);
+    expect(addCut(six, KLING)).toHaveLength(6);
+    expect(addCut(six, OMNI)).toHaveLength(7);
   });
 });
