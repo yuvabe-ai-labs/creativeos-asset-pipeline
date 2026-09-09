@@ -31,6 +31,13 @@ export type ResolvedPrompt =
       promptUpstream: UpstreamOutput[];
       /** Only set for the multishot lane — the cut list the ladder (and its duration) rest on. */
       cuts: MultishotCut[] | null;
+      /**
+       * Only set for the multishot lane — the model the plan was WRITTEN for (D236). The route
+       * generates on this, not on the node's stored `modelId`: the plan's beats carry this model's
+       * reference tokens and its ladder was built against this model's window, so a request on any
+       * other model is a payload built from the wrong contract.
+       */
+      targetModel: string | null;
     }
   | { ok: false; reason: string };
 
@@ -66,6 +73,7 @@ export async function resolveVideoGenPrompt(
       promptNode,
       promptUpstream,
       cuts: null,
+      targetModel: null,
     };
   }
 
@@ -86,17 +94,21 @@ export async function resolveVideoGenPrompt(
     return { ok: false, reason: NO_MULTISHOT_CUTS_ERROR };
   }
 
-  // STOPGAP until Task 9 of the Kling multishot plan: renders in the DEFAULT model's format
-  // (Gemini Omni), which is what every plan written before `targetModel` existed already is, so
-  // behaviour here is unchanged. Task 9 replaces this with the target model read off the upstream
-  // Multishot node and returns it alongside `cuts` — until then a Kling plan would render as a
-  // timecode ladder on this path, which is why nothing generates on Kling yet.
+  // D236 — the model the plan was WRITTEN for, read off the upstream Multishot node. An absent
+  // field is every Multishot node that existed before `targetModel` did, and `multishotCapabilityFor`
+  // treats that the same way it treats an unknown id: fall back to the default (Gemini Omni), which
+  // is what every such plan already renders as.
+  const targetModel =
+    typeof multishotNode?.data.targetModel === "string" ? multishotNode.data.targetModel : null;
+  const cap = multishotCapabilityFor(targetModel);
+
   return {
     ok: true,
-    prompt: renderPlan(plan, cuts, multishotCapabilityFor(undefined)),
+    prompt: renderPlan(plan, cuts, cap),
     promptNode,
     promptUpstream,
     cuts,
+    targetModel,
   };
 }
 

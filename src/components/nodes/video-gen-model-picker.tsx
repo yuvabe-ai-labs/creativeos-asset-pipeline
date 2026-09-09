@@ -36,10 +36,12 @@ export function VideoGenModelPicker({
   /**
    * D216/D232 — when set, ONLY this model is offered; every other chip is removed from the list.
    *
-   * A multishot plan can only generate on Omni, so the others are not choices. They were briefly
-   * rendered-but-disabled so the lock would be visible, but a row of dead chips is clutter on a
-   * decision that has already been made — `restrictionReason` below carries the explanation
-   * instead, which is what keeps the restriction from being silent.
+   * A multishot plan can only generate on the model it was WRITTEN for (D236/D239) — the others
+   * are not choices, because the plan's beats carry that model's reference tokens and its ladder
+   * was built against that model's window. They were briefly rendered-but-disabled so the lock
+   * would be visible, but a row of dead chips is clutter on a decision already made;
+   * `restrictionReason` carries the explanation instead, which is what keeps the restriction from
+   * being silent.
    *
    * NOTE this is display only. The constraint is ENFORCED by coercing the node's stored `modelId`
    * on connect (canvas-store's onConnect); filtering a picker is not enforcing anything, and a

@@ -3,6 +3,7 @@ import { resolveVideoGenPrompt } from "../resolve-prompt";
 import type { UpstreamOutput } from "@/lib/db/nodes";
 import type { MultishotPlan } from "@/lib/nodes/multishot-plan";
 import type { MultishotCut } from "@/lib/nodes/multishot-cuts";
+import { KLING_OMNI_MODEL_ID } from "@/lib/video-gen/client-models";
 
 function output(partial: Partial<UpstreamOutput> & { nodeId: string; type: string }): UpstreamOutput {
   return {
@@ -69,6 +70,52 @@ describe("resolveVideoGenPrompt", () => {
       expect(result.prompt).toContain("[0-3s] The bottle sits on a marble counter.");
       expect(result.prompt).toContain("[3-8s] Steam rises past the label.");
       expect(result.cuts).toEqual(cuts);
+      expect(result.targetModel).toBeNull();
+    }
+  });
+
+  it("renders Kling triples when the Multishot node targets Kling", async () => {
+    const multishotPromptNode = output({
+      nodeId: "mp-1",
+      type: "multishot-prompt",
+      activeOutput: plan,
+    });
+    const multishotNode = output({
+      nodeId: "m-1",
+      type: "multishot",
+      data: { cuts, targetModel: KLING_OMNI_MODEL_ID },
+    });
+
+    const res = await resolveVideoGenPrompt(
+      [multishotPromptNode],
+      async (id) => (id === "mp-1" ? [multishotNode] : []),
+    );
+
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.targetModel).toBe(KLING_OMNI_MODEL_ID);
+      expect(res.prompt).toContain("shot 1, ");
+      expect(res.prompt).not.toContain("[0-");
+    }
+  });
+
+  it("falls back to Omni's ladder when targetModel is absent", async () => {
+    const multishotPromptNode = output({
+      nodeId: "mp-1",
+      type: "multishot-prompt",
+      activeOutput: plan,
+    });
+    const multishotNode = output({ nodeId: "m-1", type: "multishot", data: { cuts } });
+
+    const res = await resolveVideoGenPrompt(
+      [multishotPromptNode],
+      async (id) => (id === "mp-1" ? [multishotNode] : []),
+    );
+
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.targetModel).toBeNull();
+      expect(res.prompt).toContain("[0-");
     }
   });
 

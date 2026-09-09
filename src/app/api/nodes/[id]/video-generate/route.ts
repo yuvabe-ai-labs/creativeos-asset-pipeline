@@ -18,6 +18,9 @@ import {
   type UpstreamImageRef,
 } from "@/lib/video-gen/assign-image-roles";
 import { resolveVideoGenPrompt } from "@/lib/video-gen/resolve-prompt";
+import { multishotCapabilityFor, checkLadder } from "@/lib/nodes/multishot-models";
+import { checkPlanLimits, type MultishotPlan } from "@/lib/nodes/multishot-plan";
+import { totalOf } from "@/lib/nodes/multishot-cuts";
 import { apiError, apiOk, withNode } from "@/lib/api/route-helpers";
 
 const ImageRoleSchema = z.enum(["start_frame", "end_frame", "reference"]);
@@ -67,6 +70,56 @@ export async function POST(
     if (!resolved.ok) return apiError(resolved.reason, 400);
     const { prompt } = resolved;
     const promptNode = resolved.promptNode;
+
+    // D236 — the multishot lane generates on the model the PLAN was written for. A request naming
+    // any other model is a payload built from the wrong contract: the beats carry the first
+    // model's reference tokens and the ladder was built against its window. The client coerces;
+    // a route that trusts the client is not enforcing anything, which is the mistake D232's own
+    // comment records having shipped once.
+    //
+    // Placed here — before the image-role resolution below, and well before insertGeneration and
+    // reserveCredits — for the same reason as the D97 rules check further down: a rejected request
+    // must neither record a generation nor touch the org's credit balance.
+    if (resolved.cuts) {
+      const cap = multishotCapabilityFor(resolved.targetModel);
+      if (modelId !== cap.id) {
+        return apiError(
+          `This multishot plan was written for ${cap.label}. Regenerate the prompt to target another model.`,
+          400,
+        );
+      }
+
+      const ladder = checkLadder(resolved.cuts, cap);
+      if (!ladder.ok) return apiError(ladder.reason, 400);
+
+      const limits = checkPlanLimits(
+        promptNode.activeOutput as MultishotPlan,
+        resolved.cuts,
+        cap,
+      );
+      if (!limits.ok) return apiError(limits.reason, 400);
+
+      // THE DURATION IS THE LADDER'S, NOT THE NODE'S PARAM.
+      //
+      // `multishot-cuts.ts`'s header has always claimed the request's duration "is derived from
+      // totalOf(cuts)" and that "no generation-time balance check is needed" — but nothing tied
+      // the two together, and this route read the node's own `duration` param. On Omni that meant
+      // a ladder longer than the duration came back TRUNCATED at full price, which is the exact
+      // failure the header says is impossible. On Kling the shot triples must sum to
+      // settings.duration exactly or the request is rejected outright.
+      //
+      // Setting it here is what finally makes the claim true, for both models, at the one place
+      // the request is actually built.
+      resolvedParams.duration = totalOf(resolved.cuts);
+
+      // multi_shot is a Kling-only param — params/gemini-omni.ts declares no such field, so setting
+      // it unconditionally would put a field on a request whose model has no such param. Guarded on
+      // the model actually declaring it (config.params), not hardcoded to a provider check, so the
+      // guard tracks the param table rather than a duplicate list of which models it applies to.
+      if (config.params.some((spec) => spec.name === "multi_shot")) {
+        resolvedParams.multi_shot = true;
+      }
+    }
 
     // Also collect images upstream of the prompt node so that
     // image → prompt-node → video-gen connections resolve correctly.

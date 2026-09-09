@@ -4,7 +4,10 @@ import type { AppNode } from "./canvas-nodes";
 import type { Edge } from "@xyflow/react";
 import type { ShotComposeIdea } from "./nodes/shot-compose";
 import type { GenerationRow } from "./db/types";
-import { GEMINI_OMNI_MODEL_ID as OMNI_MODEL_ID } from "./video-gen/client-models";
+import {
+  GEMINI_OMNI_MODEL_ID as OMNI_MODEL_ID,
+  KLING_OMNI_MODEL_ID,
+} from "./video-gen/client-models";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -597,6 +600,24 @@ describe("Omni coercion on connect", () => {
 
     expect((store.getState().nodes.find((n) => n.id === "vg")!.data as { modelId?: string }).modelId)
       .toBe(OMNI_MODEL_ID);
+  });
+
+  // D236 — the choice now lives on the MULTISHOT node, one hop further upstream than the old
+  // check reached. A video-gen connected to a multishot-prompt whose own Multishot node targets
+  // Kling must be coerced to Kling, not to the old hardcoded Omni.
+  it("coerces a video-gen node's modelId to Kling when the upstream Multishot node targets Kling", () => {
+    const store = createCanvasStore(
+      [
+        { id: "m", type: "multishot", position: { x: 0, y: 0 }, data: { targetModel: KLING_OMNI_MODEL_ID } } as AppNode,
+        { id: "mp", type: "multishot-prompt", position: { x: 0, y: 0 }, data: {} } as AppNode,
+        { id: "vg", type: "video-gen", position: { x: 0, y: 0 }, data: { modelId: "google:veo-3" } } as AppNode,
+      ],
+      [{ id: "e1", source: "m", target: "mp" }],
+    );
+    store.getState().onConnect({ source: "mp", target: "vg", sourceHandle: null, targetHandle: null });
+
+    expect((store.getState().nodes.find((n) => n.id === "vg")!.data as { modelId?: string }).modelId)
+      .toBe(KLING_OMNI_MODEL_ID);
   });
 
   it("leaves a video-gen fed by an ordinary video-prompt alone", () => {

@@ -35,10 +35,10 @@ import { normalizeTitle } from "@/lib/nodes/title";
 import { Button } from "@/components/ui/button";
 import {
   DEFAULT_VIDEO_CLIENT_MODEL_ID,
-  GEMINI_OMNI_MODEL_ID,
   defaultsForVideoModel,
   videoGenClientModelMap,
 } from "@/lib/video-gen/client-models";
+import { multishotCapabilityFor, multishotRestrictionReason } from "@/lib/nodes/multishot-models";
 import { smartMergeVideoParams } from "@/lib/video-gen/params/merge";
 import { autoAssignImageRoles } from "@/lib/video-gen/assign-image-roles";
 import { paramsForRestore } from "@/lib/generations/version-params";
@@ -448,31 +448,55 @@ export function VideoGenFocusView({
   const onPatchRef = useRef(onPatch);
   useEffect(() => { onPatchRef.current = onPatch; });
 
-  // D232 — belt and braces, mirroring canvas-store's onConnect coercion: a multishot-prompt
-  // upstream can only generate on Omni, and filtering the picker's list (below) is not enforcing
-  // that constraint on its own — a node whose stored modelId predates the connection would sit on
-  // a model the restricted picker no longer offers a chip for, and doGenerate reads local `modelId`
-  // state directly. A node-type check on the direct upstream, no traversal — see
-  // UpstreamPromptNode.type.
+  // D236 — the grandparent Multishot node's `targetModel`, resolved from the canvas store the
+  // same way multishot-prompt-node.tsx does (edges filtered for `e.target === <id>`, then the
+  // source node of type "multishot"). `promptNode` here comes from the /upstream-images route
+  // (UpstreamPromptNode: `{ id, type, text }`) and does NOT carry the Multishot node's data, so
+  // this cannot be read off it directly — and it is client state already loaded in the store, so
+  // no fetch is added.
+  const upstreamMultishotTargetModel = useCanvasStore((s) => {
+    if (!promptNode || promptNode.type !== "multishot-prompt") return undefined;
+    const sourceIds = s.edges.filter((e) => e.target === promptNode.id).map((e) => e.source);
+    const multishotNode = s.nodes.find((n) => sourceIds.includes(n.id) && n.type === "multishot");
+    return (multishotNode?.data as { targetModel?: string } | undefined)?.targetModel;
+  });
+
+  // D232/D236 — belt and braces, mirroring canvas-store's onConnect coercion: a node whose stored
+  // modelId predates the connection would sit on a model the restricted picker no longer offers a
+  // chip for, and doGenerate reads local `modelId` state directly.
   //
-  // Local state: React's documented "adjust state during render" pattern (same shape as
-  // `openNodeSeed` above) rather than an effect — calling a setState setter directly in the
-  // render body, gated so it only fires once per divergence and terminates immediately (coercing
-  // `modelId` flips the very condition being checked, same as the seed check above it).
+  // The model is now the one the connected PLAN was written for, not a constant — the beats carry
+  // that model's reference tokens and the ladder was built against its window.
+  //
+  // Local state: React's documented "adjust state during render" pattern rather than an effect —
+  // a setState setter called in the render body, gated so it fires once per divergence and
+  // terminates immediately (coercing `modelId` flips the very condition being checked).
   const isMultishotPromptConnected = promptNode?.type === "multishot-prompt";
-  if (!loadingConnected && editable && isMultishotPromptConnected && modelId !== GEMINI_OMNI_MODEL_ID) {
-    setModelId(GEMINI_OMNI_MODEL_ID);
+  const multishotTargetModel = isMultishotPromptConnected
+    ? multishotCapabilityFor(upstreamMultishotTargetModel).id
+    : undefined;
+  if (
+    !loadingConnected &&
+    editable &&
+    multishotTargetModel !== undefined &&
+    modelId !== multishotTargetModel
+  ) {
+    setModelId(multishotTargetModel);
   }
 
   // Persisted state: mirrors the auto-assign-roles effect below it — an effect that calls only
   // `onPatch` (a prop callback, not a local setState setter) is the established safe shape in
-  // this file. Fires once the render-phase fix above has already landed `modelId` on Omni.
+  // this file. Fires once the render-phase fix above has already landed `modelId` on the target.
   useEffect(() => {
     if (loadingConnected || !editable) return;
-    if (isMultishotPromptConnected && modelId === GEMINI_OMNI_MODEL_ID && modelIdProp !== GEMINI_OMNI_MODEL_ID) {
-      onPatch({ modelId: GEMINI_OMNI_MODEL_ID });
+    if (
+      multishotTargetModel !== undefined &&
+      modelId === multishotTargetModel &&
+      modelIdProp !== multishotTargetModel
+    ) {
+      onPatch({ modelId: multishotTargetModel });
     }
-  }, [loadingConnected, editable, isMultishotPromptConnected, modelId, modelIdProp, onPatch]);
+  }, [loadingConnected, editable, modelId, modelIdProp, onPatch, multishotTargetModel]);
 
   // ── Data fetching ──────────────────────────────────────────────────────────
 
@@ -1215,10 +1239,10 @@ export function VideoGenFocusView({
                     modelId={modelId}
                     onModelChange={handleModelChange}
                     loading={loadingConnected}
-                    lockedToModelId={isMultishotPromptConnected ? GEMINI_OMNI_MODEL_ID : undefined}
+                    lockedToModelId={multishotTargetModel}
                     restrictionReason={
                       isMultishotPromptConnected
-                        ? "Connected to a Multishot Prompt. Only Omni can generate a multi-shot plan — other models ignore the timecode ladder and return a single take."
+                        ? multishotRestrictionReason(upstreamMultishotTargetModel)
                         : undefined
                     }
                   >
