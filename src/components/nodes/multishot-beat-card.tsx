@@ -38,6 +38,7 @@ export function MultishotBeatCard({
   showRerun = false,
   onFocusTimings,
   disabled = false,
+  aiDisabled = false,
   isLast = false,
 }: {
   index: number;
@@ -69,6 +70,13 @@ export function MultishotBeatCard({
   // sets this true for every OTHER beat while one is being refined (`refining.cutId !==
   // beat.cutId`), so a rewrite of one beat cannot be interleaved with a hand-edit of another.
   disabled?: boolean;
+  /**
+   * Gates the two AI actions ONLY — the editor stays live. Set while the plan has unsaved hand
+   * edits (D242): a rewrite resolves against the snapshot it captured at submit time, so letting
+   * one start here would discard the edit with no error at all. Distinct from `disabled`, which
+   * also locks the editor and so cannot express "you may keep typing, but not rewrite".
+   */
+  aiDisabled?: boolean;
   // Suppresses the row's bottom border — the container draws borders BETWEEN rows, not under
   // the last one.
   isLast?: boolean;
@@ -101,7 +109,7 @@ export function MultishotBeatCard({
             <RefineWithAI
               scope="cut"
               busy={rerunning}
-              disabled={disabled}
+              disabled={disabled || aiDisabled}
               onSubmit={onRefine}
               mentionables={mentionables}
               label={`Refine shot ${index + 1} with AI`}
@@ -109,7 +117,7 @@ export function MultishotBeatCard({
             <Button
               variant="ghost"
               onClick={onRerun}
-              disabled={rerunning || disabled}
+              disabled={rerunning || disabled || aiDisabled}
               aria-label={`Rewrite shot ${index + 1}`}
               className="h-auto rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground dark:hover:bg-muted"
             >
