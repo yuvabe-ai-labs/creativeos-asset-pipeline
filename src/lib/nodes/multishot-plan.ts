@@ -120,13 +120,13 @@ export function renderPlan(
         // cut count. Commas are safe: only the first two are structural, and the parser takes the
         // rest of the triple as text.
         //
-        // A trailing period is dropped: the shot's own semicolon is its terminator, and a beat
-        // written as a full sentence would otherwise stack punctuation (".;") right at the seam
-        // the parser splits on.
-        const text = (byId.get(cut.id) ?? "")
-          .trim()
-          .replace(/;/g, ",")
-          .replace(/\.$/, "");
+        // This is the ONLY rewrite applied to a beat, and deliberately so. A trailing period was
+        // stripped here at one point to avoid stacking ".;" at the seam — but that is cosmetic,
+        // not structural: a parser splitting on `;` reads ".;" correctly. Rewriting the
+        // operator's authored prose for tidiness is the same mistake `imageRefDialect` refuses to
+        // make when it echoes an unknown token rather than renumbering it. Only correctness earns
+        // a rewrite.
+        const text = (byId.get(cut.id) ?? "").trim().replace(/;/g, ",");
         return `shot ${i + 1}, ${cut.seconds}, ${text};`;
       })
       .join("\n");

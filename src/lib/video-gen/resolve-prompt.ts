@@ -1,5 +1,6 @@
 import type { UpstreamOutput } from "@/lib/db/nodes";
 import { renderPlan, type MultishotPlan } from "@/lib/nodes/multishot-plan";
+import { multishotCapabilityFor } from "@/lib/nodes/multishot-models";
 import type { MultishotCut } from "@/lib/nodes/multishot-cuts";
 
 // Two prompt-node lanes feed Video Gen (see AGENTS.md / the multishot spec):
@@ -85,6 +86,17 @@ export async function resolveVideoGenPrompt(
     return { ok: false, reason: NO_MULTISHOT_CUTS_ERROR };
   }
 
-  return { ok: true, prompt: renderPlan(plan, cuts), promptNode, promptUpstream, cuts };
+  // STOPGAP until Task 9 of the Kling multishot plan: renders in the DEFAULT model's format
+  // (Gemini Omni), which is what every plan written before `targetModel` existed already is, so
+  // behaviour here is unchanged. Task 9 replaces this with the target model read off the upstream
+  // Multishot node and returns it alongside `cuts` — until then a Kling plan would render as a
+  // timecode ladder on this path, which is why nothing generates on Kling yet.
+  return {
+    ok: true,
+    prompt: renderPlan(plan, cuts, multishotCapabilityFor(undefined)),
+    promptNode,
+    promptUpstream,
+    cuts,
+  };
 }
 

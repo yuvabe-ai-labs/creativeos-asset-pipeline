@@ -1,5 +1,6 @@
 import { getUpstreamOutputs } from "@/lib/db/nodes";
 import { renderPlan, type MultishotPlan } from "@/lib/nodes/multishot-plan";
+import { multishotCapabilityFor } from "@/lib/nodes/multishot-models";
 import type { MultishotCut } from "@/lib/nodes/multishot-cuts";
 import { apiError, apiOk, withNode } from "@/lib/api/route-helpers";
 
@@ -95,7 +96,16 @@ export async function GET(
           (c) => c && c.id && typeof c.text === "string" && typeof c.seconds === "number",
         );
         if (plan && typeof plan === "object" && Array.isArray(plan.beats) && cuts.length > 0) {
-          promptText = renderPlan(plan, cuts);
+          // Rendered in the TARGET MODEL's own format (D238), read off the Multishot node the
+          // same untyped way `cuts` is read just above. This is the preview the focus view shows
+          // as "what will be sent", so rendering it in the other model's format would show the
+          // operator a prompt that is not the one the money path builds. Absent targetModel falls
+          // back to Gemini Omni, which is what every node predating that field already is.
+          const targetModel =
+            typeof multishotNode?.data.targetModel === "string"
+              ? multishotNode.data.targetModel
+              : undefined;
+          promptText = renderPlan(plan, cuts, multishotCapabilityFor(targetModel));
         }
       }
 

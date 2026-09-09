@@ -187,11 +187,25 @@ describe("renderPlan per model", () => {
 
   // D238 — the API's triple form, NOT the console's `Shot 1 (2s):`. Lowercase `shot`, comma
   // between number/seconds/text, semicolon between shots.
+  //
+  // The beat's own trailing period SURVIVES, giving ".;" at the seam. That is deliberate: a
+  // parser splitting on `;` reads it correctly, and stripping it would be a cosmetic rewrite of
+  // prose the operator authored. Only the semicolon strip below is structural enough to earn one.
   it("emits Kling's shot triples with the look as leading prose", () => {
     expect(renderPlan(perModelPlan, planCuts, KLING)).toBe(
       "Low sun from camera-left, warm grey concrete, 35mm at knee height.\n\n" +
-        "shot 1, 2, A hand sweeps keys off oak;\n" +
-        "shot 2, 3, A cab door swings open onto sunlit paving;",
+        "shot 1, 2, A hand sweeps keys off oak.;\n" +
+        "shot 2, 3, A cab door swings open onto sunlit paving.;",
+    );
+  });
+
+  it("leaves a beat's own punctuation alone apart from semicolons", () => {
+    const punctuated = {
+      ...perModelPlan,
+      beats: [{ cutId: "c1", text: "Wait — then, sharply: he turns!" }, perModelPlan.beats[1]],
+    };
+    expect(renderPlan(punctuated, planCuts, KLING)).toContain(
+      "shot 1, 2, Wait — then, sharply: he turns!;",
     );
   });
 
