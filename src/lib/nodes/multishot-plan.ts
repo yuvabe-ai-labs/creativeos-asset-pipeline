@@ -190,6 +190,7 @@ export function renderPlan(
 
 const IMAGE_REF = /<IMAGE_REF_(\d+)>/g;
 const KLING_IMAGE_REF = /@image_(\d+)/g;
+const SEEDANCE_IMAGE_REF = /@Image (\d+)/g;
 
 /**
  * Which references a beat cites, derived from its own text, in the target model's token shape.
@@ -199,15 +200,24 @@ const KLING_IMAGE_REF = /@image_(\d+)/g;
  * by someone `@`-mentioning a reference in the editor.
  *
  * ALWAYS ZERO-BASED on the way out, whatever the model's wire format. Callers use the result to
- * index `promptRefImages`, so returning Kling's 1-based numbers would mark the wrong reference as
- * uncited — off by one, on a display that exists to catch exactly that class of mistake.
+ * index `promptRefImages`, so returning Kling's or Seedance's 1-based numbers would mark the wrong
+ * reference as uncited — off by one, on a display that exists to catch exactly that class of
+ * mistake.
  */
 export function refsCitedIn(text: string, cap: MultishotCapability): number[] {
   const seen = new Set<number>();
-  if (cap.refTokenBase === 1) {
-    for (const match of text.matchAll(KLING_IMAGE_REF)) seen.add(Number(match[1]) - 1);
-  } else {
-    for (const match of text.matchAll(IMAGE_REF)) seen.add(Number(match[1]));
+  // Exhaustive switch, no default: a new dialect is a COMPILE error here rather than a silent
+  // fall back to Omni's tokens (D245).
+  switch (cap.refTokenDialect) {
+    case "kling-image":
+      for (const match of text.matchAll(KLING_IMAGE_REF)) seen.add(Number(match[1]) - 1);
+      break;
+    case "seedance-image":
+      for (const match of text.matchAll(SEEDANCE_IMAGE_REF)) seen.add(Number(match[1]) - 1);
+      break;
+    case "image-ref":
+      for (const match of text.matchAll(IMAGE_REF)) seen.add(Number(match[1]));
+      break;
   }
   return [...seen];
 }

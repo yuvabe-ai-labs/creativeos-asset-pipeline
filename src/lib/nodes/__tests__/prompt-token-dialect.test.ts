@@ -4,10 +4,11 @@ import {
   imageRefDialect,
   serializeSegments,
   klingImageDialect,
+  seedanceImageDialect,
   dialectForCapability,
 } from "../prompt-token-dialect";
 import { multishotCapabilityFor } from "../multishot-models";
-import { GEMINI_OMNI_MODEL_ID, KLING_OMNI_MODEL_ID } from "@/lib/video-gen/client-models";
+import { GEMINI_OMNI_MODEL_ID, KLING_OMNI_MODEL_ID, SEEDANCE_MODEL_ID } from "@/lib/video-gen/client-models";
 
 describe("mentionDialect", () => {
   const d = mentionDialect();
@@ -153,5 +154,50 @@ describe("dialectForCapability", () => {
     const kling = dialectForCapability(multishotCapabilityFor(KLING_OMNI_MODEL_ID), ["a"]);
     expect(omni.tokenForId("a", "A")).toBe("<IMAGE_REF_0>");
     expect(kling.tokenForId("a", "A")).toBe("@image_1");
+  });
+});
+
+describe("seedanceImageDialect", () => {
+  const d = seedanceImageDialect(["a", "b"]);
+
+  it("is ONE-based, space-separated and capitalised", () => {
+    expect(d.tokenForId("a", "A")).toBe("@Image 1");
+    expect(d.tokenForId("b", "B")).toBe("@Image 2");
+  });
+
+  it("round-trips byte-exact", () => {
+    const text = "the @Image 2 rests on oak, the @Image 1 just visible";
+    expect(serializeSegments(d.parse(text), d)).toBe(text);
+  });
+
+  it("does not truncate a two-digit index", () => {
+    const wide = seedanceImageDialect(Array.from({ length: 12 }, (_, i) => `id${i}`));
+    const segs = wide.parse("@Image 10");
+    expect(segs).toHaveLength(1);
+    expect((segs[0] as any).id).toBe("id9");
+  });
+
+  it("keeps an unknown id's original text rather than renumbering it", () => {
+    expect(serializeSegments(d.parse("@Image 9"), d)).toBe("@Image 9");
+  });
+
+  // THE CRITICAL ONE. `@image_1` and `@Image 1` differ by one character's case and a space.
+  // If either dialect parses the other's tokens, every citation binds to the wrong image, and
+  // it fails silently in a clip that has already been paid for.
+  it("does not read Kling's or Omni's tokens, and neither reads Seedance's", () => {
+    expect(d.parse("@image_1").every((s) => s.kind === "text")).toBe(true);
+    expect(d.parse("<IMAGE_REF_0>").every((s) => s.kind === "text")).toBe(true);
+    expect(klingImageDialect(["a", "b"]).parse("@Image 1").every((s) => s.kind === "text")).toBe(true);
+    expect(imageRefDialect(["a", "b"]).parse("@Image 1").every((s) => s.kind === "text")).toBe(true);
+  });
+});
+
+describe("dialectForCapability", () => {
+  it("selects on the named dialect, not the numeric base", () => {
+    const kling = dialectForCapability(multishotCapabilityFor(KLING_OMNI_MODEL_ID), ["a"]);
+    const seedance = dialectForCapability(multishotCapabilityFor(SEEDANCE_MODEL_ID), ["a"]);
+    // Both are refTokenBase 1 — only the named dialect tells them apart.
+    expect(kling.tokenForId("a", "A")).toBe("@image_1");
+    expect(seedance.tokenForId("a", "A")).toBe("@Image 1");
   });
 });

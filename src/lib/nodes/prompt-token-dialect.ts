@@ -153,6 +153,47 @@ export function klingImageDialect(orderedIds: string[]): TokenDialect {
   };
 }
 
+// `@Image ` then a greedy digit run. The capital I and the SPACE are both load-bearing: Kling's
+// dialect matches `@image_(\d+)`, and these two token shapes differ only by case and that space.
+// Do not make this case-insensitive and do not make the space optional.
+const SEEDANCE_IMAGE_RE = /@Image (\d+)/g;
+
+/**
+ * `@Image N` — Seedance 2.5's own asset handle, ONE-based over the attached references.
+ *
+ * Structured to mirror `imageRefDialect` and `klingImageDialect` line for line; read all three
+ * side by side, because a divergence between them is a bug in one of them. The only intended
+ * differences are the token shape and the index base.
+ */
+export function seedanceImageDialect(orderedIds: string[]): TokenDialect {
+  const indexOf = new Map(orderedIds.map((id, i) => [id, i]));
+  return {
+    parse(value) {
+      if (!value) return [];
+      const segments: Segment[] = [];
+      let last = 0;
+      for (const m of value.matchAll(SEEDANCE_IMAGE_RE)) {
+        const at = m.index ?? 0;
+        if (at > last) segments.push({ kind: "text", text: value.slice(last, at) });
+        const i = Number(m[1]) - 1;
+        segments.push({ kind: "mention", label: m[0], id: orderedIds[i] ?? `__missing_${i}` });
+        last = at + m[0].length;
+      }
+      if (last < value.length) segments.push({ kind: "text", text: value.slice(last) });
+      return segments;
+    },
+    tokenOf(segment) {
+      const i = indexOf.get(segment.id);
+      return i === undefined ? segment.label : `@Image ${i + 1}`;
+    },
+    tokenForId(id) {
+      const i = indexOf.get(id);
+      return i === undefined ? null : `@Image ${i + 1}`;
+    },
+    chipLabel: (segment, upstreamLabel) => upstreamLabel ?? segment.label,
+  };
+}
+
 /**
  * The dialect a multishot beat is stored in, given its node's target model.
  *
@@ -163,5 +204,11 @@ export function dialectForCapability(
   cap: MultishotCapability,
   orderedIds: string[],
 ): TokenDialect {
-  return cap.refTokenBase === 1 ? klingImageDialect(orderedIds) : imageRefDialect(orderedIds);
+  // Exhaustive switch, no default: a new dialect is a COMPILE error here rather than a silent
+  // fall back to Omni's tokens (D245).
+  switch (cap.refTokenDialect) {
+    case "kling-image": return klingImageDialect(orderedIds);
+    case "seedance-image": return seedanceImageDialect(orderedIds);
+    case "image-ref": return imageRefDialect(orderedIds);
+  }
 }

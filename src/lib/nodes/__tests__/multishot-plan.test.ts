@@ -316,6 +316,12 @@ describe("refsCitedIn per model", () => {
     expect(refsCitedIn("the @image_1 and @image_2", KLING)).toEqual([0, 1]);
     expect(refsCitedIn("the <IMAGE_REF_0>", KLING)).toEqual([]);
   });
+
+  it("finds Seedance's handles and returns zero-based indexes", () => {
+    expect(refsCitedIn("the @Image 1 and @Image 2", SEEDANCE)).toEqual([0, 1]);
+    expect(refsCitedIn("the @image_1", SEEDANCE)).toEqual([]);
+    expect(refsCitedIn("the @Image 1", KLING)).toEqual([]);
+  });
 });
 
 describe("mergeRefinedPlan", () => {
