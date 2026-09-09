@@ -498,6 +498,18 @@ export function MultishotPromptFocusView({
     }
   }
 
+  /**
+   * Throw the unsaved edits away and go back to the last generated / restored / saved plan.
+   *
+   * No confirm step, unlike the sheet's close-confirm: closing is INCIDENTAL (Escape, a click
+   * outside), so it needs to ask; this button is labelled with what it does and is pressed on
+   * purpose. It also re-enables every AI action on its own — `dirty` goes false the moment
+   * planDraft is back to the prop, which is the same condition that dimmed them.
+   */
+  function handleDiscardEdits() {
+    setPlanDraft(plan);
+  }
+
   // D240 — these set planDraft ONLY. The `onPatch` that used to run per keystroke now lives in
   // handleSavePlan, beside the write that actually reaches the database.
   function updateLook(v: string) {
@@ -907,6 +919,13 @@ export function MultishotPromptFocusView({
                         <div className="flex items-center gap-2">
                           <Button variant="outline" onClick={handleSavePlan} disabled={!dirty}>
                             Save
+                          </Button>
+                          {/* Both buttons stay MOUNTED and disable together rather than appearing
+                              with the first keystroke — a footer that grows a button under the
+                              pointer moves Save out from under it at the exact moment it is
+                              wanted. */}
+                          <Button variant="ghost" onClick={handleDiscardEdits} disabled={!dirty}>
+                            Cancel
                           </Button>
                           {dirty && (
                             <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[0.65rem] font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-400">
