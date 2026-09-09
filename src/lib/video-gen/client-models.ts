@@ -101,16 +101,6 @@ const KLING_O1_IMAGE_INPUTS = {
   maxReferenceImages: 5,
 } as const;
 
-// D100's cap applies here too: the omni endpoints allow 7 images total with no reference video,
-// and whether first_frame/last_frame count toward that 7 is undocumented. 5 keeps a request in
-// budget with both frames in use. Being wrong this way costs two slots; being wrong the other way
-// causes 400s.
-const KLING_30_OMNI_IMAGE_INPUTS = {
-  startFrame: true,
-  endFrame: true,
-  maxReferenceImages: 5,
-} as const;
-
 // ── Kling constraint rules ────────────────────────────────────────────────────
 
 // K1 — /image-to-video/kling-3.0 is image-to-video in the literal sense: with no `first_frame`
@@ -261,7 +251,12 @@ export const videoGenClientModelMap: Record<string, VideoGenClientModelSpec> = {
     pickerLabel: "3.0 Omni",
     providerLabel: "Kling",
     maxDurationSeconds: 15,
-    imageInputs: KLING_30_OMNI_IMAGE_INPUTS,
+    // D100's cap is a property of the /omni-video endpoint family, not of O1: 7 images total
+    // with no reference video, less both frames conservatively because the docs do not say
+    // whether the frames count toward the 7. Shared with O1 rather than re-declared, matching
+    // what providers/kling.ts does on the server side — a second identical copy is one more
+    // place to miss when that cap is revised.
+    imageInputs: KLING_O1_IMAGE_INPUTS,
     params: kling30OmniParams,
     rules: KLING_30_OMNI_RULES,
   },

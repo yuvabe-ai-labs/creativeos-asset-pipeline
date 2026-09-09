@@ -83,6 +83,16 @@ describe("build30OmniSettings — duration policy", () => {
     expect(build30OmniSettings({ duration: 99 }).duration).toBe(15);
   });
 
+  // A node saved before this param existed still holds whatever it held, and nothing
+  // re-validates persisted params on load. An arithmetic clamp propagates NaN where O1's
+  // `includes()` clamp rejected it for free — that would serialize as `"duration": null` and
+  // earn a 400 minutes into a queued generation.
+  it("falls back to the default for a non-numeric persisted duration", () => {
+    expect(build30OmniSettings({ duration: "not a number" }).duration).toBe(5);
+    expect(build30OmniSettings({ duration: null }).duration).toBe(5);
+    expect(build30OmniSettings({}).duration).toBe(5);
+  });
+
   it("still clamps O1 to 5 or 10, unchanged by the extraction", () => {
     expect(buildO1Settings({ duration: 7 }).duration).toBe(5);
     expect(buildO1Settings({ duration: 10 }).duration).toBe(10);

@@ -139,21 +139,27 @@ export const kling30Params: ParamSpec[] = [
   negativePromptParam,
 ];
 
-// Kling 3.0 Omni — /omni-video/kling-3.0-omni. The flagship: 4k, a continuous 3-15s range, and
-// the only Kling endpoint that parses multi-shot triples out of the prompt.
+// Kling 3.0 Omni — /omni-video/kling-3.0-omni. The flagship, and the Kling endpoint the
+// multishot lane targets: it parses a shot list out of the prompt as `shot n, m, words;` triples
+// (D238). Offers 4k, which O1 does not.
 //
 // duration is a SLIDER (a number), not O1's 5/10 chip select: the 3-15 range is continuous here,
 // and the multishot lane sets it from the cut ladder's own total, which is any integer in range.
 //
-// multi_shot is NOT the hidden-and-false param the other two Kling models carry. This endpoint
-// defaults it to `true` SERVER-SIDE, so a request that omits it silently gets cuts. It is sent
-// explicitly on every request; the multishot lane sets it true, and a single-take generation on
-// this model needs it false. Hidden from the panel because the lane decides it, not the operator.
+// audio is native/off for the same reason O1's is — see the note below kling30Params: `original`
+// retains a reference video's own soundtrack, and buildKlingContents never sends one, so
+// offering it would be a choice between silence and silence.
+//
+// multi_shot is the shared hidden param, default false — a single continuous moment is what a
+// product clip wants, so it is opt-in. What differs on THIS endpoint is not the declared default
+// but the consequence of omitting the field: Kling defaults it to `true` server-side, so a
+// request that leaves it out silently gets cuts. buildOmniSettings (providers/kling.ts) therefore
+// always sends it explicitly, whichever way it is set.
 export const kling30OmniParams: ParamSpec[] = [
   resolutionParam(["720p", "1080p", "4k"], "720p"),
   durationParam(3, 15, 5),
   audioParam(["native", "off"], "off"),
-  { ...multiShotParam, defaultValue: false },
+  multiShotParam,
   aspectRatioParam,
   negativePromptParam,
 ];

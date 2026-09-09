@@ -155,14 +155,22 @@ export function buildO1Settings(
 // no longer sum to `duration`.
 const OMNI_30_MIN_DURATION = 3;
 const OMNI_30_MAX_DURATION = 15;
+const OMNI_30_DEFAULT_DURATION = 5;
 
 export function build30OmniSettings(
   params: Record<string, unknown>,
   ctx: { hasStartFrame: boolean } = { hasStartFrame: true },
 ): Record<string, unknown> {
-  return buildOmniSettings(params, ctx, (requested) =>
-    Math.min(OMNI_30_MAX_DURATION, Math.max(OMNI_30_MIN_DURATION, Math.round(requested))),
-  );
+  return buildOmniSettings(params, ctx, (requested) => {
+    // A non-finite value falls back to the default rather than clamping. `Math.round(NaN)` is
+    // NaN and both clamps propagate it, which would serialize as `"duration": null` and earn a
+    // 400 minutes into a queued generation. O1's `includes()` clamp got this for free; an
+    // arithmetic clamp has to say it. Reachable the same way O1's does: a node saved before this
+    // param existed still holds whatever it held, and nothing re-validates persisted params on
+    // load (see O1_VALID_DURATIONS above).
+    if (!Number.isFinite(requested)) return OMNI_30_DEFAULT_DURATION;
+    return Math.min(OMNI_30_MAX_DURATION, Math.max(OMNI_30_MIN_DURATION, Math.round(requested)));
+  });
 }
 
 type KlingCreateResponse = {
