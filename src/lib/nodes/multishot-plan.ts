@@ -157,6 +157,25 @@ export function renderPlan(
     return `${plan.look.trim()}\n\n${shots}`;
   }
 
+  if (cap.shotFormat === "bare-timecode") {
+    // D244 — Seedance 2.5's own format, used throughout its tutorial: a bare `0-2s:` prefix, no
+    // brackets. Cumulative from the CUTS like Omni's ladder, so the final timestamp equals the
+    // request's duration by construction.
+    //
+    // No text rewrite. Kling's branch replaces semicolons because a stray `;` terminates a shot
+    // in its comma/semicolon triple grammar; nothing here is delimited that way, so the
+    // operator's prose — and its `@Image N` handles — pass through byte-for-byte.
+    let at = 0;
+    const ladder = cuts
+      .map((cut) => {
+        const from = at;
+        at += cut.seconds;
+        return `${from}-${at}s: ${(byId.get(cut.id) ?? "").trim()}`;
+      })
+      .join("\n");
+    return `${plan.look.trim()}\n\n${ladder}`;
+  }
+
   let at = 0;
   const ladder = cuts
     .map((cut) => {

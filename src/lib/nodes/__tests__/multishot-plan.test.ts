@@ -3,10 +3,11 @@ import { parsePlan, renderPlan, refsCitedIn, mergeRefinedPlan, checkPlanLimits, 
 import type { MultishotPlan } from "../multishot-plan";
 import type { MultishotCut } from "../multishot-cuts";
 import { multishotCapabilityFor } from "../multishot-models";
-import { GEMINI_OMNI_MODEL_ID, KLING_OMNI_MODEL_ID } from "@/lib/video-gen/client-models";
+import { GEMINI_OMNI_MODEL_ID, KLING_OMNI_MODEL_ID, SEEDANCE_MODEL_ID } from "@/lib/video-gen/client-models";
 
 const OMNI = multishotCapabilityFor(GEMINI_OMNI_MODEL_ID);
 const KLING = multishotCapabilityFor(KLING_OMNI_MODEL_ID);
+const SEEDANCE = multishotCapabilityFor(SEEDANCE_MODEL_ID);
 
 const cuts: MultishotCut[] = [
   { id: "c1", text: "keys", seconds: 2 },
@@ -230,6 +231,34 @@ describe("renderPlan per model", () => {
     const rendered = renderPlan(risky, planCuts, KLING);
     expect(rendered).toContain("shot 1, 2, keys land, the hand withdraws;");
     expect(rendered.match(/;/g)).toHaveLength(2); // one terminator per shot, no more
+  });
+
+  describe("renderPlan — Seedance bare timecodes", () => {
+    it("emits `0-2s:` lines with the look as leading prose", () => {
+      expect(renderPlan(perModelPlan, planCuts, SEEDANCE)).toBe(
+        "Low sun from camera-left, warm grey concrete, 35mm at knee height.\n\n" +
+          "0-2s: A hand sweeps keys off oak.\n" +
+          "2-5s: A cab door swings open onto sunlit paving.",
+      );
+    });
+
+    // Cumulative, like Omni's — and from the CUTS, so the last timestamp IS the request duration.
+    it("ends the ladder exactly at the budget", () => {
+      const last = renderPlan(perModelPlan, planCuts, SEEDANCE).trim().split("\n").at(-1)!;
+      expect(last.startsWith("2-5s:")).toBe(true);
+    });
+
+    // Seedance's own handles must survive untouched — unlike Kling, there is no semicolon rewrite
+    // here, because nothing in this format is semicolon-delimited.
+    it("leaves @Image handles and punctuation alone", () => {
+      const withRef = {
+        ...perModelPlan,
+        beats: [{ cutId: "c1", text: "the @Image 1 rests on oak; light shifts" }, perModelPlan.beats[1]],
+      };
+      expect(renderPlan(withRef, planCuts, SEEDANCE)).toContain(
+        "0-2s: the @Image 1 rests on oak; light shifts",
+      );
+    });
   });
 });
 
