@@ -49,26 +49,30 @@ describe("shotDataToMultishot", () => {
     expect(result.order).toBe(2);
   });
 
-  // No-Total rework (operator request 2026-09-03): `totalSeconds` is just the stored mirror of
-  // `totalOf(cuts)`, clamped into Omni's window (multishot-cuts.ts's header) — there is no
-  // fitting step any more, so `cuts` is carried through exactly as `cutsFromShots` built it.
-  // A single shot whose own parsed duration falls outside Omni's 3-10s window is the one case
-  // where the clamped `totalSeconds` and the ladder's real length can disagree (see
-  // multishot-convert.ts's comment) — that's a pre-existing group-shots.ts edge case
-  // (a shot longer than OMNI_MAX_SECONDS forced into its own group), not something this
-  // rework needs to reconcile.
-  it("clamps totalSeconds into Omni's window without reshaping an out-of-window shot's cut", () => {
+  // D237 — `totalSeconds` is a MIRROR, NOT A CORRECTION. It is deliberately NOT clamped into any
+  // model's window, and this test pins that: a ladder outside the window keeps its real length
+  // here and `checkLadder` STATES the violation instead.
+  //
+  // It used to assert the opposite (10 for a 30s shot, 3 for a 1s shot), which is what the edit
+  // site — multishot-node.tsx's `setCuts` — had already stopped doing. The disagreement was
+  // visible: a script-seeded single 2s shot stored 3 while `totalOf(cuts)` was 2, so the card read
+  // "3s · 1 cuts" in large type over a red "2s · Gemini Omni 1.1 needs at least 3s." Two numbers
+  // for one ladder, with the wrong one in the larger type. The mirror is the correct behaviour;
+  // these assertions are the ones that were wrong.
+  it("mirrors totalOf(cuts) unclamped, even for a ladder outside every model's window", () => {
     const long = shotDataToMultishot({
       script: { visual_script: { shots: [{ description: "x", duration_seconds: 30 }] } },
     });
-    expect(long.totalSeconds).toBe(10); // clamped down from 30 to OMNI_MAX_SECONDS
-    expect(long.cuts?.[0]?.seconds).toBe(30); // the cut itself is untouched
+    expect(long.totalSeconds).toBe(30); // NOT clamped down to Omni's 10s ceiling
+    expect(long.cuts?.[0]?.seconds).toBe(30);
+    expect(long.totalSeconds).toBe(long.cuts?.[0]?.seconds);
 
     const short = shotDataToMultishot({
-      script: { visual_script: { shots: [{ description: "x", duration_seconds: 1 }] } },
+      script: { visual_script: { shots: [{ description: "x", duration_seconds: 2 }] } },
     });
-    expect(short.totalSeconds).toBe(3); // clamped up from 1 to OMNI_MIN_SECONDS
-    expect(short.cuts?.[0]?.seconds).toBe(1); // the cut itself is untouched
+    expect(short.totalSeconds).toBe(2); // NOT rounded up to Omni's 3s floor
+    expect(short.cuts?.[0]?.seconds).toBe(2);
+    expect(short.totalSeconds).toBe(short.cuts?.[0]?.seconds);
   });
 });
 

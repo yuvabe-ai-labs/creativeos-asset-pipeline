@@ -12,12 +12,9 @@ import { NodeContextMenu } from "./node-context-menu";
 import { NodeCardHeader } from "./node-card-header";
 import { MultishotFocusView } from "./multishot-focus-view";
 import { GuidedNextButton } from "@/components/canvas/guided-next-button";
-import { clampTotal, totalOf, type MultishotCut } from "@/lib/nodes/multishot-cuts";
-import { OMNI_MIN_SECONDS, OMNI_MAX_SECONDS } from "@/lib/nodes/group-shots";
+import { totalOf, type MultishotCut } from "@/lib/nodes/multishot-cuts";
+import { multishotCapabilityFor, checkLadder } from "@/lib/nodes/multishot-models";
 import type { MultishotNodeData } from "@/lib/canvas-nodes";
-
-/** Where Kling caps its own Custom Multi-Shot. A quality signal, not a hard limit. */
-const SOFT_CUT_LIMIT = 6;
 
 /**
  * D230 — a Multishot node's clip length simply IS the sum of its cuts (operator request
@@ -44,17 +41,24 @@ export function MultishotNode({ id, data, selected }: NodeProps) {
   const d = data as MultishotNodeData;
 
   const cuts = d.cuts ?? [];
+  const cap = multishotCapabilityFor(d.targetModel);
   // `totalSeconds` is the stored mirror of the ladder's own length, not an independent field —
   // falls back to a fresh totalOf(cuts) only for data seeded before this field existed.
   const total = d.totalSeconds ?? totalOf(cuts);
-  const outsideOmniWindow = total < OMNI_MIN_SECONDS || total > OMNI_MAX_SECONDS;
+  const ladder = checkLadder(cuts, cap);
 
   // There is no Total control any more, so `totalSeconds` is once again just `totalOf(cuts)` —
   // every write that changes `cuts` MUST write both in the same call, or the stored mirror goes
-  // stale. (There used to be a coupling ban here — dragging one cut moving a separate Total was
-  // exactly what the operator objected to — but there is no separate Total left to move.)
+  // stale. A MIRROR, not a correction: it is no longer clamped (see the note below `setTargetModel`).
   const setCuts = (next: MultishotCut[]) =>
-    updateNodeData(id, { cuts: next, totalSeconds: clampTotal(totalOf(next)) });
+    updateNodeData(id, { cuts: next, totalSeconds: totalOf(next) });
+
+  // D237 — switching the model changes NOTHING about the ladder. Not the cuts, and not the stored
+  // mirror of their sum: `totalSeconds` must keep reporting what the cuts actually are, because
+  // that is the number `checkLadder`'s violation sentence is measured against. Clamping it here
+  // would make the card read "10s" while the line underneath it read "14s · Gemini Omni 1.1
+  // allows 10s" — two numbers for one ladder, and the wrong one in the larger type.
+  const setTargetModel = (targetModel: string) => updateNodeData(id, { targetModel });
 
   // Open locally (double-click / "Open ↗") OR when a shared signal points here — the
   // Generation Tray, guided flow, or the copilot's open_node (setFocusedNodeId).
@@ -88,7 +92,7 @@ export function MultishotNode({ id, data, selected }: NodeProps) {
             <span
               className={cn(
                 "text-[0.6rem] tabular-nums",
-                outsideOmniWindow ? "text-destructive" : "text-muted-foreground",
+                !ladder.ok ? "text-destructive" : "text-muted-foreground",
               )}
             >
               {total}s · {cuts.length} cuts
@@ -111,15 +115,16 @@ export function MultishotNode({ id, data, selected }: NodeProps) {
             ))}
           </div>
 
-          {cuts.length > SOFT_CUT_LIMIT && (
-            <p className="mt-1.5 flex items-center gap-1 px-1.5 text-[0.6rem] text-muted-foreground">
+          {!ladder.ok && (
+            <p className="mt-1.5 flex items-center gap-1 px-1.5 text-[0.6rem] text-destructive">
               <TriangleAlert className="size-3 shrink-0" strokeWidth={1.5} />
-              {cuts.length} cuts in {total}s — past about {SOFT_CUT_LIMIT} the cuts stop reading.
+              {ladder.reason}
             </p>
           )}
 
           <p className="px-1.5 pt-1.5 text-[0.6rem] text-muted-foreground">
-            {d.seededFrom?.scriptTitle ? `from "${d.seededFrom.scriptTitle}" · ` : ""}full script
+            {cap.label}
+            {d.seededFrom?.scriptTitle ? ` · from "${d.seededFrom.scriptTitle}"` : ""} · full script
             context
           </p>
 
@@ -160,6 +165,8 @@ export function MultishotNode({ id, data, selected }: NodeProps) {
       cuts={cuts}
       scriptTitle={d.seededFrom?.scriptTitle}
       onChange={setCuts}
+      targetModel={d.targetModel}
+      onTargetModelChange={setTargetModel}
     />
     </>
   );

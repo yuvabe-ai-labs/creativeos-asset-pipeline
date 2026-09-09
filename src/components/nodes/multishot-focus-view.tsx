@@ -8,13 +8,17 @@ import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { GuidedNextButton } from "@/components/canvas/guided-next-button";
 import { EditableField } from "./editable-field";
 import {
-  MIN_CUT_SECONDS,
   headroomOf,
   resizeCut,
   totalOf,
   type MultishotCut,
 } from "@/lib/nodes/multishot-cuts";
-import { OMNI_MAX_SECONDS, OMNI_MIN_SECONDS } from "@/lib/nodes/group-shots";
+import {
+  MULTISHOT_MODELS,
+  multishotCapabilityFor,
+  checkLadder,
+} from "@/lib/nodes/multishot-models";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 
 type MultishotFocusViewProps = {
   open: boolean;
@@ -25,6 +29,9 @@ type MultishotFocusViewProps = {
   cuts: MultishotCut[];
   scriptTitle?: string;
   onChange: (next: MultishotCut[]) => void;
+  /** D236 — which model this ladder is built for. Absent = the default (Gemini Omni). */
+  targetModel?: string;
+  onTargetModelChange: (modelId: string) => void;
 };
 
 /**
@@ -49,9 +56,9 @@ type MultishotFocusViewProps = {
  * which is what makes six cuts comparable at a glance.
  *
  * No-Total rework (operator request 2026-09-03): there is no Total control any more — the clip's
- * length simply IS `totalOf(cuts)`, so the header just states it against Omni's ceiling. A cut's
- * slider spends headroom under that shared ceiling and NEVER moves a neighbour; when the ladder
- * is full a cut just stops growing and the line under Cuts says so.
+ * length simply IS `totalOf(cuts)`, so the header just states it against the chosen model's
+ * ceiling (D236). A cut's slider spends headroom under that shared ceiling and NEVER moves a
+ * neighbour; when the ladder is full a cut just stops growing and the line under Cuts says so.
  */
 export function MultishotFocusView({
   open,
@@ -61,13 +68,16 @@ export function MultishotFocusView({
   cuts,
   scriptTitle,
   onChange,
+  targetModel,
+  onTargetModelChange,
 }: MultishotFocusViewProps) {
   const editable = useCanvasEditable();
   const isReadOnly = !editable; // D33: strict read-only under the lock
 
+  const cap = multishotCapabilityFor(targetModel);
   const total = totalOf(cuts);
-  const outsideOmniWindow = total < OMNI_MIN_SECONDS || total > OMNI_MAX_SECONDS;
-  const atCeiling = headroomOf(cuts) === 0;
+  const ladder = checkLadder(cuts, cap);
+  const atCeiling = headroomOf(cuts, cap) === 0;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -98,17 +108,34 @@ export function MultishotFocusView({
               </div>
               {/* The header's right slot, laid out exactly as every prompt focus view lays it
                   out (prompt-focus-shell.tsx, prompt-focus-view.tsx): a status readout, then the
-                  guided next step, in one `flex shrink-0 items-center gap-2`. There the readout
-                  is credits used; here it is the clip's length against Omni's ceiling. Same slot,
-                  same order, same spacing — so moving between nodes, the button is always in the
-                  place the hand already went. */}
+                  guided next step, in one `flex shrink-0 items-center gap-2`. The model Select
+                  leads the row because it GOVERNS the readout beside it — changing it re-derives
+                  the ceiling that readout is measured against, so reading right-to-left the row
+                  says "this model, this much of its budget, then what's next". */}
               <div className="flex shrink-0 items-center gap-2">
+                <Select
+                  value={cap.id}
+                  onValueChange={(v) => onTargetModelChange(String(v))}
+                  disabled={isReadOnly}
+                >
+                  <SelectTrigger className="h-9 w-[168px] text-sm" aria-label="Multishot model">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {MULTISHOT_MODELS.map((m) => (
+                      <SelectItem key={m.id} value={m.id}>
+                        {m.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
                 <div className="text-right">
                   <p className="text-sm font-medium tabular-nums">
-                    <span className={outsideOmniWindow ? "text-destructive" : "text-foreground"}>
+                    <span className={ladder.ok ? "text-foreground" : "text-destructive"}>
                       {total}s
                     </span>
-                    <span className="text-muted-foreground"> / {OMNI_MAX_SECONDS}s max</span>
+                    <span className="text-muted-foreground"> / {cap.maxTotalSeconds}s max</span>
                   </p>
                   <p className="text-eyebrow mt-0.5 text-muted-foreground">{cuts.length} cuts</p>
                 </div>
@@ -132,10 +159,20 @@ export function MultishotFocusView({
               <span className="text-eyebrow">Cuts</span>
             </div>
             <div className="flex flex-col gap-4">
-            {atCeiling && (
+            {/* D237 — a ladder the current model cannot take is STATED, never clamped. Switching
+                a 14s Kling ladder to Omni leaves every cut exactly where the operator put it and
+                puts the problem in words here. Silent clamping is the same surprise as
+                redistribution, one level up. */}
+            {!ladder.ok && (
+              <p className="flex items-center gap-1.5 text-xs text-destructive">
+                <TriangleAlert className="size-3.5 shrink-0" strokeWidth={1.5} />
+                {ladder.reason}
+              </p>
+            )}
+            {ladder.ok && atCeiling && (
               <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <TriangleAlert className="size-3.5 shrink-0" strokeWidth={1.5} />
-                {OMNI_MAX_SECONDS}s maximum reached.
+                {cap.maxTotalSeconds}s maximum reached.
               </p>
             )}
 
@@ -172,22 +209,22 @@ export function MultishotFocusView({
                   </div>
 
                   <div className="flex flex-col items-center gap-1">
-                    {/* Every cut's slider runs the SAME 1-10s scale, so a 2s cut sits at the
-                        same place on every row and two cuts can be compared at a glance.
-                        Deriving each max from the remaining headroom instead made an untouched
-                        cut's thumb jump the moment another cut grew — its seconds were
+                    {/* Every cut's slider runs the SAME 1-cap.maxTotalSeconds scale, so a 2s cut
+                        sits at the same place on every row and two cuts can be compared at a
+                        glance. Deriving each max from the remaining headroom instead made an
+                        untouched cut's thumb jump the moment another cut grew — its seconds were
                         unchanged, but its track had shrunk under it, which reads as the other
                         slider having moved it. A stable scale is worth more than avoiding the
                         short over-drag that resizeCut clamps. */}
                     <Slider
                       value={[cut.seconds]}
-                      min={MIN_CUT_SECONDS}
-                      max={OMNI_MAX_SECONDS}
+                      min={cap.minCutSeconds}
+                      max={cap.maxTotalSeconds}
                       step={1}
                       disabled={isReadOnly}
                       aria-label={`Cut ${i + 1} length in seconds`}
                       onValueChange={(v) =>
-                        onChange(resizeCut(cuts, i, Array.isArray(v) ? v[0] : v))
+                        onChange(resizeCut(cuts, i, Array.isArray(v) ? v[0] : v, cap))
                       }
                       className="w-full"
                     />

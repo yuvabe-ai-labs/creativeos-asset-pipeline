@@ -15,13 +15,15 @@ import { toast } from "sonner";
 import { wouldCreateCycle } from "@/lib/canvas/graph";
 import { DEFAULT_CLIENT_MODEL_ID } from "@/lib/image-gen/client-models";
 import { planGuidedNext } from "@/lib/guided-flow";
-import { DEFAULT_VIDEO_CLIENT_MODEL_ID, GEMINI_OMNI_MODEL_ID } from "@/lib/video-gen/client-models";
+import { DEFAULT_VIDEO_CLIENT_MODEL_ID } from "@/lib/video-gen/client-models";
 import type { AppNode, ShotNodeData, MultishotNodeData } from "./canvas-nodes";
 import type { ReelScript } from "@/lib/nodes/reel-script";
 import type { ShotComposeIdea } from "@/lib/nodes/shot-compose";
 import { deriveShotType } from "@/lib/nodes/shot-types";
 import { describeGenerations, generationKey } from "@/lib/nodes/group-shots";
-import { clampTotal, cutsFromShots, totalOf } from "@/lib/nodes/multishot-cuts";
+import { cutsFromShots, totalOf } from "@/lib/nodes/multishot-cuts";
+import { multishotCapabilityFor } from "@/lib/nodes/multishot-models";
+import type { MultishotPlan } from "@/lib/nodes/multishot-plan";
 import { shotDataToMultishot, multishotDataToShot } from "@/lib/nodes/multishot-convert";
 import type { GenerationRow } from "@/lib/db/types";
 import type { PlaybookRun } from "@/lib/copilot/runner";
@@ -168,23 +170,43 @@ export function createCanvasStore(
         toast.error("That connection would create a loop.");
         return;
       }
-      // Omni is the only multishot model (D217). Coerce the target's STORED modelId — filtering
-      // the picker is not enforcing a constraint: D216 hid every other chip but left the node's
-      // saved value alone, so a new node defaulting to Veo would have billed a Veo run against a
-      // ladder Veo ignores. Because the lanes are separate types this is a check on the source
-      // node's type — no traversal, no flag, no upstream to resolve.
+      // D236/D239 — coerce the target's STORED modelId to the model the connected plan was
+      // WRITTEN for. Filtering the picker is not enforcing a constraint: D216 hid every other chip
+      // but left the node's saved value alone, so a new node defaulting to Veo would have billed a
+      // Veo run against a ladder Veo ignores.
+      //
+      // One level further than the old check, which could stop at the source's type because there
+      // was only one possible answer. The choice lives on the MULTISHOT node (D236), so the walk is
+      // video-gen -> multishot-prompt -> multishot. A prompt node with no Multishot upstream yet
+      // falls back to the default, which is what an unconfigured node already resolves to.
       const sourceNode = get().nodes.find((n) => n.id === connection.source);
       const targetNode = get().nodes.find((n) => n.id === connection.target);
       if (sourceNode?.type === "multishot-prompt" && targetNode?.type === "video-gen") {
-        // Sensible defaults for the lane, not an override: 9:16 (reels are vertical) and 720p
-        // (Omni's only natively rendered tier — see params/gemini-omni.ts). Merged into the
-        // EXISTING params object and only where the operator hasn't already chosen a value —
-        // `updateNodeData` itself only shallow-merges top-level data keys, so handing it a bare
-        // `{ aspect_ratio, resolution }` would replace `params` wholesale and wipe every other
-        // param already set on the node.
+        const upstreamIds = get()
+          .edges.filter((e) => e.target === sourceNode.id)
+          .map((e) => e.source);
+        const multishotNode = get().nodes.find(
+          (n) => upstreamIds.includes(n.id) && n.type === "multishot",
+        );
+        // The PLAN's own stamp when there is a plan (D236) — the beats already exist and already
+        // carry one model's reference tokens, so what the Multishot node's Select says right now
+        // is not what a generation would be built from. Only with no plan yet does the node's
+        // field answer the question, because then it is what the next Generate will write with.
+        // Same precedence video-gen-focus-view.tsx and resolve-prompt.ts apply.
+        const connectedPlan = (sourceNode.data as { parsed?: MultishotPlan } | undefined)?.parsed;
+        const cap = multishotCapabilityFor(
+          connectedPlan && Array.isArray(connectedPlan.beats)
+            ? connectedPlan.targetModel
+            : (multishotNode?.data as { targetModel?: string } | undefined)?.targetModel,
+        );
+
+        // Sensible defaults for the lane, not an override: 9:16 (reels are vertical) and 720p.
+        // Merged into the EXISTING params object and only where the operator hasn't already chosen
+        // a value — `updateNodeData` shallow-merges top-level keys, so a bare object would replace
+        // `params` wholesale and wipe every other param already set.
         const existingParams = (targetNode.data as { params?: Record<string, unknown> }).params ?? {};
         get().updateNodeData(targetNode.id, {
-          modelId: GEMINI_OMNI_MODEL_ID,
+          modelId: cap.id,
           params: {
             aspect_ratio: "9:16",
             resolution: "720p",
@@ -457,10 +479,16 @@ export function createCanvasStore(
 
         if (generation.multishot) {
           // No Total control any more (multishot-cuts.ts's header) — `totalSeconds` is just the
-          // stored mirror of the ladder's own length, clamped into Omni's window. They start
-          // equal and stay equal, because there is no independent field left to drift.
+          // stored mirror of the ladder's own length. They start equal and stay equal, because
+          // there is no independent field left to drift.
+          //
+          // A MIRROR, NOT A CORRECTION (D237, canvas-nodes.ts): deliberately NOT clamped. Clamping
+          // here while the edit site (multishot-node.tsx) mirrors unclamped made a script-seeded
+          // single 2s shot store 3, so the card read "3s · 1 cuts" over `checkLadder`'s red "2s ·
+          // Gemini Omni 1.1 needs at least 3s." — two numbers for one ladder. The ladder keeps its
+          // real length and the violation is STATED, never silently corrected.
           const cuts = cutsFromShots(groupShots);
-          const totalSeconds = clampTotal(totalOf(cuts));
+          const totalSeconds = totalOf(cuts);
           return {
             id: crypto.randomUUID(),
             type: "multishot",

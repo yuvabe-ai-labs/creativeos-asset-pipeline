@@ -35,10 +35,12 @@ import { normalizeTitle } from "@/lib/nodes/title";
 import { Button } from "@/components/ui/button";
 import {
   DEFAULT_VIDEO_CLIENT_MODEL_ID,
-  GEMINI_OMNI_MODEL_ID,
   defaultsForVideoModel,
   videoGenClientModelMap,
 } from "@/lib/video-gen/client-models";
+import { multishotCapabilityFor, multishotRestrictionReason, checkLadder } from "@/lib/nodes/multishot-models";
+import { totalOf, type MultishotCut } from "@/lib/nodes/multishot-cuts";
+import type { MultishotPlan } from "@/lib/nodes/multishot-plan";
 import { smartMergeVideoParams } from "@/lib/video-gen/params/merge";
 import { autoAssignImageRoles } from "@/lib/video-gen/assign-image-roles";
 import { paramsForRestore } from "@/lib/generations/version-params";
@@ -95,7 +97,13 @@ import {
 import { VideoGenUsagePopover } from "./video-gen-usage-popover";
 import { VideoGenRequestPanel } from "./video-gen-request-panel";
 import { Skeleton } from "@/components/ui/skeleton";
-import { VideoGenParamsPanel } from "./video-gen-params-panel";
+import { VideoGenParamsPanel, hasParamsInGroup } from "./video-gen-params-panel";
+import {
+  Accordion,
+  AccordionItem,
+  AccordionTrigger,
+  AccordionContent,
+} from "@/components/ui/accordion";
 import { VideoGenConnectedSection } from "./video-gen-connected-section";
 import { RailItem } from "./focus-rail-item";
 import { AddConnection } from "./add-connection";
@@ -157,6 +165,102 @@ function applyDefaultImageRoles(
     }
   }
   return roles;
+}
+
+/**
+ * Everything a switch to `nextModelId` implies for this node's params and image roles.
+ *
+ * Extracted because there are now TWO ways the model changes: the operator picking one
+ * (`handleModelChange`) and the multishot lane coercing one (D232/D236 — the model is the
+ * connected PLAN's, not a choice). The coercion used to patch `modelId` alone, so an Omni node
+ * sitting at `resolution: "360p"` (Omni's draft tier) switched to Kling — which offers only
+ * 720p/1080p/4k — kept the 360p, the select rendered an unlisted value, Generate stayed enabled,
+ * and the request died as a 500 "No cost estimate available" AFTER a generation row had been
+ * inserted. Two call sites, one implementation (AGENTS.md).
+ *
+ * PURE: returns the next state, writes none of it. That is what lets the render-phase coercion
+ * call it — see the "adjust state during render" block below — without smuggling a side effect
+ * into a render.
+ */
+function migrateVideoModelState({
+  nextModelId,
+  currentParams,
+  currentRoles,
+  upstreamImages,
+  derivedDuration,
+}: {
+  nextModelId: string;
+  currentParams: Record<string, unknown>;
+  currentRoles: Record<string, ImageRole>;
+  upstreamImages: UpstreamImage[];
+  /**
+   * D216 — the upstream Shot's own beat total, or `null` when the derivation must not apply
+   * (duration already set on this node, or no Shot upstream). Gated by the CALLER, because
+   * "already set" is a prop question this function has no business knowing about.
+   */
+  derivedDuration: number | null;
+}): {
+  params: Record<string, unknown>;
+  imageRoles: Record<string, ImageRole>;
+  durationIsDerived: boolean;
+} {
+  const nextModel = videoGenClientModelMap[nextModelId];
+  const defaults = nextModel
+    ? smartMergeVideoParams(currentParams, nextModel)
+    : defaultsForVideoModel(nextModelId);
+
+  // D216 — a multi-beat shot's motion prompt is a timecode ladder; the request's duration should
+  // agree with it by default. Gated to the Omni provider — its duration param is the 3–10 slider
+  // this targets; applying a derived number to Veo/Kling's differently-shaped duration control
+  // would 400.
+  const durationIsDerived = nextModel?.provider === "gemini" && derivedDuration != null;
+  if (durationIsDerived && derivedDuration != null) defaults.duration = derivedDuration;
+
+  // Migrate image roles — remove roles the new model doesn't support
+  const nextInputs = nextModel?.imageInputs;
+  const roles = { ...currentRoles };
+  let startFrameAssigned = Object.values(roles).includes("start_frame");
+
+  if (nextInputs) {
+    for (const [imageId, role] of Object.entries(roles)) {
+      const invalid =
+        (role === "reference" && nextInputs.maxReferenceImages === 0) ||
+        (role === "end_frame" && !nextInputs.endFrame) ||
+        (role === "start_frame" && !nextInputs.startFrame);
+
+      if (invalid) {
+        if (!startFrameAssigned && nextInputs.startFrame) {
+          roles[imageId] = "start_frame";
+          startFrameAssigned = true;
+        } else {
+          delete roles[imageId];
+        }
+      }
+    }
+  }
+
+  const nextRules = nextModel?.rules;
+
+  // Capability migration above only knows startFrame/endFrame/maxReferenceImages, and the
+  // default fill happily adds references on top of existing frames — so reconcile against the
+  // new model's RULES before persisting, or the node is written in a state the API rejects.
+  const imageRoles = reconcileRolesWithRules(
+    nextRules,
+    nextInputs ? applyDefaultImageRoles(upstreamImages, nextInputs, roles) : roles,
+    defaults,
+  );
+
+  // Commit any constraint-locked values into params so they persist after the lock clears.
+  const nextConstraints = evaluateConstraints(
+    nextRules,
+    buildConstraintState(imageRoles, defaults),
+  );
+
+  return {
+    params: { ...defaults, ...nextConstraints.lockedParams },
+    imageRoles,
+    durationIsDerived,
+  };
 }
 
 type Props = {
@@ -482,31 +586,121 @@ export function VideoGenFocusView({
   const onPatchRef = useRef(onPatch);
   useEffect(() => { onPatchRef.current = onPatch; });
 
-  // D232 — belt and braces, mirroring canvas-store's onConnect coercion: a multishot-prompt
-  // upstream can only generate on Omni, and filtering the picker's list (below) is not enforcing
-  // that constraint on its own — a node whose stored modelId predates the connection would sit on
-  // a model the restricted picker no longer offers a chip for, and doGenerate reads local `modelId`
-  // state directly. A node-type check on the direct upstream, no traversal — see
-  // UpstreamPromptNode.type.
+  // D236 — the grandparent Multishot node's `targetModel`, resolved from the canvas store the
+  // same way multishot-prompt-node.tsx does (edges filtered for `e.target === <id>`, then the
+  // source node of type "multishot"). `promptNode` here comes from the /upstream-images route
+  // (UpstreamPromptNode: `{ id, type, text }`) and does NOT carry the Multishot node's data, so
+  // this cannot be read off it directly — and it is client state already loaded in the store, so
+  // no fetch is added.
+  const upstreamMultishotTargetModel = useCanvasStore((s) => {
+    if (!promptNode || promptNode.type !== "multishot-prompt") return undefined;
+    const sourceIds = s.edges.filter((e) => e.target === promptNode.id).map((e) => e.source);
+    const multishotNode = s.nodes.find((n) => sourceIds.includes(n.id) && n.type === "multishot");
+    return (multishotNode?.data as { targetModel?: string } | undefined)?.targetModel;
+  });
+
+  // D236 — the same one-hop-further walk, for the cut ladder itself. video-generate/route.ts
+  // bills `totalOf(cuts)`, not this node's own `duration` param — a Kling node can sit at its
+  // default `duration: 5` while a 12s ladder is connected, and the route generates and bills the
+  // 12. The credit estimate below and the disabled-Generate check both need the ladder that will
+  // actually be billed/checked, not the (possibly stale) param.
+  const upstreamMultishotCuts = useCanvasStore((s) => {
+    if (!promptNode || promptNode.type !== "multishot-prompt") return undefined;
+    const sourceIds = s.edges.filter((e) => e.target === promptNode.id).map((e) => e.source);
+    const multishotNode = s.nodes.find((n) => sourceIds.includes(n.id) && n.type === "multishot");
+    return (multishotNode?.data as { cuts?: MultishotCut[] } | undefined)?.cuts;
+  });
+
+  // D236 — the model THE CONNECTED PLAN was written for, read off its own `targetModel` stamp.
+  // The multishot-prompt node's plan lives in the store as `data.parsed` (multishot-prompt-node.tsx
+  // reads it the same way), so this is client state already loaded — no fetch is added.
   //
-  // Local state: React's documented "adjust state during render" pattern (same shape as
-  // `openNodeSeed` above) rather than an effect — calling a setState setter directly in the
-  // render body, gated so it only fires once per divergence and terminates immediately (coercing
-  // `modelId` flips the very condition being checked, same as the seed check above it).
+  //   undefined — no plan on that node yet, so there is nothing written to misread
+  //   null       — a plan with no stamp, i.e. one written before the stamp existed: Gemini Omni
+  //   string     — the stamp itself
+  //
+  // Distinguishing the first two matters: with no plan, the node's own `targetModel` is the honest
+  // answer (it is what the next Generate will write with); with an unstamped plan it is NOT, and
+  // falling back to it is precisely the bug — see resolve-prompt.ts.
+  const connectedPlanTargetModel = useCanvasStore((s) => {
+    if (!promptNode || promptNode.type !== "multishot-prompt") return undefined;
+    const node = s.nodes.find((n) => n.id === promptNode.id);
+    const plan = (node?.data as { parsed?: MultishotPlan } | undefined)?.parsed;
+    if (!plan || typeof plan !== "object" || !Array.isArray(plan.beats)) return undefined;
+    return plan.targetModel ?? null;
+  });
+
+  // The one model id every multishot surface in this view reads: the picker's lock, its
+  // restriction sentence, and the ladder legality check. Derived ONCE so the three cannot disagree
+  // — and so all three say what the server's own guard (video-generate/route.ts) will say, since
+  // that guard also resolves the plan's stamp.
   const isMultishotPromptConnected = promptNode?.type === "multishot-prompt";
-  if (!loadingConnected && editable && isMultishotPromptConnected && modelId !== GEMINI_OMNI_MODEL_ID) {
-    setModelId(GEMINI_OMNI_MODEL_ID);
+  const effectiveMultishotModel =
+    connectedPlanTargetModel !== undefined
+      ? connectedPlanTargetModel
+      : upstreamMultishotTargetModel;
+
+  // D232/D236 — belt and braces, mirroring canvas-store's onConnect coercion: a node whose stored
+  // modelId predates the connection would sit on a model the restricted picker no longer offers a
+  // chip for, and doGenerate reads local `modelId` state directly.
+  //
+  // The model is the one the connected PLAN was written for, not a constant — the beats carry
+  // that model's reference tokens and the ladder was built against its window.
+  //
+  // Local state: React's documented "adjust state during render" pattern rather than an effect —
+  // setState setters called in the render body, gated so they fire once per divergence and
+  // terminate immediately (coercing `modelId` flips the very condition being checked).
+  //
+  // PARAMS MIGRATE WITH THE MODEL, through the same `migrateVideoModelState` the operator's own
+  // model change runs. Patching `modelId` alone left the params behind: an Omni node at
+  // `resolution: "360p"` (Omni's draft tier) coerced to Kling — 720p/1080p/4k only — kept the
+  // 360p, rendered a select holding an unlisted value, left Generate enabled, and posted it. The
+  // route then rebuilt params from Kling's specs, took "360p" from the body, `computeVideoCost`
+  // returned null, and the request died as a 500 AFTER inserting a generation row.
+  const multishotTargetModel = isMultishotPromptConnected
+    ? multishotCapabilityFor(effectiveMultishotModel).id
+    : undefined;
+  if (
+    !loadingConnected &&
+    editable &&
+    multishotTargetModel !== undefined &&
+    modelId !== multishotTargetModel
+  ) {
+    const migrated = migrateVideoModelState({
+      nextModelId: multishotTargetModel,
+      currentParams: params,
+      currentRoles: imageRolesProp,
+      upstreamImages,
+      // Never derived on this lane: D216's derivation reads an upstream SHOT node's beats, and
+      // this lane's upstream is a Multishot node. The request's duration here is `totalOf(cuts)`,
+      // which video-generate/route.ts sets server-side whatever this param says.
+      derivedDuration: null,
+    });
+    setModelId(multishotTargetModel);
+    setParams(migrated.params);
+    setDurationIsDerived(false);
   }
 
   // Persisted state: mirrors the auto-assign-roles effect below it — an effect that calls only
   // `onPatch` (a prop callback, not a local setState setter) is the established safe shape in
-  // this file. Fires once the render-phase fix above has already landed `modelId` on Omni.
+  // this file. Fires once the render-phase fix above has already landed `modelId` AND `params` on
+  // the target, so it persists the migrated params rather than recomputing them here (one
+  // computation, one result — and no setState inside an effect).
+  //
+  // Roles are deliberately NOT patched here: `supportedImageRoles` / `effectiveImageRoles` below
+  // already drop roles the current model cannot take, on every render, and `doGenerate` posts
+  // those — so the coerced lane never sends a role the model rejects, and the existing
+  // auto-assign effect persists the filled set on its own.
   useEffect(() => {
     if (loadingConnected || !editable) return;
-    if (isMultishotPromptConnected && modelId === GEMINI_OMNI_MODEL_ID && modelIdProp !== GEMINI_OMNI_MODEL_ID) {
-      onPatch({ modelId: GEMINI_OMNI_MODEL_ID });
+    if (
+      multishotTargetModel !== undefined &&
+      modelId === multishotTargetModel &&
+      modelIdProp !== multishotTargetModel
+    ) {
+      onPatch({ modelId: multishotTargetModel, params });
     }
-  }, [loadingConnected, editable, isMultishotPromptConnected, modelId, modelIdProp, onPatch]);
+  }, [loadingConnected, editable, modelId, modelIdProp, onPatch, multishotTargetModel, params]);
 
   // ── Data fetching ──────────────────────────────────────────────────────────
 
@@ -655,71 +849,27 @@ export function VideoGenFocusView({
   // ── Handlers ───────────────────────────────────────────────────────────────
 
   function handleModelChange(nextModelId: string) {
+    // `paramsProp == null` is the one clean "not already set" signal this node has: every later
+    // patch (this one included) writes the WHOLE params object, so from the next render on
+    // `duration` reads as "set" whether it came from the operator or from this same derivation —
+    // smartMergeVideoParams then carries it forward untouched, which is exactly what keeps an
+    // operator's own edit from ever being overwritten.
+    const migrated = migrateVideoModelState({
+      nextModelId,
+      currentParams: params,
+      currentRoles: imageRolesProp,
+      upstreamImages,
+      derivedDuration: paramsProp == null ? derivedDuration : null,
+    });
+
     setModelId(nextModelId);
-    const nextModel = videoGenClientModelMap[nextModelId];
-    const defaults = nextModel
-      ? smartMergeVideoParams(params, nextModel)
-      : defaultsForVideoModel(nextModelId);
-
-    // D216 — a multi-beat shot's motion prompt is a timecode ladder; the request's duration
-    // should agree with it by default. `paramsProp == null` is the one clean "not already set"
-    // signal this node has: every later patch (this one included) writes the WHOLE params
-    // object, so from the next render on `duration` reads as "set" whether it came from the
-    // operator or from this same derivation — smartMergeVideoParams then carries it forward
-    // untouched, which is exactly what keeps an operator's own edit from ever being overwritten.
-    // Gated to the Omni provider — its duration param is the 3–10 slider this clamp targets;
-    // applying a derived number to Veo/Kling's differently-shaped duration control would 400.
-    const applyDerivedDuration =
-      paramsProp == null && nextModel?.provider === "gemini" && derivedDuration != null;
-    if (applyDerivedDuration && derivedDuration != null) defaults.duration = derivedDuration;
-    setDurationIsDerived(applyDerivedDuration);
-
-    // Migrate image roles — remove roles the new model doesn't support
-    const nextInputs = videoGenClientModelMap[nextModelId]?.imageInputs;
-    const currentRoles = { ...imageRolesProp };
-    let startFrameAssigned =
-      Object.values(currentRoles).includes("start_frame");
-
-    if (nextInputs) {
-      for (const [imageId, role] of Object.entries(currentRoles)) {
-        const invalid =
-          (role === "reference" && nextInputs.maxReferenceImages === 0) ||
-          (role === "end_frame" && !nextInputs.endFrame) ||
-          (role === "start_frame" && !nextInputs.startFrame);
-
-        if (invalid) {
-          if (!startFrameAssigned && nextInputs.startFrame) {
-            currentRoles[imageId] = "start_frame";
-            startFrameAssigned = true;
-          } else {
-            delete currentRoles[imageId];
-          }
-        }
-      }
-    }
-
-    const nextRules = videoGenClientModelMap[nextModelId]?.rules;
-
-    // Capability migration above only knows startFrame/endFrame/maxReferenceImages, and the
-    // default fill happily adds references on top of existing frames — so reconcile against the
-    // new model's RULES before persisting, or the node is written in a state the API rejects.
-    const finalRoles = reconcileRolesWithRules(
-      nextRules,
-      nextInputs
-        ? applyDefaultImageRoles(upstreamImages, nextInputs, currentRoles)
-        : currentRoles,
-      defaults,
-    );
-
-    // Commit any constraint-locked values into params so they persist after the lock clears.
-    const nextConstraints = evaluateConstraints(
-      nextRules,
-      buildConstraintState(finalRoles, defaults),
-    );
-    const finalParams = { ...defaults, ...nextConstraints.lockedParams };
-
-    setParams(finalParams);
-    onPatch({ modelId: nextModelId, params: finalParams, imageRoles: finalRoles });
+    setDurationIsDerived(migrated.durationIsDerived);
+    setParams(migrated.params);
+    onPatch({
+      modelId: nextModelId,
+      params: migrated.params,
+      imageRoles: migrated.imageRoles,
+    });
   }
 
   function handleParamChange(name: string, value: unknown) {
@@ -808,7 +958,11 @@ export function VideoGenFocusView({
     // C0: whatever the model's rules forbid — button should be disabled, but guard anyway. This
     // used to be a hardcoded "Kling needs a start frame" check; D101 made that false for O1, which
     // generates from references alone, so the question is asked of the rules instead.
-    if (constraints.disableGenerate) return;
+    //
+    // D236 — `disableGenerate` also covers an illegal multishot ladder (checkLadder), not just
+    // the rules engine's `constraints.disableGenerate`. Same belt-and-braces reasoning: the
+    // button should already be disabled, guard anyway.
+    if (disableGenerate) return;
 
     // C2: images connected but none assigned (non-Kling providers)
     if (upstreamImages.length > 0 && Object.keys(effectiveImageRoles).length === 0) {
@@ -1010,11 +1164,40 @@ export function VideoGenFocusView({
   // Pre-generation credit estimate. Reads effectiveParams, NOT params — for the same reason
   // doGenerate does. A rule can pin duration to 8s while `params.duration` still holds the 6 the
   // operator last picked, and estimating off the stale 6 would quote one price and bill another.
-  const durationSeconds = Number(effectiveParams.seconds ?? effectiveParams.duration ?? 0);
+  //
+  // D236 — the multishot lane is the ONE exception to "read effectiveParams": video-generate/
+  // route.ts overwrites `resolvedParams.duration` with `totalOf(cuts)` on that lane, so the
+  // node's own `duration` param is never what gets billed there. A Kling node can sit at its
+  // default `duration: 5` while a 12s ladder is connected; quoting off the param would repeat
+  // exactly the stale-price bug this comment already warns about, one lane over. Falls back to
+  // the param-based read when the ladder isn't available yet (e.g. still loading).
+  const durationSeconds =
+    isMultishotPromptConnected && upstreamMultishotCuts
+      ? totalOf(upstreamMultishotCuts)
+      : Number(effectiveParams.seconds ?? effectiveParams.duration ?? 0);
   const audioEnabled = isVideoAudioEnabled(effectiveParams.audio);
   const resolution = asResolutionString(effectiveParams.resolution);
   const videoCostEstimate = computeVideoCost(modelId, durationSeconds, audioEnabled, resolution);
   const estimatedCredits = videoCostEstimate ? usdToFinalCredits(videoCostEstimate.usd) : null;
+
+  // D236 — Video Gen's own disabled-Generate check for an illegal ladder. checkLadder's doc
+  // comment (multishot-models.ts) has always claimed its reason "is shown verbatim on ... Video
+  // Gen's disabled Generate", but there was no call site here: a 14s Kling ladder switched to
+  // Omni let the operator click Generate and pay for a 400 from the server backstop instead of
+  // seeing the button disabled. Reuses the cuts already read above; only evaluated on the
+  // multishot lane, so the non-multishot lane's constraints are untouched. `constraints`
+  // (evaluateConstraints, above) takes precedence when it already disables Generate, so the two
+  // checks don't fight over which reason wins.
+  const ladderCheck =
+    isMultishotPromptConnected && upstreamMultishotCuts
+      ? checkLadder(upstreamMultishotCuts, multishotCapabilityFor(effectiveMultishotModel))
+      : null;
+  const disableGenerate = constraints.disableGenerate || Boolean(ladderCheck && !ladderCheck.ok);
+  const disableGenerateReason = constraints.disableGenerate
+    ? constraints.disableGenerateReason
+    : ladderCheck && !ladderCheck.ok
+      ? ladderCheck.reason
+      : constraints.disableGenerateReason;
 
   // D95: the duration label the current combination actually yields — read off the model's own
   // param spec so it stays correct when a spec changes (e.g. O1's 5/10 select), but a rule-locked
@@ -1288,10 +1471,10 @@ export function VideoGenFocusView({
                     modelId={modelId}
                     onModelChange={handleModelChange}
                     loading={loadingConnected}
-                    lockedToModelId={isMultishotPromptConnected ? GEMINI_OMNI_MODEL_ID : undefined}
+                    lockedToModelId={multishotTargetModel}
                     restrictionReason={
                       isMultishotPromptConnected
-                        ? "Connected to a Multishot Prompt. Only Omni can generate a multi-shot plan — other models ignore the timecode ladder and return a single take."
+                        ? multishotRestrictionReason(effectiveMultishotModel)
                         : undefined
                     }
                   >
@@ -1312,6 +1495,45 @@ export function VideoGenFocusView({
                       <p className="mt-2 text-[0.7rem] text-muted-foreground">
                         Derived from this shot ({String(effectiveParams.duration)}s)
                       </p>
+                    )}
+
+                    {/* Advanced settings — restored (operator request 2026-09-09).
+                        The section was deleted in 7e1c643, which silently orphaned every param
+                        in the group: `audio` was still sent on every request and still priced
+                        into every estimate, while the operator had no control to set it, so a
+                        Kling clip could only ever come back silent. `hasParamsInGroup` was left
+                        behind in the panel with a doc comment saying it "drives showing the
+                        Advanced section" — this is the caller it was written for.
+
+                        Closed by default, and gated on the model actually having a visible
+                        advanced param: an empty disclosure is worse than none, and most models
+                        here have nothing in this group. Collapsed rather than promoted to
+                        primary because these are genuine fine-tunes next to resolution and
+                        duration — the same call the Multishot Prompt view's look block makes. */}
+                    {hasParamsInGroup(modelId, "advanced") && (
+                      <Accordion className="mt-4 border-t border-border pt-3">
+                        <AccordionItem value="advanced" className="border-none">
+                          <AccordionTrigger className="py-0 hover:no-underline">
+                            <span className="flex items-center gap-1.5">
+                              <SlidersHorizontal
+                                className="size-3.5 text-primary"
+                                strokeWidth={1.5}
+                              />
+                              <span className="text-eyebrow">Advanced</span>
+                            </span>
+                          </AccordionTrigger>
+                          <AccordionContent className="pt-3">
+                            <VideoGenParamsPanel
+                              modelId={modelId}
+                              params={effectiveParams}
+                              onParamChange={handleParamChange}
+                              lockedParams={constraints.lockedParams}
+                              lockedParamReasons={constraints.lockedParamReasons}
+                              group="advanced"
+                            />
+                          </AccordionContent>
+                        </AccordionItem>
+                      </Accordion>
                     )}
                   </VideoGenModelPicker>
                   {(() => {
@@ -1352,7 +1574,7 @@ export function VideoGenFocusView({
                           className="w-full"
                           onClick={handleGenerate}
                           disabled={
-                            isGenerating || constraints.disableGenerate || !editable
+                            isGenerating || disableGenerate || !editable
                           }
                         >
                           <Sparkles className="size-4" strokeWidth={1.5} />
@@ -1366,9 +1588,9 @@ export function VideoGenFocusView({
                           )}
                         </Button>
                       </TooltipTrigger>
-                      {constraints.disableGenerate && constraints.disableGenerateReason ? (
+                      {disableGenerate && disableGenerateReason ? (
                         <TooltipContent side="bottom">
-                          {constraints.disableGenerateReason}
+                          {disableGenerateReason}
                         </TooltipContent>
                       ) : null}
                     </Tooltip>

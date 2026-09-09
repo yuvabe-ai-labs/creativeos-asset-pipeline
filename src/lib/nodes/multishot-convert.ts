@@ -4,7 +4,7 @@
 // what makes the switch a real undo is that a flip and a flip-back cost the operator nothing.
 // That property only holds if the two functions are written against each other.
 import type { ShotNodeData, MultishotNodeData } from "@/lib/canvas-nodes";
-import { clampTotal, cutsFromShots, shotsFromCuts, totalOf } from "./multishot-cuts";
+import { cutsFromShots, shotsFromCuts, totalOf } from "./multishot-cuts";
 import { deriveShotType } from "./shot-types";
 
 export function shotDataToMultishot(data: ShotNodeData): MultishotNodeData {
@@ -12,11 +12,16 @@ export function shotDataToMultishot(data: ShotNodeData): MultishotNodeData {
   const cuts = cutsFromShots(shots);
 
   // No Total control any more (multishot-cuts.ts's header) — `totalSeconds` is just the stored
-  // mirror of the ladder's own length, clamped into Omni's window for the field that seeds a
-  // request's duration. `clampTotal` only clamps the NUMBER; it never reshapes `cuts` to match,
-  // so the two can disagree here only in the pre-existing edge case group-shots.ts documents (a
-  // single shot longer than OMNI_MAX_SECONDS forced into its own over-cap group).
-  const totalSeconds = clampTotal(totalOf(cuts));
+  // mirror of the ladder's own length.
+  //
+  // A MIRROR, NOT A CORRECTION (D237, canvas-nodes.ts): deliberately NOT clamped into any model's
+  // window. It was `clampTotal(totalOf(cuts), …)` here and at canvas-store.ts's seed site after the
+  // clamp had already been dropped from the EDIT site (multishot-node.tsx), which is how a
+  // script-seeded single 2s shot stored `totalSeconds: 3` while `totalOf(cuts)` was 2 — the card
+  // showed "3s · 1 cuts" in large type with `checkLadder`'s red "2s · Gemini Omni 1.1 needs at
+  // least 3s." underneath it. Two numbers for one ladder, and the wrong one in the larger type.
+  // The ladder keeps its real length; the violation is STATED by `checkLadder`.
+  const totalSeconds = totalOf(cuts);
 
   return {
     order: data.order,

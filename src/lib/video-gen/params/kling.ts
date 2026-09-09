@@ -52,6 +52,16 @@ function durationSelectParam(options: string[], defaultValue: string): ParamSpec
   };
 }
 
+// ADVANCED, and now actually reachable. The Advanced section was deleted from the video-gen
+// focus view in 7e1c643, which left every control in this group rendering nowhere — audio was
+// sent on every request (buildOmniSettings / build3_0Settings) and priced on every estimate
+// (isVideoAudioEnabled → cost.ts's `on`/`off` columns), while the operator had no way to ask for
+// sound. The section is restored rather than the param promoted: sound is a genuine fine-tune
+// next to resolution and duration, and `hasParamsInGroup` was still sitting in the panel with a
+// doc comment saying it "drives showing the Advanced section".
+//
+// Default stays "off": sound is opt-in on a product clip, and on Kling it costs real money —
+// +33% at 720p and +25% at 1080p on 3.0 Omni (cost.ts).
 function audioParam(options: string[], defaultValue: string): ParamSpec {
   return {
     name: "audio",
@@ -119,7 +129,7 @@ export const KLING_NEGATIVE_DEFAULT =
 
 // PRIMARY, not advanced: it is tuned per shot often enough to belong on the always-visible
 // surface. Orders last within the group so the textarea renders full-width below the paired
-// Resolution + Duration row (and, on O1, below Aspect Ratio).
+// Resolution + Duration row (and, on the omni endpoints, below Aspect Ratio).
 const negativePromptParam: ParamSpec = {
   name: "negative_prompt",
   label: "Negative Prompt",
@@ -136,6 +146,31 @@ export const kling30Params: ParamSpec[] = [
   durationParam(3, 15, 5),
   audioParam(["native", "off"], "off"),
   multiShotParam,
+  negativePromptParam,
+];
+
+// Kling 3.0 Omni — /omni-video/kling-3.0-omni. The flagship, and the Kling endpoint the
+// multishot lane targets: it parses a shot list out of the prompt as `shot n, m, words;` triples
+// (D238). Offers 4k, which O1 does not.
+//
+// duration is a SLIDER (a number), not O1's 5/10 chip select: the 3-15 range is continuous here,
+// and the multishot lane sets it from the cut ladder's own total, which is any integer in range.
+//
+// audio is native/off for the same reason O1's is — see the note below kling30Params: `original`
+// retains a reference video's own soundtrack, and buildKlingContents never sends one, so
+// offering it would be a choice between silence and silence.
+//
+// multi_shot is the shared hidden param, default false — a single continuous moment is what a
+// product clip wants, so it is opt-in. What differs on THIS endpoint is not the declared default
+// but the consequence of omitting the field: Kling defaults it to `true` server-side, so a
+// request that leaves it out silently gets cuts. buildOmniSettings (providers/kling.ts) therefore
+// always sends it explicitly, whichever way it is set.
+export const kling30OmniParams: ParamSpec[] = [
+  resolutionParam(["720p", "1080p", "4k"], "720p"),
+  durationParam(3, 15, 5),
+  audioParam(["native", "off"], "off"),
+  multiShotParam,
+  aspectRatioParam,
   negativePromptParam,
 ];
 

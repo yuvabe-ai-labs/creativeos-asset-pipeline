@@ -131,13 +131,30 @@ export type MultishotNodeData = {
   script?: ReelScript;
   order?: number;
   /** There is no Total control (operator request 2026-09-03, multishot-cuts.ts's header) —
-   *  `totalSeconds` is just the stored mirror of the ladder's own length, `clampTotal(totalOf(
-   *  cuts))`. Every writer of `cuts` MUST write this in the same `updateNodeData` call, so the
-   *  two never drift; there is no code path that sets one without the other. */
+   *  `totalSeconds` is just the stored mirror of the ladder's own length, `totalOf(cuts)`. Every
+   *  writer of `cuts` MUST write this in the same `updateNodeData` call, so the two never drift;
+   *  there is no code path that sets one without the other.
+   *
+   *  A MIRROR, NOT A CORRECTION — it is deliberately NOT clamped into the model's window. It was
+   *  `clampTotal(totalOf(cuts))` until D236/D237, which rounded a 2s ladder up to 3 and so
+   *  displayed a too-short ladder as legal while `checkLadder` called it illegal. A ladder outside
+   *  the target model's window keeps its real length here and the violation is STATED by
+   *  `checkLadder` (multishot-models.ts), never silently corrected. */
   totalSeconds?: number;
   /** The cut ladder. `totalOf(cuts)` and `totalSeconds` are kept equal by construction — see
    *  multishot-cuts.ts's header for the full model. */
   cuts?: MultishotCut[];
+  /**
+   * D236 — which multishot model this ladder is built for. A video-gen client model id.
+   *
+   * Absent reads as `DEFAULT_MULTISHOT_MODEL` (Gemini Omni), which is what every node that
+   * predates this field already is — so there is no migration and nothing is backfilled.
+   *
+   * It lives HERE, upstream of the prompt and of Video Gen, because the cut ladder needs its
+   * ceiling while it is being built. Video Gen inherits it (D239) rather than offering its own
+   * choice: by then the plan's beats already carry one model's reference tokens.
+   */
+  targetModel?: string;
   seededFrom?: { scriptNodeId: string; shotIndexes: number[]; scriptTitle?: string };
   // No `shot_type`: framing is decided per cut by the prompt writer, which carries the
   // shot-size, 30-degree and screen-direction rules. One stored framing would describe at
@@ -148,7 +165,9 @@ export type MultishotNodeData = {
  * The Multishot Prompt node (D231). Sibling of VideoPromptNodeData, deliberately not a superset.
  *
  * No `controls` — camera move and motion energy describe ONE continuous take.
- * No `targetProvider` — Omni is the only multishot model, so there is nothing to pick.
+ * No `targetProvider` — the model is chosen ONCE, upstream on the Multishot node
+ * (`MultishotNodeData.targetModel`, D236), and this node reads it from there. A second copy here
+ * is a second thing to keep in agreement with the ladder it was built for.
  */
 export type MultishotPromptNodeData = {
   title?: string;

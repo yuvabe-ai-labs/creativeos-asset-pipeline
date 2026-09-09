@@ -4,10 +4,11 @@ import { RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { MentionInstructionEditor } from "./mention-instruction-editor";
-import { imageRefDialect } from "@/lib/nodes/prompt-token-dialect";
+import { dialectForCapability } from "@/lib/nodes/prompt-token-dialect";
 import { RefineWithAI } from "./refine-with-ai";
 import { RefineProgress } from "./refine-progress";
 import type { UpstreamNode } from "./connected-inputs-card";
+import type { MultishotCapability } from "@/lib/nodes/multishot-models";
 
 /**
  * One full-width row of the breakup view's output (Option A, 2026-09-03) — a fixed-width
@@ -17,9 +18,9 @@ import type { UpstreamNode } from "./connected-inputs-card";
  * The timecode is READ-ONLY: durations live on the Multishot node and have exactly one home.
  * Clicking it focuses that node, which is where the budget is.
  *
- * The text is the SAME chip editor the instruction uses, in the `<IMAGE_REF_N>` dialect — so a
- * reference is a picture here as well as upstream, and editing the prose around it never exposes
- * the raw token.
+ * The text is the SAME chip editor the instruction uses, in the target model's reference dialect —
+ * so a reference is a picture here as well as upstream, and editing the prose around it never
+ * exposes the raw token.
  */
 export function MultishotBeatCard({
   index,
@@ -28,6 +29,7 @@ export function MultishotBeatCard({
   text,
   upstream,
   refIds,
+  cap,
   onChange,
   onRerun,
   onRefine,
@@ -36,6 +38,7 @@ export function MultishotBeatCard({
   showRerun = false,
   onFocusTimings,
   disabled = false,
+  aiDisabled = false,
   isLast = false,
 }: {
   index: number;
@@ -44,6 +47,8 @@ export function MultishotBeatCard({
   text: string;
   upstream: UpstreamNode[];
   refIds: string[];
+  /** The target model's capability — decides whether a chip stores `<IMAGE_REF_0>` or `@image_1`. */
+  cap: MultishotCapability;
   onChange: (next: string) => void;
   onRerun: () => void;
   /** Rewrite this beat with an operator note. Same call as onRerun, with a steer attached. */
@@ -65,6 +70,13 @@ export function MultishotBeatCard({
   // sets this true for every OTHER beat while one is being refined (`refining.cutId !==
   // beat.cutId`), so a rewrite of one beat cannot be interleaved with a hand-edit of another.
   disabled?: boolean;
+  /**
+   * Gates the two AI actions ONLY — the editor stays live. Set while the plan has unsaved hand
+   * edits (D242): a rewrite resolves against the snapshot it captured at submit time, so letting
+   * one start here would discard the edit with no error at all. Distinct from `disabled`, which
+   * also locks the editor and so cannot express "you may keep typing, but not rewrite".
+   */
+  aiDisabled?: boolean;
   // Suppresses the row's bottom border — the container draws borders BETWEEN rows, not under
   // the last one.
   isLast?: boolean;
@@ -97,7 +109,7 @@ export function MultishotBeatCard({
             <RefineWithAI
               scope="cut"
               busy={rerunning}
-              disabled={disabled}
+              disabled={disabled || aiDisabled}
               onSubmit={onRefine}
               mentionables={mentionables}
               label={`Refine shot ${index + 1} with AI`}
@@ -105,7 +117,7 @@ export function MultishotBeatCard({
             <Button
               variant="ghost"
               onClick={onRerun}
-              disabled={rerunning || disabled}
+              disabled={rerunning || disabled || aiDisabled}
               aria-label={`Rewrite shot ${index + 1}`}
               className="h-auto rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground dark:hover:bg-muted"
             >
@@ -127,7 +139,7 @@ export function MultishotBeatCard({
             onChange={onChange}
             upstream={upstream}
             disabled={disabled || rerunning}
-            dialect={imageRefDialect(refIds)}
+            dialect={dialectForCapability(cap, refIds)}
             placeholder="Not written yet…"
           />
         </div>

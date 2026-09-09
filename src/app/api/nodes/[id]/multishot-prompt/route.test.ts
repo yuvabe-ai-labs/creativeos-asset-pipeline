@@ -5,6 +5,7 @@ import {
   MULTISHOT_LOOK_SCHEMA,
   MULTISHOT_BEAT_SCHEMA,
 } from "@/prompts/multishot-prompt-generate";
+import { KLING_OMNI_MODEL_ID, GEMINI_OMNI_MODEL_ID } from "@/lib/video-gen/client-models";
 
 vi.mock("server-only", () => ({}));
 
@@ -49,6 +50,7 @@ vi.mock("@/lib/nodes/resolve-inputs", () => ({
     slices: [],
     upstream: [],
     cuts: CUTS,
+    targetModel: undefined,
   })),
   buildMultishotUserTurn: vi.fn(() => "USER TURN"),
 }));
@@ -72,6 +74,7 @@ const create = vi.fn();
 vi.mock("@/lib/openai/server", () => ({ createOpenAI: () => ({ chat: { completions: { create } } }) }));
 
 import { POST } from "./route";
+import { resolveMultishotPromptInputs } from "@/lib/nodes/resolve-inputs";
 
 const post = (body: unknown) =>
   POST(new Request("http://x", { method: "POST", body: JSON.stringify(body) }), {
@@ -162,7 +165,11 @@ describe("POST multishot-prompt — refine scopes", () => {
     expect(res.status).toBe(200);
     expect(runPromptGeneration.mock.calls[0][0].paramsUsed).toMatchObject({ scope: "all" });
     const json = (await res.json()) as { plan: MultishotPlan };
-    expect(json.plan).toEqual(PLAN);
+    // D236 — a whole-sequence generate STAMPS the writer's model onto the plan it returns, so the
+    // response is the model's plan plus that one field. Everything downstream (renderPlan's
+    // format, refsCitedIn's dialect, video-generate's model guard) reads the stamp instead of the
+    // Multishot node's current `targetModel`, which the operator can flip at any time.
+    expect(json.plan).toEqual({ ...PLAN, targetModel: GEMINI_OMNI_MODEL_ID });
   });
 
   // Nothing previously inspected what the route actually sent the model — which is why the
@@ -210,5 +217,98 @@ describe("POST multishot-prompt — refine scopes", () => {
       await post({ scope: "all", note: "punchier overall" });
       expect(userText(create.mock.calls[0][0])).toContain("punchier overall");
     });
+  });
+});
+
+// D236 — which writer a Multishot node's target model gets, and that the choice is recorded on
+// the version row. The plan schema itself does not vary (D238), so these only check the system
+// prompt sent and the promptId recorded, not the shape of the returned plan.
+describe("POST multishot-prompt — per-model writer routing", () => {
+  it("writes with Kling's prompt when the Multishot node targets Kling", async () => {
+    vi.mocked(resolveMultishotPromptInputs).mockResolvedValueOnce({
+      clientContext: "",
+      kbVersionId: null,
+      slices: [],
+      upstream: [],
+      cuts: CUTS,
+      targetModel: KLING_OMNI_MODEL_ID,
+    });
+    returns(PLAN);
+    const res = await post({ instruction: "punchy" });
+    expect(res.status).toBe(200);
+    const systemSent = create.mock.calls[0][0].messages[0].content;
+    expect(systemSent).toContain("Kling 3.0 Omni");
+    expect(systemSent).toContain("512 CHARACTERS");
+  });
+
+  it("writes with Omni's prompt when targetModel is absent", async () => {
+    returns(PLAN);
+    const res = await post({ instruction: "punchy" });
+    expect(res.status).toBe(200);
+    const systemSent = create.mock.calls[0][0].messages[0].content;
+    expect(systemSent).not.toContain("Kling 3.0 Omni");
+  });
+
+  it("records which model the plan was written for", async () => {
+    vi.mocked(resolveMultishotPromptInputs).mockResolvedValueOnce({
+      clientContext: "",
+      kbVersionId: null,
+      slices: [],
+      upstream: [],
+      cuts: CUTS,
+      targetModel: KLING_OMNI_MODEL_ID,
+    });
+    returns(PLAN);
+    await post({ instruction: "punchy" });
+    expect(runPromptGeneration.mock.calls[0][0].paramsUsed).toMatchObject({
+      promptId: "multishot-prompt-kling@1",
+      targetModel: KLING_OMNI_MODEL_ID,
+    });
+  });
+
+  // D236 — the version row already recorded the model (the test above), but the PLAN did not, and
+  // the plan is what every downstream hop actually reads. A version row nobody consults at
+  // generate time is provenance, not a contract.
+  it("stamps the writer's model onto the plan that becomes the version's output", async () => {
+    vi.mocked(resolveMultishotPromptInputs).mockResolvedValueOnce({
+      clientContext: "",
+      kbVersionId: null,
+      slices: [],
+      upstream: [],
+      cuts: CUTS,
+      targetModel: KLING_OMNI_MODEL_ID,
+    });
+    returns(PLAN);
+    const res = await post({ instruction: "punchy" });
+    const json = (await res.json()) as { plan: MultishotPlan; prompt: string };
+    expect(json.plan.targetModel).toBe(KLING_OMNI_MODEL_ID);
+    // And the returned preview is rendered against that stamp — Kling's triples, not Omni's ladder.
+    expect(json.prompt).toContain("shot 1, ");
+  });
+
+  // A narrow refine rewrites ONE fragment and leaves every other beat as the original writer left
+  // it, so it must NOT restamp: doing so would relabel a plan that is still mostly the other
+  // model's, which is the silent reinterpretation the stamp exists to prevent. D239's way out of a
+  // mismatch is a regenerate — and a regenerate is scope "all".
+  it("does not restamp on a narrow refine — the original stamp survives", async () => {
+    vi.mocked(resolveMultishotPromptInputs).mockResolvedValueOnce({
+      clientContext: "",
+      kbVersionId: null,
+      slices: [],
+      upstream: [],
+      cuts: CUTS,
+      // The node has since been switched to Kling…
+      targetModel: KLING_OMNI_MODEL_ID,
+    });
+    returns({ look: "Overcast, flat and soft." });
+    // …but this plan was written by Omni's writer.
+    const omniPlan: MultishotPlan = { ...PLAN, targetModel: GEMINI_OMNI_MODEL_ID };
+    const res = await post({ scope: "look", plan: omniPlan });
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as { plan: MultishotPlan; prompt: string };
+    expect(json.plan.look).toBe("Overcast, flat and soft.");
+    expect(json.plan.targetModel).toBe(GEMINI_OMNI_MODEL_ID);
+    expect(json.prompt).toContain("[0-");
+    expect(json.prompt).not.toContain("shot 1, ");
   });
 });

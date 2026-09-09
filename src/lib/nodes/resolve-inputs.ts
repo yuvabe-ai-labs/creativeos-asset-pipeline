@@ -198,6 +198,8 @@ export type ResolvedMultishotInputs = {
   upstream: UpstreamPreview[];
   /** The upstream Multishot node's cut list — the shots this plan must cover. */
   cuts: MultishotCut[];
+  /** D236 — the upstream Multishot node's chosen model. Undefined = the default (Gemini Omni). */
+  targetModel: string | undefined;
 };
 
 /**
@@ -226,8 +228,10 @@ export async function resolveMultishotPromptInputs(
   const cuts = ((source?.data.cuts ?? []) as MultishotCut[]).filter(
     (c) => c && c.id && typeof c.text === "string" && typeof c.seconds === "number",
   );
+  const targetModel =
+    typeof source?.data.targetModel === "string" ? source.data.targetModel : undefined;
 
-  return { clientContext, kbVersionId: kbCtx.kbVersionId, slices, upstream, cuts };
+  return { clientContext, kbVersionId: kbCtx.kbVersionId, slices, upstream, cuts, targetModel };
 }
 
 /**

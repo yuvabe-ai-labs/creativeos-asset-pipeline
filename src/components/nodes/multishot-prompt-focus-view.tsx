@@ -11,13 +11,15 @@ import {
   Sun,
   RefreshCw,
   ChevronDown,
+  TriangleAlert,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MentionInstructionEditor } from "./mention-instruction-editor";
-import { imageRefDialect } from "@/lib/nodes/prompt-token-dialect";
+import { dialectForCapability } from "@/lib/nodes/prompt-token-dialect";
+import { multishotCapabilityFor } from "@/lib/nodes/multishot-models";
 import { FieldLabel } from "./field-label";
 import { SliceToggles } from "./slice-toggles";
 import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
@@ -33,6 +35,7 @@ import { InlineEvalBar } from "./inline-eval-bar";
 import { ModelRequestPanel } from "./model-request-panel";
 import { setVersionLabelAction } from "@/lib/actions/eval";
 import { setVersionApprovalAction } from "@/lib/actions/approval";
+import { savePromptOutputAction } from "@/lib/actions/nodes";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { useFlushAutosave } from "@/components/canvas/autosave-flush-context";
 import type { ApprovalStatus } from "@/lib/approval";
@@ -45,7 +48,7 @@ import { RefineWithAI } from "./refine-with-ai";
 import { RefineProgress } from "./refine-progress";
 import { planMentionables } from "@/lib/nodes/plan-mentions";
 import type { MultishotCut } from "@/lib/nodes/multishot-cuts";
-import { renderPlan, refsCitedIn, type MultishotPlan } from "@/lib/nodes/multishot-plan";
+import { renderPlan, refsCitedIn, planIsDirty, type MultishotPlan } from "@/lib/nodes/multishot-plan";
 import type { RefineScope } from "@/lib/nodes/refine-suggestions";
 
 type MultishotPromptFocusViewProps = {
@@ -60,6 +63,8 @@ type MultishotPromptFocusViewProps = {
   // The upstream Multishot node's cut list (READ-ONLY here) and its own id, so a beat's
   // timecode click can hand focus back to the node that actually owns the budget.
   cuts: MultishotCut[];
+  /** D236 — read from the upstream Multishot node. Absent = the default (Gemini Omni). */
+  targetModel?: string;
   multishotNodeId: string | null;
   upstream: UpstreamNode[];
   onPatch: (patch: Record<string, unknown>) => void;
@@ -82,12 +87,16 @@ export function MultishotPromptFocusView({
   plan,
   slices,
   cuts,
+  targetModel,
   multishotNodeId,
   upstream,
   onPatch,
 }: MultishotPromptFocusViewProps) {
   const params = useParams<{ id: string }>();
   const setFocusedNodeId = useCanvasStore((s) => s.setFocusedNodeId);
+  // The model the upstream Multishot node is currently SET to — what the next Generate will use.
+  // Not what the plan on screen was written with; see `cap` below.
+  const nodeCap = multishotCapabilityFor(targetModel);
 
   // Local mirrors of the instruction / per-cut-instruction / plan props — same reasoning as
   // video-prompt-focus-view's `instructionDraft`: these round-trip through zustand + React
@@ -99,6 +108,20 @@ export function MultishotPromptFocusView({
   const [cutDrafts, setCutDrafts] = useState<Record<string, string>>(cutInstructions);
   const [planDraft, setPlanDraft] = useState<MultishotPlan | null>(plan);
   const [outputView, setOutputView] = useState<"breakup" | "prompt">("breakup");
+  // One capability for the whole view: the dialect the beats are stored in, the format the prompt
+  // renders in, and the token shape `refsCitedIn` scans for must all be the SAME model's. Deriving
+  // them separately is how a view ends up editing @image_1 chips into a prompt rendered as a
+  // timecode ladder.
+  //
+  // D236 — that model is THE PLAN's (its own `targetModel` stamp), not the node's current
+  // setting, and it is the same value resolve-prompt.ts renders the money path against. An
+  // unstamped plan is Gemini Omni's. Only with no plan yet is there nothing to misread, and then
+  // the node's model is the honest guide for what the next Generate will produce.
+  const cap = planDraft ? multishotCapabilityFor(planDraft.targetModel) : nodeCap;
+  // D237 — STATED, never clamped. Switching the Multishot node's model does not rewrite a plan
+  // already written, so the two can disagree; the operator is told, in one line, and the way out
+  // is a regenerate (D239). Editing and generating both stay open.
+  const modelMismatch = planDraft !== null && cap.id !== nodeCap.id;
   // The look accordion, CLOSED by default (operator request 2026-09-08). The ladder is the
   // working surface and should own the column on arrival; the look is written once and then
   // mostly left alone. Collapsed it still shows a one-line preview, so it is summarised rather
@@ -177,13 +200,13 @@ export function MultishotPromptFocusView({
   // intended reference left unattached is otherwise only discoverable in the rendered video.
   const uncitedIndices = useMemo(() => {
     if (!planDraft) return undefined;
-    const cited = new Set(planDraft.beats.flatMap((b) => refsCitedIn(b.text)));
+    const cited = new Set(planDraft.beats.flatMap((b) => refsCitedIn(b.text, cap)));
     const uncited = new Set<number>();
     promptRefImages.forEach((_, i) => {
       if (!cited.has(i)) uncited.add(i);
     });
     return uncited;
-  }, [planDraft, promptRefImages]);
+  }, [planDraft, promptRefImages, cap]);
 
   const estimatedCredits = estimatePromptCredits(upstream.filter(isVisionAttachment).length);
   const totalCutSeconds = cuts.reduce((sum, c) => sum + c.seconds, 0);
@@ -209,6 +232,13 @@ export function MultishotPromptFocusView({
       return { cutId: b.cutId, text: b.text, from, to: at };
     });
   }, [planDraft, cuts]);
+
+  // D240 — hand edits are BUFFERED in planDraft and land in the node_versions row only on Save.
+  // They used to patch the canvas store on every keystroke and never reach the database at all,
+  // while `/api/nodes/[id]/upstream-images` and resolve-prompt.ts both read the version row — so
+  // an edited look or beat showed on the canvas and was then silently dropped at the boundary,
+  // and Video Gen billed a render against the last AI-generated plan.
+  const dirty = planIsDirty(plan, planDraft);
 
   async function fetchVersions(opts?: { preserveEvalDraft?: boolean }) {
     try {
@@ -451,21 +481,48 @@ export function MultishotPromptFocusView({
   // READ from the node and still travel in every request, so a node that has them keeps its steer;
   // there is simply no longer a surface for typing new ones.
 
+  /**
+   * Persist the hand-edited plan onto the ACTIVE version, in place — no new version row. Same
+   * call and same reasoning as the Motion Prompt node's handleSave (video-prompt-focus-view.tsx):
+   * a hand edit is a correction to the plan the operator is holding, not a new candidate to
+   * compare against, and minting a version per typo would bury the generated ones in the chips.
+   */
+  async function handleSavePlan() {
+    if (!planDraft) return;
+    try {
+      await savePromptOutputAction(nodeId, planDraft);
+      onPatch({ parsed: planDraft }); // mirror into the store for display + clear dirty
+      toast.success("Saved");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Save failed");
+    }
+  }
+
+  /**
+   * Throw the unsaved edits away and go back to the last generated / restored / saved plan.
+   *
+   * No confirm step, unlike the sheet's close-confirm: closing is INCIDENTAL (Escape, a click
+   * outside), so it needs to ask; this button is labelled with what it does and is pressed on
+   * purpose. It also re-enables every AI action on its own — `dirty` goes false the moment
+   * planDraft is back to the prop, which is the same condition that dimmed them.
+   */
+  function handleDiscardEdits() {
+    setPlanDraft(plan);
+  }
+
+  // D240 — these set planDraft ONLY. The `onPatch` that used to run per keystroke now lives in
+  // handleSavePlan, beside the write that actually reaches the database.
   function updateLook(v: string) {
     if (!planDraft) return;
-    const next: MultishotPlan = { ...planDraft, look: v };
-    setPlanDraft(next);
-    onPatch({ parsed: next });
+    setPlanDraft({ ...planDraft, look: v });
   }
 
   function updateBeat(cutId: string, v: string) {
     if (!planDraft) return;
-    const next: MultishotPlan = {
+    setPlanDraft({
       ...planDraft,
       beats: planDraft.beats.map((b) => (b.cutId === cutId ? { ...b, text: v } : b)),
-    };
-    setPlanDraft(next);
-    onPatch({ parsed: next });
+    });
   }
 
   function toggleSlice(key: KBSliceKey) {
@@ -498,9 +555,9 @@ export function MultishotPromptFocusView({
       title={title}
       titlePlaceholder="Multishot prompt"
       onTitleCommit={(t) => onPatch({ title: t })}
-      // Every field on this node patches the moment it changes — there is no separate Save
-      // step to lose, so there is nothing to confirm on close.
-      dirty={false}
+      // D240 — hand edits to the plan are buffered until Save, so closing with unsaved ones must
+      // confirm. (Until D240 every field patched on change and there was nothing to lose.)
+      dirty={dirty}
       lastError={lastError}
       generating={generating}
       versions={versions}
@@ -509,7 +566,10 @@ export function MultishotPromptFocusView({
       // click an older chip while a beat refine is in flight, and the refine's resolve would
       // overwrite planDraft with a merge computed against the pre-restore snapshot, silently
       // discarding the restore the operator just asked for. See runRefine's matching guard.
-      restoring={restoring || !!refining}
+      // `dirty` joins the gate for the same reason `refining` is in it: a restore replaces
+      // planDraft wholesale from a version the operator picked, silently discarding the hand
+      // edits they have not saved yet (D242).
+      restoring={restoring || !!refining || dirty}
       onRestoreVersion={handleRestoreVersion}
       upstream={upstream}
       targetType="multishot-prompt"
@@ -547,7 +607,7 @@ export function MultishotPromptFocusView({
                     <RefineWithAI
                       scope="all"
                       busy={refining?.scope === "all"}
-                      disabled={isReadOnly || !!refining}
+                      disabled={isReadOnly || !!refining || dirty}
                       onSubmit={(note) => runRefine("all", { note })}
                       mentionables={planMentions}
                       label="Refine the whole sequence with AI"
@@ -559,7 +619,7 @@ export function MultishotPromptFocusView({
               {outputView === "prompt" ? (
                 <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
                   {planDraft ? (
-                    <GeneratedPromptBody text={renderPlan(planDraft, cuts)} images={promptRefImages} />
+                    <GeneratedPromptBody text={renderPlan(planDraft, cuts, cap)} images={promptRefImages} />
                   ) : (
                     <p className="text-sm text-muted-foreground">
                       Generate a multishot prompt first — this shows the exact compiled string,
@@ -644,7 +704,7 @@ export function MultishotPromptFocusView({
                       <Button
                         className="w-full"
                         onClick={runGenerate}
-                        disabled={generating || isReadOnly || cuts.length === 0 || !!refining}
+                        disabled={generating || isReadOnly || cuts.length === 0 || !!refining || dirty}
                       >
                         <ListVideo className="size-4" />
                         {generating
@@ -663,7 +723,8 @@ export function MultishotPromptFocusView({
                       `min-w-0` is load-bearing on a flex-1 column: without it the column cannot
                       shrink below its content's intrinsic width, the row overflows, and the
                       parent's overflow-hidden crops the output off-screen. */}
-                  <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-y-auto px-6 py-5">
+                  <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+                    <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-6 py-5">
                     {/* The output's own eyebrow with the version chips beside it — the same row,
                         in the same place, that prompt-focus-view.tsx and video-prompt-focus-view.tsx
                         put them in. They were up in the tab strip, which is this node's chrome and
@@ -677,6 +738,24 @@ export function MultishotPromptFocusView({
                       </div>
                       {versionChips}
                     </div>
+
+                    {/* D236/D237 — the plan on screen was written for one model and the Multishot
+                        node now says another. STATED, not clamped and not blocked: the beats stay
+                        editable and Generate stays live, exactly as an out-of-window ladder does
+                        one node upstream. The way out is D239's — regenerate — so the sentence
+                        names both models and that one action. Same shape as the ladder violation
+                        on multishot-node.tsx / multishot-focus-view.tsx, so one class of problem
+                        reads one way across all three surfaces. */}
+                    {modelMismatch && (
+                      <p className="flex shrink-0 items-start gap-1.5 text-xs text-destructive">
+                        <TriangleAlert className="mt-0.5 size-3.5 shrink-0" strokeWidth={1.5} />
+                        <span>
+                          Written for {cap.label} — the Multishot node is now set to{" "}
+                          {nodeCap.label}. Re-generate to write this sequence for {nodeCap.label};
+                          until then it ships as {cap.label}.
+                        </span>
+                      </p>
+                    )}
 
                     {mode === "skeleton" && (
                       <div className="space-y-2.5 pt-1">
@@ -756,7 +835,7 @@ export function MultishotPromptFocusView({
                                 <RefineWithAI
                                   scope="look"
                                   busy={refining?.scope === "look"}
-                                  disabled={isReadOnly || !!refining}
+                                  disabled={isReadOnly || !!refining || dirty}
                                   onSubmit={(note) => runRefine("look", { note })}
                                   mentionables={planMentions}
                                   label="Refine the look with AI"
@@ -764,7 +843,7 @@ export function MultishotPromptFocusView({
                                 <Button
                                   variant="ghost"
                                   onClick={() => runRefine("look")}
-                                  disabled={!!refining || isReadOnly}
+                                  disabled={!!refining || isReadOnly || dirty}
                                   aria-label="Rewrite the look"
                                   className="h-auto rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground dark:hover:bg-muted"
                                 >
@@ -792,7 +871,7 @@ export function MultishotPromptFocusView({
                             value={planDraft.look}
                             onChange={updateLook}
                             upstream={upstream}
-                            dialect={imageRefDialect(refIds)}
+                            dialect={dialectForCapability(cap, refIds)}
                             disabled={isReadOnly || !!refining}
                           />
                           <p className="mt-2 text-[0.65rem] text-muted-foreground">
@@ -812,6 +891,7 @@ export function MultishotPromptFocusView({
                               text={beat.text}
                               upstream={upstream}
                               refIds={refIds}
+                              cap={cap}
                               onChange={(v) => updateBeat(beat.cutId, v)}
                               onRerun={() => runRefine("cut", { cutId: beat.cutId })}
                               onRefine={(note) => runRefine("cut", { cutId: beat.cutId, note })}
@@ -820,11 +900,47 @@ export function MultishotPromptFocusView({
                               rerunning={refining?.cutId === beat.cutId}
                               onFocusTimings={focusTimings}
                               disabled={isReadOnly || (!!refining && refining.cutId !== beat.cutId)}
+                              // D242 — the AI buttons only. `disabled` would also lock the editor,
+                              // freezing the beat the instant it was typed into.
+                              aiDisabled={dirty}
                               isLast={i === beatRows.length - 1}
                             />
                           ))}
                         </div>
                       </>
+                    )}
+                    </div>
+
+                    {/* Save, at the foot of the column it acts on — the same placement rule the
+                        Generate button follows at the foot of the Input column. Rendered only
+                        with a plan on screen, which is also the only state that can be dirty. */}
+                    {mode === "result" && (
+                      <div className="shrink-0 border-t border-border px-6 py-3">
+                        <div className="flex items-center gap-2">
+                          <Button variant="outline" onClick={handleSavePlan} disabled={!dirty}>
+                            Save
+                          </Button>
+                          {/* Both buttons stay MOUNTED and disable together rather than appearing
+                              with the first keystroke — a footer that grows a button under the
+                              pointer moves Save out from under it at the exact moment it is
+                              wanted. */}
+                          <Button variant="ghost" onClick={handleDiscardEdits} disabled={!dirty}>
+                            Cancel
+                          </Button>
+                          {dirty && (
+                            <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[0.65rem] font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                              Unsaved changes
+                            </span>
+                          )}
+                        </div>
+                        {/* Says why every rewrite button just dimmed. Only rendered while dirty,
+                            which is the only state in which they are. */}
+                        {dirty && (
+                          <p className="mt-1.5 text-[0.65rem] text-muted-foreground">
+                            Save or discard your edits to rewrite with AI.
+                          </p>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>

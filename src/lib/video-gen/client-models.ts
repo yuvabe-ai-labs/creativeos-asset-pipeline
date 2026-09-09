@@ -1,6 +1,6 @@
 import type { VideoGenClientModelSpec, ConstraintRule } from "./types";
 import { veoParams, veoLiteParams } from "./params/veo";
-import { kling30Params, klingO1Params } from "./params/kling";
+import { kling30Params, klingO1Params, kling30OmniParams } from "./params/kling";
 import { geminiOmniParams } from "./params/gemini-omni";
 import { GEMINI_OMNI_IMAGE_INPUTS, GEMINI_OMNI_RULES } from "./gemini-omni-shape";
 
@@ -145,7 +145,9 @@ const KLING_O1_NEEDS_START_FRAME_OR_REFERENCE: ConstraintRule = {
     ],
   },
   effect: { disableGenerate: true },
-  reason: "Kling O1 needs a start frame or at least one reference image",
+  // Shown for two models now (O1 and 3.0 Omni) — the rule was always about the /omni-video
+  // endpoint family, not about O1's model weights specifically.
+  reason: "Kling needs a start frame or at least one reference image",
 };
 
 // OM7 — last-frame-only is unsupported. An end frame is the destination of an interpolation that
@@ -171,10 +173,22 @@ const KLING_O1_RULES: ConstraintRule[] = [
   KLING_O1_END_FRAME_REQUIRES_START_FRAME,
 ];
 
+// The same two gates as O1 — both are properties of the /omni-video endpoint family, not of O1's
+// model weights: a `refer_image` stands alone as an input (D101), and a last-frame-only request
+// has no origin to interpolate from (OM7). Reused rather than copied, so a correction to either
+// applies to both endpoints that actually have the behaviour.
+const KLING_30_OMNI_RULES: ConstraintRule[] = [
+  KLING_O1_NEEDS_START_FRAME_OR_REFERENCE,
+  KLING_O1_END_FRAME_REQUIRES_START_FRAME,
+];
+
 // ── Model map ─────────────────────────────────────────────────────────────────
 
-/** The only model that cuts between shots natively — a multishot shot must generate on this. */
+/** Google's model that cuts between shots natively. One of two — see MULTISHOT_MODELS (D235). */
 export const GEMINI_OMNI_MODEL_ID = "gemini:gemini-omni-1.1-flash";
+
+/** Kling's flagship omni endpoint — the second model that cuts between shots natively (D235). */
+export const KLING_OMNI_MODEL_ID = "kling:kling-3-0-omni";
 
 export const videoGenClientModelMap: Record<string, VideoGenClientModelSpec> = {
   "veo:veo-3.1-lite": {
@@ -226,6 +240,25 @@ export const videoGenClientModelMap: Record<string, VideoGenClientModelSpec> = {
     imageInputs: KLING_O1_IMAGE_INPUTS,
     params: klingO1Params,
     rules: KLING_O1_RULES,
+  },
+  [KLING_OMNI_MODEL_ID]: {
+    id: KLING_OMNI_MODEL_ID,
+    provider: "kling",
+    label: "Kling 3.0 Omni",
+    // "Kling 3.0 Omni" under a "Kling" heading would say Kling twice; modelPickerLabel strips
+    // the provider prefix on its own, but the result ("3.0 Omni") is the override anyway and
+    // stating it keeps the chip stable if the label is ever reworded.
+    pickerLabel: "3.0 Omni",
+    providerLabel: "Kling",
+    maxDurationSeconds: 15,
+    // D100's cap is a property of the /omni-video endpoint family, not of O1: 7 images total
+    // with no reference video, less both frames conservatively because the docs do not say
+    // whether the frames count toward the 7. Shared with O1 rather than re-declared, matching
+    // what providers/kling.ts does on the server side — a second identical copy is one more
+    // place to miss when that cap is revised.
+    imageInputs: KLING_O1_IMAGE_INPUTS,
+    params: kling30OmniParams,
+    rules: KLING_30_OMNI_RULES,
   },
   [GEMINI_OMNI_MODEL_ID]: {
     id: GEMINI_OMNI_MODEL_ID,

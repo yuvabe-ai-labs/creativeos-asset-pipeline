@@ -1,5 +1,6 @@
 import { getUpstreamOutputs } from "@/lib/db/nodes";
 import { renderPlan, type MultishotPlan } from "@/lib/nodes/multishot-plan";
+import { multishotCapabilityFor } from "@/lib/nodes/multishot-models";
 import type { MultishotCut } from "@/lib/nodes/multishot-cuts";
 import { apiError, apiOk, withNode } from "@/lib/api/route-helpers";
 
@@ -95,7 +96,14 @@ export async function GET(
           (c) => c && c.id && typeof c.text === "string" && typeof c.seconds === "number",
         );
         if (plan && typeof plan === "object" && Array.isArray(plan.beats) && cuts.length > 0) {
-          promptText = renderPlan(plan, cuts);
+          // Rendered in the TARGET MODEL's own format (D238), read off THE PLAN's own stamp
+          // (D236) — the same value resolve-prompt.ts reads on the money path, and deliberately
+          // not the Multishot node's current `targetModel`. This is the preview the focus view
+          // shows as "what will be sent", so reading the node would show the operator a prompt in
+          // whichever format the Select happens to say right now rather than the one the money
+          // path will actually build. An unstamped plan is Gemini Omni's, which is what every plan
+          // predating the stamp already is.
+          promptText = renderPlan(plan, cuts, multishotCapabilityFor(plan.targetModel));
         }
       }
 

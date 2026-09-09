@@ -97,6 +97,26 @@ const KLING_RESOLUTION_PRICING: Record<string, KlingResolutionRates> = {
     "720p": { off: 0.084, on: 0.084 },
     "1080p": { off: 0.112, on: 0.112 },
   },
+  // Source: kling.ai/document-api/pricing/base/video, the real table supplied by the operator
+  // 2026-09-09. These REPLACE a provisional row that borrowed Kling 3.0's rates while the page
+  // was unavailable.
+  //
+  // The "No Video Input" rows are the only reachable ones: buildKlingContents never sends a
+  // base_video or feature_video, so the "With Video Input" tier ($0.126 / $0.168 / $0.42) cannot
+  // be produced by this app. Same reasoning that restricts every other Kling row above.
+  //
+  // The provisional row had the OFF column right and the audio column wrong in both lower tiers
+  // — it assumed 3.0's +50% audio delta, where 3.0 Omni's is +33% at 720p and +25% at 1080p. It
+  // overcharged an audio-enabled 720p second by $0.014 and a 1080p second by $0.028. Recorded
+  // because it is the third time on this table that a guessed audio delta has been the error,
+  // and the guess has been high every time.
+  //
+  // 4k does not move with audio, matching every other Kling model that offers it.
+  "kling:kling-3-0-omni": {
+    "720p": { off: 0.084, on: 0.112 },
+    "1080p": { off: 0.112, on: 0.14 },
+    "4k": { off: 0.42, on: 0.42 },
+  },
 };
 
 /**
