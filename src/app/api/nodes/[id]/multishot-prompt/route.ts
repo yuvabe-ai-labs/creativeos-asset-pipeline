@@ -245,13 +245,32 @@ export async function POST(
             throw new PlanValidationError(parsed.reason);
           }
 
-          return { output: parsed.plan, usage };
+          // D236 — STAMP THE WRITER'S MODEL ONTO THE PLAN. Everything downstream (renderPlan's
+          // format, refsCitedIn's token dialect, video-generate's model guard) now reads this
+          // instead of the Multishot node's current `targetModel`, which the operator can flip at
+          // any time while these beats stay exactly as written.
+          //
+          // Only on a WHOLE-sequence write. A "look" or "cut" refine replaces one fragment and
+          // leaves every other beat as the original writer left it, so restamping it to whatever
+          // the node now says would be the same silent reinterpretation this stamp exists to
+          // prevent — `mergeRefinedPlan` carries the original stamp through instead. D239's way
+          // out of a mismatch is a regenerate, and a regenerate is exactly scope "all".
+          const stamped =
+            scope === "all"
+              ? { ...parsed.plan, targetModel: multishotCapabilityFor(resolved.targetModel).id }
+              : parsed.plan;
+
+          return { output: stamped, usage };
         },
       });
 
       return apiOk({
         plan: output,
-        prompt: renderPlan(output, resolved.cuts, multishotCapabilityFor(resolved.targetModel)),
+        // D236 — rendered against the PLAN's own stamp, the same value resolve-prompt.ts reads on
+        // the money path. On a narrow refine of a plan written for the other model that stamp is
+        // NOT the node's current one, and rendering against the node would show the operator a
+        // prompt in a format nothing will ever send.
+        prompt: renderPlan(output, resolved.cuts, multishotCapabilityFor(output.targetModel)),
         versionId,
       });
     } catch (e) {

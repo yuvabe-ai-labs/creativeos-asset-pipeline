@@ -96,16 +96,14 @@ export async function GET(
           (c) => c && c.id && typeof c.text === "string" && typeof c.seconds === "number",
         );
         if (plan && typeof plan === "object" && Array.isArray(plan.beats) && cuts.length > 0) {
-          // Rendered in the TARGET MODEL's own format (D238), read off the Multishot node the
-          // same untyped way `cuts` is read just above. This is the preview the focus view shows
-          // as "what will be sent", so rendering it in the other model's format would show the
-          // operator a prompt that is not the one the money path builds. Absent targetModel falls
-          // back to Gemini Omni, which is what every node predating that field already is.
-          const targetModel =
-            typeof multishotNode?.data.targetModel === "string"
-              ? multishotNode.data.targetModel
-              : undefined;
-          promptText = renderPlan(plan, cuts, multishotCapabilityFor(targetModel));
+          // Rendered in the TARGET MODEL's own format (D238), read off THE PLAN's own stamp
+          // (D236) — the same value resolve-prompt.ts reads on the money path, and deliberately
+          // not the Multishot node's current `targetModel`. This is the preview the focus view
+          // shows as "what will be sent", so reading the node would show the operator a prompt in
+          // whichever format the Select happens to say right now rather than the one the money
+          // path will actually build. An unstamped plan is Gemini Omni's, which is what every plan
+          // predating the stamp already is.
+          promptText = renderPlan(plan, cuts, multishotCapabilityFor(plan.targetModel));
         }
       }
 

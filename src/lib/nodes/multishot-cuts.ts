@@ -81,7 +81,17 @@ export function totalOf(cuts: MultishotCut[]): number {
   return cuts.reduce((sum, c) => sum + c.seconds, 0);
 }
 
-/** Clamps a seconds value into the target model's window. Used when seeding a node's stored total. */
+/**
+ * Clamps a seconds value into the target model's window.
+ *
+ * NO PRODUCTION CALLER as of D237's completion. It seeded a node's stored `totalSeconds`, and
+ * that field is now an unclamped MIRROR of `totalOf(cuts)` at every one of its three writers
+ * (multishot-node.tsx, canvas-store.ts, multishot-convert.ts) — a ladder outside the model's
+ * window keeps its real length and `checkLadder` STATES the violation. Kept, not deleted, on the
+ * same footing as `addCut` above: it is the one place the window-clamping rule is written down,
+ * and it is still exercised by its own tests. Deleting it is the controller's call, not a
+ * side effect of this fix.
+ */
 export function clampTotal(seconds: number, cap: MultishotCapability): number {
   return Math.min(cap.maxTotalSeconds, Math.max(cap.minTotalSeconds, Math.round(seconds)));
 }

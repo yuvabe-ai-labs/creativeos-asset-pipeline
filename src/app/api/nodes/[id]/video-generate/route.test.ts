@@ -56,10 +56,22 @@ const mocks = vi.hoisted(() => ({
   })),
 }));
 
-function buildGraph(cuts: MultishotCut[], targetModel: string, plan: MultishotPlan): Record<string, Row[]> {
+// D236 — `targetModel` is the MULTISHOT NODE's current setting; `planTargetModel` is the stamp on
+// the plan itself, which is what every guard actually reads. They default to the same value
+// because that is the state a freshly generated plan is in; the divergence tests pass them apart
+// on purpose, which is the whole point of the stamp. `null` = an unstamped plan, i.e. one written
+// before the stamp existed — which means Gemini Omni.
+function buildGraph(
+  cuts: MultishotCut[],
+  targetModel: string,
+  plan: MultishotPlan,
+  planTargetModel: string | null = targetModel,
+): Record<string, Row[]> {
+  const stampedPlan: MultishotPlan =
+    planTargetModel === null ? plan : { ...plan, targetModel: planTargetModel };
   return {
     vg: [
-      { nodeId: "mp", type: "multishot-prompt", data: {}, activeOutput: plan, versionId: "v1" },
+      { nodeId: "mp", type: "multishot-prompt", data: {}, activeOutput: stampedPlan, versionId: "v1" },
     ],
     mp: [
       { nodeId: "ig", type: "image-gen", data: {}, activeOutput: "https://img.example/ref.png", versionId: "v2" },
@@ -185,5 +197,83 @@ describe("POST video-generate — multishot server backstop (D236, D97)", () => 
     expect(taskName).toBe("video-generate");
     expect(payload.params.duration).toBe(12); // totalOf(LEGAL_KLING_CUTS) = 5 + 7
     expect(payload.params.duration).not.toBe(5);
+  });
+
+  // D236 — THE GUARD READS THE PLAN'S STAMP, NOT THE MULTISHOT NODE'S FIELD.
+  //
+  // The operator wrote an Omni plan, then switched the Multishot node's Select to Kling. Every
+  // client surface coerces off the same stamp and so offers Gemini Omni, but the request under
+  // test names Kling — the state a stale tab, a replayed request or a pre-fix client produces.
+  // Reading the node here let it through: Kling generated and billed a payload whose beats hold
+  // Omni's `<IMAGE_REF_N>` tokens as literal prose, with the reference never bound. Rejected
+  // before insertGeneration and reserveCredits, so it costs nothing.
+  it("rejects a request for the model the NODE now names when the PLAN was stamped for the other", async () => {
+    mocks.graph = buildGraph(
+      LEGAL_KLING_CUTS,
+      KLING_OMNI_MODEL_ID, // the node was switched to Kling…
+      PLAN,
+      GEMINI_OMNI_MODEL_ID, // …after this plan had already been written by Omni's writer
+    );
+
+    const res = await post({
+      modelId: KLING_OMNI_MODEL_ID,
+      params: {},
+      imageRoles: { ig: "reference" },
+    });
+
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.error).toContain("Gemini Omni 1.1");
+    expect(json.error).not.toContain("Kling 3.0 Omni");
+
+    expect(mocks.insertGeneration).not.toHaveBeenCalled();
+    expect(mocks.reserveCredits).not.toHaveBeenCalled();
+    expect(mocks.triggerTask).not.toHaveBeenCalled();
+  });
+
+  // The same divergence for an UNSTAMPED plan — every plan written before the stamp existed. The
+  // fallback is the DEFAULT (Gemini Omni), never the node's current field, so these old plans are
+  // migrated by construction rather than by a backfill.
+  it("treats an unstamped plan as Omni's and rejects a Kling request, whatever the node says", async () => {
+    mocks.graph = buildGraph(LEGAL_KLING_CUTS, KLING_OMNI_MODEL_ID, PLAN, null);
+
+    const res = await post({
+      modelId: KLING_OMNI_MODEL_ID,
+      params: {},
+      imageRoles: { ig: "reference" },
+    });
+
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toContain("Gemini Omni 1.1");
+    expect(mocks.insertGeneration).not.toHaveBeenCalled();
+    expect(mocks.reserveCredits).not.toHaveBeenCalled();
+  });
+
+  // The Omni lane end to end — there was no route-level test of it at all, so nothing pinned that
+  // an Omni-stamped plan reaches the provider as Omni's cumulative ladder with the ladder's own
+  // duration, and without Kling's `multi_shot` field (Omni declares no such param).
+  it("generates the OMNI lane on the plan's own model, with the ladder's duration", async () => {
+    // 3 + 5 = 8s, inside Omni's 3-10s window.
+    const omniCuts: MultishotCut[] = [
+      { id: "c1", text: "keys", seconds: 3 },
+      { id: "c2", text: "cab", seconds: 5 },
+    ];
+    mocks.graph = buildGraph(omniCuts, GEMINI_OMNI_MODEL_ID, PLAN);
+
+    const res = await post({
+      modelId: GEMINI_OMNI_MODEL_ID,
+      params: { duration: 5 },
+      imageRoles: { ig: "reference" },
+    });
+
+    expect(res.status).toBe(202);
+    const [, payload] = mocks.triggerTask.mock.calls[0] as [
+      string,
+      { params: Record<string, unknown>; prompt: string },
+    ];
+    expect(payload.params.duration).toBe(8);
+    expect(payload.prompt).toContain("[0-3s]");
+    expect(payload.prompt).not.toContain("shot 1, ");
+    expect(payload.params.multi_shot).toBeUndefined();
   });
 });

@@ -21,8 +21,9 @@ import type { ReelScript } from "@/lib/nodes/reel-script";
 import type { ShotComposeIdea } from "@/lib/nodes/shot-compose";
 import { deriveShotType } from "@/lib/nodes/shot-types";
 import { describeGenerations, generationKey } from "@/lib/nodes/group-shots";
-import { clampTotal, cutsFromShots, totalOf } from "@/lib/nodes/multishot-cuts";
+import { cutsFromShots, totalOf } from "@/lib/nodes/multishot-cuts";
 import { multishotCapabilityFor } from "@/lib/nodes/multishot-models";
+import type { MultishotPlan } from "@/lib/nodes/multishot-plan";
 import { shotDataToMultishot, multishotDataToShot } from "@/lib/nodes/multishot-convert";
 import type { GenerationRow } from "@/lib/db/types";
 import type { PlaybookRun } from "@/lib/copilot/runner";
@@ -187,8 +188,16 @@ export function createCanvasStore(
         const multishotNode = get().nodes.find(
           (n) => upstreamIds.includes(n.id) && n.type === "multishot",
         );
+        // The PLAN's own stamp when there is a plan (D236) — the beats already exist and already
+        // carry one model's reference tokens, so what the Multishot node's Select says right now
+        // is not what a generation would be built from. Only with no plan yet does the node's
+        // field answer the question, because then it is what the next Generate will write with.
+        // Same precedence video-gen-focus-view.tsx and resolve-prompt.ts apply.
+        const connectedPlan = (sourceNode.data as { parsed?: MultishotPlan } | undefined)?.parsed;
         const cap = multishotCapabilityFor(
-          (multishotNode?.data as { targetModel?: string } | undefined)?.targetModel,
+          connectedPlan && Array.isArray(connectedPlan.beats)
+            ? connectedPlan.targetModel
+            : (multishotNode?.data as { targetModel?: string } | undefined)?.targetModel,
         );
 
         // Sensible defaults for the lane, not an override: 9:16 (reels are vertical) and 720p.
@@ -470,15 +479,16 @@ export function createCanvasStore(
 
         if (generation.multishot) {
           // No Total control any more (multishot-cuts.ts's header) — `totalSeconds` is just the
-          // stored mirror of the ladder's own length, clamped into the model's window. They start
-          // equal and stay equal, because there is no independent field left to drift.
+          // stored mirror of the ladder's own length. They start equal and stay equal, because
+          // there is no independent field left to drift.
           //
-          // The DEFAULT capability, not a node's: these nodes are being CREATED here, straight
-          // from a parsed script, so no `targetModel` has been chosen yet — the same reason
-          // group-shots.ts packs to Omni's 10s (D235). That is the safe floor; a node later
-          // switched to Kling only ever gains headroom.
+          // A MIRROR, NOT A CORRECTION (D237, canvas-nodes.ts): deliberately NOT clamped. Clamping
+          // here while the edit site (multishot-node.tsx) mirrors unclamped made a script-seeded
+          // single 2s shot store 3, so the card read "3s · 1 cuts" over `checkLadder`'s red "2s ·
+          // Gemini Omni 1.1 needs at least 3s." — two numbers for one ladder. The ladder keeps its
+          // real length and the violation is STATED, never silently corrected.
           const cuts = cutsFromShots(groupShots);
-          const totalSeconds = clampTotal(totalOf(cuts), multishotCapabilityFor(undefined));
+          const totalSeconds = totalOf(cuts);
           return {
             id: crypto.randomUUID(),
             type: "multishot",
