@@ -73,8 +73,16 @@ export function omniImageRefToken(n: number): string {
  * also not required by the Kling collision — `@Image1` would already be distinct from `@image_1` —
  * which is why that argument alone should not decide this either way.
  *
- * Genuinely settled only by a real generation: attach two references, cite both, and see which
- * spelling binds. Until then this follows the vendor's own stated rule.
+ * SETTLED, and not by counting occurrences. `ref/byteplus-docs/Private virtual portrait library.md`
+ * states the rule normatively, twice:
+ *
+ *     "reference assets using the format 'asset type + index', for example: Image 1, Video 1,
+ *      Audio 1. The index is the position of that asset within the same asset type in the request
+ *      body."   …and…   "Do not reference assets by Asset ID in the prompt."
+ *
+ * Type, SPACE, 1-based index, counted per asset type over the request body — which is exactly what
+ * this function and `seedanceImageDialect` emit. The vendor's own worked example reads "The girl in
+ * Image 1 is wearing the outfit from Image 2".
  */
 export function seedanceImageRefToken(n: number): string {
   return `@Image ${n}`;
