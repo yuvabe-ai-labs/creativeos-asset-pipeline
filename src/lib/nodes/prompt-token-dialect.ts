@@ -5,6 +5,9 @@
 // generated motion prompt ships to Omni and must carry the vendor's own `<IMAGE_REF_N>` syntax.
 // The editor is one component, so the difference lives here rather than as a second editor.
 
+// Type-only: erased at compile time, so multishot-models.ts and this module have no runtime cycle.
+import type { MultishotCapability } from "./multishot-models";
+
 export type TextSegment = { kind: "text"; text: string };
 export type MentionSegment = { kind: "mention"; label: string; id: string };
 export type Segment = TextSegment | MentionSegment;
@@ -102,4 +105,63 @@ export function imageRefDialect(orderedIds: string[]): TokenDialect {
     // must read the same wherever it appears — the index belongs in the tooltip, not on its face.
     chipLabel: (segment, upstreamLabel) => upstreamLabel ?? segment.label,
   };
+}
+
+// `\d+` then a boundary — `@image_10` must parse as index 10, not as `@image_1` plus a literal
+// "0". The greedy digit run is what guarantees that; do not "tighten" it to `\d`.
+const KLING_IMAGE_RE = /@image_(\d+)/g;
+
+/**
+ * `@image_N` — Kling's own handle syntax, ONE-based over the attached references.
+ *
+ * Kling numbers its `contents[].id` fields `image_1`, `image_2`, … (see `buildKlingContents` in
+ * providers/kling.ts, which already emits exactly that), so a handle in the prompt binds to a
+ * `refer_image` by name rather than by position. Omni's `<IMAGE_REF_N>` is zero-based over the
+ * same list. That one-off difference is the entire reason this is a second dialect and not a
+ * parameter: getting it wrong binds every citation to its neighbour, silently, in a paid clip.
+ *
+ * Structured to mirror `imageRefDialect` line for line — same `orderedIds` contract, same
+ * unknown-id behaviour (echo the original text rather than rewriting it), same chip label. Read
+ * them side by side; a divergence between them is a bug in one of them.
+ */
+export function klingImageDialect(orderedIds: string[]): TokenDialect {
+  const indexOf = new Map(orderedIds.map((id, i) => [id, i]));
+  return {
+    parse(value) {
+      if (!value) return [];
+      const segments: Segment[] = [];
+      let last = 0;
+      for (const m of value.matchAll(KLING_IMAGE_RE)) {
+        const at = m.index ?? 0;
+        if (at > last) segments.push({ kind: "text", text: value.slice(last, at) });
+        const i = Number(m[1]) - 1; // 1-based on the wire, 0-based in orderedIds
+        segments.push({ kind: "mention", label: m[0], id: orderedIds[i] ?? `__missing_${i}` });
+        last = at + m[0].length;
+      }
+      if (last < value.length) segments.push({ kind: "text", text: value.slice(last) });
+      return segments;
+    },
+    tokenOf(segment) {
+      const i = indexOf.get(segment.id);
+      return i === undefined ? segment.label : `@image_${i + 1}`;
+    },
+    tokenForId(id) {
+      const i = indexOf.get(id);
+      return i === undefined ? null : `@image_${i + 1}`;
+    },
+    chipLabel: (segment, upstreamLabel) => upstreamLabel ?? segment.label,
+  };
+}
+
+/**
+ * The dialect a multishot beat is stored in, given its node's target model.
+ *
+ * One call site per editor instead of a conditional at each — the editor is one component and the
+ * difference between models belongs here, which is what this module exists for.
+ */
+export function dialectForCapability(
+  cap: MultishotCapability,
+  orderedIds: string[],
+): TokenDialect {
+  return cap.refTokenBase === 1 ? klingImageDialect(orderedIds) : imageRefDialect(orderedIds);
 }

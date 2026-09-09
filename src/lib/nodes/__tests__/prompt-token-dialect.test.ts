@@ -3,7 +3,11 @@ import {
   mentionDialect,
   imageRefDialect,
   serializeSegments,
+  klingImageDialect,
+  dialectForCapability,
 } from "../prompt-token-dialect";
+import { multishotCapabilityFor } from "../multishot-models";
+import { GEMINI_OMNI_MODEL_ID, KLING_OMNI_MODEL_ID } from "@/lib/video-gen/client-models";
 
 describe("mentionDialect", () => {
   const d = mentionDialect();
@@ -97,5 +101,57 @@ describe("mentionDialect chip labels", () => {
   it("strips the type prefix when the upstream is gone", () => {
     expect(d.chipLabel({ kind: "mention", label: "Image: Still", id: "a" }, undefined))
       .toBe("Still");
+  });
+});
+
+describe("klingImageDialect", () => {
+  const d = klingImageDialect(["a", "b"]);
+
+  it("is ONE-based, where imageRefDialect is zero-based", () => {
+    expect(d.tokenForId("a", "A")).toBe("@image_1");
+    expect(d.tokenForId("b", "B")).toBe("@image_2");
+  });
+
+  it("parses its own tokens back to the right ids", () => {
+    const segs = d.parse("a hand lifts the @image_1 beside the @image_2");
+    const mentions = segs.filter((s) => s.kind === "mention");
+    expect(mentions.map((m: any) => m.id)).toEqual(["a", "b"]);
+  });
+
+  it("round-trips byte-exact", () => {
+    const text = "the @image_2 rests on oak, the @image_1 just visible";
+    expect(serializeSegments(d.parse(text), d)).toBe(text);
+  });
+
+  // @image_10 must not be read as @image_1 followed by a literal "0".
+  it("does not truncate a two-digit index", () => {
+    const wide = klingImageDialect(Array.from({ length: 12 }, (_, i) => `id${i}`));
+    const segs = wide.parse("@image_10");
+    expect(segs).toHaveLength(1);
+    expect((segs[0] as any).id).toBe("id9");
+  });
+
+  it("keeps an unknown id's original text rather than rewriting it", () => {
+    const segs = d.parse("@image_9");
+    expect(serializeSegments(segs, d)).toBe("@image_9");
+  });
+
+  it("returns null for an id that is not attached", () => {
+    expect(d.tokenForId("nope", "Nope")).toBeNull();
+  });
+
+  // The two dialects share a text field's worth of prose. Neither may claim the other's tokens.
+  it("does not read Omni's tokens, and imageRefDialect does not read Kling's", () => {
+    expect(d.parse("<IMAGE_REF_0>").every((s) => s.kind === "text")).toBe(true);
+    expect(imageRefDialect(["a", "b"]).parse("@image_1").every((s) => s.kind === "text")).toBe(true);
+  });
+});
+
+describe("dialectForCapability", () => {
+  it("gives each model its own token shape", () => {
+    const omni = dialectForCapability(multishotCapabilityFor(GEMINI_OMNI_MODEL_ID), ["a"]);
+    const kling = dialectForCapability(multishotCapabilityFor(KLING_OMNI_MODEL_ID), ["a"]);
+    expect(omni.tokenForId("a", "A")).toBe("<IMAGE_REF_0>");
+    expect(kling.tokenForId("a", "A")).toBe("@image_1");
   });
 });
