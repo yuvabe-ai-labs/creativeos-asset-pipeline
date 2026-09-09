@@ -183,13 +183,22 @@ const KLING_30_OMNI_RULES: ConstraintRule[] = [
   KLING_O1_END_FRAME_REQUIRES_START_FRAME,
 ];
 
-// 1-30 reference images per the vendor reference. Capped at 10 here, not 30: the operator
-// attaches these by hand and the prompt must cite each one, so a limit the UI can actually
-// present is more useful than the API's theoretical ceiling. Raise it when someone needs it.
+// The vendor's own stated limit: "Omni reference-to-video: 1–30 images"
+// (ref/byteplus-docs/Dreamina Seedance 2.5 tutorial.md, Usage limits → Multimodal input).
+//
+// 30, not the 10 this shipped with. That 10 was justified as "a limit the UI can actually
+// present", which does not survive contact with the vendor's own showcase: the announcement
+// doc's concert prompt cites @Image 1 through @Image 18, so a cap of 10 made the model's
+// headline worked example impossible to reproduce.
+//
+// Unlike Kling O1's 5 — which is a real, evidence-backed budget, because that endpoint shares a
+// 7-image total across references AND frames — Seedance has no shared budget to conserve:
+// frames and references are mutually exclusive TASK TYPES here, so a reference never competes
+// with a frame for a slot.
 const SEEDANCE_IMAGE_INPUTS = {
   startFrame: true,
   endFrame: true,
-  maxReferenceImages: 10,
+  maxReferenceImages: 30,
 } as const;
 
 // Frames and references are mutually exclusive on this endpoint — the same shape Veo 3.1 and

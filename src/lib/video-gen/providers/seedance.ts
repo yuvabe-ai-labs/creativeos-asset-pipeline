@@ -153,7 +153,7 @@ async function pollSeedanceTask(taskId: string): Promise<VideoGenResult> {
 const SEEDANCE_IMAGE_INPUTS_SERVER = {
   startFrame: true,
   endFrame: true,
-  maxReferenceImages: 10,
+  maxReferenceImages: 30,
 } as const;
 
 export const seedance25: VideoGenModelSpec = {

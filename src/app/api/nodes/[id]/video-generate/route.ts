@@ -177,6 +177,7 @@ export async function POST(
     // see assign-image-roles.ts for the divergence that made dropping them look like the fix.
     const effectiveRoles = autoAssignImageRoles(orderedImages, imageRoles, {
       supportsStartFrame: config.imageInputs.startFrame,
+      supportsReferences: config.imageInputs.maxReferenceImages > 0,
     });
     const assigned = assignImageRoles(orderedImages, effectiveRoles);
     const { startFrameUrl, referenceUrls } = assigned;
