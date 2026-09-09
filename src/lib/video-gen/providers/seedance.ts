@@ -73,10 +73,32 @@ async function createSeedanceTask(body: Record<string, unknown>): Promise<string
     headers: { Authorization: `Bearer ${getApiKey()}`, "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  const json = (await res.json()) as { id?: string; error?: { message?: string } };
-  if (!res.ok || !json.id) {
+
+  // Read response body as text first to avoid parse errors swallowing the real HTTP status.
+  // A gateway timeout HTML page or plaintext 5xx error won't parse as JSON; reading text
+  // ensures the actual status and body surface to the operator instead of a parse error.
+  // This pattern follows createKlingTask (providers/kling.ts).
+  const text = await res.text();
+
+  if (!res.ok) {
+    const truncated = text.length > 500 ? text.slice(0, 500) + "..." : text;
+    throw new Error(`Seedance task creation failed (${res.status}): ${truncated}`);
+  }
+
+  let json: { id?: string; error?: { message?: string } };
+  try {
+    json = JSON.parse(text);
+  } catch {
+    const truncated = text.length > 500 ? text.slice(0, 500) + "..." : text;
+    throw new Error(`Seedance task creation failed (${res.status}): ${truncated}`);
+  }
+
+  if (!json.id) {
+    // Seedance's late-arriving errors are the real diagnosis. Preserve the vendor's own
+    // error message if present, rather than burying it behind a generic string.
     throw new Error(`Seedance task creation failed: ${json.error?.message ?? res.statusText}`);
   }
+
   return json.id;
 }
 
