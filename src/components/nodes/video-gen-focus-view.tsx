@@ -80,7 +80,13 @@ import {
 import { VideoGenUsagePopover } from "./video-gen-usage-popover";
 import { VideoGenRequestPanel } from "./video-gen-request-panel";
 import { Skeleton } from "@/components/ui/skeleton";
-import { VideoGenParamsPanel } from "./video-gen-params-panel";
+import { VideoGenParamsPanel, hasParamsInGroup } from "./video-gen-params-panel";
+import {
+  Accordion,
+  AccordionItem,
+  AccordionTrigger,
+  AccordionContent,
+} from "@/components/ui/accordion";
 import { VideoGenConnectedSection } from "./video-gen-connected-section";
 import { RailItem } from "./focus-rail-item";
 import { AddConnection } from "./add-connection";
@@ -1416,6 +1422,45 @@ export function VideoGenFocusView({
                       <p className="mt-2 text-[0.7rem] text-muted-foreground">
                         Derived from this shot ({String(effectiveParams.duration)}s)
                       </p>
+                    )}
+
+                    {/* Advanced settings — restored (operator request 2026-09-09).
+                        The section was deleted in 7e1c643, which silently orphaned every param
+                        in the group: `audio` was still sent on every request and still priced
+                        into every estimate, while the operator had no control to set it, so a
+                        Kling clip could only ever come back silent. `hasParamsInGroup` was left
+                        behind in the panel with a doc comment saying it "drives showing the
+                        Advanced section" — this is the caller it was written for.
+
+                        Closed by default, and gated on the model actually having a visible
+                        advanced param: an empty disclosure is worse than none, and most models
+                        here have nothing in this group. Collapsed rather than promoted to
+                        primary because these are genuine fine-tunes next to resolution and
+                        duration — the same call the Multishot Prompt view's look block makes. */}
+                    {hasParamsInGroup(modelId, "advanced") && (
+                      <Accordion className="mt-4 border-t border-border pt-3">
+                        <AccordionItem value="advanced" className="border-none">
+                          <AccordionTrigger className="py-0 hover:no-underline">
+                            <span className="flex items-center gap-1.5">
+                              <SlidersHorizontal
+                                className="size-3.5 text-primary"
+                                strokeWidth={1.5}
+                              />
+                              <span className="text-eyebrow">Advanced</span>
+                            </span>
+                          </AccordionTrigger>
+                          <AccordionContent className="pt-3">
+                            <VideoGenParamsPanel
+                              modelId={modelId}
+                              params={effectiveParams}
+                              onParamChange={handleParamChange}
+                              lockedParams={constraints.lockedParams}
+                              lockedParamReasons={constraints.lockedParamReasons}
+                              group="advanced"
+                            />
+                          </AccordionContent>
+                        </AccordionItem>
+                      </Accordion>
                     )}
                   </VideoGenModelPicker>
                   {(() => {

@@ -41,6 +41,34 @@ describe("Kling 3.0 Omni registration", () => {
     expect(kling?.models.map((m) => m.id)).toContain(OMNI);
   });
 
+  // Audio is off by default and costs real money to turn on (+33% at 720p, +25% at 1080p —
+  // cost.ts), so it must be a control the operator sets deliberately, not a value they inherit.
+  it("offers audio as an operator-settable param, defaulting to off", () => {
+    const audio = videoGenClientModelMap[OMNI].params.find((p) => p.name === "audio");
+    expect(audio?.defaultValue).toBe("off");
+    expect(audio?.visible).toBe(true);
+    expect(audio?.constraints).toMatchObject({ options: ["native", "off"] });
+  });
+});
+
+// This bug shipped once and was invisible for exactly this reason: `audio` was declared, sent on
+// every request and priced into every estimate, but its group stopped rendering when the Advanced
+// section was deleted in 7e1c643 — so a Kling clip could only ever come back silent, with nothing
+// failing anywhere. A param the panel never draws is not a param the operator has.
+describe("every visible param is reachable in some rendered group", () => {
+  // The groups video-gen-focus-view.tsx actually renders. If a param is declared in a group that
+  // is not in this list, it exists in the request and nowhere on screen.
+  const RENDERED_GROUPS = ["primary", "advanced"];
+
+  for (const modelId of Object.keys(videoGenClientModelMap)) {
+    it(`${modelId}`, () => {
+      const orphaned = videoGenClientModelMap[modelId].params
+        .filter((p) => p.visible && !RENDERED_GROUPS.includes(p.group))
+        .map((p) => `${p.name} (group: ${p.group})`);
+      expect(orphaned).toEqual([]);
+    });
+  }
+
   // D101 — a refer_image stands alone as an input on the omni endpoints, so references with no
   // start frame is a legal request here (it is not on kling-3-0).
   it("allows a references-only request", () => {
