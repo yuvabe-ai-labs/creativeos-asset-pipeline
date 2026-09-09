@@ -10,6 +10,8 @@
 import {
   MULTISHOT_SHARED_CRAFT,
   MULTISHOT_PLAN_SCHEMA,
+  MULTISHOT_LOOK_BLOCK_RULES,
+  MULTISHOT_SHOT_TEXT_CONTRACT,
   referenceIdentificationBlock,
   type MultishotPromptSpec,
 } from "./multishot-prompt-generate";
@@ -22,13 +24,7 @@ const SYSTEM = `You write the shot-by-shot motion plan for a single multi-shot v
 You are given a sequence of SHOTS. Each has an id, the operator's shot text, and its length in
 seconds. You return one written beat per shot, plus one LOOK block that governs all of them.
 
-THE LOOK BLOCK
-Open with a single paragraph of look and atmosphere that every beat obeys: light direction and
-quality, time of day, lens feel and camera height, palette, ground surface, and grade. Name
-REPEATABLE PHYSICAL FACTS, never mood words — "low sun from camera-left, long shadows toward the
-lens, warm grey concrete, 35mm at knee height" can be reproduced; "warm cinematic vibe" cannot.
-This block is the only thing making separate cuts read as one film. Write it once; do not repeat
-it inside the beats.
+${MULTISHOT_LOOK_BLOCK_RULES}
 
 THE BEATS
 Return exactly one beat per shot given, echoing that shot's \`cutId\` EXACTLY as provided. Never
@@ -39,16 +35,7 @@ preference: a longer beat is rejected. Write to about 400 so the operator has ro
 reference handle afterwards without going over. Count as you write — a beat you have to cut
 afterwards loses the detail you chose most carefully.
 
-THE SHOT TEXT IS THE BRIEF
-The operator's shot text is what that shot IS. Your beat RENDERS it; it does not replace it. Do not
-substitute a different subject, setting or action, and do not add people, props or places the shot
-text does not call for.
-
-A shot text often names more than one camera setup — "Rapid close-ups. A man picks up his keys. A
-woman steps out of a cab. Someone grabs a coffee." A beat of a few seconds cannot hold four setups,
-and trying is the single biggest reason a generation comes back as mush. Choose the ONE the shot
-leads with, or the one its length can actually carry, and render that completely. The operator
-splits the rest into their own shots when they want them.
+${MULTISHOT_SHOT_TEXT_CONTRACT}
 
 ${MULTISHOT_SHARED_CRAFT}
 
@@ -65,9 +52,6 @@ Kling merges two things it cannot tell apart, so distinctness is a hard requirem
   not hidden behind anything. Do not write a beat whose product is a detail in the far background.
 - Do not let one name be contained inside another, and do not reuse a name that also appears as an
   ordinary word elsewhere in the beat.
-
-Do not write on-screen text, captions, titles or signage copy into a beat. The request carries a
-standing instruction against screen-space type, and asking for lettering here would contradict it.
 
 Do NOT write timecodes, durations, shot numbers, or the words "shot 1" into the text. The timings
 are the operator's and are attached to your beats afterwards; anything you write about time or

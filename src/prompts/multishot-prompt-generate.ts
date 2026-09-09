@@ -64,13 +64,47 @@ USE ONLY THE REFERENCES THIS SHOT CALLS FOR. The attachments are a library, not 
 export const REFERENCE_IDENTIFICATION_BLOCK = referenceIdentificationBlock("timecode");
 
 /**
+ * The LOOK BLOCK instruction: what the single top-of-plan paragraph must do (repeatable physical
+ * facts, not mood words) and why it is written once rather than repeated per beat. This is our
+ * contract with the operator about how a plan is structured, not a vendor constraint, so both
+ * writers share it verbatim (D231/D238) rather than each carrying a copy that can drift.
+ */
+export const MULTISHOT_LOOK_BLOCK_RULES = `THE LOOK BLOCK
+Open with a single paragraph of look and atmosphere that every beat obeys: light direction and
+quality, time of day, lens feel and camera height, palette, ground surface, and grade. Name
+REPEATABLE PHYSICAL FACTS, never mood words — "low sun from camera-left, long shadows toward the
+lens, warm grey concrete, 35mm at knee height" can be reproduced; "warm cinematic vibe" cannot.
+This block is the only thing making separate cuts read as one film. Write it once; do not repeat
+it inside the beats.`;
+
+/**
+ * The beat contract: the operator's shot text is the brief the beat renders, not a suggestion to
+ * improve on, and a shot text naming several camera setups still gets rendered as ONE beat. Also
+ * ours rather than a vendor's, and also shared verbatim (D231/D238) for the same reason as the look
+ * block above.
+ */
+export const MULTISHOT_SHOT_TEXT_CONTRACT = `THE SHOT TEXT IS THE BRIEF
+The operator's shot text is what that shot IS. Your beat RENDERS it; it does not replace it. Do not
+substitute a different subject, setting or action, and do not add people, props or places the shot
+text does not call for.
+
+A shot text often names more than one camera setup — "Rapid close-ups. A man picks up his keys. A
+woman steps out of a cab. Someone grabs a coffee." A beat of a few seconds cannot hold four setups,
+and trying is the single biggest reason a generation comes back as mush. Choose the ONE the shot
+leads with, or the one its length can actually carry, and render that completely. The operator
+splits the rest into their own shots when they want them.`;
+
+/**
  * The craft rules that are OURS, not a vendor's: one action per beat, the cutting rules, physics,
  * detail, preservation. They describe how generated motion fails, which is a property of diffusion
  * video and not of one vendor's API — so both writers get them from here rather than each carrying
  * a paraphrase that drifts.
  *
- * What is deliberately NOT in here: the look-block instruction, the beat contract, and anything
- * mentioning timecodes or shot numbers. Those differ per model.
+ * What IS shared with Kling's prompt, verbatim, beyond this block: MULTISHOT_LOOK_BLOCK_RULES and
+ * MULTISHOT_SHOT_TEXT_CONTRACT above, and referenceIdentificationBlock() below (with a per-model
+ * format argument). What genuinely DIFFERS per model and stays in each file: the opening line, the
+ * per-model character ceiling or lack of one, Kling's "NAMING THINGS THE REFERENCES CARRY" block,
+ * and the "Do NOT write timecodes…" sentence (Kling's also forbids shot numbers).
  */
 export const MULTISHOT_SHARED_CRAFT = `ONE DOMINANT ACTION PER BEAT
 One continuous action, never a chain. "A, then B, then C" inside a few seconds produces none of
@@ -125,28 +159,13 @@ const SYSTEM = `You write the shot-by-shot motion plan for a single multi-shot v
 You are given a sequence of SHOTS. Each has an id, the operator's shot text, and its length in
 seconds. You return one written beat per shot, plus one LOOK block that governs all of them.
 
-THE LOOK BLOCK
-Open with a single paragraph of look and atmosphere that every beat obeys: light direction and
-quality, time of day, lens feel and camera height, palette, ground surface, and grade. Name
-REPEATABLE PHYSICAL FACTS, never mood words — "low sun from camera-left, long shadows toward the
-lens, warm grey concrete, 35mm at knee height" can be reproduced; "warm cinematic vibe" cannot.
-This block is the only thing making separate cuts read as one film. Write it once; do not repeat
-it inside the beats.
+${MULTISHOT_LOOK_BLOCK_RULES}
 
 THE BEATS
 Return exactly one beat per shot given, echoing that shot's \`cutId\` EXACTLY as provided. Never
 invent an id, never merge two shots into one beat, never split one shot across two.
 
-THE SHOT TEXT IS THE BRIEF
-The operator's shot text is what that shot IS. Your beat RENDERS it; it does not replace it. Do not
-substitute a different subject, setting or action, and do not add people, props or places the shot
-text does not call for.
-
-A shot text often names more than one camera setup — "Rapid close-ups. A man picks up his keys. A
-woman steps out of a cab. Someone grabs a coffee." A beat of a few seconds cannot hold four setups,
-and trying is the single biggest reason a generation comes back as mush. Choose the ONE the shot
-leads with, or the one its length can actually carry, and render that completely. The operator
-splits the rest into their own shots when they want them.
+${MULTISHOT_SHOT_TEXT_CONTRACT}
 
 ${MULTISHOT_SHARED_CRAFT}
 
