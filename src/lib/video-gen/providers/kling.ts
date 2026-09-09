@@ -1,7 +1,7 @@
 import "server-only";
 import { logger } from "@trigger.dev/sdk/v3";
 import type { VideoGenInput, VideoGenResult, VideoGenModelSpec } from "../types";
-import { kling30Params, klingO1Params } from "../params/kling";
+import { kling30Params, klingO1Params, kling30OmniParams } from "../params/kling";
 
 const KLING_API_BASE = "https://api-singapore.klingai.com";
 const POLL_INTERVAL_MS = 5_000;
@@ -84,7 +84,7 @@ const O1_VALID_DURATIONS = [5, 10];
 // saved while it was still the only audio-on option asked for sound and would now get silence.
 // Carry that intent over to `native` (the enum value that actually produces audio here) rather
 // than dropping it to "off". Both bill identically for O1, so this cannot change a price.
-function o1Audio(value: unknown): string {
+function omniAudio(value: unknown): string {
   const audio = String(value ?? "off");
   if (audio === "original") return "native";
   return audio === "native" ? "native" : "off";
@@ -94,15 +94,46 @@ function o1Audio(value: unknown): string {
 // and rejected/ignored otherwise (Kling derives the ratio from the first frame when there is one).
 // Sent only on the references-only path, so a normal start-frame generation is byte-identical to
 // what it sent before D101.
-const O1_VALID_ASPECT_RATIOS = ["16:9", "9:16", "1:1"];
+const OMNI_VALID_ASPECT_RATIOS = ["16:9", "9:16", "1:1"];
 
-function o1AspectRatioSetting(
+function omniAspectRatioSetting(
   params: Record<string, unknown>,
   hasStartFrame: boolean,
 ): Record<string, unknown> {
   if (hasStartFrame) return {};
   const ratio = String(params.aspect_ratio ?? "16:9");
-  return { aspect_ratio: O1_VALID_ASPECT_RATIOS.includes(ratio) ? ratio : "16:9" };
+  return { aspect_ratio: OMNI_VALID_ASPECT_RATIOS.includes(ratio) ? ratio : "16:9" };
+}
+
+/**
+ * The settings body shared by every /omni-video endpoint.
+ *
+ * Extracted when Kling 3.0 Omni was added: both endpoints take the same envelope, the same
+ * aspect-ratio rule (OM8) and the same audio coercion, and differ ONLY in which durations they
+ * accept. The duration policy is therefore the parameter — a second copy of this body would be
+ * four shared rules maintained twice, and the one that drifts silently is `multi_shot`.
+ *
+ * The `omni`-prefixed helpers above were named `o1*` when O1 was the only caller. They describe
+ * the endpoint family, not O1's model weights, so leaving the old names would read as 3.0 Omni
+ * borrowing O1's quirks rather than sharing the family's contract.
+ */
+function buildOmniSettings(
+  params: Record<string, unknown>,
+  ctx: { hasStartFrame: boolean },
+  resolveDuration: (requested: number) => number,
+): Record<string, unknown> {
+  return {
+    ...omniAspectRatioSetting(params, ctx.hasStartFrame),
+    // Absent → false, matching multiShotParam's declared default. Kling's own server-side
+    // default is TRUE, so omitting this field entirely (as this builder used to) silently
+    // opted every clip into multi-shot cuts — the exact thing params/kling.ts calls out as
+    // fighting the single continuous moment a product clip wants.
+    multi_shot: Boolean(params.multi_shot ?? false),
+    audio: omniAudio(params.audio),
+    resolution: String(params.resolution ?? "720p"),
+    duration: resolveDuration(Number(params.duration ?? 5)),
+    ...negativePromptSetting(params),
+  };
 }
 
 // `ctx` defaults to hasStartFrame: true — the shape every caller sent before D101, and the one
@@ -111,19 +142,27 @@ export function buildO1Settings(
   params: Record<string, unknown>,
   ctx: { hasStartFrame: boolean } = { hasStartFrame: true },
 ): Record<string, unknown> {
-  const duration = Number(params.duration ?? 5);
-  return {
-    ...o1AspectRatioSetting(params, ctx.hasStartFrame),
-    // Absent → false, matching multiShotParam's declared default. Kling's own server-side
-    // default is TRUE, so omitting this field entirely (as this builder used to) silently
-    // opted every O1 clip into multi-shot cuts — the exact thing params/kling.ts calls out as
-    // fighting the single continuous moment a product clip wants.
-    multi_shot: Boolean(params.multi_shot ?? false),
-    audio: o1Audio(params.audio),
-    resolution: String(params.resolution ?? "720p"),
-    duration: O1_VALID_DURATIONS.includes(duration) ? duration : 5,
-    ...negativePromptSetting(params),
-  };
+  return buildOmniSettings(params, ctx, (requested) =>
+    O1_VALID_DURATIONS.includes(requested) ? requested : 5,
+  );
+}
+
+// 3.0 Omni's documented range is a CONTINUOUS 3–15, and O1's 5/10 clamp deliberately does not
+// apply: that clamp exists because O1's live validator rejected 3/4/6-second requests (see
+// O1_VALID_DURATIONS above), which is runtime evidence about that endpoint alone. Applying it
+// here would silently rewrite the multishot lane's duration — which is the sum of the operator's
+// own cut ladder, any integer in range — down to 5, and Kling rejects a shot list whose seconds
+// no longer sum to `duration`.
+const OMNI_30_MIN_DURATION = 3;
+const OMNI_30_MAX_DURATION = 15;
+
+export function build30OmniSettings(
+  params: Record<string, unknown>,
+  ctx: { hasStartFrame: boolean } = { hasStartFrame: true },
+): Record<string, unknown> {
+  return buildOmniSettings(params, ctx, (requested) =>
+    Math.min(OMNI_30_MAX_DURATION, Math.max(OMNI_30_MIN_DURATION, Math.round(requested))),
+  );
 }
 
 type KlingCreateResponse = {
@@ -301,6 +340,34 @@ export const klingO1: VideoGenModelSpec = {
         requiresStartFrame: false,
       },
       buildO1Settings,
+      input,
+    ),
+};
+
+// Kling's flagship, and the second model that cuts between shots natively (D235/D236). A new
+// model entry on transport that already exists: the {contents, settings, options} envelope
+// generateWithKling sends is exactly what /omni-video/kling-3.0-omni documents, and
+// buildKlingContents already emits `refer_image` entries with the `image_N` ids the prompt's
+// @image_N handles bind to.
+//
+// Shares O1's image-input shape: same 7-image omni budget, same undocumented question about
+// whether the frames count toward it, so the same conservative 5.
+export const kling30Omni: VideoGenModelSpec = {
+  id: "kling:kling-3-0-omni",
+  provider: "kling",
+  label: "Kling 3.0 Omni",
+  providerLabel: "Kling",
+  maxDurationSeconds: 15,
+  imageInputs: KLING_O1_IMAGE_INPUTS,
+  params: kling30OmniParams,
+  generate: (input) =>
+    generateWithKling(
+      {
+        endpointPath: "/omni-video/kling-3.0-omni",
+        supportsReferences: true,
+        requiresStartFrame: false,
+      },
+      build30OmniSettings,
       input,
     ),
 };

@@ -2,10 +2,12 @@ import { describe, it, expect } from "vitest";
 import { videoGenClientModelMap, videoGenClientModelGroups } from "../client-models";
 
 describe("video model roster", () => {
-  it("contains the consolidated roster: Veo x3 + Kling 3.0 + Kling O1 + Gemini Omni", () => {
+  it("contains the consolidated roster: Veo x3 + Kling 3.0 + Kling O1 + Kling 3.0 Omni + Gemini Omni", () => {
     expect(Object.keys(videoGenClientModelMap).sort()).toEqual([
       "gemini:gemini-omni-1.1-flash",
       "kling:kling-3-0",
+      // Added 2026-09-09 as the second multishot model (D235/D236).
+      "kling:kling-3-0-omni",
       "kling:kling-o1",
       "veo:veo-3.1",
       "veo:veo-3.1-fast",
