@@ -5,6 +5,7 @@
 // That property only holds if the two functions are written against each other.
 import type { ShotNodeData, MultishotNodeData } from "@/lib/canvas-nodes";
 import { clampTotal, cutsFromShots, shotsFromCuts, totalOf } from "./multishot-cuts";
+import { multishotCapabilityFor } from "./multishot-models";
 import { deriveShotType } from "./shot-types";
 
 export function shotDataToMultishot(data: ShotNodeData): MultishotNodeData {
@@ -12,11 +13,15 @@ export function shotDataToMultishot(data: ShotNodeData): MultishotNodeData {
   const cuts = cutsFromShots(shots);
 
   // No Total control any more (multishot-cuts.ts's header) — `totalSeconds` is just the stored
-  // mirror of the ladder's own length, clamped into Omni's window for the field that seeds a
+  // mirror of the ladder's own length, clamped into the model's window for the field that seeds a
   // request's duration. `clampTotal` only clamps the NUMBER; it never reshapes `cuts` to match,
   // so the two can disagree here only in the pre-existing edge case group-shots.ts documents (a
-  // single shot longer than OMNI_MAX_SECONDS forced into its own over-cap group).
-  const totalSeconds = clampTotal(totalOf(cuts));
+  // single shot longer than the ceiling forced into its own over-cap group).
+  //
+  // The DEFAULT capability, not the node's: this flip happens before a Multishot node exists, so
+  // there is no `targetModel` to read yet — the same reason group-shots.ts is not parameterised
+  // (D235). Omni's 10s is the safe floor, and a node later switched to Kling only gains headroom.
+  const totalSeconds = clampTotal(totalOf(cuts), multishotCapabilityFor(undefined));
 
   return {
     order: data.order,

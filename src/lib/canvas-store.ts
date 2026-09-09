@@ -22,6 +22,7 @@ import type { ShotComposeIdea } from "@/lib/nodes/shot-compose";
 import { deriveShotType } from "@/lib/nodes/shot-types";
 import { describeGenerations, generationKey } from "@/lib/nodes/group-shots";
 import { clampTotal, cutsFromShots, totalOf } from "@/lib/nodes/multishot-cuts";
+import { multishotCapabilityFor } from "@/lib/nodes/multishot-models";
 import { shotDataToMultishot, multishotDataToShot } from "@/lib/nodes/multishot-convert";
 import type { GenerationRow } from "@/lib/db/types";
 import type { PlaybookRun } from "@/lib/copilot/runner";
@@ -457,10 +458,15 @@ export function createCanvasStore(
 
         if (generation.multishot) {
           // No Total control any more (multishot-cuts.ts's header) — `totalSeconds` is just the
-          // stored mirror of the ladder's own length, clamped into Omni's window. They start
+          // stored mirror of the ladder's own length, clamped into the model's window. They start
           // equal and stay equal, because there is no independent field left to drift.
+          //
+          // The DEFAULT capability, not a node's: these nodes are being CREATED here, straight
+          // from a parsed script, so no `targetModel` has been chosen yet — the same reason
+          // group-shots.ts packs to Omni's 10s (D235). That is the safe floor; a node later
+          // switched to Kling only ever gains headroom.
           const cuts = cutsFromShots(groupShots);
-          const totalSeconds = clampTotal(totalOf(cuts));
+          const totalSeconds = clampTotal(totalOf(cuts), multishotCapabilityFor(undefined));
           return {
             id: crypto.randomUUID(),
             type: "multishot",
