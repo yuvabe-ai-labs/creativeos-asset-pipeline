@@ -3,11 +3,12 @@ import { resolveMultishotPromptInputs, buildMultishotUserTurn } from "@/lib/node
 import { parsePlan, renderPlan, mergeRefinedPlan } from "@/lib/nodes/multishot-plan";
 import { resolvePlanMentions } from "@/lib/nodes/plan-mentions";
 import {
-  multishotPromptGenerate,
   MULTISHOT_LOOK_SCHEMA,
   MULTISHOT_BEAT_SCHEMA,
   refineInstruction,
 } from "@/prompts/multishot-prompt-generate";
+import { multishotPromptFor } from "@/prompts/multishot-prompt-for";
+import { multishotCapabilityFor } from "@/lib/nodes/multishot-models";
 import { buildUserContent, isVisionAttachment } from "@/lib/nodes/compose-message";
 import { insertVersion } from "@/lib/db/versions";
 import { estimatePromptCredits } from "@/lib/credits/prompt-estimate";
@@ -91,8 +92,9 @@ export async function POST(
     // `previous?.ok` a second time.
     const previousPlan = previous?.ok ? previous.plan : null;
 
-    // One prompt, no provider routing — Omni is the only multishot model.
-    const spec = multishotPromptGenerate();
+    // D236 — the writer is the target model's own. `resolved.targetModel` comes from the upstream
+    // Multishot node, the single place the choice lives.
+    const spec = multishotPromptFor(resolved.targetModel);
 
     const user =
       buildMultishotUserTurn({
@@ -134,7 +136,11 @@ export async function POST(
         type: "prompt",
         model,
         estimatedCredits,
-        generationParamsSnapshot: { model: spec.model, promptId: spec.id },
+        generationParamsSnapshot: {
+          model: spec.model,
+          promptId: spec.id,
+          targetModel: resolved.targetModel ?? null,
+        },
         generationInputsSnapshot: { instruction, scope, cutId },
         inputsUsed: {
           upstream: resolved.upstream.map((u) => ({ nodeId: u.nodeId, versionId: u.versionId })),
@@ -163,6 +169,9 @@ export async function POST(
           // useless to the eval flywheel (D22), which is the whole reason these rows exist.
           note,
           promptId: spec.id,
+          // The two models' beats are not comparable, so a plan whose provenance does not record
+          // which one it was written for is unusable to the eval flywheel.
+          targetModel: resolved.targetModel ?? null,
         },
         // A failed attempt is still a version — mirrors video-prompt/route.ts's onFailure, which
         // runs BEFORE the helper's own failGeneration/refundReservation cleanup.
@@ -242,7 +251,7 @@ export async function POST(
 
       return apiOk({
         plan: output,
-        prompt: renderPlan(output, resolved.cuts),
+        prompt: renderPlan(output, resolved.cuts, multishotCapabilityFor(resolved.targetModel)),
         versionId,
       });
     } catch (e) {

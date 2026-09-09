@@ -5,6 +5,7 @@ import {
   MULTISHOT_LOOK_SCHEMA,
   MULTISHOT_BEAT_SCHEMA,
 } from "@/prompts/multishot-prompt-generate";
+import { KLING_OMNI_MODEL_ID } from "@/lib/video-gen/client-models";
 
 vi.mock("server-only", () => ({}));
 
@@ -49,6 +50,7 @@ vi.mock("@/lib/nodes/resolve-inputs", () => ({
     slices: [],
     upstream: [],
     cuts: CUTS,
+    targetModel: undefined,
   })),
   buildMultishotUserTurn: vi.fn(() => "USER TURN"),
 }));
@@ -72,6 +74,7 @@ const create = vi.fn();
 vi.mock("@/lib/openai/server", () => ({ createOpenAI: () => ({ chat: { completions: { create } } }) }));
 
 import { POST } from "./route";
+import { resolveMultishotPromptInputs } from "@/lib/nodes/resolve-inputs";
 
 const post = (body: unknown) =>
   POST(new Request("http://x", { method: "POST", body: JSON.stringify(body) }), {
@@ -209,6 +212,53 @@ describe("POST multishot-prompt — refine scopes", () => {
       returns(PLAN);
       await post({ scope: "all", note: "punchier overall" });
       expect(userText(create.mock.calls[0][0])).toContain("punchier overall");
+    });
+  });
+});
+
+// D236 — which writer a Multishot node's target model gets, and that the choice is recorded on
+// the version row. The plan schema itself does not vary (D238), so these only check the system
+// prompt sent and the promptId recorded, not the shape of the returned plan.
+describe("POST multishot-prompt — per-model writer routing", () => {
+  it("writes with Kling's prompt when the Multishot node targets Kling", async () => {
+    vi.mocked(resolveMultishotPromptInputs).mockResolvedValueOnce({
+      clientContext: "",
+      kbVersionId: null,
+      slices: [],
+      upstream: [],
+      cuts: CUTS,
+      targetModel: KLING_OMNI_MODEL_ID,
+    });
+    returns(PLAN);
+    const res = await post({ instruction: "punchy" });
+    expect(res.status).toBe(200);
+    const systemSent = create.mock.calls[0][0].messages[0].content;
+    expect(systemSent).toContain("Kling 3.0 Omni");
+    expect(systemSent).toContain("512 CHARACTERS");
+  });
+
+  it("writes with Omni's prompt when targetModel is absent", async () => {
+    returns(PLAN);
+    const res = await post({ instruction: "punchy" });
+    expect(res.status).toBe(200);
+    const systemSent = create.mock.calls[0][0].messages[0].content;
+    expect(systemSent).not.toContain("Kling 3.0 Omni");
+  });
+
+  it("records which model the plan was written for", async () => {
+    vi.mocked(resolveMultishotPromptInputs).mockResolvedValueOnce({
+      clientContext: "",
+      kbVersionId: null,
+      slices: [],
+      upstream: [],
+      cuts: CUTS,
+      targetModel: KLING_OMNI_MODEL_ID,
+    });
+    returns(PLAN);
+    await post({ instruction: "punchy" });
+    expect(runPromptGeneration.mock.calls[0][0].paramsUsed).toMatchObject({
+      promptId: "multishot-prompt-kling@1",
+      targetModel: KLING_OMNI_MODEL_ID,
     });
   });
 });
