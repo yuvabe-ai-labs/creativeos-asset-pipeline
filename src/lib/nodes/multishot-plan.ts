@@ -19,6 +19,19 @@ export type MultishotPlan = {
    */
   look: string;
   beats: MultishotBeat[];
+  /**
+   * D236 — the model whose writer produced these beats. Absent = Gemini Omni: every plan written
+   * before this field existed was Omni's, because it was the only multishot model. That fallback
+   * IS the migration; nothing is backfilled.
+   *
+   * It lives on the PLAN, not only on the Multishot node, because the node's `targetModel` is a
+   * setting the operator can change at any time while the beats stay exactly as written. Every
+   * consumer that decides a format (`renderPlan`), a token dialect (`refsCitedIn`) or a legal
+   * model (the video-generate guard) must read THIS, or switching the Select after a plan exists
+   * silently reinterprets it — Omni beats holding `<IMAGE_REF_0>` rendered into a Kling triple as
+   * literal prose, with every guard passing because they all compared against the node instead.
+   */
+  targetModel?: string;
 };
 
 export type PlanParseResult =
@@ -70,12 +83,23 @@ export function parsePlan(raw: unknown, cuts: MultishotCut[]): PlanParseResult {
 
   // Reordered to CUT order, not rejected: cut order is the edit, and the order the beats happen
   // to arrive in is an artifact of generation.
+  //
+  // `targetModel` (D236) is PRESERVED, not rebuilt: this function returns a fresh object, so a
+  // field it does not copy is a field it silently deletes. Every narrow refine round-trips its
+  // plan through here (mergeRefinedPlan spreads `...plan` and re-validates the whole), and a
+  // stamp dropped on the first look rewrite would leave the plan reading as Omni's forever after.
+  // Left ABSENT when absent rather than defaulted to Gemini Omni here, so "unstamped" stays
+  // distinguishable in stored data from "stamped for the default" — both resolve to Omni via
+  // `multishotCapabilityFor`, so no consumer has to care which it is.
   return {
     ok: true,
     plan: {
       version: 1,
       look,
       beats: cuts.map((c) => ({ cutId: c.id, text: byId.get(c.id)! })),
+      ...(typeof candidate.targetModel === "string"
+        ? { targetModel: candidate.targetModel }
+        : {}),
     },
   };
 }
@@ -249,5 +273,32 @@ export function mergeRefinedPlan(
   return parsePlan(
     { ...plan, beats: plan.beats.map((b) => (b.cutId === cutId ? { ...b, text } : b)) },
     cuts,
+  );
+}
+
+/**
+ * Has the operator hand-edited the plan since it was last generated, restored or saved?
+ *
+ * Drives the Multishot Prompt focus view's Save button, its "Unsaved changes" pill, the sheet's
+ * close-confirm, and the lockout on every path that would replace the plan wholesale (D240, D242).
+ *
+ * Compared FIELD-WISE rather than by `JSON.stringify`: stringify is key-order dependent, so a plan
+ * the server happened to serialise `beats`-before-`look` would read as edited; it would also
+ * silently start comparing any field later added to MultishotPlan, editable or not. `version` is
+ * deliberately excluded for exactly that reason — it is a schema literal, and a bump to it is not
+ * an unsaved edit.
+ *
+ * A null draft is never dirty: there is nothing to save. A draft with nothing saved is.
+ */
+export function planIsDirty(
+  saved: MultishotPlan | null,
+  draft: MultishotPlan | null,
+): boolean {
+  if (!draft) return false;
+  if (!saved) return true;
+  if (saved.look !== draft.look) return true;
+  if (saved.beats.length !== draft.beats.length) return true;
+  return saved.beats.some(
+    (b, i) => b.cutId !== draft.beats[i].cutId || b.text !== draft.beats[i].text,
   );
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parsePlan, renderPlan, refsCitedIn, mergeRefinedPlan, checkPlanLimits } from "../multishot-plan";
+import { parsePlan, renderPlan, refsCitedIn, mergeRefinedPlan, checkPlanLimits, planIsDirty } from "../multishot-plan";
 import type { MultishotPlan } from "../multishot-plan";
 import type { MultishotCut } from "../multishot-cuts";
 import { multishotCapabilityFor } from "../multishot-models";
@@ -342,5 +342,142 @@ describe("mergeRefinedPlan", () => {
   it("rejects when the cuts no longer match the plan", () => {
     const fewer: MultishotCut[] = [{ id: "c1", text: "keys", seconds: 2 }];
     expect(mergeRefinedPlan(plan, "look", { look: "New look." }, undefined, fewer).ok).toBe(false);
+  });
+});
+
+describe("planIsDirty", () => {
+  const plan = (over: Partial<MultishotPlan> = {}): MultishotPlan => ({
+    version: 1,
+    look: "Late afternoon, warm low sun.",
+    beats: [
+      { cutId: "c1", text: "Tight on a hand lifting keys." },
+      { cutId: "c2", text: "A cab door swings open." },
+    ],
+    ...over,
+  });
+
+  it("is not dirty when the draft matches what was saved", () => {
+    expect(planIsDirty(plan(), plan())).toBe(false);
+  });
+
+  it("is dirty when the look was edited", () => {
+    expect(planIsDirty(plan(), plan({ look: "Overcast, flat light." }))).toBe(true);
+  });
+
+  it("is dirty when a beat's text was edited", () => {
+    const edited = plan({
+      beats: [
+        { cutId: "c1", text: "Tight on a hand lifting keys." },
+        { cutId: "c2", text: "The cab door slams." },
+      ],
+    });
+    expect(planIsDirty(plan(), edited)).toBe(true);
+  });
+
+  it("is dirty when the beat count differs", () => {
+    const edited = plan({ beats: [{ cutId: "c1", text: "Tight on a hand lifting keys." }] });
+    expect(planIsDirty(plan(), edited)).toBe(true);
+  });
+
+  it("is dirty when a cutId at the same index differs", () => {
+    const edited = plan({
+      beats: [
+        { cutId: "c1", text: "Tight on a hand lifting keys." },
+        { cutId: "c9", text: "A cab door swings open." },
+      ],
+    });
+    expect(planIsDirty(plan(), edited)).toBe(true);
+  });
+
+  it("is never dirty with no draft — there is nothing to save", () => {
+    expect(planIsDirty(plan(), null)).toBe(false);
+    expect(planIsDirty(null, null)).toBe(false);
+  });
+
+  it("is dirty when there is a draft but nothing saved", () => {
+    expect(planIsDirty(null, plan())).toBe(true);
+  });
+
+  // `version` is a schema literal, not an operator-editable field. Comparing it would report a
+  // plan dirty on a future schema bump, which is not an unsaved edit.
+  it("ignores the schema version", () => {
+    const bumped = { ...plan(), version: 2 } as unknown as MultishotPlan;
+    expect(planIsDirty(plan(), bumped)).toBe(false);
+  });
+});
+
+// D236 — the stamp that makes a plan self-describing. Every hop downstream (renderPlan's format,
+// refsCitedIn's dialect, video-generate's model guard) reads THIS rather than the Multishot node's
+// current `targetModel`, so a stamp silently dropped anywhere in the round trip re-opens the
+// silent-reinterpretation bug those hops exist to close.
+describe("the plan's targetModel stamp (D236)", () => {
+  const stamped = (targetModel: string) => raw({ targetModel });
+
+  it("parsePlan preserves the stamp", () => {
+    const result = parsePlan(stamped(KLING_OMNI_MODEL_ID), cuts);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.plan.targetModel).toBe(KLING_OMNI_MODEL_ID);
+  });
+
+  // ABSENT stays absent — it is not defaulted to Gemini Omni on the way through. Both resolve to
+  // Omni at every read site, so "unstamped" and "stamped for the default" behave identically;
+  // keeping them distinguishable in stored data is what makes a pre-stamp plan recognisable.
+  it("parsePlan omits the stamp when the plan carries none", () => {
+    const result = parsePlan(raw(), cuts);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.plan.targetModel).toBeUndefined();
+    expect("targetModel" in result.plan).toBe(false);
+  });
+
+  it("parsePlan ignores a non-string stamp rather than storing one", () => {
+    const result = parsePlan(raw({ targetModel: 42 }), cuts);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.plan.targetModel).toBeUndefined();
+  });
+
+  // A narrow refine rewrites one fragment and leaves the rest as the original writer left it, so
+  // the plan must come back out still describing that writer. Losing the stamp on the first look
+  // rewrite would quietly demote a Kling plan to Omni's format.
+  it("mergeRefinedPlan carries the stamp through a look refine", () => {
+    const kling: MultishotPlan = {
+      version: 1,
+      look: "Late afternoon, warm low sun.",
+      beats: cuts.map((c) => ({ cutId: c.id, text: `beat for ${c.id}` })),
+      targetModel: KLING_OMNI_MODEL_ID,
+    };
+    const out = mergeRefinedPlan(kling, "look", { look: "Overcast, flat and soft." }, undefined, cuts);
+    expect(out.ok).toBe(true);
+    if (!out.ok) return;
+    expect(out.plan.look).toBe("Overcast, flat and soft.");
+    expect(out.plan.targetModel).toBe(KLING_OMNI_MODEL_ID);
+  });
+
+  it("mergeRefinedPlan carries the stamp through a cut refine", () => {
+    const kling: MultishotPlan = {
+      version: 1,
+      look: "Late afternoon, warm low sun.",
+      beats: cuts.map((c) => ({ cutId: c.id, text: `beat for ${c.id}` })),
+      targetModel: KLING_OMNI_MODEL_ID,
+    };
+    const out = mergeRefinedPlan(kling, "cut", { text: "A palm sweeps keys off oak." }, "c2", cuts);
+    expect(out.ok).toBe(true);
+    if (!out.ok) return;
+    expect(out.plan.beats[1].text).toBe("A palm sweeps keys off oak.");
+    expect(out.plan.targetModel).toBe(KLING_OMNI_MODEL_ID);
+  });
+
+  // The stamp is data the plan carries, not an instruction to renderPlan: format still comes from
+  // the capability the CALLER resolved. This pins that the two are wired together only by the
+  // caller, so a stamped plan can still be rendered either way for a preview without lying about
+  // which one shipped.
+  it("does not change what renderPlan does on its own — the caller resolves the capability", () => {
+    const stampedPlan = parsePlan(stamped(KLING_OMNI_MODEL_ID), cuts);
+    expect(stampedPlan.ok).toBe(true);
+    if (!stampedPlan.ok) return;
+    expect(renderPlan(stampedPlan.plan, cuts, KLING)).toContain("shot 1, ");
+    expect(renderPlan(stampedPlan.plan, cuts, OMNI)).toContain("[0-");
   });
 });
