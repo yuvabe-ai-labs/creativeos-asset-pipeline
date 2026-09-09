@@ -211,16 +211,78 @@ type KlingTask = {
 };
 type KlingQueryResponse = { code: number; message: string; data: KlingTask[] };
 
+/**
+ * How many CONSECUTIVE failed polls to tolerate before giving up (~50s at a 5s interval).
+ *
+ * Carried over from the Seedance provider after a real incident there: a task was created,
+ * accepted and left running at the vendor, and one `TypeError: fetch failed` on a single poll
+ * threw straight out of the loop. The vendor kept generating and kept billing; the operator got a
+ * stack trace and no video. This loop had the identical shape and the identical exposure.
+ *
+ * Reset on every successful poll, so this bounds a RUN of failures rather than their lifetime
+ * total. A genuinely unreachable API still fails, just after ~50 seconds instead of instantly.
+ */
+const MAX_CONSECUTIVE_POLL_FAILURES = 10;
+
+/** Poll for at most this long before giving up on a task the vendor never finishes. */
+const POLL_DEADLINE_MS = 30 * 60_000;
+
+/** A 429 or 5xx is the server asking us to come back; a 4xx is us being wrong. Only retry the former. */
+function isRetryableStatus(status: number): boolean {
+  return status === 429 || status >= 500;
+}
+
+/** Marks a poll failure worth retrying, so the catch below can tell it from a real error. */
+class RetryablePollError extends Error {}
+
 async function pollKlingTask(taskId: string): Promise<VideoGenResult> {
   const apiKey = getApiKey();
+  const deadline = Date.now() + POLL_DEADLINE_MS;
+  let consecutiveFailures = 0;
+
   for (;;) {
     await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
 
-    const res = await fetch(`${KLING_API_BASE}/tasks?task_ids=${taskId}`, {
-      headers: { Authorization: `Bearer ${apiKey}` },
-    });
-    if (!res.ok) throw new Error(`Kling poll failed (${res.status})`);
-    const json = (await res.json()) as KlingQueryResponse;
+    if (Date.now() > deadline) {
+      throw new Error(
+        `Kling task ${taskId} did not finish within ${POLL_DEADLINE_MS / 60_000} minutes. ` +
+          `It may still be running at the vendor.`,
+      );
+    }
+
+    let json: KlingQueryResponse;
+    try {
+      const res = await fetch(`${KLING_API_BASE}/tasks?task_ids=${taskId}`, {
+        headers: { Authorization: `Bearer ${apiKey}` },
+      });
+      if (!res.ok && !isRetryableStatus(res.status)) {
+        throw new Error(`Kling poll failed (${res.status})`);
+      }
+      if (!res.ok) throw new RetryablePollError(`HTTP ${res.status}`);
+      json = (await res.json()) as KlingQueryResponse;
+    } catch (e) {
+      // `fetch` throws a bare TypeError on a network-level failure — DNS, a reset connection, a
+      // dropped socket — with no status to inspect. Retryable, alongside the 429/5xx above.
+      if (!(e instanceof RetryablePollError || e instanceof TypeError)) throw e;
+
+      consecutiveFailures += 1;
+      logger.warn("Kling poll failed, retrying", {
+        taskId,
+        consecutiveFailures,
+        max: MAX_CONSECUTIVE_POLL_FAILURES,
+        error: e instanceof Error ? e.message : String(e),
+      });
+      if (consecutiveFailures >= MAX_CONSECUTIVE_POLL_FAILURES) {
+        throw new Error(
+          `Kling polling failed ${consecutiveFailures} times in a row for task ${taskId} ` +
+            `(last: ${e instanceof Error ? e.message : String(e)}). It may still be running ` +
+            `at the vendor.`,
+        );
+      }
+      continue;
+    }
+
+    consecutiveFailures = 0;
     const kTask = json.data[0];
 
     logger.info("Kling task status", { taskId, status: kTask?.status });
