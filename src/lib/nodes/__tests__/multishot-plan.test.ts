@@ -1,7 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { parsePlan, renderPlan, refsCitedIn, mergeRefinedPlan } from "../multishot-plan";
+import { parsePlan, renderPlan, refsCitedIn, mergeRefinedPlan, checkPlanLimits } from "../multishot-plan";
 import type { MultishotPlan } from "../multishot-plan";
 import type { MultishotCut } from "../multishot-cuts";
+import { multishotCapabilityFor } from "../multishot-models";
+import { GEMINI_OMNI_MODEL_ID, KLING_OMNI_MODEL_ID } from "@/lib/video-gen/client-models";
+
+const OMNI = multishotCapabilityFor(GEMINI_OMNI_MODEL_ID);
+const KLING = multishotCapabilityFor(KLING_OMNI_MODEL_ID);
 
 const cuts: MultishotCut[] = [
   { id: "c1", text: "keys", seconds: 2 },
@@ -113,7 +118,7 @@ describe("renderPlan", () => {
   };
 
   it("puts the look above the ladder, separated", () => {
-    expect(renderPlan(plan, cuts)).toBe(
+    expect(renderPlan(plan, cuts, OMNI)).toBe(
       "Late afternoon, warm low sun.\n\n" +
         "[0-2s] Tight on a hand lifting keys.\n" +
         "[2-4s] A cab door swings open.\n" +
@@ -124,16 +129,20 @@ describe("renderPlan", () => {
   // The property that keeps the request's duration honest: the ladder's last timestamp IS the
   // node's total, by construction rather than by check.
   it("ends the ladder exactly at the budget", () => {
-    const last = renderPlan(plan, cuts).trim().split("\n").at(-1)!;
+    const last = renderPlan(plan, cuts, OMNI).trim().split("\n").at(-1)!;
     expect(last.startsWith("[4-8s]")).toBe(true);
   });
 
   it("takes seconds from the cuts, never from the plan", () => {
-    const retimed = renderPlan(plan, [
-      { id: "c1", text: "keys", seconds: 5 },
-      { id: "c2", text: "cab", seconds: 2 },
-      { id: "c3", text: "street", seconds: 1 },
-    ]);
+    const retimed = renderPlan(
+      plan,
+      [
+        { id: "c1", text: "keys", seconds: 5 },
+        { id: "c2", text: "cab", seconds: 2 },
+        { id: "c3", text: "street", seconds: 1 },
+      ],
+      OMNI,
+    );
     expect(retimed).toContain("[0-5s]");
     expect(retimed).toContain("[5-7s]");
     expect(retimed).toContain("[7-8s]");
@@ -142,15 +151,127 @@ describe("renderPlan", () => {
 
 describe("refsCitedIn", () => {
   it("finds every token in order and deduplicates", () => {
-    expect(refsCitedIn("the <IMAGE_REF_1> beside a <IMAGE_REF_0> and <IMAGE_REF_1>")).toEqual([1, 0]);
+    expect(refsCitedIn("the <IMAGE_REF_1> beside a <IMAGE_REF_0> and <IMAGE_REF_1>", OMNI)).toEqual([1, 0]);
   });
 
   it("ignores malformed tokens", () => {
-    expect(refsCitedIn("<IMAGE_REF_> <IMAGE_REF> <IMAGE_REF_x> plain text")).toEqual([]);
+    expect(refsCitedIn("<IMAGE_REF_> <IMAGE_REF> <IMAGE_REF_x> plain text", OMNI)).toEqual([]);
   });
 
   it("returns nothing for text with no references", () => {
-    expect(refsCitedIn("a hand lifts keys")).toEqual([]);
+    expect(refsCitedIn("a hand lifts keys", OMNI)).toEqual([]);
+  });
+});
+
+const planCuts = [
+  { id: "c1", text: "", seconds: 2 },
+  { id: "c2", text: "", seconds: 3 },
+];
+const perModelPlan = {
+  version: 1 as const,
+  look: "Low sun from camera-left, warm grey concrete, 35mm at knee height.",
+  beats: [
+    { cutId: "c1", text: "A hand sweeps keys off oak." },
+    { cutId: "c2", text: "A cab door swings open onto sunlit paving." },
+  ],
+};
+
+describe("renderPlan per model", () => {
+  it("emits Omni's cumulative timecode ladder", () => {
+    expect(renderPlan(perModelPlan, planCuts, OMNI)).toBe(
+      "Low sun from camera-left, warm grey concrete, 35mm at knee height.\n\n" +
+        "[0-2s] A hand sweeps keys off oak.\n" +
+        "[2-5s] A cab door swings open onto sunlit paving.",
+    );
+  });
+
+  // D238 — the API's triple form, NOT the console's `Shot 1 (2s):`. Lowercase `shot`, comma
+  // between number/seconds/text, semicolon between shots.
+  it("emits Kling's shot triples with the look as leading prose", () => {
+    expect(renderPlan(perModelPlan, planCuts, KLING)).toBe(
+      "Low sun from camera-left, warm grey concrete, 35mm at knee height.\n\n" +
+        "shot 1, 2, A hand sweeps keys off oak;\n" +
+        "shot 2, 3, A cab door swings open onto sunlit paving;",
+    );
+  });
+
+  it("takes durations from the CUTS, so the triples sum to the request duration", () => {
+    const rendered = renderPlan(perModelPlan, planCuts, KLING);
+    const seconds = [...rendered.matchAll(/^shot \d+, (\d+),/gm)].map((m) => Number(m[1]));
+    expect(seconds.reduce((a, b) => a + b, 0)).toBe(5);
+  });
+
+  it("renders every cut even when the plan is missing a beat for one", () => {
+    const short = { ...perModelPlan, beats: [perModelPlan.beats[0]] };
+    expect(renderPlan(short, planCuts, KLING)).toContain("shot 2, 3,");
+  });
+
+  // Beat text is prose an operator edits. A stray semicolon would split one shot into two on
+  // Kling's parser, silently changing the cut count.
+  it("strips semicolons from Kling beat text", () => {
+    const risky = {
+      ...perModelPlan,
+      beats: [{ cutId: "c1", text: "keys land; the hand withdraws" }, perModelPlan.beats[1]],
+    };
+    const rendered = renderPlan(risky, planCuts, KLING);
+    expect(rendered).toContain("shot 1, 2, keys land, the hand withdraws;");
+    expect(rendered.match(/;/g)).toHaveLength(2); // one terminator per shot, no more
+  });
+});
+
+describe("checkPlanLimits", () => {
+  it("passes a plan inside the model's budgets", () => {
+    expect(checkPlanLimits(perModelPlan, planCuts, KLING)).toEqual({ ok: true });
+  });
+
+  it("passes anything on a model that states no limits", () => {
+    const huge = { ...perModelPlan, beats: [{ cutId: "c1", text: "x".repeat(9000) }, perModelPlan.beats[1]] };
+    expect(checkPlanLimits(huge, planCuts, OMNI)).toEqual({ ok: true });
+  });
+
+  it("refuses a beat over 512 characters, naming the shot", () => {
+    const long = { ...perModelPlan, beats: [{ cutId: "c1", text: "x".repeat(513) }, perModelPlan.beats[1]] };
+    const res = checkPlanLimits(long, planCuts, KLING);
+    expect(res.ok).toBe(false);
+    if (!res.ok) {
+      expect(res.reason).toContain("Shot 1");
+      expect(res.reason).toContain("512");
+    }
+  });
+
+  it("refuses a whole prompt over 3072 characters", () => {
+    const long = {
+      ...perModelPlan,
+      look: "y".repeat(3000),
+      beats: [{ cutId: "c1", text: "x".repeat(400) }, { cutId: "c2", text: "x".repeat(400) }],
+    };
+    const res = checkPlanLimits(long, planCuts, KLING);
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.reason).toContain("3072");
+  });
+
+  // Measured on what is actually SENT, not on the raw beats: the rendered string carries the
+  // look, the triples and their punctuation, and that is the string the 3072 cap applies to.
+  it("measures the rendered prompt, not the sum of the beats", () => {
+    const res = checkPlanLimits(
+      { ...perModelPlan, look: "z".repeat(3060) },
+      planCuts,
+      KLING,
+    );
+    expect(res.ok).toBe(false);
+  });
+});
+
+describe("refsCitedIn per model", () => {
+  it("finds Omni's zero-based tokens and not Kling's", () => {
+    expect(refsCitedIn("the <IMAGE_REF_1> and <IMAGE_REF_0>", OMNI)).toEqual([1, 0]);
+    expect(refsCitedIn("the @image_1", OMNI)).toEqual([]);
+  });
+
+  // Returned ZERO-BASED for both, because the caller indexes promptRefImages with it.
+  it("finds Kling's one-based tokens and returns zero-based indexes", () => {
+    expect(refsCitedIn("the @image_1 and @image_2", KLING)).toEqual([0, 1]);
+    expect(refsCitedIn("the <IMAGE_REF_0>", KLING)).toEqual([]);
   });
 });
 

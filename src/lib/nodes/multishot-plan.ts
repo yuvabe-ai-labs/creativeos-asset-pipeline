@@ -5,6 +5,7 @@
 // same object rendered twice. Asking for prose AND JSON would give two representations the model
 // produces independently, and they diverge eventually.
 import type { MultishotCut } from "./multishot-cuts";
+import type { MultishotCapability, LadderCheck } from "./multishot-models";
 
 export type MultishotBeat = { cutId: string; text: string };
 
@@ -80,16 +81,58 @@ export function parsePlan(raw: unknown, cuts: MultishotCut[]): PlanParseResult {
 }
 
 /**
- * The compiled prompt: the look, a blank line, then the timecode ladder.
+ * The compiled prompt: the look, a blank line, then the beats in the target model's own format.
  *
- * One function for both the string sent to Omni and the ordering the breakup view renders, so
- * the look cannot end up in two different places.
+ * One function for both the string sent to the model and the ordering the breakup view renders,
+ * so the look cannot end up in two different places.
  *
- * Times are cumulative and come from the CUTS, never from the plan — which is what makes the
- * ladder's final timestamp equal the request's duration by construction.
+ * Times are cumulative (Omni) or per-shot (Kling) but come from the CUTS in both cases, never
+ * from the plan — which is what makes the ladder agree with the request's duration by
+ * construction rather than by check.
+ *
+ * ALWAYS RETURNS A STRING, including for a plan that violates the model's character budgets. This
+ * is the display path as well as the send path: the focus view renders it live while the operator
+ * types, and blanking the panel at the moment they are trying to read the text they need to
+ * shorten would be the worst possible time to withhold it. `checkPlanLimits` below is the gate the
+ * money path calls.
  */
-export function renderPlan(plan: MultishotPlan, cuts: MultishotCut[]): string {
+export function renderPlan(
+  plan: MultishotPlan,
+  cuts: MultishotCut[],
+  cap: MultishotCapability,
+): string {
   const byId = new Map(plan.beats.map((b) => [b.cutId, b.text]));
+
+  if (cap.shotFormat === "triple") {
+    // D238 — Kling's API format: lowercase `shot`, a comma-separated triple of number, seconds
+    // and text, semicolon-terminated. NOT the `Shot N (Xs):` form in kling-omni-system-prompt.md
+    // and the CHUPPS reference — those are the web console's syntax, and sending them would put
+    // prose in front of a parser that then reads the whole prompt as ONE shot. A wrong-but-
+    // accepted payload is the failure mode that does not announce itself.
+    //
+    // The look leads as prose. Kling's format has no slot for it and repeating a ~300-character
+    // look inside every beat would eat most of the 512-character budget six times over. This is
+    // the spec's one acknowledged guess (§6) — if the first real generation shows it ignored or
+    // absorbed into shot 1, fold a compressed look into each beat instead.
+    const shots = cuts
+      .map((cut, i) => {
+        // A semicolon inside beat prose would terminate the shot early and silently change the
+        // cut count. Commas are safe: only the first two are structural, and the parser takes the
+        // rest of the triple as text.
+        //
+        // A trailing period is dropped: the shot's own semicolon is its terminator, and a beat
+        // written as a full sentence would otherwise stack punctuation (".;") right at the seam
+        // the parser splits on.
+        const text = (byId.get(cut.id) ?? "")
+          .trim()
+          .replace(/;/g, ",")
+          .replace(/\.$/, "");
+        return `shot ${i + 1}, ${cut.seconds}, ${text};`;
+      })
+      .join("\n");
+    return `${plan.look.trim()}\n\n${shots}`;
+  }
+
   let at = 0;
   const ladder = cuts
     .map((cut) => {
@@ -103,24 +146,69 @@ export function renderPlan(plan: MultishotPlan, cuts: MultishotCut[]): string {
 }
 
 const IMAGE_REF = /<IMAGE_REF_(\d+)>/g;
+const KLING_IMAGE_REF = /@image_(\d+)/g;
 
 /**
- * Which references a beat cites, derived from its own text.
+ * Which references a beat cites, derived from its own text, in the target model's token shape.
  *
  * Since D233 these are the OPERATOR's citations, not the writer's: the model is forbidden from
- * assigning `<IMAGE_REF_N>` itself and names the product in prose instead, so a token in a beat
- * got there by someone `@`-mentioning a reference in the editor. The shape is unchanged either
- * way — `imageRefDialect` emits the same token the writer used to.
+ * assigning tokens itself and names the product in prose instead, so a token in a beat got there
+ * by someone `@`-mentioning a reference in the editor.
  *
- * A regex is exact here because the token is machine-emitted and fixed-shape — unlike splitting
- * prose on `[0-2s]`-shaped headings, which is a drift bug waiting for its first unusual beat.
+ * ALWAYS ZERO-BASED on the way out, whatever the model's wire format. Callers use the result to
+ * index `promptRefImages`, so returning Kling's 1-based numbers would mark the wrong reference as
+ * uncited — off by one, on a display that exists to catch exactly that class of mistake.
  */
-export function refsCitedIn(text: string): number[] {
+export function refsCitedIn(text: string, cap: MultishotCapability): number[] {
   const seen = new Set<number>();
-  for (const match of text.matchAll(IMAGE_REF)) {
-    seen.add(Number(match[1]));
+  if (cap.refTokenBase === 1) {
+    for (const match of text.matchAll(KLING_IMAGE_REF)) seen.add(Number(match[1]) - 1);
+  } else {
+    for (const match of text.matchAll(IMAGE_REF)) seen.add(Number(match[1]));
   }
   return [...seen];
+}
+
+/**
+ * Whether this plan fits the target model's character budgets.
+ *
+ * Separate from `renderPlan` on purpose — see that function's note. The whole-prompt figure is
+ * measured on the RENDERED string, because that is what is actually sent: the look, the triples
+ * and their punctuation all count against the 3072.
+ *
+ * A model that states no character limits (`null`) passes everything. `null` is not "unknown, so
+ * guess a number" — it is "the vendor publishes no ceiling", and inventing one here would refuse
+ * prompts Omni accepts.
+ */
+export function checkPlanLimits(
+  plan: MultishotPlan,
+  cuts: MultishotCut[],
+  cap: MultishotCapability,
+): LadderCheck {
+  if (cap.maxCutChars !== null) {
+    const byId = new Map(plan.beats.map((b) => [b.cutId, b.text]));
+    for (const [i, cut] of cuts.entries()) {
+      const text = (byId.get(cut.id) ?? "").trim();
+      if (text.length > cap.maxCutChars) {
+        return {
+          ok: false,
+          reason: `Shot ${i + 1} is ${text.length} characters · ${cap.label} allows ${cap.maxCutChars}. Shorten it, or rewrite that shot with AI.`,
+        };
+      }
+    }
+  }
+
+  if (cap.maxPromptChars !== null) {
+    const rendered = renderPlan(plan, cuts, cap);
+    if (rendered.length > cap.maxPromptChars) {
+      return {
+        ok: false,
+        reason: `The whole prompt is ${rendered.length} characters · ${cap.label} allows ${cap.maxPromptChars}. Shorten the look block or the longest shots.`,
+      };
+    }
+  }
+
+  return { ok: true };
 }
 
 /** What a narrow refine returns: one of the two, never both. */
