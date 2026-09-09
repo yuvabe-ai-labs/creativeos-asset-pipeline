@@ -72,7 +72,26 @@ describe("compileVideoPrompt continuous-take spine", () => {
       controls: { camera: "auto", speed: "auto" },
       targetProvider: "gemini-omni",
     });
-    expect(system).toContain("image-to-video prompts for Veo");
+    // The spine itself — this is what the test is actually about: a Shot upstream is one
+    // continuous take, so this route emits the i2v spine and never the multishot ladder.
+    expect(system).toContain("STRUCTURE (image-to-video)");
+    expect(system).not.toMatch(/\[\d+-\d+s\]/);
+  });
+
+  // D243 — this assertion used to read `toContain("image-to-video prompts for Veo")`, which
+  // passed only because Omni had no record of its own and fell through to Veo's. It was pinning
+  // the bug rather than the behaviour: the spine is what this describe block is about, and the
+  // header line was a proxy that happened to work. Now it asserts the thing that was wrong.
+  it("writes an omni node its OWN header, not Veo's", () => {
+    const { system } = compileVideoPrompt({
+      clientContext: "",
+      upstream: [],
+      instruction: "make it move",
+      controls: { camera: "auto", speed: "auto" },
+      targetProvider: "gemini-omni",
+    });
+    expect(system).toContain("for Gemini Omni");
+    expect(system).not.toContain("for Veo 3.1");
   });
 
   it("keeps the global camera/speed block on an omni node", () => {
