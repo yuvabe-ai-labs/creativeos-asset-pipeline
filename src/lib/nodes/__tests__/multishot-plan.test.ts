@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parsePlan, renderPlan, refsCitedIn, mergeRefinedPlan, checkPlanLimits, planIsDirty } from "../multishot-plan";
+import { parsePlan, renderPlan, refsCitedIn, mergeRefinedPlan, checkPlanLimits, planIsDirty, setBeatText } from "../multishot-plan";
 import type { MultishotPlan } from "../multishot-plan";
 import type { MultishotCut } from "../multishot-cuts";
 import { multishotCapabilityFor } from "../multishot-models";
@@ -514,5 +514,62 @@ describe("the plan's targetModel stamp (D236)", () => {
     if (!stampedPlan.ok) return;
     expect(renderPlan(stampedPlan.plan, cuts, KLING)).toContain("shot 1, ");
     expect(renderPlan(stampedPlan.plan, cuts, OMNI)).toContain("[0-");
+  });
+});
+
+// The bug this exists to make unrepresentable: clearing every shot and pasting into the first made
+// the text appear in all of them. The proximate cause was a stale closure in the editor's paste
+// handler, but what let a stale caller corrupt UNRELATED beats was update logic that read the plan
+// from a closure. These pin the properties that make that impossible.
+describe("setBeatText", () => {
+  const base: MultishotPlan = {
+    version: 1,
+    look: "Low sun, warm concrete.",
+    beats: [
+      { cutId: "c1", text: "" },
+      { cutId: "c2", text: "" },
+      { cutId: "c3", text: "" },
+    ],
+  };
+
+  it("writes only the named beat, leaving the others EMPTY", () => {
+    const next = setBeatText(base, "c1", "pasted text");
+    expect(next.beats.map((b) => b.text)).toEqual(["pasted text", "", ""]);
+  });
+
+  // Identity, not just equality: an untouched beat must be the SAME object, which is what makes
+  // "did this write reach a neighbour?" checkable rather than a matter of reading strings.
+  it("keeps untouched beats by reference", () => {
+    const next = setBeatText(base, "c2", "only me");
+    expect(next.beats[0]).toBe(base.beats[0]);
+    expect(next.beats[2]).toBe(base.beats[2]);
+    expect(next.beats[1]).not.toBe(base.beats[1]);
+  });
+
+  it("never mutates the plan it was given", () => {
+    const snapshot = JSON.stringify(base);
+    setBeatText(base, "c1", "mutate me");
+    expect(JSON.stringify(base)).toBe(snapshot);
+  });
+
+  it("preserves the look and the targetModel stamp", () => {
+    const stamped: MultishotPlan = { ...base, targetModel: "seedance:seedance-2-5" };
+    const next = setBeatText(stamped, "c1", "x");
+    expect(next.look).toBe(stamped.look);
+    expect(next.targetModel).toBe("seedance:seedance-2-5");
+  });
+
+  it("is a no-op for a cutId that is not in the plan, returning the same object", () => {
+    expect(setBeatText(base, "not-a-cut", "x")).toBe(base);
+  });
+
+  // Writing each beat in turn must accumulate, not overwrite — the sequence an operator performs
+  // when filling in a cleared ladder shot by shot.
+  it("accumulates across successive writes", () => {
+    let p = base;
+    p = setBeatText(p, "c1", "one");
+    p = setBeatText(p, "c2", "two");
+    p = setBeatText(p, "c3", "three");
+    expect(p.beats.map((b) => b.text)).toEqual(["one", "two", "three"]);
   });
 });

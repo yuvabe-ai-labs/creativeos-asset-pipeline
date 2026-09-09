@@ -4,11 +4,10 @@ import { RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { MentionInstructionEditor } from "./mention-instruction-editor";
-import { dialectForCapability } from "@/lib/nodes/prompt-token-dialect";
+import type { TokenDialect } from "@/lib/nodes/prompt-token-dialect";
 import { RefineWithAI } from "./refine-with-ai";
 import { RefineProgress } from "./refine-progress";
 import type { UpstreamNode } from "./connected-inputs-card";
-import type { MultishotCapability } from "@/lib/nodes/multishot-models";
 
 /**
  * One full-width row of the breakup view's output (Option A, 2026-09-03) — a fixed-width
@@ -28,8 +27,7 @@ export function MultishotBeatCard({
   to,
   text,
   upstream,
-  refIds,
-  cap,
+  dialect,
   onChange,
   onRerun,
   onRefine,
@@ -46,9 +44,9 @@ export function MultishotBeatCard({
   to: number;
   text: string;
   upstream: UpstreamNode[];
-  refIds: string[];
-  /** The target model's capability — decides whether a chip stores `<IMAGE_REF_0>` or `@image_1`. */
-  cap: MultishotCapability;
+  /** The target model's token dialect, built ONCE by the parent (see beatDialect there): a
+   * fresh dialect object per render re-runs the editor's population effect and fights the caret. */
+  dialect: TokenDialect;
   onChange: (next: string) => void;
   onRerun: () => void;
   /** Rewrite this beat with an operator note. Same call as onRerun, with a steer attached. */
@@ -139,7 +137,7 @@ export function MultishotBeatCard({
             onChange={onChange}
             upstream={upstream}
             disabled={disabled || rerunning}
-            dialect={dialectForCapability(cap, refIds)}
+            dialect={dialect}
             placeholder="Not written yet…"
           />
         </div>

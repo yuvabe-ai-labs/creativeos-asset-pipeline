@@ -349,3 +349,33 @@ export function planIsDirty(
     (b, i) => b.cutId !== draft.beats[i].cutId || b.text !== draft.beats[i].text,
   );
 }
+
+/**
+ * Write one beat's text, returning a new plan. Every other beat is returned BY REFERENCE.
+ *
+ * Extracted from the focus view's `updateBeat` after a real bug: an editor callback held a stale
+ * render's plan, so writing one beat also wrote back that snapshot's version of every other beat —
+ * clearing all the shots and pasting into the first resurrected the rest, which read as the paste
+ * being duplicated across them.
+ *
+ * Two properties make that class of bug unrepresentable here, and both are tested:
+ *   - it is PURE, so it cannot read a stale plan out of a closure; the caller passes the current
+ *     one (the view uses the functional setState form to guarantee that), and
+ *   - untouched beats keep their object identity, so "did this write touch a neighbour?" is
+ *     answerable with `===` rather than by eyeballing text.
+ *
+ * An unknown `cutId` is a no-op returning the SAME plan object, not a clone: a write aimed at a
+ * shot that is not in this plan should change nothing, and returning the same reference lets a
+ * caller see that nothing changed.
+ */
+export function setBeatText(
+  plan: MultishotPlan,
+  cutId: string,
+  text: string,
+): MultishotPlan {
+  if (!plan.beats.some((b) => b.cutId === cutId)) return plan;
+  return {
+    ...plan,
+    beats: plan.beats.map((b) => (b.cutId === cutId ? { ...b, text } : b)),
+  };
+}
