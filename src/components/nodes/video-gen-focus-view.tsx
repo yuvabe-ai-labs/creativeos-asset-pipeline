@@ -38,7 +38,8 @@ import {
   defaultsForVideoModel,
   videoGenClientModelMap,
 } from "@/lib/video-gen/client-models";
-import { multishotCapabilityFor, multishotRestrictionReason } from "@/lib/nodes/multishot-models";
+import { multishotCapabilityFor, multishotRestrictionReason, checkLadder } from "@/lib/nodes/multishot-models";
+import { totalOf, type MultishotCut } from "@/lib/nodes/multishot-cuts";
 import { smartMergeVideoParams } from "@/lib/video-gen/params/merge";
 import { autoAssignImageRoles } from "@/lib/video-gen/assign-image-roles";
 import { paramsForRestore } from "@/lib/generations/version-params";
@@ -461,6 +462,18 @@ export function VideoGenFocusView({
     return (multishotNode?.data as { targetModel?: string } | undefined)?.targetModel;
   });
 
+  // D236 — the same one-hop-further walk, for the cut ladder itself. video-generate/route.ts
+  // bills `totalOf(cuts)`, not this node's own `duration` param — a Kling node can sit at its
+  // default `duration: 5` while a 12s ladder is connected, and the route generates and bills the
+  // 12. The credit estimate below and the disabled-Generate check both need the ladder that will
+  // actually be billed/checked, not the (possibly stale) param.
+  const upstreamMultishotCuts = useCanvasStore((s) => {
+    if (!promptNode || promptNode.type !== "multishot-prompt") return undefined;
+    const sourceIds = s.edges.filter((e) => e.target === promptNode.id).map((e) => e.source);
+    const multishotNode = s.nodes.find((n) => sourceIds.includes(n.id) && n.type === "multishot");
+    return (multishotNode?.data as { cuts?: MultishotCut[] } | undefined)?.cuts;
+  });
+
   // D232/D236 — belt and braces, mirroring canvas-store's onConnect coercion: a node whose stored
   // modelId predates the connection would sit on a model the restricted picker no longer offers a
   // chip for, and doGenerate reads local `modelId` state directly.
@@ -798,7 +811,11 @@ export function VideoGenFocusView({
     // C0: whatever the model's rules forbid — button should be disabled, but guard anyway. This
     // used to be a hardcoded "Kling needs a start frame" check; D101 made that false for O1, which
     // generates from references alone, so the question is asked of the rules instead.
-    if (constraints.disableGenerate) return;
+    //
+    // D236 — `disableGenerate` also covers an illegal multishot ladder (checkLadder), not just
+    // the rules engine's `constraints.disableGenerate`. Same belt-and-braces reasoning: the
+    // button should already be disabled, guard anyway.
+    if (disableGenerate) return;
 
     // C2: images connected but none assigned (non-Kling providers)
     if (upstreamImages.length > 0 && Object.keys(effectiveImageRoles).length === 0) {
@@ -990,11 +1007,40 @@ export function VideoGenFocusView({
   // Pre-generation credit estimate. Reads effectiveParams, NOT params — for the same reason
   // doGenerate does. A rule can pin duration to 8s while `params.duration` still holds the 6 the
   // operator last picked, and estimating off the stale 6 would quote one price and bill another.
-  const durationSeconds = Number(effectiveParams.seconds ?? effectiveParams.duration ?? 0);
+  //
+  // D236 — the multishot lane is the ONE exception to "read effectiveParams": video-generate/
+  // route.ts overwrites `resolvedParams.duration` with `totalOf(cuts)` on that lane, so the
+  // node's own `duration` param is never what gets billed there. A Kling node can sit at its
+  // default `duration: 5` while a 12s ladder is connected; quoting off the param would repeat
+  // exactly the stale-price bug this comment already warns about, one lane over. Falls back to
+  // the param-based read when the ladder isn't available yet (e.g. still loading).
+  const durationSeconds =
+    isMultishotPromptConnected && upstreamMultishotCuts
+      ? totalOf(upstreamMultishotCuts)
+      : Number(effectiveParams.seconds ?? effectiveParams.duration ?? 0);
   const audioEnabled = isVideoAudioEnabled(effectiveParams.audio);
   const resolution = asResolutionString(effectiveParams.resolution);
   const videoCostEstimate = computeVideoCost(modelId, durationSeconds, audioEnabled, resolution);
   const estimatedCredits = videoCostEstimate ? usdToFinalCredits(videoCostEstimate.usd) : null;
+
+  // D236 — Video Gen's own disabled-Generate check for an illegal ladder. checkLadder's doc
+  // comment (multishot-models.ts) has always claimed its reason "is shown verbatim on ... Video
+  // Gen's disabled Generate", but there was no call site here: a 14s Kling ladder switched to
+  // Omni let the operator click Generate and pay for a 400 from the server backstop instead of
+  // seeing the button disabled. Reuses the cuts already read above; only evaluated on the
+  // multishot lane, so the non-multishot lane's constraints are untouched. `constraints`
+  // (evaluateConstraints, above) takes precedence when it already disables Generate, so the two
+  // checks don't fight over which reason wins.
+  const ladderCheck =
+    isMultishotPromptConnected && upstreamMultishotCuts
+      ? checkLadder(upstreamMultishotCuts, multishotCapabilityFor(upstreamMultishotTargetModel))
+      : null;
+  const disableGenerate = constraints.disableGenerate || Boolean(ladderCheck && !ladderCheck.ok);
+  const disableGenerateReason = constraints.disableGenerate
+    ? constraints.disableGenerateReason
+    : ladderCheck && !ladderCheck.ok
+      ? ladderCheck.reason
+      : constraints.disableGenerateReason;
 
   // D95: the duration label the current combination actually yields — read off the model's own
   // param spec so it stays correct when a spec changes (e.g. O1's 5/10 select), but a rule-locked
@@ -1303,7 +1349,7 @@ export function VideoGenFocusView({
                           className="w-full"
                           onClick={handleGenerate}
                           disabled={
-                            isGenerating || constraints.disableGenerate || !editable
+                            isGenerating || disableGenerate || !editable
                           }
                         >
                           <Sparkles className="size-4" strokeWidth={1.5} />
@@ -1317,9 +1363,9 @@ export function VideoGenFocusView({
                           )}
                         </Button>
                       </TooltipTrigger>
-                      {constraints.disableGenerate && constraints.disableGenerateReason ? (
+                      {disableGenerate && disableGenerateReason ? (
                         <TooltipContent side="bottom">
-                          {constraints.disableGenerateReason}
+                          {disableGenerateReason}
                         </TooltipContent>
                       ) : null}
                     </Tooltip>
