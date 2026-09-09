@@ -4407,3 +4407,54 @@ operator's citations from a node they are not looking at).
 
 **Supersedes** D232's restriction copy, which explained a capability — "only Omni can generate a
 multi-shot plan" — a sentence that stops being true the moment there are two multishot models.
+
+### D240 — A Multishot plan's hand edits are buffered and saved explicitly *(recorded 2026-09-09; refines D231)*
+
+**Decision.** `updateLook` / `updateBeat` write `planDraft` only. An explicit **Save** persists the
+whole plan onto the ACTIVE version via `savePromptOutputAction` — in place, no new version row —
+and only then mirrors it into the canvas store. `planIsDirty` (field-wise: `look`, beat count, each
+`cutId`/`text`; never `version` or `targetModel`) drives the button, the pill, and the sheet's
+close-confirm.
+
+**Why.** This node was the only prompt node whose hand edits never reached the database. They went
+to component state and the zustand store; `upstream-images/route.ts` and `resolve-prompt.ts` both
+read the `node_versions` row. So an edited look or beat showed on the canvas and was dropped at the
+boundary — Video Gen previewed *and billed a paid render against* the last AI-generated plan. Not a
+display bug: a generation from text the operator believed they had replaced.
+
+**Rejected.** A new `saveMultishotPlanAction` (a rename of `savePromptOutputAction`, and a second
+entry to keep in sync in `impersonation-audit-view.ts`); autosaving each keystroke to the version
+row (a write per character on the money path, and no way to abandon an experiment); comparing plans
+with `JSON.stringify` (key-order dependent, and silently starts comparing fields added later — a
+hazard proved out the same day, when D236 added `targetModel` to the same type).
+
+### D241 — The Save bar sits at the foot of the Output column *(recorded 2026-09-09; refines D240)*
+
+**Decision.** A `shrink-0 border-t` footer under the Output column's scroller: `Save`, the red
+"Unsaved changes" pill, and while dirty the line *"Save or discard your edits to rewrite with AI."*
+Structurally identical to the Generate button's footer on the Input column beside it.
+
+**Why.** The file's own rule is that an action sits at the foot of the column it acts on, and the
+edited fields are in this column. The label is `Save`, verbatim from the Motion Prompt node, because
+the whole point is that the two nodes now edit the same way.
+
+**Rejected.** Per-card Save buttons (one plan is one output; three edits would mean three
+round-trips and three chances to leave one unsaved); Save in the header beside the version chips
+(away from the fields it acts on).
+
+### D242 — A dirty plan locks out every wholesale-replacement path *(recorded 2026-09-09; refines D234)*
+
+**Decision.** While the plan has unsaved edits, the whole-sequence refine, the look's refine and
+rewrite, every beat's refine and rewrite, Re-generate, and the version chips are all disabled, with
+a line stating why. **The editors stay live** — `MultishotBeatCard` gains a narrow `aiDisabled`
+prop for this, because its existing `disabled` also locks its `MentionInstructionEditor` and would
+otherwise freeze a beat the instant it was typed into.
+
+**Why.** The same hazard the file already guards twice (one refine in flight at a time; a restore
+beating an in-flight refine): a response computed against a snapshot taken before an edit resolves
+afterwards and overwrites it with no error at all. A hand edit is one more such snapshot.
+
+**Rejected.** A confirm dialog before each rewrite (a dialog on a frequent action, and it makes the
+loss recoverable rather than impossible); auto-saving before a refine (quietly commits edits the
+operator was trying out — the exact thing a Save button exists to prevent). Accepted cost: fixing a
+typo now takes a Save before Re-generate.
