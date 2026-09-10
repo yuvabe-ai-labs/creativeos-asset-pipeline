@@ -17,6 +17,7 @@ import { ProcessingPill } from "./processing-pill";
 import type { ReelScript } from "@/lib/nodes/reel-script";
 import { DEFAULT_PARSE_SLICES, type KBSliceKey } from "@/lib/kb/parse-context";
 import { DEFAULT_SIGNAL_MODE, type SignalMode } from "@/lib/market/constants";
+import type { GroupingVersion } from "@/lib/nodes/group-shots";
 import { useNodeConnectionState } from "./use-node-connection-state";
 
 export function ScriptNode({ id, data, selected }: NodeProps) {
@@ -32,6 +33,7 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
     parsed?: unknown;
     kbSlices?: KBSliceKey[];
     groupModes?: Record<string, boolean>;
+    groupingVersion?: GroupingVersion;
     signalIds?: string[];
     signalMode?: SignalMode;
   };
@@ -40,6 +42,7 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
   const source = d.source ?? "";
   const slices = d.kbSlices ?? DEFAULT_PARSE_SLICES;
   const groupModes = d.groupModes;
+  const groupingVersion = d.groupingVersion;
   const [focusOpen, setFocusOpen] = useState(false);
   const [isParsing, setIsParsing] = useState(false);
   const connState = useNodeConnectionState(id, "script");
@@ -137,6 +140,7 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
       source={source}
       parsed={parsed}
       groupModes={groupModes}
+      groupingVersion={groupingVersion}
       slices={slices}
       signalIds={d.signalIds ?? []}
       signalMode={d.signalMode ?? DEFAULT_SIGNAL_MODE}

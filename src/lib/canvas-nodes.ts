@@ -10,6 +10,7 @@ import type { VideoProvider } from "@/prompts/video-prompt-generate";
 import type { EditIntent } from "@/lib/image-gen/edit-prompt";
 import type { PostFormat, PostLayer } from "@/lib/post/types";
 import type { MultishotCut } from "@/lib/nodes/multishot-cuts";
+import type { GroupingVersion } from "@/lib/nodes/group-shots";
 
 export type ScriptNodeData = {
   title?: string;
@@ -18,10 +19,16 @@ export type ScriptNodeData = {
   kbSlices?: KBSliceKey[]; // KB slices injected into parse context; undefined = DEFAULT_PARSE_SLICES
   /**
    * D227 — per-generation mode OVERRIDES, keyed by `generationKey(shotIndexes)`.
-   * An absent key means the default (a group of more than one row is multishot). Only
-   * deviations are stored, so a re-parse that reshapes the groups drops them harmlessly.
+   * An absent key means the default, which `groupingVersion` decides (`defaultMultishotFor`).
+   * Only deviations are stored, so a re-parse that reshapes the groups drops them harmlessly.
    */
   groupModes?: Record<string, boolean>;
+  /**
+   * D257 — which grouping rules produced this node's generations. Absent = 1 (10s ceiling, a 2+
+   * shot group defaults to multishot). Written by the parse and never backfilled: absence IS the
+   * migration, so no canvas reshapes under its operator and a re-parse adopts the current rules.
+   */
+  groupingVersion?: GroupingVersion;
   signalIds?: string[]; // market signals flavouring the parse (D204); undefined = none
   signalMode?: SignalMode; // tint | rewrite; undefined = "tint"
 };

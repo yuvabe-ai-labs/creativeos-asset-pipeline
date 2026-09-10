@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import { Plus, X } from "lucide-react";
 import { looksLikeReelScript, type ReelScript } from "@/lib/nodes/reel-script";
-import { describeGenerations } from "@/lib/nodes/group-shots";
+import { describeGenerations, type GroupingVersion } from "@/lib/nodes/group-shots";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { EditableField } from "./editable-field";
@@ -15,6 +15,7 @@ type ScriptDocumentProps = {
   script: ReelScript;
   scriptNodeId: string;
   groupModes?: Record<string, boolean>;
+  groupingVersion?: GroupingVersion;
   readOnly?: boolean;
   onChange?: (path: Path, value: unknown) => void;
   onAddItem?: (path: Path, item: unknown) => void;
@@ -70,6 +71,7 @@ export function ScriptDocument({
   script,
   scriptNodeId,
   groupModes,
+  groupingVersion,
   readOnly = false,
   onChange,
   onAddItem,
@@ -85,7 +87,7 @@ export function ScriptDocument({
 
   const set = (path: Path) => (v: string) => onChange?.(path, v);
   const shots = script.visual_script?.shots ?? [];
-  const generations = describeGenerations(shots, groupModes);
+  const generations = describeGenerations(shots, groupModes, groupingVersion ?? 1);
   const body = script.on_screen_text?.body ?? [];
   const qc = script.qc_notes ?? [];
   const links = script.product_links ?? [];
