@@ -6,6 +6,7 @@ import {
   checkLadder,
   multishotRestrictionReason,
   restrictionSentenceFor,
+  describeCapability,
   MultishotCapability,
 } from "../multishot-models";
 import { videoGenClientModelMap, GEMINI_OMNI_MODEL_ID, KLING_OMNI_MODEL_ID, SEEDANCE_MODEL_ID } from "@/lib/video-gen/client-models";
@@ -155,5 +156,23 @@ describe("multishotRestrictionReason", () => {
     expect(sentence).toContain("Multishot node");
     expect(sentence).not.toContain("Gemini Omni 1.1");
     expect(sentence).not.toContain("Test Third Model");
+  });
+});
+
+describe("describeCapability", () => {
+  const cap = (id: string) => MULTISHOT_MODELS.find((m) => m.id === id)!;
+
+  it("states the total window", () => {
+    expect(describeCapability(cap(GEMINI_OMNI_MODEL_ID))).toBe("3–10s");
+  });
+
+  it("adds a cut cap where the vendor publishes one", () => {
+    expect(describeCapability(cap(KLING_OMNI_MODEL_ID))).toBe("3–15s · max 6 shots");
+  });
+
+  // `null` means the vendor states no limit. It must render as ABSENCE — a number here would be
+  // one we invented, and D235 exists so those two cannot look alike.
+  it("says nothing about cuts where the vendor states no limit", () => {
+    expect(describeCapability(cap(SEEDANCE_MODEL_ID))).toBe("4–30s");
   });
 });

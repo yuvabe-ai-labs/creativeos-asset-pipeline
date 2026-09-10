@@ -126,6 +126,22 @@ export function multishotCapabilityFor(
   );
 }
 
+/**
+ * D260 — the one-line window under a model's name in the select.
+ *
+ * Built from the same fields `checkLadder` measures a ladder against, so the dropdown cannot
+ * promise a window the check then rejects. A `null` cap renders as ABSENCE, never as a number:
+ * "the vendor states no limit" and "we guessed one" must not look alike (D235).
+ *
+ * Character ceilings are deliberately omitted — they constrain the PROMPT, not the ladder, and an
+ * operator picking a model is choosing a shape for their cuts.
+ */
+export function describeCapability(cap: MultishotCapability): string {
+  const parts = [`${cap.minTotalSeconds}–${cap.maxTotalSeconds}s`];
+  if (cap.maxCuts !== null) parts.push(`max ${cap.maxCuts} shots`);
+  return parts.join(" · ");
+}
+
 export type LadderCheck = { ok: true } | { ok: false; reason: string };
 
 /**
