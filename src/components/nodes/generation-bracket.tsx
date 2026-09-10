@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Layers, Film, Unlink } from "lucide-react";
+import { Layers, Film, Unlink, TriangleAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,7 +20,7 @@ import {
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import type { Generation } from "@/lib/nodes/group-shots";
-import { generationKey } from "@/lib/nodes/group-shots";
+import { generationKey, PACK_CEILING_SECONDS } from "@/lib/nodes/group-shots";
 
 /**
  * D227 — one generation's rows, bracketed, with the single control that sets its mode.
@@ -88,7 +90,28 @@ export function GenerationBracket({
         <span className="text-eyebrow">
           Gen {generation.index + 1} · {generation.seconds}s
         </span>
+        {/* The one thing regrouping cannot fix: a single shot longer than any model's window.
+            Names no model — which model to use is the Multishot node's sentence to write. */}
+        {generation.overCeiling && (
+          <Tooltip>
+            <TooltipTrigger
+              render={<Badge variant="destructive" className="gap-1 font-medium" />}
+            >
+              <TriangleAlert className="size-3" strokeWidth={1.5} />
+              over limit
+            </TooltipTrigger>
+            <TooltipContent>
+              {generation.seconds}s is longer than any model can generate (max{" "}
+              {PACK_CEILING_SECONDS}s). Split this shot on the script.
+            </TooltipContent>
+          </Tooltip>
+        )}
         <div className="ml-auto flex items-center gap-1.5">
+          {/* D259 — advisory only. Fan-out never flips the switch: turning multishot back off
+              disconnects downstream nodes, so the expensive direction stays the operator's. */}
+          {generation.recommendMultishot && !generation.multishot && (
+            <span className="text-[0.65rem] text-muted-foreground">Recommended</span>
+          )}
           <span
             className={cn(
               "text-[0.65rem] font-medium transition-colors duration-200",
