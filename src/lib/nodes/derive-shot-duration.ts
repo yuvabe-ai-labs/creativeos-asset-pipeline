@@ -2,15 +2,16 @@ import type { ReelScript } from "@/lib/nodes/reel-script";
 import { shotSeconds } from "@/lib/nodes/group-shots";
 
 /**
- * A SINGLE TAKE's window — deliberately not the multishot pack window (D258).
+ * Gemini Omni's single-take window — deliberately not the multishot pack window (D258).
  *
- * Narrower and separately named on purpose. This clamps the duration requested of a single-take
- * video model for one Shot node, where 30s is on offer from no provider. It borrowed group-shots'
- * OMNI_* constants until those became the 30s pack ceiling; sharing them past that point would
- * have started requesting takes nothing can generate.
+ * This is the range of the ONE duration D216 pre-fills: `migrateVideoModelState` applies the
+ * derived value only when Video Gen's model is the Omni provider, whose slider is 3–10s. Other
+ * single-take models are not bounded by it — Seedance 2.5's slider reaches 30s — they simply get
+ * no derived default. It borrowed group-shots' OMNI_* constants until those became the 30s pack
+ * ceiling; sharing them past that point would have pre-filled durations Omni cannot generate.
  */
 const SHOT_MIN_SECONDS = 3;
-/** Exported for the Script node's multishot recommendation, which cites it as the squeeze. */
+/** Past this, the default single-take models (Veo 8s, Omni 10s) cannot hold a take. */
 export const SHOT_MAX_SECONDS = 10;
 
 /**

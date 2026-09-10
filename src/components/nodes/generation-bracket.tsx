@@ -65,12 +65,13 @@ export function GenerationBracket({
     ? edges.filter((e) => e.source === nodeForThisGeneration.id).length
     : 0;
 
-  // The recommendation says WHY, for this group. Past a single take's ceiling the reason is
-  // concrete — fan-out would squeeze these shots into one clamped clip — so it says that.
+  // The recommendation says WHY, for this group. Past the default single-take models' reach the
+  // reason is concrete: as one take it needs a long-take model picked by hand, while multishot
+  // starts on one that fits (D261). Names no model — that is the Multishot node's sentence.
   const shotCount = generation.shotIndexes.length;
   const recommendReason =
     generation.seconds > SHOT_MAX_SECONDS
-      ? `${shotCount} shots, ${generation.seconds}s. As a single take they'd be squeezed into one ${SHOT_MAX_SECONDS}s clip — multishot keeps each shot as its own cut.`
+      ? `${shotCount} shots, ${generation.seconds}s. Multishot keeps each shot as its own cut and starts on a model that fits ${generation.seconds}s. As a single take, only some models reach that length.`
       : `${shotCount} shots. Multishot generates them as one sequence with a cut between each, instead of blending them into a single take.`;
 
   function handleChange(next: boolean) {
