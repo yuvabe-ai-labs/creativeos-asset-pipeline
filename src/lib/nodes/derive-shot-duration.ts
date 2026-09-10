@@ -10,7 +10,8 @@ import { shotSeconds } from "@/lib/nodes/group-shots";
  * have started requesting takes nothing can generate.
  */
 const SHOT_MIN_SECONDS = 3;
-const SHOT_MAX_SECONDS = 10;
+/** Exported for the Script node's multishot recommendation, which cites it as the squeeze. */
+export const SHOT_MAX_SECONDS = 10;
 
 /**
  * The duration a Shot's own beats add up to, clamped to what the model accepts.

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Layers, Film, Unlink, TriangleAlert } from "lucide-react";
+import { Layers, Film, Unlink, TriangleAlert, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,7 @@ import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import type { Generation } from "@/lib/nodes/group-shots";
 import { generationKey, PACK_CEILING_SECONDS } from "@/lib/nodes/group-shots";
+import { SHOT_MAX_SECONDS } from "@/lib/nodes/derive-shot-duration";
 
 /**
  * D227 — one generation's rows, bracketed, with the single control that sets its mode.
@@ -63,6 +64,14 @@ export function GenerationBracket({
   const downstreamCount = nodeForThisGeneration
     ? edges.filter((e) => e.source === nodeForThisGeneration.id).length
     : 0;
+
+  // The recommendation says WHY, for this group. Past a single take's ceiling the reason is
+  // concrete — fan-out would squeeze these shots into one clamped clip — so it says that.
+  const shotCount = generation.shotIndexes.length;
+  const recommendReason =
+    generation.seconds > SHOT_MAX_SECONDS
+      ? `${shotCount} shots, ${generation.seconds}s. As a single take they'd be squeezed into one ${SHOT_MAX_SECONDS}s clip — multishot keeps each shot as its own cut.`
+      : `${shotCount} shots. Multishot generates them as one sequence with a cut between each, instead of blending them into a single take.`;
 
   function handleChange(next: boolean) {
     if (downstreamCount > 0) {
@@ -108,9 +117,22 @@ export function GenerationBracket({
         )}
         <div className="ml-auto flex items-center gap-1.5">
           {/* D259 — advisory only. Fan-out never flips the switch: turning multishot back off
-              disconnects downstream nodes, so the expensive direction stays the operator's. */}
+              disconnects downstream nodes, so the expensive direction stays the operator's.
+              A tinted pill, not bare text: at the label's own size and colour it read as one
+              phrase with it ("Recommended Multishot"). The 5% tint keeps purple sparing while
+              pointing the eye at the switch; it fades in when the operator switches back off. */}
           {generation.recommendMultishot && !generation.multishot && (
-            <span className="text-[0.65rem] text-muted-foreground">Recommended</span>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <span className="mr-0.5 inline-flex cursor-default items-center gap-1 rounded-full border border-primary/20 bg-primary/5 py-0.5 pr-2 pl-1.5 text-[0.65rem] font-medium text-primary animate-in fade-in-0 zoom-in-95 duration-200 ease-(--ease-out)" />
+                }
+              >
+                <Sparkles className="size-3" strokeWidth={1.5} />
+                Recommended
+              </TooltipTrigger>
+              <TooltipContent>{recommendReason}</TooltipContent>
+            </Tooltip>
           )}
           <span
             className={cn(
