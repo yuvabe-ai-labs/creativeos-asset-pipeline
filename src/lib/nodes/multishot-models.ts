@@ -8,10 +8,12 @@
 // `null` means THE VENDOR STATES NO LIMIT, and is deliberately not a large sentinel number: a
 // limit we invented and a limit they published must not be indistinguishable at the call site.
 //
-// NOT parameterised by this table: `group-shots.ts`. Fan-out packing runs when a script is parsed,
-// before any Multishot node exists and therefore before a model is chosen. It keeps packing to
-// Omni's 10s, which is the safe floor — a group that fits Omni also fits Kling, so switching a
-// node to Kling afterwards only ever grants headroom.
+// Parameterised by this table since D258: `group-shots.ts` derives its pack window from the
+// `minTotalSeconds` / `maxTotalSeconds` columns. It used to pack to Omni's 10s as a safe floor,
+// on the reasoning that packing runs before a model is chosen — correct until Seedance 2.5's 30s
+// window made that safety cost three generations where one would do. Which ceiling a given Script
+// node was packed at is pinned per parse as `groupingVersion` (D257), so raising it here does not
+// repack canvases that already exist.
 import {
   GEMINI_OMNI_MODEL_ID,
   KLING_OMNI_MODEL_ID,
