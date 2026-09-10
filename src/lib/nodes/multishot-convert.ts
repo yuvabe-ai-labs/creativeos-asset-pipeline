@@ -5,6 +5,7 @@
 // That property only holds if the two functions are written against each other.
 import type { ShotNodeData, MultishotNodeData } from "@/lib/canvas-nodes";
 import { cutsFromShots, shotsFromCuts, totalOf } from "./multishot-cuts";
+import { bestFitMultishotModel } from "./multishot-models";
 import { deriveShotType } from "./shot-types";
 
 export function shotDataToMultishot(data: ShotNodeData): MultishotNodeData {
@@ -28,6 +29,9 @@ export function shotDataToMultishot(data: ShotNodeData): MultishotNodeData {
     seededFrom: data.seededFrom,
     totalSeconds,
     cuts,
+    // D261 — a new Multishot node starts on the model its ladder fits. Not carried back by
+    // multishotDataToShot: a Shot has no model, so a flip-back-and-forth re-picks by fit.
+    targetModel: bestFitMultishotModel(cuts),
     script: {
       ...data.script,
       // The envelope keeps execution notes and everything else; only the shot list goes,

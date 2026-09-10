@@ -184,6 +184,27 @@ export function checkLadder(
 }
 
 /**
+ * D261 — the model a NEW Multishot node starts on: the tightest window that accepts its ladder.
+ *
+ * Candidates are the models `checkLadder` accepts — the same check the node displays — so the pick
+ * can never land on a model that immediately reports a violation, and a cut cap (Kling's 6) rules
+ * a model out exactly as a length does. Among those, the smallest `maxTotalSeconds` wins: today
+ * that is Omni up to 10s, Kling to 15s, Seedance past it. Not "cheapest" — Kling undercuts Omni per
+ * second — but it does keep Seedance, at ~2.3x Omni, for ladders nothing else can hold.
+ *
+ * Called at CREATION only (fan-out and the Script switch's conversion), and the result is stored
+ * as `targetModel`. It is never re-run on an existing node: a Multishot Prompt is written in one
+ * model's shot format (D236), so a model that shifted as cuts were edited would strand the prompt,
+ * and it would overwrite the operator's own choice. Nothing fits → the default, and `checkLadder`
+ * says why, rather than choosing a model that fails anyway.
+ */
+export function bestFitMultishotModel(cuts: { seconds: number }[]): string {
+  const fits = MULTISHOT_MODELS.filter((m) => checkLadder(cuts, m).ok);
+  if (fits.length === 0) return DEFAULT_MULTISHOT_MODEL;
+  return fits.reduce((best, m) => (m.maxTotalSeconds < best.maxTotalSeconds ? m : best)).id;
+}
+
+/**
  * The sentence itself, given a capability and its alternatives.
  *
  * Split out from `multishotRestrictionReason` so the multi-alternative branch below can be

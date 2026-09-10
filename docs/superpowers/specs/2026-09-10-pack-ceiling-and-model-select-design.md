@@ -222,6 +222,10 @@ models.
 
 ## 9. Consequences accepted
 
+> **Superseded by D261 (2026-09-10).** After the first operator test, a new Multishot node now
+> starts on the tightest model its ladder fits (`bestFitMultishotModel`), so the common path no
+> longer arrives failing. The reasoning below is kept as the record of the original call.
+
 With a 30s ceiling and `DEFAULT_MULTISHOT_MODEL` still Gemini Omni (10s), a typical
 reel packs into one generation that fails `checkLadder` on the default model until
 the operator switches it. This is deliberate: the alternative — defaulting to

@@ -443,6 +443,26 @@ describe("setGenerationMode under groupingVersion 2", () => {
     const data = store.getState().nodes[0].data as { groupModes?: Record<string, boolean> };
     expect(data.groupModes).toEqual({});
   });
+
+  // D261 — fan-out creates the Multishot node on the model that fits it. 14s is past Omni's 10,
+  // inside Kling's 15, so it must not arrive on the Omni default already failing.
+  it("fans out a multishot generation on the model that fits it", () => {
+    const store = createCanvasStore([v2Node({ "0-1-2": true })], []);
+    store.getState().fanOutShots("sc");
+
+    const ms = store.getState().nodes.find((n) => n.type === "multishot");
+    expect((ms?.data as { targetModel?: string }).targetModel).toBe(KLING_OMNI_MODEL_ID);
+  });
+
+  // The common flow: fan out with the switch off, THEN flip it. The conversion picks too.
+  it("converts to multishot on the model that fits it", () => {
+    const store = createCanvasStore([v2Node()], []);
+    store.getState().fanOutShots("sc");
+    store.getState().setGenerationMode("sc", "0-1-2", true);
+
+    const ms = store.getState().nodes.find((n) => n.type === "multishot");
+    expect((ms?.data as { targetModel?: string }).targetModel).toBe(KLING_OMNI_MODEL_ID);
+  });
 });
 
 describe("canvas store — focusedNodeId", () => {

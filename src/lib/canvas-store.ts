@@ -27,7 +27,7 @@ import {
   type GroupingVersion,
 } from "@/lib/nodes/group-shots";
 import { cutsFromShots, totalOf } from "@/lib/nodes/multishot-cuts";
-import { multishotCapabilityFor } from "@/lib/nodes/multishot-models";
+import { multishotCapabilityFor, bestFitMultishotModel } from "@/lib/nodes/multishot-models";
 import type { MultishotPlan } from "@/lib/nodes/multishot-plan";
 import { shotDataToMultishot, multishotDataToShot } from "@/lib/nodes/multishot-convert";
 import type { GenerationRow } from "@/lib/db/types";
@@ -505,6 +505,8 @@ export function createCanvasStore(
               order: generation.index + 1,
               totalSeconds,
               cuts,
+              // D261 — starts on the model its ladder fits, not on the Omni default.
+              targetModel: bestFitMultishotModel(cuts),
               seededFrom,
             },
           };

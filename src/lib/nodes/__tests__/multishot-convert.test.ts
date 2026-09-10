@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { shotDataToMultishot, multishotDataToShot } from "../multishot-convert";
 import type { ShotNodeData, MultishotNodeData } from "@/lib/canvas-nodes";
+import { GEMINI_OMNI_MODEL_ID, SEEDANCE_MODEL_ID } from "@/lib/video-gen/client-models";
 
 const shotData: ShotNodeData = {
   order: 2,
@@ -121,5 +122,25 @@ describe("the conversion round-trips", () => {
     ]);
     expect(back.script?.strategic_objective).toBe("sell the shoe");
     expect(back.seededFrom).toEqual(shotData.seededFrom);
+  });
+});
+
+describe("shotDataToMultishot picks a model (D261)", () => {
+  const withLengths = (...secs: number[]): ShotNodeData => ({
+    script: {
+      visual_script: {
+        shots: secs.map((n, i) => ({ description: `s${i}`, duration_seconds: n })),
+      },
+    },
+  });
+
+  it("starts a short ladder on Omni", () => {
+    expect(shotDataToMultishot(withLengths(3, 5)).targetModel).toBe(GEMINI_OMNI_MODEL_ID);
+  });
+
+  // The common flow now: fan out with multishot off, then flip the switch on a 24s generation.
+  // On Omni it would arrive already failing; it must arrive on the model that can run it.
+  it("starts a 24s ladder on Seedance", () => {
+    expect(shotDataToMultishot(withLengths(3, 5, 6, 4, 6)).targetModel).toBe(SEEDANCE_MODEL_ID);
   });
 });

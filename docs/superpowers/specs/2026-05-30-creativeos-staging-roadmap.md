@@ -5040,3 +5040,33 @@ call site (`items` fixes the trigger without per-call-site formatting logic).
 **Refines.** D97, D236.
 
 **Originated →** `2026-09-10-pack-ceiling-and-model-select-design.md`.
+
+### D261 — A new Multishot node starts on the tightest model its ladder fits *(recorded 2026-09-10; supersedes the design's "keep Omni, fail loudly")*
+
+**Decision.** `bestFitMultishotModel(cuts)` picks, among the models `checkLadder` accepts, the one
+with the smallest `maxTotalSeconds` — today Omni to 10s, Kling to 15s, Seedance past that — and
+falls back to the default when none fits. It runs at creation only: fan-out's multishot branch
+and `shotDataToMultishot` (the Script switch's conversion) store the result as `targetModel`.
+Existing nodes, whose absent `targetModel` still means Omni, are untouched.
+
+**Why.** Under D258's 30s packing a typical reel is one ~24s generation, so with Omni as the
+fixed default the main path — not an edge case — arrived failing `checkLadder`. The first operator
+test judged that wrong. Selecting through `checkLadder` itself means the pick can never land on a
+model that reports a violation, and a cut cap rules a model out exactly as a length does (a 12s
+ladder of 7 cuts skips Kling for Seedance). Creation-only because a Multishot Prompt is written in
+one model's shot format (D236): a model that shifted as cuts were edited would strand the prompt
+and overwrite the operator's own choice.
+
+It is NOT a cheapest-model rule, and an earlier description of it as one was wrong: Kling 3.0 Omni
+($0.084/s at 720p without audio) undercuts Omni ($0.10/s). What the tightest-window rule does
+guarantee is that Seedance (~$0.231/s, ~2.3x Omni) is chosen only for a ladder nothing else holds.
+
+**Rejected.** Keeping Omni as the fixed default (the original call — the common path starts in an
+error state); resolving the model dynamically from the ladder on every read (strands a written
+prompt and silently overrides the operator); making Seedance the default (buys the most expensive
+model for ladders Omni could run); picking by price (the rates are approximations — Seedance's is
+flagged as such in `cost.ts` — and the operator asked for fit).
+
+**Supersedes.** The "consequences accepted" section of the originating design.
+
+**Originated →** `2026-09-10-pack-ceiling-and-model-select-design.md` §9, operator test 2026-09-10.

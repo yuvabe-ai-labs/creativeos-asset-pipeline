@@ -7,6 +7,7 @@ import {
   multishotRestrictionReason,
   restrictionSentenceFor,
   describeCapability,
+  bestFitMultishotModel,
   MultishotCapability,
 } from "../multishot-models";
 import { videoGenClientModelMap, GEMINI_OMNI_MODEL_ID, KLING_OMNI_MODEL_ID, SEEDANCE_MODEL_ID } from "@/lib/video-gen/client-models";
@@ -174,5 +175,38 @@ describe("describeCapability", () => {
   // one we invented, and D235 exists so those two cannot look alike.
   it("says nothing about cuts where the vendor states no limit", () => {
     expect(describeCapability(cap(SEEDANCE_MODEL_ID))).toBe("4–30s");
+  });
+});
+
+describe("bestFitMultishotModel", () => {
+  it("keeps a ladder that fits Omni on Omni", () => {
+    expect(bestFitMultishotModel(cuts(3, 5))).toBe(GEMINI_OMNI_MODEL_ID);
+  });
+
+  // Omni's floor is 3; Seedance's is 4. The tightest window that ACCEPTS the ladder wins, so a
+  // floor only matters when it rules a model out.
+  it("keeps a 3s ladder on Omni", () => {
+    expect(bestFitMultishotModel(cuts(1, 2))).toBe(GEMINI_OMNI_MODEL_ID);
+  });
+
+  it("moves an 11-15s ladder to Kling, not Seedance", () => {
+    expect(bestFitMultishotModel(cuts(6, 6))).toBe(KLING_OMNI_MODEL_ID);
+  });
+
+  it("moves a ladder past 15s to Seedance", () => {
+    expect(bestFitMultishotModel(cuts(3, 5, 6, 4, 6))).toBe(SEEDANCE_MODEL_ID);
+  });
+
+  // Length alone would say Kling; Kling's 6-cut cap rules it out. The pick asks checkLadder, the
+  // same check the node shows, so it can never land on a model that reports a violation.
+  it("skips Kling when the ladder has more cuts than Kling allows", () => {
+    expect(bestFitMultishotModel(cuts(2, 2, 2, 2, 2, 1, 1))).toBe(SEEDANCE_MODEL_ID);
+  });
+
+  // Nothing fits: stay on the default and let checkLadder say why, rather than pick a model that
+  // fails anyway.
+  it("falls back to the default when no model fits", () => {
+    expect(bestFitMultishotModel(cuts(34))).toBe(DEFAULT_MULTISHOT_MODEL);
+    expect(bestFitMultishotModel([])).toBe(DEFAULT_MULTISHOT_MODEL);
   });
 });
