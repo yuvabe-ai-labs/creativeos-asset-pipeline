@@ -5070,3 +5070,31 @@ flagged as such in `cost.ts` — and the operator asked for fit).
 **Supersedes.** The "consequences accepted" section of the originating design.
 
 **Originated →** `2026-09-10-pack-ceiling-and-model-select-design.md` §9, operator test 2026-09-10.
+
+### D262 — The multishot look is transcribed from stated direction, or left empty *(recorded 2026-09-10; refines D231)*
+
+**Decision.** The multishot writers (Omni, Kling, Seedance) write the LOOK block only from look
+direction that is actually stated — the shot texts, the script's production notes
+(`visual_script.execution_refinement`, now passed to the writer), or the operator's instructions —
+and return an empty look when nothing states one. A beat may not add weather, season, time of day
+or location those sources do not state, and the brand context is named as not a source of setting.
+`parsePlan` and look refines accept an empty look; `renderPlan` sends nothing, not a blank paragraph,
+when it is empty. Writer ids bump to `generate@5`, `kling@2`, `seedance@2`.
+
+**Why.** D231 made the look mandatory as "the only thing making separate cuts read as one film". For
+a script that stated no look, that forced the writer to compose one, and the nearest material to
+compose it from was the brand context — CHUPPS reels repeatedly arrived in the monsoon because the
+KB describes rain-ready footwear. Two prompt seeds made it worse: the physics example literally
+read "she walks on wet asphalt", and the detail rule asked for "enough real detail" in a background
+the shot never named. Meanwhile the one place a script DOES state its look — the production notes —
+never reached the writer, because the multishot upstream was skipped wholesale. Operator judgement
+(2026-09-10): an invented look is worse than none.
+
+**Rejected.** Stripping the brand context from the multishot turn (it still carries product naming,
+voice and compliance, which the beats need); a look written from the reference images (they show a
+product, not how this film is lit); keeping the look mandatory with a "prefer the script" hint (the
+mandate is what forced invention — a preference cannot override a requirement).
+
+**Refines.** D231.
+
+**Originated →** operator report 2026-09-10 (monsoon recurring on CHUPPS multishot plans).

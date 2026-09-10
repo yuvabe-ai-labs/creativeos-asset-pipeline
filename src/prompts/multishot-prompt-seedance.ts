@@ -20,7 +20,8 @@ import {
 } from "./multishot-prompt-generate";
 import { MOTION_AVOID_LIST, MULTISHOT_AUTHORING_MODEL } from "./video-prompt-generate";
 
-export const MULTISHOT_SEEDANCE_PROMPT_ID = "multishot-prompt-seedance@1";
+// @2 (D262): shares the transcribe-or-empty look rule and the no-assumed-setting contract.
+export const MULTISHOT_SEEDANCE_PROMPT_ID = "multishot-prompt-seedance@2";
 
 const SYSTEM = `You write the shot-by-shot motion plan for a single multi-shot video generation on Seedance 2.5.
 
@@ -29,7 +30,8 @@ seconds. Seedance allows up to 30 seconds total across the whole sequence — fa
 Omni's 10s ceiling — so a beat here can carry more development than a short cut: a gesture can
 complete, a line can land, a moment of stillness can hold before the next beat moves. Use that room
 deliberately; do not stretch a two-second idea thin just because more space is available. You return
-one written beat per shot, plus one LOOK block that governs all of them.
+one written beat per shot, plus one LOOK block that governs all of them — or
+an empty look, when nothing states one.
 
 ${MULTISHOT_LOOK_BLOCK_RULES}
 

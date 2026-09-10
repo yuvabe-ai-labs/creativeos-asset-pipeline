@@ -6,7 +6,10 @@ import {
   MULTISHOT_LOOK_SCHEMA,
   MULTISHOT_BEAT_SCHEMA,
   refineInstruction,
+  MULTISHOT_PLAN_SCHEMA,
 } from "../multishot-prompt-generate";
+import { multishotPromptFor } from "../multishot-prompt-for";
+import { MULTISHOT_MODELS } from "@/lib/nodes/multishot-models";
 import { MULTISHOT_AUTHORING_MODEL, SUBJECT_SILENT_CAMERA } from "../video-prompt-generate";
 
 describe("multishotPromptGenerate", () => {
@@ -209,5 +212,37 @@ describe("refineInstruction", () => {
     expect(() => refineInstruction({ scope: "cut", cutId: null, note: "", plan })).toThrow(
       /cutId/,
     );
+  });
+});
+
+// D262 — the look comes only from what the script or the operator states, and the brand context is
+// never a source of setting. Checked on EVERY model's writer, since all three share these blocks and
+// a writer that dropped one would quietly go back to inventing monsoons.
+describe("no assumed look or setting (D262)", () => {
+  const systems = MULTISHOT_MODELS.map((m) => [m.label, multishotPromptFor(m.id).system] as const);
+
+  it("tells every writer to leave the look empty when nothing states one", () => {
+    for (const [label, system] of systems) {
+      expect(system, label).toMatch(/return an empty string/i);
+    }
+  });
+
+  it("tells every writer the brand context is not a source of setting", () => {
+    for (const [label, system] of systems) {
+      expect(system, label).toMatch(/brand context/i);
+      expect(system, label).toMatch(/weather, season, time of day/i);
+    }
+  });
+
+  // The old physics example put rain in every writer's head.
+  it("no longer seeds wet weather through its examples", () => {
+    for (const [label, system] of systems) {
+      expect(system, label).not.toMatch(/wet asphalt/i);
+    }
+  });
+
+  it("tells the schema an empty look is allowed", () => {
+    expect(MULTISHOT_PLAN_SCHEMA.properties.look.description).toMatch(/empty/i);
+    expect(MULTISHOT_LOOK_SCHEMA.properties.look.description).toMatch(/empty/i);
   });
 });

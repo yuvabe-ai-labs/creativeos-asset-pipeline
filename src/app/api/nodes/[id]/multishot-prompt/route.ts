@@ -103,6 +103,7 @@ export async function POST(
         cuts: resolved.cuts,
         instruction,
         cutInstructions,
+        scriptNotes: resolved.scriptNotes,
       }) +
       refineInstruction({
         scope,

@@ -13,9 +13,12 @@ export type MultishotPlan = {
   version: 1;
   /**
    * The look & atmosphere block: light direction, time of day, lens feel, palette, grade.
-   * Written by the model, governs every beat, rendered ABOVE the ladder. Required — it is the
-   * only thing making separate cuts read as one film, and a sequence without one is a set of
-   * unrelated clips.
+   * Governs every beat, rendered ABOVE the ladder.
+   *
+   * D262 — may be EMPTY, and empty means "the script states no look". It was required, which
+   * forced the writer to invent one whenever a script gave none, and it filled the gap from the
+   * brand context — a season, a weather, a place the script never asked for. Only stated look
+   * direction is transcribed now; with none, nothing is sent and each shot's own text carries it.
    */
   look: string;
   beats: MultishotBeat[];
@@ -55,10 +58,12 @@ export function parsePlan(raw: unknown, cuts: MultishotCut[]): PlanParseResult {
   }
   const candidate = raw as Partial<MultishotPlan>;
 
-  const look = typeof candidate.look === "string" ? candidate.look.trim() : "";
-  if (!look) {
-    return { ok: false, reason: "The plan has no look — the cuts would not read as one film." };
+  // D262 — blank is legal ("the script states no look"); malformed is not. An absent key reads as
+  // blank, but a number or an object where the look belongs is a broken response.
+  if (candidate.look !== undefined && typeof candidate.look !== "string") {
+    return { ok: false, reason: "The plan's look is not text." };
   }
+  const look = (candidate.look ?? "").trim();
 
   if (!Array.isArray(candidate.beats)) {
     return { ok: false, reason: "The plan has no beats." };
@@ -102,6 +107,16 @@ export function parsePlan(raw: unknown, cuts: MultishotCut[]): PlanParseResult {
         : {}),
     },
   };
+}
+
+/**
+ * The look, a blank line, then the ladder — or the ladder alone when the look is empty (D262). A
+ * blank look is sent as nothing: a prompt opening on two empty lines reads to the model as a
+ * missing section, and on Kling it spends character budget on whitespace.
+ */
+function withLook(look: string, ladder: string): string {
+  const trimmed = look.trim();
+  return trimmed ? `${trimmed}\n\n${ladder}` : ladder;
 }
 
 /**
@@ -154,7 +169,7 @@ export function renderPlan(
         return `shot ${i + 1}, ${cut.seconds}, ${text};`;
       })
       .join("\n");
-    return `${plan.look.trim()}\n\n${shots}`;
+    return withLook(plan.look, shots);
   }
 
   if (cap.shotFormat === "bare-timecode") {
@@ -181,7 +196,7 @@ export function renderPlan(
         return `${from}-${at}s: ${(byId.get(cut.id) ?? "").trim()}`;
       })
       .join("\n");
-    return `${plan.look.trim()}\n\n${ladder}`;
+    return withLook(plan.look, ladder);
   }
 
   let at = 0;
@@ -193,7 +208,7 @@ export function renderPlan(
     })
     .join("\n");
 
-  return `${plan.look.trim()}\n\n${ladder}`;
+  return withLook(plan.look, ladder);
 }
 
 const IMAGE_REF = /<IMAGE_REF_(\d+)>/g;
@@ -304,9 +319,9 @@ export function mergeRefinedPlan(
   cuts: MultishotCut[],
 ): PlanParseResult {
   if (scope === "look") {
-    const look = (fragment.look ?? "").trim();
-    if (!look) return { ok: false, reason: "The writer returned an empty look." };
-    return parsePlan({ ...plan, look }, cuts);
+    // D262 — a blank rewrite is the writer following its rule on a script that states no look,
+    // so it clears the look rather than failing the refine.
+    return parsePlan({ ...plan, look: (fragment.look ?? "").trim() }, cuts);
   }
 
   if (!cutId) return { ok: false, reason: "No shot was named for this rewrite." };

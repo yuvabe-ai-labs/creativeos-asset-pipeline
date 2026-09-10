@@ -49,11 +49,14 @@ describe("parsePlan", () => {
     if (!result.ok) expect(result.reason).toMatch(/every shot/i);
   });
 
-  // The look is what makes separate cuts read as one film. Without it they are unrelated clips.
-  it("rejects a missing or empty look", () => {
-    expect(parsePlan(raw({ look: "" }), cuts).ok).toBe(false);
-    expect(parsePlan(raw({ look: "   " }), cuts).ok).toBe(false);
-    expect(parsePlan(raw({ look: undefined }), cuts).ok).toBe(false);
+  // D262 — an empty look is the CORRECT answer when the script states no look direction. The writer
+  // is told to leave it blank rather than invent one, so rejecting blank would force it to invent.
+  it("accepts an empty look as 'the script states none'", () => {
+    for (const look of ["", "   ", undefined]) {
+      const result = parsePlan(raw({ look }), cuts);
+      expect(result.ok, `look ${JSON.stringify(look)}`).toBe(true);
+      if (result.ok) expect(result.plan.look).toBe("");
+    }
   });
 
   it("rejects a non-object", () => {
@@ -367,9 +370,16 @@ describe("mergeRefinedPlan", () => {
     expect(out).toEqual({ ok: false, reason: "That shot is not in this plan." });
   });
 
-  it("rejects an empty fragment", () => {
-    expect(mergeRefinedPlan(plan, "look", { look: "   " }, undefined, cuts).ok).toBe(false);
+  it("rejects an empty beat", () => {
     expect(mergeRefinedPlan(plan, "cut", { text: "  " }, "c1", cuts).ok).toBe(false);
+  });
+
+  // D262 — rewriting the look on a script that states none SHOULD come back blank. That is the
+  // writer following its rule, not failing.
+  it("accepts an empty look rewrite, clearing the look", () => {
+    const out = mergeRefinedPlan(plan, "look", { look: "   " }, undefined, cuts);
+    expect(out.ok).toBe(true);
+    if (out.ok) expect(out.plan.look).toBe("");
   });
 
   // The merged whole goes through parsePlan, so a plan whose cut list changed underneath the
@@ -571,5 +581,23 @@ describe("setBeatText", () => {
     p = setBeatText(p, "c2", "two");
     p = setBeatText(p, "c3", "three");
     expect(p.beats.map((b) => b.text)).toEqual(["one", "two", "three"]);
+  });
+});
+
+// D262 — a blank look is sent as NOTHING, not as a blank paragraph. A prompt opening on two empty
+// lines reads to the model as a missing section, and wastes Kling's character budget.
+describe("renderPlan with no look", () => {
+  const noLook: MultishotPlan = { version: 1, look: "", beats: raw().beats };
+
+  it("starts Omni's ladder on the first shot", () => {
+    expect(renderPlan(noLook, cuts, OMNI)).toMatch(/^\[0-2s\] Tight on a hand/);
+  });
+
+  it("starts Kling's triples on the first shot", () => {
+    expect(renderPlan(noLook, cuts, KLING)).toMatch(/^shot 1, 2, Tight on a hand/);
+  });
+
+  it("starts Seedance's ladder on the first shot", () => {
+    expect(renderPlan(noLook, cuts, SEEDANCE)).toMatch(/^0-2s: Tight on a hand/);
   });
 });

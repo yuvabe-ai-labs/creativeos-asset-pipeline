@@ -55,6 +55,7 @@ vi.mock("@/lib/nodes/resolve-inputs", () => ({
     upstream: [],
     cuts: CUTS,
     targetModel: undefined,
+    scriptNotes: "",
   })),
   buildMultishotUserTurn: vi.fn(() => "USER TURN"),
 }));
@@ -78,7 +79,8 @@ const create = vi.fn();
 vi.mock("@/lib/openai/server", () => ({ createOpenAI: () => ({ chat: { completions: { create } } }) }));
 
 import { POST } from "./route";
-import { resolveMultishotPromptInputs } from "@/lib/nodes/resolve-inputs";
+import { MULTISHOT_KLING_PROMPT_ID } from "@/prompts/multishot-prompt-kling";
+import { resolveMultishotPromptInputs, buildMultishotUserTurn } from "@/lib/nodes/resolve-inputs";
 
 const post = (body: unknown) =>
   POST(new Request("http://x", { method: "POST", body: JSON.stringify(body) }), {
@@ -235,6 +237,7 @@ describe("POST multishot-prompt — per-model writer routing", () => {
       slices: [],
       upstream: [],
       cuts: CUTS,
+      scriptNotes: "",
       targetModel: KLING_OMNI_MODEL_ID,
     });
     returns(PLAN);
@@ -253,6 +256,7 @@ describe("POST multishot-prompt — per-model writer routing", () => {
       slices: [],
       upstream: [],
       cuts: CUTS,
+      scriptNotes: "",
       targetModel: SEEDANCE_MODEL_ID,
     });
     returns(PLAN);
@@ -278,12 +282,13 @@ describe("POST multishot-prompt — per-model writer routing", () => {
       slices: [],
       upstream: [],
       cuts: CUTS,
+      scriptNotes: "",
       targetModel: KLING_OMNI_MODEL_ID,
     });
     returns(PLAN);
     await post({ instruction: "punchy" });
     expect(runPromptGeneration.mock.calls[0][0].paramsUsed).toMatchObject({
-      promptId: "multishot-prompt-kling@1",
+      promptId: MULTISHOT_KLING_PROMPT_ID,
       targetModel: KLING_OMNI_MODEL_ID,
     });
   });
@@ -298,6 +303,7 @@ describe("POST multishot-prompt — per-model writer routing", () => {
       slices: [],
       upstream: [],
       cuts: CUTS,
+      scriptNotes: "",
       targetModel: KLING_OMNI_MODEL_ID,
     });
     returns(PLAN);
@@ -319,6 +325,7 @@ describe("POST multishot-prompt — per-model writer routing", () => {
       slices: [],
       upstream: [],
       cuts: CUTS,
+      scriptNotes: "",
       // The node has since been switched to Kling…
       targetModel: KLING_OMNI_MODEL_ID,
     });
@@ -332,5 +339,27 @@ describe("POST multishot-prompt — per-model writer routing", () => {
     expect(json.plan.targetModel).toBe(GEMINI_OMNI_MODEL_ID);
     expect(json.prompt).toContain("[0-");
     expect(json.prompt).not.toContain("shot 1, ");
+  });
+});
+
+// D262 — the look may only be written from stated direction, and the script's production notes
+// are where a script states it. The route must hand them to the writer's turn.
+describe("POST multishot-prompt — script production notes", () => {
+  it("passes the script's production notes into the writer's turn", async () => {
+    vi.mocked(resolveMultishotPromptInputs).mockResolvedValueOnce({
+      clientContext: "",
+      kbVersionId: null,
+      slices: [],
+      upstream: [],
+      cuts: CUTS,
+      scriptNotes: "Golden hour. Desaturated grade.",
+      targetModel: undefined,
+    });
+    returns(PLAN);
+    const res = await post({ instruction: "" });
+    expect(res.status).toBe(200);
+    expect(vi.mocked(buildMultishotUserTurn)).toHaveBeenLastCalledWith(
+      expect.objectContaining({ scriptNotes: "Golden hour. Desaturated grade." }),
+    );
   });
 });

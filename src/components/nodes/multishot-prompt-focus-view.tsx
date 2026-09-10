@@ -843,9 +843,11 @@ export function MultishotPromptFocusView({
                               <Sun className="size-3.5 text-primary" strokeWidth={1.5} />
                               <span className="text-eyebrow text-primary">Look &amp; atmosphere</span>
                             </Button>
+                            {/* D262 — an empty look is deliberate (the script states none), so it
+                                says so rather than showing a blank that reads as a failed write. */}
                             {!lookOpen && (
                               <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
-                                {planDraft.look}
+                                {planDraft.look.trim() || "Not stated in the script — nothing is added"}
                               </span>
                             )}
                             {SHOW_PER_BEAT_REGENERATE && (
