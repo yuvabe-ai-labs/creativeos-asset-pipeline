@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { HELP_CHAPTERS, visibleChapters, chapterBySlug } from "@/lib/help/chapters";
+import { PACK_CEILING_SECONDS, ASSUMED_SHOT_SECONDS } from "@/lib/nodes/group-shots";
+import { MULTISHOT_MODELS } from "@/lib/nodes/multishot-models";
+import { MULTISHOT_MODEL_RANGES } from "@/lib/help/script-structure-samples";
 
 describe("help chapters", () => {
   it("has unique slugs", () => {
@@ -52,9 +55,10 @@ describe("help chapters", () => {
     expect(HELP_CHAPTERS.some((c) => c.draft)).toBe(true);
   });
 
-  it("shows exactly the seven V1 chapters", () => {
+  it("shows the seven V1 chapters plus script structure", () => {
     expect(visibleChapters().map((c) => c.slug)).toEqual([
       "create-a-reel",
+      "structure-a-script",
       "review-the-brand-kb",
       "edit-an-image",
       "generate-a-reference-image",
@@ -63,6 +67,60 @@ describe("help chapters", () => {
       "where-did-my-video-go",
     ]);
   });
+
+  it("gives every sample a label and text", () => {
+    for (const c of HELP_CHAPTERS) {
+      for (const [i, s] of c.steps.entries()) {
+        if (!s.sample) continue;
+        expect(s.sample.label.trim(), `${c.slug} step ${i + 1} sample label`).not.toBe("");
+        expect(s.sample.text.trim(), `${c.slug} step ${i + 1} sample text`).not.toBe("");
+      }
+    }
+  });
+});
+
+describe("structure-a-script", () => {
+  const chapter = chapterBySlug("structure-a-script")!;
+  const prompts = chapter.steps.map((s) => s.sample!.text);
+
+  it("offers five scenarios as alternatives, not a sequence", () => {
+    expect(chapter.steps).toHaveLength(5);
+    expect(chapter.stepStyle).toBe("alternatives");
+  });
+
+  // Every step is text-first — none is recorded — so each needs a sample in the pane, or the
+  // viewer is left looking at "No clip for this step yet" beside the real answer.
+  it("gives every scenario a prompt to copy", () => {
+    for (const [i, s] of chapter.steps.entries()) {
+      expect(s.sample, `step ${i + 1}`).toBeDefined();
+    }
+  });
+
+  // Each prompt is pasted into another tool on its own, so each must carry the whole format and
+  // the real limits — interpolated from the grouping code, so they cannot drift from it.
+  it("gives every prompt the block format and the real limits", () => {
+    for (const [i, p] of prompts.entries()) {
+      expect(p, `prompt ${i + 1}`).toContain("<start>–<end> SEC —");
+      expect(p, `prompt ${i + 1}`).toContain(`No block longer than ${PACK_CEILING_SECONDS} seconds`);
+      expect(p, `prompt ${i + 1}`).toContain(`counted as ${ASSUMED_SHOT_SECONDS} seconds`);
+      expect(p.trimEnd(), `prompt ${i + 1}`).toMatch(/SCRIPT$/);
+    }
+  });
+
+  it("marks the single take the way the parser keeps it whole", () => {
+    expect(prompts[0]).toContain("ONE CONTINUOUS TAKE (NO CUTS)");
+  });
+
+  // The multishot ranges come from the capability table, so a vendor moving a limit moves the
+  // sentence the creator reads.
+  it("names each multishot model's real window", () => {
+    for (const m of MULTISHOT_MODELS) {
+      expect(MULTISHOT_MODEL_RANGES).toContain(`${m.label} up to ${m.maxTotalSeconds}s`);
+    }
+  });
+});
+
+describe("help chapter lookups", () => {
 
   it("finds a chapter by slug and returns undefined for an unknown one", () => {
     expect(chapterBySlug("create-a-reel")?.steps).toHaveLength(6);

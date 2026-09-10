@@ -7,6 +7,12 @@ export type HelpStep = {
    */
   body: string[];
   clip: string; // URL of the looping clip (object storage)
+  /**
+   * Text the viewer is meant to TAKE — an example script, or a prompt to paste into an LLM.
+   * When present it fills the right-hand pane with a Copy button, in place of the clip. For
+   * steps whose answer is something to copy rather than something to watch.
+   */
+  sample?: { label: string; text: string };
 };
 
 export type HelpChapter = {
