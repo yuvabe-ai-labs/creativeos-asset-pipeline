@@ -7,6 +7,9 @@ import {
   PACK_CEILING_SECONDS,
   PACK_FLOOR_SECONDS,
   LEGACY_PACK_CEILING,
+  CURRENT_GROUPING_VERSION,
+  ceilingForVersion,
+  defaultMultishotFor,
 } from "../group-shots";
 import { MULTISHOT_MODELS } from "../multishot-models";
 import type { ReelShot } from "../reel-script";
@@ -204,5 +207,65 @@ describe("groupShotsForFanOut ceiling parameter", () => {
     expect(groupShotsForFanOut(shots(34), 30)).toEqual([
       { shotIndexes: [0], seconds: 34 },
     ]);
+  });
+});
+
+describe("grouping version", () => {
+  it("is 2 for new parses", () => {
+    expect(CURRENT_GROUPING_VERSION).toBe(2);
+  });
+
+  it("maps v1 to the legacy ceiling and v2 to the derived one", () => {
+    expect(ceilingForVersion(1)).toBe(LEGACY_PACK_CEILING);
+    expect(ceilingForVersion(2)).toBe(PACK_CEILING_SECONDS);
+  });
+
+  // v1 keeps the rule existing canvases were defaulted under; v2 never turns multishot on.
+  it("defaults multishot by version, not by shot count alone", () => {
+    expect(defaultMultishotFor([0, 1], 1)).toBe(true);
+    expect(defaultMultishotFor([0], 1)).toBe(false);
+    expect(defaultMultishotFor([0, 1], 2)).toBe(false);
+    expect(defaultMultishotFor([0], 2)).toBe(false);
+  });
+});
+
+describe("describeGenerations by version", () => {
+  // The migration, asserted: an absent version behaves exactly as today.
+  it("defaults to v1 — today's packing and today's multishot rule", () => {
+    const gens = describeGenerations(shots(3, 5, 6));
+    expect(gens.map((g) => g.shotIndexes)).toEqual([[0, 1], [2]]);
+    expect(gens.map((g) => g.multishot)).toEqual([true, false]);
+  });
+
+  it("packs to 30s and defaults every generation to single under v2", () => {
+    const gens = describeGenerations(shots(3, 5, 6, 4, 2), undefined, 2);
+    expect(gens.map((g) => g.shotIndexes)).toEqual([[0, 1, 2, 3, 4]]);
+    expect(gens.map((g) => g.multishot)).toEqual([false]);
+  });
+
+  it("still honours an explicit override under v2", () => {
+    const gens = describeGenerations(shots(3, 5, 6, 4, 2), { "0-1-2-3-4": true }, 2);
+    expect(gens[0].multishot).toBe(true);
+  });
+
+  it("recommends multishot for a multi-shot group without enabling it", () => {
+    const gens = describeGenerations(shots(3, 5, 6, 4, 2), undefined, 2);
+    expect(gens[0].recommendMultishot).toBe(true);
+    expect(gens[0].multishot).toBe(false);
+  });
+
+  it("does not recommend multishot for a lone shot", () => {
+    expect(describeGenerations(shots(6), undefined, 2)[0].recommendMultishot).toBe(false);
+  });
+
+  // Reachable only via a single shot kept whole — packing can never build one by adding.
+  it("flags a generation longer than the ceiling", () => {
+    const gens = describeGenerations(shots(34), undefined, 2);
+    expect(gens[0].overCeiling).toBe(true);
+    expect(gens[0].seconds).toBe(34);
+  });
+
+  it("does not flag a generation at the ceiling", () => {
+    expect(describeGenerations(shots(30), undefined, 2)[0].overCeiling).toBe(false);
   });
 });

@@ -24,6 +24,40 @@ export const PACK_CEILING_SECONDS = Math.max(...MULTISHOT_MODELS.map((m) => m.ma
  */
 export const LEGACY_PACK_CEILING = 10;
 
+/**
+ * D257 — which grouping rules produced a Script node's generations.
+ *
+ * ONE flag carries BOTH the ceiling and the multishot default, because they were decided together:
+ * a canvas packed under v1 was also defaulted under v1. Separate flags would permit a combination
+ * no parse ever produced.
+ *
+ *   v1 — 10s ceiling, a group of 2+ shots defaults to multishot
+ *   v2 — 30s ceiling, every generation defaults to single (D259)
+ *
+ * Absence means v1, and absence IS the migration: nothing is backfilled, so no existing canvas
+ * reshapes under its operator. A re-parse adopts v2 wholesale.
+ */
+export type GroupingVersion = 1 | 2;
+export const CURRENT_GROUPING_VERSION: GroupingVersion = 2;
+
+export function ceilingForVersion(version: GroupingVersion): number {
+  return version === 1 ? LEGACY_PACK_CEILING : PACK_CEILING_SECONDS;
+}
+
+/**
+ * Whether a group is multishot when the operator has expressed no preference.
+ *
+ * Extracted because this rule had TWO homes — here and inline in `setGenerationMode`, which uses it
+ * to decide whether a change is a deviation worth storing. Under v2 the second copy would store
+ * `false` as a deviation when `false` is the default, pinning a value that "would outlive the
+ * grouping it describes."
+ *
+ * Takes the index array rather than a ShotGroup so both a ShotGroup and a Generation can be asked.
+ */
+export function defaultMultishotFor(shotIndexes: number[], version: GroupingVersion): boolean {
+  return version === 1 ? shotIndexes.length > 1 : false;
+}
+
 /** What a shot with no usable length is worth for packing. Shown as assumed, not parsed. */
 export const ASSUMED_SHOT_SECONDS = 4;
 
@@ -123,10 +157,18 @@ export type Generation = {
   /** 0-based; display as index + 1. */
   index: number;
   shotIndexes: number[];
-  /** Packed length, already clamped to the Omni window. */
+  /** Packed length, already clamped to the pack window's floor. */
   seconds: number;
-  /** The override if one is set for this exact grouping, else the default. */
+  /** The override if one is set for this exact grouping, else the version's default. */
   multishot: boolean;
+  /**
+   * Longer than any model can generate. Reachable ONLY via a single shot kept whole — packing
+   * never builds one by adding, and where to cut a long shot is a creative decision, not an
+   * arithmetic one. The one case regrouping cannot fix, which is why it earns a warning.
+   */
+  overCeiling: boolean;
+  /** A multi-shot group, which multishot suits — advisory only, never auto-applied (D259). */
+  recommendMultishot: boolean;
   /** Identity of this grouping, and the key an override is stored under. */
   key: string;
 };
@@ -157,15 +199,21 @@ export function generationKey(shotIndexes: number[]): string {
 export function describeGenerations(
   shots: ReelShot[],
   overrides?: Record<string, boolean>,
+  groupingVersion: GroupingVersion = 1,
 ): Generation[] {
-  return groupShotsForFanOut(shots).map((group, index) => {
+  return groupShotsForFanOut(shots, ceilingForVersion(groupingVersion)).map((group, index) => {
     const key = generationKey(group.shotIndexes);
     const override = overrides?.[key];
     return {
       index,
       shotIndexes: group.shotIndexes,
       seconds: group.seconds,
-      multishot: typeof override === "boolean" ? override : group.shotIndexes.length > 1,
+      multishot:
+        typeof override === "boolean"
+          ? override
+          : defaultMultishotFor(group.shotIndexes, groupingVersion),
+      overCeiling: group.seconds > PACK_CEILING_SECONDS,
+      recommendMultishot: group.shotIndexes.length > 1,
       key,
     };
   });
