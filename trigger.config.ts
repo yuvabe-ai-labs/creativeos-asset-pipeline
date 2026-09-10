@@ -31,6 +31,14 @@ if (!projectId) {
 export default defineConfig({
   project: projectId,
   dirs: ["./trigger"],
+  build: {
+    // sharp is a native module (a platform-specific .node binary), which esbuild cannot bundle.
+    // Marked external, Trigger installs it into the deploy image instead — at the version found in
+    // node_modules — so the Linux build gets the Linux binary rather than this machine's. Needed
+    // since the Seedance provider re-encodes out-of-range images before sending them
+    // (src/lib/video-gen/providers/seedance-images.ts).
+    external: ["sharp"],
+  },
   maxDuration: 1200,
   retries: {
     enabledInDev: false,

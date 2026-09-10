@@ -2,6 +2,7 @@ import "server-only";
 import { logger } from "@trigger.dev/sdk/v3";
 import type { VideoGenInput, VideoGenResult, VideoGenModelSpec } from "../types";
 import { seedanceParams } from "../params/seedance";
+import { fitSeedanceImages } from "./seedance-images";
 
 const ARK_BASE = "https://ark.ap-southeast.bytepluses.com/api/v3";
 
@@ -130,11 +131,26 @@ export function explainSeedanceError(status: number, body: string): string {
   return `Seedance task creation failed (${status}): ${truncate(message || body)}`;
 }
 
+/** "Request body size does not exceed 64 MB" — vendor limit on the create call. */
+const MAX_BODY_BYTES = 64 * 1024 * 1024;
+
 async function createSeedanceTask(body: Record<string, unknown>): Promise<string> {
+  const payload = JSON.stringify(body);
+  // Re-encoded images travel inline as base64 (seedance-images.ts). They are sized to keep far
+  // under this, but if a request ever does cross it, say so by name — the alternative is an opaque
+  // 413 or a socket reset on upload.
+  const payloadBytes = Buffer.byteLength(payload);
+  if (payloadBytes > MAX_BODY_BYTES) {
+    throw new Error(
+      `Seedance request is ${(payloadBytes / 1024 / 1024).toFixed(1)} MB, over the vendor's 64 MB ` +
+        `limit. Remove some reference images and try again.`,
+    );
+  }
+
   const res = await fetch(`${ARK_BASE}/contents/generations/tasks`, {
     method: "POST",
     headers: { Authorization: `Bearer ${getApiKey()}`, "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+    body: payload,
   });
 
   // Read response body as text first to avoid parse errors swallowing the real HTTP status.
@@ -289,7 +305,12 @@ export const seedance25: VideoGenModelSpec = {
   maxDurationSeconds: 30,
   imageInputs: SEEDANCE_IMAGE_INPUTS_SERVER,
   params: seedanceParams,
+  // Images are brought inside the vendor's limits BEFORE the body is built (seedance-images.ts):
+  // an out-of-range image otherwise fails the whole paid request at task creation.
   generate: (input) =>
-    createSeedanceTask(buildSeedanceBody(input, SEEDANCE_IMAGE_INPUTS_SERVER.maxReferenceImages))
+    fitSeedanceImages(input, SEEDANCE_IMAGE_INPUTS_SERVER.maxReferenceImages)
+      .then((fitted) =>
+        createSeedanceTask(buildSeedanceBody(fitted, SEEDANCE_IMAGE_INPUTS_SERVER.maxReferenceImages)),
+      )
       .then(pollSeedanceTask),
 };
