@@ -4942,3 +4942,101 @@ can be attached).
 **Refines.** D204.
 
 **Originated →** `2026-08-31-signal-flavoured-scripts-design.md`.
+
+### D257 — Grouping rules are pinned per parse as `groupingVersion` *(recorded 2026-09-10; supersedes part of D235)*
+
+**Decision.** `ScriptNodeData` carries `groupingVersion?: 1 | 2`, absent meaning 1. v1 packs
+to a 10s ceiling and defaults a 2+ shot group to multishot; v2 packs to 30s and defaults
+every generation to single. Both behaviours move together under one flag. Nothing is
+backfilled — a re-parse adopts v2 wholesale.
+
+**Why.** `describeGenerations` re-derives from stored shots on every render, so an
+unpinned change applies retroactively: brackets resize, `groupModes` overrides keyed by
+`generationKey` orphan, and already-seeded nodes stop matching their generation, leaving
+fan-out to offer duplicates beside the old nodes. Absence-as-migration mirrors
+`multishotCapabilityFor`, where an absent `targetModel` is the migration rather than
+defensive padding. The two behaviours share one flag because they were decided together —
+a canvas packed under v1 was also defaulted under it, and splitting the flag would permit a
+state no parse ever produced.
+
+**Rejected.** Applying the new rules to every node immediately (silently reshapes existing
+canvases); backfilling explicit overrides for existing multi-shot groups (a data migration
+to buy what an absent field already says); an operator-facing packing control (a permanent
+affordance for a one-time migration).
+
+**Supersedes.** Part of D235.
+
+**Originated →** `2026-09-10-pack-ceiling-and-model-select-design.md`.
+
+### D258 — Fan-out packs to the widest window any model offers, derived *(recorded 2026-09-10; supersedes D235's grouping carve-out)*
+
+**Decision.** `PACK_CEILING_SECONDS` and `PACK_FLOOR_SECONDS` are computed from
+`MULTISHOT_MODELS` (`Math.max` of `maxTotalSeconds`, `Math.min` of `minTotalSeconds`),
+replacing `OMNI_MAX_SECONDS` / `OMNI_MIN_SECONDS`. `groupShotsForFanOut` takes the ceiling
+as a parameter. A generation longer than the ceiling — reachable only via a single shot
+kept whole — shows a warning on the Script node. The Script node names no models.
+
+**Why.** D235 left grouping out of the capability table because packing runs before a model
+is chosen, making Omni's 10s "the safe floor." Seedance 2.5's 30s window changed the cost of
+that safety: a 22–26s reel is one generation, and packing to 10s splits it into three that
+need no splitting. Deriving rather than authoring the ceiling keeps D235's own rule that an
+invented limit and a published one must not be indistinguishable at the call site.
+`LEGACY_PACK_CEILING = 10` is the one authored number, because it is a fact about data on
+disk rather than a claim about a model.
+
+**Rejected.** Per-model capability chips on each generation (`Seedance only`,
+`Kling or Seedance`) — a second vocabulary for limits `checkLadder` already words once for
+three surfaces; a model selector on the Script node (moves a model decision earlier than the
+operator needs to make it); splitting an over-ceiling shot automatically (where to cut is a
+creative decision, not an arithmetic one).
+
+**Supersedes.** D235's grouping carve-out. The header comment at `multishot-models.ts:11-14`
+is rewritten, not left to contradict the code.
+
+**Originated →** `2026-09-10-pack-ceiling-and-model-select-design.md`.
+
+### D259 — Fan-out never turns multishot on; it recommends *(recorded 2026-09-10; refines D227)*
+
+**Decision.** Under v2 every generation arrives `multishot: false`, whatever its shot count.
+A group of 2+ shots shows a quiet `Recommended` beside the switch, which never flips it. The
+default rule is extracted to `defaultMultishotFor(group, groupingVersion)` and called by both
+`describeGenerations` and `setGenerationMode`.
+
+**Why.** Auto-enabling decides on the operator's behalf in the direction that is expensive to
+undo: turning multishot back off disconnects downstream nodes and raises a confirmation
+dialog. Longer v2 groups would have made that automatic choice more consequential, not less.
+The extraction is not incidental — the rule currently exists twice, and under v2 the copy in
+`setGenerationMode` would store `false` as a deviation when `false` is the default, pinning a
+value that outlives the grouping it describes.
+
+**Rejected.** Keeping auto-on for 2+ shots and suppressing it only for long single-shot
+groups (two rules where one will do); dropping the recommendation entirely (leaves the
+multishot lane undiscoverable for exactly the groups that need it).
+
+**Refines.** D227.
+
+**Originated →** `2026-09-10-pack-ceiling-and-model-select-design.md`.
+
+### D260 — The multishot model select renders labels and windows, and disables nothing *(recorded 2026-09-10; refines D97, D236)*
+
+**Decision.** The Multishot focus view's model select passes `items` to `Select.Root` so the
+trigger renders the model's label rather than its id, drops the `h-9 w-[168px]` override for
+the primitive's own sizing, and gives each option a secondary line summarising its window,
+derived from `MULTISHOT_MODELS` via `describeCapability`. Every model stays selectable.
+
+**Why.** Base UI's `Select.Value` falls back to the raw value when given no children, so the
+trigger read `gemini:gemini-omni-1.1-flash`. Every other select in the app shares the bug and
+hides it, because their values equal their labels (`"10"`, `"admin"`); this is the first call
+site where the two differ. Leaving models selectable follows D97 — the app rejects and
+explains rather than prevents — and `checkLadder` already writes that explanation; disabling
+would also hide why a model is unavailable at the moment of choosing. Deriving the window
+summary keeps a `null` (vendor states no limit) rendered as absence rather than an invented
+number.
+
+**Rejected.** Disabling models whose window cannot hold the current ladder (diverges from how
+the app treats every other illegal combination); a function child on `SelectValue` at this one
+call site (`items` fixes the trigger without per-call-site formatting logic).
+
+**Refines.** D97, D236.
+
+**Originated →** `2026-09-10-pack-ceiling-and-model-select-design.md`.
