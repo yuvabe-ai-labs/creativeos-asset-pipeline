@@ -106,7 +106,7 @@ export const SINGLE_TAKE_LINE = "In a single unbroken scene. No scene cuts.";
  * by sight and decide which beats they belong in — while writing prose specific enough to be
  * worth generating. The mini produced fluent output that quietly failed several of those at once.
  */
-export const MULTISHOT_AUTHORING_MODEL = "gpt-5";
+export const MULTISHOT_AUTHORING_MODEL = "gpt-5.4-mini";
 
 export type VideoProviderPrompt = {
   id: string;
