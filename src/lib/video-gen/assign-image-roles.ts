@@ -48,16 +48,34 @@ export type AssignedImageRoles = {
 export function autoAssignImageRoles(
   images: UpstreamImageRef[],
   imageRoles: Record<string, ImageRole>,
-  opts: { supportsStartFrame: boolean } = { supportsStartFrame: true },
+  opts: { supportsStartFrame: boolean; supportsReferences: boolean } = {
+    supportsStartFrame: true,
+    supportsReferences: true,
+  },
 ): Record<string, ImageRole> {
   const next: Record<string, ImageRole> = { ...imageRoles };
   let hasStart = Object.values(next).some((r) => r === "start_frame");
 
+  // EVERY unassigned image defaults to `reference` on any model that can take one (operator
+  // request 2026-09-09). Auto-promoting the first generated still to `start_frame` was implicit
+  // magic: two identical-looking stills got different roles, and which one "won" depended on
+  // upstream traversal order the operator never sees. Predictable beats clever here.
+  //
+  // On Seedance that promotion was not merely surprising, it was destructive. Frames and
+  // references are mutually exclusive TASK TYPES on /contents/generations/tasks, so
+  // buildSeedanceContent returns early on a start frame — a promoted still silently discarded
+  // every reference, while the prompt it was written against still cited `@Image 1`, `@Image 2`.
+  // No error, wrong output, billed.
+  //
+  // The one case still promoted: a model that accepts NO references at all. Veo Lite and Kling 3.0
+  // both declare `maxReferenceImages: 0`, and Kling 3.0 additionally refuses to generate without a
+  // start frame — defaulting their images to `reference` would splice them away to nothing, which
+  // is a silent downgrade to text-to-video on one model and an ungenerateable node on the other.
+  const promoteToStartFrame = opts.supportsStartFrame && !opts.supportsReferences;
+
   for (const { nodeId, type } of images) {
     if (next[nodeId]) continue;
-    // A generated still is the one input that reads as "animate THIS", which is why it is the only
-    // type auto-promoted to the start frame — and only for the first one, and only once.
-    if (type === "image-gen" && opts.supportsStartFrame && !hasStart) {
+    if (type === "image-gen" && promoteToStartFrame && !hasStart) {
       next[nodeId] = "start_frame";
       hasStart = true;
       continue;

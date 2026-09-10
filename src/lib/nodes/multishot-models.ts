@@ -8,13 +8,16 @@
 // `null` means THE VENDOR STATES NO LIMIT, and is deliberately not a large sentinel number: a
 // limit we invented and a limit they published must not be indistinguishable at the call site.
 //
-// NOT parameterised by this table: `group-shots.ts`. Fan-out packing runs when a script is parsed,
-// before any Multishot node exists and therefore before a model is chosen. It keeps packing to
-// Omni's 10s, which is the safe floor — a group that fits Omni also fits Kling, so switching a
-// node to Kling afterwards only ever grants headroom.
+// Parameterised by this table since D258: `group-shots.ts` derives its pack window from the
+// `minTotalSeconds` / `maxTotalSeconds` columns. It used to pack to Omni's 10s as a safe floor,
+// on the reasoning that packing runs before a model is chosen — correct until Seedance 2.5's 30s
+// window made that safety cost three generations where one would do. Which ceiling a given Script
+// node was packed at is pinned per parse as `groupingVersion` (D257), so raising it here does not
+// repack canvases that already exist.
 import {
   GEMINI_OMNI_MODEL_ID,
   KLING_OMNI_MODEL_ID,
+  SEEDANCE_MODEL_ID,
 } from "@/lib/video-gen/client-models";
 
 export type MultishotCapability = {
@@ -31,12 +34,29 @@ export type MultishotCapability = {
   maxCutChars: number | null;
   maxPromptChars: number | null;
   /**
-   * How `renderPlan` lays the beats out (D238).
-   *   timecode — `[0-2s] …` cumulative ladder, one line per beat (Omni)
-   *   triple   — `shot n, m, words;` (Kling's API format — NOT its console syntax)
+   * How `renderPlan` lays the beats out (D238, D244).
+   *   timecode      — `[0-2s] …` cumulative ladder (Gemini Omni)
+   *   triple        — `shot n, m, words;` (Kling's API format, NOT its console syntax)
+   *   bare-timecode — `0-2s: …` (Seedance 2.5's own tutorial format)
    */
-  shotFormat: "timecode" | "triple";
-  /** First index a reference token carries: `<IMAGE_REF_0>` vs `@image_1`. */
+  shotFormat: "timecode" | "triple" | "bare-timecode";
+  /**
+   * Which reference-token dialect a beat's citations are stored in (D245).
+   *
+   * NAMED, not derived from `refTokenBase`. Kling's `@image_1` and Seedance's `@Image 1` are BOTH
+   * 1-based, so the numeric base no longer identifies a dialect — and those two shapes differ by
+   * one character's case and a space, which is exactly the near-collision that binds a citation to
+   * the wrong image silently, in a clip already paid for.
+   */
+  refTokenDialect: "image-ref" | "kling-image" | "seedance-image";
+  /**
+   * First index a reference token carries: `<IMAGE_REF_0>` vs `@image_1`.
+   *
+   * Currently retained for context but has no production reader — `refsCitedIn` hardcodes the
+   * offset per dialect branch and does not consult this field. Retained for now because removing
+   * it is a wider change across the type, three entries and their tests, and is the final
+   * whole-branch review's call.
+   */
   refTokenBase: 0 | 1;
 };
 
@@ -51,6 +71,7 @@ export const MULTISHOT_MODELS: MultishotCapability[] = [
     maxCutChars: null,
     maxPromptChars: null,
     shotFormat: "timecode",
+    refTokenDialect: "image-ref",
     refTokenBase: 0,
   },
   {
@@ -64,6 +85,24 @@ export const MULTISHOT_MODELS: MultishotCapability[] = [
     maxCutChars: 512,
     maxPromptChars: 3072,
     shotFormat: "triple",
+    refTokenDialect: "kling-image",
+    refTokenBase: 1,
+  },
+  {
+    id: SEEDANCE_MODEL_ID,
+    label: "Seedance 2.5",
+    // The first capability whose floor is not 3. `checkLadder` already reads
+    // `cap.minTotalSeconds`, so nothing needed changing to support it.
+    minTotalSeconds: 4,
+    maxTotalSeconds: 30,
+    minCutSeconds: 1,
+    // The vendor states no cut cap and no character ceilings. `null` means exactly that — it is
+    // not "unknown, so guess a number".
+    maxCuts: null,
+    maxCutChars: null,
+    maxPromptChars: null,
+    shotFormat: "bare-timecode",
+    refTokenDialect: "seedance-image",
     refTokenBase: 1,
   },
 ];
@@ -85,6 +124,22 @@ export function multishotCapabilityFor(
     MULTISHOT_MODELS.find((m) => m.id === targetModel) ??
     MULTISHOT_MODELS.find((m) => m.id === DEFAULT_MULTISHOT_MODEL)!
   );
+}
+
+/**
+ * D260 — the one-line window under a model's name in the select.
+ *
+ * Built from the same fields `checkLadder` measures a ladder against, so the dropdown cannot
+ * promise a window the check then rejects. A `null` cap renders as ABSENCE, never as a number:
+ * "the vendor states no limit" and "we guessed one" must not look alike (D235).
+ *
+ * Character ceilings are deliberately omitted — they constrain the PROMPT, not the ladder, and an
+ * operator picking a model is choosing a shape for their cuts.
+ */
+export function describeCapability(cap: MultishotCapability): string {
+  const parts = [`${cap.minTotalSeconds}–${cap.maxTotalSeconds}s`];
+  if (cap.maxCuts !== null) parts.push(`max ${cap.maxCuts} shots`);
+  return parts.join(" · ");
 }
 
 export type LadderCheck = { ok: true } | { ok: false; reason: string };
@@ -126,6 +181,27 @@ export function checkLadder(
     return { ok: false, reason: `${total}s · ${cap.label} allows ${cap.maxTotalSeconds}s.` };
   }
   return { ok: true };
+}
+
+/**
+ * D261 — the model a NEW Multishot node starts on: the tightest window that accepts its ladder.
+ *
+ * Candidates are the models `checkLadder` accepts — the same check the node displays — so the pick
+ * can never land on a model that immediately reports a violation, and a cut cap (Kling's 6) rules
+ * a model out exactly as a length does. Among those, the smallest `maxTotalSeconds` wins: today
+ * that is Omni up to 10s, Kling to 15s, Seedance past it. Not "cheapest" — Kling undercuts Omni per
+ * second — but it does keep Seedance, at ~2.3x Omni, for ladders nothing else can hold.
+ *
+ * Called at CREATION only (fan-out and the Script switch's conversion), and the result is stored
+ * as `targetModel`. It is never re-run on an existing node: a Multishot Prompt is written in one
+ * model's shot format (D236), so a model that shifted as cuts were edited would strand the prompt,
+ * and it would overwrite the operator's own choice. Nothing fits → the default, and `checkLadder`
+ * says why, rather than choosing a model that fails anyway.
+ */
+export function bestFitMultishotModel(cuts: { seconds: number }[]): string {
+  const fits = MULTISHOT_MODELS.filter((m) => checkLadder(cuts, m).ok);
+  if (fits.length === 0) return DEFAULT_MULTISHOT_MODEL;
+  return fits.reduce((best, m) => (m.maxTotalSeconds < best.maxTotalSeconds ? m : best)).id;
 }
 
 /**

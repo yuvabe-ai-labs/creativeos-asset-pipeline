@@ -20,9 +20,14 @@ import type { AppNode, ShotNodeData, MultishotNodeData } from "./canvas-nodes";
 import type { ReelScript } from "@/lib/nodes/reel-script";
 import type { ShotComposeIdea } from "@/lib/nodes/shot-compose";
 import { deriveShotType } from "@/lib/nodes/shot-types";
-import { describeGenerations, generationKey } from "@/lib/nodes/group-shots";
+import {
+  describeGenerations,
+  generationKey,
+  defaultMultishotFor,
+  type GroupingVersion,
+} from "@/lib/nodes/group-shots";
 import { cutsFromShots, totalOf } from "@/lib/nodes/multishot-cuts";
-import { multishotCapabilityFor } from "@/lib/nodes/multishot-models";
+import { multishotCapabilityFor, bestFitMultishotModel } from "@/lib/nodes/multishot-models";
 import type { MultishotPlan } from "@/lib/nodes/multishot-plan";
 import { shotDataToMultishot, multishotDataToShot } from "@/lib/nodes/multishot-convert";
 import type { GenerationRow } from "@/lib/db/types";
@@ -422,13 +427,14 @@ export function createCanvasStore(
         title?: string;
         parsed?: ReelScript;
         groupModes?: Record<string, boolean>;
+        groupingVersion?: GroupingVersion;
       };
       const parsed = data.parsed;
       const shots = parsed?.visual_script?.shots ?? [];
       if (shots.length === 0) return;
 
       const scriptTitle = data.title || parsed?.title || "";
-      const generations = describeGenerations(shots, data.groupModes);
+      const generations = describeGenerations(shots, data.groupModes, data.groupingVersion ?? 1);
 
       // Matching is on the EXACT index set, not on overlap. A group whose boundaries moved under
       // a re-parse is genuinely a different generation and correctly gets its own node; the old
@@ -499,6 +505,8 @@ export function createCanvasStore(
               order: generation.index + 1,
               totalSeconds,
               cuts,
+              // D261 — starts on the model its ladder fits, not on the Omni default.
+              targetModel: bestFitMultishotModel(cuts),
               seededFrom,
             },
           };
@@ -542,15 +550,23 @@ export function createCanvasStore(
       const script = get().nodes.find((n) => n.id === scriptNodeId);
       if (!script || script.type !== "script") return;
 
-      const data = script.data as { parsed?: ReelScript; groupModes?: Record<string, boolean> };
+      const data = script.data as {
+        parsed?: ReelScript;
+        groupModes?: Record<string, boolean>;
+        groupingVersion?: GroupingVersion;
+      };
       const shots = data.parsed?.visual_script?.shots ?? [];
-      const generation = describeGenerations(shots).find((g) => g.key === key);
+      const version = data.groupingVersion ?? 1;
+      const generation = describeGenerations(shots, data.groupModes, version).find(
+        (g) => g.key === key,
+      );
       if (!generation) return;
 
       // Only DEVIATIONS are stored. Setting a generation back to its default removes the key
       // instead of pinning the same value — a pinned default would outlive the grouping it
       // describes and quietly re-apply itself to whatever group later takes the same key.
-      const isDefault = multishot === generation.shotIndexes.length > 1;
+      // The default comes from `defaultMultishotFor`, never from a second copy of the rule.
+      const isDefault = multishot === defaultMultishotFor(generation.shotIndexes, version);
       const next = { ...(data.groupModes ?? {}) };
       if (isDefault) delete next[key];
       else next[key] = multishot;

@@ -6,9 +6,11 @@ import {
   checkLadder,
   multishotRestrictionReason,
   restrictionSentenceFor,
+  describeCapability,
+  bestFitMultishotModel,
   MultishotCapability,
 } from "../multishot-models";
-import { videoGenClientModelMap, GEMINI_OMNI_MODEL_ID, KLING_OMNI_MODEL_ID } from "@/lib/video-gen/client-models";
+import { videoGenClientModelMap, GEMINI_OMNI_MODEL_ID, KLING_OMNI_MODEL_ID, SEEDANCE_MODEL_ID } from "@/lib/video-gen/client-models";
 
 const cuts = (...secs: number[]) => secs.map((seconds, i) => ({ id: `c${i}`, text: "", seconds }));
 
@@ -50,6 +52,19 @@ describe("multishotCapabilityFor", () => {
     expect(omni.maxPromptChars).toBeNull();
     expect(omni.shotFormat).toBe("timecode");
     expect(omni.refTokenBase).toBe(0);
+  });
+
+  it("declares Seedance's 4-30s window — the first floor that is not 3", () => {
+    const sd = multishotCapabilityFor(SEEDANCE_MODEL_ID);
+    expect(sd.minTotalSeconds).toBe(4);
+    expect(sd.maxTotalSeconds).toBe(30);
+    expect(sd.shotFormat).toBe("bare-timecode");
+    expect(sd.refTokenDialect).toBe("seedance-image");
+  });
+
+  it("gives every capability a distinct reference dialect", () => {
+    const dialects = MULTISHOT_MODELS.map((m) => m.refTokenDialect);
+    expect(new Set(dialects).size).toBe(MULTISHOT_MODELS.length);
   });
 });
 
@@ -94,29 +109,41 @@ describe("checkLadder", () => {
   it("refuses an empty ladder rather than calling it 0s", () => {
     expect(checkLadder([], omni).ok).toBe(false);
   });
+
+  it("refuses a 3s ladder on Seedance that Omni accepts", () => {
+    const cuts = [{ seconds: 3 }];
+    expect(checkLadder(cuts, multishotCapabilityFor(GEMINI_OMNI_MODEL_ID))).toEqual({ ok: true });
+    expect(checkLadder(cuts, multishotCapabilityFor(SEEDANCE_MODEL_ID)).ok).toBe(false);
+  });
+
+  it("accepts a 30s ladder only on Seedance", () => {
+    const cuts = Array.from({ length: 6 }, () => ({ seconds: 5 }));
+    expect(checkLadder(cuts, multishotCapabilityFor(SEEDANCE_MODEL_ID))).toEqual({ ok: true });
+    expect(checkLadder(cuts, multishotCapabilityFor(KLING_OMNI_MODEL_ID)).ok).toBe(false);
+  });
 });
 
 describe("multishotRestrictionReason", () => {
-  it("names the plan's model and offers the other one", () => {
+  // With three models, the sentence uses the multi-alternative branch and points at the node
+  // rather than naming a specific alternative.
+  it("points at the Multishot node when there are more than two models", () => {
     const forKling = multishotRestrictionReason(KLING_OMNI_MODEL_ID);
     expect(forKling).toContain("Kling 3.0 Omni");
-    expect(forKling).toContain("Gemini Omni 1.1");
+    expect(forKling).toContain("Multishot node");
     expect(forKling).toContain("regenerate");
   });
 
-  // Reads correctly BOTH ways round. A sentence built by hand for one direction reads as correct
-  // while being exactly backwards in the other, and nothing but this test would catch it.
-  it("swaps the two names when the plan is for Omni", () => {
+  // Reads correctly with Seedance as the third model.
+  it("names the plan's model with three models in the system", () => {
     const forOmni = multishotRestrictionReason(GEMINI_OMNI_MODEL_ID);
     expect(forOmni).toContain("written for Gemini Omni 1.1");
-    expect(forOmni).toContain("Kling 3.0 Omni");
+    expect(forOmni).toContain("Multishot node");
     expect(forOmni).not.toContain("written for Kling");
   });
 
-  // With a third model the sentence must not name only one alternative as if it were the only one.
-  // This is tested via restrictionSentenceFor with a synthetic third model, exercising the
-  // multi-alternative branch before it actually exists in production.
-  it("points at the Multishot node when there are more than two models", () => {
+  // With a synthetic third model passed explicitly, this tests the multi-alternative branch
+  // behavior in isolation.
+  it("points at the Multishot node in the multi-alternative case", () => {
     const syntheticThird: MultishotCapability = {
       ...multishotCapabilityFor(GEMINI_OMNI_MODEL_ID),
       id: "test:third-model",
@@ -130,5 +157,56 @@ describe("multishotRestrictionReason", () => {
     expect(sentence).toContain("Multishot node");
     expect(sentence).not.toContain("Gemini Omni 1.1");
     expect(sentence).not.toContain("Test Third Model");
+  });
+});
+
+describe("describeCapability", () => {
+  const cap = (id: string) => MULTISHOT_MODELS.find((m) => m.id === id)!;
+
+  it("states the total window", () => {
+    expect(describeCapability(cap(GEMINI_OMNI_MODEL_ID))).toBe("3–10s");
+  });
+
+  it("adds a cut cap where the vendor publishes one", () => {
+    expect(describeCapability(cap(KLING_OMNI_MODEL_ID))).toBe("3–15s · max 6 shots");
+  });
+
+  // `null` means the vendor states no limit. It must render as ABSENCE — a number here would be
+  // one we invented, and D235 exists so those two cannot look alike.
+  it("says nothing about cuts where the vendor states no limit", () => {
+    expect(describeCapability(cap(SEEDANCE_MODEL_ID))).toBe("4–30s");
+  });
+});
+
+describe("bestFitMultishotModel", () => {
+  it("keeps a ladder that fits Omni on Omni", () => {
+    expect(bestFitMultishotModel(cuts(3, 5))).toBe(GEMINI_OMNI_MODEL_ID);
+  });
+
+  // Omni's floor is 3; Seedance's is 4. The tightest window that ACCEPTS the ladder wins, so a
+  // floor only matters when it rules a model out.
+  it("keeps a 3s ladder on Omni", () => {
+    expect(bestFitMultishotModel(cuts(1, 2))).toBe(GEMINI_OMNI_MODEL_ID);
+  });
+
+  it("moves an 11-15s ladder to Kling, not Seedance", () => {
+    expect(bestFitMultishotModel(cuts(6, 6))).toBe(KLING_OMNI_MODEL_ID);
+  });
+
+  it("moves a ladder past 15s to Seedance", () => {
+    expect(bestFitMultishotModel(cuts(3, 5, 6, 4, 6))).toBe(SEEDANCE_MODEL_ID);
+  });
+
+  // Length alone would say Kling; Kling's 6-cut cap rules it out. The pick asks checkLadder, the
+  // same check the node shows, so it can never land on a model that reports a violation.
+  it("skips Kling when the ladder has more cuts than Kling allows", () => {
+    expect(bestFitMultishotModel(cuts(2, 2, 2, 2, 2, 1, 1))).toBe(SEEDANCE_MODEL_ID);
+  });
+
+  // Nothing fits: stay on the default and let checkLadder say why, rather than pick a model that
+  // fails anyway.
+  it("falls back to the default when no model fits", () => {
+    expect(bestFitMultishotModel(cuts(34))).toBe(DEFAULT_MULTISHOT_MODEL);
+    expect(bestFitMultishotModel([])).toBe(DEFAULT_MULTISHOT_MODEL);
   });
 });

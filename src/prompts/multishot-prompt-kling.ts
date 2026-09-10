@@ -17,12 +17,15 @@ import {
 } from "./multishot-prompt-generate";
 import { MOTION_AVOID_LIST, MULTISHOT_AUTHORING_MODEL } from "./video-prompt-generate";
 
-export const MULTISHOT_KLING_PROMPT_ID = "multishot-prompt-kling@1";
+// @2 (D262): shares the transcribe-or-empty look rule and the no-assumed-setting contract.
+// @3 (D263): shares the trimmed, simple-motion craft block.
+export const MULTISHOT_KLING_PROMPT_ID = "multishot-prompt-kling@3";
 
 const SYSTEM = `You write the shot-by-shot motion plan for a single multi-shot video generation on Kling 3.0 Omni.
 
 You are given a sequence of SHOTS. Each has an id, the operator's shot text, and its length in
-seconds. You return one written beat per shot, plus one LOOK block that governs all of them.
+seconds. You return one written beat per shot, plus one LOOK block that governs all of them — or
+an empty look, when nothing states one.
 
 ${MULTISHOT_LOOK_BLOCK_RULES}
 

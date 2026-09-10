@@ -46,6 +46,48 @@ export function omniImageRefToken(n: number): string {
   return `<IMAGE_REF_${n - 1}>`;
 }
 
+/**
+ * Seedance 2.5's own inline handle, verbatim from the vendor docs — ONE-based over the
+ * references, unlike `omniImageRefToken` which subtracts 1. Seedance's own system prompt
+ * (`src/prompts/video-prompt-seedance.ts`) separately instructs the model to write `@Image N`
+ * handles in the body, so the Instruction field's `@`-mentions must resolve to the same shape or
+ * the writer is told to use handles the user turn never establishes.
+ *
+ * The capital `I` is load-bearing: Kling's own dialect writes `@image_1` (lowercase, underscore)
+ * for the identical one-based scheme (D245). Do not lowercase this.
+ *
+ * THE SPACE IS DELIBERATE, AND THE VENDOR'S DOCS CONTRADICT THEMSELVES ABOUT IT — do not "fix" it
+ * to `@Image1` on a raw grep count. A review did exactly that, counting 12 no-space hits against 3
+ * spaced ones in the tutorial and concluding no-space was the demonstrated form. The counts are
+ * real; the conclusion is not:
+ *
+ *   - Those 12 `@Image1` hits are ONE prompt string, duplicated verbatim across the tutorial's
+ *     Python / JavaScript / Go / Java / REST language tabs for a single worked example.
+ *   - The spaced form is what the normative "Prompt rules" section uses
+ *     (`Dreamina Seedance 2.5 tutorial.md:2871`), and what both "Prompt examples:" lines use
+ *     (:76, :91).
+ *   - `One-take CreationFlexibleReferencing_Introducing_Seedance 2_5.md` uses the spaced form 13
+ *     times across several complete R2V prompts, up to `@Image 18`, and never the no-space form.
+ *
+ * So the spaced form carries the authoritative guidance and the bulk of the worked prompts. It is
+ * also not required by the Kling collision — `@Image1` would already be distinct from `@image_1` —
+ * which is why that argument alone should not decide this either way.
+ *
+ * SETTLED, and not by counting occurrences. `ref/byteplus-docs/Private virtual portrait library.md`
+ * states the rule normatively, twice:
+ *
+ *     "reference assets using the format 'asset type + index', for example: Image 1, Video 1,
+ *      Audio 1. The index is the position of that asset within the same asset type in the request
+ *      body."   …and…   "Do not reference assets by Asset ID in the prompt."
+ *
+ * Type, SPACE, 1-based index, counted per asset type over the request body — which is exactly what
+ * this function and `seedanceImageDialect` emit. The vendor's own worked example reads "The girl in
+ * Image 1 is wearing the outfit from Image 2".
+ */
+export function seedanceImageRefToken(n: number): string {
+  return `@Image ${n}`;
+}
+
 const TOKEN_RE = /@\[([^\]]+)\]\(([^)]+)\)/g;
 
 export function resolveMentionTokens(

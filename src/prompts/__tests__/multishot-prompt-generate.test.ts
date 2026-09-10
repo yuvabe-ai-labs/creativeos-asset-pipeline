@@ -6,7 +6,10 @@ import {
   MULTISHOT_LOOK_SCHEMA,
   MULTISHOT_BEAT_SCHEMA,
   refineInstruction,
+  MULTISHOT_PLAN_SCHEMA,
 } from "../multishot-prompt-generate";
+import { multishotPromptFor } from "../multishot-prompt-for";
+import { MULTISHOT_MODELS } from "@/lib/nodes/multishot-models";
 import { MULTISHOT_AUTHORING_MODEL, SUBJECT_SILENT_CAMERA } from "../video-prompt-generate";
 
 describe("multishotPromptGenerate", () => {
@@ -80,9 +83,11 @@ describe("multishotPromptGenerate", () => {
     expect(spec.system).toMatch(/one dominant action/i);
   });
 
-  it("asks for named surface contact, the fix for sliding and hovering", () => {
-    expect(spec.system).toMatch(/name the surface and the contact/i);
+  // The fix for sliding and hovering survives D263's trim: it is one short line now, not a
+  // five-rule physics section, but a subject still has to be told to stay grounded.
+  it("keeps subjects grounded, the fix for sliding and hovering", () => {
     expect(spec.system).toMatch(/keeps contact/i);
+    expect(spec.system).toMatch(/floats, hovers or slides/i);
   });
 
   // D233: the writer identifies a reference but never binds it. It used to assign
@@ -209,5 +214,68 @@ describe("refineInstruction", () => {
     expect(() => refineInstruction({ scope: "cut", cutId: null, note: "", plan })).toThrow(
       /cutId/,
     );
+  });
+});
+
+// D262 — the look comes only from what the script or the operator states, and the brand context is
+// never a source of setting. Checked on EVERY model's writer, since all three share these blocks and
+// a writer that dropped one would quietly go back to inventing monsoons.
+describe("no assumed look or setting (D262)", () => {
+  const systems = MULTISHOT_MODELS.map((m) => [m.label, multishotPromptFor(m.id).system] as const);
+
+  it("tells every writer to leave the look empty when nothing states one", () => {
+    for (const [label, system] of systems) {
+      expect(system, label).toMatch(/return an empty string/i);
+    }
+  });
+
+  it("tells every writer the brand context is not a source of setting", () => {
+    for (const [label, system] of systems) {
+      expect(system, label).toMatch(/brand context/i);
+      expect(system, label).toMatch(/weather, season, time of day/i);
+    }
+  });
+
+  // The old physics example put rain in every writer's head.
+  it("no longer seeds wet weather through its examples", () => {
+    for (const [label, system] of systems) {
+      expect(system, label).not.toMatch(/wet asphalt/i);
+    }
+  });
+
+  it("tells the schema an empty look is allowed", () => {
+    expect(MULTISHOT_PLAN_SCHEMA.properties.look.description).toMatch(/empty/i);
+    expect(MULTISHOT_LOOK_SCHEMA.properties.look.description).toMatch(/empty/i);
+  });
+});
+
+// D263 — the operator reported the motion "overcomplicated". Every rule below asked the writer to
+// narrate one more motion per beat, and every narrated motion is one more thing the video model
+// tries to animate. Pinned OUT on every writer so a later "prompt quality" pass cannot quietly
+// restore them.
+describe("simple motion (D263)", () => {
+  const systems = MULTISHOT_MODELS.map((m) => [m.label, multishotPromptFor(m.id).system] as const);
+
+  it("tells every writer to write the action as the shot text puts it and stop", () => {
+    for (const [label, system] of systems) {
+      expect(system, label).toMatch(/keep the motion simple/i);
+      expect(system, label).toMatch(/static or on one slow, simple move/i);
+    }
+  });
+
+  it("no longer asks any writer to narrate physics or choreography", () => {
+    const removed = [
+      /force verbs/i,
+      /takes the weight/i,
+      /let materials behave/i,
+      /heel-first/i,
+      /30 degrees/i,
+      /screen direction/i,
+      /timing of small movements/i,
+      /micro-detail/i,
+    ];
+    for (const [label, system] of systems) {
+      for (const pattern of removed) expect(system, `${label} ${pattern}`).not.toMatch(pattern);
+    }
   });
 });

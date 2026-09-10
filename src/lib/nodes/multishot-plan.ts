@@ -13,9 +13,12 @@ export type MultishotPlan = {
   version: 1;
   /**
    * The look & atmosphere block: light direction, time of day, lens feel, palette, grade.
-   * Written by the model, governs every beat, rendered ABOVE the ladder. Required — it is the
-   * only thing making separate cuts read as one film, and a sequence without one is a set of
-   * unrelated clips.
+   * Governs every beat, rendered ABOVE the ladder.
+   *
+   * D262 — may be EMPTY, and empty means "the script states no look". It was required, which
+   * forced the writer to invent one whenever a script gave none, and it filled the gap from the
+   * brand context — a season, a weather, a place the script never asked for. Only stated look
+   * direction is transcribed now; with none, nothing is sent and each shot's own text carries it.
    */
   look: string;
   beats: MultishotBeat[];
@@ -55,10 +58,12 @@ export function parsePlan(raw: unknown, cuts: MultishotCut[]): PlanParseResult {
   }
   const candidate = raw as Partial<MultishotPlan>;
 
-  const look = typeof candidate.look === "string" ? candidate.look.trim() : "";
-  if (!look) {
-    return { ok: false, reason: "The plan has no look — the cuts would not read as one film." };
+  // D262 — blank is legal ("the script states no look"); malformed is not. An absent key reads as
+  // blank, but a number or an object where the look belongs is a broken response.
+  if (candidate.look !== undefined && typeof candidate.look !== "string") {
+    return { ok: false, reason: "The plan's look is not text." };
   }
+  const look = (candidate.look ?? "").trim();
 
   if (!Array.isArray(candidate.beats)) {
     return { ok: false, reason: "The plan has no beats." };
@@ -102,6 +107,16 @@ export function parsePlan(raw: unknown, cuts: MultishotCut[]): PlanParseResult {
         : {}),
     },
   };
+}
+
+/**
+ * The look, a blank line, then the ladder — or the ladder alone when the look is empty (D262). A
+ * blank look is sent as nothing: a prompt opening on two empty lines reads to the model as a
+ * missing section, and on Kling it spends character budget on whitespace.
+ */
+function withLook(look: string, ladder: string): string {
+  const trimmed = look.trim();
+  return trimmed ? `${trimmed}\n\n${ladder}` : ladder;
 }
 
 /**
@@ -154,7 +169,34 @@ export function renderPlan(
         return `shot ${i + 1}, ${cut.seconds}, ${text};`;
       })
       .join("\n");
-    return `${plan.look.trim()}\n\n${shots}`;
+    return withLook(plan.look, shots);
+  }
+
+  if (cap.shotFormat === "bare-timecode") {
+    // D244 — Seedance 2.5's bare `0-2s:` prefix, no brackets. Cumulative from the CUTS like
+    // Omni's ladder, so the final timestamp equals the request's duration by construction.
+    //
+    // NOT the only form the vendor uses, and the original comment here overstated that. Its
+    // tutorial writes bare `N-Ms:` ranges about as often as `0:00-0:03` MM:SS ones, plus a few
+    // `Shot N [0:00-0:03]`. Unlike Kling — whose API genuinely parses one comma/semicolon grammar
+    // and reads anything else as a single shot (D238) — Seedance appears to read timing from
+    // prose rather than a strict format, so this is a choice among forms it understands, not the
+    // one form it accepts. Bare seconds were chosen because they need no minute arithmetic from a
+    // cut ladder already measured in seconds. If a real generation shows it cutting more reliably
+    // on MM:SS, switching is a one-branch change and nothing downstream depends on this shape.
+    //
+    // No text rewrite. Kling's branch replaces semicolons because a stray `;` terminates a shot
+    // in its comma/semicolon triple grammar; nothing here is delimited that way, so the
+    // operator's prose — and its `@Image N` handles — pass through byte-for-byte.
+    let at = 0;
+    const ladder = cuts
+      .map((cut) => {
+        const from = at;
+        at += cut.seconds;
+        return `${from}-${at}s: ${(byId.get(cut.id) ?? "").trim()}`;
+      })
+      .join("\n");
+    return withLook(plan.look, ladder);
   }
 
   let at = 0;
@@ -166,11 +208,12 @@ export function renderPlan(
     })
     .join("\n");
 
-  return `${plan.look.trim()}\n\n${ladder}`;
+  return withLook(plan.look, ladder);
 }
 
 const IMAGE_REF = /<IMAGE_REF_(\d+)>/g;
 const KLING_IMAGE_REF = /@image_(\d+)/g;
+const SEEDANCE_IMAGE_REF = /@Image (\d+)/g;
 
 /**
  * Which references a beat cites, derived from its own text, in the target model's token shape.
@@ -180,15 +223,33 @@ const KLING_IMAGE_REF = /@image_(\d+)/g;
  * by someone `@`-mentioning a reference in the editor.
  *
  * ALWAYS ZERO-BASED on the way out, whatever the model's wire format. Callers use the result to
- * index `promptRefImages`, so returning Kling's 1-based numbers would mark the wrong reference as
- * uncited — off by one, on a display that exists to catch exactly that class of mistake.
+ * index `promptRefImages`, so returning Kling's or Seedance's 1-based numbers would mark the wrong
+ * reference as uncited — off by one, on a display that exists to catch exactly that class of
+ * mistake.
  */
 export function refsCitedIn(text: string, cap: MultishotCapability): number[] {
   const seen = new Set<number>();
-  if (cap.refTokenBase === 1) {
-    for (const match of text.matchAll(KLING_IMAGE_REF)) seen.add(Number(match[1]) - 1);
-  } else {
-    for (const match of text.matchAll(IMAGE_REF)) seen.add(Number(match[1]));
+  // Exhaustive switch: a new dialect is a COMPILE error here rather than a silent fall back
+  // to returning an empty set (D245). Without this default, adding a fourth refTokenDialect
+  // literal would compile cleanly and silently return "cites nothing" — exactly the silent
+  // failure D245 exists to prevent.
+  switch (cap.refTokenDialect) {
+    case "kling-image":
+      for (const match of text.matchAll(KLING_IMAGE_REF)) seen.add(Number(match[1]) - 1);
+      break;
+    case "seedance-image":
+      for (const match of text.matchAll(SEEDANCE_IMAGE_REF)) seen.add(Number(match[1]) - 1);
+      break;
+    case "image-ref":
+      for (const match of text.matchAll(IMAGE_REF)) seen.add(Number(match[1]));
+      break;
+    default: {
+      // A dialect with no case here would otherwise return "cites nothing" silently. Assigning
+      // to `never` makes it a compile error instead — the same guarantee dialectForCapability
+      // gets for free by returning from every branch (D245).
+      const unhandled: never = cap.refTokenDialect;
+      throw new Error(`refsCitedIn: unhandled reference dialect ${String(unhandled)}`);
+    }
   }
   return [...seen];
 }
@@ -258,9 +319,9 @@ export function mergeRefinedPlan(
   cuts: MultishotCut[],
 ): PlanParseResult {
   if (scope === "look") {
-    const look = (fragment.look ?? "").trim();
-    if (!look) return { ok: false, reason: "The writer returned an empty look." };
-    return parsePlan({ ...plan, look }, cuts);
+    // D262 — a blank rewrite is the writer following its rule on a script that states no look,
+    // so it clears the look rather than failing the refine.
+    return parsePlan({ ...plan, look: (fragment.look ?? "").trim() }, cuts);
   }
 
   if (!cutId) return { ok: false, reason: "No shot was named for this rewrite." };
@@ -302,4 +363,34 @@ export function planIsDirty(
   return saved.beats.some(
     (b, i) => b.cutId !== draft.beats[i].cutId || b.text !== draft.beats[i].text,
   );
+}
+
+/**
+ * Write one beat's text, returning a new plan. Every other beat is returned BY REFERENCE.
+ *
+ * Extracted from the focus view's `updateBeat` after a real bug: an editor callback held a stale
+ * render's plan, so writing one beat also wrote back that snapshot's version of every other beat —
+ * clearing all the shots and pasting into the first resurrected the rest, which read as the paste
+ * being duplicated across them.
+ *
+ * Two properties make that class of bug unrepresentable here, and both are tested:
+ *   - it is PURE, so it cannot read a stale plan out of a closure; the caller passes the current
+ *     one (the view uses the functional setState form to guarantee that), and
+ *   - untouched beats keep their object identity, so "did this write touch a neighbour?" is
+ *     answerable with `===` rather than by eyeballing text.
+ *
+ * An unknown `cutId` is a no-op returning the SAME plan object, not a clone: a write aimed at a
+ * shot that is not in this plan should change nothing, and returning the same reference lets a
+ * caller see that nothing changed.
+ */
+export function setBeatText(
+  plan: MultishotPlan,
+  cutId: string,
+  text: string,
+): MultishotPlan {
+  if (!plan.beats.some((b) => b.cutId === cutId)) return plan;
+  return {
+    ...plan,
+    beats: plan.beats.map((b) => (b.cutId === cutId ? { ...b, text } : b)),
+  };
 }

@@ -1,12 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { parsePlan, renderPlan, refsCitedIn, mergeRefinedPlan, checkPlanLimits, planIsDirty } from "../multishot-plan";
+import { parsePlan, renderPlan, refsCitedIn, mergeRefinedPlan, checkPlanLimits, planIsDirty, setBeatText } from "../multishot-plan";
 import type { MultishotPlan } from "../multishot-plan";
 import type { MultishotCut } from "../multishot-cuts";
 import { multishotCapabilityFor } from "../multishot-models";
-import { GEMINI_OMNI_MODEL_ID, KLING_OMNI_MODEL_ID } from "@/lib/video-gen/client-models";
+import { GEMINI_OMNI_MODEL_ID, KLING_OMNI_MODEL_ID, SEEDANCE_MODEL_ID } from "@/lib/video-gen/client-models";
 
 const OMNI = multishotCapabilityFor(GEMINI_OMNI_MODEL_ID);
 const KLING = multishotCapabilityFor(KLING_OMNI_MODEL_ID);
+const SEEDANCE = multishotCapabilityFor(SEEDANCE_MODEL_ID);
 
 const cuts: MultishotCut[] = [
   { id: "c1", text: "keys", seconds: 2 },
@@ -48,11 +49,14 @@ describe("parsePlan", () => {
     if (!result.ok) expect(result.reason).toMatch(/every shot/i);
   });
 
-  // The look is what makes separate cuts read as one film. Without it they are unrelated clips.
-  it("rejects a missing or empty look", () => {
-    expect(parsePlan(raw({ look: "" }), cuts).ok).toBe(false);
-    expect(parsePlan(raw({ look: "   " }), cuts).ok).toBe(false);
-    expect(parsePlan(raw({ look: undefined }), cuts).ok).toBe(false);
+  // D262 — an empty look is the CORRECT answer when the script states no look direction. The writer
+  // is told to leave it blank rather than invent one, so rejecting blank would force it to invent.
+  it("accepts an empty look as 'the script states none'", () => {
+    for (const look of ["", "   ", undefined]) {
+      const result = parsePlan(raw({ look }), cuts);
+      expect(result.ok, `look ${JSON.stringify(look)}`).toBe(true);
+      if (result.ok) expect(result.plan.look).toBe("");
+    }
   });
 
   it("rejects a non-object", () => {
@@ -231,6 +235,34 @@ describe("renderPlan per model", () => {
     expect(rendered).toContain("shot 1, 2, keys land, the hand withdraws;");
     expect(rendered.match(/;/g)).toHaveLength(2); // one terminator per shot, no more
   });
+
+  describe("renderPlan — Seedance bare timecodes", () => {
+    it("emits `0-2s:` lines with the look as leading prose", () => {
+      expect(renderPlan(perModelPlan, planCuts, SEEDANCE)).toBe(
+        "Low sun from camera-left, warm grey concrete, 35mm at knee height.\n\n" +
+          "0-2s: A hand sweeps keys off oak.\n" +
+          "2-5s: A cab door swings open onto sunlit paving.",
+      );
+    });
+
+    // Cumulative, like Omni's — and from the CUTS, so the last timestamp IS the request duration.
+    it("ends the ladder exactly at the budget", () => {
+      const last = renderPlan(perModelPlan, planCuts, SEEDANCE).trim().split("\n").at(-1)!;
+      expect(last.startsWith("2-5s:")).toBe(true);
+    });
+
+    // Seedance's own handles must survive untouched — unlike Kling, there is no semicolon rewrite
+    // here, because nothing in this format is semicolon-delimited.
+    it("leaves @Image handles and punctuation alone", () => {
+      const withRef = {
+        ...perModelPlan,
+        beats: [{ cutId: "c1", text: "the @Image 1 rests on oak; light shifts" }, perModelPlan.beats[1]],
+      };
+      expect(renderPlan(withRef, planCuts, SEEDANCE)).toContain(
+        "0-2s: the @Image 1 rests on oak; light shifts",
+      );
+    });
+  });
 });
 
 describe("checkPlanLimits", () => {
@@ -287,6 +319,12 @@ describe("refsCitedIn per model", () => {
     expect(refsCitedIn("the @image_1 and @image_2", KLING)).toEqual([0, 1]);
     expect(refsCitedIn("the <IMAGE_REF_0>", KLING)).toEqual([]);
   });
+
+  it("finds Seedance's handles and returns zero-based indexes", () => {
+    expect(refsCitedIn("the @Image 1 and @Image 2", SEEDANCE)).toEqual([0, 1]);
+    expect(refsCitedIn("the @image_1", SEEDANCE)).toEqual([]);
+    expect(refsCitedIn("the @Image 1", KLING)).toEqual([]);
+  });
 });
 
 describe("mergeRefinedPlan", () => {
@@ -332,9 +370,16 @@ describe("mergeRefinedPlan", () => {
     expect(out).toEqual({ ok: false, reason: "That shot is not in this plan." });
   });
 
-  it("rejects an empty fragment", () => {
-    expect(mergeRefinedPlan(plan, "look", { look: "   " }, undefined, cuts).ok).toBe(false);
+  it("rejects an empty beat", () => {
     expect(mergeRefinedPlan(plan, "cut", { text: "  " }, "c1", cuts).ok).toBe(false);
+  });
+
+  // D262 — rewriting the look on a script that states none SHOULD come back blank. That is the
+  // writer following its rule, not failing.
+  it("accepts an empty look rewrite, clearing the look", () => {
+    const out = mergeRefinedPlan(plan, "look", { look: "   " }, undefined, cuts);
+    expect(out.ok).toBe(true);
+    if (out.ok) expect(out.plan.look).toBe("");
   });
 
   // The merged whole goes through parsePlan, so a plan whose cut list changed underneath the
@@ -479,5 +524,80 @@ describe("the plan's targetModel stamp (D236)", () => {
     if (!stampedPlan.ok) return;
     expect(renderPlan(stampedPlan.plan, cuts, KLING)).toContain("shot 1, ");
     expect(renderPlan(stampedPlan.plan, cuts, OMNI)).toContain("[0-");
+  });
+});
+
+// The bug this exists to make unrepresentable: clearing every shot and pasting into the first made
+// the text appear in all of them. The proximate cause was a stale closure in the editor's paste
+// handler, but what let a stale caller corrupt UNRELATED beats was update logic that read the plan
+// from a closure. These pin the properties that make that impossible.
+describe("setBeatText", () => {
+  const base: MultishotPlan = {
+    version: 1,
+    look: "Low sun, warm concrete.",
+    beats: [
+      { cutId: "c1", text: "" },
+      { cutId: "c2", text: "" },
+      { cutId: "c3", text: "" },
+    ],
+  };
+
+  it("writes only the named beat, leaving the others EMPTY", () => {
+    const next = setBeatText(base, "c1", "pasted text");
+    expect(next.beats.map((b) => b.text)).toEqual(["pasted text", "", ""]);
+  });
+
+  // Identity, not just equality: an untouched beat must be the SAME object, which is what makes
+  // "did this write reach a neighbour?" checkable rather than a matter of reading strings.
+  it("keeps untouched beats by reference", () => {
+    const next = setBeatText(base, "c2", "only me");
+    expect(next.beats[0]).toBe(base.beats[0]);
+    expect(next.beats[2]).toBe(base.beats[2]);
+    expect(next.beats[1]).not.toBe(base.beats[1]);
+  });
+
+  it("never mutates the plan it was given", () => {
+    const snapshot = JSON.stringify(base);
+    setBeatText(base, "c1", "mutate me");
+    expect(JSON.stringify(base)).toBe(snapshot);
+  });
+
+  it("preserves the look and the targetModel stamp", () => {
+    const stamped: MultishotPlan = { ...base, targetModel: "seedance:seedance-2-5" };
+    const next = setBeatText(stamped, "c1", "x");
+    expect(next.look).toBe(stamped.look);
+    expect(next.targetModel).toBe("seedance:seedance-2-5");
+  });
+
+  it("is a no-op for a cutId that is not in the plan, returning the same object", () => {
+    expect(setBeatText(base, "not-a-cut", "x")).toBe(base);
+  });
+
+  // Writing each beat in turn must accumulate, not overwrite — the sequence an operator performs
+  // when filling in a cleared ladder shot by shot.
+  it("accumulates across successive writes", () => {
+    let p = base;
+    p = setBeatText(p, "c1", "one");
+    p = setBeatText(p, "c2", "two");
+    p = setBeatText(p, "c3", "three");
+    expect(p.beats.map((b) => b.text)).toEqual(["one", "two", "three"]);
+  });
+});
+
+// D262 — a blank look is sent as NOTHING, not as a blank paragraph. A prompt opening on two empty
+// lines reads to the model as a missing section, and wastes Kling's character budget.
+describe("renderPlan with no look", () => {
+  const noLook: MultishotPlan = { version: 1, look: "", beats: raw().beats };
+
+  it("starts Omni's ladder on the first shot", () => {
+    expect(renderPlan(noLook, cuts, OMNI)).toMatch(/^\[0-2s\] Tight on a hand/);
+  });
+
+  it("starts Kling's triples on the first shot", () => {
+    expect(renderPlan(noLook, cuts, KLING)).toMatch(/^shot 1, 2, Tight on a hand/);
+  });
+
+  it("starts Seedance's ladder on the first shot", () => {
+    expect(renderPlan(noLook, cuts, SEEDANCE)).toMatch(/^0-2s: Tight on a hand/);
   });
 });

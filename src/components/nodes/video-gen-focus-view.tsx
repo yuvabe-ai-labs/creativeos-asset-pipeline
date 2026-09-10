@@ -1113,7 +1113,14 @@ export function VideoGenFocusView({
     const filled = autoAssignImageRoles(
       upstreamImages.map((img) => ({ nodeId: img.id, url: img.imageUrl, type: img.type })),
       imageRolesProp,
-      { supportsStartFrame: imageInputs.startFrame },
+      // Both flags must match the server's (video-generate/route.ts) exactly. The comment above
+      // records why: a client that defaults differently from the server evaluates its constraints
+      // against roles the request will not use, and Generate then runs on a state the server
+      // rejects.
+      {
+        supportsStartFrame: imageInputs.startFrame,
+        supportsReferences: imageInputs.maxReferenceImages > 0,
+      },
     );
     if (Object.keys(filled).length !== Object.keys(imageRolesProp).length) {
       onPatch({ imageRoles: filled });

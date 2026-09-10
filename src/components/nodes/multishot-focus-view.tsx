@@ -17,6 +17,7 @@ import {
   MULTISHOT_MODELS,
   multishotCapabilityFor,
   checkLadder,
+  describeCapability,
 } from "@/lib/nodes/multishot-models";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 
@@ -78,6 +79,9 @@ export function MultishotFocusView({
   const total = totalOf(cuts);
   const ladder = checkLadder(cuts, cap);
   const atCeiling = headroomOf(cuts, cap) === 0;
+  // Base UI resolves SelectValue's label from `items`. Without it, a bare <SelectValue /> renders
+  // the raw VALUE — which is why this trigger read "gemini:gemini-omni-1.1-flash".
+  const modelItems = Object.fromEntries(MULTISHOT_MODELS.map((m) => [m.id, m.label]));
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -114,17 +118,27 @@ export function MultishotFocusView({
                   says "this model, this much of its budget, then what's next". */}
               <div className="flex shrink-0 items-center gap-2">
                 <Select
+                  items={modelItems}
                   value={cap.id}
                   onValueChange={(v) => onTargetModelChange(String(v))}
                   disabled={isReadOnly}
                 >
-                  <SelectTrigger className="h-9 w-[168px] text-sm" aria-label="Multishot model">
+                  {/* Default height, matching GuidedNextButton's h-8 beside it. min-w holds the
+                      slot while letting a longer model name grow instead of clipping. */}
+                  <SelectTrigger className="min-w-[168px] text-sm" aria-label="Multishot model">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     {MULTISHOT_MODELS.map((m) => (
-                      <SelectItem key={m.id} value={m.id}>
-                        {m.label}
+                      <SelectItem key={m.id} value={m.id} className="items-start py-1.5">
+                        <div className="flex flex-col items-start gap-0.5">
+                          <span>{m.label}</span>
+                          {/* Every model stays selectable. D97 — the app rejects and explains
+                              rather than prevents, and checkLadder already writes that sentence. */}
+                          <span className="text-xs text-muted-foreground">
+                            {describeCapability(m)}
+                          </span>
+                        </div>
                       </SelectItem>
                     ))}
                   </SelectContent>

@@ -403,6 +403,68 @@ describe("setGenerationMode", () => {
   });
 });
 
+describe("setGenerationMode under groupingVersion 2", () => {
+  const v2Node = (groupModes?: Record<string, boolean>): AppNode =>
+    ({
+      id: "sc",
+      type: "script",
+      position: { x: 0, y: 0 },
+      data: {
+        // 3+5+6 = 14s — one group "0-1-2" at the v2 ceiling, two groups at v1's 10s.
+        parsed: {
+          visual_script: {
+            shots: [
+              { description: "a", duration_seconds: 3 },
+              { description: "b", duration_seconds: 5 },
+              { description: "c", duration_seconds: 6 },
+            ],
+          },
+        },
+        groupingVersion: 2,
+        ...(groupModes ? { groupModes } : {}),
+      },
+    }) as AppNode;
+
+  // Under v2 the default is single, so turning a group ON is the deviation and must be stored.
+  // The inline rule this replaces compared against `shotIndexes.length > 1`, called `true` the
+  // default for a 3-shot group, and would have deleted the key instead.
+  it("stores multishot:true as a deviation", () => {
+    const store = createCanvasStore([v2Node()], []);
+    store.getState().setGenerationMode("sc", "0-1-2", true);
+
+    const data = store.getState().nodes[0].data as { groupModes?: Record<string, boolean> };
+    expect(data.groupModes).toEqual({ "0-1-2": true });
+  });
+
+  it("drops the key when set back to the v2 default", () => {
+    const store = createCanvasStore([v2Node({ "0-1-2": true })], []);
+    store.getState().setGenerationMode("sc", "0-1-2", false);
+
+    const data = store.getState().nodes[0].data as { groupModes?: Record<string, boolean> };
+    expect(data.groupModes).toEqual({});
+  });
+
+  // D261 — fan-out creates the Multishot node on the model that fits it. 14s is past Omni's 10,
+  // inside Kling's 15, so it must not arrive on the Omni default already failing.
+  it("fans out a multishot generation on the model that fits it", () => {
+    const store = createCanvasStore([v2Node({ "0-1-2": true })], []);
+    store.getState().fanOutShots("sc");
+
+    const ms = store.getState().nodes.find((n) => n.type === "multishot");
+    expect((ms?.data as { targetModel?: string }).targetModel).toBe(KLING_OMNI_MODEL_ID);
+  });
+
+  // The common flow: fan out with the switch off, THEN flip it. The conversion picks too.
+  it("converts to multishot on the model that fits it", () => {
+    const store = createCanvasStore([v2Node()], []);
+    store.getState().fanOutShots("sc");
+    store.getState().setGenerationMode("sc", "0-1-2", true);
+
+    const ms = store.getState().nodes.find((n) => n.type === "multishot");
+    expect((ms?.data as { targetModel?: string }).targetModel).toBe(KLING_OMNI_MODEL_ID);
+  });
+});
+
 describe("canvas store — focusedNodeId", () => {
   it("starts null and can be set/cleared", () => {
     const store = createCanvasStore();

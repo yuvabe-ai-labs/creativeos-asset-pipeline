@@ -48,7 +48,7 @@ import { RefineWithAI } from "./refine-with-ai";
 import { RefineProgress } from "./refine-progress";
 import { planMentionables } from "@/lib/nodes/plan-mentions";
 import type { MultishotCut } from "@/lib/nodes/multishot-cuts";
-import { renderPlan, refsCitedIn, planIsDirty, type MultishotPlan } from "@/lib/nodes/multishot-plan";
+import { renderPlan, refsCitedIn, planIsDirty, setBeatText, type MultishotPlan } from "@/lib/nodes/multishot-plan";
 import type { RefineScope } from "@/lib/nodes/refine-suggestions";
 
 type MultishotPromptFocusViewProps = {
@@ -189,6 +189,18 @@ export function MultishotPromptFocusView({
   }));
   const refIdsKey = promptRefImages.map((r) => r.id).join(",");
   const refIds = useMemo(() => (refIdsKey ? refIdsKey.split(",") : []), [refIdsKey]);
+
+  // ONE dialect object for the whole view, memoized — not a fresh one per render per editor.
+  //
+  // `dialectForCapability` returns a new object every call, and this was previously called inline
+  // in the look editor and again inside every beat card. That was only harmless because the
+  // editor's sync effect ignored `dialect` in its deps; the two mistakes cancelled out. Now that
+  // the effect depends on it properly, an unstable dialect would repopulate the editor on every
+  // render and fight the caret — the exact failure video-prompt-focus-view.tsx already documents.
+  //
+  // Both inputs are stable: `refIds` is memoized on its id string above, and
+  // `multishotCapabilityFor` returns a module-level entry, not a fresh object.
+  const beatDialect = useMemo(() => dialectForCapability(cap, refIds), [cap, refIds]);
 
   // References no beat's text cites (via `refsCitedIn`), by index into `promptRefImages` —
   // the same order-preserving `visionAttachmentsOf(upstream)` filter ReferenceImageStrip
@@ -512,17 +524,23 @@ export function MultishotPromptFocusView({
 
   // D240 — these set planDraft ONLY. The `onPatch` that used to run per keystroke now lives in
   // handleSavePlan, beside the write that actually reaches the database.
+  // Both use the FUNCTIONAL form of setState, and must keep doing so.
+  //
+  // Reading `planDraft` from the closure is what made a paste duplicate text across every shot: an
+  // editor callback held a stale render's `planDraft`, so writing one beat also wrote back that
+  // snapshot's version of every OTHER beat, resurrecting text the operator had just cleared. The
+  // proximate cause was a missing dependency in the editor's paste handler, but the reason a stale
+  // callback could corrupt unrelated beats at all was this closure read.
+  //
+  // With the updater form, the reducer always receives the CURRENT draft, so a stale caller can
+  // only ever write the one beat it names — no amount of closure staleness upstream can touch its
+  // neighbours. That is the property worth keeping, not the specific bug that revealed it.
   function updateLook(v: string) {
-    if (!planDraft) return;
-    setPlanDraft({ ...planDraft, look: v });
+    setPlanDraft((prev) => (prev ? { ...prev, look: v } : prev));
   }
 
   function updateBeat(cutId: string, v: string) {
-    if (!planDraft) return;
-    setPlanDraft({
-      ...planDraft,
-      beats: planDraft.beats.map((b) => (b.cutId === cutId ? { ...b, text: v } : b)),
-    });
+    setPlanDraft((prev) => (prev ? setBeatText(prev, cutId, v) : prev));
   }
 
   function toggleSlice(key: KBSliceKey) {
@@ -825,9 +843,11 @@ export function MultishotPromptFocusView({
                               <Sun className="size-3.5 text-primary" strokeWidth={1.5} />
                               <span className="text-eyebrow text-primary">Look &amp; atmosphere</span>
                             </Button>
+                            {/* D262 — an empty look is deliberate (the script states none), so it
+                                says so rather than showing a blank that reads as a failed write. */}
                             {!lookOpen && (
                               <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
-                                {planDraft.look}
+                                {planDraft.look.trim() || "Not stated in the script — nothing is added"}
                               </span>
                             )}
                             {SHOW_PER_BEAT_REGENERATE && (
@@ -871,7 +891,7 @@ export function MultishotPromptFocusView({
                             value={planDraft.look}
                             onChange={updateLook}
                             upstream={upstream}
-                            dialect={dialectForCapability(cap, refIds)}
+                            dialect={beatDialect}
                             disabled={isReadOnly || !!refining}
                           />
                           <p className="mt-2 text-[0.65rem] text-muted-foreground">
@@ -890,8 +910,8 @@ export function MultishotPromptFocusView({
                               to={beat.to}
                               text={beat.text}
                               upstream={upstream}
-                              refIds={refIds}
-                              cap={cap}
+
+                              dialect={beatDialect}
                               onChange={(v) => updateBeat(beat.cutId, v)}
                               onRerun={() => runRefine("cut", { cutId: beat.cutId })}
                               onRefine={(note) => runRefine("cut", { cutId: beat.cutId, note })}

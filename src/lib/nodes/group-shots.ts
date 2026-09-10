@@ -1,8 +1,63 @@
 import type { ReelShot } from "./reel-script";
+import { MULTISHOT_MODELS } from "./multishot-models";
 
-/** Gemini Omni's documented duration range. Both ends bind — see the rebalance below. */
-export const OMNI_MIN_SECONDS = 3;
-export const OMNI_MAX_SECONDS = 10;
+/**
+ * D258 — the packing window, derived from what the models publish.
+ *
+ * The ceiling is the WIDEST window any multishot model offers, so packing never splits a run of
+ * shots that some model could have generated in one go. The floor is the lowest minimum, so a
+ * packed group is never born shorter than every model will accept.
+ *
+ * Derived, not authored: a fourth model, or a vendor moving a limit, changes packing with no edit
+ * here. That is D235's own rule — an invented limit and a published one must not be
+ * indistinguishable at the call site — now applied to grouping, which D235 itself carved out.
+ */
+export const PACK_FLOOR_SECONDS = Math.min(...MULTISHOT_MODELS.map((m) => m.minTotalSeconds));
+export const PACK_CEILING_SECONDS = Math.max(...MULTISHOT_MODELS.map((m) => m.maxTotalSeconds));
+
+/**
+ * What v1 Script nodes were packed at (D257).
+ *
+ * A fact about rows already on disk, NOT a claim about any model, so it is authored and must never
+ * be re-derived from the table. Naming it after Omni would make it look like it tracks Omni's
+ * window; it does not, and Omni's window moving must not silently repack old canvases.
+ */
+export const LEGACY_PACK_CEILING = 10;
+
+/**
+ * D257 — which grouping rules produced a Script node's generations.
+ *
+ * ONE flag carries BOTH the ceiling and the multishot default, because they were decided together:
+ * a canvas packed under v1 was also defaulted under v1. Separate flags would permit a combination
+ * no parse ever produced.
+ *
+ *   v1 — 10s ceiling, a group of 2+ shots defaults to multishot
+ *   v2 — 30s ceiling, every generation defaults to single (D259)
+ *
+ * Absence means v1, and absence IS the migration: nothing is backfilled, so no existing canvas
+ * reshapes under its operator. A re-parse adopts v2 wholesale.
+ */
+export type GroupingVersion = 1 | 2;
+export const CURRENT_GROUPING_VERSION: GroupingVersion = 2;
+
+export function ceilingForVersion(version: GroupingVersion): number {
+  return version === 1 ? LEGACY_PACK_CEILING : PACK_CEILING_SECONDS;
+}
+
+/**
+ * Whether a group is multishot when the operator has expressed no preference.
+ *
+ * Extracted because this rule had TWO homes — here and inline in `setGenerationMode`, which uses it
+ * to decide whether a change is a deviation worth storing. Under v2 the second copy would store
+ * `false` as a deviation when `false` is the default, pinning a value that "would outlive the
+ * grouping it describes."
+ *
+ * Takes the index array rather than a ShotGroup so both a ShotGroup and a Generation can be asked.
+ */
+export function defaultMultishotFor(shotIndexes: number[], version: GroupingVersion): boolean {
+  return version === 1 ? shotIndexes.length > 1 : false;
+}
+
 /** What a shot with no usable length is worth for packing. Shown as assumed, not parsed. */
 export const ASSUMED_SHOT_SECONDS = 4;
 
@@ -28,23 +83,23 @@ export function shotSeconds(shot: ReelShot): number {
  * of those would happen, the tail is left to the clamp instead — one invented second is cheaper
  * than two plus a wrecked neighbour.
  */
-function rebalanceTrailing(groups: ShotGroup[], lengths: number[]): void {
+function rebalanceTrailing(groups: ShotGroup[], lengths: number[], ceiling: number): void {
   while (groups.length >= 2) {
     const last = groups[groups.length - 1];
-    if (last.seconds >= OMNI_MIN_SECONDS) return;
+    if (last.seconds >= PACK_FLOOR_SECONDS) return;
 
     const prev = groups[groups.length - 2];
     if (prev.shotIndexes.length < 2) return;
 
     const moved = prev.shotIndexes[prev.shotIndexes.length - 1];
     const movedLength = lengths[moved];
-    if (last.seconds + movedLength > OMNI_MAX_SECONDS) return;
+    if (last.seconds + movedLength > ceiling) return;
     // ...and never strand the group it steals FROM. Robbing a healthy group to lift the tail can
     // leave the robbed one under the floor, which is strictly worse than not rebalancing: lengths
     // [1, 8, 2] would move the 8s shot forward, orphan a 1s group, and clamp it — two invented
     // seconds instead of the one that simply clamping the tail costs. Stopping here leaves the
     // tail to the clamp, which is the cheaper repair.
-    if (prev.seconds - movedLength < OMNI_MIN_SECONDS) return;
+    if (prev.seconds - movedLength < PACK_FLOOR_SECONDS) return;
 
     prev.shotIndexes = prev.shotIndexes.slice(0, -1);
     prev.seconds -= movedLength;
@@ -62,7 +117,10 @@ function rebalanceTrailing(groups: ShotGroup[], lengths: number[]): void {
  *
  * Shot count is conserved: every index appears exactly once, in order.
  */
-export function groupShotsForFanOut(shots: ReelShot[]): ShotGroup[] {
+export function groupShotsForFanOut(
+  shots: ReelShot[],
+  ceiling: number = LEGACY_PACK_CEILING,
+): ShotGroup[] {
   if (shots.length === 0) return [];
 
   const lengths = shots.map(shotSeconds);
@@ -73,7 +131,7 @@ export function groupShotsForFanOut(shots: ReelShot[]): ShotGroup[] {
   lengths.forEach((length, index) => {
     // `current.length > 0` keeps a single over-cap shot in its own group rather than looping
     // forever trying to fit it.
-    if (current.length > 0 && total + length > OMNI_MAX_SECONDS) {
+    if (current.length > 0 && total + length > ceiling) {
       groups.push({ shotIndexes: current, seconds: total });
       current = [];
       total = 0;
@@ -85,13 +143,13 @@ export function groupShotsForFanOut(shots: ReelShot[]): ShotGroup[] {
     groups.push({ shotIndexes: current, seconds: total });
   }
 
-  rebalanceTrailing(groups, lengths);
+  rebalanceTrailing(groups, lengths, ceiling);
 
   return groups.map((group) => ({
     ...group,
     // Clamping invents video the script did not ask for, so it only ever runs after the
     // rebalance has failed — a lone sub-floor shot with nothing to borrow from.
-    seconds: group.seconds < OMNI_MIN_SECONDS ? OMNI_MIN_SECONDS : group.seconds,
+    seconds: group.seconds < PACK_FLOOR_SECONDS ? PACK_FLOOR_SECONDS : group.seconds,
   }));
 }
 
@@ -99,10 +157,18 @@ export type Generation = {
   /** 0-based; display as index + 1. */
   index: number;
   shotIndexes: number[];
-  /** Packed length, already clamped to the Omni window. */
+  /** Packed length, already clamped to the pack window's floor. */
   seconds: number;
-  /** The override if one is set for this exact grouping, else the default. */
+  /** The override if one is set for this exact grouping, else the version's default. */
   multishot: boolean;
+  /**
+   * Longer than any model can generate. Reachable ONLY via a single shot kept whole — packing
+   * never builds one by adding, and where to cut a long shot is a creative decision, not an
+   * arithmetic one. The one case regrouping cannot fix, which is why it earns a warning.
+   */
+  overCeiling: boolean;
+  /** A multi-shot group, which multishot suits — advisory only, never auto-applied (D259). */
+  recommendMultishot: boolean;
   /** Identity of this grouping, and the key an override is stored under. */
   key: string;
 };
@@ -133,15 +199,21 @@ export function generationKey(shotIndexes: number[]): string {
 export function describeGenerations(
   shots: ReelShot[],
   overrides?: Record<string, boolean>,
+  groupingVersion: GroupingVersion = 1,
 ): Generation[] {
-  return groupShotsForFanOut(shots).map((group, index) => {
+  return groupShotsForFanOut(shots, ceilingForVersion(groupingVersion)).map((group, index) => {
     const key = generationKey(group.shotIndexes);
     const override = overrides?.[key];
     return {
       index,
       shotIndexes: group.shotIndexes,
       seconds: group.seconds,
-      multishot: typeof override === "boolean" ? override : group.shotIndexes.length > 1,
+      multishot:
+        typeof override === "boolean"
+          ? override
+          : defaultMultishotFor(group.shotIndexes, groupingVersion),
+      overCeiling: group.seconds > PACK_CEILING_SECONDS,
+      recommendMultishot: group.shotIndexes.length > 1,
       key,
     };
   });

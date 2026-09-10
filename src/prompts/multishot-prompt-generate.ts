@@ -13,7 +13,9 @@ import {
 import type { RefineScope } from "@/lib/nodes/refine-suggestions";
 
 /** Bumped whenever the system text or schema changes; recorded on every version row. */
-export const MULTISHOT_PROMPT_ID = "multishot-prompt-generate@4";
+// @5 (D262): the look is transcribed from stated direction or left empty; no assumed setting.
+// @6 (D263): motion trimmed to one plain action, a simple camera and a grounding line.
+export const MULTISHOT_PROMPT_ID = "multishot-prompt-generate@6";
 
 /**
  * How to READ an attached reference image and name what it shows — without binding it to a beat.
@@ -30,12 +32,14 @@ export const MULTISHOT_PROMPT_ID = "multishot-prompt-generate@4";
  * it itself (its Omni counterpart was deleted).
  */
 export function referenceIdentificationBlock(format: "timecode" | "triple"): string {
+  // D263 — one plain action each, no secondary motion and no unstated light: the example is what
+  // the writer imitates, so it has to model the simple beat the craft block asks for.
   const example =
     format === "triple"
-      ? `    A college student crosses a sunlit campus courtyard in the black CHUPPS V-Straps, bag strap swinging.
-    A young professional steps past a cafe chair in the tan CHUPPS Sliders, the strap catching the light.`
-      : `    [0-3s] A college student crosses a sunlit campus courtyard in the black CHUPPS V-Straps, bag strap swinging.
-    [3-6s] A young professional steps past a cafe chair in the tan CHUPPS Sliders, the strap catching the light.`;
+      ? `    A college student crosses a campus courtyard in the black CHUPPS V-Straps.
+    A young professional steps past a cafe chair in the tan CHUPPS Sliders.`
+      : `    [0-3s] A college student crosses a campus courtyard in the black CHUPPS V-Straps.
+    [3-6s] A young professional steps past a cafe chair in the tan CHUPPS Sliders.`;
 
   return `REFERENCES
 The reference images are ATTACHED to your message. LOOK AT THEM and identify what each one shows. Their labels are filenames and mean nothing; what a reference is, you decide from the image itself.
@@ -68,14 +72,29 @@ export const REFERENCE_IDENTIFICATION_BLOCK = referenceIdentificationBlock("time
  * facts, not mood words) and why it is written once rather than repeated per beat. This is our
  * contract with the operator about how a plan is structured, not a vendor constraint, so both
  * writers share it verbatim (D231/D238) rather than each carrying a copy that can drift.
+ *
+ * D262 — the look is TRANSCRIBED from stated direction, never composed. It used to be mandatory,
+ * which forced the writer to invent a light, a season and a place for every script that stated
+ * none — and it reached for the brand context to do it, which is how CHUPPS reels kept arriving in
+ * the monsoon. Blank is now the right answer when nothing states a look.
  */
 export const MULTISHOT_LOOK_BLOCK_RULES = `THE LOOK BLOCK
-Open with a single paragraph of look and atmosphere that every beat obeys: light direction and
-quality, time of day, lens feel and camera height, palette, ground surface, and grade. Name
-REPEATABLE PHYSICAL FACTS, never mood words — "low sun from camera-left, long shadows toward the
-lens, warm grey concrete, 35mm at knee height" can be reproduced; "warm cinematic vibe" cannot.
-This block is the only thing making separate cuts read as one film. Write it once; do not repeat
-it inside the beats.`;
+The look block is one paragraph of look and atmosphere that every beat obeys: light direction and
+quality, time of day, lens feel and camera height, palette, ground surface, and grade. Write it
+ONLY from look direction that is actually stated — in the shot texts, in the script's production
+notes, or in the operator's instructions. Transcribe what is stated; do not complete it. If the
+script gives a time of day and nothing else, the look is that time of day and nothing else.
+
+Never derive the look from the brand context, the product, the market, the season or the
+reference images. None of those is a statement of how THIS film looks, and filling the gap from
+them invents a setting the script never asked for.
+
+If nothing states any look direction, return an empty string for the look. An empty look is
+correct, not a failure — do not write a default.
+
+Where you do write it, name REPEATABLE PHYSICAL FACTS, never mood words — "low sun from
+camera-left, long shadows toward the lens" can be reproduced; "warm cinematic vibe" cannot. Write
+it once; do not repeat it inside the beats.`;
 
 /**
  * The beat contract: the operator's shot text is the brief the beat renders, not a suggestion to
@@ -88,6 +107,11 @@ The operator's shot text is what that shot IS. Your beat RENDERS it; it does not
 substitute a different subject, setting or action, and do not add people, props or places the shot
 text does not call for.
 
+Do not add weather, season, time of day or location that the shot text, the script's production
+notes and the operator's instructions do not state. The brand context tells you how the brand
+speaks, what the product is called and what it may not claim. It is NOT a source of setting: a
+brand known for rain-ready footwear does not make an unstated shot rainy.
+
 A shot text often names more than one camera setup — "Rapid close-ups. A man picks up his keys. A
 woman steps out of a cab. Someone grabs a coffee." A beat of a few seconds cannot hold four setups,
 and trying is the single biggest reason a generation comes back as mush. Choose the ONE the shot
@@ -95,10 +119,18 @@ leads with, or the one its length can actually carry, and render that completely
 splits the rest into their own shots when they want them.`;
 
 /**
- * The craft rules that are OURS, not a vendor's: one action per beat, the cutting rules, physics,
- * detail, preservation. They describe how generated motion fails, which is a property of diffusion
- * video and not of one vendor's API — so both writers get them from here rather than each carrying
- * a paraphrase that drifts.
+ * The craft rules that are OURS, not a vendor's: one action per beat, simple motion, camera,
+ * grounding, preservation. They describe how generated motion fails, which is a property of
+ * diffusion video and not of one vendor's API — so every writer gets them from here rather than
+ * each carrying a paraphrase that drifts.
+ *
+ * D263 — deliberately SHORT on motion. This block used to carry a five-rule PHYSICS section (force
+ * verbs, what takes the weight, how materials behave, heel-first gait), four editing-grammar rules
+ * (30-degree angle changes, screen direction, movement carried across cuts) and a call for
+ * "micro-detail" and "the timing of small movements". Each asked the writer to narrate one more
+ * motion per beat, and every narrated motion is one more thing the video model tries to animate —
+ * the operator reported the result as overcomplicated motion. What survives is what fixed the
+ * original physics complaint: one action per beat, and subjects that stay grounded.
  *
  * What IS shared with Kling's prompt, verbatim, beyond this block: MULTISHOT_LOOK_BLOCK_RULES and
  * MULTISHOT_SHOT_TEXT_CONTRACT above, and referenceIdentificationBlock() below (with a per-model
@@ -107,43 +139,31 @@ splits the rest into their own shots when they want them.`;
  * and the "Do NOT write timecodes…" sentence (Kling's also forbids shot numbers).
  */
 export const MULTISHOT_SHARED_CRAFT = `ONE DOMINANT ACTION PER BEAT
-One continuous action, never a chain. "A, then B, then C" inside a few seconds produces none of
-them cleanly: the model resolves competing actions by blending, and blending is what reads as
-melting, sliding and morphing. One subject, one action, one camera move.
+One subject, one plain action. Never a chain — "A, then B, then C" inside a few seconds produces
+none of them cleanly: the model resolves competing actions by blending, and blending is what reads
+as melting, sliding and morphing.
 
-Each beat says what HAPPENS in that shot — subject, action, and the camera's framing and movement.
-Decide framing yourself, and cut well:
-- Vary shot size between consecutive beats. Two adjacent beats at the same distance read as a
-  mistake rather than a cut.
-- Change the angle by at least 30 degrees between consecutive beats on the same subject.
-- Hold one screen direction across the whole sequence.
-- Where a movement carries across a cut, name it in BOTH beats so the halves join.
+KEEP THE MOTION SIMPLE
+Write the action the way the shot text puts it — "she walks to the door", "he lifts the sandals off
+the shelf" — and stop there. Do not add secondary motions, micro-movements, physics narration or
+choreography the shot text does not ask for. Every motion you describe is one more thing the video
+model tries to animate; a beat with one clear motion comes back cleaner than a beat with five.
+
+CAMERA
+Use the framing and camera move the shot text gives. Where it gives none, choose a framing and keep
+the camera static or on one slow, simple move. Vary shot size between neighbouring beats so each cut
+reads as a cut.
 
 ${SUBJECT_SILENT_CAMERA}
 
-PHYSICS
-Generated motion fails in predictable ways: feet skate, subjects hover, limbs merge, things pass
-through each other. The model is not simulating a room — it paints plausible frames — so anything
-you leave unstated it will not enforce. State it:
+GROUNDING
+Every subject keeps contact with whatever it stands or rests on — nothing floats, hovers or slides.
+Where it matters, say so in a few words ("feet on the floor"); do not describe weight, force or how
+materials move.
 
-- NAME THE SURFACE AND THE CONTACT. Not "she walks" but "she walks on wet asphalt, each step
-  landing heel-first and rolling forward". Surface plus contact is what stops a gait sliding.
-- USE FORCE VERBS: plant, push, press, drag, strike, pull taut, sway, settle. Vague motion verbs
-  ("moves", "goes", "floats through") give the model no sense of mass or resistance, and it
-  returns weightless motion.
-- SAY WHAT TAKES THE WEIGHT — "drops onto the bench and lets it take his weight", "the strap pulls
-  taut against her shoulder". Contact between two things has to be said or they interpenetrate.
-- LET MATERIALS BEHAVE: fabric creases and falls, liquid pours and settles, hair lags behind the
-  head that moved it. One such detail per beat is plenty.
-- EVERY SUBJECT KEEPS CONTACT with the ground or the surface it rests on for the whole beat,
-  unless the shot is explicitly a jump or a lift.
-
-DETAIL AND NATURALNESS
-Omni's own guidance is that the model rewards being asked for micro-detail. Be specific about
-people, clothing and objects rather than generic ("a young woman" -> "a young woman in a loose
-oatmeal linen shirt"), and give the background enough real detail to sit in a real place. Attend
-to expression and to the timing of small movements. Richly specified scenes come back natural;
-thin ones come back uncanny.
+BE SPECIFIC ABOUT WHO AND WHAT
+Name people, clothing and objects specifically rather than generically ("a young woman" -> "a young
+woman in a loose linen shirt"), but add no setting the shot text does not name.
 
 Do not write on-screen text, captions, titles or signage copy into a beat. The request carries a
 standing instruction against screen-space type, and asking for lettering here would contradict it.
@@ -157,7 +177,8 @@ of a thing there are, or hybridises two references.`;
 const SYSTEM = `You write the shot-by-shot motion plan for a single multi-shot video generation.
 
 You are given a sequence of SHOTS. Each has an id, the operator's shot text, and its length in
-seconds. You return one written beat per shot, plus one LOOK block that governs all of them.
+seconds. You return one written beat per shot, plus one LOOK block that governs all of them — or
+an empty look, when nothing states one.
 
 ${MULTISHOT_LOOK_BLOCK_RULES}
 
@@ -194,7 +215,7 @@ export type MultishotPromptSpec = {
 
 /** Shared verbatim across SCHEMA and MULTISHOT_LOOK_SCHEMA — see the reuse rule in AGENTS.md. */
 const LOOK_DESCRIPTION =
-  "One paragraph of look and atmosphere governing every beat: light direction, time of day, lens feel, palette, ground, grade. Repeatable physical facts only.";
+  "One paragraph of look and atmosphere governing every beat — light direction, time of day, lens feel, palette, ground, grade — written only from look direction the shot texts, the script's production notes or the operator state. Repeatable physical facts only. An empty string when nothing states any.";
 
 /**
  * The plan JSON shape — IDENTICAL across models (D238). Exported so Kling's writer imports it
