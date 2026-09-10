@@ -5098,3 +5098,32 @@ mandate is what forced invention — a preference cannot override a requirement)
 **Refines.** D231.
 
 **Originated →** operator report 2026-09-10 (monsoon recurring on CHUPPS multishot plans).
+
+### D263 — Multishot beats carry one plain action, not narrated physics *(recorded 2026-09-10; refines D231)*
+
+**Decision.** `MULTISHOT_SHARED_CRAFT`, shared by all three multishot writers, drops its five-rule
+PHYSICS section (force verbs, what takes the weight, material behaviour, heel-first gait), its
+editing-grammar rules (30-degree angle change, screen direction, movement carried across cuts) and
+its call for "micro-detail" and "the timing of small movements". In their place: write the action
+the way the shot text puts it and stop; use the shot text's own camera, else static or one slow
+simple move; and one GROUNDING line — every subject keeps contact, nothing floats, hovers or slides.
+Kept: one dominant action per beat, the shot-text contract, `SUBJECT_SILENT_CAMERA`, vary shot size,
+preservation. The references block's worked example loses its secondary motions. Writer ids bump
+to `generate@6`, `kling@3`, `seedance@3`.
+
+**Why.** Each removed rule asked the writer to narrate one more motion per beat, and every narrated
+motion is one more thing the video model tries to animate; the operator reported the result as
+overcomplicated motion. The physics rules had been added after an earlier complaint that
+generations broke "basic laws of physics", so the trim keeps what actually addressed it — a single
+action per beat (the model blends competing actions into melting and sliding) and a stated
+grounding — and drops the narration that grew around it. The worked example is trimmed too,
+because the writer imitates the example more faithfully than it follows the rules above it.
+
+**Rejected.** Removing the physics guidance entirely (reopens sliding and hovering, the original
+complaint); keeping the rules but capping beat length (the rules would still demand the motions,
+just compressed); changing the single-take motion prompt (`video-prompt-shared.ts`) in the same
+pass (not what was reported, and it has its own consumers).
+
+**Refines.** D231.
+
+**Originated →** operator report 2026-09-10 ("over-instruction of motion… overcomplicating").

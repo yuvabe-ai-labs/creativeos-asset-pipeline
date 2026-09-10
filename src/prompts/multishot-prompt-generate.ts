@@ -14,7 +14,8 @@ import type { RefineScope } from "@/lib/nodes/refine-suggestions";
 
 /** Bumped whenever the system text or schema changes; recorded on every version row. */
 // @5 (D262): the look is transcribed from stated direction or left empty; no assumed setting.
-export const MULTISHOT_PROMPT_ID = "multishot-prompt-generate@5";
+// @6 (D263): motion trimmed to one plain action, a simple camera and a grounding line.
+export const MULTISHOT_PROMPT_ID = "multishot-prompt-generate@6";
 
 /**
  * How to READ an attached reference image and name what it shows — without binding it to a beat.
@@ -31,12 +32,14 @@ export const MULTISHOT_PROMPT_ID = "multishot-prompt-generate@5";
  * it itself (its Omni counterpart was deleted).
  */
 export function referenceIdentificationBlock(format: "timecode" | "triple"): string {
+  // D263 — one plain action each, no secondary motion and no unstated light: the example is what
+  // the writer imitates, so it has to model the simple beat the craft block asks for.
   const example =
     format === "triple"
-      ? `    A college student crosses a sunlit campus courtyard in the black CHUPPS V-Straps, bag strap swinging.
-    A young professional steps past a cafe chair in the tan CHUPPS Sliders, the strap catching the light.`
-      : `    [0-3s] A college student crosses a sunlit campus courtyard in the black CHUPPS V-Straps, bag strap swinging.
-    [3-6s] A young professional steps past a cafe chair in the tan CHUPPS Sliders, the strap catching the light.`;
+      ? `    A college student crosses a campus courtyard in the black CHUPPS V-Straps.
+    A young professional steps past a cafe chair in the tan CHUPPS Sliders.`
+      : `    [0-3s] A college student crosses a campus courtyard in the black CHUPPS V-Straps.
+    [3-6s] A young professional steps past a cafe chair in the tan CHUPPS Sliders.`;
 
   return `REFERENCES
 The reference images are ATTACHED to your message. LOOK AT THEM and identify what each one shows. Their labels are filenames and mean nothing; what a reference is, you decide from the image itself.
@@ -116,10 +119,18 @@ leads with, or the one its length can actually carry, and render that completely
 splits the rest into their own shots when they want them.`;
 
 /**
- * The craft rules that are OURS, not a vendor's: one action per beat, the cutting rules, physics,
- * detail, preservation. They describe how generated motion fails, which is a property of diffusion
- * video and not of one vendor's API — so both writers get them from here rather than each carrying
- * a paraphrase that drifts.
+ * The craft rules that are OURS, not a vendor's: one action per beat, simple motion, camera,
+ * grounding, preservation. They describe how generated motion fails, which is a property of
+ * diffusion video and not of one vendor's API — so every writer gets them from here rather than
+ * each carrying a paraphrase that drifts.
+ *
+ * D263 — deliberately SHORT on motion. This block used to carry a five-rule PHYSICS section (force
+ * verbs, what takes the weight, how materials behave, heel-first gait), four editing-grammar rules
+ * (30-degree angle changes, screen direction, movement carried across cuts) and a call for
+ * "micro-detail" and "the timing of small movements". Each asked the writer to narrate one more
+ * motion per beat, and every narrated motion is one more thing the video model tries to animate —
+ * the operator reported the result as overcomplicated motion. What survives is what fixed the
+ * original physics complaint: one action per beat, and subjects that stay grounded.
  *
  * What IS shared with Kling's prompt, verbatim, beyond this block: MULTISHOT_LOOK_BLOCK_RULES and
  * MULTISHOT_SHOT_TEXT_CONTRACT above, and referenceIdentificationBlock() below (with a per-model
@@ -128,45 +139,31 @@ splits the rest into their own shots when they want them.`;
  * and the "Do NOT write timecodes…" sentence (Kling's also forbids shot numbers).
  */
 export const MULTISHOT_SHARED_CRAFT = `ONE DOMINANT ACTION PER BEAT
-One continuous action, never a chain. "A, then B, then C" inside a few seconds produces none of
-them cleanly: the model resolves competing actions by blending, and blending is what reads as
-melting, sliding and morphing. One subject, one action, one camera move.
+One subject, one plain action. Never a chain — "A, then B, then C" inside a few seconds produces
+none of them cleanly: the model resolves competing actions by blending, and blending is what reads
+as melting, sliding and morphing.
 
-Each beat says what HAPPENS in that shot — subject, action, and the camera's framing and movement.
-Decide framing yourself, and cut well:
-- Vary shot size between consecutive beats. Two adjacent beats at the same distance read as a
-  mistake rather than a cut.
-- Change the angle by at least 30 degrees between consecutive beats on the same subject.
-- Hold one screen direction across the whole sequence.
-- Where a movement carries across a cut, name it in BOTH beats so the halves join.
+KEEP THE MOTION SIMPLE
+Write the action the way the shot text puts it — "she walks to the door", "he lifts the sandals off
+the shelf" — and stop there. Do not add secondary motions, micro-movements, physics narration or
+choreography the shot text does not ask for. Every motion you describe is one more thing the video
+model tries to animate; a beat with one clear motion comes back cleaner than a beat with five.
+
+CAMERA
+Use the framing and camera move the shot text gives. Where it gives none, choose a framing and keep
+the camera static or on one slow, simple move. Vary shot size between neighbouring beats so each cut
+reads as a cut.
 
 ${SUBJECT_SILENT_CAMERA}
 
-PHYSICS
-Generated motion fails in predictable ways: feet skate, subjects hover, limbs merge, things pass
-through each other. The model is not simulating a room — it paints plausible frames — so anything
-you leave unstated it will not enforce. State it:
+GROUNDING
+Every subject keeps contact with whatever it stands or rests on — nothing floats, hovers or slides.
+Where it matters, say so in a few words ("feet on the floor"); do not describe weight, force or how
+materials move.
 
-- NAME THE SURFACE AND THE CONTACT. Not "she walks" but "she walks, each step landing heel-first
-  on the ground and rolling forward". Surface plus contact is what stops a gait sliding. Take the
-  surface from the shot text when it names one; when it does not, say "the ground" or "the floor"
-  rather than inventing a material or a condition.
-- USE FORCE VERBS: plant, push, press, drag, strike, pull taut, sway, settle. Vague motion verbs
-  ("moves", "goes", "floats through") give the model no sense of mass or resistance, and it
-  returns weightless motion.
-- SAY WHAT TAKES THE WEIGHT — "drops onto the bench and lets it take his weight", "the strap pulls
-  taut against her shoulder". Contact between two things has to be said or they interpenetrate.
-- LET MATERIALS BEHAVE: fabric creases and falls, liquid pours and settles, hair lags behind the
-  head that moved it. One such detail per beat is plenty.
-- EVERY SUBJECT KEEPS CONTACT with the ground or the surface it rests on for the whole beat,
-  unless the shot is explicitly a jump or a lift.
-
-DETAIL AND NATURALNESS
-Omni's own guidance is that the model rewards being asked for micro-detail. Be specific about
-people, clothing and objects rather than generic ("a young woman" -> "a young woman in a loose
-oatmeal linen shirt"), and give the setting the shot text names enough real detail to sit in a
-real place — but add no setting it does not name. Attend to expression and to the timing of small
-movements. Richly specified scenes come back natural; thin ones come back uncanny.
+BE SPECIFIC ABOUT WHO AND WHAT
+Name people, clothing and objects specifically rather than generically ("a young woman" -> "a young
+woman in a loose linen shirt"), but add no setting the shot text does not name.
 
 Do not write on-screen text, captions, titles or signage copy into a beat. The request carries a
 standing instruction against screen-space type, and asking for lettering here would contradict it.

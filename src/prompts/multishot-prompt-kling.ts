@@ -18,7 +18,8 @@ import {
 import { MOTION_AVOID_LIST, MULTISHOT_AUTHORING_MODEL } from "./video-prompt-generate";
 
 // @2 (D262): shares the transcribe-or-empty look rule and the no-assumed-setting contract.
-export const MULTISHOT_KLING_PROMPT_ID = "multishot-prompt-kling@2";
+// @3 (D263): shares the trimmed, simple-motion craft block.
+export const MULTISHOT_KLING_PROMPT_ID = "multishot-prompt-kling@3";
 
 const SYSTEM = `You write the shot-by-shot motion plan for a single multi-shot video generation on Kling 3.0 Omni.
 
