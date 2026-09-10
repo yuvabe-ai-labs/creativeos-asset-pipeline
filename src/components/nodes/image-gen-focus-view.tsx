@@ -85,6 +85,19 @@ import {
   type RefImageMeta,
 } from "@/lib/image-gen/validate";
 import { ApprovalStatusBadge } from "@/components/review/approval-status-badge";
+import { ReviewAnnotationCanvas } from "@/components/review-annotations/review-annotation-canvas";
+import { AnnotationPin } from "@/components/review-annotations/annotation-pin";
+import { AnnotationNotePopover } from "@/components/review-annotations/annotation-note-popover";
+import { AnnotationList } from "@/components/review-annotations/annotation-list";
+import { AnnotationOverlay } from "@/components/review-annotations/annotation-overlay";
+import { useAnnotationDrafts } from "@/components/review-annotations/use-annotation-drafts";
+import {
+  DiscardAnnotationsDialog,
+  useDiscardAnnotationsConfirm,
+} from "@/components/review-annotations/discard-annotations-dialog";
+import { groupByTimecode } from "@/lib/review-annotations/group";
+import { formatRelativeTime } from "@/lib/format/relative-time";
+import type { RegionBounds } from "@/lib/review-annotations/draft";
 import { CREDIT_LIMIT_TOAST_MESSAGE, usdToFinalCredits } from "@/lib/credits/units";
 import { estimateImageGenerationCostUsd } from "@/lib/image-gen/estimate";
 import { LeftSection } from "./focus-left-section";
@@ -184,6 +197,16 @@ export function ImageGenFocusView({
   );
   const [hasMaskRegion, setHasMaskRegion] = useState(false);
   const annotationRef = useRef<AnnotationHandle>(null);
+  // D243 review annotations - a separate canvas from edit mode's (`annotationRef`),
+  // living on the RESULT image rather than the edit base, with its own drafts.
+  const [reviewAnnotating, setReviewAnnotating] = useState(false);
+  const [pendingBounds, setPendingBounds] = useState<RegionBounds | null>(null);
+  // D250: which stored annotation's note is open. Shared by the Review-column list and
+  // the on-image overlay so clicking either keeps them in agreement.
+  const [openAnnotationSeq, setOpenAnnotationSeq] = useState<number | null>(null);
+  const reviewCanvasRef = useRef<AnnotationHandle>(null);
+  const reviewDrafts = useAnnotationDrafts();
+  const discardConfirm = useDiscardAnnotationsConfirm();
   // null = follow the per-intent template; a string = the operator's hand-edited final prompt.
   const [promptOverride, setPromptOverride] = useState<string | null>(null);
   const [versions, setVersions] = useState<ImageGenVersionSummary[]>([]);
@@ -613,6 +636,22 @@ export function ImageGenFocusView({
     ? "result"
     : "empty";
 
+  // D244 read path: the standing change request on the ACTIVE version, and the
+  // annotations attached to it. Derived from the versions list the history panel
+  // already fetched — no second request, and it re-derives whenever fetchVersions
+  // lands (including right after the senior's own Send back).
+  const latestChangeRequest = useMemo(
+    () =>
+      versions
+        .find((v) => v.id === activeVersionId)
+        ?.decisions?.find((d) => d.status === "changes_requested") ?? null,
+    [versions, activeVersionId],
+  );
+  const reviewAnnotations = useMemo(
+    () => latestChangeRequest?.annotations ?? [],
+    [latestChangeRequest],
+  );
+
   // `preserveEvalDraft` exists for the live-refresh path only — see useNodeVersionUpdates
   // below. Every other caller is reacting to the viewer's OWN action (generate, restore,
   // decide), where re-seeding from the server is the point.
@@ -907,7 +946,17 @@ export function ImageGenFocusView({
     if (!activeVersionId) return;
     setApprovalSaving(true);
     try {
-      await setVersionApprovalAction(activeVersionId, { status, note });
+      // D241/D242: drafts ride along with the rejection they belong to - one action, so
+      // there is no window where a decision exists without its annotations. D248: bounds
+      // go WITH them - stripping them here is what left stored pins with nowhere to sit.
+      const annotations =
+        status === "changes_requested" && reviewDrafts.drafts.length > 0
+          ? reviewDrafts.drafts
+          : undefined;
+      await setVersionApprovalAction(activeVersionId, { status, note, annotations });
+      reviewDrafts.clear();
+      setReviewAnnotating(false);
+      setPendingBounds(null);
       setApprovalStatus(status);
       setApprovalNote(note ?? "");
       // Push into the store so the on-canvas badge refreshes immediately — without
@@ -918,8 +967,11 @@ export function ImageGenFocusView({
       // Without this the reviewer's own decision is invisible on the very screen they
       // made it on until they reopen the focus view (D173).
       await fetchVersions();
-    } catch {
-      toast.error("Failed to save approval");
+    } catch (e) {
+      // Surface the server's own message, as the video view already does: the useful
+      // failures here are "you are not permitted...", "a note is required..." and
+      // annotation validation, all of which the reviewer needs to actually read.
+      toast.error(e instanceof Error ? e.message : "Failed to save approval");
     } finally {
       setApprovalSaving(false);
     }
@@ -1267,7 +1319,49 @@ export function ImageGenFocusView({
                           saving={approvalSaving}
                           canApprove={identity?.role === "senior"}
                           onSet={saveApproval}
+                          annotationCount={reviewDrafts.drafts.length}
+                          annotating={reviewAnnotating}
+                          onToggleAnnotate={
+                            imageUrl ? () => setReviewAnnotating((v) => !v) : undefined
+                          }
+                          onConfirmDiscardDrafts={async () => {
+                            const ok = await discardConfirm.confirm(
+                              reviewDrafts.drafts.length,
+                            );
+                            if (ok) {
+                              reviewDrafts.clear();
+                              setReviewAnnotating(false);
+                              setPendingBounds(null);
+                            }
+                            return ok;
+                          }}
                         />
+                        <AnnotationList
+                          readOnly={false}
+                          groups={groupByTimecode(reviewDrafts.drafts)}
+                          onRemove={reviewDrafts.remove}
+                        />
+                        {/* What the senior sent, as the maker reads it. Rendered for
+                            both roles: the reviewer returning to the node needs to see
+                            their own standing request, not just the note. */}
+                        {approvalStatus === "changes_requested" && (
+                          <AnnotationList
+                            readOnly
+                            groups={groupByTimecode(
+                              reviewAnnotations.map((a) => ({
+                                seq: a.seq,
+                                note: a.note,
+                                timecodeMs: a.timecodeMs,
+                              })),
+                            )}
+                            activeSeq={openAnnotationSeq}
+                            onSelect={(item) =>
+                              setOpenAnnotationSeq((cur) =>
+                                cur === item.seq ? null : item.seq,
+                              )
+                            }
+                          />
+                        )}
                       </div>
                     ) : (
                       <p className="text-sm text-muted-foreground">
@@ -1380,7 +1474,59 @@ export function ImageGenFocusView({
                       </div>
                     )}
 
-                    {mode === "result" && imageUrl && (
+                    {mode === "result" && imageUrl && reviewAnnotating && (
+                      // The senior paints on the RESULT here - same component as edit
+                      // mode, different consumer. Pins and the note card go through the
+                      // `overlay` slot so they position against the picture itself.
+                      <ReviewAnnotationCanvas
+                        key={`review-${imageUrl}`}
+                        ref={reviewCanvasRef}
+                        baseUrl={imageUrl}
+                        alt={title || "Generated image"}
+                        hintText="Paint a region, then write its note."
+                        onStrokeEnd={(b) => setPendingBounds(b)}
+                        overlay={
+                          <>
+                            {reviewDrafts.drafts.map((d) =>
+                              d.bounds ? (
+                                <AnnotationPin
+                                  key={d.seq}
+                                  seq={d.seq}
+                                  x={d.bounds.x + d.bounds.w / 2}
+                                  y={d.bounds.y + d.bounds.h / 2}
+                                />
+                              ) : null,
+                            )}
+                            {pendingBounds && (
+                              <AnnotationNotePopover
+                                mode="compose"
+                                seq={reviewDrafts.drafts.length + 1}
+                                bounds={pendingBounds}
+                                onCommit={(noteText) => {
+                                  const overlay =
+                                    reviewCanvasRef.current?.toOverlayBase64();
+                                  if (overlay) {
+                                    reviewDrafts.commit(
+                                      pendingBounds,
+                                      overlay,
+                                      noteText,
+                                    );
+                                    reviewCanvasRef.current?.clear();
+                                  }
+                                  setPendingBounds(null);
+                                }}
+                                onCancel={() => {
+                                  reviewCanvasRef.current?.clear();
+                                  setPendingBounds(null);
+                                }}
+                              />
+                            )}
+                          </>
+                        }
+                      />
+                    )}
+
+                    {mode === "result" && imageUrl && !reviewAnnotating && (
                       // w-fit: the frame hugs the image (height-driven, width from the
                       // image's own ratio) instead of filling the column and painting
                       // gutters inside the border. Overlays anchor to the image, not
@@ -1402,6 +1548,22 @@ export function ImageGenFocusView({
                               Editing image…
                             </div>
                           </div>
+                        )}
+                        {approvalStatus === "changes_requested" && (
+                          <AnnotationOverlay
+                            annotations={reviewAnnotations.map((a) => ({
+                              id: a.id,
+                              seq: a.seq,
+                              note: a.note,
+                              maskUrl: a.maskUrl,
+                              bounds: a.bounds,
+                              authorLine: latestChangeRequest
+                                ? `${latestChangeRequest.reviewerName ?? "Reviewer"} · ${formatRelativeTime(latestChangeRequest.decidedAt)}`
+                                : null,
+                            }))}
+                            openSeq={openAnnotationSeq}
+                            onOpenSeqChange={setOpenAnnotationSeq}
+                          />
                         )}
                         <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                           <Button
@@ -1431,6 +1593,8 @@ export function ImageGenFocusView({
             </div>
           </div>
         </div>
+
+        <DiscardAnnotationsDialog {...discardConfirm.dialogProps} />
 
         {zoomOpen && imageUrl && (
           <FullScreenImageZoom

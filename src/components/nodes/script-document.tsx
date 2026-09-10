@@ -5,6 +5,7 @@ import { Plus, X } from "lucide-react";
 import { looksLikeReelScript, type ReelScript } from "@/lib/nodes/reel-script";
 import { describeGenerations } from "@/lib/nodes/group-shots";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { EditableField } from "./editable-field";
 import { GenerationBracket } from "./generation-bracket";
 
@@ -24,14 +25,40 @@ type ScriptDocumentProps = {
 // column (stacking above the content on narrow widths), with a short purple
 // kicker rule as a sparing wayfinding accent. Hierarchy comes from this layout,
 // not from type size — per the design system.
-function Section({ label, children }: { label: string; children: ReactNode }) {
+// `featured` is for the visual script — the section the designer actually works
+// in, and the one every downstream shot, image and video prompt comes from. It
+// earns a heavier kicker, a card surface and one step up in body size; the other
+// sections keep taking their hierarchy from the layout alone.
+function Section({
+  label,
+  children,
+  featured = false,
+}: {
+  label: string;
+  children: ReactNode;
+  featured?: boolean;
+}) {
   return (
     <section className="grid gap-2.5 sm:grid-cols-[160px_1fr] sm:gap-x-10">
       <div className="self-start sm:sticky sm:top-2">
-        <div className="mb-2 h-0.5 w-6 rounded-full bg-primary/70" aria-hidden />
-        <span className="text-eyebrow">{label}</span>
+        <div
+          aria-hidden
+          className={cn(
+            "mb-2 rounded-full",
+            featured ? "h-1 w-10 bg-primary" : "h-0.5 w-6 bg-primary/70",
+          )}
+        />
+        <span className={cn("text-eyebrow", featured && "text-foreground")}>{label}</span>
       </div>
-      <div className="leading-relaxed">{children}</div>
+      <div
+        className={cn(
+          "leading-relaxed",
+          featured &&
+            "rounded-2xl border border-border/70 bg-card p-5 text-base shadow-card sm:p-6",
+        )}
+      >
+        {children}
+      </div>
     </section>
   );
 }
@@ -110,7 +137,7 @@ export function ScriptDocument({
         />
       </Section>
 
-      <Section label="Visual script">
+      <Section label="Visual script" featured>
         <div className="grid gap-5">
           {generations.map((generation) => (
             <GenerationBracket

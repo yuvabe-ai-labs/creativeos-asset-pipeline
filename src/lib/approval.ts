@@ -40,6 +40,20 @@ export type ApprovalUpdate = {
 // D173: the shape the versions API route returns per logged decision — reused by both
 // version-history panels and their shared VersionDecisionThread component, so the field
 // names are written down in exactly one place.
+// D243/D244: one region+note pair as the versions route serves it — asset paths already
+// resolved to short-lived signed URLs, null when signing failed (the note still reads).
+export type DecisionAnnotationSummary = {
+  id: string;
+  seq: number;
+  kind: "image" | "video-frame";
+  timecodeMs: number | null;
+  note: string;
+  // D248: where the region sits, as fractions of the media's natural size. Null on rows
+  // written before D248 — the reader falls back to a left-edge pin stack.
+  bounds: { x: number; y: number; w: number; h: number } | null;
+  maskUrl: string | null;
+};
+
 export type VersionDecisionSummary = {
   // The log row's own id. Carried so the thread can key on it: the list grows at the HEAD
   // (newest first), so an array index would re-key every existing entry on each new
@@ -49,6 +63,9 @@ export type VersionDecisionSummary = {
   note: string | null;
   reviewerName: string | null;
   decidedAt: string;
+  // Absent on every decision made before D243, and on approvals (annotations attach
+  // only to changes_requested, D242).
+  annotations?: DecisionAnnotationSummary[];
 };
 
 export function buildApprovalUpdate(input: {

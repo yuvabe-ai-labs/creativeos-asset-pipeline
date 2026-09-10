@@ -4458,3 +4458,487 @@ afterwards and overwrites it with no error at all. A hand edit is one more such 
 loss recoverable rather than impossible); auto-saving before a refine (quietly commits edits the
 operator was trying out — the exact thing a Save button exists to prevent). Accepted cost: fixing a
 typo now takes a Save before Re-generate.
+<!-- Renumbered on rebase: these four were authored as D205-D208, but origin/staging had already assigned D205-D234 to the gemini-omni / multishot work. Shifted +30. -->
+
+### D235 — Handle performance: Apify snapshots, the time series is ours *(recorded 2026-09-03; refines D184)*
+
+**Decision.** A fourth Market tab, **Performance**, shows the client's Instagram
+account metrics. Data comes from `apify/instagram-scraper` (`resultsType: "details"`,
+sync `run-sync-get-dataset-items` endpoint, `APIFY_TOKEN` secret), scraped **daily**
+per handle by a Trigger.dev scheduled task into two tables:
+`account_snapshots` (one row per scrape: follower/follows/posts counts + full `raw`
+payload) and `tracked_posts` (upserted by `short_code`, latest metrics + GCS re-hosted
+thumbnail via the existing `src/lib/market/thumbnail.ts` pipeline). Every trend the tab
+shows exists because we snapshot on a schedule — the provider has no history. A manual
+↻ runs the same task for one client, capped at one run/client/hour (pay-per-result).
+
+**Why.** The spike (2026-09-03, `prakritisattva`) proved one ~9s sub-cent call returns
+account counts plus ~12 recent posts with likes/comments/video views — everything the
+V1 tab renders. Daily suits a ~monthly poster; snapshots accrue the history that makes
+the feature compound in value.
+
+**Rejected.** Instagram Graph API (owner-auth only — no path to competitors, the V1.x
+direction); 4-hourly listening cadence (pays to re-read unchanged numbers; alerting is
+out of scope); provider-side history (does not exist).
+
+**Originated →** `2026-09-03-handle-performance-design.md`.
+
+### D236 — `brand_details.instagram` is the only handle source *(recorded 2026-09-03; refines D130)*
+
+**Decision.** The Performance tab and the snapshot task read the client handle from
+`clients.brand_details.instagram` (the Brand panel's existing field), normalized by a
+pure parser (`@handle` / bare / profile URL → canonical). No handle ⇒ tab shows a
+"connect in Brand Kit" CTA; pipeline skips the client. Competitor handles arrive in
+V1.x as a `tracked_handles` table; V1 creates no table for a single handle per client.
+
+**Why.** The field already exists and is already edited in one place; a second entry
+point would be a drifting copy of D130 data — exactly what AGENTS.md's reuse rules
+forbid.
+
+**Rejected.** A handle field on the Market page; a `tracked_handles` table now (YAGNI).
+
+**Originated →** `2026-09-03-handle-performance-design.md`.
+
+### D237 — Raw payload retention; sentinels die at the boundary *(recorded 2026-09-03)*
+
+**Decision.** Each `account_snapshots` row keeps the full Apify item in `raw` jsonb;
+normalized columns hold only what V1 renders. Provider sentinels are converted on
+ingest: `likesCount: -1` (hidden likes) becomes `likes_count = null` and is excluded
+from medians/engagement math; `type` `Image`/`Video`/`Sidecar` maps to
+`image`/`video`/`carousel`.
+
+**Why.** Per-post metric history (a reel's first-week views) stays recoverable from
+raw without re-scraping or schema churn; in-band sentinels left in columns silently
+poison averages.
+
+**Rejected.** Normalizing the full payload now (YAGNI); discarding raw (unrecoverable).
+
+**Originated →** `2026-09-03-handle-performance-design.md`.
+
+### D238 — Performance is a tab, not a listening system *(recorded 2026-09-03)*
+
+**Decision.** V1 scope is: identity strip, stat cards (followers +Δ, engagement rate =
+(median likes + median comments) / followers, posts, cadence), follower trend line
+(inline SVG, no chart dependency), and a recent-posts grid with an over/under-performer
+multiplier pill vs the account's median (Layout A + pill A from the 2026-09-03 visual
+brainstorm). Out: sentiment (no comment volume), share-of-voice/hashtag intelligence,
+alerts, website diffing, AI commentary on metrics, other platforms (schema is
+platform-ready; nothing else is built).
+
+**Why.** Deviation-from-own-baseline is computable from the first scrape and is the
+actionable read for a creative team; the excluded items each need volume, history, or
+pipelines this account/phase does not have.
+
+**Rejected.** LLM sentiment on ~0-comment posts (noise); trailing-window spike alerts
+(needs accrued history — arrives free later); bundling competitor website diffing (a
+different pipeline entirely).
+
+**Originated →** `2026-09-03-handle-performance-design.md`.
+
+### D239 — Review annotations are feedback now, AI later *(recorded 2026-09-03; refines D168, builds on D27/D91)*
+
+**Decision.** A senior's review annotation (painted region + note) is persisted feedback
+attached to the `changes_requested` decision. The mask is stored in the edit-pipeline's
+own alpha convention (`EDIT_ALPHA`/`KEEP_ALPHA`) so a later V2 can replay a pair as an
+OpenAI image edit, but V1 triggers no generation from review.
+
+**Why.** The routing loop (D159–D167) needs positional feedback more than it needs
+automated fixes; storing replay-ready costs nothing extra.
+
+**Rejected.** Driving an AI edit directly from review (premature — approval flow is not a
+generation surface yet); text-only feedback (loses the region the note is about).
+
+**Originated →** `2026-09-03-review-annotations-design.md`.
+
+### D240 — Annotation scope is images plus paused video frames *(recorded 2026-09-03)*
+
+**Decision.** Video annotations capture the paused frame client-side and record
+`timecode_ms`; the stored still — not a live seek — is ground truth. Image annotations
+are the degenerate case (no timecode, no frame).
+
+**Why.** The review queue is image-gen and video-gen (0031); video seeking is not
+frame-accurate across browsers and media URLs expire, so the captured still is the only
+faithful record of what the senior saw. It doubles as the future AI-replay base image.
+
+**Rejected.** Image-only V1 (half the queue unserved); timeline-aware/range video review
+(a subsystem of its own); filmstrip frame pickers (fights the player).
+
+**Originated →** `2026-09-03-review-annotations-design.md`.
+
+### D241 — Granularity is a list of region+note pairs per decision *(recorded 2026-09-03; refines D168)*
+
+**Decision.** One decision carries N annotations, each `{seq, region mask, note[,
+timecode]}` with one continuous pin numbering. The existing mandatory decision note stays
+as the overall summary.
+
+**Why.** Independent pairs keep "which words go with which pixels" intact — for the maker
+and for per-pair AI replay.
+
+**Rejected.** One mask + one note per decision (issues blur together); pins without
+painted regions (throws away the mask replay needs).
+
+**Originated →** `2026-09-03-review-annotations-design.md`.
+
+### D242 — Annotations attach to "Request changes" only *(recorded 2026-09-03; refines D168/D170)*
+
+**Decision.** Approve stays one click; painted drafts are discarded on approve behind a
+confirm. No annotated approvals in V1.
+
+**Why.** Annotations exist to route work back; annotated approvals blur the done signal
+and complicate the D170 read-receipt model.
+
+**Rejected.** Annotations on any decision.
+
+**Originated →** `2026-09-03-review-annotations-design.md`.
+
+### D243 — Compose with anchored popovers on the media; the Review column lists pairs *(recorded 2026-09-03; refines R6.4)*
+
+**Decision.** Paint a region → a note popover opens anchored to it → commit clears the
+brush. Committed pairs render as numbered pins on the media and as a live list in the
+focus view's Review column (video: grouped under seekable timecode chips). No new
+surface; the focus view remains the one approval surface.
+
+**Why.** Region–note adjacency at the moment of writing; the empty Review column is the
+natural index. A dedicated annotator would be a second approval surface, against R6.4.
+
+**Rejected.** Side-rail list (narrows the media); docked note bar (breaks adjacency);
+dedicated full-screen review annotator.
+
+**Originated →** `2026-09-03-review-annotations-design.md`.
+
+### D244 — The maker reads the same surface, read-only *(recorded 2026-09-03; refines D165/D203, D173)*
+
+**Decision.** The sent-back route lands the maker on the identical pins + Review-column
+rendering, auto-on and toggleable; video timecodes seek the player. The decision thread
+shows counts; history stays the audit trail (D173). Uploads happen before the decision
+write and any failure aborts the whole action — unlike `insertDecision`'s best-effort
+append, annotations are the feedback itself.
+
+**Why.** One rendering path, no drift between what the senior wrote and what the maker
+sees; lossless retry because drafts remain client-side until the action succeeds.
+
+**Rejected.** Baked snapshot in the thread only (maker glances between thread and
+image); best-effort annotation writes (silently dropped feedback).
+
+**Originated →** `2026-09-03-review-annotations-design.md`.
+
+### D245 — Annotate mode reads video through the same-origin proxy *(recorded 2026-09-04; refines D240/D243, builds on D37 §8)*
+
+**Decision.** Capturing a paused frame needs canvas readback, which needs a same-origin
+or CORS-enabled source. GCS public objects send no CORS headers, so the video player
+switches its `src` to `/api/image-proxy` and sets `crossOrigin="anonymous"` **only while
+the senior is annotating** (a keyed remount). Ordinary playback keeps the direct GCS URL.
+
+**Why.** Setting `crossOrigin` unconditionally does not degrade — it fails the media load
+outright, so every viewer loses playback to enable a senior-only feature. Scoping the
+proxy to annotate mode confines both the cost (no Range support, so no progressive seek)
+and any failure to the one mode that needs it. The proxy already exists for exactly this
+reason on the image side, and is SSRF-locked to the storage host.
+
+**Rejected.** `crossOrigin` on every load (breaks playback everywhere); adding a bucket
+CORS policy (infra change outside the feature, and the proxy already solves it);
+server-side frame extraction (a video decode pipeline for a note).
+
+**Originated →** `2026-09-03-review-annotations-design.md`.
+
+### D246 — Stored annotations index by pin stack, not by stored bounds *(recorded 2026-09-04; refines D243; **SUPERSEDED by D248** on 2026-09-04 — the contingency was taken)*
+
+**Decision.** Annotation rows persist the painted overlay and the note, not the stroke's
+bounding box. On the read side the overlay image *is* the region locator and pins stack
+down the left edge in seq order as an index into the notes. Compose mode still anchors
+its popover to live stroke bounds, which are client-side only.
+
+**Why.** The mask already shows the maker exactly where to look; a `bounds` column would
+have to be threaded through payload → action → row → route to move a pin a few hundred
+pixels. The contingency stays open if real screens read poorly.
+
+**Rejected.** A `bounds jsonb` column (schema + four-layer plumbing for pin placement);
+client-side mask pixel scanning to recover a centroid (a decode per annotation per render).
+
+**Originated →** `2026-09-03-review-annotations-design.md`.
+
+### D247 — Annotation assets go to GCS via lib/storage, not a Supabase bucket *(recorded 2026-09-04; supersedes the storage half of D244, refines D245)*
+
+**Decision.** Review annotation overlays and captured frames are stored in the one GCS
+bucket through `src/lib/storage`, under the node they annotate
+(`clients/{clientId}/canvases/{canvasId}/nodes/{nodeId}/review-annotations/{decisionId}/{seq}-mask.png`),
+and read back with `publicUrlFor`. No `review-annotations` Supabase Storage bucket, no
+signed URLs, no per-asset signing round trip.
+
+**Why.** Every other asset in the system — image-gen and video-gen output, node files,
+client logos, brand images, KB documents, market thumbnails — already goes through
+`lib/storage` to GCS. The design's Supabase bucket would have been the *only* Supabase
+Storage consumer in the codebase: a second backend with its own lifecycle, URL shape,
+cleanup story and failure modes, for the least sensitive asset in the product. Signed
+reads were also incoherent — a mask is strictly less sensitive than the image it is
+painted on, and that image is already served from a public URL. The read path gets
+simpler as a side effect: a pure path→URL map instead of 2N signing calls per decision.
+
+**Rejected.** Supabase Storage bucket with 1h signed URLs (a second storage backend, and
+a stricter posture than the asset being annotated); GCS with V4 signed reads (needs a
+signed-read helper `gcs.ts` does not have, to protect something already public).
+
+**Consequence.** `ANNOTATION_BUCKET` and `SIGNED_URL_TTL_SECONDS` are gone; migration 0035
+inserts no `storage.buckets` row; `setVersionApprovalAction` reads `node_id` off the
+version row so ownership resolves once per batch.
+
+**Originated →** `2026-09-03-review-annotations-design.md`.
+
+### D248 — Annotation bounds are persisted; pins sit on their own region *(recorded 2026-09-04; supersedes D246, refines D243/D244)*
+
+**Decision.** `node_version_annotations` gains a nullable `bounds jsonb` column (migration
+0036) holding the painted bounding box as fractions of the media's natural size. The
+client stops stripping `bounds` at submit — it is part of the wire shape — and the
+read-only overlay places each pin at the centre of its own region, the same anchor compose
+mode uses. Rows written before this keep the left-edge stack fallback.
+
+**Why.** D246 reasoned that the mask image is the region locator, so a pin only needs to
+be an index into the notes. On real screens that reads as a bug: the regions land
+correctly and the numbered pins sit in a stack at the left edge, visually detached from
+the things they label, so a reviewer's ② appears to have "moved" between writing it and
+reading it. The bounds already exist in compose mode to anchor the note card — the old
+design computed them, used them, then threw them away one function call before the write.
+
+**Rejected.** Recovering a centroid client-side by scanning mask pixels (an image decode
+per annotation per render, to recompute a number we already had); rendering pins only in
+compose mode (the maker is the reader who most needs to know which note is which region).
+
+**Consequence.** `RegionBounds` moves to `payload.ts` as part of the wire shape,
+re-exported from `draft.ts`; `AnnotationDraft` is now exactly `AnnotationPayload`;
+`validateAnnotations` rejects any fraction outside [0,1] so a bad box cannot render a pin
+off the media.
+
+**Originated →** `2026-09-03-review-annotations-design.md`.
+
+### D249 — Video annotations store no captured frame; the reader seeks the timecode *(recorded 2026-09-04; supersedes the stored-still half of D240, refines D241/D244)*
+
+**Decision.** A video annotation persists its mask and `timecode_ms` only. The captured
+still stays a compose-time canvas base that never leaves the browser; on read, the chip
+seeks the player to the timecode and the mask is painted over the live video. Migration
+0037 relaxes 0035's CHECK so `frame_path` is no longer required for `kind='video-frame'`.
+`next.config.ts` sets `serverActions.bodySizeLimit: "4mb"` and `MAX_TOTAL_BYTES` drops
+8 MB → 3 MB; `MAX_FRAME_BYTES` is gone.
+
+**Why.** Video annotation could never have worked as designed. The still was a
+full-resolution PNG riding the Server Action body: a 1080×1920 photographic frame is
+2–4 MB before base64 adds a third, so **one** annotation exceeded both Next's 1 MB
+`serverActions.bodySizeLimit` and Vercel's hard 4.5 MB function request-body cap. The
+spec's §5.3 caps (2 MB/frame, 8 MB total, 20 annotations) were written without checking
+either limit — the same unverified-premise failure as D245/D247. The still was also
+redundant: the row already carries the timecode, and a version's video URL is immutable,
+so the frame is reproducible by seeking.
+
+**Trade-off accepted.** `video.currentTime = X` is frame-accurate in practice but can
+drift a frame or two across codecs/browsers. For region-level feedback on short reels
+that is acceptable; it would not be for frame-exact work.
+
+**Rejected.** Raising `bodySizeLimit` alone (would convert a clear dev error into a
+production 413 — one frame exceeds even Vercel's ceiling); direct-to-GCS signed upload of
+frames via `uploadViaSignedUrl` (correct, and the repo's documented pattern for large
+uploads — but it adds a sign endpoint, a finalize hop and a way to mint the storage path
+before `decisionId` exists, all to keep data we can regenerate by seeking).
+
+**Originated →** `2026-09-03-review-annotations-design.md`.
+
+### D250 — The Review-column list is the primary way into a note; the pin is an accelerator *(recorded 2026-09-04; refines D243/D244)*
+
+**Decision.** Every annotation row in the Review column is itself a control. Clicking one
+opens that note on the media — and on video, seeks the player to its frame first. Image
+and video behave identically. The selection is a single piece of focus-view state shared
+by the list and the media overlay, so `AnnotationOverlay` takes `openSeq` /
+`onOpenSeqChange` as controlled props instead of owning them. Pins stay clickable as an
+accelerator.
+
+**Why.** The pin was the only way to read a note, and it is a 20px circle sitting on top
+of artwork — small, easy to miss, and it moves with the region so it can land somewhere
+awkward. The list is already the index of what was said; making it the target means the
+reviewer never has to hit a pin to read their own feedback. It also removed a real
+asymmetry: video rows were clickable (the timecode chip seeked) while image rows were
+inert, so the two surfaces taught different interactions for the same object.
+
+**Rejected.** Two independent open-note states, one per surface (the list could highlight
+one annotation while the media showed another); making the row a `div` with `onClick`
+(unfocusable, not keyboard-operable — it is a `Button` with `h-auto` so long notes wrap);
+dropping pin clicks entirely (they are a fine accelerator once they sit on their region).
+
+**Originated →** `2026-09-03-review-annotations-design.md`.
+
+### D251 — The note card positions with CSS clamp + vertical flip, not fraction math *(recorded 2026-09-04; refines D243)*
+
+**Decision.** `AnnotationNotePopover` centres on its region horizontally, then clamps both
+edges inside the media frame with a CSS `clamp()` that mixes the region's percentage with
+the card's own rem width. Vertically it sits below the region, flipping above once the
+region's bottom passes 55%. A long note scrolls inside the card.
+
+**Why.** The card renders inside the media's `overflow-hidden` frame, so anything that
+escapes is *clipped*, not merely overflowing — staying inside is a correctness
+requirement, not polish. The original clamp was pure fraction math (`Math.min(bounds.x,
+0.62)`), which cannot work: the card is a fixed 224px while the frame's width varies with
+the image's aspect ratio and the panel size, so a single percentage cut-off is right at
+exactly one width and wrong everywhere else. `clamp()` does the arithmetic in the
+browser's own layout units, so it is correct at every size with no measurement, no ref and
+no layout effect.
+
+**Rejected.** Measuring the card and container in a `useLayoutEffect` (a resize-observer's
+worth of machinery for something CSS expresses in one line, and it flashes at the wrong
+position on first paint); portalling the card outside the `overflow-hidden` frame (it
+would then need the frame's geometry re-derived to stay anchored to painted pixels);
+removing `overflow-hidden` (the frame's rounded corners exist to clip the canvas).
+
+**Originated →** `2026-09-03-review-annotations-design.md`.
+
+### D252 — Handles are entered on Market, not read from Brand Kit *(recorded 2026-09-08; supersedes D236)*
+
+**Decision.** `tracked_handles` (client_id, platform, handle, added_at) is the source of
+truth for what the performance pipeline scrapes. A handle is added through the Performance
+tab's "+ Add handle" affordance and parsed by the same canonicalizer used everywhere else.
+**Performance does not read `clients.brand_details.instagram` (D130) at all** — not as a
+source, not as a prefill. Nothing in the feature imports from the Brand panel or the Post
+node, and the two values are free to diverge because they answer different questions:
+Brand Kit's field is the handle printed on a client's poster, `tracked_handles` is the set
+of accounts being measured, competitors included.
+
+**Why.** D236 chose the Brand Kit field to avoid a second copy of the handle, which was
+right while performance tracked exactly one account — the client's own. It stops working
+the moment competitors are in scope: a contact field on the client record cannot express
+"and these three competitors", and the field is a free-text contact box (`@yourhandle`,
+sitting beside Phone and WhatsApp) whose purpose is to be printed on a poster, not to
+enrol an account in a paid scraping schedule. Making enrolment explicit also makes the
+per-handle cost visible in a list the user controls.
+
+**Rejected.** Keeping D236 and bolting competitors onto a second mechanism (two sources,
+two parsers, two failure modes); two-way sync between `tracked_handles` and
+`brand_details` (two writers on one value — guaranteed drift, and the exact objection
+D236 itself raised); a per-client "enable tracking" toggle (enrolment is already implied
+by the presence of a handle row); **a Brand Kit prefill suggestion** — measured on
+staging, 0 of 63 clients have `brand_details.instagram` set at all, so it would add a
+second dialog state and a cross-surface import to save one keystroke in a case that has
+never once occurred. Its absence is also what makes D236's original failure visible in
+hindsight: under D236 the tab would have shown its empty state for every client, forever.
+
+**Refines.** D130 (brand details), D236 (superseded).
+
+**Originated →** `2026-09-03-handle-performance-design.md`.
+
+### D253 — Multi-handle sub-tabs in V1 *(recorded 2026-09-08; supersedes D238's V1.x deferral)*
+
+**Decision.** Performance stays a single top-level Market tab (D238 holds) and contains a
+**sub-tab per tracked handle**, ordered by `added_at`, plus a dashed "+ Add handle" chip.
+The client's own account is simply the first handle added — there is no primary/competitor
+distinction in the schema or the UI. Each sub-tab renders the same three states
+(no snapshot / accruing / populated) independently.
+
+**Why.** Nothing in the Apify payload is owner-scoped, so a competitor handle costs
+exactly what the client's own handle costs and returns exactly the same fields. Once that
+is true, "our account" and "their account" are the same kind of object, and a design that
+distinguishes them adds a special case the data does not have. The storage layer already
+supported this: `platform` and `handle` were first-class columns from day one, and
+`account_snapshots_series_idx` is keyed `(client_id, platform, handle, captured_at desc)`
+— written for the deferred competitor case, and exactly the index the sub-tab read path
+needs. V1.x was deferring a feature the schema was already paying for.
+
+**Rejected.** Handles as top-level Market tabs (the Market nav distinguishes *kinds* of
+evidence — Direct, Adjacent, Signals — and handle names are not a kind); an
+`is_primary`/`label` column (nothing in V1 reads it; tab order is `added_at`); cascading
+snapshot history on unenrolment (an accidental removal would destroy a time series that
+cannot be re-scraped — history survives, and is picked up again if the handle returns);
+cross-handle comparison views in V1 (each sub-tab stands alone until there is history
+worth comparing).
+
+**Refines.** D235, D238.
+
+**Originated →** `2026-09-03-handle-performance-design.md`.
+
+### D254 — Prompt precedence is a message-placement decision, not a wording one *(recorded 2026-09-09; refines D204)*
+
+**Decision.** `compileScript` splits the two messages by kind, not by convenience. The
+**user** message carries only DATA — the market-signal brief and the source script. The
+**system** message carries every INSTRUCTION, composed in explicit precedence order:
+the extraction prompt, then the client's brand/compliance context, then `complianceFirst`,
+then the signal's mode instruction. Any rule that must win goes in the system message,
+above the rule it must beat.
+
+**Why.** D204 stated the signal's mode instruction in the user message only, and the
+system prompt opens with `EXTRACT what is present — do NOT invent.` System outranks user,
+so the flavour was silently discarded: measured over 13 runs of one script, `rewrite`
+differed from an unflavoured baseline 0/7 times and `tint` 2/6. A three-arm
+single-variable test isolated it — control 1/2, mode-instruction-also-in-system 2/2,
+no-invent-line-deleted 2/2. Counter-intuitively a *richer* brief scored worse (0/6 vs
+2/6): more instructive text reads as more "inventing", so the system rule binds harder.
+Brief quality was never the bottleneck. The same reasoning then applied in reverse to
+compliance — leaving the client's compliance text in the user message while the signal sat
+in system ranked a scraped competitor brief above the client's legal lines, which matters
+because `rewrite` mode rewrites captions. `complianceFirst` also declares that briefs are
+DATA, never commands; verified adversarially with a brief ordering medical claims,
+a before/after shot and removal of the FDA and patch-test lines — neutralised 3/3 runs,
+all QC notes verbatim, and it obtained only its WHERE/WHEN.
+
+**Rejected.** Deleting `do NOT invent` from the system prompt (it also tested 2/2, but
+that rule is load-bearing for every *unflavoured* parse — it is what stops invented
+schedule fields and QC notes; scoping the exception to parses that carry a brief keeps the
+guard intact, verified 0/2 unflavoured parses changed); restating compliance in both
+messages (duplicating long KB slices for no precedence gain); trusting the existing unit
+tests, which assert only string *placement* (`indexOf`, `toContain`) and were structurally
+incapable of catching a prompt that composes correctly and does nothing.
+
+**Refines.** D204.
+
+**Originated →** `2026-08-31-signal-flavoured-scripts-design.md`.
+
+### D255 — A signal supplies the setting: where and when *(recorded 2026-09-09; refines D204)*
+
+**Decision.** A market signal moves a shot's WHERE (location, surface, surrounding space)
+and WHEN (time of day, season, occasion), plus the ambient light and incidental dressing
+such a place and time would already contain. It changes nothing else: each shot keeps its
+subject, action, camera, framing, motion and timing, and the shot list is fixed — every
+source shot appears exactly once, in order, with none added. Signal `description` text is
+authored as where/when, never as staging or action direction. `tint` additionally holds all
+audience-facing copy verbatim; `rewrite` requires the copy to move substantially.
+
+**Why.** "Re-place the shot, don't re-stage it" is the narrowest rule that makes the
+feature predictable, and it is enforceable: the shot list guard exists because `rewrite`
+restructured a 4-shot reel into 5, silently breaking the script's stated duration budget
+and its minimum-length QC note. Three clauses each answer a measured failure, and two of
+them are counter-intuitive enough to be worth recording. First, **any clause describing a
+case where nothing changes becomes the default for every case** — a draft ending
+"where a shot cannot take the new setting, leave that shot as written" was taken as an
+escape hatch on 8/8 runs and returned every shot byte-identical; a permissive "the copy
+*may* adapt" left `rewrite` indistinguishable from `tint`. The change must be stated as
+mandatory with no opt-out. Second, making the setting mandatory pushed the subject to the
+end of every description and left the product unnamed in a product-hero reel, so the
+subject leads and the product is named wherever it is on screen — and a prohibition list
+(`"the cream"`, `"the jar"`) did **not** catch bare material nouns (`"cream texture"`,
+`"a line of cream"`); a worked example did, written with a `<the product's name>`
+placeholder because this prompt is shared across every client.
+
+**Rejected.** Signals changing props, palette or staging wholesale (the first drafts of
+both demo signals did, and "the product is always shown as being GIVEN" is an action
+directive, not a setting); naming the product on every noun (it produced
+"a single Rose Body Butter petal" — ingredients, props and hands keep their own names).
+
+**Refines.** D204.
+
+**Originated →** `2026-08-31-signal-flavoured-scripts-design.md`.
+
+### D256 — One signal at a time *(recorded 2026-09-09; narrows D204)*
+
+**Decision.** The Script node's signal picker is single-select: choosing another signal
+swaps it, clicking the active one detaches. `ScriptNodeData.signalIds` stays `string[]`
+and the parse route keeps deduping and client-scoping an array, so the narrowing is
+UI-only and multi-select can return with no migration and no server change.
+
+**Why.** D204 chose multi-select with briefs concatenating in selection order. In practice
+two signals that disagree — a family festival afternoon and a solitary weekday dawn —
+average into mush rather than picking a side, and the first live test had two attached at
+once, one of which contributed only a note about a workbook scrape finding nothing. Keeping
+the array shape means this is a product judgement that can be revisited without a schema
+change; it also makes the un-deduplicated evidence notes across concatenated briefs a
+non-issue while it holds.
+
+**Rejected.** Changing `signalIds` to a scalar (a migration to buy nothing); deduping
+evidence notes across concatenated briefs (correct, but unreachable while only one signal
+can be attached).
+
+**Refines.** D204.
+
+**Originated →** `2026-08-31-signal-flavoured-scripts-design.md`.

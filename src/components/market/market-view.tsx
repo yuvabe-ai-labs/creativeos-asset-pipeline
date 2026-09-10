@@ -22,8 +22,9 @@ import { ReferenceLightbox } from "./reference-lightbox";
 import { GroupAsSignalDialog } from "./group-as-signal-dialog";
 import { SignalCard } from "./signal-card";
 import { SignalDetail } from "./signal-detail";
+import { PerformanceView } from "./performance-view";
 
-type MarketTab = MarketBucket | "signals";
+type MarketTab = MarketBucket | "signals" | "performance";
 
 // Both removals confirm through one dialog — deletes have no undo (D185 keeps
 // capture cheap, not reversible), so nothing is removed on first click.
@@ -115,6 +116,7 @@ export function MarketView({
           <TabsTrigger value="signals">
             Signals{market.data?.signals.length ? ` (${market.data.signals.length})` : ""}
           </TabsTrigger>
+          <TabsTrigger value="performance">Performance</TabsTrigger>
         </TabsList>
 
         {(["direct", "adjacent"] as const).map((bucket) => (
@@ -174,6 +176,10 @@ export function MarketView({
               ))}
             </div>
           )}
+        </TabsContent>
+
+        <TabsContent value="performance" className="pt-4">
+          <PerformanceView clientId={clientId} />
         </TabsContent>
       </Tabs>
 
