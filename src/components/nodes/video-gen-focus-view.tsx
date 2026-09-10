@@ -1125,7 +1125,14 @@ export function VideoGenFocusView({
     if (Object.keys(filled).length !== Object.keys(imageRolesProp).length) {
       onPatch({ imageRoles: filled });
     }
-  }, [loadingConnected, upstreamImages, imageRolesProp, imageInputs.startFrame, onPatch]);
+  }, [
+    loadingConnected,
+    upstreamImages,
+    imageRolesProp,
+    imageInputs.startFrame,
+    imageInputs.maxReferenceImages,
+    onPatch,
+  ]);
 
   // Also filter out roles that are invalid for the current model — handles the timing gap
   // between setModelId (local, immediate) and imageRolesProp update (from parent, async).
@@ -1459,8 +1466,15 @@ export function VideoGenFocusView({
           {/* Detail pane: the middle column swaps with the rail selection; the output column on
               the right is ALWAYS visible so the operator can tune while watching the result. */}
           {/* No overflow-hidden: it would crop the raised column's left shadow.
-              The columns inside own their scrolling. */}
-          <div className="flex min-h-0 flex-1">
+              The columns inside own their scrolling.
+              min-w-0 HERE as well as on the middle column: that column's own min-w-0 only
+              governs how it sizes inside this row — this row's automatic minimum is still the
+              min-content width of everything in it, and a w-[54%] item contributes its CONTENT
+              to that, not 54%. The reference strip is a no-wrap run of w-40 tiles (its own
+              overflow-x-auto doesn't cap its min-content), so ten references made this row
+              ~1,700px wide; the body's overflow-hidden then clipped the video column off the
+              right edge, while 54% of the inflated row filled the screen. */}
+          <div className="flex min-h-0 min-w-0 flex-1">
             {/* Middle column */}
             {/* min-w-0: without it this flex item's automatic minimum size is its content's
                 min-content width, so one long unbreakable string inside any pane silently
@@ -1782,7 +1796,7 @@ export function VideoGenFocusView({
 
             {/* Right column — the video, always visible. Faintly sunk so the
                 settings column reads as raised against it. */}
-            <div className="flex min-h-0 flex-1 flex-col gap-3 bg-muted/20 px-6 py-5">
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 bg-muted/20 px-6 py-5">
               <div className="flex items-center gap-1.5">
                 <Clapperboard className="size-3.5 text-primary" strokeWidth={1.5} />
                 <span className="text-eyebrow">Video</span>
