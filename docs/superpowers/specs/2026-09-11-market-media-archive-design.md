@@ -1,7 +1,7 @@
 # Design: Market media archive — owning the bytes
 
 **Date:** 2026-09-11
-**Status:** Proposed. Decisions to be recorded as **D257–D264** in the ADR log
+**Status:** Proposed; provider feasibility CONFIRMED by live spikes (§1, 2026-09-11). Decisions to be recorded as **D257–D265** in the ADR log
 (`2026-05-30-creativeos-staging-roadmap.md` §7).
 **Extends:** Market Signals V1 (`2026-08-27-market-signals-v1-design.md`, D184–D190) and
 Handle Performance (`2026-09-03-handle-performance-design.md`, D235–D238, D252–D253).
@@ -18,7 +18,79 @@ media and re-hosts it to GCS, and playback reads only from our copy.**
 The market-research team keeps collecting at the speed they collect today. The bytes
 arrive when they arrive. Nothing in the capture path waits on a provider.
 
-## 1. The problem
+## 1. Evidence (spikes, 2026-09-11 — all three passed)
+
+Run live against real clipped URLs taken from our own `moodboard_items`, not invented
+ones. Scripts: `scripts/spike-instagram-permalink.mjs`, `scripts/spike-youtube-download.mjs`.
+
+### 1.0 The current damage, measured
+
+Counting the 111 most recent market/moodboard items:
+
+| kind | rows | with a thumbnail |
+|---|---|---|
+| `instagram` | 62 | **0** |
+| `youtube` | 20 | 15 |
+| `link` (all Pinterest pins) | 29 | 29 |
+
+**Every Instagram clip on the shelf is a degraded favicon tile.** The four-rung ladder is
+not occasionally failing, it is failing completely. This reframes the feature: the archive
+task is not only how we get media, it is the repair path for a thumbnail pipeline that is
+already down.
+
+### 1.1 Instagram — `apify/instagram-scraper`, single permalink
+
+Input `{directUrls:[reelUrl], resultsType:"posts", resultsLimit:1, addParentData:false}`
+against `https://www.instagram.com/reel/DZF-BbBxWJl/` → **1 dataset item, 17.6s.**
+
+* `type: "Video"`, `productType: "clips"`, `videoDuration: 17.1`, `shortCode`.
+* **`videoUrl` → HTTP 200, `video/mp4`, 4,158,066 bytes.** Fetchable with no UA, no
+  Referer, no cookies.
+* **`displayUrl` → HTTP 200, `image/jpeg`, 141,664 bytes** — a working thumbnail source,
+  which is what makes this call the fix for §1.0.
+* Billing is 1 result per permalink, matching the profile-scrape finding in D235.
+
+> **Do not send a `Range` header.** The first probe failed with a bare `fetch failed`
+> until the ranged request was dropped; the Instagram CDN rejects ranged GETs outright.
+> The downloader must read the whole body.
+
+A permalink that does not exist returns a row of
+`{url, username, error:"not_found", errorDescription:"Post does not exist"}` rather than an
+empty dataset — so the resolver must check for an `error` key, not just for absence.
+
+### 1.2 YouTube — `streamers/youtube-video-downloader`
+
+Input `{videos:[{url}], preferredFormat:"mp4", preferredQuality:"720p", storeInKVStore:false}`
+against `https://www.youtube.com/shorts/8KuMqb6zxJc` → **1 dataset item, 38.4s.**
+
+* **Shorts ARE supported** (the actor's page never says so — this settles it).
+* The field is **`downloadedFileUrl`** → HTTP 200, `video/mp4`, 846,121 bytes for a 20s
+  Short. Also returns `durationSeconds`, `id`, `fileKey`.
+* `videoOnlyUrl` and `audioOnlyUrl` are **HLS manifests** (`application/vnd.apple.mpegurl`),
+  not progressive files — unusable without muxing. Ignore both.
+* `storeInKVStore: false` **did not prevent** key-value storage, and the payload carries a
+  `note`: *"THE FILE IN KEY-VALUE STORE WILL EXPIRE IN ~3 DAYS."* Harmless here because we
+  download within seconds, but it confirms the actor's storage can never be our archive.
+
+The `maximedupre/youtube-shorts-downloader` fallback was therefore not needed and is not
+in scope; the spike script retains a `--fallback` flag if that ever changes.
+
+### 1.3 Pinterest — og:image, free rung
+
+* og:image is present but only matches the **reversed attribute order**
+  (`content=… property="og:image"`). `ogImage()` in `thumbnail.ts` already tries both
+  orderings, which is why 29/29 pins have thumbnails. A single-regex implementation would
+  silently find nothing.
+* og:image returns the **`/736x/` sized variant** (29 KB and 87 KB on two real pins) —
+  thumbnail-grade, not media-grade.
+* **Swapping `/736x/` → `/originals/` works and is worth doing:** 29 KB → 292 KB and
+  87 KB → 600 KB. But the **extension is not predictable** — one pin's original is `.png`,
+  the other's is `.jpg`, and the wrong extension returns HTTP 403. The resolver must probe
+  `jpg`, `png`, `webp` in order and fall back to the 736x URL if all fail.
+* Real clipped pins use the **regional host `in.pinterest.com`**, so `classifyUrl` must
+  match the host by suffix, never by equality with `pinterest.com`.
+
+## 2. The problem
 
 A moodboard item stores a URL, not a thing. For an Instagram reel, a YouTube Short or a
 Pinterest pin, `image_url` is the *permalink* and the only file we own is a single
@@ -41,7 +113,7 @@ The requirement that settles the shape: **durability is the driver now, but the 
 file must be the real media**, because later AI processing needs the actual frames, not a
 cover image.
 
-## 2. What already exists (and is therefore not in scope to build)
+## 3. What already exists (and is therefore not in scope to build)
 
 | Asset | Where | Why it matters here |
 |---|---|---|
@@ -57,7 +129,7 @@ Vercel's 4.5 MB request-body limit. Our bytes come from a server-side fetch, so 
 body exists. The binding constraint is function *duration*, which is the actual argument
 for a background task rather than a larger route.
 
-## 3. Data model — migration `0039_market_media_archive.sql`
+## 4. Data model — migration `0039_market_media_archive.sql`
 
 State lives on `moodboard_items`. There is **no separate jobs table**: one item has at
 most one archive, the lifecycle is four states long, and `generations` is unusable anyway
@@ -107,7 +179,7 @@ it is actually enforced.
 > and the folder has a live history of duplicate numbers (0008, 0027, 0034) and a missing
 > 0029. `0039` is free; confirm before applying.
 
-## 4. The capture path — unchanged, plus one line
+## 5. The capture path — unchanged, plus one line
 
 `ingestReference` keeps its D185 contract exactly: classify, save the row, best-effort
 thumbnail, return. The thumbnail stays **inside the request on purpose** — it is what
@@ -126,7 +198,7 @@ extension. The enqueue is wrapped in try/catch and a failure is *logged, not thr
 D185's spirit extends to it, and the nightly sweep (§9) is the backstop that makes a
 dropped enqueue self-healing rather than permanent.
 
-## 5. The archive task — `trigger/archive-reference.ts`
+## 6. The archive task — `trigger/archive-reference.ts`
 
 Modelled on `snapshot-handles`, **not** on `video-generate`: it writes directly to
 Supabase and GCS and calls no webhook.
@@ -148,6 +220,13 @@ Every `@/lib` import must be a dynamic `await import(...)` — those modules car
 by `itemId`, so a re-run overwrites rather than accumulating — the same property
 `pathForMarketThumb` already has.
 
+**It also repairs the thumbnail.** When `thumbnail_url IS NULL` and the resolver's payload
+carried a still (`displayUrl` for Instagram, the 736x og:image for Pinterest, the derived
+`i.ytimg.com` URL for YouTube), the task re-hosts that too and fills the column. This costs
+one extra upload on a call we are already making, and it is the only route by which the 62
+Instagram items currently showing a favicon card (§1.0) ever get a picture — the capture
+ladder has no retry and will not fix them.
+
 **Failure:** any throw records `archive_status = 'failed'` with `archive_error` set to the
 reason. Nothing is silent, and nothing is permanent.
 
@@ -156,23 +235,33 @@ to complete against a local dev server (dev trigger key + unreachable localhost
 `APP_URL`). A task that writes straight to Supabase and GCS is testable from a dev
 machine.
 
-## 6. Per-kind media resolution — `src/lib/market/media.ts`
+## 7. Per-kind media resolution — `src/lib/market/media.ts`
 
 One laddered function shaped like `resolveThumbnailSource`, returning
 `{ url, contentType } | null`. Two of the rungs cost nothing and need no provider:
 
-| kind | Source | Cost |
+| kind | Source (field names verified in §1) | Cost |
 |---|---|---|
 | `image` / `gif` | `image_url` itself | free |
 | `video` | the direct file URL | free |
-| `pinterest` | og:image at full resolution — already fetched for the thumbnail | free |
-| `instagram` | `apify/instagram-scraper`, permalink in `directUrls` → `videoUrl`, else `displayUrl` | ~$0.0015–0.0027/clip |
-| `youtube` | `streamers/youtube-video-downloader`, `{videos:[{url}], preferredFormat:"mp4"}` | ~$2.50/1k per MB-unit |
+| `pinterest` | og:image, then upgrade `/736x/` → `/originals/` by probing extensions | free |
+| `instagram` | `apify/instagram-scraper` → **`videoUrl`**, else **`displayUrl`** | ~$0.0027/clip |
+| `youtube` | `streamers/youtube-video-downloader` → **`downloadedFileUrl`** | ~$2.50/1k per MB-unit |
 | `tiktok` / `link` | none — `archive_status = 'skipped'` | — |
 
 The Instagram call is a **new function in the existing `apify.ts`**, not a new module:
 same actor, same token, same `run-sync-get-dataset-items` endpoint, different input shape
-(a single permalink instead of a profile URL).
+(a single permalink instead of a profile URL). It must treat a returned `error` key as a
+failure — a dead permalink yields a row, not an empty dataset (§1.1).
+
+**The downloader sends no `Range` header** (§1.1) and no custom User-Agent: both
+verified unnecessary, and the ranged request actively breaks Instagram.
+
+**Pinterest's `/originals/` upgrade is a probe, not a rewrite.** The extension does not
+follow from the 736x URL — `.png` and `.jpg` both occur and the wrong one returns 403 — so
+`resolvePinterestOriginal()` tries `jpg`, `png`, `webp` in order with a `HEAD`-style
+request and falls back to the 736x URL when all three fail. Worth the three requests: it
+is a 7–10× resolution gain for free.
 
 **The provider's direct-to-cloud option is declined.** `streamers/youtube-video-downloader`
 accepts `googleCloudServiceKey` + `googleCloudBucketName` and would write into our bucket
@@ -185,7 +274,7 @@ A size ceiling (`MARKET_MEDIA_SIZE_LIMIT`, proposed 200 MB) goes in
 `src/lib/market/constants.ts` alongside the existing `THUMBNAIL_SIZE_LIMIT`, and a
 too-large response is a `failed` with a clear reason rather than an OOM.
 
-## 7. Pinterest becomes a real kind
+## 8. Pinterest becomes a real kind
 
 `REFERENCE_KINDS` gains `pinterest`; `classifyUrl` matches `pinterest.com` +
 `/pin/<id>`; `KindBadge` gets an icon. The extension already clips pins correctly
@@ -193,7 +282,7 @@ too-large response is a `failed` with a clear reason rather than an OOM.
 the storage side, and this closes the gap. Still pins are images, so og:image is both the
 thumbnail and the media. **Video pins are out of scope for v1.**
 
-## 8. Playback — archive-first, no embed fallback
+## 9. Playback — archive-first, no embed fallback
 
 When `archive_status = 'ready'`, `ReferenceLightbox` plays `media_url` through a native
 `<video>` (or the existing `FullScreenImageZoom` for stills). Otherwise it shows the
@@ -208,7 +297,7 @@ accepted.
 `embedUrlFor` is **not deleted**: `tiktok` and `link` are never archived, so the iframe
 path remains their only player.
 
-## 9. Backfill and retry — `trigger/archive-sweep.ts`
+## 10. Backfill and retry — `trigger/archive-sweep.ts`
 
 A `schedules.task` (cron, off-peak, following `snapshot-handles`' `0 5 * * *` precedent)
 selects rows where `archive_status in ('pending','failed')` and `archive_attempts <
@@ -229,7 +318,7 @@ the same sweep does that job too — rows with `archive_status = 'downloading'` 
 `failed` with `archive_error = 'abandoned mid-download'`, which makes them eligible for
 the retry branch on the next pass.
 
-## 10. UI — the smallest thing that works
+## 11. UI — the smallest thing that works
 
 **No realtime, no polling.** `useMarket` already refetches the whole board after every
 `addReference` (`use-market.ts:39`), so a team that keeps collecting keeps refreshing the
@@ -248,33 +337,26 @@ checkbox and the remove button). `downloading` → a quiet "downloading…" chip
 "retrying"; `ready` → nothing at all, because success should be silent; `skipped` →
 nothing.
 
-## 11. Deletion
+## 12. Deletion
 
 `removeItem` must delete the GCS object as well, or an archived video outlives its row.
 `removeObject(urlOrPath)` and `parsePathFromUrl` already exist. The thumbnail has the same
 latent leak today; this design fixes both together, since it is the same one-line call.
 
-## 12. Spikes required before coding
+## 13. Feasibility — settled
 
-The house standard here is `scripts/spike-instagram.mjs` — verify against a live provider
-rather than a fixture, because a fixture freezes an assumption and stays green after the
-provider moves.
+All three provider questions that blocked this design are answered in **§1**, against live
+endpoints and real clipped URLs. Nothing here now rests on an undocumented assumption:
 
-1. **`scripts/spike-youtube-download.mjs`** — run `streamers/youtube-video-downloader`
-   against one real Short. Its dataset output field names are **not documented**, Shorts
-   support is **not stated**, and it is unknown whether a fetchable link comes back with
-   `storeInKVStore: false`. The YouTube resolver cannot be written from the docs. If it
-   fails, `maximedupre/youtube-shorts-downloader` ($2.65/1k, purpose-built for Shorts,
-   returns source-hosted links) is the fallback.
-2. **`scripts/spike-instagram-permalink.mjs`** — confirm `apify/instagram-scraper` returns
-   `videoUrl` for a single reel permalink via `directUrls`, not only in profile-crawl
-   mode. The actor docs list the field; the existing integration only ever calls
-   `resultsType: "details"` on a *profile*.
+* Instagram returns a fetchable `videoUrl` for a single permalink. ✓
+* YouTube Shorts are supported and expose a progressive mp4 at `downloadedFileUrl`. ✓
+* Pinterest needs no provider, and can be upgraded to full resolution for free. ✓
 
-Both record their findings back into this spec, as §1.1 of the handle-performance design
-does.
+The two spike scripts stay in `scripts/` as executable documentation — they are the way to
+find out quickly when a provider moves, which is the failure mode this whole feature
+exists to survive.
 
-## 13. Testing
+## 14. Testing
 
 Following `src/lib/market/{ingest,snapshot}.test.ts`: mock `@/lib/storage`, inject
 `fetchImpl`, assert on DB-layer calls.
@@ -291,7 +373,7 @@ Following `src/lib/market/{ingest,snapshot}.test.ts`: mock `@/lib/storage`, inje
   the tile renders from the thumbnail immediately, confirm the row flips to `ready` and
   the lightbox then plays from `storage.googleapis.com`.
 
-## 14. Decisions for the ADR log (§7)
+## 15. Decisions for the ADR log (§7)
 
 | # | Decision | Rejected |
 |---|---|---|
@@ -303,8 +385,9 @@ Following `src/lib/market/{ingest,snapshot}.test.ts`: mock `@/lib/storage`, inje
 | **D262** | No realtime and no polling in Market; state appears on the refetch that collecting already triggers. | Supabase Realtime — needs the first-ever RLS policy on `moodboard_items` plus a publication change. |
 | **D263** | We download and upload the bytes ourselves; the provider's direct-to-GCS option is declined. | Giving Apify write credentials to the client-asset bucket and bypassing `paths.ts`/`ownership.ts`. |
 | **D264** | One nightly sweep serves as backfill, retry and enqueue-loss recovery. | A one-off backfill script plus a separate retry mechanism. |
+| **D265** | The archive task also backfills `thumbnail_url` when it is null, from the still already present in the resolver's payload. | Treating the 0/62 broken Instagram thumbnails (§1.0) as a separate fix — the provider call that gets the video already carries the cover frame. |
 
-## 15. Out of scope for v1
+## 16. Out of scope for v1
 
 - **TikTok media** — no chosen provider, and not what the team clips most.
 - **Pinterest video pins** — still pins only.
