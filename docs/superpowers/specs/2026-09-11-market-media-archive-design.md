@@ -5,7 +5,13 @@
 (`2026-05-30-creativeos-staging-roadmap.md` §7).
 **Extends:** Market Signals V1 (`2026-08-27-market-signals-v1-design.md`, D184–D190) and
 Handle Performance (`2026-09-03-handle-performance-design.md`, D235–D238, D252–D253).
-**Current-state map:** https://claude.ai/code/artifact/29c7571d-2b2d-45ea-9eb9-b662586f47f9
+**Companion diagrams — "Permalink to Bytes":**
+https://claude.ai/code/artifact/29c7571d-2b2d-45ea-9eb9-b662586f47f9
+Six diagrams covering both halves of this spec: how the two capture surfaces converge on
+one ingest today, what is inside `ingestReference`, what we own versus what we borrow, and
+then the target state — the clip path with its one added enqueue, the archive lifecycle
+with the tile rendering for each state, and the per-kind resolver table. Read it alongside §2–§11;
+it carries the pictures this document deliberately does not duplicate in prose.
 **Branch:** `feat/market-media-archive` (worktree off `staging`).
 
 ---
@@ -113,6 +119,10 @@ The requirement that settles the shape: **durability is the driver now, but the 
 file must be the real media**, because later AI processing needs the actual frames, not a
 cover image.
 
+> Diagram: *"Ours versus borrowed"* in the companion artifact draws this split — the row
+> and the JPEG on our side, the mp4 and the player on the platform's, and the empty box in
+> between that this feature fills.
+
 ## 3. What already exists (and is therefore not in scope to build)
 
 | Asset | Where | Why it matters here |
@@ -132,7 +142,7 @@ for a background task rather than a larger route.
 ## 4. Data model — migration `0039_market_media_archive.sql`
 
 State lives on `moodboard_items`. There is **no separate jobs table**: one item has at
-most one archive, the lifecycle is four states long, and `generations` is unusable anyway
+most one archive, the lifecycle is five states long, and `generations` is unusable anyway
 (`node_id NOT NULL references nodes(id)` — a market item is not a node).
 
 ```sql
@@ -161,7 +171,7 @@ alter table moodboard_items
 
 -- The sweep's selection query, and only that. Partial so it stays small as `ready` grows.
 -- `downloading` is included so the sweep can also find rows a crashed task abandoned
--- mid-flight (§9) — without it those are invisible and stay stuck forever.
+-- mid-flight (§10) — without it those are invisible and stay stuck forever.
 create index if not exists moodboard_items_archive_pending_idx
   on moodboard_items(archive_status)
   where archive_status in ('pending','failed','downloading');
@@ -192,10 +202,13 @@ One line is added after the thumbnail step:
 await tasks.trigger("archive-reference", { itemId: item.id, clientId: args.clientId });
 ```
 
+> Diagram: *"Clip returns immediately; bytes arrive later"* shows this as two bands — what
+> stays inside the POST, and what moves below it.
+
 **Enqueued from inside `ingestReference`, not from the two routes.** Both surfaces inherit
 it, there is one place to reason about, and it cannot drift between Market and the
 extension. The enqueue is wrapped in try/catch and a failure is *logged, not thrown* —
-D185's spirit extends to it, and the nightly sweep (§9) is the backstop that makes a
+D185's spirit extends to it, and the nightly sweep (§10) is the backstop that makes a
 dropped enqueue self-healing rather than permanent.
 
 ## 6. The archive task — `trigger/archive-reference.ts`
@@ -205,7 +218,7 @@ Supabase and GCS and calls no webhook.
 
 ```
 claim   → archive_status = 'downloading', archive_attempts += 1, archive_started_at = now()
-resolve → resolveMediaSource(item) — per-kind ladder (§6)
+resolve → resolveMediaSource(item) — per-kind ladder (§7)
 download→ fetch the (usually expiring) URL immediately
 store   → uploadMarketMedia() → clients/<clientId>/market/media/<itemId>.<ext>
 finish  → media_url, media_bytes, media_type, archived_at, archive_status = 'ready'
@@ -308,7 +321,7 @@ This one task is three things at once, which is why it is worth its weight:
 
 - **Backfill** for every item already on the shelf — they default to `pending`, so the
   first sweep picks up the entire existing corpus with no separate migration script.
-- **Retry** for transient provider failures — the capability §1 says is missing today.
+- **Retry** for transient provider failures — the capability §2 says is missing today.
 - **Self-healing** for a dropped `tasks.trigger` enqueue.
 
 There is no equivalent of `reconcile-stuck-generations` for free: that reconciler keys off
@@ -330,6 +343,9 @@ publication and has **zero RLS policies** by design (default-deny, service-role 
 `authenticated` SELECT policy, and `moodboard_items` has no `org_id`/`client_id` — it is
 two hops to org. Realtime here would mean writing the first-ever RLS policy for the market
 tables, which is a security change, not a hook.
+
+> Diagram: *"Four states, and what the tile shows in each"* draws the state machine and
+> the four tile renderings side by side, including the sweep's retry edge.
 
 Rendering, in `reference-tile.tsx`: a small chip in the tile's **bottom-left corner**
 (top-left, top-right and bottom-right are already taken by `KindBadge`, the selection
@@ -361,12 +377,16 @@ exists to survive.
 Following `src/lib/market/{ingest,snapshot}.test.ts`: mock `@/lib/storage`, inject
 `fetchImpl`, assert on DB-layer calls.
 
-- `classify.test.ts` — pinterest URLs classify as `pinterest`; `/pin/` variants; non-pin
-  pinterest.com pages stay `link`.
-- `media.test.ts` — each kind resolves to the expected source; `tiktok`/`link` return
-  null; oversized responses reject.
+- `classify.test.ts` — pinterest URLs classify as `pinterest`; **the regional host
+  `in.pinterest.com` must pass** (§1.3 — this is the case an equality check silently
+  breaks, and every real clipped pin uses it); non-pin pinterest.com pages stay `link`.
+- `media.test.ts` — each kind resolves to the expected source; the Pinterest
+  `/736x/`→`/originals/` probe falls back to the sized URL when all extensions 403; an
+  Apify row carrying an `error` key is treated as a failure, not as a missing field;
+  `tiktok`/`link` return null; oversized responses reject.
 - `archive.test.ts` — happy path writes `media_url` + `ready`; a throw writes `failed` +
-  `archive_error` and increments attempts; an already-`ready` row is a no-op.
+  `archive_error` and increments attempts; an already-`ready` row is a no-op; **a row with
+  a null `thumbnail_url` also gets one written** (D265).
 - `ingest.test.ts` — **regression: a thrown enqueue must not fail the ingest**, and the
   row must still be returned.
 - Manual end-to-end on staging: clip a reel, confirm 201 returns without waiting, confirm
