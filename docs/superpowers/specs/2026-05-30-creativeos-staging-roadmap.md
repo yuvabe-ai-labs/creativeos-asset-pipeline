@@ -5127,3 +5127,76 @@ pass (not what was reported, and it has its own consumers).
 **Refines.** D231.
 
 **Originated →** operator report 2026-09-10 ("over-instruction of motion… overcomplicating").
+
+### D264 — A person is a Character node: faces and voice in one object *(recorded 2026-09-14; refines D37/D245)*
+
+**Decision.** A new `character` node type holds a person's name, 1–4 face images (index 0 is the
+frontal), one voice sample (wav/mp3, 5–30 s, ≤15 MB) and a one-line note. It is a source-only node
+uploaded into directly, connecting to `video-gen`, `video-prompt` and `multishot-prompt`. Its faces
+enter a request as `reference` images owned by the character (never a frame); its voice enters as a
+`VoiceRef` on `VideoGenInput`, carrying `faceRefIndexes` so the face↔voice pairing is a fact of
+the request, not of the prompt text. No migration: existing image File nodes stay as they are.
+
+**Why.** Voice drift across separately generated clips is a binding problem — the same sample has
+to reach every generation the person appears in. Kling 3.0 Omni's only voice path is an element
+that already pairs images with a `voice_id`, so the pairing has to exist on our side to build one.
+A node that IS the person makes the pairing structural: reference the character, get the voice.
+
+**Rejected.** Audio as a loose File kind cited per beat (the 11 Sep doc's proposal — consistency
+becomes operator discipline, and Kling would have to guess the pairing from co-citation); a voice
+slot on the image File node (the node becomes two things, and a face-less voice has no home); an
+Audio node connected INTO the File node (File is a pure source; making it a pass-through composite
+means every upstream walker learns to look through it); migrating existing human refs (nothing
+to migrate — operators build Characters fresh).
+
+**Refines.** D37 (references), D245 (dialects).
+
+**Originated →** `2026-09-14-character-node-voice-reference-design.md` §2–3.
+
+### D265 — A character is cited once; the model's shape is rendered, not stored *(recorded 2026-09-14; refines D245)*
+
+**Decision.** A beat stores one mention per character (`@[Character: Riya](nodeId)`). Rendering
+expands it per model: the frontal face's handle on Seedance (`@Image N`) and Gemini Omni
+(`<IMAGE_REF_N>`), `@element_N` on Kling. The voice pairing is never in a beat — on Seedance it is
+a roster line prepended once to the prompt (`Riya: appearance from @Image 1, @Image 2; voice
+timbre from @Audio 1.`); on Kling it is inside the element. `VideoGenModelSpec.voiceInput`
+(`none | inline-audio | element`) decides whether voices are built at all; the focus view reads the
+same flag to say "Voice not used by {model}".
+
+**Why.** The pairing is a request-level fact. Stated once it cannot be mis-cited, a two-speaker
+beat stays as short as a silent one, and retargeting a plan does not rewrite stored text. Seedance's
+own prompt rules ask for exactly this form. `@Audio N` — not `【Audio 1】` — is the vendor's
+documented token.
+
+**Rejected.** `@Audio N` in every beat where the character speaks (mis-citable, verbose);
+storing the expanded model tokens in the beat (breaks retargeting); Kling `voice_ids` on the
+generate call (the Omni endpoint has none — verified against the 3.0 Omni docs).
+
+**Refines.** D245.
+
+**Originated →** `2026-09-14-character-node-voice-reference-design.md` §3.3, §4.
+
+### D266 — Kling voices and elements are registered lazily, cached on the node, keyed by source *(recorded 2026-09-14; refines D99)*
+
+**Decision.** Before a Kling 3.0 Omni generate, the Trigger task runs `ensureKlingElement`:
+reuse `data.kling.elementId` when `elementSourceKey` (sorted face urls + voice url) matches;
+otherwise create the custom voice (if the voice url changed) and the element via Kling's async
+task APIs, poll to `succeed`, store the ids server-side, and best-effort delete the superseded
+ones. The generate call sends `{type:"element", element_id, id:"element_N"}` in place of that
+character's `refer_image`s and forces `settings.audio = "native"`. A failed registration stores
+nothing and fails the generation with Kling's `task_status_msg`.
+
+**Why.** An element is a paid, persistent library resource; creating one per generation would
+spend credits and Kling's element quota on identical objects. Keying the cache on the source urls
+means a changed face or voice re-registers without any explicit "invalidate" action, and a
+client-side write cannot forge an id. `audio: native` is forced because a bound voice is
+inaudible with audio off — an operator who attached a voice has already chosen sound.
+
+**Rejected.** Registering at upload time (pays for elements that may never generate on Kling);
+a separate `character_assets` table (the node already is the object; a second store is one more
+thing to keep in agreement with it); surfacing a "Register on Kling" button (a step the operator
+cannot get wrong if it is automatic).
+
+**Refines.** D99 (Kling 3.0 and O1 reference mechanisms differ in kind).
+
+**Originated →** `2026-09-14-character-node-voice-reference-design.md` §4.2.
