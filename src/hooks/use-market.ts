@@ -12,13 +12,59 @@ export type MarketData = {
   signals: SignalWithItems[];
 };
 
+/**
+ * Prints the archive backlog to the browser console on every board refetch.
+ *
+ * The archive is a background pipeline with no realtime channel (D262) — the board
+ * refetches when you add something, and that is the only moment the UI learns
+ * anything. Without this you cannot tell "the task ran and is working" from "nothing
+ * is listening", because both leave the tile looking finished.
+ *
+ * `attempts: 0` across the board is the signature of the task never having been
+ * reached at all — usually `npm run dev:trigger` not running.
+ */
+function logArchiveState(data: MarketData) {
+  const items = [...data.direct.items, ...data.adjacent.items];
+  if (items.length === 0) return;
+
+  const byStatus: Record<string, number> = {};
+  for (const it of items) byStatus[it.archive_status] = (byStatus[it.archive_status] ?? 0) + 1;
+
+  const attempted = items.filter((i) => i.archive_attempts > 0).length;
+  const newest = items.reduce((a, b) => (a.added_at > b.added_at ? a : b));
+
+  console.log(
+    `[archive] ${items.length} refs — ` +
+      Object.entries(byStatus)
+        .map(([s, n]) => `${s}:${n}`)
+        .join("  ") +
+      `  | ever-attempted: ${attempted}`,
+  );
+  console.log(
+    `[archive] newest: ${newest.kind} ${newest.archive_status} ` +
+      `attempts=${newest.archive_attempts} ` +
+      `media=${newest.media_url ? "stored" : "none"}` +
+      (newest.archive_error ? ` error="${newest.archive_error}"` : ""),
+  );
+  if (attempted === 0 && items.some((i) => i.archive_status === "pending")) {
+    console.log(
+      "[archive] nothing has ever been attempted — is `npm run dev:trigger` running? " +
+        "Queued rows stay pending until a task picks them up.",
+    );
+  }
+}
+
 export function useMarket(clientId: string) {
   const [data, setData] = useState<MarketData | null>(null);
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
     const res = await authFetch(`/api/clients/${clientId}/market`);
-    if (res.ok) setData((await res.json()) as MarketData);
+    if (res.ok) {
+      const next = (await res.json()) as MarketData;
+      setData(next);
+      logArchiveState(next);
+    }
     setLoading(false);
   }, [clientId]);
 
