@@ -7,12 +7,35 @@ import type { MoodboardItem } from "@/lib/db/moodboards";
 import { FullScreenImageZoom } from "@/components/shared/full-screen-image-zoom";
 import { InstagramEmbed } from "./instagram-embed";
 
-/** Plays a market reference: platform iframe for youtube/instagram/tiktok, native
- *  <video> for direct files, the shared zoom viewer for stills. Falls back to an
- *  "open source" card when playback isn't derivable (D185's degraded path). */
+/** Plays a market reference.
+ *
+ *  ARCHIVE-FIRST (D259): once the archive task has fetched the bytes, every kind plays
+ *  from OUR copy — a plain <video>, or the shared zoom viewer for a still. There is
+ *  deliberately NO embed fallback for an archived item: a cross-origin iframe never
+ *  reports that it went blank, so "fall back when the embed fails" is not something
+ *  that can actually be implemented, and pretending otherwise would mean shipping a
+ *  durability story we cannot verify.
+ *
+ *  Before the archive lands — and permanently for `tiktok` and `link`, which are never
+ *  archived — it falls back to the platform iframe, then to D185's "open source" card.
+ */
 export function ReferenceLightbox({ item, onClose }: { item: MoodboardItem; onClose: () => void }) {
-  if (item.kind === "image" || item.kind === "gif") {
-    return <FullScreenImageZoom imageUrl={item.image_url} title={item.note ?? undefined} onClose={onClose} />;
+  const archived = item.archive_status === "ready" && item.media_url ? item.media_url : null;
+
+  // Stills go to the zoom viewer whether or not we own them; prefer our copy, which
+  // for a pin is the /originals/ upgrade rather than the 736x thumbnail.
+  const isStill =
+    item.kind === "image" ||
+    item.kind === "gif" ||
+    (archived !== null && item.media_type?.startsWith("image/") === true);
+  if (isStill) {
+    return (
+      <FullScreenImageZoom
+        imageUrl={archived ?? item.image_url}
+        title={item.note ?? undefined}
+        onClose={onClose}
+      />
+    );
   }
 
   const embed = embedUrlFor(item.kind, item.image_url);
@@ -23,7 +46,19 @@ export function ReferenceLightbox({ item, onClose }: { item: MoodboardItem; onCl
       onClick={onClose}
     >
       <div className="flex max-h-full w-full max-w-3xl flex-col gap-3" onClick={(e) => e.stopPropagation()}>
-        {item.kind === "instagram" ? (
+        {archived ? (
+          <video
+            src={archived}
+            controls
+            autoPlay
+            playsInline
+            className={
+              // Our own file, so the aspect ratio is whatever the source was. Cap the
+              // height and let the video letterbox itself rather than guessing.
+              "max-h-[70vh] w-full rounded-lg bg-black"
+            }
+          />
+        ) : item.kind === "instagram" ? (
           // Instagram only plays through its own embed.js widget — see instagram-embed.tsx.
           <InstagramEmbed url={item.source_url ?? item.image_url} />
         ) : item.kind === "video" ? (
@@ -49,7 +84,11 @@ export function ReferenceLightbox({ item, onClose }: { item: MoodboardItem; onCl
           />
         ) : (
           <div className="rounded-lg bg-background p-6 text-center">
-            <p className="text-sm text-muted-foreground">No in-app preview for this reference.</p>
+            <p className="text-sm text-muted-foreground">
+              {item.archive_status === "pending" || item.archive_status === "downloading"
+                ? "Saving this media — it will play here once it's stored."
+                : "No in-app preview for this reference."}
+            </p>
           </div>
         )}
 
