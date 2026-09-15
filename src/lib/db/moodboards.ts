@@ -259,6 +259,73 @@ export async function skipArchive(itemId: string): Promise<void> {
   if (error) throw error;
 }
 
+/**
+ * The sweep's work list: never attempted and failed-but-retryable, in one pass.
+ * Oldest first, so a backlog drains fairly instead of starving the rows that have
+ * been waiting longest — which on the first run is the entire existing corpus.
+ *
+ * The client id is fetched with a second query rather than a PostgREST embed.
+ * An embedded to-one relation surfaces as either an object or a single-element
+ * array depending on schema-cache heuristics, and unwrapping that correctly means
+ * a fourth copy of a helper that currently lives in the API layer. Two plain
+ * queries for a batch of 50 is the cheaper trade.
+ */
+export async function listArchivable(
+  limit: number,
+  maxAttempts: number,
+): Promise<Array<{ id: string; clientId: string }>> {
+  const supabase = createServerSupabase();
+  const { data: items, error } = await supabase
+    .from("moodboard_items")
+    .select("id, moodboard_id")
+    .in("archive_status", ["pending", "failed"])
+    .lt("archive_attempts", maxAttempts)
+    .order("added_at", { ascending: true })
+    .limit(limit);
+  if (error) throw error;
+
+  const rows = (items ?? []) as Array<{ id: string; moodboard_id: string }>;
+  if (rows.length === 0) return [];
+
+  const boardIds = [...new Set(rows.map((r) => r.moodboard_id))];
+  const { data: boards, error: boardError } = await supabase
+    .from("moodboards")
+    .select("id, client_id")
+    .in("id", boardIds);
+  if (boardError) throw boardError;
+
+  const clientByBoard = new Map(
+    ((boards ?? []) as Array<{ id: string; client_id: string }>).map((b) => [b.id, b.client_id]),
+  );
+
+  return rows.flatMap((r) => {
+    const clientId = clientByBoard.get(r.moodboard_id);
+    // A board deleted between the two queries leaves an orphan; skip rather than
+    // archive into a client folder we cannot name.
+    return clientId ? [{ id: r.id, clientId }] : [];
+  });
+}
+
+/**
+ * Move rows a crashed run abandoned in `downloading` back to `failed`, which makes
+ * them eligible for the retry branch on the next pass.
+ *
+ * There is no equivalent of reconcile-stuck-generations to lean on: that reconciler
+ * keys off `stuck_reservations`, a credit-ledger view, and an archive reserves no
+ * credits. `archive_started_at` is what makes these rows findable at all.
+ */
+export async function releaseStuckArchives(olderThanIso: string): Promise<number> {
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("moodboard_items")
+    .update({ archive_status: "failed", archive_error: "abandoned mid-download" })
+    .eq("archive_status", "downloading")
+    .lt("archive_started_at", olderThanIso)
+    .select("id");
+  if (error) throw error;
+  return ((data ?? []) as unknown[]).length;
+}
+
 export async function removeItem(itemId: string): Promise<void> {
   const supabase = createServerSupabase();
   const { error } = await supabase.from("moodboard_items").delete().eq("id", itemId);
