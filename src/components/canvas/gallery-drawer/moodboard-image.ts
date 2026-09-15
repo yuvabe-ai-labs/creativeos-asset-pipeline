@@ -43,5 +43,8 @@ export function moodboardItemToGalleryImage(it: MoodboardItem): GalleryImage {
     kind: it.kind,
     note: it.note ?? undefined,
     mediaUrl: it.image_url,
+    archivedUrl: it.media_url ?? undefined,
+    archivedType: it.media_type ?? undefined,
+    archiveStatus: it.archive_status,
   };
 }
