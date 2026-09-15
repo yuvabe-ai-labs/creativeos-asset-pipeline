@@ -6,6 +6,7 @@ export const REFERENCE_KINDS = [
   "instagram",
   "tiktok",
   "link",
+  "pinterest",
 ] as const;
 export type ReferenceKind = (typeof REFERENCE_KINDS)[number];
 

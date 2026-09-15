@@ -11,6 +11,7 @@ const KIND_LABEL: Partial<Record<ReferenceKind, string>> = {
   youtube: "YouTube",
   video: "Video",
   link: "Link",
+  pinterest: "Pinterest pin",
 };
 
 function hostOfUrl(url: string): string {

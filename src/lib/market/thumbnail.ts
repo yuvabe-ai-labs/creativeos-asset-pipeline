@@ -146,6 +146,9 @@ export async function resolveThumbnailSource(
     return viaOg ?? instagramEmbedPoster(url, fetchImpl);
   }
 
-  // kind === "link": any page on the open web. og:image is what makes these visual.
+  // kind === "pinterest" or "link": any page on the open web. og:image is what makes
+  // these visual, and for a pin it is the only route — Pinterest has no oEmbed. Note
+  // it returns the /736x/ sized variant, which is right for a thumbnail; the archive
+  // resolver upgrades that to /originals/ for the stored media.
   return ogImage(url, fetchImpl);
 }
