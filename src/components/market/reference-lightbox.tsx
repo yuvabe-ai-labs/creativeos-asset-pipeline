@@ -85,9 +85,11 @@ export function ReferenceLightbox({ item, onClose }: { item: MoodboardItem; onCl
         ) : (
           <div className="rounded-lg bg-background p-6 text-center">
             <p className="text-sm text-muted-foreground">
-              {item.archive_status === "pending" || item.archive_status === "downloading"
+              {item.archive_status === "downloading"
                 ? "Saving this media — it will play here once it's stored."
-                : "No in-app preview for this reference."}
+                : item.archive_status === "pending"
+                  ? "This media isn't stored yet. It will play here once it is."
+                  : "No in-app preview for this reference."}
             </p>
           </div>
         )}

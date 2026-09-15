@@ -10,9 +10,19 @@ import type { ArchiveStatus } from "@/lib/db/moodboards";
  * Sits bottom-LEFT because the other three corners are taken: KindBadge top-left,
  * the selection Checkbox top-right, the remove Button bottom-right.
  *
- * `ready` and `skipped` render nothing at all. Success should be silent — a tile whose
- * media is safely ours looks exactly like a tile always has, and a `link` that was
- * never going to be archived should not wear a badge explaining its own absence.
+ * Only ACTIVE work is worth a chip:
+ *
+ *   ready/skipped — nothing. Success should be silent, and a `link` that was never
+ *                   going to be archived should not wear a badge about it.
+ *   pending       — nothing. This is a QUEUE, not progress. Migration 0039 defaults
+ *                   every pre-existing row to `pending`, so treating it as "working"
+ *                   puts a spinner on the entire existing shelf at once — hundreds of
+ *                   tiles claiming activity that will not begin until the nightly
+ *                   sweep reaches them. The tile already has its thumbnail and looks
+ *                   finished; that is the honest rendering.
+ *   downloading   — a chip. The task has claimed this row and is fetching it now.
+ *   failed        — a chip, because it will be retried and the user should see why a
+ *                   tile never becomes playable.
  */
 export function ArchiveChip({
   status,
@@ -21,9 +31,9 @@ export function ArchiveChip({
   status: ArchiveStatus;
   className?: string;
 }) {
-  if (status === "ready" || status === "skipped") return null;
+  if (status === "ready" || status === "skipped" || status === "pending") return null;
 
-  const working = status === "pending" || status === "downloading";
+  const working = status === "downloading";
 
   return (
     <span
