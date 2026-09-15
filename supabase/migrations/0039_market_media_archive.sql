@@ -30,8 +30,31 @@ alter table moodboard_items
 
 -- Pinterest becomes a first-class kind (D260). The extension has clipped pins
 -- correctly since v0.3.0 while the storage layer filed them as generic links.
--- The 0034 CHECK was created inline, so Postgres auto-named it.
-alter table moodboard_items drop constraint if exists moodboard_items_kind_check;
+--
+-- The 0034 CHECK was created inline (`add column ... check (...)`), so Postgres
+-- auto-named it — presumably moodboard_items_kind_check, but that is a GUESS: the
+-- auto-namer appends 1, 2, ... on collision. Dropping by a guessed name fails
+-- silently and destructively here: the drop matches nothing, the add succeeds under
+-- a new name, and the table is left with TWO check constraints on `kind` — the old
+-- one still rejecting 'pinterest'. The migration would report success and every pin
+-- clip would then fail at INSERT.
+--
+-- So drop by DEFINITION instead of by name. Any check constraint on this table whose
+-- body mentions 'tiktok' is the kind constraint and nothing else.
+do $$
+declare c record;
+begin
+  for c in
+    select conname
+    from pg_constraint
+    where conrelid = 'moodboard_items'::regclass
+      and contype = 'c'
+      and pg_get_constraintdef(oid) like '%tiktok%'
+  loop
+    execute format('alter table moodboard_items drop constraint %I', c.conname);
+  end loop;
+end $$;
+
 alter table moodboard_items
   add  constraint moodboard_items_kind_check
   check (kind in ('image','gif','video','youtube','instagram','tiktok','link','pinterest'));
@@ -45,3 +68,17 @@ create index if not exists moodboard_items_archive_pending_idx
 
 -- Every pre-existing row now reads `pending`, which is what makes the nightly sweep a
 -- backfill of the whole existing corpus with no separate migration script (D264).
+
+-- ── Verify after running ──────────────────────────────────────────────────────
+-- Exactly ONE check constraint should mention tiktok, and it must include pinterest:
+--
+--   select conname, pg_get_constraintdef(oid)
+--   from pg_constraint
+--   where conrelid = 'moodboard_items'::regclass
+--     and contype = 'c'
+--     and pg_get_constraintdef(oid) like '%tiktok%';
+--
+-- And every existing row should be queued for the backfill:
+--
+--   select archive_status, count(*) from moodboard_items group by 1;
+--   -- expect: pending | <all rows>
