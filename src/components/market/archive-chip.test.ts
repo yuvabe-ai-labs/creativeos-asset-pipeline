@@ -8,13 +8,18 @@ const MIN = 60_000;
 describe("archiveChipState", () => {
   it("shows active work while a task holds the row", () => {
     expect(archiveChipState("downloading", ago(MIN), NOW)).toEqual({
-      label: "Saving media",
-      icon: "spin",
+      label: "Syncing",
+      tone: "info",
+      active: true,
     });
   });
 
-  it("shows a retry after a failure, however old", () => {
-    expect(archiveChipState("failed", ago(400 * MIN), NOW)?.label).toBe("Retrying");
+  // A failure is not "syncing" — it gets the destructive tone so it reads as a
+  // problem rather than as progress.
+  it("shows a retry after a failure, however old, in the destructive tone", () => {
+    const state = archiveChipState("failed", ago(400 * MIN), NOW);
+    expect(state?.label).toBe("Retrying");
+    expect(state?.tone).toBe("destructive");
   });
 
   it("says nothing once the media is ours", () => {
@@ -27,10 +32,11 @@ describe("archiveChipState", () => {
   });
 
   describe("pending depends on recency", () => {
-    it("shows Queued for a clip just made", () => {
+    it("shows Syncing for a clip just made, without the in-flight animation", () => {
       expect(archiveChipState("pending", ago(30_000), NOW)).toEqual({
-        label: "Queued",
-        icon: "clock",
+        label: "Syncing",
+        tone: "info",
+        active: false,
       });
     });
 

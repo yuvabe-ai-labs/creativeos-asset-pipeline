@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2, Clock, RefreshCw } from "lucide-react";
+import { Download, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ArchiveStatus } from "@/lib/db/moodboards";
 
@@ -8,6 +8,13 @@ import type { ArchiveStatus } from "@/lib/db/moodboards";
  *  rather than "this is in the backlog". Long enough to cover a cold Apify actor
  *  (38s observed) plus the gap until the next board refetch. */
 const FRESH_CLIP_MS = 15 * 60 * 1000;
+
+export type ArchiveChipState = {
+  label: string;
+  tone: "info" | "destructive";
+  /** Whether the icon should animate — reserved for work actually in flight. */
+  active: boolean;
+};
 
 /**
  * What the chip should say, or null for no chip. Pure, so the rule can be reasoned
@@ -18,7 +25,7 @@ const FRESH_CLIP_MS = 15 * 60 * 1000;
  *   downloading      a task holds this row and is fetching bytes right now.
  *   failed           it will be retried; the user should see why a tile never plays.
  *   pending          DEPENDS. Migration 0039 defaults every pre-existing row to
- *                    `pending`, so a blanket chip puts a spinner on the whole shelf —
+ *                    `pending`, so a blanket chip puts a badge on the whole shelf —
  *                    hundreds of tiles claiming activity that will not start until the
  *                    nightly sweep reaches them. But a clip made seconds ago IS live
  *                    work the user is waiting on. Recency is what separates the two.
@@ -27,20 +34,26 @@ export function archiveChipState(
   status: ArchiveStatus,
   addedAt: string,
   now: number = Date.now(),
-): { label: string; icon: "spin" | "clock" | "retry" } | null {
-  if (status === "downloading") return { label: "Saving media", icon: "spin" };
-  if (status === "failed") return { label: "Retrying", icon: "retry" };
+): ArchiveChipState | null {
+  if (status === "downloading") return { label: "Syncing", tone: "info", active: true };
+  if (status === "failed") return { label: "Retrying", tone: "destructive", active: false };
   if (status !== "pending") return null;
 
   const age = now - new Date(addedAt).getTime();
   // NaN (an unparseable date) must not read as fresh — treat it as backlog.
   if (!Number.isFinite(age) || age > FRESH_CLIP_MS) return null;
-  return { label: "Queued", icon: "clock" };
+  return { label: "Syncing", tone: "info", active: false };
 }
 
-/** Archive state on a market tile. Sits bottom-LEFT because the other three corners
- *  are taken: KindBadge top-left, selection Checkbox top-right, remove Button
- *  bottom-right. */
+/**
+ * Archive state on a market tile. Sits bottom-LEFT because the other three corners are
+ * taken: KindBadge top-left, selection Checkbox top-right, remove Button bottom-right.
+ *
+ * The fill is opaque rather than the `bg-info/12` tint used on flat surfaces
+ * elsewhere: this badge sits on top of photographs, and a 12% wash disappears against
+ * a bright frame. Solid `--info` with `--info-foreground` is contrast-checked (7.35:1)
+ * and reads over any image, in either theme.
+ */
 export function ArchiveChip({
   status,
   addedAt,
@@ -53,19 +66,23 @@ export function ArchiveChip({
   const state = archiveChipState(status, addedAt);
   if (!state) return null;
 
-  const Icon = state.icon === "spin" ? Loader2 : state.icon === "clock" ? Clock : RefreshCw;
+  const Icon = state.tone === "destructive" ? RefreshCw : Download;
 
   return (
     <span
       className={cn(
-        "pointer-events-none absolute bottom-1.5 left-1.5 flex items-center gap-1 rounded-md",
-        "bg-background/90 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground",
-        "shadow-card",
+        "pointer-events-none absolute bottom-2 left-2 flex items-center gap-1.5",
+        "rounded-md px-2 py-1 text-[11px] font-medium leading-none shadow-card",
+        state.tone === "info"
+          ? "bg-info text-info-foreground"
+          : "bg-destructive text-destructive-foreground",
         className,
       )}
     >
+      {/* A pulse, not a bounce — the design system forbids springs and bounce, and a
+          badge sitting on a photo should not draw the eye harder than the image. */}
       <Icon
-        className={cn("size-2.5", state.icon === "spin" && "animate-spin")}
+        className={cn("size-3 shrink-0", state.active && "animate-pulse")}
         strokeWidth={1.5}
       />
       {state.label}
