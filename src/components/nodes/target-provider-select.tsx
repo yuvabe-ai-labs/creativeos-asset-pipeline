@@ -13,6 +13,7 @@ const OPTIONS: { value: VideoProvider; label: string }[] = [
   { value: "veo", label: "Veo" },
   { value: "kling", label: "Kling" },
   { value: "gemini-omni", label: "Omni" },
+  { value: "seedance", label: "Seedance" },
 ];
 
 // D77: which video model family this motion prompt is written for. Locks to a connected

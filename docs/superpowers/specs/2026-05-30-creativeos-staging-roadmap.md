@@ -4316,6 +4316,148 @@ versions but show no metadata, no decisions and no restore affordance).
 it carries its own sheet layout — so it still has chips and no History pane. Bringing it onto the
 shell, or giving it the same rail item, is untouched by this decision.
 
+---
+
+**D235–D239 are decided but not yet implemented** *(recorded 2026-09-09; originated →
+2026-09-08-kling-multishot-design.md)*. They describe the multishot lane once Kling 3.0 Omni is a
+second model. Until that ships, the code still matches D230–D232: one model, `OMNI_MAX_SECONDS` as
+the ladder's ceiling, hard Omni coercion at Video Gen. Read the five together — separately they
+describe a lane that does not exist either way.
+
+### D235 — Multishot capability is a table, not a constant *(recorded 2026-09-09; refines D230)*
+
+**Decision.** `OMNI_MIN_SECONDS` / `OMNI_MAX_SECONDS` stop being the cut ladder's ceiling. Each
+multishot model declares its own entry in `MULTISHOT_MODELS` — total window, cut floor, cut cap,
+per-beat and whole-prompt character ceilings — and `multishot-cuts.ts` takes a capability where it
+currently imports constants. `SOFT_CUT_LIMIT` is deleted rather than left beside its hard twin.
+
+**Why.** Kling 3.0 Omni allows 15s where Omni allows 10, caps cuts at 6 where Omni states no limit,
+and caps a beat at 512 characters where Omni states nothing. One constant cannot be all of that.
+The 6-cut cap in particular changes kind: today it is a soft quality hint, on Kling it is a
+rejection.
+
+**Rejected.** Keeping the 10s floor for both (buys Kling nothing); a 15s ceiling with a
+generate-time rejection on Omni (moves the failure past the point the prompt was written and paid
+for).
+
+**Note.** `group-shots.ts` is deliberately *not* parameterised — fan-out packing runs when a script
+is parsed, before any Multishot node exists and so before a model is chosen. It stays on Omni's 10s,
+the safe floor: a group that fits Omni also fits Kling.
+
+### D236 — The multishot model is chosen on the Multishot node and inherited down the lane *(recorded 2026-09-09; refines D232)*
+
+**Decision.** `targetModel` on `MultishotNodeData`, set by a `Select` in the Multishot focus view's
+header. Video Gen and the generate route both resolve it from the upstream Multishot node rather
+than deciding for themselves. Absent = Gemini Omni, so nothing is migrated.
+
+**Why.** The cut ladder needs its ceiling *while it is being built*, which is upstream of where a
+model is otherwise picked. Choosing at Video Gen would mean building a ladder against one model's
+limits and generating against another's.
+
+**Refines D232,** whose hard Omni coercion on connect this replaces: a Kling ladder now opens its
+Video Gen node already on Kling instead of opening on Omni and being coerced.
+
+### D237 — Switching to a tighter model states the violation rather than clamping the ladder *(recorded 2026-09-09; refines D235)*
+
+**Decision.** Switch a 14s Kling ladder to Omni and the cuts are left exactly as they are. The
+header states the violation (`14s / 10s max`, destructive colour) and Video Gen's Generate is
+disabled carrying that reason. The Multishot **Prompt** node's own Generate stays enabled.
+
+**Why.** The same reason redistribution was rejected in `multishot-cuts.ts` — a control that
+silently moves numbers the operator did not touch is a surprise, and this one decides what gets
+billed. Only the Video Gen generate is blocked because that is the request the ladder is illegal
+for; writing a plan for an out-of-window ladder costs a text generation, and blocking it would
+strand the operator with no way to see what the sequence reads like while deciding how to fix the
+timings.
+
+**Rejected.** Refusing the switch (strands the operator with no way to explore what a model would
+allow); silent clamping (see above).
+
+### D238 — Kling renders as API shot triples, never the console syntax *(recorded 2026-09-09; refines D231)*
+
+**Decision.** `renderPlan` emits `shot n, m, words;` for Kling — lowercase, comma-separated triple
+of number/seconds/text, semicolon between shots — not the `Shot N (Xs):` form in
+`kling-omni-system-prompt.md` and the CHUPPS reference.
+
+**Why.** Those files are prompt-craft references written for the web console; the API parses shots
+only from the comma/semicolon triple form given in the vendor reference. Following the console files
+would have sent prose the API reads as a single shot — a wrong-but-accepted payload, which is the
+failure mode that does not announce itself.
+
+**Consequence.** The writer keeps returning plan JSON (D231 stands unchanged) and never formats
+shots itself. Only the system prompt and the renderer differ per model.
+
+### D239 — Video Gen offers no multishot model switch; the restriction text points upstream *(recorded 2026-09-09; refines D236)*
+
+**Decision.** The picker shows the one model the connected plan was written for. Its reason line
+names the alternative and the action that reaches it: *"Connected to a Multishot Prompt written for
+Kling 3.0 Omni. The shot format is model-specific — to generate on Gemini Omni 1.1, switch the
+Multishot node's model and regenerate the prompt."* Parameterised on `MULTISHOT_MODELS`, so it reads
+correctly whichever way round the choice went and does not name only one alternative once there is a
+third.
+
+**Why.** A chip for the other model would be an offer the lane cannot honour — the plan's beats
+carry the first model's reference tokens (`<IMAGE_REF_0>` vs `@image_1`) and its ladder may exceed
+the other's window, so "switching" here would mean generating from the wrong contract. The
+regenerate is not ceremony standing in front of the switch; it *is* the switch.
+
+**Rejected.** A disabled chip with a tooltip (a dead control whose reason is discoverable only on
+hover); a switch here that silently regenerates upstream (spends a text generation and rewrites the
+operator's citations from a node they are not looking at).
+
+**Supersedes** D232's restriction copy, which explained a capability — "only Omni can generate a
+multi-shot plan" — a sentence that stops being true the moment there are two multishot models.
+
+### D240 — A Multishot plan's hand edits are buffered and saved explicitly *(recorded 2026-09-09; refines D231)*
+
+**Decision.** `updateLook` / `updateBeat` write `planDraft` only. An explicit **Save** persists the
+whole plan onto the ACTIVE version via `savePromptOutputAction` — in place, no new version row —
+and only then mirrors it into the canvas store. `planIsDirty` (field-wise: `look`, beat count, each
+`cutId`/`text`; never `version` or `targetModel`) drives the button, the pill, and the sheet's
+close-confirm.
+
+**Why.** This node was the only prompt node whose hand edits never reached the database. They went
+to component state and the zustand store; `upstream-images/route.ts` and `resolve-prompt.ts` both
+read the `node_versions` row. So an edited look or beat showed on the canvas and was dropped at the
+boundary — Video Gen previewed *and billed a paid render against* the last AI-generated plan. Not a
+display bug: a generation from text the operator believed they had replaced.
+
+**Rejected.** A new `saveMultishotPlanAction` (a rename of `savePromptOutputAction`, and a second
+entry to keep in sync in `impersonation-audit-view.ts`); autosaving each keystroke to the version
+row (a write per character on the money path, and no way to abandon an experiment); comparing plans
+with `JSON.stringify` (key-order dependent, and silently starts comparing fields added later — a
+hazard proved out the same day, when D236 added `targetModel` to the same type).
+
+### D241 — The Save bar sits at the foot of the Output column *(recorded 2026-09-09; refines D240)*
+
+**Decision.** A `shrink-0 border-t` footer under the Output column's scroller: `Save`, the red
+"Unsaved changes" pill, and while dirty the line *"Save or discard your edits to rewrite with AI."*
+Structurally identical to the Generate button's footer on the Input column beside it.
+
+**Why.** The file's own rule is that an action sits at the foot of the column it acts on, and the
+edited fields are in this column. The label is `Save`, verbatim from the Motion Prompt node, because
+the whole point is that the two nodes now edit the same way.
+
+**Rejected.** Per-card Save buttons (one plan is one output; three edits would mean three
+round-trips and three chances to leave one unsaved); Save in the header beside the version chips
+(away from the fields it acts on).
+
+### D242 — A dirty plan locks out every wholesale-replacement path *(recorded 2026-09-09; refines D234)*
+
+**Decision.** While the plan has unsaved edits, the whole-sequence refine, the look's refine and
+rewrite, every beat's refine and rewrite, Re-generate, and the version chips are all disabled, with
+a line stating why. **The editors stay live** — `MultishotBeatCard` gains a narrow `aiDisabled`
+prop for this, because its existing `disabled` also locks its `MentionInstructionEditor` and would
+otherwise freeze a beat the instant it was typed into.
+
+**Why.** The same hazard the file already guards twice (one refine in flight at a time; a restore
+beating an in-flight refine): a response computed against a snapshot taken before an edit resolves
+afterwards and overwrites it with no error at all. A hand edit is one more such snapshot.
+
+**Rejected.** A confirm dialog before each rewrite (a dialog on a frequent action, and it makes the
+loss recoverable rather than impossible); auto-saving before a refine (quietly commits edits the
+operator was trying out — the exact thing a Save button exists to prevent). Accepted cost: fixing a
+typo now takes a Save before Re-generate.
 <!-- Renumbered on rebase: these four were authored as D205-D208, but origin/staging had already assigned D205-D234 to the gemini-omni / multishot work. Shifted +30. -->
 
 ### D235 — Handle performance: Apify snapshots, the time series is ours *(recorded 2026-09-03; refines D184)*
@@ -4801,7 +4943,192 @@ can be attached).
 
 **Originated →** `2026-08-31-signal-flavoured-scripts-design.md`.
 
-### D257 — Media archiving is a background Trigger.dev task *(recorded 2026-09-11; builds on D185)*
+### D257 — Grouping rules are pinned per parse as `groupingVersion` *(recorded 2026-09-10; supersedes part of D235)*
+
+**Decision.** `ScriptNodeData` carries `groupingVersion?: 1 | 2`, absent meaning 1. v1 packs
+to a 10s ceiling and defaults a 2+ shot group to multishot; v2 packs to 30s and defaults
+every generation to single. Both behaviours move together under one flag. Nothing is
+backfilled — a re-parse adopts v2 wholesale.
+
+**Why.** `describeGenerations` re-derives from stored shots on every render, so an
+unpinned change applies retroactively: brackets resize, `groupModes` overrides keyed by
+`generationKey` orphan, and already-seeded nodes stop matching their generation, leaving
+fan-out to offer duplicates beside the old nodes. Absence-as-migration mirrors
+`multishotCapabilityFor`, where an absent `targetModel` is the migration rather than
+defensive padding. The two behaviours share one flag because they were decided together —
+a canvas packed under v1 was also defaulted under it, and splitting the flag would permit a
+state no parse ever produced.
+
+**Rejected.** Applying the new rules to every node immediately (silently reshapes existing
+canvases); backfilling explicit overrides for existing multi-shot groups (a data migration
+to buy what an absent field already says); an operator-facing packing control (a permanent
+affordance for a one-time migration).
+
+**Supersedes.** Part of D235.
+
+**Originated →** `2026-09-10-pack-ceiling-and-model-select-design.md`.
+
+### D258 — Fan-out packs to the widest window any model offers, derived *(recorded 2026-09-10; supersedes D235's grouping carve-out)*
+
+**Decision.** `PACK_CEILING_SECONDS` and `PACK_FLOOR_SECONDS` are computed from
+`MULTISHOT_MODELS` (`Math.max` of `maxTotalSeconds`, `Math.min` of `minTotalSeconds`),
+replacing `OMNI_MAX_SECONDS` / `OMNI_MIN_SECONDS`. `groupShotsForFanOut` takes the ceiling
+as a parameter. A generation longer than the ceiling — reachable only via a single shot
+kept whole — shows a warning on the Script node. The Script node names no models.
+
+**Why.** D235 left grouping out of the capability table because packing runs before a model
+is chosen, making Omni's 10s "the safe floor." Seedance 2.5's 30s window changed the cost of
+that safety: a 22–26s reel is one generation, and packing to 10s splits it into three that
+need no splitting. Deriving rather than authoring the ceiling keeps D235's own rule that an
+invented limit and a published one must not be indistinguishable at the call site.
+`LEGACY_PACK_CEILING = 10` is the one authored number, because it is a fact about data on
+disk rather than a claim about a model.
+
+**Rejected.** Per-model capability chips on each generation (`Seedance only`,
+`Kling or Seedance`) — a second vocabulary for limits `checkLadder` already words once for
+three surfaces; a model selector on the Script node (moves a model decision earlier than the
+operator needs to make it); splitting an over-ceiling shot automatically (where to cut is a
+creative decision, not an arithmetic one).
+
+**Supersedes.** D235's grouping carve-out. The header comment at `multishot-models.ts:11-14`
+is rewritten, not left to contradict the code.
+
+**Originated →** `2026-09-10-pack-ceiling-and-model-select-design.md`.
+
+### D259 — Fan-out never turns multishot on; it recommends *(recorded 2026-09-10; refines D227)*
+
+**Decision.** Under v2 every generation arrives `multishot: false`, whatever its shot count.
+A group of 2+ shots shows a quiet `Recommended` beside the switch, which never flips it. The
+default rule is extracted to `defaultMultishotFor(group, groupingVersion)` and called by both
+`describeGenerations` and `setGenerationMode`.
+
+**Why.** Auto-enabling decides on the operator's behalf in the direction that is expensive to
+undo: turning multishot back off disconnects downstream nodes and raises a confirmation
+dialog. Longer v2 groups would have made that automatic choice more consequential, not less.
+The extraction is not incidental — the rule currently exists twice, and under v2 the copy in
+`setGenerationMode` would store `false` as a deviation when `false` is the default, pinning a
+value that outlives the grouping it describes.
+
+**Rejected.** Keeping auto-on for 2+ shots and suppressing it only for long single-shot
+groups (two rules where one will do); dropping the recommendation entirely (leaves the
+multishot lane undiscoverable for exactly the groups that need it).
+
+**Refines.** D227.
+
+**Originated →** `2026-09-10-pack-ceiling-and-model-select-design.md`.
+
+### D260 — The multishot model select renders labels and windows, and disables nothing *(recorded 2026-09-10; refines D97, D236)*
+
+**Decision.** The Multishot focus view's model select passes `items` to `Select.Root` so the
+trigger renders the model's label rather than its id, drops the `h-9 w-[168px]` override for
+the primitive's own sizing, and gives each option a secondary line summarising its window,
+derived from `MULTISHOT_MODELS` via `describeCapability`. Every model stays selectable.
+
+**Why.** Base UI's `Select.Value` falls back to the raw value when given no children, so the
+trigger read `gemini:gemini-omni-1.1-flash`. Every other select in the app shares the bug and
+hides it, because their values equal their labels (`"10"`, `"admin"`); this is the first call
+site where the two differ. Leaving models selectable follows D97 — the app rejects and
+explains rather than prevents — and `checkLadder` already writes that explanation; disabling
+would also hide why a model is unavailable at the moment of choosing. Deriving the window
+summary keeps a `null` (vendor states no limit) rendered as absence rather than an invented
+number.
+
+**Rejected.** Disabling models whose window cannot hold the current ladder (diverges from how
+the app treats every other illegal combination); a function child on `SelectValue` at this one
+call site (`items` fixes the trigger without per-call-site formatting logic).
+
+**Refines.** D97, D236.
+
+**Originated →** `2026-09-10-pack-ceiling-and-model-select-design.md`.
+
+### D261 — A new Multishot node starts on the tightest model its ladder fits *(recorded 2026-09-10; supersedes the design's "keep Omni, fail loudly")*
+
+**Decision.** `bestFitMultishotModel(cuts)` picks, among the models `checkLadder` accepts, the one
+with the smallest `maxTotalSeconds` — today Omni to 10s, Kling to 15s, Seedance past that — and
+falls back to the default when none fits. It runs at creation only: fan-out's multishot branch
+and `shotDataToMultishot` (the Script switch's conversion) store the result as `targetModel`.
+Existing nodes, whose absent `targetModel` still means Omni, are untouched.
+
+**Why.** Under D258's 30s packing a typical reel is one ~24s generation, so with Omni as the
+fixed default the main path — not an edge case — arrived failing `checkLadder`. The first operator
+test judged that wrong. Selecting through `checkLadder` itself means the pick can never land on a
+model that reports a violation, and a cut cap rules a model out exactly as a length does (a 12s
+ladder of 7 cuts skips Kling for Seedance). Creation-only because a Multishot Prompt is written in
+one model's shot format (D236): a model that shifted as cuts were edited would strand the prompt
+and overwrite the operator's own choice.
+
+It is NOT a cheapest-model rule, and an earlier description of it as one was wrong: Kling 3.0 Omni
+($0.084/s at 720p without audio) undercuts Omni ($0.10/s). What the tightest-window rule does
+guarantee is that Seedance (~$0.231/s, ~2.3x Omni) is chosen only for a ladder nothing else holds.
+
+**Rejected.** Keeping Omni as the fixed default (the original call — the common path starts in an
+error state); resolving the model dynamically from the ladder on every read (strands a written
+prompt and silently overrides the operator); making Seedance the default (buys the most expensive
+model for ladders Omni could run); picking by price (the rates are approximations — Seedance's is
+flagged as such in `cost.ts` — and the operator asked for fit).
+
+**Supersedes.** The "consequences accepted" section of the originating design.
+
+**Originated →** `2026-09-10-pack-ceiling-and-model-select-design.md` §9, operator test 2026-09-10.
+
+### D262 — The multishot look is transcribed from stated direction, or left empty *(recorded 2026-09-10; refines D231)*
+
+**Decision.** The multishot writers (Omni, Kling, Seedance) write the LOOK block only from look
+direction that is actually stated — the shot texts, the script's production notes
+(`visual_script.execution_refinement`, now passed to the writer), or the operator's instructions —
+and return an empty look when nothing states one. A beat may not add weather, season, time of day
+or location those sources do not state, and the brand context is named as not a source of setting.
+`parsePlan` and look refines accept an empty look; `renderPlan` sends nothing, not a blank paragraph,
+when it is empty. Writer ids bump to `generate@5`, `kling@2`, `seedance@2`.
+
+**Why.** D231 made the look mandatory as "the only thing making separate cuts read as one film". For
+a script that stated no look, that forced the writer to compose one, and the nearest material to
+compose it from was the brand context — CHUPPS reels repeatedly arrived in the monsoon because the
+KB describes rain-ready footwear. Two prompt seeds made it worse: the physics example literally
+read "she walks on wet asphalt", and the detail rule asked for "enough real detail" in a background
+the shot never named. Meanwhile the one place a script DOES state its look — the production notes —
+never reached the writer, because the multishot upstream was skipped wholesale. Operator judgement
+(2026-09-10): an invented look is worse than none.
+
+**Rejected.** Stripping the brand context from the multishot turn (it still carries product naming,
+voice and compliance, which the beats need); a look written from the reference images (they show a
+product, not how this film is lit); keeping the look mandatory with a "prefer the script" hint (the
+mandate is what forced invention — a preference cannot override a requirement).
+
+**Refines.** D231.
+
+**Originated →** operator report 2026-09-10 (monsoon recurring on CHUPPS multishot plans).
+
+### D263 — Multishot beats carry one plain action, not narrated physics *(recorded 2026-09-10; refines D231)*
+
+**Decision.** `MULTISHOT_SHARED_CRAFT`, shared by all three multishot writers, drops its five-rule
+PHYSICS section (force verbs, what takes the weight, material behaviour, heel-first gait), its
+editing-grammar rules (30-degree angle change, screen direction, movement carried across cuts) and
+its call for "micro-detail" and "the timing of small movements". In their place: write the action
+the way the shot text puts it and stop; use the shot text's own camera, else static or one slow
+simple move; and one GROUNDING line — every subject keeps contact, nothing floats, hovers or slides.
+Kept: one dominant action per beat, the shot-text contract, `SUBJECT_SILENT_CAMERA`, vary shot size,
+preservation. The references block's worked example loses its secondary motions. Writer ids bump
+to `generate@6`, `kling@3`, `seedance@3`.
+
+**Why.** Each removed rule asked the writer to narrate one more motion per beat, and every narrated
+motion is one more thing the video model tries to animate; the operator reported the result as
+overcomplicated motion. The physics rules had been added after an earlier complaint that
+generations broke "basic laws of physics", so the trim keeps what actually addressed it — a single
+action per beat (the model blends competing actions into melting and sliding) and a stated
+grounding — and drops the narration that grew around it. The worked example is trimmed too,
+because the writer imitates the example more faithfully than it follows the rules above it.
+
+**Rejected.** Removing the physics guidance entirely (reopens sliding and hovering, the original
+complaint); keeping the rules but capping beat length (the rules would still demand the motions,
+just compressed); changing the single-take motion prompt (`video-prompt-shared.ts`) in the same
+pass (not what was reported, and it has its own consumers).
+
+**Refines.** D231.
+
+**Originated →** operator report 2026-09-10 ("over-instruction of motion… overcomplicating").
+
+### D264 — Media archiving is a background Trigger.dev task *(recorded 2026-09-11; builds on D185)*
 
 **Decision.** The real media behind a Market / moodboard reference (the reel's mp4, the
 pin's original) is downloaded and stored by a background task, `archive-reference`,
@@ -4824,7 +5151,7 @@ duration ceiling); enqueuing from the two routes instead of the shared funnel.
 
 **Originated →** `2026-09-11-market-media-archive-design.md` §5–§6.
 
-### D258 — Archive state lives on `moodboard_items` *(recorded 2026-09-11)*
+### D265 — Archive state lives on `moodboard_items` *(recorded 2026-09-11)*
 
 **Decision.** Migration `0039` adds `media_url`, `media_bytes`, `media_type`,
 `archive_status` (`pending | downloading | ready | failed | skipped`, `text` + CHECK),
@@ -4842,7 +5169,7 @@ a market item is not a node); a Postgres enum.
 
 **Originated →** `2026-09-11-market-media-archive-design.md` §4.
 
-### D259 — Playback is archive-first, with no embed fallback *(recorded 2026-09-11)*
+### D266 — Playback is archive-first, with no embed fallback *(recorded 2026-09-11)*
 
 **Decision.** When `archive_status = 'ready'` the lightbox plays `media_url` through a
 native `<video>` (or the image zoom for stills). Otherwise it shows the thumbnail, a
@@ -4859,7 +5186,7 @@ cost.
 
 **Originated →** `2026-09-11-market-media-archive-design.md` §9.
 
-### D260 — `pinterest` is a first-class `ReferenceKind` *(recorded 2026-09-11)*
+### D267 — `pinterest` is a first-class `ReferenceKind` *(recorded 2026-09-11)*
 
 **Decision.** `REFERENCE_KINDS` gains `pinterest`; `classifyUrl` matches the host **by
 suffix** plus `/pin/<id>`; `KindBadge` gets an icon; the `kind` CHECK is replaced to admit
@@ -4876,7 +5203,7 @@ reclassifying historical rows needs its own decision.
 
 **Originated →** `2026-09-11-market-media-archive-design.md` §8, §16.
 
-### D261 — One per-kind media ladder, free rungs before paid ones *(recorded 2026-09-11)*
+### D268 — One per-kind media ladder, free rungs before paid ones *(recorded 2026-09-11)*
 
 **Decision.** `resolveMediaSource` in `src/lib/market/media.ts` is a single laddered
 function. `image`/`gif`/`video` use the URL itself; `pinterest` uses og:image and probes
@@ -4896,7 +5223,7 @@ probing (the original's extension is unpredictable and the wrong one returns 403
 
 **Originated →** `2026-09-11-market-media-archive-design.md` §1, §7.
 
-### D262 — No realtime and no polling in Market *(recorded 2026-09-11)*
+### D269 — No realtime and no polling in Market *(recorded 2026-09-11)*
 
 **Decision.** Archive state reaches the UI only on the board refetch that `useMarket`
 already performs after every `addReference`. The tile chip is derived from that snapshot:
@@ -4916,7 +5243,7 @@ sweep reaches them.
 
 **Originated →** `2026-09-11-market-media-archive-design.md` §11.
 
-### D263 — We move the bytes ourselves; the provider's direct-to-GCS option is declined *(recorded 2026-09-11)*
+### D270 — We move the bytes ourselves; the provider's direct-to-GCS option is declined *(recorded 2026-09-11)*
 
 **Decision.** The archive task downloads from the provider's (usually expiring) URL and
 uploads through `uploadMarketMedia()` to `clients/<clientId>/market/media/<itemId>.<ext>`.
@@ -4932,7 +5259,7 @@ archival mechanisms with two failure modes for one feature. The deterministic,
 
 **Originated →** `2026-09-11-market-media-archive-design.md` §6–§7.
 
-### D264 — One nightly sweep is backfill, retry and stuck recovery *(recorded 2026-09-11)*
+### D271 — One nightly sweep is backfill, retry and stuck recovery *(recorded 2026-09-11)*
 
 **Decision.** `trigger/archive-sweep.ts`, a `schedules.task`, re-queues rows that are
 `pending` or `failed` with attempts under `MAX_ARCHIVE_ATTEMPTS`, and first moves any row
@@ -4941,7 +5268,7 @@ the retry branch can pick it up. Per-row try/catch, as the handle sweep does.
 
 **Why.** Because existing rows default to `pending`, the first sweep *is* the backfill —
 no migration script. The same pass gives transient provider failures the retry the
-thumbnail ladder never had, and heals a dropped `tasks.trigger` enqueue (which D257 only
+thumbnail ladder never had, and heals a dropped `tasks.trigger` enqueue (which D264 only
 logs). `reconcile-stuck-generations` cannot cover stuck archives: it keys off a
 credit-ledger view and an archive reserves no credits.
 
@@ -4950,7 +5277,7 @@ stuck-archive reconciler.
 
 **Originated →** `2026-09-11-market-media-archive-design.md` §10.
 
-### D265 — The archive task also backfills a missing thumbnail *(recorded 2026-09-11; spike-confirmed)*
+### D272 — The archive task also backfills a missing thumbnail *(recorded 2026-09-11; spike-confirmed)*
 
 **Decision.** When `thumbnail_url IS NULL` and the resolver's payload carried a still
 (`displayUrl` for Instagram, the 736x og:image for Pinterest, the derived `i.ytimg.com`

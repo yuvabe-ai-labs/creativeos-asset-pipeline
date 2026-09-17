@@ -37,6 +37,19 @@ const RESOLUTION_ONLY_PRICING: Record<string, Record<string, number>> = {
   "gemini:gemini-omni-1.1-flash": {
     "360p": 0.03, "720p": 0.10, "1080p": 0.15, "4k": 0.30,
   },
+  // Source: ref/byteplus-docs/seedance_2.5_PRICING.md, the vendor's own worked examples
+  // ("input without video", which is the only shape this app produces — we never send a
+  // reference video).
+  //
+  // AN APPROXIMATION, STATED: Seedance's real billing is token-based with a per-resolution rate
+  // and a minimum, and token count scales with pixel count — so these figures are exact only at
+  // the 16:9 the examples use, and drift at other ratios. computeVideoCost is per-second and
+  // cannot express the real formula. An absent row would make the model registered and unable to
+  // generate at all (computeVideoCost returns null -> video-generate throws), so the
+  // approximation is the lesser evil, flagged rather than silent.
+  //
+  // EXPENSIVE: 720p is 2.3x Gemini Omni and 2.75x Kling 3.0 Omni. A 30s clip is ~$6.93.
+  "seedance:seedance-2-5": { "480p": 0.103, "720p": 0.231, "1080p": 0.569 },
 };
 
 // Kling price varies by resolution AND audio (not just audio) — resolution-keyed table.
@@ -96,6 +109,26 @@ const KLING_RESOLUTION_PRICING: Record<string, KlingResolutionRates> = {
   "kling:kling-o1": {
     "720p": { off: 0.084, on: 0.084 },
     "1080p": { off: 0.112, on: 0.112 },
+  },
+  // Source: kling.ai/document-api/pricing/base/video, the real table supplied by the operator
+  // 2026-09-09. These REPLACE a provisional row that borrowed Kling 3.0's rates while the page
+  // was unavailable.
+  //
+  // The "No Video Input" rows are the only reachable ones: buildKlingContents never sends a
+  // base_video or feature_video, so the "With Video Input" tier ($0.126 / $0.168 / $0.42) cannot
+  // be produced by this app. Same reasoning that restricts every other Kling row above.
+  //
+  // The provisional row had the OFF column right and the audio column wrong in both lower tiers
+  // — it assumed 3.0's +50% audio delta, where 3.0 Omni's is +33% at 720p and +25% at 1080p. It
+  // overcharged an audio-enabled 720p second by $0.014 and a 1080p second by $0.028. Recorded
+  // because it is the third time on this table that a guessed audio delta has been the error,
+  // and the guess has been high every time.
+  //
+  // 4k does not move with audio, matching every other Kling model that offers it.
+  "kling:kling-3-0-omni": {
+    "720p": { off: 0.084, on: 0.112 },
+    "1080p": { off: 0.112, on: 0.14 },
+    "4k": { off: 0.42, on: 0.42 },
   },
 };
 

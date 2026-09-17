@@ -24,6 +24,7 @@ import { looksLikeReelScript, type ReelScript } from "@/lib/nodes/reel-script";
 import { setScriptValue, addItem, removeItem } from "@/lib/nodes/script-edit";
 import type { KBSliceKey } from "@/lib/kb/parse-context";
 import { DEFAULT_SIGNAL_MODE, type SignalMode } from "@/lib/market/constants";
+import { CURRENT_GROUPING_VERSION, type GroupingVersion } from "@/lib/nodes/group-shots";
 import { ScriptDocument } from "./script-document";
 import { ScriptEmptyState } from "./script-empty-state";
 import { ScriptSignalsPicker } from "./script-signals-picker";
@@ -39,6 +40,7 @@ type ScriptFocusViewProps = {
   source: string;
   parsed: ReelScript | null;
   groupModes?: Record<string, boolean>;
+  groupingVersion?: GroupingVersion;
   slices: KBSliceKey[];
   signalIds: string[];
   signalMode: SignalMode;
@@ -59,6 +61,7 @@ export function ScriptFocusView({
   source,
   parsed,
   groupModes,
+  groupingVersion,
   slices,
   signalIds,
   signalMode,
@@ -138,7 +141,8 @@ export function ScriptFocusView({
             : (json.error ?? "Extraction failed"),
         );
       }
-      onPatch({ parsed: json.output });
+      // D257 — a parse adopts the current grouping rules; nodes parsed before keep theirs.
+      onPatch({ parsed: json.output, groupingVersion: CURRENT_GROUPING_VERSION });
       setReplacing(false);
       toast.success("Script extracted");
     } catch (e) {
@@ -356,6 +360,7 @@ export function ScriptFocusView({
                   script={draft}
                   scriptNodeId={nodeId}
                   groupModes={groupModes}
+                  groupingVersion={groupingVersion}
                   readOnly={!editable}
                   onChange={(path: Path, value) =>
                     setDraft((dd) => setScriptValue(dd, path, value))

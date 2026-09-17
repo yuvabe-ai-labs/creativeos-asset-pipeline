@@ -75,7 +75,7 @@ export type EvaluatedConstraints = {
 
 export type VideoGenModelSpec = {
   id: string;
-  provider: "veo" | "openai" | "kling" | "gemini";
+  provider: "veo" | "openai" | "kling" | "gemini" | "seedance";
   label: string;
   /** Short label for the compact model-picker chip; falls back to `label` when unset. */
   pickerLabel?: string;

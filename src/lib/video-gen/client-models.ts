@@ -1,6 +1,7 @@
 import type { VideoGenClientModelSpec, ConstraintRule } from "./types";
 import { veoParams, veoLiteParams } from "./params/veo";
-import { kling30Params, klingO1Params } from "./params/kling";
+import { kling30Params, klingO1Params, kling30OmniParams } from "./params/kling";
+import { seedanceParams } from "./params/seedance";
 import { geminiOmniParams } from "./params/gemini-omni";
 import { GEMINI_OMNI_IMAGE_INPUTS, GEMINI_OMNI_RULES } from "./gemini-omni-shape";
 
@@ -145,7 +146,9 @@ const KLING_O1_NEEDS_START_FRAME_OR_REFERENCE: ConstraintRule = {
     ],
   },
   effect: { disableGenerate: true },
-  reason: "Kling O1 needs a start frame or at least one reference image",
+  // Shown for two models now (O1 and 3.0 Omni) — the rule was always about the /omni-video
+  // endpoint family, not about O1's model weights specifically.
+  reason: "Kling needs a start frame or at least one reference image",
 };
 
 // OM7 — last-frame-only is unsupported. An end frame is the destination of an interpolation that
@@ -171,10 +174,78 @@ const KLING_O1_RULES: ConstraintRule[] = [
   KLING_O1_END_FRAME_REQUIRES_START_FRAME,
 ];
 
+// The same two gates as O1 — both are properties of the /omni-video endpoint family, not of O1's
+// model weights: a `refer_image` stands alone as an input (D101), and a last-frame-only request
+// has no origin to interpolate from (OM7). Reused rather than copied, so a correction to either
+// applies to both endpoints that actually have the behaviour.
+const KLING_30_OMNI_RULES: ConstraintRule[] = [
+  KLING_O1_NEEDS_START_FRAME_OR_REFERENCE,
+  KLING_O1_END_FRAME_REQUIRES_START_FRAME,
+];
+
+// The vendor's own stated limit: "Omni reference-to-video: 1–30 images"
+// (ref/byteplus-docs/Dreamina Seedance 2.5 tutorial.md, Usage limits → Multimodal input).
+//
+// 30, not the 10 this shipped with. That 10 was justified as "a limit the UI can actually
+// present", which does not survive contact with the vendor's own showcase: the announcement
+// doc's concert prompt cites @Image 1 through @Image 18, so a cap of 10 made the model's
+// headline worked example impossible to reproduce.
+//
+// Unlike Kling O1's 5 — which is a real, evidence-backed budget, because that endpoint shares a
+// 7-image total across references AND frames — Seedance has no shared budget to conserve:
+// frames and references are mutually exclusive TASK TYPES here, so a reference never competes
+// with a frame for a slot.
+const SEEDANCE_IMAGE_INPUTS = {
+  startFrame: true,
+  endFrame: true,
+  maxReferenceImages: 30,
+} as const;
+
+// Frames and references are mutually exclusive on this endpoint — the same shape Veo 3.1 and
+// Kling 3.0 already declare, so it reuses their rule vocabulary rather than a special case.
+const SEEDANCE_RULES: ConstraintRule[] = [
+  {
+    id: "seedance-refs-disable-frames",
+    when: { field: "referenceCount", op: "gt", value: 0 },
+    effect: { disableFrameInputs: true },
+    reason: "Reference images selected → start/end frames unavailable on Seedance",
+  },
+  {
+    id: "seedance-frames-disable-refs",
+    when: {
+      op: "or",
+      conditions: [
+        { field: "hasStartFrame", op: "eq", value: true },
+        { field: "hasEndFrame", op: "eq", value: true },
+      ],
+    },
+    effect: { disableRefs: true },
+    reason: "Start/end frame selected → reference images unavailable on Seedance",
+  },
+  {
+    id: "seedance-end-frame-requires-start-frame",
+    when: {
+      op: "and",
+      conditions: [
+        { field: "hasEndFrame", op: "eq", value: true },
+        { field: "hasStartFrame", op: "eq", value: false },
+      ],
+    },
+    effect: { disableGenerate: true },
+    reason: "End frame needs a start frame before you can generate",
+  },
+];
+
 // ── Model map ─────────────────────────────────────────────────────────────────
 
-/** The only model that cuts between shots natively — a multishot shot must generate on this. */
+/** Google's model that cuts between shots natively. One of two — see MULTISHOT_MODELS (D235). */
 export const GEMINI_OMNI_MODEL_ID = "gemini:gemini-omni-1.1-flash";
+
+/** Kling's flagship omni endpoint — the second model that cuts between shots natively (D235). */
+export const KLING_OMNI_MODEL_ID = "kling:kling-3-0-omni";
+
+/** BytePlus Seedance 2.5 — 30s in one pass, and the third natively multi-shot model (D243). */
+export const SEEDANCE_MODEL_ID = "seedance:seedance-2-5";
 
 export const videoGenClientModelMap: Record<string, VideoGenClientModelSpec> = {
   "veo:veo-3.1-lite": {
@@ -226,6 +297,36 @@ export const videoGenClientModelMap: Record<string, VideoGenClientModelSpec> = {
     imageInputs: KLING_O1_IMAGE_INPUTS,
     params: klingO1Params,
     rules: KLING_O1_RULES,
+  },
+  [KLING_OMNI_MODEL_ID]: {
+    id: KLING_OMNI_MODEL_ID,
+    provider: "kling",
+    label: "Kling 3.0 Omni",
+    // "Kling 3.0 Omni" under a "Kling" heading would say Kling twice; modelPickerLabel strips
+    // the provider prefix on its own, but the result ("3.0 Omni") is the override anyway and
+    // stating it keeps the chip stable if the label is ever reworded.
+    pickerLabel: "3.0 Omni",
+    providerLabel: "Kling",
+    maxDurationSeconds: 15,
+    // D100's cap is a property of the /omni-video endpoint family, not of O1: 7 images total
+    // with no reference video, less both frames conservatively because the docs do not say
+    // whether the frames count toward the 7. Shared with O1 rather than re-declared, matching
+    // what providers/kling.ts does on the server side — a second identical copy is one more
+    // place to miss when that cap is revised.
+    imageInputs: KLING_O1_IMAGE_INPUTS,
+    params: kling30OmniParams,
+    rules: KLING_30_OMNI_RULES,
+  },
+  [SEEDANCE_MODEL_ID]: {
+    id: SEEDANCE_MODEL_ID,
+    provider: "seedance",
+    label: "Seedance 2.5",
+    pickerLabel: "2.5",
+    providerLabel: "Seedance",
+    maxDurationSeconds: 30,
+    imageInputs: SEEDANCE_IMAGE_INPUTS,
+    params: seedanceParams,
+    rules: SEEDANCE_RULES,
   },
   [GEMINI_OMNI_MODEL_ID]: {
     id: GEMINI_OMNI_MODEL_ID,

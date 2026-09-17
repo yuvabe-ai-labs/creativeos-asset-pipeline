@@ -56,6 +56,10 @@ export function MultishotPromptNode({ id, data, selected, positionAbsoluteX, pos
   }, [nodes, edges, id]);
   const budget = (multishotSource?.data as MultishotNodeData | undefined)?.totalSeconds;
   const cuts = (multishotSource?.data as MultishotNodeData | undefined)?.cuts ?? [];
+  // D236 — the model the ladder was built for. This node never SETS it; the choice lives on the
+  // Multishot node, and reading it here is what keeps the beat editor's token syntax and the
+  // rendered prompt agreeing with what will actually be generated.
+  const targetModel = (multishotSource?.data as MultishotNodeData | undefined)?.targetModel;
 
   // Every connected upstream, mapped the same way VideoPromptNode does — an Image Gen still's
   // URL lives in its active output (D19), File/Draw carry their own fileUrl directly. This is
@@ -191,6 +195,7 @@ export function MultishotPromptNode({ id, data, selected, positionAbsoluteX, pos
       plan={plan}
       slices={slices}
       cuts={cuts}
+      targetModel={targetModel}
       multishotNodeId={multishotSource?.id ?? null}
       upstream={upstream}
       onPatch={(patch) => updateNodeData(id, patch)}

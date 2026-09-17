@@ -11,6 +11,7 @@ import {
 import type { HelpChapter } from "@/lib/help/types";
 import { HelpChapterRail } from "@/components/help/help-chapter-rail";
 import { HelpStepVideo } from "@/components/help/help-step-video";
+import { HelpStepSample } from "@/components/help/help-step-sample";
 
 // Controlled: the caller owns chapter + step so the URL stays the source of truth.
 // `step` is 1-based; there is no page 0 — the rail carries the shape of the chapter.
@@ -47,7 +48,13 @@ export function HelpChapterDialog({
             <HelpChapterRail chapter={chapter} step={step} onSelectStep={onStepChange} />
           </div>
           <div className="min-h-0">
-            <HelpStepVideo step={current} />
+            {/* A step with something to copy shows it in place of a clip. Keyed by step so
+                "Copied" from one step never carries onto the next. */}
+            {current.sample ? (
+              <HelpStepSample key={current.title} sample={current.sample} />
+            ) : (
+              <HelpStepVideo step={current} />
+            )}
           </div>
         </div>
 

@@ -142,3 +142,20 @@ describe("buildMultishotUserTurn", () => {
     expect(without).not.toMatch(/Brand context/);
   });
 });
+
+// D262 — the look may only come from what the script states. Its production notes are where a
+// script states lighting, grade and time of day, so they must reach the writer.
+describe("buildMultishotUserTurn script notes", () => {
+  const base = { clientContext: "", upstream: [], cuts, instruction: "", cutInstructions: {} };
+
+  it("carries the script's production notes when present", () => {
+    const turn = buildMultishotUserTurn({ ...base, scriptNotes: "Golden hour. Desaturated grade." });
+    expect(turn).toContain("Golden hour. Desaturated grade.");
+    expect(turn).toMatch(/production notes/i);
+  });
+
+  it("omits the heading when the script has none", () => {
+    expect(buildMultishotUserTurn({ ...base, scriptNotes: "  " })).not.toMatch(/production notes/i);
+    expect(buildMultishotUserTurn(base)).not.toMatch(/production notes/i);
+  });
+});

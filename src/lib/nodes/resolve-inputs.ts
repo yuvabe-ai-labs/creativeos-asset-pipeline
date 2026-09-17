@@ -198,6 +198,14 @@ export type ResolvedMultishotInputs = {
   upstream: UpstreamPreview[];
   /** The upstream Multishot node's cut list — the shots this plan must cover. */
   cuts: MultishotCut[];
+  /** D236 — the upstream Multishot node's chosen model. Undefined = the default (Gemini Omni). */
+  targetModel: string | undefined;
+  /**
+   * D262 — the script's production notes (`visual_script.execution_refinement` on the Multishot
+   * node's envelope): where a script states lighting, grade and time of day. The look may only be
+   * written from stated direction, so this has to reach the writer. Empty when the script has none.
+   */
+  scriptNotes: string;
 };
 
 /**
@@ -226,8 +234,20 @@ export async function resolveMultishotPromptInputs(
   const cuts = ((source?.data.cuts ?? []) as MultishotCut[]).filter(
     (c) => c && c.id && typeof c.text === "string" && typeof c.seconds === "number",
   );
+  const targetModel =
+    typeof source?.data.targetModel === "string" ? source.data.targetModel : undefined;
+  const notes = (source?.data.script as ReelScript | undefined)?.visual_script?.execution_refinement;
+  const scriptNotes = typeof notes === "string" ? notes : "";
 
-  return { clientContext, kbVersionId: kbCtx.kbVersionId, slices, upstream, cuts };
+  return {
+    clientContext,
+    kbVersionId: kbCtx.kbVersionId,
+    slices,
+    upstream,
+    cuts,
+    targetModel,
+    scriptNotes,
+  };
 }
 
 /**
@@ -241,10 +261,17 @@ export function buildMultishotUserTurn(args: {
   cuts: MultishotCut[];
   instruction: string;
   cutInstructions: Record<string, string>;
+  /** D262 — the script's production notes. Optional so a caller with none need not pass it. */
+  scriptNotes?: string;
 }): string {
   const blocks: string[] = [];
 
   if (args.clientContext.trim()) blocks.push(`Brand context:\n${args.clientContext.trim()}`);
+
+  // Labelled as the script's own, so the writer can tell stated look direction (usable) from the
+  // brand context above it (not a source of setting).
+  const notes = (args.scriptNotes ?? "").trim();
+  if (notes) blocks.push(`The script's production notes:\n${notes}`);
 
   for (const u of args.upstream) {
     if (!u.text.trim()) continue;

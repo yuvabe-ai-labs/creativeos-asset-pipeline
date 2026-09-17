@@ -1,5 +1,6 @@
 import type { UpstreamOutput } from "@/lib/db/nodes";
 import { renderPlan, type MultishotPlan } from "@/lib/nodes/multishot-plan";
+import { multishotCapabilityFor } from "@/lib/nodes/multishot-models";
 import type { MultishotCut } from "@/lib/nodes/multishot-cuts";
 
 // Two prompt-node lanes feed Video Gen (see AGENTS.md / the multishot spec):
@@ -30,6 +31,16 @@ export type ResolvedPrompt =
       promptUpstream: UpstreamOutput[];
       /** Only set for the multishot lane — the cut list the ladder (and its duration) rest on. */
       cuts: MultishotCut[] | null;
+      /**
+       * Only set for the multishot lane — the model the plan was WRITTEN for (D236), read off the
+       * plan's own `targetModel` stamp and NOT off the Multishot node's current field. The route
+       * generates on this, not on the node's stored `modelId`: the plan's beats carry this model's
+       * reference tokens and its ladder was built against this model's window, so a request on any
+       * other model is a payload built from the wrong contract.
+       *
+       * `null` = the plan carries no stamp, which means Gemini Omni (see below).
+       */
+      targetModel: string | null;
     }
   | { ok: false; reason: string };
 
@@ -65,6 +76,7 @@ export async function resolveVideoGenPrompt(
       promptNode,
       promptUpstream,
       cuts: null,
+      targetModel: null,
     };
   }
 
@@ -85,6 +97,31 @@ export async function resolveVideoGenPrompt(
     return { ok: false, reason: NO_MULTISHOT_CUTS_ERROR };
   }
 
-  return { ok: true, prompt: renderPlan(plan, cuts), promptNode, promptUpstream, cuts };
+  // D236 — the model the plan was WRITTEN for, read off THE PLAN, never off the Multishot node's
+  // current `targetModel`.
+  //
+  // This is the money path's whole correctness argument. The node's field is a setting the
+  // operator can flip at any moment; the beats are text that was already written. Reading the
+  // node here meant switching the Select after a plan existed re-rendered Omni's beats — with
+  // Omni's `<IMAGE_REF_0>` tokens in them — as Kling triples, `refsCitedIn` found nothing,
+  // `checkPlanLimits` passed, and the route's own model guard passed too (it compares against
+  // this same value), so Kling generated and BILLED with the reference unbound and no error
+  // raised anywhere.
+  //
+  // An unstamped plan falls back to the DEFAULT (Gemini Omni) via `multishotCapabilityFor`, not
+  // to the node's field: every plan written before the stamp existed was Omni's, because Omni was
+  // the only multishot model. That fallback is the migration. Falling back to the node would
+  // reintroduce exactly the bug above for every pre-stamp plan.
+  const targetModel = typeof plan.targetModel === "string" ? plan.targetModel : null;
+  const cap = multishotCapabilityFor(targetModel);
+
+  return {
+    ok: true,
+    prompt: renderPlan(plan, cuts, cap),
+    promptNode,
+    promptUpstream,
+    cuts,
+    targetModel,
+  };
 }
 

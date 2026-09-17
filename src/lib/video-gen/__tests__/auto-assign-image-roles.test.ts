@@ -27,23 +27,57 @@ describe("autoAssignImageRoles", () => {
     });
   });
 
-  // A generated still reads as "animate THIS" — the one type worth promoting. Guessing it wrong
-  // changes the request's whole shape, so it is promoted once and never over an explicit role.
-  it("promotes the first image-gen still to the start frame", () => {
+  // Operator request 2026-09-09 — every unassigned image defaults to `reference` on any model
+  // that can take one. The old rule promoted the first generated still to `start_frame`, which
+  // gave two identical-looking stills different roles based on traversal order the operator never
+  // sees. On Seedance it was worse than surprising: frames and references are mutually exclusive
+  // task types there, so a promoted still silently discarded every reference the prompt cited.
+  it("defaults every still to a reference on a model that takes references", () => {
     expect(autoAssignImageRoles([img("a", "image-gen"), img("b", "image-gen")], {})).toEqual({
-      a: "start_frame",
+      a: "reference",
       b: "reference",
     });
   });
 
+  // The one surviving promotion. Veo Lite and Kling 3.0 both declare maxReferenceImages: 0, and
+  // Kling 3.0 refuses to generate without a start frame — defaulting their images to `reference`
+  // would splice them away to nothing, silently downgrading one model to text-to-video and making
+  // the other ungenerateable.
+  it("promotes the first still ONLY when the model takes no references at all", () => {
+    expect(
+      autoAssignImageRoles([img("a", "image-gen"), img("b", "image-gen")], {}, {
+        supportsStartFrame: true,
+        supportsReferences: false,
+      }),
+    ).toEqual({ a: "start_frame", b: "reference" });
+  });
+
   it("does not promote when a start frame is already assigned", () => {
-    expect(autoAssignImageRoles([img("a", "image-gen")], { z: "start_frame" }).a).toBe("reference");
+    expect(
+      autoAssignImageRoles([img("a", "image-gen")], { z: "start_frame" }, {
+        supportsStartFrame: true,
+        supportsReferences: false,
+      }).a,
+    ).toBe("reference");
   });
 
   it("does not promote on a model with no start frame", () => {
     expect(
-      autoAssignImageRoles([img("a", "image-gen")], {}, { supportsStartFrame: false }).a,
+      autoAssignImageRoles([img("a", "image-gen")], {}, {
+        supportsStartFrame: false,
+        supportsReferences: false,
+      }).a,
     ).toBe("reference");
+  });
+
+  // The Seedance case that motivated the change: a promoted start frame makes buildSeedanceContent
+  // return early, discarding every reference while the prompt still cites @Image 1, @Image 2.
+  it("leaves no start frame for a reference-capable model, so nothing can be discarded", () => {
+    const roles = autoAssignImageRoles([img("a", "image-gen"), img("b", "image-gen")], {}, {
+      supportsStartFrame: true,
+      supportsReferences: true,
+    });
+    expect(Object.values(roles)).not.toContain("start_frame");
   });
 
   it("keeps roles for images that are no longer connected", () => {
@@ -53,10 +87,20 @@ describe("autoAssignImageRoles", () => {
   });
 
   it("produces roles assignImageRoles then turns into real inputs", () => {
-    const roles = autoAssignImageRoles([img("a", "image-gen"), img("b"), img("c")], {});
-    const assigned = assignImageRoles([img("a", "image-gen"), img("b"), img("c")], roles);
-    expect(assigned.startFrameUrl).toContain("a.jpg");
-    expect(assigned.referenceUrls).toHaveLength(2);
+    const images = [img("a", "image-gen"), img("b"), img("c")];
+    // Reference-capable model: all three become references, no start frame.
+    const roles = autoAssignImageRoles(images, {});
+    const assigned = assignImageRoles(images, roles);
+    expect(assigned.startFrameUrl).toBeUndefined();
+    expect(assigned.referenceUrls).toHaveLength(3);
+
+    // No-reference model: the still leads as the start frame and the other two are dropped by the
+    // route's cap, which is what keeps Veo Lite and Kling 3.0 working.
+    const framesOnly = autoAssignImageRoles(images, {}, {
+      supportsStartFrame: true,
+      supportsReferences: false,
+    });
+    expect(assignImageRoles(images, framesOnly).startFrameUrl).toContain("a.jpg");
   });
 });
 

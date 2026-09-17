@@ -329,7 +329,7 @@ export function MentionInstructionEditor({
     const { caretOffset } = readEditorState(el, dialect);
     populateEditor(el, value, upstreamMapRef.current, dialect);
     restoreCaretAt(el, caretOffset, dialect);
-  }, [value]);
+  }, [value, dialect]);
 
   function closeDropdown() {
     setDropdownState((s) => ({ ...s, open: false }));
@@ -471,7 +471,12 @@ export function MentionInstructionEditor({
     sel.removeAllRanges();
     sel.addRange(range);
     handleInput();
-  }, []);
+    // MUST depend on handleInput. With `[]` this closure froze the FIRST render's handleInput,
+    // which froze the first render's `onChange`, which in the Multishot Prompt view froze the
+    // first render's `planDraft`. Pasting into one beat then wrote that stale snapshot back —
+    // so clearing every shot and pasting into shot 1 resurrected the other shots' old text, which
+    // read as the paste being duplicated into all of them.
+  }, [handleInput]);
 
   useEffect(() => {
     if (!dropdownState.open) return;
