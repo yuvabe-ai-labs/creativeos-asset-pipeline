@@ -31,18 +31,40 @@ ones. Scripts: `scripts/spike-instagram-permalink.mjs`, `scripts/spike-youtube-d
 
 ### 1.0 The current damage, measured
 
-Counting the 111 most recent market/moodboard items:
+> **Corrected 2026-09-15.** The original figures below were read from the project
+> `.env.local` points at (`udxnhxferhiqjvnztyhm`, the everyday dev database), **not**
+> staging — the ad-hoc script followed the same convention as `scripts/db-inspect.mjs`,
+> which reads `.env.local`. The conclusion survives but is weaker than first stated, and
+> the two databases differ enough to matter.
+
+On the **dev** project, 111 items:
 
 | kind | rows | with a thumbnail |
 |---|---|---|
 | `instagram` | 62 | **0** |
 | `youtube` | 20 | 15 |
-| `link` (all Pinterest pins) | 29 | 29 |
+| `link` (Pinterest pins) | 29 | 29 |
 
-**Every Instagram clip on the shelf is a degraded favicon tile.** The four-rung ladder is
-not occasionally failing, it is failing completely. This reframes the feature: the archive
-task is not only how we get media, it is the repair path for a thumbnail pipeline that is
-already down.
+On **staging** (`noxqniccdbdegvvgowki`), 120 items, measured after the migration:
+
+| kind | rows | missing a thumbnail |
+|---|---|---|
+| `instagram` | 88 | 9 |
+| `youtube` | 23 | 5 |
+| `image` | 4 | 3 |
+| `link` (4 of 5 are pins) | 5 | 0 |
+
+So the Instagram ladder is **catastrophically** broken on dev and **intermittently**
+broken on staging — 9 of 88, roughly one clip in ten, silently permanent. That is still
+a real defect with no retry path, and D265 still earns its place; it is simply a
+one-in-ten repair on staging rather than a total one. The dev figure is likely what a
+run of clips looks like when Meta is actively refusing, which is the failure mode the
+ladder cannot survive and the archive can.
+
+**Note the Pinterest gap this exposes**: every pin already on the shelf was clipped
+before `pinterest` existed as a kind, so those rows are stored as `link` and the
+resolver returns `null` for them — they archive as `skipped`, forever. Reclassifying
+existing rows is a follow-up this design does not cover (§16).
 
 ### 1.1 Instagram — `apify/instagram-scraper`, single permalink
 
@@ -407,10 +429,44 @@ Following `src/lib/market/{ingest,snapshot}.test.ts`: mock `@/lib/storage`, inje
 | **D264** | One nightly sweep serves as backfill, retry and enqueue-loss recovery. | A one-off backfill script plus a separate retry mechanism. |
 | **D265** | The archive task also backfills `thumbnail_url` when it is null, from the still already present in the resolver's payload. | Treating the 0/62 broken Instagram thumbnails (§1.0) as a separate fix — the provider call that gets the video already carries the cover frame. |
 
+## 15.1 Verified on staging, 2026-09-15
+
+Migration 0039 applied and checked (`scripts/verify-0039.mjs`): 8 columns present, all
+120 existing rows defaulted to `pending`, `kind='pinterest'` accepted — confirming the
+`DO` block replaced the old CHECK rather than leaving two — and an invalid
+`archive_status` correctly rejected.
+
+A real end-to-end archive ran against staging
+(`npx vitest run --config vitest.integration.config.ts`), and the bytes landed in our
+bucket:
+
+| kind | stored | type |
+|---|---|---|
+| `youtube` | 0.17 MB | `video/mp4` |
+| `instagram` | 0.23 MB | `image/jpeg` (a still post, so `displayUrl` — the correct fallback) |
+| `link` | — | `skipped`, as designed |
+
+**Environment trap found while doing it.** `.env.local` and `.env` pointed at *different*
+Supabase projects, and the two runtimes disagree about which wins:
+
+* **Next.js** — `.env.local` overrides `.env`, so the app used the dev project.
+* **Trigger.dev** — `trigger.config.ts` loads `.env` first and `process.loadEnvFile`
+  never overwrites an already-set key, so tasks used staging.
+
+The result would be a clip written to one database and an archive task looking for it in
+another, failing with `item not found` and no hint why. The worktree's `.env.local` is
+renamed to `.env.local.disabled-points-at-dev` so both runtimes resolve to staging.
+Anyone reproducing this setup must do the same, or point both files at one project.
+
 ## 16. Out of scope for v1
 
 - **TikTok media** — no chosen provider, and not what the team clips most.
 - **Pinterest video pins** — still pins only.
+- **Reclassifying existing rows.** `classifyUrl` runs at insert time, so every pin
+  clipped before D260 stays `kind = 'link'` and archives as `skipped` forever. New
+  clips are correct. A one-off script that re-runs `classifyUrl` over existing
+  `image_url`s and updates `kind` would fix them, and is worth doing — but it rewrites
+  historical rows, which deserves its own decision rather than riding along here.
 - **Canvas hand-off.** Owning the bytes satisfies "available for later AI processing".
   Exposing an archived reel as a File node or a generation input is a separate feature.
 - **Transcoding / thumbnail regeneration from the archived video.** Tempting (the archive

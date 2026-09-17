@@ -11,9 +11,11 @@ vi.mock("@/lib/storage", () => ({
 vi.mock("./thumbnail", () => ({
   resolveThumbnailSource: vi.fn(),
 }));
+vi.mock("@trigger.dev/sdk", () => ({ tasks: { trigger: vi.fn() } }));
 
 import { addItem, updateItemThumbnail } from "@/lib/db/moodboards";
 import { uploadMarketThumbnail } from "@/lib/storage";
+import { tasks } from "@trigger.dev/sdk";
 import { resolveThumbnailSource } from "./thumbnail";
 import { ingestReference } from "./ingest";
 
@@ -28,6 +30,14 @@ const baseItem = {
   thumbnail_url: null,
   position: 0,
   added_at: "now",
+  media_url: null,
+  media_bytes: null,
+  media_type: null,
+  archive_status: "pending" as const,
+  archive_error: null,
+  archive_attempts: 0,
+  archive_started_at: null,
+  archived_at: null,
 };
 
 function mockThumbFetch(bytes: number, contentType = "image/jpeg") {
@@ -115,5 +125,46 @@ describe("ingestReference", () => {
     });
     expect(vi.mocked(uploadMarketThumbnail)).not.toHaveBeenCalled();
     expect(item.thumbnail_url).toBeNull();
+  });
+
+  describe("archive enqueue (D257)", () => {
+    it("queues the archive task with the new item's id", async () => {
+      vi.mocked(addItem).mockResolvedValue({ ...baseItem });
+      vi.mocked(resolveThumbnailSource).mockResolvedValue(null);
+
+      await ingestReference({ boardId: "b-1", clientId: "c-1", url: "https://youtu.be/abc" });
+
+      expect(vi.mocked(tasks.trigger)).toHaveBeenCalledWith("archive-reference", {
+        itemId: "item-1",
+        clientId: "c-1",
+      });
+    });
+
+    // D185's contract extends to the enqueue: a clip must not fail because the task
+    // system is unreachable. The nightly sweep re-queues anything still `pending`.
+    it("returns the item even when the enqueue throws", async () => {
+      vi.mocked(addItem).mockResolvedValue({ ...baseItem });
+      vi.mocked(resolveThumbnailSource).mockResolvedValue(null);
+      vi.mocked(tasks.trigger).mockRejectedValue(new Error("trigger unreachable"));
+
+      const item = await ingestReference({
+        boardId: "b-1",
+        clientId: "c-1",
+        url: "https://youtu.be/abc",
+      });
+
+      expect(item.id).toBe("item-1");
+    });
+
+    // The enqueue must not be skipped just because the preview failed — a degraded
+    // tile is exactly the row that most needs the archive to run.
+    it("queues the archive even for a degraded tile", async () => {
+      vi.mocked(addItem).mockResolvedValue({ ...baseItem, kind: "link" as const });
+      vi.mocked(resolveThumbnailSource).mockResolvedValue(null);
+
+      await ingestReference({ boardId: "b-1", clientId: "c-1", url: "https://example.com/x" });
+
+      expect(vi.mocked(tasks.trigger)).toHaveBeenCalledOnce();
+    });
   });
 });
