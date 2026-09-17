@@ -4800,3 +4800,169 @@ can be attached).
 **Refines.** D204.
 
 **Originated →** `2026-08-31-signal-flavoured-scripts-design.md`.
+
+### D257 — Media archiving is a background Trigger.dev task *(recorded 2026-09-11; builds on D185)*
+
+**Decision.** The real media behind a Market / moodboard reference (the reel's mp4, the
+pin's original) is downloaded and stored by a background task, `archive-reference`,
+enqueued from inside `ingestReference`. The capture path keeps its D185 contract exactly —
+classify, save the row, best-effort thumbnail, return — plus one enqueue that is wrapped in
+try/catch and logged, never thrown. The task writes straight to Supabase and GCS and calls
+no webhook.
+
+**Why.** A moodboard item stored a URL, not a thing: playback was a live cross-origin
+iframe and the media was never ours, so a deleted post left nothing behind and nothing to
+feed a later AI pipeline. The binding constraint on doing it in the request is function
+*duration*, not body size. Enqueuing from the one ingest funnel means Market and the
+extension both inherit it and cannot drift. No webhook is simpler *and* testable from a dev
+machine, where callback-based tasks never complete.
+
+**Rejected.** Archiving inline in the POST (stalls the capture pill, risks the serverless
+duration ceiling); enqueuing from the two routes instead of the shared funnel.
+
+**Refines.** D185 (its "best-effort, never fail the capture" spirit extends to the enqueue).
+
+**Originated →** `2026-09-11-market-media-archive-design.md` §5–§6.
+
+### D258 — Archive state lives on `moodboard_items` *(recorded 2026-09-11)*
+
+**Decision.** Migration `0039` adds `media_url`, `media_bytes`, `media_type`,
+`archive_status` (`pending | downloading | ready | failed | skipped`, `text` + CHECK),
+`archive_error`, `archive_attempts`, `archive_started_at` and `archived_at` to
+`moodboard_items`, plus a partial index over the three non-terminal statuses for the
+sweep. Existing rows default to `pending`.
+
+**Why.** One item has at most one archive and the lifecycle is five states long, so a
+second table buys nothing. Two timestamps because one cannot answer both "when did this
+begin" (stuck detection) and "when did this finish". `text` + CHECK matches the `kind`
+column beside it and, unlike a comment-only status, is actually enforced.
+
+**Rejected.** A separate jobs table; reusing `generations` (its `node_id` is `NOT NULL` and
+a market item is not a node); a Postgres enum.
+
+**Originated →** `2026-09-11-market-media-archive-design.md` §4.
+
+### D259 — Playback is archive-first, with no embed fallback *(recorded 2026-09-11)*
+
+**Decision.** When `archive_status = 'ready'` the lightbox plays `media_url` through a
+native `<video>` (or the image zoom for stills). Otherwise it shows the thumbnail, a
+still-downloading state and an *Open source* link. Archivable kinds never fall back to the
+platform embed. `embedUrlFor` survives only because `tiktok` and `link` are never archived
+and the iframe is their sole player.
+
+**Why.** A cross-origin iframe never reports that it went blank, so "fall back when the
+embed fails" is not implementable — keeping embeds would mean shipping a durability claim
+we cannot verify. Losing Instagram's caption/likes chrome in the lightbox is the accepted
+cost.
+
+**Rejected.** Embed-first with an archive fallback; archive-first with an embed fallback.
+
+**Originated →** `2026-09-11-market-media-archive-design.md` §9.
+
+### D260 — `pinterest` is a first-class `ReferenceKind` *(recorded 2026-09-11)*
+
+**Decision.** `REFERENCE_KINDS` gains `pinterest`; `classifyUrl` matches the host **by
+suffix** plus `/pin/<id>`; `KindBadge` gets an icon; the `kind` CHECK is replaced to admit
+it. Still pins only — video pins are out of scope.
+
+**Why.** The extension already clipped pins correctly, so capture was a step ahead of
+storage and pins were landing as `link`, which the resolver cannot archive. Suffix matching
+is load-bearing: real clipped pins use the regional host `in.pinterest.com`, which an
+equality check silently misses.
+
+**Rejected.** Leaving pins as `link`. **Known gap, deliberately not closed here:** rows
+clipped before this decision stay `kind = 'link'` and archive as `skipped` forever;
+reclassifying historical rows needs its own decision.
+
+**Originated →** `2026-09-11-market-media-archive-design.md` §8, §16.
+
+### D261 — One per-kind media ladder, free rungs before paid ones *(recorded 2026-09-11)*
+
+**Decision.** `resolveMediaSource` in `src/lib/market/media.ts` is a single laddered
+function. `image`/`gif`/`video` use the URL itself; `pinterest` uses og:image and probes
+`/736x/` → `/originals/` across `jpg`, `png`, `webp`, falling back to the sized URL;
+`instagram` calls `apify/instagram-scraper` on the single permalink (`videoUrl`, else
+`displayUrl`); `youtube` calls `streamers/youtube-video-downloader` (`downloadedFileUrl`).
+`tiktok` and `link` resolve to nothing and are marked `skipped`. A size ceiling makes an
+oversized response a `failed` with a reason rather than an OOM.
+
+**Why.** Half the kinds need no provider at all, and the Pinterest probe is a 7–10×
+resolution gain for three free requests. Every field name was verified against live
+endpoints first (spec §1) — including that an Apify row carrying an `error` key is a
+failure, not an empty dataset, and that a `Range` header breaks Instagram downloads.
+
+**Rejected.** A provider call for every kind; rewriting the Pinterest URL instead of
+probing (the original's extension is unpredictable and the wrong one returns 403).
+
+**Originated →** `2026-09-11-market-media-archive-design.md` §1, §7.
+
+### D262 — No realtime and no polling in Market *(recorded 2026-09-11)*
+
+**Decision.** Archive state reaches the UI only on the board refetch that `useMarket`
+already performs after every `addReference`. The tile chip is derived from that snapshot:
+`downloading` and freshly clipped `pending` rows read "Syncing", `failed` reads
+"Retrying", `ready`/`skipped` and backlog `pending` rows show nothing.
+
+**Why.** A team that keeps collecting keeps refreshing, so the behaviour being optimised
+for is also the refresh mechanism. Realtime is not a hook here: `moodboard_items` is
+outside the `supabase_realtime` publication and has zero RLS policies by design
+(default-deny, service-role only), and it is two hops from an org — so realtime would mean
+writing the first-ever RLS policy for the market tables, a security change. Recency gates
+the `pending` chip because `0039` defaults the whole existing shelf to `pending`, and a
+blanket chip would badge hundreds of tiles with activity that will not start until the
+sweep reaches them.
+
+**Rejected.** Supabase Realtime; interval polling; a chip on every `pending` row.
+
+**Originated →** `2026-09-11-market-media-archive-design.md` §11.
+
+### D263 — We move the bytes ourselves; the provider's direct-to-GCS option is declined *(recorded 2026-09-11)*
+
+**Decision.** The archive task downloads from the provider's (usually expiring) URL and
+uploads through `uploadMarketMedia()` to `clients/<clientId>/market/media/<itemId>.<ext>`.
+The YouTube actor's `googleCloudServiceKey` / `googleCloudBucketName` inputs are not used.
+
+**Why.** Taking the option would hand a third party write credentials to the bucket that
+holds every client asset, and the object would bypass `paths.ts` naming and
+`ownership.ts`. Instagram needs a download loop regardless, so it would also mean two
+archival mechanisms with two failure modes for one feature. The deterministic,
+`itemId`-keyed path makes a re-run overwrite rather than accumulate.
+
+**Rejected.** Provider-side direct upload to our bucket.
+
+**Originated →** `2026-09-11-market-media-archive-design.md` §6–§7.
+
+### D264 — One nightly sweep is backfill, retry and stuck recovery *(recorded 2026-09-11)*
+
+**Decision.** `trigger/archive-sweep.ts`, a `schedules.task`, re-queues rows that are
+`pending` or `failed` with attempts under `MAX_ARCHIVE_ATTEMPTS`, and first moves any row
+left `downloading` past `STUCK_ARCHIVE_MINUTES` to `failed` ("abandoned mid-download") so
+the retry branch can pick it up. Per-row try/catch, as the handle sweep does.
+
+**Why.** Because existing rows default to `pending`, the first sweep *is* the backfill —
+no migration script. The same pass gives transient provider failures the retry the
+thumbnail ladder never had, and heals a dropped `tasks.trigger` enqueue (which D257 only
+logs). `reconcile-stuck-generations` cannot cover stuck archives: it keys off a
+credit-ledger view and an archive reserves no credits.
+
+**Rejected.** A one-off backfill script plus a separate retry mechanism; a dedicated
+stuck-archive reconciler.
+
+**Originated →** `2026-09-11-market-media-archive-design.md` §10.
+
+### D265 — The archive task also backfills a missing thumbnail *(recorded 2026-09-11; spike-confirmed)*
+
+**Decision.** When `thumbnail_url IS NULL` and the resolver's payload carried a still
+(`displayUrl` for Instagram, the 736x og:image for Pinterest, the derived `i.ytimg.com`
+URL for YouTube), the archive task re-hosts it and fills the column.
+
+**Why.** The capture-time thumbnail ladder has no retry, so a clip that missed its
+thumbnail wore a favicon card permanently — measured at 62 of 62 Instagram items on the
+dev project and 9 of 88 on staging. The provider call that fetches the video already
+carries the cover frame, so the repair costs one extra upload on a call already being made.
+
+**Rejected.** Treating broken thumbnails as a separate fix with its own retry path.
+
+**Refines.** D185 (the thumbnail stays best-effort at capture; this is its only retry).
+
+**Originated →** `2026-09-11-market-media-archive-design.md` §1.0, §6.
