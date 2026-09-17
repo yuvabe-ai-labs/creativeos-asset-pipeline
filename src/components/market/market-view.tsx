@@ -14,7 +14,8 @@ import {
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useMarket } from "@/hooks/use-market";
 import type { MoodboardItem } from "@/lib/db/moodboards";
-import type { MarketBucket } from "@/lib/market/constants";
+import { MARKET_MASONRY, type MarketBucket } from "@/lib/market/constants";
+import { MarketGridSkeleton } from "@/components/skeletons/market-grid-skeleton";
 import { AddReferenceTile } from "./add-reference-tile";
 import { AddReferenceDialog } from "./add-reference-dialog";
 import { ReferenceTile } from "./reference-tile";
@@ -32,10 +33,6 @@ type PendingDelete =
   | { kind: "reference"; item: MoodboardItem }
   | { kind: "signal"; id: string; name: string };
 
-// CSS-columns masonry: children keep intrinsic height and flow into balanced columns,
-// so tiles stagger naturally AND non-image children (the dashed add tile) can sit in
-// the same grid — which a photo-album masonry, needing measured dimensions, cannot do.
-const MASONRY = "columns-2 gap-3 md:columns-3 lg:columns-4 [&>*]:mb-3 [&>*]:break-inside-avoid";
 
 export function MarketView({
   clientId,
@@ -127,9 +124,11 @@ export function MarketView({
                 : "Interesting creative outside the category, worth learning from."}
             </p>
             {market.loading ? (
-              <p className="py-10 text-center text-sm text-muted-foreground">Loading…</p>
+              <MarketGridSkeleton />
             ) : (
-              <div className={MASONRY}>
+              <div className={MARKET_MASONRY}>
+                {/* CSS-columns masonry: children keep intrinsic height and flow into
+                    balanced columns, so the dashed add tile can sit in the same grid. */}
                 <AddReferenceTile
                   label={`Add ${bucket === "direct" ? "Direct" : "Adjacent"} reference`}
                   onClick={() => setAddBucket(bucket)}
