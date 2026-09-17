@@ -9,7 +9,7 @@ import { InstagramEmbed } from "./instagram-embed";
 
 /** Plays a market reference.
  *
- *  ARCHIVE-FIRST (D259): once the archive task has fetched the bytes, every kind plays
+ *  ARCHIVE-FIRST (D266): once the archive task has fetched the bytes, every kind plays
  *  from OUR copy — a plain <video>, or the shared zoom viewer for a still. There is
  *  deliberately NO embed fallback for an archived item: a cross-origin iframe never
  *  reports that it went blank, so "fall back when the embed fails" is not something

@@ -1,4 +1,4 @@
-// The one archive path (D257), used by both the per-clip task and the nightly sweep.
+// The one archive path (D264), used by both the per-clip task and the nightly sweep.
 //
 // It mirrors snapshotHandle's contract rather than ingestReference's: state ALWAYS
 // moves, and a provider failure is recorded rather than thrown, because the caller is
@@ -78,7 +78,7 @@ export async function archiveItem(
       mediaType: contentType,
     });
 
-    // D265 — the payload that carried the media also carried the cover still, and the
+    // D272 — the payload that carried the media also carried the cover still, and the
     // capture-time ladder has no retry to fix the items it already failed on. This is
     // the only route by which those rows ever get a picture.
     if (!item.thumbnail_url && source.thumbnailUrl) {

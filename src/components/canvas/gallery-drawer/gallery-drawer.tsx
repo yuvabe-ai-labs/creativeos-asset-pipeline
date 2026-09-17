@@ -565,7 +565,7 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
               position: 0,
               added_at: "",
               // Threaded through so the drawer's player is archive-first on the same
-              // terms as the Market page (D259) — without these it would always fall
+              // terms as the Market page (D266) — without these it would always fall
               // back to a platform embed even when we own the file.
               media_url: previewImage.archivedUrl ?? null,
               media_bytes: null,

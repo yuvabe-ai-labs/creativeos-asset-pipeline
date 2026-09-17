@@ -127,7 +127,7 @@ describe("ingestReference", () => {
     expect(item.thumbnail_url).toBeNull();
   });
 
-  describe("archive enqueue (D257)", () => {
+  describe("archive enqueue (D264)", () => {
     it("queues the archive task with the new item's id", async () => {
       vi.mocked(addItem).mockResolvedValue({ ...baseItem });
       vi.mocked(resolveThumbnailSource).mockResolvedValue(null);

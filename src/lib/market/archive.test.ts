@@ -179,7 +179,7 @@ describe("archiveItem", () => {
     expect(out).toEqual({ ok: false, reason: "item not found" });
   });
 
-  describe("thumbnail backfill (D265)", () => {
+  describe("thumbnail backfill (D272)", () => {
     it("fills a null thumbnail from the same payload", async () => {
       vi.mocked(getItem).mockResolvedValue(
         row({ kind: "instagram", thumbnail_url: null }) as never,

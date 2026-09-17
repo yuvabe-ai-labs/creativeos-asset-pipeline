@@ -1,7 +1,7 @@
 # Design: Market media archive — owning the bytes
 
 **Date:** 2026-09-11
-**Status:** Proposed; provider feasibility CONFIRMED by live spikes (§1, 2026-09-11). Decisions to be recorded as **D257–D265** in the ADR log
+**Status:** Proposed; provider feasibility CONFIRMED by live spikes (§1, 2026-09-11). Decisions to be recorded as **D264–D272** in the ADR log
 (`2026-05-30-creativeos-staging-roadmap.md` §7).
 **Extends:** Market Signals V1 (`2026-08-27-market-signals-v1-design.md`, D184–D190) and
 Handle Performance (`2026-09-03-handle-performance-design.md`, D235–D238, D252–D253).
@@ -56,7 +56,7 @@ On **staging** (`noxqniccdbdegvvgowki`), 120 items, measured after the migration
 
 So the Instagram ladder is **catastrophically** broken on dev and **intermittently**
 broken on staging — 9 of 88, roughly one clip in ten, silently permanent. That is still
-a real defect with no retry path, and D265 still earns its place; it is simply a
+a real defect with no retry path, and D272 still earns its place; it is simply a
 one-in-ten repair on staging rather than a total one. The dev figure is likely what a
 run of clips looks like when Meta is actively refusing, which is the failure mode the
 ladder cannot survive and the archive can.
@@ -184,7 +184,7 @@ alter table moodboard_items
   add  constraint moodboard_items_archive_status_check
   check (archive_status in ('pending','downloading','ready','failed','skipped'));
 
--- Pinterest becomes a first-class kind (D260). The 0034 CHECK was created inline,
+-- Pinterest becomes a first-class kind (D267). The 0034 CHECK was created inline,
 -- so Postgres auto-named it moodboard_items_kind_check.
 alter table moodboard_items drop constraint if exists moodboard_items_kind_check;
 alter table moodboard_items
@@ -408,7 +408,7 @@ Following `src/lib/market/{ingest,snapshot}.test.ts`: mock `@/lib/storage`, inje
   `tiktok`/`link` return null; oversized responses reject.
 - `archive.test.ts` — happy path writes `media_url` + `ready`; a throw writes `failed` +
   `archive_error` and increments attempts; an already-`ready` row is a no-op; **a row with
-  a null `thumbnail_url` also gets one written** (D265).
+  a null `thumbnail_url` also gets one written** (D272).
 - `ingest.test.ts` — **regression: a thrown enqueue must not fail the ingest**, and the
   row must still be returned.
 - Manual end-to-end on staging: clip a reel, confirm 201 returns without waiting, confirm
@@ -419,15 +419,15 @@ Following `src/lib/market/{ingest,snapshot}.test.ts`: mock `@/lib/storage`, inje
 
 | # | Decision | Rejected |
 |---|---|---|
-| **D257** | Media archiving is a background Trigger.dev task; the capture path keeps its current shape, speed and D185 contract. | Archiving inline in the POST (stalls the pill, risks the serverless duration ceiling). |
-| **D258** | Archive state lives on `moodboard_items` as `media_url` + `archive_status` + error/attempt columns. | A separate jobs table; reusing `generations` (node-scoped, unusable). |
-| **D259** | Playback is archive-first with **no embed fallback**. | Embed-first with fallback — undetectable, since a cross-origin iframe reports no error. |
-| **D260** | `pinterest` becomes a first-class `ReferenceKind`. | Leaving pins as `link`, which the extension already contradicts. |
-| **D261** | One per-kind media ladder; free rungs (image/gif/video/pinterest) before paid ones; `tiktok`/`link` are `skipped`. | A provider call for every kind. |
-| **D262** | No realtime and no polling in Market; state appears on the refetch that collecting already triggers. | Supabase Realtime — needs the first-ever RLS policy on `moodboard_items` plus a publication change. |
-| **D263** | We download and upload the bytes ourselves; the provider's direct-to-GCS option is declined. | Giving Apify write credentials to the client-asset bucket and bypassing `paths.ts`/`ownership.ts`. |
-| **D264** | One nightly sweep serves as backfill, retry and enqueue-loss recovery. | A one-off backfill script plus a separate retry mechanism. |
-| **D265** | The archive task also backfills `thumbnail_url` when it is null, from the still already present in the resolver's payload. | Treating the 0/62 broken Instagram thumbnails (§1.0) as a separate fix — the provider call that gets the video already carries the cover frame. |
+| **D264** | Media archiving is a background Trigger.dev task; the capture path keeps its current shape, speed and D185 contract. | Archiving inline in the POST (stalls the pill, risks the serverless duration ceiling). |
+| **D265** | Archive state lives on `moodboard_items` as `media_url` + `archive_status` + error/attempt columns. | A separate jobs table; reusing `generations` (node-scoped, unusable). |
+| **D266** | Playback is archive-first with **no embed fallback**. | Embed-first with fallback — undetectable, since a cross-origin iframe reports no error. |
+| **D267** | `pinterest` becomes a first-class `ReferenceKind`. | Leaving pins as `link`, which the extension already contradicts. |
+| **D268** | One per-kind media ladder; free rungs (image/gif/video/pinterest) before paid ones; `tiktok`/`link` are `skipped`. | A provider call for every kind. |
+| **D269** | No realtime and no polling in Market; state appears on the refetch that collecting already triggers. | Supabase Realtime — needs the first-ever RLS policy on `moodboard_items` plus a publication change. |
+| **D270** | We download and upload the bytes ourselves; the provider's direct-to-GCS option is declined. | Giving Apify write credentials to the client-asset bucket and bypassing `paths.ts`/`ownership.ts`. |
+| **D271** | One nightly sweep serves as backfill, retry and enqueue-loss recovery. | A one-off backfill script plus a separate retry mechanism. |
+| **D272** | The archive task also backfills `thumbnail_url` when it is null, from the still already present in the resolver's payload. | Treating the 0/62 broken Instagram thumbnails (§1.0) as a separate fix — the provider call that gets the video already carries the cover frame. |
 
 ## 15.1 Verified on staging, 2026-09-15
 
@@ -463,7 +463,7 @@ Anyone reproducing this setup must do the same, or point both files at one proje
 - **TikTok media** — no chosen provider, and not what the team clips most.
 - **Pinterest video pins** — still pins only.
 - **Reclassifying existing rows.** `classifyUrl` runs at insert time, so every pin
-  clipped before D260 stays `kind = 'link'` and archives as `skipped` forever. New
+  clipped before D267 stays `kind = 'link'` and archives as `skipped` forever. New
   clips are correct. A one-off script that re-runs `classifyUrl` over existing
   `image_url`s and updates `kind` would fix them, and is worth doing — but it rewrites
   historical rows, which deserves its own decision rather than riding along here.

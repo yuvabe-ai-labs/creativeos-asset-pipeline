@@ -1,9 +1,9 @@
 // trigger/archive-sweep.ts
-// One scheduled task doing three jobs at once (D264), which is why it earns its keep:
+// One scheduled task doing three jobs at once (D271), which is why it earns its keep:
 //
 //   1. BACKFILL — every pre-existing row defaults to `pending`, so the first run picks
 //      up the entire existing corpus with no separate migration script. On the current
-//      shelf that is ~111 items, 62 of which have no thumbnail either (D265).
+//      shelf that is ~111 items, 62 of which have no thumbnail either (D272).
 //   2. RETRY    — a transient provider failure gets another pass, up to
 //      MAX_ARCHIVE_ATTEMPTS. This is the capability the capture-time ladder has never
 //      had, and the reason those 62 favicon tiles are permanent today.

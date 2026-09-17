@@ -1,4 +1,4 @@
-// End-to-end check for the market media archive (D257-D265), against REAL services.
+// End-to-end check for the market media archive (D264-D272), against REAL services.
 //
 // Unit tests prove our logic; this proves the ENVIRONMENT — that the staging Apify
 // token works for the per-post call, that the staging GCS credentials can write to
@@ -83,7 +83,7 @@ describe("archive end-to-end", () => {
       expect(after?.media_bytes).toBeGreaterThan(0);
       console.log(`  -> ${((after!.media_bytes ?? 0) / 1024 / 1024).toFixed(2)} MB, ${after?.media_type}`);
 
-      // D265 — an item that had no preview should now have one.
+      // D272 — an item that had no preview should now have one.
       if (!item.thumbnail_url && after?.thumbnail_url) {
         console.log(`  -> thumbnail repaired: ${after.thumbnail_url}`);
       }

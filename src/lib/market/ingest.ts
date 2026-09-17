@@ -2,7 +2,7 @@
 // extension POST). Contract (D185): the reference row ALWAYS saves; thumbnails are
 // best-effort decoration. Only a DB failure propagates.
 //
-// The archive enqueue (D257) inherits that contract. It is fired from HERE rather than
+// The archive enqueue (D264) inherits that contract. It is fired from HERE rather than
 // from the two routes so both surfaces get it from one place and it cannot drift
 // between them — and a failure to enqueue is logged, not thrown, because the nightly
 // sweep re-queues anything still `pending`.
@@ -95,7 +95,7 @@ async function rehostThumbnail(
  * Hand the slow work to the background and return. Fire-and-forget: D185 says the row
  * always saves, and that contract extends here — a clip must not fail because the
  * task system is unreachable. A dropped enqueue is recovered by the nightly sweep,
- * which re-queues anything still `pending` (D264), so this is logged, never thrown.
+ * which re-queues anything still `pending` (D271), so this is logged, never thrown.
  */
 async function enqueueArchive(itemId: string, clientId: string): Promise<void> {
   try {

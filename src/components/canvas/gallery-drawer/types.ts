@@ -22,7 +22,7 @@ export type GalleryImage = {
   note?: string;
   /** The original reference URL (image_url) — what the lightbox plays. */
   mediaUrl?: string;
-  /** Our re-hosted copy of the media, once the archive task has fetched it (D257).
+  /** Our re-hosted copy of the media, once the archive task has fetched it (D264).
    *  Carried separately from `mediaUrl` so the drawer's lightbox can be archive-first
    *  on the same terms as the Market page, rather than always falling back to embeds. */
   archivedUrl?: string;

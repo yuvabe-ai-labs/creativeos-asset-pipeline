@@ -1,4 +1,4 @@
-// Provider-contract spike for the YouTube rung of the market media archive (D257-D261).
+// Provider-contract spike for the YouTube rung of the market media archive (D264-D268).
 //
 // The design spec cannot specify this resolver, because the actor's page documents its
 // INPUT but not its OUTPUT. Three unknowns, all of which block coding:

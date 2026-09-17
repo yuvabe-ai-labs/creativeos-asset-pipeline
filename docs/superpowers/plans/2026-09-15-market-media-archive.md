@@ -8,7 +8,7 @@
 
 **Tech Stack:** Next.js (App Router), TypeScript, Supabase (`@supabase/supabase-js`), Google Cloud Storage (`@google-cloud/storage`), Trigger.dev v3 SDK, Vitest, Tailwind v4 + shadcn (Base UI registry).
 
-**Spec:** `docs/superpowers/specs/2026-09-11-market-media-archive-design.md` (decisions **D257–D265**)
+**Spec:** `docs/superpowers/specs/2026-09-11-market-media-archive-design.md` (decisions **D264–D272**)
 
 ## Global Constraints
 
@@ -47,7 +47,7 @@
 
 ```sql
 -- 0039_market_media_archive.sql
--- Market media archive (D257-D265). Clips currently store a permalink plus one
+-- Market media archive (D264-D272). Clips currently store a permalink plus one
 -- re-hosted JPEG; these columns hold the real media and the state of getting it.
 
 alter table moodboard_items
@@ -66,7 +66,7 @@ alter table moodboard_items
   add  constraint moodboard_items_archive_status_check
   check (archive_status in ('pending','downloading','ready','failed','skipped'));
 
--- Pinterest becomes a first-class kind (D260). The 0034 CHECK was created inline,
+-- Pinterest becomes a first-class kind (D267). The 0034 CHECK was created inline,
 -- so Postgres auto-named it moodboard_items_kind_check.
 alter table moodboard_items drop constraint if exists moodboard_items_kind_check;
 alter table moodboard_items
@@ -172,7 +172,7 @@ Append these functions:
 
 ```ts
 /** Take ownership of a row before the slow work. `archive_started_at` is what lets
- *  the sweep find rows a crashed task abandoned mid-download (D264). */
+ *  the sweep find rows a crashed task abandoned mid-download (D271). */
 export async function claimArchive(itemId: string): Promise<void> {
   const supabase = createServerSupabase();
   const { error } = await supabase
@@ -268,7 +268,7 @@ Expected: every existing row reports `pending` — which is what makes the sweep
 
 ```bash
 git add supabase/migrations/0039_market_media_archive.sql src/lib/db/moodboards.ts src/lib/db/moodboards.archive.test.ts
-git commit -m "feat(market): archive columns and state transitions (D258)"
+git commit -m "feat(market): archive columns and state transitions (D265)"
 ```
 
 ---
@@ -363,7 +363,7 @@ Expected: PASS
 
 ```bash
 git add src/lib/market/constants.ts src/lib/market/classify.ts src/lib/market/classify.test.ts src/components/market/kind-badge.tsx
-git commit -m "feat(market): pinterest becomes a first-class ReferenceKind (D260)"
+git commit -m "feat(market): pinterest becomes a first-class ReferenceKind (D267)"
 ```
 
 ---
@@ -415,7 +415,7 @@ Expected: FAIL — `pathForMarketMedia is not a function`.
 In `src/lib/storage/paths.ts`, beneath `pathForMarketThumb`:
 
 ```ts
-/** The archived media for a market reference (D257). Deterministic per item for the
+/** The archived media for a market reference (D264). Deterministic per item for the
  *  same reason as pathForMarketThumb: a re-archive overwrites rather than orphaning. */
 export function pathForMarketMedia(args: {
   clientId: string;
@@ -444,7 +444,7 @@ export function extForContentType(contentType: string): string {
 }
 
 /** Re-hosted MEDIA for a market reference — the video or full-resolution still itself,
- *  not the preview. Sibling of uploadMarketThumbnail (D257). */
+ *  not the preview. Sibling of uploadMarketThumbnail (D264). */
 export async function uploadMarketMedia(args: {
   clientId: string;
   itemId: string;
@@ -566,7 +566,7 @@ Expected: FAIL — cannot find module `./media`.
 ```ts
 // src/lib/market/media.ts
 // Where the archived BYTES come from, per kind — the media counterpart to
-// resolveThumbnailSource (D261). Laddered cheapest-first: two kinds need no network
+// resolveThumbnailSource (D268). Laddered cheapest-first: two kinds need no network
 // call at all and one needs no provider, so only Instagram and YouTube ever cost money.
 //
 // Every field name here was verified against a live provider run on 2026-09-11
@@ -623,7 +623,7 @@ export async function resolveMediaSource(
     return { url: await pinterestOriginal(og, fetchImpl) };
   }
 
-  // An article or a TikTok has no media file of ours to own (D261).
+  // An article or a TikTok has no media file of ours to own (D268).
   return null;
 }
 ```
@@ -639,7 +639,7 @@ Expected: PASS (7 tests)
 
 ```bash
 git add src/lib/market/media.ts src/lib/market/media.test.ts src/lib/market/thumbnail.ts
-git commit -m "feat(market): free media resolver rungs incl. pinterest originals (D261)"
+git commit -m "feat(market): free media resolver rungs incl. pinterest originals (D268)"
 ```
 
 ---
@@ -959,7 +959,7 @@ describe("archiveItem", () => {
     expect(vi.mocked(uploadMarketMedia)).not.toHaveBeenCalled();
   });
 
-  // D265: the provider call that yields the video also yields the cover still, and
+  // D272: the provider call that yields the video also yields the cover still, and
   // 0 of 62 Instagram items on the shelf have a thumbnail today.
   it("backfills a null thumbnail from the same payload", async () => {
     vi.mocked(getItem).mockResolvedValue(
@@ -1011,7 +1011,7 @@ Then:
 
 ```ts
 // src/lib/market/archive.ts
-// The one archive path (D257). Mirrors snapshotHandle's contract: state always moves,
+// The one archive path (D264). Mirrors snapshotHandle's contract: state always moves,
 // and a provider failure is recorded rather than thrown, so the sweep can retry it.
 import "server-only";
 import {
@@ -1076,7 +1076,7 @@ export async function archiveItem(
       mediaType: contentType,
     });
 
-    // D265 — the payload that carried the video also carried the cover still, and
+    // D272 — the payload that carried the video also carried the cover still, and
     // the capture ladder has no retry to fix the items it already failed.
     if (!item.thumbnail_url && source.thumbnailUrl) {
       await backfillThumbnail(itemId, clientId, source.thumbnailUrl, fetchImpl);
@@ -1121,7 +1121,7 @@ Expected: PASS (7 tests)
 
 ```bash
 git add src/lib/market/archive.ts src/lib/market/archive.test.ts src/lib/market/media.ts src/lib/market/media.test.ts
-git commit -m "feat(market): archive core with thumbnail backfill (D257, D265)"
+git commit -m "feat(market): archive core with thumbnail backfill (D264, D272)"
 ```
 
 ---
@@ -1179,7 +1179,7 @@ Expected: FAIL — `tasks.trigger` never called.
 
 ```ts
 // trigger/archive-reference.ts
-// Downloads the real media for one market reference and re-hosts it to GCS (D257).
+// Downloads the real media for one market reference and re-hosts it to GCS (D264).
 //
 // Every @/lib import is dynamic — those modules carry `import "server-only"`, a
 // Next.js sentinel Trigger.dev's separate build must not evaluate statically (see
@@ -1228,7 +1228,7 @@ Expected: PASS (all existing tests still green plus the two new ones)
 
 ```bash
 git add trigger/archive-reference.ts src/lib/market/ingest.ts src/lib/market/ingest.test.ts
-git commit -m "feat(trigger): archive-reference task, enqueued from ingest (D257)"
+git commit -m "feat(trigger): archive-reference task, enqueued from ingest (D264)"
 ```
 
 ---
@@ -1248,7 +1248,7 @@ git commit -m "feat(trigger): archive-reference task, enqueued from ingest (D257
 
 ```ts
 // src/lib/market/constants.ts
-/** Give up on an item after this many archive attempts (D264). */
+/** Give up on an item after this many archive attempts (D271). */
 export const MAX_ARCHIVE_ATTEMPTS = 4;
 /** A row claimed but not finished within this window was abandoned by a crashed run. */
 export const STUCK_ARCHIVE_MINUTES = 30;
@@ -1302,7 +1302,7 @@ writing a local copy. If it is not exported, export it there.
 
 ```ts
 // trigger/archive-sweep.ts
-// One scheduled task doing three jobs at once (D264):
+// One scheduled task doing three jobs at once (D271):
 //   1. BACKFILL — every pre-existing row defaults to `pending`, so the first run picks
 //      up the entire existing corpus with no separate migration script.
 //   2. RETRY    — transient provider failures get another pass.
@@ -1356,7 +1356,7 @@ Expected: PASS (re-run the kling file alone if it times out — known cold-cache
 
 ```bash
 git add trigger/archive-sweep.ts src/lib/db/moodboards.ts src/lib/market/constants.ts src/lib/db/moodboards.archive.test.ts
-git commit -m "feat(trigger): archive sweep as backfill, retry and stuck recovery (D264)"
+git commit -m "feat(trigger): archive sweep as backfill, retry and stuck recovery (D271)"
 ```
 
 ---
@@ -1416,7 +1416,7 @@ In `src/components/market/reference-lightbox.tsx`, insert at the very top of the
 before the existing `kind === "image"` branch:
 
 ```tsx
-  // Archive-first (D259): when we own the bytes we play OUR copy, for every kind.
+  // Archive-first (D266): when we own the bytes we play OUR copy, for every kind.
   // There is deliberately no embed fallback — a cross-origin iframe never reports
   // that it went blank, so "fall back on failure" is not implementable.
   if (item.archive_status === "ready" && item.media_url) {
@@ -1462,7 +1462,7 @@ Expected: no errors.
 
 ```bash
 git add src/components/market/archive-chip.tsx src/components/market/reference-tile.tsx src/components/market/reference-lightbox.tsx
-git commit -m "feat(market): archive-first playback and tile archive state (D259)"
+git commit -m "feat(market): archive-first playback and tile archive state (D266)"
 ```
 
 ---
@@ -1513,9 +1513,9 @@ git commit -am "fix(market): delete archived media and thumbnail with the item"
 - [ ] **Step 2:** `npx trigger.dev@latest dev` in the worktree, so the two new tasks register.
 - [ ] **Step 3:** Clip a real Instagram reel from the Market page. Confirm the POST returns in roughly the time it does today — the enqueue must not add perceptible latency.
 - [ ] **Step 4:** Confirm the tile appears immediately with a "Saving media…" chip.
-- [ ] **Step 5:** Watch the Trigger dashboard for the `archive-reference` run. On completion, refetch the board (add another reference — that is the refresh mechanism, D262) and confirm the chip is gone.
+- [ ] **Step 5:** Watch the Trigger dashboard for the `archive-reference` run. On completion, refetch the board (add another reference — that is the refresh mechanism, D269) and confirm the chip is gone.
 - [ ] **Step 6:** Open the lightbox and confirm the `<video>` `src` is on `storage.googleapis.com`, not `instagram.com`.
-- [ ] **Step 7:** Confirm an Instagram item that previously had a favicon card now shows a real thumbnail (D265).
+- [ ] **Step 7:** Confirm an Instagram item that previously had a favicon card now shows a real thumbnail (D272).
 - [ ] **Step 8:** Run `npx vitest run` and `npm run lint` clean.
 
 ---

@@ -288,7 +288,7 @@ export async function uploadMarketThumbnail(args: {
 }
 
 /**
- * Re-hosted MEDIA for a market reference (D257) — the video or full-resolution still
+ * Re-hosted MEDIA for a market reference (D264) — the video or full-resolution still
  * itself, the sibling of uploadMarketThumbnail.
  *
  * Note this takes the bytes rather than signing an upload URL: they come from a

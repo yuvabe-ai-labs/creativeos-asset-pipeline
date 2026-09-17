@@ -2,7 +2,7 @@ import "server-only";
 import { createServerSupabase } from "@/lib/supabase/server";
 import type { ReferenceKind } from "@/lib/market/constants";
 
-/** Lifecycle of the media archive for one item (D258).
+/** Lifecycle of the media archive for one item (D265).
  *  `skipped` is terminal and not a failure — a link or a TikTok has no media of ours
  *  to own, so there is nothing to retry. */
 export const ARCHIVE_STATUSES = [
@@ -176,7 +176,7 @@ export async function ensureSystemBoards(
   return { direct, adjacent };
 }
 
-// ── Media archive (D257, D258) ────────────────────────────────────────────────
+// ── Media archive (D264, D265) ────────────────────────────────────────────────
 // Four transitions, each a single UPDATE. They live here rather than in the archive
 // module for the same reason every other query does: the archive module owns the
 // decision, this file owns the SQL.

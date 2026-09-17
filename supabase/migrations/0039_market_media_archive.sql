@@ -1,5 +1,5 @@
 -- 0039_market_media_archive.sql
--- Market media archive (D257-D265).
+-- Market media archive (D264-D272).
 --
 -- Clips currently store a permalink plus one re-hosted JPEG (D92, D185): the media
 -- itself has never been downloaded, so a board dies with the post and there are no
@@ -28,7 +28,7 @@ alter table moodboard_items
   add  constraint moodboard_items_archive_status_check
   check (archive_status in ('pending','downloading','ready','failed','skipped'));
 
--- Pinterest becomes a first-class kind (D260). The extension has clipped pins
+-- Pinterest becomes a first-class kind (D267). The extension has clipped pins
 -- correctly since v0.3.0 while the storage layer filed them as generic links.
 --
 -- The 0034 CHECK was created inline (`add column ... check (...)`), so Postgres
@@ -67,7 +67,7 @@ create index if not exists moodboard_items_archive_pending_idx
   where archive_status in ('pending','failed','downloading');
 
 -- Every pre-existing row now reads `pending`, which is what makes the nightly sweep a
--- backfill of the whole existing corpus with no separate migration script (D264).
+-- backfill of the whole existing corpus with no separate migration script (D271).
 
 -- ── Verify after running ──────────────────────────────────────────────────────
 -- Exactly ONE check constraint should mention tiktok, and it must include pinterest:

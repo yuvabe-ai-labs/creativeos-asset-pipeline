@@ -152,7 +152,7 @@ export function pathForMarketThumb(args: {
 
 /**
  * The archived MEDIA for a market reference — the video or full-resolution still
- * itself, not the preview (D257).
+ * itself, not the preview (D264).
  *
  * Deterministic per item for the same reason as pathForMarketThumb: the archive is
  * retried by the nightly sweep, and a path that varied per attempt would leave an

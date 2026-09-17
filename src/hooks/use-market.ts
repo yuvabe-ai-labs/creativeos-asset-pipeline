@@ -15,7 +15,7 @@ export type MarketData = {
 /**
  * Prints the archive backlog to the browser console on every board refetch.
  *
- * The archive is a background pipeline with no realtime channel (D262) — the board
+ * The archive is a background pipeline with no realtime channel (D269) — the board
  * refetches when you add something, and that is the only moment the UI learns
  * anything. Without this you cannot tell "the task ran and is working" from "nothing
  * is listening", because both leave the tile looking finished.

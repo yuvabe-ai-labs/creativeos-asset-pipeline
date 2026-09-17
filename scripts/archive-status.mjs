@@ -50,7 +50,7 @@ if (failed.length) {
   for (const r of failed.slice(0, 10)) console.log(`  ${r.kind.padEnd(10)} ${r.archive_error}`);
 }
 
-// D265: how many items still have no preview at all?
+// D272: how many items still have no preview at all?
 const noThumb = data.filter((r) => !r.thumbnail_url);
 const byKind = {};
 for (const r of noThumb) byKind[r.kind] = (byKind[r.kind] ?? 0) + 1;

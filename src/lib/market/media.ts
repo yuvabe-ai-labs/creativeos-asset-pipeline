@@ -1,5 +1,5 @@
 // Where the archived BYTES come from, per kind — the media counterpart to
-// resolveThumbnailSource (D261), and laddered on the same principle: cheapest and
+// resolveThumbnailSource (D268), and laddered on the same principle: cheapest and
 // most durable first.
 //
 //   1. the reference IS the media  — image/gif/video. No network call, no provider.
@@ -21,7 +21,7 @@ export type MediaSource = {
   /** The file to download and re-host. */
   url: string;
   contentType?: string;
-  /** A cover still from the SAME payload, used to repair a null thumbnail (D265). */
+  /** A cover still from the SAME payload, used to repair a null thumbnail (D272). */
   thumbnailUrl?: string;
 };
 
@@ -98,6 +98,6 @@ export async function resolveMediaSource(
     return url ? { url } : null;
   }
 
-  // tiktok and link: no provider chosen, and an article has no media to own (D261).
+  // tiktok and link: no provider chosen, and an article has no media to own (D268).
   return null;
 }
