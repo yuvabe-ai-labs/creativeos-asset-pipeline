@@ -9,6 +9,7 @@ import { estimatePromptCredits } from "@/lib/credits/prompt-estimate";
 import { runPromptGeneration, CreditLimitError, type ModelUsage } from "@/lib/api/prompt-run";
 import { describeModelRequest } from "@/lib/nodes/model-request";
 import { apiError, apiOk, withNode } from "@/lib/api/route-helpers";
+import { refEntriesOf, singleTakeRefDialect, toStoredRefs } from "@/lib/nodes/ref-binding";
 
 // POST /api/nodes/:id/video-prompt — the Video Prompt node's runAction: resolve inputs
 // (KB + upstream, with the Image Gen still as a vision part), compile, call the text LLM
@@ -38,6 +39,12 @@ export async function POST(
     if (!resolved) return apiError("Node not found.", 404);
 
     const promptSpec = videoPromptGeneratePromptFor({ provider: targetProvider });
+
+    // BUG-010 — Omni and Seedance writers cite images by position over these references, in this
+    // order (compileVideoPrompt's roster). The version stores image IDS instead, so a disconnect
+    // cannot re-point a citation. Veo / Kling cite in prose and stay as written.
+    const refs = refEntriesOf(resolved.upstream);
+    const refDialect = singleTakeRefDialect(targetProvider, refs.map((r) => r.id));
 
     const { system, user, effectiveInstruction } = compileVideoPrompt({
       clientContext: resolved.clientContext,
@@ -122,7 +129,10 @@ export async function POST(
           // cast just tells TS what we already know structurally (OpenAI's CompletionUsage
           // has the three canonical fields plus extras) — the object itself is untouched.
           const usage = (completion.usage ?? null) as ModelUsage | null;
-          return { output, usage };
+          const stored = refDialect
+            ? toStoredRefs(output, refDialect, (id) => refs.find((r) => r.id === id)?.label)
+            : output;
+          return { output: stored, usage };
         },
       });
 
