@@ -373,7 +373,11 @@ export function VideoPromptFocusView({
     if (!activeVersionId) return;
     setApprovalSaving(true);
     try {
-      await setVersionApprovalAction(activeVersionId, { status, note });
+      const result = await setVersionApprovalAction(activeVersionId, { status, note });
+      if (!result.ok) {
+        toast.error(result.error); // a refusal is returned, not thrown (BUG-003)
+        return;
+      }
       setApprovalStatus(status);
       setApprovalNote(note ?? "");
       // Push into the store so the on-canvas badge refreshes immediately — without

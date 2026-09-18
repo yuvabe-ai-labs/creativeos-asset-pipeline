@@ -370,7 +370,11 @@ export function MultishotPromptFocusView({
     if (!activeVersionId) return;
     setApprovalSaving(true);
     try {
-      await setVersionApprovalAction(activeVersionId, { status, note });
+      const result = await setVersionApprovalAction(activeVersionId, { status, note });
+      if (!result.ok) {
+        toast.error(result.error); // a refusal is returned, not thrown (BUG-003)
+        return;
+      }
       setApprovalStatus(status);
       setApprovalNote(note ?? "");
       onPatch({ approvalStatus: status });

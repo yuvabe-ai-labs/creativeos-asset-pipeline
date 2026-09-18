@@ -1,4 +1,5 @@
 import type { AnnotationPayload } from "./payload";
+import { MAX_ANNOTATIONS_PER_DECISION } from "./constants";
 
 // Re-exported from its canonical home in payload.ts — bounds became part of the wire
 // shape in D248, so every importer of RegionBounds keeps working unchanged.
@@ -14,6 +15,9 @@ export function commitDraft(
   list: AnnotationDraft[],
   draft: AnnotationDraft,
 ): AnnotationDraft[] {
+  // The server refuses more than this per decision; holding a 21st draft only deferred that
+  // refusal to Send back (BUG-003). The views also stop painting at the limit.
+  if (list.length >= MAX_ANNOTATIONS_PER_DECISION) return list;
   return renumber([...list, draft]);
 }
 

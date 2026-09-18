@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import type { ApprovalStatus } from "@/lib/approval";
 import { formatRelativeTime } from "@/lib/format/relative-time";
+import { MAX_ANNOTATIONS_PER_DECISION } from "@/lib/review-annotations/constants";
 
 // Which action is in flight. Only the button you pressed shows progress — passing one
 // `saving` flag to every button made all three spin at once, which read as the whole
@@ -89,6 +90,7 @@ export function InlineApprovalBar({
 
   const meta = STATUS_META[status];
   const canSubmitRejection = draftNote.trim().length > 0;
+  const atAnnotationLimit = annotationCount >= MAX_ANNOTATIONS_PER_DECISION;
 
   // Fire-and-forget by design: the parent's `saving` prop drives the spinner, so the
   // async variant (Approve, which may await a discard confirm first) is not awaited here.
@@ -125,7 +127,9 @@ export function InlineApprovalBar({
               type="button"
               variant="outline"
               size="xs"
-              disabled={saving}
+              // At the per-decision limit the chip can still END annotating, but not start it
+              // (BUG-003) — the server refuses a 21st pair.
+              disabled={saving || (!annotating && atAnnotationLimit)}
               onClick={onToggleAnnotate}
               className={cn(
                 "mt-2 border-dashed border-primary/40 text-primary hover:bg-primary/5",
@@ -135,9 +139,11 @@ export function InlineApprovalBar({
               <Paintbrush className="size-3" strokeWidth={1.5} />
               {annotating
                 ? "Done annotating"
-                : annotationCount
-                  ? `Annotate · ${annotationCount}`
-                  : annotateLabel}
+                : atAnnotationLimit
+                  ? `Annotate · ${annotationCount}/${MAX_ANNOTATIONS_PER_DECISION} (limit)`
+                  : annotationCount
+                    ? `Annotate · ${annotationCount}`
+                    : annotateLabel}
             </Button>
           )}
           <div className="mt-2 flex items-center justify-end gap-1.5">

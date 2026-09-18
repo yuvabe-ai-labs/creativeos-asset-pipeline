@@ -82,12 +82,13 @@ import { groupByTimecode } from "@/lib/review-annotations/group";
 import { formatRelativeTime } from "@/lib/format/relative-time";
 import type { AnnotationHandle } from "@/components/review-annotations/review-annotation-canvas";
 import type { RegionBounds } from "@/lib/review-annotations/draft";
+import { MAX_ANNOTATIONS_PER_DECISION } from "@/lib/review-annotations/constants";
 import { ApprovalSkeleton } from "./approval-skeleton";
 import {
   setVersionApprovalAction,
   markVersionApprovalSeenAction,
 } from "@/lib/actions/approval";
-import type { ApprovalStatus } from "@/lib/approval";
+import { standingChangeRequest, type ApprovalStatus } from "@/lib/approval";
 import { useFlushAutosave } from "@/components/canvas/autosave-flush-context";
 import { useVideoGenStatus } from "@/hooks/use-video-gen-status";
 import {
@@ -1010,7 +1011,17 @@ export function VideoGenFocusView({
         status === "changes_requested" && reviewDrafts.drafts.length > 0
           ? reviewDrafts.drafts
           : undefined;
-      await setVersionApprovalAction(activeVersionId, { status, note, annotations });
+      const result = await setVersionApprovalAction(activeVersionId, {
+        status,
+        note,
+        annotations,
+      });
+      // A refusal comes back as data so its message survives production builds (BUG-003).
+      // Drafts are kept, so fixing the problem and retrying is lossless.
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
       reviewDrafts.clear();
       setReviewAnnotating(false);
       setCapturedFrame(null);
@@ -1243,11 +1254,12 @@ export function VideoGenFocusView({
 
   // D244 read path: the standing change request on the active version and its stored
   // frame annotations — derived from the versions list the history panel already has.
-  const latestChangeRequest =
-    activeVersion?.decisions?.find((d) => d.status === "changes_requested") ?? null;
+  // Only a request still in force counts: the marker strip and the player overlay read
+  // `reviewAnnotations` directly, so an older request found in the log kept its pins on
+  // screen after approval (BUG-001).
+  const latestChangeRequest = standingChangeRequest(approvalStatus, activeVersion?.decisions);
   const reviewAnnotations = latestChangeRequest?.annotations ?? [];
-  const showStoredAnnotations =
-    approvalStatus === "changes_requested" && reviewAnnotations.length > 0;
+  const showStoredAnnotations = reviewAnnotations.length > 0;
   // The marker strip mirrors whichever set is live: your unsent drafts while composing,
   // the sent ones otherwise. Native controls can't be overlaid deterministically, so the
   // strip is its own row above the player.
@@ -1879,6 +1891,13 @@ export function VideoGenFocusView({
                                       timecodeMs: capturedFrame.timecodeMs,
                                     });
                                     reviewCanvasRef.current?.clear();
+                                    // BUG-003: that was the last one allowed — stop painting.
+                                    if (
+                                      reviewDrafts.drafts.length + 1 >=
+                                      MAX_ANNOTATIONS_PER_DECISION
+                                    ) {
+                                      setReviewAnnotating(false);
+                                    }
                                   }
                                   setPendingBounds(null);
                                 }}
