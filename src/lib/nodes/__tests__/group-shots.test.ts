@@ -288,3 +288,44 @@ describe("shotSpanLabel", () => {
     expect(shotSpanLabel([])).toBe("");
   });
 });
+
+// BUG-008 — a script's own CLIP headings are a hard boundary. Packing to the 30s ceiling made every
+// ≤30s script one clip (Seedance); with clips marked, the 20s Chupster reel below becomes two 10s
+// clips, which Omni can take.
+describe("groupShotsForFanOut honours clip boundaries", () => {
+  const clipped = (...spec: [number, number][]): ReelShot[] =>
+    spec.map(([seconds, clip], i) => ({ description: `shot ${i + 1}`, duration_seconds: seconds, clip }));
+
+  it("never merges shots from different clips, even when they would fit the ceiling", () => {
+    expect(shape(groupShotsForFanOut(clipped([3, 1], [3, 1], [4, 1], [3, 2], [3, 2], [4, 2]), 30))).toEqual([
+      { idx: [0, 1, 2], s: 10 },
+      { idx: [3, 4, 5], s: 10 },
+    ]);
+  });
+
+  it("still packs to the ceiling inside one clip", () => {
+    expect(shape(groupShotsForFanOut(clipped([20, 1], [15, 1]), 30))).toEqual([
+      { idx: [0], s: 20 },
+      { idx: [1], s: 15 },
+    ]);
+  });
+
+  // The trailing rebalance moves a shot backward into a short tail; it must not pull one across
+  // a clip boundary the script drew.
+  it("does not rebalance across a clip boundary", () => {
+    expect(shape(groupShotsForFanOut(clipped([4, 1], [4, 1], [2, 2]), 30))).toEqual([
+      { idx: [0, 1], s: 8 },
+      { idx: [2], s: 3 }, // clamped to the floor, not fed a shot from clip 1
+    ]);
+  });
+
+  it("treats 0 / absent as unmarked, packing exactly as before", () => {
+    const unmarked = shots(3, 5, 6, 4, 2).map((s) => ({ ...s, clip: 0 }));
+    expect(shape(groupShotsForFanOut(unmarked, 30))).toEqual([{ idx: [0, 1, 2, 3, 4], s: 20 }]);
+  });
+
+  it("flows through describeGenerations", () => {
+    const gens = describeGenerations(clipped([5, 1], [5, 1], [5, 2], [5, 2]), undefined, 2);
+    expect(gens.map((g) => g.shotIndexes)).toEqual([[0, 1], [2, 3]]);
+  });
+});

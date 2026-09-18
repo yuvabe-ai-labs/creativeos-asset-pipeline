@@ -135,27 +135,44 @@ export function groupShotsForFanOut(
 ): ShotGroup[] {
   if (shots.length === 0) return [];
 
+  // BUG-008 — a script's own CLIP headings are a hard boundary. Each run of consecutive shots
+  // sharing a clip number is packed on its own and the results concatenated, so neither the
+  // greedy pass nor the rebalance can ever join shots the script put in different clips. An
+  // unmarked script (no `clip`, or 0) is one run: packed exactly as before.
   const lengths = shots.map(shotSeconds);
-  const groups: ShotGroup[] = [];
-  let current: number[] = [];
-  let total = 0;
-
-  lengths.forEach((length, index) => {
-    // `current.length > 0` keeps a single over-cap shot in its own group rather than looping
-    // forever trying to fit it.
-    if (current.length > 0 && total + length > ceiling) {
-      groups.push({ shotIndexes: current, seconds: total });
-      current = [];
-      total = 0;
-    }
-    current.push(index);
-    total += length;
+  const runs: number[][] = [];
+  shots.forEach((shot, index) => {
+    const clip = shot.clip ?? 0;
+    const prev = index > 0 ? (shots[index - 1].clip ?? 0) : clip;
+    if (index === 0 || clip !== prev) runs.push([]);
+    runs[runs.length - 1].push(index);
   });
-  if (current.length > 0) {
-    groups.push({ shotIndexes: current, seconds: total });
-  }
 
-  rebalanceTrailing(groups, lengths, ceiling);
+  const groups: ShotGroup[] = [];
+  for (const run of runs) {
+    const runGroups: ShotGroup[] = [];
+    let current: number[] = [];
+    let total = 0;
+
+    for (const index of run) {
+      const length = lengths[index];
+      // `current.length > 0` keeps a single over-cap shot in its own group rather than looping
+      // forever trying to fit it.
+      if (current.length > 0 && total + length > ceiling) {
+        runGroups.push({ shotIndexes: current, seconds: total });
+        current = [];
+        total = 0;
+      }
+      current.push(index);
+      total += length;
+    }
+    if (current.length > 0) {
+      runGroups.push({ shotIndexes: current, seconds: total });
+    }
+
+    rebalanceTrailing(runGroups, lengths, ceiling);
+    groups.push(...runGroups);
+  }
 
   return groups.map((group) => ({
     ...group,

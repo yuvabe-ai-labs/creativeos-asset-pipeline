@@ -95,14 +95,20 @@ describe("structure-a-script", () => {
     expect(chapter.summary).toContain("Seedance");
   });
 
-  it("gives every multishot model a split template within its own window", () => {
+  it("gives every multishot model a template that marks clips within its own window, in ONE script", () => {
     for (const m of MULTISHOT_MODELS) {
       const step = chapter.steps.find((s) => s.title.startsWith(`Clips for ${m.label}`));
       expect(step, m.label).toBeDefined();
       const text = step!.sample!.text;
-      expect(text).toContain(`${m.maxTotalSeconds} seconds or less`);
+      expect(text).toContain(`Each clip is ${m.maxTotalSeconds} seconds or less`);
       expect(text).toContain(`No block longer than ${m.maxTotalSeconds} seconds`);
-      expect(text).toContain("-----");
+      // The heading the parser reads into `clip` (script-parse.ts).
+      expect(text).toContain('"CLIP <n> (<start>–<end> SEC)"');
+      expect(text).toMatch(/as few clips as possible/);
+      expect(text).toMatch(/montage of quick cuts is ONE block/i);
+      // One script, not several: nothing to paste into more than one node.
+      expect(text).not.toContain("-----");
+      expect(text).toMatch(/do not restart/);
       expect(text).toContain(m.label);
       if (m.maxCuts !== null) expect(text).toContain(`at most ${m.maxCuts} blocks`);
       else expect(text).not.toMatch(/at most \d+ blocks/);

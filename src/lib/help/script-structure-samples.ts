@@ -103,34 +103,36 @@ export const LONG_REEL_PROMPT = restructurePrompt(
 );
 
 /**
- * BUG-008 — one split template per multishot model, so a creator who wants Gemini Omni or Kling can
- * get there. Shots in one script pack into clips of up to the widest window (30s), and a clip that
- * long only Seedance can generate; the way onto a shorter model is one Script node per clip within
- * THAT model's window, which is what this template produces. Derived from the model table: a
- * vendor moving a limit moves the copy.
+ * BUG-008 — one template per multishot model, so a creator who wants Gemini Omni or Kling can get
+ * there. Shots in one script pack into clips of up to the widest window (30s), and a clip that long
+ * only Seedance can generate. This template keeps ONE script and has the reel's clips marked with
+ * `CLIP N (<start>–<end> SEC)` headings sized to the model's window; the parser reads the heading
+ * into each shot's `clip`, and grouping never merges across it. One paste, one Script node, and the
+ * clips are visible in the script itself. Derived from the model table: a vendor moving a limit
+ * moves the copy.
  */
-export function splitForModelPrompt(model: (typeof MULTISHOT_MODELS)[number]): string {
+export function clipsForModelPrompt(model: (typeof MULTISHOT_MODELS)[number]): string {
   const cutRule =
     model.maxCuts !== null
-      ? ` and has at most ${model.maxCuts} blocks (${model.label} allows ${model.maxCuts} shots per clip)`
+      ? ` and holds at most ${model.maxCuts} blocks (${model.label} allows ${model.maxCuts} shots per clip)`
       : "";
   return restructurePrompt(
-    `I want to generate it on ${model.label}, which makes clips of ${model.minTotalSeconds} to ${model.maxTotalSeconds} seconds — so break it into clips that model can take.`,
+    `I want to generate it on ${model.label}, which makes clips of ${model.minTotalSeconds} to ${model.maxTotalSeconds} seconds — so group the shots into clips that model can take, inside this one script.`,
     [
-      "One block per camera shot. A block never contains a cut — if a shot cuts to something else, split it into two blocks.",
-      `Split the reel into separate scripts at natural breaks — a change of scene, location or beat — so each script is ${model.maxTotalSeconds} seconds or less${cutRule}. Never split a single shot across two scripts.`,
-      `No script shorter than ${model.minTotalSeconds} seconds: ${model.label} will not generate one. Merge a short tail into the script before it, or lengthen a shot in it.`,
-      "Every script repeats the header, with the part number in its Title, and its timecodes start again at 0.",
-      "Separate the scripts with a line containing only -----.",
+      "One block per camera shot. A block never contains a cut — if a shot cuts to something else, split it into two blocks. A montage of quick cuts is ONE block that describes the rapid cuts, unless each cut is a full shot of its own.",
+      `Group the blocks into clips. Put a heading line "CLIP <n> (<start>–<end> SEC)" before each clip's first block, numbering from CLIP 1. Break between clips only at natural breaks — a change of scene, location or beat — and never inside a shot.`,
+      `Each clip is ${model.maxTotalSeconds} seconds or less${cutRule}. Fill each clip as close to ${model.maxTotalSeconds} seconds as the breaks allow, so the reel has as few clips as possible.`,
+      `No clip shorter than ${model.minTotalSeconds} seconds: ${model.label} will not generate one. Fold a short tail into the clip before it, or lengthen a shot in it.`,
+      "Timecodes run on across clips — they do not restart at each CLIP heading. Keep one header for the whole reel.",
     ],
     model.maxTotalSeconds,
   );
 }
 
 /** One entry per multishot model, in table order — each becomes a step in the help chapter. */
-export const SPLIT_FOR_MODEL_PROMPTS = MULTISHOT_MODELS.map((m) => ({
+export const CLIPS_FOR_MODEL_PROMPTS = MULTISHOT_MODELS.map((m) => ({
   model: m,
-  text: splitForModelPrompt(m),
+  text: clipsForModelPrompt(m),
 }));
 
 export const CLIP_PER_SHOT_PROMPT = restructurePrompt(

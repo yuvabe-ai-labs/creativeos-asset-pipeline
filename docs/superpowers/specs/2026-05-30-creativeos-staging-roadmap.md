@@ -5343,3 +5343,28 @@ stored prompts (operator: not needed).
 **Refines.** D245.
 
 **Originated →** QA bug log BUG-010; `2026-09-18-reference-binding-by-id-design.md`.
+
+### D273 — A script's own CLIP headings are a hard grouping boundary *(recorded 2026-09-18; refines D258)*
+
+**Decision.** The parser (script-parse v7) reads `CLIP N (<start>–<end> SEC)` headings into a
+per-shot `clip` number (0 = none). `groupShotsForFanOut` packs each run of same-clip shots on its
+own and concatenates: neither the greedy pass nor the trailing rebalance ever joins shots the
+script put in different clips. An unmarked script packs exactly as before. The help chapter's
+"Clips for <model>" templates keep ONE script and have ChatGPT/Claude write those headings sized
+to the model's window, filled as full as natural breaks allow.
+
+**Why.** D258 packs to the widest window (30s), so every script of 30s or less was one clip and
+therefore Seedance; there was no way to reach Gemini Omni (10s) or Kling (15s) from one script
+(BUG-008). The first attempt had the template split the reel into several scripts (`-----`), which
+the product could not take — one node parsed part 1 and dropped the rest. Putting the break in
+the script itself keeps one paste, one node, and makes the clips visible where the creator wrote
+them; the parser and grouping do the rest.
+
+**Rejected.** Splitting a multi-part paste into sibling Script nodes (a new canvas mechanism for
+what the script can say itself); a "Pack for <model>" picker on the Script node (a second source
+of truth for the break, next to the script that already states it); keeping the 30s pack as the
+only rule (the report).
+
+**Refines.** D258.
+
+**Originated →** QA bug log BUG-008 (`docs/qa/bugs.md`), 2026-09-16 / 2026-09-18.
