@@ -56,6 +56,7 @@ vi.mock("@/lib/nodes/resolve-inputs", () => ({
     cuts: CUTS,
     targetModel: undefined,
     scriptNotes: "",
+    voiceover: "",
   })),
   buildMultishotUserTurn: vi.fn(() => "USER TURN"),
 }));
@@ -238,6 +239,7 @@ describe("POST multishot-prompt — per-model writer routing", () => {
       upstream: [],
       cuts: CUTS,
       scriptNotes: "",
+      voiceover: "",
       targetModel: KLING_OMNI_MODEL_ID,
     });
     returns(PLAN);
@@ -257,6 +259,7 @@ describe("POST multishot-prompt — per-model writer routing", () => {
       upstream: [],
       cuts: CUTS,
       scriptNotes: "",
+      voiceover: "",
       targetModel: SEEDANCE_MODEL_ID,
     });
     returns(PLAN);
@@ -283,6 +286,7 @@ describe("POST multishot-prompt — per-model writer routing", () => {
       upstream: [],
       cuts: CUTS,
       scriptNotes: "",
+      voiceover: "",
       targetModel: KLING_OMNI_MODEL_ID,
     });
     returns(PLAN);
@@ -304,6 +308,7 @@ describe("POST multishot-prompt — per-model writer routing", () => {
       upstream: [],
       cuts: CUTS,
       scriptNotes: "",
+      voiceover: "",
       targetModel: KLING_OMNI_MODEL_ID,
     });
     returns(PLAN);
@@ -326,6 +331,7 @@ describe("POST multishot-prompt — per-model writer routing", () => {
       upstream: [],
       cuts: CUTS,
       scriptNotes: "",
+      voiceover: "",
       // The node has since been switched to Kling…
       targetModel: KLING_OMNI_MODEL_ID,
     });
@@ -353,6 +359,7 @@ describe("POST multishot-prompt — script production notes", () => {
       upstream: [],
       cuts: CUTS,
       scriptNotes: "Golden hour. Desaturated grade.",
+      voiceover: "Where are you headed tonight?",
       targetModel: undefined,
     });
     returns(PLAN);
@@ -360,6 +367,10 @@ describe("POST multishot-prompt — script production notes", () => {
     expect(res.status).toBe(200);
     expect(vi.mocked(buildMultishotUserTurn)).toHaveBeenLastCalledWith(
       expect.objectContaining({ scriptNotes: "Golden hour. Desaturated grade." }),
+    );
+    // BUG-009 — the voiceover reaches the writer's user turn alongside the notes.
+    expect(vi.mocked(buildMultishotUserTurn)).toHaveBeenLastCalledWith(
+      expect.objectContaining({ voiceover: "Where are you headed tonight?" }),
     );
   });
 });
