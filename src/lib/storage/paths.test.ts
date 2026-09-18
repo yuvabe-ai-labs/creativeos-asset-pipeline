@@ -11,6 +11,8 @@ import {
   pathForKBDocument,
   pathForBrandAsset,
   pathForMarketThumb,
+  pathForMarketMedia,
+  extForContentType,
 } from "./paths";
 
 describe("sanitizeSlug", () => {
@@ -165,5 +167,47 @@ describe("pathForMarketThumb", () => {
     expect(pathForMarketThumb({ clientId: "c-1", itemId: "i-9", ext: "jpg" })).toBe(
       "clients/c-1/market/thumbs/i-9.jpg",
     );
+  });
+});
+
+describe("pathForMarketMedia", () => {
+  it("scopes media under the client's market folder by item id", () => {
+    expect(pathForMarketMedia({ clientId: "c-1", itemId: "i-9", ext: "mp4" })).toBe(
+      "clients/c-1/market/media/i-9.mp4",
+    );
+  });
+
+  // Deterministic, exactly like pathForMarketThumb: a re-archive must overwrite the
+  // one object rather than leaving an orphan behind on every retry.
+  it("is stable across calls, so a re-run overwrites instead of accumulating", () => {
+    const a = pathForMarketMedia({ clientId: "c-1", itemId: "i-9", ext: "mp4" });
+    const b = pathForMarketMedia({ clientId: "c-1", itemId: "i-9", ext: "mp4" });
+    expect(a).toBe(b);
+  });
+
+  it("sits beside thumbs rather than inside them", () => {
+    expect(pathForMarketMedia({ clientId: "c-1", itemId: "i-9", ext: "jpg" })).not.toContain(
+      "/thumbs/",
+    );
+  });
+});
+
+describe("extForContentType", () => {
+  it("maps the content types the archive actually sees", () => {
+    expect(extForContentType("video/mp4")).toBe("mp4");
+    expect(extForContentType("image/jpeg")).toBe("jpg");
+    expect(extForContentType("image/png")).toBe("png");
+  });
+
+  // Providers return the charset suffix and inconsistent casing; both must resolve.
+  it("tolerates parameters and casing", () => {
+    expect(extForContentType("video/mp4; charset=binary")).toBe("mp4");
+    expect(extForContentType("IMAGE/JPEG")).toBe("jpg");
+  });
+
+  // An unknown type must still produce a storable path rather than throwing — the
+  // archive is best-effort and a weird content-type is not worth losing the bytes.
+  it("falls back to bin for anything unrecognised", () => {
+    expect(extForContentType("application/x-unknown")).toBe("bin");
   });
 });

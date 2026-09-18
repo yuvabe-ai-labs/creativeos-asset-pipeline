@@ -149,3 +149,37 @@ export function pathForMarketThumb(args: {
 }): string {
   return `clients/${args.clientId}/market/thumbs/${args.itemId}.${args.ext}`;
 }
+
+/**
+ * The archived MEDIA for a market reference — the video or full-resolution still
+ * itself, not the preview (D264).
+ *
+ * Deterministic per item for the same reason as pathForMarketThumb: the archive is
+ * retried by the nightly sweep, and a path that varied per attempt would leave an
+ * orphaned object in the bucket on every failure.
+ */
+export function pathForMarketMedia(args: {
+  clientId: string;
+  itemId: string;
+  ext: string;
+}): string {
+  return `clients/${args.clientId}/market/media/${args.itemId}.${args.ext}`;
+}
+
+// The content types the archive actually encounters: mp4 from both providers, and
+// stills for image posts and pins. Anything else still stores — losing verified bytes
+// over an unrecognised header would be the wrong trade.
+const MEDIA_EXT_BY_TYPE: Record<string, string> = {
+  "video/mp4": "mp4",
+  "video/webm": "webm",
+  "video/quicktime": "mov",
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "image/gif": "gif",
+};
+
+/** File extension for a response's content-type, tolerating `; charset=…` and casing. */
+export function extForContentType(contentType: string): string {
+  return MEDIA_EXT_BY_TYPE[contentType.split(";")[0].trim().toLowerCase()] ?? "bin";
+}

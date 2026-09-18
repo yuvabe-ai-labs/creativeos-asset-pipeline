@@ -56,7 +56,7 @@ async function oembedThumbnail(
  * standard rather than one platform's internals, so it covers articles, brand sites,
  * Behance, and anything else MR pastes, not just the three platforms we name.
  */
-async function ogImage(url: string, fetchImpl: typeof fetch): Promise<string | null> {
+export async function ogImage(url: string, fetchImpl: typeof fetch): Promise<string | null> {
   try {
     const res = await fetchImpl(url, { headers: { "User-Agent": BROWSER_UA } });
     if (!res.ok) return null;
@@ -146,6 +146,9 @@ export async function resolveThumbnailSource(
     return viaOg ?? instagramEmbedPoster(url, fetchImpl);
   }
 
-  // kind === "link": any page on the open web. og:image is what makes these visual.
+  // kind === "pinterest" or "link": any page on the open web. og:image is what makes
+  // these visual, and for a pin it is the only route — Pinterest has no oEmbed. Note
+  // it returns the /736x/ sized variant, which is right for a thumbnail; the archive
+  // resolver upgrades that to /originals/ for the stored media.
   return ogImage(url, fetchImpl);
 }
