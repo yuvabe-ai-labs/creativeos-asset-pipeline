@@ -21,6 +21,12 @@ import { resolveVideoGenPrompt } from "@/lib/video-gen/resolve-prompt";
 import { multishotCapabilityFor, checkLadder } from "@/lib/nodes/multishot-models";
 import { checkPlanLimits, type MultishotPlan } from "@/lib/nodes/multishot-plan";
 import { totalOf } from "@/lib/nodes/multishot-cuts";
+import { mapUpstreamForVideo } from "@/lib/nodes/resolve-inputs";
+import {
+  missingRefsMessage,
+  refEntriesOf,
+  singleTakeTargetForProvider,
+} from "@/lib/nodes/ref-binding";
 import { apiError, apiOk, withNode } from "@/lib/api/route-helpers";
 
 const ImageRoleSchema = z.enum(["start_frame", "end_frame", "reference"]);
@@ -66,8 +72,17 @@ export async function POST(
     // Two prompt-node lanes can feed this node (see resolve-prompt.ts): a video-prompt node's
     // STRING output, or a multishot-prompt node's MultishotPlan OBJECT rendered against its
     // upstream Multishot node's cuts. Never falls through to a stringified object.
-    const resolved = await resolveVideoGenPrompt(upstream, getUpstreamOutputs);
+    const resolved = await resolveVideoGenPrompt(
+      upstream,
+      getUpstreamOutputs,
+      singleTakeTargetForProvider(videoGenClientModelMap[modelId]?.provider),
+    );
     if (!resolved.ok) return apiError(resolved.reason, 400);
+    // BUG-010 — a citation whose image is gone would ship as plain text where a token belongs.
+    // Refused here, before any generation row or credit reservation, like the guards below.
+    if (resolved.missingRefs.length > 0) {
+      return apiError(missingRefsMessage(resolved.missingRefs), 400);
+    }
     const { prompt } = resolved;
     const promptNode = resolved.promptNode;
 
@@ -96,6 +111,8 @@ export async function POST(
         promptNode.activeOutput as MultishotPlan,
         resolved.cuts,
         cap,
+        // Measured on the rendered tokens, the same order resolve-prompt rendered against.
+        refEntriesOf(resolved.promptUpstream.map((u) => mapUpstreamForVideo(u))).map((r) => r.id),
       );
       if (!limits.ok) return apiError(limits.reason, 400);
 
