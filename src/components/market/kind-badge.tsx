@@ -1,6 +1,14 @@
 // Lucide dropped its brand icons, so platform kinds get neutral media icons:
 // play for YouTube, clapper for Instagram reels, music note for TikTok.
-import { CirclePlay, Clapperboard, Music2, Film, Link2, Image as ImageIcon } from "lucide-react";
+import {
+  CirclePlay,
+  Clapperboard,
+  Music2,
+  Film,
+  Link2,
+  Pin,
+  Image as ImageIcon,
+} from "lucide-react";
 import type { ReferenceKind } from "@/lib/market/constants";
 import { cn } from "@/lib/utils";
 
@@ -12,6 +20,7 @@ const ICONS: Record<ReferenceKind, typeof CirclePlay> = {
   gif: Film,
   image: ImageIcon,
   link: Link2,
+  pinterest: Pin,
 };
 
 export function KindBadge({ kind, className }: { kind: ReferenceKind; className?: string }) {

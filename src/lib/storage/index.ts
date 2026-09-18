@@ -9,6 +9,8 @@ import {
   pathForImageGen,
   pathForKBDocument,
   pathForMarketThumb,
+  pathForMarketMedia,
+  extForContentType,
   pathForNodeFile,
   pathForReviewAnnotation,
   pathForVideoGen,
@@ -282,5 +284,28 @@ export async function uploadMarketThumbnail(args: {
   const ext =
     args.contentType === "image/png" ? "png" : args.contentType === "image/webp" ? "webp" : "jpg";
   const path = pathForMarketThumb({ clientId: args.clientId, itemId: args.itemId, ext });
+  return _upload(path, args.body, args.contentType);
+}
+
+/**
+ * Re-hosted MEDIA for a market reference (D264) — the video or full-resolution still
+ * itself, the sibling of uploadMarketThumbnail.
+ *
+ * Note this takes the bytes rather than signing an upload URL: they come from a
+ * server-side fetch of a provider CDN, so there is no browser request body and hence
+ * no 4.5 MB Vercel limit to work around. The binding constraint is function DURATION,
+ * which is why the only caller is a background task.
+ */
+export async function uploadMarketMedia(args: {
+  clientId: string;
+  itemId: string;
+  body: Buffer | ArrayBuffer | Uint8Array;
+  contentType: string;
+}): Promise<UploadResult> {
+  const path = pathForMarketMedia({
+    clientId: args.clientId,
+    itemId: args.itemId,
+    ext: extForContentType(args.contentType),
+  });
   return _upload(path, args.body, args.contentType);
 }

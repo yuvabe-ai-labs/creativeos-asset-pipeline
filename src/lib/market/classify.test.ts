@@ -102,3 +102,33 @@ describe("embedUrlFor", () => {
     expect(embedUrlFor("image", "https://cdn.example.com/a.jpg")).toBeNull();
   });
 });
+
+describe("pinterest", () => {
+  it("classifies a pin permalink", () => {
+    expect(classifyUrl("https://www.pinterest.com/pin/12345/")).toBe("pinterest");
+  });
+
+  // Every real clipped pin in the database uses a REGIONAL host. Matching on equality
+  // with "pinterest.com" would send all of them down the generic link path instead.
+  it("classifies regional hosts", () => {
+    expect(classifyUrl("https://in.pinterest.com/pin/58335757665806689/")).toBe("pinterest");
+    expect(classifyUrl("https://uk.pinterest.com/pin/999/")).toBe("pinterest");
+  });
+
+  it("leaves non-pin pinterest pages as link", () => {
+    expect(classifyUrl("https://in.pinterest.com/someuser/boards/")).toBe("link");
+    expect(classifyUrl("https://www.pinterest.com/")).toBe("link");
+  });
+
+  // The generic pill clips these directly, and a pinimg URL already IS the media —
+  // there is no page to resolve one from.
+  it("leaves i.pinimg.com image urls as image", () => {
+    expect(classifyUrl("https://i.pinimg.com/736x/a1/e7/73/abc.jpg")).toBe("image");
+  });
+
+  // A host merely ENDING in the string must not match — notpinterest.com is a
+  // different site, and a suffix test without the dot would accept it.
+  it("does not match a lookalike host", () => {
+    expect(classifyUrl("https://notpinterest.com/pin/1/")).toBe("link");
+  });
+});
