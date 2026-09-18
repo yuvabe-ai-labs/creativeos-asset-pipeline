@@ -7,6 +7,7 @@ import {
   SHORT_HOOK_PROMPT,
   LONG_REEL_PROMPT,
   CLIP_PER_SHOT_PROMPT,
+  SPLIT_FOR_MODEL_PROMPTS,
 } from "@/lib/help/script-structure-samples";
 
 // Clips ship with the app from `public/`, not object storage. The original plan kept
@@ -92,7 +93,7 @@ export const HELP_CHAPTERS: HelpChapter[] = [
     // the canvas — the script is the only place a creator shapes them, which is why this exists.
     slug: "structure-a-script",
     question: "How do I structure a script?",
-    summary: `Each timecoded block in a script becomes one shot, and shots are grouped in order into clips of up to ${PACK_CEILING_SECONDS} seconds — there's no merge or split on the canvas. Pick the scenario that matches what you want, copy its prompt into ChatGPT or Claude with your script, and paste the result into the Script node.`,
+    summary: `Each timecoded block in a script becomes one shot, and shots are grouped in order into clips of up to ${PACK_CEILING_SECONDS} seconds — there's no merge or split on the canvas. So a whole script of ${PACK_CEILING_SECONDS}s or less is ONE clip, and a clip that long only Seedance 2.5 can generate. To generate on Gemini Omni (up to 10s) or Kling (up to 15s), split the reel into one Script node per clip within that model's window — the "Clips for …" scenarios below do exactly that. Pick the scenario that matches what you want, copy its prompt into ChatGPT or Claude with your script, and paste the result into the Script node(s).`,
     stepStyle: "alternatives",
     steps: [
       {
@@ -115,6 +116,18 @@ export const HELP_CHAPTERS: HelpChapter[] = [
         clip: "",
         sample: { label: "Prompt · cuts in one clip", text: CUTS_IN_ONE_CLIP_PROMPT },
       },
+      // BUG-008 — one scenario per multishot model. Without these every ≤30s script was one clip
+      // and therefore Seedance; there was no template that produced Omni- or Kling-sized clips.
+      ...SPLIT_FOR_MODEL_PROMPTS.map(({ model, text }) => ({
+        title: `Clips for ${model.label} — ${model.minTotalSeconds}–${model.maxTotalSeconds}s each`,
+        body: [
+          `When you want this reel generated on ${model.label} specifically${model.maxCuts !== null ? ` (up to ${model.maxCuts} shots per clip)` : ""}.`,
+          `The prompt splits the reel into separate scripts of ${model.maxTotalSeconds}s or less at natural breaks — paste each into its own Script node and turn Multishot on. Each node starts on ${model.label} because its clip fits.`,
+          `A single script longer than ${model.maxTotalSeconds}s can never land on ${model.label}: it stays one clip, on whichever model reaches that length.`,
+        ],
+        clip: "",
+        sample: { label: `Prompt · clips for ${model.label}`, text },
+      })),
       {
         title: "A short hook or teaser — up to 10s",
         body: [
