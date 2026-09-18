@@ -127,6 +127,32 @@ export function multishotCapabilityFor(
 }
 
 /**
+ * The two models a Multishot Prompt node's view reasons about (D236/D237):
+ *
+ *   plan — the model the plan on screen was written for (its own stamp), else, with no plan
+ *          yet, the connected node's model: what the next Generate would produce.
+ *   node — the connected Multishot node's current model, or null when NO node is connected.
+ *
+ * `node` must be null rather than defaulted when disconnected (BUG-006). An absent `targetModel`
+ * then means "no node", not "a node on the default", and defaulting it made a Seedance plan
+ * report that "the Multishot node is now set to Gemini Omni" about a node that was not there.
+ * A mismatch needs a real node to disagree with.
+ */
+export function multishotPromptModels(input: {
+  connected: boolean;
+  nodeModel: string | undefined | null;
+  /** `null` = no plan yet; `undefined` = a plan with no stamp (Gemini Omni's, like the money path). */
+  planModel: string | undefined | null;
+}): { plan: MultishotCapability; node: MultishotCapability | null; mismatch: boolean } {
+  const node = input.connected ? multishotCapabilityFor(input.nodeModel) : null;
+  const hasPlan = input.planModel !== null;
+  const plan = hasPlan
+    ? multishotCapabilityFor(input.planModel)
+    : (node ?? multishotCapabilityFor(undefined));
+  return { plan, node, mismatch: hasPlan && node !== null && plan.id !== node.id };
+}
+
+/**
  * D260 — the one-line window under a model's name in the select.
  *
  * Built from the same fields `checkLadder` measures a ladder against, so the dropdown cannot

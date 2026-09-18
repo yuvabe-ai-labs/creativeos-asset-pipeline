@@ -104,6 +104,7 @@ export async function POST(
         instruction,
         cutInstructions,
         scriptNotes: resolved.scriptNotes,
+        voiceover: resolved.voiceover,
       }) +
       refineInstruction({
         scope,

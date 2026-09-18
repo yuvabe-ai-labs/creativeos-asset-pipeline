@@ -19,7 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MentionInstructionEditor } from "./mention-instruction-editor";
 import { dialectForCapability } from "@/lib/nodes/prompt-token-dialect";
-import { multishotCapabilityFor } from "@/lib/nodes/multishot-models";
+import { multishotPromptModels } from "@/lib/nodes/multishot-models";
 import { FieldLabel } from "./field-label";
 import { SliceToggles } from "./slice-toggles";
 import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
@@ -96,7 +96,8 @@ export function MultishotPromptFocusView({
   const setFocusedNodeId = useCanvasStore((s) => s.setFocusedNodeId);
   // The model the upstream Multishot node is currently SET to — what the next Generate will use.
   // Not what the plan on screen was written with; see `cap` below.
-  const nodeCap = multishotCapabilityFor(targetModel);
+  // Null when no Multishot node is connected — never the default model (BUG-006).
+  const connected = multishotNodeId !== null;
 
   // Local mirrors of the instruction / per-cut-instruction / plan props — same reasoning as
   // video-prompt-focus-view's `instructionDraft`: these round-trip through zustand + React
@@ -117,11 +118,20 @@ export function MultishotPromptFocusView({
   // setting, and it is the same value resolve-prompt.ts renders the money path against. An
   // unstamped plan is Gemini Omni's. Only with no plan yet is there nothing to misread, and then
   // the node's model is the honest guide for what the next Generate will produce.
-  const cap = planDraft ? multishotCapabilityFor(planDraft.targetModel) : nodeCap;
+  //
   // D237 — STATED, never clamped. Switching the Multishot node's model does not rewrite a plan
   // already written, so the two can disagree; the operator is told, in one line, and the way out
-  // is a regenerate (D239). Editing and generating both stay open.
-  const modelMismatch = planDraft !== null && cap.id !== nodeCap.id;
+  // is a regenerate (D239). Editing and generating both stay open. With no node connected there
+  // is nothing to disagree with, so no mismatch is reported.
+  const {
+    plan: cap,
+    node: nodeCap,
+    mismatch: modelMismatch,
+  } = multishotPromptModels({
+    connected,
+    nodeModel: targetModel,
+    planModel: planDraft ? planDraft.targetModel : null,
+  });
   // The look accordion, CLOSED by default (operator request 2026-09-08). The ladder is the
   // working surface and should own the column on arrival; the look is written once and then
   // mostly left alone. Collapsed it still shows a one-line preview, so it is summarised rather
@@ -199,7 +209,7 @@ export function MultishotPromptFocusView({
   // render and fight the caret — the exact failure video-prompt-focus-view.tsx already documents.
   //
   // Both inputs are stable: `refIds` is memoized on its id string above, and
-  // `multishotCapabilityFor` returns a module-level entry, not a fresh object.
+  // `multishotPromptModels` returns module-level capability entries, not fresh objects.
   const beatDialect = useMemo(() => dialectForCapability(cap, refIds), [cap, refIds]);
 
   // References no beat's text cites (via `refsCitedIn`), by index into `promptRefImages` —
@@ -238,7 +248,9 @@ export function MultishotPromptFocusView({
     const secondsById = new Map(cuts.map((c) => [c.id, c.seconds]));
     let at = 0;
     return planDraft.beats.map((b) => {
-      const seconds = secondsById.get(b.cutId) ?? 0;
+      const seconds = secondsById.get(b.cutId);
+      // A beat whose cut is gone has no timing to show — rendering 0–0s invented one (BUG-006).
+      if (seconds === undefined) return { cutId: b.cutId, text: b.text, from: null, to: null };
       const from = at;
       at += seconds;
       return { cutId: b.cutId, text: b.text, from, to: at };
@@ -629,7 +641,7 @@ export function MultishotPromptFocusView({
                     <RefineWithAI
                       scope="all"
                       busy={refining?.scope === "all"}
-                      disabled={isReadOnly || !!refining || dirty}
+                      disabled={isReadOnly || !!refining || dirty || !connected}
                       onSubmit={(note) => runRefine("all", { note })}
                       mentionables={planMentions}
                       label="Refine the whole sequence with AI"
@@ -768,13 +780,26 @@ export function MultishotPromptFocusView({
                         names both models and that one action. Same shape as the ladder violation
                         on multishot-node.tsx / multishot-focus-view.tsx, so one class of problem
                         reads one way across all three surfaces. */}
-                    {modelMismatch && (
+                    {modelMismatch && nodeCap && (
                       <p className="flex shrink-0 items-start gap-1.5 text-xs text-destructive">
                         <TriangleAlert className="mt-0.5 size-3.5 shrink-0" strokeWidth={1.5} />
                         <span>
                           Written for {cap.label} — the Multishot node is now set to{" "}
                           {nodeCap.label}. Re-generate to write this sequence for {nodeCap.label};
                           until then it ships as {cap.label}.
+                        </span>
+                      </p>
+                    )}
+                    {/* BUG-006 — the plan outlives the edge it was written against. Say so plainly
+                        instead of inventing a model for the missing node; Video Gen refuses to
+                        render this plan until a Multishot node is back (resolve-prompt.ts). */}
+                    {!connected && planDraft && (
+                      <p className="flex shrink-0 items-start gap-1.5 text-xs text-destructive">
+                        <TriangleAlert className="mt-0.5 size-3.5 shrink-0" strokeWidth={1.5} />
+                        <span>
+                          No Multishot node connected. This sequence was written for {cap.label} —
+                          reconnect its Multishot node to regenerate, refine or send it to Video
+                          Gen.
                         </span>
                       </p>
                     )}
@@ -859,7 +884,7 @@ export function MultishotPromptFocusView({
                                 <RefineWithAI
                                   scope="look"
                                   busy={refining?.scope === "look"}
-                                  disabled={isReadOnly || !!refining || dirty}
+                                  disabled={isReadOnly || !!refining || dirty || !connected}
                                   onSubmit={(note) => runRefine("look", { note })}
                                   mentionables={planMentions}
                                   label="Refine the look with AI"
@@ -867,7 +892,7 @@ export function MultishotPromptFocusView({
                                 <Button
                                   variant="ghost"
                                   onClick={() => runRefine("look")}
-                                  disabled={!!refining || isReadOnly || dirty}
+                                  disabled={!!refining || isReadOnly || dirty || !connected}
                                   aria-label="Rewrite the look"
                                   className="h-auto rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground dark:hover:bg-muted"
                                 >
@@ -925,8 +950,9 @@ export function MultishotPromptFocusView({
                               onFocusTimings={focusTimings}
                               disabled={isReadOnly || (!!refining && refining.cutId !== beat.cutId)}
                               // D242 — the AI buttons only. `disabled` would also lock the editor,
-                              // freezing the beat the instant it was typed into.
-                              aiDisabled={dirty}
+                              // freezing the beat the instant it was typed into. A rewrite also
+                              // needs the cuts it writes against (BUG-006).
+                              aiDisabled={dirty || !connected}
                               isLast={i === beatRows.length - 1}
                             />
                           ))}

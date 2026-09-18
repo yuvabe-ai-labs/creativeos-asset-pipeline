@@ -206,7 +206,30 @@ export type ResolvedMultishotInputs = {
    * written from stated direction, so this has to reach the writer. Empty when the script has none.
    */
   scriptNotes: string;
+  /**
+   * BUG-009 — the script's voiceover, so each beat's action can fit the line spoken over it.
+   * Empty when the script has none (or says it has none — see `voiceoverForWriter`).
+   */
+  voiceover: string;
 };
+
+// "No voiceover", "none", "N/A", "No VO — music only", "-": parsed scripts routinely fill the
+// field with a statement that there is none, and handing that to the writer as a line to match
+// would be noise at best.
+const NO_VOICEOVER_RE = /^\s*(?:-+|n\/?a|none|no\s*(?:vo|voice\s*-?\s*over)\b.*)\s*\.?\s*$/i;
+
+/**
+ * The voiceover as the multishot writer should see it: trimmed, and empty when the script states
+ * there is none.
+ *
+ * Only the multishot writer gets it. The single-take path still drops audio (D24 — a start frame
+ * fixes the shot, and a motion prompt needs what moves), but a cut sequence is paced against its
+ * voiceover: without it the beats could not know which line lands on which cut (BUG-009).
+ */
+export function voiceoverForWriter(voiceover: string | undefined): string {
+  const vo = (voiceover ?? "").trim();
+  return NO_VOICEOVER_RE.test(vo) ? "" : vo;
+}
 
 /**
  * Inputs for the Multishot Prompt node. Sibling of `resolveVideoPromptInputs`, and separate for
@@ -236,8 +259,12 @@ export async function resolveMultishotPromptInputs(
   );
   const targetModel =
     typeof source?.data.targetModel === "string" ? source.data.targetModel : undefined;
-  const notes = (source?.data.script as ReelScript | undefined)?.visual_script?.execution_refinement;
+  const script = source?.data.script as ReelScript | undefined;
+  const notes = script?.visual_script?.execution_refinement;
   const scriptNotes = typeof notes === "string" ? notes : "";
+  const voiceover = voiceoverForWriter(
+    typeof script?.voiceover === "string" ? script.voiceover : undefined,
+  );
 
   return {
     clientContext,
@@ -247,6 +274,7 @@ export async function resolveMultishotPromptInputs(
     cuts,
     targetModel,
     scriptNotes,
+    voiceover,
   };
 }
 
@@ -263,6 +291,8 @@ export function buildMultishotUserTurn(args: {
   cutInstructions: Record<string, string>;
   /** D262 — the script's production notes. Optional so a caller with none need not pass it. */
   scriptNotes?: string;
+  /** BUG-009 — the script's voiceover, already cleaned by `voiceoverForWriter`. */
+  voiceover?: string;
 }): string {
   const blocks: string[] = [];
 
@@ -272,6 +302,17 @@ export function buildMultishotUserTurn(args: {
   // brand context above it (not a source of setting).
   const notes = (args.scriptNotes ?? "").trim();
   if (notes) blocks.push(`The script's production notes:\n${notes}`);
+
+  // Context to pace against, not copy. The video models these beats go to generate sound, so a
+  // quoted line risks being spoken or rendered as on-screen text; the writer is told to fit each
+  // beat's action to what is being said at that point and never to transcribe it.
+  const vo = (args.voiceover ?? "").trim();
+  if (vo) {
+    blocks.push(
+      `The script's voiceover (for pacing and meaning only — make each shot's action fit the line ` +
+        `spoken over it; do not quote it, narrate it, or put it on screen):\n${vo}`,
+    );
+  }
 
   for (const u of args.upstream) {
     if (!u.text.trim()) continue;
