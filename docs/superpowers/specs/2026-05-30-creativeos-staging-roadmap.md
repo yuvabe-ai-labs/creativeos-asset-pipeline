@@ -5270,3 +5270,48 @@ canvas-scoped request).
 **Refines.** D202, D19.
 
 **Originated →** QA bug log BUG-002 (`docs/qa/bugs.md`), 2026-09-16.
+
+### D270 — A Server Action's refusals are returned, not thrown *(recorded 2026-09-18; applied to setVersionApprovalAction)*
+
+**Decision.** `setVersionApprovalAction` returns `{ ok: true } | { ok: false; error }`. Every refusal
+the reviewer must read — not permitted, note required, annotations only on a change request,
+annotation validation (including "At most 20 annotations per decision."), version not found — is
+returned as `{ ok: false, error }`. Genuine faults (upload failure, DB error, a strict
+decision-log failure) still throw. The five focus views toast `result.error` and keep their drafts.
+The client also caps drafts at `MAX_ANNOTATIONS_PER_DECISION`, so the limit is met while composing,
+not at Send back.
+
+**Why.** Next.js replaces a thrown Server Action's message with a generic "An error occurred in the
+Server Components render…" in production builds. The action's messages were written for the
+reviewer, and in production none of them reached the reviewer — a 21-annotation submit failed with
+no reason given. `with-action.ts` documents throwing as the codebase convention; that convention
+only works for messages nobody needs to read.
+
+**Rejected.** A client-side cap alone (every other refusal would still be hidden); a custom error
+class serialised across the boundary (Next strips it the same way).
+
+**Refines.** The throw convention noted in `with-action.ts`, for actions whose refusals are UI copy.
+
+**Originated →** QA bug log BUG-003 (`docs/qa/bugs.md`), 2026-09-16.
+
+### D271 — The multishot writer is paced against the script's voiceover *(recorded 2026-09-18; refines D24, D262)*
+
+**Decision.** `resolveMultishotPromptInputs` reads the Multishot node's `script.voiceover`,
+cleaned by `voiceoverForWriter` (a stated absence — "No voiceover", "N/A", "-" — becomes empty),
+and `buildMultishotUserTurn` passes it as a labelled block: for pacing and meaning only, make each
+shot's action fit the line spoken over it, do not quote it, narrate it or put it on screen. The
+single-take motion prompt still drops audio (D24).
+
+**Why.** A cut sequence is paced against its voiceover; without it the beats could not know which
+line lands on which cut, and the visuals drifted from what was being said. D24's reasoning (a start
+frame fixes the shot; audio carries no motion signal) holds for one continuous take but not for a
+sequence. The "do not quote" clause matters because Seedance and Omni generate sound, and a quoted
+line risks being spoken or rendered as text.
+
+**Rejected.** Splitting the VO per cut in code (the VO is one free-text string with no reliable
+timing — the writer, which sees the cut ladder, is better placed to align it); sending on-screen
+text and music too (not reported, and on-screen text risks being rendered into the frame).
+
+**Refines.** D24, D262.
+
+**Originated →** QA bug log BUG-009 (`docs/qa/bugs.md`), 2026-09-16.
