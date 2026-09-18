@@ -5315,3 +5315,31 @@ text and music too (not reported, and on-screen text risks being rendered into t
 **Refines.** D24, D262.
 
 **Originated →** QA bug log BUG-009 (`docs/qa/bugs.md`), 2026-09-16.
+
+### D272 — Generated prompts store image ids; positions exist only at the edge *(recorded 2026-09-18; refines D245)*
+
+**Decision.** Generated prompt text — single-take Omni/Seedance outputs and multishot beats and
+looks — stores citations as `@[Label](nodeId)`, the form the Instruction field already used.
+`src/lib/nodes/ref-binding.ts` converts at the two boundaries: writer output → ids
+(`toStoredRefs`, over the order the writer was sent), and ids → the model's positions over the
+images connected now (`renderRefs`) for the writer's context, the Video Gen request and every
+preview (`renderPlan` / `checkPlanLimits` take the current `refIds`). Editors use
+`storedRefDialect`, which also reads legacy positions — no migration; an old prompt converts on
+its next save. A cited image that is no longer connected is reported (`missingRefs`), rendered as
+its plain name rather than renumbered, shown as a warning on the prompt node, and refused by
+`video-generate` before any generation row or credit reservation.
+
+**Why.** Positions were resolved against whatever was connected at read time, so disconnecting one
+image silently re-pointed every later citation at its neighbour — in a paid clip, with no error
+(BUG-010). Veo / Kling single-take prompts cite in prose ("the first image") and cannot be
+converted reliably; they stay as written.
+
+**Rejected.** Keeping positions plus a stamped image order on the version (every hand edit and every
+newly attached image would have to rewrite the stamp — the drift moves, it does not go away);
+silently dropping a missing citation (the clip comes back without the product); warning without
+blocking (a paid clip with the wrong picture is the failure the fix exists to prevent); migrating
+stored prompts (operator: not needed).
+
+**Refines.** D245.
+
+**Originated →** QA bug log BUG-010; `2026-09-18-reference-binding-by-id-design.md`.

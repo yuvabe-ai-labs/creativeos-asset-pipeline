@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
@@ -9,6 +9,7 @@ import {
   PencilLine,
   BadgeCheck,
   ExternalLink,
+  TriangleAlert,
 } from "lucide-react";
 import { toast } from "sonner";
 import { EditableField } from "./editable-field";
@@ -42,6 +43,7 @@ import { useFlushAutosave } from "@/components/canvas/autosave-flush-context";
 import type { ApprovalStatus } from "@/lib/approval";
 import { GeneratedPromptBody } from "./generated-prompt-body";
 import { imageRefDialect, seedanceImageDialect, type TokenDialect } from "@/lib/nodes/prompt-token-dialect";
+import { storedRefDialect, renderRefs, missingRefsMessage } from "@/lib/nodes/ref-binding";
 import { ApprovalStatusBadge } from "@/components/review/approval-status-badge";
 import { LeftSection } from "./focus-left-section";
 import { PromptFocusShell, RESERVED_RAIL_KEYS } from "./prompt-focus-shell";
@@ -216,10 +218,23 @@ export function VideoPromptFocusView({
   // Memoized on the id list rather than the array identity: `upstream` is rebuilt on every render,
   // and a fresh dialect each time would re-run the editor's population effect and fight the caret.
   const refIdsKey = promptRefImages.map((r) => r.id).join(",");
+  const labelOfRef = useCallback(
+    (id: string) => upstream.find((u) => u.id === id)?.label,
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the ids; `upstream` is rebuilt every render
+    [refIdsKey],
+  );
   const omniRefs = useMemo(() => {
     const dialectFor = REF_DIALECT_FOR_PROVIDER[effectiveProvider];
-    return dialectFor ? dialectFor(refIdsKey ? refIdsKey.split(",") : []) : null;
-  }, [effectiveProvider, refIdsKey]);
+    const model = dialectFor ? dialectFor(refIdsKey ? refIdsKey.split(",") : []) : null;
+    // BUG-010 — edited and saved as image ids; the model's positions exist only at send time.
+    return model ? storedRefDialect(model, labelOfRef) : null;
+  }, [effectiveProvider, refIdsKey, labelOfRef]);
+  // Citations whose image is no longer connected — shown here, and refused by Video Gen.
+  const missingRefs = useMemo(() => {
+    const dialectFor = REF_DIALECT_FOR_PROVIDER[effectiveProvider];
+    if (!dialectFor) return [];
+    return renderRefs(draft, dialectFor(refIdsKey ? refIdsKey.split(",") : [])).missing;
+  }, [effectiveProvider, refIdsKey, draft]);
 
   const dirty = (output ?? "") !== draft && draft.trim() !== "";
   const mode: "skeleton" | "result" | "empty" = generating
@@ -642,6 +657,12 @@ export function VideoPromptFocusView({
 
                   {mode === "result" && (
                     <>
+                      {missingRefs.length > 0 && (
+                        <p className="flex items-start gap-1.5 text-xs text-destructive">
+                          <TriangleAlert className="mt-0.5 size-3.5 shrink-0" strokeWidth={1.5} />
+                          <span>{missingRefsMessage(missingRefs)}</span>
+                        </p>
+                      )}
                       {omniRefs ? (
                         /* Omni: the SAME chip editor the Instruction uses, so a reference stays a
                            picture while it is being edited. A plain textarea turned every chip

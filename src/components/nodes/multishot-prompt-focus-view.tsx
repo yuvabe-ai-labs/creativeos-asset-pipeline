@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
@@ -48,7 +48,15 @@ import { RefineWithAI } from "./refine-with-ai";
 import { RefineProgress } from "./refine-progress";
 import { planMentionables } from "@/lib/nodes/plan-mentions";
 import type { MultishotCut } from "@/lib/nodes/multishot-cuts";
-import { renderPlan, refsCitedIn, planIsDirty, setBeatText, type MultishotPlan } from "@/lib/nodes/multishot-plan";
+import {
+  renderPlan,
+  planCitedRefIds,
+  planMissingRefs,
+  planIsDirty,
+  setBeatText,
+  type MultishotPlan,
+} from "@/lib/nodes/multishot-plan";
+import { storedRefDialect, missingRefsMessage } from "@/lib/nodes/ref-binding";
 import type { RefineScope } from "@/lib/nodes/refine-suggestions";
 
 type MultishotPromptFocusViewProps = {
@@ -210,9 +218,20 @@ export function MultishotPromptFocusView({
   //
   // Both inputs are stable: `refIds` is memoized on its id string above, and
   // `multishotPromptModels` returns module-level capability entries, not fresh objects.
-  const beatDialect = useMemo(() => dialectForCapability(cap, refIds), [cap, refIds]);
+  //
+  // BUG-010 — wrapped in `storedRefDialect`: chips read from image IDS (and legacy positions),
+  // and every edit serialises back to ids, so a saved plan can't be re-pointed by a disconnect.
+  const labelOfRef = useCallback(
+    (id: string) => upstream.find((u) => u.id === id)?.label,
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the ids; `upstream` is rebuilt every render
+    [refIdsKey],
+  );
+  const beatDialect = useMemo(
+    () => storedRefDialect(dialectForCapability(cap, refIds), labelOfRef),
+    [cap, refIds, labelOfRef],
+  );
 
-  // References no beat's text cites (via `refsCitedIn`), by index into `promptRefImages` —
+  // References no beat's text cites (via `planCitedRefIds`), by index into `promptRefImages` —
   // the same order-preserving `visionAttachmentsOf(upstream)` filter ReferenceImageStrip
   // applies internally, so the indices line up without a second, independent ordering.
   //
@@ -222,13 +241,19 @@ export function MultishotPromptFocusView({
   // intended reference left unattached is otherwise only discoverable in the rendered video.
   const uncitedIndices = useMemo(() => {
     if (!planDraft) return undefined;
-    const cited = new Set(planDraft.beats.flatMap((b) => refsCitedIn(b.text, cap)));
+    const cited = planCitedRefIds(planDraft, cap, refIds);
     const uncited = new Set<number>();
-    promptRefImages.forEach((_, i) => {
-      if (!cited.has(i)) uncited.add(i);
+    promptRefImages.forEach((r, i) => {
+      if (!cited.has(r.id)) uncited.add(i);
     });
     return uncited;
-  }, [planDraft, promptRefImages, cap]);
+  }, [planDraft, promptRefImages, cap, refIds]);
+
+  // BUG-010 — cited images no longer connected. Shown below the plan; Video Gen refuses them.
+  const missingRefs = useMemo(
+    () => (planDraft ? planMissingRefs(planDraft, cap, refIds) : []),
+    [planDraft, cap, refIds],
+  );
 
   const estimatedCredits = estimatePromptCredits(upstream.filter(isVisionAttachment).length);
   const totalCutSeconds = cuts.reduce((sum, c) => sum + c.seconds, 0);
@@ -653,7 +678,7 @@ export function MultishotPromptFocusView({
               {outputView === "prompt" ? (
                 <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
                   {planDraft ? (
-                    <GeneratedPromptBody text={renderPlan(planDraft, cuts, cap)} images={promptRefImages} />
+                    <GeneratedPromptBody text={renderPlan(planDraft, cuts, cap, refIds)} images={promptRefImages} />
                   ) : (
                     <p className="text-sm text-muted-foreground">
                       Generate a multishot prompt first — this shows the exact compiled string,
@@ -793,6 +818,12 @@ export function MultishotPromptFocusView({
                     {/* BUG-006 — the plan outlives the edge it was written against. Say so plainly
                         instead of inventing a model for the missing node; Video Gen refuses to
                         render this plan until a Multishot node is back (resolve-prompt.ts). */}
+                    {missingRefs.length > 0 && (
+                      <p className="flex shrink-0 items-start gap-1.5 text-xs text-destructive">
+                        <TriangleAlert className="mt-0.5 size-3.5 shrink-0" strokeWidth={1.5} />
+                        <span>{missingRefsMessage(missingRefs)}</span>
+                      </p>
+                    )}
                     {!connected && planDraft && (
                       <p className="flex shrink-0 items-start gap-1.5 text-xs text-destructive">
                         <TriangleAlert className="mt-0.5 size-3.5 shrink-0" strokeWidth={1.5} />
