@@ -71,6 +71,7 @@ import { useIdentity } from "@/hooks/use-identity";
 import { useNodeVersionUpdates } from "@/hooks/use-node-version-updates";
 import { revalidateCanvasGenerations } from "@/hooks/use-canvas-generations";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
+import { useRailDisconnect } from "./use-rail-disconnect";
 import { standingChangeRequest, type ApprovalStatus } from "@/lib/approval";
 import {
   imageGenClientModelMap,
@@ -260,6 +261,11 @@ export function ImageGenFocusView({
   );
   const [openSeed, setOpenSeed] = useState(open);
   const seenModelIdRef = useRef(model.id);
+  // The rail's hover control (✕ / link icon) — see useRailDisconnect. A disconnected row that
+  // was selected falls back to this node's own tab.
+  const { removeFor } = useRailDisconnect(nodeId, (sourceId) => {
+    if (selected === sourceId) setSelected("image");
+  });
 
   // Re-arm skeletons on open transition.
   if (open !== openSeed) {
@@ -1139,15 +1145,21 @@ export function ImageGenFocusView({
                 No inputs connected.
               </p>
             ) : (
-              upstreamForCard.map((u) => (
-                <RailItem
-                  key={u.id}
-                  icon={<NodeIcon type={u.type} />}
-                  label={u.label}
-                  active={selected === u.id}
-                  onClick={() => setSelected(u.id)}
-                />
-              ))
+              upstreamForCard.map((u) => {
+                const remove = editable ? removeFor(u.id, u.label) : null;
+                return (
+                  <RailItem
+                    key={u.id}
+                    icon={<NodeIcon type={u.type} />}
+                    label={u.label}
+                    active={selected === u.id}
+                    onClick={() => setSelected(u.id)}
+                    onRemove={remove?.onClick}
+                    removeLabel={remove?.label}
+                    removeKind={remove?.kind}
+                  />
+                );
+              })
             )}
 
             <div className="mx-2.5 my-2 h-px bg-border" />

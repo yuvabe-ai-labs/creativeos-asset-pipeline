@@ -1,16 +1,21 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { X } from "lucide-react";
+import { Link2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 // One entry in a focus view's left rail. `icon` is a pre-rendered element so both
 // Lucide icons and the connected-node <NodeIcon> can be passed uniformly.
 //
-// `onRemove` is optional; pass it and the row grows a destructive ✕. It renders as a SIBLING of
+// `onRemove` is optional; pass it and the row grows a hover control. It renders as a SIBLING of
 // the row button, never a child — a <button> inside a <button> is invalid HTML, and the click
 // would bubble into "select this item" instead of removing it.
+//
+// `removeKind` says what that control IS. "disconnect" is the destructive ✕ for an input wired
+// straight into this node. "via" is a quiet link icon for an input that reaches this node THROUGH
+// another one (a Video Gen lists the images wired into its prompt node): there is no edge here to
+// remove, so a ✕ would be a lie — clicking it says where the connection comes from instead.
 export function RailItem({
   icon,
   label,
@@ -19,6 +24,7 @@ export function RailItem({
   badge,
   onRemove,
   removeLabel = "Remove",
+  removeKind = "disconnect",
 }: {
   icon: ReactNode;
   label: string;
@@ -27,6 +33,7 @@ export function RailItem({
   badge?: ReactNode;
   onRemove?: () => void;
   removeLabel?: string;
+  removeKind?: "disconnect" | "via";
 }) {
   return (
     <div className="group/rail relative">
@@ -60,10 +67,16 @@ export function RailItem({
           className={cn(
             "absolute right-1.5 top-1/2 size-6 -translate-y-1/2 rounded-md text-muted-foreground",
             "opacity-0 transition-opacity duration-200 group-hover/rail:opacity-100 focus-visible:opacity-100",
-            "hover:bg-destructive/10 hover:text-destructive-text",
+            removeKind === "disconnect"
+              ? "hover:bg-destructive/10 hover:text-destructive-text"
+              : "hover:bg-muted hover:text-foreground",
           )}
         >
-          <X className="size-3.5" strokeWidth={2} />
+          {removeKind === "disconnect" ? (
+            <X className="size-3.5" strokeWidth={2} />
+          ) : (
+            <Link2 className="size-3.5" strokeWidth={1.5} />
+          )}
         </Button>
       )}
     </div>
