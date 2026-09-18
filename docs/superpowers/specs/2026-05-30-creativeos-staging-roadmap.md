@@ -5243,3 +5243,30 @@ unreviewed); an empty setting as on the multishot look (a picture always has a b
 **Refines.** D262.
 
 **Originated →** QA bug log BUG-005 (`docs/qa/bugs.md`), 2026-09-16.
+
+### D269 — An open canvas swaps in a colleague's new image or video, unless you are editing it *(recorded 2026-09-18; refines D202)*
+
+**Decision.** `/api/canvases/:cid/approval-statuses` returns `{ statuses, outputs }` — the same
+`review_queue_items` row now also yields the active version's output when it is a string (an
+image or video URL). `useCanvasApprovalSync` hands both to a pure planner, `planCanvasLiveSync`,
+which writes `approvalStatus` as before and `parsed` on `image-gen` / `video-gen` nodes — except any
+node whose focus view this viewer has open (`openFocusViewIds`). Prompt nodes' `parsed` is never
+swapped. Only real changes are written.
+
+**Why.** D202 kept the badge live but deliberately never touched `parsed`, deferring "someone else's
+regeneration replacing the image under a viewer mid-edit" (D19). The cost was that a reviewer on
+the same canvas as the designer saw the new version only after a refresh, while the inbox on
+another canvas — which fetches fresh — looked fine. "Mid-edit" has a precise signal already: an
+open focus view, which refreshes itself (D179). Outside it the card is display-only, so swapping
+is safe; `flowToPersisted` strips `parsed`, so autosave is unaffected. `setActiveVersion` touches
+the version row after moving the pointer (0034), so the last ping of a burst always reads the new
+output.
+
+**Rejected.** A "new version available — click to load" marker (a step for a reviewer whose only
+job on that card is to look at the latest); always swapping, even mid-edit (D19); a per-node
+`/versions` fetch per ping (cost would scale with how busy the org is — D202's reason for the
+canvas-scoped request).
+
+**Refines.** D202, D19.
+
+**Originated →** QA bug log BUG-002 (`docs/qa/bugs.md`), 2026-09-16.
