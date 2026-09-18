@@ -52,26 +52,25 @@ function durationSelectParam(options: string[], defaultValue: string): ParamSpec
   };
 }
 
-// ADVANCED, and now actually reachable. The Advanced section was deleted from the video-gen
-// focus view in 7e1c643, which left every control in this group rendering nowhere — audio was
-// sent on every request (buildOmniSettings / build3_0Settings) and priced on every estimate
-// (isVideoAudioEnabled → cost.ts's `on`/`off` columns), while the operator had no way to ask for
-// sound. The section is restored rather than the param promoted: sound is a genuine fine-tune
-// next to resolution and duration, and `hasParamsInGroup` was still sitting in the panel with a
-// doc comment saying it "drives showing the Advanced section".
+// PRIMARY, beside Resolution and Duration (BUG-011). It was filed under Advanced as "a genuine
+// fine-tune", but whether a clip has sound is a primary decision — and in the collapsed section
+// nobody found it, so Kling clips shipped silent without anyone choosing that. Every other model
+// already shows its audio control with the main ones.
 //
-// Default stays "off": sound is opt-in on a product clip, and on Kling it costs real money —
-// +33% at 720p and +25% at 1080p on 3.0 Omni (cost.ts).
-function audioParam(options: string[], defaultValue: string): ParamSpec {
+// Default stays "off": sound is opt-in on a product clip, and on most Kling endpoints it costs
+// real money — so the price change is stated right beside the control (`description`), per
+// model, from cost.ts: +50% on 3.0, +33% at 720p / +25% at 1080p on 3.0 Omni, nothing on O1.
+function audioParam(options: string[], defaultValue: string, description: string): ParamSpec {
   return {
     name: "audio",
     label: "Audio",
     component: "select",
-    group: "advanced",
-    order: 0,
+    group: "primary",
+    order: 2,
     visible: true,
     defaultValue,
     constraints: { type: "select", options },
+    description,
   };
 }
 
@@ -83,14 +82,14 @@ function audioParam(options: string[], defaultValue: string): ParamSpec {
 // PRIMARY, not advanced. It was filed under Advanced as "reachable, not prominent" — but the
 // Advanced accordion was deleted from the focus view in 7e1c643, so nothing renders that group
 // and the control was reachable from nowhere. Framing is also a shot decision the eye makes
-// alongside resolution and duration, not a fine-tune. Orders after Duration and before the
+// alongside resolution and duration, not a fine-tune. Orders after Audio and before the
 // full-width Negative Prompt.
 const aspectRatioParam: ParamSpec = {
   name: "aspect_ratio",
   label: "Aspect Ratio",
   component: "select",
   group: "primary",
-  order: 2,
+  order: 3,
   visible: true,
   defaultValue: "9:16",
   constraints: { type: "select", options: ["16:9", "9:16", "1:1"] },
@@ -135,7 +134,7 @@ const negativePromptParam: ParamSpec = {
   label: "Negative Prompt",
   component: "textarea",
   group: "primary",
-  order: 3,
+  order: 4,
   visible: true,
   defaultValue: KLING_NEGATIVE_DEFAULT,
   constraints: { type: "textarea", maxLength: 2500 },
@@ -144,7 +143,7 @@ const negativePromptParam: ParamSpec = {
 export const kling30Params: ParamSpec[] = [
   resolutionParam(["720p", "1080p", "4k"], "720p"),
   durationParam(3, 15, 5),
-  audioParam(["native", "off"], "off"),
+  audioParam(["native", "off"], "off", "Native sound matched to the visuals. Costs about 50% more per second."),
   multiShotParam,
   negativePromptParam,
 ];
@@ -168,7 +167,11 @@ export const kling30Params: ParamSpec[] = [
 export const kling30OmniParams: ParamSpec[] = [
   resolutionParam(["720p", "1080p", "4k"], "720p"),
   durationParam(3, 15, 5),
-  audioParam(["native", "off"], "off"),
+  audioParam(
+    ["native", "off"],
+    "off",
+    "Native sound matched to the visuals. Costs about 33% more per second at 720p, 25% at 1080p.",
+  ),
   multiShotParam,
   aspectRatioParam,
   negativePromptParam,
@@ -182,7 +185,11 @@ export const kling30OmniParams: ParamSpec[] = [
 export const klingO1Params: ParamSpec[] = [
   resolutionParam(["720p", "1080p"], "720p"),
   durationSelectParam(["5", "10"], "5"),
-  audioParam(["native", "off"], "off"),
+  audioParam(
+    ["native", "off"],
+    "off",
+    "Native sound matched to the visuals. No extra cost on this model.",
+  ),
   multiShotParam,
   aspectRatioParam,
   negativePromptParam,

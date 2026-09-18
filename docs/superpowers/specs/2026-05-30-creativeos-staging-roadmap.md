@@ -5200,3 +5200,23 @@ cannot get wrong if it is automatic).
 **Refines.** D99 (Kling 3.0 and O1 reference mechanisms differ in kind).
 
 **Originated →** `2026-09-14-character-node-voice-reference-design.md` §4.2.
+
+### D267 — Kling's Audio is a primary control, with its price stated beside it *(recorded 2026-09-18; reverses the "Advanced" filing in kling.ts)*
+
+**Decision.** `audioParam` (Kling 3.0, 3.0 Omni, O1) moves from `group: "advanced"` to `"primary"`,
+ordered right after Duration (Aspect Ratio and Negative Prompt shift down one). The default stays
+`off`. Each model's spec carries a `description` stating what sound adds to the price, from
+cost.ts — +50% on 3.0, +33% at 720p / +25% at 1080p on 3.0 Omni, nothing on O1 — and
+`VideoGenParamsPanel` now renders a spec's `description` under its control (it was declared on
+several params and rendered nowhere).
+
+**Why.** Whether a clip has sound is a primary decision, not a fine-tune. Filed under the collapsed
+Advanced section it went unfound, so Kling clips shipped silent without anyone choosing that, while
+every other model shows its audio control with the main ones. The reason it was hidden — sound costs
+real money on Kling — is better served by stating the cost at the control than by hiding the control.
+
+**Rejected.** Defaulting audio to `native` (a silent product clip is still the common case, and it
+would raise every Kling estimate by default); keeping it in Advanced and auto-expanding that section
+(one more place for a primary decision to hide).
+
+**Originated →** QA bug log BUG-011 (`docs/qa/bugs.md`), 2026-09-16.
