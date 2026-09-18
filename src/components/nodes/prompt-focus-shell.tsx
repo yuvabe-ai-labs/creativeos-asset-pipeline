@@ -34,6 +34,8 @@ import { PromptVersionHistory, type VersionSummary } from "./prompt-version-hist
 import type { ApprovalStatus } from "@/lib/approval";
 import { useIdentity } from "@/hooks/use-identity";
 import { useNodeVersionUpdates } from "@/hooks/use-node-version-updates";
+import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
+import { useRailDisconnect } from "./use-rail-disconnect";
 
 export type PromptFocusShellSlots = {
   // A ready-wired <PromptVersionChips> — the caller places it wherever its own "Generated
@@ -169,6 +171,14 @@ export function PromptFocusShell({
   // D179: keep this panel live while it is open — the same treatment the gen focus views get.
   useNodeVersionUpdates(nodeId, open, onLiveVersionUpdate);
 
+  // The rail's hover control: ✕ for a direct input, a link icon for one that arrives through
+  // another node. Gated on the canvas lock like every other write (D33). A disconnected row that
+  // was selected falls back to the node's own tab rather than a preview of a node no longer here.
+  const editable = useCanvasEditable();
+  const { removeFor } = useRailDisconnect(nodeId, (sourceId) => {
+    if (selected === sourceId) onSelectedChange("prompt");
+  });
+
   // YUV-288: navigating away must not silently drop an unsaved manual edit.
   function requestClose() {
     if (dirty) {
@@ -286,15 +296,21 @@ export function PromptFocusShell({
             {upstream.length === 0 ? (
               <p className="px-2.5 text-xs text-muted-foreground">No inputs connected.</p>
             ) : (
-              upstream.map((u) => (
-                <RailItem
-                  key={u.id}
-                  icon={<NodeIcon type={u.type} />}
-                  label={u.label}
-                  active={selected === u.id}
-                  onClick={() => onSelectedChange(u.id)}
-                />
-              ))
+              upstream.map((u) => {
+                const remove = editable ? removeFor(u.id, u.label) : null;
+                return (
+                  <RailItem
+                    key={u.id}
+                    icon={<NodeIcon type={u.type} />}
+                    label={u.label}
+                    active={selected === u.id}
+                    onClick={() => onSelectedChange(u.id)}
+                    onRemove={remove?.onClick}
+                    removeLabel={remove?.label}
+                    removeKind={remove?.kind}
+                  />
+                );
+              })
             )}
 
             <div className="mx-2.5 my-2 h-px bg-border" />

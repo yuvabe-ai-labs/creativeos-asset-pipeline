@@ -63,6 +63,7 @@ import { setVersionApprovalAction } from "@/lib/actions/approval";
 import { useIdentity } from "@/hooks/use-identity";
 import { useNodeVersionUpdates } from "@/hooks/use-node-version-updates";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
+import { useRailDisconnect } from "./use-rail-disconnect";
 import { useFlushAutosave } from "@/components/canvas/autosave-flush-context";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { ApprovalStatus } from "@/lib/approval";
@@ -154,6 +155,11 @@ export function PromptFocusView({
   const [approvalSaving, setApprovalSaving] = useState(false);
   const { identity } = useIdentity();
   const editable = useCanvasEditable(); // D33: false when this session is read-only
+  // The rail's hover control (✕ / link icon) — see useRailDisconnect. A disconnected row that
+  // was selected falls back to this node's own tab.
+  const { removeFor } = useRailDisconnect(nodeId, (sourceId) => {
+    if (selected === sourceId) setSelected("prompt");
+  });
   const flushAutosave = useFlushAutosave();
   const [evalSaving, setEvalSaving] = useState(false);
   // A pending destructive action awaiting confirmation. Replaces window.confirm
@@ -578,15 +584,21 @@ export function PromptFocusView({
             {upstream.length === 0 ? (
               <p className="px-2.5 text-xs text-muted-foreground">No inputs connected.</p>
             ) : (
-              upstream.map((u) => (
-                <RailItem
-                  key={u.id}
-                  icon={<NodeIcon type={u.type} />}
-                  label={u.label}
-                  active={selected === u.id}
-                  onClick={() => setSelected(u.id)}
-                />
-              ))
+              upstream.map((u) => {
+                const remove = editable ? removeFor(u.id, u.label) : null;
+                return (
+                  <RailItem
+                    key={u.id}
+                    icon={<NodeIcon type={u.type} />}
+                    label={u.label}
+                    active={selected === u.id}
+                    onClick={() => setSelected(u.id)}
+                    onRemove={remove?.onClick}
+                    removeLabel={remove?.label}
+                    removeKind={remove?.kind}
+                  />
+                );
+              })
             )}
 
             <div className="mx-2.5 my-2 h-px bg-border" />

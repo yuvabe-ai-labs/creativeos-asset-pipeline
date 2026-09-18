@@ -90,6 +90,7 @@ import {
 } from "@/lib/actions/approval";
 import { standingChangeRequest, type ApprovalStatus } from "@/lib/approval";
 import { useFlushAutosave } from "@/components/canvas/autosave-flush-context";
+import { useRailDisconnect } from "./use-rail-disconnect";
 import { useVideoGenStatus } from "@/hooks/use-video-gen-status";
 import {
   VideoGenVersionHistory,
@@ -578,7 +579,6 @@ export function VideoGenFocusView({
   // the per-render wrapper functions returned by useVideoGenStatus.
   const setVideoGenGenerating = useCanvasStore((s) => s.setVideoGenGenerating);
   const setVideoGenError = useCanvasStore((s) => s.setVideoGenError);
-  const disconnectNodes = useCanvasStore((s) => s.disconnectNodes);
   const editable = useCanvasEditable(); // D33: false when this session is read-only
   const { identity } = useIdentity();
   const flushAutosave = useFlushAutosave();
@@ -764,10 +764,10 @@ export function VideoGenFocusView({
 
   // Unwire an input added by mistake. The role goes with the edge: read-time pruning already
   // keeps the tally honest, but leaving the entry behind grows a tail of ids in the stored
-  // imageRoles that point at nothing.
-  const handleDisconnect = useCallback(
-    async (sourceId: string) => {
-      disconnectNodes(sourceId, nodeId);
+  // imageRoles that point at nothing. Runs only after a REAL disconnect — an image that reaches
+  // this node through its prompt node has no edge here, and useRailDisconnect says so instead.
+  const onDisconnected = useCallback(
+    (sourceId: string) => {
       const nextRoles = Object.fromEntries(
         Object.entries(imageRolesProp).filter(([id]) => id !== sourceId),
       );
@@ -776,10 +776,11 @@ export function VideoGenFocusView({
       // and something the React compiler rejects.
       onPatch({ imageRoles: nextRoles });
       if (selected === sourceId) setSelected("video");
-      await persistThenRefresh();
+      void persistThenRefresh();
     },
-    [disconnectNodes, nodeId, imageRolesProp, onPatch, selected, persistThenRefresh],
+    [imageRolesProp, onPatch, selected, persistThenRefresh],
   );
+  const { removeFor } = useRailDisconnect(nodeId, onDisconnected);
 
   // Load data when focus view opens; also re-check generation status to clear
   // any stale isGenerating=true that may have been set while the sheet was closed.
@@ -1413,6 +1414,7 @@ export function VideoGenFocusView({
             ) : (
               connectedItems.map((c) => {
                 const role = c.type === "image" ? effectiveImageRoles[c.id] : undefined;
+                const remove = editable ? removeFor(c.id, c.label) : null;
                 return (
                   <RailItem
                     key={c.id}
@@ -1440,10 +1442,9 @@ export function VideoGenFocusView({
                         </span>
                       ) : undefined
                     }
-                    onRemove={
-                      editable ? () => void handleDisconnect(c.id) : undefined
-                    }
-                    removeLabel={`Disconnect ${c.label}`}
+                    onRemove={remove?.onClick}
+                    removeLabel={remove?.label}
+                    removeKind={remove?.kind}
                   />
                 );
               })
