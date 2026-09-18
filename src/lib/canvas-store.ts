@@ -24,6 +24,7 @@ import {
   describeGenerations,
   generationKey,
   defaultMultishotFor,
+  mergeShotRows,
   type GroupingVersion,
 } from "@/lib/nodes/group-shots";
 import { cutsFromShots, totalOf } from "@/lib/nodes/multishot-cuts";
@@ -512,6 +513,10 @@ export function createCanvasStore(
           };
         }
 
+        // ONE row: a single take over every row in the group (BUG-004). The rows it came from are
+        // still identified by seededFrom.shotIndexes, which is what a flip to multishot rebuilds
+        // its cuts from (setGenerationMode).
+        const take = mergeShotRows(groupShots);
         return {
           id: crypto.randomUUID(),
           type: "shot",
@@ -519,10 +524,10 @@ export function createCanvasStore(
           data: {
             script: {
               ...parsed,
-              visual_script: { ...parsed?.visual_script, shots: groupShots },
+              visual_script: { ...parsed?.visual_script, shots: [take] },
             },
             order: generation.index + 1,
-            shot_type: deriveShotType(groupShots[0]?.description ?? ""),
+            shot_type: deriveShotType(take.description ?? ""),
             seededFrom,
           },
         };
@@ -591,9 +596,14 @@ export function createCanvasStore(
       const targetType = multishot ? "multishot" : "shot";
       if (node.type === targetType) return;
 
+      // Shot → multishot rebuilds the cuts from the SCRIPT's rows (the generation's own
+      // shotIndexes), not from the node: a single take holds one merged row (BUG-004), and cutting
+      // it would give one cut where the script had several. Only when the script rows are gone
+      // does the node's own row stand in.
+      const scriptRows = generation.shotIndexes.map((i) => shots[i]).filter(Boolean);
       const converted =
         targetType === "multishot"
-          ? shotDataToMultishot(node.data as ShotNodeData)
+          ? shotDataToMultishot(node.data as ShotNodeData, scriptRows)
           : multishotDataToShot(node.data as MultishotNodeData);
 
       // Outgoing edges are dropped: a prompt written for a cut ladder does not describe a

@@ -10,7 +10,7 @@ import {
   CURRENT_GROUPING_VERSION,
   ceilingForVersion,
   defaultMultishotFor,
-  shotSpanLabel,
+  mergeShotRows,
 } from "../group-shots";
 import { MULTISHOT_MODELS } from "../multishot-models";
 import type { ReelShot } from "../reel-script";
@@ -271,21 +271,33 @@ describe("describeGenerations by version", () => {
   });
 });
 
-// BUG-004 — a single-take Shot node can cover several script rows (Multishot off). Its card must
-// state the whole span, not the first row's length.
-describe("shotSpanLabel", () => {
-  it("keeps a lone row's own timing text", () => {
-    expect(shotSpanLabel([{ description: "a", duration: "0-3 sec", duration_seconds: 3 }])).toBe(
-      "0-3 sec",
-    );
+// BUG-004 — a single-take generation (Multishot off) is ONE shot: one description, one length.
+// Fan-out used to keep every script row on the node, and every reader (the card, the Composer
+// seed, node-output) took row 1 — a 20s take read as its first 3 seconds.
+describe("mergeShotRows", () => {
+  it("keeps a lone row exactly as it is", () => {
+    const row = { description: "a", duration: "0-3 sec", duration_seconds: 3, clip: 1 };
+    expect(mergeShotRows([row])).toEqual(row);
   });
 
-  it("states the total and the row count for several rows", () => {
-    expect(shotSpanLabel(shots(5, 5, 5, 5))).toBe("20s · 4 shots");
+  it("joins several rows into one take, summing their length", () => {
+    expect(
+      mergeShotRows([
+        { description: "close on keys.", duration: "0-2 sec", duration_seconds: 2, clip: 1 },
+        { description: "a cab door swings", duration: "2-5 sec", duration_seconds: 3, clip: 1 },
+        { description: "  ", duration_seconds: 4 },
+        { description: "feet hit the street", duration: "9-10 sec", duration_seconds: 1 },
+      ]),
+    ).toEqual({
+      description: "close on keys. A cab door swings Feet hit the street",
+      duration: "10s",
+      duration_seconds: 10,
+      clip: 1,
+    });
   });
 
-  it("is empty with no rows", () => {
-    expect(shotSpanLabel([])).toBe("");
+  it("counts an unlengthed row as the assumed length", () => {
+    expect(mergeShotRows([{ description: "a" }, { description: "b" }]).duration_seconds).toBe(8);
   });
 });
 

@@ -16,7 +16,6 @@ import { NodeCardHeader } from "./node-card-header";
 import { ShotComposeSheet } from "./shot-compose-sheet";
 import { GuidedNextButton } from "@/components/canvas/guided-next-button";
 import type { ReelScript } from "@/lib/nodes/reel-script";
-import { shotSpanLabel } from "@/lib/nodes/group-shots";
 
 // Shot node — one shot of a reel, forked from a parsed Script (D21). It carries the
 // FULL parent script narrowed to a single shot ("a Script node with one shot"), so
@@ -40,17 +39,16 @@ export function ShotNode({ id, data, selected, positionAbsoluteX, positionAbsolu
     shot_type?: string;
     seededFrom?: { scriptTitle?: string };
   };
-  const shots = d.script?.visual_script?.shots ?? [];
-  // A single take can span several script rows (Multishot off). Every row is shown and editable;
-  // rendering only shots[0] hid rows 2+ while the video prompt still used them (BUG-004).
-  const rows = shots.length > 0 ? shots : [{}];
-  const spanLabel = shotSpanLabel(shots);
+  // ONE row: a Shot is one continuous take, merged at fan-out from every script row it covers
+  // (BUG-004, mergeShotRows). Its `duration` states the whole take's length.
+  const shot = d.script?.visual_script?.shots?.[0];
+  const description = shot?.description ?? "";
 
-  function setDescription(index: number, value: string) {
+  function setDescription(value: string) {
     const base = d.script ?? {};
     const vs = base.visual_script ?? {};
     const next = (vs.shots?.length ? vs.shots : [{}]).map((s, i) =>
-      i === index ? { ...s, description: value } : s,
+      i === 0 ? { ...s, description: value } : s,
     );
     updateNodeData(id, { script: { ...base, visual_script: { ...vs, shots: next } } });
   }
@@ -96,45 +94,20 @@ export function ShotNode({ id, data, selected, positionAbsoluteX, positionAbsolu
           nodeType="shot"
           title={`Shot${d.order ? ` ${d.order}` : ""}`}
           status={
-            spanLabel ? (
-              <span className="text-[0.6rem] text-muted-foreground">{spanLabel}</span>
+            shot?.duration ? (
+              <span className="text-[0.6rem] text-muted-foreground">{shot.duration}</span>
             ) : undefined
           }
         />
         <div className="p-2">
-          {rows.length === 1 ? (
-            <Textarea
-              value={rows[0].description ?? ""}
-              onChange={(e) => setDescription(0, e.target.value)}
-              onDoubleClick={(e) => e.stopPropagation()}
-              placeholder="Shot description…"
-              rows={4}
-              className="nodrag w-full resize-none rounded-md bg-transparent px-1.5 py-1 text-sm focus:outline-none"
-            />
-          ) : (
-            <ol className="space-y-1.5">
-              {rows.map((row, i) => (
-                <li key={i} className="flex gap-1.5">
-                  <span className="pt-1 text-[0.6rem] tabular-nums text-muted-foreground">
-                    {i + 1}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <Textarea
-                      value={row.description ?? ""}
-                      onChange={(e) => setDescription(i, e.target.value)}
-                      onDoubleClick={(e) => e.stopPropagation()}
-                      placeholder="Shot description…"
-                      rows={3}
-                      className="nodrag w-full resize-none rounded-md bg-transparent px-1.5 py-1 text-sm focus:outline-none"
-                    />
-                    {row.duration && (
-                      <p className="px-1.5 text-[0.6rem] text-muted-foreground">{row.duration}</p>
-                    )}
-                  </div>
-                </li>
-              ))}
-            </ol>
-          )}
+          <Textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            onDoubleClick={(e) => e.stopPropagation()}
+            placeholder="Shot description…"
+            rows={4}
+            className="nodrag w-full resize-none rounded-md bg-transparent px-1.5 py-1 text-sm focus:outline-none"
+          />
 
           <p className="px-1.5 pt-1 text-[0.6rem] text-muted-foreground">
             {d.seededFrom?.scriptTitle ? `from "${d.seededFrom.scriptTitle}" · ` : ""}full script context

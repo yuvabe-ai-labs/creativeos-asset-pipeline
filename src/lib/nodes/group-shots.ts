@@ -72,15 +72,28 @@ export function shotSeconds(shot: ReelShot): number {
 }
 
 /**
- * The length a Shot node's card states. A single take can cover several script rows (Multishot
- * off), and showing the first row's timing made a 20s take read as 5s (BUG-004). One row keeps its
- * own timing text exactly as written; several state the summed length and the row count.
+ * A single-take generation as ONE shot row (BUG-004). Multishot off means one continuous take over
+ * every row in the group, so the Shot node holds one description and one length — every reader of
+ * a Shot (the card, the Composer seed, node-output, the video prompt) takes the first row, and a
+ * multi-row node made a 20s take read as its first 3 seconds. A lone row is returned as is. The
+ * join matches render-shot-for-video's; `duration` states the summed length, since the rows' own
+ * timing texts were ranges of a script that no longer exists on this node.
  */
-export function shotSpanLabel(shots: ReelShot[]): string {
-  if (shots.length === 0) return "";
-  if (shots.length === 1) return shots[0].duration ?? "";
-  const total = shots.reduce((sum, s) => sum + shotSeconds(s), 0);
-  return `${total}s · ${shots.length} shots`;
+export function mergeShotRows(rows: ReelShot[]): ReelShot {
+  if (rows.length === 1) return rows[0];
+  const description = rows
+    .map((r) => (r.description ?? "").trim())
+    .filter(Boolean)
+    .map((s, i) => (i === 0 ? s : s.charAt(0).toUpperCase() + s.slice(1)))
+    .join(" ");
+  const total = rows.reduce((sum, r) => sum + shotSeconds(r), 0);
+  const clip = rows[0]?.clip;
+  return {
+    description,
+    duration: `${total}s`,
+    duration_seconds: total,
+    ...(clip !== undefined ? { clip } : {}),
+  };
 }
 
 /**

@@ -257,6 +257,20 @@ describe("fanOutShots is incremental", () => {
     const created = store.getState().nodes.filter((n) => n.id !== "sc");
     expect(created.map((n) => n.type)).toEqual(["shot", "multishot"]);
   });
+
+  // BUG-004 — a single take covering several rows is ONE shot on the node, not a row list:
+  // the Composer, the card and node-output all read the first row, so a 3+5s take read as 3s.
+  it("merges a multi-row single take into one shot row", () => {
+    const store = createCanvasStore([scriptNode({ groupModes: { "0-1": false } })], []);
+    store.getState().fanOutShots("sc");
+
+    const shot = store.getState().nodes.find((n) => n.type === "shot")!;
+    const rows = (shot.data as { script?: { visual_script?: { shots?: unknown[] } } }).script
+      ?.visual_script?.shots;
+    expect(rows).toEqual([{ description: "a B", duration: "8s", duration_seconds: 8 }]);
+    // The generation's identity is still the rows it came from.
+    expect((shot.data as { seededFrom?: { shotIndexes?: number[] } }).seededFrom?.shotIndexes).toEqual([0, 1]);
+  });
 });
 
 // BUG-007 — the store's toast is the ONLY fan-out toast, so it must report what was created
@@ -670,6 +684,13 @@ describe("setGenerationMode swaps an existing node's type", () => {
   it("round-trips the node's content through a flip and a flip-back", () => {
     const store = seeded();
     store.getState().setGenerationMode("sc", "0-1", false);
+    // As a single take the node holds ONE merged row (BUG-004)…
+    const single = store.getState().nodes.find((n) => n.type === "shot")!;
+    expect(
+      (single.data as { script?: { visual_script?: { shots?: unknown[] } } }).script?.visual_script
+        ?.shots,
+    ).toEqual([{ description: "a B", duration: "8s", duration_seconds: 8 }]);
+    // …and the flip back recovers the original cuts from the script's rows, not the merge.
     store.getState().setGenerationMode("sc", "0-1", true);
 
     const node = store.getState().nodes.find((n) => n.type === "multishot")!;
