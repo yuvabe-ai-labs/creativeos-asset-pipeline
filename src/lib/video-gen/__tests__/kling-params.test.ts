@@ -210,10 +210,10 @@ describe("Kling audio control", () => {
     const duration = params.find((p) => p.name === "duration")!;
     expect(audio.group).toBe("primary");
     expect(audio.visible).toBe(true);
-    expect(audio.defaultValue).toBe("off");
+    expect(audio.defaultValue).toBe("native");
     expect(audio.order).toBeGreaterThan(duration.order);
     // Its cost is stated beside it, since switching it on is what moves the price.
-    expect(audio.description).toMatch(/cost/i);
+    expect(audio.description).toMatch(/saves|cost/i);
     // Unique ordering within primary, so layout is deterministic.
     const orders = params.filter((p) => p.group === "primary").map((p) => p.order);
     expect(new Set(orders).size).toBe(orders.length);

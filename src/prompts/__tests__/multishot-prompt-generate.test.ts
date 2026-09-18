@@ -10,6 +10,11 @@ import {
 } from "../multishot-prompt-generate";
 import { multishotPromptFor } from "../multishot-prompt-for";
 import { MULTISHOT_MODELS } from "@/lib/nodes/multishot-models";
+import {
+  GEMINI_OMNI_MODEL_ID,
+  KLING_OMNI_MODEL_ID,
+  SEEDANCE_MODEL_ID,
+} from "@/lib/video-gen/client-models";
 import { MULTISHOT_AUTHORING_MODEL, SUBJECT_SILENT_CAMERA } from "../video-prompt-generate";
 
 describe("multishotPromptGenerate", () => {
@@ -277,5 +282,30 @@ describe("simple motion (D263)", () => {
     for (const [label, system] of systems) {
       for (const pattern of removed) expect(system, `${label} ${pattern}`).not.toMatch(pattern);
     }
+  });
+});
+
+// The voiceover is written into the beats on EVERY multishot model — no per-model restriction —
+// in each model's OWN way of writing a spoken line (voiceoverRules). Whether and how a model
+// renders the speech (voice, lip-sync) is the video request's concern, handled there later.
+describe("voiceover rule", () => {
+  it("is in every writer's system prompt, asking for verbatim lines in the beat they are spoken over", () => {
+    for (const m of MULTISHOT_MODELS) {
+      const system = multishotPromptFor(m.id).system;
+      expect(system, m.label).toContain("VOICEOVER");
+      expect(system, m.label).toMatch(/VERBATIM/);
+      expect(system, m.label).toMatch(/beat where it is spoken/);
+      expect(system, m.label).toMatch(/no line is dropped/);
+      expect(system, m.label).not.toMatch(/do not quote/i);
+    }
+  });
+
+  it("writes the line in each vendor's own syntax", () => {
+    expect(multishotPromptFor(GEMINI_OMNI_MODEL_ID).system).toMatch(/plain prose/);
+    expect(multishotPromptFor(GEMINI_OMNI_MODEL_ID).system).toMatch(/No markers or brackets/);
+    expect(multishotPromptFor(KLING_OMNI_MODEL_ID).system).toMatch(/narrator says, in a calm, clear tone/);
+    expect(multishotPromptFor(KLING_OMNI_MODEL_ID).system).toMatch(/512 characters/);
+    expect(multishotPromptFor(SEEDANCE_MODEL_ID).system).toMatch(/{English, off-screen voiceover: …}/);
+    expect(multishotPromptFor(SEEDANCE_MODEL_ID).system).toContain("Never () or <> for a spoken line");
   });
 });

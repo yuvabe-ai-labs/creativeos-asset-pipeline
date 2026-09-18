@@ -57,9 +57,11 @@ function durationSelectParam(options: string[], defaultValue: string): ParamSpec
 // nobody found it, so Kling clips shipped silent without anyone choosing that. Every other model
 // already shows its audio control with the main ones.
 //
-// Default stays "off": sound is opt-in on a product clip, and on most Kling endpoints it costs
-// real money — so the price change is stated right beside the control (`description`), per
-// model, from cost.ts: +50% on 3.0, +33% at 720p / +25% at 1080p on 3.0 Omni, nothing on O1.
+// Default is "native" (operator, 2026-09-18 — was "off"): the multishot writers put the script's
+// voiceover into the beats as spoken lines, and a clip generated silent by default throws that
+// away; Kling's own default is native too. The saving from turning it off is stated beside the
+// control (`description`), per model, from cost.ts: 3.0 charges +50% with audio (off saves a
+// third), 3.0 Omni +33% at 720p / +25% at 1080p (off saves a quarter / a fifth), O1 nothing.
 function audioParam(options: string[], defaultValue: string, description: string): ParamSpec {
   return {
     name: "audio",
@@ -143,7 +145,7 @@ const negativePromptParam: ParamSpec = {
 export const kling30Params: ParamSpec[] = [
   resolutionParam(["720p", "1080p", "4k"], "720p"),
   durationParam(3, 15, 5),
-  audioParam(["native", "off"], "off", "Native sound matched to the visuals. Costs about 50% more per second."),
+  audioParam(["native", "off"], "native", "Native sound matched to the visuals, spoken lines included. Off saves about 33% per second."),
   multiShotParam,
   negativePromptParam,
 ];
@@ -169,8 +171,8 @@ export const kling30OmniParams: ParamSpec[] = [
   durationParam(3, 15, 5),
   audioParam(
     ["native", "off"],
-    "off",
-    "Native sound matched to the visuals. Costs about 33% more per second at 720p, 25% at 1080p.",
+    "native",
+    "Native sound matched to the visuals, spoken lines included. Off saves about 25% per second at 720p, 20% at 1080p.",
   ),
   multiShotParam,
   aspectRatioParam,
@@ -187,8 +189,8 @@ export const klingO1Params: ParamSpec[] = [
   durationSelectParam(["5", "10"], "5"),
   audioParam(
     ["native", "off"],
-    "off",
-    "Native sound matched to the visuals. No extra cost on this model.",
+    "native",
+    "Native sound matched to the visuals, spoken lines included. No extra cost on this model.",
   ),
   multiShotParam,
   aspectRatioParam,

@@ -5205,7 +5205,7 @@ cannot get wrong if it is automatic).
 
 **Decision.** `audioParam` (Kling 3.0, 3.0 Omni, O1) moves from `group: "advanced"` to `"primary"`,
 ordered right after Duration (Aspect Ratio and Negative Prompt shift down one). The default stays
-`off`. Each model's spec carries a `description` stating what sound adds to the price, from
+`off`. *Amended 2026-09-18 (D274): the default is now `native`.* Each model's spec carries a `description` stating what sound adds to the price, from
 cost.ts — +50% on 3.0, +33% at 720p / +25% at 1080p on 3.0 Omni, nothing on O1 — and
 `VideoGenParamsPanel` now renders a spec's `description` under its control (it was declared on
 several params and rendered nowhere).
@@ -5368,3 +5368,32 @@ only rule (the report).
 **Refines.** D258.
 
 **Originated →** QA bug log BUG-008 (`docs/qa/bugs.md`), 2026-09-16 / 2026-09-18.
+
+### D274 — The voiceover is written into every multishot beat, in the model's own dialogue syntax; Kling audio defaults to native *(recorded 2026-09-18; supersedes D271, amends D267)*
+
+**Decision.** `voiceoverRules(lineForm)` in `multishot-prompt-generate.ts` is in all three writers'
+system prompts (`generate@7`, `kling@4`, `seedance@4`): every line of the script's voiceover is
+written, verbatim, into the beat it is spoken over, as the named speaker's line or off-screen
+narration, never on screen, and no line is dropped. Each writer supplies its vendor's own form —
+Omni: plain prose ("A calm, clear off-screen voiceover says: …"); Kling: speaker then line,
+delivery note only when it matters, short sentences ("An off-screen narrator says, in a calm, clear
+tone, …"); Seedance: the `{}` dialogue marker with the language stated first
+(`{English, off-screen voiceover: …}`). The user turn hands the VO over as lines to write. No model
+is restricted: whether and how a model renders the speech (voice, lip-sync — Kling's Lip Sync API,
+Seedance's `@Audio N`, the Character node D264–D266) is the video request's concern, handled there.
+Kling's `audio` param defaults to `native` on all three Kling models, with the saving from `off`
+stated beside the control.
+
+**Why.** D271 sent the VO as "pacing context — do not quote it", on the reasoning that Omni cannot
+fix a voice across generations. The operator's report: the generated Kling prompt carried no
+voiceover at all. All three models generate speech from a line in the prompt — Omni's audio clause
+already asks for "the spoken line", Kling's native audio doc writes lines per shot, Seedance marks
+dialogue with `{}` — and each vendor documents its own syntax, so the writers use it. A clip
+generated silent by default would throw the written lines away, hence the Kling default.
+
+**Rejected.** A per-model `speaksLines` flag withholding the VO from Omni (operator: no
+restriction — audio handling lives with the request); one generic `Voiceover: "…"` form for all
+models (Seedance would read it as prose, not dialogue; Kling lip-syncs better with its documented
+speaker-then-line form).
+
+**Supersedes.** D271. **Amends.** D267 (default). **Originated →** operator report 2026-09-18.

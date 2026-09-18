@@ -41,11 +41,11 @@ describe("Kling 3.0 Omni registration", () => {
     expect(kling?.models.map((m) => m.id)).toContain(OMNI);
   });
 
-  // Audio is off by default and costs real money to turn on (+33% at 720p, +25% at 1080p —
-  // cost.ts), so it must be a control the operator sets deliberately, not a value they inherit.
-  it("offers audio as an operator-settable param, defaulting to off", () => {
+  // Audio defaults to native (D274): the multishot writers put the voiceover into the beats as
+  // spoken lines, and Kling's own default is native. The saving from off is stated by the control.
+  it("offers audio as an operator-settable param, defaulting to native", () => {
     const audio = videoGenClientModelMap[OMNI].params.find((p) => p.name === "audio");
-    expect(audio?.defaultValue).toBe("off");
+    expect(audio?.defaultValue).toBe("native");
     expect(audio?.visible).toBe(true);
     expect(audio?.constraints).toMatchObject({ options: ["native", "off"] });
   });

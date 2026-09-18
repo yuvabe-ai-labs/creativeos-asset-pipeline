@@ -160,16 +160,19 @@ describe("buildMultishotUserTurn script notes", () => {
   });
 });
 
-// BUG-009 — the beats had no idea what the voiceover says, so the visuals drifted from the line
-// being spoken over them. The VO reaches the writer as timing/meaning context only.
+// BUG-009 — the beats had no idea what the voiceover says. The VO is the script the video SPEAKS,
+// on every multishot model: the writer places each line, verbatim, in the beat it is spoken over.
+// (A first pass sent it as pacing context only — "do not quote it" — and the generated Kling
+// prompt carried no voiceover at all.)
 describe("buildMultishotUserTurn voiceover", () => {
   const base = { clientContext: "", upstream: [], cuts, instruction: "", cutInstructions: {} };
 
-  it("carries the script's voiceover, labelled as context to match, not text to write", () => {
+  it("carries the script's voiceover as lines to write into the beats, verbatim", () => {
     const turn = buildMultishotUserTurn({ ...base, voiceover: "Where are you headed tonight?" });
     expect(turn).toContain("Where are you headed tonight?");
-    expect(turn).toMatch(/voiceover/i);
-    expect(turn).toMatch(/do not quote/i);
+    expect(turn).toMatch(/spoken in the video/i);
+    expect(turn).toMatch(/verbatim/i);
+    expect(turn).not.toMatch(/do not quote/i);
   });
 
   it("omits the block when there is no voiceover", () => {

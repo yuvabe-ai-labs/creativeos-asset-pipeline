@@ -229,8 +229,8 @@ const NO_VOICEOVER_RE = /^\s*(?:-+|n\/?a|none|no\s*(?:vo|voice\s*-?\s*over)\b.*)
  * there is none.
  *
  * Only the multishot writer gets it. The single-take path still drops audio (D24 — a start frame
- * fixes the shot, and a motion prompt needs what moves), but a cut sequence is paced against its
- * voiceover: without it the beats could not know which line lands on which cut (BUG-009).
+ * fixes the shot, and a motion prompt needs what moves), but a cut sequence carries its voiceover:
+ * the writer places each line in the beat it is spoken over (BUG-009).
  */
 export function voiceoverForWriter(voiceover: string | undefined): string {
   const vo = (voiceover ?? "").trim();
@@ -309,14 +309,15 @@ export function buildMultishotUserTurn(args: {
   const notes = (args.scriptNotes ?? "").trim();
   if (notes) blocks.push(`The script's production notes:\n${notes}`);
 
-  // Context to pace against, not copy. The video models these beats go to generate sound, so a
-  // quoted line risks being spoken or rendered as on-screen text; the writer is told to fit each
-  // beat's action to what is being said at that point and never to transcribe it.
+  // The lines the video speaks. Every multishot model gets them written into its beats (the
+  // writers' shared VOICEOVER rule): which beat each line lands in is the writer's call from the
+  // shot texts and lengths. Whether a given model renders the speech, and how, is the video
+  // request's concern (audio params, lip-sync), not something the prompt withholds.
   const vo = (args.voiceover ?? "").trim();
   if (vo) {
     blocks.push(
-      `The script's voiceover (for pacing and meaning only — make each shot's action fit the line ` +
-        `spoken over it; do not quote it, narrate it, or put it on screen):\n${vo}`,
+      `The script's voiceover — spoken in the video. Write each line, verbatim, into the beat where ` +
+        `it is spoken (see VOICEOVER); every line must appear exactly once:\n${vo}`,
     );
   }
 
