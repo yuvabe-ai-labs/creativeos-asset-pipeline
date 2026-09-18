@@ -22,11 +22,16 @@ export const MULTISHOT_MODEL_RANGES = MULTISHOT_MODELS.map(
  * One scenario's prompt. The format and the rules every scenario shares are written once here;
  * a scenario adds only its goal and its own rules.
  */
-function restructurePrompt(goal: string, scenarioRules: string[]): string {
+function restructurePrompt(
+  goal: string,
+  scenarioRules: string[],
+  /** The longest a single block may be — the pack ceiling, or a specific model's own window. */
+  blockCeiling: number = CEILING,
+): string {
   const rules = [
     "Timecodes are whole seconds. They start at 0 and run on with no gaps or overlaps: 0–3, 3–8, 8–14. A block's length is its end minus its start, and Duration is the last block's end.",
     `Every block has a start and an end. If the script gives no timing for a shot, propose one and add "(timing proposed)" to the beat name — an untimed shot is otherwise counted as ${ASSUMED_SHOT_SECONDS} seconds.`,
-    `No block longer than ${CEILING} seconds — nothing can generate a take longer than that.`,
+    `No block longer than ${blockCeiling} seconds — nothing can generate a take longer than that.`,
     ...scenarioRules,
     "After the last block, keep the caption, hashtags, product links and QC or compliance notes exactly as written.",
     "Reply with the restructured script only — no commentary.",
@@ -96,6 +101,39 @@ export const LONG_REEL_PROMPT = restructurePrompt(
     "Separate the scripts with a line containing only -----.",
   ],
 );
+
+/**
+ * BUG-008 — one template per multishot model, so a creator who wants Gemini Omni or Kling can get
+ * there. Shots in one script pack into clips of up to the widest window (30s), and a clip that long
+ * only Seedance can generate. This template keeps ONE script and has the reel's clips marked with
+ * `CLIP N (<start>–<end> SEC)` headings sized to the model's window; the parser reads the heading
+ * into each shot's `clip`, and grouping never merges across it. One paste, one Script node, and the
+ * clips are visible in the script itself. Derived from the model table: a vendor moving a limit
+ * moves the copy.
+ */
+export function clipsForModelPrompt(model: (typeof MULTISHOT_MODELS)[number]): string {
+  const cutRule =
+    model.maxCuts !== null
+      ? ` and holds at most ${model.maxCuts} blocks (${model.label} allows ${model.maxCuts} shots per clip)`
+      : "";
+  return restructurePrompt(
+    `I want to generate it on ${model.label}, which makes clips of ${model.minTotalSeconds} to ${model.maxTotalSeconds} seconds — so group the shots into clips that model can take, inside this one script.`,
+    [
+      "One block per camera shot. A block never contains a cut — if a shot cuts to something else, split it into two blocks. A montage of quick cuts is ONE block that describes the rapid cuts, unless each cut is a full shot of its own.",
+      `Group the blocks into clips. Put a heading line "CLIP <n> (<start>–<end> SEC)" before each clip's first block, numbering from CLIP 1. Break between clips only at natural breaks — a change of scene, location or beat — and never inside a shot.`,
+      `Each clip is ${model.maxTotalSeconds} seconds or less${cutRule}. Fill each clip as close to ${model.maxTotalSeconds} seconds as the breaks allow, so the reel has as few clips as possible.`,
+      `No clip shorter than ${model.minTotalSeconds} seconds: ${model.label} will not generate one. Fold a short tail into the clip before it, or lengthen a shot in it.`,
+      "Timecodes run on across clips — they do not restart at each CLIP heading. Keep one header for the whole reel.",
+    ],
+    model.maxTotalSeconds,
+  );
+}
+
+/** One entry per multishot model, in table order — each becomes a step in the help chapter. */
+export const CLIPS_FOR_MODEL_PROMPTS = MULTISHOT_MODELS.map((m) => ({
+  model: m,
+  text: clipsForModelPrompt(m),
+}));
 
 export const CLIP_PER_SHOT_PROMPT = restructurePrompt(
   "I want EVERY SHOT AS ITS OWN CLIP, so each can be generated and approved on its own.",

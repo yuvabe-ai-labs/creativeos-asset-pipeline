@@ -3,8 +3,10 @@ import { renderShotControls, type ShotControls } from "./shot-controls";
 import { resolveMentionTokens, ordinalToEnglish, type MentionUpstream } from "./resolve-mention-tokens";
 import { isVisionAttachment } from "./compose-message";
 
+// Asks for the image, not for a setting — asking for one invited the writer to supply a place the
+// brief never stated (BUG-005). The system prompt governs where the setting may come from.
 export const DEFAULT_INSTRUCTION =
-  "Write a detailed image prompt — subject, setting, lighting, and visual style — from the context above.";
+  "Write a detailed image prompt — subject, composition, lighting, and visual style — from the context above.";
 
 export type CompilePromptUpstream = {
   nodeId?: string;

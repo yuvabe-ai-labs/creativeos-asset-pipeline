@@ -6,6 +6,8 @@
 // produces independently, and they diverge eventually.
 import type { MultishotCut } from "./multishot-cuts";
 import type { MultishotCapability, LadderCheck } from "./multishot-models";
+import { dialectForCapability } from "./prompt-token-dialect";
+import { renderRefs, toStoredRefs, citedRefIds, type RefEntry } from "./ref-binding";
 
 export type MultishotBeat = { cutId: string; text: string };
 
@@ -134,12 +136,18 @@ function withLook(look: string, ladder: string): string {
  * types, and blanking the panel at the moment they are trying to read the text they need to
  * shorten would be the worst possible time to withhold it. `checkPlanLimits` below is the gate the
  * money path calls.
+ *
+ * BUG-010 — beats store image citations as ids; `refIds` is the order the references are sent in
+ * NOW, and every citation is numbered against it here. Every production caller passes it; the
+ * default only serves text that holds no stored ids (legacy positions echo unchanged).
  */
 export function renderPlan(
   plan: MultishotPlan,
   cuts: MultishotCut[],
   cap: MultishotCapability,
+  refIds: string[] = [],
 ): string {
+  plan = renderPlanRefs(plan, cap, refIds);
   const byId = new Map(plan.beats.map((b) => [b.cutId, b.text]));
 
   if (cap.shotFormat === "triple") {
@@ -211,47 +219,69 @@ export function renderPlan(
   return withLook(plan.look, ladder);
 }
 
-const IMAGE_REF = /<IMAGE_REF_(\d+)>/g;
-const KLING_IMAGE_REF = /@image_(\d+)/g;
-const SEEDANCE_IMAGE_REF = /@Image (\d+)/g;
-
 /**
- * Which references a beat cites, derived from its own text, in the target model's token shape.
- *
- * Since D233 these are the OPERATOR's citations, not the writer's: the model is forbidden from
- * assigning tokens itself and names the product in prose instead, so a token in a beat got there
- * by someone `@`-mentioning a reference in the editor.
- *
- * ALWAYS ZERO-BASED on the way out, whatever the model's wire format. Callers use the result to
- * index `promptRefImages`, so returning Kling's or Seedance's 1-based numbers would mark the wrong
- * reference as uncited — off by one, on a display that exists to catch exactly that class of
- * mistake.
+ * BUG-010 — writer output (positions, over the references it was sent) → stored image ids, in the
+ * look and every beat. Since D233 the writer names products in prose, so a token here is usually
+ * one the operator cited and the writer carried through a refine.
  */
-export function refsCitedIn(text: string, cap: MultishotCapability): number[] {
-  const seen = new Set<number>();
-  // Exhaustive switch: a new dialect is a COMPILE error here rather than a silent fall back
-  // to returning an empty set (D245). Without this default, adding a fourth refTokenDialect
-  // literal would compile cleanly and silently return "cites nothing" — exactly the silent
-  // failure D245 exists to prevent.
-  switch (cap.refTokenDialect) {
-    case "kling-image":
-      for (const match of text.matchAll(KLING_IMAGE_REF)) seen.add(Number(match[1]) - 1);
-      break;
-    case "seedance-image":
-      for (const match of text.matchAll(SEEDANCE_IMAGE_REF)) seen.add(Number(match[1]) - 1);
-      break;
-    case "image-ref":
-      for (const match of text.matchAll(IMAGE_REF)) seen.add(Number(match[1]));
-      break;
-    default: {
-      // A dialect with no case here would otherwise return "cites nothing" silently. Assigning
-      // to `never` makes it a compile error instead — the same guarantee dialectForCapability
-      // gets for free by returning from every branch (D245).
-      const unhandled: never = cap.refTokenDialect;
-      throw new Error(`refsCitedIn: unhandled reference dialect ${String(unhandled)}`);
+export function storePlanRefs(
+  plan: MultishotPlan,
+  cap: MultishotCapability,
+  refs: RefEntry[],
+): MultishotPlan {
+  const dialect = dialectForCapability(cap, refs.map((r) => r.id));
+  const labelOf = (id: string) => refs.find((r) => r.id === id)?.label;
+  return {
+    ...plan,
+    look: toStoredRefs(plan.look, dialect, labelOf),
+    beats: plan.beats.map((b) => ({ ...b, text: toStoredRefs(b.text, dialect, labelOf) })),
+  };
+}
+
+/** Stored ids → positions over `refIds`, keeping the plan's shape (for the writer and renderPlan). */
+export function renderPlanRefs(
+  plan: MultishotPlan,
+  cap: MultishotCapability,
+  refIds: string[],
+): MultishotPlan {
+  const dialect = dialectForCapability(cap, refIds);
+  return {
+    ...plan,
+    look: renderRefs(plan.look, dialect).text,
+    beats: plan.beats.map((b) => ({ ...b, text: renderRefs(b.text, dialect).text })),
+  };
+}
+
+/** Cited images no longer among `refIds`, across the look and every beat, deduplicated. */
+export function planMissingRefs(
+  plan: MultishotPlan,
+  cap: MultishotCapability,
+  refIds: string[],
+): RefEntry[] {
+  const dialect = dialectForCapability(cap, refIds);
+  const out: RefEntry[] = [];
+  for (const text of [plan.look, ...plan.beats.map((b) => b.text)]) {
+    for (const m of renderRefs(text, dialect).missing) {
+      if (!out.some((o) => o.id === m.id)) out.push(m);
     }
   }
-  return [...seen];
+  return out;
+}
+
+/**
+ * Every image id the plan cites — stored ids, plus legacy positions read in the plan's own dialect
+ * against `refIds`. Replaces the positional `refsCitedIn`, which indexed the reference strip by
+ * number and so drifted the same way citations did.
+ */
+export function planCitedRefIds(
+  plan: MultishotPlan,
+  cap: MultishotCapability,
+  refIds: string[],
+): Set<string> {
+  const dialect = dialectForCapability(cap, refIds);
+  return new Set(
+    [plan.look, ...plan.beats.map((b) => b.text)].flatMap((t) => citedRefIds(t, dialect)),
+  );
 }
 
 /**
@@ -269,7 +299,11 @@ export function checkPlanLimits(
   plan: MultishotPlan,
   cuts: MultishotCut[],
   cap: MultishotCapability,
+  refIds: string[] = [],
 ): LadderCheck {
+  // Measured on what is SENT (BUG-010): a stored `@[Label](id)` is far longer than the `@image_1`
+  // it becomes, and the budget is the vendor's, on the request.
+  plan = renderPlanRefs(plan, cap, refIds);
   if (cap.maxCutChars !== null) {
     const byId = new Map(plan.beats.map((b) => [b.cutId, b.text]));
     for (const [i, cut] of cuts.entries()) {

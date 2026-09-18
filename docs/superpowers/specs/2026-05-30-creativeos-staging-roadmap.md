@@ -5128,6 +5128,275 @@ pass (not what was reported, and it has its own consumers).
 
 **Originated →** operator report 2026-09-10 ("over-instruction of motion… overcomplicating").
 
+### D264 — A person is a Character node: faces and voice in one object *(recorded 2026-09-14; refines D37/D245)*
+
+**Decision.** A new `character` node type holds a person's name, 1–4 face images (index 0 is the
+frontal), one voice sample (wav/mp3, 5–30 s, ≤15 MB) and a one-line note. It is a source-only node
+uploaded into directly, connecting to `video-gen`, `video-prompt` and `multishot-prompt`. Its faces
+enter a request as `reference` images owned by the character (never a frame); its voice enters as a
+`VoiceRef` on `VideoGenInput`, carrying `faceRefIndexes` so the face↔voice pairing is a fact of
+the request, not of the prompt text. No migration: existing image File nodes stay as they are.
+
+**Why.** Voice drift across separately generated clips is a binding problem — the same sample has
+to reach every generation the person appears in. Kling 3.0 Omni's only voice path is an element
+that already pairs images with a `voice_id`, so the pairing has to exist on our side to build one.
+A node that IS the person makes the pairing structural: reference the character, get the voice.
+
+**Rejected.** Audio as a loose File kind cited per beat (the 11 Sep doc's proposal — consistency
+becomes operator discipline, and Kling would have to guess the pairing from co-citation); a voice
+slot on the image File node (the node becomes two things, and a face-less voice has no home); an
+Audio node connected INTO the File node (File is a pure source; making it a pass-through composite
+means every upstream walker learns to look through it); migrating existing human refs (nothing
+to migrate — operators build Characters fresh).
+
+**Refines.** D37 (references), D245 (dialects).
+
+**Originated →** `2026-09-14-character-node-voice-reference-design.md` §2–3.
+
+### D265 — A character is cited once; the model's shape is rendered, not stored *(recorded 2026-09-14; refines D245)*
+
+**Decision.** A beat stores one mention per character (`@[Character: Riya](nodeId)`). Rendering
+expands it per model: the frontal face's handle on Seedance (`@Image N`) and Gemini Omni
+(`<IMAGE_REF_N>`), `@element_N` on Kling. The voice pairing is never in a beat — on Seedance it is
+a roster line prepended once to the prompt (`Riya: appearance from @Image 1, @Image 2; voice
+timbre from @Audio 1.`); on Kling it is inside the element. `VideoGenModelSpec.voiceInput`
+(`none | inline-audio | element`) decides whether voices are built at all; the focus view reads the
+same flag to say "Voice not used by {model}".
+
+**Why.** The pairing is a request-level fact. Stated once it cannot be mis-cited, a two-speaker
+beat stays as short as a silent one, and retargeting a plan does not rewrite stored text. Seedance's
+own prompt rules ask for exactly this form. `@Audio N` — not `【Audio 1】` — is the vendor's
+documented token.
+
+**Rejected.** `@Audio N` in every beat where the character speaks (mis-citable, verbose);
+storing the expanded model tokens in the beat (breaks retargeting); Kling `voice_ids` on the
+generate call (the Omni endpoint has none — verified against the 3.0 Omni docs).
+
+**Refines.** D245.
+
+**Originated →** `2026-09-14-character-node-voice-reference-design.md` §3.3, §4.
+
+### D266 — Kling voices and elements are registered lazily, cached on the node, keyed by source *(recorded 2026-09-14; refines D99)*
+
+**Decision.** Before a Kling 3.0 Omni generate, the Trigger task runs `ensureKlingElement`:
+reuse `data.kling.elementId` when `elementSourceKey` (sorted face urls + voice url) matches;
+otherwise create the custom voice (if the voice url changed) and the element via Kling's async
+task APIs, poll to `succeed`, store the ids server-side, and best-effort delete the superseded
+ones. The generate call sends `{type:"element", element_id, id:"element_N"}` in place of that
+character's `refer_image`s and forces `settings.audio = "native"`. A failed registration stores
+nothing and fails the generation with Kling's `task_status_msg`.
+
+**Why.** An element is a paid, persistent library resource; creating one per generation would
+spend credits and Kling's element quota on identical objects. Keying the cache on the source urls
+means a changed face or voice re-registers without any explicit "invalidate" action, and a
+client-side write cannot forge an id. `audio: native` is forced because a bound voice is
+inaudible with audio off — an operator who attached a voice has already chosen sound.
+
+**Rejected.** Registering at upload time (pays for elements that may never generate on Kling);
+a separate `character_assets` table (the node already is the object; a second store is one more
+thing to keep in agreement with it); surfacing a "Register on Kling" button (a step the operator
+cannot get wrong if it is automatic).
+
+**Refines.** D99 (Kling 3.0 and O1 reference mechanisms differ in kind).
+
+**Originated →** `2026-09-14-character-node-voice-reference-design.md` §4.2.
+
+### D267 — Kling's Audio is a primary control, with its price stated beside it *(recorded 2026-09-18; reverses the "Advanced" filing in kling.ts)*
+
+**Decision.** `audioParam` (Kling 3.0, 3.0 Omni, O1) moves from `group: "advanced"` to `"primary"`,
+ordered right after Duration (Aspect Ratio and Negative Prompt shift down one). The default stays
+`off`. *Amended 2026-09-18 (D274): the default is now `native`.* Each model's spec carries a `description` stating what sound adds to the price, from
+cost.ts — +50% on 3.0, +33% at 720p / +25% at 1080p on 3.0 Omni, nothing on O1 — and
+`VideoGenParamsPanel` now renders a spec's `description` under its control (it was declared on
+several params and rendered nowhere).
+
+**Why.** Whether a clip has sound is a primary decision, not a fine-tune. Filed under the collapsed
+Advanced section it went unfound, so Kling clips shipped silent without anyone choosing that, while
+every other model shows its audio control with the main ones. The reason it was hidden — sound costs
+real money on Kling — is better served by stating the cost at the control than by hiding the control.
+
+**Rejected.** Defaulting audio to `native` (a silent product clip is still the common case, and it
+would raise every Kling estimate by default); keeping it in Advanced and auto-expanding that section
+(one more place for a primary decision to hide).
+
+**Originated →** QA bug log BUG-011 (`docs/qa/bugs.md`), 2026-09-16.
+
+### D268 — The image prompt's setting is transcribed from what is stated, else a neutral backdrop *(recorded 2026-09-18; extends D262 to images)*
+
+**Decision.** `promptGeneratePrompt` (v6) no longer lists "Setting — location, time of day,
+environment, atmosphere" as a required element. A SETTING section says to write the setting only
+from what is stated (shot, script, Shot controls, instruction), names the brand context as not a
+source of setting, and — because an image cannot have no background — falls back to a plain,
+neutral backdrop or surface, with no weather, season, time of day or location that nothing states.
+`DEFAULT_INSTRUCTION` asks for "subject, composition, lighting, and visual style" instead of
+"subject, setting, …".
+
+**Why.** D262 fixed this for the multishot writers only. Scripts state action and dialogue but
+rarely a look, environment, weather or time of day, and the image writer's mandate to supply a
+setting was filled from the brand context — the same invention D262 removed. The single-take motion
+prompt is not changed: its start frame already fixes the setting (D24).
+
+**Rejected.** Leaving the setting entirely to the image model (it still invents one, just
+unreviewed); an empty setting as on the multishot look (a picture always has a background, so
+"empty" would silently mean "the model's choice").
+
+**Refines.** D262.
+
+**Originated →** QA bug log BUG-005 (`docs/qa/bugs.md`), 2026-09-16.
+
+### D269 — An open canvas swaps in a colleague's new image or video, unless you are editing it *(recorded 2026-09-18; refines D202)*
+
+**Decision.** `/api/canvases/:cid/approval-statuses` returns `{ statuses, outputs }` — the same
+`review_queue_items` row now also yields the active version's output when it is a string (an
+image or video URL). `useCanvasApprovalSync` hands both to a pure planner, `planCanvasLiveSync`,
+which writes `approvalStatus` as before and `parsed` on `image-gen` / `video-gen` nodes — except any
+node whose focus view this viewer has open (`openFocusViewIds`). Prompt nodes' `parsed` is never
+swapped. Only real changes are written.
+
+**Why.** D202 kept the badge live but deliberately never touched `parsed`, deferring "someone else's
+regeneration replacing the image under a viewer mid-edit" (D19). The cost was that a reviewer on
+the same canvas as the designer saw the new version only after a refresh, while the inbox on
+another canvas — which fetches fresh — looked fine. "Mid-edit" has a precise signal already: an
+open focus view, which refreshes itself (D179). Outside it the card is display-only, so swapping
+is safe; `flowToPersisted` strips `parsed`, so autosave is unaffected. `setActiveVersion` touches
+the version row after moving the pointer (0034), so the last ping of a burst always reads the new
+output.
+
+**Rejected.** A "new version available — click to load" marker (a step for a reviewer whose only
+job on that card is to look at the latest); always swapping, even mid-edit (D19); a per-node
+`/versions` fetch per ping (cost would scale with how busy the org is — D202's reason for the
+canvas-scoped request).
+
+**Refines.** D202, D19.
+
+**Originated →** QA bug log BUG-002 (`docs/qa/bugs.md`), 2026-09-16.
+
+### D270 — A Server Action's refusals are returned, not thrown *(recorded 2026-09-18; applied to setVersionApprovalAction)*
+
+**Decision.** `setVersionApprovalAction` returns `{ ok: true } | { ok: false; error }`. Every refusal
+the reviewer must read — not permitted, note required, annotations only on a change request,
+annotation validation (including "At most 20 annotations per decision."), version not found — is
+returned as `{ ok: false, error }`. Genuine faults (upload failure, DB error, a strict
+decision-log failure) still throw. The five focus views toast `result.error` and keep their drafts.
+The client also caps drafts at `MAX_ANNOTATIONS_PER_DECISION`, so the limit is met while composing,
+not at Send back.
+
+**Why.** Next.js replaces a thrown Server Action's message with a generic "An error occurred in the
+Server Components render…" in production builds. The action's messages were written for the
+reviewer, and in production none of them reached the reviewer — a 21-annotation submit failed with
+no reason given. `with-action.ts` documents throwing as the codebase convention; that convention
+only works for messages nobody needs to read.
+
+**Rejected.** A client-side cap alone (every other refusal would still be hidden); a custom error
+class serialised across the boundary (Next strips it the same way).
+
+**Refines.** The throw convention noted in `with-action.ts`, for actions whose refusals are UI copy.
+
+**Originated →** QA bug log BUG-003 (`docs/qa/bugs.md`), 2026-09-16.
+
+### D271 — The multishot writer is paced against the script's voiceover *(recorded 2026-09-18; refines D24, D262)*
+
+**Decision.** `resolveMultishotPromptInputs` reads the Multishot node's `script.voiceover`,
+cleaned by `voiceoverForWriter` (a stated absence — "No voiceover", "N/A", "-" — becomes empty),
+and `buildMultishotUserTurn` passes it as a labelled block: for pacing and meaning only, make each
+shot's action fit the line spoken over it, do not quote it, narrate it or put it on screen. The
+single-take motion prompt still drops audio (D24).
+
+**Why.** A cut sequence is paced against its voiceover; without it the beats could not know which
+line lands on which cut, and the visuals drifted from what was being said. D24's reasoning (a start
+frame fixes the shot; audio carries no motion signal) holds for one continuous take but not for a
+sequence. The "do not quote" clause matters because Seedance and Omni generate sound, and a quoted
+line risks being spoken or rendered as text.
+
+**Rejected.** Splitting the VO per cut in code (the VO is one free-text string with no reliable
+timing — the writer, which sees the cut ladder, is better placed to align it); sending on-screen
+text and music too (not reported, and on-screen text risks being rendered into the frame).
+
+**Refines.** D24, D262.
+
+**Originated →** QA bug log BUG-009 (`docs/qa/bugs.md`), 2026-09-16.
+
+### D272 — Generated prompts store image ids; positions exist only at the edge *(recorded 2026-09-18; refines D245)*
+
+**Decision.** Generated prompt text — single-take Omni/Seedance outputs and multishot beats and
+looks — stores citations as `@[Label](nodeId)`, the form the Instruction field already used.
+`src/lib/nodes/ref-binding.ts` converts at the two boundaries: writer output → ids
+(`toStoredRefs`, over the order the writer was sent), and ids → the model's positions over the
+images connected now (`renderRefs`) for the writer's context, the Video Gen request and every
+preview (`renderPlan` / `checkPlanLimits` take the current `refIds`). Editors use
+`storedRefDialect`, which also reads legacy positions — no migration; an old prompt converts on
+its next save. A cited image that is no longer connected is reported (`missingRefs`), rendered as
+its plain name rather than renumbered, shown as a warning on the prompt node, and refused by
+`video-generate` before any generation row or credit reservation.
+
+**Why.** Positions were resolved against whatever was connected at read time, so disconnecting one
+image silently re-pointed every later citation at its neighbour — in a paid clip, with no error
+(BUG-010). Veo / Kling single-take prompts cite in prose ("the first image") and cannot be
+converted reliably; they stay as written.
+
+**Rejected.** Keeping positions plus a stamped image order on the version (every hand edit and every
+newly attached image would have to rewrite the stamp — the drift moves, it does not go away);
+silently dropping a missing citation (the clip comes back without the product); warning without
+blocking (a paid clip with the wrong picture is the failure the fix exists to prevent); migrating
+stored prompts (operator: not needed).
+
+**Refines.** D245.
+
+**Originated →** QA bug log BUG-010; `2026-09-18-reference-binding-by-id-design.md`.
+
+### D273 — A script's own CLIP headings are a hard grouping boundary *(recorded 2026-09-18; refines D258)*
+
+**Decision.** The parser (script-parse v7) reads `CLIP N (<start>–<end> SEC)` headings into a
+per-shot `clip` number (0 = none). `groupShotsForFanOut` packs each run of same-clip shots on its
+own and concatenates: neither the greedy pass nor the trailing rebalance ever joins shots the
+script put in different clips. An unmarked script packs exactly as before. The help chapter's
+"Clips for <model>" templates keep ONE script and have ChatGPT/Claude write those headings sized
+to the model's window, filled as full as natural breaks allow.
+
+**Why.** D258 packs to the widest window (30s), so every script of 30s or less was one clip and
+therefore Seedance; there was no way to reach Gemini Omni (10s) or Kling (15s) from one script
+(BUG-008). The first attempt had the template split the reel into several scripts (`-----`), which
+the product could not take — one node parsed part 1 and dropped the rest. Putting the break in
+the script itself keeps one paste, one node, and makes the clips visible where the creator wrote
+them; the parser and grouping do the rest.
+
+**Rejected.** Splitting a multi-part paste into sibling Script nodes (a new canvas mechanism for
+what the script can say itself); a "Pack for <model>" picker on the Script node (a second source
+of truth for the break, next to the script that already states it); keeping the 30s pack as the
+only rule (the report).
+
+**Refines.** D258.
+
+**Originated →** QA bug log BUG-008 (`docs/qa/bugs.md`), 2026-09-16 / 2026-09-18.
+
+### D274 — The voiceover is written into every multishot beat, in the model's own dialogue syntax; Kling audio defaults to native *(recorded 2026-09-18; supersedes D271, amends D267)*
+
+**Decision.** `voiceoverRules(lineForm)` in `multishot-prompt-generate.ts` is in all three writers'
+system prompts (`generate@7`, `kling@4`, `seedance@4`): every line of the script's voiceover is
+written, verbatim, into the beat it is spoken over, as the named speaker's line or off-screen
+narration, never on screen, and no line is dropped. Each writer supplies its vendor's own form —
+Omni: plain prose ("A calm, clear off-screen voiceover says: …"); Kling: speaker then line,
+delivery note only when it matters, short sentences ("An off-screen narrator says, in a calm, clear
+tone, …"); Seedance: the `{}` dialogue marker with the language stated first
+(`{English, off-screen voiceover: …}`). The user turn hands the VO over as lines to write. No model
+is restricted: whether and how a model renders the speech (voice, lip-sync — Kling's Lip Sync API,
+Seedance's `@Audio N`, the Character node D264–D266) is the video request's concern, handled there.
+Kling's `audio` param defaults to `native` on all three Kling models, with the saving from `off`
+stated beside the control.
+
+**Why.** D271 sent the VO as "pacing context — do not quote it", on the reasoning that Omni cannot
+fix a voice across generations. The operator's report: the generated Kling prompt carried no
+voiceover at all. All three models generate speech from a line in the prompt — Omni's audio clause
+already asks for "the spoken line", Kling's native audio doc writes lines per shot, Seedance marks
+dialogue with `{}` — and each vendor documents its own syntax, so the writers use it. A clip
+generated silent by default would throw the written lines away, hence the Kling default.
+
+**Rejected.** A per-model `speaksLines` flag withholding the VO from Omni (operator: no
+restriction — audio handling lives with the request); one generic `Voiceover: "…"` form for all
+models (Seedance would read it as prose, not dialogue; Kling lip-syncs better with its documented
+speaker-then-line form).
+
+**Supersedes.** D271. **Amends.** D267 (default). **Originated →** operator report 2026-09-18.
 ### D264 — Media archiving is a background Trigger.dev task *(recorded 2026-09-11; builds on D185)*
 
 **Decision.** The real media behind a Market / moodboard reference (the reel's mp4, the

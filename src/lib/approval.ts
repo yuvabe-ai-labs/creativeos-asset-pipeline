@@ -68,6 +68,24 @@ export type VersionDecisionSummary = {
   annotations?: DecisionAnnotationSummary[];
 };
 
+/**
+ * The change request still in force on a version — the one whose note and annotations the
+ * focus views render — or null.
+ *
+ * `decisions` is newest first (D173). Both conditions are needed: the status alone misses an
+ * older request once a newer decision replaced it, and the log alone misses an Undo, which
+ * resets the status to pending without writing a decision row. Finding ANY changes_requested
+ * entry in the log is what left a stale request's pins on screen after approval (BUG-001).
+ */
+export function standingChangeRequest(
+  status: ApprovalStatus,
+  decisions: VersionDecisionSummary[] | undefined,
+): VersionDecisionSummary | null {
+  if (status !== "changes_requested") return null;
+  const newest = decisions?.[0];
+  return newest?.status === "changes_requested" ? newest : null;
+}
+
 export function buildApprovalUpdate(input: {
   status: ApprovalStatus;
   by: string | null; // the caller's user id — never a display name, never client-supplied

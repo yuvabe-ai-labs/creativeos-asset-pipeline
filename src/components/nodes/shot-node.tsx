@@ -39,8 +39,9 @@ export function ShotNode({ id, data, selected, positionAbsoluteX, positionAbsolu
     shot_type?: string;
     seededFrom?: { scriptTitle?: string };
   };
-  const shots = d.script?.visual_script?.shots ?? [];
-  const shot = shots[0];
+  // ONE row: a Shot is one continuous take, merged at fan-out from every script row it covers
+  // (BUG-004, mergeShotRows). Its `duration` states the whole take's length.
+  const shot = d.script?.visual_script?.shots?.[0];
   const description = shot?.description ?? "";
 
   function setDescription(value: string) {

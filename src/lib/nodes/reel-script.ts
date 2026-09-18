@@ -12,6 +12,12 @@ export type ReelShot = {
    * returns the number directly rather than the fan-out guessing at prose it did not anticipate.
    */
   duration_seconds?: number;
+  /**
+   * BUG-008 — the clip this shot belongs to, from a "CLIP N" heading in the script (1-based).
+   * 0 or absent = the script marks no clips. Grouping never merges shots across a clip
+   * boundary, so a script can size its clips for a shorter model (Omni 10s, Kling 15s) itself.
+   */
+  clip?: number;
 };
 
 export type ReelScript = {

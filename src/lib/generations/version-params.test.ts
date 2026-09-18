@@ -168,11 +168,12 @@ describe("describeAllVersionParams", () => {
       multi_shot: true,
       negative_prompt: "warped label",
     });
+    // Audio is a primary control right after Duration since D267; multi_shot stays in Advanced.
     expect(entries.map((e) => e.name)).toEqual([
       "resolution",
       "duration",
-      "negative_prompt",
       "audio",
+      "negative_prompt",
       "multi_shot",
     ]);
   });

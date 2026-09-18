@@ -7,7 +7,7 @@ import { apiOk, withCanvas, withTryCatch } from "@/lib/api/route-helpers";
 // isolation via withCanvas (404, never 403), no role check for the same reason: seeing a
 // status is not a privilege, only deciding is (R6.7).
 //
-// Unpaged and deliberately tiny (two columns per asset node). It is fetched on a realtime
+// Unpaged and deliberately tiny (three columns per asset node). It is fetched on a realtime
 // ping, so the cost that matters is per-EVENT, not per-node: one request refreshes the
 // whole canvas however many nodes changed in the burst.
 export async function GET(
@@ -18,7 +18,8 @@ export async function GET(
   return withCanvas(req, Promise.resolve({ id: cid }), async (canvasId) =>
     withTryCatch("Failed to load approval statuses", async () => {
       const orgId = await resolveOrgId();
-      return apiOk({ statuses: await listCanvasApprovalStatuses(orgId, canvasId) });
+      // { statuses, outputs } — outputs keeps the card's media live too (BUG-002).
+      return apiOk(await listCanvasApprovalStatuses(orgId, canvasId));
     }),
   );
 }

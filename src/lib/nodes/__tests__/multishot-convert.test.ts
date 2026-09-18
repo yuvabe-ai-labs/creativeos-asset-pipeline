@@ -78,7 +78,9 @@ describe("shotDataToMultishot", () => {
 });
 
 describe("multishotDataToShot", () => {
-  it("restores the shot list from the cuts", () => {
+  // BUG-004 — one take over every cut is ONE row. Every reader of a Shot node takes the first
+  // row (the Composer seed, the card, node-output), so a row per cut showed the first cut only.
+  it("merges the cuts into one take", () => {
     const ms: MultishotNodeData = {
       order: 2,
       totalSeconds: 8,
@@ -91,8 +93,7 @@ describe("multishotDataToShot", () => {
     };
     const result = multishotDataToShot(ms);
     expect(result.script?.visual_script?.shots).toEqual([
-      { description: "close on keys", duration_seconds: 2 },
-      { description: "wide street", duration_seconds: 6 },
+      { description: "close on keys Wide street", duration: "8s", duration_seconds: 8 },
     ]);
     expect(result.script?.visual_script?.execution_refinement).toBe("punchy");
   });
@@ -113,15 +114,27 @@ describe("multishotDataToShot", () => {
 
 describe("the conversion round-trips", () => {
   // This is what makes the script-level switch a real undo: an accidental flip and flip-back
-  // costs the operator nothing.
-  it("returns the original text and seconds through both directions", () => {
-    const back = multishotDataToShot(shotDataToMultishot(shotData));
-    expect(back.script?.visual_script?.shots).toEqual([
-      { description: "close on keys", duration_seconds: 2 },
-      { description: "wide street", duration_seconds: 6 },
+  // costs the operator nothing. A Shot holds one merged row (BUG-004), so the flip TO multishot
+  // takes the script's own rows (`sourceRows`, which setGenerationMode supplies) to restore the
+  // cuts the script wrote; the node's merged row is only the fallback.
+  it("recovers the script's cuts through both directions", () => {
+    const single = multishotDataToShot(shotDataToMultishot(shotData));
+    expect(single.script?.visual_script?.shots).toHaveLength(1);
+    expect(single.script?.strategic_objective).toBe("sell the shoe");
+    expect(single.seededFrom).toEqual(shotData.seededFrom);
+
+    const rows = shotData.script!.visual_script!.shots!;
+    const back = shotDataToMultishot(single, rows);
+    expect(back.cuts?.map((c) => [c.text, c.seconds])).toEqual([
+      ["close on keys", 2],
+      ["wide street", 6],
     ]);
-    expect(back.script?.strategic_objective).toBe("sell the shoe");
-    expect(back.seededFrom).toEqual(shotData.seededFrom);
+  });
+
+  it("falls back to the node's own row when the script rows are gone", () => {
+    const single = multishotDataToShot(shotDataToMultishot(shotData));
+    const back = shotDataToMultishot(single, []);
+    expect(back.cuts?.map((c) => [c.text, c.seconds])).toEqual([["close on keys Wide street", 8]]);
   });
 });
 

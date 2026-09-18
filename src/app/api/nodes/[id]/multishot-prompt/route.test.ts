@@ -56,6 +56,7 @@ vi.mock("@/lib/nodes/resolve-inputs", () => ({
     cuts: CUTS,
     targetModel: undefined,
     scriptNotes: "",
+    voiceover: "",
   })),
   buildMultishotUserTurn: vi.fn(() => "USER TURN"),
 }));
@@ -238,6 +239,7 @@ describe("POST multishot-prompt — per-model writer routing", () => {
       upstream: [],
       cuts: CUTS,
       scriptNotes: "",
+      voiceover: "",
       targetModel: KLING_OMNI_MODEL_ID,
     });
     returns(PLAN);
@@ -257,6 +259,7 @@ describe("POST multishot-prompt — per-model writer routing", () => {
       upstream: [],
       cuts: CUTS,
       scriptNotes: "",
+      voiceover: "",
       targetModel: SEEDANCE_MODEL_ID,
     });
     returns(PLAN);
@@ -283,6 +286,7 @@ describe("POST multishot-prompt — per-model writer routing", () => {
       upstream: [],
       cuts: CUTS,
       scriptNotes: "",
+      voiceover: "",
       targetModel: KLING_OMNI_MODEL_ID,
     });
     returns(PLAN);
@@ -304,6 +308,7 @@ describe("POST multishot-prompt — per-model writer routing", () => {
       upstream: [],
       cuts: CUTS,
       scriptNotes: "",
+      voiceover: "",
       targetModel: KLING_OMNI_MODEL_ID,
     });
     returns(PLAN);
@@ -326,6 +331,7 @@ describe("POST multishot-prompt — per-model writer routing", () => {
       upstream: [],
       cuts: CUTS,
       scriptNotes: "",
+      voiceover: "",
       // The node has since been switched to Kling…
       targetModel: KLING_OMNI_MODEL_ID,
     });
@@ -353,6 +359,7 @@ describe("POST multishot-prompt — script production notes", () => {
       upstream: [],
       cuts: CUTS,
       scriptNotes: "Golden hour. Desaturated grade.",
+      voiceover: "Where are you headed tonight?",
       targetModel: undefined,
     });
     returns(PLAN);
@@ -361,5 +368,74 @@ describe("POST multishot-prompt — script production notes", () => {
     expect(vi.mocked(buildMultishotUserTurn)).toHaveBeenLastCalledWith(
       expect.objectContaining({ scriptNotes: "Golden hour. Desaturated grade." }),
     );
+    // BUG-009 — the voiceover reaches the writer's user turn alongside the notes.
+    expect(vi.mocked(buildMultishotUserTurn)).toHaveBeenLastCalledWith(
+      expect.objectContaining({ voiceover: "Where are you headed tonight?" }),
+    );
+  });
+});
+
+// BUG-010 — a citation the writer returns as a position is stored as the image's id, and the
+// preview prompt is rendered back to the model's positions over the images connected now.
+describe("POST multishot-prompt — reference binding", () => {
+  const imageUpstream = {
+    nodeId: "img-a",
+    versionId: null,
+    label: "File",
+    type: "file",
+    text: "",
+    fileKind: "image",
+    fileUrl: "https://x/a.png",
+    name: "A.png",
+  };
+
+  it("stores a returned citation as an image id, not a position", async () => {
+    vi.mocked(resolveMultishotPromptInputs).mockResolvedValueOnce({
+      clientContext: "",
+      kbVersionId: null,
+      slices: [],
+      upstream: [imageUpstream],
+      cuts: CUTS,
+      targetModel: undefined,
+      scriptNotes: "",
+      voiceover: "",
+    });
+    returns({
+      ...PLAN,
+      beats: PLAN.beats.map((b, i) => (i === 0 ? { ...b, text: "the jar <IMAGE_REF_0>" } : b)),
+    });
+    const res = await post({});
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.plan.beats[0].text).toBe("the jar @[File: A.png](img-a)");
+    expect(json.prompt).toContain("<IMAGE_REF_0>");
+    expect(json.prompt).not.toContain("@[");
+  });
+
+  it("sends the writer positions, never stored ids, when refining", async () => {
+    vi.mocked(resolveMultishotPromptInputs).mockResolvedValueOnce({
+      clientContext: "",
+      kbVersionId: null,
+      slices: [],
+      upstream: [imageUpstream],
+      cuts: CUTS,
+      targetModel: undefined,
+      scriptNotes: "",
+      voiceover: "",
+    });
+    returns({ look: "Overcast." });
+    const stored: MultishotPlan = {
+      ...PLAN,
+      targetModel: GEMINI_OMNI_MODEL_ID,
+      beats: [{ cutId: "c1", text: "the jar @[File: A.png](img-a)" }, PLAN.beats[1]],
+    };
+    const res = await post({ scope: "look", plan: stored, note: "flatter" });
+    expect(res.status).toBe(200);
+    const sent = userText(create.mock.calls[0][0]);
+    expect(sent).toContain("<IMAGE_REF_0>");
+    expect(sent).not.toContain("@[File: A.png]");
+    // …and the merged plan comes back stored by id again.
+    const json = await res.json();
+    expect(json.plan.beats[0].text).toBe("the jar @[File: A.png](img-a)");
   });
 });

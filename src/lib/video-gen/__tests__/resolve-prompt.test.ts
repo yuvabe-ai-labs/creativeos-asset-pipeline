@@ -248,3 +248,45 @@ describe("resolveVideoGenPrompt", () => {
   });
 });
 
+
+describe("resolveVideoGenPrompt reference binding (BUG-010)", () => {
+  const img = (id: string, name: string) =>
+    output({ nodeId: id, type: "file", data: { fileKind: "image", fileUrl: `https://x/${id}.png`, filename: name } });
+
+  it("renders a stored single-take citation against the images connected now", async () => {
+    const vp = output({ nodeId: "vp", type: "video-prompt", activeOutput: "the jar @[File: B.png](b)" });
+    const res = await resolveVideoGenPrompt([vp], async () => [img("b", "B.png")], "gemini-omni");
+    expect(res.ok && res.prompt).toBe("the jar <IMAGE_REF_0>");
+    expect(res.ok && res.missingRefs).toEqual([]);
+  });
+
+  it("reports a cited image that is no longer connected", async () => {
+    const vp = output({ nodeId: "vp", type: "video-prompt", activeOutput: "the jar @[File: B.png](b)" });
+    const res = await resolveVideoGenPrompt([vp], async () => [img("a", "A.png")], "gemini-omni");
+    expect(res.ok && res.missingRefs).toEqual([{ id: "b", label: "File: B.png" }]);
+  });
+
+  it("leaves a Veo / Kling prose prompt exactly as stored", async () => {
+    const vp = output({ nodeId: "vp", type: "video-prompt", activeOutput: "the jar from the first image" });
+    const res = await resolveVideoGenPrompt([vp], async () => [img("a", "A.png")], undefined);
+    expect(res.ok && res.prompt).toBe("the jar from the first image");
+    expect(res.ok && res.missingRefs).toEqual([]);
+  });
+
+  it("reports a missing citation in a multishot plan", async () => {
+    const stored: MultishotPlan = { ...plan, beats: [{ cutId: "cut-1", text: "@[File: B.png](b)" }, plan.beats[1]] };
+    const mp = output({ nodeId: "mp", type: "multishot-prompt", activeOutput: stored });
+    const ms = output({ nodeId: "m", type: "multishot", data: { cuts } });
+    const res = await resolveVideoGenPrompt([mp], async (id) => (id === "mp" ? [ms, img("a", "A.png")] : []));
+    expect(res.ok && res.missingRefs.map((m) => m.id)).toEqual(["b"]);
+  });
+
+  it("renders a multishot plan's stored citations to positions", async () => {
+    const stored: MultishotPlan = { ...plan, beats: [{ cutId: "cut-1", text: "@[File: B.png](b)" }, plan.beats[1]] };
+    const mp = output({ nodeId: "mp", type: "multishot-prompt", activeOutput: stored });
+    const ms = output({ nodeId: "m", type: "multishot", data: { cuts } });
+    const res = await resolveVideoGenPrompt([mp], async (id) => (id === "mp" ? [ms, img("a", "A.png"), img("b", "B.png")] : []));
+    expect(res.ok && res.prompt).toContain("<IMAGE_REF_1>");
+    expect(res.ok && res.prompt).not.toContain("@[");
+  });
+});

@@ -2,13 +2,21 @@ import { getUpstreamOutputs } from "@/lib/db/nodes";
 import { renderPlan, type MultishotPlan } from "@/lib/nodes/multishot-plan";
 import { multishotCapabilityFor } from "@/lib/nodes/multishot-models";
 import type { MultishotCut } from "@/lib/nodes/multishot-cuts";
+import { mapUpstreamForVideo } from "@/lib/nodes/resolve-inputs";
+import {
+  refEntriesOf,
+  renderRefs,
+  singleTakeRefDialect,
+  singleTakeTargetForProvider,
+} from "@/lib/nodes/ref-binding";
+import { videoGenClientModelMap, resolveVideoModelId } from "@/lib/video-gen/client-models";
 import { apiError, apiOk, withNode } from "@/lib/api/route-helpers";
 
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withNode(req, params, async (nodeId) => {
+  return withNode(req, params, async (nodeId, node) => {
     try {
       const direct = await getUpstreamOutputs(nodeId);
 
@@ -83,14 +91,26 @@ export async function GET(
       );
       const promptNodeIndex = connectedPromptNode ? promptNodes.indexOf(connectedPromptNode) : -1;
 
+      // BUG-010 — this is the preview of what will be SENT, so stored image ids are rendered to
+      // the model's positions exactly as resolve-prompt.ts does on the money path: over the prompt
+      // node's own references, in the writer's order.
+      const ownUpstream = promptNodeIndex >= 0 ? promptUpstreamBatches[promptNodeIndex] : [];
+      const refIds = refEntriesOf(ownUpstream.map((u) => mapUpstreamForVideo(u))).map((r) => r.id);
+
       let promptText: string | null = null;
       if (connectedPromptNode?.type === "video-prompt") {
-        promptText = typeof connectedPromptNode.activeOutput === "string"
-          ? connectedPromptNode.activeOutput
-          : null;
+        const stored =
+          typeof connectedPromptNode.activeOutput === "string" ? connectedPromptNode.activeOutput : null;
+        const modelId = resolveVideoModelId(
+          typeof node.data?.modelId === "string" ? node.data.modelId : "",
+        );
+        const dialect = singleTakeRefDialect(
+          singleTakeTargetForProvider(videoGenClientModelMap[modelId]?.provider),
+          refIds,
+        );
+        promptText = stored !== null && dialect ? renderRefs(stored, dialect).text : stored;
       } else if (connectedPromptNode?.type === "multishot-prompt") {
         const plan = connectedPromptNode.activeOutput as MultishotPlan | null | undefined;
-        const ownUpstream = promptNodeIndex >= 0 ? promptUpstreamBatches[promptNodeIndex] : [];
         const multishotNode = ownUpstream.find((u) => u.type === "multishot");
         const cuts = ((multishotNode?.data.cuts as MultishotCut[] | undefined) ?? []).filter(
           (c) => c && c.id && typeof c.text === "string" && typeof c.seconds === "number",
@@ -103,7 +123,7 @@ export async function GET(
           // whichever format the Select happens to say right now rather than the one the money
           // path will actually build. An unstamped plan is Gemini Omni's, which is what every plan
           // predating the stamp already is.
-          promptText = renderPlan(plan, cuts, multishotCapabilityFor(plan.targetModel));
+          promptText = renderPlan(plan, cuts, multishotCapabilityFor(plan.targetModel), refIds);
         }
       }
 

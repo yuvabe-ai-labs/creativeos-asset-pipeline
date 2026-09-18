@@ -15,7 +15,8 @@ import type { RefineScope } from "@/lib/nodes/refine-suggestions";
 /** Bumped whenever the system text or schema changes; recorded on every version row. */
 // @5 (D262): the look is transcribed from stated direction or left empty; no assumed setting.
 // @6 (D263): motion trimmed to one plain action, a simple camera and a grounding line.
-export const MULTISHOT_PROMPT_ID = "multishot-prompt-generate@6";
+// @7: the voiceover is WRITTEN into the beats, verbatim, on every model (MULTISHOT_SHARED_CRAFT).
+export const MULTISHOT_PROMPT_ID = "multishot-prompt-generate@7";
 
 /**
  * How to READ an attached reference image and name what it shows — without binding it to a beat.
@@ -174,6 +175,34 @@ lettering or logo held exactly. Say so in the beat whenever the product is on sc
 geometry and printed logo hold exactly". Left unsaid, the model drifts the label, changes how many
 of a thing there are, or hybridises two references.`;
 
+/**
+ * The voiceover rule, shared by all three writers with each model's OWN way of writing a spoken
+ * line (`lineForm`) — every model here generates speech from the prompt, in a different syntax:
+ *
+ *   Gemini Omni  — prose; its guide asks for narration "in a calm and clear voice", and the
+ *                  request's audio clause already expects "the spoken line" (compose-omni-prompt).
+ *   Kling 3.0    — `<speaker> says <delivery>, "line"`, the line kept next to its speaker; short
+ *                  sentences lip-sync better (Kling Video 3.0 Omni Audio doc).
+ *   Seedance 2.5 — `{}` marks dialogue, the language stated first for non-Chinese (tutorial,
+ *                  "Prompt rules").
+ *
+ * The WHAT is the same everywhere and is not restricted per model: every line of the script's
+ * voiceover is written, verbatim, into the beat it is spoken over. Whether a model renders it, with
+ * what voice, and lip-sync are the video request's concern (Kling's Lip Sync API, Seedance's
+ * `@Audio N` timbre reference, D264–D266), not something this prompt withholds.
+ */
+export function voiceoverRules(lineForm: string): string {
+  return `VOICEOVER
+When the script has a voiceover, its lines are SPOKEN in the video, and you write them into the
+beats. Place each line, VERBATIM, in the beat where it is spoken — judged by the shot texts and the
+shot lengths. A line that runs across two shots is split at a natural pause, never paraphrased,
+shortened or reordered, and no line is dropped. If the shot text names who speaks, it is that
+person's line; otherwise it is off-screen narration. Do not put the voiceover on screen as text. A
+beat with no line spoken over it carries no spoken line.
+
+Write a spoken line as: ${lineForm}`;
+}
+
 const SYSTEM = `You write the shot-by-shot motion plan for a single multi-shot video generation.
 
 You are given a sequence of SHOTS. Each has an id, the operator's shot text, and its length in
@@ -189,6 +218,10 @@ invent an id, never merge two shots into one beat, never split one shot across t
 ${MULTISHOT_SHOT_TEXT_CONTRACT}
 
 ${MULTISHOT_SHARED_CRAFT}
+
+${voiceoverRules(
+  `plain prose, the way this model's own guide writes narration — 'A calm, clear off-screen voiceover says: "…"', or for a named speaker, 'She says, warmly: "…"'. No markers or brackets; the request's sound-design clause already asks for the spoken line.`,
+)}
 
 Do NOT write timecodes, durations or shot numbers into the text. The timings are the operator's
 and are added afterwards; anything you write about time will contradict them.

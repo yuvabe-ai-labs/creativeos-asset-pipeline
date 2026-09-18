@@ -16,13 +16,16 @@ import {
   MULTISHOT_LOOK_BLOCK_RULES,
   MULTISHOT_SHOT_TEXT_CONTRACT,
   referenceIdentificationBlock,
+  voiceoverRules,
   type MultishotPromptSpec,
 } from "./multishot-prompt-generate";
 import { MOTION_AVOID_LIST, MULTISHOT_AUTHORING_MODEL } from "./video-prompt-generate";
 
 // @2 (D262): shares the transcribe-or-empty look rule and the no-assumed-setting contract.
 // @3 (D263): shares the trimmed, simple-motion craft block.
-export const MULTISHOT_SEEDANCE_PROMPT_ID = "multishot-prompt-seedance@3";
+// @4: the voiceover is written into the beats, verbatim (shared VOICEOVER rule) — here inside
+// Seedance's own {} dialogue marker, per the SOUND section below.
+export const MULTISHOT_SEEDANCE_PROMPT_ID = "multishot-prompt-seedance@4";
 
 const SYSTEM = `You write the shot-by-shot motion plan for a single multi-shot video generation on Seedance 2.5.
 
@@ -57,8 +60,13 @@ SOUND IS PART OF THE BEAT
 Unlike the other two models, Seedance generates audio natively, so a beat's own sound is something
 you write, not an afterthought bolted onto the visuals. Where the shot calls for sound, close the
 beat with it, marked with the vendor's own characters: () for music, <> for sound effects, {} for
-dialogue, and 【】 for subtitles. For non-Chinese dialogue, state the language before the line. Only
-write sound the shot text actually calls for — a silent beat is a valid choice, not a gap to fill.
+dialogue, and 【】 for subtitles. For non-Chinese dialogue, state the language before the line.
+Beyond the voiceover (below), only write sound the shot text actually calls for — a silent beat is
+a valid choice, not a gap to fill.
+
+${voiceoverRules(
+  `Seedance's own dialogue marker, the language stated first when it is not Chinese — '{English, off-screen voiceover: …}', or for a named speaker, '{English, the woman in the linen shirt, warmly: …}'. Never () or <> for a spoken line; those are music and effects.`,
+)}
 
 Do NOT write timecodes, durations or shot numbers into the text. The timings are the operator's and
 are attached to your beats afterwards; anything you write about time or shot order will contradict

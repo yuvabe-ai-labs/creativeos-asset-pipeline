@@ -1,5 +1,51 @@
 import { describe, it, expect } from "vitest";
-import { buildApprovalUpdate, canSetApproval, requiresNote } from "./approval";
+import {
+  buildApprovalUpdate,
+  canSetApproval,
+  requiresNote,
+  standingChangeRequest,
+  type VersionDecisionSummary,
+} from "./approval";
+
+// BUG-001 — annotations must render only for the change request that is still in force.
+describe("standingChangeRequest", () => {
+  const cr: VersionDecisionSummary = {
+    id: "d1",
+    status: "changes_requested",
+    note: "fix the label",
+    reviewerName: "Asha",
+    decidedAt: "2026-09-16T10:00:00.000Z",
+    annotations: [],
+  };
+  const approved: VersionDecisionSummary = {
+    id: "d2",
+    status: "approved",
+    note: null,
+    reviewerName: "Asha",
+    decidedAt: "2026-09-16T11:00:00.000Z",
+  };
+
+  it("returns the newest decision while changes are requested", () => {
+    expect(standingChangeRequest("changes_requested", [cr])).toBe(cr);
+  });
+
+  // The reported bug: request changes -> undo -> approve left the old request's pins live.
+  it("returns nothing once the version is approved, even with an older request logged", () => {
+    expect(standingChangeRequest("approved", [approved, cr])).toBeNull();
+  });
+
+  it("returns nothing after an undo back to pending", () => {
+    expect(standingChangeRequest("pending", [cr])).toBeNull();
+  });
+
+  it("returns nothing when the newest decision is not a change request", () => {
+    expect(standingChangeRequest("changes_requested", [approved, cr])).toBeNull();
+  });
+
+  it("returns nothing with no decisions", () => {
+    expect(standingChangeRequest("changes_requested", undefined)).toBeNull();
+  });
+});
 
 const AT = "2026-06-29T10:00:00.000Z";
 // `by` is a user id after D167, not a display name — the reviewer is a real reference.

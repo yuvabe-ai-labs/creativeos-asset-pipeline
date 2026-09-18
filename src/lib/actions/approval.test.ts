@@ -108,9 +108,10 @@ describe("setVersionApprovalAction", () => {
   it("rejects a designer — R2.2, even calling the action directly", async () => {
     mockCaller.mockResolvedValue(caller("designer"));
     stubDb("org-1");
-    await expect(setVersionApprovalAction("v1", { status: "approved" })).rejects.toThrow(
-      /not permitted/i,
-    );
+    await expect(setVersionApprovalAction("v1", { status: "approved" })).resolves.toEqual({
+      ok: false,
+      error: expect.stringMatching(/not permitted/i),
+    });
   });
 
   it("does not even read the version for a designer — the role gate is first", async () => {
@@ -118,24 +119,26 @@ describe("setVersionApprovalAction", () => {
     stubDb("org-1");
     await expect(
       setVersionApprovalAction("v1", { status: "approved" }),
-    ).rejects.toThrow();
+    ).resolves.toMatchObject({ ok: false });
     expect(mockFrom).not.toHaveBeenCalled();
   });
 
   it("rejects a version belonging to another org", async () => {
     mockCaller.mockResolvedValue(caller("senior"));
     stubDb("org-2");
-    await expect(setVersionApprovalAction("v1", { status: "approved" })).rejects.toThrow(
-      /not found/i,
-    );
+    await expect(setVersionApprovalAction("v1", { status: "approved" })).resolves.toEqual({
+      ok: false,
+      error: expect.stringMatching(/not found/i),
+    });
   });
 
   it("rejects a version that does not exist", async () => {
     mockCaller.mockResolvedValue(caller("senior"));
     stubDb(null);
-    await expect(setVersionApprovalAction("v1", { status: "approved" })).rejects.toThrow(
-      /not found/i,
-    );
+    await expect(setVersionApprovalAction("v1", { status: "approved" })).resolves.toEqual({
+      ok: false,
+      error: expect.stringMatching(/not found/i),
+    });
   });
 
   it("rejects changes_requested with a blank note — R6.5 on the server", async () => {
@@ -143,7 +146,7 @@ describe("setVersionApprovalAction", () => {
     stubDb("org-1");
     await expect(
       setVersionApprovalAction("v1", { status: "changes_requested", note: "   " }),
-    ).rejects.toThrow(/note is required/i);
+    ).resolves.toEqual({ ok: false, error: expect.stringMatching(/note is required/i) });
   });
 
   it("accepts changes_requested with a real note", async () => {
@@ -238,7 +241,7 @@ describe("setVersionApprovalAction — decision history (D173-D175)", () => {
     mockInsertDecision.mockRejectedValueOnce(new Error("log db down"));
     await expect(
       setVersionApprovalAction("v1", { status: "approved" }),
-    ).resolves.toBeUndefined();
+    ).resolves.toEqual({ ok: true });
     // The status update itself still succeeded — a logging failure must never roll it back
     // or surface as an error to the reviewer.
     expect(captured.update).toMatchObject({ approval_status: "approved" });
@@ -250,7 +253,7 @@ describe("setVersionApprovalAction with annotations", () => {
     stubDb();
     await expect(
       setVersionApprovalAction("v1", { status: "approved", annotations: [ann()] }),
-    ).rejects.toThrow(/request changes/i);
+    ).resolves.toEqual({ ok: false, error: expect.stringMatching(/request changes/i) });
   });
 
   it("rejects an invalid batch before touching storage or the DB", async () => {
@@ -261,7 +264,7 @@ describe("setVersionApprovalAction with annotations", () => {
         note: "fix it",
         annotations: [ann({ note: " " })],
       }),
-    ).rejects.toThrow(/note/i);
+    ).resolves.toEqual({ ok: false, error: expect.stringMatching(/note/i) });
     expect(mockUploadAssets).not.toHaveBeenCalled();
     expect(updateSpy).not.toHaveBeenCalled();
   });
@@ -308,7 +311,7 @@ describe("setVersionApprovalAction with annotations", () => {
     // Without annotations: swallowed (existing D175 behavior).
     await expect(
       setVersionApprovalAction("v1", { status: "changes_requested", note: "fix it" }),
-    ).resolves.toBeUndefined();
+    ).resolves.toEqual({ ok: true });
 
     mockInsertDecision.mockRejectedValueOnce(new Error("log down"));
     // With annotations: the decision row is load-bearing (annotations reference it) — strict.
@@ -326,7 +329,22 @@ describe("setVersionApprovalAction with annotations", () => {
     mockCaller.mockResolvedValue(caller("designer", "u2"));
     await expect(
       setVersionApprovalAction("v1", { status: "approved" }),
-    ).rejects.toThrow(/not permitted/i);
+    ).resolves.toEqual({ ok: false, error: expect.stringMatching(/not permitted/i) });
+  });
+
+  // BUG-003 — a refusal is RETURNED, not thrown: Next.js replaces a thrown Server Action
+  // message with a generic one in production builds, so the reviewer never learned why.
+  it("returns the per-decision limit as a readable refusal", async () => {
+    stubDb();
+    const many = Array.from({ length: 21 }, (_, i) => ann({ seq: i + 1 }));
+    await expect(
+      setVersionApprovalAction("v1", {
+        status: "changes_requested",
+        note: "fix it",
+        annotations: many,
+      }),
+    ).resolves.toEqual({ ok: false, error: "At most 20 annotations per decision." });
+    expect(mockUploadAssets).not.toHaveBeenCalled();
   });
 });
 

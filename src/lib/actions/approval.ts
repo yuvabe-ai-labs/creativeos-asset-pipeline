@@ -24,6 +24,12 @@ import { insertAnnotations } from "@/lib/db/annotations";
 // meant the server recorded whatever identity the browser claimed. A role check bolted
 // onto a caller-supplied identity is not enforcement — so the reviewer is resolved from
 // the session, and the parameter no longer exists to be spoofed (R2.1, D166).
+// BUG-003 — a refusal the reviewer must read is RETURNED, not thrown. Next.js replaces a
+// thrown Server Action's message with a generic "An error occurred in the Server Components
+// render" in production builds, so "At most 20 annotations per decision." never reached the
+// toast. Genuine faults (a failed upload, a DB error) still throw.
+export type ApprovalActionResult = { ok: true } | { ok: false; error: string };
+
 export async function setVersionApprovalAction(
   versionId: string,
   input: {
@@ -33,8 +39,9 @@ export async function setVersionApprovalAction(
     // uploaded BEFORE any DB write — a failure aborts the whole action (D244).
     annotations?: AnnotationPayload[];
   },
-) {
-  return withAction("setVersionApprovalAction", async () => {
+): Promise<ApprovalActionResult> {
+  return withAction("setVersionApprovalAction", async (): Promise<ApprovalActionResult> => {
+    const refuse = (error: string) => ({ ok: false as const, error });
     const caller = await resolveCallerContext();
 
     // R2.1/R2.2 — the role gate, against the caller's REAL org role. Checked before any
@@ -42,23 +49,23 @@ export async function setVersionApprovalAction(
     // hides the control from them, but that is a courtesy on top of this, never the
     // mechanism (R2.3).
     if (!canSetApproval(caller.orgRole)) {
-      throw new Error("You are not permitted to approve or reject work.");
+      return refuse("You are not permitted to approve or reject work.");
     }
 
     // R6.5 — enforced here, not merely disabled in the UI. A rejection with no
     // explanation is not useful to the maker it routes back to.
     const note = input.note?.trim() || null;
     if (requiresNote(input.status) && !note) {
-      throw new Error("A note is required when requesting changes.");
+      return refuse("A note is required when requesting changes.");
     }
 
     const annotations = input.annotations ?? [];
     if (annotations.length > 0 && input.status !== "changes_requested") {
-      throw new Error("Annotations can only be attached when you request changes.");
+      return refuse("Annotations can only be attached when you request changes.");
     }
     if (annotations.length > 0) {
       const invalid = validateAnnotations(annotations);
-      if (invalid) throw new Error(invalid);
+      if (invalid) return refuse(invalid);
     }
 
     const supabase = createServerSupabase();
@@ -74,7 +81,7 @@ export async function setVersionApprovalAction(
     if (readErr) throw readErr;
     const versionRow = version as { org_id: string | null; node_id: string | null } | null;
     if (!versionRow || versionRow.org_id !== caller.orgId) {
-      throw new Error("Version not found.");
+      return refuse("Version not found.");
     }
 
     const at = new Date().toISOString();
@@ -89,7 +96,7 @@ export async function setVersionApprovalAction(
     const decisionId = randomUUID();
     let uploaded: { seq: number; maskPath: string }[] = [];
     if (annotations.length > 0) {
-      if (!versionRow.node_id) throw new Error("Version not found.");
+      if (!versionRow.node_id) return refuse("Version not found.");
       // Assets land in GCS under the node they annotate, via the same lib/storage module
       // every generated asset uses (D247) — not a separate Supabase bucket.
       uploaded = await uploadAnnotationAssets(
@@ -150,6 +157,7 @@ export async function setVersionApprovalAction(
         }
       }
     }
+    return { ok: true };
   });
 }
 

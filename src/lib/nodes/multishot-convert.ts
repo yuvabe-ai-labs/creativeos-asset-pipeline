@@ -5,11 +5,22 @@
 // That property only holds if the two functions are written against each other.
 import type { ShotNodeData, MultishotNodeData } from "@/lib/canvas-nodes";
 import { cutsFromShots, shotsFromCuts, totalOf } from "./multishot-cuts";
+import { mergeShotRows } from "./group-shots";
+import type { ReelShot } from "./reel-script";
 import { bestFitMultishotModel } from "./multishot-models";
 import { deriveShotType } from "./shot-types";
 
-export function shotDataToMultishot(data: ShotNodeData): MultishotNodeData {
-  const shots = data.script?.visual_script?.shots ?? [];
+/**
+ * `sourceRows` — the script rows this generation covers, when the caller still has them. A Shot
+ * node holds ONE merged row for its whole take (BUG-004), so cutting the node's own row would give
+ * one cut where the script had several; the rows restore the ladder the script wrote.
+ */
+export function shotDataToMultishot(
+  data: ShotNodeData,
+  sourceRows?: ReelShot[],
+): MultishotNodeData {
+  const shots =
+    sourceRows && sourceRows.length > 0 ? sourceRows : (data.script?.visual_script?.shots ?? []);
   const cuts = cutsFromShots(shots);
 
   // No Total control any more (multishot-cuts.ts's header) — `totalSeconds` is just the stored
@@ -44,16 +55,18 @@ export function shotDataToMultishot(data: ShotNodeData): MultishotNodeData {
 
 export function multishotDataToShot(data: MultishotNodeData): ShotNodeData {
   const cuts = data.cuts ?? [];
+  // One take over every cut: one row (BUG-004).
+  const take = mergeShotRows(shotsFromCuts(cuts));
 
   return {
     order: data.order,
     seededFrom: data.seededFrom,
     // Re-derived, not carried — the stored value described one cut, and after the conversion
     // the node is one take covering all of them.
-    shot_type: deriveShotType(cuts[0]?.text ?? ""),
+    shot_type: deriveShotType(take.description ?? ""),
     script: {
       ...data.script,
-      visual_script: { ...data.script?.visual_script, shots: shotsFromCuts(cuts) },
+      visual_script: { ...data.script?.visual_script, shots: [take] },
     },
   };
 }

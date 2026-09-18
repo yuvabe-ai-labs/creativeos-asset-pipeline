@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ChevronRight, Maximize2, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Tooltip,
   TooltipContent,
@@ -146,8 +147,13 @@ export function VideoGenConnectedSection({
         <TooltipProvider>
           {/* One row, scrolling rather than wrapping. A wrapping grid re-flowed every time an
               image was connected, moving thumbnails the operator had just been aiming at; a
-              fixed-width row keeps each frame where it was put at any number of inputs. */}
-          <div className="no-scrollbar flex gap-2 overflow-x-auto pb-1">
+              fixed-width row keeps each frame where it was put at any number of inputs.
+              A ScrollArea with a VISIBLE bar, not a hidden-scrollbar overflow: Seedance takes up
+              to 30 references, and with the bar hidden a row clipped at the column edge gave no
+              sign there was anything past it. The bar only renders when the row overflows;
+              pb-3.5 keeps it clear of the role buttons on the tiles. */}
+          <ScrollArea orientation="horizontal" className="w-full">
+          <div className="flex gap-2 pb-3.5">
             {images.map((image) => {
               const activeRole = imageRoles[image.id];
               return (
@@ -231,6 +237,7 @@ export function VideoGenConnectedSection({
               );
             })}
           </div>
+          </ScrollArea>
         </TooltipProvider>
       )}
     </div>
