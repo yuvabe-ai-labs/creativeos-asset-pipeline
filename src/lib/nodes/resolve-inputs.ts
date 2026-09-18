@@ -29,6 +29,8 @@ export type UpstreamPreview = {
   fileUrl?: string;
   fileKind?: string;
   useLlm?: boolean;
+  /** BUG-010 — the image's own name (title or filename), used to label a stored citation. */
+  name?: string;
 };
 
 export type ResolvedPromptInputs = {
@@ -98,11 +100,14 @@ export function mapUpstreamForVideo(u: RawUpstream): UpstreamPreview {
     type: u.type,
     text: "",
   };
+  const titled = typeof u.data.title === "string" ? u.data.title.trim() : "";
+  const filed = typeof u.data.filename === "string" ? u.data.filename.trim() : "";
+  const name = titled || filed || undefined;
 
   if (u.type === "image-gen") {
     // The still's URL is the active output (a string). Feed it as vision, never as text.
     const url = typeof u.activeOutput === "string" ? u.activeOutput : undefined;
-    return { ...base, text: "", fileUrl: url, fileKind: "image" };
+    return { ...base, text: "", fileUrl: url, fileKind: "image", ...(name ? { name } : {}) };
   }
   if (u.type === "shot") {
     // D229 — a Shot is always ONE continuous take now; there is no flag left to branch on. A
@@ -119,6 +124,7 @@ export function mapUpstreamForVideo(u: RawUpstream): UpstreamPreview {
       fileUrl: u.data.fileUrl as string | undefined,
       fileKind: u.data.fileKind as string | undefined,
       useLlm: u.type === "file" ? (u.data.useLlm as boolean | undefined) : undefined,
+      ...(name ? { name } : {}),
     };
   }
   return { ...base, text: getNodeOutput({ type: u.type, data: u.data, activeOutput: u.activeOutput }) };

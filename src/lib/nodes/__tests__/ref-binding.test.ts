@@ -6,6 +6,7 @@ import {
   citedRefIds,
   missingRefsMessage,
   singleTakeRefDialect,
+  refEntriesOf,
 } from "../ref-binding";
 import {
   imageRefDialect,
@@ -98,5 +99,19 @@ describe("singleTakeRefDialect", () => {
     expect(singleTakeRefDialect("veo", ["a"])).toBeNull();
     expect(singleTakeRefDialect("kling", ["a"])).toBeNull();
     expect(singleTakeRefDialect(undefined, ["a"])).toBeNull();
+  });
+});
+
+describe("refEntriesOf", () => {
+  it("keeps visionAttachmentsOf order and names each image", () => {
+    const entries = refEntriesOf([
+      { nodeId: "s", label: "Shot", type: "shot" },
+      { nodeId: "a", label: "File", type: "file", fileKind: "image", fileUrl: "u", name: "A.png" },
+      { nodeId: "g", label: "Image", type: "image-gen", fileKind: "image", fileUrl: "v" },
+    ]);
+    expect(entries).toEqual([
+      { id: "a", label: "File: A.png" },
+      { id: "g", label: "Image" },
+    ]);
   });
 });
