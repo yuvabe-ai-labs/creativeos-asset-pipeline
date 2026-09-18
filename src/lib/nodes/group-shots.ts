@@ -72,6 +72,18 @@ export function shotSeconds(shot: ReelShot): number {
 }
 
 /**
+ * The length a Shot node's card states. A single take can cover several script rows (Multishot
+ * off), and showing the first row's timing made a 20s take read as 5s (BUG-004). One row keeps its
+ * own timing text exactly as written; several state the summed length and the row count.
+ */
+export function shotSpanLabel(shots: ReelShot[]): string {
+  if (shots.length === 0) return "";
+  if (shots.length === 1) return shots[0].duration ?? "";
+  const total = shots.reduce((sum, s) => sum + shotSeconds(s), 0);
+  return `${total}s · ${shots.length} shots`;
+}
+
+/**
  * Move shots forward out of the previous group until the final group clears the floor.
  *
  * Greedy packing respects the ceiling but can strand a remainder under it: lengths 3,5,6,4,2 pack

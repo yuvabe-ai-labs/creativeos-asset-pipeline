@@ -539,11 +539,12 @@ export function createCanvasStore(
         edges: [...get().edges, ...createdEdges],
       });
 
+      // The ONLY fan-out toast (BUG-007: the Script node used to add its own, counting script
+      // rows). It counts nodes created — one per generation — which is what "clip" means in Help.
       const already = generations.length - missing.length;
+      const clips = `${created.length} clip${created.length === 1 ? "" : "s"}`;
       toast.success(
-        already > 0
-          ? `${created.length} added · ${already} already on canvas`
-          : `${created.length} shots added`,
+        already > 0 ? `${clips} added · ${already} already on canvas` : `${clips} added`,
       );
     },
     setGenerationMode: (scriptNodeId, key, multishot) => {

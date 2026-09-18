@@ -10,6 +10,7 @@ import {
   CURRENT_GROUPING_VERSION,
   ceilingForVersion,
   defaultMultishotFor,
+  shotSpanLabel,
 } from "../group-shots";
 import { MULTISHOT_MODELS } from "../multishot-models";
 import type { ReelShot } from "../reel-script";
@@ -267,5 +268,23 @@ describe("describeGenerations by version", () => {
 
   it("does not flag a generation at the ceiling", () => {
     expect(describeGenerations(shots(30), undefined, 2)[0].overCeiling).toBe(false);
+  });
+});
+
+// BUG-004 — a single-take Shot node can cover several script rows (Multishot off). Its card must
+// state the whole span, not the first row's length.
+describe("shotSpanLabel", () => {
+  it("keeps a lone row's own timing text", () => {
+    expect(shotSpanLabel([{ description: "a", duration: "0-3 sec", duration_seconds: 3 }])).toBe(
+      "0-3 sec",
+    );
+  });
+
+  it("states the total and the row count for several rows", () => {
+    expect(shotSpanLabel(shots(5, 5, 5, 5))).toBe("20s · 4 shots");
+  });
+
+  it("is empty with no rows", () => {
+    expect(shotSpanLabel([])).toBe("");
   });
 });

@@ -1,5 +1,10 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { toast } from "sonner";
 import { createCanvasStore } from "./canvas-store";
+
+vi.mock("sonner", () => ({
+  toast: Object.assign(vi.fn(), { success: vi.fn(), info: vi.fn(), error: vi.fn() }),
+}));
 import type { AppNode } from "./canvas-nodes";
 import type { Edge } from "@xyflow/react";
 import type { ShotComposeIdea } from "./nodes/shot-compose";
@@ -251,6 +256,45 @@ describe("fanOutShots is incremental", () => {
 
     const created = store.getState().nodes.filter((n) => n.id !== "sc");
     expect(created.map((n) => n.type)).toEqual(["shot", "multishot"]);
+  });
+});
+
+// BUG-007 — the store's toast is the ONLY fan-out toast, so it must report what was created
+// (nodes, one per generation) with correct grammar, and a no-op must say so and nothing else.
+describe("fanOutShots toasts", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const oneGeneration = {
+    id: "sc",
+    type: "script",
+    position: { x: 0, y: 0 },
+    data: {
+      groupingVersion: 2,
+      parsed: {
+        visual_script: {
+          shots: [
+            { description: "a", duration_seconds: 5 },
+            { description: "b", duration_seconds: 5 },
+          ],
+        },
+      },
+    },
+  } as AppNode;
+
+  it("reports one clip, singular, for a single generation", () => {
+    const store = createCanvasStore([oneGeneration], []);
+    store.getState().fanOutShots("sc");
+    expect(toast.success).toHaveBeenCalledTimes(1);
+    expect(toast.success).toHaveBeenCalledWith("1 clip added");
+  });
+
+  it("reports only the no-op on a second press", () => {
+    const store = createCanvasStore([oneGeneration], []);
+    store.getState().fanOutShots("sc");
+    vi.clearAllMocks();
+    store.getState().fanOutShots("sc");
+    expect(toast.info).toHaveBeenCalledWith("Every shot is already on the canvas");
+    expect(toast.success).not.toHaveBeenCalled();
   });
 });
 
