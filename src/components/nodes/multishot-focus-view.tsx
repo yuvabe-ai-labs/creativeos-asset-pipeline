@@ -218,6 +218,12 @@ export function MultishotFocusView({
                         multiline
                         placeholder="Describe this cut…"
                         className="text-sm leading-relaxed"
+                        // Edits IN PLACE: same padding as the display state, no border or ring, a
+                        // faint tint to say "editing", and content-sized so this card's own
+                        // scroller stays the only scrollbar. The primitive's boxed field put a
+                        // second scrollbar and a shifted text column inside an already-scrolling
+                        // card.
+                        editClassName="min-h-0 resize-none rounded-md border-0 bg-primary/5 px-1.5 py-1 shadow-none focus-visible:border-0 focus-visible:ring-0 md:text-sm"
                       />
                     </div>
                   </div>
