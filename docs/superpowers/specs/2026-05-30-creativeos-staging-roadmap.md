@@ -5220,3 +5220,26 @@ would raise every Kling estimate by default); keeping it in Advanced and auto-ex
 (one more place for a primary decision to hide).
 
 **Originated →** QA bug log BUG-011 (`docs/qa/bugs.md`), 2026-09-16.
+
+### D268 — The image prompt's setting is transcribed from what is stated, else a neutral backdrop *(recorded 2026-09-18; extends D262 to images)*
+
+**Decision.** `promptGeneratePrompt` (v6) no longer lists "Setting — location, time of day,
+environment, atmosphere" as a required element. A SETTING section says to write the setting only
+from what is stated (shot, script, Shot controls, instruction), names the brand context as not a
+source of setting, and — because an image cannot have no background — falls back to a plain,
+neutral backdrop or surface, with no weather, season, time of day or location that nothing states.
+`DEFAULT_INSTRUCTION` asks for "subject, composition, lighting, and visual style" instead of
+"subject, setting, …".
+
+**Why.** D262 fixed this for the multishot writers only. Scripts state action and dialogue but
+rarely a look, environment, weather or time of day, and the image writer's mandate to supply a
+setting was filled from the brand context — the same invention D262 removed. The single-take motion
+prompt is not changed: its start frame already fixes the setting (D24).
+
+**Rejected.** Leaving the setting entirely to the image model (it still invents one, just
+unreviewed); an empty setting as on the multishot look (a picture always has a background, so
+"empty" would silently mean "the model's choice").
+
+**Refines.** D262.
+
+**Originated →** QA bug log BUG-005 (`docs/qa/bugs.md`), 2026-09-16.
