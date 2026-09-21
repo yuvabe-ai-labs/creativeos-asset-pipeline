@@ -16,7 +16,7 @@ Nothing is saved; BytePlus URLs expire in 24h, so every image/video has a Downlo
 a banner says so.
 
 **Top bar** — Seedream settings (model fixed to `seedream-5-0-260128`, the only trusted one;
-size) · Seedance settings (model 2.5 / 2.0 / 2.0-fast, resolution, duration, ratio) · **Run all**.
+size fixed at 2K) · Seedance settings (model 2.5 / 2.0 / 2.0-fast, resolution, duration, ratio) · **Run all**.
 
 **Rows = faces.** Each row, left to right:
 
