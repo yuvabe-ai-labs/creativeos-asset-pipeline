@@ -61,5 +61,4 @@ and output moderation can still reject the result independently.
 
 ## Status of this code
 
-Throwaway. `/lab/seedance`, two API routes, one client. No DB, no Trigger.dev, no
-canvas coupling. Delete with the branch; do not build the product feature on it.
+The lab page was replaced by the UGC bench (`/ugc`) on 2026-09-21; the client lives in `src/lib/ugc/`.
