@@ -190,7 +190,3 @@ export function postMultiplier(
   if (likesCount === null || medianLikes === null || medianLikes <= 0) return null;
   return likesCount / medianLikes;
 }
-
-/** What the add-handle route reports about the inline first snapshot (D275). The row
- *  is saved in every case; this only says whether day one's data exists yet. */
-export type FirstSnapshotOutcome = "ok" | "no-data" | "error";

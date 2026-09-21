@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { usePerformance } from "@/hooks/use-performance";
@@ -34,18 +34,42 @@ function StatCard({
 }
 
 /** One tracked handle's panel (D253). Each sub-tab renders this independently — a
- *  handle added today shows "first snapshot pending" while its neighbours show data. */
+ *  handle added today shows "first snapshot pending" while its neighbours show data.
+ *
+ *  `fetchFirst` (D275): a handle that was just added fires the refresh route the moment
+ *  this mounts, so the ~10 s scrape is shown here — as a fetching state on the tab the
+ *  user is already looking at — instead of holding the add dialog open on a spinner. */
 export function HandlePerformance({
   clientId,
   handle,
+  fetchFirst = false,
+  onFirstFetchDone,
   onRemove,
 }: {
   clientId: string;
   handle: string;
+  fetchFirst?: boolean;
+  onFirstFetchDone?: () => void;
   onRemove: () => void;
 }) {
   const { data, loading, refreshing, refresh } = usePerformance(clientId, handle);
   const [refreshError, setRefreshError] = useState<string | null>(null);
+
+  // Once per mount, and only after the initial load has confirmed there is nothing yet:
+  // a re-added handle that still has history (D253) must not be scraped again.
+  const firstFetchStarted = useRef(false);
+  useEffect(() => {
+    if (!fetchFirst || loading || !data || firstFetchStarted.current) return;
+    if (data.latest) {
+      onFirstFetchDone?.();
+      return;
+    }
+    firstFetchStarted.current = true;
+    void refresh().then((error) => {
+      setRefreshError(error);
+      onFirstFetchDone?.();
+    });
+  }, [fetchFirst, loading, data, refresh, onFirstFetchDone]);
 
   if (loading || !data) {
     return <p className="py-10 text-sm text-muted-foreground">Loading @{handle}…</p>;
@@ -80,14 +104,23 @@ export function HandlePerformance({
         <StatCard label="Cadence" value={cadence} hint="from the posts we hold" />
       </div>
 
-      {/* Handle tracked, pipeline has not run yet. */}
+      {/* Handle tracked, pipeline has not run yet — or is running right now. */}
       {!data.latest ? (
         <div className="rounded-xl border border-border bg-card p-6 text-center shadow-card">
-          <p className="text-sm text-muted-foreground">
-            First snapshot pending for{" "}
-            <span className="font-medium text-foreground">@{data.handle}</span>. Refresh to
-            fetch it now, or wait for tonight&apos;s sweep.
-          </p>
+          {refreshing ? (
+            <p className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+              <RefreshCw strokeWidth={1.5} className="size-4 animate-spin text-primary" />
+              Fetching the first snapshot for{" "}
+              <span className="font-medium text-foreground">@{data.handle}</span> — about ten
+              seconds.
+            </p>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              First snapshot pending for{" "}
+              <span className="font-medium text-foreground">@{data.handle}</span>. Refresh to
+              fetch it now, or wait for tonight&apos;s sweep.
+            </p>
+          )}
         </div>
       ) : (
         <div className="rounded-xl border border-border bg-card p-4 shadow-card">

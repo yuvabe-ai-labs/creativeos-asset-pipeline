@@ -2,9 +2,6 @@
 
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
-import { toast } from "sonner";
-import type { FirstSnapshotOutcome } from "@/lib/market/performance";
-import { firstSnapshotNotice } from "./first-snapshot-notice";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,11 +17,8 @@ import {
 type Props = {
   open: boolean;
   onClose: () => void;
-  /** Resolves to the canonical handle plus the first-snapshot outcome, or an error
-   *  message to show on the field. */
-  onAdd: (
-    raw: string,
-  ) => Promise<{ handle: string; snapshot: FirstSnapshotOutcome } | { error: string }>;
+  /** Resolves to the canonical handle, or an error message to show on the field. */
+  onAdd: (raw: string) => Promise<{ handle: string } | { error: string }>;
   onAdded: (handle: string) => void;
 };
 
@@ -53,10 +47,8 @@ export function AddHandleDialog({ open, onClose, onAdd, onAdded }: Props) {
       setError(result.error);
       return;
     }
-    // The handle is tracked either way (D275) — a missing first snapshot is a notice,
-    // not a reason to keep the dialog open.
-    const notice = firstSnapshotNotice(result.handle, result.snapshot);
-    if (notice) toast.warning(notice, { duration: 8000 });
+    // Close on the insert, not on the first snapshot (D275): the ~10 s scrape is shown
+    // on the new sub-tab, where it can run without holding a modal open.
     onAdded(result.handle);
     close();
   }
@@ -102,7 +94,7 @@ export function AddHandleDialog({ open, onClose, onAdd, onAdded }: Props) {
           </Button>
           <Button onClick={() => void save()} disabled={!value.trim() || busy}>
             {busy && <Loader2 className="animate-spin" strokeWidth={1.5} />}
-            {busy ? "Fetching first snapshot…" : "Track handle"}
+            {busy ? "Adding…" : "Track handle"}
           </Button>
         </DialogFooter>
       </DialogContent>
