@@ -5397,6 +5397,53 @@ models (Seedance would read it as prose, not dialogue; Kling lip-syncs better wi
 speaker-then-line form).
 
 **Supersedes.** D271. **Amends.** D267 (default). **Originated →** operator report 2026-09-18.
+
+### D275 — Adding a handle takes its first snapshot inline *(recorded 2026-09-21; refines D252, D253; amends handle-performance §5)*
+
+**Decision.** `POST …/performance/handles` runs `snapshotHandle` before responding when the
+handle has no snapshot yet. The row saves first and always; the snapshot outcome is reported
+as `snapshot: ok | no-data | error` on the 201, never as a failure of the add.
+
+**Why.** D252 made enrolment a deliberate, visible, paid act — and it still is: the user
+typed the handle and clicked Track. What was not deliberate was the second click the design
+then demanded, on a Refresh button, to see anything at all. The empty state was written to
+cover the gap between add and the 05:00 sweep; the gap itself has no purpose. One result
+charge at add time is the same charge the sweep would have made that night.
+
+**Rejected.** A background Trigger task for the first fetch (adds the "how does the UI learn
+it finished" problem for a ~9 s wait a dialog spinner covers); keeping the manual Refresh as
+the primary CTA (does not fix the finding); rolling the row back on `no-data` (the handle may
+be temporarily blocked — D253 keeps history on unenrol for the same reason).
+
+**Originated →** `2026-09-21-market-live-updates-design.md` §2.
+
+### D276 — Market subscribes to `moodboard_items` through Supabase Realtime *(recorded 2026-09-21; supersedes D269)*
+
+**Decision.** `moodboard_items` gains `org_id` (trigger-maintained), an `org isolation`
+SELECT policy and membership of `supabase_realtime` (migration 0040). The Market board holds
+one org-wide channel and refetches, debounced 400 ms, when a row on one of its two boards
+changes. The tile chip is unchanged and still derived from the fetched snapshot; D269's
+recency gate on backlog `pending` rows stands.
+
+**Why.** D269 declined Realtime as "the first-ever RLS policy on the market tables — a
+security change." That was accurate and is no longer a reason: 0014, 0022 and 0030 have
+since made `org_id` + org-isolation policy + publication membership the house pattern for
+every table a browser watches, and `moodboard_items` was the only live-updated table not on
+it. The alternative — subscribing to the Trigger.dev run — covers only the clip this browser
+made in this session; it cannot see a colleague's clip, an extension clip, or a sweep repair.
+The finding is "the tile does not update"; only a table subscription answers it for every
+writer.
+
+**Rejected.** Interval polling (still rejected — a socket that is silent when nothing changes
+beats a timer that is not); Trigger.dev Realtime on the run id (partial coverage, new
+dependency, token minting per clip); a `client_id` column and per-client channel (a second
+denormalised column to maintain when the org channel plus a board-id filter costs nothing —
+one open Market page is one channel either way).
+
+**Refines.** D185, D264, D269 (superseded).
+
+**Originated →** `2026-09-21-market-live-updates-design.md` §3.
+
 ### D264 — Media archiving is a background Trigger.dev task *(recorded 2026-09-11; builds on D185)*
 
 **Decision.** The real media behind a Market / moodboard reference (the reel's mp4, the
@@ -5492,7 +5539,7 @@ probing (the original's extension is unpredictable and the wrong one returns 403
 
 **Originated →** `2026-09-11-market-media-archive-design.md` §1, §7.
 
-### D269 — No realtime and no polling in Market *(recorded 2026-09-11)*
+### D269 — No realtime and no polling in Market *(recorded 2026-09-11; Realtime half superseded by D276, polling rejection stands)*
 
 **Decision.** Archive state reaches the UI only on the board refetch that `useMarket`
 already performs after every `addReference`. The tile chip is derived from that snapshot:
