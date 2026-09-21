@@ -5,7 +5,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 type Handler = (payload: unknown) => void;
 const registered: { config: Record<string, string>; handler: Handler }[] = [];
 const removeChannel = vi.fn();
-const channelFactory = vi.fn((_name: string) => {
+const channelFactory = vi.fn(() => {
   const ch = {
     on: (_ev: string, config: Record<string, string>, handler: Handler) => {
       registered.push({ config, handler });
