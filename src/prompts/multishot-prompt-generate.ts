@@ -16,7 +16,9 @@ import type { RefineScope } from "@/lib/nodes/refine-suggestions";
 // @5 (D262): the look is transcribed from stated direction or left empty; no assumed setting.
 // @6 (D263): motion trimmed to one plain action, a simple camera and a grounding line.
 // @7: the voiceover is WRITTEN into the beats, verbatim, on every model (MULTISHOT_SHARED_CRAFT).
-export const MULTISHOT_PROMPT_ID = "multishot-prompt-generate@7";
+// @8: `cutId` is enum-constrained to the node's own ids (planSchemaForCuts). System text unchanged;
+//     bumped because the SCHEMA changed, per this constant's own rule.
+export const MULTISHOT_PROMPT_ID = "multishot-prompt-generate@8";
 
 /**
  * How to READ an attached reference image and name what it shows — without binding it to a beat.
@@ -289,6 +291,57 @@ export const MULTISHOT_PLAN_SCHEMA = {
   },
 } as const;
 const SCHEMA = MULTISHOT_PLAN_SCHEMA;
+
+/**
+ * The plan schema for ONE request, with `cutId` constrained by `enum` to the node's actual cut ids.
+ *
+ * THIS IS WHY IT EXISTS. Cut ids are `crypto.randomUUID()` — 36 characters of hex the writer was
+ * asked to transcribe out of a long user turn, once per shot, by instruction alone ("echoing that
+ * shot's `cutId` EXACTLY as provided"). A schema that says only `type: "string"` cannot hold it to
+ * that, so a single slipped character produced a beat naming a shot that does not exist, `parsePlan`
+ * rejected the WHOLE plan ("The writer referenced a shot that isn't in this node."), and the
+ * operator paid for a 422. Intermittent by nature, and impossible to prevent with more prose.
+ *
+ * With `enum`, OpenAI's strict structured outputs constrain DECODING: the model does not type the id
+ * and then get checked, it can only select one of these exact strings. A foreign id stops being an
+ * error to catch and becomes unrepresentable. That is also why no shorter "shot uid" alias is
+ * introduced alongside it — id LENGTH stopped mattering the moment the model stopped transcribing,
+ * and a second id namespace would only add a translation layer to drift at.
+ *
+ * Built from MULTISHOT_PLAN_SCHEMA rather than from a passed-in `spec.schema` because every writer
+ * answers against that one object by construction (D238) — an invariant this file's tests assert, so
+ * a writer that ever forked its own schema fails there loudly instead of silently getting Omni's
+ * shape with the enum bolted on.
+ *
+ * Returns the UNCONSTRAINED schema for an empty list: `enum: []` is not a satisfiable schema and
+ * OpenAI rejects the request outright. The route already 400s a node with no cuts long before here,
+ * so this is a guard against a caller that doesn't, not a supported path.
+ *
+ * Cut counts are small (Kling caps at 6, Seedance's 30s ladder at ~30), comfortably inside strict
+ * mode's enum limits.
+ */
+export function planSchemaForCuts(cutIds: string[]): Record<string, unknown> {
+  if (cutIds.length === 0) return MULTISHOT_PLAN_SCHEMA as unknown as Record<string, unknown>;
+
+  const beats = MULTISHOT_PLAN_SCHEMA.properties.beats;
+  const item = beats.items;
+  return {
+    ...MULTISHOT_PLAN_SCHEMA,
+    properties: {
+      ...MULTISHOT_PLAN_SCHEMA.properties,
+      beats: {
+        ...beats,
+        items: {
+          ...item,
+          properties: {
+            ...item.properties,
+            cutId: { ...item.properties.cutId, enum: cutIds },
+          },
+        },
+      },
+    },
+  };
+}
 
 /**
  * The narrow schemas a REFINE asks against.

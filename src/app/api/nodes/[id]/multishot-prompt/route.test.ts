@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { MultishotPlan } from "@/lib/nodes/multishot-plan";
 import {
-  multishotPromptGenerate,
   MULTISHOT_LOOK_SCHEMA,
   MULTISHOT_BEAT_SCHEMA,
+  planSchemaForCuts,
 } from "@/prompts/multishot-prompt-generate";
 import {
   KLING_OMNI_MODEL_ID,
@@ -194,12 +194,17 @@ describe("POST multishot-prompt — refine scopes", () => {
       expect(create.mock.calls[0][0].response_format.json_schema.schema).toBe(MULTISHOT_LOOK_SCHEMA);
     });
 
-    it("sends the full plan schema for a full generate", async () => {
+    // The plan schema, narrowed to THIS node's cut ids. The intermittent "The writer referenced a
+    // shot that isn't in this node." 422 was the writer mis-transcribing a 36-character UUID it had
+    // been asked to echo by instruction alone; with `enum`, strict structured outputs constrain
+    // decoding, so the model selects an id and a foreign one is unrepresentable. Asserted on the
+    // REQUEST, because a guarantee that lives anywhere else is a guarantee the model never got.
+    it("sends a full plan schema whose cutId is enum-constrained to the node's shots", async () => {
       returns(PLAN);
       await post({ scope: "all", note: "punchier" });
-      expect(create.mock.calls[0][0].response_format.json_schema.schema).toBe(
-        multishotPromptGenerate().schema,
-      );
+      const schema = create.mock.calls[0][0].response_format.json_schema.schema;
+      expect(schema).toEqual(planSchemaForCuts(CUTS.map((c) => c.id)));
+      expect(schema.properties.beats.items.properties.cutId.enum).toEqual(["c1", "c2"]);
     });
 
     // Regression test for the Critical: refineInstruction used to return "" unconditionally for

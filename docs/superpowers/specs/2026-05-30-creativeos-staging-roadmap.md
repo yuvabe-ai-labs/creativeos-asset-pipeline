@@ -5562,3 +5562,32 @@ carries the cover frame, so the repair costs one extra upload on a call already 
 **Refines.** D185 (the thumbnail stays best-effort at capture; this is its only retry).
 
 **Originated →** `2026-09-11-market-media-archive-design.md` §1.0, §6.
+
+### D273 — The multishot writer SELECTS a `cutId`, it never transcribes one *(recorded 2026-09-21)*
+
+**Decision.** The whole-sequence plan schema is built per request by
+`planSchemaForCuts(cutIds)`, which `enum`-constrains `beats[].cutId` to the node's own cut
+ids. The route sends that instead of the writer's static `spec.schema`. The identity check
+in `parsePlan` stays, as a backstop for the merge and stored-plan paths.
+
+**Why.** Cut ids are `crypto.randomUUID()`, and the schema said only `type: "string"`, so
+six 36-character ids were held together by the instruction "echoing that shot's `cutId`
+EXACTLY as provided". A single slipped character rejected the WHOLE plan — "The writer
+referenced a shot that isn't in this node." — at full price, intermittently, and no amount
+of further prose could fix it. `enum` moves the guarantee into constrained decoding: the
+model cannot emit an id that is not the node's, so the failure becomes unrepresentable
+rather than caught.
+
+**Rejected.** A short "shot uid" alias namespace (`s1`…`sN`) mapped back to real ids at the
+route boundary — id LENGTH stops mattering once the model selects rather than types, so it
+would buy only prompt legibility in exchange for a second id namespace to drift at.
+Also rejected: keying `beats` as an object with one required property per cut id, which
+would additionally make "the plan does not cover every shot" unrepresentable — it changes
+the returned shape on the money path and could not be verified against the live API without
+spending, so it is the fallback if that sibling error ever shows up in practice.
+
+**Refines.** D238 (the plan JSON shape still does not vary by model — only this one leaf is
+narrowed per request, and it is derived from `MULTISHOT_PLAN_SCHEMA`, with a test asserting
+every writer still answers against that object).
+
+**Originated →** operator report 2026-09-21 (frequent multishot generation failures).

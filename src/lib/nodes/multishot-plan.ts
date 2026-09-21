@@ -78,6 +78,11 @@ export function parsePlan(raw: unknown, cuts: MultishotCut[]): PlanParseResult {
     if (typeof cutId !== "string" || typeof text !== "string") {
       return { ok: false, reason: "A beat is missing its shot or its text." };
     }
+    // KEPT, though the generate path can no longer reach it: `planSchemaForCuts` enum-constrains
+    // `cutId` to the node's own ids, so a fresh plan physically cannot carry a foreign one. This
+    // still guards every OTHER caller — `mergeRefinedPlan` re-validating a plan the client sent,
+    // and a stored plan revalidated against cuts the operator has since edited on the Multishot
+    // node, where a beat genuinely can outlive its shot. Do not delete it as dead code.
     if (!cuts.some((c) => c.id === cutId)) {
       return { ok: false, reason: "The writer referenced a shot that isn't in this node." };
     }

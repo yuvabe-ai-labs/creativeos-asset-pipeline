@@ -21,7 +21,9 @@ import { MOTION_AVOID_LIST, MULTISHOT_AUTHORING_MODEL } from "./video-prompt-gen
 // @2 (D262): shares the transcribe-or-empty look rule and the no-assumed-setting contract.
 // @3 (D263): shares the trimmed, simple-motion craft block.
 // @4: the voiceover is written into the beats, verbatim (shared VOICEOVER rule).
-export const MULTISHOT_KLING_PROMPT_ID = "multishot-prompt-kling@4";
+// @5: `cutId` is enum-constrained to the node's own ids (planSchemaForCuts). System text unchanged;
+//     bumped because the shared SCHEMA changed.
+export const MULTISHOT_KLING_PROMPT_ID = "multishot-prompt-kling@5";
 
 const SYSTEM = `You write the shot-by-shot motion plan for a single multi-shot video generation on Kling 3.0 Omni.
 

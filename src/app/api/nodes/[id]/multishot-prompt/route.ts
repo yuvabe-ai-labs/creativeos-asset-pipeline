@@ -12,6 +12,7 @@ import { resolvePlanMentions } from "@/lib/nodes/plan-mentions";
 import {
   MULTISHOT_LOOK_SCHEMA,
   MULTISHOT_BEAT_SCHEMA,
+  planSchemaForCuts,
   refineInstruction,
 } from "@/prompts/multishot-prompt-generate";
 import { multishotPromptFor } from "@/prompts/multishot-prompt-for";
@@ -215,12 +216,21 @@ export async function POST(
         },
         call: async () => {
           const openai = createOpenAI();
+          // A whole-sequence write asks against THIS NODE's cut ids, not the writer's static
+          // schema: `planSchemaForCuts` enum-constrains `cutId` so the model selects an id instead
+          // of transcribing a UUID it can slip a character of. That is what makes parsePlan's "The
+          // writer referenced a shot that isn't in this node." unreachable rather than merely
+          // caught — see that function's note for the failure it replaced.
+          //
+          // The two refine schemas need no such treatment: neither contains a `cutId` at all. A
+          // "cut" refine names its shot in the INSTRUCTION and returns bare text, which is why that
+          // path never produced this error in the first place.
           const schema =
             scope === "look"
               ? MULTISHOT_LOOK_SCHEMA
               : scope === "cut"
                 ? MULTISHOT_BEAT_SCHEMA
-                : spec.schema;
+                : planSchemaForCuts(resolved.cuts.map((c) => c.id));
 
           const completion = await openai.chat.completions.create({
             model: spec.model,

@@ -25,7 +25,9 @@ import { MOTION_AVOID_LIST, MULTISHOT_AUTHORING_MODEL } from "./video-prompt-gen
 // @3 (D263): shares the trimmed, simple-motion craft block.
 // @4: the voiceover is written into the beats, verbatim (shared VOICEOVER rule) — here inside
 // Seedance's own {} dialogue marker, per the SOUND section below.
-export const MULTISHOT_SEEDANCE_PROMPT_ID = "multishot-prompt-seedance@4";
+// @5: `cutId` is enum-constrained to the node's own ids (planSchemaForCuts). System text unchanged;
+//     bumped because the shared SCHEMA changed.
+export const MULTISHOT_SEEDANCE_PROMPT_ID = "multishot-prompt-seedance@5";
 
 const SYSTEM = `You write the shot-by-shot motion plan for a single multi-shot video generation on Seedance 2.5.
 
