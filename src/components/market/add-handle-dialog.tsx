@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import type { FirstSnapshotOutcome } from "@/lib/market/performance";
+import { firstSnapshotNotice } from "./first-snapshot-notice";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,8 +20,11 @@ import {
 type Props = {
   open: boolean;
   onClose: () => void;
-  /** Resolves to the canonical handle, or an error message to show on the field. */
-  onAdd: (raw: string) => Promise<{ handle: string } | { error: string }>;
+  /** Resolves to the canonical handle plus the first-snapshot outcome, or an error
+   *  message to show on the field. */
+  onAdd: (
+    raw: string,
+  ) => Promise<{ handle: string; snapshot: FirstSnapshotOutcome } | { error: string }>;
   onAdded: (handle: string) => void;
 };
 
@@ -47,6 +53,10 @@ export function AddHandleDialog({ open, onClose, onAdd, onAdded }: Props) {
       setError(result.error);
       return;
     }
+    // The handle is tracked either way (D275) — a missing first snapshot is a notice,
+    // not a reason to keep the dialog open.
+    const notice = firstSnapshotNotice(result.handle, result.snapshot);
+    if (notice) toast.warning(notice, { duration: 8000 });
     onAdded(result.handle);
     close();
   }
@@ -58,7 +68,7 @@ export function AddHandleDialog({ open, onClose, onAdd, onAdded }: Props) {
           <DialogTitle>Track a handle</DialogTitle>
           <DialogDescription>
             The client&apos;s own account or a competitor&apos;s — both work the same way.
-            Snapshots start from today; history builds as they run.
+            The first snapshot is taken now; history builds daily from there.
           </DialogDescription>
         </DialogHeader>
 
@@ -92,7 +102,7 @@ export function AddHandleDialog({ open, onClose, onAdd, onAdded }: Props) {
           </Button>
           <Button onClick={() => void save()} disabled={!value.trim() || busy}>
             {busy && <Loader2 className="animate-spin" strokeWidth={1.5} />}
-            {busy ? "Adding…" : "Track handle"}
+            {busy ? "Fetching first snapshot…" : "Track handle"}
           </Button>
         </DialogFooter>
       </DialogContent>
