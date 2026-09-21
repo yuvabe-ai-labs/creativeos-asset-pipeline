@@ -138,16 +138,20 @@ export function useUgcBench() {
   );
 
   const pump = useCallback(() => {
-    while (active.current < MAX_CONCURRENT && queue.current.length) {
-      const job = queue.current.shift()!;
-      active.current++;
-      execute(job)
-        .catch((e) => patchTile(job.rowId, job.tileId, { status: "rejected", error: String(e) }))
-        .finally(() => {
-          active.current--;
-          pump();
-        });
-    }
+    // Recurse through a local function: a finished job refills its slot from the queue.
+    const drain = () => {
+      while (active.current < MAX_CONCURRENT && queue.current.length) {
+        const job = queue.current.shift()!;
+        active.current++;
+        execute(job)
+          .catch((e) => patchTile(job.rowId, job.tileId, { status: "rejected", error: String(e) }))
+          .finally(() => {
+            active.current--;
+            drain();
+          });
+      }
+    };
+    drain();
   }, [execute, patchTile]);
 
   const enqueue = useCallback(
