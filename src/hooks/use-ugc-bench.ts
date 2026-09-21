@@ -22,27 +22,34 @@ import {
   type ScriptTile,
 } from "@/lib/ugc/board";
 import { starterRows } from "@/lib/ugc/starter";
+import { request, type LogEntry, type Logger } from "@/lib/ugc/request";
 
 type Job = { rowId: string; tileId: string };
 
-async function post<T>(url: string, body: unknown): Promise<T> {
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  return res.json() as Promise<T>;
-}
+const MAX_LOG = 200;
 
 export function useUgcBench() {
   const [rows, setRows] = useState<FaceRow[]>(starterRows);
   const [settings, setSettings] = useState<BenchSettings>(DEFAULT_SETTINGS);
+  const [log, setLog] = useState<LogEntry[]>([]);
 
   // Async work reads the latest state through refs, not stale closures.
   const rowsRef = useRef(rows);
   const settingsRef = useRef(settings);
   useEffect(() => void (rowsRef.current = rows), [rows]);
   useEffect(() => void (settingsRef.current = settings), [settings]);
+
+  const addLog: Logger = useCallback((entry) => {
+    const full = { ...entry, id: crypto.randomUUID(), at: new Date().toISOString() };
+    setLog((l) => [full, ...l].slice(0, MAX_LOG));
+  }, []);
+
+  // "Face 2 · Script 1" — positions as the user sees them, for readable log labels.
+  const where = useCallback((rowId: string, tileId?: string) => {
+    const r = rowsRef.current.findIndex((x) => x.id === rowId);
+    const t = tileId ? (rowsRef.current[r]?.tiles.findIndex((x) => x.id === tileId) ?? -1) : -1;
+    return `Face ${r + 1}${t >= 0 ? ` · Script ${t + 1}` : ""}`;
+  }, []);
 
   const queue = useRef<Job[]>([]);
   const active = useRef(0);
@@ -66,22 +73,21 @@ export function useUgcBench() {
       const row = rowsRef.current.find((r) => r.id === rowId);
       if (!row?.facePrompt.trim()) return;
       patchRow(rowId, { faceStatus: "generating", faceError: null });
-      try {
-        const data = await post<{ imageUrl: string | null; error: string | null }>(
-          "/api/ugc/face",
-          { prompt: row.facePrompt },
-        );
-        patchRow(
-          rowId,
-          data.imageUrl
-            ? { faceStatus: "ready", faceUrl: data.imageUrl, faceAt: Date.now() }
-            : { faceStatus: "rejected", faceError: data.error ?? "No image returned" },
-        );
-      } catch (e) {
-        patchRow(rowId, { faceStatus: "rejected", faceError: String(e) });
-      }
+      const res = await request<{ imageUrl: string | null; error: string | null }>(
+        addLog,
+        `${where(rowId)} · Seedream`,
+        "POST",
+        "/api/ugc/face",
+        { prompt: row.facePrompt },
+      );
+      patchRow(
+        rowId,
+        res.ok && res.data.imageUrl
+          ? { faceStatus: "ready", faceUrl: res.data.imageUrl, faceAt: Date.now() }
+          : { faceStatus: "rejected", faceError: res.ok ? "No image returned" : res.error },
+      );
     },
-    [patchRow],
+    [patchRow, addLog, where],
   );
 
   const regenerateFace = useCallback(
@@ -108,21 +114,42 @@ export function useUgcBench() {
         patchTile(rowId, tileId, { status: "rejected", error, elapsedMs: Date.now() - startedAt });
       patchTile(rowId, tileId, { status: "generating", startedAt, ranScript: tile.script, error: null });
 
-      const created = await post<{ taskId: string | null; error: string | null }>(
+      const label = `${where(rowId, tileId)} · Seedance`;
+      const created = await request<{ taskId: string | null; error: string | null }>(
+        addLog,
+        `${label} create`,
+        "POST",
         "/api/ugc/video",
         { script: tile.script, referenceUrl: row.faceUrl, settings: settingsRef.current },
       );
-      if (!created.taskId) return fail(created.error ?? "Seedance refused the task");
+      if (!created.ok || !created.data.taskId) {
+        return fail(created.ok ? "Seedance returned no task id" : created.error);
+      }
+      const taskId = created.data.taskId;
 
       for (let i = 0; i < MAX_POLLS; i++) {
         await new Promise((r) => setTimeout(r, POLL_MS));
-        const res = await fetch(`/api/ugc/video/${created.taskId}`);
-        const polled = (await res.json()) as {
-          status: string | null;
-          videoUrl: string | null;
-          error: string | null;
-        };
+        type Polled = { status: string | null; videoUrl: string | null; error: string | null };
+        const res = await request<Polled>(
+          addLog,
+          `${label} poll ${taskId}`,
+          "GET",
+          `/api/ugc/video/${taskId}`,
+          undefined,
+          { logSuccess: false }, // in-progress polls are noise; failures and the final result are logged
+        );
+        if (!res.ok) return fail(res.error);
+        const polled = res.data;
         if (polled.status && TERMINAL_STATUSES.includes(polled.status)) {
+          addLog({
+            label: `${label} finished ${taskId}`,
+            method: "GET",
+            url: `/api/ugc/video/${taskId}`,
+            ok: !!polled.videoUrl,
+            httpStatus: 200,
+            ms: Date.now() - startedAt,
+            response: polled,
+          });
           if (polled.videoUrl) {
             return patchTile(rowId, tileId, {
               status: "done",
@@ -133,9 +160,9 @@ export function useUgcBench() {
           return fail(polled.error ?? `Task ended as "${polled.status}"`);
         }
       }
-      fail("Timed out after 7.5 minutes");
+      fail(`Timed out after 7.5 minutes (task ${taskId})`);
     },
-    [patchTile],
+    [patchTile, addLog, where],
   );
 
   const pump = useCallback(() => {
@@ -190,6 +217,8 @@ export function useUgcBench() {
       patchTile(rowId, tileId, { script, status: "draft", videoUrl: null, error: null }),
     runTile,
     runAll,
+    log,
+    clearLog: () => setLog([]),
   };
 }
 

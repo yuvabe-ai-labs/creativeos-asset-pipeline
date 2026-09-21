@@ -3,6 +3,7 @@
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useUgcBench } from "@/hooks/use-ugc-bench";
+import { ActivityLog } from "./activity-log";
 import { FaceRow } from "./face-row";
 import { SettingsBar } from "./settings-bar";
 
@@ -31,6 +32,7 @@ export function UgcBench() {
         <Plus className="size-4" strokeWidth={1.5} />
         Face
       </Button>
+      <ActivityLog entries={bench.log} onClear={bench.clearLog} />
     </div>
   );
 }

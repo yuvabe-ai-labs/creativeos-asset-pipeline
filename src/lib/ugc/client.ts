@@ -11,18 +11,31 @@ function apiKey(): string {
 type ArkError = { error?: { code?: string; message?: string } };
 
 async function ark(path: string, method: "GET" | "POST", body?: unknown) {
-  const res = await fetch(`${ARK_BASE_URL}${path}`, {
-    method,
-    headers: { Authorization: `Bearer ${apiKey()}`, "Content-Type": "application/json" },
-    body: body ? JSON.stringify(body) : undefined,
-    cache: "no-store",
-  });
-  const text = await res.text();
+  let res: Response;
   try {
-    return JSON.parse(text) as Record<string, unknown> & ArkError;
-  } catch {
-    return { error: { code: String(res.status), message: text.slice(0, 500) } };
+    res = await fetch(`${ARK_BASE_URL}${path}`, {
+      method,
+      headers: { Authorization: `Bearer ${apiKey()}`, "Content-Type": "application/json" },
+      body: body ? JSON.stringify(body) : undefined,
+      cache: "no-store",
+    });
+  } catch (e) {
+    console.error(`[ugc] ${method} ${path} — could not reach BytePlus`, e);
+    throw e;
   }
+
+  const text = await res.text();
+  let parsed: Record<string, unknown> & ArkError;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    parsed = { error: { code: String(res.status), message: text.slice(0, 500) } };
+  }
+  // Server-side trail for anything BytePlus rejects (never logs the key).
+  if (!res.ok || parsed.error) {
+    console.error(`[ugc] ${method} ${path} → HTTP ${res.status}`, JSON.stringify(parsed.error ?? parsed));
+  }
+  return parsed;
 }
 
 function errorOf(r: ArkError): string | null {
