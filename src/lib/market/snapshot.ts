@@ -1,7 +1,8 @@
-// The one snapshot path all three callers use (daily trigger sweep, manual refresh
-// route, and a newly added handle's first fetch), mirroring ingestReference's contract:
-// the SNAPSHOT always saves; thumbnails are best-effort decoration (D185's spirit).
-// Only a DB/provider failure propagates.
+// The one snapshot path all three callers use — the daily trigger sweep
+// (trigger/snapshot-handles.ts), the manual refresh route, and the add-handle route's
+// inline first fetch (D275) — mirroring ingestReference's contract: the SNAPSHOT always
+// saves; thumbnails are best-effort decoration (D185's spirit). Only a DB/provider
+// failure propagates.
 //
 // It takes the handle rather than looking one up (D252): whether a handle is tracked is
 // the route's business, not this module's.

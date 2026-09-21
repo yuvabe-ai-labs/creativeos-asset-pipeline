@@ -542,3 +542,44 @@ select count(*) as rows, count(updated_at) as with_timestamp from node_versions;
 select id, updated_at from node_versions
 where node_id = '<node-uuid>' order by updated_at desc limit 3;
 ```
+
+## Migration 0040 — `moodboard_items` Realtime (2026-09-21)
+
+`supabase/migrations/0040_moodboard_items_realtime.sql`. Paste into the Supabase SQL editor → Run.
+Same manual dashboard process as every other migration in this doc.
+
+Adds to `moodboard_items`: `org_id` (backfilled 2-hop item→moodboard→client→org, plus a
+BEFORE INSERT trigger to keep it true), an `org_id` index, an `org isolation` SELECT policy,
+and membership of the `supabase_realtime` publication. This is what lets the Market board
+hear the `archive-reference` task finish (D276).
+
+**Why the policy matters:** `0026` enabled RLS on `moodboard_items` with zero policies
+(default-deny). Realtime delivers `postgres_changes` rows *through* RLS, so the board's
+subscription would silently receive nothing without it — the same failure `0018` fixed for
+the Generation Tray and `0030` pre-empted for approvals. Writes still go through the
+service role and are unaffected.
+
+**Safe to re-run.** `add column if not exists`, `drop policy if exists`, `drop trigger if
+exists`, and a `pg_publication_tables` existence check guard every non-idempotent statement.
+
+**Ordering:** apply before deploying the app code. The app tolerates the migration landing
+first (nothing reads `org_id` directly); it does not tolerate the reverse — the subscription
+is silent until the policy and publication exist.
+
+**Verify after running:**
+
+```sql
+-- expect 0 — every item should carry an org
+select count(*) from moodboard_items where org_id is null;
+
+-- expect 1 row
+select policyname from pg_policies
+ where tablename = 'moodboard_items' and policyname = 'org isolation';
+
+-- expect 1 row
+select tablename from pg_publication_tables
+ where pubname = 'supabase_realtime' and tablename = 'moodboard_items';
+```
+
+Application code that depends on this: `src/lib/realtime/org-market-updates.ts` (filters on
+`org_id`) and `src/hooks/use-market-updates.ts`.
