@@ -2,6 +2,7 @@ import "server-only";
 import { logger } from "@trigger.dev/sdk/v3";
 import type { VideoGenInput, VideoGenResult, VideoGenModelSpec } from "../types";
 import { kling30Params, klingO1Params, kling30OmniParams } from "../params/kling";
+import { fitKlingImages } from "./kling-images";
 
 const KLING_API_BASE = "https://api-singapore.klingai.com";
 const POLL_INTERVAL_MS = 5_000;
@@ -343,11 +344,22 @@ async function generateWithKling(
     throw new Error("Kling cannot use an end frame without a start frame");
   }
 
-  const contents = buildKlingContents({
-    prompt: input.prompt,
+  // Correct any image whose shape Kling would reject, BEFORE building contents — a 414×2048
+  // reference cost run_06gc6cum56gtdfhlvjfs5a3j01 two full attempts and 35 seconds to learn
+  // "Image aspect ratio is invalid", a message that does not even say which of five images it
+  // meant. Placed after the guards above so a request that is going to be rejected never spends a
+  // download. Every image that already fits keeps its URL untouched (see kling-images.ts).
+  const fitted = await fitKlingImages({
     startFrameUrl: input.startFrameUrl,
     endFrameUrl: input.endFrameUrl,
     referenceUrls,
+  });
+
+  const contents = buildKlingContents({
+    prompt: input.prompt,
+    startFrameUrl: fitted.startFrameUrl,
+    endFrameUrl: fitted.endFrameUrl,
+    referenceUrls: fitted.referenceUrls,
   });
   const settings = buildSettings(input.params, {
     hasStartFrame: Boolean(input.startFrameUrl),

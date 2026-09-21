@@ -5424,6 +5424,48 @@ Refresh as the primary CTA (does not fix the finding); rolling the row back on `
 
 **Originated →** `2026-09-21-market-live-updates-design.md` §2.
 
+### D277 — Kling corrects an out-of-range input image instead of letting the vendor reject it *(recorded 2026-09-21; extends the Seedance image-fitting precedent)*
+
+**Decision.** `generateWithKling` runs every image it is about to send through
+`fitKlingImages` (`providers/kling-images.ts`) before building `contents`. An image that
+already meets Kling's published limits keeps its URL, untouched; only one that breaks them is
+re-encoded and sent inline as a `data:image/jpeg;base64,…` URL. Frames are centre-cropped,
+references are padded against their own edge colour. The crop/pad geometry now lives in
+`providers/provider-images.ts`, parameterised by an `ImageLimits` record and shared with
+Seedance, whose module keeps its public surface as a thin binding of its own limits.
+
+**Why.** Staging run `run_06gc6cum56gtdfhlvjfs5a3j01` spent 35 seconds and two retries to die
+with `Kling generation failed: Image aspect ratio is invalid`. The cause was one of five
+references at 414×2048 — ratio 0.202, under the 0.4 floor. The vendor's message names no
+image, so an operator holding five references cannot tell which one to fix, and nothing
+upstream constrains image shape: the uploader accepts any image a canvas node holds. This is
+the identical failure Seedance hit from the other side (ratio 2.62), and Kling's geometry
+limits are *the same numbers* — aspect 0.4–2.5, both sides ≥300px — so one shared body rather
+than a second copy that drifts. Two call sites is the repo's extraction threshold.
+
+Two facts were settled against the live endpoint before this shipped, because the docs are
+ambiguous or wrong on both. `contents[].url` accepts base64 **with or without** the
+`data:image/...;base64,` prefix — an out-of-range payload in each form came back with this
+same aspect-ratio error, which the vendor could only produce by decoding it. And webp, which
+the docs omit from `.jpg/.jpeg/.png`, is decoded fine — same aspect error, not a format
+error — so webp stays in `KLING_IMAGE_LIMITS.formats` and an ordinary webp reference keeps
+its URL instead of being base64-inlined. Same precedence rule as `O1_VALID_DURATIONS`:
+observed runtime behaviour wins over the doc table.
+
+**Rejected.** Rejecting the request up front the way D97 rejects illegal *params* — an image's
+shape is not something the operator chose from a control, it is whatever asset they attached,
+so there is nothing for them to correct in the UI. Re-uploading the corrected image to GCS and
+passing an https URL — certain to work, but it leaves derivative files in the client bucket
+that no node owns, plus a path scheme and a cleanup story, to avoid a base64 payload the
+vendor documents and we measured. A guessed maximum dimension — Kling publishes only the 50MB
+cap, so `maxPx` is `Infinity` and no image is re-encoded that the vendor would have taken.
+Converting every webp to jpeg — evidence says it is unnecessary, and it would inline most
+references in a normal request.
+
+**Refines.** D99, D100, D101.
+
+**Originated →** this entry (traced from the run above; no separate design spec).
+
 ### D276 — Market subscribes to `moodboard_items` through Supabase Realtime *(recorded 2026-09-21; supersedes D269)*
 
 **Decision.** `moodboard_items` gains `org_id` (trigger-maintained), an `org isolation`
