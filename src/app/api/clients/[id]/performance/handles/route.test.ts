@@ -20,13 +20,12 @@ vi.mock("@/lib/db/clients", () => ({
 vi.mock("@/lib/db/performance", () => ({
   listTrackedHandles: vi.fn(),
   addTrackedHandle: vi.fn(),
-  getLatestSnapshot: vi.fn(),
 }));
 vi.mock("@/lib/market/snapshot", () => ({
   snapshotHandle: vi.fn(),
 }));
 
-import { listTrackedHandles, addTrackedHandle, getLatestSnapshot } from "@/lib/db/performance";
+import { listTrackedHandles, addTrackedHandle } from "@/lib/db/performance";
 import { snapshotHandle } from "@/lib/market/snapshot";
 
 const params = Promise.resolve({ id: "client-1" });
@@ -78,7 +77,6 @@ describe("POST /api/clients/[id]/performance/handles", () => {
 
   it("canonicalizes the handle before storing it", async () => {
     vi.mocked(addTrackedHandle).mockResolvedValue(ROW);
-    vi.mocked(getLatestSnapshot).mockResolvedValue({ id: "s1" } as never);
     const { POST } = await import("./route");
     const res = await POST(postReq({ handle: " @PrakritiSattva " }) as never, { params });
     expect(res.status).toBe(201);
@@ -87,7 +85,6 @@ describe("POST /api/clients/[id]/performance/handles", () => {
 
   it("accepts a pasted profile URL", async () => {
     vi.mocked(addTrackedHandle).mockResolvedValue(ROW);
-    vi.mocked(getLatestSnapshot).mockResolvedValue({ id: "s1" } as never);
     const { POST } = await import("./route");
     await POST(postReq({ handle: "https://www.instagram.com/prakritisattva/?igsh=x" }) as never, { params });
     expect(vi.mocked(addTrackedHandle)).toHaveBeenCalledWith("client-1", "prakritisattva");
@@ -106,48 +103,14 @@ describe("POST /api/clients/[id]/performance/handles", () => {
     expect(res.status).toBe(400);
   });
 
-  // D275 — the row saves first and always; the snapshot is the first day's data.
-  describe("first snapshot (D275)", () => {
-    beforeEach(() => {
-      vi.mocked(addTrackedHandle).mockResolvedValue(ROW);
-    });
-
-    it("takes the first snapshot inline for a fresh handle", async () => {
-      vi.mocked(getLatestSnapshot).mockResolvedValue(null);
-      vi.mocked(snapshotHandle).mockResolvedValue({ ok: true, handle: "prakritisattva", postCount: 12 });
-      const { POST } = await import("./route");
-      const res = await POST(postReq({ handle: "prakritisattva" }) as never, { params });
-      expect(res.status).toBe(201);
-      expect(await res.json()).toEqual({ handle: ROW, snapshot: "ok" });
-      expect(vi.mocked(snapshotHandle)).toHaveBeenCalledWith("client-1", "prakritisattva");
-    });
-
-    // Unenrolling keeps history (D253), so re-adding must not spend a result charge.
-    it("skips the snapshot when history already exists", async () => {
-      vi.mocked(getLatestSnapshot).mockResolvedValue({ id: "s1" } as never);
-      const { POST } = await import("./route");
-      const res = await POST(postReq({ handle: "prakritisattva" }) as never, { params });
-      expect(res.status).toBe(201);
-      expect((await res.json()).snapshot).toBe("ok");
-      expect(vi.mocked(snapshotHandle)).not.toHaveBeenCalled();
-    });
-
-    it("reports no-data without failing the add", async () => {
-      vi.mocked(getLatestSnapshot).mockResolvedValue(null);
-      vi.mocked(snapshotHandle).mockResolvedValue({ ok: false, reason: "no-data" });
-      const { POST } = await import("./route");
-      const res = await POST(postReq({ handle: "prakritisattva" }) as never, { params });
-      expect(res.status).toBe(201);
-      expect(await res.json()).toEqual({ handle: ROW, snapshot: "no-data" });
-    });
-
-    it("reports error without failing the add when the provider throws", async () => {
-      vi.mocked(getLatestSnapshot).mockResolvedValue(null);
-      vi.mocked(snapshotHandle).mockRejectedValue(new Error("Apify request failed: HTTP 402"));
-      const { POST } = await import("./route");
-      const res = await POST(postReq({ handle: "prakritisattva" }) as never, { params });
-      expect(res.status).toBe(201);
-      expect(await res.json()).toEqual({ handle: ROW, snapshot: "error" });
-    });
+  // D275 — the ~10 s scrape must not hold the dialog open. The client fires the refresh
+  // route from the new sub-tab instead, so this route stays a fast insert.
+  it("does not take the first snapshot inline", async () => {
+    vi.mocked(addTrackedHandle).mockResolvedValue(ROW);
+    const { POST } = await import("./route");
+    const res = await POST(postReq({ handle: "prakritisattva" }) as never, { params });
+    expect(res.status).toBe(201);
+    expect(await res.json()).toEqual({ handle: ROW });
+    expect(vi.mocked(snapshotHandle)).not.toHaveBeenCalled();
   });
 });
