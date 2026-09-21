@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { authFetch } from "@/lib/supabase/session-ready";
-import type { FirstSnapshotOutcome } from "@/lib/market/performance";
 
 export type TrackedHandle = {
   id: string;
@@ -29,13 +28,9 @@ export function useTrackedHandles(clientId: string) {
     void load();
   }, [load]);
 
-  /** Returns the canonical handle and the first-snapshot outcome (D275) on success, or
-   *  an error message to show inline. A non-ok snapshot is NOT an error here — the
-   *  handle is tracked; only the first day's data is missing. */
+  /** Returns the canonical handle on success, or an error message to show inline. */
   const add = useCallback(
-    async (
-      raw: string,
-    ): Promise<{ handle: string; snapshot: FirstSnapshotOutcome } | { error: string }> => {
+    async (raw: string): Promise<{ handle: string } | { error: string }> => {
       const res = await authFetch(`/api/clients/${clientId}/performance/handles`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -45,12 +40,9 @@ export function useTrackedHandles(clientId: string) {
         const body = (await res.json().catch(() => null)) as { error?: string } | null;
         return { error: body?.error ?? "Could not add that handle." };
       }
-      const { handle, snapshot } = (await res.json()) as {
-        handle: TrackedHandle;
-        snapshot: FirstSnapshotOutcome;
-      };
+      const { handle } = (await res.json()) as { handle: TrackedHandle };
       await load();
-      return { handle: handle.handle, snapshot };
+      return { handle: handle.handle };
     },
     [clientId, load],
   );

@@ -22,56 +22,49 @@ not have been recorded that way.
 
 ## 2. Fix 1 — the first snapshot fires inline on add
 
+> **Revised 2026-09-21, same day.** The first cut ran the scrape inside the add request,
+> holding the dialog on a "Fetching first snapshot…" spinner for ~10 s. Operator feedback:
+> it looks blocking. The wait now lives on the new sub-tab. What follows is the shipped
+> design.
+
 ### Server — `src/app/api/clients/[id]/performance/handles/route.ts` (POST)
 
-1. `addTrackedHandle(clientId, handle)` — unchanged. The row is the enrolment and it always
-   saves (the same contract `ingestReference` has under D185).
-2. If `getLatestSnapshot(clientId, handle)` returns null, call
-   `snapshotHandle(clientId, handle)` inside try/catch. The null check skips the re-add
-   case: unenrolling keeps history (D253), so re-adding a handle that already has snapshots
-   must not spend a result charge.
-3. Respond `201 { handle: row, snapshot: "ok" | "no-data" | "error" }`.
-   - `ok` — `snapshotHandle` returned `{ ok: true }`, or was skipped because history exists.
-   - `no-data` — `snapshotHandle` returned `{ ok: false, reason: "no-data" }` (unknown,
-     private, or blocked handle).
-   - `error` — it threw (missing token, Apify HTTP error, DB failure on the snapshot side).
-     Logged with `console.error`; the add still succeeds.
-
-The route is `withTryCatch`-wrapped already; the inner try/catch is what keeps a provider
-failure from turning into a 500 on an add that has, in fact, succeeded.
-
-Timing: a profile scrape is ~9s (D235 spike), plus thumbnail re-hosting for the posts. This
-is exactly the work the existing `performance/refresh` route does inline today, so the add
-route inherits a duration profile that is already proven on the deployed platform.
+**Unchanged: a fast insert.** `addTrackedHandle(clientId, handle)` → `201 { handle: row }`.
+The route's doc comment states that it deliberately does not snapshot, and a test guards
+that `snapshotHandle` is never called from it.
 
 ### Client
 
-- `src/hooks/use-tracked-handles.ts` — `add()` returns
-  `{ handle: string; snapshot: "ok" | "no-data" | "error" } | { error: string }`.
-- `src/components/market/add-handle-dialog.tsx`
-  - Busy label: "Fetching first snapshot…" (was "Adding…" — the wait is now seconds, and
-    the label should say what it is waiting on).
-  - Description drops "Snapshots start from today; history builds as they run." in favour of
-    "The first snapshot is taken now; history builds daily from there."
-  - On `snapshot !== "ok"` the dialog still closes and selects the new tab (the handle is
-    tracked), and fires one `sonner` toast:
-    - `no-data`: `Instagram returned no data for @handle — private or misspelled? Use Refresh
-      to try again.`
-    - `error`: `Tracked @handle, but the first snapshot failed. Use Refresh to try again.`
-  - The existing "First snapshot pending" empty state in `handle-performance.tsx` stays as the
-    view the user lands on in those two cases. Its copy is unchanged.
-- `src/lib/market/snapshot.ts` — header comment corrected: the three callers are the daily
-  sweep, the manual refresh route, and the add-handle route.
+- `src/components/market/performance-view.tsx` — holds `firstFetch: string | null`. The
+  dialog's `onAdded(handle)` sets both `selected` and `firstFetch`. `HandlePerformance`
+  receives `fetchFirst={firstFetch === selected}` and `onFirstFetchDone={() => setFirstFetch(null)}`.
+- `src/components/market/handle-performance.tsx`
+  - New optional props `fetchFirst` / `onFirstFetchDone`.
+  - An effect, guarded by a `useRef` so it runs once per mount, waits for the initial load
+    and then: if `data.latest` exists (a re-added handle with history — D253) calls
+    `onFirstFetchDone()` and stops; otherwise calls the hook's existing `refresh()`, stores
+    its error string in the existing `refreshError` state, and calls `onFirstFetchDone()`.
+  - The "no snapshot yet" panel now has two states: while `refreshing` — a spinning
+    `RefreshCw` in primary and "Fetching the first snapshot for @handle — about ten
+    seconds."; otherwise the original "First snapshot pending … Refresh to fetch it now"
+    copy.
+  - No-data (`409 Instagram returned no data for this handle.`) and provider errors come
+    back from the refresh route and show inline beside the Refresh button, exactly as a
+    manual refresh's errors already do. No toast.
+- `src/components/market/add-handle-dialog.tsx` — closes on the 201; busy label stays
+  "Adding…". Description becomes "The first snapshot is taken now; history builds daily
+  from there."
+- `src/hooks/use-tracked-handles.ts` — unchanged.
+- `src/lib/market/snapshot.ts` — header comment corrected: the callers are the daily sweep
+  and the refresh route (which the client also fires for a just-added handle).
 
 ### Tests
 
-- Route (`handles/route.test.ts`): mock `getLatestSnapshot` + `snapshotHandle`.
-  - fresh handle → `snapshotHandle` called once, 201 with `snapshot: "ok"`;
-  - existing snapshot → not called, 201 with `snapshot: "ok"`;
-  - returns `no-data` → 201 with `snapshot: "no-data"`;
-  - throws → 201 with `snapshot: "error"`, row still returned.
-- Hook: `add()` surfaces the `snapshot` field.
-- Dialog: one test per non-ok branch asserting the toast text and that `onAdded` still fires.
+- Route (`handles/route.test.ts`): one added case — `POST` returns `201 { handle }` and
+  `snapshotHandle` is not called.
+- The mount-time fetch is React effect logic with no pure core to extract; it is verified
+  by the manual walkthrough in the plan's Task 7 (vitest here is `node`-only, no
+  testing-library).
 
 ## 3. Fix 2 — the board subscribes to `moodboard_items` via Supabase Realtime
 

@@ -5398,22 +5398,29 @@ speaker-then-line form).
 
 **Supersedes.** D271. **Amends.** D267 (default). **Originated →** operator report 2026-09-18.
 
-### D275 — Adding a handle takes its first snapshot inline *(recorded 2026-09-21; refines D252, D253; amends handle-performance §5)*
+### D275 — Adding a handle fetches its first snapshot from the new sub-tab, not the dialog *(recorded 2026-09-21; refines D252, D253; amends handle-performance §5)*
 
-**Decision.** `POST …/performance/handles` runs `snapshotHandle` before responding when the
-handle has no snapshot yet. The row saves first and always; the snapshot outcome is reported
-as `snapshot: ok | no-data | error` on the 201, never as a failure of the add.
+**Decision.** `POST …/performance/handles` stays a fast insert. The dialog closes on the
+201 and selects the new sub-tab; `HandlePerformance` mounted with `fetchFirst` fires the
+existing refresh route once, and its empty state reads "Fetching the first snapshot for
+@handle — about ten seconds" with a spinner until it lands. No-data and provider errors
+surface inline beside the Refresh button, as they already did. A handle re-added with
+history (D253) is not re-scraped.
 
 **Why.** D252 made enrolment a deliberate, visible, paid act — and it still is: the user
 typed the handle and clicked Track. What was not deliberate was the second click the design
 then demanded, on a Refresh button, to see anything at all. The empty state was written to
 cover the gap between add and the 05:00 sweep; the gap itself has no purpose. One result
-charge at add time is the same charge the sweep would have made that night.
+charge at add time is the same charge the sweep would have made that night. The first cut
+ran the scrape inside the add request; the operator's report was that a modal spinner for
+ten seconds "looks blocking", and it is — the tab is where the wait belongs, because the
+tab is what the wait produces.
 
-**Rejected.** A background Trigger task for the first fetch (adds the "how does the UI learn
-it finished" problem for a ~9 s wait a dialog spinner covers); keeping the manual Refresh as
-the primary CTA (does not fix the finding); rolling the row back on `no-data` (the handle may
-be temporarily blocked — D253 keeps history on unenrol for the same reason).
+**Rejected.** Running the scrape inside the add request (a ten-second modal — reverted the
+same day); a background Trigger task for the first fetch (adds the "how does the UI learn
+it finished" problem when the refresh route already returns when done); keeping the manual
+Refresh as the primary CTA (does not fix the finding); rolling the row back on `no-data`
+(the handle may be temporarily blocked — D253 keeps history on unenrol for the same reason).
 
 **Originated →** `2026-09-21-market-live-updates-design.md` §2.
 
