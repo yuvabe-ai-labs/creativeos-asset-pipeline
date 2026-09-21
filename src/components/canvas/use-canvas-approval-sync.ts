@@ -6,6 +6,7 @@ import { subscribeToOrgVersionUpdates } from "@/lib/realtime/org-version-updates
 import { useCanvasStoreApi } from "./canvas-store-provider";
 import { authFetch } from "@/lib/supabase/session-ready";
 import type { ApprovalStatus } from "@/lib/approval";
+import { planCanvasLiveSync } from "@/lib/canvas/live-sync";
 
 // Same value useNodeVersionUpdates and use-review-list use, for the same reason: one
 // decision can land as several writes, and a burst should cost one refetch.
@@ -33,13 +34,14 @@ const REFRESH_DEBOUNCE_MS = 400;
 //
 //   * The realtime ping is still only a FILTER, never data (D159/D179). We refetch on it;
 //     we never patch the badge from the payload.
-//   * Only `approvalStatus` is written to the store, never `parsed`. Someone else's
-//     regeneration replacing the image under a viewer mid-edit is a different decision
-//     with a different blast radius (D19), and this hook is not the place to make it.
+//   * `parsed` (the card's image / video) is written too since BUG-002 — a reviewer on the
+//     same canvas otherwise saw a designer's new version only after a refresh — but ONLY on
+//     image-gen / video-gen nodes whose focus view this viewer does not have open. Media
+//     never changes under someone mid-edit (D19); see planCanvasLiveSync.
 //
-// Writing to the store is safe against autosave: flowToPersisted strips approvalStatus, so
-// the save payload is byte-identical to what is already stored (and a read-only session
-// never saves at all). The per-node equality check below means the usual ping — a
+// Writing to the store is safe against autosave: flowToPersisted strips approvalStatus and
+// parsed, so the save payload is byte-identical to what is already stored (and a read-only
+// session never saves at all). The per-node equality check below means the usual ping — a
 // generation on someone else's node — writes nothing and so triggers no save at all.
 export function useCanvasApprovalSync(canvasId: string) {
   const { orgId } = useIdentity();
@@ -57,21 +59,29 @@ export function useCanvasApprovalSync(canvasId: string) {
           cache: "no-store",
         });
         if (!res.ok || cancelled) return;
-        const json = (await res.json()) as { statuses?: Record<string, ApprovalStatus> };
-        const statuses = json.statuses ?? {};
+        const json = (await res.json()) as {
+          statuses?: Record<string, ApprovalStatus>;
+          outputs?: Record<string, string>;
+        };
         if (cancelled) return;
 
         // Re-read the store rather than closing over it: nodes can be added or deleted
         // while the request is in flight, and updateNodeData on a missing id is a silent
-        // no-op that would hide the race.
+        // no-op that would hide the race. Which nodes change, and how, is decided by the
+        // pure planner (tested) — including leaving media alone on a node whose focus view
+        // this viewer has open (D19).
         const state = storeApi.getState();
-        for (const node of state.nodes) {
-          const next = statuses[node.id];
-          if (!next) continue; // not an asset node, or no version yet — nothing to show
-          const current = (node.data as { approvalStatus?: ApprovalStatus }).approvalStatus;
-          if (current === next) continue; // no-op writes would churn autosave for nothing
-          state.updateNodeData(node.id, { approvalStatus: next });
-        }
+        const patches = planCanvasLiveSync({
+          nodes: state.nodes.map((n) => ({
+            id: n.id,
+            type: n.type,
+            data: n.data as Record<string, unknown>,
+          })),
+          statuses: json.statuses ?? {},
+          outputs: json.outputs ?? {},
+          openFocusViewIds: state.openFocusViewIds,
+        });
+        for (const { id, patch } of patches) state.updateNodeData(id, patch);
       } catch {
         /* best-effort: the badges re-hydrate correctly on the next load */
       }

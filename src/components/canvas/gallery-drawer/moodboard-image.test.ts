@@ -14,6 +14,14 @@ function item(overrides: Partial<MoodboardItem> = {}): MoodboardItem {
     thumbnail_url: null,
     position: 0,
     added_at: "2026-08-30T00:00:00Z",
+    media_url: null,
+    media_bytes: null,
+    media_type: null,
+    archive_status: "pending",
+    archive_error: null,
+    archive_attempts: 0,
+    archive_started_at: null,
+    archived_at: null,
     ...overrides,
   };
 }

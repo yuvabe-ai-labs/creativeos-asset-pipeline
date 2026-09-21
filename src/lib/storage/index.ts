@@ -9,7 +9,10 @@ import {
   pathForImageGen,
   pathForKBDocument,
   pathForMarketThumb,
+  pathForMarketMedia,
+  extForContentType,
   pathForNodeFile,
+  pathForReviewAnnotation,
   pathForVideoGen,
 } from "./paths";
 import type { BrandAssetCategory } from "@/lib/brand-kit/types";
@@ -209,6 +212,38 @@ export async function signClientBrandAssetUpload(args: {
   return _sign(path, args.contentType);
 }
 
+// Review annotation assets (D239-D244). Ownership resolves ONCE for the whole batch —
+// every asset in a decision belongs to the same node, so a per-asset resolve would be the
+// same query N times. Uploads run before any DB write and the first failure throws, which
+// aborts the caller's whole action (D244).
+export async function uploadReviewAnnotationAssets(args: {
+  nodeId: string;
+  decisionId: string;
+  assets: { seq: number; mask: Buffer }[];
+}): Promise<{ seq: number; maskPath: string }[]> {
+  if (args.assets.length === 0) return [];
+  const { clientId, canvasId } = await resolveOwnership(args.nodeId);
+  const pathFor = (seq: number) =>
+    pathForReviewAnnotation({
+      clientId,
+      canvasId,
+      nodeId: args.nodeId,
+      decisionId: args.decisionId,
+      seq,
+    });
+
+  const out: { seq: number; maskPath: string }[] = [];
+  for (const a of args.assets) {
+    const mask = await _upload(pathFor(a.seq), a.mask, "image/png");
+    out.push({ seq: a.seq, maskPath: mask.path });
+  }
+  return out;
+}
+
+// The public URL of a stored object. Annotation assets are read back through this, the
+// same way a generated image or video is — see reviewAnnotationUrl's callers.
+export { publicUrlFor };
+
 export function parsePathFromUrl(url: string): string | null {
   const prefix = `https://storage.googleapis.com/${getBucketName()}/`;
   if (url.startsWith(prefix)) return url.slice(prefix.length);
@@ -249,5 +284,28 @@ export async function uploadMarketThumbnail(args: {
   const ext =
     args.contentType === "image/png" ? "png" : args.contentType === "image/webp" ? "webp" : "jpg";
   const path = pathForMarketThumb({ clientId: args.clientId, itemId: args.itemId, ext });
+  return _upload(path, args.body, args.contentType);
+}
+
+/**
+ * Re-hosted MEDIA for a market reference (D264) — the video or full-resolution still
+ * itself, the sibling of uploadMarketThumbnail.
+ *
+ * Note this takes the bytes rather than signing an upload URL: they come from a
+ * server-side fetch of a provider CDN, so there is no browser request body and hence
+ * no 4.5 MB Vercel limit to work around. The binding constraint is function DURATION,
+ * which is why the only caller is a background task.
+ */
+export async function uploadMarketMedia(args: {
+  clientId: string;
+  itemId: string;
+  body: Buffer | ArrayBuffer | Uint8Array;
+  contentType: string;
+}): Promise<UploadResult> {
+  const path = pathForMarketMedia({
+    clientId: args.clientId,
+    itemId: args.itemId,
+    ext: extForContentType(args.contentType),
+  });
   return _upload(path, args.body, args.contentType);
 }

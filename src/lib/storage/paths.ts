@@ -123,10 +123,63 @@ export function pathForBrandAsset(args: {
   return `clients/${args.clientId}/brand-kit/${args.category}/${args.assetId}/${name}`;
 }
 
+/**
+ * Where a review annotation's painted overlay lives — under the node it annotates, so the
+ * mask sits beside the image or video it marks up.
+ *
+ * No timestamp suffix, unlike the upload paths: an annotation asset is immutable and
+ * uniquely named by (decision, seq), the same reasoning as pathForMarketThumb.
+ *
+ * D249: video annotations store no captured still, so the mask is the only asset.
+ */
+export function pathForReviewAnnotation(args: {
+  clientId: string;
+  canvasId: string;
+  nodeId: string;
+  decisionId: string;
+  seq: number;
+}): string {
+  return `clients/${args.clientId}/canvases/${args.canvasId}/nodes/${args.nodeId}/review-annotations/${args.decisionId}/${args.seq}-mask.png`;
+}
+
 export function pathForMarketThumb(args: {
   clientId: string;
   itemId: string;
   ext: string;
 }): string {
   return `clients/${args.clientId}/market/thumbs/${args.itemId}.${args.ext}`;
+}
+
+/**
+ * The archived MEDIA for a market reference — the video or full-resolution still
+ * itself, not the preview (D264).
+ *
+ * Deterministic per item for the same reason as pathForMarketThumb: the archive is
+ * retried by the nightly sweep, and a path that varied per attempt would leave an
+ * orphaned object in the bucket on every failure.
+ */
+export function pathForMarketMedia(args: {
+  clientId: string;
+  itemId: string;
+  ext: string;
+}): string {
+  return `clients/${args.clientId}/market/media/${args.itemId}.${args.ext}`;
+}
+
+// The content types the archive actually encounters: mp4 from both providers, and
+// stills for image posts and pins. Anything else still stores — losing verified bytes
+// over an unrecognised header would be the wrong trade.
+const MEDIA_EXT_BY_TYPE: Record<string, string> = {
+  "video/mp4": "mp4",
+  "video/webm": "webm",
+  "video/quicktime": "mov",
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "image/gif": "gif",
+};
+
+/** File extension for a response's content-type, tolerating `; charset=…` and casing. */
+export function extForContentType(contentType: string): string {
+  return MEDIA_EXT_BY_TYPE[contentType.split(";")[0].trim().toLowerCase()] ?? "bin";
 }

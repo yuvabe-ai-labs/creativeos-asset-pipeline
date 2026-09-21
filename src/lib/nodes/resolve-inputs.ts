@@ -3,8 +3,10 @@ import { getNodeActiveKB, getNodeData, getUpstreamOutputs } from "@/lib/db/nodes
 import { buildParseContext, normalizeSlices, type KBSliceKey } from "@/lib/kb/parse-context";
 import { getNodeOutput, renderShotForImage } from "@/lib/nodes/node-output";
 import { renderShotForVideo } from "@/lib/nodes/render-shot-for-video";
+import { SINGLE_TAKE_LINE } from "@/prompts/video-prompt-generate";
 import { selectImageUpstreams } from "@/lib/nodes/shot-compose";
 import type { ReelScript } from "@/lib/nodes/reel-script";
+import type { MultishotCut } from "@/lib/nodes/multishot-cuts";
 
 const TYPE_LABEL: Record<string, string> = {
   script: "Script",
@@ -15,6 +17,7 @@ const TYPE_LABEL: Record<string, string> = {
   draw: "Sketch",
   "image-gen": "Image",
   "video-prompt": "Motion Prompt",
+  multishot: "Multishot",
 };
 
 export type UpstreamPreview = {
@@ -26,6 +29,8 @@ export type UpstreamPreview = {
   fileUrl?: string;
   fileKind?: string;
   useLlm?: boolean;
+  /** BUG-010 — the image's own name (title or filename), used to label a stored citation. */
+  name?: string;
 };
 
 export type ResolvedPromptInputs = {
@@ -95,14 +100,22 @@ export function mapUpstreamForVideo(u: RawUpstream): UpstreamPreview {
     type: u.type,
     text: "",
   };
+  const titled = typeof u.data.title === "string" ? u.data.title.trim() : "";
+  const filed = typeof u.data.filename === "string" ? u.data.filename.trim() : "";
+  const name = titled || filed || undefined;
 
   if (u.type === "image-gen") {
     // The still's URL is the active output (a string). Feed it as vision, never as text.
     const url = typeof u.activeOutput === "string" ? u.activeOutput : undefined;
-    return { ...base, text: "", fileUrl: url, fileKind: "image" };
+    return { ...base, text: "", fileUrl: url, fileKind: "image", ...(name ? { name } : {}) };
   }
   if (u.type === "shot") {
-    return { ...base, text: renderShotForVideo((u.data.script ?? null) as ReelScript | null) };
+    // D229 — a Shot is always ONE continuous take now; there is no flag left to branch on. A
+    // multishot GENERATION lives on its own dedicated node type instead (which does not feed this
+    // path — Phase 2's renderPlan). Omni still needs telling explicitly, because it cuts by default.
+    const script = (u.data.script ?? null) as ReelScript | null;
+    const action = renderShotForVideo(script);
+    return { ...base, text: action ? `${action}\n${SINGLE_TAKE_LINE}` : "" };
   }
   if (u.type === "file" || u.type === "draw") {
     return {
@@ -111,6 +124,7 @@ export function mapUpstreamForVideo(u: RawUpstream): UpstreamPreview {
       fileUrl: u.data.fileUrl as string | undefined,
       fileKind: u.data.fileKind as string | undefined,
       useLlm: u.type === "file" ? (u.data.useLlm as boolean | undefined) : undefined,
+      ...(name ? { name } : {}),
     };
   }
   return { ...base, text: getNodeOutput({ type: u.type, data: u.data, activeOutput: u.activeOutput }) };
@@ -174,5 +188,166 @@ export async function resolveShotComposeInputs(
     })),
   );
 
-  return { seedText, clientContext, kbVersionId: kbCtx.kbVersionId, slices, imageUpstream };
+  return {
+    seedText,
+    clientContext,
+    kbVersionId: kbCtx.kbVersionId,
+    slices,
+    imageUpstream,
+  };
+}
+
+export type ResolvedMultishotInputs = {
+  clientContext: string;
+  kbVersionId: string | null;
+  slices: KBSliceKey[];
+  upstream: UpstreamPreview[];
+  /** The upstream Multishot node's cut list — the shots this plan must cover. */
+  cuts: MultishotCut[];
+  /** D236 — the upstream Multishot node's chosen model. Undefined = the default (Gemini Omni). */
+  targetModel: string | undefined;
+  /**
+   * D262 — the script's production notes (`visual_script.execution_refinement` on the Multishot
+   * node's envelope): where a script states lighting, grade and time of day. The look may only be
+   * written from stated direction, so this has to reach the writer. Empty when the script has none.
+   */
+  scriptNotes: string;
+  /**
+   * BUG-009 — the script's voiceover, so each beat's action can fit the line spoken over it.
+   * Empty when the script has none (or says it has none — see `voiceoverForWriter`).
+   */
+  voiceover: string;
+};
+
+// "No voiceover", "none", "N/A", "No VO — music only", "-": parsed scripts routinely fill the
+// field with a statement that there is none, and handing that to the writer as a line to match
+// would be noise at best.
+const NO_VOICEOVER_RE = /^\s*(?:-+|n\/?a|none|no\s*(?:vo|voice\s*-?\s*over)\b.*)\s*\.?\s*$/i;
+
+/**
+ * The voiceover as the multishot writer should see it: trimmed, and empty when the script states
+ * there is none.
+ *
+ * Only the multishot writer gets it. The single-take path still drops audio (D24 — a start frame
+ * fixes the shot, and a motion prompt needs what moves), but a cut sequence carries its voiceover:
+ * the writer places each line in the beat it is spoken over (BUG-009).
+ */
+export function voiceoverForWriter(voiceover: string | undefined): string {
+  const vo = (voiceover ?? "").trim();
+  return NO_VOICEOVER_RE.test(vo) ? "" : vo;
+}
+
+/**
+ * Inputs for the Multishot Prompt node. Sibling of `resolveVideoPromptInputs`, and separate for
+ * the same reason the node types are: the cut list has no analogue on the single-take path, and
+ * threading an optional one through would put a branch in every caller.
+ */
+export async function resolveMultishotPromptInputs(
+  nodeId: string,
+  slicesInput: unknown,
+): Promise<ResolvedMultishotInputs | null> {
+  const kbCtx = await getNodeActiveKB(nodeId);
+  if (!kbCtx) return null;
+
+  const slices = normalizeSlices(slicesInput);
+  const clientContext = kbCtx.kb ? buildParseContext(kbCtx.kb, slices) : "";
+
+  const ups = await getUpstreamOutputs(nodeId);
+  const upstream = ups.map((u) => mapUpstreamForVideo(u));
+  const source = ups.find((u) => u.type === "multishot");
+  // Beyond `id` truthiness, also require the two fields buildMultishotUserTurn reads
+  // unconditionally (cut.text.trim(), `${cut.seconds}s`) to actually be the types it assumes —
+  // a malformed cut that slipped past a looser filter throws inside buildMultishotUserTurn,
+  // which runs outside the route's try/catch and would surface as an unhandled 500 instead of
+  // the route's existing 400 "no shots" path.
+  const cuts = ((source?.data.cuts ?? []) as MultishotCut[]).filter(
+    (c) => c && c.id && typeof c.text === "string" && typeof c.seconds === "number",
+  );
+  const targetModel =
+    typeof source?.data.targetModel === "string" ? source.data.targetModel : undefined;
+  const script = source?.data.script as ReelScript | undefined;
+  const notes = script?.visual_script?.execution_refinement;
+  const scriptNotes = typeof notes === "string" ? notes : "";
+  const voiceover = voiceoverForWriter(
+    typeof script?.voiceover === "string" ? script.voiceover : undefined,
+  );
+
+  return {
+    clientContext,
+    kbVersionId: kbCtx.kbVersionId,
+    slices,
+    upstream,
+    cuts,
+    targetModel,
+    scriptNotes,
+    voiceover,
+  };
+}
+
+/**
+ * The user turn. Each cut's own steer sits WITH that cut rather than in a parallel list, so the
+ * writer never has to align two orderings — which is exactly the mistake that produces a beat
+ * written against the wrong shot's instruction.
+ */
+export function buildMultishotUserTurn(args: {
+  clientContext: string;
+  upstream: UpstreamPreview[];
+  cuts: MultishotCut[];
+  instruction: string;
+  cutInstructions: Record<string, string>;
+  /** D262 — the script's production notes. Optional so a caller with none need not pass it. */
+  scriptNotes?: string;
+  /** BUG-009 — the script's voiceover, already cleaned by `voiceoverForWriter`. */
+  voiceover?: string;
+}): string {
+  const blocks: string[] = [];
+
+  if (args.clientContext.trim()) blocks.push(`Brand context:\n${args.clientContext.trim()}`);
+
+  // Labelled as the script's own, so the writer can tell stated look direction (usable) from the
+  // brand context above it (not a source of setting).
+  const notes = (args.scriptNotes ?? "").trim();
+  if (notes) blocks.push(`The script's production notes:\n${notes}`);
+
+  // The lines the video speaks. Every multishot model gets them written into its beats (the
+  // writers' shared VOICEOVER rule): which beat each line lands in is the writer's call from the
+  // shot texts and lengths. Whether a given model renders the speech, and how, is the video
+  // request's concern (audio params, lip-sync), not something the prompt withholds.
+  const vo = (args.voiceover ?? "").trim();
+  if (vo) {
+    blocks.push(
+      `The script's voiceover — spoken in the video. Write each line, verbatim, into the beat where ` +
+        `it is spoken (see VOICEOVER); every line must appear exactly once:\n${vo}`,
+    );
+  }
+
+  for (const u of args.upstream) {
+    if (!u.text.trim()) continue;
+    // The Multishot node is the source of `args.cuts`, which get their own block below with the
+    // cutIds and per-shot steers the writer must echo. Since getNodeOutput learned to render a
+    // cut ladder as text, this loop would otherwise state every shot a second time, in a second
+    // format, with no cutIds — inviting the writer to answer the wrong one.
+    if (u.type === "multishot") continue;
+    blocks.push(`${u.label}:\n${u.text.trim()}`);
+  }
+
+  if (args.instruction.trim()) {
+    blocks.push(`For the sequence as a whole:\n${args.instruction.trim()}`);
+  }
+
+  const shots = args.cuts
+    .map((cut, i) => {
+      const lines = [
+        `Shot ${i + 1} — cutId: ${cut.id} — ${cut.seconds}s`,
+        `  Shot text: ${cut.text.trim() || "(none — write it from the sequence context)"}`,
+      ];
+      const steer = (args.cutInstructions[cut.id] ?? "").trim();
+      if (steer) lines.push(`  Operator instruction for THIS shot: ${steer}`);
+      return lines.join("\n");
+    })
+    .join("\n\n");
+
+  blocks.push(`Shots (return exactly one beat per shot, echoing each cutId):\n${shots}`);
+
+  return blocks.join("\n\n");
 }

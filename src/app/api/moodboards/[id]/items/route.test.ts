@@ -60,7 +60,7 @@ describe("/api/moodboards/[id]/items", () => {
 
   it("GET lists items", async () => {
     vi.mocked(listItems).mockResolvedValue([
-      { id: "i1", moodboard_id: "board-1", image_url: "https://x/y.jpg", source_url: null, kind: "image", note: null, added_by: null, thumbnail_url: null, position: 0, added_at: "t" },
+      { id: "i1", moodboard_id: "board-1", image_url: "https://x/y.jpg", source_url: null, kind: "image", note: null, added_by: null, thumbnail_url: null, position: 0, added_at: "t", media_url: null, media_bytes: null, media_type: null, archive_status: "pending", archive_error: null, archive_attempts: 0, archive_started_at: null, archived_at: null, },
     ]);
     const { GET } = await import("./route");
     const res = await GET(new NextRequest("http://localhost/api/moodboards/board-1/items"), { params });
@@ -72,7 +72,7 @@ describe("/api/moodboards/[id]/items", () => {
   it("POST routes an imageUrl clip through ingest (backward-compatible extension payload)", async () => {
     vi.mocked(getMoodboardClientId).mockResolvedValue("client-1");
     vi.mocked(ingestReference).mockResolvedValue({
-      id: "i2", moodboard_id: "board-1", image_url: "https://x/z.jpg", source_url: "https://pin", kind: "image", note: null, added_by: null, thumbnail_url: null, position: 0, added_at: "t",
+      id: "i2", moodboard_id: "board-1", image_url: "https://x/z.jpg", source_url: "https://pin", kind: "image", note: null, added_by: null, thumbnail_url: null, position: 0, added_at: "t", media_url: null, media_bytes: null, media_type: null, archive_status: "pending", archive_error: null, archive_attempts: 0, archive_started_at: null, archived_at: null,
     });
     const { POST } = await import("./route");
     const req = new NextRequest("http://localhost/api/moodboards/board-1/items", {
@@ -90,7 +90,7 @@ describe("/api/moodboards/[id]/items", () => {
   it("POST routes a pageUrl clip (page-level context menu) through ingest with note", async () => {
     vi.mocked(getMoodboardClientId).mockResolvedValue("client-1");
     vi.mocked(ingestReference).mockResolvedValue({
-      id: "i3", moodboard_id: "board-1", image_url: "https://www.instagram.com/reel/C8x/", source_url: "https://www.instagram.com/reel/C8x/", kind: "instagram", note: "opening hook", added_by: "user-1", thumbnail_url: null, position: 0, added_at: "t",
+      id: "i3", moodboard_id: "board-1", image_url: "https://www.instagram.com/reel/C8x/", source_url: "https://www.instagram.com/reel/C8x/", kind: "instagram", note: "opening hook", added_by: "user-1", thumbnail_url: null, position: 0, added_at: "t", media_url: null, media_bytes: null, media_type: null, archive_status: "pending", archive_error: null, archive_attempts: 0, archive_started_at: null, archived_at: null,
     });
     const { POST } = await import("./route");
     const req = new NextRequest("http://localhost/api/moodboards/board-1/items", {

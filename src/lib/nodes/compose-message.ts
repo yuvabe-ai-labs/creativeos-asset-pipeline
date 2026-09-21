@@ -41,6 +41,18 @@ export function isVisionAttachment(u: VisionAttachmentCandidate): boolean {
   return false;
 }
 
+/**
+ * The attached images, in order — the SINGLE definition of `<IMAGE_REF_N>`'s numbering.
+ *
+ * The prompt's roster, the reference thumbnails and the chips rendered inside the generated prompt
+ * must all count the same images in the same order, or a chip shows one photograph while the token
+ * beside it binds to another. That mismatch raises no error and is only visible in a clip already
+ * paid for, so all three call this rather than filtering for themselves.
+ */
+export function visionAttachmentsOf<T extends VisionAttachmentCandidate>(items: T[]): T[] {
+  return items.filter(isVisionAttachment);
+}
+
 function toImagePart(u: UpstreamPreview): ImagePart {
   return {
     type: "image_url",

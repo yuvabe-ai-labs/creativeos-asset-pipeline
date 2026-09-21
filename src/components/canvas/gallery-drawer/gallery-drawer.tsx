@@ -564,6 +564,17 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
               thumbnail_url: previewImage.imageUrl,
               position: 0,
               added_at: "",
+              // Threaded through so the drawer's player is archive-first on the same
+              // terms as the Market page (D266) — without these it would always fall
+              // back to a platform embed even when we own the file.
+              media_url: previewImage.archivedUrl ?? null,
+              media_bytes: null,
+              media_type: previewImage.archivedType ?? null,
+              archive_status: previewImage.archiveStatus ?? "pending",
+              archive_error: null,
+              archive_attempts: 0,
+              archive_started_at: null,
+              archived_at: null,
             }}
             onClose={() => setPreviewId(null)}
           />

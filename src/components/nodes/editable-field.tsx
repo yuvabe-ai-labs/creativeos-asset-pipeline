@@ -16,6 +16,13 @@ type EditableFieldProps = {
   placeholder?: string;
   readOnly?: boolean;
   className?: string;
+  /**
+   * Classes for the EDITOR only (the Input / Textarea), on top of `className`. For a field that
+   * must edit in place — same padding and no box around it, so the text does not jump and the
+   * field's own container keeps scrolling — pass the primitive's border/ring/padding overrides
+   * here rather than making every display state carry them too.
+   */
+  editClassName?: string;
   // Custom render for the committed (non-editing) value. Clicking still enters
   // edit mode — the raw text is always what gets edited. Falls back to plain text.
   renderDisplay?: (value: string) => ReactNode;
@@ -32,6 +39,7 @@ export function EditableField({
   placeholder = "Add…",
   readOnly = false,
   className,
+  editClassName,
   renderDisplay,
 }: EditableFieldProps) {
   const [editing, setEditing] = useState(false);
@@ -112,7 +120,7 @@ export function EditableField({
             commit();
           }
         }}
-        className={cn("nodrag", className)}
+        className={cn("nodrag", className, editClassName)}
       />
     );
   }
@@ -137,7 +145,7 @@ export function EditableField({
           commit();
         }
       }}
-      className={cn("nodrag", className)}
+      className={cn("nodrag", className, editClassName)}
     />
   );
 }

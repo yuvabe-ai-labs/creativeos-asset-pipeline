@@ -34,4 +34,29 @@ describe("renderShotForVideo", () => {
     expect(out).not.toContain("boilerplate");   // music_sound
     expect(out).not.toContain("No voiceover");  // voiceover
   });
+
+  // A Shot node made from a 3-row generation is ONE continuous take covering all three rows.
+  // Reading shots[0] dropped two thirds of what the operator switched to a single take.
+  it("joins every row of the generation into one action", () => {
+    const text = renderShotForVideo({
+      strategic_objective: "sell the shoe",
+      visual_script: {
+        shots: [
+          { description: "close on keys" },
+          { description: "a cab door swings" },
+          { description: "feet hit the street" },
+        ],
+      },
+    } as unknown as ReelScript);
+    expect(text).toBe(
+      "Action: close on keys A cab door swings Feet hit the street\nObjective: sell the shoe",
+    );
+  });
+
+  it("skips blank rows rather than emitting double spaces", () => {
+    const text = renderShotForVideo({
+      visual_script: { shots: [{ description: "close on keys" }, { description: "  " }] },
+    } as unknown as ReelScript);
+    expect(text).toBe("Action: close on keys");
+  });
 });

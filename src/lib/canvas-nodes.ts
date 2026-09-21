@@ -9,12 +9,26 @@ import type { VideoControls } from "@/lib/nodes/video-controls";
 import type { VideoProvider } from "@/prompts/video-prompt-generate";
 import type { EditIntent } from "@/lib/image-gen/edit-prompt";
 import type { PostFormat, PostLayer } from "@/lib/post/types";
+import type { MultishotCut } from "@/lib/nodes/multishot-cuts";
+import type { GroupingVersion } from "@/lib/nodes/group-shots";
 
 export type ScriptNodeData = {
   title?: string;
   source?: string; // raw script text (pasted or uploaded .md/.txt)
   parsed?: unknown; // active parsed output — DISPLAY ONLY, hydrated from the active version (D19); never persisted
   kbSlices?: KBSliceKey[]; // KB slices injected into parse context; undefined = DEFAULT_PARSE_SLICES
+  /**
+   * D227 — per-generation mode OVERRIDES, keyed by `generationKey(shotIndexes)`.
+   * An absent key means the default, which `groupingVersion` decides (`defaultMultishotFor`).
+   * Only deviations are stored, so a re-parse that reshapes the groups drops them harmlessly.
+   */
+  groupModes?: Record<string, boolean>;
+  /**
+   * D257 — which grouping rules produced this node's generations. Absent = 1 (10s ceiling, a 2+
+   * shot group defaults to multishot). Written by the parse and never backfilled: absence IS the
+   * migration, so no canvas reshapes under its operator and a re-parse adopts the current rules.
+   */
+  groupingVersion?: GroupingVersion;
   signalIds?: string[]; // market signals flavouring the parse (D204); undefined = none
   signalMode?: SignalMode; // tint | rewrite; undefined = "tint"
 };
@@ -101,18 +115,79 @@ export type VideoGenNodeData = {
 };
 
 export type ShotNodeData = {
-  // The parent reel script narrowed to a SINGLE shot — "a Script node with one shot"
-  // (D21). Carries the full metadata (objective, on-screen text, voiceover, caption…)
-  // so downstream prompts keep the whole creative context, not just the shot line.
+  // The parent reel script narrowed to the shots THIS node covers — one for a single shot, several
+  // for a multishot group (D214). Carries the full metadata (objective, on-screen text, voiceover,
+  // caption…) so downstream prompts keep the whole creative context, not just the shot line.
   // Editable; this node's output (D19/D20) — rendered via renderScriptAsText.
   script?: ReelScript;
   order?: number; // 1-based position in the script (display + Stage 5 assembly)
   shot_type?: string; // e.g. "Wide Shot", "Close-Up" — user-selected or keyword-derived
   seededFrom?: {
     scriptNodeId: string;
-    shotIndex: number; // 0-based index in visual_script.shots at fork time
+    shotIndexes: number[]; // every shot this node covers, in order
     scriptTitle?: string; // for the provenance label without a lookup
   };
+};
+
+export type MultishotNodeData = {
+  /**
+   * The envelope ONLY — objective, on-screen text, voiceover, caption, execution notes.
+   * `visual_script.shots` is NOT stored here: `cuts` is the sole shot list. Two copies of
+   * the same list is exactly the drift the separate node type exists to prevent.
+   */
+  script?: ReelScript;
+  order?: number;
+  /** There is no Total control (operator request 2026-09-03, multishot-cuts.ts's header) —
+   *  `totalSeconds` is just the stored mirror of the ladder's own length, `totalOf(cuts)`. Every
+   *  writer of `cuts` MUST write this in the same `updateNodeData` call, so the two never drift;
+   *  there is no code path that sets one without the other.
+   *
+   *  A MIRROR, NOT A CORRECTION — it is deliberately NOT clamped into the model's window. It was
+   *  `clampTotal(totalOf(cuts))` until D236/D237, which rounded a 2s ladder up to 3 and so
+   *  displayed a too-short ladder as legal while `checkLadder` called it illegal. A ladder outside
+   *  the target model's window keeps its real length here and the violation is STATED by
+   *  `checkLadder` (multishot-models.ts), never silently corrected. */
+  totalSeconds?: number;
+  /** The cut ladder. `totalOf(cuts)` and `totalSeconds` are kept equal by construction — see
+   *  multishot-cuts.ts's header for the full model. */
+  cuts?: MultishotCut[];
+  /**
+   * D236 — which multishot model this ladder is built for. A video-gen client model id.
+   *
+   * Absent reads as `DEFAULT_MULTISHOT_MODEL` (Gemini Omni), which is what every node that
+   * predates this field already is — so there is no migration and nothing is backfilled.
+   *
+   * It lives HERE, upstream of the prompt and of Video Gen, because the cut ladder needs its
+   * ceiling while it is being built. Video Gen inherits it (D239) rather than offering its own
+   * choice: by then the plan's beats already carry one model's reference tokens.
+   */
+  targetModel?: string;
+  seededFrom?: { scriptNodeId: string; shotIndexes: number[]; scriptTitle?: string };
+  // No `shot_type`: framing is decided per cut by the prompt writer, which carries the
+  // shot-size, 30-degree and screen-direction rules. One stored framing would describe at
+  // most one cut and fight the rest.
+};
+
+/**
+ * The Multishot Prompt node (D231). Sibling of VideoPromptNodeData, deliberately not a superset.
+ *
+ * No `controls` — camera move and motion energy describe ONE continuous take.
+ * No `targetProvider` — the model is chosen ONCE, upstream on the Multishot node
+ * (`MultishotNodeData.targetModel`, D236), and this node reads it from there. A second copy here
+ * is a second thing to keep in agreement with the ladder it was built for.
+ */
+export type MultishotPromptNodeData = {
+  title?: string;
+  /**
+   * Per-cut operator steer, keyed by MultishotCut.id. References are @-mentions inside these
+   * strings; there is no separate ref field.
+   */
+  cutInstructions?: Record<string, string>;
+  /** Whole-sequence steer, applied to every cut. */
+  instruction?: string;
+  kbSlices?: KBSliceKey[];
+  /** D19: the active version's output — always a MultishotPlan, never a string. */
+  parsed?: unknown;
 };
 
 export type PostNodeData = {
@@ -153,6 +228,8 @@ export type AppNode =
   | Node<TextNodeData, "text">
   | Node<PromptNodeData, "prompt">
   | Node<ShotNodeData, "shot">
+  | Node<MultishotNodeData, "multishot">
+  | Node<MultishotPromptNodeData, "multishot-prompt">
   | Node<DrawNodeData, "draw">
   | Node<ImageGenNodeData, "image-gen">
   | Node<VideoPromptNodeData, "video-prompt">
@@ -166,17 +243,21 @@ export type AppNode =
 // connected video-prompt node — an (Image) Prompt node connected straight to Video Gen is
 // never read, so `prompt` is deliberately absent from video-gen's source list here.
 export const VALID_CONNECTIONS: Record<string, readonly string[]> = {
-  kb:             ["script"],
-  script:         ["prompt"],
-  shot:           ["prompt", "video-prompt"],
-  file:           ["prompt", "image-gen", "video-prompt", "video-gen", "shot", "post"],
-  draw:           ["prompt", "image-gen", "video-prompt", "video-gen", "shot", "post"],
-  text:           ["prompt", "video-prompt"],
-  prompt:         ["prompt", "image-gen"],
-  "image-gen":    ["prompt", "video-gen", "video-prompt", "shot", "post"],
-  "video-prompt": ["video-gen"],
-  "video-gen":    [],
-  "post":         [],
+  kb:                 ["script"],
+  script:             ["prompt"],
+  shot:               ["prompt", "video-prompt"],
+  // The multishot lane skips the still entirely: a start frame fixes ONE composition and
+  // this node is a sequence of several.
+  multishot:          ["multishot-prompt"],
+  file:               ["prompt", "image-gen", "video-prompt", "multishot-prompt", "video-gen", "shot", "post"],
+  draw:               ["prompt", "image-gen", "video-prompt", "multishot-prompt", "video-gen", "shot", "post"],
+  text:               ["prompt", "video-prompt", "multishot-prompt"],
+  prompt:             ["prompt", "image-gen"],
+  "image-gen":        ["prompt", "video-gen", "video-prompt", "multishot-prompt", "shot", "post"],
+  "video-prompt":     ["video-gen"],
+  "multishot-prompt": ["video-gen"],
+  "video-gen":        [],
+  "post":             [],
 } as const;
 
 // The single ordered connection check: may a `sourceType` node feed a `targetType` node?

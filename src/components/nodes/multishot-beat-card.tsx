@@ -1,0 +1,151 @@
+"use client";
+
+import { RefreshCw } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { MentionInstructionEditor } from "./mention-instruction-editor";
+import type { TokenDialect } from "@/lib/nodes/prompt-token-dialect";
+import { RefineWithAI } from "./refine-with-ai";
+import { RefineProgress } from "./refine-progress";
+import type { UpstreamNode } from "./connected-inputs-card";
+
+/**
+ * One full-width row of the breakup view's output (Option A, 2026-09-03) — a fixed-width
+ * timecode gutter beside the beat's prose, so the text gets the whole body's width instead of
+ * being boxed into a third of it.
+ *
+ * The timecode is READ-ONLY: durations live on the Multishot node and have exactly one home.
+ * Clicking it focuses that node, which is where the budget is.
+ *
+ * The text is the SAME chip editor the instruction uses, in the target model's reference dialect —
+ * so a reference is a picture here as well as upstream, and editing the prose around it never
+ * exposes the raw token.
+ */
+export function MultishotBeatCard({
+  index,
+  from,
+  to,
+  text,
+  upstream,
+  dialect,
+  onChange,
+  onRerun,
+  onRefine,
+  mentionables,
+  rerunning = false,
+  showRerun = false,
+  onFocusTimings,
+  disabled = false,
+  aiDisabled = false,
+  isLast = false,
+}: {
+  index: number;
+  /** Null when the beat's cut can't be found — no Multishot node connected, or the cut was
+   * removed. Rendered as no timecode rather than a made-up `0–0s` (BUG-006). */
+  from: number | null;
+  to: number | null;
+  text: string;
+  upstream: UpstreamNode[];
+  /** The target model's token dialect, built ONCE by the parent (see beatDialect there): a
+   * fresh dialect object per render re-runs the editor's population effect and fights the caret. */
+  dialect: TokenDialect;
+  onChange: (next: string) => void;
+  onRerun: () => void;
+  /** Rewrite this beat with an operator note. Same call as onRerun, with a steer attached. */
+  onRefine: (note: string) => void;
+  /**
+   * What `@` offers inside this shot's refine note — the look block and every shot, including the
+   * ones this card is not. Naming a neighbour is how the operator asks for continuity across a
+   * cut ("match the ground plane in @Shot 3"), which is the whole reason it is not just this one.
+   */
+  mentionables?: { id: string; label: string; type: string }[];
+  rerunning?: boolean;
+  /**
+   * Whether to render the rewrite button. The caller withholds it while the multishot flow
+   * settles; `onRerun` stays wired so turning it back on is one flag, not a rebuild.
+   */
+  showRerun?: boolean;
+  onFocusTimings: () => void;
+  // D33 — the canvas read-only lock. Disables editing AND both action buttons. The parent also
+  // sets this true for every OTHER beat while one is being refined (`refining.cutId !==
+  // beat.cutId`), so a rewrite of one beat cannot be interleaved with a hand-edit of another.
+  disabled?: boolean;
+  /**
+   * Gates the two AI actions ONLY — the editor stays live. Set while the plan has unsaved hand
+   * edits (D242): a rewrite resolves against the snapshot it captured at submit time, so letting
+   * one start here would discard the edit with no error at all. Distinct from `disabled`, which
+   * also locks the editor and so cannot express "you may keep typing, but not rewrite".
+   */
+  aiDisabled?: boolean;
+  // Suppresses the row's bottom border — the container draws borders BETWEEN rows, not under
+  // the last one.
+  isLast?: boolean;
+}) {
+  return (
+    // The row being rewritten is tinted, not dimmed. Every other row is disabled at the same
+    // moment, so dimming alone made the working one indistinguishable from the six waiting on it.
+    <div
+      className={cn(
+        "flex gap-4 p-4 transition-colors duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]",
+        !isLast && "border-b border-border",
+        rerunning && "bg-primary/[0.04]",
+      )}
+    >
+      <div className="flex w-[92px] shrink-0 flex-col gap-1">
+        {from !== null && to !== null && (
+          <Button
+            variant="ghost"
+            onClick={onFocusTimings}
+            title="Timings live on the Multishot node"
+            className="h-auto w-fit rounded px-1 py-0.5 text-sm font-medium tabular-nums text-primary hover:bg-primary/5 dark:hover:bg-primary/10"
+          >
+            {from}–{to}s
+          </Button>
+        )}
+        <span className="text-eyebrow text-muted-foreground">Shot {index + 1}</span>
+      </div>
+
+      <div className="min-w-0 flex-1">
+        {showRerun && (
+          <div className="mb-1.5 flex items-center justify-end gap-0.5">
+            <RefineWithAI
+              scope="cut"
+              busy={rerunning}
+              disabled={disabled || aiDisabled}
+              onSubmit={onRefine}
+              mentionables={mentionables}
+              label={`Refine shot ${index + 1} with AI`}
+            />
+            <Button
+              variant="ghost"
+              onClick={onRerun}
+              disabled={rerunning || disabled || aiDisabled}
+              aria-label={`Rewrite shot ${index + 1}`}
+              className="h-auto rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground dark:hover:bg-muted"
+            >
+              <RefreshCw className={cn("size-3.5", rerunning && "animate-spin")} strokeWidth={1.5} />
+            </Button>
+          </div>
+        )}
+        {/* `pointer-events-none` alone only blocks the mouse — the editor is a contenteditable,
+            so Tab focus or a caret already sitting in the field lets a keystroke write straight
+            through while THIS beat's own refine is in flight, and the refine then overwrites it
+            on resolve. `disabled` (not just the parent's cross-beat `disabled` prop, which is
+            false for the beat actually being refined) closes that gap by also disabling on
+            `rerunning`. Mirrors the look block's equivalent guard above in
+            multishot-prompt-focus-view.tsx. */}
+        {rerunning && <RefineProgress label={`Rewriting shot ${index + 1}…`} hint="other shots untouched" />}
+        <div className={cn(rerunning && "pointer-events-none opacity-60")}>
+          <MentionInstructionEditor
+            value={text}
+            onChange={onChange}
+            upstream={upstream}
+            disabled={disabled || rerunning}
+            dialect={dialect}
+            placeholder="Not written yet…"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}

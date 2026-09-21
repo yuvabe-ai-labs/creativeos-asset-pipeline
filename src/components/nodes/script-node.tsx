@@ -4,7 +4,6 @@ import { useState } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { useDeleteNode } from "@/hooks/use-delete-node";
@@ -17,6 +16,7 @@ import { ProcessingPill } from "./processing-pill";
 import type { ReelScript } from "@/lib/nodes/reel-script";
 import { DEFAULT_PARSE_SLICES, type KBSliceKey } from "@/lib/kb/parse-context";
 import { DEFAULT_SIGNAL_MODE, type SignalMode } from "@/lib/market/constants";
+import type { GroupingVersion } from "@/lib/nodes/group-shots";
 import { useNodeConnectionState } from "./use-node-connection-state";
 
 export function ScriptNode({ id, data, selected }: NodeProps) {
@@ -31,6 +31,8 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
     source?: string;
     parsed?: unknown;
     kbSlices?: KBSliceKey[];
+    groupModes?: Record<string, boolean>;
+    groupingVersion?: GroupingVersion;
     signalIds?: string[];
     signalMode?: SignalMode;
   };
@@ -38,6 +40,8 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
   const title = d.title || parsed?.title || "";
   const source = d.source ?? "";
   const slices = d.kbSlices ?? DEFAULT_PARSE_SLICES;
+  const groupModes = d.groupModes;
+  const groupingVersion = d.groupingVersion;
   const [focusOpen, setFocusOpen] = useState(false);
   const [isParsing, setIsParsing] = useState(false);
   const connState = useNodeConnectionState(id, "script");
@@ -134,6 +138,8 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
       title={title}
       source={source}
       parsed={parsed}
+      groupModes={groupModes}
+      groupingVersion={groupingVersion}
       slices={slices}
       signalIds={d.signalIds ?? []}
       signalMode={d.signalMode ?? DEFAULT_SIGNAL_MODE}
@@ -141,10 +147,9 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
       onParsingChange={setIsParsing}
       onSaveOutput={(output) => saveScriptOutputAction(id, output)}
       onFanOut={() => {
-        const n = parsed?.visual_script?.shots?.length ?? 0;
+        // fanOutShots reports the outcome itself — including "already on the canvas".
         fanOutShots(id);
         handleFocusOpenChange(false);
-        toast.success(`Fanned out ${n} shot${n === 1 ? "" : "s"}`);
       }}
     />
     </>

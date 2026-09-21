@@ -16,10 +16,21 @@ import { wouldCreateCycle } from "@/lib/canvas/graph";
 import { DEFAULT_CLIENT_MODEL_ID } from "@/lib/image-gen/client-models";
 import { planGuidedNext } from "@/lib/guided-flow";
 import { DEFAULT_VIDEO_CLIENT_MODEL_ID } from "@/lib/video-gen/client-models";
-import type { AppNode } from "./canvas-nodes";
+import type { AppNode, ShotNodeData, MultishotNodeData } from "./canvas-nodes";
 import type { ReelScript } from "@/lib/nodes/reel-script";
 import type { ShotComposeIdea } from "@/lib/nodes/shot-compose";
 import { deriveShotType } from "@/lib/nodes/shot-types";
+import {
+  describeGenerations,
+  generationKey,
+  defaultMultishotFor,
+  mergeShotRows,
+  type GroupingVersion,
+} from "@/lib/nodes/group-shots";
+import { cutsFromShots, totalOf } from "@/lib/nodes/multishot-cuts";
+import { multishotCapabilityFor, bestFitMultishotModel } from "@/lib/nodes/multishot-models";
+import type { MultishotPlan } from "@/lib/nodes/multishot-plan";
+import { shotDataToMultishot, multishotDataToShot } from "@/lib/nodes/multishot-convert";
 import type { GenerationRow } from "@/lib/db/types";
 import type { PlaybookRun } from "@/lib/copilot/runner";
 
@@ -45,6 +56,8 @@ export type CanvasState = {
   duplicateNode: (id: string) => Promise<void>;
   duplicateNodes: (ids: string[], canvasId: string) => Promise<void>;
   fanOutShots: (scriptNodeId: string) => void;
+  /** D227 — set one generation's mode from the Script's Visual script list. */
+  setGenerationMode: (scriptNodeId: string, key: string, multishot: boolean) => void;
   promoteIdeasToShots: (shotNodeId: string, ideas: ShotComposeIdea[]) => void;
   // Per-node video generation status — shared between VideoGenNode and VideoGenFocusView
   videoGenStatus: Record<string, { isGenerating: boolean; lastError: string | null }>;
@@ -163,6 +176,51 @@ export function createCanvasStore(
         toast.error("That connection would create a loop.");
         return;
       }
+      // D236/D239 — coerce the target's STORED modelId to the model the connected plan was
+      // WRITTEN for. Filtering the picker is not enforcing a constraint: D216 hid every other chip
+      // but left the node's saved value alone, so a new node defaulting to Veo would have billed a
+      // Veo run against a ladder Veo ignores.
+      //
+      // One level further than the old check, which could stop at the source's type because there
+      // was only one possible answer. The choice lives on the MULTISHOT node (D236), so the walk is
+      // video-gen -> multishot-prompt -> multishot. A prompt node with no Multishot upstream yet
+      // falls back to the default, which is what an unconfigured node already resolves to.
+      const sourceNode = get().nodes.find((n) => n.id === connection.source);
+      const targetNode = get().nodes.find((n) => n.id === connection.target);
+      if (sourceNode?.type === "multishot-prompt" && targetNode?.type === "video-gen") {
+        const upstreamIds = get()
+          .edges.filter((e) => e.target === sourceNode.id)
+          .map((e) => e.source);
+        const multishotNode = get().nodes.find(
+          (n) => upstreamIds.includes(n.id) && n.type === "multishot",
+        );
+        // The PLAN's own stamp when there is a plan (D236) — the beats already exist and already
+        // carry one model's reference tokens, so what the Multishot node's Select says right now
+        // is not what a generation would be built from. Only with no plan yet does the node's
+        // field answer the question, because then it is what the next Generate will write with.
+        // Same precedence video-gen-focus-view.tsx and resolve-prompt.ts apply.
+        const connectedPlan = (sourceNode.data as { parsed?: MultishotPlan } | undefined)?.parsed;
+        const cap = multishotCapabilityFor(
+          connectedPlan && Array.isArray(connectedPlan.beats)
+            ? connectedPlan.targetModel
+            : (multishotNode?.data as { targetModel?: string } | undefined)?.targetModel,
+        );
+
+        // Sensible defaults for the lane, not an override: 9:16 (reels are vertical) and 720p.
+        // Merged into the EXISTING params object and only where the operator hasn't already chosen
+        // a value — `updateNodeData` shallow-merges top-level keys, so a bare object would replace
+        // `params` wholesale and wipe every other param already set.
+        const existingParams = (targetNode.data as { params?: Record<string, unknown> }).params ?? {};
+        get().updateNodeData(targetNode.id, {
+          modelId: cap.id,
+          params: {
+            aspect_ratio: "9:16",
+            resolution: "720p",
+            ...existingParams,
+          },
+        });
+      }
+
       // Mint a uuid id — React Flow would otherwise assign `xy-edge__<src>-<tgt>`,
       // which the edges.id uuid column rejects (failing the whole save batch).
       set({ edges: addEdge({ ...connection, id: crypto.randomUUID() }, get().edges) });
@@ -357,36 +415,123 @@ export function createCanvasStore(
         toast.error("Couldn't duplicate nodes", { id: toastId });
       }
     },
-    // Materialize each shot of a parsed Script into its own Shot node (seed-and-fork,
-    // D21). Each Shot carries the FULL parent script narrowed to its single shot
-    // ("a Script node with one shot"), so downstream prompts keep the whole creative
-    // context. A dashed Script->Shot lineage edge is added for provenance; it is NOT
-    // a live edge (resolution never traverses it). Reads the script's hydrated parsed
-    // output (data.parsed = the active version, D19).
+    // D228 — materialize each GENERATION of a parsed Script as one node: a `shot` for a
+    // continuous take, a `multishot` for a cut sequence. A dashed Script->node lineage edge is
+    // added for provenance; it is NOT a live edge (resolution never traverses it).
+    //
+    // INCREMENTAL. A generation already on canvas is skipped, so pressing Fan out twice does
+    // nothing the second time instead of duplicating the whole row.
     fanOutShots: (scriptNodeId) => {
       const script = get().nodes.find((n) => n.id === scriptNodeId);
       if (!script) return;
-      const data = script.data as { title?: string; parsed?: ReelScript };
+      const data = script.data as {
+        title?: string;
+        parsed?: ReelScript;
+        groupModes?: Record<string, boolean>;
+        groupingVersion?: GroupingVersion;
+      };
       const parsed = data.parsed;
       const shots = parsed?.visual_script?.shots ?? [];
       if (shots.length === 0) return;
 
-      const base = script.position;
       const scriptTitle = data.title || parsed?.title || "";
-      const created = shots.map((shot, i) => ({
-        id: crypto.randomUUID(),
-        type: "shot",
-        position: { x: base.x + 360, y: base.y + i * 170 },
-        data: {
-          script: {
-            ...parsed,
-            visual_script: { ...parsed?.visual_script, shots: [shot] },
+      const generations = describeGenerations(shots, data.groupModes, data.groupingVersion ?? 1);
+
+      // Matching is on the EXACT index set, not on overlap. A group whose boundaries moved under
+      // a re-parse is genuinely a different generation and correctly gets its own node; the old
+      // one is left alone, because deleting a node with downstream work attached is not a
+      // decision fan-out gets to make silently.
+      const existing = new Set(
+        get()
+          .nodes.filter(
+            (n) =>
+              (n.type === "shot" || n.type === "multishot") &&
+              (n.data as { seededFrom?: { scriptNodeId?: string } }).seededFrom?.scriptNodeId ===
+                scriptNodeId,
+          )
+          .map((n) =>
+            generationKey(
+              (n.data as { seededFrom?: { shotIndexes?: number[] } }).seededFrom?.shotIndexes ?? [],
+            ),
+          ),
+      );
+
+      const missing = generations.filter((g) => !existing.has(g.key));
+      if (missing.length === 0) {
+        toast.info("Every shot is already on the canvas");
+        return;
+      }
+
+      // Stack below the lowest node already seeded from this script, so a second fan-out does
+      // not land on top of the first.
+      const seeded = get().nodes.filter(
+        (n) =>
+          (n.data as { seededFrom?: { scriptNodeId?: string } }).seededFrom?.scriptNodeId ===
+          scriptNodeId,
+      );
+      const baseY =
+        seeded.length > 0
+          ? Math.max(...seeded.map((n) => n.position.y)) + 170
+          : script.position.y;
+      const baseX = script.position.x + 360;
+
+      const created = missing.map((generation, i) => {
+        const seededFrom = {
+          scriptNodeId,
+          shotIndexes: generation.shotIndexes,
+          scriptTitle,
+        };
+        const position = { x: baseX, y: baseY + i * 170 };
+        const groupShots = generation.shotIndexes.map((shotIndex) => shots[shotIndex]);
+
+        if (generation.multishot) {
+          // No Total control any more (multishot-cuts.ts's header) — `totalSeconds` is just the
+          // stored mirror of the ladder's own length. They start equal and stay equal, because
+          // there is no independent field left to drift.
+          //
+          // A MIRROR, NOT A CORRECTION (D237, canvas-nodes.ts): deliberately NOT clamped. Clamping
+          // here while the edit site (multishot-node.tsx) mirrors unclamped made a script-seeded
+          // single 2s shot store 3, so the card read "3s · 1 cuts" over `checkLadder`'s red "2s ·
+          // Gemini Omni 1.1 needs at least 3s." — two numbers for one ladder. The ladder keeps its
+          // real length and the violation is STATED, never silently corrected.
+          const cuts = cutsFromShots(groupShots);
+          const totalSeconds = totalOf(cuts);
+          return {
+            id: crypto.randomUUID(),
+            type: "multishot",
+            position,
+            data: {
+              // The envelope only — `cuts` is the sole shot list on this node type.
+              script: { ...parsed, visual_script: { ...parsed?.visual_script, shots: undefined } },
+              order: generation.index + 1,
+              totalSeconds,
+              cuts,
+              // D261 — starts on the model its ladder fits, not on the Omni default.
+              targetModel: bestFitMultishotModel(cuts),
+              seededFrom,
+            },
+          };
+        }
+
+        // ONE row: a single take over every row in the group (BUG-004). The rows it came from are
+        // still identified by seededFrom.shotIndexes, which is what a flip to multishot rebuilds
+        // its cuts from (setGenerationMode).
+        const take = mergeShotRows(groupShots);
+        return {
+          id: crypto.randomUUID(),
+          type: "shot",
+          position,
+          data: {
+            script: {
+              ...parsed,
+              visual_script: { ...parsed?.visual_script, shots: [take] },
+            },
+            order: generation.index + 1,
+            shot_type: deriveShotType(take.description ?? ""),
+            seededFrom,
           },
-          order: i + 1,
-          shot_type: deriveShotType(shot.description ?? ""),
-          seededFrom: { scriptNodeId, shotIndex: i, scriptTitle },
-        },
-      })) as AppNode[];
+        };
+      }) as AppNode[];
 
       const createdEdges = created.map((n) => ({
         id: crypto.randomUUID(),
@@ -398,8 +543,82 @@ export function createCanvasStore(
         nodes: [...get().nodes, ...created],
         edges: [...get().edges, ...createdEdges],
       });
-    },
 
+      // The ONLY fan-out toast (BUG-007: the Script node used to add its own, counting script
+      // rows). It counts nodes created — one per generation — which is what "clip" means in Help.
+      const already = generations.length - missing.length;
+      const clips = `${created.length} clip${created.length === 1 ? "" : "s"}`;
+      toast.success(
+        already > 0 ? `${clips} added · ${already} already on canvas` : `${clips} added`,
+      );
+    },
+    setGenerationMode: (scriptNodeId, key, multishot) => {
+      const script = get().nodes.find((n) => n.id === scriptNodeId);
+      if (!script || script.type !== "script") return;
+
+      const data = script.data as {
+        parsed?: ReelScript;
+        groupModes?: Record<string, boolean>;
+        groupingVersion?: GroupingVersion;
+      };
+      const shots = data.parsed?.visual_script?.shots ?? [];
+      const version = data.groupingVersion ?? 1;
+      const generation = describeGenerations(shots, data.groupModes, version).find(
+        (g) => g.key === key,
+      );
+      if (!generation) return;
+
+      // Only DEVIATIONS are stored. Setting a generation back to its default removes the key
+      // instead of pinning the same value — a pinned default would outlive the grouping it
+      // describes and quietly re-apply itself to whatever group later takes the same key.
+      // The default comes from `defaultMultishotFor`, never from a second copy of the rule.
+      const isDefault = multishot === defaultMultishotFor(generation.shotIndexes, version);
+      const next = { ...(data.groupModes ?? {}) };
+      if (isDefault) delete next[key];
+      else next[key] = multishot;
+
+      get().updateNodeData(scriptNodeId, { groupModes: next });
+
+      // D229 — when the generation already has a node, the switch CONVERTS it: same id, same
+      // position, same incoming edges. There is no split and no merge, because the node count is
+      // identical in both modes — only which of two things the node is changes.
+      const node = get().nodes.find(
+        (n) =>
+          (n.type === "shot" || n.type === "multishot") &&
+          (n.data as { seededFrom?: { scriptNodeId?: string } }).seededFrom?.scriptNodeId ===
+            scriptNodeId &&
+          generationKey(
+            (n.data as { seededFrom?: { shotIndexes?: number[] } }).seededFrom?.shotIndexes ?? [],
+          ) === key,
+      );
+      if (!node) return;
+
+      const targetType = multishot ? "multishot" : "shot";
+      if (node.type === targetType) return;
+
+      // Shot → multishot rebuilds the cuts from the SCRIPT's rows (the generation's own
+      // shotIndexes), not from the node: a single take holds one merged row (BUG-004), and cutting
+      // it would give one cut where the script had several. Only when the script rows are gone
+      // does the node's own row stand in.
+      const scriptRows = generation.shotIndexes.map((i) => shots[i]).filter(Boolean);
+      const converted =
+        targetType === "multishot"
+          ? shotDataToMultishot(node.data as ShotNodeData, scriptRows)
+          : multishotDataToShot(node.data as MultishotNodeData);
+
+      // Outgoing edges are dropped: a prompt written for a cut ladder does not describe a
+      // continuous take, and vice versa. They must be RECORDED as removed — autosave builds its
+      // delete set from removedEdgeIds alone, so an edge merely dropped from `edges` resurrects.
+      const outgoing = get().edges.filter((e) => e.source === node.id);
+
+      set({
+        nodes: get().nodes.map((n) =>
+          n.id === node.id ? ({ ...n, type: targetType, data: converted } as AppNode) : n,
+        ),
+        edges: get().edges.filter((e) => e.source !== node.id),
+        removedEdgeIds: [...get().removedEdgeIds, ...outgoing.map((e) => e.id)],
+      });
+    },
     // Promote chosen compose ideas (D28) into sibling Shot nodes — the §15 "duplicate to
     // compare" move, one node per idea. Each sibling copies the SOURCE shot's narrowed
     // script with the idea's description swapped in. No edges (human wires each Shot ->
@@ -410,7 +629,7 @@ export function createCanvasStore(
       const d = src.data as {
         script?: ReelScript;
         order?: number;
-        seededFrom?: { scriptNodeId?: string; shotIndex?: number; scriptTitle?: string };
+        seededFrom?: { scriptNodeId?: string; scriptTitle?: string };
       };
       const baseScript = d.script ?? {};
       const vs = baseScript.visual_script ?? {};

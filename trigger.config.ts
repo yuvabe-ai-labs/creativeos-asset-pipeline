@@ -21,7 +21,7 @@ for (const envFile of [".env", ".env.local"]) {
 // Staging and production are separate Trigger.dev projects (free-tier accounts don't
 // support multiple environments within one project) — read the ref from whichever
 // .env is currently active (npm run env:staging / env:prod), not hardcoded.
-const projectId = "proj_mlnaizhphqpdqwzctaag";
+const projectId = "proj_oowdgamapcwpnltwkxde"
 if (!projectId) {
   throw new Error(
     "Missing TRIGGER_PROJECT_ID — run npm run env:staging or npm run env:prod first.",
@@ -31,6 +31,14 @@ if (!projectId) {
 export default defineConfig({
   project: projectId,
   dirs: ["./trigger"],
+  build: {
+    // sharp is a native module (a platform-specific .node binary), which esbuild cannot bundle.
+    // Marked external, Trigger installs it into the deploy image instead — at the version found in
+    // node_modules — so the Linux build gets the Linux binary rather than this machine's. Needed
+    // since the Seedance provider re-encodes out-of-range images before sending them
+    // (src/lib/video-gen/providers/seedance-images.ts).
+    external: ["sharp"],
+  },
   maxDuration: 1200,
   retries: {
     enabledInDev: false,

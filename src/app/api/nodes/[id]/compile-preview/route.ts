@@ -1,4 +1,8 @@
-import { resolvePromptInputs, resolveVideoPromptInputs } from "@/lib/nodes/resolve-inputs";
+import {
+  resolvePromptInputs,
+  resolveVideoPromptInputs,
+  resolveMultishotPromptInputs,
+} from "@/lib/nodes/resolve-inputs";
 import { apiError, apiOk, withNode } from "@/lib/api/route-helpers";
 
 // POST /api/nodes/:id/compile-preview — resolve the node's inputs WITHOUT calling
@@ -17,10 +21,15 @@ export async function POST(
     // path, where the same upstream type means something different (D6/D19 — see
     // resolve-inputs.ts). Using the wrong resolver here silently drops fileUrl and
     // leaks the raw image URL into the connected-node preview as plain text.
+    // Multishot Prompt needs its OWN resolver for the same reason Video Prompt does: falling
+    // through to resolvePromptInputs runs the image-prompt path, whose upstream shape is
+    // different, so the focus view's connected-node rail resolved to nothing at all.
     const resolved =
       node.type === "video-prompt"
         ? await resolveVideoPromptInputs(nodeId, body?.slices)
-        : await resolvePromptInputs(nodeId, body?.slices);
+        : node.type === "multishot-prompt"
+          ? await resolveMultishotPromptInputs(nodeId, body?.slices)
+          : await resolvePromptInputs(nodeId, body?.slices);
     if (!resolved) return apiError("Node not found.", 404);
 
     return apiOk({

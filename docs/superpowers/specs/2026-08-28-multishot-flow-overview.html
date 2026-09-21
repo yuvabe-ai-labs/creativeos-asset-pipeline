@@ -1,0 +1,505 @@
+<title>Shot-Level Multishot</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Manrope:wght@400;500;600;700&display=swap">
+
+<style>
+  :root {
+    --ink:#0b0f19; --ink-2:#52525b; --ink-3:#a1a1aa;
+    --line:#e4e4e7; --line-2:#f1f1f3; --bg:#fafafa; --card:#ffffff; --sunk:#f7f7f8;
+    --brand:#5829c7; --brand-in:#ffffff; --brand-t:rgba(88,41,199,.08); --brand-b:rgba(88,41,199,.20);
+    --amber-bg:#fffbeb; --amber-ln:#f0e3c4; --amber-in:#92610b;
+    --code-bg:#f4f4f5;
+    --shadow:0 1px 2px rgba(11,15,25,.08), 0 6px 14px rgba(11,15,25,.10);
+    --display:"Clash Display","Archivo",ui-sans-serif,system-ui,sans-serif;
+    --body:"Gilroy","Manrope",ui-sans-serif,system-ui,-apple-system,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ink:#eceef4; --ink-2:#a2a8bb; --ink-3:#6c7286;
+      --line:#262b3d; --line-2:#1d2233; --bg:#0b0f19; --card:#131828; --sunk:#0f1422;
+      --brand:#9b7cf0; --brand-in:#14091f; --brand-t:rgba(155,124,240,.13); --brand-b:rgba(155,124,240,.32);
+      --amber-bg:#241d0d; --amber-ln:#4a3a15; --amber-in:#e6c169;
+      --code-bg:#1a2032;
+      --shadow:0 1px 2px rgba(0,0,0,.40), 0 6px 16px rgba(0,0,0,.32);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ink:#eceef4; --ink-2:#a2a8bb; --ink-3:#6c7286;
+    --line:#262b3d; --line-2:#1d2233; --bg:#0b0f19; --card:#131828; --sunk:#0f1422;
+    --brand:#9b7cf0; --brand-in:#14091f; --brand-t:rgba(155,124,240,.13); --brand-b:rgba(155,124,240,.32);
+    --amber-bg:#241d0d; --amber-ln:#4a3a15; --amber-in:#e6c169;
+    --code-bg:#1a2032;
+    --shadow:0 1px 2px rgba(0,0,0,.40), 0 6px 16px rgba(0,0,0,.32);
+  }
+
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family:var(--body);
+         font-size:15px; line-height:1.65; -webkit-font-smoothing:antialiased; }
+  .wrap { max-width:1060px; margin:0 auto; padding:56px 28px 110px; }
+
+  h1,h2 { font-family:var(--display); margin:0; letter-spacing:-0.015em; text-wrap:balance; }
+  h1 { font-size:36px; font-weight:600; line-height:1.15; }
+  h2 { font-size:21px; font-weight:600; }
+  p { margin:9px 0; color:var(--ink-2); max-width:68ch; }
+  .lede { font-size:16.5px; margin-top:14px; }
+  strong { color:var(--ink); font-weight:600; }
+  code { font-family:var(--mono); font-size:.86em; background:var(--code-bg); color:var(--ink);
+         padding:1.5px 5px; border-radius:4px; }
+
+  .eyebrow { font-size:10.5px; letter-spacing:.13em; text-transform:uppercase;
+             color:var(--ink-3); font-weight:600; }
+  .rule { height:1px; background:var(--line); border:0; margin:11px 0 24px; }
+  section { margin-top:58px; }
+
+  .tags { display:flex; flex-wrap:wrap; gap:7px; margin-top:20px; }
+  .tag { font-family:var(--mono); font-size:11px; color:var(--brand); background:var(--brand-t);
+         border:1px solid var(--brand-b); border-radius:99px; padding:4px 11px; }
+  .tag.n { color:var(--ink-2); background:var(--sunk); border-color:var(--line); }
+
+  .card { border:1px solid var(--line); border-radius:14px; background:var(--card);
+          box-shadow:var(--shadow); overflow:hidden; margin-top:22px; }
+  .card-hd { padding:13px 18px; border-bottom:1px solid var(--line-2);
+             display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; }
+  .card-bd { padding:20px 18px; }
+  .card-bd.scroll { overflow-x:auto; }
+  .card-note { padding:12px 18px; border-top:1px solid var(--line-2); background:var(--sunk);
+               font-size:12.5px; color:var(--ink-2); }
+  .card-note p { margin:0; max-width:none; font-size:12.5px; }
+
+  .flow { display:flex; align-items:stretch; min-width:880px; }
+  .node { flex:1; border:1px solid var(--line); border-radius:10px; background:var(--card);
+          padding:12px 13px; min-width:0; }
+  .node.hi { border-color:var(--brand-b); background:var(--brand-t); }
+  .node .nm { font-family:var(--display); font-weight:600; font-size:12.5px; color:var(--ink);
+              display:block; margin-bottom:3px; }
+  .node .ds { font-size:11.5px; line-height:1.5; color:var(--ink-2); display:block; }
+  .arw { flex:0 0 30px; display:flex; align-items:center; justify-content:center;
+         color:var(--ink-3); font-size:15px; user-select:none; }
+
+  .shots { display:flex; flex-direction:column; gap:10px; }
+  .shot { border:1px solid var(--line); border-radius:10px; background:var(--sunk); padding:10px 12px; }
+  .shot.multi { border-color:var(--brand-b); background:var(--brand-t); }
+  .shot .sh { display:flex; align-items:center; gap:9px; margin-bottom:6px; flex-wrap:wrap; }
+  .shot .nm { font-family:var(--display); font-weight:600; font-size:12.5px; color:var(--ink); }
+  .toggle { display:inline-flex; align-items:center; gap:6px; font-family:var(--mono);
+            font-size:10px; letter-spacing:.04em; padding:3px 9px; border-radius:99px;
+            border:1px solid var(--line); background:var(--card); color:var(--ink-3); }
+  .toggle.on { border-color:var(--brand-b); background:var(--brand); color:var(--brand-in); }
+  .beat { display:grid; grid-template-columns:60px 1fr; gap:9px; font-size:11.5px;
+          line-height:1.55; padding:2px 0; color:var(--ink-2); }
+  .beat .tc { font-family:var(--mono); font-size:10.5px; color:var(--brand); }
+  .secs { font-family:var(--mono); font-size:10px; color:var(--ink-3); margin-left:auto; }
+
+  .split2 { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+  @media (max-width:760px){ .split2 { grid-template-columns:1fr; } }
+
+  .filerow { display:flex; gap:10px; flex-wrap:wrap; }
+  .filechip { display:flex; align-items:center; gap:8px; border:1px solid var(--line);
+              border-radius:8px; padding:6px 11px 6px 7px; background:var(--sunk); }
+  .swatch { width:26px; height:26px; border-radius:5px; flex:none; }
+  .filechip .cn { font-size:12px; font-weight:600; color:var(--ink); line-height:1.25; }
+  .filechip .ck { font-size:10px; color:var(--ink-3); text-transform:uppercase; letter-spacing:.08em; }
+
+  table { border-collapse:collapse; width:100%; font-size:13px; min-width:560px; }
+  th,td { text-align:left; padding:9px 12px; border-bottom:1px solid var(--line-2); vertical-align:top; }
+  th { font-size:10.5px; letter-spacing:.09em; text-transform:uppercase; color:var(--ink-3);
+       font-weight:600; border-bottom-color:var(--line); }
+  td { color:var(--ink-2); }
+  td:first-child { color:var(--ink); font-weight:500; }
+  tbody tr:last-child td { border-bottom:0; }
+  .num { font-family:var(--mono); font-variant-numeric:tabular-nums; }
+  .ch-prompt { color:var(--brand); font-weight:600; }
+
+  .steps { display:grid; gap:11px; margin-top:22px; }
+  .step { display:grid; grid-template-columns:34px 1fr; gap:15px; align-items:start;
+          border:1px solid var(--line); border-radius:11px; background:var(--card);
+          padding:14px 16px; box-shadow:var(--shadow); }
+  .step .idx { width:34px; height:34px; border-radius:9px; background:var(--brand); color:var(--brand-in);
+               font-family:var(--display); font-weight:600; font-size:14px;
+               display:flex; align-items:center; justify-content:center; }
+  .step .ti { font-family:var(--display); font-weight:600; font-size:14px; color:var(--ink); }
+  .step p { margin:5px 0 0; font-size:13px; }
+
+  .flag { border:1px solid var(--amber-ln); background:var(--amber-bg); border-radius:11px;
+          padding:14px 16px; margin-top:18px; }
+  .flag .ft { font-family:var(--display); font-weight:600; font-size:13px; color:var(--amber-in);
+              margin-bottom:4px; }
+  .flag p { color:var(--amber-in); margin:0; font-size:13px; opacity:.92; }
+
+  .out { display:grid; gap:9px; margin-top:18px; }
+  .outrow { display:grid; grid-template-columns:200px 1fr; gap:14px; border:1px solid var(--line);
+            border-radius:10px; padding:11px 14px; background:var(--card);
+            font-size:13px; color:var(--ink-2); }
+  @media (max-width:620px){ .outrow { grid-template-columns:1fr; gap:4px; } }
+  .outrow .on { font-family:var(--display); font-weight:600; font-size:12.5px; color:var(--ink); }
+
+  @media (prefers-reduced-motion: reduce){ *{ transition:none!important; animation:none!important; } }
+</style>
+
+<div class="wrap">
+
+  <header>
+    <p class="eyebrow">Design overview &middot; 28 Aug 2026</p>
+    <h1>Shot-Level Multishot</h1>
+    <p class="lede">
+      Some shots want several cuts in one generation; most want a single continuous take. So
+      multishot becomes a property of <strong>one shot</strong> &mdash; not of a script, and not of a
+      model setting. The parse gains one number, the shot gains one toggle, and the two nodes
+      downstream read it.
+    </p>
+    <div class="tags">
+      <span class="tag">Gemini Omni 1.1 Flash</span>
+      <span class="tag n">One toggle per shot</span>
+      <span class="tag n">10s cap</span>
+      <span class="tag n">References are File nodes</span>
+    </div>
+  </header>
+
+  <!-- 01 ───────────────────────────────────────────────────────────────── -->
+  <section>
+    <p class="eyebrow">01</p>
+    <h2>The flow</h2>
+    <hr class="rule">
+    <p>
+      Script parsing is unchanged apart from one added number. Grouping happens when the script fans
+      out into shots &mdash; on the canvas, where it is visible and can be corrected by hand.
+    </p>
+
+    <div class="card">
+      <div class="card-bd scroll">
+        <div class="flow">
+          <div class="node">
+            <span class="nm">Script</span>
+            <span class="ds">Raw script text, pasted or uploaded</span>
+          </div>
+          <div class="arw">&rarr;</div>
+          <div class="node">
+            <span class="nm">Parse</span>
+            <span class="ds">Unchanged, except each shot now returns its length as a number</span>
+          </div>
+          <div class="arw">&rarr;</div>
+          <div class="node hi">
+            <span class="nm">Fan out</span>
+            <span class="ds">Packs consecutive shots up to 10s. Mixed by construction.</span>
+          </div>
+          <div class="arw">&rarr;</div>
+          <div class="node">
+            <span class="nm">Motion prompt</span>
+            <span class="ds">Reads the toggle &rarr; a cut ladder, or a single-take prompt</span>
+          </div>
+          <div class="arw">&rarr;</div>
+          <div class="node hi">
+            <span class="nm">Video gen</span>
+            <span class="ds">Reads the toggle &rarr; model list and duration follow the shot</span>
+          </div>
+        </div>
+      </div>
+      <div class="card-note">
+        <p>
+          <strong>A multishot shot goes straight to the motion prompt &mdash; it does not need to go
+          through the image-gen flow.</strong> There is no start frame to generate: the video is made
+          from the shot's own description plus any reference images attached to it. The image-gen
+          path stays exactly as it is for shots that <em>do</em> want a still to animate. It becomes
+          one option rather than a required stage &mdash; which is the practical reason multishot is
+          worth having, since a cut sequence is described rather than animated from a frame.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 02 ───────────────────────────────────────────────────────────────── -->
+  <section>
+    <p class="eyebrow">02</p>
+    <h2>Fan-out produces a mix</h2>
+    <hr class="rule">
+    <p>
+      Five parsed shots totalling 22 seconds. Fan-out walks them in order and closes a node before
+      the next shot would push it past 10s &mdash; so the canvas comes out mixed, which is the point.
+    </p>
+
+    <div class="card">
+      <div class="card-hd">
+        <span class="eyebrow">After fan-out</span>
+        <span style="font-size:13px;color:var(--ink-2)">5 shots &middot; 4+5+4+5+4s &middot; 3 nodes</span>
+      </div>
+      <div class="card-bd">
+        <div class="shots">
+          <div class="shot multi">
+            <div class="sh">
+              <span class="nm">Shot 1&ndash;2</span>
+              <span class="toggle on">MULTISHOT &middot; ON</span>
+              <span class="secs">9s</span>
+            </div>
+            <div class="beat"><span class="tc">[0&ndash;4s]</span><span>Hands lift the jar from a linen surface, morning light</span></div>
+            <div class="beat"><span class="tc">[4&ndash;9s]</span><span>Macro &mdash; the balm catches light as the lid turns</span></div>
+          </div>
+          <div class="shot">
+            <div class="sh">
+              <span class="nm">Shot 3</span>
+              <span class="toggle">MULTISHOT &middot; OFF</span>
+              <span class="secs">4s</span>
+            </div>
+            <div class="beat"><span class="tc">single</span><span>Priya smooths it along her forearm, unhurried</span></div>
+          </div>
+          <div class="shot multi">
+            <div class="sh">
+              <span class="nm">Shot 4&ndash;5</span>
+              <span class="toggle on">MULTISHOT &middot; ON</span>
+              <span class="secs">9s</span>
+            </div>
+            <div class="beat"><span class="tc">[0&ndash;5s]</span><span>She sets the jar down beside a cup of tea</span></div>
+            <div class="beat"><span class="tc">[5&ndash;9s]</span><span>Hero hold &mdash; label readable, CTA-safe negative space</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="card-note">
+        <p>
+          22 seconds in, 22 seconds out. Shot 3 stands alone because folding it into the first node
+          would make 13s, over the cap. Grouping is deliberately simple &mdash; consecutive shots,
+          filled until the cap. It is not trying to find clever seams; you see the result as nodes
+          and adjust it with the toggle, in the place the work already is.
+        </p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-hd"><span class="eyebrow">What the toggle does</span></div>
+      <div class="card-bd scroll" style="padding:4px 0 0">
+        <table>
+          <thead><tr><th>The node holds</th><th>Toggle</th><th>Result</th></tr></thead>
+          <tbody>
+            <tr><td>Several shots, on</td><td class="num">&rarr; off</td><td><strong>Splits back into one node per shot</strong>, order preserved</td></tr>
+            <tr><td>One shot, off</td><td class="num">&rarr; on</td><td>One generation; the model may cut inside this single shot</td></tr>
+            <tr><td>One shot, on</td><td class="num">&rarr; off</td><td>One generation, one continuous take</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="card-note">
+        <p>
+          Turning multishot off on a grouped node <strong>creates nodes</strong> &mdash; it is a real
+          change to the canvas, so it confirms first and can be undone. There is no merge action for
+          now; to regroup, re-run the fan-out. Merging raises questions worth answering properly
+          later (which side's edits win, what happens to anything already wired downstream) rather
+          than guessing at now.
+        </p>
+      </div>
+    </div>
+
+    <div class="flag">
+      <div class="ft">Why the parse has to return a number</div>
+      <p>
+        Today a shot's length comes back as free text copied out of the script &mdash; "22-26
+        seconds", "3 sec", "0-3s". Grouping to a 10-second cap needs arithmetic, and working it out
+        from that prose would quietly fail on any format we didn't anticipate. The model already
+        reads the duration; it now also returns it as a plain integer. Anything missing falls back to
+        4s and is shown as an assumption rather than a fact.
+      </p>
+    </div>
+  </section>
+
+  <!-- 03 ───────────────────────────────────────────────────────────────── -->
+  <section>
+    <p class="eyebrow">03</p>
+    <h2>References are just File nodes</h2>
+    <hr class="rule">
+    <p>
+      No separate character library, no script-level setup, no new screen. A reference is a
+      <strong>File node</strong>, attached with the <code>+</code> that already sits on the motion
+      prompt and video generation views. The File node's title is the reference's name, and the
+      prompt mentions it by that name.
+    </p>
+
+    <div class="card">
+      <div class="card-hd">
+        <span class="eyebrow">Attached to a shot's motion prompt</span>
+      </div>
+      <div class="card-bd">
+        <div class="filerow">
+          <div class="filechip">
+            <span class="swatch" style="background:linear-gradient(150deg,#c8a488,#8a6247)"></span>
+            <span><span class="cn">Priya</span><br><span class="ck">File node</span></span>
+          </div>
+          <div class="filechip">
+            <span class="swatch" style="background:linear-gradient(150deg,#e8e2d4,#b9ad93)"></span>
+            <span><span class="cn">The jar</span><br><span class="ck">File node</span></span>
+          </div>
+          <div class="filechip">
+            <span class="swatch" style="background:linear-gradient(150deg,#cbd5cf,#7d918a)"></span>
+            <span><span class="cn">Morning linen</span><br><span class="ck">File node</span></span>
+          </div>
+        </div>
+      </div>
+      <div class="card-note">
+        <p>
+          Inputs are given per shot rather than per script, so one character or prop can be attached
+          to exactly the shots that use it. Everything needed for this already exists &mdash; the
+          uploads, the thumbnails, the naming and the connection control &mdash; which is why it adds
+          no new surface to learn.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 04 ───────────────────────────────────────────────────────────────── -->
+  <section>
+    <p class="eyebrow">04</p>
+    <h2>What the downstream nodes do with it</h2>
+    <hr class="rule">
+    <p>
+      Both nodes look upstream at the shot and adapt. Nothing has to be set twice.
+    </p>
+
+    <div class="split2">
+      <div class="card" style="margin-top:0">
+        <div class="card-hd"><span class="eyebrow">Motion prompt</span></div>
+        <div class="card-bd">
+          <div class="out" style="margin-top:0">
+            <div class="outrow" style="grid-template-columns:88px 1fr">
+              <span class="on">Multishot</span>
+              <span>Writes a timed cut ladder across the shots in the node, adding up to its total length.</span>
+            </div>
+            <div class="outrow" style="grid-template-columns:88px 1fr">
+              <span class="on">Single</span>
+              <span>Today's motion prompt, plus an explicit instruction to hold one unbroken take.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:0">
+        <div class="card-hd"><span class="eyebrow">Video generation</span></div>
+        <div class="card-bd">
+          <div class="out" style="margin-top:0">
+            <div class="outrow" style="grid-template-columns:88px 1fr">
+              <span class="on">Multishot</span>
+              <span>Model list narrows to <strong>Gemini Omni</strong>, with the reason shown.</span>
+            </div>
+            <div class="outrow" style="grid-template-columns:88px 1fr">
+              <span class="on">Single</span>
+              <span>Every model available, Omni included.</span>
+            </div>
+            <div class="outrow" style="grid-template-columns:88px 1fr">
+              <span class="on">Duration</span>
+              <span>Defaults to the shot's own length, <strong>editable</strong>, labelled with where it came from.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flag">
+      <div class="ft">Why the model list narrows rather than warns</div>
+      <p>
+        Omni is currently the only model that cuts between shots natively. Sending a timed cut ladder
+        to any other model returns a single continuous take with the timings silently ignored &mdash;
+        which is indistinguishable from a bug, and only discovered after paying for the generation. A
+        model that cannot honour the prompt should not be selectable for it.
+      </p>
+    </div>
+  </section>
+
+  <!-- 05 ───────────────────────────────────────────────────────────────── -->
+  <section>
+    <p class="eyebrow">05</p>
+    <h2>Controls</h2>
+    <hr class="rule">
+    <p>
+      All controls stay on the video generation node, exactly where they are for the existing models.
+      What differs is only how each one reaches the model &mdash; three are settings on the request,
+      three are written into the prompt, because Omni has no field for them.
+    </p>
+
+    <div class="card">
+      <div class="card-bd scroll" style="padding:4px 0 0">
+        <table>
+          <thead><tr><th>Control</th><th>Options</th><th>Default</th><th>How it is applied</th></tr></thead>
+          <tbody>
+            <tr><td>Resolution</td><td class="num">360p &middot; 720p &middot; 1080p &middot; 4k</td><td class="num">720p</td><td>Request setting</td></tr>
+            <tr><td>Duration</td><td class="num">3&ndash;10s</td><td>the shot's length</td><td>Request setting</td></tr>
+            <tr><td>Aspect ratio</td><td class="num">16:9 &middot; 9:16</td><td class="num">16:9</td><td>Request setting</td></tr>
+            <tr><td>Audio</td><td>ambient &middot; dialogue &middot; music</td><td>ambient</td><td><span class="ch-prompt">Written into the prompt</span></td></tr>
+            <tr><td>On-screen text</td><td>the copy to render</td><td>empty</td><td><span class="ch-prompt">Written into the prompt</span></td></tr>
+            <tr><td>Negative prompt</td><td>defect list</td><td>tuned per product</td><td><span class="ch-prompt">Written into the prompt</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="card-note">
+        <p>
+          There is no separate "continuous take" control &mdash; the shot's multishot toggle already
+          is that decision, and two controls for one thing is the pair that drifts apart. Kling's own
+          multi-shot option is hidden, so multishot means one thing in one place. On-screen text is
+          worth asking for because Omni renders type legibly, though a brand lock-up is still
+          composited in post rather than generated.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 06 ───────────────────────────────────────────────────────────────── -->
+  <section>
+    <p class="eyebrow">06</p>
+    <h2>What it costs to run</h2>
+    <hr class="rule">
+    <p>
+      Grouping shots already reduces the number of generations &mdash; the 22-second reel above is
+      three requests rather than five. Resolution then decides what each one costs, and the draft
+      tier is cheap enough to iterate on freely before committing to a final render.
+    </p>
+
+    <div class="card">
+      <div class="card-bd scroll" style="padding:4px 0 0">
+        <table>
+          <thead><tr><th>Resolution</th><th>Per second</th><th>The 22s reel, 3 nodes</th><th></th></tr></thead>
+          <tbody>
+            <tr><td>360p</td><td class="num">$0.03</td><td class="num">$0.66</td><td>Draft tier &mdash; also around 60% faster</td></tr>
+            <tr><td>720p</td><td class="num">$0.10</td><td class="num">$2.20</td><td>The default, and the only natively rendered tier</td></tr>
+            <tr><td>1080p</td><td class="num">$0.15</td><td class="num">$3.30</td><td>Upscaled from 720p</td></tr>
+            <tr><td>4k</td><td class="num">$0.30</td><td class="num">$6.60</td><td>Upscaled from 720p</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="card-note">
+        <p>
+          Worth knowing when setting expectations: 1080p and 4k are <strong>upscales of a 720p
+          generation</strong>, not rendered at that resolution &mdash; so they cost 1.5&times; and
+          3&times; without adding real detail. Audio is always generated and already included in the
+          rate. Credit estimates appear on the node before generating, as they do for the existing
+          models.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 07 ───────────────────────────────────────────────────────────────── -->
+  <section>
+    <p class="eyebrow">07</p>
+    <h2>Build order</h2>
+    <hr class="rule">
+    <p>Each step leaves the product working and useful on its own.</p>
+    <div class="steps">
+      <div class="step">
+        <span class="idx">1</span>
+        <div><div class="ti">Add Gemini Omni as a model</div>
+        <p>Provider, controls and pricing. Usable immediately with hand-written prompts, before any of the shot work lands.</p></div>
+      </div>
+      <div class="step">
+        <span class="idx">2</span>
+        <div><div class="ti">Parse and fan-out</div>
+        <p>Shot lengths as numbers, grouping to the 10-second cap, the multishot toggle and the split.</p></div>
+      </div>
+      <div class="step">
+        <span class="idx">3</span>
+        <div><div class="ti">Wire the downstream nodes</div>
+        <p>The cut ladder in the motion prompt; the narrowed model list and derived duration in video generation.</p></div>
+      </div>
+      <div class="step">
+        <span class="idx">4</span>
+        <div><div class="ti">Tidy up Kling</div>
+        <p>Hide its multi-shot option so multishot means one thing in one place.</p></div>
+      </div>
+    </div>
+  </section>
+
+</div>

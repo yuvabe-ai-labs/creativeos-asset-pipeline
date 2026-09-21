@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import type { MoodboardItem } from "@/lib/db/moodboards";
 import { KindBadge } from "./kind-badge";
+import { ArchiveChip } from "./archive-chip";
 
 function hostOf(url: string): string {
   try {
@@ -74,6 +75,7 @@ export function ReferenceTile({ item, selected, selectable, onToggle, onOpen, on
       </Button>
 
       <KindBadge kind={item.kind} />
+      <ArchiveChip status={item.archive_status} addedAt={item.added_at} />
 
       {visual && item.note && (
         <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-2 opacity-0 transition-opacity duration-200 group-hover:opacity-100">

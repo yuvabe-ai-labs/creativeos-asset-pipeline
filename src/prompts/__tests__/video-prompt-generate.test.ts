@@ -3,7 +3,9 @@ import {
   videoPromptGeneratePrompt,
   videoPromptGenerateKlingPrompt,
   videoPromptGeneratePromptFor,
+  videoPromptFor,
 } from "../video-prompt-generate";
+import type { VideoPromptTarget } from "../video-prompt-shared";
 
 describe("videoPromptGeneratePrompt (Veo)", () => {
   it("is a versioned, evaluable record", () => {
@@ -27,10 +29,10 @@ describe("videoPromptGeneratePrompt (Veo)", () => {
 
 describe("videoPromptGeneratePromptFor", () => {
   it("returns the Veo record for veo", () => {
-    expect(videoPromptGeneratePromptFor("veo").id).toBe("video-prompt-generate");
+    expect(videoPromptGeneratePromptFor({ provider: "veo" }).id).toBe("video-prompt-generate");
   });
   it("returns the Kling record for kling", () => {
-    expect(videoPromptGeneratePromptFor("kling").id).toBe("video-prompt-generate-kling");
+    expect(videoPromptGeneratePromptFor({ provider: "kling" }).id).toBe("video-prompt-generate-kling");
   });
 });
 
@@ -68,4 +70,20 @@ describe("videoPromptGenerateKlingPrompt", () => {
   it("permits a trailing cinematic quality tag", () => {
     expect(videoPromptGenerateKlingPrompt.system.toLowerCase()).toContain("quality tag");
   });
+});
+
+// The bug this whole split exists to make unrepresentable: Gemini Omni receiving Veo's record.
+it("gives every target its own record — no two share an object", () => {
+  const targets: VideoPromptTarget[] = ["veo", "kling", "gemini-omni", "seedance"];
+  const records = targets.map((t) => videoPromptFor(t));
+  expect(new Set(records).size).toBe(targets.length);
+  expect(new Set(records.map((r) => r.id)).size).toBe(targets.length);
+});
+
+it("Seedance's guide follows the vendor's own order, not the shared spine's", () => {
+  const sys = videoPromptFor("seedance").system;
+  expect(sys).toContain("@Image 1");
+  expect(sys).toMatch(/【】|subtitle/i);
+  // The single-shot record must not teach shot structure — that is the multishot writer's job.
+  expect(sys).not.toMatch(/\d+-\d+s:/);
 });

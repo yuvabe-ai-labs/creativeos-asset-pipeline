@@ -68,18 +68,31 @@ export function ModelRequestPanel({ request }: { request: ModelRequestRecord }) 
         )}
       </TabsContent>
 
+      {/* The pictures, not their URLs. A storage URL is 200 characters of bucket path and says
+          nothing about which reference it is — and identifying the attachments is the entire
+          reason to open this tab. Each thumbnail still opens the original in a new tab, so the
+          URL remains one click away for anyone who needs it. */}
       {attachmentCount > 0 && (
         <TabsContent value="attachments">
-          <ul className="space-y-1">
-            {request.attachments.map((url) => (
+          <ul className="flex flex-wrap gap-3">
+            {request.attachments.map((url, i) => (
               <li key={url}>
                 <a
                   href={url}
                   target="_blank"
                   rel="noreferrer"
-                  className="text-sm text-primary underline decoration-dotted underline-offset-2 break-all"
+                  title={url}
+                  className="group flex flex-col gap-1.5 rounded-xl border border-border bg-card p-1.5 shadow-card transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5"
                 >
-                  {url}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={url}
+                    alt={`Attachment ${i + 1}`}
+                    className="size-32 rounded-lg object-cover"
+                  />
+                  <span className="text-eyebrow px-0.5 text-muted-foreground transition-colors group-hover:text-primary">
+                    Attachment {i + 1}
+                  </span>
                 </a>
               </li>
             ))}

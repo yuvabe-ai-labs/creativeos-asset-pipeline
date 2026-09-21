@@ -73,6 +73,36 @@ describe("getNodeOutput", () => {
     expect(getNodeOutput({ type: "draw", data: {}, activeOutput: null })).toBe("");
   });
 
+  // A Multishot node has no version system, so activeOutput is always null and the `default`
+  // branch returned "" — every surface that asks a node what it holds showed "No content yet."
+  // beside a node full of shots. Its content is the cut ladder on node.data.
+  it("renders a multishot node's cut ladder, which lives on data rather than activeOutput", () => {
+    const out = getNodeOutput({
+      type: "multishot",
+      data: {
+        cuts: [
+          { id: "c1", text: "  close on keys  ", seconds: 2 },
+          { id: "c2", text: "cab door", seconds: 3 },
+        ],
+      },
+      activeOutput: null,
+    });
+    expect(out).toBe("Shot 1 (2s): close on keys\nShot 2 (3s): cab door");
+  });
+
+  it("names an empty cut rather than emitting a blank line for it", () => {
+    const out = getNodeOutput({
+      type: "multishot",
+      data: { cuts: [{ id: "c1", text: "   ", seconds: 4 }] },
+      activeOutput: null,
+    });
+    expect(out).toBe("Shot 1 (4s): (no description yet)");
+  });
+
+  it("returns empty string for a multishot node with no cuts", () => {
+    expect(getNodeOutput({ type: "multishot", data: {}, activeOutput: null })).toBe("");
+  });
+
   it("returns a post node's rendered fileUrl", () => {
     const output = getNodeOutput({
       type: "post",

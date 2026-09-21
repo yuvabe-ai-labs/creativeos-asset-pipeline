@@ -17,9 +17,13 @@ export async function GET(
   return withNode(req, params, async (nodeId) => {
     const rows = await listVersions(nodeId); // newest first (created_at desc)
     const latest = rows.find(
-      (v) => (v.params_used as { promptId?: string } | null)?.promptId === shotComposePrompt.id && !v.error,
+      (v) =>
+        ((v.params_used as { promptId?: string } | null)?.promptId ?? "") === shotComposePrompt.id &&
+        !v.error,
     );
-    if (!latest) return apiOk({ ideas: [], role: null, versionId: null, selectedIndex: null });
+    if (!latest) {
+      return apiOk({ ideas: [], role: null, versionId: null, selectedIndex: null });
+    }
 
     const gen = (latest.generated_output ?? {}) as { ideas?: ShotComposeIdea[] };
     const out = (latest.output ?? {}) as { ideas?: ShotComposeIdea[]; selectedIndex?: number };
@@ -41,13 +45,14 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   return withNode(req, params, async (nodeId, _node, caller) => {
-    const body = (await req.json().catch(() => null)) as
-      | { role?: unknown; slices?: unknown }
-      | null;
-    const role = getShotRole(typeof body?.role === "string" ? body.role : "");
+    const body = (await req.json().catch(() => null)) as { role?: unknown; slices?: unknown } | null;
+    const roleKey = typeof body?.role === "string" ? body.role : "";
 
     const resolved = await resolveShotComposeInputs(nodeId, body?.slices);
     if (!resolved) return apiError("Node not found.", 404);
+
+    const role = getShotRole(roleKey);
+    const spec = shotComposePrompt;
 
     const user = renderComposeContext({
       seedText: resolved.seedText,
@@ -59,13 +64,17 @@ export async function POST(
     try {
       const openai = createOpenAI();
       const completion = await openai.chat.completions.create({
-        model: shotComposePrompt.model,
+        model: spec.model,
         response_format: {
           type: "json_schema",
-          json_schema: { name: "shot_ideas", schema: shotComposePrompt.schema, strict: true },
+          json_schema: {
+            name: "shot_ideas",
+            schema: spec.schema,
+            strict: true,
+          },
         },
         messages: [
-          { role: "system", content: shotComposePrompt.system },
+          { role: "system", content: spec.system },
           { role: "user", content: userContent },
         ],
       });
@@ -86,12 +95,12 @@ export async function POST(
         },
         paramsUsed: {
           role: role.key,
-          promptId: shotComposePrompt.id,
-          promptVersion: shotComposePrompt.version,
+          promptId: spec.id,
+          promptVersion: spec.version,
           tokensUsed: completion.usage ?? null,
         },
-        modelUsed: `openai:${shotComposePrompt.model}`,
-        output: { ideas }, // generated_output frozen = { ideas } (D22)
+        modelUsed: `openai:${spec.model}`,
+        output: { ideas },
       });
       // NB: intentionally NO setActiveVersion — capture-only (D28).
 
@@ -101,8 +110,8 @@ export async function POST(
       await insertVersion({
         nodeId,
         operatorUserId: caller.userId, // a failed attempt still has a maker
-        paramsUsed: { role: role.key, promptId: shotComposePrompt.id, promptVersion: shotComposePrompt.version },
-        modelUsed: `openai:${shotComposePrompt.model}`,
+        paramsUsed: { role: role.key, promptId: spec.id, promptVersion: spec.version },
+        modelUsed: `openai:${spec.model}`,
         error: message,
       });
       return apiError(message, 500);

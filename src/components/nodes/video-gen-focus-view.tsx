@@ -38,8 +38,14 @@ import {
   defaultsForVideoModel,
   videoGenClientModelMap,
 } from "@/lib/video-gen/client-models";
+import { multishotCapabilityFor, multishotRestrictionReason, checkLadder } from "@/lib/nodes/multishot-models";
+import { totalOf, type MultishotCut } from "@/lib/nodes/multishot-cuts";
+import type { MultishotPlan } from "@/lib/nodes/multishot-plan";
 import { smartMergeVideoParams } from "@/lib/video-gen/params/merge";
+import { autoAssignImageRoles } from "@/lib/video-gen/assign-image-roles";
 import { paramsForRestore } from "@/lib/generations/version-params";
+import { deriveShotDuration } from "@/lib/nodes/derive-shot-duration";
+import type { ReelScript } from "@/lib/nodes/reel-script";
 import {
   areFramesAndRefsExclusive,
   buildConstraintState,
@@ -59,13 +65,32 @@ import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { useIdentity } from "@/hooks/use-identity";
 import { useNodeVersionUpdates } from "@/hooks/use-node-version-updates";
 import { InlineApprovalBar } from "./inline-approval-bar";
+import { ReviewAnnotationCanvas } from "@/components/review-annotations/review-annotation-canvas";
+import { AnnotationPin } from "@/components/review-annotations/annotation-pin";
+import { AnnotationNotePopover } from "@/components/review-annotations/annotation-note-popover";
+import {
+  AnnotationList,
+  formatTimecode,
+} from "@/components/review-annotations/annotation-list";
+import { useAnnotationDrafts } from "@/components/review-annotations/use-annotation-drafts";
+import {
+  DiscardAnnotationsDialog,
+  useDiscardAnnotationsConfirm,
+} from "@/components/review-annotations/discard-annotations-dialog";
+import { captureFrame, FrameCaptureError } from "@/components/review-annotations/use-frame-capture";
+import { groupByTimecode } from "@/lib/review-annotations/group";
+import { formatRelativeTime } from "@/lib/format/relative-time";
+import type { AnnotationHandle } from "@/components/review-annotations/review-annotation-canvas";
+import type { RegionBounds } from "@/lib/review-annotations/draft";
+import { MAX_ANNOTATIONS_PER_DECISION } from "@/lib/review-annotations/constants";
 import { ApprovalSkeleton } from "./approval-skeleton";
 import {
   setVersionApprovalAction,
   markVersionApprovalSeenAction,
 } from "@/lib/actions/approval";
-import type { ApprovalStatus } from "@/lib/approval";
+import { standingChangeRequest, type ApprovalStatus } from "@/lib/approval";
 import { useFlushAutosave } from "@/components/canvas/autosave-flush-context";
+import { useRailDisconnect } from "./use-rail-disconnect";
 import { useVideoGenStatus } from "@/hooks/use-video-gen-status";
 import {
   VideoGenVersionHistory,
@@ -74,7 +99,13 @@ import {
 import { VideoGenUsagePopover } from "./video-gen-usage-popover";
 import { VideoGenRequestPanel } from "./video-gen-request-panel";
 import { Skeleton } from "@/components/ui/skeleton";
-import { VideoGenParamsPanel } from "./video-gen-params-panel";
+import { VideoGenParamsPanel, hasParamsInGroup } from "./video-gen-params-panel";
+import {
+  Accordion,
+  AccordionItem,
+  AccordionTrigger,
+  AccordionContent,
+} from "@/components/ui/accordion";
 import { VideoGenConnectedSection } from "./video-gen-connected-section";
 import { RailItem } from "./focus-rail-item";
 import { AddConnection } from "./add-connection";
@@ -136,6 +167,102 @@ function applyDefaultImageRoles(
     }
   }
   return roles;
+}
+
+/**
+ * Everything a switch to `nextModelId` implies for this node's params and image roles.
+ *
+ * Extracted because there are now TWO ways the model changes: the operator picking one
+ * (`handleModelChange`) and the multishot lane coercing one (D232/D236 — the model is the
+ * connected PLAN's, not a choice). The coercion used to patch `modelId` alone, so an Omni node
+ * sitting at `resolution: "360p"` (Omni's draft tier) switched to Kling — which offers only
+ * 720p/1080p/4k — kept the 360p, the select rendered an unlisted value, Generate stayed enabled,
+ * and the request died as a 500 "No cost estimate available" AFTER a generation row had been
+ * inserted. Two call sites, one implementation (AGENTS.md).
+ *
+ * PURE: returns the next state, writes none of it. That is what lets the render-phase coercion
+ * call it — see the "adjust state during render" block below — without smuggling a side effect
+ * into a render.
+ */
+function migrateVideoModelState({
+  nextModelId,
+  currentParams,
+  currentRoles,
+  upstreamImages,
+  derivedDuration,
+}: {
+  nextModelId: string;
+  currentParams: Record<string, unknown>;
+  currentRoles: Record<string, ImageRole>;
+  upstreamImages: UpstreamImage[];
+  /**
+   * D216 — the upstream Shot's own beat total, or `null` when the derivation must not apply
+   * (duration already set on this node, or no Shot upstream). Gated by the CALLER, because
+   * "already set" is a prop question this function has no business knowing about.
+   */
+  derivedDuration: number | null;
+}): {
+  params: Record<string, unknown>;
+  imageRoles: Record<string, ImageRole>;
+  durationIsDerived: boolean;
+} {
+  const nextModel = videoGenClientModelMap[nextModelId];
+  const defaults = nextModel
+    ? smartMergeVideoParams(currentParams, nextModel)
+    : defaultsForVideoModel(nextModelId);
+
+  // D216 — a multi-beat shot's motion prompt is a timecode ladder; the request's duration should
+  // agree with it by default. Gated to the Omni provider — its duration param is the 3–10 slider
+  // this targets; applying a derived number to Veo/Kling's differently-shaped duration control
+  // would 400.
+  const durationIsDerived = nextModel?.provider === "gemini" && derivedDuration != null;
+  if (durationIsDerived && derivedDuration != null) defaults.duration = derivedDuration;
+
+  // Migrate image roles — remove roles the new model doesn't support
+  const nextInputs = nextModel?.imageInputs;
+  const roles = { ...currentRoles };
+  let startFrameAssigned = Object.values(roles).includes("start_frame");
+
+  if (nextInputs) {
+    for (const [imageId, role] of Object.entries(roles)) {
+      const invalid =
+        (role === "reference" && nextInputs.maxReferenceImages === 0) ||
+        (role === "end_frame" && !nextInputs.endFrame) ||
+        (role === "start_frame" && !nextInputs.startFrame);
+
+      if (invalid) {
+        if (!startFrameAssigned && nextInputs.startFrame) {
+          roles[imageId] = "start_frame";
+          startFrameAssigned = true;
+        } else {
+          delete roles[imageId];
+        }
+      }
+    }
+  }
+
+  const nextRules = nextModel?.rules;
+
+  // Capability migration above only knows startFrame/endFrame/maxReferenceImages, and the
+  // default fill happily adds references on top of existing frames — so reconcile against the
+  // new model's RULES before persisting, or the node is written in a state the API rejects.
+  const imageRoles = reconcileRolesWithRules(
+    nextRules,
+    nextInputs ? applyDefaultImageRoles(upstreamImages, nextInputs, roles) : roles,
+    defaults,
+  );
+
+  // Commit any constraint-locked values into params so they persist after the lock clears.
+  const nextConstraints = evaluateConstraints(
+    nextRules,
+    buildConstraintState(imageRoles, defaults),
+  );
+
+  return {
+    params: { ...defaults, ...nextConstraints.lockedParams },
+    imageRoles,
+    durationIsDerived,
+  };
 }
 
 type Props = {
@@ -370,6 +497,23 @@ export function VideoGenFocusView({
   const [promptNode, setPromptNode] = useState<UpstreamPromptNode | null>(null);
   const [versions, setVersions] = useState<VideoGenVersionSummary[]>([]);
   const [activeVersionId, setActiveVersionId] = useState<string | null>(null);
+  // ── D243 review annotations (video): paint on a PAUSED FRAME, not the player ──
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [videoPaused, setVideoPaused] = useState(true);
+  const [videoDurationMs, setVideoDurationMs] = useState(0);
+  const [reviewAnnotating, setReviewAnnotating] = useState(false);
+  const [capturedFrame, setCapturedFrame] = useState<{
+    base64: string;
+    timecodeMs: number;
+  } | null>(null);
+  const [pendingBounds, setPendingBounds] = useState<RegionBounds | null>(null);
+  const [openTimecode, setOpenTimecode] = useState<number | null>(null);
+  // D250: which stored annotation's note is open, shared by the list and the player
+  // overlay — the same contract the image view uses, so both surfaces behave alike.
+  const [openAnnotationSeq, setOpenAnnotationSeq] = useState<number | null>(null);
+  const reviewCanvasRef = useRef<AnnotationHandle>(null);
+  const reviewDrafts = useAnnotationDrafts();
+  const discardConfirm = useDiscardAnnotationsConfirm();
   // D29 approval flag — R10.1. video-gen-node.tsx has always rendered ApprovalBadge, but
   // this focus view had no control able to change it, so a video read "Pending" forever.
   const [approvalStatus, setApprovalStatus] = useState<ApprovalStatus>("pending");
@@ -378,6 +522,10 @@ export function VideoGenFocusView({
   const [approvedAt, setApprovedAt] = useState<string | null>(null);
   const [approvalSaving, setApprovalSaving] = useState(false);
   const [restoring, setRestoring] = useState(false);
+  // D216 — true while the `duration` param is showing a value derived from the upstream Shot's
+  // own beats rather than the model spec's flat default. Cleared the instant the operator edits
+  // duration directly, so their edit is never silently overwritten by a later re-derivation.
+  const [durationIsDerived, setDurationIsDerived] = useState(false);
   // The selected rail item: "video" (settings + preview), "history", "details", or a connected
   // node's id (middle column shows that node's role/detail view). Mirrors image-gen-focus-view.
   const focusStoreApi = useCanvasStoreApi();
@@ -431,7 +579,6 @@ export function VideoGenFocusView({
   // the per-render wrapper functions returned by useVideoGenStatus.
   const setVideoGenGenerating = useCanvasStore((s) => s.setVideoGenGenerating);
   const setVideoGenError = useCanvasStore((s) => s.setVideoGenError);
-  const disconnectNodes = useCanvasStore((s) => s.disconnectNodes);
   const editable = useCanvasEditable(); // D33: false when this session is read-only
   const { identity } = useIdentity();
   const flushAutosave = useFlushAutosave();
@@ -439,6 +586,122 @@ export function VideoGenFocusView({
   // Stable ref for onPatch — breaks the useCallback → useEffect dep cycle
   const onPatchRef = useRef(onPatch);
   useEffect(() => { onPatchRef.current = onPatch; });
+
+  // D236 — the grandparent Multishot node's `targetModel`, resolved from the canvas store the
+  // same way multishot-prompt-node.tsx does (edges filtered for `e.target === <id>`, then the
+  // source node of type "multishot"). `promptNode` here comes from the /upstream-images route
+  // (UpstreamPromptNode: `{ id, type, text }`) and does NOT carry the Multishot node's data, so
+  // this cannot be read off it directly — and it is client state already loaded in the store, so
+  // no fetch is added.
+  const upstreamMultishotTargetModel = useCanvasStore((s) => {
+    if (!promptNode || promptNode.type !== "multishot-prompt") return undefined;
+    const sourceIds = s.edges.filter((e) => e.target === promptNode.id).map((e) => e.source);
+    const multishotNode = s.nodes.find((n) => sourceIds.includes(n.id) && n.type === "multishot");
+    return (multishotNode?.data as { targetModel?: string } | undefined)?.targetModel;
+  });
+
+  // D236 — the same one-hop-further walk, for the cut ladder itself. video-generate/route.ts
+  // bills `totalOf(cuts)`, not this node's own `duration` param — a Kling node can sit at its
+  // default `duration: 5` while a 12s ladder is connected, and the route generates and bills the
+  // 12. The credit estimate below and the disabled-Generate check both need the ladder that will
+  // actually be billed/checked, not the (possibly stale) param.
+  const upstreamMultishotCuts = useCanvasStore((s) => {
+    if (!promptNode || promptNode.type !== "multishot-prompt") return undefined;
+    const sourceIds = s.edges.filter((e) => e.target === promptNode.id).map((e) => e.source);
+    const multishotNode = s.nodes.find((n) => sourceIds.includes(n.id) && n.type === "multishot");
+    return (multishotNode?.data as { cuts?: MultishotCut[] } | undefined)?.cuts;
+  });
+
+  // D236 — the model THE CONNECTED PLAN was written for, read off its own `targetModel` stamp.
+  // The multishot-prompt node's plan lives in the store as `data.parsed` (multishot-prompt-node.tsx
+  // reads it the same way), so this is client state already loaded — no fetch is added.
+  //
+  //   undefined — no plan on that node yet, so there is nothing written to misread
+  //   null       — a plan with no stamp, i.e. one written before the stamp existed: Gemini Omni
+  //   string     — the stamp itself
+  //
+  // Distinguishing the first two matters: with no plan, the node's own `targetModel` is the honest
+  // answer (it is what the next Generate will write with); with an unstamped plan it is NOT, and
+  // falling back to it is precisely the bug — see resolve-prompt.ts.
+  const connectedPlanTargetModel = useCanvasStore((s) => {
+    if (!promptNode || promptNode.type !== "multishot-prompt") return undefined;
+    const node = s.nodes.find((n) => n.id === promptNode.id);
+    const plan = (node?.data as { parsed?: MultishotPlan } | undefined)?.parsed;
+    if (!plan || typeof plan !== "object" || !Array.isArray(plan.beats)) return undefined;
+    return plan.targetModel ?? null;
+  });
+
+  // The one model id every multishot surface in this view reads: the picker's lock, its
+  // restriction sentence, and the ladder legality check. Derived ONCE so the three cannot disagree
+  // — and so all three say what the server's own guard (video-generate/route.ts) will say, since
+  // that guard also resolves the plan's stamp.
+  const isMultishotPromptConnected = promptNode?.type === "multishot-prompt";
+  const effectiveMultishotModel =
+    connectedPlanTargetModel !== undefined
+      ? connectedPlanTargetModel
+      : upstreamMultishotTargetModel;
+
+  // D232/D236 — belt and braces, mirroring canvas-store's onConnect coercion: a node whose stored
+  // modelId predates the connection would sit on a model the restricted picker no longer offers a
+  // chip for, and doGenerate reads local `modelId` state directly.
+  //
+  // The model is the one the connected PLAN was written for, not a constant — the beats carry
+  // that model's reference tokens and the ladder was built against its window.
+  //
+  // Local state: React's documented "adjust state during render" pattern rather than an effect —
+  // setState setters called in the render body, gated so they fire once per divergence and
+  // terminate immediately (coercing `modelId` flips the very condition being checked).
+  //
+  // PARAMS MIGRATE WITH THE MODEL, through the same `migrateVideoModelState` the operator's own
+  // model change runs. Patching `modelId` alone left the params behind: an Omni node at
+  // `resolution: "360p"` (Omni's draft tier) coerced to Kling — 720p/1080p/4k only — kept the
+  // 360p, rendered a select holding an unlisted value, left Generate enabled, and posted it. The
+  // route then rebuilt params from Kling's specs, took "360p" from the body, `computeVideoCost`
+  // returned null, and the request died as a 500 AFTER inserting a generation row.
+  const multishotTargetModel = isMultishotPromptConnected
+    ? multishotCapabilityFor(effectiveMultishotModel).id
+    : undefined;
+  if (
+    !loadingConnected &&
+    editable &&
+    multishotTargetModel !== undefined &&
+    modelId !== multishotTargetModel
+  ) {
+    const migrated = migrateVideoModelState({
+      nextModelId: multishotTargetModel,
+      currentParams: params,
+      currentRoles: imageRolesProp,
+      upstreamImages,
+      // Never derived on this lane: D216's derivation reads an upstream SHOT node's beats, and
+      // this lane's upstream is a Multishot node. The request's duration here is `totalOf(cuts)`,
+      // which video-generate/route.ts sets server-side whatever this param says.
+      derivedDuration: null,
+    });
+    setModelId(multishotTargetModel);
+    setParams(migrated.params);
+    setDurationIsDerived(false);
+  }
+
+  // Persisted state: mirrors the auto-assign-roles effect below it — an effect that calls only
+  // `onPatch` (a prop callback, not a local setState setter) is the established safe shape in
+  // this file. Fires once the render-phase fix above has already landed `modelId` AND `params` on
+  // the target, so it persists the migrated params rather than recomputing them here (one
+  // computation, one result — and no setState inside an effect).
+  //
+  // Roles are deliberately NOT patched here: `supportedImageRoles` / `effectiveImageRoles` below
+  // already drop roles the current model cannot take, on every render, and `doGenerate` posts
+  // those — so the coerced lane never sends a role the model rejects, and the existing
+  // auto-assign effect persists the filled set on its own.
+  useEffect(() => {
+    if (loadingConnected || !editable) return;
+    if (
+      multishotTargetModel !== undefined &&
+      modelId === multishotTargetModel &&
+      modelIdProp !== multishotTargetModel
+    ) {
+      onPatch({ modelId: multishotTargetModel, params });
+    }
+  }, [loadingConnected, editable, modelId, modelIdProp, onPatch, multishotTargetModel, params]);
 
   // ── Data fetching ──────────────────────────────────────────────────────────
 
@@ -501,10 +764,10 @@ export function VideoGenFocusView({
 
   // Unwire an input added by mistake. The role goes with the edge: read-time pruning already
   // keeps the tally honest, but leaving the entry behind grows a tail of ids in the stored
-  // imageRoles that point at nothing.
-  const handleDisconnect = useCallback(
-    async (sourceId: string) => {
-      disconnectNodes(sourceId, nodeId);
+  // imageRoles that point at nothing. Runs only after a REAL disconnect — an image that reaches
+  // this node through its prompt node has no edge here, and useRailDisconnect says so instead.
+  const onDisconnected = useCallback(
+    (sourceId: string) => {
       const nextRoles = Object.fromEntries(
         Object.entries(imageRolesProp).filter(([id]) => id !== sourceId),
       );
@@ -513,10 +776,11 @@ export function VideoGenFocusView({
       // and something the React compiler rejects.
       onPatch({ imageRoles: nextRoles });
       if (selected === sourceId) setSelected("video");
-      await persistThenRefresh();
+      void persistThenRefresh();
     },
-    [disconnectNodes, nodeId, imageRolesProp, onPatch, selected, persistThenRefresh],
+    [imageRolesProp, onPatch, selected, persistThenRefresh],
   );
+  const { removeFor } = useRailDisconnect(nodeId, onDisconnected);
 
   // Load data when focus view opens; also re-check generation status to clear
   // any stale isGenerating=true that may have been set while the sheet was closed.
@@ -587,64 +851,38 @@ export function VideoGenFocusView({
   // ── Handlers ───────────────────────────────────────────────────────────────
 
   function handleModelChange(nextModelId: string) {
+    // `paramsProp == null` is the one clean "not already set" signal this node has: every later
+    // patch (this one included) writes the WHOLE params object, so from the next render on
+    // `duration` reads as "set" whether it came from the operator or from this same derivation —
+    // smartMergeVideoParams then carries it forward untouched, which is exactly what keeps an
+    // operator's own edit from ever being overwritten.
+    const migrated = migrateVideoModelState({
+      nextModelId,
+      currentParams: params,
+      currentRoles: imageRolesProp,
+      upstreamImages,
+      derivedDuration: paramsProp == null ? derivedDuration : null,
+    });
+
     setModelId(nextModelId);
-    const nextModel = videoGenClientModelMap[nextModelId];
-    const defaults = nextModel
-      ? smartMergeVideoParams(params, nextModel)
-      : defaultsForVideoModel(nextModelId);
-
-    // Migrate image roles — remove roles the new model doesn't support
-    const nextInputs = videoGenClientModelMap[nextModelId]?.imageInputs;
-    const currentRoles = { ...imageRolesProp };
-    let startFrameAssigned =
-      Object.values(currentRoles).includes("start_frame");
-
-    if (nextInputs) {
-      for (const [imageId, role] of Object.entries(currentRoles)) {
-        const invalid =
-          (role === "reference" && nextInputs.maxReferenceImages === 0) ||
-          (role === "end_frame" && !nextInputs.endFrame) ||
-          (role === "start_frame" && !nextInputs.startFrame);
-
-        if (invalid) {
-          if (!startFrameAssigned && nextInputs.startFrame) {
-            currentRoles[imageId] = "start_frame";
-            startFrameAssigned = true;
-          } else {
-            delete currentRoles[imageId];
-          }
-        }
-      }
-    }
-
-    const nextRules = videoGenClientModelMap[nextModelId]?.rules;
-
-    // Capability migration above only knows startFrame/endFrame/maxReferenceImages, and the
-    // default fill happily adds references on top of existing frames — so reconcile against the
-    // new model's RULES before persisting, or the node is written in a state the API rejects.
-    const finalRoles = reconcileRolesWithRules(
-      nextRules,
-      nextInputs
-        ? applyDefaultImageRoles(upstreamImages, nextInputs, currentRoles)
-        : currentRoles,
-      defaults,
-    );
-
-    // Commit any constraint-locked values into params so they persist after the lock clears.
-    const nextConstraints = evaluateConstraints(
-      nextRules,
-      buildConstraintState(finalRoles, defaults),
-    );
-    const finalParams = { ...defaults, ...nextConstraints.lockedParams };
-
-    setParams(finalParams);
-    onPatch({ modelId: nextModelId, params: finalParams, imageRoles: finalRoles });
+    setDurationIsDerived(migrated.durationIsDerived);
+    setParams(migrated.params);
+    onPatch({
+      modelId: nextModelId,
+      params: migrated.params,
+      imageRoles: migrated.imageRoles,
+    });
   }
 
   function handleParamChange(name: string, value: unknown) {
     const updated = { ...params, [name]: value };
     setParams(updated);
     onPatch({ params: updated });
+    // D216 — the operator's own edit always wins: touching duration directly retires the
+    // derived-default label immediately, rather than leaving it captioning a value they chose.
+    if (name === "duration") {
+      setDurationIsDerived(false);
+    }
   }
 
   function handleRoleChange(imageId: string, newRole: ImageRole) {
@@ -722,7 +960,11 @@ export function VideoGenFocusView({
     // C0: whatever the model's rules forbid — button should be disabled, but guard anyway. This
     // used to be a hardcoded "Kling needs a start frame" check; D101 made that false for O1, which
     // generates from references alone, so the question is asked of the rules instead.
-    if (constraints.disableGenerate) return;
+    //
+    // D236 — `disableGenerate` also covers an illegal multishot ladder (checkLadder), not just
+    // the rules engine's `constraints.disableGenerate`. Same belt-and-braces reasoning: the
+    // button should already be disabled, guard anyway.
+    if (disableGenerate) return;
 
     // C2: images connected but none assigned (non-Kling providers)
     if (upstreamImages.length > 0 && Object.keys(effectiveImageRoles).length === 0) {
@@ -764,7 +1006,27 @@ export function VideoGenFocusView({
     if (!activeVersionId) return;
     setApprovalSaving(true);
     try {
-      await setVersionApprovalAction(activeVersionId, { status, note });
+      // D241/D242: the frame stills + painted regions ride along with the rejection
+      // they belong to, D248: bounds included so stored pins land on their regions.
+      const annotations =
+        status === "changes_requested" && reviewDrafts.drafts.length > 0
+          ? reviewDrafts.drafts
+          : undefined;
+      const result = await setVersionApprovalAction(activeVersionId, {
+        status,
+        note,
+        annotations,
+      });
+      // A refusal comes back as data so its message survives production builds (BUG-003).
+      // Drafts are kept, so fixing the problem and retrying is lossless.
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      reviewDrafts.clear();
+      setReviewAnnotating(false);
+      setCapturedFrame(null);
+      setPendingBounds(null);
       setApprovalStatus(status);
       setApprovalNote(note ?? "");
       // Push into the store so the on-canvas badge refreshes immediately — without this
@@ -814,6 +1076,9 @@ export function VideoGenFocusView({
       if (modelUsed && restoredParams) {
         setModelId(modelUsed);
         setParams(restoredParams);
+        // D216 — a restored version is an authoritative recorded snapshot, not a fresh
+        // derivation, so its duration is never labelled "derived from this shot".
+        setDurationIsDerived(false);
         onPatch({ parsed: output, modelId: modelUsed, params: restoredParams });
       } else {
         onPatch({ parsed: output });
@@ -850,6 +1115,36 @@ export function VideoGenFocusView({
   // yet", not "nothing connected", and pruning against it would blank every role for a frame
   // (and let a click in that window persist the blank).
   const connectedImageIds = new Set(upstreamImages.map((img) => img.id));
+
+  // An attached image IS an input: fill in a role for every connected image that has none, using
+  // the same rule the server applies. Persisted, not merely displayed — the constraint state below
+  // is computed from these roles, and a client that showed a default it never saved was exactly
+  // the divergence that let Generate run on a state the request would then reject.
+  useEffect(() => {
+    if (loadingConnected || upstreamImages.length === 0) return;
+    const filled = autoAssignImageRoles(
+      upstreamImages.map((img) => ({ nodeId: img.id, url: img.imageUrl, type: img.type })),
+      imageRolesProp,
+      // Both flags must match the server's (video-generate/route.ts) exactly. The comment above
+      // records why: a client that defaults differently from the server evaluates its constraints
+      // against roles the request will not use, and Generate then runs on a state the server
+      // rejects.
+      {
+        supportsStartFrame: imageInputs.startFrame,
+        supportsReferences: imageInputs.maxReferenceImages > 0,
+      },
+    );
+    if (Object.keys(filled).length !== Object.keys(imageRolesProp).length) {
+      onPatch({ imageRoles: filled });
+    }
+  }, [
+    loadingConnected,
+    upstreamImages,
+    imageRolesProp,
+    imageInputs.startFrame,
+    imageInputs.maxReferenceImages,
+    onPatch,
+  ]);
 
   // Also filter out roles that are invalid for the current model — handles the timing gap
   // between setModelId (local, immediate) and imageRolesProp update (from parent, async).
@@ -895,11 +1190,40 @@ export function VideoGenFocusView({
   // Pre-generation credit estimate. Reads effectiveParams, NOT params — for the same reason
   // doGenerate does. A rule can pin duration to 8s while `params.duration` still holds the 6 the
   // operator last picked, and estimating off the stale 6 would quote one price and bill another.
-  const durationSeconds = Number(effectiveParams.seconds ?? effectiveParams.duration ?? 0);
+  //
+  // D236 — the multishot lane is the ONE exception to "read effectiveParams": video-generate/
+  // route.ts overwrites `resolvedParams.duration` with `totalOf(cuts)` on that lane, so the
+  // node's own `duration` param is never what gets billed there. A Kling node can sit at its
+  // default `duration: 5` while a 12s ladder is connected; quoting off the param would repeat
+  // exactly the stale-price bug this comment already warns about, one lane over. Falls back to
+  // the param-based read when the ladder isn't available yet (e.g. still loading).
+  const durationSeconds =
+    isMultishotPromptConnected && upstreamMultishotCuts
+      ? totalOf(upstreamMultishotCuts)
+      : Number(effectiveParams.seconds ?? effectiveParams.duration ?? 0);
   const audioEnabled = isVideoAudioEnabled(effectiveParams.audio);
   const resolution = asResolutionString(effectiveParams.resolution);
   const videoCostEstimate = computeVideoCost(modelId, durationSeconds, audioEnabled, resolution);
   const estimatedCredits = videoCostEstimate ? usdToFinalCredits(videoCostEstimate.usd) : null;
+
+  // D236 — Video Gen's own disabled-Generate check for an illegal ladder. checkLadder's doc
+  // comment (multishot-models.ts) has always claimed its reason "is shown verbatim on ... Video
+  // Gen's disabled Generate", but there was no call site here: a 14s Kling ladder switched to
+  // Omni let the operator click Generate and pay for a 400 from the server backstop instead of
+  // seeing the button disabled. Reuses the cuts already read above; only evaluated on the
+  // multishot lane, so the non-multishot lane's constraints are untouched. `constraints`
+  // (evaluateConstraints, above) takes precedence when it already disables Generate, so the two
+  // checks don't fight over which reason wins.
+  const ladderCheck =
+    isMultishotPromptConnected && upstreamMultishotCuts
+      ? checkLadder(upstreamMultishotCuts, multishotCapabilityFor(effectiveMultishotModel))
+      : null;
+  const disableGenerate = constraints.disableGenerate || Boolean(ladderCheck && !ladderCheck.ok);
+  const disableGenerateReason = constraints.disableGenerate
+    ? constraints.disableGenerateReason
+    : ladderCheck && !ladderCheck.ok
+      ? ladderCheck.reason
+      : constraints.disableGenerateReason;
 
   // D95: the duration label the current combination actually yields — read off the model's own
   // param spec so it stays correct when a spec changes (e.g. O1's 5/10 select), but a rule-locked
@@ -929,6 +1253,36 @@ export function VideoGenFocusView({
   // focus views. Undefined until the versions fetch lands, or on a node that never generated.
   const activeVersion = versions.find((v) => v.id === activeVersionId);
 
+  // D244 read path: the standing change request on the active version and its stored
+  // frame annotations — derived from the versions list the history panel already has.
+  // Only a request still in force counts: the marker strip and the player overlay read
+  // `reviewAnnotations` directly, so an older request found in the log kept its pins on
+  // screen after approval (BUG-001).
+  const latestChangeRequest = standingChangeRequest(approvalStatus, activeVersion?.decisions);
+  const reviewAnnotations = latestChangeRequest?.annotations ?? [];
+  const showStoredAnnotations = reviewAnnotations.length > 0;
+  // The marker strip mirrors whichever set is live: your unsent drafts while composing,
+  // the sent ones otherwise. Native controls can't be overlaid deterministically, so the
+  // strip is its own row above the player.
+  const markerTimecodes = [
+    ...new Set(
+      (reviewAnnotating ? reviewDrafts.drafts : reviewAnnotations)
+        .map((a) => a.timecodeMs)
+        .filter((ms): ms is number => ms !== null),
+    ),
+  ].sort((a, b) => a - b);
+  const openGroup =
+    openTimecode === null
+      ? []
+      : reviewAnnotations.filter((a) => a.timecodeMs === openTimecode);
+
+  function seekTo(ms: number) {
+    const v = videoRef.current;
+    if (!v) return;
+    v.currentTime = ms / 1000;
+    v.pause();
+  }
+
   // ── Rail: connected items + selection (mirrors image-gen-focus-view) ─────────
   const connectedItems: { id: string; type: "prompt" | "image"; label: string }[] = [
     ...(promptNode ? [{ id: promptNode.id, type: "prompt" as const, label: "Motion prompt" }] : []),
@@ -946,6 +1300,26 @@ export function VideoGenFocusView({
   const selectedDetailItem = isNodeSelected
     ? connectedItems.find((c) => c.id === selected) ?? null
     : null;
+
+  // D216 — the upstream Shot's own script, walked up the graph, so `duration` can default to
+  // the sum of ITS beats rather than the model spec's flat number.
+  const upstreamShotScript = useCanvasStore((s) => {
+    const seen = new Set<string>();
+    const walk = (id: string, depth: number): ReelScript | null => {
+      if (depth > 2 || seen.has(id)) return null;
+      seen.add(id);
+      for (const e of s.edges.filter((e) => e.target === id)) {
+        const source = s.nodes.find((n) => n.id === e.source);
+        if (!source) continue;
+        if (source.type === "shot") return (source.data as { script?: ReelScript }).script ?? null;
+        const found = walk(e.source, depth + 1);
+        if (found) return found;
+      }
+      return null;
+    };
+    return walk(nodeId, 0);
+  });
+  const derivedDuration = deriveShotDuration(upstreamShotScript);
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -1040,6 +1414,7 @@ export function VideoGenFocusView({
             ) : (
               connectedItems.map((c) => {
                 const role = c.type === "image" ? effectiveImageRoles[c.id] : undefined;
+                const remove = editable ? removeFor(c.id, c.label) : null;
                 return (
                   <RailItem
                     key={c.id}
@@ -1067,10 +1442,9 @@ export function VideoGenFocusView({
                         </span>
                       ) : undefined
                     }
-                    onRemove={
-                      editable ? () => void handleDisconnect(c.id) : undefined
-                    }
-                    removeLabel={`Disconnect ${c.label}`}
+                    onRemove={remove?.onClick}
+                    removeLabel={remove?.label}
+                    removeKind={remove?.kind}
                   />
                 );
               })
@@ -1105,8 +1479,15 @@ export function VideoGenFocusView({
           {/* Detail pane: the middle column swaps with the rail selection; the output column on
               the right is ALWAYS visible so the operator can tune while watching the result. */}
           {/* No overflow-hidden: it would crop the raised column's left shadow.
-              The columns inside own their scrolling. */}
-          <div className="flex min-h-0 flex-1">
+              The columns inside own their scrolling.
+              min-w-0 HERE as well as on the middle column: that column's own min-w-0 only
+              governs how it sizes inside this row — this row's automatic minimum is still the
+              min-content width of everything in it, and a w-[54%] item contributes its CONTENT
+              to that, not 54%. The reference strip is a no-wrap run of w-40 tiles (its own
+              overflow-x-auto doesn't cap its min-content), so ten references made this row
+              ~1,700px wide; the body's overflow-hidden then clipped the video column off the
+              right edge, while 54% of the inflated row filled the screen. */}
+          <div className="flex min-h-0 min-w-0 flex-1">
             {/* Middle column */}
             {/* min-w-0: without it this flex item's automatic minimum size is its content's
                 min-content width, so one long unbreakable string inside any pane silently
@@ -1120,7 +1501,17 @@ export function VideoGenFocusView({
                   {/* Output settings share the model's card: resolution and duration are
                       properties OF the chosen model — its options, its locks — so a separate
                       "Output settings" heading split one decision across two places. */}
-                  <VideoGenModelPicker modelId={modelId} onModelChange={handleModelChange}>
+                  <VideoGenModelPicker
+                    modelId={modelId}
+                    onModelChange={handleModelChange}
+                    loading={loadingConnected}
+                    lockedToModelId={multishotTargetModel}
+                    restrictionReason={
+                      isMultishotPromptConnected
+                        ? multishotRestrictionReason(effectiveMultishotModel)
+                        : undefined
+                    }
+                  >
                     <VideoGenParamsPanel
                       modelId={modelId}
                       params={effectiveParams}
@@ -1129,6 +1520,55 @@ export function VideoGenFocusView({
                       lockedParamReasons={constraints.lockedParamReasons}
                       group="primary"
                     />
+                    {/* D216 — duration defaulted to the upstream shot's own total rather than the
+                        model spec's flat number; say so, and say where the number came from. Sits
+                        outside VideoGenParamsPanel (whose param rows carry no helper-text slot)
+                        rather than adding one there for a single param on a single model. Cleared
+                        the instant the operator edits duration themselves — see handleParamChange. */}
+                    {durationIsDerived && (
+                      <p className="mt-2 text-[0.7rem] text-muted-foreground">
+                        Derived from this shot ({String(effectiveParams.duration)}s)
+                      </p>
+                    )}
+
+                    {/* Advanced settings — restored (operator request 2026-09-09).
+                        The section was deleted in 7e1c643, which silently orphaned every param
+                        in the group: `audio` was still sent on every request and still priced
+                        into every estimate, while the operator had no control to set it, so a
+                        Kling clip could only ever come back silent. `hasParamsInGroup` was left
+                        behind in the panel with a doc comment saying it "drives showing the
+                        Advanced section" — this is the caller it was written for.
+
+                        Closed by default, and gated on the model actually having a visible
+                        advanced param: an empty disclosure is worse than none, and most models
+                        here have nothing in this group. Collapsed rather than promoted to
+                        primary because these are genuine fine-tunes next to resolution and
+                        duration — the same call the Multishot Prompt view's look block makes. */}
+                    {hasParamsInGroup(modelId, "advanced") && (
+                      <Accordion className="mt-4 border-t border-border pt-3">
+                        <AccordionItem value="advanced" className="border-none">
+                          <AccordionTrigger className="py-0 hover:no-underline">
+                            <span className="flex items-center gap-1.5">
+                              <SlidersHorizontal
+                                className="size-3.5 text-primary"
+                                strokeWidth={1.5}
+                              />
+                              <span className="text-eyebrow">Advanced</span>
+                            </span>
+                          </AccordionTrigger>
+                          <AccordionContent className="pt-3">
+                            <VideoGenParamsPanel
+                              modelId={modelId}
+                              params={effectiveParams}
+                              onParamChange={handleParamChange}
+                              lockedParams={constraints.lockedParams}
+                              lockedParamReasons={constraints.lockedParamReasons}
+                              group="advanced"
+                            />
+                          </AccordionContent>
+                        </AccordionItem>
+                      </Accordion>
+                    )}
                   </VideoGenModelPicker>
                   {(() => {
                     return (
@@ -1168,7 +1608,7 @@ export function VideoGenFocusView({
                           className="w-full"
                           onClick={handleGenerate}
                           disabled={
-                            isGenerating || constraints.disableGenerate || !editable
+                            isGenerating || disableGenerate || !editable
                           }
                         >
                           <Sparkles className="size-4" strokeWidth={1.5} />
@@ -1182,9 +1622,9 @@ export function VideoGenFocusView({
                           )}
                         </Button>
                       </TooltipTrigger>
-                      {constraints.disableGenerate && constraints.disableGenerateReason ? (
+                      {disableGenerate && disableGenerateReason ? (
                         <TooltipContent side="bottom">
-                          {constraints.disableGenerateReason}
+                          {disableGenerateReason}
                         </TooltipContent>
                       ) : null}
                     </Tooltip>
@@ -1257,17 +1697,81 @@ export function VideoGenFocusView({
                     {loadingVersions ? (
                       <ApprovalSkeleton />
                     ) : activeVersionId ? (
-                      <InlineApprovalBar
-                        status={approvalStatus}
-                        note={approvalNote}
-                        approvedByName={approvedByName}
-                        approvedAt={approvedAt}
-                        saving={approvalSaving}
-                        // R7.1/D160: not gated on `editable` — approval writes only to
-                        // node_versions, outside what the D33 lock serialises.
-                        canApprove={identity?.role === "senior"}
-                        onSet={saveApproval}
-                      />
+                      <div className="flex flex-col gap-3">
+                        <InlineApprovalBar
+                          status={approvalStatus}
+                          note={approvalNote}
+                          approvedByName={approvedByName}
+                          approvedAt={approvedAt}
+                          saving={approvalSaving}
+                          // R7.1/D160: not gated on `editable` — approval writes only to
+                          // node_versions, outside what the D33 lock serialises.
+                          canApprove={identity?.role === "senior"}
+                          onSet={saveApproval}
+                          annotationCount={reviewDrafts.drafts.length}
+                          annotating={reviewAnnotating}
+                          annotateLabel="Annotate a frame"
+                          onToggleAnnotate={
+                            videoUrl
+                              ? () => {
+                                  setReviewAnnotating((v) => !v);
+                                  setCapturedFrame(null);
+                                  setOpenTimecode(null);
+                                }
+                              : undefined
+                          }
+                          onConfirmDiscardDrafts={async () => {
+                            const ok = await discardConfirm.confirm(
+                              reviewDrafts.drafts.length,
+                            );
+                            if (ok) {
+                              reviewDrafts.clear();
+                              setReviewAnnotating(false);
+                              setCapturedFrame(null);
+                              setPendingBounds(null);
+                            }
+                            return ok;
+                          }}
+                        />
+                        <AnnotationList
+                          readOnly={false}
+                          groups={groupByTimecode(reviewDrafts.drafts)}
+                          onSeek={seekTo}
+                          onRemove={reviewDrafts.remove}
+                        />
+                        {/* What was sent, for both roles. A timecode chip seeks the
+                            player AND opens that frame's stored still. */}
+                        {showStoredAnnotations && (
+                          <AnnotationList
+                            readOnly
+                            groups={groupByTimecode(
+                              reviewAnnotations.map((a) => ({
+                                seq: a.seq,
+                                note: a.note,
+                                timecodeMs: a.timecodeMs,
+                              })),
+                            )}
+                            activeSeq={openAnnotationSeq}
+                            onSeek={(ms) => {
+                              seekTo(ms);
+                              setOpenTimecode(ms);
+                              setOpenAnnotationSeq(null);
+                            }}
+                            onSelect={(item) => {
+                              // Row click does the whole gesture: seek the player to the
+                              // frame the note is about, reveal that frame's regions, and
+                              // open this note. Toggling it off leaves the regions up.
+                              if (item.timecodeMs !== null) {
+                                seekTo(item.timecodeMs);
+                                setOpenTimecode(item.timecodeMs);
+                              }
+                              setOpenAnnotationSeq((cur) =>
+                                cur === item.seq ? null : item.seq,
+                              );
+                            }}
+                          />
+                        )}
+                      </div>
                     ) : (
                       <p className="text-sm text-muted-foreground">
                         Generate a video first to review and approve it.
@@ -1305,7 +1809,7 @@ export function VideoGenFocusView({
 
             {/* Right column — the video, always visible. Faintly sunk so the
                 settings column reads as raised against it. */}
-            <div className="flex min-h-0 flex-1 flex-col gap-3 bg-muted/20 px-6 py-5">
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 bg-muted/20 px-6 py-5">
               <div className="flex items-center gap-1.5">
                 <Clapperboard className="size-3.5 text-primary" strokeWidth={1.5} />
                 <span className="text-eyebrow">Video</span>
@@ -1331,21 +1835,246 @@ export function VideoGenFocusView({
                     </div>
                   </div>
                 )}
-                {mode === "result" && videoUrl && (
+                {mode === "result" && videoUrl && capturedFrame && (
+                  // The captured still IS the canvas base — painting on a moving picture
+                  // would annotate whichever frame happened to be showing at commit.
+                  <div className="flex h-full min-h-0 flex-col gap-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-medium text-muted-foreground">
+                        Frame at {formatTimecode(capturedFrame.timecodeMs)}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="xs"
+                        onClick={() => {
+                          reviewCanvasRef.current?.clear();
+                          setPendingBounds(null);
+                          setCapturedFrame(null);
+                        }}
+                      >
+                        <ArrowLeft className="size-3" strokeWidth={1.5} />
+                        Back to video
+                      </Button>
+                    </div>
+                    <div className="min-h-0 flex-1">
+                      <ReviewAnnotationCanvas
+                        ref={reviewCanvasRef}
+                        baseUrl={`data:image/png;base64,${capturedFrame.base64}`}
+                        alt={`Frame at ${formatTimecode(capturedFrame.timecodeMs)}`}
+                        hintText="Paint a region on this frame, then write its note."
+                        onStrokeEnd={(b) => setPendingBounds(b)}
+                        overlay={
+                          <>
+                            {reviewDrafts.drafts
+                              .filter(
+                                (d) => d.timecodeMs === capturedFrame.timecodeMs && d.bounds,
+                              )
+                              .map((d) => (
+                                <AnnotationPin
+                                  key={d.seq}
+                                  seq={d.seq}
+                                  x={d.bounds!.x + d.bounds!.w / 2}
+                                  y={d.bounds!.y + d.bounds!.h / 2}
+                                />
+                              ))}
+                            {pendingBounds && (
+                              <AnnotationNotePopover
+                                mode="compose"
+                                seq={reviewDrafts.drafts.length + 1}
+                                bounds={pendingBounds}
+                                onCommit={(noteText) => {
+                                  const overlay =
+                                    reviewCanvasRef.current?.toOverlayBase64();
+                                  if (overlay) {
+                                    reviewDrafts.commit(pendingBounds, overlay, noteText, {
+                                      kind: "video-frame",
+                                      timecodeMs: capturedFrame.timecodeMs,
+                                    });
+                                    reviewCanvasRef.current?.clear();
+                                    // BUG-003: that was the last one allowed — stop painting.
+                                    if (
+                                      reviewDrafts.drafts.length + 1 >=
+                                      MAX_ANNOTATIONS_PER_DECISION
+                                    ) {
+                                      setReviewAnnotating(false);
+                                    }
+                                  }
+                                  setPendingBounds(null);
+                                }}
+                                onCancel={() => {
+                                  reviewCanvasRef.current?.clear();
+                                  setPendingBounds(null);
+                                }}
+                              />
+                            )}
+                          </>
+                        }
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {mode === "result" && videoUrl && !capturedFrame && (
                   // Height-driven 9:16 frame, flush left — same treatment as the
                   // image-gen result: the border hugs the video instead of a
                   // width-forced box painting gutters inside it.
-                  <video
-                    src={videoUrl}
-                    controls
-                    className="aspect-[9/16] h-full max-w-full rounded-xl border border-border bg-muted/20"
-                  />
+                  <div className="flex h-full min-h-0 flex-col">
+                    {markerTimecodes.length > 0 && videoDurationMs > 0 && (
+                      <div className="relative mb-1 h-2 w-full rounded-full bg-muted">
+                        {markerTimecodes.map((ms, i) => (
+                          <span
+                            key={ms}
+                            className="absolute top-1/2 flex size-3.5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-primary text-[8px] font-bold text-primary-foreground"
+                            style={{
+                              left: `${Math.min(99, (ms / videoDurationMs) * 100)}%`,
+                            }}
+                          >
+                            {i + 1}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    <div className="relative min-h-0 w-fit max-w-full flex-1">
+                      <video
+                        // While annotating, the frame has to be readable back out of a
+                        // canvas — and GCS public objects send no CORS headers (see
+                        // api/image-proxy, D37 §8), so a bare crossOrigin load would fail
+                        // outright. Same-origin proxy ONLY in that mode: normal playback
+                        // keeps the direct URL and is untouched by this feature. The key
+                        // forces the remount that a crossOrigin change requires.
+                        key={reviewAnnotating ? "annotate" : "play"}
+                        ref={videoRef}
+                        src={
+                          reviewAnnotating
+                            ? `/api/image-proxy?url=${encodeURIComponent(videoUrl)}`
+                            : videoUrl
+                        }
+                        crossOrigin={reviewAnnotating ? "anonymous" : undefined}
+                        controls
+                        onPause={() => setVideoPaused(true)}
+                        onPlay={() => {
+                          setVideoPaused(false);
+                          setOpenTimecode(null);
+                          setOpenAnnotationSeq(null);
+                        }}
+                        onLoadedMetadata={(e) =>
+                          setVideoDurationMs(
+                            Number.isFinite(e.currentTarget.duration)
+                              ? e.currentTarget.duration * 1000
+                              : 0,
+                          )
+                        }
+                        className="aspect-[9/16] h-full max-w-full rounded-xl border border-border bg-muted/20"
+                      />
+
+                      {reviewAnnotating && videoPaused && (
+                        <div className="absolute right-2 top-2 z-20">
+                          <Button
+                            type="button"
+                            size="xs"
+                            onClick={() => {
+                              const v = videoRef.current;
+                              if (!v) return;
+                              try {
+                                setCapturedFrame(captureFrame(v));
+                                setPendingBounds(null);
+                              } catch (e) {
+                                toast.error(
+                                  e instanceof FrameCaptureError
+                                    ? e.message
+                                    : "This frame can't be captured.",
+                                );
+                              }
+                            }}
+                          >
+                            <PencilLine className="size-3" strokeWidth={1.5} />
+                            Annotate frame
+                          </Button>
+                        </div>
+                      )}
+
+                      {/* Read path (D249): the regions painted straight onto the PLAYER,
+                          which the chip has already seeked and paused at this timecode.
+                          No stored still — a full-res frame could not ride the action body
+                          in the first place, and the version's video is immutable, so the
+                          timecode always resolves to the same picture.
+
+                          pointer-events-none: this layer must not swallow clicks on the
+                          native controls underneath, so dismissal is the button below and
+                          pressing play (onPlay clears openTimecode). */}
+                      {openGroup.length > 0 && (
+                        <div className="pointer-events-none absolute inset-0 z-30 rounded-xl [&_button]:pointer-events-auto">
+                          {openGroup.map((a) =>
+                            a.maskUrl ? (
+                              /* eslint-disable-next-line @next/next/no-img-element */
+                              <img
+                                key={a.id}
+                                src={a.maskUrl}
+                                alt=""
+                                className="pointer-events-none absolute inset-0 size-full object-contain opacity-40"
+                              />
+                            ) : null,
+                          )}
+                          {openGroup.map((a, i) => (
+                            <AnnotationPin
+                              key={a.id}
+                              seq={a.seq}
+                              x={a.bounds ? a.bounds.x + a.bounds.w / 2 : 0.04}
+                              y={a.bounds ? a.bounds.y + a.bounds.h / 2 : 0.06 + i * 0.08}
+                              active={openAnnotationSeq === a.seq}
+                              onClick={() =>
+                                setOpenAnnotationSeq((cur) =>
+                                  cur === a.seq ? null : a.seq,
+                                )
+                              }
+                            />
+                          ))}
+                          {/* The note itself, on the frame it belongs to (D250). */}
+                          {openGroup
+                            .filter((a) => a.seq === openAnnotationSeq)
+                            .map((a, i) => (
+                              <AnnotationNotePopover
+                                key={a.id}
+                                mode="read"
+                                seq={a.seq}
+                                note={a.note}
+                                authorLine={
+                                  latestChangeRequest
+                                    ? `${latestChangeRequest.reviewerName ?? "Reviewer"} \u00b7 ${formatRelativeTime(latestChangeRequest.decidedAt)}`
+                                    : null
+                                }
+                                bounds={
+                                  a.bounds ?? { x: 0.08, y: 0.06 + i * 0.08, w: 0, h: 0 }
+                                }
+                              />
+                            ))}
+                          <div className="pointer-events-auto absolute bottom-12 left-1/2 -translate-x-1/2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="xs"
+                              className="bg-background/80 backdrop-blur-sm"
+                              onClick={() => {
+                                setOpenTimecode(null);
+                                setOpenAnnotationSeq(null);
+                              }}
+                            >
+                              Hide regions · {formatTimecode(openTimecode as number)}
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 )}
               </div>
 
             </div>
           </div>
         </div>
+
+        <DiscardAnnotationsDialog {...discardConfirm.dialogProps} />
 
         {/* ── Dialog hub — all dialogs driven by pendingDialog state ── */}
         <AlertDialog

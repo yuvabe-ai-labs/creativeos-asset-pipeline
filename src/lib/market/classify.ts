@@ -11,6 +11,11 @@ const VIDEO_EXTS = new Set(["mp4", "webm", "mov", "m4v"]);
 // as the segment before the id.
 const IG_PERMALINK = /^\/(?:[^/]+\/)?(p|reel|tv)\/([^/]+)/;
 
+// A pin permalink. Pinterest serves from regional hosts (in., uk., …) and every
+// pin already on the shelf uses one, so the host is matched by suffix — with the
+// leading dot, so "notpinterest.com" cannot slip through.
+const PIN_PERMALINK = /^\/pin\/([^/]+)/;
+
 function ext(pathname: string): string {
   return pathname.split(".").pop()?.toLowerCase() ?? "";
 }
@@ -31,6 +36,12 @@ export function classifyUrl(url: string): ReferenceKind {
     return "instagram";
   }
   if (host === "tiktok.com" || host.endsWith(".tiktok.com")) return "tiktok";
+  if (host === "pinterest.com" || host.endsWith(".pinterest.com")) {
+    // Only a /pin/<id> page is a reference; a board or profile is a plain link.
+    // i.pinimg.com is NOT matched here — an image URL falls through to the
+    // extension check below and stays `image`, because it already IS the media.
+    return PIN_PERMALINK.test(u.pathname) ? "pinterest" : "link";
+  }
 
   const e = ext(u.pathname);
   if (e === "gif") return "gif";

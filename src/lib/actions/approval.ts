@@ -10,6 +10,10 @@ import {
 } from "@/lib/approval";
 import { withAction } from "@/lib/actions/with-action";
 import { insertDecision } from "@/lib/db/decisions";
+import { randomUUID } from "crypto";
+import { validateAnnotations, type AnnotationPayload } from "@/lib/review-annotations/payload";
+import { uploadAnnotationAssets } from "@/lib/review-annotations/storage";
+import { insertAnnotations } from "@/lib/db/annotations";
 
 // D29/D166: set the approval flag on a SPECIFIC version (the caller passes the node's
 // active version id). Annotates an attempt — never a new attempt — so no new version
@@ -20,11 +24,24 @@ import { insertDecision } from "@/lib/db/decisions";
 // meant the server recorded whatever identity the browser claimed. A role check bolted
 // onto a caller-supplied identity is not enforcement — so the reviewer is resolved from
 // the session, and the parameter no longer exists to be spoofed (R2.1, D166).
+// BUG-003 — a refusal the reviewer must read is RETURNED, not thrown. Next.js replaces a
+// thrown Server Action's message with a generic "An error occurred in the Server Components
+// render" in production builds, so "At most 20 annotations per decision." never reached the
+// toast. Genuine faults (a failed upload, a DB error) still throw.
+export type ApprovalActionResult = { ok: true } | { ok: false; error: string };
+
 export async function setVersionApprovalAction(
   versionId: string,
-  input: { status: ApprovalStatus; note?: string | null },
-) {
-  return withAction("setVersionApprovalAction", async () => {
+  input: {
+    status: ApprovalStatus;
+    note?: string | null;
+    // D241/D242: region+note pairs, only with changes_requested. Validated and
+    // uploaded BEFORE any DB write — a failure aborts the whole action (D244).
+    annotations?: AnnotationPayload[];
+  },
+): Promise<ApprovalActionResult> {
+  return withAction("setVersionApprovalAction", async (): Promise<ApprovalActionResult> => {
+    const refuse = (error: string) => ({ ok: false as const, error });
     const caller = await resolveCallerContext();
 
     // R2.1/R2.2 — the role gate, against the caller's REAL org role. Checked before any
@@ -32,14 +49,23 @@ export async function setVersionApprovalAction(
     // hides the control from them, but that is a courtesy on top of this, never the
     // mechanism (R2.3).
     if (!canSetApproval(caller.orgRole)) {
-      throw new Error("You are not permitted to approve or reject work.");
+      return refuse("You are not permitted to approve or reject work.");
     }
 
     // R6.5 — enforced here, not merely disabled in the UI. A rejection with no
     // explanation is not useful to the maker it routes back to.
     const note = input.note?.trim() || null;
     if (requiresNote(input.status) && !note) {
-      throw new Error("A note is required when requesting changes.");
+      return refuse("A note is required when requesting changes.");
+    }
+
+    const annotations = input.annotations ?? [];
+    if (annotations.length > 0 && input.status !== "changes_requested") {
+      return refuse("Annotations can only be attached when you request changes.");
+    }
+    if (annotations.length > 0) {
+      const invalid = validateAnnotations(annotations);
+      if (invalid) return refuse(invalid);
     }
 
     const supabase = createServerSupabase();
@@ -49,12 +75,13 @@ export async function setVersionApprovalAction(
     // the withClient/withNode 404-not-403 convention in route-helpers.ts.
     const { data: version, error: readErr } = await supabase
       .from("node_versions")
-      .select("id, org_id")
+      .select("id, org_id, node_id")
       .eq("id", versionId)
       .maybeSingle();
     if (readErr) throw readErr;
-    if (!version || (version as { org_id: string | null }).org_id !== caller.orgId) {
-      throw new Error("Version not found.");
+    const versionRow = version as { org_id: string | null; node_id: string | null } | null;
+    if (!versionRow || versionRow.org_id !== caller.orgId) {
+      return refuse("Version not found.");
     }
 
     const at = new Date().toISOString();
@@ -64,6 +91,20 @@ export async function setVersionApprovalAction(
       at,
       note,
     });
+
+    // The decision id is pre-generated so asset paths can reference it (D244).
+    const decisionId = randomUUID();
+    let uploaded: { seq: number; maskPath: string }[] = [];
+    if (annotations.length > 0) {
+      if (!versionRow.node_id) return refuse("Version not found.");
+      // Assets land in GCS under the node they annotate, via the same lib/storage module
+      // every generated asset uses (D247) — not a separate Supabase bucket.
+      uploaded = await uploadAnnotationAssets(
+        versionRow.node_id,
+        decisionId,
+        annotations,
+      );
+    }
 
     const { error } = await supabase
       .from("node_versions")
@@ -75,19 +116,48 @@ export async function setVersionApprovalAction(
     // block or fail the approve/reject action the reviewer just performed — the status
     // update above already succeeded and is the source of truth; this is observability.
     if (input.status === "approved" || input.status === "changes_requested") {
-      try {
-        await insertDecision({
+      const writeDecision = () =>
+        insertDecision({
+          id: decisionId,
           versionId,
           orgId: caller.orgId,
-          status: input.status,
+          status: input.status as "approved" | "changes_requested",
           note,
           decidedByUserId: caller.userId,
           decidedAt: at,
         });
-      } catch (e) {
-        console.error("Failed to log approval decision history", e);
+      if (annotations.length > 0) {
+        // Strict: the annotation rows reference this decision id — losing the decision
+        // row would orphan the feedback the senior just wrote (D244).
+        await writeDecision();
+        await insertAnnotations(
+          annotations.map((a) => {
+            const stored = uploaded.find((u) => u.seq === a.seq);
+            if (!stored) throw new Error(`No uploaded asset for annotation ${a.seq}.`);
+            return {
+              decision_id: decisionId,
+              org_id: caller.orgId,
+              seq: a.seq,
+              kind: a.kind,
+              timecode_ms: a.timecodeMs,
+              // D249: no captured still is stored; the reader seeks to timecode_ms.
+              frame_path: null,
+              mask_path: stored.maskPath,
+              note: a.note.trim(),
+              bounds: a.bounds,
+            };
+          }),
+        );
+      } else {
+        // D173/D175: history logging stays best-effort when it is pure observability.
+        try {
+          await writeDecision();
+        } catch (e) {
+          console.error("Failed to log approval decision history", e);
+        }
       }
     }
+    return { ok: true };
   });
 }
 

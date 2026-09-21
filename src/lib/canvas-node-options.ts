@@ -13,6 +13,7 @@ export type AddNodeType =
   | "draw"
   | "image-gen"
   | "video-prompt"
+  | "multishot-prompt"
   | "video-gen"
   | "post";
 
@@ -32,6 +33,11 @@ export const ADD_NODE_OPTIONS: readonly AddNodeOption[] = [
   // "M" for Motion Prompt, freeing "V" for Video Gen and "G" for the Gallery drawer,
   // which owns bare "g" through its own document listener (D137).
   { type: "video-prompt", label: "Motion Prompt", mnemonic: "M" },
+  // "U" because "M" is already Motion Prompt — the next distinctive letter in "mUltishot".
+  // The Multishot NODE is deliberately absent from this list: like a Shot, it is created by
+  // fan-out from a Script, never by hand. Its prompt node is here because its sibling the
+  // Motion Prompt is, and a reference library can be connected to it directly.
+  { type: "multishot-prompt", label: "Multishot Prompt", mnemonic: "U" },
   { type: "video-gen", label: "Video Gen", mnemonic: "V" },
   { type: "post", label: "Post", mnemonic: "O" },
 ];

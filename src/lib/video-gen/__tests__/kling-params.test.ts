@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { kling30Params, klingO1Params, KLING_NEGATIVE_DEFAULT } from "../params/kling";
+import {
+  kling30Params,
+  kling30OmniParams,
+  klingO1Params,
+  KLING_NEGATIVE_DEFAULT,
+} from "../params/kling";
 import type { ParamSpec } from "@/lib/image-gen/types";
 
 function names(params: ParamSpec[]) {
@@ -74,7 +79,9 @@ describe("klingO1Params", () => {
     expect(p.group).toBe("primary");
     expect(p.visible).toBe(true);
     expect(p.constraints).toEqual({ type: "select", options: ["16:9", "9:16", "1:1"] });
-    expect(p.defaultValue).toBe("16:9");
+    // Vertical by default (operator request 2026-09-04): the work this tool makes is reels.
+    // Landscape stays one click away rather than being the thing you undo every time.
+    expect(p.defaultValue).toBe("9:16");
   });
 
   // 3.0 is first-frame-only, so Kling always derives the ratio from that image — an
@@ -143,18 +150,17 @@ describe("negative_prompt", () => {
   });
 
   // Stays out of the Advanced group: it is tuned per shot, so it must be visible without
-  // expanding anything. Audio / Multi-Shot are the only params left in Advanced — and note
-  // that no component renders that group at present (see the aspect_ratio case above).
+  // expanding anything. The hidden Multi-Shot is the only param left in Advanced.
   it("is a primary param, not hidden behind Advanced", () => {
     for (const params of [kling30Params, klingO1Params]) {
       expect(params.find((p) => p.name === "negative_prompt")!.group).toBe("primary");
     }
     expect(
       kling30Params.filter((p) => p.group === "advanced").map((p) => p.name).sort(),
-    ).toEqual(["audio", "multi_shot"]);
+    ).toEqual(["multi_shot"]);
     expect(
       klingO1Params.filter((p) => p.group === "advanced").map((p) => p.name).sort(),
-    ).toEqual(["audio", "multi_shot"]);
+    ).toEqual(["multi_shot"]);
   });
 
   it("sorts last within primary so the textarea renders below the paired controls", () => {
@@ -172,7 +178,44 @@ describe("negative_prompt", () => {
 describe("all model param sets", () => {
   it("are all visible", () => {
     for (const params of [kling30Params, klingO1Params]) {
-      expect(params.every((p) => p.visible)).toBe(true);
+      expect(params.filter((p) => p.name !== "multi_shot").every((p) => p.visible)).toBe(true);
     }
+  });
+});
+
+describe("multi_shot is hidden on both Kling models", () => {
+  // D218 — Omni is the only multi-shot model surfaced. Hidden rather than deleted: visible:false
+  // still sends the param with its default, so the request shape is byte-identical, every
+  // persisted node keeps resolving, and Kling 3.0's end-frame rule that pins multi_shot stays
+  // valid. Deleting it would make the route stop resolving a name saved nodes still carry.
+  it("keeps the param present, defaulted false, and invisible", () => {
+    for (const params of [kling30Params, klingO1Params]) {
+      const multiShot = params.find((p) => p.name === "multi_shot");
+      expect(multiShot).toBeDefined();
+      expect(multiShot!.visible).toBe(false);
+      expect(multiShot!.defaultValue).toBe(false);
+    }
+  });
+});
+
+// BUG-011 — whether a clip has sound is a primary decision, and on Kling it moves the price. In
+// the collapsed Advanced section it went unfound, and clips shipped silent by default.
+describe("Kling audio control", () => {
+  it.each([
+    ["Kling 3.0", kling30Params],
+    ["Kling 3.0 Omni", kling30OmniParams],
+    ["Kling O1", klingO1Params],
+  ])("%s shows audio with the primary controls, right after duration", (_, params) => {
+    const audio = params.find((p) => p.name === "audio")!;
+    const duration = params.find((p) => p.name === "duration")!;
+    expect(audio.group).toBe("primary");
+    expect(audio.visible).toBe(true);
+    expect(audio.defaultValue).toBe("native");
+    expect(audio.order).toBeGreaterThan(duration.order);
+    // Its cost is stated beside it, since switching it on is what moves the price.
+    expect(audio.description).toMatch(/saves|cost/i);
+    // Unique ordering within primary, so layout is deterministic.
+    const orders = params.filter((p) => p.group === "primary").map((p) => p.order);
+    expect(new Set(orders).size).toBe(orders.length);
   });
 });

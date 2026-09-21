@@ -1,4 +1,14 @@
 import type { HelpChapter } from "@/lib/help/types";
+import { PACK_CEILING_SECONDS } from "@/lib/nodes/group-shots";
+import {
+  MULTISHOT_MODEL_RANGES,
+  SINGLE_TAKE_PROMPT,
+  CUTS_IN_ONE_CLIP_PROMPT,
+  SHORT_HOOK_PROMPT,
+  LONG_REEL_PROMPT,
+  CLIP_PER_SHOT_PROMPT,
+  CLIPS_FOR_MODEL_PROMPTS,
+} from "@/lib/help/script-structure-samples";
 
 // Clips ship with the app from `public/`, not object storage. The original plan kept
 // them out of git to avoid permanent repo weight, and that was right for the source
@@ -74,6 +84,79 @@ export const HELP_CHAPTERS: HelpChapter[] = [
           "The generation tray tells you when the clip is ready.",
         ],
         clip: `${CLIPS}/create-a-reel/06-generate-clip.mp4`,
+      },
+    ],
+  },
+  {
+    // Text-first: nothing here is recorded. Each step is a scenario whose answer is a prompt to
+    // copy, so each carries a `sample` in place of a clip. There is no merge or split for shots on
+    // the canvas — the script is the only place a creator shapes them, which is why this exists.
+    slug: "structure-a-script",
+    question: "How do I structure a script?",
+    summary: `Each timecoded block in a script becomes one shot, and shots are grouped in order into clips of up to ${PACK_CEILING_SECONDS} seconds — there's no merge or split on the canvas. So a script of ${PACK_CEILING_SECONDS}s or less with no clip headings is ONE clip, and a clip that long only Seedance 2.5 can generate. To generate on Gemini Omni (up to 10s) or Kling (up to 15s), mark the clips in the script itself with "CLIP 1 (0–10 SEC)", "CLIP 2 …" headings sized to that model — the "Clips for …" scenarios below write them for you, and fan-out never merges across a heading. Pick the scenario that matches what you want, copy its prompt into ChatGPT or Claude with your script, and paste the result into the Script node.`,
+    stepStyle: "alternatives",
+    steps: [
+      {
+        title: `One unbroken take — up to ${PACK_CEILING_SECONDS}s`,
+        body: [
+          "For a single continuous shot: a walk-through, a product reveal, a oner.",
+          "The script is one block marked ONE CONTINUOUS TAKE (NO CUTS), with the action written as camera movement.",
+          "Leave Multishot off. In Video Gen, pick a model that reaches the length — Veo up to 8s, Gemini Omni 10s, Kling 3.0 15s, Seedance 2.5 30s — and set Duration to match.",
+        ],
+        clip: "",
+        sample: { label: "Prompt · one unbroken take", text: SINGLE_TAKE_PROMPT },
+      },
+      {
+        title: `Several cuts in one clip — up to ${PACK_CEILING_SECONDS}s`,
+        body: [
+          "For a montage, or a hook-to-CTA reel generated as one clip with cuts.",
+          `One block per shot, at least 1 second each, ${PACK_CEILING_SECONDS} seconds or less in total.`,
+          `Turn Multishot on. The node starts on a model that fits: ${MULTISHOT_MODEL_RANGES}.`,
+        ],
+        clip: "",
+        sample: { label: "Prompt · cuts in one clip", text: CUTS_IN_ONE_CLIP_PROMPT },
+      },
+      // BUG-008 — one scenario per multishot model. Without these every ≤30s script was one clip
+      // and therefore Seedance; there was no template that produced Omni- or Kling-sized clips.
+      ...CLIPS_FOR_MODEL_PROMPTS.map(({ model, text }) => ({
+        title: `Clips for ${model.label} — ${model.minTotalSeconds}–${model.maxTotalSeconds}s each`,
+        body: [
+          `When you want this reel generated on ${model.label} specifically${model.maxCuts !== null ? ` (up to ${model.maxCuts} shots per clip)` : ""}.`,
+          `The prompt keeps one script and marks its clips with "CLIP 1 (0–${model.maxTotalSeconds} SEC)", "CLIP 2 …" headings of ${model.maxTotalSeconds}s or less, broken at natural beats. Paste it into the Script node; Fan out makes one node per clip, and each starts on ${model.label} because it fits.`,
+          `Without those headings a script of up to ${PACK_CEILING_SECONDS}s is one clip, which only Seedance can generate — the headings are what get you onto ${model.label}.`,
+        ],
+        clip: "",
+        sample: { label: `Prompt · clips for ${model.label}`, text },
+      })),
+      {
+        title: "A short hook or teaser — up to 10s",
+        body: [
+          "For bumpers, story ads and quick hooks. The cheapest and fastest to generate.",
+          "One to three blocks, between 3 and 10 seconds in total.",
+          "Fits every multishot model, and as a single take Veo covers up to 8s and Gemini Omni up to 10s.",
+        ],
+        clip: "",
+        sample: { label: "Prompt · short hook", text: SHORT_HOOK_PROMPT },
+      },
+      {
+        title: `A reel longer than ${PACK_CEILING_SECONDS}s`,
+        body: [
+          `A new clip starts whenever the next shot would take the current one past ${PACK_CEILING_SECONDS}s, so a 45s reel becomes two clips.`,
+          "If you don't mind where it breaks, extract it as one script.",
+          `If the break must land between two scenes, split it into scripts of ${PACK_CEILING_SECONDS}s or less and give each its own Script node.`,
+        ],
+        clip: "",
+        sample: { label: "Prompt · split a long reel", text: LONG_REEL_PROMPT },
+      },
+      {
+        title: "Every shot as its own clip",
+        body: [
+          "For shot-by-shot approval, or a reel you'll cut together in an editor.",
+          `Shots in one script are grouped into shared clips of up to ${PACK_CEILING_SECONDS}s, so each clip needs its own Script node.`,
+          "The prompt splits the script into one mini-script per shot — paste each into its own Script node.",
+        ],
+        clip: "",
+        sample: { label: "Prompt · one clip per shot", text: CLIP_PER_SHOT_PROMPT },
       },
     ],
   },

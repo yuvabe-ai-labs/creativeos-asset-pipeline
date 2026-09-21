@@ -1,7 +1,9 @@
 # Signal-flavoured script parsing — design
 
 **Date:** 2026-08-31 · **Status:** approved in brainstorm, pending spec review
-**ADR:** D204 (refines D189, D186, D17-era parse-context pattern; D192 was avoided — D184–D200 are claimed on `feat/gemini-omni-provider`)
+**ADR:** D204 (refines D189, D186, D17-era parse-context pattern. D192–D200 were left free for
+`feat/gemini-omni-provider`; on merge that branch's decisions were renumbered to D205–D234
+instead, so the gap is now simply unused.)
 **Builds on:** Market Signals V1 (`2026-08-27-market-signals-v1-design.md`, D184–D191)
 
 ## 1. Context and goal

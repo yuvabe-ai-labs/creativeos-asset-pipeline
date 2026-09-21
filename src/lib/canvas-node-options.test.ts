@@ -7,13 +7,17 @@ import {
 } from "./canvas-node-options";
 
 describe("ADD_NODE_OPTIONS", () => {
-  it("has the 9 user-addable node types (kb excluded)", () => {
+  // `kb` is a canvas anchor, and `shot`/`multishot` are created by fanning out a Script —
+  // never by hand — so all three are deliberately absent. `multishot-prompt` IS here, because
+  // its sibling the Motion Prompt is and a reference library connects to it directly.
+  it("has the 10 user-addable node types (kb, shot and multishot excluded)", () => {
     const types = ADD_NODE_OPTIONS.map((o) => o.type).sort();
     expect(types).toEqual(
       [
         "draw",
         "file",
         "image-gen",
+        "multishot-prompt",
         "post",
         "prompt",
         "script",

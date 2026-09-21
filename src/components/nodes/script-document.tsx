@@ -3,13 +3,19 @@
 import type { ReactNode } from "react";
 import { Plus, X } from "lucide-react";
 import { looksLikeReelScript, type ReelScript } from "@/lib/nodes/reel-script";
+import { describeGenerations, type GroupingVersion } from "@/lib/nodes/group-shots";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { EditableField } from "./editable-field";
+import { GenerationBracket } from "./generation-bracket";
 
 type Path = (string | number)[];
 
 type ScriptDocumentProps = {
   script: ReelScript;
+  scriptNodeId: string;
+  groupModes?: Record<string, boolean>;
+  groupingVersion?: GroupingVersion;
   readOnly?: boolean;
   onChange?: (path: Path, value: unknown) => void;
   onAddItem?: (path: Path, item: unknown) => void;
@@ -20,14 +26,40 @@ type ScriptDocumentProps = {
 // column (stacking above the content on narrow widths), with a short purple
 // kicker rule as a sparing wayfinding accent. Hierarchy comes from this layout,
 // not from type size — per the design system.
-function Section({ label, children }: { label: string; children: ReactNode }) {
+// `featured` is for the visual script — the section the designer actually works
+// in, and the one every downstream shot, image and video prompt comes from. It
+// earns a heavier kicker, a card surface and one step up in body size; the other
+// sections keep taking their hierarchy from the layout alone.
+function Section({
+  label,
+  children,
+  featured = false,
+}: {
+  label: string;
+  children: ReactNode;
+  featured?: boolean;
+}) {
   return (
     <section className="grid gap-2.5 sm:grid-cols-[160px_1fr] sm:gap-x-10">
       <div className="self-start sm:sticky sm:top-2">
-        <div className="mb-2 h-0.5 w-6 rounded-full bg-primary/70" aria-hidden />
-        <span className="text-eyebrow">{label}</span>
+        <div
+          aria-hidden
+          className={cn(
+            "mb-2 rounded-full",
+            featured ? "h-1 w-10 bg-primary" : "h-0.5 w-6 bg-primary/70",
+          )}
+        />
+        <span className={cn("text-eyebrow", featured && "text-foreground")}>{label}</span>
       </div>
-      <div className="leading-relaxed">{children}</div>
+      <div
+        className={cn(
+          "leading-relaxed",
+          featured &&
+            "rounded-2xl border border-border/70 bg-card p-5 text-base shadow-card sm:p-6",
+        )}
+      >
+        {children}
+      </div>
     </section>
   );
 }
@@ -37,6 +69,9 @@ function Section({ label, children }: { label: string; children: ReactNode }) {
 // falls back to read-only raw JSON.
 export function ScriptDocument({
   script,
+  scriptNodeId,
+  groupModes,
+  groupingVersion,
   readOnly = false,
   onChange,
   onAddItem,
@@ -52,6 +87,7 @@ export function ScriptDocument({
 
   const set = (path: Path) => (v: string) => onChange?.(path, v);
   const shots = script.visual_script?.shots ?? [];
+  const generations = describeGenerations(shots, groupModes, groupingVersion ?? 1);
   const body = script.on_screen_text?.body ?? [];
   const qc = script.qc_notes ?? [];
   const links = script.product_links ?? [];
@@ -103,40 +139,51 @@ export function ScriptDocument({
         />
       </Section>
 
-      <Section label="Visual script">
-        <ol className="grid gap-3">
-          {shots.map((shot, i) => (
-            <li key={i} className="flex items-start gap-2">
-              <span className="pt-1 text-muted-foreground">{i + 1}.</span>
-              <div className="flex-1">
-                <EditableField
-                  value={shot.description ?? ""}
-                  onCommit={set(["visual_script", "shots", i, "description"])}
-                  readOnly={readOnly}
-                  multiline
-                  placeholder="Shot description…"
-                />
-                <EditableField
-                  value={shot.duration ?? ""}
-                  onCommit={set(["visual_script", "shots", i, "duration"])}
-                  readOnly={readOnly}
-                  placeholder="duration"
-                  className="text-xs text-muted-foreground"
-                />
-              </div>
-              {!readOnly && (
-                <Button
-                  variant="ghost"
-                  aria-label="Remove shot"
-                  onClick={() => onRemoveItem?.(["visual_script", "shots"], i)}
-                  className="nodrag h-auto rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-muted-foreground dark:hover:bg-muted"
-                >
-                  <X className="size-3.5" />
-                </Button>
-              )}
-            </li>
+      <Section label="Visual script" featured>
+        <div className="grid gap-5">
+          {generations.map((generation) => (
+            <GenerationBracket
+              key={generation.key}
+              generation={generation}
+              scriptNodeId={scriptNodeId}
+              readOnly={readOnly}
+            >
+              <ol className="grid gap-3">
+                {generation.shotIndexes.map((i) => (
+                  <li key={i} className="flex items-start gap-2">
+                    <span className="pt-1 text-muted-foreground">{i + 1}.</span>
+                    <div className="flex-1">
+                      <EditableField
+                        value={shots[i]?.description ?? ""}
+                        onCommit={set(["visual_script", "shots", i, "description"])}
+                        readOnly={readOnly}
+                        multiline
+                        placeholder="Shot description…"
+                      />
+                      <EditableField
+                        value={shots[i]?.duration ?? ""}
+                        onCommit={set(["visual_script", "shots", i, "duration"])}
+                        readOnly={readOnly}
+                        placeholder="duration"
+                        className="text-xs text-muted-foreground"
+                      />
+                    </div>
+                    {!readOnly && (
+                      <Button
+                        variant="ghost"
+                        aria-label="Remove shot"
+                        onClick={() => onRemoveItem?.(["visual_script", "shots"], i)}
+                        className="nodrag h-auto rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-muted-foreground dark:hover:bg-muted"
+                      >
+                        <X className="size-3.5" />
+                      </Button>
+                    )}
+                  </li>
+                ))}
+              </ol>
+            </GenerationBracket>
           ))}
-        </ol>
+        </div>
         {!readOnly && (
           <Button
             variant="ghost"

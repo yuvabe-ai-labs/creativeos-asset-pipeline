@@ -6,6 +6,8 @@ import type {
   VideoGenModelSpec,
 } from "../types";
 import { veoParams, veoLiteParams } from "../params/veo";
+import { fetchAsBase64 } from "./fetch-as-base64";
+import { avoidClause } from "./avoid-clause";
 
 const VEO_MODEL_IDS = {
   lite: "veo-3.1-lite-generate-preview",
@@ -17,19 +19,6 @@ function createVeoClient() {
   const apiKey = process.env.GOOGLE_GENAI_API_KEY;
   if (!apiKey) throw new Error("Missing GOOGLE_GENAI_API_KEY");
   return new GoogleGenAI({ apiKey });
-}
-
-// SDK Image_2 only accepts gcsUri or imageBytes — plain HTTPS URLs must be fetched first.
-async function fetchAsBase64(
-  url: string,
-): Promise<{ imageBytes: string; mimeType: string }> {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`Failed to fetch image (${res.status}): ${url}`);
-  const mimeType = (res.headers.get("content-type") ?? "image/jpeg")
-    .split(";")[0]
-    .trim();
-  const imageBytes = Buffer.from(await res.arrayBuffer()).toString("base64");
-  return { imageBytes, mimeType };
 }
 
 // Per-model quirks that change the request shape rather than its values.
@@ -56,9 +45,9 @@ type VeoModelCapabilities = {
  * leaves a dangling "Avoid:" on the request.
  */
 export function composeVeoPrompt(prompt: string, negativePrompt: string): string {
-  const avoid = negativePrompt.trim().replace(/[.\s]+$/, "");
+  const avoid = avoidClause(negativePrompt);
   if (!avoid) return prompt;
-  return `${prompt.trim()}\n\nAvoid: ${avoid}.`;
+  return `${prompt.trim()}\n\n${avoid}`;
 }
 
 // Pure config builder (D78) — scalar Veo GenerateVideosConfig fields, unit-testable.

@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import type { Edge } from "@xyflow/react";
 import type { AppNode } from "@/lib/canvas-nodes";
 import { placeNextTo, imageGenGate, GUIDED_CHAIN, planGuidedNext } from "./guided-flow";
+import { VALID_CONNECTIONS } from "./canvas-nodes";
 
 const node = (id: string, type: string, x = 0, y = 0, data: Record<string, unknown> = {}): AppNode =>
   ({ id, type, position: { x, y }, data } as AppNode);
@@ -43,6 +44,29 @@ describe("GUIDED_CHAIN", () => {
     expect(GUIDED_CHAIN["image-gen"].nextType).toBe("video-prompt");
     expect(GUIDED_CHAIN["video-prompt"].nextType).toBe("video-gen");
     expect(GUIDED_CHAIN["video-gen"]).toBeUndefined();
+  });
+
+  // The multishot lane had NO entry at all, so GuidedNextButton returned null on a Multishot
+  // node and the card's own chip silently rendered nothing — a whole lane with no guided step,
+  // and no test that would have noticed.
+  it("carries the multishot lane, which skips the still and the image prompt", () => {
+    expect(GUIDED_CHAIN.multishot.nextType).toBe("multishot-prompt");
+    expect(GUIDED_CHAIN["multishot-prompt"].nextType).toBe("video-gen");
+  });
+
+  // Every entry's nextType must be reachable per VALID_CONNECTIONS, or the guided button would
+  // create an edge the canvas then refuses.
+  it("only proposes connections the canvas actually allows", () => {
+    for (const [sourceType, step] of Object.entries(GUIDED_CHAIN)) {
+      expect(VALID_CONNECTIONS[sourceType] ?? []).toContain(step.nextType);
+    }
+  });
+
+  it("gives every entry both labels", () => {
+    for (const step of Object.values(GUIDED_CHAIN)) {
+      expect(step.createLabel.length).toBeGreaterThan(0);
+      expect(step.openLabel.length).toBeGreaterThan(0);
+    }
   });
 });
 

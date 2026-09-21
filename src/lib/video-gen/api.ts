@@ -17,6 +17,9 @@ export type UpstreamImage = {
 
 export type UpstreamPromptNode = {
   id: string;
+  /** "video-prompt" or "multishot-prompt" — the focus view restricts the model picker to Omni
+   * on the latter, a plain node-type check with no traversal of its own. */
+  type: string;
   text: string | null;
 };
 

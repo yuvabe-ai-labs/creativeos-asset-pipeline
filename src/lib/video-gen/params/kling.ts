@@ -52,16 +52,27 @@ function durationSelectParam(options: string[], defaultValue: string): ParamSpec
   };
 }
 
-function audioParam(options: string[], defaultValue: string): ParamSpec {
+// PRIMARY, beside Resolution and Duration (BUG-011). It was filed under Advanced as "a genuine
+// fine-tune", but whether a clip has sound is a primary decision — and in the collapsed section
+// nobody found it, so Kling clips shipped silent without anyone choosing that. Every other model
+// already shows its audio control with the main ones.
+//
+// Default is "native" (operator, 2026-09-18 — was "off"): the multishot writers put the script's
+// voiceover into the beats as spoken lines, and a clip generated silent by default throws that
+// away; Kling's own default is native too. The saving from turning it off is stated beside the
+// control (`description`), per model, from cost.ts: 3.0 charges +50% with audio (off saves a
+// third), 3.0 Omni +33% at 720p / +25% at 1080p (off saves a quarter / a fifth), O1 nothing.
+function audioParam(options: string[], defaultValue: string, description: string): ParamSpec {
   return {
     name: "audio",
     label: "Audio",
     component: "select",
-    group: "advanced",
-    order: 0,
+    group: "primary",
+    order: 2,
     visible: true,
     defaultValue,
     constraints: { type: "select", options },
+    description,
   };
 }
 
@@ -73,16 +84,16 @@ function audioParam(options: string[], defaultValue: string): ParamSpec {
 // PRIMARY, not advanced. It was filed under Advanced as "reachable, not prominent" — but the
 // Advanced accordion was deleted from the focus view in 7e1c643, so nothing renders that group
 // and the control was reachable from nowhere. Framing is also a shot decision the eye makes
-// alongside resolution and duration, not a fine-tune. Orders after Duration and before the
+// alongside resolution and duration, not a fine-tune. Orders after Audio and before the
 // full-width Negative Prompt.
 const aspectRatioParam: ParamSpec = {
   name: "aspect_ratio",
   label: "Aspect Ratio",
   component: "select",
   group: "primary",
-  order: 2,
+  order: 3,
   visible: true,
-  defaultValue: "16:9",
+  defaultValue: "9:16",
   constraints: { type: "select", options: ["16:9", "9:16", "1:1"] },
   description: "Used only when generating from references with no start frame.",
 };
@@ -93,9 +104,19 @@ const multiShotParam: ParamSpec = {
   component: "toggle",
   group: "advanced",
   order: 1,
-  visible: true,
-  // Off by default: multi-shot lets Kling cut between shots, which fights the single
-  // continuous moment a product clip wants. Opt in, don't opt out.
+  // D218 — hidden, not deleted. Gemini Omni is the only multi-shot model surfaced in the UI, so
+  // multishot means one thing in one place. Hiding rather than deleting keeps the request shape
+  // byte-identical, keeps every persisted node resolving, and leaves Kling 3.0's end-frame rule
+  // that pins multi_shot valid and untouched; deleting would make the route stop resolving a name
+  // saved nodes still carry.
+  //
+  // NOTE: hidden is not the same as off. The route reads the node's saved value and only falls
+  // back to this default, so a node an operator toggled ON before this change keeps sending
+  // multi_shot: true with no control left to clear it. Locking it off would need a rule, which is
+  // deliberately not done here — that would silently change what an existing node generates.
+  visible: false,
+  // Off by default: multi-shot lets Kling cut between shots, which fights the single continuous
+  // moment a product clip wants. Opt in, don't opt out.
   defaultValue: false,
   constraints: { type: "toggle" },
 };
@@ -109,13 +130,13 @@ export const KLING_NEGATIVE_DEFAULT =
 
 // PRIMARY, not advanced: it is tuned per shot often enough to belong on the always-visible
 // surface. Orders last within the group so the textarea renders full-width below the paired
-// Resolution + Duration row (and, on O1, below Aspect Ratio).
+// Resolution + Duration row (and, on the omni endpoints, below Aspect Ratio).
 const negativePromptParam: ParamSpec = {
   name: "negative_prompt",
   label: "Negative Prompt",
   component: "textarea",
   group: "primary",
-  order: 3,
+  order: 4,
   visible: true,
   defaultValue: KLING_NEGATIVE_DEFAULT,
   constraints: { type: "textarea", maxLength: 2500 },
@@ -124,8 +145,37 @@ const negativePromptParam: ParamSpec = {
 export const kling30Params: ParamSpec[] = [
   resolutionParam(["720p", "1080p", "4k"], "720p"),
   durationParam(3, 15, 5),
-  audioParam(["native", "off"], "off"),
+  audioParam(["native", "off"], "native", "Native sound matched to the visuals, spoken lines included. Off saves about 33% per second."),
   multiShotParam,
+  negativePromptParam,
+];
+
+// Kling 3.0 Omni — /omni-video/kling-3.0-omni. The flagship, and the Kling endpoint the
+// multishot lane targets: it parses a shot list out of the prompt as `shot n, m, words;` triples
+// (D238). Offers 4k, which O1 does not.
+//
+// duration is a SLIDER (a number), not O1's 5/10 chip select: the 3-15 range is continuous here,
+// and the multishot lane sets it from the cut ladder's own total, which is any integer in range.
+//
+// audio is native/off for the same reason O1's is — see the note below kling30Params: `original`
+// retains a reference video's own soundtrack, and buildKlingContents never sends one, so
+// offering it would be a choice between silence and silence.
+//
+// multi_shot is the shared hidden param, default false — a single continuous moment is what a
+// product clip wants, so it is opt-in. What differs on THIS endpoint is not the declared default
+// but the consequence of omitting the field: Kling defaults it to `true` server-side, so a
+// request that leaves it out silently gets cuts. buildOmniSettings (providers/kling.ts) therefore
+// always sends it explicitly, whichever way it is set.
+export const kling30OmniParams: ParamSpec[] = [
+  resolutionParam(["720p", "1080p", "4k"], "720p"),
+  durationParam(3, 15, 5),
+  audioParam(
+    ["native", "off"],
+    "native",
+    "Native sound matched to the visuals, spoken lines included. Off saves about 25% per second at 720p, 20% at 1080p.",
+  ),
+  multiShotParam,
+  aspectRatioParam,
   negativePromptParam,
 ];
 
@@ -137,7 +187,11 @@ export const kling30Params: ParamSpec[] = [
 export const klingO1Params: ParamSpec[] = [
   resolutionParam(["720p", "1080p"], "720p"),
   durationSelectParam(["5", "10"], "5"),
-  audioParam(["native", "off"], "off"),
+  audioParam(
+    ["native", "off"],
+    "native",
+    "Native sound matched to the visuals, spoken lines included. No extra cost on this model.",
+  ),
   multiShotParam,
   aspectRatioParam,
   negativePromptParam,

@@ -14,6 +14,7 @@ import {
 } from "@/lib/copilot/actions";
 import type { AppNode } from "@/lib/canvas-nodes";
 import type { ReelScript } from "@/lib/nodes/reel-script";
+import { CURRENT_GROUPING_VERSION } from "@/lib/nodes/group-shots";
 import { usePlaybookRunner } from "./use-playbook-runner";
 import { normalizeSlots } from "@/lib/copilot/runner";
 
@@ -132,7 +133,11 @@ export function useCopilotChat(canvasId: string) {
         ]);
         return;
       }
-      storeApi.getState().updateNodeData(target.id, { parsed: output });
+      // D257 — a parse adopts the current grouping rules. Written in the SAME call as `parsed`,
+      // because fanOutShots below reads the node synchronously and must pack under them.
+      storeApi
+        .getState()
+        .updateNodeData(target.id, { parsed: output, groupingVersion: CURRENT_GROUPING_VERSION });
       // Auto fan-out: parsing now drops the shots onto the canvas as Shot nodes wired from the
       // script. fanOutShots reads the `parsed` we just wrote — Zustand's set is synchronous, so
       // it sees it this tick — and self-guards on zero shots, so the count>0 check here only

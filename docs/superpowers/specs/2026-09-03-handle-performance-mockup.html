@@ -1,0 +1,375 @@
+<title>Market Performance Tab</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=Figtree:wght@400;500;600;700&display=swap">
+<style>
+  :root {
+    --bg: #fcfcfc;
+    --card: #ffffff;
+    --ink: #171717;
+    --ink-2: #525252;
+    --meta: #737373;
+    --faint: #a3a3a3;
+    --border: #e5e5e5;
+    --border-soft: #efefef;
+    --brand: #5829c7;
+    --brand-soft: rgba(88, 41, 199, 0.06);
+    --glow: rgba(255, 202, 45, 0.16);
+    --good: #15803d;
+    --good-bg: #f0fdf4;
+    --good-border: #bbf7d0;
+    --neutral-pill-bg: #fafafa;
+    --thumb-a: #eef0e9; --thumb-b: #f5f1ea; --thumb-c: #f0ece5;
+    --shadow-card: 0 1px 2px rgba(11,15,25,.08), 0 6px 14px rgba(11,15,25,.1);
+    --tab-rail: #f4f4f5;
+    --grid-line: #f0f0f0;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #101014;
+      --card: #17181d;
+      --ink: #f4f4f2;
+      --ink-2: #c8c8cc;
+      --meta: #9a9aa2;
+      --faint: #6e6e76;
+      --border: #2a2b31;
+      --border-soft: #232429;
+      --brand: #9d7bf0;
+      --brand-soft: rgba(157, 123, 240, 0.1);
+      --glow: rgba(255, 202, 45, 0.05);
+      --good: #4ade80;
+      --good-bg: rgba(34, 90, 54, 0.28);
+      --good-border: rgba(74, 222, 128, 0.32);
+      --neutral-pill-bg: #1d1e24;
+      --thumb-a: #23251f; --thumb-b: #26231d; --thumb-c: #24211c;
+      --shadow-card: 0 1px 2px rgba(0,0,0,.4), 0 6px 14px rgba(0,0,0,.35);
+      --tab-rail: #1c1d22;
+      --grid-line: #1f2026;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #101014;
+    --card: #17181d;
+    --ink: #f4f4f2;
+    --ink-2: #c8c8cc;
+    --meta: #9a9aa2;
+    --faint: #6e6e76;
+    --border: #2a2b31;
+    --border-soft: #232429;
+    --brand: #9d7bf0;
+    --brand-soft: rgba(157, 123, 240, 0.1);
+    --glow: rgba(255, 202, 45, 0.05);
+    --good: #4ade80;
+    --good-bg: rgba(34, 90, 54, 0.28);
+    --good-border: rgba(74, 222, 128, 0.32);
+    --neutral-pill-bg: #1d1e24;
+    --thumb-a: #23251f; --thumb-b: #26231d; --thumb-c: #24211c;
+    --shadow-card: 0 1px 2px rgba(0,0,0,.4), 0 6px 14px rgba(0,0,0,.35);
+    --tab-rail: #1c1d22;
+    --grid-line: #1f2026;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Figtree", "Segoe UI", system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .page { max-width: 1080px; margin: 0 auto; padding: 36px 40px 72px; position: relative; }
+  .page::before {
+    content: ""; position: absolute; top: -120px; left: 8%; width: 480px; height: 320px;
+    background: radial-gradient(ellipse at center, var(--glow), transparent 68%);
+    pointer-events: none;
+  }
+
+  /* ── Page shell (matches the live Market page) ─────────────────── */
+  .crumbs { display: flex; gap: 8px; font-size: 13px; color: var(--meta); }
+  .crumbs a { color: var(--meta); text-decoration: none; }
+  .crumbs .sep { color: var(--faint); }
+  .crumbs .here { color: var(--ink-2); }
+  h1 {
+    font-family: "Bricolage Grotesque", "Figtree", sans-serif;
+    font-size: 34px; font-weight: 700; letter-spacing: -0.01em;
+    margin: 14px 0 6px; text-wrap: balance;
+  }
+  .lede { color: var(--meta); font-size: 14px; margin: 0 0 22px; max-width: 62ch; }
+
+  .tabs { display: inline-flex; gap: 2px; background: var(--tab-rail); border-radius: 9px; padding: 3px; }
+  .tab {
+    border: 1px solid transparent; background: none; border-radius: 7px;
+    padding: 4px 13px; font: inherit; font-size: 13.5px; color: var(--meta);
+    cursor: pointer;
+  }
+  .tab:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
+  .tab.active { background: var(--card); border-color: var(--brand); color: var(--brand); }
+
+  /* ── Identity strip ────────────────────────────────────────────── */
+  .identity { display: flex; align-items: center; gap: 14px; margin: 30px 0 18px; }
+  .avatar {
+    width: 44px; height: 44px; border-radius: 50%; flex: none;
+    background: radial-gradient(circle at 30% 30%, #cdbef0, #5829c7);
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-family: "Bricolage Grotesque", sans-serif; font-weight: 600; font-size: 16px;
+  }
+  .identity .who b { font-size: 15px; font-weight: 600; }
+  .identity .who .sub { font-size: 12.5px; color: var(--meta); }
+  .identity .who .sub a { color: var(--meta); }
+
+  /* ── Stat cards ────────────────────────────────────────────────── */
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  @media (max-width: 720px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+  .stat {
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    box-shadow: var(--shadow-card); padding: 16px 18px 14px;
+  }
+  .eyebrow {
+    font-size: 10.5px; font-weight: 600; letter-spacing: 0.09em; text-transform: uppercase;
+    color: var(--meta);
+  }
+  .stat .num {
+    font-family: "Bricolage Grotesque", "Figtree", sans-serif;
+    font-size: 26px; font-weight: 600; margin-top: 4px;
+    font-variant-numeric: tabular-nums; display: flex; align-items: baseline; gap: 8px;
+  }
+  .stat .num .delta { font-family: "Figtree", sans-serif; font-size: 12.5px; font-weight: 600; color: var(--good); }
+  .stat .hint { font-size: 11.5px; color: var(--faint); margin-top: 2px; }
+
+  /* ── Chart card ────────────────────────────────────────────────── */
+  .chart-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    box-shadow: var(--shadow-card); padding: 18px 20px 10px; margin-top: 14px;
+  }
+  .chart-head { display: flex; justify-content: space-between; align-items: baseline; }
+  .chart-head .val { font-size: 13px; color: var(--meta); font-variant-numeric: tabular-nums; }
+  .chart-wrap { position: relative; }
+  .chart-wrap svg { display: block; width: 100%; height: auto; }
+  .tip {
+    position: absolute; pointer-events: none; opacity: 0; transition: opacity 120ms;
+    background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+    box-shadow: var(--shadow-card); padding: 5px 9px; font-size: 12px;
+    transform: translate(-50%, -110%); white-space: nowrap; font-variant-numeric: tabular-nums;
+  }
+  .tip b { font-weight: 600; }
+  .tip .d { color: var(--meta); }
+
+  /* ── Posts grid ────────────────────────────────────────────────── */
+  .section-head { display: flex; justify-content: space-between; align-items: baseline; margin: 30px 0 12px; }
+  .posts { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 14px; }
+  .post {
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    box-shadow: var(--shadow-card); overflow: hidden;
+    transition: transform 200ms cubic-bezier(0.22,1,0.36,1);
+  }
+  .post:hover { transform: translateY(-2px) scale(1.006); }
+  .thumb { height: 132px; position: relative; display: flex; align-items: center; justify-content: center; }
+  .thumb svg { width: 26px; height: 26px; stroke: var(--faint); fill: none; stroke-width: 1.5; }
+  .t-a { background: linear-gradient(140deg, var(--thumb-a), var(--thumb-b)); }
+  .t-b { background: linear-gradient(140deg, var(--thumb-b), var(--thumb-c)); }
+  .t-c { background: linear-gradient(140deg, var(--thumb-c), var(--thumb-a)); }
+  .kind {
+    position: absolute; top: 8px; right: 8px; font-size: 10px; font-weight: 600;
+    letter-spacing: 0.05em; text-transform: uppercase;
+    background: var(--card); color: var(--ink-2); border: 1px solid var(--border);
+    border-radius: 99px; padding: 2px 8px;
+  }
+  .post .body { padding: 11px 13px 12px; }
+  .metrics { display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 500; font-variant-numeric: tabular-nums; flex-wrap: wrap; }
+  .metrics .m { display: inline-flex; align-items: center; gap: 4px; color: var(--ink-2); }
+  .metrics svg { width: 13px; height: 13px; stroke: var(--meta); fill: none; stroke-width: 1.7; }
+  .pill { font-size: 10.5px; font-weight: 600; border-radius: 99px; padding: 2px 8px; }
+  .pill.up { color: var(--good); background: var(--good-bg); border: 1px solid var(--good-border); }
+  .pill.dn { color: var(--faint); background: var(--neutral-pill-bg); border: 1px solid var(--border); }
+  .pill.hid { color: var(--faint); background: var(--neutral-pill-bg); border: 1px dashed var(--border); }
+  .cap {
+    font-size: 12px; color: var(--meta); margin-top: 6px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .date { font-size: 11px; color: var(--faint); margin-top: 3px; }
+
+  /* ── Footer meta ───────────────────────────────────────────────── */
+  .meta-row { display: flex; justify-content: space-between; align-items: center; margin-top: 26px; color: var(--faint); font-size: 12px; }
+  .refresh {
+    font: inherit; font-weight: 600; color: var(--brand); background: none;
+    border: 1px dashed color-mix(in srgb, var(--brand) 40%, transparent);
+    border-radius: 99px; padding: 5px 14px; cursor: pointer;
+  }
+  .refresh:hover { background: var(--brand-soft); }
+  .refresh:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+  .note { font-size: 11.5px; color: var(--faint); margin-top: 34px; border-top: 1px solid var(--border-soft); padding-top: 12px; max-width: 70ch; }
+  @media (prefers-reduced-motion: reduce) { .post { transition: none; } }
+</style>
+
+<div class="page">
+  <nav class="crumbs"><a href="#">Clients</a><span class="sep">›</span><a href="#">Prakriti Sattva final</a><span class="sep">›</span><span class="here">Market</span></nav>
+  <h1>Market</h1>
+  <p class="lede">What is happening around Prakriti Sattva final — evidence the team collects, and the patterns designers distil from it.</p>
+
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" aria-selected="false">Direct</button>
+    <button class="tab" role="tab" aria-selected="false">Adjacent</button>
+    <button class="tab" role="tab" aria-selected="false">Signals</button>
+    <button class="tab active" role="tab" aria-selected="true">Performance</button>
+  </div>
+
+  <div class="identity">
+    <div class="avatar">PS</div>
+    <div class="who">
+      <b>@prakritisattva</b>
+      <div class="sub">Health/beauty · <a href="#">prakritisattva.etsy.com</a></div>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat">
+      <div class="eyebrow">Followers</div>
+      <div class="num">144 <span class="delta">+2 this week</span></div>
+      <div class="hint">62 following</div>
+    </div>
+    <div class="stat">
+      <div class="eyebrow">Engagement</div>
+      <div class="num">1.4%</div>
+      <div class="hint">median likes + comments ÷ followers</div>
+    </div>
+    <div class="stat">
+      <div class="eyebrow">Posts</div>
+      <div class="num">57</div>
+      <div class="hint">all time</div>
+    </div>
+    <div class="stat">
+      <div class="eyebrow">Cadence</div>
+      <div class="num">~1<span style="font-size:15px;color:var(--meta)">/mo</span></div>
+      <div class="hint">last 12 posts</div>
+    </div>
+  </div>
+
+  <div class="chart-card">
+    <div class="chart-head">
+      <span class="eyebrow">Followers · since tracking began</span>
+      <span class="val">Jun 10 → today</span>
+    </div>
+    <div class="chart-wrap" id="chartWrap">
+      <svg id="chart" viewBox="0 0 1000 190" role="img" aria-label="Follower count line chart, 136 on June 10 rising to 144 today"></svg>
+      <div class="tip" id="tip"><b id="tipVal"></b> <span class="d" id="tipDate"></span></div>
+    </div>
+  </div>
+
+  <div class="section-head">
+    <span class="eyebrow">Recent posts</span>
+    <span style="font-size:12px;color:var(--faint)">multiplier vs account median (2 likes)</span>
+  </div>
+
+  <div class="posts" id="posts"></div>
+
+  <div class="meta-row">
+    <span>Last updated today, 9:41 AM · next snapshot in 18h</span>
+    <button class="refresh">↻ Refresh now</button>
+  </div>
+
+  <p class="note">Design mockup for the Performance tab (Layout A). Account and post
+  numbers are the real 2026-09-03 Apify snapshot of @prakritisattva; the follower
+  history and weekly delta are illustrative — real history accrues one point per daily
+  snapshot once the pipeline runs. Thumbnails are placeholders: live tiles re-host each
+  post image to GCS.</p>
+</div>
+
+<script>
+  // ── Follower series (illustrative shape; endpoint = real 144) ──
+  const series = [
+    ["Jun 10", 136], ["Jun 17", 137], ["Jun 24", 137], ["Jul 1", 138],
+    ["Jul 8", 138], ["Jul 15", 139], ["Jul 22", 139], ["Jul 29", 140],
+    ["Aug 5", 140], ["Aug 12", 141], ["Aug 19", 141], ["Aug 26", 142],
+    ["Sep 2", 144], ["Sep 3", 144],
+  ];
+  const W = 1000, H = 190, PAD = { l: 40, r: 46, t: 16, b: 26 };
+  const lo = 134, hi = 146;
+  const x = (i) => PAD.l + (i / (series.length - 1)) * (W - PAD.l - PAD.r);
+  const y = (v) => PAD.t + (1 - (v - lo) / (hi - lo)) * (H - PAD.t - PAD.b);
+  const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+  function drawChart() {
+    const brand = css("--brand"), grid = css("--grid-line"), meta = css("--faint"), card = css("--card");
+    const pts = series.map((d, i) => [x(i), y(d[1])]);
+    const line = pts.map((p, i) => (i ? "L" : "M") + p[0].toFixed(1) + " " + p[1].toFixed(1)).join(" ");
+    const area = line + ` L ${pts[pts.length-1][0].toFixed(1)} ${H - PAD.b} L ${PAD.l} ${H - PAD.b} Z`;
+    let s = "";
+    for (const v of [136, 140, 144]) {
+      s += `<line x1="${PAD.l}" x2="${W - PAD.r}" y1="${y(v)}" y2="${y(v)}" stroke="${grid}" stroke-width="1"/>`;
+      s += `<text x="${PAD.l - 8}" y="${y(v) + 4}" text-anchor="end" font-size="11" fill="${meta}" style="font-variant-numeric:tabular-nums">${v}</text>`;
+    }
+    s += `<path d="${area}" fill="${brand}" opacity="0.06"/>`;
+    s += `<path d="${line}" fill="none" stroke="${brand}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+    const [ex, ey] = pts[pts.length - 1];
+    s += `<circle cx="${ex}" cy="${ey}" r="4.5" fill="${brand}" stroke="${card}" stroke-width="2"/>`;
+    s += `<text x="${ex + 9}" y="${ey + 4}" font-size="12" font-weight="600" fill="${brand}" style="font-variant-numeric:tabular-nums">144</text>`;
+    s += `<line id="xhair" y1="${PAD.t}" y2="${H - PAD.b}" stroke="${meta}" stroke-width="1" stroke-dasharray="3 3" opacity="0"/>`;
+    s += `<circle id="hoverDot" r="4" fill="${brand}" stroke="${card}" stroke-width="2" opacity="0"/>`;
+    document.getElementById("chart").innerHTML = s;
+  }
+  drawChart();
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", drawChart);
+
+  const wrap = document.getElementById("chartWrap"), tip = document.getElementById("tip");
+  wrap.addEventListener("mousemove", (e) => {
+    const r = wrap.getBoundingClientRect();
+    const mx = ((e.clientX - r.left) / r.width) * W;
+    const i = Math.max(0, Math.min(series.length - 1, Math.round(((mx - PAD.l) / (W - PAD.l - PAD.r)) * (series.length - 1))));
+    const px = (x(i) / W) * r.width, py = (y(series[i][1]) / H) * r.height;
+    document.getElementById("xhair").setAttribute("x1", x(i));
+    document.getElementById("xhair").setAttribute("x2", x(i));
+    document.getElementById("xhair").setAttribute("opacity", "1");
+    const dot = document.getElementById("hoverDot");
+    dot.setAttribute("cx", x(i)); dot.setAttribute("cy", y(series[i][1])); dot.setAttribute("opacity", "1");
+    document.getElementById("tipVal").textContent = series[i][1] + " followers";
+    document.getElementById("tipDate").textContent = series[i][0];
+    tip.style.left = px + "px"; tip.style.top = py + "px"; tip.style.opacity = "1";
+  });
+  wrap.addEventListener("mouseleave", () => {
+    tip.style.opacity = "0";
+    document.getElementById("xhair").setAttribute("opacity", "0");
+    document.getElementById("hoverDot").setAttribute("opacity", "0");
+  });
+
+  // ── Real posts from the 2026-09-03 snapshot (median likes = 2) ──
+  const IC = {
+    heart: '<svg viewBox="0 0 24 24"><path d="M19 14c1.5-1.5 2-3.2 2-5a5 5 0 0 0-9-3 5 5 0 0 0-9 3c0 1.8.5 3.5 2 5l7 7z"/></svg>',
+    comment: '<svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-8 8H4l2.5-3A8 8 0 1 1 21 12z"/></svg>',
+    play: '<svg viewBox="0 0 24 24"><path d="M6 4l14 8-14 8z"/></svg>',
+    leaf: '<svg viewBox="0 0 24 24"><path d="M12 21c6-2 9-7 9-15-8 0-13 3-15 9m6 6c-3 0-6-2-6-6m6 6c0-5 2-9 6-12"/></svg>',
+  };
+  const posts = [
+    { d: "Aug 28", k: "Reel", likes: 1, com: 0, views: 9, cap: "Honor the work your body does every day" },
+    { d: "Jun 18", k: "Carousel", likes: 3, com: 0, cap: "Elevate your hair care ritual with the pre-wash oil" },
+    { d: "Apr 28", k: "Image", likes: null, com: 0, cap: "✨ Honor Her Nature: Give the Gift of Glow" },
+    { d: "Apr 11", k: "Carousel", likes: 3, com: 0, cap: "🌹 Meet Shanti Rose Serum. Inspired by nature" },
+    { d: "Mar 11", k: "Image", likes: 7, com: 0, cap: "Excited to be at the CAAM Ayurveda Mela" },
+    { d: "Mar 9", k: "Image", likes: 2, com: 0, cap: "✨ Glow-up alert! Say goodbye to dullness" },
+    { d: "Jan 30", k: "Image", likes: 4, com: 0, cap: "Introducing the NEW Nourishing Hair Oil" },
+    { d: "Jan 20", k: "Image", likes: 0, com: 0, cap: "Is “heat” greying your hair? 🔥" },
+    { d: "Nov 20", k: "Carousel", likes: 0, com: 0, cap: "Join us THIS SATURDAY at the Lynbrook Holiday Market" },
+    { d: "Nov 14", k: "Carousel", likes: 2, com: 0, cap: "Unlock the power of nature with Prakriti Sattva" },
+    { d: "Sep 23", k: "Image", likes: 5, com: 1, cap: "🍂 Embracing Autumn: Your Ayurvedic Guide" },
+    { d: "Sep 19", k: "Carousel", likes: 2, com: 0, cap: "✨ Thrilled to announce our new Ayurvedic line" },
+  ];
+  const MEDIAN = 2;
+  function pill(p) {
+    if (p.likes === null) return '<span class="pill hid">likes hidden</span>';
+    if (p.likes === 0 || p.likes / MEDIAN < 1) return '<span class="pill dn">below median</span>';
+    const m = p.likes / MEDIAN;
+    if (m >= 2) return `<span class="pill up">${m % 1 ? m.toFixed(1) : m}× median</span>`;
+    return "";
+  }
+  document.getElementById("posts").innerHTML = posts.map((p, i) => `
+    <article class="post">
+      <div class="thumb t-${"abc"[i % 3]}">${p.k === "Reel" ? IC.play : IC.leaf}<span class="kind">${p.k}</span></div>
+      <div class="body">
+        <div class="metrics">
+          <span class="m">${IC.heart}${p.likes === null ? "—" : p.likes}</span>
+          <span class="m">${IC.comment}${p.com}</span>
+          ${p.views != null ? `<span class="m">${IC.play}${p.views}</span>` : ""}
+          ${pill(p)}
+        </div>
+        <div class="cap">${p.cap}</div>
+        <div class="date">${p.d}${i >= 8 ? ", 2025" : ", 2026"}</div>
+      </div>
+    </article>`).join("");
+</script>
