@@ -21,6 +21,7 @@ import {
   type FaceRow,
   type ScriptTile,
 } from "@/lib/ugc/board";
+import { starterRows } from "@/lib/ugc/starter";
 
 type Job = { rowId: string; tileId: string };
 
@@ -34,7 +35,7 @@ async function post<T>(url: string, body: unknown): Promise<T> {
 }
 
 export function useUgcBench() {
-  const [rows, setRows] = useState<FaceRow[]>(() => [newRow()]);
+  const [rows, setRows] = useState<FaceRow[]>(starterRows);
   const [settings, setSettings] = useState<BenchSettings>(DEFAULT_SETTINGS);
 
   // Async work reads the latest state through refs, not stale closures.
