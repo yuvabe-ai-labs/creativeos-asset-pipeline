@@ -245,4 +245,31 @@ export function voiceoverMappingIssue(script: ReelScript | null): string | null 
   return covered.filter((c) => !c).length > 2 ? VO_MAPPING_ISSUE : null;
 }
 
+/**
+ * D267 (Task 3) — one plain rendering of a cut's voiceover lines, for every model alike. Per-model
+ * dialects were cut: the operator's call was "render the text; it can be part of the shot."
+ *
+ * Each line renders as one sentence — `Voiceover: "<text>"` off-screen, `<speaker> says: "<text>"`
+ * on-screen — with a stated `delivery` in parentheses before the colon and a stated non-English
+ * `language` after it. `delivery` / `language` arrive as `""` from strict-mode structured outputs
+ * when the script states neither; that counts as absent, same as the key being missing.
+ *
+ * Pure and browser-safe, like the rest of this module — no I/O, no network, no date/random.
+ */
+export function renderVoiceover(lines: VoLine[] | undefined): string {
+  if (!lines || lines.length === 0) return "";
+  return lines
+    .filter((l) => l.text.trim().length > 0)
+    .map((l) => {
+      const speaker = l.speaker?.trim();
+      const delivery = l.delivery?.trim();
+      const language = l.language?.trim();
+      const who = !speaker || speaker === "narrator" ? "Voiceover" : `${speaker} says`;
+      const deliveryPart = delivery ? ` (${delivery})` : "";
+      const languagePart = language && language.toLowerCase() !== "english" ? ` in ${language}` : "";
+      return `${who}${deliveryPart}${languagePart}: "${l.text}"`;
+    })
+    .join(" ");
+}
+
 export type { VoLine };

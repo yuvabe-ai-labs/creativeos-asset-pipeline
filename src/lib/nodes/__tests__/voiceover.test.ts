@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { voiceoverMappingIssue } from "../voiceover";
+import { voiceoverMappingIssue, renderVoiceover } from "../voiceover";
 import type { ReelScript } from "../reel-script";
 
 const script = (voiceover: string, lines: string[][] | null): ReelScript => ({
@@ -200,5 +200,46 @@ describe("voiceoverMappingIssue", () => {
         script('"Hello there." [beat] "Welcome back."', [["Hello there."], ["Welcome back."]]),
       ),
     ).toBeNull();
+  });
+});
+
+describe("renderVoiceover", () => {
+  it("renders a narrator line", () => {
+    expect(renderVoiceover([{ text: "Part of my cooking now.", speaker: "narrator" }])).toBe(
+      'Voiceover: "Part of my cooking now."',
+    );
+  });
+
+  it("names an on-screen speaker", () => {
+    expect(renderVoiceover([{ text: "Try it.", speaker: "Riya" }])).toBe('Riya says: "Try it."');
+  });
+
+  it("puts a stated delivery in parentheses and a non-English language after it", () => {
+    expect(
+      renderVoiceover([
+        { text: "Sollunga.", speaker: "narrator", delivery: "warm, unhurried", language: "Tamil" },
+      ]),
+    ).toBe('Voiceover (warm, unhurried) in Tamil: "Sollunga."');
+  });
+
+  it("treats empty strings from strict-mode output as absent, and English as unremarkable", () => {
+    expect(
+      renderVoiceover([{ text: "Hello.", speaker: "narrator", delivery: "", language: "English" }]),
+    ).toBe('Voiceover: "Hello."');
+  });
+
+  it("joins several lines in order with one space", () => {
+    expect(
+      renderVoiceover([
+        { text: "First.", speaker: "narrator" },
+        { text: "Second.", speaker: "Riya" },
+      ]),
+    ).toBe('Voiceover: "First." Riya says: "Second."');
+  });
+
+  it("is empty for no lines, an empty list, or blank text", () => {
+    expect(renderVoiceover(undefined)).toBe("");
+    expect(renderVoiceover([])).toBe("");
+    expect(renderVoiceover([{ text: "   ", speaker: "narrator" }])).toBe("");
   });
 });
