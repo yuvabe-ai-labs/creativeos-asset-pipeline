@@ -35,6 +35,18 @@ generates a new face there. Old face and its videos stay for comparison.
 
 **Run all** runs every draft tile whose row has a face, at most 3 Seedance tasks at a time.
 
+**Starter board** (added after the first look): the page opens pre-filled from the CHUPPS
+"Boring Sliders" brief — two creators (female / male, 18–25) × the same two 5s hook beats —
+so a first session is just *Generate face* ×2 → *Run all (4)*. Rows and tiles added later
+start blank. Source: `src/lib/ugc/starter.ts`.
+
+**Activity log** (added after the first look): every call is recorded on the page — time,
+"Face N · Script M" position, HTTP status, duration — with errors in red, the raw
+request/response one click away, and *Copy log* for bug reports. In-progress polls are not
+logged, only failures and the final result. Failed ModelArk calls are also printed to the
+server terminal (`[ugc] …`, never the key). An expired login is reported as such rather
+than as a JSON parse failure.
+
 ## How it works
 
 - Browser orchestrates and polls (every 5s). No DB, no Trigger.dev — so it works on localhost
