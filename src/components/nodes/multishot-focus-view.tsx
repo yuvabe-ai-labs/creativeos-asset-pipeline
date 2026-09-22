@@ -195,21 +195,31 @@ export function MultishotFocusView({
                 the order and the relative lengths read at a glance; stacked rows made a six-cut
                 clip look like a form to fill in.
 
-                Every card is the SAME height, whatever its text — a strip whose cards each
-                stretched to their own content had the sliders landing at six different heights,
-                which is the one thing the layout exists to let you compare. Longer text scrolls
-                inside its card, and the scrollbar is left visible on purpose: it is the only
-                signal that a card is holding more than it shows. */}
+                Every card in a row is the SAME height, whatever its text — a strip whose cards
+                each sized to their own content had the sliders landing at six different heights,
+                which is the one thing the layout exists to let you compare. That equality comes
+                from the grid row stretching them, NOT from a fixed height: a fixed one turned a
+                second spoken line into two duelling scrollbars and a clipped sentence. Only a very
+                long description scrolls, and its scrollbar is left visible on purpose — it is the
+                only signal that a card is holding more than it shows. */}
             <ol className="grid grid-cols-[repeat(auto-fit,minmax(272px,1fr))] gap-x-4 gap-y-5">
               {cuts.map((cut, i) => (
                 <li key={cut.id} className="flex min-w-0 flex-col gap-2">
-                  <div className="flex h-56 flex-col gap-1.5 rounded-xl border border-border bg-card p-3.5 shadow-card">
+                  {/* No fixed height. The grid row already stretches every card to the tallest in
+                      its row, so the sliders line up without one — and a fixed height is what
+                      broke the moment a shot got a second spoken line: the description and the
+                      lane fought over 224px, each grew a scrollbar, the prose clipped mid-sentence
+                      and the Add-line chip was pushed out of the card. The card grows with its
+                      content; only a very long description scrolls, and it does so within a bound
+                      that keeps a row from running away. */}
+                  <div className="flex min-h-[9rem] flex-1 flex-col gap-1.5 rounded-xl border border-border bg-card p-3.5 shadow-card">
                     <span className="text-eyebrow shrink-0 text-muted-foreground">
                       Shot {i + 1}
                     </span>
                     {/* min-h-0 is load-bearing: without it this flex child refuses to shrink
-                        below its content and the card grows instead of scrolling. */}
-                    <div className="min-h-0 flex-1 overflow-y-auto pr-0.5">
+                        below its content and the card grows instead of scrolling. max-h bounds a
+                        long description so one wordy shot cannot stretch every card in its row. */}
+                    <div className="min-h-0 max-h-44 flex-1 overflow-y-auto pr-0.5">
                       <EditableField
                         value={cut.text}
                         onCommit={(text) =>
@@ -234,10 +244,9 @@ export function MultishotFocusView({
                         shot, and it was reachable only by scrolling a 176px box that gave no sign
                         there was anything below the prose.
 
-                        The lane is `shrink-0`, so the description gives up height for it instead
-                        of the line being pushed out of view, and it scrolls on its own only when a
-                        shot carries several lines. A silent shot still shows the Add-line chip, so
-                        the lane never collapses into an invisible strip. */}
+                        The lane is `shrink-0` and never scrolls: it grows with its lines and the
+                        card grows with it. A silent shot still shows the Add-line chip, so the
+                        lane never collapses into an invisible strip. */}
                     {/* Under the read-only lock a silent shot has nothing to put in the lane, and
                         a heading over an empty space reads as a loading state. */}
                     {(!isReadOnly || (cut.voiceover?.length ?? 0) > 0) && (
@@ -248,7 +257,10 @@ export function MultishotFocusView({
                         <span className="text-eyebrow shrink-0 text-muted-foreground">
                           Voiceover
                         </span>
-                        <div className="mt-1 max-h-24 min-h-0 overflow-y-auto">
+                        {/* No scroller of its own: every line has to stay reachable, and the
+                            Add-line chip below them is the one control that must never be the
+                            thing that gets clipped. The lane grows; the row grows with it. */}
+                        <div className="mt-1">
                           <VoLinesEditor
                             lines={cut.voiceover}
                             readOnly={isReadOnly}
