@@ -1,6 +1,6 @@
 # Parse the script as written — scenes, seconds and voiceover
 
-**Status:** approved in brainstorm 2026-09-23 · **ADR:** D276 (to be appended on implementation)
+**Status:** approved in brainstorm 2026-09-23 · **ADR:** D277 (to be appended on implementation)
 
 ## 1. Problem
 
