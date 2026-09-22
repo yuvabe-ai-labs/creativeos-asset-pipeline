@@ -82,13 +82,15 @@ import { groupByTimecode } from "@/lib/review-annotations/group";
 import { formatRelativeTime } from "@/lib/format/relative-time";
 import type { AnnotationHandle } from "@/components/review-annotations/review-annotation-canvas";
 import type { RegionBounds } from "@/lib/review-annotations/draft";
+import { MAX_ANNOTATIONS_PER_DECISION } from "@/lib/review-annotations/constants";
 import { ApprovalSkeleton } from "./approval-skeleton";
 import {
   setVersionApprovalAction,
   markVersionApprovalSeenAction,
 } from "@/lib/actions/approval";
-import type { ApprovalStatus } from "@/lib/approval";
+import { standingChangeRequest, type ApprovalStatus } from "@/lib/approval";
 import { useFlushAutosave } from "@/components/canvas/autosave-flush-context";
+import { useRailDisconnect } from "./use-rail-disconnect";
 import { useVideoGenStatus } from "@/hooks/use-video-gen-status";
 import {
   VideoGenVersionHistory,
@@ -577,7 +579,6 @@ export function VideoGenFocusView({
   // the per-render wrapper functions returned by useVideoGenStatus.
   const setVideoGenGenerating = useCanvasStore((s) => s.setVideoGenGenerating);
   const setVideoGenError = useCanvasStore((s) => s.setVideoGenError);
-  const disconnectNodes = useCanvasStore((s) => s.disconnectNodes);
   const editable = useCanvasEditable(); // D33: false when this session is read-only
   const { identity } = useIdentity();
   const flushAutosave = useFlushAutosave();
@@ -763,10 +764,10 @@ export function VideoGenFocusView({
 
   // Unwire an input added by mistake. The role goes with the edge: read-time pruning already
   // keeps the tally honest, but leaving the entry behind grows a tail of ids in the stored
-  // imageRoles that point at nothing.
-  const handleDisconnect = useCallback(
-    async (sourceId: string) => {
-      disconnectNodes(sourceId, nodeId);
+  // imageRoles that point at nothing. Runs only after a REAL disconnect — an image that reaches
+  // this node through its prompt node has no edge here, and useRailDisconnect says so instead.
+  const onDisconnected = useCallback(
+    (sourceId: string) => {
       const nextRoles = Object.fromEntries(
         Object.entries(imageRolesProp).filter(([id]) => id !== sourceId),
       );
@@ -775,10 +776,11 @@ export function VideoGenFocusView({
       // and something the React compiler rejects.
       onPatch({ imageRoles: nextRoles });
       if (selected === sourceId) setSelected("video");
-      await persistThenRefresh();
+      void persistThenRefresh();
     },
-    [disconnectNodes, nodeId, imageRolesProp, onPatch, selected, persistThenRefresh],
+    [imageRolesProp, onPatch, selected, persistThenRefresh],
   );
+  const { removeFor } = useRailDisconnect(nodeId, onDisconnected);
 
   // Load data when focus view opens; also re-check generation status to clear
   // any stale isGenerating=true that may have been set while the sheet was closed.
@@ -1010,7 +1012,17 @@ export function VideoGenFocusView({
         status === "changes_requested" && reviewDrafts.drafts.length > 0
           ? reviewDrafts.drafts
           : undefined;
-      await setVersionApprovalAction(activeVersionId, { status, note, annotations });
+      const result = await setVersionApprovalAction(activeVersionId, {
+        status,
+        note,
+        annotations,
+      });
+      // A refusal comes back as data so its message survives production builds (BUG-003).
+      // Drafts are kept, so fixing the problem and retrying is lossless.
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
       reviewDrafts.clear();
       setReviewAnnotating(false);
       setCapturedFrame(null);
@@ -1125,7 +1137,14 @@ export function VideoGenFocusView({
     if (Object.keys(filled).length !== Object.keys(imageRolesProp).length) {
       onPatch({ imageRoles: filled });
     }
-  }, [loadingConnected, upstreamImages, imageRolesProp, imageInputs.startFrame, onPatch]);
+  }, [
+    loadingConnected,
+    upstreamImages,
+    imageRolesProp,
+    imageInputs.startFrame,
+    imageInputs.maxReferenceImages,
+    onPatch,
+  ]);
 
   // Also filter out roles that are invalid for the current model — handles the timing gap
   // between setModelId (local, immediate) and imageRolesProp update (from parent, async).
@@ -1236,11 +1255,12 @@ export function VideoGenFocusView({
 
   // D244 read path: the standing change request on the active version and its stored
   // frame annotations — derived from the versions list the history panel already has.
-  const latestChangeRequest =
-    activeVersion?.decisions?.find((d) => d.status === "changes_requested") ?? null;
+  // Only a request still in force counts: the marker strip and the player overlay read
+  // `reviewAnnotations` directly, so an older request found in the log kept its pins on
+  // screen after approval (BUG-001).
+  const latestChangeRequest = standingChangeRequest(approvalStatus, activeVersion?.decisions);
   const reviewAnnotations = latestChangeRequest?.annotations ?? [];
-  const showStoredAnnotations =
-    approvalStatus === "changes_requested" && reviewAnnotations.length > 0;
+  const showStoredAnnotations = reviewAnnotations.length > 0;
   // The marker strip mirrors whichever set is live: your unsent drafts while composing,
   // the sent ones otherwise. Native controls can't be overlaid deterministically, so the
   // strip is its own row above the player.
@@ -1394,6 +1414,7 @@ export function VideoGenFocusView({
             ) : (
               connectedItems.map((c) => {
                 const role = c.type === "image" ? effectiveImageRoles[c.id] : undefined;
+                const remove = editable ? removeFor(c.id, c.label) : null;
                 return (
                   <RailItem
                     key={c.id}
@@ -1421,10 +1442,9 @@ export function VideoGenFocusView({
                         </span>
                       ) : undefined
                     }
-                    onRemove={
-                      editable ? () => void handleDisconnect(c.id) : undefined
-                    }
-                    removeLabel={`Disconnect ${c.label}`}
+                    onRemove={remove?.onClick}
+                    removeLabel={remove?.label}
+                    removeKind={remove?.kind}
                   />
                 );
               })
@@ -1459,8 +1479,15 @@ export function VideoGenFocusView({
           {/* Detail pane: the middle column swaps with the rail selection; the output column on
               the right is ALWAYS visible so the operator can tune while watching the result. */}
           {/* No overflow-hidden: it would crop the raised column's left shadow.
-              The columns inside own their scrolling. */}
-          <div className="flex min-h-0 flex-1">
+              The columns inside own their scrolling.
+              min-w-0 HERE as well as on the middle column: that column's own min-w-0 only
+              governs how it sizes inside this row — this row's automatic minimum is still the
+              min-content width of everything in it, and a w-[54%] item contributes its CONTENT
+              to that, not 54%. The reference strip is a no-wrap run of w-40 tiles (its own
+              overflow-x-auto doesn't cap its min-content), so ten references made this row
+              ~1,700px wide; the body's overflow-hidden then clipped the video column off the
+              right edge, while 54% of the inflated row filled the screen. */}
+          <div className="flex min-h-0 min-w-0 flex-1">
             {/* Middle column */}
             {/* min-w-0: without it this flex item's automatic minimum size is its content's
                 min-content width, so one long unbreakable string inside any pane silently
@@ -1782,7 +1809,7 @@ export function VideoGenFocusView({
 
             {/* Right column — the video, always visible. Faintly sunk so the
                 settings column reads as raised against it. */}
-            <div className="flex min-h-0 flex-1 flex-col gap-3 bg-muted/20 px-6 py-5">
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 bg-muted/20 px-6 py-5">
               <div className="flex items-center gap-1.5">
                 <Clapperboard className="size-3.5 text-primary" strokeWidth={1.5} />
                 <span className="text-eyebrow">Video</span>
@@ -1865,6 +1892,13 @@ export function VideoGenFocusView({
                                       timecodeMs: capturedFrame.timecodeMs,
                                     });
                                     reviewCanvasRef.current?.clear();
+                                    // BUG-003: that was the last one allowed — stop painting.
+                                    if (
+                                      reviewDrafts.drafts.length + 1 >=
+                                      MAX_ANNOTATIONS_PER_DECISION
+                                    ) {
+                                      setReviewAnnotating(false);
+                                    }
                                   }
                                   setPendingBounds(null);
                                 }}

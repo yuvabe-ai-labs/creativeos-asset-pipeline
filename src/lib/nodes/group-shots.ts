@@ -72,6 +72,31 @@ export function shotSeconds(shot: ReelShot): number {
 }
 
 /**
+ * A single-take generation as ONE shot row (BUG-004). Multishot off means one continuous take over
+ * every row in the group, so the Shot node holds one description and one length — every reader of
+ * a Shot (the card, the Composer seed, node-output, the video prompt) takes the first row, and a
+ * multi-row node made a 20s take read as its first 3 seconds. A lone row is returned as is. The
+ * join matches render-shot-for-video's; `duration` states the summed length, since the rows' own
+ * timing texts were ranges of a script that no longer exists on this node.
+ */
+export function mergeShotRows(rows: ReelShot[]): ReelShot {
+  if (rows.length === 1) return rows[0];
+  const description = rows
+    .map((r) => (r.description ?? "").trim())
+    .filter(Boolean)
+    .map((s, i) => (i === 0 ? s : s.charAt(0).toUpperCase() + s.slice(1)))
+    .join(" ");
+  const total = rows.reduce((sum, r) => sum + shotSeconds(r), 0);
+  const clip = rows[0]?.clip;
+  return {
+    description,
+    duration: `${total}s`,
+    duration_seconds: total,
+    ...(clip !== undefined ? { clip } : {}),
+  };
+}
+
+/**
  * Move shots forward out of the previous group until the final group clears the floor.
  *
  * Greedy packing respects the ceiling but can strand a remainder under it: lengths 3,5,6,4,2 pack
@@ -123,27 +148,44 @@ export function groupShotsForFanOut(
 ): ShotGroup[] {
   if (shots.length === 0) return [];
 
+  // BUG-008 — a script's own CLIP headings are a hard boundary. Each run of consecutive shots
+  // sharing a clip number is packed on its own and the results concatenated, so neither the
+  // greedy pass nor the rebalance can ever join shots the script put in different clips. An
+  // unmarked script (no `clip`, or 0) is one run: packed exactly as before.
   const lengths = shots.map(shotSeconds);
-  const groups: ShotGroup[] = [];
-  let current: number[] = [];
-  let total = 0;
-
-  lengths.forEach((length, index) => {
-    // `current.length > 0` keeps a single over-cap shot in its own group rather than looping
-    // forever trying to fit it.
-    if (current.length > 0 && total + length > ceiling) {
-      groups.push({ shotIndexes: current, seconds: total });
-      current = [];
-      total = 0;
-    }
-    current.push(index);
-    total += length;
+  const runs: number[][] = [];
+  shots.forEach((shot, index) => {
+    const clip = shot.clip ?? 0;
+    const prev = index > 0 ? (shots[index - 1].clip ?? 0) : clip;
+    if (index === 0 || clip !== prev) runs.push([]);
+    runs[runs.length - 1].push(index);
   });
-  if (current.length > 0) {
-    groups.push({ shotIndexes: current, seconds: total });
-  }
 
-  rebalanceTrailing(groups, lengths, ceiling);
+  const groups: ShotGroup[] = [];
+  for (const run of runs) {
+    const runGroups: ShotGroup[] = [];
+    let current: number[] = [];
+    let total = 0;
+
+    for (const index of run) {
+      const length = lengths[index];
+      // `current.length > 0` keeps a single over-cap shot in its own group rather than looping
+      // forever trying to fit it.
+      if (current.length > 0 && total + length > ceiling) {
+        runGroups.push({ shotIndexes: current, seconds: total });
+        current = [];
+        total = 0;
+      }
+      current.push(index);
+      total += length;
+    }
+    if (current.length > 0) {
+      runGroups.push({ shotIndexes: current, seconds: total });
+    }
+
+    rebalanceTrailing(runGroups, lengths, ceiling);
+    groups.push(...runGroups);
+  }
 
   return groups.map((group) => ({
     ...group,

@@ -14,6 +14,9 @@ export function PerformanceView({ clientId }: { clientId: string }) {
   const { handles, loading, add, remove } = useTrackedHandles(clientId);
   const [selected, setSelected] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  // The handle whose first snapshot should be fetched as soon as its tab mounts (D275).
+  // Cleared once that fetch settles, so switching back to the tab does not re-scrape.
+  const [firstFetch, setFirstFetch] = useState<string | null>(null);
 
   // Follow the list: default to the first handle, and after a removal fall back to
   // whatever is left rather than rendering a tab that no longer exists.
@@ -84,6 +87,8 @@ export function PerformanceView({ clientId }: { clientId: string }) {
               key={selected}
               clientId={clientId}
               handle={selected}
+              fetchFirst={firstFetch === selected}
+              onFirstFetchDone={() => setFirstFetch(null)}
               onRemove={() => void remove(selected)}
             />
           )}
@@ -94,7 +99,10 @@ export function PerformanceView({ clientId }: { clientId: string }) {
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
         onAdd={add}
-        onAdded={(handle) => setSelected(handle)}
+        onAdded={(handle) => {
+          setSelected(handle);
+          setFirstFetch(handle);
+        }}
       />
     </div>
   );

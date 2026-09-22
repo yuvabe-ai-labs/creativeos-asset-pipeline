@@ -7,9 +7,15 @@ import {
   MULTISHOT_BEAT_SCHEMA,
   refineInstruction,
   MULTISHOT_PLAN_SCHEMA,
+  planSchemaForCuts,
 } from "../multishot-prompt-generate";
 import { multishotPromptFor } from "../multishot-prompt-for";
 import { MULTISHOT_MODELS } from "@/lib/nodes/multishot-models";
+import {
+  GEMINI_OMNI_MODEL_ID,
+  KLING_OMNI_MODEL_ID,
+  SEEDANCE_MODEL_ID,
+} from "@/lib/video-gen/client-models";
 import { MULTISHOT_AUTHORING_MODEL, SUBJECT_SILENT_CAMERA } from "../video-prompt-generate";
 
 describe("multishotPromptGenerate", () => {
@@ -249,6 +255,70 @@ describe("no assumed look or setting (D262)", () => {
   });
 });
 
+// The fix for the intermittent "The writer referenced a shot that isn't in this node." 422: cut ids
+// are UUIDs the writer used to transcribe by instruction alone, and one slipped character rejected
+// the whole plan at full price. With `enum`, strict structured outputs constrain decoding, so a
+// foreign id is unrepresentable rather than caught.
+describe("planSchemaForCuts", () => {
+  const CUT_IDS = ["9f1c3a7e-2b44-4d51-8a0e-1c7d6f0b2e93", "0b8e5d21-7c3f-42aa-9de4-5f6a1b8c0d77"];
+  const cutIdSchema = (schema: Record<string, unknown>) =>
+    // Walked rather than destructured so a schema whose shape drifts fails here loudly.
+    (schema.properties as Record<string, { items: { properties: { cutId: Record<string, unknown> } } }>)
+      .beats.items.properties.cutId;
+
+  it("constrains cutId to exactly the ids it was given", () => {
+    expect(cutIdSchema(planSchemaForCuts(CUT_IDS)).enum).toEqual(CUT_IDS);
+  });
+
+  // The whole point: the model cannot emit an id that is not the node's.
+  it("does not admit an id the node does not have", () => {
+    const allowed = cutIdSchema(planSchemaForCuts(CUT_IDS)).enum as string[];
+    // A one-character slip in the first id — the exact shape of the bug this fixes.
+    expect(allowed).not.toContain("9f1c3a7e-2b44-4d51-8a0e-1c7d6f0b2e83");
+  });
+
+  // Strict mode needs additionalProperties: false and a complete `required` at EVERY level. The
+  // enum is a narrowing of one leaf; a spread that lost either would break generation at full price.
+  it("stays a valid strict-mode schema", () => {
+    const schema = planSchemaForCuts(CUT_IDS) as {
+      additionalProperties: boolean;
+      required: string[];
+      properties: {
+        beats: { items: { additionalProperties: boolean; required: string[]; properties: object } };
+      };
+    };
+    expect(schema.additionalProperties).toBe(false);
+    expect([...schema.required].sort()).toEqual(["beats", "look"]);
+
+    const beat = schema.properties.beats.items;
+    expect(beat.additionalProperties).toBe(false);
+    expect([...beat.required].sort()).toEqual(["cutId", "text"]);
+    expect(Object.keys(beat.properties).sort()).toEqual(["cutId", "text"]);
+  });
+
+  // Built per request from a module-level constant: a mutating implementation would leak one node's
+  // cut ids into the next request's schema, which on a busy server is a cross-node plan rejection.
+  it("leaves the canonical schema untouched", () => {
+    planSchemaForCuts(CUT_IDS);
+    expect(MULTISHOT_PLAN_SCHEMA.properties.beats.items.properties.cutId).not.toHaveProperty("enum");
+  });
+
+  // `enum: []` is unsatisfiable and OpenAI rejects the request outright. The route 400s a node with
+  // no cuts long before here, so this only has to not make things worse.
+  it("returns the unconstrained schema when there are no cuts", () => {
+    expect(planSchemaForCuts([])).toBe(MULTISHOT_PLAN_SCHEMA);
+  });
+
+  // planSchemaForCuts derives from MULTISHOT_PLAN_SCHEMA instead of the spec's own `schema`, which
+  // is only sound while every writer answers against that one object (D238). If a writer ever forks
+  // its schema, this fails HERE rather than that writer silently getting Omni's shape.
+  it("is derived from the schema every writer actually answers against", () => {
+    for (const m of MULTISHOT_MODELS) {
+      expect(multishotPromptFor(m.id).schema, m.label).toBe(MULTISHOT_PLAN_SCHEMA);
+    }
+  });
+});
+
 // D263 — the operator reported the motion "overcomplicated". Every rule below asked the writer to
 // narrate one more motion per beat, and every narrated motion is one more thing the video model
 // tries to animate. Pinned OUT on every writer so a later "prompt quality" pass cannot quietly
@@ -277,5 +347,30 @@ describe("simple motion (D263)", () => {
     for (const [label, system] of systems) {
       for (const pattern of removed) expect(system, `${label} ${pattern}`).not.toMatch(pattern);
     }
+  });
+});
+
+// The voiceover is written into the beats on EVERY multishot model — no per-model restriction —
+// in each model's OWN way of writing a spoken line (voiceoverRules). Whether and how a model
+// renders the speech (voice, lip-sync) is the video request's concern, handled there later.
+describe("voiceover rule", () => {
+  it("is in every writer's system prompt, asking for verbatim lines in the beat they are spoken over", () => {
+    for (const m of MULTISHOT_MODELS) {
+      const system = multishotPromptFor(m.id).system;
+      expect(system, m.label).toContain("VOICEOVER");
+      expect(system, m.label).toMatch(/VERBATIM/);
+      expect(system, m.label).toMatch(/beat where it is spoken/);
+      expect(system, m.label).toMatch(/no line is dropped/);
+      expect(system, m.label).not.toMatch(/do not quote/i);
+    }
+  });
+
+  it("writes the line in each vendor's own syntax", () => {
+    expect(multishotPromptFor(GEMINI_OMNI_MODEL_ID).system).toMatch(/plain prose/);
+    expect(multishotPromptFor(GEMINI_OMNI_MODEL_ID).system).toMatch(/No markers or brackets/);
+    expect(multishotPromptFor(KLING_OMNI_MODEL_ID).system).toMatch(/narrator says, in a calm, clear tone/);
+    expect(multishotPromptFor(KLING_OMNI_MODEL_ID).system).toMatch(/512 characters/);
+    expect(multishotPromptFor(SEEDANCE_MODEL_ID).system).toMatch(/{English, off-screen voiceover: …}/);
+    expect(multishotPromptFor(SEEDANCE_MODEL_ID).system).toContain("Never () or <> for a spoken line");
   });
 });

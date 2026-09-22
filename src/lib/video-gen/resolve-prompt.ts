@@ -1,7 +1,14 @@
 import type { UpstreamOutput } from "@/lib/db/nodes";
-import { renderPlan, type MultishotPlan } from "@/lib/nodes/multishot-plan";
+import { renderPlan, planMissingRefs, type MultishotPlan } from "@/lib/nodes/multishot-plan";
 import { multishotCapabilityFor } from "@/lib/nodes/multishot-models";
 import type { MultishotCut } from "@/lib/nodes/multishot-cuts";
+import { mapUpstreamForVideo } from "@/lib/nodes/resolve-inputs";
+import {
+  refEntriesOf,
+  renderRefs,
+  singleTakeRefDialect,
+  type RefEntry,
+} from "@/lib/nodes/ref-binding";
 
 // Two prompt-node lanes feed Video Gen (see AGENTS.md / the multishot spec):
 //   shot      -> video-prompt      -> video-gen   (activeOutput is a STRING)
@@ -41,8 +48,23 @@ export type ResolvedPrompt =
        * `null` = the plan carries no stamp, which means Gemini Omni (see below).
        */
       targetModel: string | null;
+      /**
+       * BUG-010 — images the prompt cites by id that are no longer among the prompt node's
+       * references. Non-empty means the rendered `prompt` names them in plain text where a token
+       * should be; the route refuses to generate rather than ship a clip missing its product.
+       */
+      missingRefs: RefEntry[];
     }
   | { ok: false; reason: string };
+
+/**
+ * The order the prompt node's writer numbered references in — `refEntriesOf` over the same
+ * `mapUpstreamForVideo` mapping the write side used — so an unchanged canvas renders a stored
+ * prompt back to exactly the text it was written as.
+ */
+function refIdsOf(promptUpstream: UpstreamOutput[]): string[] {
+  return refEntriesOf(promptUpstream.map((u) => mapUpstreamForVideo(u))).map((r) => r.id);
+}
 
 const NO_PROMPT_NODE_ERROR =
   "No connected video-prompt or multishot-prompt node with output found.";
@@ -61,6 +83,12 @@ const NO_MULTISHOT_CUTS_ERROR =
 export async function resolveVideoGenPrompt(
   upstream: UpstreamOutput[],
   fetchUpstream: (nodeId: string) => Promise<UpstreamOutput[]>,
+  /**
+   * BUG-010 — the single-take prompt's token dialect: `"gemini-omni"` or `"seedance"` render
+   * stored ids to that model's positions; anything else (Veo, Kling: prose) sends the text as is.
+   * Derived by the route from the Video Gen model's provider.
+   */
+  singleTakeTarget?: string,
 ): Promise<ResolvedPrompt> {
   const promptNode = upstream.find(
     (u) => u.type === "video-prompt" || u.type === "multishot-prompt",
@@ -70,13 +98,17 @@ export async function resolveVideoGenPrompt(
   if (promptNode.type === "video-prompt") {
     if (!promptNode.activeOutput) return { ok: false, reason: NO_PROMPT_NODE_ERROR };
     const promptUpstream = await fetchUpstream(promptNode.nodeId);
+    const dialect = singleTakeRefDialect(singleTakeTarget, refIdsOf(promptUpstream));
+    const text = String(promptNode.activeOutput);
+    const rendered = dialect ? renderRefs(text, dialect) : { text, missing: [] };
     return {
       ok: true,
-      prompt: String(promptNode.activeOutput),
+      prompt: rendered.text,
       promptNode,
       promptUpstream,
       cuts: null,
       targetModel: null,
+      missingRefs: rendered.missing,
     };
   }
 
@@ -114,14 +146,16 @@ export async function resolveVideoGenPrompt(
   // reintroduce exactly the bug above for every pre-stamp plan.
   const targetModel = typeof plan.targetModel === "string" ? plan.targetModel : null;
   const cap = multishotCapabilityFor(targetModel);
+  const refIds = refIdsOf(promptUpstream);
 
   return {
     ok: true,
-    prompt: renderPlan(plan, cuts, cap),
+    prompt: renderPlan(plan, cuts, cap, refIds),
     promptNode,
     promptUpstream,
     cuts,
     targetModel,
+    missingRefs: planMissingRefs(plan, cap, refIds),
   };
 }
 

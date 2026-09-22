@@ -61,6 +61,45 @@ export function findAncestorOfType<T extends { id: string; type?: string }>(
   return null;
 }
 
+export type ConnectionPath =
+  | { kind: "direct" }
+  /** `viaId` is the node the input reaches `target` through — the one directly wired into it. */
+  | { kind: "via"; viaId: string }
+  | { kind: "none" };
+
+/**
+ * How `source` reaches `target`: by its own edge, through another node, or not at all.
+ *
+ * A focus view's "Connected" rail lists inputs gathered by a multi-level walk (a Video Gen shows
+ * the images wired into its prompt node), so its ✕ cannot assume an edge exists to remove. Direct
+ * wins when both hold; otherwise the node named is the one adjacent to `target`, since that is
+ * where the operator would go to unwire it.
+ */
+export function connectionPath(edges: Edge[], source: string, target: string): ConnectionPath {
+  if (edges.some((e) => e.source === source && e.target === target)) return { kind: "direct" };
+
+  // Walk upstream from `target`, remembering which of its direct parents each node was reached
+  // through; the first time we meet `source`, that parent is the answer.
+  const parentsOf = (id: string) => edges.filter((e) => e.target === id).map((e) => e.source);
+  const reachedVia = new Map<string, string>();
+  const queue: string[] = [];
+  for (const p of parentsOf(target)) {
+    reachedVia.set(p, p);
+    queue.push(p);
+  }
+  while (queue.length > 0) {
+    const cur = queue.shift() as string;
+    const via = reachedVia.get(cur) as string;
+    for (const p of parentsOf(cur)) {
+      if (p === source) return { kind: "via", viaId: via };
+      if (reachedVia.has(p)) continue;
+      reachedVia.set(p, via);
+      queue.push(p);
+    }
+  }
+  return { kind: "none" };
+}
+
 /**
  * Walk edges downstream (BFS, bounded depth) from `nodeId`, collecting every node of `type`.
  * Mirror of findAncestorOfType, following source -> target instead of target -> source.

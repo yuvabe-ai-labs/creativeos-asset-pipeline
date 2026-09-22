@@ -4,7 +4,6 @@ import { useState } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { useDeleteNode } from "@/hooks/use-delete-node";
@@ -148,10 +147,9 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
       onParsingChange={setIsParsing}
       onSaveOutput={(output) => saveScriptOutputAction(id, output)}
       onFanOut={() => {
-        const n = parsed?.visual_script?.shots?.length ?? 0;
+        // fanOutShots reports the outcome itself — including "already on the canvas".
         fanOutShots(id);
         handleFocusOpenChange(false);
-        toast.success(`Fanned out ${n} shot${n === 1 ? "" : "s"}`);
       }}
     />
     </>

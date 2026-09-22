@@ -1,5 +1,16 @@
 import { describe, it, expect } from "vitest";
-import { parsePlan, renderPlan, refsCitedIn, mergeRefinedPlan, checkPlanLimits, planIsDirty, setBeatText } from "../multishot-plan";
+import {
+  parsePlan,
+  renderPlan,
+  mergeRefinedPlan,
+  checkPlanLimits,
+  planIsDirty,
+  setBeatText,
+  storePlanRefs,
+  renderPlanRefs,
+  planMissingRefs,
+  planCitedRefIds,
+} from "../multishot-plan";
 import type { MultishotPlan } from "../multishot-plan";
 import type { MultishotCut } from "../multishot-cuts";
 import { multishotCapabilityFor } from "../multishot-models";
@@ -153,20 +164,6 @@ describe("renderPlan", () => {
   });
 });
 
-describe("refsCitedIn", () => {
-  it("finds every token in order and deduplicates", () => {
-    expect(refsCitedIn("the <IMAGE_REF_1> beside a <IMAGE_REF_0> and <IMAGE_REF_1>", OMNI)).toEqual([1, 0]);
-  });
-
-  it("ignores malformed tokens", () => {
-    expect(refsCitedIn("<IMAGE_REF_> <IMAGE_REF> <IMAGE_REF_x> plain text", OMNI)).toEqual([]);
-  });
-
-  it("returns nothing for text with no references", () => {
-    expect(refsCitedIn("a hand lifts keys", OMNI)).toEqual([]);
-  });
-});
-
 const planCuts = [
   { id: "c1", text: "", seconds: 2 },
   { id: "c2", text: "", seconds: 3 },
@@ -308,22 +305,29 @@ describe("checkPlanLimits", () => {
   });
 });
 
-describe("refsCitedIn per model", () => {
-  it("finds Omni's zero-based tokens and not Kling's", () => {
-    expect(refsCitedIn("the <IMAGE_REF_1> and <IMAGE_REF_0>", OMNI)).toEqual([1, 0]);
-    expect(refsCitedIn("the @image_1", OMNI)).toEqual([]);
+// Replaces the positional `refsCitedIn`: citations are image ids now (BUG-010), and legacy
+// positions still count, read in each model's own dialect.
+describe("planCitedRefIds per model", () => {
+  const one = (text: string): MultishotPlan => ({ version: 1, look: "", beats: [{ cutId: "c1", text }] });
+  const ids = ["a", "b"];
+
+  it("reads Omni's zero-based tokens and not Kling's", () => {
+    expect([...planCitedRefIds(one("the <IMAGE_REF_1> and <IMAGE_REF_0>"), OMNI, ids)]).toEqual(["b", "a"]);
+    expect([...planCitedRefIds(one("the @image_1"), OMNI, ids)]).toEqual([]);
   });
 
-  // Returned ZERO-BASED for both, because the caller indexes promptRefImages with it.
-  it("finds Kling's one-based tokens and returns zero-based indexes", () => {
-    expect(refsCitedIn("the @image_1 and @image_2", KLING)).toEqual([0, 1]);
-    expect(refsCitedIn("the <IMAGE_REF_0>", KLING)).toEqual([]);
+  it("reads Kling's one-based tokens", () => {
+    expect([...planCitedRefIds(one("the @image_1 and @image_2"), KLING, ids)]).toEqual(["a", "b"]);
+    expect([...planCitedRefIds(one("the <IMAGE_REF_0>"), KLING, ids)]).toEqual([]);
   });
 
-  it("finds Seedance's handles and returns zero-based indexes", () => {
-    expect(refsCitedIn("the @Image 1 and @Image 2", SEEDANCE)).toEqual([0, 1]);
-    expect(refsCitedIn("the @image_1", SEEDANCE)).toEqual([]);
-    expect(refsCitedIn("the @Image 1", KLING)).toEqual([]);
+  it("reads Seedance's handles", () => {
+    expect([...planCitedRefIds(one("the @Image 1 and @Image 2"), SEEDANCE, ids)]).toEqual(["a", "b"]);
+    expect([...planCitedRefIds(one("the @Image 1"), KLING, ids)]).toEqual([]);
+  });
+
+  it("reads stored ids in any model", () => {
+    expect([...planCitedRefIds(one("the @[File: B.png](b)"), KLING, ids)]).toEqual(["b"]);
   });
 });
 
@@ -599,5 +603,53 @@ describe("renderPlan with no look", () => {
 
   it("starts Seedance's ladder on the first shot", () => {
     expect(renderPlan(noLook, cuts, SEEDANCE)).toMatch(/^0-2s: Tight on a hand/);
+  });
+});
+
+describe("plan reference binding (BUG-010)", () => {
+  const plan: MultishotPlan = {
+    version: 1,
+    look: "",
+    beats: [
+      { cutId: "c1", text: "the jar <IMAGE_REF_1>" },
+      { cutId: "c2", text: "the strap <IMAGE_REF_2>" },
+    ],
+  };
+  const twoCuts = [
+    { id: "c1", text: "", seconds: 3 },
+    { id: "c2", text: "", seconds: 3 },
+  ];
+  const refs = [
+    { id: "a", label: "File: A.png" },
+    { id: "b", label: "File: B.png" },
+    { id: "c", label: "File: C.png" },
+  ];
+
+  it("stores ids, then renders against the images connected now", () => {
+    const stored = storePlanRefs(plan, OMNI, refs);
+    expect(stored.beats[0].text).toBe("the jar @[File: B.png](b)");
+    expect(renderPlan(stored, twoCuts, OMNI, ["b", "c"])).toBe(
+      "[0-3s] the jar <IMAGE_REF_0>\n[3-6s] the strap <IMAGE_REF_1>",
+    );
+  });
+
+  it("reports and names a cited image that is gone", () => {
+    const stored = storePlanRefs(plan, OMNI, refs);
+    expect(planMissingRefs(stored, OMNI, ["a", "c"])).toEqual([{ id: "b", label: "File: B.png" }]);
+  });
+
+  it("renders a plan's beats for the writer, keeping the plan shape", () => {
+    const stored = storePlanRefs(plan, OMNI, refs);
+    expect(renderPlanRefs(stored, OMNI, ["a", "b", "c"]).beats[0].text).toBe("the jar <IMAGE_REF_1>");
+  });
+
+  it("lists cited ids across beats", () => {
+    expect([...planCitedRefIds(storePlanRefs(plan, OMNI, refs), OMNI, ["a", "b", "c"])]).toEqual(["b", "c"]);
+  });
+
+  it("measures Kling's per-shot limit on the RENDERED beat, not the longer stored id form", () => {
+    const beat = `${"x".repeat(500)} @[File: A-very-long-reference-name.png](a)`;
+    const p: MultishotPlan = { version: 1, look: "", beats: [{ cutId: "c1", text: beat }] };
+    expect(checkPlanLimits(p, [{ id: "c1", text: "", seconds: 3 }], KLING, ["a"])).toEqual({ ok: true });
   });
 });

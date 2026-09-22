@@ -15,7 +15,10 @@ import type { RefineScope } from "@/lib/nodes/refine-suggestions";
 /** Bumped whenever the system text or schema changes; recorded on every version row. */
 // @5 (D262): the look is transcribed from stated direction or left empty; no assumed setting.
 // @6 (D263): motion trimmed to one plain action, a simple camera and a grounding line.
-export const MULTISHOT_PROMPT_ID = "multishot-prompt-generate@6";
+// @7: the voiceover is WRITTEN into the beats, verbatim, on every model (MULTISHOT_SHARED_CRAFT).
+// @8: `cutId` is enum-constrained to the node's own ids (planSchemaForCuts). System text unchanged;
+//     bumped because the SCHEMA changed, per this constant's own rule.
+export const MULTISHOT_PROMPT_ID = "multishot-prompt-generate@8";
 
 /**
  * How to READ an attached reference image and name what it shows — without binding it to a beat.
@@ -174,6 +177,34 @@ lettering or logo held exactly. Say so in the beat whenever the product is on sc
 geometry and printed logo hold exactly". Left unsaid, the model drifts the label, changes how many
 of a thing there are, or hybridises two references.`;
 
+/**
+ * The voiceover rule, shared by all three writers with each model's OWN way of writing a spoken
+ * line (`lineForm`) — every model here generates speech from the prompt, in a different syntax:
+ *
+ *   Gemini Omni  — prose; its guide asks for narration "in a calm and clear voice", and the
+ *                  request's audio clause already expects "the spoken line" (compose-omni-prompt).
+ *   Kling 3.0    — `<speaker> says <delivery>, "line"`, the line kept next to its speaker; short
+ *                  sentences lip-sync better (Kling Video 3.0 Omni Audio doc).
+ *   Seedance 2.5 — `{}` marks dialogue, the language stated first for non-Chinese (tutorial,
+ *                  "Prompt rules").
+ *
+ * The WHAT is the same everywhere and is not restricted per model: every line of the script's
+ * voiceover is written, verbatim, into the beat it is spoken over. Whether a model renders it, with
+ * what voice, and lip-sync are the video request's concern (Kling's Lip Sync API, Seedance's
+ * `@Audio N` timbre reference, D264–D266), not something this prompt withholds.
+ */
+export function voiceoverRules(lineForm: string): string {
+  return `VOICEOVER
+When the script has a voiceover, its lines are SPOKEN in the video, and you write them into the
+beats. Place each line, VERBATIM, in the beat where it is spoken — judged by the shot texts and the
+shot lengths. A line that runs across two shots is split at a natural pause, never paraphrased,
+shortened or reordered, and no line is dropped. If the shot text names who speaks, it is that
+person's line; otherwise it is off-screen narration. Do not put the voiceover on screen as text. A
+beat with no line spoken over it carries no spoken line.
+
+Write a spoken line as: ${lineForm}`;
+}
+
 const SYSTEM = `You write the shot-by-shot motion plan for a single multi-shot video generation.
 
 You are given a sequence of SHOTS. Each has an id, the operator's shot text, and its length in
@@ -189,6 +220,10 @@ invent an id, never merge two shots into one beat, never split one shot across t
 ${MULTISHOT_SHOT_TEXT_CONTRACT}
 
 ${MULTISHOT_SHARED_CRAFT}
+
+${voiceoverRules(
+  `plain prose, the way this model's own guide writes narration — 'A calm, clear off-screen voiceover says: "…"', or for a named speaker, 'She says, warmly: "…"'. No markers or brackets; the request's sound-design clause already asks for the spoken line.`,
+)}
 
 Do NOT write timecodes, durations or shot numbers into the text. The timings are the operator's
 and are added afterwards; anything you write about time will contradict them.
@@ -256,6 +291,57 @@ export const MULTISHOT_PLAN_SCHEMA = {
   },
 } as const;
 const SCHEMA = MULTISHOT_PLAN_SCHEMA;
+
+/**
+ * The plan schema for ONE request, with `cutId` constrained by `enum` to the node's actual cut ids.
+ *
+ * THIS IS WHY IT EXISTS. Cut ids are `crypto.randomUUID()` — 36 characters of hex the writer was
+ * asked to transcribe out of a long user turn, once per shot, by instruction alone ("echoing that
+ * shot's `cutId` EXACTLY as provided"). A schema that says only `type: "string"` cannot hold it to
+ * that, so a single slipped character produced a beat naming a shot that does not exist, `parsePlan`
+ * rejected the WHOLE plan ("The writer referenced a shot that isn't in this node."), and the
+ * operator paid for a 422. Intermittent by nature, and impossible to prevent with more prose.
+ *
+ * With `enum`, OpenAI's strict structured outputs constrain DECODING: the model does not type the id
+ * and then get checked, it can only select one of these exact strings. A foreign id stops being an
+ * error to catch and becomes unrepresentable. That is also why no shorter "shot uid" alias is
+ * introduced alongside it — id LENGTH stopped mattering the moment the model stopped transcribing,
+ * and a second id namespace would only add a translation layer to drift at.
+ *
+ * Built from MULTISHOT_PLAN_SCHEMA rather than from a passed-in `spec.schema` because every writer
+ * answers against that one object by construction (D238) — an invariant this file's tests assert, so
+ * a writer that ever forked its own schema fails there loudly instead of silently getting Omni's
+ * shape with the enum bolted on.
+ *
+ * Returns the UNCONSTRAINED schema for an empty list: `enum: []` is not a satisfiable schema and
+ * OpenAI rejects the request outright. The route already 400s a node with no cuts long before here,
+ * so this is a guard against a caller that doesn't, not a supported path.
+ *
+ * Cut counts are small (Kling caps at 6, Seedance's 30s ladder at ~30), comfortably inside strict
+ * mode's enum limits.
+ */
+export function planSchemaForCuts(cutIds: string[]): Record<string, unknown> {
+  if (cutIds.length === 0) return MULTISHOT_PLAN_SCHEMA as unknown as Record<string, unknown>;
+
+  const beats = MULTISHOT_PLAN_SCHEMA.properties.beats;
+  const item = beats.items;
+  return {
+    ...MULTISHOT_PLAN_SCHEMA,
+    properties: {
+      ...MULTISHOT_PLAN_SCHEMA.properties,
+      beats: {
+        ...beats,
+        items: {
+          ...item,
+          properties: {
+            ...item.properties,
+            cutId: { ...item.properties.cutId, enum: cutIds },
+          },
+        },
+      },
+    },
+  };
+}
 
 /**
  * The narrow schemas a REFINE asks against.

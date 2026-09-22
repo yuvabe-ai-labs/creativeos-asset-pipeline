@@ -1,10 +1,18 @@
 import { createOpenAI } from "@/lib/openai/server";
 import { resolveMultishotPromptInputs, buildMultishotUserTurn } from "@/lib/nodes/resolve-inputs";
-import { parsePlan, renderPlan, mergeRefinedPlan } from "@/lib/nodes/multishot-plan";
+import {
+  parsePlan,
+  renderPlan,
+  mergeRefinedPlan,
+  storePlanRefs,
+  renderPlanRefs,
+} from "@/lib/nodes/multishot-plan";
+import { refEntriesOf } from "@/lib/nodes/ref-binding";
 import { resolvePlanMentions } from "@/lib/nodes/plan-mentions";
 import {
   MULTISHOT_LOOK_SCHEMA,
   MULTISHOT_BEAT_SCHEMA,
+  planSchemaForCuts,
   refineInstruction,
 } from "@/prompts/multishot-prompt-generate";
 import { multishotPromptFor } from "@/prompts/multishot-prompt-for";
@@ -96,6 +104,15 @@ export async function POST(
     // Multishot node, the single place the choice lives.
     const spec = multishotPromptFor(resolved.targetModel);
 
+    // BUG-010 — the references the writer is sent, in the order it numbers them, and the model
+    // whose dialect this plan is in: the node's for a whole write, the plan's own stamp for a
+    // narrow refine (D236). Stored plans hold image IDS; the writer only ever sees positions.
+    const refs = refEntriesOf(resolved.upstream);
+    const refIds = refs.map((r) => r.id);
+    const planCap = multishotCapabilityFor(
+      scope === "all" ? resolved.targetModel : previousPlan?.targetModel,
+    );
+
     const user =
       buildMultishotUserTurn({
         clientContext: resolved.clientContext,
@@ -104,6 +121,7 @@ export async function POST(
         instruction,
         cutInstructions,
         scriptNotes: resolved.scriptNotes,
+        voiceover: resolved.voiceover,
       }) +
       refineInstruction({
         scope,
@@ -113,7 +131,7 @@ export async function POST(
         // the same shot the turn's own shot list already names. Unresolved, it would reach the
         // writer as literal markup and be read as prose.
         note: resolvePlanMentions(note, resolved.cuts),
-        plan: previousPlan ?? { look: "", beats: [] },
+        plan: previousPlan ? renderPlanRefs(previousPlan, planCap, refIds) : { look: "", beats: [] },
       });
 
     const model = `openai:${spec.model}`;
@@ -198,12 +216,21 @@ export async function POST(
         },
         call: async () => {
           const openai = createOpenAI();
+          // A whole-sequence write asks against THIS NODE's cut ids, not the writer's static
+          // schema: `planSchemaForCuts` enum-constrains `cutId` so the model selects an id instead
+          // of transcribing a UUID it can slip a character of. That is what makes parsePlan's "The
+          // writer referenced a shot that isn't in this node." unreachable rather than merely
+          // caught — see that function's note for the failure it replaced.
+          //
+          // The two refine schemas need no such treatment: neither contains a `cutId` at all. A
+          // "cut" refine names its shot in the INSTRUCTION and returns bare text, which is why that
+          // path never produced this error in the first place.
           const schema =
             scope === "look"
               ? MULTISHOT_LOOK_SCHEMA
               : scope === "cut"
                 ? MULTISHOT_BEAT_SCHEMA
-                : spec.schema;
+                : planSchemaForCuts(resolved.cuts.map((c) => c.id));
 
           const completion = await openai.chat.completions.create({
             model: spec.model,
@@ -236,7 +263,8 @@ export async function POST(
             scope === "all"
               ? parsePlan(raw, resolved.cuts)
               : mergeRefinedPlan(
-                  previousPlan!,
+                  // Positional throughout, so the merged whole stores uniformly below.
+                  renderPlanRefs(previousPlan!, planCap, refIds),
                   scope,
                   (raw ?? {}) as { look?: string; text?: string },
                   cutId ?? undefined,
@@ -261,7 +289,8 @@ export async function POST(
               ? { ...parsed.plan, targetModel: multishotCapabilityFor(resolved.targetModel).id }
               : parsed.plan;
 
-          return { output: stamped, usage };
+          // BUG-010 — stored by image id, so a later disconnect cannot re-point a citation.
+          return { output: storePlanRefs(stamped, planCap, refs), usage };
         },
       });
 
@@ -271,7 +300,7 @@ export async function POST(
         // the money path. On a narrow refine of a plan written for the other model that stamp is
         // NOT the node's current one, and rendering against the node would show the operator a
         // prompt in a format nothing will ever send.
-        prompt: renderPlan(output, resolved.cuts, multishotCapabilityFor(output.targetModel)),
+        prompt: renderPlan(output, resolved.cuts, multishotCapabilityFor(output.targetModel), refIds),
         versionId,
       });
     } catch (e) {

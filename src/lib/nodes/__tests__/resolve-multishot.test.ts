@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildMultishotUserTurn } from "../resolve-inputs";
+import { buildMultishotUserTurn, voiceoverForWriter } from "../resolve-inputs";
 import type { MultishotCut } from "../multishot-cuts";
 
 const cuts: MultishotCut[] = [
@@ -157,5 +157,43 @@ describe("buildMultishotUserTurn script notes", () => {
   it("omits the heading when the script has none", () => {
     expect(buildMultishotUserTurn({ ...base, scriptNotes: "  " })).not.toMatch(/production notes/i);
     expect(buildMultishotUserTurn(base)).not.toMatch(/production notes/i);
+  });
+});
+
+// BUG-009 — the beats had no idea what the voiceover says. The VO is the script the video SPEAKS,
+// on every multishot model: the writer places each line, verbatim, in the beat it is spoken over.
+// (A first pass sent it as pacing context only — "do not quote it" — and the generated Kling
+// prompt carried no voiceover at all.)
+describe("buildMultishotUserTurn voiceover", () => {
+  const base = { clientContext: "", upstream: [], cuts, instruction: "", cutInstructions: {} };
+
+  it("carries the script's voiceover as lines to write into the beats, verbatim", () => {
+    const turn = buildMultishotUserTurn({ ...base, voiceover: "Where are you headed tonight?" });
+    expect(turn).toContain("Where are you headed tonight?");
+    expect(turn).toMatch(/spoken in the video/i);
+    expect(turn).toMatch(/verbatim/i);
+    expect(turn).not.toMatch(/do not quote/i);
+  });
+
+  it("omits the block when there is no voiceover", () => {
+    expect(buildMultishotUserTurn(base)).not.toMatch(/voiceover/i);
+    expect(buildMultishotUserTurn({ ...base, voiceover: "   " })).not.toMatch(/voiceover/i);
+  });
+});
+
+describe("voiceoverForWriter", () => {
+  it("keeps a real voiceover", () => {
+    expect(voiceoverForWriter("  Where are you headed?  ")).toBe("Where are you headed?");
+  });
+
+  // Parsed scripts routinely fill the field with a statement that there is none.
+  it("treats a stated absence as no voiceover", () => {
+    for (const none of ["No voiceover", "none", "N/A", "No VO.", "-", "No voice over — music only"]) {
+      expect(voiceoverForWriter(none), none).toBe("");
+    }
+  });
+
+  it("is empty for a missing field", () => {
+    expect(voiceoverForWriter(undefined)).toBe("");
   });
 });

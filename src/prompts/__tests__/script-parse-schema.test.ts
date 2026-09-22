@@ -27,8 +27,19 @@ describe("script-parse schema", () => {
     expect(scriptParsePrompt.system).toMatch(/length/i);
   });
 
-  it("is version 6", () => {
-    expect(scriptParsePrompt.version).toBe(6);
+  it("is version 7", () => {
+    expect(scriptParsePrompt.version).toBe(7);
+  });
+
+  // BUG-008 — a script can say where its clips break ("CLIP 2 (10–20 SEC)"). The parser carries
+  // the number; grouping never merges across it, so a creator can size clips for Omni or Kling
+  // inside ONE script instead of splitting it into several.
+  it("declares clip as a required integer on every shot, 0 when the script marks none", () => {
+    expect(shotProps.properties.clip).toEqual({ type: "integer" });
+    expect(shotProps.required).toContain("clip");
+    expect(scriptParsePrompt.system).toMatch(/clip: /);
+    expect(scriptParsePrompt.system).toMatch(/CLIP 1/);
+    expect(scriptParsePrompt.system).toMatch(/\b0 when/);
   });
 
   // D204: a signal supplies the setting only. Every clause below answers a measured

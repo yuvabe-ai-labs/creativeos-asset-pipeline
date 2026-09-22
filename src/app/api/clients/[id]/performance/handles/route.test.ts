@@ -21,8 +21,12 @@ vi.mock("@/lib/db/performance", () => ({
   listTrackedHandles: vi.fn(),
   addTrackedHandle: vi.fn(),
 }));
+vi.mock("@/lib/market/snapshot", () => ({
+  snapshotHandle: vi.fn(),
+}));
 
 import { listTrackedHandles, addTrackedHandle } from "@/lib/db/performance";
+import { snapshotHandle } from "@/lib/market/snapshot";
 
 const params = Promise.resolve({ id: "client-1" });
 const getReq = () => new Request("http://test/api/clients/client-1/performance/handles");
@@ -97,5 +101,16 @@ describe("POST /api/clients/[id]/performance/handles", () => {
     const { POST } = await import("./route");
     const res = await POST(postReq({}) as never, { params });
     expect(res.status).toBe(400);
+  });
+
+  // D275 — the ~10 s scrape must not hold the dialog open. The client fires the refresh
+  // route from the new sub-tab instead, so this route stays a fast insert.
+  it("does not take the first snapshot inline", async () => {
+    vi.mocked(addTrackedHandle).mockResolvedValue(ROW);
+    const { POST } = await import("./route");
+    const res = await POST(postReq({ handle: "prakritisattva" }) as never, { params });
+    expect(res.status).toBe(201);
+    expect(await res.json()).toEqual({ handle: ROW });
+    expect(vi.mocked(snapshotHandle)).not.toHaveBeenCalled();
   });
 });

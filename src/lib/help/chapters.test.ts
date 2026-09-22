@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { HELP_CHAPTERS, visibleChapters, chapterBySlug } from "@/lib/help/chapters";
-import { PACK_CEILING_SECONDS, ASSUMED_SHOT_SECONDS } from "@/lib/nodes/group-shots";
+import { ASSUMED_SHOT_SECONDS } from "@/lib/nodes/group-shots";
 import { MULTISHOT_MODELS } from "@/lib/nodes/multishot-models";
 import { MULTISHOT_MODEL_RANGES } from "@/lib/help/script-structure-samples";
 
@@ -83,9 +83,36 @@ describe("structure-a-script", () => {
   const chapter = chapterBySlug("structure-a-script")!;
   const prompts = chapter.steps.map((s) => s.sample!.text);
 
-  it("offers five scenarios as alternatives, not a sequence", () => {
-    expect(chapter.steps).toHaveLength(5);
+  it("offers five scenarios plus one per multishot model, as alternatives", () => {
+    expect(chapter.steps).toHaveLength(5 + MULTISHOT_MODELS.length);
     expect(chapter.stepStyle).toBe("alternatives");
+  });
+
+  // BUG-008 — a script of up to 30s is ONE clip, which only Seedance can generate, and nothing in
+  // the chapter said so. The summary states the rule and each model gets its own split template.
+  it("states plainly that one script up to the ceiling is one clip, on Seedance", () => {
+    expect(chapter.summary).toMatch(/one clip/i);
+    expect(chapter.summary).toContain("Seedance");
+  });
+
+  it("gives every multishot model a template that marks clips within its own window, in ONE script", () => {
+    for (const m of MULTISHOT_MODELS) {
+      const step = chapter.steps.find((s) => s.title.startsWith(`Clips for ${m.label}`));
+      expect(step, m.label).toBeDefined();
+      const text = step!.sample!.text;
+      expect(text).toContain(`Each clip is ${m.maxTotalSeconds} seconds or less`);
+      expect(text).toContain(`No block longer than ${m.maxTotalSeconds} seconds`);
+      // The heading the parser reads into `clip` (script-parse.ts).
+      expect(text).toContain('"CLIP <n> (<start>–<end> SEC)"');
+      expect(text).toMatch(/as few clips as possible/);
+      expect(text).toMatch(/montage of quick cuts is ONE block/i);
+      // One script, not several: nothing to paste into more than one node.
+      expect(text).not.toContain("-----");
+      expect(text).toMatch(/do not restart/);
+      expect(text).toContain(m.label);
+      if (m.maxCuts !== null) expect(text).toContain(`at most ${m.maxCuts} blocks`);
+      else expect(text).not.toMatch(/at most \d+ blocks/);
+    }
   });
 
   // Every step is text-first — none is recorded — so each needs a sample in the pane, or the
@@ -101,7 +128,8 @@ describe("structure-a-script", () => {
   it("gives every prompt the block format and the real limits", () => {
     for (const [i, p] of prompts.entries()) {
       expect(p, `prompt ${i + 1}`).toContain("<start>–<end> SEC —");
-      expect(p, `prompt ${i + 1}`).toContain(`No block longer than ${PACK_CEILING_SECONDS} seconds`);
+      // The pack ceiling, or — in a per-model scenario — that model's own window.
+      expect(p, `prompt ${i + 1}`).toMatch(/No block longer than \d+ seconds/);
       expect(p, `prompt ${i + 1}`).toContain(`counted as ${ASSUMED_SHOT_SECONDS} seconds`);
       expect(p.trimEnd(), `prompt ${i + 1}`).toMatch(/SCRIPT$/);
     }

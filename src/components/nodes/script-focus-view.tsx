@@ -24,7 +24,11 @@ import { looksLikeReelScript, type ReelScript } from "@/lib/nodes/reel-script";
 import { setScriptValue, addItem, removeItem } from "@/lib/nodes/script-edit";
 import type { KBSliceKey } from "@/lib/kb/parse-context";
 import { DEFAULT_SIGNAL_MODE, type SignalMode } from "@/lib/market/constants";
-import { CURRENT_GROUPING_VERSION, type GroupingVersion } from "@/lib/nodes/group-shots";
+import {
+  CURRENT_GROUPING_VERSION,
+  describeGenerations,
+  type GroupingVersion,
+} from "@/lib/nodes/group-shots";
 import { ScriptDocument } from "./script-document";
 import { ScriptEmptyState } from "./script-empty-state";
 import { ScriptSignalsPicker } from "./script-signals-picker";
@@ -106,6 +110,13 @@ export function ScriptFocusView({
 
   const dirty = hasParsed && JSON.stringify(draft) !== JSON.stringify(parsed);
   const shotCount = parsed?.visual_script?.shots?.length ?? 0;
+  // What Fan out creates: one node per generation. Counting script rows promised "4 shots" for a
+  // 4-row single take that fans out to one node (BUG-004). Same derivation fan-out itself uses.
+  const clipCount = describeGenerations(
+    parsed?.visual_script?.shots ?? [],
+    groupModes,
+    groupingVersion ?? 1,
+  ).length;
 
   // One picker, two homes: the empty state (beside the KB slice toggles) and a
   // strip above the parsed doc — the latter is what lets a designer attach a
@@ -286,8 +297,8 @@ export function ScriptFocusView({
                       <Clapperboard
                         className={cn("size-4", dirty && "text-muted-foreground")}
                       />{" "}
-                      Fan out {shotCount} shot
-                      {shotCount === 1 ? "" : "s"}
+                      Fan out {clipCount} clip
+                      {clipCount === 1 ? "" : "s"}
                     </Button>
                   )}
                   <Button

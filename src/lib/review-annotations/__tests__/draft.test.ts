@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { commitDraft, removeDraft } from "../draft";
 import type { AnnotationDraft } from "../draft";
+import { MAX_ANNOTATIONS_PER_DECISION } from "../constants";
 
 function draft(over: Partial<AnnotationDraft> = {}): AnnotationDraft {
   return {
@@ -20,6 +21,16 @@ describe("commitDraft", () => {
     const two = commitDraft(one, draft({ note: "second" }));
     expect(two.map((d) => d.seq)).toEqual([1, 2]);
     expect(two[1].note).toBe("second");
+  });
+
+  // BUG-003 — the server refuses more than MAX_ANNOTATIONS_PER_DECISION, so the draft list must
+  // never hold more; a 21st draft was only discovered at Send back, as a generic error.
+  it("refuses a draft past the per-decision limit", () => {
+    let list: AnnotationDraft[] = [];
+    for (let i = 0; i < MAX_ANNOTATIONS_PER_DECISION; i++) list = commitDraft(list, draft());
+    const over = commitDraft(list, draft({ note: "one too many" }));
+    expect(over).toHaveLength(MAX_ANNOTATIONS_PER_DECISION);
+    expect(over.some((d) => d.note === "one too many")).toBe(false);
   });
 });
 

@@ -6,6 +6,7 @@ import {
   LayoutGrid,
   Settings2,
   Timer,
+  Volume2,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -25,6 +26,7 @@ import type { ParamSpec } from "@/lib/image-gen/types";
 
 const PARAM_ICONS: Record<string, LucideIcon> = {
   aspect_ratio:        Crop,
+  audio:               Volume2,
   duration:            Timer,
   seconds:             Timer,
   size:                LayoutGrid,
@@ -99,6 +101,11 @@ export function VideoGenParamsPanel({
           </Tooltip>
         ) : (
           control
+        )}
+        {/* The spec's own note — e.g. what Kling's Audio adds to the price (BUG-011). Declared
+            on several params but never rendered, so each note was invisible. */}
+        {spec.description && (
+          <p className="text-xs text-muted-foreground">{spec.description}</p>
         )}
       </div>
     );

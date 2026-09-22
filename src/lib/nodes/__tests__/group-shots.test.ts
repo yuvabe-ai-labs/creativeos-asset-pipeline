@@ -10,6 +10,7 @@ import {
   CURRENT_GROUPING_VERSION,
   ceilingForVersion,
   defaultMultishotFor,
+  mergeShotRows,
 } from "../group-shots";
 import { MULTISHOT_MODELS } from "../multishot-models";
 import type { ReelShot } from "../reel-script";
@@ -267,5 +268,76 @@ describe("describeGenerations by version", () => {
 
   it("does not flag a generation at the ceiling", () => {
     expect(describeGenerations(shots(30), undefined, 2)[0].overCeiling).toBe(false);
+  });
+});
+
+// BUG-004 — a single-take generation (Multishot off) is ONE shot: one description, one length.
+// Fan-out used to keep every script row on the node, and every reader (the card, the Composer
+// seed, node-output) took row 1 — a 20s take read as its first 3 seconds.
+describe("mergeShotRows", () => {
+  it("keeps a lone row exactly as it is", () => {
+    const row = { description: "a", duration: "0-3 sec", duration_seconds: 3, clip: 1 };
+    expect(mergeShotRows([row])).toEqual(row);
+  });
+
+  it("joins several rows into one take, summing their length", () => {
+    expect(
+      mergeShotRows([
+        { description: "close on keys.", duration: "0-2 sec", duration_seconds: 2, clip: 1 },
+        { description: "a cab door swings", duration: "2-5 sec", duration_seconds: 3, clip: 1 },
+        { description: "  ", duration_seconds: 4 },
+        { description: "feet hit the street", duration: "9-10 sec", duration_seconds: 1 },
+      ]),
+    ).toEqual({
+      description: "close on keys. A cab door swings Feet hit the street",
+      duration: "10s",
+      duration_seconds: 10,
+      clip: 1,
+    });
+  });
+
+  it("counts an unlengthed row as the assumed length", () => {
+    expect(mergeShotRows([{ description: "a" }, { description: "b" }]).duration_seconds).toBe(8);
+  });
+});
+
+// BUG-008 — a script's own CLIP headings are a hard boundary. Packing to the 30s ceiling made every
+// ≤30s script one clip (Seedance); with clips marked, the 20s Chupster reel below becomes two 10s
+// clips, which Omni can take.
+describe("groupShotsForFanOut honours clip boundaries", () => {
+  const clipped = (...spec: [number, number][]): ReelShot[] =>
+    spec.map(([seconds, clip], i) => ({ description: `shot ${i + 1}`, duration_seconds: seconds, clip }));
+
+  it("never merges shots from different clips, even when they would fit the ceiling", () => {
+    expect(shape(groupShotsForFanOut(clipped([3, 1], [3, 1], [4, 1], [3, 2], [3, 2], [4, 2]), 30))).toEqual([
+      { idx: [0, 1, 2], s: 10 },
+      { idx: [3, 4, 5], s: 10 },
+    ]);
+  });
+
+  it("still packs to the ceiling inside one clip", () => {
+    expect(shape(groupShotsForFanOut(clipped([20, 1], [15, 1]), 30))).toEqual([
+      { idx: [0], s: 20 },
+      { idx: [1], s: 15 },
+    ]);
+  });
+
+  // The trailing rebalance moves a shot backward into a short tail; it must not pull one across
+  // a clip boundary the script drew.
+  it("does not rebalance across a clip boundary", () => {
+    expect(shape(groupShotsForFanOut(clipped([4, 1], [4, 1], [2, 2]), 30))).toEqual([
+      { idx: [0, 1], s: 8 },
+      { idx: [2], s: 3 }, // clamped to the floor, not fed a shot from clip 1
+    ]);
+  });
+
+  it("treats 0 / absent as unmarked, packing exactly as before", () => {
+    const unmarked = shots(3, 5, 6, 4, 2).map((s) => ({ ...s, clip: 0 }));
+    expect(shape(groupShotsForFanOut(unmarked, 30))).toEqual([{ idx: [0, 1, 2, 3, 4], s: 20 }]);
+  });
+
+  it("flows through describeGenerations", () => {
+    const gens = describeGenerations(clipped([5, 1], [5, 1], [5, 2], [5, 2]), undefined, 2);
+    expect(gens.map((g) => g.shotIndexes)).toEqual([[0, 1], [2, 3]]);
   });
 });

@@ -9,6 +9,7 @@ import {
   describeCapability,
   bestFitMultishotModel,
   MultishotCapability,
+  multishotPromptModels,
 } from "../multishot-models";
 import { videoGenClientModelMap, GEMINI_OMNI_MODEL_ID, KLING_OMNI_MODEL_ID, SEEDANCE_MODEL_ID } from "@/lib/video-gen/client-models";
 
@@ -208,5 +209,47 @@ describe("bestFitMultishotModel", () => {
   it("falls back to the default when no model fits", () => {
     expect(bestFitMultishotModel(cuts(34))).toBe(DEFAULT_MULTISHOT_MODEL);
     expect(bestFitMultishotModel([])).toBe(DEFAULT_MULTISHOT_MODEL);
+  });
+});
+
+// BUG-006 — with its Multishot node disconnected, the prompt node has no "node model". Reading
+// the absent targetModel as the default made a Seedance plan claim the node was "now set to
+// Gemini Omni", about a node that was not there.
+describe("multishotPromptModels", () => {
+  it("compares the plan's model with the connected node's", () => {
+    const r = multishotPromptModels({
+      connected: true,
+      nodeModel: GEMINI_OMNI_MODEL_ID,
+      planModel: SEEDANCE_MODEL_ID,
+    });
+    expect(r.plan.id).toBe(SEEDANCE_MODEL_ID);
+    expect(r.node?.id).toBe(GEMINI_OMNI_MODEL_ID);
+    expect(r.mismatch).toBe(true);
+  });
+
+  it("reports no node and no mismatch when the Multishot node is disconnected", () => {
+    const r = multishotPromptModels({
+      connected: false,
+      nodeModel: undefined,
+      planModel: SEEDANCE_MODEL_ID,
+    });
+    expect(r.plan.id).toBe(SEEDANCE_MODEL_ID);
+    expect(r.node).toBeNull();
+    expect(r.mismatch).toBe(false);
+  });
+
+  it("uses the node's model for a node with no plan yet", () => {
+    const r = multishotPromptModels({
+      connected: true,
+      nodeModel: KLING_OMNI_MODEL_ID,
+      planModel: null,
+    });
+    expect(r.plan.id).toBe(KLING_OMNI_MODEL_ID);
+    expect(r.mismatch).toBe(false);
+  });
+
+  it("reads an unstamped plan as the default model, as the money path does", () => {
+    const r = multishotPromptModels({ connected: false, nodeModel: undefined, planModel: undefined });
+    expect(r.plan.id).toBe(DEFAULT_MULTISHOT_MODEL);
   });
 });

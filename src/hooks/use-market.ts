@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useMarketUpdates } from "./use-market-updates";
 import { authFetch } from "@/lib/supabase/session-ready";
 import type { Moodboard, MoodboardItem } from "@/lib/db/moodboards";
 import type { SignalWithItems } from "@/lib/db/signals";
@@ -15,10 +16,10 @@ export type MarketData = {
 /**
  * Prints the archive backlog to the browser console on every board refetch.
  *
- * The archive is a background pipeline with no realtime channel (D269) — the board
- * refetches when you add something, and that is the only moment the UI learns
- * anything. Without this you cannot tell "the task ran and is working" from "nothing
- * is listening", because both leave the tile looking finished.
+ * The board now refetches on Realtime events too (D276), so this fires whenever the
+ * archive task touches a row — which makes it the quickest way to tell "the task ran
+ * and is working" from "nothing is listening": both leave the tile looking finished,
+ * but only one prints a status change here.
  *
  * `attempts: 0` across the board is the signature of the task never having been
  * reached at all — usually `npm run dev:trigger` not running.
@@ -74,6 +75,14 @@ export function useMarket(clientId: string) {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void refresh();
   }, [refresh]);
+
+  // D276 — refetch when the archive task, a teammate, or the sweep changes a row on one
+  // of this client's two boards. Enabled only once we know the board ids.
+  useMarketUpdates(
+    data ? [data.direct.board.id, data.adjacent.board.id] : [],
+    data !== null,
+    refresh,
+  );
 
   const addReference = useCallback(
     async (input: { url: string; bucket: MarketBucket; note?: string }) => {

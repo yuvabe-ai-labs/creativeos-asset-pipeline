@@ -47,6 +47,8 @@ export function AddHandleDialog({ open, onClose, onAdd, onAdded }: Props) {
       setError(result.error);
       return;
     }
+    // Close on the insert, not on the first snapshot (D275): the ~10 s scrape is shown
+    // on the new sub-tab, where it can run without holding a modal open.
     onAdded(result.handle);
     close();
   }
@@ -58,7 +60,7 @@ export function AddHandleDialog({ open, onClose, onAdd, onAdded }: Props) {
           <DialogTitle>Track a handle</DialogTitle>
           <DialogDescription>
             The client&apos;s own account or a competitor&apos;s — both work the same way.
-            Snapshots start from today; history builds as they run.
+            The first snapshot is taken now; history builds daily from there.
           </DialogDescription>
         </DialogHeader>
 

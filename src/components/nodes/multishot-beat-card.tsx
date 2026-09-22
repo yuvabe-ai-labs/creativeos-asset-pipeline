@@ -40,8 +40,10 @@ export function MultishotBeatCard({
   isLast = false,
 }: {
   index: number;
-  from: number;
-  to: number;
+  /** Null when the beat's cut can't be found — no Multishot node connected, or the cut was
+   * removed. Rendered as no timecode rather than a made-up `0–0s` (BUG-006). */
+  from: number | null;
+  to: number | null;
   text: string;
   upstream: UpstreamNode[];
   /** The target model's token dialect, built ONCE by the parent (see beatDialect there): a
@@ -90,14 +92,16 @@ export function MultishotBeatCard({
       )}
     >
       <div className="flex w-[92px] shrink-0 flex-col gap-1">
-        <Button
-          variant="ghost"
-          onClick={onFocusTimings}
-          title="Timings live on the Multishot node"
-          className="h-auto w-fit rounded px-1 py-0.5 text-sm font-medium tabular-nums text-primary hover:bg-primary/5 dark:hover:bg-primary/10"
-        >
-          {from}–{to}s
-        </Button>
+        {from !== null && to !== null && (
+          <Button
+            variant="ghost"
+            onClick={onFocusTimings}
+            title="Timings live on the Multishot node"
+            className="h-auto w-fit rounded px-1 py-0.5 text-sm font-medium tabular-nums text-primary hover:bg-primary/5 dark:hover:bg-primary/10"
+          >
+            {from}–{to}s
+          </Button>
+        )}
         <span className="text-eyebrow text-muted-foreground">Shot {index + 1}</span>
       </div>
 

@@ -135,23 +135,34 @@ export async function listCanvasPendingItems(
 //   * No paging. It is two small columns for one canvas's asset nodes, fetched as a whole
 //     because a half-synced canvas is worse than an unsynced one: the badges that fell
 //     outside the window would be silently, invisibly stale.
+//
+// BUG-002: it also carries each node's ACTIVE output (when it is a string — an image or video
+// URL), so the canvas can show a colleague's new version on the card, not just its badge. Same
+// row, same view: the badge and the media it describes cannot come from two different versions.
 export async function listCanvasApprovalStatuses(
   orgId: string,
   canvasId: string,
-): Promise<Record<string, ApprovalStatus>> {
+): Promise<{ statuses: Record<string, ApprovalStatus>; outputs: Record<string, string> }> {
   const supabase = createServerSupabase();
   const { data, error } = await supabase
     .from("review_queue_items")
-    .select("node_id, approval_status")
+    .select("node_id, approval_status, output")
     .eq("org_id", orgId)
     .eq("canvas_id", canvasId);
   if (error) throw error;
 
   // Cast explained at listCanvasPendingItems below (view absent from generated types).
-  const rows = (data ?? []) as unknown as Pick<QueueRow, "node_id" | "approval_status">[];
-  const out: Record<string, ApprovalStatus> = {};
-  for (const r of rows) out[r.node_id] = r.approval_status;
-  return out;
+  const rows = (data ?? []) as unknown as Pick<
+    QueueRow,
+    "node_id" | "approval_status" | "output"
+  >[];
+  const statuses: Record<string, ApprovalStatus> = {};
+  const outputs: Record<string, string> = {};
+  for (const r of rows) {
+    statuses[r.node_id] = r.approval_status;
+    if (typeof r.output === "string") outputs[r.node_id] = r.output;
+  }
+  return { statuses, outputs };
 }
 
 // R9.1/R9.5 — the org-wide navbar popover. Fetches both actionable states and lets the

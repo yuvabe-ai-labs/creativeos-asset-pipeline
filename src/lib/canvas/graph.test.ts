@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { Edge } from "@xyflow/react";
-import { wouldCreateCycle, findAncestorOfType, findDescendantsOfType } from "./graph";
+import { wouldCreateCycle, findAncestorOfType, findDescendantsOfType, connectionPath } from "./graph";
 
 const e = (source: string, target: string): Edge => ({ id: `${source}-${target}`, source, target });
 const n = (id: string, type: string) => ({ id, type });
@@ -66,5 +66,35 @@ describe("findDescendantsOfType", () => {
 
   it("returns [] when there are no downstream nodes of the type", () => {
     expect(findDescendantsOfType("p", nodes, [e("x", "p")], "video-gen")).toEqual([]);
+  });
+});
+
+// A focus view's rail lists inputs that may reach the node THROUGH another node (a Video Gen shows
+// the images wired into its prompt node). Its ✕ can only remove a direct edge; for the rest it must
+// say which node the connection comes from rather than silently doing nothing.
+describe("connectionPath", () => {
+  const edge = (source: string, target: string) => ({ id: `${source}-${target}`, source, target });
+
+  it("reports a direct edge", () => {
+    expect(connectionPath([edge("img", "vg")], "img", "vg")).toEqual({ kind: "direct" });
+  });
+
+  it("names the node an indirect input arrives through", () => {
+    const edges = [edge("img", "vp"), edge("vp", "vg")];
+    expect(connectionPath(edges, "img", "vg")).toEqual({ kind: "via", viaId: "vp" });
+  });
+
+  it("prefers the direct edge when both exist", () => {
+    const edges = [edge("img", "vg"), edge("img", "vp"), edge("vp", "vg")];
+    expect(connectionPath(edges, "img", "vg")).toEqual({ kind: "direct" });
+  });
+
+  it("finds a deeper path, naming the node nearest the target", () => {
+    const edges = [edge("img", "shot"), edge("shot", "vp"), edge("vp", "vg")];
+    expect(connectionPath(edges, "img", "vg")).toEqual({ kind: "via", viaId: "vp" });
+  });
+
+  it("reports no path", () => {
+    expect(connectionPath([edge("a", "b")], "img", "vg")).toEqual({ kind: "none" });
   });
 });

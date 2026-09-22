@@ -71,7 +71,8 @@ import { useIdentity } from "@/hooks/use-identity";
 import { useNodeVersionUpdates } from "@/hooks/use-node-version-updates";
 import { revalidateCanvasGenerations } from "@/hooks/use-canvas-generations";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
-import type { ApprovalStatus } from "@/lib/approval";
+import { useRailDisconnect } from "./use-rail-disconnect";
+import { standingChangeRequest, type ApprovalStatus } from "@/lib/approval";
 import {
   imageGenClientModelMap,
   DEFAULT_CLIENT_MODEL_ID,
@@ -98,6 +99,7 @@ import {
 import { groupByTimecode } from "@/lib/review-annotations/group";
 import { formatRelativeTime } from "@/lib/format/relative-time";
 import type { RegionBounds } from "@/lib/review-annotations/draft";
+import { MAX_ANNOTATIONS_PER_DECISION } from "@/lib/review-annotations/constants";
 import { CREDIT_LIMIT_TOAST_MESSAGE, usdToFinalCredits } from "@/lib/credits/units";
 import { estimateImageGenerationCostUsd } from "@/lib/image-gen/estimate";
 import { LeftSection } from "./focus-left-section";
@@ -259,6 +261,11 @@ export function ImageGenFocusView({
   );
   const [openSeed, setOpenSeed] = useState(open);
   const seenModelIdRef = useRef(model.id);
+  // The rail's hover control (✕ / link icon) — see useRailDisconnect. A disconnected row that
+  // was selected falls back to this node's own tab.
+  const { removeFor } = useRailDisconnect(nodeId, (sourceId) => {
+    if (selected === sourceId) setSelected("image");
+  });
 
   // Re-arm skeletons on open transition.
   if (open !== openSeed) {
@@ -640,12 +647,14 @@ export function ImageGenFocusView({
   // annotations attached to it. Derived from the versions list the history panel
   // already fetched — no second request, and it re-derives whenever fetchVersions
   // lands (including right after the senior's own Send back).
+  // Only the request still in force (BUG-001) — the same rule the video view uses.
   const latestChangeRequest = useMemo(
     () =>
-      versions
-        .find((v) => v.id === activeVersionId)
-        ?.decisions?.find((d) => d.status === "changes_requested") ?? null,
-    [versions, activeVersionId],
+      standingChangeRequest(
+        approvalStatus,
+        versions.find((v) => v.id === activeVersionId)?.decisions,
+      ),
+    [versions, activeVersionId, approvalStatus],
   );
   const reviewAnnotations = useMemo(
     () => latestChangeRequest?.annotations ?? [],
@@ -953,7 +962,17 @@ export function ImageGenFocusView({
         status === "changes_requested" && reviewDrafts.drafts.length > 0
           ? reviewDrafts.drafts
           : undefined;
-      await setVersionApprovalAction(activeVersionId, { status, note, annotations });
+      const result = await setVersionApprovalAction(activeVersionId, {
+        status,
+        note,
+        annotations,
+      });
+      // A refusal comes back as data so its message survives production builds (BUG-003).
+      // Drafts are kept, so fixing the problem and retrying is lossless.
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
       reviewDrafts.clear();
       setReviewAnnotating(false);
       setPendingBounds(null);
@@ -1126,15 +1145,21 @@ export function ImageGenFocusView({
                 No inputs connected.
               </p>
             ) : (
-              upstreamForCard.map((u) => (
-                <RailItem
-                  key={u.id}
-                  icon={<NodeIcon type={u.type} />}
-                  label={u.label}
-                  active={selected === u.id}
-                  onClick={() => setSelected(u.id)}
-                />
-              ))
+              upstreamForCard.map((u) => {
+                const remove = editable ? removeFor(u.id, u.label) : null;
+                return (
+                  <RailItem
+                    key={u.id}
+                    icon={<NodeIcon type={u.type} />}
+                    label={u.label}
+                    active={selected === u.id}
+                    onClick={() => setSelected(u.id)}
+                    onRemove={remove?.onClick}
+                    removeLabel={remove?.label}
+                    removeKind={remove?.kind}
+                  />
+                );
+              })
             )}
 
             <div className="mx-2.5 my-2 h-px bg-border" />
@@ -1512,6 +1537,13 @@ export function ImageGenFocusView({
                                       noteText,
                                     );
                                     reviewCanvasRef.current?.clear();
+                                    // BUG-003: that was the last one allowed — stop painting.
+                                    if (
+                                      reviewDrafts.drafts.length + 1 >=
+                                      MAX_ANNOTATIONS_PER_DECISION
+                                    ) {
+                                      setReviewAnnotating(false);
+                                    }
                                   }
                                   setPendingBounds(null);
                                 }}

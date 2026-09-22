@@ -15,7 +15,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 }
 
 /** Enrols a handle. Canonicalizes first, so `@Foo`, `foo` and a pasted profile URL all
- *  become one row — and so the value stored is the one the scraper will request. */
+ *  become one row — and so the value stored is the one the scraper will request.
+ *
+ *  Deliberately does NOT take the first snapshot here (D275): the ~10 s scrape would
+ *  hold the dialog open on a spinner. The client fires the refresh route the moment
+ *  the new sub-tab mounts, so the wait is shown on the tab, not in a modal. */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   return withClient(req, params, async (clientId) =>
     withTryCatch("Could not add that handle.", async () => {
