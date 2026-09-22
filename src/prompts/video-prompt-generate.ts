@@ -9,6 +9,7 @@ export {
   MOTION_AVOID_LIST,
   SINGLE_TAKE_LINE,
   MULTISHOT_AUTHORING_MODEL,
+  VO_PERFORMANCE_RULES,
   type VideoPromptTarget,
   type VideoProvider,
   type VideoProviderPrompt,

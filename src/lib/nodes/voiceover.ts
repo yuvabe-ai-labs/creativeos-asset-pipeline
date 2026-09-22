@@ -272,4 +272,22 @@ export function renderVoiceover(lines: VoLine[] | undefined): string {
     .join(" ");
 }
 
+/**
+ * D267 (Task 5) — how the WRITER is told a line exists, without handing it the words to place: a
+ * speaker and on/off-screen, so it can frame a talking face or keep everyone silent for narration.
+ * The quoted text travels too, only so the writer can tell WHICH shot a line belongs to — it may
+ * not write, quote or paraphrase it into the beat (VO_PERFORMANCE_RULES, video-prompt-shared.ts).
+ * `renderPlan` (multishot-plan.ts), via `renderVoiceover` above, is what actually puts the words on
+ * the wire.
+ */
+export function describeVoLineForWriter(line: VoLine): string {
+  const speaker = line.speaker?.trim();
+  const delivery = line.delivery?.trim();
+  const onScreen = Boolean(speaker && speaker !== "narrator");
+  const who = onScreen ? speaker : "narrator";
+  const where = onScreen ? "on-screen" : "off-screen";
+  const deliveryPart = delivery ? `, ${delivery}` : "";
+  return `${who} (${where}${deliveryPart}): "${line.text}"`;
+}
+
 export type { VoLine };

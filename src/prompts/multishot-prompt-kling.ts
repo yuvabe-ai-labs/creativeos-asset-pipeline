@@ -13,17 +13,22 @@ import {
   MULTISHOT_LOOK_BLOCK_RULES,
   MULTISHOT_SHOT_TEXT_CONTRACT,
   referenceIdentificationBlock,
-  voiceoverRules,
   type MultishotPromptSpec,
 } from "./multishot-prompt-generate";
-import { MOTION_AVOID_LIST, MULTISHOT_AUTHORING_MODEL } from "./video-prompt-generate";
+import {
+  MOTION_AVOID_LIST,
+  MULTISHOT_AUTHORING_MODEL,
+  VO_PERFORMANCE_RULES,
+} from "./video-prompt-generate";
 
 // @2 (D262): shares the transcribe-or-empty look rule and the no-assumed-setting contract.
 // @3 (D263): shares the trimmed, simple-motion craft block.
 // @4: the voiceover is written into the beats, verbatim (shared VOICEOVER rule).
 // @5: `cutId` is enum-constrained to the node's own ids (planSchemaForCuts). System text unchanged;
 //     bumped because the shared SCHEMA changed.
-export const MULTISHOT_KLING_PROMPT_ID = "multishot-prompt-kling@5";
+// @6 (D267, Task 5): the writer no longer writes the spoken words — shares VO_PERFORMANCE_RULES
+//     instead of `voiceoverRules`; renderPlan appends the actual line afterwards.
+export const MULTISHOT_KLING_PROMPT_ID = "multishot-prompt-kling@6";
 
 const SYSTEM = `You write the shot-by-shot motion plan for a single multi-shot video generation on Kling 3.0 Omni.
 
@@ -46,9 +51,7 @@ ${MULTISHOT_SHOT_TEXT_CONTRACT}
 
 ${MULTISHOT_SHARED_CRAFT}
 
-${voiceoverRules(
-  `Kling's own native-audio form — the speaker, then the line, kept together: 'An off-screen narrator says, in a calm, clear tone, "…"', or for a named speaker, 'the woman in the linen shirt says, smiling, "…"'. Add a delivery note (whispering, surprised, low voice) only when it matters. Keep each spoken sentence short — simpler grammar lip-syncs better. The line counts toward the beat's 512 characters.`,
-)}
+${VO_PERFORMANCE_RULES}
 
 NAMING THINGS THE REFERENCES CARRY
 Kling merges two things it cannot tell apart, so distinctness is a hard requirement here:

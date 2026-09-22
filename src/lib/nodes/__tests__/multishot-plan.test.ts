@@ -377,6 +377,10 @@ describe("checkPlanLimits", () => {
   // beat. A cut whose beat alone is fine but whose beat-plus-voiceover breaches the cap must be
   // reported, and the reason must say the voiceover is why, so the operator knows which half of
   // the cut to shorten (the voiceover itself is never truncated).
+  //
+  // Review finding (Task 5) — "(including its voiceover)" used to be appended after the message's
+  // final full stop, reading as if it qualified "rewrite that shot with AI" rather than the
+  // character count a few words earlier. It must sit immediately after the count it explains.
   it("reports a cut whose beat alone fits but beat + voiceover exceeds the per-cut cap", () => {
     const cutsWithVo: MultishotCut[] = [
       { id: "c1", text: "", seconds: 2, voiceover: [{ text: "x".repeat(200), speaker: "narrator" }] },
@@ -392,7 +396,9 @@ describe("checkPlanLimits", () => {
     expect(res.ok).toBe(false);
     if (!res.ok) {
       expect(res.reason).toContain("Shot 1");
-      expect(res.reason).toContain("(including its voiceover)");
+      // Sits right after the character count, not tacked onto the end of the sentence.
+      expect(res.reason).toMatch(/^Shot 1 is \d+ characters \(including its voiceover\) · Kling/);
+      expect(res.reason).not.toMatch(/AI\.\s*\(including its voiceover\)/);
     }
   });
 });

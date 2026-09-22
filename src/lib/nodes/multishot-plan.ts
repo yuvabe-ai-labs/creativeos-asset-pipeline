@@ -338,8 +338,8 @@ export function checkPlanLimits(
         return {
           ok: false,
           reason:
-            `Shot ${i + 1} is ${text.length} characters · ${cap.label} allows ${cap.maxCutChars}. Shorten it, or rewrite that shot with AI.` +
-            (vo ? " (including its voiceover)" : ""),
+            `Shot ${i + 1} is ${text.length} characters${vo ? " (including its voiceover)" : ""} · ` +
+            `${cap.label} allows ${cap.maxCutChars}. Shorten it, or rewrite that shot with AI.`,
         };
       }
     }

@@ -7,6 +7,7 @@ import { SINGLE_TAKE_LINE } from "@/prompts/video-prompt-generate";
 import { selectImageUpstreams } from "@/lib/nodes/shot-compose";
 import type { ReelScript } from "@/lib/nodes/reel-script";
 import type { MultishotCut } from "@/lib/nodes/multishot-cuts";
+import { describeVoLineForWriter, renderVoiceover } from "@/lib/nodes/voiceover";
 
 const TYPE_LABEL: Record<string, string> = {
   script: "Script",
@@ -212,30 +213,7 @@ export type ResolvedMultishotInputs = {
    * written from stated direction, so this has to reach the writer. Empty when the script has none.
    */
   scriptNotes: string;
-  /**
-   * BUG-009 — the script's voiceover, so each beat's action can fit the line spoken over it.
-   * Empty when the script has none (or says it has none — see `voiceoverForWriter`).
-   */
-  voiceover: string;
 };
-
-// "No voiceover", "none", "N/A", "No VO — music only", "-": parsed scripts routinely fill the
-// field with a statement that there is none, and handing that to the writer as a line to match
-// would be noise at best.
-const NO_VOICEOVER_RE = /^\s*(?:-+|n\/?a|none|no\s*(?:vo|voice\s*-?\s*over)\b.*)\s*\.?\s*$/i;
-
-/**
- * The voiceover as the multishot writer should see it: trimmed, and empty when the script states
- * there is none.
- *
- * Only the multishot writer gets it. The single-take path still drops audio (D24 — a start frame
- * fixes the shot, and a motion prompt needs what moves), but a cut sequence carries its voiceover:
- * the writer places each line in the beat it is spoken over (BUG-009).
- */
-export function voiceoverForWriter(voiceover: string | undefined): string {
-  const vo = (voiceover ?? "").trim();
-  return NO_VOICEOVER_RE.test(vo) ? "" : vo;
-}
 
 /**
  * Inputs for the Multishot Prompt node. Sibling of `resolveVideoPromptInputs`, and separate for
@@ -268,9 +246,6 @@ export async function resolveMultishotPromptInputs(
   const script = source?.data.script as ReelScript | undefined;
   const notes = script?.visual_script?.execution_refinement;
   const scriptNotes = typeof notes === "string" ? notes : "";
-  const voiceover = voiceoverForWriter(
-    typeof script?.voiceover === "string" ? script.voiceover : undefined,
-  );
 
   return {
     clientContext,
@@ -280,7 +255,6 @@ export async function resolveMultishotPromptInputs(
     cuts,
     targetModel,
     scriptNotes,
-    voiceover,
   };
 }
 
@@ -297,8 +271,13 @@ export function buildMultishotUserTurn(args: {
   cutInstructions: Record<string, string>;
   /** D262 — the script's production notes. Optional so a caller with none need not pass it. */
   scriptNotes?: string;
-  /** BUG-009 — the script's voiceover, already cleaned by `voiceoverForWriter`. */
-  voiceover?: string;
+  /**
+   * D267 (Task 5) — the writer's own per-cut character ceiling (Kling: 512; `null`/absent = no
+   * vendor-stated limit), so the "Room for your beat" hint below can tell it how much of that
+   * budget its own voiceover already spends. Mirrors `MultishotCapability.maxCutChars`
+   * (src/lib/nodes/multishot-models.ts).
+   */
+  maxCutChars?: number | null;
 }): string {
   const blocks: string[] = [];
 
@@ -308,18 +287,6 @@ export function buildMultishotUserTurn(args: {
   // brand context above it (not a source of setting).
   const notes = (args.scriptNotes ?? "").trim();
   if (notes) blocks.push(`The script's production notes:\n${notes}`);
-
-  // The lines the video speaks. Every multishot model gets them written into its beats (the
-  // writers' shared VOICEOVER rule): which beat each line lands in is the writer's call from the
-  // shot texts and lengths. Whether a given model renders the speech, and how, is the video
-  // request's concern (audio params, lip-sync), not something the prompt withholds.
-  const vo = (args.voiceover ?? "").trim();
-  if (vo) {
-    blocks.push(
-      `The script's voiceover — spoken in the video. Write each line, verbatim, into the beat where ` +
-        `it is spoken (see VOICEOVER); every line must appear exactly once:\n${vo}`,
-    );
-  }
 
   for (const u of args.upstream) {
     if (!u.text.trim()) continue;
@@ -343,6 +310,27 @@ export function buildMultishotUserTurn(args: {
       ];
       const steer = (args.cutInstructions[cut.id] ?? "").trim();
       if (steer) lines.push(`  Operator instruction for THIS shot: ${steer}`);
+
+      // D267 (Task 5) — WHAT is spoken over this shot, so the writer can frame a talking face or
+      // keep everyone silent for narration (VO_PERFORMANCE_RULES). Never an instruction to write
+      // the words — `renderPlan` (multishot-plan.ts) appends the actual line afterwards.
+      const voLines = (cut.voiceover ?? []).filter((l) => l.text.trim());
+      for (const l of voLines) {
+        lines.push(`  Voiceover on this shot: ${describeVoLineForWriter(l)}`);
+      }
+
+      // The same line `renderPlan`/`checkPlanLimits` append to this cut's beat, so the writer can
+      // see how much of its own ceiling (e.g. Kling's 512) the voiceover already spends, joined by
+      // the same one space `withVoiceover` inserts (multishot-plan.ts).
+      const rendered = renderVoiceover(cut.voiceover);
+      if (rendered && args.maxCutChars) {
+        const takes = rendered.length + 1;
+        lines.push(
+          `  Room for your beat: ${Math.max(0, args.maxCutChars - takes)} characters ` +
+            `(its voiceover takes ${takes} of ${args.maxCutChars}).`,
+        );
+      }
+
       return lines.join("\n");
     })
     .join("\n\n");
