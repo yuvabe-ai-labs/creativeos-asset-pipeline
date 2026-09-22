@@ -4,27 +4,17 @@ import { Download, Loader2, RefreshCw, Sparkles, UserRound } from "lucide-react"
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { FaceRow } from "@/lib/ugc/board";
-import { VoicePanel } from "./voice-panel";
 
 type Props = {
   row: FaceRow;
   onPrompt: (text: string) => void;
   onGenerate: () => void;
   onRegenerate: () => void;
-  onVoiceNote: (text: string) => void;
-  onClearVoice: () => void;
 };
 
 // Once a face exists its prompt locks: the face was made from that text, and
 // "New face" copies the row instead of overwriting it.
-export function FaceColumn({
-  row,
-  onPrompt,
-  onGenerate,
-  onRegenerate,
-  onVoiceNote,
-  onClearVoice,
-}: Props) {
+export function FaceColumn({ row, onPrompt, onGenerate, onRegenerate }: Props) {
   const busy = row.faceStatus === "generating";
   return (
     <div className="flex w-56 shrink-0 flex-col gap-2 border-r border-neutral-100 pr-4">
@@ -74,13 +64,6 @@ export function FaceColumn({
           {busy ? "Generating…" : "Generate face"}
         </Button>
       )}
-
-      <VoicePanel
-        voice={row.voice}
-        note={row.voiceNote}
-        onNote={onVoiceNote}
-        onClear={onClearVoice}
-      />
     </div>
   );
 }

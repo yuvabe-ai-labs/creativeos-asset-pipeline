@@ -6,6 +6,7 @@ import type { FaceRow as Row } from "@/lib/ugc/board";
 import type { UgcBench } from "@/hooks/use-ugc-bench";
 import { FaceColumn } from "./face-column";
 import { ScriptTile } from "./script-tile";
+import { VoicePanel } from "./voice-panel";
 
 export function FaceRow({ row, bench }: { row: Row; bench: UgcBench }) {
   return (
@@ -15,10 +16,8 @@ export function FaceRow({ row, bench }: { row: Row; bench: UgcBench }) {
         onPrompt={(t) => bench.setFacePrompt(row.id, t)}
         onGenerate={() => bench.generateFace(row.id)}
         onRegenerate={() => bench.regenerateFace(row.id)}
-        onVoiceNote={(t) => bench.setVoiceNote(row.id, t)}
-        onClearVoice={() => bench.clearVoice(row.id)}
       />
-      <div className="flex flex-col gap-2">
+      <div className="flex min-w-0 flex-1 flex-col gap-2">
         <div className="flex items-center">
           <span className="text-eyebrow">2 · Seedance scripts → videos</span>
           <Button
@@ -53,6 +52,12 @@ export function FaceRow({ row, bench }: { row: Row; bench: UgcBench }) {
             Script
           </Button>
         </div>
+        <VoicePanel
+          voice={row.voice}
+          note={row.voiceNote}
+          onNote={(t) => bench.setVoiceNote(row.id, t)}
+          onClear={() => bench.clearVoice(row.id)}
+        />
       </div>
     </div>
   );
