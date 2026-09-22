@@ -33,12 +33,13 @@ export const LEGACY_PACK_CEILING = 10;
  *
  *   v1 — 10s ceiling, a group of 2+ shots defaults to multishot
  *   v2 — 30s ceiling, every generation defaults to single (D259)
+ *   v3 — no packing at all: one generation per scene, defaulting to single (D277)
  *
  * Absence means v1, and absence IS the migration: nothing is backfilled, so no existing canvas
- * reshapes under its operator. A re-parse adopts v2 wholesale.
+ * reshapes under its operator. A re-parse adopts the current version wholesale.
  */
-export type GroupingVersion = 1 | 2;
-export const CURRENT_GROUPING_VERSION: GroupingVersion = 2;
+export type GroupingVersion = 1 | 2 | 3;
+export const CURRENT_GROUPING_VERSION: GroupingVersion = 3;
 
 export function ceilingForVersion(version: GroupingVersion): number {
   return version === 1 ? LEGACY_PACK_CEILING : PACK_CEILING_SECONDS;
@@ -88,11 +89,16 @@ export function mergeShotRows(rows: ReelShot[]): ReelShot {
     .join(" ");
   const total = rows.reduce((sum, r) => sum + shotSeconds(r), 0);
   const clip = rows[0]?.clip;
+  // D267 — the merged take's voiceover is every merged row's lines, concatenated in order. Absent
+  // on ALL rows means absent on the take too (an old parse contributes nothing), matching
+  // cutsFromShots' rule that `[]` and "no key" are different states.
+  const hasVoiceover = rows.some((r) => r.voiceover !== undefined);
   return {
     description,
     duration: `${total}s`,
     duration_seconds: total,
     ...(clip !== undefined ? { clip } : {}),
+    ...(hasVoiceover ? { voiceover: rows.flatMap((r) => r.voiceover ?? []) } : {}),
   };
 }
 
@@ -227,11 +233,24 @@ export function generationKey(shotIndexes: number[]): string {
 }
 
 /**
+ * D277 — v3's whole grouping rule: one scene, one generation.
+ *
+ * Not a ceiling of infinity but the absence of packing. There is no greedy pass, no trailing
+ * rebalance and no floor clamp, because each of those reshapes the operator's script toward what
+ * some model can take. A scene too long for every model is reported by `overCeiling` and left
+ * alone — where to cut it is a creative decision.
+ */
+export function scenesAsGenerations(shots: ReelShot[]): ShotGroup[] {
+  return shots.map((shot, index) => ({ shotIndexes: [index], seconds: shotSeconds(shot) }));
+}
+
+/**
  * D227 — the generations the script will fan out to, with each one's mode.
  *
- * Derived from `groupShotsForFanOut`, not from a parallel rule, so what the Visual script list
- * shows is exactly what fan-out will do. A label computed independently would drift, and its
- * whole purpose is to let the operator see and set the plan before committing to it.
+ * Derived from `groupShotsForFanOut` (or, under v3, `scenesAsGenerations`), not from a parallel
+ * rule, so what the Visual script list shows is exactly what fan-out will do. A label computed
+ * independently would drift, and its whole purpose is to let the operator see and set the plan
+ * before committing to it.
  *
  * `overrides` holds ONLY deviations from the default (a group of >1 row is multishot). An
  * override whose key matches no current generation is ignored: after a re-parse the grouping it
@@ -243,7 +262,12 @@ export function describeGenerations(
   overrides?: Record<string, boolean>,
   groupingVersion: GroupingVersion = 1,
 ): Generation[] {
-  return groupShotsForFanOut(shots, ceilingForVersion(groupingVersion)).map((group, index) => {
+  const groups =
+    groupingVersion === 3
+      ? scenesAsGenerations(shots)
+      : groupShotsForFanOut(shots, ceilingForVersion(groupingVersion));
+
+  return groups.map((group, index) => {
     const key = generationKey(group.shotIndexes);
     const override = overrides?.[key];
     return {
@@ -255,7 +279,8 @@ export function describeGenerations(
           ? override
           : defaultMultishotFor(group.shotIndexes, groupingVersion),
       overCeiling: group.seconds > PACK_CEILING_SECONDS,
-      recommendMultishot: group.shotIndexes.length > 1,
+      // A v3 generation is one scene, so there is no multi-shot group to recommend multishot for.
+      recommendMultishot: groupingVersion !== 3 && group.shotIndexes.length > 1,
       key,
     };
   });

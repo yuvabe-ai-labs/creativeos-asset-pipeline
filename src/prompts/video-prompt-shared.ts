@@ -108,6 +108,22 @@ export const SINGLE_TAKE_LINE = "In a single unbroken scene. No scene cuts.";
  */
 export const MULTISHOT_AUTHORING_MODEL = "gpt-5.4-mini";
 
+/**
+ * D267 (Task 5) — shared by every writer, single-take and multishot. The script's voiceover words
+ * are rendered into the prompt verbatim by src/lib/nodes/voiceover.ts (`renderVoiceover`), called
+ * from `renderPlan` (src/lib/nodes/multishot-plan.ts); a writer that also wrote them would
+ * duplicate or paraphrase client copy in a paid clip — which is exactly what shipped before this:
+ * asked to place every line from a whole reel into one node's beats, the writer kept one and
+ * dropped the rest, trading a shot's own action away to fit a line that didn't belong there. What a
+ * writer never places, it cannot misplace. What a writer CAN still do is make the visuals support
+ * the line it is told is coming.
+ */
+export const VO_PERFORMANCE_RULES = `VOICEOVER
+When a shot lists voiceover lines, those exact words are added to the prompt after you write it. NEVER write, quote or paraphrase them, and never describe a voice.
+- A line spoken by someone ON SCREEN: keep that person's face visible and readable toward the camera while they speak; give them one simple action; nothing covers the mouth; no fast head turns.
+- A NARRATOR line: nobody on screen speaks, moves their lips as if talking, or addresses the camera.
+- A shot with no voiceover lines: do not describe anyone speaking.`;
+
 export type VideoProviderPrompt = {
   id: string;
   version: number;

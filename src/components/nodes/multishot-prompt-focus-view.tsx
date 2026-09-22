@@ -57,6 +57,7 @@ import {
   type MultishotPlan,
 } from "@/lib/nodes/multishot-plan";
 import { storedRefDialect, missingRefsMessage } from "@/lib/nodes/ref-binding";
+import { renderVoiceover } from "@/lib/nodes/voiceover";
 import type { RefineScope } from "@/lib/nodes/refine-suggestions";
 
 type MultishotPromptFocusViewProps = {
@@ -750,6 +751,15 @@ export function MultishotPromptFocusView({
                                 <p className="whitespace-pre-wrap text-xs leading-relaxed text-foreground/70">
                                   {cut.text.trim() || "No shot description yet — edit the Multishot node."}
                                 </p>
+                                {/* What this shot SAYS. Shown because the writer no longer writes
+                                    spoken lines — they are appended to this shot's beat when the
+                                    prompt is rendered — so a card without them read as a shot with
+                                    no voiceover at all. */}
+                                {renderVoiceover(cut.voiceover) && (
+                                  <p className="mt-1.5 whitespace-pre-wrap text-xs leading-relaxed text-primary/80">
+                                    {renderVoiceover(cut.voiceover)}
+                                  </p>
+                                )}
                               </div>
                             ))}
                           </div>
@@ -976,6 +986,9 @@ export function MultishotPromptFocusView({
                               onRerun={() => runRefine("cut", { cutId: beat.cutId })}
                               onRefine={(note) => runRefine("cut", { cutId: beat.cutId, note })}
                               mentionables={planMentions}
+                              spokenLine={renderVoiceover(
+                                cuts.find((c) => c.id === beat.cutId)?.voiceover,
+                              )}
                               showRerun={SHOW_PER_BEAT_REGENERATE}
                               rerunning={refining?.cutId === beat.cutId}
                               onFocusTimings={focusTimings}

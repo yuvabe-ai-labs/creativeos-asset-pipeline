@@ -27,8 +27,61 @@ describe("script-parse schema", () => {
     expect(scriptParsePrompt.system).toMatch(/length/i);
   });
 
-  it("is version 7", () => {
-    expect(scriptParsePrompt.version).toBe(7);
+  it("is version 9", () => {
+    expect(scriptParsePrompt.version).toBe(9);
+  });
+
+  // The operator's own creators write "Scene 3 — How to Use | 10–18 sec" and "VO + Text Overlay:".
+  // A parser that only knew CLIP/Creator turned their six-scene script into whatever the packer
+  // wanted, and dropped the label it did not recognise.
+  it("names every heading and speech label a script may use", () => {
+    expect(scriptParsePrompt.system).toContain("Scene 3 — How to Use | 10–18 sec");
+    for (const label of ["VO + Text Overlay:", "Voiceover:", "Creator:", "Narrator:", "Spokesperson:"]) {
+      expect(scriptParsePrompt.system, label).toContain(label);
+    }
+  });
+
+  // One scene is one row, whatever its visual describes. Splitting a montage into rows is the
+  // parser deciding where the cuts are, which is the operator's call, not its own.
+  it("tells the model a scene is exactly one shot row", () => {
+    expect(scriptParsePrompt.system).toMatch(/exactly one/i);
+    expect(scriptParsePrompt.system).toMatch(/montage/i);
+  });
+
+  // "VO + Text Overlay: <words>" means those words are SPOKEN. Duplicating them into
+  // on_screen_text would put the same sentence in the prompt twice, once as speech and once as
+  // on-screen type the request forbids.
+  it("treats a VO + Text Overlay block as the spoken line only", () => {
+    expect(scriptParsePrompt.system).toMatch(/Text Overlay/i);
+    expect(scriptParsePrompt.system).toMatch(/not.*duplicate|never.*duplicate/i);
+  });
+
+  // D267 — the reel-wide VO string cannot say which beat a line belongs to, so the parse maps
+  // each line onto the shot it plays over. Strict mode requires every property of the line object
+  // in its own `required`, which is why delivery/language are required-but-empty rather than
+  // optional.
+  it("declares a required voiceover list on every shot, strict-mode shaped", () => {
+    expect(shotProps.required).toContain("voiceover");
+    expect(shotProps.properties.voiceover).toEqual({
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["text", "speaker", "delivery", "language"],
+        properties: {
+          text: { type: "string" },
+          speaker: { type: "string" },
+          delivery: { type: "string" },
+          language: { type: "string" },
+        },
+      },
+    });
+  });
+
+  it("tells the model to map VO lines to shots verbatim, with narrator as the default speaker", () => {
+    expect(scriptParsePrompt.system).toMatch(/VERBATIM/);
+    expect(scriptParsePrompt.system).toMatch(/narrator/);
+    expect(scriptParsePrompt.system).toMatch(/timecode/i);
   });
 
   // BUG-008 — a script can say where its clips break ("CLIP 2 (10–20 SEC)"). The parser carries

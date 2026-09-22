@@ -38,6 +38,7 @@ export function MultishotBeatCard({
   disabled = false,
   aiDisabled = false,
   isLast = false,
+  spokenLine = "",
 }: {
   index: number;
   /** Null when the beat's cut can't be found — no Multishot node connected, or the cut was
@@ -80,6 +81,12 @@ export function MultishotBeatCard({
   // Suppresses the row's bottom border — the container draws borders BETWEEN rows, not under
   // the last one.
   isLast?: boolean;
+  /**
+   * This shot's spoken line, already rendered for the prompt (`renderVoiceover`), or "" when the
+   * script gives this shot none. Display only — it is not part of the beat text the operator
+   * edits, and it is appended to the prompt whether or not this card shows it.
+   */
+  spokenLine?: string;
 }) {
   return (
     // The row being rewritten is tinted, not dimmed. Every other row is disabled at the same
@@ -145,6 +152,20 @@ export function MultishotBeatCard({
             placeholder="Not written yet…"
           />
         </div>
+        {/* What this shot SAYS, read-only.
+            The writer deliberately never writes a spoken line any more — the script's own line is
+            appended to this beat when the prompt is rendered, so it cannot be put in the wrong
+            beat. But a plan view that showed only the beat read as "the voiceover was dropped",
+            and cost the operator three rounds of asking where it went. Shown in the plan's own
+            colour with a label saying who adds it, so nobody mistakes it for something to type. */}
+        {spokenLine && (
+          <div className="mt-2 border-l-2 border-primary/30 pl-2.5">
+            <span className="text-eyebrow text-muted-foreground">Added to the prompt</span>
+            <p className="mt-0.5 whitespace-pre-wrap text-sm leading-relaxed text-primary/80">
+              {spokenLine}
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

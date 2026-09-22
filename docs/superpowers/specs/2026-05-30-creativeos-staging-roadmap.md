@@ -5424,6 +5424,48 @@ Refresh as the primary CTA (does not fix the finding); rolling the row back on `
 
 **Originated →** `2026-09-21-market-live-updates-design.md` §2.
 
+### D277 — Kling corrects an out-of-range input image instead of letting the vendor reject it *(recorded 2026-09-21; extends the Seedance image-fitting precedent)*
+
+**Decision.** `generateWithKling` runs every image it is about to send through
+`fitKlingImages` (`providers/kling-images.ts`) before building `contents`. An image that
+already meets Kling's published limits keeps its URL, untouched; only one that breaks them is
+re-encoded and sent inline as a `data:image/jpeg;base64,…` URL. Frames are centre-cropped,
+references are padded against their own edge colour. The crop/pad geometry now lives in
+`providers/provider-images.ts`, parameterised by an `ImageLimits` record and shared with
+Seedance, whose module keeps its public surface as a thin binding of its own limits.
+
+**Why.** Staging run `run_06gc6cum56gtdfhlvjfs5a3j01` spent 35 seconds and two retries to die
+with `Kling generation failed: Image aspect ratio is invalid`. The cause was one of five
+references at 414×2048 — ratio 0.202, under the 0.4 floor. The vendor's message names no
+image, so an operator holding five references cannot tell which one to fix, and nothing
+upstream constrains image shape: the uploader accepts any image a canvas node holds. This is
+the identical failure Seedance hit from the other side (ratio 2.62), and Kling's geometry
+limits are *the same numbers* — aspect 0.4–2.5, both sides ≥300px — so one shared body rather
+than a second copy that drifts. Two call sites is the repo's extraction threshold.
+
+Two facts were settled against the live endpoint before this shipped, because the docs are
+ambiguous or wrong on both. `contents[].url` accepts base64 **with or without** the
+`data:image/...;base64,` prefix — an out-of-range payload in each form came back with this
+same aspect-ratio error, which the vendor could only produce by decoding it. And webp, which
+the docs omit from `.jpg/.jpeg/.png`, is decoded fine — same aspect error, not a format
+error — so webp stays in `KLING_IMAGE_LIMITS.formats` and an ordinary webp reference keeps
+its URL instead of being base64-inlined. Same precedence rule as `O1_VALID_DURATIONS`:
+observed runtime behaviour wins over the doc table.
+
+**Rejected.** Rejecting the request up front the way D97 rejects illegal *params* — an image's
+shape is not something the operator chose from a control, it is whatever asset they attached,
+so there is nothing for them to correct in the UI. Re-uploading the corrected image to GCS and
+passing an https URL — certain to work, but it leaves derivative files in the client bucket
+that no node owns, plus a path scheme and a cleanup story, to avoid a base64 payload the
+vendor documents and we measured. A guessed maximum dimension — Kling publishes only the 50MB
+cap, so `maxPx` is `Infinity` and no image is re-encoded that the vendor would have taken.
+Converting every webp to jpeg — evidence says it is unnecessary, and it would inline most
+references in a normal request.
+
+**Refines.** D99, D100, D101.
+
+**Originated →** this entry (traced from the run above; no separate design spec).
+
 ### D276 — Market subscribes to `moodboard_items` through Supabase Realtime *(recorded 2026-09-21; supersedes D269)*
 
 **Decision.** `moodboard_items` gains `org_id` (trigger-maintained), an `org isolation`
@@ -5645,3 +5687,35 @@ narrowed per request, and it is derived from `MULTISHOT_PLAN_SCHEMA`, with a tes
 every writer still answers against that object).
 
 **Originated →** operator report 2026-09-21 (frequent multishot generation failures).
+
+### D278 — A scene is a generation; the script is not packed to a model *(recorded 2026-09-23)*
+
+**Decision.** Grouping v3 (`scenesAsGenerations`) gives every parsed scene its own generation:
+no greedy packing, no trailing rebalance, no floor clamp, and no clip-boundary rule. script-parse
+v9 reads one row per scene in the vocabulary real scripts use (`Scene 3 — How to Use | 10–18 sec`,
+`VO + Text Overlay:`), and a montage inside a scene stays one row. A scene longer than any model's
+window is reported by `overCeiling`, never split. The Script node shows seconds only for a
+multishot generation, and that control writes `duration_seconds`. `deriveShotDuration` no longer
+clamps to Omni's 3–10s window. The shot row's length control now writes both `duration_seconds`
+and the `duration` label in the same edit, so the two can no longer disagree.
+
+**Why.** Packing sized generations to `PACK_CEILING_SECONDS` — the widest window any multishot
+model publishes — so a six-scene 35-second script arrived shaped by Seedance, and CLIP headings
+(D273) existed only to fight that packing. The operator: "no need to do seedance specific parsing
+when more than 15s like that, just parse. If they want to do 30s continuous take it will be in
+script, they will mention it." Separately, the duration control edited the free-text `duration`
+label while every consumer read `duration_seconds`, so a timing edit changed nothing — and the
+seconds were displayed most prominently in the one mode (single take) where they could not be
+tuned.
+
+**Rejected.** Splitting a montage inside a scene into cuts (the parser deciding where the cuts
+fall, which is the operator's call); removing the `clip` field and its help chapter (it is now
+inert, and removing it rewrites documentation for no behaviour); renaming Shot to Scene across the
+UI (a vocabulary change far wider than this problem).
+
+**Not migrated.** v1 and v2 canvases keep their packed generations and their multishot
+recommendations until they are re-parsed. `PACK_CEILING_SECONDS` survives as the number the
+over-limit message quotes.
+
+**Refines.** D257, D258, D259, D273. **Originated →**
+`docs/superpowers/specs/2026-09-23-scene-parse-and-script-ui-design.md`.

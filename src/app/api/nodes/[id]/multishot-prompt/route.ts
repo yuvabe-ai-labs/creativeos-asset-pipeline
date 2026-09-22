@@ -121,7 +121,11 @@ export async function POST(
         instruction,
         cutInstructions,
         scriptNotes: resolved.scriptNotes,
-        voiceover: resolved.voiceover,
+        // D267 (Task 5) — the same per-cut ceiling `checkPlanLimits` measures the rendered
+        // voiceover against, so the "Room for your beat" hint agrees with what actually gets
+        // rejected after generation. `planCap` is the model THIS write is for (D236): the node's
+        // current target on a whole-sequence write, the plan's own stamp on a narrow refine.
+        maxCutChars: planCap.maxCutChars,
       }) +
       refineInstruction({
         scope,

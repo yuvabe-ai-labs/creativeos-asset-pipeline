@@ -11,12 +11,12 @@ import {
 } from "../multishot-prompt-generate";
 import { multishotPromptFor } from "../multishot-prompt-for";
 import { MULTISHOT_MODELS } from "@/lib/nodes/multishot-models";
+import { SEEDANCE_MODEL_ID } from "@/lib/video-gen/client-models";
 import {
-  GEMINI_OMNI_MODEL_ID,
-  KLING_OMNI_MODEL_ID,
-  SEEDANCE_MODEL_ID,
-} from "@/lib/video-gen/client-models";
-import { MULTISHOT_AUTHORING_MODEL, SUBJECT_SILENT_CAMERA } from "../video-prompt-generate";
+  MULTISHOT_AUTHORING_MODEL,
+  SUBJECT_SILENT_CAMERA,
+  VO_PERFORMANCE_RULES,
+} from "../video-prompt-generate";
 
 describe("multishotPromptGenerate", () => {
   const spec = multishotPromptGenerate();
@@ -350,27 +350,34 @@ describe("simple motion (D263)", () => {
   });
 });
 
-// The voiceover is written into the beats on EVERY multishot model — no per-model restriction —
-// in each model's OWN way of writing a spoken line (voiceoverRules). Whether and how a model
-// renders the speech (voice, lip-sync) is the video request's concern, handled there later.
-describe("voiceover rule", () => {
-  it("is in every writer's system prompt, asking for verbatim lines in the beat they are spoken over", () => {
+// D267 (Task 5) — inverts the old "voiceover rule" below it. Asked to write every line of a whole
+// reel's voiceover into one node's beats ("no line is dropped"), the writer kept one and dropped
+// the rest on a short sequence — trading a shot's own action away to fit a line that belonged to a
+// different clip entirely. The writer no longer writes the words at all: `renderPlan`
+// (src/lib/nodes/multishot-plan.ts) appends each cut's own voiceover to its beat in code, so a line
+// the writer never places is a line it cannot misplace. VO_PERFORMANCE_RULES (shared verbatim by
+// every writer, single-take and multishot) tells it a line is coming and how to frame for it,
+// without handing it anything to write.
+describe("voiceover performance rules", () => {
+  it("is in every multishot writer's system prompt, verbatim", () => {
     for (const m of MULTISHOT_MODELS) {
       const system = multishotPromptFor(m.id).system;
-      expect(system, m.label).toContain("VOICEOVER");
-      expect(system, m.label).toMatch(/VERBATIM/);
-      expect(system, m.label).toMatch(/beat where it is spoken/);
-      expect(system, m.label).toMatch(/no line is dropped/);
-      expect(system, m.label).not.toMatch(/do not quote/i);
+      expect(system, m.label).toContain(VO_PERFORMANCE_RULES);
     }
   });
 
-  it("writes the line in each vendor's own syntax", () => {
-    expect(multishotPromptFor(GEMINI_OMNI_MODEL_ID).system).toMatch(/plain prose/);
-    expect(multishotPromptFor(GEMINI_OMNI_MODEL_ID).system).toMatch(/No markers or brackets/);
-    expect(multishotPromptFor(KLING_OMNI_MODEL_ID).system).toMatch(/narrator says, in a calm, clear tone/);
-    expect(multishotPromptFor(KLING_OMNI_MODEL_ID).system).toMatch(/512 characters/);
-    expect(multishotPromptFor(SEEDANCE_MODEL_ID).system).toMatch(/{English, off-screen voiceover: …}/);
-    expect(multishotPromptFor(SEEDANCE_MODEL_ID).system).toContain("Never () or <> for a spoken line");
+  it("forbids writing the words and covers both speaker kinds", () => {
+    expect(VO_PERFORMANCE_RULES).toContain("NEVER write, quote or paraphrase them");
+    expect(VO_PERFORMANCE_RULES).toContain("ON SCREEN");
+    expect(VO_PERFORMANCE_RULES).toContain("NARRATOR");
+  });
+
+  // ALSO IN SCOPE — Seedance's own {} dialogue marker is gone; the renderer owns dialogue now.
+  // Its () music and <> sound-effect markers are untouched.
+  it("seedance no longer asks for {} dialogue; its music and effects markers stay", () => {
+    const system = multishotPromptFor(SEEDANCE_MODEL_ID).system;
+    expect(system).not.toContain("{} for dialogue");
+    expect(system).toContain("() for music");
+    expect(system).toContain("<> for sound effects");
   });
 });

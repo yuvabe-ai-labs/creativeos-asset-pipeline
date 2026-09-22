@@ -97,8 +97,13 @@ export function GenerationBracket({
           className={cn("size-3.5", generation.multishot ? "text-primary" : "text-muted-foreground")}
           strokeWidth={1.5}
         />
+        {/* D277 — a single take's length is not tunable here, so it is not shown here. With
+            multishot ON the seconds return, because then they are what the operator spends
+            per cut. The over-limit badge below is deliberately NOT gated on the toggle: it
+            reports a fact about the scene either way. */}
         <span className="text-eyebrow">
-          Gen {generation.index + 1} · {generation.seconds}s
+          Gen {generation.index + 1}
+          {generation.multishot && ` · ${generation.seconds}s`}
         </span>
         {/* The one thing regrouping cannot fix: a single shot longer than any model's window.
             Names no model — which model to use is the Multishot node's sentence to write. */}

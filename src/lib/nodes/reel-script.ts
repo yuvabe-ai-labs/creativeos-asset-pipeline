@@ -2,6 +2,19 @@
 // Mirrors the reelSchema in src/prompts/script-parse.ts. All fields optional
 // because a parse may legitimately leave a field empty.
 
+/**
+ * D267 — one voiceover line, mapped by the script parse to the shot it plays over.
+ * `speaker: "narrator"` is off-screen; any other value is the on-screen person as the script names
+ * them. `delivery` / `language` are present only when the script states them — an empty string
+ * (strict-mode structured outputs return "") means absent everywhere.
+ */
+export type VoLine = {
+  text: string;
+  speaker: "narrator" | (string & {});
+  delivery?: string;
+  language?: string;
+};
+
 export type ReelShot = {
   description?: string;
   /** Timing exactly as written in the script — "0-3 sec". Display only. */
@@ -18,6 +31,16 @@ export type ReelShot = {
    * boundary, so a script can size its clips for a shorter model (Omni 10s, Kling 15s) itself.
    */
   clip?: number;
+  /**
+   * D267 — the VO lines that play over THIS shot, verbatim. Absent on scripts parsed before the
+   * field existed (nothing is rendered for them); `[]` means the script gives this shot no line.
+   *
+   * The reel-level `ReelScript.voiceover` below is deliberately KEPT beside this: it is the copy
+   * the operator authored and the market signals rewrite, and `voiceoverMappingIssue`
+   * (src/lib/nodes/voiceover.ts) checks these mapped lines against it, so the duplication is a
+   * checked invariant rather than silent drift.
+   */
+  voiceover?: VoLine[];
 };
 
 export type ReelScript = {
