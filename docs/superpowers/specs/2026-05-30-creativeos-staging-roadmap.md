@@ -5687,3 +5687,35 @@ narrowed per request, and it is derived from `MULTISHOT_PLAN_SCHEMA`, with a tes
 every writer still answers against that object).
 
 **Originated →** operator report 2026-09-21 (frequent multishot generation failures).
+
+### D278 — A scene is a generation; the script is not packed to a model *(recorded 2026-09-23)*
+
+**Decision.** Grouping v3 (`scenesAsGenerations`) gives every parsed scene its own generation:
+no greedy packing, no trailing rebalance, no floor clamp, and no clip-boundary rule. script-parse
+v9 reads one row per scene in the vocabulary real scripts use (`Scene 3 — How to Use | 10–18 sec`,
+`VO + Text Overlay:`), and a montage inside a scene stays one row. A scene longer than any model's
+window is reported by `overCeiling`, never split. The Script node shows seconds only for a
+multishot generation, and that control writes `duration_seconds`. `deriveShotDuration` no longer
+clamps to Omni's 3–10s window. The shot row's length control now writes both `duration_seconds`
+and the `duration` label in the same edit, so the two can no longer disagree.
+
+**Why.** Packing sized generations to `PACK_CEILING_SECONDS` — the widest window any multishot
+model publishes — so a six-scene 35-second script arrived shaped by Seedance, and CLIP headings
+(D273) existed only to fight that packing. The operator: "no need to do seedance specific parsing
+when more than 15s like that, just parse. If they want to do 30s continuous take it will be in
+script, they will mention it." Separately, the duration control edited the free-text `duration`
+label while every consumer read `duration_seconds`, so a timing edit changed nothing — and the
+seconds were displayed most prominently in the one mode (single take) where they could not be
+tuned.
+
+**Rejected.** Splitting a montage inside a scene into cuts (the parser deciding where the cuts
+fall, which is the operator's call); removing the `clip` field and its help chapter (it is now
+inert, and removing it rewrites documentation for no behaviour); renaming Shot to Scene across the
+UI (a vocabulary change far wider than this problem).
+
+**Not migrated.** v1 and v2 canvases keep their packed generations and their multishot
+recommendations until they are re-parsed. `PACK_CEILING_SECONDS` survives as the number the
+over-limit message quotes.
+
+**Refines.** D257, D258, D259, D273. **Originated →**
+`docs/superpowers/specs/2026-09-23-scene-parse-and-script-ui-design.md`.
