@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import { Plus, X } from "lucide-react";
 import { looksLikeReelScript, type ReelScript } from "@/lib/nodes/reel-script";
-import { describeGenerations, type GroupingVersion } from "@/lib/nodes/group-shots";
+import { describeGenerations, shotSeconds, type GroupingVersion } from "@/lib/nodes/group-shots";
 import { joinVoLines, type VoLine } from "@/lib/nodes/voiceover";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -172,13 +172,25 @@ export function ScriptDocument({
                         multiline
                         placeholder="Shot description…"
                       />
-                      <EditableField
-                        value={shots[i]?.duration ?? ""}
-                        onCommit={set(["visual_script", "shots", i, "duration"])}
-                        readOnly={readOnly}
-                        placeholder="duration"
-                        className="text-xs text-muted-foreground"
-                      />
+                      {/* D277 — shown only for a multishot generation, where seconds are what the
+                          operator spends per cut. It edits `duration_seconds`, the field every
+                          consumer reads (shotSeconds, grouping, the video request): the old
+                          control edited the free-text `duration` label, so a timing edit changed
+                          a string and no behaviour at all. */}
+                      {generation.multishot && (
+                        <EditableField
+                          value={`${shotSeconds(shots[i] ?? {})}s`}
+                          onCommit={(next) => {
+                            const seconds = Number.parseInt(next.replace(/[^0-9]/g, ""), 10);
+                            if (Number.isFinite(seconds) && seconds > 0) {
+                              onChange?.(["visual_script", "shots", i, "duration_seconds"], seconds);
+                            }
+                          }}
+                          readOnly={readOnly}
+                          placeholder="seconds"
+                          className="text-xs text-muted-foreground"
+                        />
+                      )}
                       <VoLinesEditor
                         lines={shots[i]?.voiceover}
                         readOnly={readOnly}
