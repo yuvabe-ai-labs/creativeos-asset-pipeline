@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, TriangleAlert } from "lucide-react";
+import { ArrowLeft, Mic, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -200,10 +200,10 @@ export function MultishotFocusView({
                 which is the one thing the layout exists to let you compare. Longer text scrolls
                 inside its card, and the scrollbar is left visible on purpose: it is the only
                 signal that a card is holding more than it shows. */}
-            <ol className="grid grid-cols-[repeat(auto-fit,minmax(210px,1fr))] gap-x-4 gap-y-5">
+            <ol className="grid grid-cols-[repeat(auto-fit,minmax(272px,1fr))] gap-x-4 gap-y-5">
               {cuts.map((cut, i) => (
                 <li key={cut.id} className="flex min-w-0 flex-col gap-2">
-                  <div className="flex h-44 flex-col gap-1.5 rounded-xl border border-border bg-card p-3.5 shadow-card">
+                  <div className="flex h-64 flex-col gap-1.5 rounded-xl border border-border bg-card p-3.5 shadow-card">
                     <span className="text-eyebrow shrink-0 text-muted-foreground">
                       Shot {i + 1}
                     </span>
@@ -226,14 +226,35 @@ export function MultishotFocusView({
                         // card.
                         editClassName="min-h-0 resize-none rounded-md border-0 bg-primary/5 px-1.5 py-1 shadow-none focus-visible:border-0 focus-visible:ring-0 md:text-sm"
                       />
-                      <VoLinesEditor
-                        lines={cut.voiceover}
-                        readOnly={isReadOnly}
-                        onChange={(next) =>
-                          onChange(cuts.map((c, j) => (j === i ? { ...c, voiceover: next } : c)))
-                        }
-                      />
                     </div>
+
+                    {/* The spoken line gets its OWN lane, below the description's scroller rather
+                        than inside it (operator, 2026-09-23: "vo is hidden under scroll"). What a
+                        shot SAYS is not a footnote to what it shows — it is the other half of the
+                        shot, and it was reachable only by scrolling a 176px box that gave no sign
+                        there was anything below the prose.
+
+                        The lane is `shrink-0`, so the description gives up height for it instead
+                        of the line being pushed out of view, and it scrolls on its own only when a
+                        shot carries several lines. A silent shot still shows the Add-line chip, so
+                        the lane never collapses into an invisible strip. */}
+                    {/* Under the read-only lock a silent shot has nothing to put in the lane, and
+                        a heading over an empty space reads as a loading state. */}
+                    {(!isReadOnly || (cut.voiceover?.length ?? 0) > 0) && (
+                      <div className="mt-1 max-h-[5.5rem] shrink-0 overflow-y-auto border-t border-border/70 pt-2">
+                        <div className="mb-1 flex items-center gap-1">
+                          <Mic className="size-3 text-primary/70" strokeWidth={1.5} />
+                          <span className="text-eyebrow text-muted-foreground">Voiceover</span>
+                        </div>
+                        <VoLinesEditor
+                          lines={cut.voiceover}
+                          readOnly={isReadOnly}
+                          onChange={(next) =>
+                            onChange(cuts.map((c, j) => (j === i ? { ...c, voiceover: next } : c)))
+                          }
+                        />
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex flex-col items-center gap-1">
