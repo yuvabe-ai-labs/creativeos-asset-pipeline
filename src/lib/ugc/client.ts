@@ -3,8 +3,10 @@
 import { ARK_BASE_URL, SEEDREAM_MODEL, type SeedanceModelId } from "./constants";
 
 function apiKey(): string {
-  const key = process.env.BYTE_PLUS_API_KEY;
-  if (!key) throw new Error("BYTE_PLUS_API_KEY is not set — add it to .env.local");
+  // BYTEPLUS_API_KEY is the product's name (video-gen/providers/seedance.ts); the old
+  // experiment name is still read so existing .env.local files keep working.
+  const key = process.env.BYTEPLUS_API_KEY ?? process.env.BYTE_PLUS_API_KEY;
+  if (!key) throw new Error("BYTEPLUS_API_KEY is not set — add it to .env.local");
   return key;
 }
 

@@ -219,8 +219,9 @@ The product already has everything the bench skips.
    vendor URL is less than 24 h old, send that URL to Seedance instead of the GCS copy.
    Otherwise, send the GCS URL and let the existing real-person error translation explain
    the rejection.
-4. **Settle the env var name.** The product reads **`BYTEPLUS_API_KEY`**, while the bench and
-   `.env.example` use **`BYTE_PLUS_API_KEY`**. Standardise on the product's name.
+4. **Env var name.** Use **`BYTEPLUS_API_KEY`**, the product's name, now also in
+   `.env.example`. The bench reads it first and falls back to the old experiment name
+   `BYTE_PLUS_API_KEY`. Drop that fallback when the bench is retired.
 5. **Decide what happens after 24 h:** regenerate the face, or use something longer-lived
    (asset IDs or digital characters). This needs a product decision, not only a code change.
 
