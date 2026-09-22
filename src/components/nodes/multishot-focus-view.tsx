@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Mic, TriangleAlert } from "lucide-react";
+import { ArrowLeft, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -203,7 +203,7 @@ export function MultishotFocusView({
             <ol className="grid grid-cols-[repeat(auto-fit,minmax(272px,1fr))] gap-x-4 gap-y-5">
               {cuts.map((cut, i) => (
                 <li key={cut.id} className="flex min-w-0 flex-col gap-2">
-                  <div className="flex h-64 flex-col gap-1.5 rounded-xl border border-border bg-card p-3.5 shadow-card">
+                  <div className="flex h-56 flex-col gap-1.5 rounded-xl border border-border bg-card p-3.5 shadow-card">
                     <span className="text-eyebrow shrink-0 text-muted-foreground">
                       Shot {i + 1}
                     </span>
@@ -241,18 +241,22 @@ export function MultishotFocusView({
                     {/* Under the read-only lock a silent shot has nothing to put in the lane, and
                         a heading over an empty space reads as a loading state. */}
                     {(!isReadOnly || (cut.voiceover?.length ?? 0) > 0) && (
-                      <div className="mt-1 max-h-[5.5rem] shrink-0 overflow-y-auto border-t border-border/70 pt-2">
-                        <div className="mb-1 flex items-center gap-1">
-                          <Mic className="size-3 text-primary/70" strokeWidth={1.5} />
-                          <span className="text-eyebrow text-muted-foreground">Voiceover</span>
+                      <div className="mt-1 flex min-h-0 shrink-0 flex-col border-t border-border/70 pt-2">
+                        {/* The label sits OUTSIDE the scroller. Inside it, the first shot with two
+                            lines scrolled its own heading out of view, so one card said
+                            "Voiceover" and its neighbour said nothing. */}
+                        <span className="text-eyebrow shrink-0 text-muted-foreground">
+                          Voiceover
+                        </span>
+                        <div className="mt-1 max-h-24 min-h-0 overflow-y-auto">
+                          <VoLinesEditor
+                            lines={cut.voiceover}
+                            readOnly={isReadOnly}
+                            onChange={(next) =>
+                              onChange(cuts.map((c, j) => (j === i ? { ...c, voiceover: next } : c)))
+                            }
+                          />
                         </div>
-                        <VoLinesEditor
-                          lines={cut.voiceover}
-                          readOnly={isReadOnly}
-                          onChange={(next) =>
-                            onChange(cuts.map((c, j) => (j === i ? { ...c, voiceover: next } : c)))
-                          }
-                        />
                       </div>
                     )}
                   </div>

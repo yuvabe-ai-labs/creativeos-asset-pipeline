@@ -2,7 +2,6 @@
 
 import { Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 import { EditableField } from "./editable-field";
 import type { VoLine } from "@/lib/nodes/voiceover";
 
@@ -53,16 +52,10 @@ export function VoLinesEditor({ lines, onChange, readOnly = false }: VoLinesEdit
   return (
     <div className="grid gap-1.5">
       {rows.map((line, i) => (
-        <div
-          key={i}
-          className={cn(
-            "group/vo-line flex items-start gap-1 rounded-md px-1.5 py-1",
-            // A faint tint marks the spoken words as a different KIND of content from the shot
-            // description above them — the same primary wash the plan view uses for the line it
-            // appends to the prompt.
-            "bg-primary/[0.04]",
-          )}
-        >
+        // No wrapper tint and no box: EditableField already carries this app's editable
+        // affordance (dotted underline and a faint wash on hover), so a tinted container around
+        // it renders a box inside a box — which is what made this card look like a form.
+        <div key={i} className="group/vo-line flex items-start gap-1">
           <div className="min-w-0 flex-1">
             <EditableField
               value={line.text}
@@ -70,14 +63,16 @@ export function VoLinesEditor({ lines, onChange, readOnly = false }: VoLinesEdit
               readOnly={readOnly}
               multiline
               placeholder="Spoken line…"
-              className="text-xs leading-snug text-primary/90"
-              // Content-sized and unboxed, so a line inside an already-scrolling card does not
-              // introduce a second scrollbar or a shifted text column.
-              editClassName="min-h-0 resize-none rounded border-0 bg-primary/5 px-1 py-0.5 text-xs shadow-none focus-visible:border-0 focus-visible:ring-0 md:text-xs"
+              className="text-xs leading-snug"
+              // Content-sized and unboxed, so editing a line inside an already-scrolling card
+              // neither adds a second scrollbar nor shifts the text column.
+              editClassName="min-h-0 resize-none rounded-md border-0 bg-primary/5 px-1.5 py-1 shadow-none focus-visible:border-0 focus-visible:ring-0 md:text-xs"
             />
             <EditableField
               // "narrator" is the unspoken default (D267 — same convention `renderVoiceover` uses),
-              // so it displays as empty with a placeholder rather than as literal text.
+              // so it displays as empty with a placeholder rather than as literal text. Styled as
+              // the app's tracked small-caps caption, the same treatment every other label in this
+              // view gets.
               value={line.speaker === "narrator" ? "" : line.speaker}
               onCommit={(speaker) =>
                 updateLine(i, { speaker: speaker.trim() === "" ? "narrator" : speaker })
@@ -85,7 +80,7 @@ export function VoLinesEditor({ lines, onChange, readOnly = false }: VoLinesEdit
               readOnly={readOnly}
               placeholder="narrator"
               className="text-eyebrow text-muted-foreground"
-              editClassName="h-auto rounded border-0 bg-primary/5 px-1 py-0.5 text-[0.65rem] shadow-none focus-visible:border-0 focus-visible:ring-0"
+              editClassName="h-auto rounded-md border-0 bg-primary/5 px-1.5 py-0.5 shadow-none focus-visible:border-0 focus-visible:ring-0"
             />
           </div>
           {!readOnly && (
