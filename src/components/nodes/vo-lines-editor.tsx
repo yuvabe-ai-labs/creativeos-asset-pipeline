@@ -56,32 +56,40 @@ export function VoLinesEditor({ lines, onChange, readOnly = false }: VoLinesEdit
         // affordance (dotted underline and a faint wash on hover), so a tinted container around
         // it renders a box inside a box — which is what made this card look like a form.
         <div key={i} className="group/vo-line flex items-start gap-1">
-          <div className="min-w-0 flex-1">
-            <EditableField
-              value={line.text}
-              onCommit={(text) => updateLine(i, { text })}
-              readOnly={readOnly}
-              multiline
-              placeholder="Spoken line…"
-              className="text-xs leading-snug"
-              // Content-sized and unboxed, so editing a line inside an already-scrolling card
-              // neither adds a second scrollbar nor shifts the text column.
-              editClassName="min-h-0 resize-none rounded-md border-0 bg-primary/5 px-1.5 py-1 shadow-none focus-visible:border-0 focus-visible:ring-0 md:text-xs"
-            />
-            <EditableField
-              // "narrator" is the unspoken default (D267 — same convention `renderVoiceover` uses),
-              // so it displays as empty with a placeholder rather than as literal text. Styled as
-              // the app's tracked small-caps caption, the same treatment every other label in this
-              // view gets.
-              value={line.speaker === "narrator" ? "" : line.speaker}
-              onCommit={(speaker) =>
-                updateLine(i, { speaker: speaker.trim() === "" ? "narrator" : speaker })
-              }
-              readOnly={readOnly}
-              placeholder="narrator"
-              className="text-eyebrow text-muted-foreground"
-              editClassName="h-auto rounded-md border-0 bg-primary/5 px-1.5 py-0.5 shadow-none focus-visible:border-0 focus-visible:ring-0"
-            />
+          <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 gap-y-0.5">
+            {/* The speaker leads, as the caption this view already uses for "Shot N" and "Cuts",
+                so a line reads as `narrator · "…"` — who is speaking, then what is said. */}
+            <span className="flex shrink-0 items-baseline gap-1.5">
+              <EditableField
+                // "narrator" is the unspoken default (D267 — the same convention renderVoiceover
+                // uses), so it displays as empty with a placeholder rather than as literal text.
+                value={line.speaker === "narrator" ? "" : line.speaker}
+                onCommit={(speaker) =>
+                  updateLine(i, { speaker: speaker.trim() === "" ? "narrator" : speaker })
+                }
+                readOnly={readOnly}
+                placeholder="narrator"
+                className="text-eyebrow text-muted-foreground"
+                editClassName="h-auto rounded-md border-0 bg-primary/5 px-1.5 py-0.5 shadow-none focus-visible:border-0 focus-visible:ring-0"
+              />
+              <span aria-hidden className="text-muted-foreground/50">
+                ·
+              </span>
+            </span>
+            <div className="min-w-0 flex-1">
+              <EditableField
+                value={line.text}
+                onCommit={(text) => updateLine(i, { text })}
+                readOnly={readOnly}
+                multiline
+                placeholder="Spoken line…"
+                className="text-sm leading-relaxed"
+                // The quotation marks are DISPLAY ONLY — they are never stored in VoLine.text and
+                // never reach renderVoiceover, which adds its own around the stored words.
+                renderDisplay={(v) => `“${v}”`}
+                editClassName="min-h-0 resize-none rounded-md border-0 bg-primary/5 px-1.5 py-1 shadow-none focus-visible:border-0 focus-visible:ring-0 md:text-sm"
+              />
+            </div>
           </div>
           {!readOnly && (
             <Button
