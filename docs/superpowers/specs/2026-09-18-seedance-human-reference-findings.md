@@ -36,9 +36,13 @@ and output moderation can still reject the result independently.
 1. **Model ids must come from `GET /api/v3/models`, not the docs.** The docs name
    "Seedream 5.0 lite"; no such id exists. The trusted model is `seedream-5-0-260128`.
    `dola-seedream-5-0-pro-260628` is the pro variant and is *not* trusted.
-2. **Seedance settings ride inside the prompt text as `--flags`**, not JSON fields:
-   `--resolution 720p --duration 5 --ratio adaptive`. Get it wrong and you silently
-   get model defaults (1080p on Seedance 1.0 — more expensive).
+2. ~~Seedance settings ride inside the prompt text as `--flags`, not JSON fields.~~
+   **Corrected 2026-09-22:** the vendor's create-task reference says every model accepts
+   both. Request-body fields (`resolution`, `ratio`, `duration`) are the *recommended*
+   method and are strictly validated. `--flags` in the prompt is the *legacy* method, and
+   invalid values are silently ignored. Use body fields; the product provider
+   (`src/lib/video-gen/providers/seedance.ts`) already does. See the
+   [handoff doc](2026-09-22-seedream-seedance-handoff.md) §3.2.
 3. **Any re-encode, crop or overlay destroys trusted status.** Pass the Seedream URL
    through verbatim. This also rules out the "grid overlay" filter-evasion trick
    circulating in blog posts — besides being moderation evasion, it would break the
