@@ -27,8 +27,32 @@ describe("script-parse schema", () => {
     expect(scriptParsePrompt.system).toMatch(/length/i);
   });
 
-  it("is version 8", () => {
-    expect(scriptParsePrompt.version).toBe(8);
+  it("is version 9", () => {
+    expect(scriptParsePrompt.version).toBe(9);
+  });
+
+  // The operator's own creators write "Scene 3 — How to Use | 10–18 sec" and "VO + Text Overlay:".
+  // A parser that only knew CLIP/Creator turned their six-scene script into whatever the packer
+  // wanted, and dropped the label it did not recognise.
+  it("names every heading and speech label a script may use", () => {
+    for (const word of ["Scene", "Shot", "CLIP", "VO", "Voiceover", "Creator", "Narrator"]) {
+      expect(scriptParsePrompt.system, word).toMatch(new RegExp(`\\b${word}\\b`));
+    }
+  });
+
+  // One scene is one row, whatever its visual describes. Splitting a montage into rows is the
+  // parser deciding where the cuts are, which is the operator's call, not its own.
+  it("tells the model a scene is exactly one shot row", () => {
+    expect(scriptParsePrompt.system).toMatch(/exactly one/i);
+    expect(scriptParsePrompt.system).toMatch(/montage/i);
+  });
+
+  // "VO + Text Overlay: <words>" means those words are SPOKEN. Duplicating them into
+  // on_screen_text would put the same sentence in the prompt twice, once as speech and once as
+  // on-screen type the request forbids.
+  it("treats a VO + Text Overlay block as the spoken line only", () => {
+    expect(scriptParsePrompt.system).toMatch(/Text Overlay/i);
+    expect(scriptParsePrompt.system).toMatch(/not.*duplicate|never.*duplicate/i);
   });
 
   // D267 — the reel-wide VO string cannot say which beat a line belongs to, so the parse maps
