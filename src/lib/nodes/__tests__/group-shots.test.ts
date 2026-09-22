@@ -299,6 +299,34 @@ describe("mergeShotRows", () => {
   it("counts an unlengthed row as the assumed length", () => {
     expect(mergeShotRows([{ description: "a" }, { description: "b" }]).duration_seconds).toBe(8);
   });
+
+  // D267 — merging rows into one Shot take must not silently drop the VO lines mapped onto them.
+  it("concatenates the merged rows' voiceover lines, in order", () => {
+    const vo1 = [{ text: "Close on keys.", speaker: "narrator" }];
+    const vo2 = [{ text: "A cab door swings.", speaker: "narrator" }];
+    const merged = mergeShotRows([
+      { description: "a", duration_seconds: 2, voiceover: vo1 },
+      { description: "b", duration_seconds: 3, voiceover: vo2 },
+    ]);
+    expect(merged.voiceover).toEqual([...vo1, ...vo2]);
+  });
+
+  it("skips a row with no voiceover key when concatenating", () => {
+    const vo1 = [{ text: "Close on keys.", speaker: "narrator" }];
+    const merged = mergeShotRows([
+      { description: "a", duration_seconds: 2, voiceover: vo1 },
+      { description: "b", duration_seconds: 3 },
+    ]);
+    expect(merged.voiceover).toEqual(vo1);
+  });
+
+  it("omits the voiceover key entirely when none of the merged rows have one", () => {
+    const merged = mergeShotRows([
+      { description: "a", duration_seconds: 2 },
+      { description: "b", duration_seconds: 3 },
+    ]);
+    expect("voiceover" in merged).toBe(false);
+  });
 });
 
 // BUG-008 — a script's own CLIP headings are a hard boundary. Packing to the 30s ceiling made every

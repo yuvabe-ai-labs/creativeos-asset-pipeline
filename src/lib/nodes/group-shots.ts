@@ -88,11 +88,16 @@ export function mergeShotRows(rows: ReelShot[]): ReelShot {
     .join(" ");
   const total = rows.reduce((sum, r) => sum + shotSeconds(r), 0);
   const clip = rows[0]?.clip;
+  // D267 — the merged take's voiceover is every merged row's lines, concatenated in order. Absent
+  // on ALL rows means absent on the take too (an old parse contributes nothing), matching
+  // cutsFromShots' rule that `[]` and "no key" are different states.
+  const hasVoiceover = rows.some((r) => r.voiceover !== undefined);
   return {
     description,
     duration: `${total}s`,
     duration_seconds: total,
     ...(clip !== undefined ? { clip } : {}),
+    ...(hasVoiceover ? { voiceover: rows.flatMap((r) => r.voiceover ?? []) } : {}),
   };
 }
 
