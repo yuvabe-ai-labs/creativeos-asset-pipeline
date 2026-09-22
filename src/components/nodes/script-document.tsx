@@ -56,6 +56,11 @@ function Section({
       <div
         className={cn(
           "leading-relaxed",
+          // The reading measure belongs to PROSE, not to the whole document. Capping the root at
+          // 78ch starved the Visual script — a list of scene cards, each with a description, a
+          // length and a spoken line — into a column that wrapped every four words while most of
+          // the page sat empty. Prose sections keep the measure; a featured section takes the width.
+          !featured && "max-w-[78ch]",
           featured &&
             "rounded-2xl border border-border/70 bg-card p-5 text-base shadow-card sm:p-6",
         )}
@@ -105,7 +110,7 @@ export function ScriptDocument({
   const links = script.product_links ?? [];
 
   return (
-    <div className="grid max-w-[78ch] gap-12 text-sm">
+    <div className="grid w-full gap-12 text-sm">
       <EditableField
         value={script.title ?? ""}
         onCommit={set(["title"])}

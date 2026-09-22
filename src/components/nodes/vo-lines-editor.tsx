@@ -56,27 +56,24 @@ export function VoLinesEditor({ lines, onChange, readOnly = false }: VoLinesEdit
         // affordance (dotted underline and a faint wash on hover), so a tinted container around
         // it renders a box inside a box — which is what made this card look like a form.
         <div key={i} className="group/vo-line flex items-start gap-1">
-          <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 gap-y-0.5">
-            {/* The speaker leads, as the caption this view already uses for "Shot N" and "Cuts",
-                so a line reads as `narrator · "…"` — who is speaking, then what is said. */}
-            <span className="flex shrink-0 items-baseline gap-1.5">
-              <EditableField
-                // "narrator" is the unspoken default (D267 — the same convention renderVoiceover
-                // uses), so it displays as empty with a placeholder rather than as literal text.
-                value={line.speaker === "narrator" ? "" : line.speaker}
-                onCommit={(speaker) =>
-                  updateLine(i, { speaker: speaker.trim() === "" ? "narrator" : speaker })
-                }
-                readOnly={readOnly}
-                placeholder="narrator"
-                className="text-eyebrow text-muted-foreground"
-                editClassName="h-auto rounded-md border-0 bg-primary/5 px-1.5 py-0.5 shadow-none focus-visible:border-0 focus-visible:ring-0"
-              />
-              <span aria-hidden className="text-muted-foreground/50">
-                ·
-              </span>
-            </span>
-            <div className="min-w-0 flex-1">
+          {/* The speaker sits ABOVE its line, not beside it. Side by side, the two shared one
+              row: a name as ordinary as "James Joseph" took half the width and the spoken words
+              wrapped every four words in the remainder. Stacked, the words always get the full
+              column, and the speaker still leads — who is speaking, then what is said. */}
+          <div className="min-w-0 flex-1">
+            <EditableField
+              // "narrator" is the unspoken default (D267 — the same convention renderVoiceover
+              // uses), so it displays as empty with a placeholder rather than as literal text.
+              value={line.speaker === "narrator" ? "" : line.speaker}
+              onCommit={(speaker) =>
+                updateLine(i, { speaker: speaker.trim() === "" ? "narrator" : speaker })
+              }
+              readOnly={readOnly}
+              placeholder="narrator"
+              className="text-eyebrow text-muted-foreground"
+              editClassName="h-auto rounded-md border-0 bg-primary/5 px-1.5 py-0.5 shadow-none focus-visible:border-0 focus-visible:ring-0"
+            />
+            <div className="min-w-0">
               <EditableField
                 value={line.text}
                 onCommit={(text) => updateLine(i, { text })}
