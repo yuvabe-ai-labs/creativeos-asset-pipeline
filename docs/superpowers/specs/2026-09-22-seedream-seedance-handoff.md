@@ -146,6 +146,34 @@ rejected by Seedance**, because the GCS copy is not the trusted original. A Seed
 node has to keep the **vendor URL, with its creation time,** alongside the stored copy, and
 the video-gen node has to send the vendor URL while it's still valid.
 
+### 3.4 Voice consistency: `reference_audio` (added to the bench 2026-09-22)
+
+Seedance invents a new voice for every clip. To keep one voice per presenter, the bench
+extracts the audio of a clip the user liked and sends it back with every later generation:
+
+```json
+{ "type": "audio_url", "audio_url": { "url": "data:audio/mp3;base64,…" }, "role": "reference_audio" }
+```
+- **Limits (2.5):** wav or mp3, each clip 2–30 s, at most 10 clips totalling 30 s, ≤ 15 MB.
+  The URL can be public, base64, or `asset://`. 2.0 needs an image or video alongside it;
+  2.5 accepts audio alone.
+- **It references timbre, not words.** The model speaks the prompt's new dialogue in that
+  voice. The prompt should bind inputs by order (`@Image 1` = face, `@Audio 1` = voice) and
+  say *voice timbre only*, or the anchor clip's music and sound effects come along too.
+- **Vendor-stated weakness:** the generated voice can "differ significantly" from the
+  reference. The mitigation is to describe the voice in words as well, and keep each line's
+  tone close to the reference.
+- **Cost:** audio isn't in the token formula (`(input video s + output video s) × W × H ×
+  24 / 1024`), so a voice reference is essentially free. A reference *video*, by contrast,
+  adds its duration to the billed tokens (at the lower "with video" rate, subject to a minimum).
+- **An mp4 can't be `reference_audio`.** The bench extracts the audio server-side with
+  ffmpeg (`src/lib/ugc/voice.ts`). A video can instead go in as `reference_video` (voice
+  plus everything else; set `omni_reference_task_type: "reference"`), but that costs more.
+- **Voice source.** The bench only uses its own Seedance output, so there's no question of
+  rights in the voice. Real recorded voices are neither explicitly allowed nor explicitly
+  blocked for `reference_audio`, and we haven't tested one. Cloning a real person's voice
+  should go through the vendor's authorised real-person asset route.
+
 ## 5. How data flows in the bench
 
 The bench is deliberately small: it runs in the browser, keeps state only in memory, and has

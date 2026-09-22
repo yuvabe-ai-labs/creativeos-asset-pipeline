@@ -16,6 +16,13 @@ const nextConfig: NextConfig = {
     // MAX_TOTAL_BYTES in src/lib/review-annotations/constants.ts stays under this.
     serverActions: { bodySizeLimit: "4mb" },
   },
+  // The UGC bench's voice route shells out to the ffmpeg binary shipped by ffmpeg-static.
+  // Bundling would rewrite the package's binary path, and file tracing can't see a binary
+  // that is only spawned, so: keep it external, and include the binary in that route.
+  serverExternalPackages: ["ffmpeg-static"],
+  outputFileTracingIncludes: {
+    "/api/ugc/voice": ["./node_modules/ffmpeg-static/ffmpeg*"],
+  },
   images: {
     // The login panel's photography (src/lib/login-images.ts). Scoped to this one
     // host so an arbitrary remote URL can't be laundered through our optimiser.

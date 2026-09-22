@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AlertTriangle, Download, FileText, Loader2, Play, X } from "lucide-react";
+import { AlertTriangle, Download, FileText, Loader2, Mic, Play, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { ScriptTile as Tile } from "@/lib/ugc/board";
@@ -12,14 +12,34 @@ type Props = {
   onScript: (text: string) => void;
   onRun: () => void;
   onRemove: () => void;
+  // "Use this voice": resolves to an error message, or null once the row has the voice.
+  onUseVoice: () => Promise<string | null>;
+  isVoiceSource: boolean;
 };
 
 const secs = (ms: number | null) => (ms == null ? "" : `${(ms / 1000).toFixed(0)}s`);
 
 // A tile is the script until it becomes the video. Editing the script of a finished
 // video (via "show script") drops it back to draft — that is the re-run path.
-export function ScriptTile({ tile, canRun, onScript, onRun, onRemove }: Props) {
+export function ScriptTile({
+  tile,
+  canRun,
+  onScript,
+  onRun,
+  onRemove,
+  onUseVoice,
+  isVoiceSource,
+}: Props) {
   const [showScript, setShowScript] = useState(false);
+  const [voiceBusy, setVoiceBusy] = useState(false);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
+
+  async function takeVoice() {
+    setVoiceBusy(true);
+    setVoiceError(null);
+    setVoiceError(await onUseVoice());
+    setVoiceBusy(false);
+  }
   const busy = tile.status === "queued" || tile.status === "generating";
 
   if (tile.status === "done" && tile.videoUrl && !showScript) {
@@ -28,10 +48,28 @@ export function ScriptTile({ tile, canRun, onScript, onRun, onRemove }: Props) {
         <video src={tile.videoUrl} controls playsInline className="aspect-[9/16] w-full object-cover" />
         <div className="flex items-center gap-1 px-2 py-1.5 text-xs text-neutral-400">
           {secs(tile.elapsedMs)}
+          {tile.ranWithVoice && (
+            <Mic className="size-3 text-neutral-300" strokeWidth={1.5} aria-label="Made with the row's voice" />
+          )}
           <Button
             variant="ghost"
             size="icon-sm"
-            className="ml-auto text-neutral-300"
+            className={isVoiceSource ? "ml-auto text-primary" : "ml-auto text-neutral-300"}
+            onClick={takeVoice}
+            disabled={voiceBusy}
+            aria-label={isVoiceSource ? "This clip is the row's voice" : "Use this voice for this face"}
+            title={isVoiceSource ? "This clip is the row's voice" : "Use this voice for this face"}
+          >
+            {voiceBusy ? (
+              <Loader2 className="size-3.5 animate-spin" strokeWidth={1.5} />
+            ) : (
+              <Mic className="size-3.5" strokeWidth={1.5} />
+            )}
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="text-neutral-300"
             onClick={() => setShowScript(true)}
             aria-label="Show script"
           >
@@ -48,6 +86,7 @@ export function ScriptTile({ tile, canRun, onScript, onRun, onRemove }: Props) {
             <Download className="size-3.5" strokeWidth={1.5} />
           </Button>
         </div>
+        {voiceError && <p className="px-2 pb-1.5 text-xs text-destructive">{voiceError}</p>}
       </div>
     );
   }

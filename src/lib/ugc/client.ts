@@ -60,15 +60,18 @@ export async function createVideoTask(args: {
   model: SeedanceModelId;
   prompt: string;
   referenceUrl: string;
+  // Voice anchor (mp3 data URL). Order matters: it becomes "@Audio 1" in the prompt.
+  audioUrl?: string;
 }) {
-  const r = await ark("/contents/generations/tasks", "POST", {
-    model: args.model,
-    content: [
-      { type: "text", text: args.prompt },
-      // Verbatim — any copy or re-encode of a Seedream face loses trusted status.
-      { type: "image_url", image_url: { url: args.referenceUrl }, role: "reference_image" },
-    ],
-  });
+  const content: Record<string, unknown>[] = [
+    { type: "text", text: args.prompt },
+    // Verbatim — any copy or re-encode of a Seedream face loses trusted status.
+    { type: "image_url", image_url: { url: args.referenceUrl }, role: "reference_image" },
+  ];
+  if (args.audioUrl) {
+    content.push({ type: "audio_url", audio_url: { url: args.audioUrl }, role: "reference_audio" });
+  }
+  const r = await ark("/contents/generations/tasks", "POST", { model: args.model, content });
   const taskId = (r.id as string | undefined) ?? null;
   return { taskId, error: taskId ? null : (errorOf(r) ?? "Seedance refused the task") };
 }

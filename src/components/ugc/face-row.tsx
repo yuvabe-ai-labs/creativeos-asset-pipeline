@@ -15,6 +15,8 @@ export function FaceRow({ row, bench }: { row: Row; bench: UgcBench }) {
         onPrompt={(t) => bench.setFacePrompt(row.id, t)}
         onGenerate={() => bench.generateFace(row.id)}
         onRegenerate={() => bench.regenerateFace(row.id)}
+        onVoiceNote={(t) => bench.setVoiceNote(row.id, t)}
+        onClearVoice={() => bench.clearVoice(row.id)}
       />
       <div className="flex flex-col gap-2">
         <div className="flex items-center">
@@ -38,6 +40,8 @@ export function FaceRow({ row, bench }: { row: Row; bench: UgcBench }) {
               onScript={(s) => bench.setScript(row.id, t.id, s)}
               onRun={() => bench.runTile(row.id, t.id)}
               onRemove={() => bench.removeTile(row.id, t.id)}
+              onUseVoice={() => bench.takeVoiceFrom(row.id, t.id)}
+              isVoiceSource={!!row.voice && row.voice.videoUrl === t.videoUrl}
             />
           ))}
           <Button

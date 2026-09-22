@@ -20,6 +20,18 @@ describe("duplicateRow", () => {
     expect(copy.tiles[0].status).toBe("draft");
     expect(copy.tiles[0].videoUrl).toBeNull();
   });
+
+  it("keeps the row's voice anchor and note — a new face, same voice", () => {
+    const voice = {
+      dataUrl: "data:audio/mp3;base64,AAA",
+      seconds: 5,
+      source: "Script 1",
+      videoUrl: "https://x/v.mp4",
+    };
+    const copy = duplicateRow({ ...newRow("a"), voice, voiceNote: "warm" });
+    expect(copy.voice).toEqual(voice);
+    expect(copy.voiceNote).toBe("warm");
+  });
 });
 
 describe("runnableTiles", () => {

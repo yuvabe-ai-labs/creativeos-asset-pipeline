@@ -40,6 +40,16 @@ generates a new face there. Old face and its videos stay for comparison.
 so a first session is just *Generate face* ×2 → *Run all (4)*. Rows and tiles added later
 start blank. Source: `src/lib/ugc/starter.ts`.
 
+**Voice anchor** (added 2026-09-22, for voice consistency): each finished clip has a 🎙
+*Use this voice* button. The server (`POST /api/ugc/voice`, BytePlus hosts only) downloads the
+clip and extracts a mono mp3, capped at 30 s, with ffmpeg (`ffmpeg-static`, shipped in the
+route's bundle via `next.config.ts`). That becomes the row's voice. From then on every
+generation for the face sends it as `reference_audio` (a data URL, never hosted), and the
+prompt gets *"Use the person in @Image 1 … Reference only the voice timbre in @Audio 1 …
+Voice: {description}"*. Tiles made with the voice show a mic marker, so with and without can
+be compared. *New face* carries the voice across. Durations now go up to 30 s (4–30 in one
+call). Audio references don't add Seedance tokens, so there's no extra cost.
+
 **Activity log** (added after the first look): every call is recorded on the page — time,
 "Face N · Script M" position, HTTP status, duration — with errors in red, the raw
 request/response one click away, and *Copy log* for bug reports. In-progress polls are not

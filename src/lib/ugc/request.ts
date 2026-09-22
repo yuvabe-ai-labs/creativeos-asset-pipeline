@@ -19,6 +19,19 @@ export type Logger = (entry: Omit<LogEntry, "id" | "at">) => void;
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: string };
 
+// Voice anchors travel as base64 data URLs (60–360 KB). Keep them out of the log so it
+// stays readable and "Copy log" stays pasteable.
+export function redactDataUrls(value: unknown): unknown {
+  if (typeof value === "string" && value.startsWith("data:") && value.length > 200) {
+    return `${value.slice(0, value.indexOf(",") + 1)}…(${Math.round(value.length / 1024)} KB)`;
+  }
+  if (Array.isArray(value)) return value.map(redactDataUrls);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, redactDataUrls(v)]));
+  }
+  return value;
+}
+
 export async function request<T extends { error?: string | null }>(
   log: Logger,
   label: string,
@@ -30,7 +43,16 @@ export async function request<T extends { error?: string | null }>(
   const started = performance.now();
   const record = (ok: boolean, httpStatus: number | null, response: unknown) =>
     (!ok || opts.logSuccess !== false) &&
-    log({ label, method, url, ok, httpStatus, ms: Math.round(performance.now() - started), request: body, response });
+    log({
+      label,
+      method,
+      url,
+      ok,
+      httpStatus,
+      ms: Math.round(performance.now() - started),
+      request: redactDataUrls(body),
+      response: redactDataUrls(response),
+    });
 
   let res: Response;
   try {

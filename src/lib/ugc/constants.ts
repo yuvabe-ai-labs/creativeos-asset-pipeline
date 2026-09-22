@@ -15,7 +15,12 @@ export type SeedanceModelId = (typeof SEEDANCE_MODELS)[number]["id"];
 
 export const RESOLUTIONS = ["480p", "720p", "1080p"] as const;
 export const RATIOS = ["adaptive", "9:16", "16:9", "1:1", "3:4", "4:3"] as const;
-export const DURATIONS = [5, 8, 10, 12] as const;
+// Seedance 2.5 generates 4–30s in one call; a beat may be one call or two.
+export const DURATIONS = [4, 5, 8, 10, 12, 15, 20, 25, 30] as const;
+
+// reference_audio limits (Seedance 2.5): wav/mp3, each clip 2–30s.
+export const VOICE_MIN_SECONDS = 2;
+export const VOICE_MAX_SECONDS = 30;
 
 export type BenchSettings = {
   model: SeedanceModelId;

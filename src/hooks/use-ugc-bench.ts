@@ -112,15 +112,26 @@ export function useUgcBench() {
       const startedAt = Date.now();
       const fail = (error: string) =>
         patchTile(rowId, tileId, { status: "rejected", error, elapsedMs: Date.now() - startedAt });
-      patchTile(rowId, tileId, { status: "generating", startedAt, ranScript: tile.script, error: null });
+      patchTile(rowId, tileId, {
+        status: "generating",
+        startedAt,
+        ranScript: tile.script,
+        ranWithVoice: !!row.voice,
+        error: null,
+      });
 
-      const label = `${where(rowId, tileId)} · Seedance`;
+      const label = `${where(rowId, tileId)} · Seedance${row.voice ? " + voice" : ""}`;
       const created = await request<{ taskId: string | null; error: string | null }>(
         addLog,
         `${label} create`,
         "POST",
         "/api/ugc/video",
-        { script: tile.script, referenceUrl: row.faceUrl, settings: settingsRef.current },
+        {
+          script: tile.script,
+          referenceUrl: row.faceUrl,
+          settings: settingsRef.current,
+          voice: row.voice ? { audioUrl: row.voice.dataUrl, note: row.voiceNote } : undefined,
+        },
       );
       if (!created.ok || !created.data.taskId) {
         return fail(created.ok ? "Seedance returned no task id" : created.error);
@@ -163,6 +174,34 @@ export function useUgcBench() {
       fail(`Timed out after 7.5 minutes (task ${taskId})`);
     },
     [patchTile, addLog, where],
+  );
+
+  // "Use this voice": extract the audio of a finished clip and make it the row's voice
+  // anchor. Returns an error message for the tile to show, or null on success.
+  const takeVoiceFrom = useCallback(
+    async (rowId: string, tileId: string): Promise<string | null> => {
+      const tile = rowsRef.current.find((r) => r.id === rowId)?.tiles.find((t) => t.id === tileId);
+      if (!tile?.videoUrl) return "This tile has no video yet";
+      const source = where(rowId, tileId).replace(/^Face \d+ · /, "");
+      const res = await request<{ audioDataUrl: string; seconds: number; error?: string }>(
+        addLog,
+        `${where(rowId, tileId)} · extract voice`,
+        "POST",
+        "/api/ugc/voice",
+        { videoUrl: tile.videoUrl },
+      );
+      if (!res.ok) return res.error;
+      patchRow(rowId, {
+        voice: {
+          dataUrl: res.data.audioDataUrl,
+          seconds: res.data.seconds,
+          source,
+          videoUrl: tile.videoUrl,
+        },
+      });
+      return null;
+    },
+    [addLog, where, patchRow],
   );
 
   const pump = useCallback(() => {
@@ -217,6 +256,9 @@ export function useUgcBench() {
       patchTile(rowId, tileId, { script, status: "draft", videoUrl: null, error: null }),
     runTile,
     runAll,
+    takeVoiceFrom,
+    clearVoice: (rowId: string) => patchRow(rowId, { voice: null }),
+    setVoiceNote: (rowId: string, voiceNote: string) => patchRow(rowId, { voiceNote }),
     log,
     clearLog: () => setLog([]),
   };
