@@ -128,6 +128,11 @@ These come from the vendor's "trusted outputs" policy
 2. **Only the original, unmodified output is trusted.** Re-encoding, cropping or overlaying
    the image loses trust. **We have not tested** whether a byte-identical copy served from
    our own GCS keeps trust. Assume it does not until someone tests it.
+   **Watch out for `src/lib/video-gen/providers/seedance-images.ts`** (added on staging).
+   It re-encodes any reference that's outside Seedance's limits (aspect ratio 0.4–2.5,
+   300–6000 px) and sends it inline, and that would strip a Seedream face's trust. A
+   standard 2K Seedream face is within limits and passes through untouched. Keep Seedream
+   sizes inside those limits, or skip re-encoding for trusted sources.
 3. **There are two clocks, and the shorter one is what limits you.** The *trust* lasts 30 days,
    but the *URL* expires in 24 h. After a day we still have the image in our own storage, but
    the vendor URL that Seedance trusts is dead. Whether a trusted output can be referenced
