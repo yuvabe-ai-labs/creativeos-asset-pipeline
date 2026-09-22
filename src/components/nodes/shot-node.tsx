@@ -15,6 +15,7 @@ import { NodeContextMenu } from "./node-context-menu";
 import { NodeCardHeader } from "./node-card-header";
 import { ShotComposeSheet } from "./shot-compose-sheet";
 import { GuidedNextButton } from "@/components/canvas/guided-next-button";
+import { VoLinesEditor } from "./vo-lines-editor";
 import type { ReelScript } from "@/lib/nodes/reel-script";
 
 // Shot node — one shot of a reel, forked from a parsed Script (D21). It carries the
@@ -108,6 +109,10 @@ export function ShotNode({ id, data, selected, positionAbsoluteX, positionAbsolu
             rows={4}
             className="nodrag w-full resize-none rounded-md bg-transparent px-1.5 py-1 text-sm focus:outline-none"
           />
+
+          <div className="px-1.5">
+            <VoLinesEditor lines={shot?.voiceover} readOnly />
+          </div>
 
           <p className="px-1.5 pt-1 text-[0.6rem] text-muted-foreground">
             {d.seededFrom?.scriptTitle ? `from "${d.seededFrom.scriptTitle}" · ` : ""}full script context

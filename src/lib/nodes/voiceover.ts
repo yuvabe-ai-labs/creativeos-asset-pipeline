@@ -1,6 +1,6 @@
 // D267 — script voiceover: the mapping check, and (Task 3) the per-model renderer.
 // Pure and browser-safe: the Script node, the renderers and the API routes all import it.
-import type { ReelScript, VoLine } from "./reel-script";
+import type { ReelScript, ReelShot, VoLine } from "./reel-script";
 
 export const VO_MAPPING_ISSUE =
   "VO mapping dropped or changed a line — re-parse or edit the shot lines.";
@@ -288,6 +288,24 @@ export function describeVoLineForWriter(line: VoLine): string {
   const where = onScreen ? "on-screen" : "off-screen";
   const deliveryPart = delivery ? `, ${delivery}` : "";
   return `${who} (${where}${deliveryPart}): "${line.text}"`;
+}
+
+/**
+ * Task 6 — the reel-level `voiceover` string, rewritten from the per-shot lines whenever the
+ * operator edits one by hand, so the two never drift (D267 §3.5 refinement: a human edit makes
+ * `voiceoverMappingIssue`'s comparison against the ORIGINAL authored copy vacuous; rewriting the
+ * copy from the lines it now reflects keeps the check meaningful for a bad parse while staying
+ * quiet on a deliberate edit).
+ *
+ * Every shot's lines, in order, one line's `text` per entry, joined by a single space. Never adds
+ * speaker labels or quotes — this is the plain reel copy, not a performance rendering (that's
+ * `renderVoiceover`, below).
+ */
+export function joinVoLines(shots: ReelShot[]): string {
+  return shots
+    .flatMap((s) => s.voiceover ?? [])
+    .map((l) => l.text)
+    .join(" ");
 }
 
 export type { VoLine };

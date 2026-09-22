@@ -7,6 +7,7 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { GuidedNextButton } from "@/components/canvas/guided-next-button";
 import { EditableField } from "./editable-field";
+import { VoLinesEditor } from "./vo-lines-editor";
 import {
   headroomOf,
   resizeCut,
@@ -224,6 +225,13 @@ export function MultishotFocusView({
                         // second scrollbar and a shifted text column inside an already-scrolling
                         // card.
                         editClassName="min-h-0 resize-none rounded-md border-0 bg-primary/5 px-1.5 py-1 shadow-none focus-visible:border-0 focus-visible:ring-0 md:text-sm"
+                      />
+                      <VoLinesEditor
+                        lines={cut.voiceover}
+                        readOnly={isReadOnly}
+                        onChange={(next) =>
+                          onChange(cuts.map((c, j) => (j === i ? { ...c, voiceover: next } : c)))
+                        }
                       />
                     </div>
                   </div>

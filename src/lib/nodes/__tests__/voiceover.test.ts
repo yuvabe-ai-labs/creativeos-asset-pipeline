@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { voiceoverMappingIssue, renderVoiceover } from "../voiceover";
+import { voiceoverMappingIssue, renderVoiceover, joinVoLines } from "../voiceover";
 import type { ReelScript } from "../reel-script";
 
 const script = (voiceover: string, lines: string[][] | null): ReelScript => ({
@@ -241,5 +241,28 @@ describe("renderVoiceover", () => {
     expect(renderVoiceover(undefined)).toBe("");
     expect(renderVoiceover([])).toBe("");
     expect(renderVoiceover([{ text: "   ", speaker: "narrator" }])).toBe("");
+  });
+});
+
+describe("joinVoLines", () => {
+  it("joins every shot's lines in order, text only", () => {
+    expect(
+      joinVoLines([
+        { description: "a", voiceover: [{ text: "First.", speaker: "narrator" }] },
+        { description: "b", voiceover: [] },
+        { description: "c", voiceover: [{ text: "Second.", speaker: "Riya" }] },
+      ]),
+    ).toBe("First. Second.");
+  });
+
+  it("is empty when no shot has a line", () => {
+    expect(joinVoLines([{ description: "a" }, { description: "b", voiceover: [] }])).toBe("");
+  });
+
+  it("keeps a rewritten reel copy in step with the lines it came from", () => {
+    const shots = [{ description: "a", voiceover: [{ text: "Edited line.", speaker: "narrator" }] }];
+    expect(
+      voiceoverMappingIssue({ voiceover: joinVoLines(shots), visual_script: { shots } }),
+    ).toBeNull();
   });
 });

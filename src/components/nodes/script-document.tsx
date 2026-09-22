@@ -4,10 +4,12 @@ import type { ReactNode } from "react";
 import { Plus, X } from "lucide-react";
 import { looksLikeReelScript, type ReelScript } from "@/lib/nodes/reel-script";
 import { describeGenerations, type GroupingVersion } from "@/lib/nodes/group-shots";
+import { joinVoLines, type VoLine } from "@/lib/nodes/voiceover";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { EditableField } from "./editable-field";
 import { GenerationBracket } from "./generation-bracket";
+import { VoLinesEditor } from "./vo-lines-editor";
 
 type Path = (string | number)[];
 
@@ -87,6 +89,16 @@ export function ScriptDocument({
 
   const set = (path: Path) => (v: string) => onChange?.(path, v);
   const shots = script.visual_script?.shots ?? [];
+  // Task 6 — one edit, two paths: the shot's own lines, and the reel-level `voiceover` string
+  // rewritten from every shot's lines so the two never drift (D267 §3.5 refinement). `onChange`
+  // commits through a single-path setter (see setScriptValue, script-edit.ts) that the parent
+  // applies with a functional `setDraft` update, so two calls made here in sequence both land on
+  // the same draft rather than one clobbering the other.
+  const setVoiceover = (i: number) => (next: VoLine[]) => {
+    const nextShots = shots.map((s, idx) => (idx === i ? { ...s, voiceover: next } : s));
+    onChange?.(["visual_script", "shots", i, "voiceover"], next);
+    onChange?.(["voiceover"], joinVoLines(nextShots));
+  };
   const generations = describeGenerations(shots, groupModes, groupingVersion ?? 1);
   const body = script.on_screen_text?.body ?? [];
   const qc = script.qc_notes ?? [];
@@ -166,6 +178,11 @@ export function ScriptDocument({
                         readOnly={readOnly}
                         placeholder="duration"
                         className="text-xs text-muted-foreground"
+                      />
+                      <VoLinesEditor
+                        lines={shots[i]?.voiceover}
+                        readOnly={readOnly}
+                        onChange={setVoiceover(i)}
                       />
                     </div>
                     {!readOnly && (
@@ -250,16 +267,6 @@ export function ScriptDocument({
             placeholder="Outro…"
           />
         </div>
-      </Section>
-
-      <Section label="Voiceover">
-        <EditableField
-          value={script.voiceover ?? ""}
-          onCommit={set(["voiceover"])}
-          readOnly={readOnly}
-          multiline
-          placeholder="Add voiceover…"
-        />
       </Section>
 
       <Section label="Music & sound">
