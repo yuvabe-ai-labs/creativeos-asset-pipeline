@@ -1,5 +1,11 @@
 # Per-shot voiceover Implementation Plan
 
+> **SUPERSEDED, NOT EXECUTED (2026-09-22).** Its spec was superseded by
+> `docs/superpowers/specs/2026-09-16-script-voiceover-in-generation-design.md` before Task 1 was
+> dispatched — see that spec's header for why. The build order to follow is that design's §9; its
+> item 1 is already ported here. Nothing in this plan was implemented; it is kept only as the
+> record of the discarded approach.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Carry each script shot's spoken line from the parse through to the beat written for that shot, so the multishot writer places the line it is given instead of guessing which beat a reel-wide voiceover belongs in.

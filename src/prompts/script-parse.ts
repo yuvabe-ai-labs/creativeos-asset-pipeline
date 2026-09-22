@@ -58,12 +58,26 @@ const reelSchema = {
           items: {
             type: "object",
             additionalProperties: false,
-            required: ["description", "duration", "duration_seconds", "clip"],
+            required: ["description", "duration", "duration_seconds", "clip", "voiceover"],
             properties: {
               description: { type: "string" },
               duration: { type: "string" },
               duration_seconds: { type: "integer" },
               clip: { type: "integer" },
+              voiceover: {
+                type: "array",
+                items: {
+                  type: "object",
+                  additionalProperties: false,
+                  required: ["text", "speaker", "delivery", "language"],
+                  properties: {
+                    text: { type: "string" },
+                    speaker: { type: "string" },
+                    delivery: { type: "string" },
+                    language: { type: "string" },
+                  },
+                },
+              },
             },
           },
         },
@@ -103,12 +117,19 @@ Fields:
 - schedule: { date, post_time, category, theme }.
 - strategic_objective: the stated goal of the reel.
 - ai_production_type: the production approach stated in the script.
-- visual_script: { shots: [{ description, duration, duration_seconds }], execution_refinement } — split the shot list into individual shots.
+- visual_script: { shots: [{ description, duration, duration_seconds, clip, voiceover }], execution_refinement } — split the shot list into individual shots.
   - duration: the timing exactly as the script writes it (e.g. "0-3 sec", "3-8 sec").
   - duration_seconds: that shot's OWN LENGTH in whole seconds — NOT the end of its timecode range. Scripts usually write cumulative ranges, so "0-3 sec" is 3, "3-8 sec" is 5, and "8-14 sec" is 6. If a shot gives only a single number ("4 sec"), that number IS the length. If the length cannot be determined, use 4.
   - clip: the number of the clip the shot sits under when the script groups its shots into clips with headings like "CLIP 1 (0–10 SEC)", "CLIP 2", "Clip 3 — …" — every shot under that heading gets that number, until the next CLIP heading. Use 0 when the script has no CLIP headings. Do not invent clips: a scene heading, a timecode or a "---" rule is not a clip.
+  - voiceover: the VO lines that play over THIS shot, as [{ text, speaker, delivery, language }].
+    - Assign every line of the script's voiceover to exactly one shot: by the script's timecodes when it gives them, otherwise in script order across the shots. Never repeat a line on two shots, never drop one, never invent one.
+    - text: the line VERBATIM — the spoken words only, without timecodes, "VO:" labels or quotation marks.
+    - speaker: "narrator" for off-screen narration (the default for a voiceover). Use the on-screen person's name or description ONLY when the script puts the line in that person's mouth on camera.
+    - delivery: how it is said ("warm, unhurried") only when the script states it; otherwise "".
+    - language: the line's language ("English", "Tamil") only when the script states it or the line is plainly not English; otherwise "".
+    - A shot with no line gets []. When the script's voiceover is "None" / "No voiceover", every shot gets [].
 - on_screen_text: { intro, body (array of lines), outro }.
-- voiceover: the VO script, or "" / "No voiceover".
+- voiceover: the VO script, or "" / "No voiceover". The reel-wide copy, kept as written — the per-shot lines above are the same words mapped to their shots, and the two are checked against each other.
 - music_sound: the music & sound design direction.
 - caption: the post caption.
 - cta: call to action.
@@ -181,7 +202,10 @@ export const scriptParsePrompt = {
   // for one occasion was still posting on the source occasion's date.
   // v7: per-shot `clip` from CLIP headings (BUG-008) — the script's own clip breaks, which
   // grouping then honours, so a creator can size clips for Omni or Kling in one script.
-  version: 7,
+  // v8: every shot also carries its voiceover lines, mapped verbatim by the parse
+  // ({ text, speaker, delivery, language }), with the reel-wide string kept beside them as the
+  // copy they are checked against (D267, voiceoverMappingIssue).
+  version: 8,
   model: "gpt-5.4-mini",
   system,
   clientContextHeading,

@@ -1,6 +1,23 @@
 # Per-shot voiceover — design
 
-**Status:** approved in brainstorm 2026-09-22 · **ADR:** D275 (to be appended on implementation)
+**Status: SUPERSEDED (2026-09-22) by `2026-09-16-script-voiceover-in-generation-design.md` (D267,
+D268).** That design was written a week earlier on `feat/character-node` and this brainstorm did not
+know it existed. It solves the same problem better in two ways, so it governs:
+
+1. **A shot carries `VoLine[]`, not a string** — several lines, each with `speaker`, `delivery` and
+   `language`, which is what Kling's `<speaker> says <delivery>` and Seedance's `{language, …}`
+   syntaxes need.
+2. **The writer never writes the lines at all.** This design had it place them verbatim; that one
+   appends the exact words in code at render time, per model dialect, read from the cuts. A model
+   that cannot place a line cannot place it wrong — the same move as D207 and D273.
+
+It also KEEPS the reel-level `voiceover` field that this design deleted, and checks the mapped
+lines against it (`voiceoverMappingIssue`), turning the duplication into a checked invariant.
+
+Its item 1 (types, parse schema and rules, integrity check) is ported to this branch; items 2–5
+are unbuilt everywhere. The problem statement below still stands and is why the work was picked up.
+
+**Original status:** approved in brainstorm 2026-09-22 · **ADR:** D275 (never appended)
 
 ## Problem
 
