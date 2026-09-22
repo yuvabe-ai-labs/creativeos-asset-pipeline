@@ -176,14 +176,25 @@ export function ScriptDocument({
                           operator spends per cut. It edits `duration_seconds`, the field every
                           consumer reads (shotSeconds, grouping, the video request): the old
                           control edited the free-text `duration` label, so a timing edit changed
-                          a string and no behaviour at all. */}
+                          a string and no behaviour at all.
+                          One edit, two paths: `duration_seconds` (the number every consumer reads)
+                          and `duration` (the free-text label still shown by renderScriptAsText and
+                          the Shot node), rewritten from the same number so the two never drift —
+                          same shape as setVoiceover above. The parse reads an optional sign, digits
+                          and an optional decimal part rather than stripping non-digits, so "3.5"
+                          rounds to 4 instead of misreading as 35, and a negative or sub-half-second
+                          value commits nothing (the field reverts). */}
                       {generation.multishot && (
                         <EditableField
                           value={`${shotSeconds(shots[i] ?? {})}s`}
                           onCommit={(next) => {
-                            const seconds = Number.parseInt(next.replace(/[^0-9]/g, ""), 10);
-                            if (Number.isFinite(seconds) && seconds > 0) {
+                            const match = next.match(/-?\d+(?:\.\d+)?/);
+                            const parsed = match ? Number.parseFloat(match[0]) : NaN;
+                            if (!Number.isFinite(parsed)) return;
+                            const seconds = Math.round(parsed);
+                            if (seconds > 0) {
                               onChange?.(["visual_script", "shots", i, "duration_seconds"], seconds);
+                              onChange?.(["visual_script", "shots", i, "duration"], `${seconds}s`);
                             }
                           }}
                           readOnly={readOnly}
