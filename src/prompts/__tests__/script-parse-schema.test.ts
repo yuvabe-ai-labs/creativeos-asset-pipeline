@@ -35,8 +35,9 @@ describe("script-parse schema", () => {
   // A parser that only knew CLIP/Creator turned their six-scene script into whatever the packer
   // wanted, and dropped the label it did not recognise.
   it("names every heading and speech label a script may use", () => {
-    for (const word of ["Scene", "Shot", "CLIP", "VO", "Voiceover", "Creator", "Narrator"]) {
-      expect(scriptParsePrompt.system, word).toMatch(new RegExp(`\\b${word}\\b`));
+    expect(scriptParsePrompt.system).toContain("Scene 3 — How to Use | 10–18 sec");
+    for (const label of ["VO + Text Overlay:", "Voiceover:", "Creator:", "Narrator:", "Spokesperson:"]) {
+      expect(scriptParsePrompt.system, label).toContain(label);
     }
   });
 
