@@ -1,6 +1,8 @@
 // Pure board model for the UGC bench. The hook owns state; these helpers stay testable.
 
 export type FaceStatus = "empty" | "generating" | "ready" | "rejected";
+/** Seedream generated the face, or the user uploaded a photo (Google tab only). */
+export type FaceSource = "seedream" | "upload";
 export type TileStatus = "draft" | "queued" | "generating" | "done" | "rejected";
 
 export type ScriptTile = {
@@ -29,6 +31,7 @@ export type FaceRow = {
   faceUrl: string | null;
   faceError: string | null;
   faceAt: number | null;
+  faceSource: FaceSource;
   voice: RowVoice | null;
   voiceNote: string;
   tiles: ScriptTile[];
@@ -58,6 +61,7 @@ export function newRow(facePrompt = "", voiceNote = ""): FaceRow {
     faceUrl: null,
     faceError: null,
     faceAt: null,
+    faceSource: "seedream",
     voice: null,
     voiceNote,
     tiles: [newTile()],

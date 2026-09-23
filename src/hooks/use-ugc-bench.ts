@@ -8,6 +8,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   defaultSettings,
   engineConfig,
+  FACE_UPLOAD_MAX_BYTES,
   MAX_CONCURRENT,
   MAX_POLLS,
   POLL_MS,
@@ -90,6 +91,32 @@ export function useUgcBench(engine: Engine = "seedance") {
       );
     },
     [patchRow, addLog, where],
+  );
+
+  // Google tab only: use a photo as the presenter instead of generating one. The file never
+  // leaves this browser except inside the generation request itself.
+  const uploadFace = useCallback(
+    (rowId: string, file: File): Promise<string | null> =>
+      new Promise((resolve) => {
+        if (!file.type.startsWith("image/")) return resolve("That file is not an image");
+        if (file.size > FACE_UPLOAD_MAX_BYTES) {
+          return resolve(`Image is ${(file.size / 1024 / 1024).toFixed(1)} MB — keep it under 3 MB`);
+        }
+        const reader = new FileReader();
+        reader.onerror = () => resolve("Could not read that file");
+        reader.onload = () => {
+          patchRow(rowId, {
+            faceStatus: "ready",
+            faceUrl: String(reader.result),
+            faceSource: "upload",
+            faceAt: Date.now(),
+            faceError: null,
+          });
+          resolve(null);
+        };
+        reader.readAsDataURL(file);
+      }),
+    [patchRow],
   );
 
   const regenerateFace = useCallback(
@@ -268,6 +295,7 @@ export function useUgcBench(engine: Engine = "seedance") {
     setFacePrompt: (rowId: string, facePrompt: string) => patchRow(rowId, { facePrompt }),
     generateFace,
     regenerateFace,
+    uploadFace,
     addTile: (rowId: string) =>
       setRows((rs) => rs.map((r) => (r.id === rowId ? { ...r, tiles: [...r.tiles, newTile()] } : r))),
     removeTile: (rowId: string, tileId: string) =>

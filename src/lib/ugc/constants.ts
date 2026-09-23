@@ -42,6 +42,8 @@ export const ENGINES = [
     ratios: RATIOS,
     durations: DURATIONS,
     supportsVoice: true,
+    // BytePlus rejects uploaded reference images containing real human faces outright.
+    supportsUploadedFace: false,
   },
   {
     id: "omni",
@@ -51,6 +53,10 @@ export const ENGINES = [
     ratios: OMNI_RATIOS,
     durations: OMNI_DURATIONS,
     supportsVoice: false,
+    // Google has no trusted-output rule, so a photo can be sent straight in. Its own safety
+    // filter still decides: likenesses of real people are often refused, and that refusal is
+    // shown as-is.
+    supportsUploadedFace: true,
   },
 ] as const;
 
@@ -83,6 +89,10 @@ export const DEFAULT_OMNI_SETTINGS: BenchSettings = {
 export function defaultSettings(engine: Engine): BenchSettings {
   return engine === "omni" ? DEFAULT_OMNI_SETTINGS : DEFAULT_SETTINGS;
 }
+
+// The uploaded photo travels inline as a data URL through our own route; base64 inflates by
+// ~33%, so this keeps a request under Vercel's 4.5 MB cap.
+export const FACE_UPLOAD_MAX_BYTES = 3 * 1024 * 1024;
 
 export const TERMINAL_STATUSES = ["succeeded", "failed", "expired", "cancelled"];
 export const MAX_CONCURRENT = 3;

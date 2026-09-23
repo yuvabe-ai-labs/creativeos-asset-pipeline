@@ -71,12 +71,22 @@ export async function generateOmniVideo(args: {
   script: string;
   settings: BenchSettings;
 }): Promise<{ videoUri: string | null; error: string | null }> {
-  const img = await fetch(args.faceUrl, { cache: "no-store" });
-  if (!img.ok) {
-    return { videoUri: null, error: `Could not read the face image (HTTP ${img.status})` };
+  let imageData: string;
+  let mimeType: string;
+  if (args.faceUrl.startsWith("data:")) {
+    // An uploaded photo arrives already inline — no fetch, and nothing of it is stored.
+    const match = args.faceUrl.match(/^data:([^;,]+);base64,(.+)$/);
+    if (!match) return { videoUri: null, error: "The uploaded image could not be read" };
+    mimeType = match[1];
+    imageData = match[2];
+  } else {
+    const img = await fetch(args.faceUrl, { cache: "no-store" });
+    if (!img.ok) {
+      return { videoUri: null, error: `Could not read the face image (HTTP ${img.status})` };
+    }
+    mimeType = (img.headers.get("content-type") ?? "image/jpeg").split(";")[0].trim();
+    imageData = Buffer.from(await img.arrayBuffer()).toString("base64");
   }
-  const mimeType = (img.headers.get("content-type") ?? "image/jpeg").split(";")[0].trim();
-  const imageData = Buffer.from(await img.arrayBuffer()).toString("base64");
 
   const res = await fetch(`${API_BASE}/interactions`, {
     method: "POST",

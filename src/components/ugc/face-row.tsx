@@ -17,6 +17,8 @@ export function FaceRow({ row, bench }: { row: Row; bench: UgcBench }) {
         onPrompt={(t) => bench.setFacePrompt(row.id, t)}
         onGenerate={() => bench.generateFace(row.id)}
         onRegenerate={() => bench.regenerateFace(row.id)}
+        canUpload={engineConfig(bench.engine).supportsUploadedFace}
+        onUpload={(file) => bench.uploadFace(row.id, file)}
       />
       <div className="flex min-w-0 flex-1 flex-col gap-2">
         <div className="flex items-center">
