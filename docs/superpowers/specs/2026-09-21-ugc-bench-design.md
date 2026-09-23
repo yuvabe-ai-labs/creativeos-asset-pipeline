@@ -53,6 +53,14 @@ Voice: {description}"*. Tiles made with the voice show a mic marker, so with and
 be compared. *New face* carries the voice across. Durations now go up to 30 s (4–30 in one
 call). Audio references don't add Seedance tokens, so there's no extra cost.
 
+**Second tab — Gemini Omni** (added 2026-09-23): the same board UI on Google's engine, with its
+own state (`keepMounted`, so a generating clip survives a tab switch). Settings follow the engine
+(3–10 s, 360p–4k, 16:9 or 9:16), it defaults to 360p (~$0.15 a clip), a run is one synchronous
+call with no polling, and the voice strip is hidden because Omni has no `reference_audio`. That
+tab also allows **uploading a photo** as the presenter — Google has no trusted-output rule, so its
+own safety filter decides and a refusal is shown verbatim. Videos play through
+`/api/ugc/omni/file`, which adds the Google key the file URI requires.
+
 **Activity log** (added after the first look): every call is recorded on the page — time,
 "Face N · Script M" position, HTTP status, duration — with errors in red, the raw
 request/response one click away, and *Copy log* for bug reports. In-progress polls are not

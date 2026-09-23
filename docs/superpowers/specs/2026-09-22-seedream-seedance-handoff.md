@@ -5,6 +5,23 @@ taking human-presenter UGC video into the product.
 **Read with:** [2026-09-18 spike findings](2026-09-18-seedance-human-reference-findings.md) ·
 [UGC bench design](2026-09-21-ugc-bench-design.md)
 
+## 0. Status — read this first (updated 2026-09-23)
+
+**Where the work stands, and where to pick it up.**
+
+| Thread | State |
+|---|---|
+| Seedream → Seedance chain | **Verified**, twice (spike 2026-09-18, bench since) |
+| `/ugc` bench, Seedance tab | Built, on `origin/staging`. Voice anchor added 2026-09-22 |
+| `/ugc` bench, Gemini Omni tab | Built 2026-09-23, **probed live** (§3.5). Photo upload allowed there |
+| Canvas integration (§6) | **Not started — this is the next piece of work** |
+| OmniHuman 1.5 (BytePlus Vision AI) | **Paused** at an account permission wall (§8) |
+| ElevenLabs | Voice API useful; its lip-sync is app-only (§8) |
+
+**To take this into the canvas, start at §6.** §3 is the API reference you will need, §4 the
+rules that constrain the design, and §9 the product questions that need answers before the
+data model is fixed.
+
 ## 1. What this is
 
 We wanted to know whether we can generate UGC-style video with a **human presenter** on
@@ -143,6 +160,43 @@ extracts the audio of a clip the user liked and sends it back with every later g
   blocked for `reference_audio`, and we haven't tested one. Cloning a real person's voice
   should go through the vendor's authorised real-person asset route.
 
+### 3.5 The second engine: Gemini Omni 1.1 Flash (probed 2026-09-23)
+
+The bench's second tab runs the same faces and scripts through Google. What the live probe
+established, against `POST https://generativelanguage.googleapis.com/v1beta/interactions`:
+
+- **It accepts a Seedream face as a plain reference.** There is no trusted-output concept
+  outside BytePlus, so no 24 h race and no "original URL only" rule.
+- **It is synchronous.** One call returned a finished 5 s clip in **26 s** — no task id, no
+  polling. Seedance takes 80–100 s through a poll loop.
+- **Output:** h264 + AAC, at the requested 9:16 (360×640 at the 360p tier).
+- **Request shape is unforgiving** and is already encoded in the product provider
+  (`src/lib/video-gen/providers/gemini-omni.ts`, D217): images first and text LAST,
+  `store: true` required by `delivery: "uri"`, `video_config` takes `task` and nothing else.
+- **Its file URI needs the API key to download**, so anything user-facing needs a proxy or a
+  server-side copy. The bench proxies it (`/api/ugc/omni/file`).
+- **No audio input at all.** Google's docs: *"Uploading audio references is unsupported in the
+  current version of the API"* and *"Voice editing is not supported"*. Its soundtrack cannot be
+  disabled either. This matches the product's own D208.
+- **Uploaded photos are allowed** by the API shape (the bench offers it on this tab only), but
+  Google's safety filter refuses likenesses of real people, as it does for Veo.
+
+**Cost and speed, verified rates** (`src/lib/video-gen/cost.ts`, and ModelArk's pricing page):
+
+| Engine | 720p per second | A 5 s clip | Time | Voice control |
+|---|---|---|---|---|
+| Veo 3.1 Lite | $0.05 | $0.25 | — | none |
+| **Gemini Omni 1.1 Flash** | $0.10 (360p: $0.03) | **$0.50** (360p: $0.15) | **~26 s** | none |
+| **Seedance 2.5** | $0.231 | **$1.16** | ~90 s | `reference_audio` |
+| Veo 3.1 Quality | $0.40 | $2.00 | — | none |
+
+Seedance bills `(input video s + output video s) × W × H × 24 / 1024` tokens at $10.70/M
+(480p/720p, no video input) — so **audio references are free**, while a *video* reference adds
+its own duration to the bill at the lower "with video" rate, subject to a minimum.
+
+**The trade is simple: Omni is ~2–8× cheaper and ~3× faster; Seedance is the only one with any
+voice control.**
+
 ## 4. The rules that shape any product design
 
 These come from the vendor's "trusted outputs" policy
@@ -232,49 +286,84 @@ flowchart LR
 | UI | `src/components/ugc/*`, `src/app/ugc/page.tsx` | Settings bar, face column, script tiles, voice strip (under the tiles — the voice is a Seedance input), activity log |
 | Build config | `next.config.ts` | `serverExternalPackages` + `outputFileTracingIncludes` so the ffmpeg binary ships with the voice route |
 
-## 6. Taking it into the product
+## 6. Taking it into the canvas — the next piece of work
 
-The product already has everything the bench skips.
+The bench answered *whether* this works. This section is *how it becomes a canvas feature*.
+The product already owns every mechanism the bench faked; almost nothing here is new plumbing.
 
-| Concern | Bench | Product (where it lives) |
+| Concern | Bench | Product (where it already lives) |
 |---|---|---|
-| Video provider | Own client | `src/lib/video-gen/providers/seedance.ts`, registry id `seedance:seedance-2-5` |
-| Async execution | Browser polling | Trigger.dev `trigger/video-generate.ts`, then `POST /api/webhooks/generation`, then `completeGeneration()` in `src/lib/generations/complete.ts` |
-| Job record | none | `generations` table (`src/lib/db/generations.ts`), graduates into `node_versions` |
+| Video provider | own client | `src/lib/video-gen/providers/seedance.ts`, id `seedance:seedance-2-5` — **already shipped** |
+| Second engine | own Omni client | `src/lib/video-gen/providers/gemini-omni.ts` — **already shipped** |
+| Async execution | browser polling | `trigger/video-generate.ts` -> `POST /api/webhooks/generation` -> `completeGeneration()` |
+| Job record | none | `generations` table (`src/lib/db/generations.ts`), graduating into `node_versions` |
 | Live status | React state | Supabase Realtime, `src/hooks/use-video-gen-status.ts` |
-| Storage | none (links expire) | `uploadVideoGen` / `uploadImageGen` in `src/lib/storage/index.ts` (GCS) |
-| Image provider | Own `generateImage()` | `src/lib/image-gen/`: registry, `providers/{openai,gemini}.ts`, synchronous route `src/app/api/nodes/[id]/image-generate/route.ts` |
-| Cost | none | `src/lib/video-gen/cost.ts` (has Seedance rates); `src/lib/image-gen/cost.ts` is token-based and needs a per-image branch for Seedream |
-| Voice anchor | mp3 in browser state, sent inline | nothing yet — see step 5 |
+| Storage | none (links expire) | `uploadImageGen` / `uploadVideoGen` in `src/lib/storage/index.ts` (GCS) |
+| Image provider | own `generateImage()` | `src/lib/image-gen/`: registry + `providers/{openai,gemini}.ts`, sync route `src/app/api/nodes/[id]/image-generate/route.ts` |
+| Cost | none | `src/lib/video-gen/cost.ts` (Seedance + Omni rates present); `src/lib/image-gen/cost.ts` is token-based and needs a per-image branch for Seedream |
 
-**Suggested order:**
-1. **Add Seedream as an image-gen provider.** It's synchronous, so it fits the existing
-   image-generate route with no Trigger task. Extend `ImageProvider` in
-   `src/lib/image-gen/types.ts`, add `providers/seedream.ts`, and register it. Follow
-   `docs/superpowers/guides/image-gen-model-management.md`.
-2. **Keep the trusted vendor URL.** When Seedream succeeds, store the vendor URL and its
-   creation time on the version, next to the GCS copy (§4, point 3).
-3. **Teach video-gen to prefer it.** When a reference image came from Seedream and its
-   vendor URL is less than 24 h old, send that URL to Seedance instead of the GCS copy.
-   Otherwise, send the GCS URL and let the existing real-person error translation explain
-   the rejection.
-4. **Env var name.** Use **`BYTEPLUS_API_KEY`**, the product's name, now also in
-   `.env.example`. The bench reads it first and falls back to the old experiment name
-   `BYTE_PLUS_API_KEY`. Drop that fallback when the bench is retired.
-5. **If voice consistency matters in the product**, a presenter needs a stored voice: the
-   extracted mp3 in GCS next to the face, referenced by every generation for that presenter,
-   and `reference_audio` added to `buildSeedanceContent()` alongside the existing frame and
-   reference rules. Unlike the face, the audio has no trusted-output constraint we know of,
-   so our own hosted copy should be usable — but confirm it, since it is untested (§7).
-6. **Decide what happens after 24 h:** regenerate the face, or use something longer-lived
-   (asset IDs or digital characters). This needs a product decision, not only a code change.
+**So the new work is exactly three things: a Seedream image provider, a way to keep the vendor
+URL usable, and a decision about what a "presenter" is on the canvas.**
 
-**Don't carry over from the bench:**
-- The `--flags` prompt builder.
-- Browser-side orchestration and polling.
-- Session-only state.
-- Its own ModelArk client. The product provider already has retries for transient poll
-  failures and error translation.
+### 6.1 Step one — Seedream as an image-gen provider
+
+Synchronous, so it needs no Trigger task and fits the existing image-generate route.
+
+- Extend `ImageProvider` in `src/lib/image-gen/types.ts` (today `"openai" | "gemini"`).
+- Add `src/lib/image-gen/providers/seedream.ts` implementing `MediaGenModelSpec.generate`,
+  and register it in `src/lib/image-gen/registry.ts` + `client-models.ts`.
+- Follow `docs/superpowers/guides/image-gen-model-management.md`.
+- **The model id is load-bearing:** only `seedream-5-0-260128` (the non-pro "5.0 lite")
+  produces faces Seedance will trust. Keep it in one constant, the way the Seedance provider
+  keeps `VENDOR_MODEL`. Take ids from `GET /api/v3/models`, never from the docs (§3.1).
+- Cost: Seedream is priced per image (about $0.035), not per token, so `image-gen/cost.ts`
+  needs a per-image branch rather than a token calculation.
+- Reuse the existing key: **`BYTEPLUS_API_KEY`**, the same one Seedance uses.
+
+### 6.2 Step two — keep the trusted URL (the only genuinely new constraint)
+
+Everything hard about this feature is in §4: **Seedance trusts a face only as the vendor's own
+original URL, and that URL dies after 24 h**, while the canvas stores its own GCS copy and
+passes GCS URLs around.
+
+What a version row therefore has to carry, alongside the stored image:
+- the **vendor URL** exactly as returned, and
+- **when it was generated**, so freshness can be judged.
+
+Then, at video-generate time, for a reference image that came from Seedream:
+- **vendor URL younger than 24 h** -> send the vendor URL;
+- **older, or absent** -> send the GCS URL and let the existing real-person error translation
+  in `seedance.ts` explain the rejection, or block the run in the UI with a clear reason.
+
+Two landmines to respect:
+- `src/lib/video-gen/providers/seedance-images.ts` **re-encodes** any reference outside
+  Seedance's limits and sends it inline, which strips trust. A 2K Seedream face is within the
+  limits today, so it passes through untouched — but that interaction needs an explicit test.
+- A byte-identical copy on our own GCS is **assumed untrusted** (§4, point 2) and has never
+  been tested. Testing it is cheap and would simplify this whole section if it passed.
+
+### 6.3 Step three — what a "presenter" is on the canvas
+
+The bench's "face row" has no equivalent in the product. That is a product-shaped decision, not
+a technical one, and §9 lists the questions. Whichever way it goes, the mechanics above hold.
+
+### 6.4 Optional, once the basics land
+
+- **Voice consistency (Seedance only):** store the extracted mp3 in GCS next to the presenter
+  and pass it as `reference_audio` on every generation, adding it to `buildSeedanceContent()`
+  beside the existing frames-vs-references rule. Audio has no trusted-output constraint that we
+  know of, so a hosted copy should be fine — untested (§7). The bench's `src/lib/ugc/voice.ts`
+  is a working ffmpeg extraction to copy from; note that a Vercel build needs `ffmpeg-static`
+  traced into the route (see the bench's `next.config.ts`).
+- **Engine choice:** Omni and Seedance are both registered providers already, so offering both
+  on a node is a picker question rather than an integration one (§3.5 for the trade-offs).
+
+### 6.5 Do not carry over from the bench
+
+- The `--flags` prompt builder (the legacy method — §3.2).
+- Browser-side orchestration, polling and session-only state.
+- Its own ModelArk client: the product provider already retries transient poll failures and
+  translates the real-person rejection.
 
 ## 7. Known and unknown
 
@@ -282,6 +371,10 @@ The product already has everything the bench skips.
 - The Seedream → Seedance `reference_image` chain works end to end: 720×1280, about 5 s,
   h264 + AAC, identity preserved (spike).
 - Seedream through the bench client returns an image (2026-09-21).
+- Gemini Omni accepts a Seedream face as a reference and returned a 5 s 9:16 h264+AAC clip in
+  26 s, synchronously (2026-09-23, §3.5).
+- The BytePlus Vision AI signature V4 implementation is correct; the account is what is denied
+  (2026-09-23, §8).
 - A Seedance task created through the bench started and was polled (2026-09-22; the result
   wasn't seen because the dev server was stopped).
 
@@ -303,3 +396,55 @@ needs a balance above USD 30, an AI Savings Plan, or a Seedance resource pack.
 **Out of scope, and why:** OmniHuman, BytePlus's photo + audio talking-head model, runs on a
 different service (`cv.byteplusapi.com`) with AccessKey/SecretKey HMAC signing, not the
 ModelArk key. It was dropped from this round on cost.
+
+## 8. Paused threads (2026-09-23)
+
+**OmniHuman 1.5 — blocked on account permission, not on code.**
+It is BytePlus *Vision AI* (`cv.byteplusapi.com`), not ModelArk, and every call must be signed
+with an Access Key pair instead of the ModelArk bearer key. The signer is written and tested
+(`src/lib/ugc/omnihuman/sign.ts`, BytePlus signature V4, `Service=cv`, `Region=ap-singapore-1`).
+
+A free probe — querying a made-up task id, so no generation and no cost — established exactly
+where it stops:
+- a deliberately wrong secret returns `SignatureDoesNotMatch` at the gateway, so **the signing
+  is correct**;
+- the real credentials return `code 50400 "Access Denied"` from the service, for **all three**
+  service keys (`realman_avatar_picture_omni15_cv`, the 1.0 quick-mode key, and the
+  create-role key).
+
+So the account cannot reach the OmniHuman service. The fix is in the console: activate
+OmniHuman under Vision AI (some avatar products need an application rather than a click), and
+if the key belongs to an IAM user, grant that user permission for the `cv` service. Re-run the
+probe; "task not found" means it is open. Its pricing is also still unknown.
+
+One unknown remains even after that: OmniHuman wants `image_url` and `audio_url` as **URLs**. A
+Seedream face is already public; audio is not, so the bench would need storage — the product
+would not, since it has GCS.
+
+**ElevenLabs — voice only.** Their TTS is a proper API and is the sensible source for a
+controlled, consistent voice (audio tags, stability, speed, IPA pronunciation, dictionaries).
+Their **Avatars / lip-sync is app-only** — *"API access: Not available at launch"* — and their
+video catalogue (which includes Seedance, Veo, Omni and OmniHuman 1.5) exposes only some
+generation models by `model_id`, with Creatify Aurora the one lip-sync model that has an API.
+So ElevenLabs is useful to this app as a voice vendor, and useful to a person as a zero-code
+way to preview OmniHuman quality before we integrate it.
+
+**Lip-sync as a separate step** (video + audio -> re-synced video) is a real product category
+if we ever want ElevenLabs voices on Omni footage: Sync.so, Hedra, HeyGen, Creatify Aurora,
+OmniHuman. Unpriced and unevaluated.
+
+## 9. Product questions to answer before the data model is fixed
+
+These are decisions for the product, not for whoever writes the code.
+
+1. **What is a presenter on the canvas?** A reusable entity (a client's cast, reused across
+   canvases), or just an image node that happens to feed video-gen?
+2. **What happens when the trusted URL expires after 24 h?** Silently regenerate the face,
+   block the run and tell the user, or fall back to the GCS copy and accept the rejection risk?
+3. **Is a consistent voice part of the feature**, or does VO stay in the edit? The answer
+   decides whether §6.4 is in scope, and whether ElevenLabs enters the product at all.
+4. **Which engine is the default**, given Omni is roughly 2–8x cheaper and faster while
+   Seedance is the only one with voice control and longer clips (30 s vs 10 s)?
+5. **Do we need real people at all?** If yes, the only sanctioned route is BytePlus's
+   real-person asset library (consent, verification, Advanced Creation Rights, AK/SK), which is
+   a much larger piece of work than anything in §6.
