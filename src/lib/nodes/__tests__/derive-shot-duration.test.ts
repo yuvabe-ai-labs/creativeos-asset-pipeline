@@ -8,10 +8,19 @@ describe("deriveShotDuration", () => {
     })).toBe(9);
   });
 
-  // An over-cap shot is kept whole by grouping and clamped here, at the request.
-  it("clamps to the model's range at both ends", () => {
-    expect(deriveShotDuration({ visual_script: { shots: [{ duration_seconds: 14 }] } })).toBe(10);
-    expect(deriveShotDuration({ visual_script: { shots: [{ duration_seconds: 2 }] } })).toBe(3);
+  // D277 — the script states the length; a model that cannot take it says so itself. Clamping here
+  // silently handed a 14s scene to a 10s request.
+  it("returns the script's own length, however long", () => {
+    expect(deriveShotDuration({ visual_script: { shots: [{ duration_seconds: 14 }] } })).toBe(14);
+    expect(deriveShotDuration({ visual_script: { shots: [{ duration_seconds: 2 }] } })).toBe(2);
+  });
+
+  it("sums a multi-row script", () => {
+    expect(
+      deriveShotDuration({
+        visual_script: { shots: [{ duration_seconds: 6 }, { duration_seconds: 4 }] },
+      }),
+    ).toBe(10);
   });
 
   // Not 3 — an absent script is not a 3-second shot, and the caller should keep its own default.

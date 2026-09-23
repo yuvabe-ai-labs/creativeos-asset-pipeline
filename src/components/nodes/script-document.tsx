@@ -3,11 +3,13 @@
 import type { ReactNode } from "react";
 import { Plus, X } from "lucide-react";
 import { looksLikeReelScript, type ReelScript } from "@/lib/nodes/reel-script";
-import { describeGenerations, type GroupingVersion } from "@/lib/nodes/group-shots";
+import { describeGenerations, shotSeconds, type GroupingVersion } from "@/lib/nodes/group-shots";
+import { joinVoLines, type VoLine } from "@/lib/nodes/voiceover";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { EditableField } from "./editable-field";
 import { GenerationBracket } from "./generation-bracket";
+import { VoLinesEditor } from "./vo-lines-editor";
 
 type Path = (string | number)[];
 
@@ -54,6 +56,11 @@ function Section({
       <div
         className={cn(
           "leading-relaxed",
+          // The reading measure belongs to PROSE, not to the whole document. Capping the root at
+          // 78ch starved the Visual script — a list of scene cards, each with a description, a
+          // length and a spoken line — into a column that wrapped every four words while most of
+          // the page sat empty. Prose sections keep the measure; a featured section takes the width.
+          !featured && "max-w-[78ch]",
           featured &&
             "rounded-2xl border border-border/70 bg-card p-5 text-base shadow-card sm:p-6",
         )}
@@ -87,13 +94,23 @@ export function ScriptDocument({
 
   const set = (path: Path) => (v: string) => onChange?.(path, v);
   const shots = script.visual_script?.shots ?? [];
+  // Task 6 — one edit, two paths: the shot's own lines, and the reel-level `voiceover` string
+  // rewritten from every shot's lines so the two never drift (D267 §3.5 refinement). `onChange`
+  // commits through a single-path setter (see setScriptValue, script-edit.ts) that the parent
+  // applies with a functional `setDraft` update, so two calls made here in sequence both land on
+  // the same draft rather than one clobbering the other.
+  const setVoiceover = (i: number) => (next: VoLine[]) => {
+    const nextShots = shots.map((s, idx) => (idx === i ? { ...s, voiceover: next } : s));
+    onChange?.(["visual_script", "shots", i, "voiceover"], next);
+    onChange?.(["voiceover"], joinVoLines(nextShots));
+  };
   const generations = describeGenerations(shots, groupModes, groupingVersion ?? 1);
   const body = script.on_screen_text?.body ?? [];
   const qc = script.qc_notes ?? [];
   const links = script.product_links ?? [];
 
   return (
-    <div className="grid max-w-[78ch] gap-12 text-sm">
+    <div className="grid w-full gap-12 text-sm">
       <EditableField
         value={script.title ?? ""}
         onCommit={set(["title"])}
@@ -160,12 +177,40 @@ export function ScriptDocument({
                         multiline
                         placeholder="Shot description…"
                       />
-                      <EditableField
-                        value={shots[i]?.duration ?? ""}
-                        onCommit={set(["visual_script", "shots", i, "duration"])}
+                      {/* D277 — shown only for a multishot generation, where seconds are what the
+                          operator spends per cut. It edits `duration_seconds`, the field every
+                          consumer reads (shotSeconds, grouping, the video request): the old
+                          control edited the free-text `duration` label, so a timing edit changed
+                          a string and no behaviour at all.
+                          One edit, two paths: `duration_seconds` (the number every consumer reads)
+                          and `duration` (the free-text label still shown by renderScriptAsText and
+                          the Shot node), rewritten from the same number so the two never drift —
+                          same shape as setVoiceover above. The parse reads an optional sign, digits
+                          and an optional decimal part rather than stripping non-digits, so "3.5"
+                          rounds to 4 instead of misreading as 35, and a negative or sub-half-second
+                          value commits nothing (the field reverts). */}
+                      {generation.multishot && (
+                        <EditableField
+                          value={`${shotSeconds(shots[i] ?? {})}s`}
+                          onCommit={(next) => {
+                            const match = next.match(/-?\d+(?:\.\d+)?/);
+                            const parsed = match ? Number.parseFloat(match[0]) : NaN;
+                            if (!Number.isFinite(parsed)) return;
+                            const seconds = Math.round(parsed);
+                            if (seconds > 0) {
+                              onChange?.(["visual_script", "shots", i, "duration_seconds"], seconds);
+                              onChange?.(["visual_script", "shots", i, "duration"], `${seconds}s`);
+                            }
+                          }}
+                          readOnly={readOnly}
+                          placeholder="seconds"
+                          className="text-xs text-muted-foreground"
+                        />
+                      )}
+                      <VoLinesEditor
+                        lines={shots[i]?.voiceover}
                         readOnly={readOnly}
-                        placeholder="duration"
-                        className="text-xs text-muted-foreground"
+                        onChange={setVoiceover(i)}
                       />
                     </div>
                     {!readOnly && (
@@ -250,16 +295,6 @@ export function ScriptDocument({
             placeholder="Outro…"
           />
         </div>
-      </Section>
-
-      <Section label="Voiceover">
-        <EditableField
-          value={script.voiceover ?? ""}
-          onCommit={set(["voiceover"])}
-          readOnly={readOnly}
-          multiline
-          placeholder="Add voiceover…"
-        />
       </Section>
 
       <Section label="Music & sound">

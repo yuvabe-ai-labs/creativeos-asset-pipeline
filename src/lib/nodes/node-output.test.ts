@@ -162,3 +162,31 @@ describe("shotContextMode", () => {
     expect(shotContextMode()).toBe("minimal");
   });
 });
+
+// The connected-input panel showed "Shot 1 (8s): <description>" with no spoken line, while the
+// rendered prompt for that same cut ends with it — so the panel told the operator the node held
+// less than it does.
+describe("a Multishot node's output states what each cut says", () => {
+  it("appends the cut's spoken line", () => {
+    const out = getNodeOutput({
+      type: "multishot",
+      data: {
+        cuts: [
+          {
+            id: "c1",
+            text: "She adds Jackfruit365 to a bowl of atta.",
+            seconds: 8,
+            voiceover: [{ text: "For lunch, I add it to the atta.", speaker: "creator" }],
+          },
+          { id: "c2", text: "Steam off the tawa.", seconds: 4, voiceover: [] },
+        ],
+      },
+      activeOutput: null,
+    });
+    expect(out).toContain(
+      'Shot 1 (8s): She adds Jackfruit365 to a bowl of atta. creator says: "For lunch, I add it to the atta."',
+    );
+    expect(out).toContain("Shot 2 (4s): Steam off the tawa.");
+    expect(out).not.toMatch(/Shot 2 .*says/);
+  });
+});

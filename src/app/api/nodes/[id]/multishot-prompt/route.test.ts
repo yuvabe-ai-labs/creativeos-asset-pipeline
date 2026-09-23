@@ -56,7 +56,6 @@ vi.mock("@/lib/nodes/resolve-inputs", () => ({
     cuts: CUTS,
     targetModel: undefined,
     scriptNotes: "",
-    voiceover: "",
   })),
   buildMultishotUserTurn: vi.fn(() => "USER TURN"),
 }));
@@ -244,7 +243,6 @@ describe("POST multishot-prompt — per-model writer routing", () => {
       upstream: [],
       cuts: CUTS,
       scriptNotes: "",
-      voiceover: "",
       targetModel: KLING_OMNI_MODEL_ID,
     });
     returns(PLAN);
@@ -264,7 +262,6 @@ describe("POST multishot-prompt — per-model writer routing", () => {
       upstream: [],
       cuts: CUTS,
       scriptNotes: "",
-      voiceover: "",
       targetModel: SEEDANCE_MODEL_ID,
     });
     returns(PLAN);
@@ -291,7 +288,6 @@ describe("POST multishot-prompt — per-model writer routing", () => {
       upstream: [],
       cuts: CUTS,
       scriptNotes: "",
-      voiceover: "",
       targetModel: KLING_OMNI_MODEL_ID,
     });
     returns(PLAN);
@@ -313,7 +309,6 @@ describe("POST multishot-prompt — per-model writer routing", () => {
       upstream: [],
       cuts: CUTS,
       scriptNotes: "",
-      voiceover: "",
       targetModel: KLING_OMNI_MODEL_ID,
     });
     returns(PLAN);
@@ -336,7 +331,6 @@ describe("POST multishot-prompt — per-model writer routing", () => {
       upstream: [],
       cuts: CUTS,
       scriptNotes: "",
-      voiceover: "",
       // The node has since been switched to Kling…
       targetModel: KLING_OMNI_MODEL_ID,
     });
@@ -364,7 +358,6 @@ describe("POST multishot-prompt — script production notes", () => {
       upstream: [],
       cuts: CUTS,
       scriptNotes: "Golden hour. Desaturated grade.",
-      voiceover: "Where are you headed tonight?",
       targetModel: undefined,
     });
     returns(PLAN);
@@ -373,9 +366,37 @@ describe("POST multishot-prompt — script production notes", () => {
     expect(vi.mocked(buildMultishotUserTurn)).toHaveBeenLastCalledWith(
       expect.objectContaining({ scriptNotes: "Golden hour. Desaturated grade." }),
     );
-    // BUG-009 — the voiceover reaches the writer's user turn alongside the notes.
+  });
+});
+
+// D267 (Task 5) — the writer's per-cut character hint must agree with the model THIS write is
+// for: the node's current target on a whole-sequence write (D236), so a Kling generation is warned
+// about its own 512-character ceiling rather than Omni's "no limit stated".
+describe("POST multishot-prompt — voiceover character budget", () => {
+  it("passes the target model's own per-cut ceiling to the writer's turn", async () => {
+    vi.mocked(resolveMultishotPromptInputs).mockResolvedValueOnce({
+      clientContext: "",
+      kbVersionId: null,
+      slices: [],
+      upstream: [],
+      cuts: CUTS,
+      scriptNotes: "",
+      targetModel: KLING_OMNI_MODEL_ID,
+    });
+    returns(PLAN);
+    const res = await post({ instruction: "" });
+    expect(res.status).toBe(200);
     expect(vi.mocked(buildMultishotUserTurn)).toHaveBeenLastCalledWith(
-      expect.objectContaining({ voiceover: "Where are you headed tonight?" }),
+      expect.objectContaining({ maxCutChars: 512 }),
+    );
+  });
+
+  it("passes null when the target model states no per-cut ceiling", async () => {
+    returns(PLAN);
+    const res = await post({ instruction: "" });
+    expect(res.status).toBe(200);
+    expect(vi.mocked(buildMultishotUserTurn)).toHaveBeenLastCalledWith(
+      expect.objectContaining({ maxCutChars: null }),
     );
   });
 });
@@ -403,7 +424,6 @@ describe("POST multishot-prompt — reference binding", () => {
       cuts: CUTS,
       targetModel: undefined,
       scriptNotes: "",
-      voiceover: "",
     });
     returns({
       ...PLAN,
@@ -426,7 +446,6 @@ describe("POST multishot-prompt — reference binding", () => {
       cuts: CUTS,
       targetModel: undefined,
       scriptNotes: "",
-      voiceover: "",
     });
     returns({ look: "Overcast." });
     const stored: MultishotPlan = {

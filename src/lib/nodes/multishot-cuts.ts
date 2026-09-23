@@ -31,7 +31,7 @@
 // cuts traded seconds pairwise, and then a two-number model with an explicit Total plus a
 // remainder and a "Fit to total" action. Both were rejected for the same reason — they made one
 // control's movement depend on another's.
-import type { ReelShot } from "./reel-script";
+import type { ReelShot, VoLine } from "./reel-script";
 import { shotSeconds } from "./group-shots";
 import type { MultishotCapability } from "./multishot-models";
 
@@ -44,6 +44,8 @@ export type MultishotCut = {
   id: string;
   text: string;
   seconds: number;
+  /** D267 — the VO lines playing over this cut, verbatim; carried from the shot it was built from. */
+  voiceover?: VoLine[];
 };
 
 /**
@@ -67,13 +69,22 @@ export function cutsFromShots(shots: ReelShot[]): MultishotCut[] {
   // This is the one entry point that constructs cuts from external data. Every mutation
   // downstream assumes cuts already satisfy the invariant (integer, >= MIN_CUT_SECONDS),
   // so we establish it here rather than leaving it for a validator to catch downstream.
-  return shots.map((s) =>
-    newCut(s.description ?? "", Math.max(MIN_CUT_SECONDS, Math.round(shotSeconds(s))))
-  );
+  //
+  // D267 — a shot's voiceover rides its cut verbatim. Absent on the shot (a parse that predates
+  // per-shot lines) means absent on the cut too: `[]` and "no key" are different states, and an
+  // old parse must not be read as "this shot explicitly has no VO."
+  return shots.map((s) => ({
+    ...newCut(s.description ?? "", Math.max(MIN_CUT_SECONDS, Math.round(shotSeconds(s)))),
+    ...(s.voiceover !== undefined ? { voiceover: s.voiceover } : {}),
+  }));
 }
 
 export function shotsFromCuts(cuts: MultishotCut[]): ReelShot[] {
-  return cuts.map((c) => ({ description: c.text, duration_seconds: c.seconds }));
+  return cuts.map((c) => ({
+    description: c.text,
+    duration_seconds: c.seconds,
+    ...(c.voiceover !== undefined ? { voiceover: c.voiceover } : {}),
+  }));
 }
 
 /** The ladder's length — the sum of its cuts, and the duration the video request is derived from. */

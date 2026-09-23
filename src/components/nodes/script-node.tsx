@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import { FileText } from "lucide-react";
+import { AlertTriangle, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
@@ -14,6 +14,7 @@ import { NodeContextMenu } from "./node-context-menu";
 import { NodeCardHeader } from "./node-card-header";
 import { ProcessingPill } from "./processing-pill";
 import type { ReelScript } from "@/lib/nodes/reel-script";
+import { voiceoverMappingIssue } from "@/lib/nodes/voiceover";
 import { DEFAULT_PARSE_SLICES, type KBSliceKey } from "@/lib/kb/parse-context";
 import { DEFAULT_SIGNAL_MODE, type SignalMode } from "@/lib/market/constants";
 import type { GroupingVersion } from "@/lib/nodes/group-shots";
@@ -37,6 +38,7 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
     signalMode?: SignalMode;
   };
   const parsed = (d.parsed ?? null) as ReelScript | null;
+  const voIssue = voiceoverMappingIssue(parsed);
   const title = d.title || parsed?.title || "";
   const source = d.source ?? "";
   const slices = d.kbSlices ?? DEFAULT_PARSE_SLICES;
@@ -84,13 +86,20 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
           isParsing ? (
             <ProcessingPill processing />
           ) : (
-            <span
-              className={cn(
-                "size-1.5 rounded-full transition-colors",
-                parsed ? "bg-primary" : "bg-muted-foreground/40",
+            <div className="flex items-center gap-1">
+              <span
+                className={cn(
+                  "size-1.5 rounded-full transition-colors",
+                  parsed ? "bg-primary" : "bg-muted-foreground/40",
+                )}
+                title={parsed ? "Extracted" : "Not extracted"}
+              />
+              {voIssue && (
+                <AlertTriangle className="size-3 text-destructive" strokeWidth={1.5} aria-label={voIssue}>
+                  <title>{voIssue}</title>
+                </AlertTriangle>
               )}
-              title={parsed ? "Extracted" : "Not extracted"}
-            />
+            </div>
           )
         }
       />

@@ -244,6 +244,32 @@ describe("newCut", () => {
   });
 });
 
+describe("voiceover round-trip", () => {
+  const vo = [{ text: "To work.", speaker: "narrator" }];
+
+  it("cutsFromShots carries each shot's voiceover onto its cut", () => {
+    const cuts = cutsFromShots([
+      { description: "a", duration_seconds: 2, voiceover: vo },
+      { description: "b", duration_seconds: 2, voiceover: [] },
+      { description: "c", duration_seconds: 2 },
+    ]);
+    expect(cuts[0].voiceover).toEqual(vo);
+    expect(cuts[1].voiceover).toEqual([]);
+    expect("voiceover" in cuts[2]).toBe(false);
+  });
+
+  it("shotsFromCuts carries it back", () => {
+    const shots = shotsFromCuts([{ id: "x", text: "a", seconds: 2, voiceover: vo }]);
+    expect(shots[0].voiceover).toEqual(vo);
+  });
+
+  it("resizeCut keeps a cut's voiceover", () => {
+    const cap = { minCutSeconds: 1, maxTotalSeconds: 10 } as never;
+    const next = resizeCut([{ id: "x", text: "a", seconds: 2, voiceover: vo }], 0, 3, cap);
+    expect(next[0].voiceover).toEqual(vo);
+  });
+});
+
 describe("the ceiling is the model's, not a constant", () => {
   it("lets a cut grow to 15s on Kling and stops at 10s on Omni", () => {
     expect(secondsOf(resizeCut(cuts(5), 0, 20, KLING))).toEqual([15]);

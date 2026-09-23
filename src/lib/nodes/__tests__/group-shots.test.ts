@@ -11,6 +11,7 @@ import {
   ceilingForVersion,
   defaultMultishotFor,
   mergeShotRows,
+  scenesAsGenerations,
 } from "../group-shots";
 import { MULTISHOT_MODELS } from "../multishot-models";
 import type { ReelShot } from "../reel-script";
@@ -212,8 +213,8 @@ describe("groupShotsForFanOut ceiling parameter", () => {
 });
 
 describe("grouping version", () => {
-  it("is 2 for new parses", () => {
-    expect(CURRENT_GROUPING_VERSION).toBe(2);
+  it("is 3 for new parses", () => {
+    expect(CURRENT_GROUPING_VERSION).toBe(3);
   });
 
   it("maps v1 to the legacy ceiling and v2 to the derived one", () => {
@@ -299,6 +300,34 @@ describe("mergeShotRows", () => {
   it("counts an unlengthed row as the assumed length", () => {
     expect(mergeShotRows([{ description: "a" }, { description: "b" }]).duration_seconds).toBe(8);
   });
+
+  // D267 — merging rows into one Shot take must not silently drop the VO lines mapped onto them.
+  it("concatenates the merged rows' voiceover lines, in order", () => {
+    const vo1 = [{ text: "Close on keys.", speaker: "narrator" }];
+    const vo2 = [{ text: "A cab door swings.", speaker: "narrator" }];
+    const merged = mergeShotRows([
+      { description: "a", duration_seconds: 2, voiceover: vo1 },
+      { description: "b", duration_seconds: 3, voiceover: vo2 },
+    ]);
+    expect(merged.voiceover).toEqual([...vo1, ...vo2]);
+  });
+
+  it("skips a row with no voiceover key when concatenating", () => {
+    const vo1 = [{ text: "Close on keys.", speaker: "narrator" }];
+    const merged = mergeShotRows([
+      { description: "a", duration_seconds: 2, voiceover: vo1 },
+      { description: "b", duration_seconds: 3 },
+    ]);
+    expect(merged.voiceover).toEqual(vo1);
+  });
+
+  it("omits the voiceover key entirely when none of the merged rows have one", () => {
+    const merged = mergeShotRows([
+      { description: "a", duration_seconds: 2 },
+      { description: "b", duration_seconds: 3 },
+    ]);
+    expect("voiceover" in merged).toBe(false);
+  });
 });
 
 // BUG-008 — a script's own CLIP headings are a hard boundary. Packing to the 30s ceiling made every
@@ -339,5 +368,56 @@ describe("groupShotsForFanOut honours clip boundaries", () => {
   it("flows through describeGenerations", () => {
     const gens = describeGenerations(clipped([5, 1], [5, 1], [5, 2], [5, 2]), undefined, 2);
     expect(gens.map((g) => g.shotIndexes)).toEqual([[0, 1], [2, 3]]);
+  });
+});
+
+// D277 — the operator's script is the authority on what a generation is: "no need to do seedance
+// specific parsing when more than 15s like that, just parse. If they want to do 30s continuous
+// take it will be in script, they will mention it."
+describe("grouping v3 — one generation per scene", () => {
+  it("gives every scene its own generation, in order", () => {
+    expect(shape(scenesAsGenerations(shots(5, 5, 8, 7, 6, 4)))).toEqual([
+      { idx: [0], s: 5 },
+      { idx: [1], s: 5 },
+      { idx: [2], s: 8 },
+      { idx: [3], s: 7 },
+      { idx: [4], s: 6 },
+      { idx: [5], s: 4 },
+    ]);
+  });
+
+  // No floor clamp either: a 2s scene is a 2s scene. Clamping invents video the script did not
+  // ask for, which is the same fault as packing, one number down.
+  it("never packs, never rebalances and never clamps", () => {
+    expect(shape(scenesAsGenerations(shots(2)))).toEqual([{ idx: [0], s: 2 }]);
+    expect(shape(scenesAsGenerations(shots(35)))).toEqual([{ idx: [0], s: 35 }]);
+  });
+
+  it("is what describeGenerations uses at the current version", () => {
+    const gens = describeGenerations(shots(5, 5, 8), {}, CURRENT_GROUPING_VERSION);
+    expect(gens.map((g) => g.shotIndexes)).toEqual([[0], [1], [2]]);
+    expect(gens.every((g) => g.multishot === false)).toBe(true);
+    // One scene per generation: there is no multi-shot group left to recommend multishot for.
+    expect(gens.every((g) => g.recommendMultishot === false)).toBe(true);
+  });
+
+  it("still says when a single scene is longer than any model can take", () => {
+    const [gen] = describeGenerations(shots(35), {}, 3);
+    expect(gen.overCeiling).toBe(true);
+  });
+
+  // The whole point of a version: a canvas parsed before this change keeps the generations it
+  // already has, and nothing on screen moves under its operator.
+  it("leaves v1 and v2 packing exactly as it was", () => {
+    expect(shape(groupShotsForFanOut(shots(4, 5, 4), ceilingForVersion(1)))).toEqual(
+      shape(groupShotsForFanOut(shots(4, 5, 4), LEGACY_PACK_CEILING)),
+    );
+    expect(describeGenerations(shots(5, 5, 8), {}, 1).map((g) => g.shotIndexes)).toEqual([
+      [0, 1],
+      [2],
+    ]);
+    expect(describeGenerations(shots(5, 5, 8), {}, 2).map((g) => g.shotIndexes)).toEqual([
+      [0, 1, 2],
+    ]);
   });
 });
