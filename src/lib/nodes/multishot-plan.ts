@@ -456,3 +456,35 @@ export function setBeatText(
     beats: plan.beats.map((b) => (b.cutId === cutId ? { ...b, text } : b)),
   };
 }
+
+/**
+ * D279 — does this plan cover this ladder, and does it carry beats the ladder no longer has?
+ *
+ * The ONE place that question is answered. Derived on every read, never stored, and **the plan is
+ * never written from a Multishot-node edit**: the plan lives on a different node in its
+ * `node_versions` row, so writing it from the node that owns the cuts would cross a boundary the
+ * component does not own, and would trip `planIsDirty` into reporting unsaved edits the operator
+ * never made.
+ *
+ * A BLANK beat counts as unwritten. `renderPlan` resolves a missing beat to `""` (see its
+ * `byId.get(cut.id) ?? ""`), so an empty beat and an absent one are the same shipped artifact —
+ * an empty shot, billed. A check that distinguished them would pass the case it exists to catch.
+ *
+ * `orphaned` is reported for DISPLAY and is never an error: `renderPlan` walks the cuts, so a beat
+ * whose cut is gone is simply never rendered. This is deliberately narrower than re-running
+ * `parsePlan`, which rejects the plan whole on an orphaned beat — that would invalidate a plan
+ * that renders perfectly well just because the operator removed a shot.
+ */
+export function planCoverage(
+  plan: MultishotPlan,
+  cuts: MultishotCut[],
+): { unwritten: string[]; orphaned: string[] } {
+  const byId = new Map(plan.beats.map((b) => [b.cutId, b.text]));
+  const cutIds = new Set(cuts.map((c) => c.id));
+  return {
+    // Cut order, not beat order: this drives "Shot 4 has no written prompt", and that number is
+    // the cut's position on the ladder.
+    unwritten: cuts.filter((c) => !(byId.get(c.id) ?? "").trim()).map((c) => c.id),
+    orphaned: plan.beats.filter((b) => !cutIds.has(b.cutId)).map((b) => b.cutId),
+  };
+}
