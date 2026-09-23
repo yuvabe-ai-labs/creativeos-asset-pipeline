@@ -115,6 +115,34 @@ GET /contents/generations/tasks/{id}
 
 Bench code: `getVideoTask()` in `src/lib/ugc/client.ts`, and `src/app/api/ugc/video/[taskId]/route.ts`.
 
+### 3.4 Voice consistency: `reference_audio` (added to the bench 2026-09-22)
+
+Seedance invents a new voice for every clip. To keep one voice per presenter, the bench
+extracts the audio of a clip the user liked and sends it back with every later generation:
+
+```json
+{ "type": "audio_url", "audio_url": { "url": "data:audio/mp3;base64,…" }, "role": "reference_audio" }
+```
+- **Limits (2.5):** wav or mp3, each clip 2–30 s, at most 10 clips totalling 30 s, ≤ 15 MB.
+  The URL can be public, base64, or `asset://`. 2.0 needs an image or video alongside it;
+  2.5 accepts audio alone.
+- **It references timbre, not words.** The model speaks the prompt's new dialogue in that
+  voice. The prompt should bind inputs by order (`@Image 1` = face, `@Audio 1` = voice) and
+  say *voice timbre only*, or the anchor clip's music and sound effects come along too.
+- **Vendor-stated weakness:** the generated voice can "differ significantly" from the
+  reference. The mitigation is to describe the voice in words as well, and keep each line's
+  tone close to the reference.
+- **Cost:** audio isn't in the token formula (`(input video s + output video s) × W × H ×
+  24 / 1024`), so a voice reference is essentially free. A reference *video*, by contrast,
+  adds its duration to the billed tokens (at the lower "with video" rate, subject to a minimum).
+- **An mp4 can't be `reference_audio`.** The bench extracts the audio server-side with
+  ffmpeg (`src/lib/ugc/voice.ts`). A video can instead go in as `reference_video` (voice
+  plus everything else; set `omni_reference_task_type: "reference"`), but that costs more.
+- **Voice source.** The bench only uses its own Seedance output, so there's no question of
+  rights in the voice. Real recorded voices are neither explicitly allowed nor explicitly
+  blocked for `reference_audio`, and we haven't tested one. Cloning a real person's voice
+  should go through the vendor's authorised real-person asset route.
+
 ## 4. The rules that shape any product design
 
 These come from the vendor's "trusted outputs" policy
@@ -146,34 +174,6 @@ rejected by Seedance**, because the GCS copy is not the trusted original. A Seed
 node has to keep the **vendor URL, with its creation time,** alongside the stored copy, and
 the video-gen node has to send the vendor URL while it's still valid.
 
-### 3.4 Voice consistency: `reference_audio` (added to the bench 2026-09-22)
-
-Seedance invents a new voice for every clip. To keep one voice per presenter, the bench
-extracts the audio of a clip the user liked and sends it back with every later generation:
-
-```json
-{ "type": "audio_url", "audio_url": { "url": "data:audio/mp3;base64,…" }, "role": "reference_audio" }
-```
-- **Limits (2.5):** wav or mp3, each clip 2–30 s, at most 10 clips totalling 30 s, ≤ 15 MB.
-  The URL can be public, base64, or `asset://`. 2.0 needs an image or video alongside it;
-  2.5 accepts audio alone.
-- **It references timbre, not words.** The model speaks the prompt's new dialogue in that
-  voice. The prompt should bind inputs by order (`@Image 1` = face, `@Audio 1` = voice) and
-  say *voice timbre only*, or the anchor clip's music and sound effects come along too.
-- **Vendor-stated weakness:** the generated voice can "differ significantly" from the
-  reference. The mitigation is to describe the voice in words as well, and keep each line's
-  tone close to the reference.
-- **Cost:** audio isn't in the token formula (`(input video s + output video s) × W × H ×
-  24 / 1024`), so a voice reference is essentially free. A reference *video*, by contrast,
-  adds its duration to the billed tokens (at the lower "with video" rate, subject to a minimum).
-- **An mp4 can't be `reference_audio`.** The bench extracts the audio server-side with
-  ffmpeg (`src/lib/ugc/voice.ts`). A video can instead go in as `reference_video` (voice
-  plus everything else; set `omni_reference_task_type: "reference"`), but that costs more.
-- **Voice source.** The bench only uses its own Seedance output, so there's no question of
-  rights in the voice. Real recorded voices are neither explicitly allowed nor explicitly
-  blocked for `reference_audio`, and we haven't tested one. Cloning a real person's voice
-  should go through the vendor's authorised real-person asset route.
-
 ## 5. How data flows in the bench
 
 The bench is deliberately small: it runs in the browser, keeps state only in memory, and has
@@ -190,6 +190,7 @@ flowchart LR
       F["POST /api/ugc/face"]
       V["POST /api/ugc/video"]
       G["GET /api/ugc/video/:taskId"]
+      W["POST /api/ugc/voice<br/>ffmpeg: clip → mono mp3"]
     end
     subgraph Ark["BytePlus ModelArk"]
       SD["Seedream"]
@@ -201,15 +202,17 @@ flowchart LR
     SC -- "task id" --> V --> H
     H -- "task id (poll)" --> G --> SC
     SC -- "status / video URL" --> G --> H
+    H -- "clip URL (Use this voice)" --> W -- "mp3 data URL" --> H
     H -. "records each call" .-> L
 ```
 
 **State model** (`src/lib/ugc/board.ts`):
 - A `FaceRow` holds `facePrompt`, `faceStatus` (`empty` / `generating` / `ready` / `rejected`)
-  and `faceUrl` (the vendor URL, passed on verbatim).
+  and `faceUrl` (the vendor URL, passed on verbatim), plus an optional `voice` (`RowVoice`:
+  the mp3 data URL, its length, and which clip it came from) and a `voiceNote` description.
 - Each row has its own `ScriptTile`s. A tile holds `script`, `status` (`draft` / `queued` /
-  `generating` / `done` / `rejected`), `videoUrl`, `error` and `ranScript` (the exact text
-  the video was made from).
+  `generating` / `done` / `rejected`), `videoUrl`, `error`, `ranScript` (the exact text the
+  video was made from) and `ranWithVoice` (so runs with and without the voice can be told apart).
 - *New face* never overwrites: `duplicateRow()` copies the prompt and scripts into a new row,
   so faces can be compared.
 
@@ -217,15 +220,17 @@ flowchart LR
 
 | Layer | File | Responsibility |
 |---|---|---|
-| Vendor client | `src/lib/ugc/client.ts` | ModelArk calls; returns errors instead of throwing; logs rejections server-side as `[ugc] …` |
+| Vendor client | `src/lib/ugc/client.ts` | ModelArk calls (incl. the optional `reference_audio` part); returns errors instead of throwing; logs rejections server-side as `[ugc] …` |
 | Constants | `src/lib/ugc/constants.ts` | Model ids, settings options, queue and poll limits |
 | Prompt | `src/lib/ugc/prompt.ts` | Legacy `--flags` builder (see §3.2; swap for body parameters) |
 | Board model | `src/lib/ugc/board.ts` (+ tests) | Pure row/tile helpers: `duplicateRow`, `runnableTiles` |
 | Starter data | `src/lib/ugc/starter.ts` | Board pre-filled from the CHUPPS brief |
-| Browser fetch | `src/lib/ugc/request.ts` | Records every call for the activity log; detects an expired login |
+| Voice | `src/lib/ugc/voice.ts` (+ tests) | ffmpeg extraction: any audio/video → mono mp3, ≤30s, with its duration |
+| Browser fetch | `src/lib/ugc/request.ts` (+ tests) | Records every call for the activity log; detects an expired login; shortens data URLs so the log stays pasteable |
 | State | `src/hooks/use-ugc-bench.ts` | Rows, 3-wide queue, polling, log |
-| Routes | `src/app/api/ugc/{face,video,video/[taskId]}/route.ts` | Thin wrappers around the client |
-| UI | `src/components/ugc/*`, `src/app/ugc/page.tsx` | Settings bar, face column, script tiles, activity log |
+| Routes | `src/app/api/ugc/{face,video,video/[taskId],voice}/route.ts` | Thin wrappers around the client; `voice` downloads a clip (BytePlus hosts only) and extracts its audio |
+| UI | `src/components/ugc/*`, `src/app/ugc/page.tsx` | Settings bar, face column, script tiles, voice strip (under the tiles — the voice is a Seedance input), activity log |
+| Build config | `next.config.ts` | `serverExternalPackages` + `outputFileTracingIncludes` so the ffmpeg binary ships with the voice route |
 
 ## 6. Taking it into the product
 
@@ -240,6 +245,7 @@ The product already has everything the bench skips.
 | Storage | none (links expire) | `uploadVideoGen` / `uploadImageGen` in `src/lib/storage/index.ts` (GCS) |
 | Image provider | Own `generateImage()` | `src/lib/image-gen/`: registry, `providers/{openai,gemini}.ts`, synchronous route `src/app/api/nodes/[id]/image-generate/route.ts` |
 | Cost | none | `src/lib/video-gen/cost.ts` (has Seedance rates); `src/lib/image-gen/cost.ts` is token-based and needs a per-image branch for Seedream |
+| Voice anchor | mp3 in browser state, sent inline | nothing yet — see step 5 |
 
 **Suggested order:**
 1. **Add Seedream as an image-gen provider.** It's synchronous, so it fits the existing
@@ -255,7 +261,12 @@ The product already has everything the bench skips.
 4. **Env var name.** Use **`BYTEPLUS_API_KEY`**, the product's name, now also in
    `.env.example`. The bench reads it first and falls back to the old experiment name
    `BYTE_PLUS_API_KEY`. Drop that fallback when the bench is retired.
-5. **Decide what happens after 24 h:** regenerate the face, or use something longer-lived
+5. **If voice consistency matters in the product**, a presenter needs a stored voice: the
+   extracted mp3 in GCS next to the face, referenced by every generation for that presenter,
+   and `reference_audio` added to `buildSeedanceContent()` alongside the existing frame and
+   reference rules. Unlike the face, the audio has no trusted-output constraint we know of,
+   so our own hosted copy should be usable — but confirm it, since it is untested (§7).
+6. **Decide what happens after 24 h:** regenerate the face, or use something longer-lived
    (asset IDs or digital characters). This needs a product decision, not only a code change.
 
 **Don't carry over from the bench:**
@@ -278,7 +289,11 @@ The product already has everything the bench skips.
 - Whether a byte-identical re-hosted copy keeps trusted status.
 - Whether a trusted output can be referenced after its URL expires.
 - How Hinglish dialogue comes out.
-- Lip-sync against a supplied audio track (`reference_audio`).
+- **Whether Seedance accepts the bench's `reference_audio` at all**, and how well it holds a
+  voice across clips. The voice anchor shipped 2026-09-22 but no generation has used it yet.
+- Whether a real recorded voice (rather than Seedance's own output) is accepted as
+  `reference_audio`; the face ban is stated for images and videos only.
+- Whether the ffmpeg binary traces correctly into the Vercel function (no production build run).
 - Cost per clip. The only data point is 108,900 completion tokens for a 5 s 720p clip.
 - The preset digital character route (`asset://`).
 
