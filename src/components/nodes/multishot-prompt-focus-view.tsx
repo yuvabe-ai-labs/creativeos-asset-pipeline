@@ -53,6 +53,7 @@ import {
   planCitedRefIds,
   planMissingRefs,
   planIsDirty,
+  planCoverage,
   setBeatText,
   type MultishotPlan,
 } from "@/lib/nodes/multishot-plan";
@@ -282,6 +283,17 @@ export function MultishotPromptFocusView({
       return { cutId: b.cutId, text: b.text, from, to: at };
     });
   }, [planDraft, cuts]);
+
+  // D279 — which cuts this plan does not write. The same function the video-generate route
+  // enforces with, so this panel and that refusal cannot describe the ladder differently.
+  //
+  // Reads the SAVED cuts — the Multishot focus view buffers its own edits (D280), so a
+  // half-finished ladder never reaches here and "not written yet" always names a real,
+  // committed gap rather than an edit in progress.
+  const unwritten = useMemo(
+    () => new Set(planDraft ? planCoverage(planDraft, cuts).unwritten : []),
+    [planDraft, cuts],
+  );
 
   // D240 — hand edits are BUFFERED in planDraft and land in the node_versions row only on Save.
   // They used to patch the canvas store on every keystroke and never reach the database at all,
@@ -751,6 +763,12 @@ export function MultishotPromptFocusView({
                                 <p className="whitespace-pre-wrap text-xs leading-relaxed text-foreground/70">
                                   {cut.text.trim() || "No shot description yet — edit the Multishot node."}
                                 </p>
+                                {unwritten.has(cut.id) && (
+                                  <p className="mt-1.5 flex items-center gap-1 text-[0.7rem] text-destructive">
+                                    <TriangleAlert className="size-3 shrink-0" strokeWidth={1.5} />
+                                    Not written yet — re-generate, or write this shot.
+                                  </p>
+                                )}
                                 {/* What this shot SAYS. Shown because the writer no longer writes
                                     spoken lines — they are appended to this shot's beat when the
                                     prompt is rendered — so a card without them read as a shot with
@@ -770,6 +788,12 @@ export function MultishotPromptFocusView({
                     {/* Generate, at the foot of the column it acts on — same placement as the
                         image and video prompt views. */}
                     <div className="shrink-0 border-t border-border px-5 py-3">
+                      {unwritten.size > 0 && (
+                        <p className="mb-2 text-[0.7rem] text-destructive">
+                          {unwritten.size} shot{unwritten.size === 1 ? "" : "s"} have no written
+                          prompt. Video Gen will refuse until they do.
+                        </p>
+                      )}
                       <Button
                         className="w-full"
                         onClick={runGenerate}
