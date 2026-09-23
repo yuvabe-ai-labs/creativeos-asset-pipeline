@@ -20,6 +20,7 @@ import { GuidedNextButton } from "@/components/canvas/guided-next-button";
 import { EditableField } from "./editable-field";
 import { VoLinesEditor } from "./vo-lines-editor";
 import {
+  addCut,
   canAddCut,
   insertCut,
   removeCut,
@@ -129,7 +130,11 @@ export function MultishotFocusView({
   // the raw VALUE — which is why this trigger read "gemini:gemini-omni-1.1-flash".
   const modelItems = Object.fromEntries(MULTISHOT_MODELS.map((m) => [m.id, m.label]));
 
-  const setCuts = (next: MultishotCut[]) => setDraft((d) => ({ ...d, cuts: next }));
+  // Takes a TRANSFORM, not a finished array: the functional form is only protection if the
+  // update actually derives from the latest state. Passing a `next` computed from the render
+  // closure's `draft.cuts` would have looked safe while reading a potentially stale array.
+  const setCuts = (fn: (cuts: MultishotCut[]) => MultishotCut[]) =>
+    setDraft((d) => ({ ...d, cuts: fn(d.cuts) }));
 
   function handleSave() {
     onCommit(commitDraft(draft));
@@ -185,7 +190,17 @@ export function MultishotFocusView({
                 <Select
                   items={modelItems}
                   value={cap.id}
-                  onValueChange={(v) => setDraft((d) => ({ ...d, targetModel: String(v) }))}
+                  onValueChange={(v) =>
+                    setDraft((d) => {
+                      const next = String(v);
+                      // Absent `targetModel` IS the default (multishotCapabilityFor's fallback), so
+                      // writing the default's id explicitly would make a no-op read as an unsaved
+                      // edit — draftIsDirty compares stringified drafts, and an absent key and an
+                      // explicit one do not serialise alike.
+                      if (next === cap.id && d.targetModel === undefined) return d;
+                      return { ...d, targetModel: next };
+                    })
+                  }
                   disabled={isReadOnly}
                 >
                   {/* Default height, matching GuidedNextButton's h-8 beside it. min-w holds the
@@ -249,15 +264,16 @@ export function MultishotFocusView({
                   onNavigate={() => onOpenChange(false)}
                   onBeforeNavigate={
                     dirty
-                      ? () =>
+                      ? (proceed) =>
                           setConfirm({
                             title: "Discard unsaved shot edits?",
                             description:
                               "The Multishot Prompt will be written against the shots as they were last saved.",
                             actionLabel: "Continue",
-                            // Discarding here means closing the sheet on the saved ladder; the
-                            // operator then takes the guided step again from the card.
-                            onConfirm: () => onOpenChange(false),
+                            // Honours the copy: the draft is dropped and the guided step then runs
+                            // against the committed ladder. `proceed` closes this sheet itself via
+                            // GuidedNextButton's own onNavigate, so this must not close it first.
+                            onConfirm: proceed,
                           })
                       : undefined
                   }
@@ -327,7 +343,7 @@ export function MultishotFocusView({
                             variant="ghost"
                             aria-label={`Insert a shot after shot ${i + 1}`}
                             disabled={!addable.ok}
-                            onClick={() => setCuts(insertCut(draft.cuts, i + 1, cap))}
+                            onClick={() => setCuts((cs) => insertCut(cs, i + 1, cap))}
                             className="nodrag h-auto rounded-md p-0.5 text-muted-foreground hover:bg-muted hover:text-muted-foreground dark:hover:bg-muted"
                           >
                             <Plus className="size-3" strokeWidth={1.5} />
@@ -338,7 +354,7 @@ export function MultishotFocusView({
                             <Button
                               variant="ghost"
                               aria-label={`Remove shot ${i + 1}`}
-                              onClick={() => setCuts(removeCut(draft.cuts, i))}
+                              onClick={() => setCuts((cs) => removeCut(cs, i))}
                               className="nodrag h-auto rounded-md p-0.5 text-muted-foreground hover:bg-muted hover:text-muted-foreground dark:hover:bg-muted"
                             >
                               <X className="size-3" strokeWidth={1.5} />
@@ -354,7 +370,7 @@ export function MultishotFocusView({
                       <EditableField
                         value={cut.text}
                         onCommit={(text) =>
-                          setCuts(draft.cuts.map((c, j) => (j === i ? { ...c, text } : c)))
+                          setCuts((cs) => cs.map((c, j) => (j === i ? { ...c, text } : c)))
                         }
                         readOnly={isReadOnly}
                         multiline
@@ -396,8 +412,8 @@ export function MultishotFocusView({
                             lines={cut.voiceover}
                             readOnly={isReadOnly}
                             onChange={(next) =>
-                              setCuts(
-                                draft.cuts.map((c, j) =>
+                              setCuts((cs) =>
+                                cs.map((c, j) =>
                                   j === i ? { ...c, voiceover: next } : c,
                                 ),
                               )
@@ -424,7 +440,7 @@ export function MultishotFocusView({
                       disabled={isReadOnly}
                       aria-label={`Cut ${i + 1} length in seconds`}
                       onValueChange={(v) =>
-                        setCuts(resizeCut(draft.cuts, i, Array.isArray(v) ? v[0] : v, cap))
+                        setCuts((cs) => resizeCut(cs, i, Array.isArray(v) ? v[0] : v, cap))
                       }
                       className="w-full"
                     />
@@ -439,7 +455,7 @@ export function MultishotFocusView({
             {!isReadOnly && (
               <Button
                 variant="ghost"
-                onClick={() => setCuts(insertCut(draft.cuts, draft.cuts.length, cap))}
+                onClick={() => setCuts((cs) => addCut(cs, cap))}
                 disabled={!addable.ok}
                 className="nodrag h-auto w-fit rounded-md border border-dashed border-primary/40 px-2.5 py-1.5 text-primary hover:border-primary/60 hover:bg-primary/5 hover:text-primary dark:hover:bg-primary/5"
               >

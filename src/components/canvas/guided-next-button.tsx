@@ -18,17 +18,19 @@ export function GuidedNextButton({
   variant,
   onNavigate,
   /**
-   * D280 — a confirm to run INSTEAD of navigating. Called in place of the whole click when
-   * provided, which is why it gates before `guidedCreateNext`: creating the node and its edges
-   * is the side effect, so a confirm that ran after it would be confirming something already
-   * done. The caller re-invokes the click path itself once the operator accepts.
+   * D280 — a gate to run BEFORE navigating. Called in place of the whole click when provided,
+   * and handed a `proceed` callback that performs the actual navigation (create → connect →
+   * place → open). It gates before `guidedCreateNext`: creating the node and its edges is the
+   * side effect a confirm exists to gate, so a confirm that ran after it would be confirming
+   * something already done. The caller decides whether/when to call `proceed` — e.g. from a
+   * confirm dialog's own onConfirm — instead of re-invoking the click path itself.
    */
   onBeforeNavigate,
 }: {
   sourceId: string;
   variant: "chip" | "button";
   onNavigate?: () => void;
-  onBeforeNavigate?: () => void;
+  onBeforeNavigate?: (proceed: () => void) => void;
 }) {
   const editable = useCanvasEditable();
   const nodes = useCanvasStore((s) => s.nodes);
@@ -50,15 +52,22 @@ export function GuidedNextButton({
   // only, and the focus view resolves its inputs SERVER-side from persisted edges. Rather than
   // hold the click for that save, each focus view flushes autosave itself on open and keeps its
   // skeleton up until the flush and the fetch behind it have both landed.
-  const handleClick = () => {
-    if (onBeforeNavigate) {
-      onBeforeNavigate();
-      return;
-    }
+  const proceed = () => {
     const id = guidedCreateNext(sourceId);
     if (!id) return;
     onNavigate?.();          // close the current focus view (if any)
     setFocusedNodeId(id);    // open the next node's focus view (D35 seam)
+  };
+
+  const handleClick = () => {
+    // The gate runs BEFORE guidedCreateNext: creating the node and its edges is the side effect
+    // a confirm exists to gate, so a confirm that ran after it would be confirming something
+    // already done. The gate calls `proceed` itself once the operator accepts.
+    if (onBeforeNavigate) {
+      onBeforeNavigate(proceed);
+      return;
+    }
+    proceed();
   };
 
   if (variant === "chip") {
