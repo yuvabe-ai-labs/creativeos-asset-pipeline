@@ -17,10 +17,18 @@ export function GuidedNextButton({
   sourceId,
   variant,
   onNavigate,
+  /**
+   * D280 — a confirm to run INSTEAD of navigating. Called in place of the whole click when
+   * provided, which is why it gates before `guidedCreateNext`: creating the node and its edges
+   * is the side effect, so a confirm that ran after it would be confirming something already
+   * done. The caller re-invokes the click path itself once the operator accepts.
+   */
+  onBeforeNavigate,
 }: {
   sourceId: string;
   variant: "chip" | "button";
   onNavigate?: () => void;
+  onBeforeNavigate?: () => void;
 }) {
   const editable = useCanvasEditable();
   const nodes = useCanvasStore((s) => s.nodes);
@@ -43,6 +51,10 @@ export function GuidedNextButton({
   // hold the click for that save, each focus view flushes autosave itself on open and keeps its
   // skeleton up until the flush and the fetch behind it have both landed.
   const handleClick = () => {
+    if (onBeforeNavigate) {
+      onBeforeNavigate();
+      return;
+    }
     const id = guidedCreateNext(sourceId);
     if (!id) return;
     onNavigate?.();          // close the current focus view (if any)

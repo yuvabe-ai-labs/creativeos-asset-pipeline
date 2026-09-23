@@ -1,19 +1,37 @@
 "use client";
 
-import { ArrowLeft, TriangleAlert } from "lucide-react";
+import { useMemo, useState } from "react";
+import { ArrowLeft, Plus, TriangleAlert, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { GuidedNextButton } from "@/components/canvas/guided-next-button";
 import { EditableField } from "./editable-field";
 import { VoLinesEditor } from "./vo-lines-editor";
 import {
-  headroomOf,
+  canAddCut,
+  insertCut,
+  removeCut,
   resizeCut,
   totalOf,
   type MultishotCut,
 } from "@/lib/nodes/multishot-cuts";
+import {
+  commitDraft,
+  draftIsDirty,
+  type MultishotDraft,
+} from "@/lib/nodes/multishot-draft";
 import {
   MULTISHOT_MODELS,
   multishotCapabilityFor,
@@ -28,12 +46,13 @@ type MultishotFocusViewProps = {
   /** This node's id — the guided "Create multishot prompt" action needs a source to wire from. */
   nodeId: string;
   order?: number;
+  /** The SAVED ladder. Edits are buffered locally and reach the node only through `onCommit`. */
   cuts: MultishotCut[];
   scriptTitle?: string;
-  onChange: (next: MultishotCut[]) => void;
   /** D236 — which model this ladder is built for. Absent = the default (Gemini Omni). */
   targetModel?: string;
-  onTargetModelChange: (modelId: string) => void;
+  /** D280 — one patch, applied by a single updateNodeData call on Save. */
+  onCommit: (patch: ReturnType<typeof commitDraft>) => void;
 };
 
 /**
@@ -69,23 +88,68 @@ export function MultishotFocusView({
   order,
   cuts,
   scriptTitle,
-  onChange,
   targetModel,
-  onTargetModelChange,
+  onCommit,
 }: MultishotFocusViewProps) {
   const editable = useCanvasEditable();
   const isReadOnly = !editable; // D33: strict read-only under the lock
 
-  const cap = multishotCapabilityFor(targetModel);
-  const total = totalOf(cuts);
-  const ladder = checkLadder(cuts, cap);
-  const atCeiling = headroomOf(cuts, cap) === 0;
+  const saved: MultishotDraft = useMemo(
+    () => ({ cuts, ...(targetModel !== undefined ? { targetModel } : {}) }),
+    [cuts, targetModel],
+  );
+  const [draft, setDraft] = useState<MultishotDraft>(saved);
+
+  // Reseed when the sheet opens or the saved ladder changes underneath. Adjusting state during
+  // render is React's documented alternative to a reset effect, and is the same thing
+  // script-focus-view.tsx does against its own `seed` sentinel.
+  const [seed, setSeed] = useState({ open, saved });
+  if (seed.open !== open || seed.saved !== saved) {
+    setSeed({ open, saved });
+    setDraft(saved);
+  }
+
+  // Same shape script-focus-view.tsx uses, `actionLabel` included — one dialog, several callers.
+  const [confirm, setConfirm] = useState<{
+    title: string;
+    description: string;
+    actionLabel: string;
+    onConfirm: () => void;
+  } | null>(null);
+
+  const dirty = draftIsDirty(saved, draft);
+
+  // Everything below reads the DRAFT, so the ladder on screen, the ceiling it is measured
+  // against and the violation sentence all describe the same state the operator is looking at.
+  const cap = multishotCapabilityFor(draft.targetModel);
+  const total = totalOf(draft.cuts);
+  const ladder = checkLadder(draft.cuts, cap);
+  const addable = canAddCut(draft.cuts, cap);
   // Base UI resolves SelectValue's label from `items`. Without it, a bare <SelectValue /> renders
   // the raw VALUE — which is why this trigger read "gemini:gemini-omni-1.1-flash".
   const modelItems = Object.fromEntries(MULTISHOT_MODELS.map((m) => [m.id, m.label]));
 
+  const setCuts = (next: MultishotCut[]) => setDraft((d) => ({ ...d, cuts: next }));
+
+  function handleSave() {
+    onCommit(commitDraft(draft));
+  }
+
+  function requestClose() {
+    if (dirty) {
+      setConfirm({
+        title: "Discard unsaved changes?",
+        description: "You have shot edits that haven't been saved. Closing now will discard them.",
+        actionLabel: "Discard",
+        onConfirm: () => onOpenChange(false),
+      });
+      return;
+    }
+    onOpenChange(false);
+  }
+
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    <Sheet open={open} onOpenChange={(next) => (next ? onOpenChange(true) : requestClose())}>
       <SheetContent
         side="bottom"
         showCloseButton={false}
@@ -96,7 +160,7 @@ export function MultishotFocusView({
             <Button
               type="button"
               variant="ghost"
-              onClick={() => onOpenChange(false)}
+              onClick={requestClose}
               className="h-auto gap-1.5 border-0 p-0 text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground"
             >
               <ArrowLeft className="size-4" strokeWidth={1.5} /> Back to canvas
@@ -121,7 +185,7 @@ export function MultishotFocusView({
                 <Select
                   items={modelItems}
                   value={cap.id}
-                  onValueChange={(v) => onTargetModelChange(String(v))}
+                  onValueChange={(v) => setDraft((d) => ({ ...d, targetModel: String(v) }))}
                   disabled={isReadOnly}
                 >
                   {/* Default height, matching GuidedNextButton's h-8 beside it. min-w holds the
@@ -152,12 +216,51 @@ export function MultishotFocusView({
                     </span>
                     <span className="text-muted-foreground"> / {cap.maxTotalSeconds}s max</span>
                   </p>
-                  <p className="text-eyebrow mt-0.5 text-muted-foreground">{cuts.length} cuts</p>
+                  <p className="text-eyebrow mt-0.5 text-muted-foreground">
+                    {draft.cuts.length} cuts
+                  </p>
                 </div>
+                {dirty && (
+                  <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[0.65rem] font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                    Unsaved changes
+                  </span>
+                )}
+                {!isReadOnly && (
+                  <>
+                    <Button variant="ghost" onClick={() => setDraft(saved)} disabled={!dirty}>
+                      Cancel
+                    </Button>
+                    {/* D280 — Save is a synchronous updateNodeData, not a version write: this
+                        node has no node_versions row. So no async, no error path, and no
+                        "Saved" toast — the durable write is autosave's and has not happened
+                        yet. The pill clearing is the truthful feedback. */}
+                    <Button
+                      variant={dirty ? "default" : "outline"}
+                      onClick={handleSave}
+                      disabled={!dirty}
+                    >
+                      Save
+                    </Button>
+                  </>
+                )}
                 <GuidedNextButton
                   sourceId={nodeId}
                   variant="button"
                   onNavigate={() => onOpenChange(false)}
+                  onBeforeNavigate={
+                    dirty
+                      ? () =>
+                          setConfirm({
+                            title: "Discard unsaved shot edits?",
+                            description:
+                              "The Multishot Prompt will be written against the shots as they were last saved.",
+                            actionLabel: "Continue",
+                            // Discarding here means closing the sheet on the saved ladder; the
+                            // operator then takes the guided step again from the card.
+                            onConfirm: () => onOpenChange(false),
+                          })
+                      : undefined
+                  }
                 />
               </div>
             </header>
@@ -184,10 +287,10 @@ export function MultishotFocusView({
                 {ladder.reason}
               </p>
             )}
-            {ladder.ok && atCeiling && (
+            {ladder.ok && !addable.ok && (
               <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <TriangleAlert className="size-3.5 shrink-0" strokeWidth={1.5} />
-                {cap.maxTotalSeconds}s maximum reached.
+                {addable.reason}
               </p>
             )}
 
@@ -203,8 +306,8 @@ export function MultishotFocusView({
                 long description scrolls, and its scrollbar is left visible on purpose — it is the
                 only signal that a card is holding more than it shows. */}
             <ol className="grid grid-cols-[repeat(auto-fit,minmax(272px,1fr))] gap-x-4 gap-y-5">
-              {cuts.map((cut, i) => (
-                <li key={cut.id} className="flex min-w-0 flex-col gap-2">
+              {draft.cuts.map((cut, i) => (
+                <li key={cut.id} className="group/shot flex min-w-0 flex-col gap-2">
                   {/* No fixed height. The grid row already stretches every card to the tallest in
                       its row, so the sliders line up without one — and a fixed height is what
                       broke the moment a shot got a second spoken line: the description and the
@@ -213,9 +316,37 @@ export function MultishotFocusView({
                       content; only a very long description scrolls, and it does so within a bound
                       that keeps a row from running away. */}
                   <div className="flex min-h-[9rem] flex-1 flex-col gap-1.5 rounded-xl border border-border bg-card p-3.5 shadow-card">
-                    <span className="text-eyebrow shrink-0 text-muted-foreground">
-                      Shot {i + 1}
-                    </span>
+                    {/* The controls share the Shot N row and appear on hover — the VoLinesEditor
+                        idiom, for the same reason: a six-shot strip should read as six shots,
+                        not as twelve buttons. */}
+                    <div className="flex shrink-0 items-center justify-between gap-1">
+                      <span className="text-eyebrow text-muted-foreground">Shot {i + 1}</span>
+                      {!isReadOnly && (
+                        <div className="flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/shot:opacity-100">
+                          <Button
+                            variant="ghost"
+                            aria-label={`Insert a shot after shot ${i + 1}`}
+                            disabled={!addable.ok}
+                            onClick={() => setCuts(insertCut(draft.cuts, i + 1, cap))}
+                            className="nodrag h-auto rounded-md p-0.5 text-muted-foreground hover:bg-muted hover:text-muted-foreground dark:hover:bg-muted"
+                          >
+                            <Plus className="size-3" strokeWidth={1.5} />
+                          </Button>
+                          {/* A single-shot ladder shows no X: removeCut refuses the last cut,
+                              and a control that does nothing is worse than no control. */}
+                          {draft.cuts.length > 1 && (
+                            <Button
+                              variant="ghost"
+                              aria-label={`Remove shot ${i + 1}`}
+                              onClick={() => setCuts(removeCut(draft.cuts, i))}
+                              className="nodrag h-auto rounded-md p-0.5 text-muted-foreground hover:bg-muted hover:text-muted-foreground dark:hover:bg-muted"
+                            >
+                              <X className="size-3" strokeWidth={1.5} />
+                            </Button>
+                          )}
+                        </div>
+                      )}
+                    </div>
                     {/* min-h-0 is load-bearing: without it this flex child refuses to shrink
                         below its content and the card grows instead of scrolling. max-h bounds a
                         long description so one wordy shot cannot stretch every card in its row. */}
@@ -223,7 +354,7 @@ export function MultishotFocusView({
                       <EditableField
                         value={cut.text}
                         onCommit={(text) =>
-                          onChange(cuts.map((c, j) => (j === i ? { ...c, text } : c)))
+                          setCuts(draft.cuts.map((c, j) => (j === i ? { ...c, text } : c)))
                         }
                         readOnly={isReadOnly}
                         multiline
@@ -265,7 +396,11 @@ export function MultishotFocusView({
                             lines={cut.voiceover}
                             readOnly={isReadOnly}
                             onChange={(next) =>
-                              onChange(cuts.map((c, j) => (j === i ? { ...c, voiceover: next } : c)))
+                              setCuts(
+                                draft.cuts.map((c, j) =>
+                                  j === i ? { ...c, voiceover: next } : c,
+                                ),
+                              )
                             }
                           />
                         </div>
@@ -289,7 +424,7 @@ export function MultishotFocusView({
                       disabled={isReadOnly}
                       aria-label={`Cut ${i + 1} length in seconds`}
                       onValueChange={(v) =>
-                        onChange(resizeCut(cuts, i, Array.isArray(v) ? v[0] : v, cap))
+                        setCuts(resizeCut(draft.cuts, i, Array.isArray(v) ? v[0] : v, cap))
                       }
                       className="w-full"
                     />
@@ -300,11 +435,47 @@ export function MultishotFocusView({
                 </li>
               ))}
             </ol>
+
+            {!isReadOnly && (
+              <Button
+                variant="ghost"
+                onClick={() => setCuts(insertCut(draft.cuts, draft.cuts.length, cap))}
+                disabled={!addable.ok}
+                className="nodrag h-auto w-fit rounded-md border border-dashed border-primary/40 px-2.5 py-1.5 text-primary hover:border-primary/60 hover:bg-primary/5 hover:text-primary dark:hover:bg-primary/5"
+              >
+                <Plus className="size-4" strokeWidth={1.5} /> Add shot
+              </Button>
+            )}
             </div>
           </section>
           </div>
         </div>
       </SheetContent>
+
+      <AlertDialog
+        open={!!confirm}
+        onOpenChange={(next) => {
+          if (!next) setConfirm(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{confirm?.title}</AlertDialogTitle>
+            <AlertDialogDescription>{confirm?.description}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setConfirm(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                confirm?.onConfirm();
+                setConfirm(null);
+              }}
+            >
+              {confirm?.actionLabel}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Sheet>
   );
 }
