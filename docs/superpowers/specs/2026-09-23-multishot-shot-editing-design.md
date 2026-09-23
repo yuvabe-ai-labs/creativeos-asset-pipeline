@@ -243,6 +243,19 @@ stored object by structural edits, so key order is stable by construction.
 `MultishotCut.voiceover` is the one field where `undefined` and `[]` differ (§4.1), and
 stringify preserves that distinction — an absent key and an empty array do not serialise alike.
 
+### 9.3b The draft logic is a pure module, not component state logic
+
+The repo has **no jsdom and no `@testing-library`** — `vitest.config.ts` sets
+`environment: "node"`, and the one existing `.test.tsx`
+(`mention-instruction-editor.test.tsx`) tests *exported pure functions* from a component file
+rather than rendering anything. So "test the focus view's dirty/Save behaviour" has to mean
+testing a pure module, and the draft logic is extracted into
+**`src/lib/nodes/multishot-draft.ts`** accordingly.
+
+This is the house pattern rather than a workaround: `src/lib/nodes/delete-confirm.ts` states it
+outright — "Pure (no React) so it is unit testable and the dialog stays a thin presentational
+shell."
+
 ### 9.4 Cancel
 
 `variant="ghost"`, enabled only when dirty, reseeds the draft from the saved node data. The
@@ -299,7 +312,7 @@ edit in progress.
 | `multishot-plan.test.ts` | `planCoverage`: exact cover, missing beat, **blank beat**, orphaned beat, both at once |
 | `video-generate/route.test.ts` | 400 on an unwritten shot, asserting **no generation row and no credits reserved**; an orphaned beat alone still passes |
 | `multishot-models.test.ts` | the cut-cap reason's new wording |
-| `multishot-focus-view` (component) | dirty is false on open; an add, a remove and a model switch each set it; Cancel restores the saved ladder **and** the saved model; Save issues exactly one `updateNodeData` carrying `cuts`, `totalSeconds` and `targetModel`; nothing is written before Save |
+| `multishot-draft.test.ts` (§9.3b) | `draftIsDirty` false on a fresh draft; true after an add, a remove, a text edit, a seconds edit and a model switch; `undefined` vs `[]` voiceover stays distinguishable; `commitDraft` returns `cuts`, `totalSeconds` and `targetModel` in one object with `totalSeconds === totalOf(cuts)` |
 
 ## 13. Decisions to record
 
