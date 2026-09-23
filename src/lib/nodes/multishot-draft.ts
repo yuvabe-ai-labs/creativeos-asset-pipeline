@@ -50,7 +50,11 @@ export function commitDraft(draft: MultishotDraft): {
   targetModel?: string;
 } {
   return {
-    cuts: draft.cuts,
+    // A SHALLOW COPY, not `draft.cuts`. Handing back the draft's own array would make the node's
+    // committed state and the still-open sheet's draft the same object: safe only for as long as
+    // every mutator stays immutable, which is a rule to remember rather than a guarantee. The
+    // cuts themselves are shared — they are never mutated in place, only replaced.
+    cuts: [...draft.cuts],
     totalSeconds: totalOf(draft.cuts),
     // Spread rather than assigned: writing `targetModel: undefined` would put the key on the
     // patch and clear a model the operator never touched.

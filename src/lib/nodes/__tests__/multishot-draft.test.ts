@@ -95,4 +95,13 @@ describe("commitDraft", () => {
   it("omits targetModel entirely when the draft has none", () => {
     expect("targetModel" in commitDraft(draft(cuts(2)))).toBe(false);
   });
+
+  it("returns a copy of the cuts array, not the draft's own", () => {
+    const d = draft(cuts(2, 3));
+    const result = commitDraft(d);
+    expect(result.cuts).not.toBe(d.cuts);   // a different array…
+    expect(result.cuts).toEqual(d.cuts);    // …with the same contents
+    // The cut OBJECTS are deliberately shared — they are replaced, never mutated in place.
+    expect(result.cuts[0]).toBe(d.cuts[0]);
+  });
 });
