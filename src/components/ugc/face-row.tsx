@@ -4,6 +4,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { FaceRow as Row } from "@/lib/ugc/board";
 import type { UgcBench } from "@/hooks/use-ugc-bench";
+import { engineConfig } from "@/lib/ugc/constants";
 import { FaceColumn } from "./face-column";
 import { ScriptTile } from "./script-tile";
 import { VoicePanel } from "./voice-panel";
@@ -40,6 +41,7 @@ export function FaceRow({ row, bench }: { row: Row; bench: UgcBench }) {
               onRun={() => bench.runTile(row.id, t.id)}
               onRemove={() => bench.removeTile(row.id, t.id)}
               onUseVoice={() => bench.takeVoiceFrom(row.id, t.id)}
+              canUseVoice={engineConfig(bench.engine).supportsVoice}
               isVoiceSource={!!row.voice && row.voice.videoUrl === t.videoUrl}
             />
           ))}
@@ -52,12 +54,14 @@ export function FaceRow({ row, bench }: { row: Row; bench: UgcBench }) {
             Script
           </Button>
         </div>
-        <VoicePanel
-          voice={row.voice}
-          note={row.voiceNote}
-          onNote={(t) => bench.setVoiceNote(row.id, t)}
-          onClear={() => bench.clearVoice(row.id)}
-        />
+        {engineConfig(bench.engine).supportsVoice && (
+          <VoicePanel
+            voice={row.voice}
+            note={row.voiceNote}
+            onNote={(t) => bench.setVoiceNote(row.id, t)}
+            onClear={() => bench.clearVoice(row.id)}
+          />
+        )}
       </div>
     </div>
   );

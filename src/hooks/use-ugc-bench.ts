@@ -6,12 +6,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  DEFAULT_SETTINGS,
+  defaultSettings,
+  engineConfig,
   MAX_CONCURRENT,
   MAX_POLLS,
   POLL_MS,
   TERMINAL_STATUSES,
   type BenchSettings,
+  type Engine,
 } from "@/lib/ugc/constants";
 import {
   duplicateRow,
@@ -28,9 +30,9 @@ type Job = { rowId: string; tileId: string };
 
 const MAX_LOG = 200;
 
-export function useUgcBench() {
+export function useUgcBench(engine: Engine = "seedance") {
   const [rows, setRows] = useState<FaceRow[]>(starterRows);
-  const [settings, setSettings] = useState<BenchSettings>(DEFAULT_SETTINGS);
+  const [settings, setSettings] = useState<BenchSettings>(() => defaultSettings(engine));
   const [log, setLog] = useState<LogEntry[]>([]);
 
   // Async work reads the latest state through refs, not stale closures.
@@ -116,9 +118,28 @@ export function useUgcBench() {
         status: "generating",
         startedAt,
         ranScript: tile.script,
-        ranWithVoice: !!row.voice,
+        ranWithVoice: !!row.voice && engineConfig(engine).supportsVoice,
         error: null,
       });
+
+      // Omni is synchronous: one call returns the finished video, so there is no poll loop.
+      if (engine === "omni") {
+        const res = await request<{ videoUrl: string | null; error: string | null }>(
+          addLog,
+          `${where(rowId, tileId)} · Omni`,
+          "POST",
+          "/api/ugc/omni/video",
+          { script: tile.script, referenceUrl: row.faceUrl, settings: settingsRef.current },
+        );
+        if (!res.ok || !res.data.videoUrl) {
+          return fail(res.ok ? (res.data.error ?? "Omni returned no video") : res.error);
+        }
+        return patchTile(rowId, tileId, {
+          status: "done",
+          videoUrl: res.data.videoUrl,
+          elapsedMs: Date.now() - startedAt,
+        });
+      }
 
       const label = `${where(rowId, tileId)} · Seedance${row.voice ? " + voice" : ""}`;
       const created = await request<{ taskId: string | null; error: string | null }>(
@@ -173,7 +194,7 @@ export function useUgcBench() {
       }
       fail(`Timed out after 7.5 minutes (task ${taskId})`);
     },
-    [patchTile, addLog, where],
+    [patchTile, addLog, where, engine],
   );
 
   // "Use this voice": extract the audio of a finished clip and make it the row's voice
@@ -237,6 +258,7 @@ export function useUgcBench() {
   const runAll = useCallback(() => enqueue(runnableTiles(rowsRef.current)), [enqueue]);
 
   return {
+    engine,
     rows,
     settings,
     setSettings,

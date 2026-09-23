@@ -14,6 +14,7 @@ type Props = {
   onRemove: () => void;
   // "Use this voice": resolves to an error message, or null once the row has the voice.
   onUseVoice: () => Promise<string | null>;
+  canUseVoice: boolean;
   isVoiceSource: boolean;
 };
 
@@ -28,6 +29,7 @@ export function ScriptTile({
   onRun,
   onRemove,
   onUseVoice,
+  canUseVoice,
   isVoiceSource,
 }: Props) {
   const [showScript, setShowScript] = useState(false);
@@ -51,6 +53,7 @@ export function ScriptTile({
           {tile.ranWithVoice && (
             <Mic className="size-3 text-neutral-300" strokeWidth={1.5} aria-label="Made with the row's voice" />
           )}
+          {canUseVoice && (
           <Button
             variant="ghost"
             size="icon-sm"
@@ -66,10 +69,11 @@ export function ScriptTile({
               <Mic className="size-3.5" strokeWidth={1.5} />
             )}
           </Button>
+          )}
           <Button
             variant="ghost"
             size="icon-sm"
-            className="text-neutral-300"
+            className={canUseVoice ? "text-neutral-300" : "ml-auto text-neutral-300"}
             onClick={() => setShowScript(true)}
             aria-label="Show script"
           >
