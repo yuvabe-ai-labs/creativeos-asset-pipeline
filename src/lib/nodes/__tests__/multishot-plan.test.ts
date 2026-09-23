@@ -798,9 +798,17 @@ describe("planCoverage", () => {
     });
   });
 
+  // Discriminating on purpose: c3's beat is PRESENT but blank, and sits FIRST in plan.beats while
+  // c3 is last on the ladder. Cut order gives ["c2","c3"]; anything deriving the order from
+  // plan.beats gives ["c3","c2"]. The previous version of this test used two entirely-absent cuts,
+  // which have no beat-order position at all — so it passed under either implementation.
   it("returns unwritten in CUT order, not beat order", () => {
-    const result = planCoverage(plan(["c2", "cab"]), [cut("c1"), cut("c2"), cut("c3")]);
-    expect(result.unwritten).toEqual(["c1", "c3"]);
+    const result = planCoverage(plan(["c3", "   "], ["c1", "keys"]), [
+      cut("c1"),
+      cut("c2"),
+      cut("c3"),
+    ]);
+    expect(result.unwritten).toEqual(["c2", "c3"]);
   });
 
   it("treats an empty ladder as covered — checkLadder is what rejects that", () => {
