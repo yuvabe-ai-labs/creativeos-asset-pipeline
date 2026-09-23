@@ -13,6 +13,7 @@ import {
 } from "../multishot-plan";
 import type { MultishotPlan } from "../multishot-plan";
 import type { MultishotCut } from "../multishot-cuts";
+import type { VoLine } from "../reel-script";
 import { multishotCapabilityFor } from "../multishot-models";
 import { GEMINI_OMNI_MODEL_ID, KLING_OMNI_MODEL_ID, SEEDANCE_MODEL_ID } from "@/lib/video-gen/client-models";
 
@@ -262,6 +263,74 @@ describe("renderPlan per model", () => {
   });
 });
 
+// D267 (Task 3) — the cut's own VO lines, rendered and appended to its beat, in all three formats.
+// The voiceover comes from the CUT, never from the plan's beats: an edited line applies without
+// regenerating the plan.
+describe("renderPlan — voiceover appended to the cut's own beat", () => {
+  const vo: VoLine[] = [{ text: "Try it today.", speaker: "narrator" }];
+  const cutsWithVo: MultishotCut[] = [
+    { id: "c1", text: "", seconds: 2, voiceover: vo },
+    { id: "c2", text: "", seconds: 3 },
+  ];
+
+  it("appends after Omni's beat, before the next line", () => {
+    expect(renderPlan(perModelPlan, cutsWithVo, OMNI)).toBe(
+      "Low sun from camera-left, warm grey concrete, 35mm at knee height.\n\n" +
+        '[0-2s] A hand sweeps keys off oak. Voiceover: "Try it today."\n' +
+        "[2-5s] A cab door swings open onto sunlit paving.",
+    );
+  });
+
+  it("appends inside Kling's triple, before the terminating semicolon", () => {
+    expect(renderPlan(perModelPlan, cutsWithVo, KLING)).toBe(
+      "Low sun from camera-left, warm grey concrete, 35mm at knee height.\n\n" +
+        'shot 1, 2, A hand sweeps keys off oak. Voiceover: "Try it today.";\n' +
+        "shot 2, 3, A cab door swings open onto sunlit paving.;",
+    );
+  });
+
+  it("appends after Seedance's bare-timecode beat", () => {
+    expect(renderPlan(perModelPlan, cutsWithVo, SEEDANCE)).toBe(
+      "Low sun from camera-left, warm grey concrete, 35mm at knee height.\n\n" +
+        '0-2s: A hand sweeps keys off oak. Voiceover: "Try it today."\n' +
+        "2-5s: A cab door swings open onto sunlit paving.",
+    );
+  });
+
+  it("renders a cut with no voiceover key and one with [] identically to today, in all three formats", () => {
+    const emptyArr: MultishotCut[] = planCuts.map((c) => ({ ...c, voiceover: [] }));
+    const expectedOmni =
+      "Low sun from camera-left, warm grey concrete, 35mm at knee height.\n\n" +
+      "[0-2s] A hand sweeps keys off oak.\n" +
+      "[2-5s] A cab door swings open onto sunlit paving.";
+    const expectedKling =
+      "Low sun from camera-left, warm grey concrete, 35mm at knee height.\n\n" +
+      "shot 1, 2, A hand sweeps keys off oak.;\n" +
+      "shot 2, 3, A cab door swings open onto sunlit paving.;";
+    const expectedSeedance =
+      "Low sun from camera-left, warm grey concrete, 35mm at knee height.\n\n" +
+      "0-2s: A hand sweeps keys off oak.\n" +
+      "2-5s: A cab door swings open onto sunlit paving.";
+
+    expect(renderPlan(perModelPlan, planCuts, OMNI)).toBe(expectedOmni);
+    expect(renderPlan(perModelPlan, emptyArr, OMNI)).toBe(expectedOmni);
+    expect(renderPlan(perModelPlan, planCuts, KLING)).toBe(expectedKling);
+    expect(renderPlan(perModelPlan, emptyArr, KLING)).toBe(expectedKling);
+    expect(renderPlan(perModelPlan, planCuts, SEEDANCE)).toBe(expectedSeedance);
+    expect(renderPlan(perModelPlan, emptyArr, SEEDANCE)).toBe(expectedSeedance);
+  });
+
+  it("replaces a semicolon inside voiceover text the same way the beat's own is replaced (triple)", () => {
+    const cutsWithSemi: MultishotCut[] = [
+      { id: "c1", text: "", seconds: 2, voiceover: [{ text: "Wait; then go.", speaker: "narrator" }] },
+      { id: "c2", text: "", seconds: 3 },
+    ];
+    const rendered = renderPlan(perModelPlan, cutsWithSemi, KLING);
+    expect(rendered).toContain('shot 1, 2, A hand sweeps keys off oak. Voiceover: "Wait, then go.";');
+    expect(rendered.match(/;/g)).toHaveLength(2); // one terminator per shot, no more
+  });
+});
+
 describe("checkPlanLimits", () => {
   it("passes a plan inside the model's budgets", () => {
     expect(checkPlanLimits(perModelPlan, planCuts, KLING)).toEqual({ ok: true });
@@ -302,6 +371,35 @@ describe("checkPlanLimits", () => {
       KLING,
     );
     expect(res.ok).toBe(false);
+  });
+
+  // D267 (Task 3) — the limit is measured on what is SENT, and the voiceover rides along with the
+  // beat. A cut whose beat alone is fine but whose beat-plus-voiceover breaches the cap must be
+  // reported, and the reason must say the voiceover is why, so the operator knows which half of
+  // the cut to shorten (the voiceover itself is never truncated).
+  //
+  // Review finding (Task 5) — "(including its voiceover)" used to be appended after the message's
+  // final full stop, reading as if it qualified "rewrite that shot with AI" rather than the
+  // character count a few words earlier. It must sit immediately after the count it explains.
+  it("reports a cut whose beat alone fits but beat + voiceover exceeds the per-cut cap", () => {
+    const cutsWithVo: MultishotCut[] = [
+      { id: "c1", text: "", seconds: 2, voiceover: [{ text: "x".repeat(200), speaker: "narrator" }] },
+      { id: "c2", text: "", seconds: 3 },
+    ];
+    const plan = {
+      ...perModelPlan,
+      beats: [{ cutId: "c1", text: "y".repeat(400) }, perModelPlan.beats[1]],
+    };
+    expect(plan.beats[0].text.length).toBeLessThanOrEqual(512);
+
+    const res = checkPlanLimits(plan, cutsWithVo, KLING);
+    expect(res.ok).toBe(false);
+    if (!res.ok) {
+      expect(res.reason).toContain("Shot 1");
+      // Sits right after the character count, not tacked onto the end of the sentence.
+      expect(res.reason).toMatch(/^Shot 1 is \d+ characters \(including its voiceover\) · Kling/);
+      expect(res.reason).not.toMatch(/AI\.\s*\(including its voiceover\)/);
+    }
   });
 });
 

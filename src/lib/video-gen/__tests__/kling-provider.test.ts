@@ -3,6 +3,34 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 const mockFetch = vi.fn();
 vi.stubGlobal("fetch", mockFetch);
 
+const KLING_API = "https://api-singapore.klingai.com";
+
+/**
+ * Answer the Kling API from a queue, and let every image download fail.
+ *
+ * generateWithKling now downloads each image first to check its shape against the vendor's limits
+ * (kling-images.ts), so a positional queue over `fetch` would hand the create call an image
+ * response. Routing by URL keeps each queue describing only the API exchange its test is about.
+ *
+ * The image fetch is answered 404 on purpose. That is the documented pass-through — an image whose
+ * bytes cannot be had is forwarded as its URL, untouched — so the payload assertions below still
+ * see the original URLs, and no real decode runs inside these fake-timer tests. The fitting itself
+ * is the subject of kling-images.test.ts, which uses real pixels.
+ */
+function mockKlingApi(...queue: unknown[]) {
+  const pending = [...queue];
+  mockFetch.mockImplementation(async (url: string) => {
+    if (!String(url).startsWith(KLING_API)) return { ok: false, status: 404 };
+    if (pending.length === 0) throw new Error(`Unexpected Kling API call: ${url}`);
+    return pending.shift();
+  });
+}
+
+/** The Kling API calls only, in order — the image downloads interleave and are not the subject. */
+function apiCalls() {
+  return mockFetch.mock.calls.filter((c) => String(c[0]).startsWith(KLING_API));
+}
+
 describe("buildKlingContents", () => {
   it("includes prompt and first_frame when startFrameUrl is given", async () => {
     const { buildKlingContents } = await import("../providers/kling");
@@ -174,24 +202,24 @@ describe("kling30.generate — poll flow", () => {
   });
 
   it("posts to the correct endpoint, polls until succeeded, returns video result", async () => {
-    mockFetch
-      .mockResolvedValueOnce({
+    mockKlingApi(
+      {
         ok: true,
         json: async () => ({
           code: 0,
           message: "",
           data: { id: "task123", status: "submitted" },
         }),
-      })
-      .mockResolvedValueOnce({
+      },
+      {
         ok: true,
         json: async () => ({
           code: 0,
           message: "",
           data: [{ id: "task123", status: "processing" }],
         }),
-      })
-      .mockResolvedValueOnce({
+      },
+      {
         ok: true,
         json: async () => ({
           code: 0,
@@ -204,7 +232,8 @@ describe("kling30.generate — poll flow", () => {
             },
           ],
         }),
-      });
+      },
+    );
 
     const { kling30 } = await import("../providers/kling");
     const resultPromise = kling30.generate({
@@ -222,31 +251,31 @@ describe("kling30.generate — poll flow", () => {
       durationSeconds: 5,
     });
 
-    expect(mockFetch).toHaveBeenCalledTimes(3);
-    const createCall = mockFetch.mock.calls[0];
+    expect(apiCalls()).toHaveLength(3);
+    const [createCall, pollCall] = apiCalls();
     expect(createCall[0]).toBe("https://api-singapore.klingai.com/image-to-video/kling-3.0");
-    const pollCall = mockFetch.mock.calls[1];
     expect(pollCall[0]).toBe("https://api-singapore.klingai.com/tasks?task_ids=task123");
   });
 
   it("throws with the failure message when task status is failed", async () => {
-    mockFetch
-      .mockResolvedValueOnce({
+    mockKlingApi(
+      {
         ok: true,
         json: async () => ({
           code: 0,
           message: "",
           data: { id: "task123", status: "submitted" },
         }),
-      })
-      .mockResolvedValueOnce({
+      },
+      {
         ok: true,
         json: async () => ({
           code: 0,
           message: "",
           data: [{ id: "task123", status: "failed", message: "NSFW content detected" }],
         }),
-      });
+      },
+    );
 
     const { kling30 } = await import("../providers/kling");
     const resultPromise = kling30.generate({
@@ -292,19 +321,20 @@ describe("reference images are omni-only", () => {
       params: Record<string, unknown>;
     }) => Promise<unknown>,
   ) {
-    mockFetch
-      .mockResolvedValueOnce({
+    mockKlingApi(
+      {
         ok: true,
         json: async () => ({ code: 0, message: "", data: { id: "t1", status: "submitted" } }),
-      })
-      .mockResolvedValueOnce({
+      },
+      {
         ok: true,
         json: async () => ({
           code: 0,
           message: "",
           data: [{ id: "t1", status: "failed", message: "halt" }],
         }),
-      });
+      },
+    );
 
     const pending = generate({
       prompt: "a cat walking",
@@ -316,7 +346,7 @@ describe("reference images are omni-only", () => {
     await vi.advanceTimersByTimeAsync(5000);
     await assertion;
 
-    const init = mockFetch.mock.calls[0][1] as { body: string };
+    const init = apiCalls()[0][1] as { body: string };
     return JSON.parse(init.body) as { contents: Array<{ type: string }> };
   }
 

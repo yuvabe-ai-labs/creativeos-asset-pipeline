@@ -192,6 +192,69 @@ describe("fanOutShots", () => {
         .script?.visual_script?.shots,
     ).toHaveLength(1);
   });
+
+  // D267 — a shot's mapped voiceover lines must survive fan-out onto both node shapes.
+  it("carries a shot's voiceover onto the created Shot node", () => {
+    const vo = [{ text: "Hi.", speaker: "narrator" }];
+    const reelA: AppNode = {
+      id: "script-1",
+      type: "script",
+      position: { x: 100, y: 50 },
+      data: {
+        title: "Reel A",
+        parsed: {
+          title: "Reel A",
+          strategic_objective: "Sell calm",
+          visual_script: {
+            shots: [
+              { description: "Turmeric root", duration: "6s", duration_seconds: 6, voiceover: vo },
+              { description: "Rose petal", duration: "6s", duration_seconds: 6 },
+            ],
+          },
+        },
+      },
+    } as AppNode;
+
+    const store = createCanvasStore([reelA], []);
+    store.getState().fanOutShots("script-1");
+    const shots = store.getState().nodes.filter((n) => n.type === "shot");
+
+    const first = shots[0].data as {
+      script?: { visual_script?: { shots?: { voiceover?: unknown }[] } };
+    };
+    expect(first.script?.visual_script?.shots?.[0].voiceover).toEqual(vo);
+  });
+
+  it("carries a shot's voiceover onto the multishot node's first cut", () => {
+    const vo = [{ text: "Hi.", speaker: "narrator" }];
+    const reelB: AppNode = {
+      id: "script-b",
+      type: "script",
+      position: { x: 0, y: 0 },
+      data: {
+        title: "Reel B",
+        parsed: {
+          title: "Reel B",
+          visual_script: {
+            shots: [
+              { description: "one", duration_seconds: 3, voiceover: vo },
+              { description: "two", duration_seconds: 5 },
+              { description: "three", duration_seconds: 6 },
+              { description: "four", duration_seconds: 4 },
+              { description: "five", duration_seconds: 2 },
+            ],
+          },
+        },
+      },
+    } as AppNode;
+
+    const store = createCanvasStore([reelB], []);
+    store.getState().fanOutShots("script-b");
+    const multishots = store.getState().nodes.filter((n) => n.type === "multishot");
+
+    const cuts = (multishots[0].data as { cuts?: { voiceover?: unknown }[] }).cuts;
+    expect(cuts?.[0].voiceover).toEqual(vo);
+  });
 });
 
 describe("fanOutShots is incremental", () => {
