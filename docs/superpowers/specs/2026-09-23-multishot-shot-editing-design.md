@@ -1,6 +1,6 @@
 # Multishot — adding and removing shots on the node
 
-*Design, 2026-09-23. Originates D279. Refines D230 (the no-Total cut ladder), D231 (the
+*Design, 2026-09-23. Originates D279, D280. Refines D230 (the no-Total cut ladder), D231 (the
 Multishot Prompt node) and D235 (per-model capabilities). Reverses the 2026-09-03 and
 2026-09-04 operator requests that unwired `addCut` / `removeCut`.*
 
@@ -21,7 +21,8 @@ doc comments say so. This design re-wires them.
 
 ## 2. Scope
 
-**In:** add a shot (insert-after, and append), remove a shot. In the **focus view only**.
+**In:** add a shot (insert-after, and append), remove a shot. In the **focus view only**, under
+an explicit **Save / Cancel** (§9) covering every edit the view makes.
 
 **Out, decided not deferred-by-accident:**
 
@@ -193,10 +194,75 @@ Numbering is positional (`Shot {i + 1}`) so it renumbers itself. Ids are stable,
 surviving beat keeps its binding — which is the property `MultishotCut.id`'s own doc comment says
 it exists for.
 
-No change to `MultishotNode.setCuts`: it already writes `{ cuts, totalSeconds: totalOf(next) }`
-in one call, so the stored mirror stays correct through an insert or a remove for free.
+All three act on the **draft** (§9), not on `onChange` directly.
 
-## 9. The prompt view — `multishot-prompt-focus-view.tsx`
+## 9. Buffered edits — Save and Cancel
+
+Every edit this view makes is buffered in a draft and committed by an explicit **Save**, matching
+`script-focus-view.tsx`. Until then the node card, the connected Multishot Prompt and every
+downstream reader continue to see the saved ladder.
+
+### 9.1 What the Script does, and what carries over
+
+| Piece | `script-focus-view.tsx` | Here |
+|---|---|---|
+| Draft state | `useState<ReelScript>(parsed ?? {})` | `useState<{ cuts, targetModel }>` |
+| Reseed on open | render-time reset against a `seed` sentinel (`:98-102`) — React's documented alternative to a reset effect | same |
+| Dirty | `JSON.stringify(draft) !== JSON.stringify(parsed)` (`:111`) | same shape, see §9.3 |
+| Pill | red "Unsaved changes" (`:284-288`) | same |
+| Save | `variant={dirty ? "default" : "outline"}`, `disabled={!dirty}` (`:304-311`) | same |
+| Close | `requestClose()` → "Discard unsaved changes?" `AlertDialog` (`:184-196`) | same |
+
+### 9.2 Where it cannot be literal — Save is not a DB write
+
+The Script's Save is `await onSaveOutput(draft)` → `updateActiveVersionOutput` → its
+`node_versions` row. **The Multishot node has no version row**, and there is no
+`saveMultishotOutputAction`: its cuts live in node `data`, persisted by canvas autosave. Every
+node in the app with a buffered Save (script, prompt, video-prompt, multishot-prompt) is a node
+whose truth is a version row; this is the first that is not.
+
+So Save here is the existing synchronous `setCuts`/`setTargetModel` pair — one
+`updateNodeData(id, { cuts, totalSeconds: totalOf(cuts), targetModel })` call. It follows that:
+
+- **no `async`, no `try`/`catch`, no error toast** — there is nothing that can reject.
+- **no "Saved" toast.** The Script earns one because a row was written. Here the durable write is
+  autosave's, and it has not happened yet; a toast would claim it had. The pill clearing and the
+  card behind the sheet updating are the feedback, and they are truthful.
+
+This asymmetry is the one thing a reader will trip on, so it is stated in the component and in
+D280 rather than left to be rediscovered.
+
+### 9.3 Dirty
+
+`JSON.stringify` on `{ cuts, targetModel }`, matching the Script. Adequate here and **not** the
+field-wise comparison `planIsDirty` uses: that function's own note explains it avoids stringify
+because key order and later-added fields would make it lie — but it compares two independently
+*constructed* objects (a server plan against a client one). Both sides here descend from the same
+stored object by structural edits, so key order is stable by construction.
+
+`MultishotCut.voiceover` is the one field where `undefined` and `[]` differ (§4.1), and
+stringify preserves that distinction — an absent key and an empty array do not serialise alike.
+
+### 9.4 Cancel
+
+`variant="ghost"`, enabled only when dirty, reseeds the draft from the saved node data. The
+`AlertDialog` close-confirm stays as well — Cancel is the deliberate exit, the confirm catches the
+accidental one.
+
+### 9.5 The guided next step
+
+`GuidedNextButton` sits in this header and navigates away to create the Multishot Prompt — which
+would be written against the **saved** cuts while the operator holds unsaved ones. It is gated on
+`dirty` through the same `requestClose` confirm, worded for what is actually about to happen:
+
+> **Discard unsaved shot edits?** · The Multishot Prompt will be written against the shots as they
+> were last saved.
+
+The Script's own `Fan out` is deliberately *not* the precedent here: it also reads saved data, but
+fanning out creates nodes the operator can see and delete, whereas this one spends credits on a
+writer call.
+
+## 10. The prompt view — `multishot-prompt-focus-view.tsx`
 
 The display side already handles the orphan direction. This adds the other:
 
@@ -208,20 +274,24 @@ The display side already handles the orphan direction. This adds the other:
 Generating the *prompt* is not blocked by an unwritten shot — re-generating is the fix, and
 blocking the fix on the problem it fixes is a deadlock. Only the video path refuses.
 
-## 10. Read-only, lineage, undo
+This view reads the **saved** cuts, never the Multishot view's draft. A half-finished ladder
+never reaches it, so "unwritten shot" here always describes a real, committed gap rather than an
+edit in progress.
 
-- **Read-only (D33):** `isReadOnly` hides both affordances entirely. Strict, matching every other
-  control in this view.
+## 11. Read-only, lineage, undo
+
+- **Read-only (D33):** `isReadOnly` hides both affordances entirely, and Save/Cancel with them.
+  Strict, matching every other control in this view.
 - **Lineage:** `seededFrom` is untouched by an add or a remove. Fan-out matches on the exact
   `shotIndexes` set, not on cut count, so a hand-edited node still reads as "already on canvas" —
   it is neither duplicated nor clobbered by a later fan-out.
-- **Undo:** the canvas has none (`src/lib/post/history.ts` is the post editor's alone). Removing
-  a shot is therefore unrecoverable, including its voiceover lines. **No confirm**, matching the
-  Script document's own "Remove shot" X, which imposes none for the same edit on the same data.
-  Recorded here as a known, accepted asymmetry with `deleteConfirmCopy` (which guards whole nodes
-  with downstream work attached) rather than left as an oversight.
+- **Undo:** the canvas has none (`src/lib/post/history.ts` is the post editor's alone). Before
+  §9 this made removing a shot — and its voiceover lines — unrecoverable, and the design accepted
+  that on the grounds that the Script's own "Remove shot" X imposes no confirm either.
+  **Cancel retires that.** A removal is revertible up to Save, so no per-shot confirm is needed
+  and none is added; the one confirm is the discard dialog, which covers every edit at once.
 
-## 11. Tests
+## 12. Tests
 
 | File | Cases |
 |---|---|
@@ -229,8 +299,9 @@ blocking the fix on the problem it fixes is a deadlock. Only the video path refu
 | `multishot-plan.test.ts` | `planCoverage`: exact cover, missing beat, **blank beat**, orphaned beat, both at once |
 | `video-generate/route.test.ts` | 400 on an unwritten shot, asserting **no generation row and no credits reserved**; an orphaned beat alone still passes |
 | `multishot-models.test.ts` | the cut-cap reason's new wording |
+| `multishot-focus-view` (component) | dirty is false on open; an add, a remove and a model switch each set it; Cancel restores the saved ladder **and** the saved model; Save issues exactly one `updateNodeData` carrying `cuts`, `totalSeconds` and `targetModel`; nothing is written before Save |
 
-## 12. Decision to record
+## 13. Decisions to record
 
 **D279 — Shots are added and removed on the Multishot node; the plan's coverage is checked, not
 synced.** Reverses the 2026-09-03 / 2026-09-04 removals of `addCut` / `removeCut` from the UI.
@@ -238,3 +309,12 @@ The Multishot node owns its ladder; the Multishot Prompt's plan is joined to it 
 that join is **verified at the boundary** (`planCoverage`, enforced on the money path) rather
 than kept in lockstep by writes. Rejected: mutating the plan at edit time; a `cutsRevision`
 stamp; re-running `parsePlan` on the money path. Refines D230, D231, D235.
+
+**D280 — The Multishot focus view buffers its edits behind Save/Cancel, and its Save is a store
+write, not a version write.** The cut ladder and the target model are one draft, so a model
+switch previews its ceiling against the draft cuts and Cancel reverts both. Unlike every other
+buffered-Save view in the app, the Multishot node has no `node_versions` row — Save is a
+synchronous `updateNodeData` that autosave later persists, so it takes no `await`, cannot fail,
+and deliberately emits **no "Saved" toast**, because the durable write has not happened at that
+moment. Cancel also supersedes D279's acceptance of unrecoverable shot removal. Refines D230,
+D279; follows `script-focus-view.tsx`'s draft/dirty/discard pattern.
