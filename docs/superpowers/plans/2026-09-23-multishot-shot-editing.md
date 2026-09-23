@@ -415,19 +415,25 @@ EOF
 
 - [ ] **Step 1: Write the failing tests**
 
-First, in `src/lib/nodes/__tests__/multishot-models.test.ts`, find the existing assertion on the cut-cap reason (grep for `Regroup`) and replace its expected string:
+First, `src/lib/nodes/__tests__/multishot-models.test.ts:92-99`. **The sentence is currently
+unguarded** — that test asserts only `toContain("7")` and `toContain("6")`, so the wording could
+change today with nothing failing. Tighten it in place (do not add a second test; use the file's
+own `cuts()` helper and its `kling` const, already in scope in that `describe`):
 
 ```ts
-  it("names the model's cut cap and an action reachable from every surface", () => {
-    const seven = Array.from({ length: 7 }, () => ({ seconds: 2 }));
-    const result = checkLadder(seven, multishotCapabilityFor(KLING_OMNI_MODEL_ID));
-    expect(result.ok).toBe(false);
-    // "Regroup the shots on the Script" was the only route before D279. It is not any more, and
-    // this sentence renders verbatim on the card, the focus view AND Video Gen's disabled
-    // Generate — so it must name something reachable from all three.
-    expect(result.ok === false && result.reason).toBe(
-      "7 shots · Kling 3.0 Omni allows 6. Remove a shot, or switch the model.",
-    );
+  it("refuses more cuts than the model allows, naming both numbers and the way out", () => {
+    const refused = checkLadder(cuts(1, 1, 1, 1, 1, 1, 1), kling);
+    expect(refused.ok).toBe(false);
+    // Asserted as the WHOLE sentence, not toContain("7")/toContain("6") as before: this string
+    // renders verbatim on the Multishot card, the Multishot focus view AND Video Gen's disabled
+    // Generate, so its wording is a contract across three surfaces. It used to end "Regroup the
+    // shots on the Script." — the only route before D279, and wrong once shots can be removed on
+    // the node itself.
+    if (!refused.ok) {
+      expect(refused.reason).toBe(
+        "7 shots · Kling 3.0 Omni allows 6. Remove a shot, or switch the model.",
+      );
+    }
   });
 ```
 
