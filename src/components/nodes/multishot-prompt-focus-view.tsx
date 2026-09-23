@@ -790,8 +790,9 @@ export function MultishotPromptFocusView({
                     <div className="shrink-0 border-t border-border px-5 py-3">
                       {unwritten.size > 0 && (
                         <p className="mb-2 text-[0.7rem] text-destructive">
-                          {unwritten.size} shot{unwritten.size === 1 ? "" : "s"} have no written
-                          prompt. Video Gen will refuse until they do.
+                          {unwritten.size === 1
+                            ? "1 shot has no written prompt. Video Gen will refuse until it does."
+                            : `${unwritten.size} shots have no written prompt. Video Gen will refuse until they do.`}
                         </p>
                       )}
                       <Button
