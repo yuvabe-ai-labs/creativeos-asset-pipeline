@@ -276,4 +276,72 @@ describe("POST video-generate — multishot server backstop (D236, D97)", () => 
     expect(payload.prompt).not.toContain("shot 1, ");
     expect(payload.params.multi_shot).toBeUndefined();
   });
+
+  // D279 — the hole this closes: renderPlan and checkPlanLimits both resolve a missing beat to
+  // "", so a cut the plan does not cover renders as an EMPTY SHOT, passes every character
+  // budget, and is billed. Adding a shot on the Multishot node is the first route that can
+  // produce this while the prompt node stays connected.
+  it("rejects a ladder the plan does not cover, before any generation is recorded", async () => {
+    const threeCuts: MultishotCut[] = [
+      { id: "c1", text: "keys", seconds: 5 },
+      { id: "c2", text: "cab", seconds: 7 },
+      { id: "c3", text: "a shot added after the prompt was written", seconds: 2 },
+    ];
+    mocks.graph = buildGraph(threeCuts, KLING_OMNI_MODEL_ID, PLAN); // PLAN covers c1 and c2 only
+
+    const res = await post({
+      modelId: KLING_OMNI_MODEL_ID,
+      params: {},
+      imageRoles: { ig: "reference" },
+    });
+
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.error).toBe(
+      "Shot 3 has no written prompt. Re-generate the Multishot Prompt, or write that shot.",
+    );
+
+    expect(mocks.insertGeneration).not.toHaveBeenCalled();
+    expect(mocks.reserveCredits).not.toHaveBeenCalled();
+    expect(mocks.triggerTask).not.toHaveBeenCalled();
+  });
+
+  it("names the FIRST uncovered shot when several are uncovered", async () => {
+    const fourCuts: MultishotCut[] = [
+      { id: "c1", text: "keys", seconds: 4 },
+      { id: "cX", text: "added", seconds: 2 },
+      { id: "c2", text: "cab", seconds: 4 },
+      { id: "cY", text: "also added", seconds: 2 },
+    ];
+    mocks.graph = buildGraph(fourCuts, KLING_OMNI_MODEL_ID, PLAN);
+
+    const res = await post({
+      modelId: KLING_OMNI_MODEL_ID,
+      params: {},
+      imageRoles: { ig: "reference" },
+    });
+
+    const json = await res.json();
+    expect(json.error).toContain("Shot 2");
+    expect(json.error).not.toContain("Shot 4");
+  });
+
+  // An orphaned beat alone is NOT an error — renderPlan walks the cuts, so it is never rendered.
+  // Asserted explicitly so a later tightening to parsePlan cannot silently start refusing it.
+  it("still generates when the plan carries a beat whose cut was removed", async () => {
+    const planWithOrphan: MultishotPlan = {
+      ...PLAN,
+      beats: [...PLAN.beats, { cutId: "c-removed", text: "a shot that no longer exists" }],
+    };
+    mocks.graph = buildGraph(LEGAL_KLING_CUTS, KLING_OMNI_MODEL_ID, planWithOrphan);
+
+    const res = await post({
+      modelId: KLING_OMNI_MODEL_ID,
+      params: {},
+      imageRoles: { ig: "reference" },
+    });
+
+    expect(res.status).toBe(202);
+    expect(mocks.triggerTask).toHaveBeenCalledTimes(1);
+  });
 });
