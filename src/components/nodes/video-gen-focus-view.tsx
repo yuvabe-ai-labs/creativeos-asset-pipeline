@@ -125,7 +125,7 @@ import { ActiveRulesCard } from "./video-gen-active-rules-card";
 import { VideoGenShotSpine } from "./video-gen-shot-spine";
 import { VideoGenModelPicker } from "./video-gen-model-picker";
 import { describeShotSpine, describeDurationLabel } from "@/lib/video-gen/shot-spine";
-import { VideoGenVoicePicker, resolveEffectiveVoiceId } from "./video-gen-voice-picker";
+import { VideoGenVoicePicker, resolveEffectiveVoiceId, type PendingVoiceSave } from "./video-gen-voice-picker";
 import { useSelectedVoice } from "@/hooks/use-selected-voice";
 import { voiceChangeBlockedReason } from "@/lib/elevenlabs/voice-eligibility";
 import { computeVoiceChangeCost } from "@/lib/elevenlabs/cost";
@@ -534,7 +534,21 @@ export function VideoGenFocusView({
   // own beats rather than the model spec's flat default. Cleared the instant the operator edits
   // duration directly, so their edit is never silently overwritten by a later re-derivation.
   const [durationIsDerived, setDurationIsDerived] = useState(false);
-  const selectedVoice = useSelectedVoice(voiceIdProp);
+  // D283 review fixes — the lookup only needs to run while this view is actually open (it was
+  // previously firing for every mounted Video Gen node's focus view). It's also suppressed
+  // while a Library pick's background save is pending: the id already stored is an unsaved
+  // Library id, and looking it up would 404 and cache that 404 server-side. `voiceRefreshKey`
+  // is bumped when a pending save clears so the lookup refetches even when the stored id turns
+  // out to be unchanged (a saved copy can keep the Library voice_id itself).
+  const [pendingVoice, setPendingVoice] = useState<PendingVoiceSave | null>(null);
+  const [voiceRefreshKey, setVoiceRefreshKey] = useState(0);
+  const handlePendingVoiceChange = useCallback((pending: PendingVoiceSave | null) => {
+    setPendingVoice((prev) => {
+      if (prev && !pending) setVoiceRefreshKey((k) => k + 1);
+      return pending;
+    });
+  }, []);
+  const selectedVoice = useSelectedVoice(open && !pendingVoice ? voiceIdProp : null, voiceRefreshKey);
   // The selected rail item: "video" (settings + preview), "history", "details", or a connected
   // node's id (middle column shows that node's role/detail view). Mirrors image-gen-focus-view.
   const focusStoreApi = useCanvasStoreApi();
@@ -1227,15 +1241,20 @@ export function VideoGenFocusView({
     notFound: selectedVoice.notFound,
     error: selectedVoice.error,
     blockedReason: voiceBlockedReason,
+    pending: pendingVoice,
   });
+  // D283 — while a Library pick's save is pending, the lookup is suppressed (see `selectedVoice`
+  // above), so the pending voice itself (already known, instantly) stands in for pricing/preview.
+  const effectiveSelectedVoice = pendingVoice ? pendingVoice.voice : selectedVoice.voice;
   const videoCostEstimate = computeVideoCost(modelId, durationSeconds, audioEnabled, resolution);
   const voiceCostUsd = effectiveVoiceId
-    ? computeVoiceChangeCost(durationSeconds, selectedVoice.voice?.priceMultiplier ?? 1).usd
+    ? computeVoiceChangeCost(durationSeconds, effectiveSelectedVoice?.priceMultiplier ?? 1).usd
     : 0;
-  // Review fix — while a priced voice is still resolving, its multiplier isn't known yet, so
-  // showing a number would under-quote a custom-rate voice. Hide the estimate (Generate already
-  // hides its label when null) rather than quote off a guessed 1×.
-  const estimatedCredits = videoCostEstimate && !(effectiveVoiceId && selectedVoice.loading)
+  // Review fix — while a priced voice is still resolving OR its lookup errored, its multiplier
+  // isn't reliably known, so showing a number would under-quote a custom-rate voice. Hide the
+  // estimate (Generate already hides its label when null) rather than quote off a guessed 1×.
+  // Not while pending, though — the pending voice's multiplier IS known (C), so the estimate stays.
+  const estimatedCredits = videoCostEstimate && !(effectiveVoiceId && !pendingVoice && (selectedVoice.loading || selectedVoice.error))
     ? usdToFinalCredits(videoCostEstimate.usd + voiceCostUsd)
     : null;
 
@@ -1251,12 +1270,18 @@ export function VideoGenFocusView({
     isMultishotPromptConnected && upstreamMultishotCuts
       ? checkLadder(upstreamMultishotCuts, multishotCapabilityFor(effectiveMultishotModel))
       : null;
-  const disableGenerate = constraints.disableGenerate || Boolean(ladderCheck && !ladderCheck.ok);
+  // D283 (C.5) — a Library pick's background save is usually ~1s, but Generate must not fire
+  // while the node still holds the unsaved Library id (the generate route validates the voice
+  // via the account lookup, which won't have it yet).
+  const disableGenerate =
+    constraints.disableGenerate || Boolean(ladderCheck && !ladderCheck.ok) || Boolean(pendingVoice);
   const disableGenerateReason = constraints.disableGenerate
     ? constraints.disableGenerateReason
     : ladderCheck && !ladderCheck.ok
       ? ladderCheck.reason
-      : constraints.disableGenerateReason;
+      : pendingVoice
+        ? "Adding the voice to your ElevenLabs account…"
+        : constraints.disableGenerateReason;
 
   // D95: the duration label the current combination actually yields — read off the model's own
   // param spec so it stays correct when a spec changes (e.g. O1's 5/10 select), but a rule-locked
@@ -1608,6 +1633,8 @@ export function VideoGenFocusView({
                     <VideoGenVoicePicker
                       value={voiceIdProp}
                       onChange={(v) => onPatch({ voiceId: v })}
+                      pendingVoice={pendingVoice}
+                      onPendingChange={handlePendingVoiceChange}
                       blockedReason={voiceBlockedReason}
                       selected={selectedVoice.voice}
                       selectedLoading={selectedVoice.loading}
