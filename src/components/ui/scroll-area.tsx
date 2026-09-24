@@ -9,12 +9,16 @@ import { cn } from "@/lib/utils"
 
 function ScrollArea({
   className,
+  contentClassName,
   children,
   orientation = "vertical",
   ...props
 }: ScrollAreaPrimitive.Root.Props & {
   /** Which scrollbar to render. The viewport scrolls whichever way its content overflows. */
   orientation?: "vertical" | "horizontal"
+  /** Extra classes for the content wrapper — e.g. `min-w-0!` for a vertical-only list whose rows
+   *  must shrink to the viewport instead of growing it (Base UI sets `min-width: fit-content`). */
+  contentClassName?: string
 }) {
   return (
     <ScrollAreaPrimitive.Root
@@ -28,7 +32,7 @@ function ScrollArea({
       >
         {/* Content carries `min-width: fit-content`, which is what lets a horizontal run of
             fixed-width children overflow the viewport instead of being squeezed into it. */}
-        <ScrollAreaPrimitive.Content data-slot="scroll-area-content">
+        <ScrollAreaPrimitive.Content data-slot="scroll-area-content" className={contentClassName}>
           {children}
         </ScrollAreaPrimitive.Content>
       </ScrollAreaPrimitive.Viewport>

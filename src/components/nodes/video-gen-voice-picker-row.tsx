@@ -45,7 +45,9 @@ export function VideoGenVoicePickerRow({ voice, selected, playing, onSelect, onT
       <Button
         type="button"
         variant="ghost"
-        className="nodrag h-auto min-w-0 flex-1 flex-col items-start gap-0.5 px-1.5 py-1 text-left"
+        // whitespace-normal: Button defaults to nowrap, which would stop the description and meta
+        // chips from wrapping inside the popover's width.
+        className="nodrag h-auto min-w-0 flex-1 flex-col items-start gap-0.5 px-1.5 py-1 text-left whitespace-normal"
         onClick={onSelect}
         aria-pressed={selected}
         data-voice-row
@@ -60,7 +62,9 @@ export function VideoGenVoicePickerRow({ voice, selected, playing, onSelect, onT
           {selected && <Check className="ml-auto size-4 shrink-0 text-primary" strokeWidth={1.5} />}
         </span>
         {voice.description && (
-          <span className="w-full truncate text-xs text-muted-foreground">{voice.description}</span>
+          <span className="line-clamp-2 w-full break-words text-xs text-muted-foreground" title={voice.description}>
+            {voice.description}
+          </span>
         )}
         <VideoGenVoicePickerMeta labels={voice.labels} />
       </Button>

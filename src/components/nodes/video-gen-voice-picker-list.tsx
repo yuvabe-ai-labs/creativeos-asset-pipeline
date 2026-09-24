@@ -57,7 +57,9 @@ export function VideoGenVoicePickerList(p: Props) {
   const showGroups = p.tab === "account" && customVoices.length > 0 && defaultVoices.length > 0;
 
   return (
-    <ScrollArea className="h-[340px]">
+    // Vertical-only list: rows shrink to the popover width (long descriptions wrap/clamp) instead
+    // of the content growing wider than the viewport and scrolling sideways.
+    <ScrollArea className="h-[340px]" contentClassName="w-full min-w-0!">
       <div className="flex flex-col gap-0.5 pr-2" onKeyDown={onKeyDown}>
         <Button
           type="button"
