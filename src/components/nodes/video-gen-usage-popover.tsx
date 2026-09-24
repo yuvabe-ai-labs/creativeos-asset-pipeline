@@ -5,6 +5,7 @@ import type { VideoGenVersionSummary } from "./video-gen-version-history";
 import { UsagePopoverShell, type UsageRow } from "./usage-popover-shell";
 import { formatRelativeTime } from "@/lib/format/relative-time";
 import { useNodeCost } from "@/hooks/use-node-cost";
+import { readVoiceMeta } from "@/lib/voice-change/meta";
 
 type Props = {
   versions: VideoGenVersionSummary[];
@@ -18,6 +19,7 @@ type GenStat = {
   durationSeconds: number;
   creditsCharged: number | null;
   modelLabel: string;
+  voiced: boolean;
 };
 
 export function VideoGenUsagePopover({ versions, nodeId, upstreamNodeIds }: Props) {
@@ -40,6 +42,7 @@ export function VideoGenUsagePopover({ versions, nodeId, upstreamNodeIds }: Prop
         durationSeconds: duration,
         creditsCharged: v.creditsCharged ?? null,
         modelLabel: v.modelUsed.split(":")[1] ?? v.modelUsed,
+        voiced: readVoiceMeta(v.paramsUsed?.voice)?.status === "applied",
       });
     });
 
@@ -52,7 +55,7 @@ export function VideoGenUsagePopover({ versions, nodeId, upstreamNodeIds }: Prop
   const rows: UsageRow[] = perGen.map((g) => ({
     label: `v${g.vNum}`,
     time: formatRelativeTime(g.createdAt),
-    meta: `${g.durationSeconds}s · ${g.modelLabel}`,
+    meta: `${g.durationSeconds}s · ${g.modelLabel}${g.voiced ? " · voice" : ""}`,
     credits: g.creditsCharged !== null ? g.creditsCharged.toLocaleString() : "—",
   }));
 

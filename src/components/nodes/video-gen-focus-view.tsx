@@ -15,6 +15,7 @@ import {
   FileInput,
   History,
   ImageIcon,
+  Mic,
   PencilLine,
   SlidersHorizontal,
   Sparkles,
@@ -124,6 +125,11 @@ import { ActiveRulesCard } from "./video-gen-active-rules-card";
 import { VideoGenShotSpine } from "./video-gen-shot-spine";
 import { VideoGenModelPicker } from "./video-gen-model-picker";
 import { describeShotSpine, describeDurationLabel } from "@/lib/video-gen/shot-spine";
+import { VideoGenVoiceSelect } from "./video-gen-voice-select";
+import { useElevenLabsVoices } from "@/hooks/use-elevenlabs-voices";
+import { voiceChangeBlockedReason } from "@/lib/elevenlabs/voice-eligibility";
+import { computeVoiceChangeCost } from "@/lib/elevenlabs/cost";
+import { readVoiceMeta } from "@/lib/voice-change/meta";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -274,6 +280,7 @@ type Props = {
   modelId?: string;
   params?: Record<string, unknown>;
   imageRoles: Record<string, ImageRole>;
+  voiceId: string | null;
   onPatch: (patch: Record<string, unknown>) => void;
 };
 
@@ -485,6 +492,7 @@ export function VideoGenFocusView({
   modelId: modelIdProp,
   params: paramsProp,
   imageRoles: imageRolesProp,
+  voiceId: voiceIdProp,
   onPatch,
 }: Props) {
   const initialModelId = modelIdProp ?? DEFAULT_VIDEO_CLIENT_MODEL_ID;
@@ -526,6 +534,7 @@ export function VideoGenFocusView({
   // own beats rather than the model spec's flat default. Cleared the instant the operator edits
   // duration directly, so their edit is never silently overwritten by a later re-derivation.
   const [durationIsDerived, setDurationIsDerived] = useState(false);
+  const voiceList = useElevenLabsVoices(open);
   // The selected rail item: "video" (settings + preview), "history", "details", or a connected
   // node's id (middle column shows that node's role/detail view). Mirrors image-gen-focus-view.
   const focusStoreApi = useCanvasStoreApi();
@@ -986,6 +995,7 @@ export function VideoGenFocusView({
         // D98: post the reconciled values, never the possibly-stale `params` state.
         params: effectiveParams,
         imageRoles: effectiveImageRoles,
+        ...(effectiveVoiceId ? { voiceId: effectiveVoiceId } : {}),
       });
       // 202 Accepted — hook's Realtime subscription clears isGenerating on completion
     } catch (e) {
@@ -1203,8 +1213,17 @@ export function VideoGenFocusView({
       : Number(effectiveParams.seconds ?? effectiveParams.duration ?? 0);
   const audioEnabled = isVideoAudioEnabled(effectiveParams.audio);
   const resolution = asResolutionString(effectiveParams.resolution);
+  // D282 — a voice that can't apply (audio off) is treated as none everywhere: estimate and request.
+  const voiceBlockedReason = voiceChangeBlockedReason(
+    videoGenClientModelMap[modelId]?.params.map((p) => p.name) ?? [],
+    effectiveParams,
+  );
+  const effectiveVoiceId = voiceBlockedReason ? null : voiceIdProp;
   const videoCostEstimate = computeVideoCost(modelId, durationSeconds, audioEnabled, resolution);
-  const estimatedCredits = videoCostEstimate ? usdToFinalCredits(videoCostEstimate.usd) : null;
+  const voiceCostUsd = effectiveVoiceId ? computeVoiceChangeCost(durationSeconds).usd : 0;
+  const estimatedCredits = videoCostEstimate
+    ? usdToFinalCredits(videoCostEstimate.usd + voiceCostUsd)
+    : null;
 
   // D236 — Video Gen's own disabled-Generate check for an illegal ladder. checkLadder's doc
   // comment (multishot-models.ts) has always claimed its reason "is shown verbatim on ... Video
@@ -1252,6 +1271,7 @@ export function VideoGenFocusView({
   // The version the node currently shows — what "Sent to model" reports on, matching the prompt
   // focus views. Undefined until the versions fetch lands, or on a node that never generated.
   const activeVersion = versions.find((v) => v.id === activeVersionId);
+  const activeVoice = readVoiceMeta(activeVersion?.paramsUsed?.voice);
 
   // D244 read path: the standing change request on the active version and its stored
   // frame annotations — derived from the versions list the history panel already has.
@@ -1570,6 +1590,16 @@ export function VideoGenFocusView({
                       </Accordion>
                     )}
                   </VideoGenModelPicker>
+                  <LeftSection icon={Mic} label="Voice">
+                    <VideoGenVoiceSelect
+                      value={voiceIdProp}
+                      onChange={(v) => onPatch({ voiceId: v })}
+                      voices={voiceList.voices}
+                      loading={voiceList.loading}
+                      error={voiceList.error}
+                      blockedReason={voiceBlockedReason}
+                    />
+                  </LeftSection>
                   {(() => {
                     return (
                       <>
@@ -1920,6 +1950,11 @@ export function VideoGenFocusView({
                   // image-gen result: the border hugs the video instead of a
                   // width-forced box painting gutters inside it.
                   <div className="flex h-full min-h-0 flex-col">
+                    {activeVoice?.status === "failed" && (
+                      <p className="mb-1 text-xs text-muted-foreground">
+                        Voice change failed — showing the original audio.
+                      </p>
+                    )}
                     {markerTimecodes.length > 0 && videoDurationMs > 0 && (
                       <div className="relative mb-1 h-2 w-full rounded-full bg-muted">
                         {markerTimecodes.map((ms, i) => (
