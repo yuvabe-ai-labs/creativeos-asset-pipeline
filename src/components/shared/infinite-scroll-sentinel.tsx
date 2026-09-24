@@ -5,7 +5,7 @@ import { Loader2 } from "lucide-react";
 
 // Fires `onVisible` when it scrolls into view. `rootMargin` starts the fetch before the
 // sentinel is actually on screen, so the next page is usually already there by the time
-// the reviewer reaches the end — which is what makes it feel like one continuous list
+// the user reaches the end — which is what makes it feel like one continuous list
 // rather than a series of waits.
 export function InfiniteScrollSentinel({
   onVisible,

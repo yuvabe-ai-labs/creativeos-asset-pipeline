@@ -10,7 +10,7 @@ import { useReviewList } from "@/hooks/use-review-list";
 import { ApprovalStatusIcon } from "@/components/review/approval-status-icon";
 import { ReviewItemThumb } from "@/components/review/review-item-thumb";
 import { ReviewListSkeleton } from "@/components/review/review-list-skeleton";
-import { InfiniteScrollSentinel } from "@/components/review/infinite-scroll-sentinel";
+import { InfiniteScrollSentinel } from "@/components/shared/infinite-scroll-sentinel";
 import { formatRelativeTime } from "@/lib/format/relative-time";
 import { cn } from "@/lib/utils";
 
