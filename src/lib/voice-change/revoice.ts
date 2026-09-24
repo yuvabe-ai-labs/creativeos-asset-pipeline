@@ -10,8 +10,8 @@ export type RevoiceDeps = {
 };
 
 /**
- * D282 review fix — thrown for revoice failures that cannot succeed on a retry: the source video
- * has no audio stream to extract, or ElevenLabs rejected the request with a 4xx other than 429
+ * D282 review fix — thrown for revoice failures that cannot succeed on a retry: the source video's
+ * audio can't be extracted (no audio stream, or ffmpeg missing), or ElevenLabs rejected the request with a 4xx other than 429
  * (rate limit, which IS worth retrying). video-revoice.ts converts this into AbortTaskRunError so
  * Trigger.dev's retry policy doesn't burn the 15-minute stuck-reservation sweep window on
  * something that will only fail the same way again. Every other failure (network errors, 429,
@@ -36,7 +36,9 @@ export async function revoiceVideo(payload: RevoicePayload, deps: RevoiceDeps): 
     audio = await deps.extractAudio(video);
   } catch (e) {
     throw new NonRetryableRevoiceError(
-      `No audio stream to re-voice: ${e instanceof Error ? e.message : String(e)}`,
+      // Covers both "the clip has no audio stream" and "ffmpeg could not run at all" — neither
+      // clears up on a retry, and the underlying message says which it was.
+      `Could not extract the clip's audio: ${e instanceof Error ? e.message : String(e)}`,
       { cause: e },
     );
   }
