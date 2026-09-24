@@ -129,3 +129,38 @@ describe("completeGeneration — stored video with voice (D282)", () => {
     expect(mocks.refundReservation).toHaveBeenCalledWith({ orgId: "org-1", generationId: "g1" });
   });
 });
+
+describe("completeGeneration — non-stored video (no voice)", () => {
+  it("downloads from the provider, uploads to our bucket and settles video cost only", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(new Uint8Array([1, 2, 3])));
+    await completeGeneration({
+      generationId: "g1",
+      status: "succeeded",
+      videoUrl: "https://provider.example/v.mp4",
+      durationSeconds: 8,
+    });
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "https://provider.example/v.mp4",
+      expect.anything(),
+    );
+    expect(mocks.uploadVideoGen).toHaveBeenCalledWith({
+      nodeId: "n1",
+      contentType: "video/mp4",
+      body: expect.any(Buffer),
+    });
+    expect(mocks.insertVersion).toHaveBeenCalledWith(
+      expect.objectContaining({
+        output: "https://storage.googleapis.com/b/uploaded.mp4",
+        paramsUsed: expect.not.objectContaining({ voice: expect.anything() }),
+      }),
+    );
+    expect(mocks.settleGeneration).toHaveBeenCalledWith({
+      orgId: "org-1",
+      generationId: "g1",
+      actualAmount: usdToFinalCredits(videoUsd()),
+    });
+    fetchSpy.mockRestore();
+  });
+});

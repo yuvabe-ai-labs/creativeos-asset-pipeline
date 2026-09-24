@@ -166,7 +166,7 @@ export async function completeGeneration(
   // cost is only ever null when model_used is unset (shouldn't happen — every video
   // generation records a model at insertGeneration) — an actual cost of 0 credits in that
   // case, not a reason to skip settlement.
-  const actualCredits = cost || voiceUsd > 0 ? usdToFinalCredits(totalUsd) : 0;
+  const actualCredits = (cost || voiceUsd > 0) ? usdToFinalCredits(totalUsd) : 0;
 
   await settleGeneration({
     orgId: generation.org_id,
@@ -176,7 +176,7 @@ export async function completeGeneration(
   await succeedGeneration({
     generationId: input.generationId,
     versionId: version.id,
-    costUsd: cost || voiceUsd > 0 ? totalUsd : undefined,
+    costUsd: (cost || voiceUsd > 0) ? totalUsd : undefined,
     creditsCharged: actualCredits,
     outputSnapshot: storedVideoUrl,
     meta: input.meta,
