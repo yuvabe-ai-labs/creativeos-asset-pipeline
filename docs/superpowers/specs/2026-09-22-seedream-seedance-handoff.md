@@ -16,13 +16,14 @@ taking human-presenter UGC video into the product.
 | `/ugc` bench, Gemini Omni tab | Built 2026-09-23, **probed live** (§3.5). Photo upload allowed there |
 | **The 24-hour trusted-URL problem** | **GONE — see §0.1.** A GCS copy works. §6.2 is deleted |
 | Canvas integration (§6) | **Not started — this is the next piece of work**, now smaller |
+| Voice anchor | **IN SCOPE** (2026-09-24). Built in the bench, never exercised — §6.4 is a port |
 | System-prompt audit for UGC | **Done 2026-09-24 — see §10.** Two rewrites + one wiring fix |
 | OmniHuman 1.5 (BytePlus Vision AI) | **Paused** at an account permission wall (§8) |
-| ElevenLabs | Voice API useful; its lip-sync is app-only (§8) |
+| ElevenLabs | **Explicitly later** — not integrated, nothing in `src/` references it (§8) |
 
 **To take this into the canvas, start at §0.1, then §6.** §3 is the API reference you will
 need, §4 the rules that constrain the design (**two of which are now disproved**), §10 the
-prompt audit, and §9 the product questions — one of which is now answered.
+prompt audit, and §9 the product questions — **two of the five are now answered, one is moot**.
 
 ## 0.1 What changed on 2026-09-24 (read before §4 and §6)
 
@@ -118,13 +119,22 @@ Artefacts: `seed-A-seed.jpg`, `seed-B-seed.jpg`, `seed-D1-noseed.jpg`, `seed-D2-
 Both 5 s / 720p clips took **135 s and 141 s**, against the 80–100 s in §3.3. The two-reference
 clip was the slower one. **Budget the Trigger.dev timeout against ~150 s, not ~100 s.**
 
-### Decision taken by the operator, 2026-09-24
+### Decisions taken by the operator, 2026-09-24
 
-**One presenter per reel.** A reel stars one person; the per-shot choice is only *whether this
-shot is AI-presenter UGC*, not *who*. Given finding 1 this costs nothing to maintain — one
+**1 — One presenter per reel.** A reel stars one person; the per-shot choice is only *whether
+this shot is AI-presenter UGC*, not *who*. Given finding 1 this costs nothing to maintain — one
 Seedream Image Gen node is wired into each shot's Video Gen node, and there is no clock to race.
 
-This still needs an ADR number (the log had reached D147 at last count).
+**2 — A consistent voice is in scope** (§9 question 3, answered). The voice anchor — extract the
+audio of the first clip the operator likes, send it back as `reference_audio` on every later
+generation — is part of the feature, not a later nicety. The whole loop already exists in the
+bench, so §6.4 is a **port**, not a design. It is Seedance-only: Omni accepts no audio input.
+
+**3 — ElevenLabs is explicitly later.** Nothing in `src/` references them today. Their TTS
+would be a sensible controlled-voice source and their lip-sync is app-only; either way it is a
+separate piece of work and not part of this one.
+
+These still need ADR numbers (the log had reached D147 at last count).
 
 ## 1. What this is
 
@@ -405,11 +415,13 @@ The product already owns every mechanism the bench faked; almost nothing here is
 | Image provider | own `generateImage()` | `src/lib/image-gen/`: registry + `providers/{openai,gemini}.ts`, sync route `src/app/api/nodes/[id]/image-generate/route.ts` |
 | Cost | none | `src/lib/video-gen/cost.ts` (Seedance + Omni rates present); `src/lib/image-gen/cost.ts` is token-based and needs a per-image branch for Seedream |
 
-**REVISED 2026-09-24 — the new work is now three things, and none of them is the hard one:**
+**REVISED 2026-09-24 — the new work is now four things, and none of them is the hard one:**
 1. **a Seedream image provider** (§6.1, unchanged),
 2. **a `shotKind` switch** that marks a shot as AI-presenter UGC and selects the right prompt
    records and engines (§6.3 — replaces the old "what is a presenter" question, now answered),
-3. **the prompt work** (§10 — two rewrites and one wiring fix).
+3. **the voice anchor, ported from the bench** (§6.4 — in scope as of 2026-09-24; it is a port
+   of working code, not a design),
+4. **the prompt work** (§10 — two rewrites and one wiring fix).
 
 ~~a way to keep the vendor URL usable~~ — **deleted.** §0.1 finding 1 removed it.
 
@@ -482,18 +494,45 @@ kind of video it is"*, which sounds reel-shaped, but a mixed reel (product shots
 presenter piece to camera) is plausible and the per-shot field supports both. Left per-shot
 deliberately; revisit if reels turn out to be uniform in practice.
 
-### 6.4 Optional, once the basics land
+### 6.4 Step three — voice consistency (IN SCOPE, operator decision 2026-09-24)
 
-- **Voice consistency (Seedance only):** store the extracted mp3 in GCS next to the presenter
-  and pass it as `reference_audio` on every generation, adding it to `buildSeedanceContent()`
-  beside the existing frames-vs-references rule. Audio has no trusted-output constraint that we
-  know of, so a hosted copy should be fine — untested (§7). The bench's `src/lib/ugc/voice.ts`
-  is a working ffmpeg extraction to copy from; note that a Vercel build needs `ffmpeg-static`
-  traced into the route (see the bench's `next.config.ts`).
+**No longer optional.** Seedance invents a fresh voice for every clip, so a reel would be one
+face speaking in several different voices. The voice anchor is the fix, and the whole loop is
+already written in the bench — this is a port, not a design.
+
+What exists, and what each piece does:
+
+| Piece | File | What it does |
+|---|---|---|
+| Extraction | `src/lib/ugc/voice.ts` | `ffmpeg-static` with `-vn -ac 1 -ar 24000 -b:a 96k -t 30` → a mono mp3. Floors at 2 s and caps at 30 s, reading the **output** duration off ffmpeg's last `time=` line so the cap is reflected |
+| Route | `src/app/api/ugc/voice/route.ts` | Downloads the clip behind a **host allowlist** (`volces.com` / `bytepluses.com` / `byteplus.com`) so it cannot become a general URL fetcher; 80 MB cap |
+| State | `src/lib/ugc/board.ts` | `RowVoice = { dataUrl, seconds, source, videoUrl }`; `duplicateRow` carries it, so "new face, same voice" is one click |
+| Request | `src/lib/ugc/client.ts` | Appends `{ type: "audio_url", audio_url: {url}, role: "reference_audio" }` |
+| Prompt | `src/lib/ugc/prompt.ts` | Binds inputs by upload order and says **timbre only**, so the anchor clip's music and effects don't ride along |
+
+**The port is two changes.** The bench passes the mp3 as a base64 data URL because it has
+nowhere to host it; the product has GCS. So: **store the mp3 in GCS beside the presenter**, and
+**add the audio part to `buildSeedanceContent()`** — next to the existing frames-XOR-references
+rule, noting that audio is a *third* part type which does **not** participate in that
+exclusion. A Vercel build also needs `ffmpeg-static` traced into the route (see the bench's
+`next.config.ts`).
+
+**Cost: free.** Audio sits outside Seedance's token formula. A reference *video* would instead
+add its own duration to the bill, which is why extraction beats sending the clip.
+
+**Still unproven (§7):** the anchor shipped 2026-09-22 and **no generation has used it**. The
+vendor warns the generated voice can "differ significantly" from the reference, which is why
+the prompt also carries a written voice description. The first real run is also the first
+measurement of how well it holds.
+
+### 6.5 Optional, once the basics land
+
 - **Engine choice:** Omni and Seedance are both registered providers already, so offering both
   on a node is a picker question rather than an integration one (§3.5 for the trade-offs).
+  Note this interacts with voice: **Omni accepts no audio input at all**, so a shot that needs
+  a consistent voice is a Seedance shot.
 
-### 6.5 Do not carry over from the bench
+### 6.6 Do not carry over from the bench
 
 - The `--flags` prompt builder (the legacy method — §3.2).
 - Browser-side orchestration, polling and session-only state.
@@ -587,8 +626,13 @@ These are decisions for the product, not for whoever writes the code.
    expires; see §0.1 finding 1. Note that had this stayed live it would have been severe:
    one presenter per reel means one clock for the whole reel, and finding 3 proved a face
    **cannot** be regenerated, so an expired presenter would have been unrecoverable.
-3. **Is a consistent voice part of the feature**, or does VO stay in the edit? The answer
-   decides whether §6.4 is in scope, and whether ElevenLabs enters the product at all.
+3. ~~**Is a consistent voice part of the feature?**~~ **ANSWERED 2026-09-24 — YES, in scope.**
+   The voice anchor is the feature: extract the audio of the first clip the operator likes and
+   send it back as `reference_audio` on every later generation of that presenter. The whole
+   loop already exists in the bench (§6.4, now promoted out of "optional").
+   **ElevenLabs is NOT part of this work** — explicitly later. Their TTS is a proper API and
+   would be the sensible source of a controlled voice, but nothing in `src/` references them
+   today and integrating them is a separate decision (§8).
 4. **Which engine is the default**, given Omni is roughly 2–8x cheaper and faster while
    Seedance is the only one with voice control and longer clips (30 s vs 10 s)?
 5. **Do we need real people at all?** If yes, the only sanctioned route is BytePlus's
