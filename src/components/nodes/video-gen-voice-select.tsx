@@ -23,6 +23,61 @@ export function groupVoices(voices: ElevenLabsVoice[]) {
   };
 }
 
+/**
+ * D282 review fix — what the trigger should read, given every state the picker can be in.
+ * Pulled out of the component so it's testable without rendering, and so
+ * `resolveEffectiveVoiceId` below can share the same "is this id actually in the list" check.
+ *
+ * Order matters: `blockedReason` (audio off / mock) always wins — it means no voice can apply
+ * regardless of what's selected. Then `loading`, matching the previous inline behavior. Only once
+ * the list has actually loaded does an unmatched id read as "Unavailable voice" rather than
+ * silently falling back to "Original".
+ */
+export function voiceTriggerLabel({
+  value,
+  voices,
+  loading,
+  blockedReason,
+}: {
+  value: string | null;
+  voices: ElevenLabsVoice[];
+  loading: boolean;
+  blockedReason: string | null;
+}): string {
+  if (blockedReason) return "Original (no change)";
+  if (loading) return "Loading voices…";
+  if (value && !voices.some((v) => v.voiceId === value)) return "Unavailable voice";
+  const selected = voices.find((v) => v.voiceId === value);
+  return selected?.name ?? "Original (no change)";
+}
+
+/**
+ * D282 review fix — the voice id that should actually be sent/priced, given the loaded list and
+ * the audio-off/mock block. A stored `voiceId` that isn't in the loaded voices (deleted from the
+ * ElevenLabs account, or the list request errored) must never reach the request or the estimate —
+ * see video-gen-focus-view.tsx's `effectiveVoiceId`. While the list is still loading, the id is
+ * kept as-is (the previous behavior): there's nothing to compare it against yet.
+ */
+export function resolveEffectiveVoiceId({
+  value,
+  voices,
+  loading,
+  error,
+  blockedReason,
+}: {
+  value: string | null;
+  voices: ElevenLabsVoice[];
+  loading: boolean;
+  error: string | null;
+  blockedReason: string | null;
+}): string | null {
+  if (!value) return null;
+  if (blockedReason) return null;
+  if (error) return null;
+  if (!loading && !voices.some((v) => v.voiceId === value)) return null;
+  return value;
+}
+
 type Props = {
   value: string | null;
   onChange: (voiceId: string | null) => void;
@@ -37,7 +92,10 @@ type Props = {
 export function VideoGenVoiceSelect({ value, onChange, voices, loading, error, blockedReason }: Props) {
   const { custom, library } = groupVoices(voices);
   const selected = voices.find((v) => v.voiceId === value) ?? null;
-  const disabled = Boolean(blockedReason) || Boolean(error) || loading;
+  // A voice-LIST error must not strand the node on a voice it can no longer confirm: "Original
+  // (no change)" has to stay pickable so the operator can clear it. Only `loading` (nothing to
+  // pick yet) and `blockedReason` (no voice can apply at all) actually disable the control.
+  const disabled = Boolean(blockedReason) || loading;
 
   function playPreview() {
     if (!selected?.previewUrl) return;
@@ -54,7 +112,7 @@ export function VideoGenVoiceSelect({ value, onChange, voices, loading, error, b
         >
           <SelectTrigger className="nodrag flex-1 text-sm" aria-label="Voice">
             <SelectValue>
-              {loading ? "Loading voices…" : (selected?.name ?? "Original (no change)")}
+              {voiceTriggerLabel({ value, voices, loading, blockedReason })}
             </SelectValue>
           </SelectTrigger>
           <SelectContent>
@@ -84,7 +142,7 @@ export function VideoGenVoiceSelect({ value, onChange, voices, loading, error, b
         <Button
           type="button"
           variant="ghost"
-          size="icon"
+          size="icon-sm"
           className="nodrag shrink-0"
           aria-label="Play voice preview"
           onClick={playPreview}

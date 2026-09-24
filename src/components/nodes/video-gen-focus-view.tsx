@@ -125,7 +125,7 @@ import { ActiveRulesCard } from "./video-gen-active-rules-card";
 import { VideoGenShotSpine } from "./video-gen-shot-spine";
 import { VideoGenModelPicker } from "./video-gen-model-picker";
 import { describeShotSpine, describeDurationLabel } from "@/lib/video-gen/shot-spine";
-import { VideoGenVoiceSelect } from "./video-gen-voice-select";
+import { VideoGenVoiceSelect, resolveEffectiveVoiceId } from "./video-gen-voice-select";
 import { useElevenLabsVoices } from "@/hooks/use-elevenlabs-voices";
 import { voiceChangeBlockedReason } from "@/lib/elevenlabs/voice-eligibility";
 import { computeVoiceChangeCost } from "@/lib/elevenlabs/cost";
@@ -1218,7 +1218,16 @@ export function VideoGenFocusView({
     videoGenClientModelMap[modelId]?.params.map((p) => p.name) ?? [],
     effectiveParams,
   );
-  const effectiveVoiceId = voiceBlockedReason ? null : voiceIdProp;
+  // D282 review fix — a voice the loaded list no longer has (deleted from the ElevenLabs
+  // account) or that the list request errored on must not be sent or priced. See
+  // resolveEffectiveVoiceId's doc comment in video-gen-voice-select.tsx.
+  const effectiveVoiceId = resolveEffectiveVoiceId({
+    value: voiceIdProp,
+    voices: voiceList.voices,
+    loading: voiceList.loading,
+    error: voiceList.error,
+    blockedReason: voiceBlockedReason,
+  });
   const videoCostEstimate = computeVideoCost(modelId, durationSeconds, audioEnabled, resolution);
   const voiceCostUsd = effectiveVoiceId ? computeVoiceChangeCost(durationSeconds).usd : 0;
   const estimatedCredits = videoCostEstimate
