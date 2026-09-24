@@ -5740,3 +5740,25 @@ fix — still guesswork without a way to point at a specific image; kept as the 
 
 **Refines.** D233, D262. **Originated →**
 `docs/superpowers/specs/2026-09-24-multishot-reference-direction-design.md`.
+
+### D282 — Voice change runs in a child task; the original is stored before it runs *(recorded 2026-09-24)*
+
+**Decision.** An optional `voiceId` on the Video Gen node re-voices the generated clip with
+ElevenLabs speech-to-speech. `video-generate` generates, stores the original in GCS through a
+signed PUT URL minted by the route, then calls a separate `video-revoice` task with
+`triggerAndWait` (ffmpeg extract → ElevenLabs → ffmpeg mux → signed PUT). The node gets one
+version: the re-voiced video, or the original with a "voice change failed" note. The voice cost
+($0.12/min) is reserved with the video and settled only when applied. The picker lists every voice
+on the ElevenLabs account, live from `GET /v1/voices`.
+
+**Why.** `video-generate` retries (maxAttempts 2); an ElevenLabs error thrown inside it would
+regenerate — and re-pay for — the video. A child task retries the voice step alone. Storing the
+original first makes the fallback free. Signed PUT URLs let the task write to GCS without GCS
+credentials in Trigger.dev.
+
+**Rejected.** Voice step inline in `video-generate` — one careless throw pays for the video twice.
+Voice step in the webhook (`completeGeneration`) — needs ffmpeg on Vercel and a long-running
+webhook request. Keeping both original and re-voiced as versions — doubles version history for no
+decision the operator makes. A hard-coded voice list — needs a deploy per new voice.
+
+**Originated →** `docs/superpowers/specs/2026-09-24-elevenlabs-voice-change-design.md`.
