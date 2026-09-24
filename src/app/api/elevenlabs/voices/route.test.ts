@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const mocks = vi.hoisted(() => ({
   getAccountVoicesCached: vi.fn(),
   getLibraryPageCached: vi.fn(),
-  resolveCallerContextOrNull: vi.fn(async () => ({ userId: "u1" })),
+  resolveCallerContextOrNull: vi.fn(async (): Promise<{ userId: string } | null> => ({ userId: "u1" })),
 }));
 vi.mock("@/lib/elevenlabs/voices-cache", () => ({
   getAccountVoicesCached: mocks.getAccountVoicesCached,

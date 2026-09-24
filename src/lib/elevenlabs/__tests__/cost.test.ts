@@ -16,4 +16,9 @@ describe("computeVoiceChangeCost", () => {
   it("is zero for a zero-length clip", () => {
     expect(computeVoiceChangeCost(0)).toEqual({ usd: 0, inr: 0 });
   });
+
+  it("multiplies by a custom-rate voice's multiplier", () => {
+    expect(computeVoiceChangeCost(60, 2).usd).toBeCloseTo(0.24, 10);
+    expect(computeVoiceChangeCost(60).usd).toBeCloseTo(0.12, 10);
+  });
 });

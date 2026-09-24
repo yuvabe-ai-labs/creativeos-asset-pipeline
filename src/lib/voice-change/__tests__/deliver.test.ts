@@ -8,6 +8,7 @@ const VOICE = {
   originalUrl: "https://storage.googleapis.com/b/o.mp4",
   revoicedPutUrl: "https://put/r",
   revoicedUrl: "https://storage.googleapis.com/b/r.mp4",
+  priceMultiplier: 2,
 };
 
 function deps(overrides: Partial<DeliverDeps> = {}): DeliverDeps {
@@ -31,7 +32,15 @@ describe("deliverWithVoice", () => {
     });
     expect(out).toEqual({
       videoUrl: VOICE.revoicedUrl,
-      meta: { voice: { voiceId: "v1", voiceName: "Priya", status: "applied", originalUrl: VOICE.originalUrl } },
+      meta: {
+        voice: {
+          voiceId: "v1",
+          voiceName: "Priya",
+          status: "applied",
+          originalUrl: VOICE.originalUrl,
+          priceMultiplier: 2,
+        },
+      },
     });
   });
 
@@ -40,6 +49,7 @@ describe("deliverWithVoice", () => {
     const out = await deliverWithVoice({ providerVideoUrl: "https://provider/v", voice: VOICE }, d);
     expect(out.videoUrl).toBe(VOICE.originalUrl);
     expect(out.meta.voice).toMatchObject({ status: "failed", error: "429 quota" });
+    expect(out.meta.voice.priceMultiplier).toBe(2);
   });
 
   it("throws OriginalStoreError and never re-voices when the original can't be stored", async () => {

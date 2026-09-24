@@ -29,7 +29,7 @@ import {
 } from "@/lib/nodes/ref-binding";
 import { apiError, apiOk, withNode } from "@/lib/api/route-helpers";
 import { voiceChangeBlockedReason } from "@/lib/elevenlabs/voice-eligibility";
-import { getVoicesCached } from "@/lib/elevenlabs/voices-cache";
+import { getVoiceCached } from "@/lib/elevenlabs/voices-cache";
 import { ElevenLabsKeyMissingError } from "@/lib/elevenlabs/client";
 import { VOICE_NOT_SET_UP_MESSAGE } from "@/lib/elevenlabs/constants";
 import { computeVoiceChangeCost } from "@/lib/elevenlabs/cost";
@@ -79,15 +79,16 @@ export async function POST(
     // never re-voice: the voice is dropped rather than rejected, matching the disabled picker.
     const voiceId = mockMode ? undefined : body.voiceId;
     let voiceName: string | undefined;
+    let voicePriceMultiplier = 1;
     if (voiceId) {
       const blocked = voiceChangeBlockedReason(
         config.params.map((spec) => spec.name),
         resolvedParams,
       );
       if (blocked) return apiError(blocked, 400);
-      let voices;
+      let voice;
       try {
-        voices = await getVoicesCached();
+        voice = await getVoiceCached(voiceId);
       } catch (e) {
         return apiError(
           e instanceof ElevenLabsKeyMissingError
@@ -96,11 +97,11 @@ export async function POST(
           400,
         );
       }
-      const voice = voices.find((v) => v.voiceId === voiceId);
       if (!voice) {
         return apiError("That voice is no longer on the ElevenLabs account. Pick another voice.", 400);
       }
       voiceName = voice.name;
+      voicePriceMultiplier = voice.priceMultiplier;
     }
 
     // Image role assignments sent from focus view
@@ -317,7 +318,7 @@ export async function POST(
       if (estimate === null) {
         throw new Error(`No cost estimate available for ${modelId} at these params.`);
       }
-      const voiceUsd = voiceId ? computeVoiceChangeCost(durationSeconds).usd : 0;
+      const voiceUsd = voiceId ? computeVoiceChangeCost(durationSeconds, voicePriceMultiplier).usd : 0;
       const estimatedCredits = usdToFinalCredits(estimate.usd + voiceUsd);
       const reservation = await reserveCredits(effectiveOrgId, generation.id, estimatedCredits);
       if (!reservation.ok) {
@@ -327,7 +328,7 @@ export async function POST(
       let voice: VoicePayload | undefined;
       if (voiceId && voiceName) {
         const urls = await signVideoGenVoiceUrls({ nodeId, generationId: generation.id });
-        voice = { voiceId, voiceName, ...urls };
+        voice = { voiceId, voiceName, priceMultiplier: voicePriceMultiplier, ...urls };
       }
 
       // Fire Trigger.dev task (no await — the task runs in the background)

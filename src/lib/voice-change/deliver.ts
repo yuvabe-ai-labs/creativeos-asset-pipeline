@@ -38,7 +38,12 @@ export async function deliverWithVoice(
     revoicedPutUrl: voice.revoicedPutUrl,
   });
 
-  const base = { voiceId: voice.voiceId, voiceName: voice.voiceName, originalUrl: voice.originalUrl };
+  const base = {
+    voiceId: voice.voiceId,
+    voiceName: voice.voiceName,
+    originalUrl: voice.originalUrl,
+    priceMultiplier: voice.priceMultiplier,
+  };
   return result.ok
     ? { videoUrl: voice.revoicedUrl, meta: { voice: { ...base, status: "applied" } } }
     : { videoUrl: voice.originalUrl, meta: { voice: { ...base, status: "failed", error: result.error } } };

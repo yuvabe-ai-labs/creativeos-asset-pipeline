@@ -9,6 +9,8 @@ export type VoicePayload = {
   originalUrl: string;
   revoicedPutUrl: string;
   revoicedUrl: string;
+  /** ≥ 1; D283. */
+  priceMultiplier: number;
 };
 
 /** Recorded on the webhook `meta` and on the version's `params_used.voice`. */
@@ -18,6 +20,8 @@ export type VoiceMeta = {
   status: "applied" | "failed";
   error?: string;
   originalUrl: string;
+  /** ≥ 1; D283. */
+  priceMultiplier: number;
 };
 
 export type RevoicePayload = { sourceUrl: string; voiceId: string; revoicedPutUrl: string };

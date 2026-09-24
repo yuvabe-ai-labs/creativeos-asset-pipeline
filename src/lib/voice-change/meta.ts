@@ -13,5 +13,7 @@ export function readVoiceMeta(value: unknown): VoiceMeta | null {
     status: v.status,
     ...(typeof v.error === "string" ? { error: v.error } : {}),
     originalUrl: v.originalUrl,
+    priceMultiplier:
+      typeof v.priceMultiplier === "number" && v.priceMultiplier >= 1 ? v.priceMultiplier : 1,
   };
 }

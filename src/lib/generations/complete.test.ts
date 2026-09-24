@@ -91,7 +91,10 @@ describe("completeGeneration — stored video with voice (D282)", () => {
     expect(mocks.insertVersion).toHaveBeenCalledWith(
       expect.objectContaining({
         output: REVOICED,
-        paramsUsed: expect.objectContaining({ durationSeconds: 8, voice: voice("applied") }),
+        paramsUsed: expect.objectContaining({
+          durationSeconds: 8,
+          voice: { ...voice("applied"), priceMultiplier: 1 },
+        }),
       }),
     );
     expect(mocks.settleGeneration).toHaveBeenCalledWith({
@@ -100,6 +103,20 @@ describe("completeGeneration — stored video with voice (D282)", () => {
       actualAmount: usdToFinalCredits(videoUsd() + computeVoiceChangeCost(8).usd),
     });
     fetchSpy.mockRestore();
+  });
+
+  it("settles a custom-rate voice with its multiplier", async () => {
+    await completeGeneration({
+      generationId: "g1",
+      status: "succeeded",
+      stored: true,
+      videoUrl: REVOICED,
+      durationSeconds: 8,
+      meta: { voice: { ...voice("applied"), priceMultiplier: 2 } },
+    });
+    expect(mocks.settleGeneration).toHaveBeenCalledWith(
+      expect.objectContaining({ actualAmount: usdToFinalCredits(videoUsd() + computeVoiceChangeCost(8, 2).usd) }),
+    );
   });
 
   it("does not charge the voice when it failed", async () => {

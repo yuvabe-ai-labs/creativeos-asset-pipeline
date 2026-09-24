@@ -5,7 +5,7 @@ const mocks = vi.hoisted(() => ({
   getAccountVoicesCached: vi.fn(),
   getVoiceCached: vi.fn(),
   invalidateAccountVoices: vi.fn(),
-  resolveCallerContextOrNull: vi.fn(async () => ({ userId: "u1" })),
+  resolveCallerContextOrNull: vi.fn(async (): Promise<{ userId: string } | null> => ({ userId: "u1" })),
 }));
 vi.mock("@/lib/elevenlabs/voice-catalog", () => ({ saveLibraryVoice: mocks.saveLibraryVoice }));
 vi.mock("@/lib/elevenlabs/voices-cache", () => ({

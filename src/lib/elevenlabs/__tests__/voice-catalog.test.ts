@@ -103,7 +103,7 @@ describe("listAccountVoices", () => {
 
 describe("getAccountVoice", () => {
   it("looks one voice up with voice_ids", async () => {
-    const fetchImpl = vi.fn(async () => json({ voices: [SAVED_RAW], has_more: false }));
+    const fetchImpl = vi.fn<typeof fetch>(async () => json({ voices: [SAVED_RAW], has_more: false }));
     const v = await getAccountVoice("s1", fetchImpl as unknown as typeof fetch);
     expect(v?.voiceId).toBe("s1");
     expect(fetchImpl.mock.calls[0][0]).toBe("https://api.elevenlabs.io/v2/voices?voice_ids=s1");
@@ -117,7 +117,7 @@ describe("getAccountVoice", () => {
 
 describe("listLibraryVoices", () => {
   it("builds the shared-voices query and reports has_more", async () => {
-    const fetchImpl = vi.fn(async () => json({ voices: [LIBRARY_RAW], has_more: true }));
+    const fetchImpl = vi.fn<typeof fetch>(async () => json({ voices: [LIBRARY_RAW], has_more: true }));
     const out = await listLibraryVoices(
       { search: "warm", gender: "female", language: "hi", useCase: "social_media", sort: "trending", page: 2 },
       fetchImpl as unknown as typeof fetch,

@@ -161,7 +161,8 @@ export async function completeGeneration(
     ? computeVideoCost(generation.model_used, input.durationSeconds, audioEnabled, resolution)
     : null;
   // D282 — the voice change is charged only when it was applied; a fallback to the original is free.
-  const voiceUsd = voice?.status === "applied" ? computeVoiceChangeCost(input.durationSeconds).usd : 0;
+  const voiceUsd =
+    voice?.status === "applied" ? computeVoiceChangeCost(input.durationSeconds, voice.priceMultiplier).usd : 0;
   const totalUsd = (cost?.usd ?? 0) + voiceUsd;
   // cost is only ever null when model_used is unset (shouldn't happen — every video
   // generation records a model at insertGeneration) — an actual cost of 0 credits in that
