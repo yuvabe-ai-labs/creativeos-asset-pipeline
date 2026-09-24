@@ -4,7 +4,9 @@ import { getGeneration, succeedGeneration, failGeneration } from "@/lib/db/gener
 import { computeVideoCost, isVideoAudioEnabled, asResolutionString } from "@/lib/video-gen/cost";
 import { settleGeneration, refundReservation } from "@/lib/db/credit-transactions";
 import { usdToFinalCredits } from "@/lib/credits/units";
-import { uploadVideoGen } from "@/lib/storage";
+import { uploadVideoGen, isOwnStoredUrl } from "@/lib/storage";
+import { computeVoiceChangeCost } from "@/lib/elevenlabs/cost";
+import { readVoiceMeta } from "@/lib/voice-change/meta";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { videoDownloadHeaders } from "@/lib/video-gen/download-headers";
 
@@ -25,6 +27,8 @@ export type CompleteGenerationInput =
       status: "succeeded";
       videoUrl: string;
       durationSeconds: number;
+      /** D282 — `videoUrl` is already in our bucket (the task uploaded it); skip download/upload. */
+      stored?: boolean;
       meta?: Record<string, unknown>;
     }
   | {
@@ -84,38 +88,49 @@ export async function completeGeneration(
     return;
   }
 
-  // 1. Download video from provider URL and upload to GCS
-  const videoResponse = await fetch(input.videoUrl, {
-    headers: videoDownloadHeaders(generation.model_used),
-  });
-  if (!videoResponse.ok) {
-    await failAndRefund(
-      input.generationId,
-      generation.org_id,
-      `Failed to download video from provider: ${videoResponse.status}`,
-    );
-    return;
-  }
-  const videoBuffer = Buffer.from(await videoResponse.arrayBuffer());
-
-  console.log("[complete] GCP_PROJECT_ID present:", !!process.env.GCP_PROJECT_ID, "GCS_BUCKET present:", !!process.env.GCS_BUCKET);
-
+  // 1. Get the video into our bucket. D282: a voice-changed generation arrives already stored.
   let storedVideoUrl: string;
-  try {
-    const result = await uploadVideoGen({
-      nodeId: generation.node_id,
-      body: videoBuffer,
-      contentType: "video/mp4",
+  if (input.stored) {
+    if (!isOwnStoredUrl(input.videoUrl)) {
+      await failAndRefund(
+        input.generationId,
+        generation.org_id,
+        "Stored video URL is outside this app's bucket",
+      );
+      return;
+    }
+    storedVideoUrl = input.videoUrl;
+  } else {
+    const videoResponse = await fetch(input.videoUrl, {
+      headers: videoDownloadHeaders(generation.model_used),
     });
-    storedVideoUrl = result.url;
-  } catch (e) {
-    await failAndRefund(
-      input.generationId,
-      generation.org_id,
-      `Storage upload failed: ${e instanceof Error ? e.message : "unknown"}`,
-    );
-    return;
+    if (!videoResponse.ok) {
+      await failAndRefund(
+        input.generationId,
+        generation.org_id,
+        `Failed to download video from provider: ${videoResponse.status}`,
+      );
+      return;
+    }
+    const videoBuffer = Buffer.from(await videoResponse.arrayBuffer());
+    try {
+      const result = await uploadVideoGen({
+        nodeId: generation.node_id,
+        body: videoBuffer,
+        contentType: "video/mp4",
+      });
+      storedVideoUrl = result.url;
+    } catch (e) {
+      await failAndRefund(
+        input.generationId,
+        generation.org_id,
+        `Storage upload failed: ${e instanceof Error ? e.message : "unknown"}`,
+      );
+      return;
+    }
   }
+
+  const voice = readVoiceMeta(input.meta?.voice);
 
   // 2. INSERT node_versions
   const version = await insertVersion({
@@ -129,6 +144,7 @@ export async function completeGeneration(
     paramsUsed: {
       ...(generation.params_snapshot ?? {}),
       durationSeconds: input.durationSeconds,
+      ...(voice ? { voice } : {}),
     },
     modelUsed: generation.model_used,
     output: storedVideoUrl,
@@ -144,10 +160,13 @@ export async function completeGeneration(
   const cost = generation.model_used
     ? computeVideoCost(generation.model_used, input.durationSeconds, audioEnabled, resolution)
     : null;
+  // D282 — the voice change is charged only when it was applied; a fallback to the original is free.
+  const voiceUsd = voice?.status === "applied" ? computeVoiceChangeCost(input.durationSeconds).usd : 0;
+  const totalUsd = (cost?.usd ?? 0) + voiceUsd;
   // cost is only ever null when model_used is unset (shouldn't happen — every video
   // generation records a model at insertGeneration) — an actual cost of 0 credits in that
   // case, not a reason to skip settlement.
-  const actualCredits = cost ? usdToFinalCredits(cost.usd) : 0;
+  const actualCredits = cost || voiceUsd > 0 ? usdToFinalCredits(totalUsd) : 0;
 
   await settleGeneration({
     orgId: generation.org_id,
@@ -157,7 +176,7 @@ export async function completeGeneration(
   await succeedGeneration({
     generationId: input.generationId,
     versionId: version.id,
-    costUsd: cost?.usd,
+    costUsd: cost || voiceUsd > 0 ? totalUsd : undefined,
     creditsCharged: actualCredits,
     outputSnapshot: storedVideoUrl,
     meta: input.meta,

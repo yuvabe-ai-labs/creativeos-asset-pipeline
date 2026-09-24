@@ -1,4 +1,5 @@
 import type { ParamSpec } from "@/lib/image-gen/types";
+import { readVoiceMeta } from "@/lib/voice-change/meta";
 
 /**
  * What a past generation was actually run with — reading `node_versions.params_used` back
@@ -23,6 +24,7 @@ const INTERNAL_PARAM_KEYS = new Set([
   "imageWidth",
   "imageHeight",
   "fileSizeBytes",
+  "voice",
 ]);
 
 /** Panel order: primary group first, then by each spec's own `order` (the sort the params panels use). */
@@ -78,6 +80,15 @@ function looksLongForm(value: unknown): boolean {
   return typeof value === "string" && (value.length > 80 || value.includes("\n"));
 }
 
+/** D282 — the voice a version was re-voiced with, as one readable entry. */
+function voiceEntries(paramsUsed: Record<string, unknown>): VersionParamEntry[] {
+  const voice = readVoiceMeta(paramsUsed.voice);
+  if (!voice) return [];
+  const value =
+    voice.status === "applied" ? voice.voiceName : `${voice.voiceName} — failed, original audio kept`;
+  return [{ name: "voice", label: "Voice", value }];
+}
+
 function keyEntries(paramsUsed: Record<string, unknown>, skip: (key: string) => boolean) {
   return Object.entries(paramsUsed)
     .filter(([key, value]) => !skip(key) && value !== undefined && value !== null)
@@ -102,11 +113,14 @@ export function describeVersionParams(
   specs: ParamSpec[] | undefined,
   paramsUsed: Record<string, unknown>,
 ): VersionParamEntry[] {
-  if (!specs) return keyEntries(paramsUsed, (key) => INTERNAL_PARAM_KEYS.has(key));
-  return inPanelOrder(specs)
-    .filter((p) => p.visible && p.component !== "textarea")
-    .filter((p) => paramsUsed[p.name] !== undefined && paramsUsed[p.name] !== null)
-    .map((p) => ({ name: p.name, label: p.label, value: formatValue(paramsUsed[p.name]) }));
+  if (!specs) return [...keyEntries(paramsUsed, (key) => INTERNAL_PARAM_KEYS.has(key)), ...voiceEntries(paramsUsed)];
+  return [
+    ...inPanelOrder(specs)
+      .filter((p) => p.visible && p.component !== "textarea")
+      .filter((p) => paramsUsed[p.name] !== undefined && paramsUsed[p.name] !== null)
+      .map((p) => ({ name: p.name, label: p.label, value: formatValue(paramsUsed[p.name]) })),
+    ...voiceEntries(paramsUsed),
+  ];
 }
 
 /**
@@ -131,7 +145,7 @@ export function describeAllVersionParams(
   specs: ParamSpec[] | undefined,
   paramsUsed: Record<string, unknown>,
 ): VersionParamEntry[] {
-  if (!specs) return keyEntries(paramsUsed, (key) => INTERNAL_PARAM_KEYS.has(key));
+  if (!specs) return [...keyEntries(paramsUsed, (key) => INTERNAL_PARAM_KEYS.has(key)), ...voiceEntries(paramsUsed)];
   const declared = new Set(specs.map((p) => p.name));
   const fromSpecs = inPanelOrder(specs)
     .filter((p) => paramsUsed[p.name] !== undefined && paramsUsed[p.name] !== null)
@@ -145,5 +159,5 @@ export function describeAllVersionParams(
     paramsUsed,
     (key) => declared.has(key) || INTERNAL_PARAM_KEYS.has(key),
   );
-  return [...fromSpecs, ...undeclared];
+  return [...fromSpecs, ...undeclared, ...voiceEntries(paramsUsed)];
 }

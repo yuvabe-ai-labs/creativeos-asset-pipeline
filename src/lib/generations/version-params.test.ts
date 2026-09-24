@@ -232,3 +232,22 @@ describe("describeAllVersionParams", () => {
     expect(entries.find((e) => e.name === "negative_prompt")?.longForm).toBe(true);
   });
 });
+
+describe("voice on a version (D282)", () => {
+  const voice = { voiceId: "v1", voiceName: "Priya", status: "applied", originalUrl: "https://s/o.mp4" };
+
+  it("shows the voice name, not the raw object", () => {
+    const all = describeAllVersionParams(undefined, { voice, durationSeconds: 8 });
+    expect(all).toContainEqual({ name: "voice", label: "Voice", value: "Priya" });
+    expect(all.some((e) => e.value.includes("[object"))).toBe(false);
+    expect(describeVersionParams([], { voice })).toContainEqual({ name: "voice", label: "Voice", value: "Priya" });
+  });
+
+  it("says when the voice change failed", () => {
+    expect(describeVersionParams([], { voice: { ...voice, status: "failed" } })).toContainEqual({
+      name: "voice",
+      label: "Voice",
+      value: "Priya — failed, original audio kept",
+    });
+  });
+});
