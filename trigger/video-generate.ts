@@ -1,4 +1,9 @@
-import { task, logger, wait } from "@trigger.dev/sdk/v3";
+import { task, logger, wait, AbortTaskRunError } from "@trigger.dev/sdk/v3";
+import { deliverWithVoice, OriginalStoreError } from "@/lib/voice-change/deliver";
+import { fetchBytes, putBytes } from "@/lib/voice-change/http";
+import { videoDownloadHeaders } from "@/lib/video-gen/download-headers";
+import type { VoicePayload } from "@/lib/voice-change/types";
+import { videoRevoiceTask } from "./video-revoice";
 
 const MOCK_VIDEO_URL = "https://www.w3schools.com/html/mov_bbb.mp4";
 const MOCK_DURATION_SECONDS = 8;
@@ -15,6 +20,8 @@ export const videoGenerateTask = task({
     referenceUrls: string[];
     params: Record<string, unknown>;
     mockMode?: boolean;
+    /** D282 — present only when the node has a voice selected. */
+    voice?: VoicePayload;
   }) => {
     const { generationId, modelId } = payload;
     const MOCK_MODE = payload.mockMode === true;
@@ -112,6 +119,50 @@ export const videoGenerateTask = task({
         videoUrl: result.videoUrl,
         durationSeconds: result.durationSeconds,
       });
+
+      // D282 — voice selected: store the original, re-voice it in the child task, and report the
+      // already-stored URL. Without a voice this block is skipped and the path below is unchanged.
+      if (payload.voice) {
+        let delivered: Awaited<ReturnType<typeof deliverWithVoice>>;
+        try {
+          delivered = await deliverWithVoice(
+            { providerVideoUrl: result.videoUrl, voice: payload.voice },
+            {
+              fetchProviderVideo: (url) => fetchBytes(url, videoDownloadHeaders(modelId)),
+              putBytes,
+              revoice: async (args) => {
+                const run = await videoRevoiceTask.triggerAndWait(args);
+                if (run.ok) return { ok: true };
+                const message = (run.error as { message?: unknown } | undefined)?.message;
+                return { ok: false, error: typeof message === "string" ? message : "Voice change failed" };
+              },
+            },
+          );
+        } catch (e) {
+          // No stored original means nothing to deliver. Abort (no retry): a retry would generate
+          // — and pay for — the video again. The catch below reports the failure to the webhook.
+          if (e instanceof OriginalStoreError) throw new AbortTaskRunError(e.message);
+          throw e;
+        }
+
+        logger.info("Voice change finished", { generationId, voice: delivered.meta.voice.status });
+        try {
+          await postWebhook({
+            generationId,
+            status: "succeeded",
+            stored: true,
+            videoUrl: delivered.videoUrl,
+            durationSeconds: result.durationSeconds,
+            meta: delivered.meta,
+          });
+        } catch (e) {
+          throw new Error(
+            `Video generated but the webhook at ${webhookUrl} was unreachable — ` +
+              `videoUrl=${delivered.videoUrl}: ${e instanceof Error ? e.message : String(e)}`,
+          );
+        }
+        return;
+      }
 
       try {
         await postWebhook({
