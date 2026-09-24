@@ -23,6 +23,8 @@ export async function POST(req: Request) {
 
   try {
     // Already saved (by anyone on the account)? Reuse it rather than add a duplicate.
+    // `v.voiceId === body.voiceId` fallback: a saved copy can keep the Library voice_id itself
+    // rather than getting a new one — observed live — so originalVoiceId alone isn't enough.
     const existing = (await getAccountVoicesCached()).find(
       (v) => v.originalVoiceId === body.voiceId || v.voiceId === body.voiceId,
     );

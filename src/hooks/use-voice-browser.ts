@@ -10,11 +10,18 @@ import {
 export type VoiceTab = "account" | "library";
 const SEARCH_DEBOUNCE_MS = 300;
 
-/** D283 — state for the voice picker popover: tabs, filters, both lists, paging, one preview at a time. */
+/** D283 — state for the voice picker popover: tabs, filters (per tab), both lists, paging, one preview at a time. */
 export function useVoiceBrowser(open: boolean) {
   const [tab, setTab] = useState<VoiceTab>("account");
-  const [filters, setFilters] = useState<VoiceFilters>(EMPTY_FILTERS);
-  const [debouncedSearch, setDebouncedSearch] = useState("");
+  // Review fix — filters (including sort) used to be one shared object, so a My-voices sort
+  // value ("name"/"newest") or an account-only label leaked into the Library query — sent
+  // straight through to /v1/shared-voices — the moment the operator switched tabs. Each tab now
+  // keeps its own filters (search included, the simplest split).
+  const [filtersByTab, setFiltersByTab] = useState<Record<VoiceTab, VoiceFilters>>({
+    account: EMPTY_FILTERS,
+    library: EMPTY_FILTERS,
+  });
+  const filters = filtersByTab[tab];
 
   const [accountAll, setAccountAll] = useState<PickerVoice[]>([]);
   const [accountLoading, setAccountLoading] = useState(false);
@@ -30,13 +37,14 @@ export function useVoiceBrowser(open: boolean) {
 
   const [playingId, setPlayingId] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const [saving, setSaving] = useState<{ id: string | null; error: string | null }>({ id: null, error: null });
 
-  // Debounce search.
+  // Debounce only the Library tab's own search text — the account list is filtered in the
+  // browser, so there's no request to debounce for it.
+  const [debouncedLibrarySearch, setDebouncedLibrarySearch] = useState(filtersByTab.library.search);
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(filters.search), SEARCH_DEBOUNCE_MS);
+    const t = setTimeout(() => setDebouncedLibrarySearch(filtersByTab.library.search), SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(t);
-  }, [filters.search]);
+  }, [filtersByTab.library.search]);
 
   // Account list: load once per open (server caches 5 min); reload on Retry.
   useEffect(() => {
@@ -59,13 +67,18 @@ export function useVoiceBrowser(open: boolean) {
   }, [open, accountNonce]);
 
   const accountVoices = useMemo(
-    () => filterAccountVoices(accountAll, filters),
-    [accountAll, filters],
+    () => filterAccountVoices(accountAll, filtersByTab.account),
+    [accountAll, filtersByTab.account],
   );
 
+  const lf = filtersByTab.library;
+  // Review fix — depends on the individual filter fields + the DEBOUNCED search, never the whole
+  // filters object (which carries the raw, undebounced search text). Depending on the object
+  // meant its identity changed on every keystroke, which refetched Library page 0 on each one.
   const libraryFilters = useMemo(
-    () => ({ ...filters, search: debouncedSearch }),
-    [filters, debouncedSearch],
+    () => ({ ...lf, search: debouncedLibrarySearch }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally NOT `lf` or `lf.search`; see comment above.
+    [lf.gender, lf.age, lf.accent, lf.language, lf.useCase, lf.sort, debouncedLibrarySearch],
   );
 
   const fetchLibraryPage = useCallback(
@@ -137,39 +150,31 @@ export function useVoiceBrowser(open: boolean) {
   }, [open, stopPreview]);
   useEffect(() => stopPreview, [stopPreview]);
 
-  /** The account voiceId to store for `voice`, saving Library voices first. Null on refusal. */
-  const choose = useCallback(async (voice: PickerVoice): Promise<string | null> => {
-    if (voice.source === "account") return voice.voiceId;
-    setSaving({ id: voice.voiceId, error: null });
-    try {
-      const saved = await elevenLabsApi.saveVoice({
-        publicOwnerId: voice.publicOwnerId ?? "",
-        voiceId: voice.voiceId,
-        name: voice.name,
-      });
-      setSaving({ id: null, error: null });
-      setAccountNonce((n) => n + 1); // the saved voice now belongs under My voices
-      return saved.voiceId;
-    } catch (e) {
-      setSaving({ id: voice.voiceId, error: e instanceof Error ? e.message : "Could not save this voice." });
-      return null;
-    }
-  }, []);
+  const setFilter = useCallback(
+    (key: keyof VoiceFilters, value: string) =>
+      setFiltersByTab((f) => ({ ...f, [tab]: { ...f[tab], [key]: value } })),
+    [tab],
+  );
+  const clearFilters = useCallback(
+    () => setFiltersByTab((f) => ({ ...f, [tab]: { ...EMPTY_FILTERS, sort: f[tab].sort } })),
+    [tab],
+  );
 
   return {
     tab,
     setTab,
     filters,
-    setFilter: (key: keyof VoiceFilters, value: string) => setFilters((f) => ({ ...f, [key]: value })),
-    clearFilters: () => setFilters((f) => ({ ...EMPTY_FILTERS, sort: f.sort })),
+    setFilter,
+    clearFilters,
     accountAll,
     accountVoices,
     accountLoading,
     accountError,
     library: { voices: library.voices, loading: libraryLoading, error: libraryError, hasMore: library.hasMore, loadMore },
+    // Reopening the popover after a Library save always refetches the account list (the effect
+    // above re-runs on the open → true transition), which is enough to show the newly-saved
+    // voice under My voices — no need for an explicit nonce bump here.
     retry: () => (tab === "account" ? setAccountNonce((n) => n + 1) : fetchLibraryPage(null)),
     preview: { playingId, toggle: togglePreview },
-    saving,
-    choose,
   };
 }

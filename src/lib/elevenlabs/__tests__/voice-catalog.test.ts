@@ -99,6 +99,26 @@ describe("listAccountVoices", () => {
     expect(err.status).toBe(401);
     expect(err.message).toContain("voices");
   });
+
+  it("review fix — stops after ACCOUNT_VOICES_MAX_PAGES pages instead of looping forever", async () => {
+    let call = 0;
+    const fetchImpl = vi.fn(async () => {
+      call += 1;
+      return json({ voices: [ACCOUNT_RAW], has_more: true, next_page_token: `t${call}` });
+    });
+    const voices = await listAccountVoices(fetchImpl as unknown as typeof fetch);
+    expect(fetchImpl).toHaveBeenCalledTimes(50);
+    expect(voices).toHaveLength(50);
+  });
+
+  it("review fix — stops if next_page_token repeats a token already seen", async () => {
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(json({ voices: [ACCOUNT_RAW], has_more: true, next_page_token: "t2" }))
+      .mockResolvedValueOnce(json({ voices: [SAVED_RAW], has_more: true, next_page_token: "t2" }));
+    const voices = await listAccountVoices(fetchImpl as unknown as typeof fetch);
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(voices.map((v) => v.voiceId)).toEqual(["a1", "s1"]);
+  });
 });
 
 describe("getAccountVoice", () => {

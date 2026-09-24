@@ -15,6 +15,11 @@ export const LIBRARY_PAGE_SIZE = 30;
 export const ACCOUNT_VOICES_TTL_MS = 5 * 60 * 1000;
 export const SINGLE_VOICE_TTL_MS = 5 * 60 * 1000;
 export const LIBRARY_PAGE_TTL_MS = 60 * 1000;
+// Review fix — a misbehaving or malicious next_page_token chain must not loop forever;
+// 50 pages is 5,000 account voices, far past anything a real account has.
+export const ACCOUNT_VOICES_MAX_PAGES = 50;
+// Review fix — the voices-cache maps are unbounded otherwise; cap entries and drop oldest.
+export const VOICE_CACHE_MAX_ENTRIES = 500;
 
 /** ElevenLabs Voice Library filter values (the API's own vocabulary). */
 export const LIBRARY_GENDERS = ["female", "male", "neutral"] as const;

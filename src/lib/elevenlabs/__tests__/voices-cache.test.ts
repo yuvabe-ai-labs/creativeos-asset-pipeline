@@ -10,6 +10,7 @@ vi.mock("../voice-catalog", () => mocks);
 import {
   getAccountVoicesCached, getVoiceCached, getLibraryPageCached, invalidateAccountVoices, _resetVoiceCaches,
 } from "../voices-cache";
+import { VOICE_CACHE_MAX_ENTRIES } from "../constants";
 
 const V = { voiceId: "a", source: "account", name: "A", description: null, previewUrl: null, labels: {}, category: "premade", priceMultiplier: 1 };
 
@@ -58,5 +59,41 @@ describe("getLibraryPageCached", () => {
     expect(mocks.listLibraryVoices).toHaveBeenCalledTimes(2);
     await getLibraryPageCached({ page: 0, gender: "female" }, () => 61_000);
     expect(mocks.listLibraryVoices).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe("review fix — cache cap", () => {
+  it("getVoiceCached caps `singles` at VOICE_CACHE_MAX_ENTRIES, dropping the oldest first", async () => {
+    mocks.getAccountVoice.mockImplementation(async (id: string) => ({ ...V, voiceId: id }));
+    for (let i = 0; i <= VOICE_CACHE_MAX_ENTRIES; i++) {
+      await getVoiceCached(`id${i}`, () => i);
+    }
+    mocks.getAccountVoice.mockClear();
+
+    // The oldest entry (id0, written at t=0) was evicted to stay at the cap — a fresh lookup refetches it.
+    await getVoiceCached("id0", () => VOICE_CACHE_MAX_ENTRIES + 1);
+    expect(mocks.getAccountVoice).toHaveBeenCalledTimes(1);
+
+    // The most recently written entry is still cached — no refetch.
+    mocks.getAccountVoice.mockClear();
+    await getVoiceCached(`id${VOICE_CACHE_MAX_ENTRIES}`, () => VOICE_CACHE_MAX_ENTRIES + 1);
+    expect(mocks.getAccountVoice).not.toHaveBeenCalled();
+  });
+
+  it("getLibraryPageCached caps `libraryPages` the same way", async () => {
+    mocks.listLibraryVoices.mockImplementation(async (q: { page: number }) => ({
+      voices: [], hasMore: false, page: q.page,
+    }));
+    for (let i = 0; i <= VOICE_CACHE_MAX_ENTRIES; i++) {
+      await getLibraryPageCached({ page: i }, () => i);
+    }
+    mocks.listLibraryVoices.mockClear();
+
+    await getLibraryPageCached({ page: 0 }, () => VOICE_CACHE_MAX_ENTRIES + 1);
+    expect(mocks.listLibraryVoices).toHaveBeenCalledTimes(1);
+
+    mocks.listLibraryVoices.mockClear();
+    await getLibraryPageCached({ page: VOICE_CACHE_MAX_ENTRIES }, () => VOICE_CACHE_MAX_ENTRIES + 1);
+    expect(mocks.listLibraryVoices).not.toHaveBeenCalled();
   });
 });

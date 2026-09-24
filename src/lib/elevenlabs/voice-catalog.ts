@@ -2,7 +2,9 @@
 // (/v1/shared-voices), normalised to one PickerVoice shape. Current endpoints only — /v1/voices
 // is not used. Server-side only in practice (needs the key); no `server-only` import so shared
 // types can be imported with `import type` from client code.
-import { ELEVENLABS_API_BASE, ACCOUNT_VOICES_PAGE_SIZE, LIBRARY_PAGE_SIZE } from "./constants";
+import {
+  ELEVENLABS_API_BASE, ACCOUNT_VOICES_PAGE_SIZE, LIBRARY_PAGE_SIZE, ACCOUNT_VOICES_MAX_PAGES,
+} from "./constants";
 import { ElevenLabsHttpError, elevenLabsKey } from "./client";
 
 export type VoiceLabels = {
@@ -105,18 +107,27 @@ async function getJson(url: string, what: string, fetchImpl: typeof fetch): Prom
 const mapAll = <T>(list: unknown, map: (r: unknown) => T | null): T[] =>
   (Array.isArray(list) ? list : []).map(map).filter((v): v is T => v !== null);
 
-/** Every account voice, following next_page_token. */
+/**
+ * Every account voice, following next_page_token.
+ *
+ * Review fix — bounded by ACCOUNT_VOICES_MAX_PAGES and stopped if ElevenLabs ever repeats a
+ * token, so a misbehaving response can't loop forever.
+ */
 export async function listAccountVoices(fetchImpl: typeof fetch = fetch): Promise<PickerVoice[]> {
   const out: PickerVoice[] = [];
   let token: string | undefined;
-  do {
+  const seenTokens = new Set<string>();
+  for (let page = 0; page < ACCOUNT_VOICES_MAX_PAGES; page++) {
     const url =
       `${ELEVENLABS_API_BASE}/v2/voices?page_size=${ACCOUNT_VOICES_PAGE_SIZE}&include_total_count=false` +
       (token ? `&next_page_token=${encodeURIComponent(token)}` : "");
     const json = await getJson(url, "voices", fetchImpl);
     out.push(...mapAll(json.voices, mapAccountVoice));
-    token = json.has_more === true ? str(json.next_page_token) : undefined;
-  } while (token);
+    const next = json.has_more === true ? str(json.next_page_token) : undefined;
+    if (!next || seenTokens.has(next)) break;
+    seenTokens.add(next);
+    token = next;
+  }
   return out;
 }
 
