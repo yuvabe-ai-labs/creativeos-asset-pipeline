@@ -1,4 +1,5 @@
 import { defineConfig } from "@trigger.dev/sdk/v3";
+import { ffmpeg } from "@trigger.dev/build/extensions/core";
 
 // The Trigger.dev CLI's own config loader doesn't read .env before evaluating this
 // file, so load it ourselves (Node 20.6+ built-in — no dependency needed) rather than
@@ -38,6 +39,9 @@ export default defineConfig({
     // since the Seedance provider re-encodes out-of-range images before sending them
     // (src/lib/video-gen/providers/seedance-images.ts).
     external: ["sharp"],
+    // D282 — the video-revoice task extracts and replaces audio with ffmpeg. The extension
+    // installs the binary into the deploy image and sets FFMPEG_PATH.
+    extensions: [ffmpeg()],
   },
   maxDuration: 1200,
   retries: {
