@@ -12,7 +12,7 @@ function ffmpegBin(): string {
 
 function run(args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
-    const proc = spawn(ffmpegBin(), ["-hide_banner", "-loglevel", "error", "-y", ...args]);
+    const proc = spawn(ffmpegBin(), ["-hide_banner", "-loglevel", "error", "-y", ...args], { stdio: ["ignore", "ignore", "pipe"] });
     let stderr = "";
     proc.stderr.on("data", (d: Buffer) => {
       stderr = (stderr + d.toString()).slice(-2000);
