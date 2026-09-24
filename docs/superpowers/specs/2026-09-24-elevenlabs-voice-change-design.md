@@ -155,7 +155,14 @@ Notes:
 | `ELEVEN_LABS_API_KEY` missing | Voices route 503 with message; generate with `voiceId` → 400 |
 | `stored: true` with a URL outside our bucket | Generation failed + refund (defensive) |
 
-The 15-minute stuck-generation sweep needs no change; the voice step adds roughly 20–60 s.
+The 15-minute stuck-generation sweep (`trigger/reconcile-stuck-generations.ts`, `*/15 * * * *`)
+stays correct by budget, not by accident: `video-revoice` runs with `maxDuration: 120` and
+`retry.maxAttempts: 2`, so even two full-length attempts (240 s) fit inside the sweep's window
+alongside `video-generate`'s own `maxDuration: 600`. Its queue is capped at
+`concurrencyLimit: 2` to match the ElevenLabs Free plan's concurrent speech-to-speech limit, and
+failures that can't succeed on retry (no audio stream to extract; an ElevenLabs 4xx other than
+429) abort immediately via `AbortTaskRunError` instead of spending the retry budget repeating a
+failure that will recur identically.
 
 ## 7. Testing
 

@@ -5754,7 +5754,10 @@ on the ElevenLabs account, live from `GET /v1/voices`.
 **Why.** `video-generate` retries (maxAttempts 2); an ElevenLabs error thrown inside it would
 regenerate — and re-pay for — the video. A child task retries the voice step alone. Storing the
 original first makes the fallback free. Signed PUT URLs let the task write to GCS without GCS
-credentials in Trigger.dev.
+credentials in Trigger.dev. `video-revoice` caps its queue at `concurrencyLimit: 2` to match the
+ElevenLabs Free plan's concurrent speech-to-speech limit, and its `maxDuration: 120` ×
+`retry.maxAttempts: 2` (aborting immediately on non-retryable 4xx/no-audio failures) keeps every
+attempt inside the 15-minute stuck-reservation sweep.
 
 **Rejected.** Voice step inline in `video-generate` — one careless throw pays for the video twice.
 Voice step in the webhook (`completeGeneration`) — needs ffmpeg on Vercel and a long-running
