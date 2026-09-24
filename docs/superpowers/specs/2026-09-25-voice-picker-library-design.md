@@ -159,12 +159,15 @@ shares can't set one) and `fiat_rate` as USD per 1,000 credits. They do not say 
 copy still reports it through `/v2/voices`. The saved test voice's `sharing` object includes
 `public_owner_id` and `original_voice_id`; whether it includes `rate` was not captured.
 
-**Plan task 1 is a live check** with a Library voice whose `rate > 1`: save it, read it back via
-`/v2/voices?voice_ids=`, record whether `sharing.rate` (or equivalent) is present, then delete it.
+**Checked live 2026-09-25:** "David - Movie Trailer Narrator" (`rate: 2`, `fiat_rate: 0.2`,
+`free_users_allowed: false`) saved via `/v1/voices/add`, read back via `/v2/voices?voice_ids=` —
+the saved copy reports `sharing.rate: 2` and `sharing.fiat_rate: 0.2` (then deleted). So:
 
-- Present → `priceMultiplier = sharing.rate` for saved voices, `rate` for library rows.
-- Absent → **fallback:** the Library tab passes `include_custom_rates=false` so custom-rate voices
-  never appear, and `priceMultiplier` is always 1. The badge code stays but never renders.
+- `priceMultiplier` = `rate` for Library rows, `sharing.rate` for account voices; `1` when absent
+  or `< 1`.
+- The Library tab passes `include_custom_rates=true` so these voices are listed, with the badge.
+- Note: the saved copy's `voice_id` may equal the Library `voice_id`; always use the id the save
+  call returns.
 
 ## 4. Errors
 
