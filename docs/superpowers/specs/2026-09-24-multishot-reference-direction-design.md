@@ -1,6 +1,6 @@
 # Multishot Prompt — Direction box and reference roles (D281)
 
-*2026-09-24 · status: design approved, awaiting spec review*
+*2026-09-24 · status: implemented*
 
 ## Problem
 
