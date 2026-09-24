@@ -58,6 +58,11 @@ export function useVoiceBrowser(open: boolean) {
     return () => { cancelled = true; };
   }, [open, accountNonce]);
 
+  const accountVoices = useMemo(
+    () => filterAccountVoices(accountAll, filters),
+    [accountAll, filters],
+  );
+
   const libraryFilters = useMemo(
     () => ({ ...filters, search: debouncedSearch }),
     [filters, debouncedSearch],
@@ -116,7 +121,10 @@ export function useVoiceBrowser(open: boolean) {
       audio.onended = () => setPlayingId((id) => (id === voice.voiceId ? null : id));
       audioRef.current = audio;
       setPlayingId(voice.voiceId);
-      void audio.play().catch(() => setPlayingId(null));
+      void audio.play().catch(() => {
+        audioRef.current = null;
+        setPlayingId(null);
+      });
     },
     [playingId, stopPreview],
   );
@@ -155,7 +163,7 @@ export function useVoiceBrowser(open: boolean) {
     setFilter: (key: keyof VoiceFilters, value: string) => setFilters((f) => ({ ...f, [key]: value })),
     clearFilters: () => setFilters((f) => ({ ...EMPTY_FILTERS, sort: f.sort })),
     accountAll,
-    accountVoices: filterAccountVoices(accountAll, filters),
+    accountVoices,
     accountLoading,
     accountError,
     library: { voices: library.voices, loading: libraryLoading, error: libraryError, hasMore: library.hasMore, loadMore },

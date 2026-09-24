@@ -125,8 +125,8 @@ import { ActiveRulesCard } from "./video-gen-active-rules-card";
 import { VideoGenShotSpine } from "./video-gen-shot-spine";
 import { VideoGenModelPicker } from "./video-gen-model-picker";
 import { describeShotSpine, describeDurationLabel } from "@/lib/video-gen/shot-spine";
-import { VideoGenVoiceSelect, resolveEffectiveVoiceId } from "./video-gen-voice-select";
-import { useElevenLabsVoices } from "@/hooks/use-elevenlabs-voices";
+import { VideoGenVoicePicker, resolveEffectiveVoiceId } from "./video-gen-voice-picker";
+import { useSelectedVoice } from "@/hooks/use-selected-voice";
 import { voiceChangeBlockedReason } from "@/lib/elevenlabs/voice-eligibility";
 import { computeVoiceChangeCost } from "@/lib/elevenlabs/cost";
 import { readVoiceMeta } from "@/lib/voice-change/meta";
@@ -534,7 +534,7 @@ export function VideoGenFocusView({
   // own beats rather than the model spec's flat default. Cleared the instant the operator edits
   // duration directly, so their edit is never silently overwritten by a later re-derivation.
   const [durationIsDerived, setDurationIsDerived] = useState(false);
-  const voiceList = useElevenLabsVoices(open);
+  const selectedVoice = useSelectedVoice(voiceIdProp);
   // The selected rail item: "video" (settings + preview), "history", "details", or a connected
   // node's id (middle column shows that node's role/detail view). Mirrors image-gen-focus-view.
   const focusStoreApi = useCanvasStoreApi();
@@ -1220,16 +1220,18 @@ export function VideoGenFocusView({
   );
   // D282 review fix — a voice the loaded list no longer has (deleted from the ElevenLabs
   // account) or that the list request errored on must not be sent or priced. See
-  // resolveEffectiveVoiceId's doc comment in video-gen-voice-select.tsx.
+  // resolveEffectiveVoiceId's doc comment in video-gen-voice-picker.tsx.
   const effectiveVoiceId = resolveEffectiveVoiceId({
     value: voiceIdProp,
-    voices: voiceList.voices,
-    loading: voiceList.loading,
-    error: voiceList.error,
+    loading: selectedVoice.loading,
+    notFound: selectedVoice.notFound,
+    error: selectedVoice.error,
     blockedReason: voiceBlockedReason,
   });
   const videoCostEstimate = computeVideoCost(modelId, durationSeconds, audioEnabled, resolution);
-  const voiceCostUsd = effectiveVoiceId ? computeVoiceChangeCost(durationSeconds).usd : 0;
+  const voiceCostUsd = effectiveVoiceId
+    ? computeVoiceChangeCost(durationSeconds, selectedVoice.voice?.priceMultiplier ?? 1).usd
+    : 0;
   const estimatedCredits = videoCostEstimate
     ? usdToFinalCredits(videoCostEstimate.usd + voiceCostUsd)
     : null;
@@ -1600,13 +1602,13 @@ export function VideoGenFocusView({
                     )}
                   </VideoGenModelPicker>
                   <LeftSection icon={Mic} label="Voice">
-                    <VideoGenVoiceSelect
+                    <VideoGenVoicePicker
                       value={voiceIdProp}
                       onChange={(v) => onPatch({ voiceId: v })}
-                      voices={voiceList.voices}
-                      loading={voiceList.loading}
-                      error={voiceList.error}
                       blockedReason={voiceBlockedReason}
+                      selected={selectedVoice.voice}
+                      selectedLoading={selectedVoice.loading}
+                      selectedNotFound={selectedVoice.notFound}
                     />
                   </LeftSection>
                   {(() => {
