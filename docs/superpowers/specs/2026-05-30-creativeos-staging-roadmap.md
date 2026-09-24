@@ -5765,3 +5765,30 @@ webhook request. Keeping both original and re-voiced as versions — doubles ver
 decision the operator makes. A hard-coded voice list — needs a deploy per new voice.
 
 **Originated →** `docs/superpowers/specs/2026-09-24-elevenlabs-voice-change-design.md`.
+
+### D283 — Voice picker browses the account and the ElevenLabs Voice Library *(recorded 2026-09-25; refines D282)*
+
+**Decision.** The Video Gen voice control becomes a rich popover with two tabs. **My voices**
+loads every account voice from `GET /v2/voices` (all pages, cached 5 min) and searches/filters it
+in the browser. **Voice Library** pages `GET /v1/shared-voices` 30 at a time with ElevenLabs'
+own search and filters (infinite scroll). Picking a Library voice saves it to the account
+(`POST /v1/voices/add/{public_user_id}/{voice_id}`) and selects the returned account id. Every
+row has inline preview; one plays at a time. The node resolves its selected voice with a
+single-voice lookup (`/v2/voices?voice_ids=`), which also replaces D282's full-list check in the
+generate route. Voices with a legacy custom rate show an `N×` badge and are reserved/settled with
+that multiplier — if a live check shows the multiplier doesn't survive saving, they are hidden
+instead (`include_custom_rates=false`).
+
+**Why.** 21 account voices vs ~18,000 Library voices (checked live 2026-09-25). A live test showed
+Library voices work for speech-to-speech on this account, saved or not. Loading all account voices
+makes filtering instant and exact (`/v2/voices` has no gender/age/accent filters); the Library is
+too large for that. Saving makes the voice visible to the whole team and resolvable by the same
+single lookup the route uses. `/v2/voices` is the current list endpoint; D282 used `/v1/voices`.
+
+**Rejected.** A full-screen voice-browser dialog — heavier for a quick pick. Upgrading the
+`Select` — can't hold tabs, filters or per-row playback. Infinite scroll for My voices — slower and
+inexact for 21 voices. Using Library voices without saving — every generation would need a Library
+lookup to validate and price the voice. Reading the plan tier to gate the Library tab — the key
+has no user-read permission (401).
+
+**Refines.** D282. **Originated →** `docs/superpowers/specs/2026-09-25-voice-picker-library-design.md`.
