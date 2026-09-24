@@ -19,7 +19,7 @@ import {
 } from "@/lib/video-gen/assign-image-roles";
 import { resolveVideoGenPrompt } from "@/lib/video-gen/resolve-prompt";
 import { multishotCapabilityFor, checkLadder } from "@/lib/nodes/multishot-models";
-import { checkPlanLimits, type MultishotPlan } from "@/lib/nodes/multishot-plan";
+import { checkPlanLimits, planCoverage, type MultishotPlan } from "@/lib/nodes/multishot-plan";
 import { totalOf } from "@/lib/nodes/multishot-cuts";
 import { mapUpstreamForVideo } from "@/lib/nodes/resolve-inputs";
 import {
@@ -115,6 +115,32 @@ export async function POST(
         refEntriesOf(resolved.promptUpstream.map((u) => mapUpstreamForVideo(u))).map((r) => r.id),
       );
       if (!limits.ok) return apiError(limits.reason, 400);
+
+      // D279 — EVERY CUT MUST HAVE A WRITTEN BEAT.
+      //
+      // `renderPlan` and `checkPlanLimits` both resolve a missing beat with
+      // `byId.get(cut.id) ?? ""`, so a cut the plan does not cover renders as a shot with EMPTY
+      // TEXT, passes the character budgets above, and is billed. Neither guard above catches it:
+      // `checkLadder` measures seconds and counts, `checkPlanLimits` measures characters, and an
+      // empty string is a legal length for both.
+      //
+      // Sits here with them — above insertGeneration and reserveCredits — for the reason those
+      // guards sit here: a rejected request must neither record a generation nor touch the org's
+      // credit balance.
+      //
+      // Orphaned beats are deliberately NOT an error: `renderPlan` walks the cuts, so a beat whose
+      // cut was removed is never rendered. Re-running `parsePlan` here instead would reject the
+      // plan whole over one, which would refuse a plan that renders perfectly well.
+      const coverage = planCoverage(promptNode.activeOutput as MultishotPlan, resolved.cuts);
+      if (coverage.unwritten.length > 0) {
+        // The FIRST one only, matching checkLadder's own rule: an operator fixes one thing at a
+        // time, and a stacked list reads as a failure rather than an instruction.
+        const at = resolved.cuts.findIndex((c) => c.id === coverage.unwritten[0]);
+        return apiError(
+          `Shot ${at + 1} has no written prompt. Re-generate the Multishot Prompt, or write that shot.`,
+          400,
+        );
+      }
 
       // THE DURATION IS THE LADDER'S, NOT THE NODE'S PARAM.
       //

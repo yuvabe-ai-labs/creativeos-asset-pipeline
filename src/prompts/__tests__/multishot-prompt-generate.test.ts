@@ -10,6 +10,7 @@ import {
   planSchemaForCuts,
 } from "../multishot-prompt-generate";
 import { multishotPromptFor } from "../multishot-prompt-for";
+import { multishotPromptKling, MULTISHOT_KLING_PROMPT_ID } from "../multishot-prompt-kling";
 import { MULTISHOT_MODELS } from "@/lib/nodes/multishot-models";
 import { SEEDANCE_MODEL_ID } from "@/lib/video-gen/client-models";
 import {
@@ -379,5 +380,34 @@ describe("voiceover performance rules", () => {
     expect(system).not.toContain("{} for dialogue");
     expect(system).toContain("() for music");
     expect(system).toContain("<> for sound effects");
+  });
+});
+
+// D281 — an operator attached a three-angle character turnaround on a grey seamless, and the
+// writer put a light studio backdrop into the look. Both writers share this rule.
+describe("references are identity-only (D281)", () => {
+  const writers = [
+    ["Omni", multishotPromptGenerate().system],
+    ["Kling", multishotPromptKling().system],
+  ] as const;
+
+  it.each(writers)("%s: a reference carries identity, never its backdrop or light", (_, system) => {
+    expect(system).toMatch(/A REFERENCE IS IDENTITY ONLY/);
+    expect(system).toMatch(/backdrop, studio lighting/i);
+    expect(system).toMatch(/identity sheet, never a location/i);
+  });
+
+  it.each(writers)("%s: takes look from a reference only when the direction says so", (_, system) => {
+    expect(system).toMatch(/unless the operator's direction/i);
+    expect(system).toMatch(/names a reference as the source of the look/i);
+  });
+
+  it.each(writers)("%s: still forbids writing the reference numbers into beats", (_, system) => {
+    expect(system).toMatch(/"reference image 2"/);
+  });
+
+  it("bumps both prompt ids", () => {
+    expect(MULTISHOT_PROMPT_ID).toBe("multishot-prompt-generate@10");
+    expect(MULTISHOT_KLING_PROMPT_ID).toBe("multishot-prompt-kling@7");
   });
 });

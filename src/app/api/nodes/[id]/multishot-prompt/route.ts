@@ -7,7 +7,7 @@ import {
   storePlanRefs,
   renderPlanRefs,
 } from "@/lib/nodes/multishot-plan";
-import { refEntriesOf } from "@/lib/nodes/ref-binding";
+import { refEntriesOf, resolveRefMentions } from "@/lib/nodes/ref-binding";
 import { resolvePlanMentions } from "@/lib/nodes/plan-mentions";
 import {
   MULTISHOT_LOOK_SCHEMA,
@@ -118,7 +118,10 @@ export async function POST(
         clientContext: resolved.clientContext,
         upstream: resolved.upstream,
         cuts: resolved.cuts,
-        instruction,
+        // D281 — the Direction's `@[Label](id)` image chips, resolved to "reference image N
+        // (name)" over the SAME roster the images are labelled with below. The raw form is what
+        // gets recorded (paramsUsed / snapshot), so a version still says which image was meant.
+        instruction: resolveRefMentions(instruction, refs),
         cutInstructions,
         scriptNotes: resolved.scriptNotes,
         // D267 (Task 5) — the same per-cut ceiling `checkPlanLimits` measures the rendered
@@ -246,7 +249,9 @@ export async function POST(
               { role: "system", content: spec.system },
               {
                 role: "user",
-                content: buildUserContent(user, resolved.upstream.filter(isVisionAttachment)),
+                content: buildUserContent(user, resolved.upstream.filter(isVisionAttachment), {
+                  labelImages: true,
+                }),
               },
             ],
           });

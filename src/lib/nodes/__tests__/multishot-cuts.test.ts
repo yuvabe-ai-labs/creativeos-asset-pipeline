@@ -2,9 +2,11 @@ import { describe, it, expect } from "vitest";
 import {
   MIN_CUT_SECONDS,
   addCut,
+  canAddCut,
   clampTotal,
   cutsFromShots,
   headroomOf,
+  insertCut,
   maxSecondsFor,
   newCut,
   removeCut,
@@ -187,6 +189,94 @@ describe("addCut", () => {
 
   it("succeeds at the boundary — exactly 1s of headroom is enough", () => {
     expect(totalOf(addCut(cuts(OMNI_MAX_SECONDS - 1), OMNI))).toBe(OMNI_MAX_SECONDS);
+  });
+});
+
+describe("insertCut", () => {
+  it("inserts at index 0, pushing every existing cut back", () => {
+    const result = insertCut(cuts(2, 2, 4), 0, OMNI);
+    expect(secondsOf(result)).toEqual([1, 2, 2, 4]);
+    expect(result[0].text).toBe("");
+    expect(result[1].text).toBe("cut 1");
+  });
+
+  it("inserts in the middle", () => {
+    const result = insertCut(cuts(2, 2, 4), 2, OMNI);
+    expect(result.map((c) => c.text)).toEqual(["cut 1", "cut 2", "", "cut 3"]);
+  });
+
+  it("appends when index === cuts.length", () => {
+    const result = insertCut(cuts(2, 2, 4), 3, OMNI);
+    expect(result.map((c) => c.text)).toEqual(["cut 1", "cut 2", "cut 3", ""]);
+  });
+
+  it("leaves every existing cut byte-identical (same object references)", () => {
+    const original = cuts(2, 2, 4);
+    const result = insertCut(original, 1, OMNI);
+    expect(result[0]).toBe(original[0]);
+    expect(result[2]).toBe(original[1]);
+    expect(result[3]).toBe(original[2]);
+  });
+
+  it("funds the new cut from headroom — no neighbour is shortened", () => {
+    const result = insertCut(cuts(2, 2, 4), 1, OMNI);
+    expect(totalOf(result)).toBe(9); // 8 + 1, nobody lost a second
+  });
+
+  // The new cut has NO voiceover key. `undefined` and `[]` are different states throughout
+  // this module, and a brand new shot has not been declared silent.
+  it("gives the new cut no voiceover key at all", () => {
+    const result = insertCut(cuts(4), 1, OMNI);
+    expect("voiceover" in result[1]).toBe(false);
+  });
+
+  it("refuses when the ladder is already at the ceiling", () => {
+    const full = cuts(OMNI_MAX_SECONDS);
+    expect(insertCut(full, 0, OMNI)).toEqual(full);
+  });
+
+  it("refuses a 7th cut on Kling and allows it on Omni", () => {
+    const six = cuts(1, 1, 1, 1, 1, 1);
+    expect(insertCut(six, 0, KLING)).toHaveLength(6);
+    expect(insertCut(six, 0, OMNI)).toHaveLength(7);
+  });
+
+  it("clamps an out-of-range index rather than producing a hole", () => {
+    expect(insertCut(cuts(2, 2), -5, OMNI).map((c) => c.text)).toEqual(["", "cut 1", "cut 2"]);
+    expect(insertCut(cuts(2, 2), 99, OMNI).map((c) => c.text)).toEqual(["cut 1", "cut 2", ""]);
+  });
+});
+
+describe("canAddCut", () => {
+  it("is ok when there is headroom and room under the cut cap", () => {
+    expect(canAddCut(cuts(2, 2), OMNI)).toEqual({ ok: true });
+  });
+
+  it("names the ceiling when the ladder is full", () => {
+    const result = canAddCut(cuts(OMNI_MAX_SECONDS), OMNI);
+    expect(result.ok).toBe(false);
+    expect(result.ok === false && result.reason).toBe(
+      "10s maximum reached. Shorten a shot to make room.",
+    );
+  });
+
+  it("names the model and its cut cap when the cap is reached", () => {
+    const result = canAddCut(cuts(1, 1, 1, 1, 1, 1), KLING);
+    expect(result.ok).toBe(false);
+    expect(result.ok === false && result.reason).toBe("Kling 3.0 Omni allows 6 shots.");
+  });
+
+  // The ceiling is reported first: it is the one the operator can fix by shortening a shot,
+  // and checkLadder's own rule is that only the FIRST violation is reported.
+  it("reports the ceiling first when both are violated", () => {
+    const result = canAddCut(cuts(3, 3, 3, 2, 2, 2), KLING); // 15s AND 6 cuts
+    expect(result.ok === false && result.reason).toContain("maximum reached");
+  });
+
+  it("agrees with insertCut — a refused add is never ok", () => {
+    const full = cuts(OMNI_MAX_SECONDS);
+    expect(canAddCut(full, OMNI).ok).toBe(false);
+    expect(insertCut(full, 0, OMNI)).toEqual(full);
   });
 });
 
