@@ -1,3 +1,4 @@
+import { ElevenLabsHttpError } from "@/lib/elevenlabs/client";
 import type { RevoicePayload } from "./types";
 
 export type RevoiceDeps = {
@@ -9,13 +10,47 @@ export type RevoiceDeps = {
 };
 
 /**
+ * D282 review fix — thrown for revoice failures that cannot succeed on a retry: the source video
+ * has no audio stream to extract, or ElevenLabs rejected the request with a 4xx other than 429
+ * (rate limit, which IS worth retrying). video-revoice.ts converts this into AbortTaskRunError so
+ * Trigger.dev's retry policy doesn't burn the 15-minute stuck-reservation sweep window on
+ * something that will only fail the same way again. Every other failure (network errors, 429,
+ * 5xx) rethrows unchanged and stays retryable.
+ */
+export class NonRetryableRevoiceError extends Error {
+  constructor(message: string, options?: { cause?: unknown }) {
+    super(message, options);
+    this.name = "NonRetryableRevoiceError";
+  }
+}
+
+/**
  * D282 — the video-revoice task's steps. Throws on any failure: the task's own retry policy
  * re-runs just this, never the paid video generation.
  */
 export async function revoiceVideo(payload: RevoicePayload, deps: RevoiceDeps): Promise<void> {
   const video = await deps.fetchBytes(payload.sourceUrl);
-  const audio = await deps.extractAudio(video);
-  const voiced = await deps.speechToSpeech({ audio, voiceId: payload.voiceId });
+
+  let audio: Buffer;
+  try {
+    audio = await deps.extractAudio(video);
+  } catch (e) {
+    throw new NonRetryableRevoiceError(
+      `No audio stream to re-voice: ${e instanceof Error ? e.message : String(e)}`,
+      { cause: e },
+    );
+  }
+
+  let voiced: Buffer;
+  try {
+    voiced = await deps.speechToSpeech({ audio, voiceId: payload.voiceId });
+  } catch (e) {
+    if (e instanceof ElevenLabsHttpError && e.status !== 429 && e.status >= 400 && e.status < 500) {
+      throw new NonRetryableRevoiceError(e.message, { cause: e });
+    }
+    throw e;
+  }
+
   const final = await deps.replaceAudio(video, voiced);
   await deps.putBytes(payload.revoicedPutUrl, final, "video/mp4");
 }

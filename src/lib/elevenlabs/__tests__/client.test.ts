@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { mapVoices, listVoices, speechToSpeech, ElevenLabsKeyMissingError } from "../client";
+import { mapVoices, listVoices, speechToSpeech, ElevenLabsKeyMissingError, ElevenLabsHttpError } from "../client";
 
 afterEach(() => {
   delete process.env.ELEVEN_LABS_API_KEY;
@@ -74,5 +74,17 @@ describe("speechToSpeech", () => {
     await expect(
       speechToSpeech({ audio: Buffer.from([1]), voiceId: "v" }, fetchImpl as unknown as typeof fetch),
     ).rejects.toThrow(/429.*quota_exceeded/);
+  });
+
+  it("throws an ElevenLabsHttpError carrying the status", async () => {
+    process.env.ELEVEN_LABS_API_KEY = "k";
+    const fetchImpl = vi.fn(async () => new Response("invalid voice", { status: 422 }));
+    const err = await speechToSpeech(
+      { audio: Buffer.from([1]), voiceId: "v" },
+      fetchImpl as unknown as typeof fetch,
+    ).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ElevenLabsHttpError);
+    expect((err as ElevenLabsHttpError).status).toBe(422);
+    expect((err as Error).message).toMatch(/422.*invalid voice/);
   });
 });

@@ -61,6 +61,12 @@ export async function replaceAudio(video: Buffer, audio: Buffer): Promise<Buffer
       "-c:v", "copy",
       "-c:a", "aac",
       "-b:a", "192k",
+      // D282 review fix — the voiced audio can come back shorter than the source (ElevenLabs
+      // speech-to-speech doesn't guarantee matching duration). Without padding, `-shortest` cut
+      // the OUTPUT to the shorter of the two streams, truncating the video itself. `apad` pads
+      // the audio with silence so the video's own (copied, untouched) length always wins;
+      // `-shortest` is kept as the safety net for the reverse case (voiced audio longer).
+      "-af", "apad",
       "-shortest",
       "-movflags", "+faststart",
       output,

@@ -15,6 +15,19 @@ export class ElevenLabsKeyMissingError extends Error {
   }
 }
 
+// D282 review fix — carries the HTTP status as a typed field so callers (revoice.ts) can classify
+// retryable (429, 5xx) vs non-retryable (4xx other than 429) failures without string-parsing the
+// message. Kept a `message` in the same shape as before so existing callers/tests that only check
+// the message text (e.g. "429 quota") are unaffected.
+export class ElevenLabsHttpError extends Error {
+  readonly status: number;
+  constructor(status: number, detail: string) {
+    super(`ElevenLabs speech-to-speech failed: ${status} ${detail.slice(0, 300)}`);
+    this.name = "ElevenLabsHttpError";
+    this.status = status;
+  }
+}
+
 function apiKey(): string {
   const key = process.env.ELEVEN_LABS_API_KEY;
   if (!key) throw new ElevenLabsKeyMissingError();
@@ -60,7 +73,7 @@ export async function speechToSpeech(
   );
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
-    throw new Error(`ElevenLabs speech-to-speech failed: ${res.status} ${detail.slice(0, 300)}`);
+    throw new ElevenLabsHttpError(res.status, detail);
   }
   return Buffer.from(await res.arrayBuffer());
 }

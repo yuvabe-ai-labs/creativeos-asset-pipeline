@@ -156,7 +156,11 @@ export const videoGenerateTask = task({
             meta: delivered.meta,
           });
         } catch (e) {
-          throw new Error(
+          // D282 review fix — both the original and the (possibly re-voiced) delivered video are
+          // already stored; a retry here would only re-run the whole generation and re-pay for
+          // it, never actually reach a different webhook outcome. Abort instead of throwing a
+          // plain Error, which the task's retry policy would otherwise re-run.
+          throw new AbortTaskRunError(
             `Video generated but the webhook at ${webhookUrl} was unreachable — ` +
               `videoUrl=${delivered.videoUrl}: ${e instanceof Error ? e.message : String(e)}`,
           );
