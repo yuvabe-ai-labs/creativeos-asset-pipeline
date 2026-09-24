@@ -54,6 +54,15 @@ const mocks = vi.hoisted(() => ({
   triggerTask: vi.fn(async (_taskId: string, _payload: { params: Record<string, unknown> }) => ({
     id: "run-1",
   })),
+  getVoicesCached: vi.fn(async () => [
+    { voiceId: "v1", name: "Priya", category: "cloned", previewUrl: null },
+  ]),
+  signVideoGenVoiceUrls: vi.fn(async () => ({
+    originalPutUrl: "https://put/o",
+    originalUrl: "https://storage.googleapis.com/b/o.mp4",
+    revoicedPutUrl: "https://put/r",
+    revoicedUrl: "https://storage.googleapis.com/b/r.mp4",
+  })),
 }));
 
 // D236 — `targetModel` is the MULTISHOT NODE's current setting; `planTargetModel` is the stamp on
@@ -99,6 +108,9 @@ vi.mock("@trigger.dev/sdk/v3", () => ({
   tasks: { trigger: mocks.triggerTask },
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
+
+vi.mock("@/lib/elevenlabs/voices-cache", () => ({ getVoicesCached: mocks.getVoicesCached }));
+vi.mock("@/lib/storage", () => ({ signVideoGenVoiceUrls: mocks.signVideoGenVoiceUrls }));
 
 import { POST } from "./route";
 
@@ -343,5 +355,98 @@ describe("POST video-generate — multishot server backstop (D236, D97)", () => 
 
     expect(res.status).toBe(202);
     expect(mocks.triggerTask).toHaveBeenCalledTimes(1);
+  });
+});
+
+import { videoGenRegistry } from "@/lib/video-gen/registry";
+import { computeVideoCost, isVideoAudioEnabled, asResolutionString } from "@/lib/video-gen/cost";
+import { computeVoiceChangeCost } from "@/lib/elevenlabs/cost";
+import { usdToFinalCredits } from "@/lib/credits/units";
+import { ElevenLabsKeyMissingError } from "@/lib/elevenlabs/client";
+
+// A single-take video-prompt lane: vg <- vp (string prompt). No images.
+function simpleGraph(): Record<string, Row[]> {
+  return {
+    vg: [{ nodeId: "vp", type: "video-prompt", data: {}, activeOutput: "A hand lifts keys.", versionId: "v9" }],
+    vp: [],
+  };
+}
+
+const AUDIO_MODEL_ID = Object.values(videoGenRegistry).find((m) =>
+  m.params.some((p) => p.name === "audio"),
+)!.id;
+
+describe("POST video-generate — voice change (D282)", () => {
+  it("rejects a voice when the model's audio is off, before recording anything", async () => {
+    mocks.graph = simpleGraph();
+    const res = await post({ modelId: AUDIO_MODEL_ID, params: { audio: "off" }, voiceId: "v1" });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/Audio/);
+    expect(mocks.insertGeneration).not.toHaveBeenCalled();
+    expect(mocks.reserveCredits).not.toHaveBeenCalled();
+  });
+
+  it("rejects a voice that isn't on the ElevenLabs account", async () => {
+    mocks.graph = simpleGraph();
+    const res = await post({ modelId: GEMINI_OMNI_MODEL_ID, params: {}, voiceId: "gone" });
+    expect(res.status).toBe(400);
+    expect(mocks.insertGeneration).not.toHaveBeenCalled();
+  });
+
+  it("rejects a voice when the ElevenLabs key is missing", async () => {
+    mocks.graph = simpleGraph();
+    mocks.getVoicesCached.mockRejectedValueOnce(new ElevenLabsKeyMissingError());
+    const res = await post({ modelId: GEMINI_OMNI_MODEL_ID, params: {}, voiceId: "v1" });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/ELEVEN_LABS_API_KEY/);
+  });
+
+  it("reserves video + voice and sends the voice payload to the task", async () => {
+    mocks.graph = simpleGraph();
+    const res = await post({ modelId: GEMINI_OMNI_MODEL_ID, params: {}, voiceId: "v1" });
+    expect(res.status).toBe(202);
+
+    const payload = mocks.triggerTask.mock.calls[0][1] as unknown as {
+      params: Record<string, unknown>;
+      voice: Record<string, string>;
+    };
+    expect(payload.voice).toEqual({
+      voiceId: "v1",
+      voiceName: "Priya",
+      originalPutUrl: "https://put/o",
+      originalUrl: "https://storage.googleapis.com/b/o.mp4",
+      revoicedPutUrl: "https://put/r",
+      revoicedUrl: "https://storage.googleapis.com/b/r.mp4",
+    });
+    expect(mocks.signVideoGenVoiceUrls).toHaveBeenCalledWith({ nodeId: "vg", generationId: "gen-1" });
+
+    const p = payload.params;
+    const duration = Number(p.seconds ?? p.duration ?? 0);
+    const video = computeVideoCost(
+      GEMINI_OMNI_MODEL_ID,
+      duration,
+      isVideoAudioEnabled(p.audio),
+      asResolutionString(p.resolution),
+    )!;
+    expect(mocks.reserveCredits).toHaveBeenCalledWith(
+      "org-1",
+      "gen-1",
+      usdToFinalCredits(video.usd + computeVoiceChangeCost(duration).usd),
+    );
+  });
+
+  it("ignores the voice in mock mode and leaves the payload unchanged", async () => {
+    mocks.graph = simpleGraph();
+    const res = await post({ modelId: GEMINI_OMNI_MODEL_ID, params: {}, voiceId: "v1", mock: true });
+    expect(res.status).toBe(202);
+    expect(mocks.getVoicesCached).not.toHaveBeenCalled();
+    expect(mocks.triggerTask.mock.calls[0][1]).not.toHaveProperty("voice");
+  });
+
+  it("sends no voice key at all when none is selected", async () => {
+    mocks.graph = simpleGraph();
+    await post({ modelId: GEMINI_OMNI_MODEL_ID, params: {} });
+    expect(mocks.triggerTask.mock.calls[0][1]).not.toHaveProperty("voice");
+    expect(mocks.signVideoGenVoiceUrls).not.toHaveBeenCalled();
   });
 });
