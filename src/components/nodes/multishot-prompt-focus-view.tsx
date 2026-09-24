@@ -12,6 +12,7 @@ import {
   RefreshCw,
   ChevronDown,
   TriangleAlert,
+  Compass,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -542,10 +543,9 @@ export function MultishotPromptFocusView({
     }
   }
 
-  // No editors for `instruction` / `cutInstructions` any longer (operator request 2026-09-08 —
-  // they were added on 2026-09-04 and this node never had them before that). The values are still
-  // READ from the node and still travel in every request, so a node that has them keeps its steer;
-  // there is simply no longer a surface for typing new ones.
+  // Per-cut instruction editors were removed (operator request 2026-09-08); `cutInstructions` is
+  // still read from the node and sent, there is just no surface for typing new ones. The
+  // sequence-level `instruction` came back as the Direction box (D281).
 
   /**
    * Persist the hand-edited plan onto the ACTIVE version, in place — no new version row. Same
@@ -731,6 +731,29 @@ export function MultishotPromptFocusView({
                           the writer will cite the ones each shot calls for.
                         </p>
                       )}
+
+                      {/* D281 — the operator's Direction: what each reference is FOR. The writer
+                          otherwise has to guess, and a character turnaround on a grey seamless got
+                          read as the location. @-chips resolve server-side to "reference image N",
+                          the same number the attached image is labelled with. Node input, not plan
+                          output, so it writes through immediately and is not held by Save/Cancel. */}
+                      <div className="flex flex-col gap-2">
+                        <FieldLabel icon={Compass} label="Direction" />
+                        <MentionInstructionEditor
+                          value={instructionDraft}
+                          onChange={(v) => {
+                            setInstructionDraft(v);
+                            onPatch({ instruction: v });
+                          }}
+                          placeholder="e.g. @ the turnaround is the character — identity only, ignore its backdrop. Take the setting and light from @ the kitchen shot."
+                          upstream={upstream}
+                          disabled={isReadOnly || generating || !!refining}
+                          className="min-h-16"
+                        />
+                        <p className="text-[0.65rem] text-muted-foreground">
+                          References are used for identity only unless you say otherwise here.
+                        </p>
+                      </div>
 
                       {cuts.length === 0 ? (
                         <p className="text-sm text-muted-foreground">
