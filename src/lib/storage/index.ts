@@ -14,6 +14,7 @@ import {
   pathForNodeFile,
   pathForReviewAnnotation,
   pathForVideoGen,
+  pathForVideoGenVoice,
 } from "./paths";
 import type { BrandAssetCategory } from "@/lib/brand-kit/types";
 
@@ -106,6 +107,39 @@ export async function uploadVideoGen(args: {
     ext: args.ext,
   });
   return _upload(path, args.body, args.contentType);
+}
+
+export type VoiceUploadUrls = {
+  originalPutUrl: string;
+  originalUrl: string;
+  revoicedPutUrl: string;
+  revoicedUrl: string;
+};
+
+// A generation can run up to 20 minutes before the task uploads; 5 minutes (the default) is far
+// too short. Two hours covers the longest generation plus the voice-change retries.
+const VOICE_UPLOAD_EXPIRY_MS = 2 * 60 * 60 * 1000;
+
+// D282 — the Trigger task has no GCS credentials, so the route signs both uploads up front.
+export async function signVideoGenVoiceUrls(args: {
+  nodeId: string;
+  generationId: string;
+}): Promise<VoiceUploadUrls> {
+  const { clientId, canvasId } = await resolveOwnership(args.nodeId);
+  const pathFor = (variant: "original" | "revoiced") =>
+    pathForVideoGenVoice({ clientId, canvasId, nodeId: args.nodeId, generationId: args.generationId, variant });
+  const originalPath = pathFor("original");
+  const revoicedPath = pathFor("revoiced");
+  const [originalPutUrl, revoicedPutUrl] = await Promise.all([
+    _signPutUrl(originalPath, "video/mp4", VOICE_UPLOAD_EXPIRY_MS),
+    _signPutUrl(revoicedPath, "video/mp4", VOICE_UPLOAD_EXPIRY_MS),
+  ]);
+  return {
+    originalPutUrl,
+    originalUrl: publicUrlFor(originalPath),
+    revoicedPutUrl,
+    revoicedUrl: publicUrlFor(revoicedPath),
+  };
 }
 
 export async function uploadClientLogo(args: {
@@ -248,6 +282,11 @@ export function parsePathFromUrl(url: string): string | null {
   const prefix = `https://storage.googleapis.com/${getBucketName()}/`;
   if (url.startsWith(prefix)) return url.slice(prefix.length);
   return null;
+}
+
+/** True when `url` is a public URL of an object in this app's bucket. */
+export function isOwnStoredUrl(url: string): boolean {
+  return parsePathFromUrl(url) !== null;
 }
 
 const SUPABASE_PUBLIC_RE =
