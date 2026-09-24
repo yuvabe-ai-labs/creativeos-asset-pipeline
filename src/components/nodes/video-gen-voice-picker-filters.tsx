@@ -4,10 +4,12 @@ import { Search, X } from "lucide-react";
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import {
   LIBRARY_ACCENTS, LIBRARY_AGES, LIBRARY_GENDERS, LIBRARY_LANGUAGES, LIBRARY_SORTS, LIBRARY_USE_CASES,
 } from "@/lib/elevenlabs/constants";
 import { ACCOUNT_SORTS, formatLabel, hasActiveFilters, labelOptions, type VoiceFilters } from "@/lib/elevenlabs/voice-filters";
+import { FILTER_FIELD_ICON } from "@/lib/elevenlabs/voice-labels";
 import type { PickerVoice } from "@/lib/elevenlabs/voice-catalog";
 import type { VoiceTab } from "@/hooks/use-voice-browser";
 
@@ -16,11 +18,28 @@ const ANY = "any";
 type Option = { value: string; label: string };
 const opts = (values: readonly string[]): Option[] => values.map((v) => ({ value: v, label: formatLabel(v) }));
 
-function FilterSelect({ label, value, options, onChange }: { label: string; value: string; options: Option[]; onChange: (v: string) => void }) {
+function FilterSelect({
+  field, label, value, options, onChange,
+}: {
+  field: keyof typeof FILTER_FIELD_ICON;
+  label: string;
+  value: string;
+  options: Option[];
+  onChange: (v: string) => void;
+}) {
+  const Icon = FILTER_FIELD_ICON[field];
+  const active = value !== "";
   return (
     <Select value={value || ANY} onValueChange={(v) => onChange(!v || v === ANY ? "" : String(v))}>
-      <SelectTrigger size="sm" className="nodrag h-7 text-xs" aria-label={label}>
-        <SelectValue>{value ? (options.find((o) => o.value === value)?.label ?? formatLabel(value)) : label}</SelectValue>
+      <SelectTrigger
+        size="sm"
+        className={cn("nodrag h-7 text-xs", active && "border-primary/40 text-primary")}
+        aria-label={label}
+      >
+        <SelectValue>
+          <Icon className="size-3.5" strokeWidth={1.5} />
+          {value ? (options.find((o) => o.value === value)?.label ?? formatLabel(value)) : label}
+        </SelectValue>
       </SelectTrigger>
       <SelectContent>
         <SelectItem value={ANY} className="text-xs">Any {label.toLowerCase()}</SelectItem>
@@ -41,6 +60,7 @@ type Props = {
 };
 
 // D283 — search + filter row. My voices: options from the loaded voices' labels. Library: ElevenLabs' vocabulary.
+// Each filter's SelectTrigger carries its category icon; an active filter is tinted primary.
 export function VideoGenVoicePickerFilters({ tab, filters, accountAll, onFilter, onClear }: Props) {
   const lib = tab === "library";
   const genders = lib ? opts(LIBRARY_GENDERS) : opts(labelOptions(accountAll, "gender"));
@@ -72,12 +92,12 @@ export function VideoGenVoicePickerFilters({ tab, filters, accountAll, onFilter,
         )}
       </InputGroup>
       <div className="flex flex-wrap items-center gap-1.5">
-        <FilterSelect label="Gender" value={filters.gender} options={genders} onChange={(v) => onFilter("gender", v)} />
-        <FilterSelect label="Age" value={filters.age} options={ages} onChange={(v) => onFilter("age", v)} />
-        <FilterSelect label="Accent" value={filters.accent} options={accents} onChange={(v) => onFilter("accent", v)} />
-        <FilterSelect label="Language" value={filters.language} options={languages} onChange={(v) => onFilter("language", v)} />
-        <FilterSelect label="Use case" value={filters.useCase} options={useCases} onChange={(v) => onFilter("useCase", v)} />
-        <FilterSelect label="Sort" value={filters.sort} options={sorts} onChange={(v) => onFilter("sort", v)} />
+        <FilterSelect field="gender" label="Gender" value={filters.gender} options={genders} onChange={(v) => onFilter("gender", v)} />
+        <FilterSelect field="age" label="Age" value={filters.age} options={ages} onChange={(v) => onFilter("age", v)} />
+        <FilterSelect field="accent" label="Accent" value={filters.accent} options={accents} onChange={(v) => onFilter("accent", v)} />
+        <FilterSelect field="language" label="Language" value={filters.language} options={languages} onChange={(v) => onFilter("language", v)} />
+        <FilterSelect field="useCase" label="Use case" value={filters.useCase} options={useCases} onChange={(v) => onFilter("useCase", v)} />
+        <FilterSelect field="sort" label="Sort" value={filters.sort} options={sorts} onChange={(v) => onFilter("sort", v)} />
         {hasActiveFilters(filters) && (
           <Button type="button" variant="link" size="sm" className="nodrag h-7 px-1 text-xs" onClick={onClear}>
             Clear filters

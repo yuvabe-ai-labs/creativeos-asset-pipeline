@@ -44,7 +44,7 @@ the picker surfaces ElevenLabs' refusal (§4).
 | Which voices | **Both tabs now:** My voices + Voice Library. |
 | Loading — My voices | **Load all** server-side (100 per page, following `next_page_token`), cache 5 min; search/filter/sort in the browser, instant. |
 | Loading — Voice Library | **Infinite scroll**, 30 per page, ElevenLabs' server-side search and filters. |
-| Picking a Library voice | **Save it to the account** (`/v1/voices/add`), then select the returned account `voice_id`. |
+| Picking a Library voice | **Select immediately** (optimistic), then save it to the account (`/v1/voices/add`) in the background — reconciling to the returned account `voice_id` on success, or reverting on refusal. See "Instant Library pick" under §2. |
 | Voices with a custom rate ("credit multiplier") | **Show with an "N×" badge and bill with the multiplier** — subject to the verification in §3; fallback is hiding them. |
 | Layout | **Rich dropdown** (popover) from the Voice field — not a dialog. |
 
@@ -119,38 +119,82 @@ Replaces `video-gen-voice-select.tsx`. Per `docs/component-structure.md`, sub-co
 `video-gen-voice-picker-list.tsx`, `video-gen-voice-picker-row.tsx`.
 
 - **Trigger** (in `video-gen-voice-picker.tsx`): shadcn `Button` (outline) showing the selected
-  voice's name + up to two labels, or "Original (no change)" / "Unavailable voice" /
-  "Loading voice…"; a separate `icon-sm` play `Button` beside it. `PopoverTrigger` with `render`.
+  voice's name, or "Original (no change)" / "Unavailable voice" / "Loading voice…". Line 2 is
+  the same meta chips the row uses (gender, language, accent — max 3, via
+  `video-gen-voice-picker-meta.tsx`), or, while a Library pick's save is pending, "Adding to your
+  voices…" with a small `Loader2`. A separate `icon-sm` play `Button` sits beside it.
+  `PopoverTrigger` with `render`.
 - **Popover** (in `video-gen-voice-picker.tsx`): `PopoverContent` ~440 × 540 px, `align="start"`.
   1. Search — `InputGroup` + `InputGroupInput` + `InputGroupAddon` (search icon) +
-     `InputGroupButton` (clear). Debounced 300 ms.
+     `InputGroupButton` (clear). Debounced 300 ms. **Per-tab** (see "Instant Library pick" below
+     for why filters generally are).
   2. `Tabs`: **My voices** · **Voice Library**.
   3. Filters (`video-gen-voice-picker-filters.tsx`) — `Select`s: Gender, Age, Accent, Language, Use case,
-     Sort. My voices: options derived from the loaded voices' labels; sort Name / Newest.
-     Library: fixed option lists (ElevenLabs values), sort Trending / Most used / Newest.
-     "Clear filters" appears when any filter is set.
+     Sort, each with the field's Lucide icon inside its `SelectTrigger` (Gender→`VenusAndMars`,
+     Age→`Hourglass`, Language→`Languages`, Accent→`MapPin`, Use case→`Megaphone`,
+     Sort→`ArrowUpDown`; the icon → code mapping lives in `src/lib/elevenlabs/voice-labels.ts`).
+     An active filter's trigger is tinted (`border-primary/40 text-primary`). My voices: options
+     derived from the loaded voices' labels; sort Name / Newest. Library: fixed option lists
+     (ElevenLabs values), sort Trending / Most used / Newest. "Clear filters" appears when any
+     filter is set. **Filters are held per tab** — switching tabs does not carry a My-voices sort
+     value or an account-only label over into the Library query (or vice versa).
   4. List (`video-gen-voice-picker-list.tsx`) in `ScrollArea`: first row **Original (no change)**;
-     then rows (`video-gen-voice-picker-row.tsx`): play/pause `Button`, name, up to two label `Badge`s, one-line
-     description, `N×` `Badge` when `priceMultiplier > 1`, ✓ when selected. Library tab appends
-     `InfiniteScrollSentinel` (moved from `src/components/review/` to
-     `src/components/shared/infinite-scroll-sentinel.tsx`; review imports updated).
+     then rows (`video-gen-voice-picker-row.tsx`): play/pause `Button` (`AudioLines` while
+     playing, `Play` otherwise), name + `N×` `Badge` when `priceMultiplier > 1` + ✓ (`Check`) when
+     selected, one-line description, then meta chips (gender/age/language/accent/use case — only
+     the ones present, via `video-gen-voice-picker-meta.tsx`). Selected row: `bg-primary/5` +
+     `border-primary/40`; otherwise `hover:bg-muted`. On My voices, rows are grouped under
+     "Your voices" (custom categories) / "Default voices" (premade) with `.text-eyebrow` headers,
+     when both groups are present. Library tab appends `InfiniteScrollSentinel` (moved from
+     `src/components/review/` to `src/components/shared/infinite-scroll-sentinel.tsx`; review
+     imports updated).
   5. States: skeleton rows (`Skeleton`) while loading; "No voices match" + Clear filters; error
      line + Retry `Button`; D282's blocked reason (audio off / mock) disables the trigger.
 - **Preview**: one `HTMLAudioElement` owned by the hook; playing a row stops the previous one;
   closing the popover or unmounting stops playback. The icon reflects playing/paused.
-- **Selecting**: a My voices row → `onChange(voiceId)`, popover closes. A Library row → row
-  spinner, `POST …/save`, then `onChange(savedVoiceId)`; on refusal the row shows ElevenLabs'
-  message and the node is unchanged.
-- **Keyboard**: rows are `Button`s in a roving list — ↑/↓ move, Enter selects, Space toggles the
-  row's preview. Play buttons have `aria-label="Play preview of {name}"`.
-- **Hook** (`src/hooks/use-voice-browser.ts`): tab, search, filters, account list, library pages
-  + cursor, loading/error per tab, preview state. Replaces `use-elevenlabs-voices.ts`.
+- **Selecting**: a My voices row → `onChange(voiceId)`, popover closes immediately. A Library row
+  also selects and closes immediately, optimistically — see "Instant Library pick" below.
+- **Keyboard**: rows are `Button`s in a roving list — ↑/↓ move, Enter/Space select; the row's own
+  play button (a separate, sibling `Button`) toggles that row's preview. Play buttons have
+  `aria-label="Play preview of {name}"`.
+- **Hook** (`src/hooks/use-voice-browser.ts`): tab, per-tab filters
+  (`filtersByTab: Record<VoiceTab, VoiceFilters>`), account list, library pages + cursor,
+  loading/error per tab, preview state. Replaces `use-elevenlabs-voices.ts`.
 - **Selected voice** (`src/hooks/use-selected-voice.ts`): calls 1.2 for `data.voiceId`; feeds the
   trigger label, `resolveEffectiveVoiceId` (now: null when blocked or when the lookup returned
-  404; kept while loading or on a lookup error, as in D282) and the estimate's multiplier.
+  404; kept while loading, on a lookup error, or while a Library save is pending) and the
+  estimate's multiplier. Only runs while the focus view is open, and not while a Library pick's
+  save is pending (it would 404 on the unsaved id and cache that 404). Takes an optional
+  `refreshKey`, bumped when a pending save clears, so it refetches even when the stored id turns
+  out to be unchanged.
 - **Pure helpers** (`src/lib/elevenlabs/voice-filters.ts`): `filterAccountVoices(voices,
   { search, gender, age, accent, language, useCase })`, `sortAccountVoices`, `labelOptions(voices)`
-  — unit-tested.
+  — unit-tested. Icon/label mappings (`src/lib/elevenlabs/voice-labels.ts`): filter-field icons,
+  a voice's gender → icon, a language code → its full name, and the ordered meta-chip list for a
+  voice's labels — unit-tested.
+
+### Instant Library pick (added in the D283 final-fixes pass)
+
+Picking a Library voice used to await `POST /api/elevenlabs/voices/save` before selecting, which
+read as slow (~1 s, but felt slower blocking the whole action). It's now optimistic:
+
+1. The picker calls `onChange(voice.voiceId)` and closes the popover **immediately**, and reports
+   `onPendingChange({ voice, status: "saving" })` upward. The save (`elevenLabsApi.saveVoice`)
+   starts in the background.
+2. On success: if the saved account id differs from the Library id, `onChange(savedId)`; either
+   way, `onPendingChange(null)` — which also bumps `use-selected-voice`'s `refreshKey` so the
+   lookup runs fresh even when the id didn't change (a saved copy can keep the Library voice_id
+   itself — observed live, same fact the save route's dedupe fallback relies on).
+3. On refusal/error: `onChange(previousVoiceId)` (reverts to what was selected before the pick),
+   `onPendingChange(null)`, and `toast.error("Couldn't use "<name>": <ElevenLabs' message>")`.
+4. While pending, the focus view uses the pending voice itself (name, labels, preview,
+   `priceMultiplier`) for the trigger and the credit estimate — instantly, without waiting on any
+   lookup — and disables Generate with the tooltip "Adding the voice to your ElevenLabs
+   account…". A second Library pick is ignored while one is already saving (also guarded by a
+   request counter, so an in-flight save can never overwrite a newer pick's result).
+
+Voices saved from the Voice Library do not use ElevenLabs' custom voice slots (per ElevenLabs'
+docs), so this flow never risks running out of them.
 
 ## 3. Price multiplier — verification first
 
@@ -174,18 +218,20 @@ the saved copy reports `sharing.rate: 2` and `sharing.fiat_rate: 0.2` (then dele
 | Failure | Result |
 |---|---|
 | Account list or library page fails | Error line + Retry in that tab; the other tab and "Original" still work |
-| Save refused by ElevenLabs | Row shows ElevenLabs' message; node unchanged |
+| Save refused by ElevenLabs (Instant Library pick, §2) | The node reverts to the voice selected before the pick; `toast.error` shows ElevenLabs' message |
 | Selected voice lookup 404 | Trigger reads "Unavailable voice"; request and estimate drop the voice |
 | Selected voice lookup errors | Voice kept (as D282); the generate route gives its own 400 if it's truly gone |
 | Preview URL missing / fails to play | Play button disabled / silently stops |
 
 ## 5. Testing
 
-- Unit: `voice-filters.ts`; `PickerVoice` mapping for both sources (fixtures shaped like the
-  live responses above); library cursor math; save route (added, already-saved, refused);
-  single-voice route (found, 404); `video-generate` route reserves with the multiplier;
-  `completeGeneration` settles with it (and treats a missing multiplier as 1);
-  `resolveEffectiveVoiceId` with the lookup states.
+- Unit: `voice-filters.ts`; `voice-labels.ts` (icon/name mappings, meta chips); `PickerVoice`
+  mapping for both sources (fixtures shaped like the live responses above); `listAccountVoices`'
+  page cap and repeated-token guard; the voices-cache entry cap; library cursor math; save route
+  (added, already-saved, refused); single-voice route (found, 404); `video-generate` route
+  reserves with the multiplier; `completeGeneration` settles with it (and treats a missing
+  multiplier as 1); `resolveEffectiveVoiceId` / `voiceTriggerLabel` with the lookup and pending
+  states.
 - Existing D282 tests updated for `/v2/voices`.
 - Manual: browse both tabs, filter Hindi + female, scroll past 100 Library voices, preview two
   rows (only one plays), pick a Library voice (appears under My voices), generate with it.

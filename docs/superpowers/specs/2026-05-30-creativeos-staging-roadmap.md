@@ -5777,7 +5777,9 @@ row has inline preview; one plays at a time. The node resolves its selected voic
 single-voice lookup (`/v2/voices?voice_ids=`), which also replaces D282's full-list check in the
 generate route. Voices with a legacy custom rate show an `N×` badge and are reserved/settled with
 that multiplier — if a live check shows the multiplier doesn't survive saving, they are hidden
-instead (`include_custom_rates=false`).
+instead (`include_custom_rates=false`). Final-fixes update (same day): Library picks select
+optimistically and save in the background, reconciling or reverting when the save settles;
+Library voices don't use ElevenLabs' custom-voice slots, so this never risks running out of them.
 
 **Why.** 21 account voices vs ~18,000 Library voices (checked live 2026-09-25). A live test showed
 Library voices work for speech-to-speech on this account, saved or not. Loading all account voices
