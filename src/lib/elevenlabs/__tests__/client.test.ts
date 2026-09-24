@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { speechToSpeech, ElevenLabsKeyMissingError, ElevenLabsHttpError } from "../client";
+import { speechToSpeech, ElevenLabsHttpError } from "../client";
 
 afterEach(() => {
   delete process.env.ELEVEN_LABS_API_KEY;
