@@ -6,6 +6,7 @@ import { settleGeneration, refundReservation } from "@/lib/db/credit-transaction
 import { usdToFinalCredits } from "@/lib/credits/units";
 import { uploadVideoGen } from "@/lib/storage";
 import { createServerSupabase } from "@/lib/supabase/server";
+import { videoDownloadHeaders } from "@/lib/video-gen/download-headers";
 
 // Every failure path in this file needs the same two calls in the same order — a small
 // local helper keeps that from drifting out of sync across the 3 sites that need it.
@@ -16,21 +17,6 @@ async function failAndRefund(
 ): Promise<void> {
   await failGeneration({ generationId, error });
   await refundReservation({ orgId, generationId });
-}
-
-function buildVideoDownloadHeaders(modelUsed: string | null): HeadersInit {
-  const base = { "User-Agent": "Mozilla/5.0 (compatible; CreativeOS/1.0)" };
-  // Veo and Gemini Omni both return a Google Files API URI that needs the API key to download.
-  // Same key, same header — they are the same API.
-  if (modelUsed?.startsWith("veo:") || modelUsed?.startsWith("gemini:")) {
-    const key = process.env.GOOGLE_GENAI_API_KEY ?? "";
-    return { ...base, "x-goog-api-key": key };
-  }
-  if (modelUsed?.startsWith("openai:")) {
-    const key = process.env.OPENAI_API_KEY ?? "";
-    return { ...base, Authorization: `Bearer ${key}` };
-  }
-  return base;
 }
 
 export type CompleteGenerationInput =
@@ -100,7 +86,7 @@ export async function completeGeneration(
 
   // 1. Download video from provider URL and upload to GCS
   const videoResponse = await fetch(input.videoUrl, {
-    headers: buildVideoDownloadHeaders(generation.model_used),
+    headers: videoDownloadHeaders(generation.model_used),
   });
   if (!videoResponse.ok) {
     await failAndRefund(
