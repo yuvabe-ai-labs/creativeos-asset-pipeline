@@ -85,7 +85,7 @@ export function VideoGenVoicePickerList(p: Props) {
         ))}
 
         {p.infinite && p.infinite.hasMore && !p.error && p.voices.length > 0 && (
-          <InfiniteScrollSentinel onVisible={p.infinite.onMore} loading={p.loading} />
+          <InfiniteScrollSentinel onVisible={p.infinite.onMore} loading={p.loading} scrollRoot="nearest" />
         )}
       </div>
     </ScrollArea>

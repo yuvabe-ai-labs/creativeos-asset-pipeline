@@ -81,7 +81,7 @@ export function VideoGenVoicePicker({ value, onChange, blockedReason, selected, 
           <PopoverTrigger
             disabled={Boolean(blockedReason)}
             render={
-              <Button type="button" variant="outline" className="nodrag h-auto min-h-8 flex-1 justify-between gap-2 py-1.5 text-left" aria-label="Voice" />
+              <Button type="button" variant="outline" className="nodrag h-auto min-h-8 flex-1 justify-between gap-2 py-1.5 text-left" aria-label={`Voice: ${label}`} />
             }
           >
             <span className="flex min-w-0 flex-col">

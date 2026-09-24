@@ -10,9 +10,19 @@ import { Loader2 } from "lucide-react";
 export function InfiniteScrollSentinel({
   onVisible,
   loading,
+  scrollRoot = "viewport",
 }: {
   onVisible: () => void;
   loading: boolean;
+  /**
+   * Review fix — `rootMargin` is relative to the observer's `root`, not the page. "viewport"
+   * (default, unchanged behavior for existing consumers) leaves `root` unset, so the 200px margin
+   * is measured against the browser viewport. "nearest" targets the closest `ScrollArea` viewport
+   * (`[data-slot="scroll-area-viewport"]`, see src/components/ui/scroll-area.tsx) so the margin —
+   * and thus the early prefetch — is measured against that scrollable region instead, which matters
+   * when the list scrolls inside a small fixed-height container (e.g. a popover) rather than the page.
+   */
+  scrollRoot?: "viewport" | "nearest";
 }) {
   const ref = useRef<HTMLDivElement | null>(null);
   // Held in a ref so changing the callback identity does not tear down the observer on
@@ -26,15 +36,16 @@ export function InfiniteScrollSentinel({
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
+    const root = scrollRoot === "nearest" ? el.closest('[data-slot="scroll-area-viewport"]') : null;
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries.some((e) => e.isIntersecting)) cbRef.current();
       },
-      { rootMargin: "200px" },
+      { root, rootMargin: "200px" },
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, []);
+  }, [scrollRoot]);
 
   return (
     <div ref={ref} className="flex h-8 items-center justify-center">

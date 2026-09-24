@@ -1232,7 +1232,10 @@ export function VideoGenFocusView({
   const voiceCostUsd = effectiveVoiceId
     ? computeVoiceChangeCost(durationSeconds, selectedVoice.voice?.priceMultiplier ?? 1).usd
     : 0;
-  const estimatedCredits = videoCostEstimate
+  // Review fix — while a priced voice is still resolving, its multiplier isn't known yet, so
+  // showing a number would under-quote a custom-rate voice. Hide the estimate (Generate already
+  // hides its label when null) rather than quote off a guessed 1×.
+  const estimatedCredits = videoCostEstimate && !(effectiveVoiceId && selectedVoice.loading)
     ? usdToFinalCredits(videoCostEstimate.usd + voiceCostUsd)
     : null;
 

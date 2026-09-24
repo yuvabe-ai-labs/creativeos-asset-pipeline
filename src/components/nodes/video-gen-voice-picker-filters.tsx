@@ -58,6 +58,7 @@ export function VideoGenVoicePickerFilters({ tab, filters, accountAll, onFilter,
         </InputGroupAddon>
         <InputGroupInput
           id="voice-picker-search"
+          aria-label="Search voices"
           placeholder={lib ? "Search 18,000+ voices…" : "Search your voices…"}
           value={filters.search}
           onChange={(e) => onFilter("search", e.target.value)}
