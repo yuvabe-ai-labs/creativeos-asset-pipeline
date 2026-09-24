@@ -71,3 +71,32 @@ describe("ordering invariant — resolveMentionTokens and buildUserContent agree
     expect(parts[2]).toEqual({ type: "image_url", image_url: { url: "https://cdn.example.com/img2.jpg", detail: "auto" } });
   });
 });
+
+describe("buildUserContent — labelImages (D281)", () => {
+  const imgA = up({ nodeId: "a", type: "file", fileKind: "image", fileUrl: "https://x/a.png" });
+  const doc = up({ nodeId: "d", type: "file", fileKind: "document", fileUrl: "https://x/d.pdf" });
+  const imgB = up({ nodeId: "b", type: "file", fileKind: "image", fileUrl: "https://x/b.png" });
+
+  it("puts a numbered label before each image, counting only vision attachments", () => {
+    const content = buildUserContent("PROMPT", [imgA, doc, imgB], { labelImages: true });
+    expect(content).toEqual([
+      { type: "text", text: "PROMPT" },
+      { type: "text", text: "Reference image 1:" },
+      { type: "image_url", image_url: { url: "https://x/a.png", detail: "auto" } },
+      { type: "text", text: "Reference image 2:" },
+      { type: "image_url", image_url: { url: "https://x/b.png", detail: "auto" } },
+    ]);
+  });
+
+  it("leaves the default (unlabelled) shape exactly as it was", () => {
+    expect(buildUserContent("PROMPT", [imgA, imgB])).toEqual([
+      { type: "text", text: "PROMPT" },
+      { type: "image_url", image_url: { url: "https://x/a.png", detail: "auto" } },
+      { type: "image_url", image_url: { url: "https://x/b.png", detail: "auto" } },
+    ]);
+  });
+
+  it("is still a plain string with no images", () => {
+    expect(buildUserContent("PROMPT", [doc], { labelImages: true })).toBe("PROMPT");
+  });
+});
