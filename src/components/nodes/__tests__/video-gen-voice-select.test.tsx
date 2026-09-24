@@ -69,7 +69,7 @@ describe("resolveEffectiveVoiceId", () => {
     ).toBeNull();
   });
 
-  it("is null when the voice list errored", () => {
+  it("keeps the value when the voice list errored — the route still validates it", () => {
     expect(
       resolveEffectiveVoiceId({
         value: "v1",
@@ -78,7 +78,7 @@ describe("resolveEffectiveVoiceId", () => {
         error: "Could not load voices.",
         blockedReason: null,
       }),
-    ).toBeNull();
+    ).toBe("v1");
   });
 
   it("keeps the value while the list is still loading", () => {

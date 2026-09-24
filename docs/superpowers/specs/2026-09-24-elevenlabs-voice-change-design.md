@@ -156,13 +156,16 @@ Notes:
 | `stored: true` with a URL outside our bucket | Generation failed + refund (defensive) |
 
 The 15-minute stuck-generation sweep (`trigger/reconcile-stuck-generations.ts`, `*/15 * * * *`)
-stays correct by budget, not by accident: `video-revoice` runs with `maxDuration: 120` and
-`retry.maxAttempts: 2`, so even two full-length attempts (240 s) fit inside the sweep's window
-alongside `video-generate`'s own `maxDuration: 600`. Its queue is capped at
-`concurrencyLimit: 2` to match the ElevenLabs Free plan's concurrent speech-to-speech limit, and
-failures that can't succeed on retry (no audio stream to extract; an ElevenLabs 4xx other than
-429) abort immediately via `AbortTaskRunError` instead of spending the retry budget repeating a
-failure that will recur identically.
+fits in practice, not down to the second: `video-generate`'s `maxDuration: 600` plus
+`video-revoice`'s `maxDuration: 120` × `retry.maxAttempts: 2` (240 s worst case) is an 840 s
+run-time budget, but that doesn't account for either task's own QUEUE wait — the parent's, or the
+child's behind its `concurrencyLimit: 2` cap — which can add more before either even starts
+running. What actually keeps a voiced generation safe is the sweep's own behavior: it runs every
+15 minutes and only reconciles reservations already older than 15 minutes, so a run in practice has
+something like 15–30 minutes before it's touched, not a hard 840 s ceiling. Failures that can't
+succeed on retry (no audio stream to extract; an ElevenLabs 4xx other than 429) still abort
+immediately via `AbortTaskRunError` instead of spending the retry budget repeating a failure that
+will recur identically, which keeps typical runs well inside that window.
 
 ## 7. Testing
 

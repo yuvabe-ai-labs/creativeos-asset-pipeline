@@ -53,10 +53,13 @@ export function voiceTriggerLabel({
 
 /**
  * D282 review fix — the voice id that should actually be sent/priced, given the loaded list and
- * the audio-off/mock block. A stored `voiceId` that isn't in the loaded voices (deleted from the
- * ElevenLabs account, or the list request errored) must never reach the request or the estimate —
- * see video-gen-focus-view.tsx's `effectiveVoiceId`. While the list is still loading, the id is
- * kept as-is (the previous behavior): there's nothing to compare it against yet.
+ * the audio-off/mock block. A stored `voiceId` that the SUCCESSFULLY loaded list doesn't have
+ * (deleted from the ElevenLabs account) must never reach the request or the estimate — see
+ * video-gen-focus-view.tsx's `effectiveVoiceId`. While the list is still loading, or the list
+ * request itself errored, the id is kept as-is: there's nothing confirmed to compare it against,
+ * so a list error must not silently drop the voice — the request still carries `voiceId` and the
+ * route either succeeds or returns its own clear 400 (the picker stays enabled on a list error, so
+ * the operator can still switch to Original if they want to).
  */
 export function resolveEffectiveVoiceId({
   value,
@@ -73,8 +76,8 @@ export function resolveEffectiveVoiceId({
 }): string | null {
   if (!value) return null;
   if (blockedReason) return null;
-  if (error) return null;
-  if (!loading && !voices.some((v) => v.voiceId === value)) return null;
+  if (loading || error) return value;
+  if (!voices.some((v) => v.voiceId === value)) return null;
   return value;
 }
 

@@ -10,8 +10,8 @@ const hasFfmpeg = spawnSync(bin, ["-version"]).status === 0;
 
 // D282 review fix — ffprobe ships next to ffmpeg in every distribution used here (including the
 // WinGet Gyan build named in the task's verification command), so it's derived from FFMPEG_PATH
-// the same way trigger/video-revoice.ts's ffmpeg build extension expects, rather than adding a
-// second env var.
+// the same way trigger.config.ts's ffmpeg build extension expects, rather than adding a second
+// env var.
 const ffprobeBin = bin.replace(/ffmpeg(\.exe)?$/i, (m) => (m.toLowerCase() === "ffmpeg.exe" ? "ffprobe.exe" : "ffprobe"));
 const hasFfprobe = hasFfmpeg && spawnSync(ffprobeBin, ["-version"]).status === 0;
 
